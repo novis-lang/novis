@@ -1,5 +1,4 @@
-//! `Core\Bytes` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 7's second class, over `nvs_runtime`'s `Bytes`-tagged `NvsStr`.
+//! `Core\Bytes`, over `nvs_runtime`'s `Bytes`-tagged `NvsStr`.
 //!
 //! Every member here is pure (`rule:core-api/shape-rules` R3) and borrows its subject rather than
 //! consuming it, exactly as [`crate::str`] does — see [`crate`]'s own docs for
@@ -7,10 +6,9 @@
 //!
 //! # What is registered here so far
 //!
-//! § 7's indexing half — `length`, `at`, `slice`, `indexOf`, `compare` — its
-//! three predicates, all three of its builders — `fill`, `repeat` and `join` —
-//! and `pack`/`unpack`. **§ 7's `Core\Bytes` is complete**, so what is left of
-//! that section is nothing.
+//! The indexing half — `length`, `at`, `slice`, `indexOf`, `compare` — the
+//! three predicates, all three builders — `fill`, `repeat` and `join` — and
+//! `pack`/`unpack`. **`Core\Bytes` is complete.**
 //!
 //! **`join`'s `$separator = ""` is why [`crate::registry::Const`] has a
 //! `Bytes` variant.** `Const::Str("")` would materialize a `Str`-tagged value
@@ -22,8 +20,8 @@
 //!
 //! # The unit is the byte, and that is the whole difference from `Core\Str`
 //!
-//! § 7 pairs each member below with [`crate::str`]'s member of the same name,
-//! and R6 makes the names identical because the *operation* is identical. What
+//! Each member below pairs with [`crate::str`]'s member of the same name, and
+//! R6 makes the names identical because the *operation* is identical. What
 //! differs is the unit: `Core\Str` counts in
 //! [`crate::granularity::DEFAULT`]'s grapheme clusters, and this counts in
 //! bytes — which `rule:types/bytes`
@@ -36,11 +34,10 @@
 //! below is therefore O(n) at worst with no allocation except the one its
 //! result needs, and `length` is O(1) where `Core\Str::length` is O(n).
 //!
-//! # Three shapes decided here, because the spec names members and not rows
+//! # Three shapes decided here
 //!
-//! § 7 gives `Core\Bytes` as a prose list of member names, so the signatures
-//! are this module's to settle. Each is decided under `Core\Str`'s
-//! corresponding row plus what a byte string can actually mean:
+//! The signatures are this module's to settle. Each is decided under
+//! `Core\Str`'s corresponding row plus what a byte string can actually mean:
 //!
 //! - **`at` answers a `uint`, not a one-element `bytes`.** `Core\Str::at`
 //!   answers a `string` because a character *is* a string and there is no
@@ -64,7 +61,7 @@
 //! - **`indexOf` takes `{from?: int}` and no `caseInsensitive`.**
 //!   `Core\Str::indexOf`'s second option is a Unicode case folding, and there
 //!   is no case in a byte string — a `bytes` carries no charset, which is the
-//!   premise of § 7's whole `Core\Encoding`/`Core\Bytes` split. An ASCII-only
+//!   premise of the whole `Core\Encoding`/`Core\Bytes` split. An ASCII-only
 //!   folding would be that guess made silently, which `rule:types/conversion` removes
 //!   from the language. A caller who wants one decodes first. `from` survives
 //!   unchanged, because a scan resuming where the last one stopped is exactly
@@ -88,9 +85,9 @@
 //!
 //! # `pack`'s format is a closed grammar, and every code has one meaning
 //!
-//! § 7 says `pack` replaces PHP's, and makes its format string an `rule:expressions/intrinsic-constant-arguments`
-//! intrinsic and a sink — but it does not write the code table, so that is
-//! settled here. PHP's is taken as the starting point and **narrowed to the
+//! `pack` replaces PHP's, and its format string is an
+//! `rule:expressions/intrinsic-constant-arguments` intrinsic and a sink. The
+//! code table is settled here. PHP's is taken as the starting point and **narrowed to the
 //! codes that name a wire format outright**, because a format string is a
 //! description of octets on a wire or on disk and a code that means "whatever
 //! this machine does" describes nothing:
@@ -171,7 +168,7 @@ const CARD: ClassDoc = ClassDoc {
             message header.",
 };
 
-/// `Core\Bytes`'s registry rows, in the spec's own order.
+/// `Core\Bytes`'s registry rows.
 ///
 /// Declared beside the implementations rather than in one flat table, so
 /// adding a member touches this file and nothing else — see
@@ -1048,7 +1045,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Bytes::join(array<bytes> $parts, bytes $separator = ""): bytes` —
     /// `Core\Str::join`'s row over buffers, which is why it is `join` here
     /// rather than a `concat` of its own: `rule:core-api/shape-rules` R6 pairs this class's
-    /// members with `Core\Str`'s by name, and spec § 7 says so outright.
+    /// members with `Core\Str`'s by name.
     ///
     /// The separator's default is the empty buffer, materialized at the call
     /// site from `nvs_stdlib::registry::Const::Bytes` exactly as
@@ -1450,8 +1447,7 @@ nvs_runtime::nvs_helper! {
     /// The grammar, the codes it refuses and every throw are this module's
     /// own docs; [`packed`] is the whole of the member.
     ///
-    /// **Two classifications are still owed**, both named by spec § 7 and
-    /// neither invented here: the format is an
+    /// **Two classifications are still owed**: the format is an
     /// `rule:expressions/intrinsic-constant-arguments`
     /// intrinsic, so a *literal* format should have its field count checked
     /// against the argument list at compile time rather than at the call —

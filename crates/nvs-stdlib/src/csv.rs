@@ -1,5 +1,4 @@
-//! `Core\Csv` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 12's second table: `parse`, replacing PHP's `str_getcsv` and the parsing
+//! `Core\Csv`: `parse`, replacing PHP's `str_getcsv` and the parsing
 //! half of `fgetcsv`; `format`, replacing `fputcsv`'s formatting half; and
 //! `rows`, which walks a file `Core\IO` has open a record at a time and is the
 //! `while (fgetcsv($handle))` loop. `parse` and `format` take and answer a
@@ -216,7 +215,7 @@ const ROWS_CARD: ClassDoc = ClassDoc {
             file is never in memory at once.",
 };
 
-/// `Core\Csv`'s registry rows — spec § 12's second table, whole.
+/// `Core\Csv`'s registry rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -293,8 +292,8 @@ const ROWS_PATH_AT: usize = 1;
 /// kept — one record, whatever the document's size.
 const ROWS_RECORD_AT: usize = 2;
 
-/// What [`nvs_core_csv_rows`] answers with: spec § 12's streaming read, as a
-/// class a return type can name.
+/// What [`nvs_core_csv_rows`] answers with: the streaming read, as a class a
+/// return type can name.
 ///
 /// # Why it carries `advance()` and `current()` itself
 ///

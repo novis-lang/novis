@@ -3,9 +3,8 @@
 //! anywhere for one a program chose.
 //!
 //! `rule:core-api/tier-roster` places the class — Native by
-//! test 3, because it waits on the outside world — and the spec's § 16 row gives it one sentence,
-//! "an SMTP client with structured headers, replacing `mail()`". What belongs here is the roster
-//! that sentence does not write, and the five decisions behind it.
+//! test 3, because it waits on the outside world. It is an SMTP client with structured headers,
+//! replacing `mail()`. What belongs here is its roster, and the five decisions behind it.
 //!
 //! # `mail()`'s fourth argument is the whole bug
 //!
@@ -19,8 +18,8 @@
 //! `\r\n` — an address is parsed and refused if it is not one
 //! (`rule:errors/ambiguous-input-refused`: ambiguous input is refused, never repaired), and a
 //! subject is RFC 2047 encoded the moment it holds anything a header
-//! line cannot carry, so a control byte becomes *content* rather than structure. That is what the
-//! spec row's "structured headers" buys, and it is why `$subject` and `$text` accept a `tainted`
+//! line cannot carry, so a control byte becomes *content* rather than structure. That is what
+//! structured headers buy, and it is why `$subject` and `$text` accept a `tainted`
 //! argument freely: they are data in exactly `rule:security/log-is-not-a-sink`'s sense, and
 //! mailing what a user typed is the point.
 //!

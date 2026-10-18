@@ -9,7 +9,7 @@
 
 use super::*;
 
-/// The row description as spec § 18's `array<Column>`: one [`COLUMN`] per
+/// The row description as an `array<Column>`: one [`COLUMN`] per
 /// column, in the server's own order and never keyed by label — `select a, a`
 /// describes two columns under one name, and a keyed array would answer one.
 ///
@@ -424,7 +424,7 @@ mod tests {
             COLUMN_TYPE.cases.iter().map(|(name, _)| *name).collect();
         assert_eq!(
             described, registered,
-            "`nvs_db::ColumnType` and `{COLUMN_TYPE_NAME}` are one enum, in the spec's own \
+            "`nvs_db::ColumnType` and `{COLUMN_TYPE_NAME}` are one enum, in one \
              order — a case added to either belongs in both, and in the same place"
         );
     }

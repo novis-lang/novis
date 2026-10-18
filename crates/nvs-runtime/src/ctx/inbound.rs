@@ -128,7 +128,7 @@ pub enum Scheme {
 }
 
 /// The request line a context is answering, as it arrived off the wire —
-/// what spec § 15's `Core\Request` reads and the only thing on a context that
+/// what `Core\Request` reads and the only thing on a context that
 /// came from outside the process.
 ///
 /// **It interprets nothing.** The verb is the bytes the peer wrote, the path is
@@ -849,7 +849,7 @@ impl Inbound {
     /// difference between this and [`Self::headers`]: pulling a chunk advances
     /// the wire, so a reader that could be handed out twice would be two
     /// programs consuming one stream. `&mut self` on the carrier is the half of
-    /// spec § 15's exclusivity — `body`, `bodyStream` and `files` are exclusive
+    /// `Core\Request`'s exclusivity — `body`, `bodyStream` and `files` are exclusive
     /// on one request — that no member can talk its way around; the other half
     /// is [`Self::claim_body`], and a member that reads the body owes a call to
     /// it before the first pull.

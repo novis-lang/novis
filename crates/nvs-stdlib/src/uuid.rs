@@ -1,6 +1,5 @@
-//! `Core\Uuid` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 11's second table, which replaces `uniqid`, `com_create_guid` and every
-//! userland UUID library with one type.
+//! `Core\Uuid`, which replaces `uniqid`, `com_create_guid` and every userland UUID
+//! library with one type.
 //!
 //! Every one of that table's `Uuid` rows is here. A `Core\Uuid` is a **value
 //! with a type**, not a 36-character string a program passes around and
@@ -72,11 +71,11 @@
 //! **`default-features = false, features = ["std"]`, and deliberately not
 //! `v4`/`v7`.** Those two features exist to give `uuid` its own generator, and
 //! taking them would put a second CSPRNG (`getrandom`) in `Core` beside the one
-//! spec § 11's first table already binds. So this module draws its bits from
+//! `Core\Random` already binds. So this module draws its bits from
 //! [`crate::random`]'s generator and hands them to `uuid::Builder`, which lays
 //! out the version and variant nibbles: one entropy source, one layout
 //! implementation, and neither hand-written. The timestamp half of `v7` comes
-//! from `jiff`, which spec § 4 already binds, for the same reason.
+//! from `jiff`, which `Core\Time` already binds, for the same reason.
 //!
 //! # What it spends
 //!
@@ -137,7 +136,7 @@ use crate::registry::{
 /// every [`CoreTy::Instance`] naming it cannot drift apart.
 pub const NAME: &str = r"Core\Uuid";
 
-/// `Core\Uuid`'s registry rows — § 11's second table's static members, and
+/// `Core\Uuid`'s registry rows — its static members, and
 /// beside them the two members that render a receiver, one into text and one
 /// into octets. `isValid` was a static row until `rule:expressions/try-parse`
 /// deleted it: `tryParse` is that question asked through `parse` itself, so the
@@ -562,7 +561,7 @@ nvs_runtime::nvs_helper! {
     /// creation time of a row is readable from its key by anyone holding it —
     /// so a `v7` is for a key, and a `v4` is for anything a stranger sees.
     ///
-    /// The clock is `jiff`'s, which is spec § 4's, so this member and
+    /// The clock is `jiff`'s, which is `Core\Time`'s, so this member and
     /// `Core\Time::now()` cannot disagree about what time it is. A clock
     /// before 1970 has no representation in this layout at all and is pinned
     /// to the epoch rather than throwing: the answer is still a unique

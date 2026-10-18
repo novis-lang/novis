@@ -954,12 +954,10 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// rename and a group import.
     ///
     /// A segment may be a reserved word's spelling: a `camelCase` segment
-    /// such as `list` lexes as a keyword, and `Foo\list` still has to parse
-    /// per [`docs/spec/00-overview.md` § 5](/docs/spec/00-overview.md).
-    /// `Core\Bytes` no longer needs this tolerance —
-    /// `rule:classes/reserved-spellings-are-lower-case` made keyword matching exact, so `Bytes` is an ordinary
-    /// [`TokenKind::Ident`] instead of colliding with the `bytes` type
-    /// keyword.
+    /// such as `list` lexes as a keyword, and `Foo\list` still has to parse.
+    /// `Core\Bytes` does not need this tolerance: keyword matching is exact
+    /// (`rule:classes/reserved-spellings-are-lower-case`), so `Bytes` is an ordinary
+    /// [`TokenKind::Ident`] and does not collide with the `bytes` type keyword.
     /// Once a name is expected at all (this is only ever called after an
     /// `Ident` or `Backslash` was already seen), a keyword spelling here is
     /// unambiguous — the same reasoning already applied to a member name

@@ -1,5 +1,4 @@
-//! `Core\ObjectSet<T>` — docs/spec/01-core-library.md § 9's identity-keyed
-//! set, which replaces `SplObjectStorage` used as a set.
+//! `Core\ObjectSet<T>`, the identity-keyed set, which replaces `SplObjectStorage` used as a set.
 //!
 //! One slot, holding the store [`crate::identity_store`] describes: a member
 //! is an entry under its own chain key, so `has` is a lookup, `count` is the
@@ -36,7 +35,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     doc: Some(&CONSTRUCTOR_DOC),
 };
 
-/// `Core\ObjectSet<T>` — docs/spec/01-core-library.md § 9's second row.
+/// `Core\ObjectSet<T>`, the identity-keyed set.
 ///
 /// Every member is an instance member: a set is reached through a value, and
 /// the only static entry point is the constructor, which is not a member at
@@ -370,8 +369,8 @@ nvs_runtime::nvs_helper! {
     /// does not already hold something identical to it.
     ///
     /// Idempotent, and silent about which it did: a set that reported whether
-    /// the value was new would be `add` answering two questions, and § 9's
-    /// table gives it none. `has` is the spelling for the other one.
+    /// the value was new would be `add` answering two questions. `has` is the
+    /// spelling for the other one.
     fn nvs_core_object_set_add(_ctx, args: [2]) {
         let receiver = set_of(args[0], "add")?;
         let value = args[1];
@@ -409,8 +408,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::remove(T $value): void` — drops `$value` if the
     /// set holds it, and does nothing if it does not.
     ///
-    /// Silent for the same reason `add` is: § 9's table gives it no answer,
-    /// and "was it there" is `has`'s question.
+    /// Silent for the same reason `add` is: "was it there" is `has`'s question.
     fn nvs_core_object_set_remove(_ctx, args: [2]) {
         let receiver = set_of(args[0], "remove")?;
         let value = args[1];
@@ -441,9 +439,9 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::isEmpty(): bool` — whether the set holds nothing.
     ///
-    /// A member of its own for the reason `Core\Arr::isEmpty` is one: § 9's
-    /// table lists it, so the question is answered without the caller having
-    /// to know that a count is `uint`.
+    /// A member of its own for the reason `Core\Arr::isEmpty` is one: the
+    /// question is answered without the caller having to know that a count is
+    /// `uint`.
     fn nvs_core_object_set_is_empty(_ctx, args: [1]) {
         let receiver = set_of(args[0], "isEmpty")?;
         let entries = store::borrow(receiver, ENTRIES, &CLASS, "isEmpty")?;
@@ -456,7 +454,7 @@ nvs_runtime::nvs_helper! {
     /// set holding every value either side holds.
     ///
     /// A new set rather than a mutation of the receiver, which is what makes
-    /// the three algebra members composable and is how the spec's `Core\Arr`
+    /// the three algebra members composable and is how the `Core\Arr`
     /// counterparts already read. The receiver's values come first, so the
     /// result's iteration order is this side then the other's newcomers.
     fn nvs_core_object_set_union(_ctx, args: [2]) {
@@ -484,7 +482,7 @@ nvs_runtime::nvs_helper! {
     /// set holding the values this side holds and the other does not.
     ///
     /// Spelled `diff` rather than `difference` because `Core\Arr` spells it
-    /// that way and one operation gets one name (§ 9's own note).
+    /// that way and one operation gets one name.
     fn nvs_core_object_set_diff(_ctx, args: [2]) {
         let (mine, theirs) = both(args, "diff")?;
         Ok(built_from(|out| {

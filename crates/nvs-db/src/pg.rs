@@ -2011,7 +2011,7 @@ pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
 }
 
 impl PgColumn {
-    /// The column's declared type, as spec § 18's `ColumnType` names it — what
+    /// The column's declared type, as `Core\Db`'s `ColumnType` names it — what
     /// `Core\Db\Rows::columns` answers for this column.
     ///
     /// **This describes the column rather than summarising [`Self::scalar`]**,
@@ -2917,7 +2917,7 @@ impl<S: Read + Write> PgRows<'_, S> {
     ///
     /// `None`, then, for a statement with no `RETURNING` clause — it returned no
     /// rows — for one whose first returned column is not an integer, and while
-    /// rows may still arrive. The spec's `lastId` is a `?uint`, so a negative
+    /// rows may still arrive. `Core\Db`'s `lastId` is a `?uint`, so a negative
     /// value is not an id either and is `None` with them.
     #[must_use]
     pub fn last_id(&self) -> Option<u64> {
@@ -6765,7 +6765,7 @@ mod tests {
         }
     }
 
-    /// Every OID this driver names, described as the `ColumnType` spec § 18
+    /// Every OID this driver names, described as the `ColumnType` `Core\Db`
     /// gives it, plus the two directions in which a description is not what a
     /// decode of the same column says.
     #[test]
@@ -6820,7 +6820,7 @@ mod tests {
         }
 
         // The other: `text[]` decodes to an array and `inet` to text, and both
-        // describe as `Other` — the enum has no array case, by § 18's design.
+        // describe as `Other` — the enum has no array case, by design.
         assert_eq!(column(1009, -1).column_type(), ColumnType::Other);
         assert_eq!(column(869, -1).column_type(), ColumnType::Other);
     }
@@ -7151,7 +7151,7 @@ mod tests {
     }
 
     /// § 9's table, one row per constant the [`oid`] module names: the OID,
-    /// its modifier, a body the server would really write, spec § 18's
+    /// its modifier, a body the server would really write, the `ColumnType`
     /// description of the column, and § 9's decoded value as [`rendered`]
     /// spells it.
     ///
@@ -7407,7 +7407,7 @@ mod tests {
     /// The [`PgScalar`] § 9 pairs with a description, spelled as [`rendered`]
     /// spells it.
     ///
-    /// Exhaustive on purpose: a [`ColumnType`] added to spec § 18 has to be
+    /// Exhaustive on purpose: a case added to [`ColumnType`] has to be
     /// given its row of § 9 here, and that is the one thing a table of OIDs
     /// cannot be made to notice on its own.
     fn row_of_the_type_map(column_type: ColumnType) -> &'static str {

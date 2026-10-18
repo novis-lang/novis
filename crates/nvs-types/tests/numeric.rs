@@ -272,7 +272,7 @@ fn an_arithmetic_operand_with_no_row_is_a_compile_error() {
 
 /// `%` with a `float` operand is the one refusal both operands are numbers
 /// for: PHP converts to an integer and answers one, `rule:types/arithmetic`'s float row
-/// would answer a `float`, and the spec's `Core\Math::mod` row makes `%` the
+/// would answer a `float`, and `Core\Math::mod` makes `%` the
 /// integer operator. `nvs-codegen` lowers no static one and
 /// `nvs_runtime::helpers::value_arith` throws for the tagged pair, so this is
 /// that rule's third end rather than a fourth answer.

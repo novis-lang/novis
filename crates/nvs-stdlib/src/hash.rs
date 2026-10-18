@@ -1,6 +1,6 @@
-//! `Core\Hash` and `Core\Hash::Digest` — docs/spec/01-core-library.md § 11's second
-//! half: one member per *question* a program asks about a digest, with the
-//! algorithm as an argument rather than as part of the member's name.
+//! `Core\Hash` and `Core\Hash::Digest`: one member per *question* a program
+//! asks about a digest, with the algorithm as an argument rather than as part
+//! of the member's name.
 //!
 //! PHP spells this surface eight ways — `hash`, `md5`, `sha1`, `crc32`,
 //! `openssl_digest`, `hash_hmac`, `hash_equals`, `hash_init`/`update`/`final`
@@ -11,8 +11,8 @@
 //!
 //! # `Hash\Stream` accumulates, and what that spends
 //!
-//! § 11's fourth row is the incremental form — `hash_init`/`hash_update`/
-//! `hash_final`, and PHP's `HashContext` — and [`STREAM`] is it, with the
+//! The incremental form — `hash_init`/`hash_update`/`hash_final`, and PHP's
+//! `HashContext` — is [`STREAM`], with the
 //! surface a program writes settled here and the *internals* deliberately not.
 //!
 //! **It holds the chunks, not a compression state.** A `Core` instance's slots
@@ -61,7 +61,7 @@
 //!
 //! # `secret`, and the spelling that arrived for it
 //!
-//! § 11 writes `hmac`'s key parameter as `secret bytes $key`
+//! `hmac`'s key parameter is `secret bytes $key`
 //! (`rule:security/secret-qualifier`),
 //! and for a long time [`crate::registry::CoreTy`] had no qualifier to carry
 //! that with — a row stated an atom, not a qualified type.
@@ -90,7 +90,8 @@
 //! each algorithm's own NIST or RFC vectors, and one `digest` trait set drives
 //! all five hashes *and* the HMAC construction, so [`DIGEST`] dispatches over
 //! one shape rather than five hand-fitted APIs. `crc32fast` is not from that
-//! family and not a hash at all — it is the checksum § 11 keeps for interop.
+//! family and not a hash at all — it is the checksum `Core\Hash` keeps for
+//! interop.
 //!
 //! `subtle` is the one that looks like it should not be a dependency, and is
 //! the one that most needs to be. [`nvs_core_hash_equals`] is three lines in
@@ -108,6 +109,15 @@
 //! to the request that asked for it. Nothing is held between calls. Binary
 //! size is the other side of the roster: each algorithm carries its own round
 //! constants and tables, so the binary grows by each digest a protocol may name.
+//!
+//! # Which algorithms `Digest` names
+//!
+//! `Digest` leaves out the table hashes (`xxh*`, `murmur3*`, `fnv1*`,
+//! `adler32`, `joaat`), because an enum that also has `Sha512` would invite one
+//! where a strong digest is needed, and the dead algorithms (`md2`, `md4`,
+//! `ripemd*`, `whirlpool`, `tiger*`, `snefru*`, `gost*`, `haval*`), because
+//! nothing current uses them. `Sha3` and `Crc32c` are in: SHA-3 uses the same
+//! traits as the SHA-2 family, and CRC32C is the checksum object stores send.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, Value};
 use sha2::Digest as _;
@@ -130,7 +140,7 @@ pub(crate) const NAME: &str = r"Core\Hash";
 /// [`STRONG`] is built out of.
 pub(crate) const DIGEST_NAME: &str = r"Core\Hash::Digest";
 
-/// Spec § 11's `Digest` — **every** algorithm, the two broken ones included.
+/// `Core\Hash::Digest` — **every** algorithm, the two broken ones included.
 ///
 /// The first six were ordered weakest first, which made [`STRONG`] a
 /// contiguous tail. That stopped being true when the roster grew: the
@@ -173,8 +183,8 @@ pub(crate) const DIGEST: CoreEnum = CoreEnum {
     doc: Some(&DIGEST_DOC),
 };
 
-/// [`DIGEST`]'s reference card — `rule:core-api/reference-card`. The roster's home is spec § 11's
-/// table; the notes here are that table's, condensed.
+/// [`DIGEST`]'s reference card — `rule:core-api/reference-card`, and the home of the
+/// roster's notes.
 const DIGEST_DOC: EnumDoc = EnumDoc {
     short: "The algorithm a `Core\\Hash` method computes. It includes checksums and the two \
             broken digests that other systems still use, and BLAKE3. `StrongDigest` is the ten \
@@ -248,7 +258,7 @@ const DIGEST_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// Spec § 11's `StrongDigest` — the closed subset [`nvs_core_hash_hmac`]
+/// `StrongDigest` — the closed subset [`nvs_core_hash_hmac`]
 /// declares, so `Hash::hmac($m, $k, Digest::Md5)` does not compile.
 ///
 /// A **union of case types** (`rule:types/enum-case-type`) rather than a second enum, which is the whole reason
@@ -295,7 +305,7 @@ const STRONG: &[CoreTy] = &[
 /// sequence, so [`data_of`] reads the same buffer either tag points at without
 /// copying or validating anything.
 ///
-/// Both arms are [`Qual::Neutral`], as the spec's column is for all three
+/// Both arms are [`Qual::Neutral`], as the data parameter is for all three
 /// members: hashing reads the bytes and executes none of them, so a `tainted`
 /// argument is accepted, and a digest carries no mark. A webhook's signature
 /// is an HMAC over the request's own body, which is `tainted`.
@@ -313,7 +323,7 @@ const STREAM_CARD: ClassDoc = ClassDoc {
             then read the hash once at the end.",
 };
 
-/// `Core\Hash`'s registry rows — § 11's `of`/`hmac`/`equals`.
+/// `Core\Hash`'s registry rows — `of`/`hmac`/`equals`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -450,8 +460,8 @@ const STREAM_DOC: MethodDoc = MethodDoc {
 /// [`STREAM`]'s name, written once — see [`NAME`].
 pub(crate) const STREAM_NAME: &str = r"Core\Hash\Stream";
 
-/// Spec § 11's `Core\Hash\Stream` — the incremental digest, and the one
-/// *mutable* `Core` instance outside § 9's collections.
+/// `Core\Hash\Stream` — the incremental digest, and the one *mutable* `Core`
+/// instance outside `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap`.
 ///
 /// Three slots and two members. `digest` is the [`DIGEST`] case the stream was
 /// opened with, as the integer the enum already is; `chunks` is every buffer
@@ -1048,7 +1058,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// Takes the same `Core\Hash::Digest` [`nvs_core_hash_of`] does, including the
     /// three broken ones: an incremental checksum over a file being copied is
-    /// exactly the interop case § 11 keeps `Crc32`, `Md5` and `Sha1` for.
+    /// exactly the interop case `Crc32`, `Md5` and `Sha1` are kept for.
     fn nvs_core_hash_stream(_ctx, args: [1]) {
         // The ordinal rather than the decoded kind, since a slot holds values
         // Novis holds — but decoded first, so a bad one is refused here rather

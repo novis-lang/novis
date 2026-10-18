@@ -118,9 +118,9 @@ fn a_variadic_tail_cannot_be_filled_by_name() {
 #[test]
 fn a_core_member_is_called_by_the_names_the_spec_writes() {
     // `rule:core-api/shape-rules` R2: `Core\Str::repeat(string $s, uint $times)`, written out of
-    // order by name. The names are `nvs_stdlib::registry::CoreMethod::names`
-    // and what versions them is `docs/spec/01-core-library.md`'s signature
-    // column, so this fixture reads as that column does.
+    // order by name. The names are `nvs_stdlib::registry::CoreMethod::names`,
+    // the one source of every published signature, and this fixture spells
+    // them as written there.
     let diags = check_in_method("string $s = Core\\Str::repeat(times: 2, s: \"x\");\necho $s;\n");
     assert!(!diags.has_errors(), "{diags:?}");
     // And the trailing bag by the one name R2 gives every one of them, which
@@ -133,7 +133,7 @@ fn a_core_member_is_called_by_the_names_the_spec_writes() {
 
 #[test]
 fn a_misspelled_name_at_a_core_member_is_unknown() {
-    // The refusal a `Core` member now takes: `$s` is the spec's name for
+    // The refusal a `Core` member now takes: `$s` is the registry's name for
     // `repeat`'s subject, so `subject:` reaches no parameter. Before Stage 0b
     // this was the retired E0485 — "no names at all" — which said nothing
     // about which spelling was wrong.
@@ -184,7 +184,7 @@ fn a_name_at_a_core_variadic_tail_is_unknown() {
 
 #[test]
 fn a_throwable_is_constructed_by_message() {
-    // The synthesized constructor is spec § 10's `constructor(string $message,
+    // The synthesized constructor is `Throwable`'s `constructor(string $message,
     // {previous?: Throwable|null})`, and R2 reaches a synthesized member too —
     // `crates/nvs-types/src/error_lib.rs` is where those two names are.
     let diags = check_in_method("throw new LogicError(message: \"x\");");

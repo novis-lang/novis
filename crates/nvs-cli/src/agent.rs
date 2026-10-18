@@ -68,7 +68,7 @@
 //! ## A line, and the symbol inside it
 //!
 //! An index line opens with the symbol `show` resolves and continues with the
-//! member's signature in the spec's own spelling:
+//! member's signature as `nvs meta` spells it:
 //!
 //! ```text
 //! Core\IO::read(string $path): string  [fs.read]
@@ -79,8 +79,8 @@
 //!
 //! So the symbol is the line up to its first `(`, `<` or space, and a consumer
 //! needs no parser to get from a line back to `show`. `<` is in that set because
-//! a generic member's signature carries its type parameters in the spec's own
-//! spelling while the name does not, and `show` also accepts the whole leading
+//! a generic member's published signature carries its type parameters while
+//! the name does not, and `show` also accepts the whole leading
 //! token with the `<T>` still on it — copying a line's opening word is what an
 //! agent will do, and refusing that spelling would cost a call to teach a
 //! distinction the card itself makes. The capability in

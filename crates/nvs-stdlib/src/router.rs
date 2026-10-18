@@ -13,12 +13,12 @@
 //! [`crate::registry::ENUMS`] states the rule: one line per enum, declared
 //! beside the member that takes it. Three take this one — § 1's
 //! `#[Route(method: …)]` payload, § 4's `Core\Router::match`/`methodsFor`, and
-//! spec § 15's `Core\Request::method`, which is what answers with one. The
+//! `Core\Request::method`, which is what answers with one. The
 //! first of those is the only one on disk, and it reads the name through
 //! `nvs_types::routes::OPTIONS` rather than through this constant, because
 //! `nvs-types` interns a roster row by name.
 //!
-//! Spec § 17's `Core\Http\Client` shares the `Core\Http` prefix and is a
+//! `Core\Http\Client` shares the `Core\Http` prefix and is a
 //! different domain (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
 //! owns it). It names *this* enum: a namespace prefix is not a
 //! module boundary, and a second `Core\Http\Method` would be two rosters
@@ -209,7 +209,7 @@ const CARD: ClassDoc = ClassDoc {
             calls the method of the route that the request matched.",
 };
 
-/// Spec § 15's `Core\Router`, as much of it as `rule:routing/matching-is-not-dispatching`'s link half and
+/// `Core\Router`, as much of it as `rule:routing/matching-is-not-dispatching`'s link half and
 /// `rule:routing/matched-once-before-the-handler` and `rule:routing/a-refused-verb-is-not-a-missing-path`'s two answers need.
 ///
 /// `match` asks *of the table*, about a verb and a path the caller chose, and

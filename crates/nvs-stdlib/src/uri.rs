@@ -1,9 +1,7 @@
-//! `Core\Uri` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 12's first table, which has two halves. The **percent-encoding half** is
-//! `encodeComponent`/`decodeComponent` and
-//! `encodeFormValue`/`decodeFormValue`, which replace PHP's
-//! `rawurlencode`/`rawurldecode` and `urlencode`/`urldecode`, plus
-//! `parseQuery` and `buildQuery`, which are those four applied to a whole
+//! `Core\Uri`, which has two halves. The **percent-encoding half** is
+//! `encodeComponent`/`decodeComponent` and `encodeFormValue`/`decodeFormValue`,
+//! which replace PHP's `rawurlencode`/`rawurldecode` and `urlencode`/`urldecode`,
+//! plus `parseQuery` and `buildQuery`, which are those four applied to a whole
 //! query string. The **grammar half** is `parse` and the `Uri` instance it
 //! answers with, plus `$uri->with` and `$uri->resolve` on it — RFC 3986, read
 //! by `fluent-uri`, argued four sections below.
@@ -129,7 +127,7 @@
 //!
 //! `a[]=1&a[]=2` builds a list, `a[b]=c` builds a map, and the two nest to any
 //! depth. That is not a URL-specification feature — RFC 3986 says a query is
-//! opaque text — but it is how every PHP form posts, so the spec adopts it in
+//! opaque text — but it is how every PHP form posts, so `Core\Uri` adopts it in
 //! full, and `Core\Request::query` returns the same shape from this same
 //! code rather than deciding the question twice.
 //!
@@ -311,7 +309,7 @@
 //! and its card sends that program to `parseQuery` once instead. A memo slot
 //! would buy the loop back at the price of a parsed array per instance and of
 //! writing to a built `Uri` — [`crate::instance::set_slot`] exists for the
-//! spec's mutable collections only, and every other `Core` class, this one
+//! mutable collections only, and every other `Core` class, this one
 //! included, is built once and read. `Core\Request::query` does hold its
 //! parse, because a request has one query and a place to keep it.
 //!
@@ -340,8 +338,8 @@
 //!
 //! `Core\Request::query` and `Core\Request::post` share [`parse_query`]'s
 //! bracket walk and **not** its value type: a served request's parameters are
-//! read as text at the door, which is spec § 15's row rather than § 12's, and
-//! [`Values`] is the one knob between them.
+//! read as text at the door, which is `Core\Request`'s row rather than `Core\Uri`'s,
+//! and [`Values`] is the one knob between them.
 //!
 
 //! # What these members do with a qualifier
@@ -395,9 +393,9 @@ use crate::signature::{Confirmed, Domain};
 /// every diagnostic naming the class cannot drift apart.
 pub const NAME: &str = r"Core\Uri";
 
-/// `Core\Uri`'s registry rows — the whole of spec § 12's first table.
+/// `Core\Uri`'s registry rows.
 ///
-/// One class with both halves, because the spec writes `parse(string $uri):
+/// One class with both halves, because the signature is `parse(string $uri):
 /// Uri`: the static members are namespaced functions and the instance members
 /// read the seven components [`read`] found. [`crate::regex`] splits its
 /// instance out into `Core\Regex\Match` for the opposite reason — a match is
@@ -439,7 +437,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             // `bytes`, not `string`: the module docs' *A decoder answers
-            // `bytes`* owns why, and spec § 12's row says the same.
+            // `bytes`* owns why.
             return_ty: CoreTy::Bytes,
             symbol: "nvs_core_uri_decode_component",
             doc: Some(&DECODE_COMPONENT_DOC),
@@ -650,9 +648,8 @@ pub const CLASS: CoreClass = CoreClass {
             // `settings`, not `options`: a shape is a positional parameter a
             // caller writes in full, and `rule:core-api/a-lifetime-is-written`
             // is the whole reason it is not a bag — an omitted `until` does
-            // not compile. The spec's § 12 signature column writes the name,
-            // which is what `every_registry_rows_names_are_the_specs_signature_column`
-            // reads it from.
+            // not compile. The published signature writes the name, which
+            // `nvs meta` reads from this row.
             names: &["settings"],
             params: &[CoreTy::Shape(crate::signature::SIGNING)],
             defaults: &[],
@@ -3155,7 +3152,7 @@ nvs_runtime::nvs_helper! {
     /// [`text_from`]'s throw, for a **name** whose escapes decode to octets
     /// that are not UTF-8 — that name is an array key and an array key is a
     /// `string`. A value has no such refusal. Every value in the answer is a
-    /// `bytes` or a nested `array<mixed>`, which is what the spec's
+    /// `bytes` or a nested `array<mixed>`, which is what the return type's
     /// `array<mixed>` says and why it is not `array<bytes>`.
     fn nvs_core_uri_parse_query(_ctx, args: [1]) {
         let query = text_of(args, "parseQuery")?;
@@ -3169,7 +3166,7 @@ nvs_runtime::nvs_helper! {
 ///
 /// A free function rather than the body of the helper above, because
 /// [`crate::request`] reads the same convention off a served request's own query
-/// string and spec § 9 requires it to be *the same code*: `Core\Uri::parseQuery`
+/// string and the two must be *the same code*: `Core\Uri::parseQuery`
 /// exists in part so that `Core\Request::query` does not answer the question a
 /// second time, and two implementations of `a[b][]=1` is exactly the divergence
 /// that promise is about.
@@ -3212,17 +3209,16 @@ pub(crate) fn parse_query(
 
 /// What [`parse_query`] makes of a value's decoded octets.
 ///
-/// The bracket walk is shared with [`crate::request`] because spec § 9 requires
-/// *the same code* to read `a[b][]=1`; the answer's element type is not shared,
-/// and this is the whole of the difference. `Core\Uri::parseQuery` is a § 12
-/// member and answers the octets ([`Values::Octets`]); `Core\Request::query`
-/// and `Core\Request::post` are § 15 members that read a served request's
+/// The bracket walk is shared with [`crate::request`] because *the same code*
+/// must read `a[b][]=1`; the answer's element type is not shared, and this is
+/// the whole of the difference. `Core\Uri::parseQuery` answers the octets
+/// ([`Values::Octets`]); `Core\Request::query` and `Core\Request::post` read a served request's
 /// parameters as text at the door and keep their refusal ([`Values::Text`]).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Values {
-    /// The octets themselves, as a `bytes` — § 12's answer.
+    /// The octets themselves, as a `bytes` — `Core\Uri`'s answer.
     Octets,
-    /// The octets as text, refusing the ones no `string` holds — § 15's.
+    /// The octets as text, refusing the ones no `string` holds — `Core\Request`'s.
     Text,
 }
 

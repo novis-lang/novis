@@ -525,7 +525,7 @@ pub enum Isolation {
     Serializable,
 }
 
-/// What a result column was *declared* as — spec § 18's `ColumnType`, whose
+/// What a result column was *declared* as — `Core\Db`'s `ColumnType`, whose
 /// cases `Core\Db\Column::type` answers with.
 ///
 /// **This is not a summary of what a read of the column produces**, and the two
@@ -544,7 +544,7 @@ pub enum Isolation {
 /// `columns()` answers for every column a server can send rather than only for
 /// the ones this enum enumerates.
 ///
-/// The variants are the spec's own order, and nothing derives `Ord` from it
+/// The variants are the order the registry's `ColumnType` cases take, and nothing derives `Ord` from it
 /// because they are a set and not a scale. Each driver classifies its own type
 /// codes; PostgreSQL's is [`crate::PgColumn::column_type`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

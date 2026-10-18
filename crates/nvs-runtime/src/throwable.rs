@@ -3,10 +3,9 @@
 //!
 //! # An exception is an ordinary object
 //!
-//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 10
-//! makes `Throwable` the root of a small class tree whose members are
+//! `Throwable` is the root of a small class tree whose members are
 //! *readonly properties* — `message`, `previous`, `backtrace`, `location` —
-//! not `getX()` accessors, and makes user classes extend it directly. So an
+//! not `getX()` accessors, and user classes extend it directly. So an
 //! exception is a [`crate::NvsObj`] like any other: allocated by
 //! `nvs_object_new`, refcounted by `nvs_object_retain`/`nvs_object_release`,
 //! read by an ordinary `FieldGet`. There is no second representation here, and
@@ -308,15 +307,14 @@ pub fn is_finish(class: &str) -> bool {
     class == FINISH_MARKER_NAME
 }
 
-/// Which of [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-/// § 10's classes a runtime helper's failure lands in.
+/// Which of the `Core\Error` tree's classes a runtime helper's failure lands in.
 ///
 /// A closed enum rather than a `&'static str` a helper writes, for
 /// `nvs_stdlib::registry::CoreTy`'s reason: a misspelled class name would be
 /// a silent *runtime* miss — the `catch` clause that was meant to handle it
 /// simply would not match — rather than a compile error. The roster is
 /// `nvs_hir::errors::TREE`'s exception rows below `Throwable`, since a helper
-/// that means "anything at all" means [`Self::Runtime`] — spec § 10's tree,
+/// that means "anything at all" means [`Self::Runtime`] — the `Core\Error` tree,
 /// plus the classes the rules add to it ([`Self::TestFailure`] among them).
 /// That table's other root, the finish marker, is not a failure and is raised
 /// by no helper, so it has no entry here.
@@ -388,7 +386,7 @@ pub enum ThrownClass {
     ///
     /// It is not a driver failure and deliberately not the same class as one:
     /// a `catch` distinguishing "I gave up" from "the database said no" is the
-    /// whole reason spec § 18 puts two names in the tree rather than one.
+    /// whole reason `Core\Db` puts two names in the tree rather than one.
     /// Its `reason` slot is filled by the message the throw carries, which
     /// `nvs_ir::lower::exception`'s synthesized constructor does — there is no
     /// second field for a helper here to write.
@@ -1028,7 +1026,7 @@ pub unsafe extern "C" fn nvs_raise(ctx: *mut Ctx, thrown: *mut ObjHeader, source
 /// itself, with no Novis `new` behind it.
 ///
 /// The one caller is `nvs-codegen`'s integer `%`, whose zero divisor
-/// must throw spec § 10's `ArithmeticError` rather than trap the process. That
+/// must throw `ArithmeticError` rather than trap the process. That
 /// site has no Novis expression to construct the exception from and no helper
 /// call to carry a [`crate::Fault`] out of — the operator is inline machine
 /// code — so it names the class itself: compiled code already knows the

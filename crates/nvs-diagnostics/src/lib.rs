@@ -507,7 +507,7 @@ pub mod code {
     // named where they are recognised, which is the lexer. A few are shapes
     // PHP refuses as well and admits here by nothing but omission; they are in
     // this band because the answer is the band's own: recognise the shape and
-    // name its rewrite. The rule each one cites places it here. See docs/spec.
+    // name its rewrite. The rule each one cites places it here.
     /// `eval()`: Novis compiles ahead of execution.
     pub const E_EVAL_UNSUPPORTED: Code = Code::new("E0201").card(
         "`eval()` is not available in Novis. Every program is compiled before it runs, so code \
@@ -3232,7 +3232,7 @@ pub mod code {
         "This `as ?T` conversion can never fail, so its result is never `null`. Write `as T` \
          instead.",
     );
-    /// A `Core`-owned class rendered as text where the spec gives it no
+    /// A `Core`-owned class rendered as text where the registry gives it no
     /// `toString` — an `echo`, an interpolation, a `.` operand or an
     /// `as string`.
     ///
@@ -4405,7 +4405,7 @@ pub mod code {
     );
 
     /// `throw` of a value that is not a `Throwable` — a scalar, an `array<T>`,
-    /// an enum, or a class outside spec § 10's tree.
+    /// an enum, or a class outside the `Core\Error` exception tree.
     ///
     /// The tree's root is what `catch` matches against and what
     /// `nvs_ir::lower::exception` builds a landing pad for, so an operand

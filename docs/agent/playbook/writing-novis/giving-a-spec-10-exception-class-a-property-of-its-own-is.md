@@ -1,4 +1,4 @@
-- **Giving a spec § 10 exception class a property of its own is six edits across four crates, and
+- **Giving a `Core\Error` exception class a property of its own is six edits across four crates, and
   the two that are not `match` arms bite.** `nvs_hir::errors::OWN_PROPERTIES`, its `*_SLOT` and
   `error_lib::own_properties`'s type arm are loud; the quiet ones are
   `nvs_ir::lower::exception::synthesized_exception_constructors`, a hand-kept list, and the list in

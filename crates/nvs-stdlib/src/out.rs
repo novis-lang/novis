@@ -1,11 +1,10 @@
-//! `Core\Out` — docs/spec/01-core-library.md § 12's one member, and the whole
-//! of PHP's `ob_*` family in it.
+//! `Core\Out`: one member, and the whole of PHP's `ob_*` family in it.
 //!
 //! `capture(callable $fn, {through?: callable}): Core\Html\Markup|Core\Cli\Text` runs `$fn` with
 //! this request's sink redirected into a buffer, and answers what it wrote.
 //! Three properties of that sentence are the design, and each is
 //! `rule:security/capture-answers-the-carrier`
-//! 's or the spec's rather than this file's:
+//! 's rather than this file's:
 //!
 //! * **Scoped to a callable, so it nests by call nesting.** `ob_start` and
 //!   `ob_get_clean` are two members of a *global* stack that can be started in
@@ -56,7 +55,7 @@ const CAPTURE_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// Spec § 12's `Core\Out`, which has exactly this one member.
+/// `Core\Out`, which has exactly this one member.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

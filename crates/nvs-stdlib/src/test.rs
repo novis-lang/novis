@@ -2103,7 +2103,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **A `LogicError` and not a fatal when no clock is fixed**, because it is
     /// a call written in the wrong place — a test that forgot its `at:`, or a
-    /// helper reached from outside a test at all — and `docs/spec` § 10's
+    /// helper reached from outside a test at all — and
     /// `LogicError` is the class for exactly that. The alternative worth naming
     /// is answering silently, which is worse than either: a test that advanced
     /// a clock nothing had frozen would then assert against the host's, and
@@ -3012,7 +3012,7 @@ nvs_runtime::nvs_helper! {
                 ],
             ));
         }
-        // Spec § 15's default, applied here rather than left `null`: a program
+        // `Core\Response`'s default status, applied here rather than left `null`: a program
         // that only echoed answered `200`, and making a test say so would be
         // making every test say so.
         let status = i64::from(completion.status.unwrap_or(200));
@@ -3457,7 +3457,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The subject is an `array<T>` and nothing else, and the count is a
     /// `uint`, which is `Core\Arr::count`'s own signature: a length is a
-    /// question the spec answers per domain — `Core\Str::length` counts
+    /// question `Core` answers per domain — `Core\Str::length` counts
     /// characters and `Core\Bytes::length` counts bytes — so a union subject
     /// here would be a *fourth* answer to "how long is it", decided by a tag
     /// rather than by the member the author named. A `string` subject is

@@ -1,5 +1,4 @@
-//! `Core\Math` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 3, over `int`, `uint` and `float`.
+//! `Core\Math`, over `int`, `uint` and `float`.
 //!
 //! `**` is exponentiation and `%` is integer modulo, so neither has a member
 //! (`rule:core-api/shape-rules` R17); that section's own note owns why.
@@ -7,8 +6,8 @@
 //! # Two rules cover every member here, so no member restates them
 //!
 //! * **A division by zero throws `ArithmeticError`**, in `intDiv` and in `mod`
-//!   alike, and in the `/` operator over every operand type (`rule:types/arithmetic`) —
-//!   spec § 3's opening paragraph. [`nvs_core_math_fdiv`] is the single
+//!   alike, and in the `/` operator over every operand type (`rule:types/arithmetic`).
+//!   [`nvs_core_math_fdiv`] is the single
 //!   exception and is there to be one: with the operator throwing on a `float`
 //!   divisor too, it is the only way left to ask for IEEE's infinity, which is
 //!   why PHP has the same function for the same reason. So does an operation
@@ -31,7 +30,7 @@
 //!
 //! # The four rounding members are `float`'s, and `decimal` has its own
 //!
-//! The spec writes `int|float|decimal` at seven rows. Three of them — `abs`,
+//! The registry writes `int|float|decimal` at seven rows. Three of them — `abs`,
 //! `sign` and `format` — take it: [`NUMBER`] is that union, and [`Number`] is
 //! how a member reads one back. The other four are `ceil`, `floor`,
 //! `truncate` and `round`, and they are registered at `float` alone because
@@ -42,6 +41,14 @@
 //! (`rule:types/conversion`), answering a `decimal` at the scale named, and
 //! [`round_mode`] is the one reader both classes' `mode` argument goes
 //! through.
+//!
+//! # What has no member
+//!
+//! `Math::format` takes explicit separators because Novis has no ambient
+//! locale; locale-correct number formatting is the intl extension's, at
+//! Tier 1. There is no `log(1 + x)` or `exp(x) - 1` member for precision near
+//! zero: neither is common enough in web or CLI code to need one, so a program
+//! writes the plain form and accepts its precision loss.
 
 use nvs_runtime::{Ctx, Decimal, Fault, NvsStr, Tag, ThrownClass, Value};
 
@@ -62,7 +69,7 @@ const CARD: ClassDoc = ClassDoc {
             outside a function's range, such as `sqrt(-1.0)`, gives `NaN`.",
 };
 
-/// `Core\Math`'s registry rows, in the spec's own order.
+/// `Core\Math`'s registry rows.
 ///
 /// Declared beside the implementations rather than in one flat table, for the
 /// reason [`crate::arr::CLASS`] states.
@@ -1153,7 +1160,7 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Math`'s eleven constants — spec § 3's own list, replacing `M_PI`,
+/// `Core\Math`'s eleven constants, replacing `M_PI`,
 /// `M_E`, `PHP_INT_MAX`, `PHP_FLOAT_EPSILON` and the rest of PHP's global
 /// constants under `rule:classes/no-free-functions-or-constants`.
 ///
@@ -1247,7 +1254,7 @@ const CONSTANTS: &[CoreConst] = &[
     },
 ];
 
-/// `Core\RoundMode` — spec § 3's six rounding rules, replacing PHP's four
+/// `Core\RoundMode` — the six rounding rules, replacing PHP's four
 /// `PHP_ROUND_HALF_*` global constants plus the two whole-direction rules
 /// `ceil`/`floor` only cover for a precision of zero.
 ///
@@ -1304,7 +1311,7 @@ const ROUND_MODE_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `int|float|decimal` — spec § 3's own union, at the three members here that
+/// `int|float|decimal` — `Core\Math`'s own union, at the three members here that
 /// take it whole and at `Core\Arr`'s three aggregations, which write the same
 /// row. See this module's own gap note for the four members that do not take
 /// it yet.
@@ -1340,18 +1347,17 @@ const LOG_OPTIONS: &[CoreOption] = &[CoreOption {
 /// `{decimals?: uint, decimalSeparator?: string, groupSeparator?: string}`.
 ///
 /// The group separator defaults to **empty**, unlike `number_format`'s `,`:
-/// Novis has no ambient locale (spec § 3), so grouping is a thing the caller
+/// Novis has no ambient locale, so grouping is a thing the caller
 /// asks for rather than a thing it has to switch off.
 ///
-/// **Both separators are [`Qual::Contagious`]**, and the spec's Q column said
-/// *neutral* until this row was classified. It is the one cell in this class
+/// **Both separators are [`Qual::Contagious`]**. They are the one cell in this class
 /// that a member-wide mark could not render: `fromBase` and the rest of
 /// `Core\Math` answer numbers, so nothing an argument holds reaches the answer
 /// and *neutral* is right for the class — but `format` answers a `string` that
 /// contains these two options **verbatim**, which is the first bullet of
 /// [`Qual`]'s rule failing on its own terms. The registry is the home of the
-/// classification (`rule:security/unclassified-parameter-refuses-tainted`) and the spec renders it, so the cell was
-/// corrected rather than the mark.
+/// classification (`rule:security/unclassified-parameter-refuses-tainted`), so the
+/// option carries its own mark rather than the member's.
 const FORMAT_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "decimals",
@@ -1470,7 +1476,7 @@ fn str_at<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [u8],
     })
 }
 
-/// One argument of the spec's `int|float` union, decoded.
+/// One argument of the published signature's `int|float` union, decoded.
 ///
 /// A `uint` is accepted as well as an `int` even though the declared union
 /// holds neither `rule:types/arithmetic` type twice: a `uint` reaches a union parameter
@@ -1517,7 +1523,7 @@ fn number_at(args: &[Value], index: usize, member: &str) -> Result<Number, Fault
 // ============================================================================
 
 /// Defines a one-`float`-in, one-`float`-out member — the shape twenty of
-/// spec § 3's rows share exactly.
+/// `Core\Math`'s rows share exactly.
 ///
 /// Written as a macro rather than twenty copies of the same four lines
 /// because the *only* thing that differs between them is the `f64` method,
@@ -1813,7 +1819,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Math::intDiv(int $a, int $b): int` — the quotient, truncated
     /// toward zero, replacing PHP's `intdiv`.
     ///
-    /// A zero divisor throws, per spec § 3, and so does `int::MIN / -1`, whose
+    /// A zero divisor throws, and so does `int::MIN / -1`, whose
     /// exact answer is one past `int`'s largest value.
     fn nvs_core_math_int_div(_ctx, args: [2]) {
         let a = int_at(args, 0, "intDiv")?;
@@ -1830,7 +1836,7 @@ nvs_runtime::nvs_helper! {
     /// `%` operator, which is why this member is the `float` case only.
     ///
     /// A zero divisor throws rather than answering `NaN` the way `fmod` does:
-    /// it is a division by zero, which spec § 3 makes a throw, and not one of
+    /// it is a division by zero, which `Core\Math` makes a throw, and not one of
     /// the domain errors this module's docs keep at IEEE's answer.
     fn nvs_core_math_mod(_ctx, args: [2]) {
         let a = float_at(args, 0, "mod")?;
@@ -1938,7 +1944,7 @@ nvs_runtime::nvs_helper! {
     /// A base that is not greater than zero has no logarithm at all, and the
     /// ratio would answer one anyway — `ln($n) / ln(0.0)` is a signed zero and
     /// `ln($n) / ln(-2.0)` a `NaN` — so it is refused rather than repaired,
-    /// the way spec § 3 refuses a zero divisor. Base `1.0` is `NaN`: the ratio
+    /// the way `Core\Math` refuses a zero divisor. Base `1.0` is `NaN`: the ratio
     /// divides by zero there and would answer an infinity whose sign is the
     /// argument's. Both rules are PHP's, which raises a `ValueError` for the
     /// first and answers `NAN` to the second; only the class of the refusal
@@ -2218,7 +2224,7 @@ fn owned(value: Value) -> Value {
     value
 }
 
-/// Spec § 3's six rounding rules, decoded from the `mode` option's integer.
+/// `Core\RoundMode`'s six rounding rules, decoded from the `mode` option's integer.
 ///
 /// `pub(crate)` because `Core\RoundMode` is a `Core` enum rather than this
 /// class's own — [`ROUND_MODE`]'s own doc says why it is flat — and
@@ -2492,7 +2498,7 @@ mod tests {
         text
     }
 
-    /// Spec § 3's six modes, on the one value that tells all of them apart.
+    /// `Core\RoundMode`'s six modes, on the one value that tells all of them apart.
     #[test]
     fn every_round_mode_breaks_the_tie_its_own_way() {
         let cases = [

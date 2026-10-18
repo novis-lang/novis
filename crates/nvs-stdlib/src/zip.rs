@@ -1,4 +1,4 @@
-//! `Core\Zip` — spec § 17's archive class: what an archive is allowed to
+//! `Core\Zip` — the archive class: what an archive is allowed to
 //! contain, decided when it is *read* and not when a program gets around to
 //! writing it somewhere.
 //!

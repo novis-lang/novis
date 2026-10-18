@@ -5,8 +5,7 @@
 //! The `decimal` scalar beside it ([`crate::decimal`]) is the *human-magnitude*
 //! answer — money, exact to 28 fractional digits — and this is the other one: a
 //! factorial past `2^63`, `bcpowmod`, a power with a large exponent. Neither
-//! subsumes the other, and `docs/spec/01-core-library.md` § 13's row names the
-//! pair together.
+//! subsumes the other.
 //!
 //! # Decision: the representation is a sign and little-endian magnitude bytes
 //!
@@ -119,11 +118,8 @@ const CARD: ClassDoc = ClassDoc {
             changes: every calculation returns a new value.",
 };
 
-/// Spec § 13's `Core\BigInt` — construction, arithmetic, and reading a value
-/// back out, in that order.
-///
-/// The roster is this module's own rather than the spec's: § 13's row names the
-/// class and no member, so each row's reference card is what documents it.
+/// `Core\BigInt` — construction, arithmetic, and reading a value back out, in
+/// that order. Each row's reference card is what documents it.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

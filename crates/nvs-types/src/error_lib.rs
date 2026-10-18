@@ -10,10 +10,9 @@
 //!
 //! # Members are properties, not accessors
 //!
-//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 10
-//! is authoritative: `$e->message`, `$e->previous`, `$e->backtrace`,
-//! `$e->location`. There is no `getMessage()`/`getTraceAsString()` to seed,
-//! and nothing here declares one.
+//! The `Core\Error` tree's members are properties: `$e->message`,
+//! `$e->previous`, `$e->backtrace`, `$e->location`. There is no
+//! `getMessage()`/`getTraceAsString()` to seed, and nothing here declares one.
 //!
 //! # `ParseError` is the one class with state of its own
 //!
@@ -119,7 +118,7 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                     let issues = issue_shape(interner);
                     interner.array(issues)
                 }
-                // `Core\Db\RolledBack::$reason` — spec § 18 types it a plain
+                // `Core\Db\RolledBack::$reason` is a plain
                 // `string`, not a `?string`: a rollback always has the reason
                 // its caller passed, and the synthesized constructor writes
                 // the message into it (`nvs_ir::lower::exception`).
@@ -227,7 +226,7 @@ fn issue_shape(interner: &mut TypeInterner) -> TypeId {
     ])
 }
 
-/// `Throwable`'s four readonly properties, spec § 10's list.
+/// `Throwable`'s four readonly properties.
 fn root_properties(interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
     let string = interner.string();
     let throwable = interner.class(QName::parse(ROOT));
@@ -257,8 +256,8 @@ fn root_properties(interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
         .collect()
 }
 
-/// `constructor(string $message, {previous?: Throwable|null})` — spec § 10's
-/// one required message and one options shape, which is
+/// `constructor(string $message, {previous?: Throwable|null})` — one
+/// required message and one options shape, which is
 /// `rule:core-api/shape-rules` R2 applied to a
 /// constructor like any other member.
 ///
@@ -295,8 +294,8 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
             returns_static: false,
             params_bind_static: Vec::new(),
             return_binds_static: false,
-            // `rule:core-api/shape-rules` R2 reaches a synthesized member too: spec § 10 writes
-            // `$message`, and the bag is every other trailing bag's
+            // `rule:core-api/shape-rules` R2 reaches a synthesized member too: the parameter
+            // is `$message`, and the bag is every other trailing bag's
             // `options` — read from `nvs_stdlib::registry` rather than
             // spelled again here, so `new LogicError(message: "…")` and a
             // `Core` member's `options:` are one rule and not two.
@@ -379,7 +378,7 @@ mod tests {
             .expect("the constructor resolves through the seeded links");
         assert_eq!(owner.to_string(), ROOT);
         assert!(!sig.is_static);
-        // The message, then spec § 10's options bag — which carries its own
+        // The message, then the options bag — which carries its own
         // default, so a `new IOError("…")` still supplies one argument.
         assert_eq!(sig.params.len(), 2);
         let throwable = interner.class(QName::parse(ROOT));

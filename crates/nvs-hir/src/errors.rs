@@ -1,10 +1,7 @@
 //! The closed exception tree the compiler declares for every program.
 //!
-//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 10
-//! is authoritative for the tree's shape and its members; this module is the
-//! one place that shape becomes data the rest of the compiler can read.
-//! `rule:errors/on-limit` points
-//! at § 10 rather than restating it, so nothing else here needs to.
+//! This module is the one home of the tree's shape and its members, as data the rest of the
+//! compiler can read.
 //!
 //! # Why a table rather than a written declaration
 //!
@@ -18,7 +15,7 @@
 //!
 //! # There is no `Exception` and no `Error`
 //!
-//! Neither exists, deliberately: § 10 makes `Throwable` the root that user
+//! Neither exists, deliberately: `Throwable` is the root that user
 //! classes extend directly, so a second root-shaped name would be a second
 //! way to spell the same thing (`rule:core-api/shape-rules`
 //! R20). A program naming either gets an ordinary undeclared-class
@@ -26,7 +23,7 @@
 //! and no `catch` arm matches it, and [`TREE`] says what it is for.
 
 /// Every class the compiler declares with no source declaration to collect it
-/// from, as `(name, parent)`: spec § 10's exception tree from [`ROOT`] down,
+/// from, as `(name, parent)`: the `Core\Error` exception tree from [`ROOT`] down,
 /// and after it [`FINISH_MARKER`], which is a root of its own and not an
 /// exception at all.
 ///
@@ -55,19 +52,18 @@
 ///
 /// `Core\Db\RolledBack` is here for the same reason once
 /// more: `rule:core-classes/db-transactions` makes
-/// `Transaction::rollBack` throw it and
-/// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 18
-/// puts it *in this tree*, extending `RuntimeError` — a deliberate rollback is
+/// `Transaction::rollBack` throw it and puts it *in this tree*, extending
+/// `RuntimeError` — a deliberate rollback is
 /// the database saying no rather than a bug in the program, and the callable
 /// that owns the transaction propagates it to a `catch` written by name. Like
 /// `ParseError`, it declares a property of its own; see [`OWN_PROPERTIES`].
 ///
-/// `Core\Db\DbError` is § 18's other half: everything the
+/// `Core\Db\DbError` is `Core\Db`'s other half: everything the
 /// server itself refused, which `rule:core-classes/db-error` makes **one** class carrying a normalised `kind`
 /// rather than a class per condition, whose boundaries would differ per
 /// driver. It sits beside `Core\Db\RolledBack`
 /// under `RuntimeError` deliberately — a `catch` that has to tell "I gave up"
-/// from "the database said no" is the whole reason § 18 spells two names. It
+/// from "the database said no" is the whole reason `Core\Db` has two names. It
 /// declares every one of § 8's properties in [`OWN_PROPERTIES`] — the normalised
 /// `kind`, the raw `sqlState`, `driverCode` and `constraint` the server worded,
 /// and the `sql` the program wrote — so the class carries the root's own set,
@@ -125,7 +121,7 @@ pub const TREE: &[(&str, Option<&str>)] = &[
     (FINISH_MARKER, None),
 ];
 
-/// The root of spec § 10's exception tree: every [`TREE`] entry but
+/// The root of the `Core\Error` exception tree: every [`TREE`] entry but
 /// [`FINISH_MARKER`] descends from it, and it is the one name a `catch` clause
 /// can use to mean "anything at all".
 pub const ROOT: &str = "Throwable";
@@ -160,8 +156,8 @@ pub const BACKTRACE_SLOT: usize = 2;
 /// nothing. `ParseError` is one exception, which
 /// `rule:core-classes/derive-reports-every-field` gives an
 /// `issues` list so that a decode reports **every** bad field from one throw
-/// rather than the first. `Core\Db\RolledBack` is another, which spec § 18
-/// gives a `reason` — the string
+/// rather than the first. `Core\Db\RolledBack` is another, which
+/// carries a `reason` — the string
 /// `rule:core-classes/db-transactions`'s `Transaction::rollBack`
 /// was called with, readable from the `catch` outside the transaction callable
 /// that the throw unwound. `Core\Db\DbError` is another, which
@@ -169,7 +165,7 @@ pub const BACKTRACE_SLOT: usize = 2;
 /// so that an application branches on the condition rather than on a vendor
 /// code, and beside it the raw `sqlState`, `driverCode` and `constraint` it was
 /// read off plus the `sql` that was refused. `Core\Ldap\LdapError` is the
-/// last, with `rule:core-classes/ldap-error`'s `kind` and `code`. Every one of spec § 18's is here,
+/// last, with `rule:core-classes/ldap-error`'s `kind` and `code`. Every one of `Core\Db`'s is here,
 /// and none of them could have been added without a type in
 /// `nvs_types::error_lib::own_properties`, which `panic!`s at seed time on a
 /// property it cannot type. That is a *narrowing* rule and not a queue: a row

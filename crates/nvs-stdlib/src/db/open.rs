@@ -38,7 +38,7 @@ pub(super) const EXECUTE_MANY: &str = r"Core\Db\Connection::executeMany";
 
 /// `Core\Db\Connection::driver`, as the one refusal it has spells it: the
 /// `LogicError` [`crate::db::pool::filed_connection`] raises for a connection
-/// spec § 18's `close` has already released. `close` and `isOpen` need no
+/// `close` has already released. `close` and `isOpen` need no
 /// spelling of their own — neither reaches for the connection, so neither has
 /// a message that holds a class.
 pub(super) const DRIVER_MEMBER: &str = r"Core\Db\Connection::driver";
@@ -1230,7 +1230,7 @@ fn driver_value(of: nvs_db::Driver) -> Value {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$c->close(): void` — spec § 18's `Connection` row, over
+    /// `$c->close(): void` — `Core\Db\Connection`'s row, over
     /// [`nvs_runtime::Ctx::close_open_connection`].
     ///
     /// **The work is the runtime's, and deliberately all of it.** `rule:security/db-pool-reset-is-a-boundary`
@@ -1421,7 +1421,7 @@ mod tests {
             .methods
             .iter()
             .find(|row| row.name == "connect")
-            .expect("spec § 18's `connect` is this class's own row");
+            .expect("`connect` is this class's own row");
         let Some(CoreTy::Options(options)) = connect.params.last() else {
             panic!("R2's one trailing options bag is `connect`'s last parameter")
         };
@@ -1472,7 +1472,7 @@ mod tests {
         );
     }
 
-    /// Spec § 18's `close`, asserted as the pair of facts it is: the request
+    /// `Core\Db\Connection::close`, asserted as the pair of facts it is: the request
     /// stops holding the connection, and every member that needs one then
     /// refuses.
     ///
@@ -1564,7 +1564,7 @@ mod tests {
         );
 
         nvs_runtime::call(nvs_core_db_connection_close, &mut ctx, &[handle])
-            .expect("§ 18's `close` answers `void`");
+            .expect("`close` answers `void`");
 
         let after = nvs_runtime::call(nvs_core_db_connection_is_open, &mut ctx, &[handle])
             .expect("`isOpen` is the member a closed connection still answers");
@@ -2055,7 +2055,7 @@ mod tests {
         );
     }
 
-    /// [spec § 18](/docs/spec/01-core-library.md)'s `isOpen` is the one member a
+    /// `Core\Db\Connection::isOpen` is the one member a
     /// released connection still answers, asserted as the **contrast** that
     /// makes it worth declaring: the same handle, the same empty table, and two
     /// different outcomes.

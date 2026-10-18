@@ -54,7 +54,7 @@ fn a_catch_arm_naming_the_finish_marker_is_a_diagnostic() {
     assert!(!ordinary.has_errors(), "{ordinary:?}");
 }
 
-/// A `throw` of the marker is refused as an operand outside spec § 10's tree,
+/// A `throw` of the marker is refused as an operand outside the `Core\Error` tree,
 /// which is `E0780` and needs no case of its own.
 ///
 /// Pinned here rather than left implied: the marker's whole mechanism is that

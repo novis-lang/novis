@@ -376,7 +376,7 @@ pub fn call_erased_method_from(
         // A `Core`-owned class has no *compiled* method table at all — only
         // the engine-protocol rows `nvs_stdlib::instance` puts there — so
         // "has no method" would be a plausible answer and a wrong one for a
-        // member the spec plainly gives it. `Core` is a reserved namespace
+        // member its published signature plainly gives it. `Core` is a reserved namespace
         // (`rule:core-api/reserved-namespace`), which is what makes the name enough to tell, and
         // this only runs on the failing edge.
         if class.starts_with("Core\\") {

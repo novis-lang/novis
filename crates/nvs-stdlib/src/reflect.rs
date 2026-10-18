@@ -59,8 +59,8 @@
 //! because it has an answer of its own, which depends on where the call is
 //! written. `rule:security/reflection-enforces-visibility` is what divides them: *reading metadata* is always available,
 //! *acting on a member* faces the ordinary check, and a member named for one of
-//! those must not quietly answer the other. That division is `docs/spec/01-core-library.md`
-//! § 13's own: `property_exists` and `get_class_methods` are complete in PHP
+//! those must not quietly answer the other. That division is `Core\Reflect`'s own:
+//! `property_exists` and `get_class_methods` are complete in PHP
 //! and `get_object_vars` is scope-sensitive, and this class replaces all three.
 //!
 //! `rule:core-classes/reflect` is what forces both rosters to be complete: a
@@ -113,8 +113,8 @@
 //! # Decision: `TypeKind` is one case per representation, and no case is a
 //! question about a value
 //!
-//! [`TYPE_KIND`] replaces fourteen `is_*` predicates plus `gettype`
-//! (`docs/spec/01-core-library.md` § 13) by being *finer* than any of them and
+//! [`TYPE_KIND`] replaces fourteen `is_*` predicates plus `gettype` by being *finer* than any
+//! of them and
 //! overlapping none of them: `is_scalar` and `is_int` both answer `true` for a
 //! `7`, so a program asking both learns nothing the second time, while ten
 //! cases that partition [`nvs_runtime::Tag`]'s value-carrying half answer the
@@ -661,7 +661,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             ],
             // `$arguments` is required rather than defaulted to `[]`:
             // `registry::Const` has no array variant, and a member whose
-            // spec signature the registry cannot express is one this crate
+            // full signature the registry cannot express is one this crate
             // declines to register at all rather than one it approximates.
             defaults: &[],
             // `mixed`, for `get`'s reason one line up: the method's declared

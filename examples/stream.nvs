@@ -1,7 +1,7 @@
 <?nvs
 // `stream` is the one method that does not buffer,
 // over the PostgreSQL `tests/db/compose.yaml` brings up. `Core\Db\Connection::stream`
-// is `docs/spec/01-core-library.md` § 18's `Iterable<Db\Row>` row: the rows stay
+// returns an `Iterable<Db\Row>`: the rows stay
 // on the connection as a portal the server is still holding open, so walking ten
 // thousand of them costs one row's memory rather than ten thousand.
 //

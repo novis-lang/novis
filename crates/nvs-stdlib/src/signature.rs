@@ -101,9 +101,7 @@
 //! claim is text* section reached the same place first, from the same two
 //! facts, and the two roster entries agree rather than each inventing a rule.
 //!
-//! The spec writes `array<string, mixed>` for both halves
-//! ([docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 16), and
-//! that is the half that yields: a qualifier a program can reach beats a
+//! A payload of `array<string, mixed>` for both halves is what yields: a qualifier a program can reach beats a
 //! wider payload, per AGENTS.md's ordering. **What it spends** is a signed
 //! `int` — a program that wants one writes `string($id)` on the way in and
 //! `int($payload["id"])` on the way out, and that second conversion is a

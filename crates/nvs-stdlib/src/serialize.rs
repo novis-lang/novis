@@ -26,7 +26,7 @@
 //! two members classify it differently on purpose. A payload that is not this
 //! format, names an unresolvable class, or records a property set the class no
 //! longer has is *input that did not match a format this code declared*, which
-//! is what spec § 10's `ParseError` is. A value that cannot be encoded — a
+//! is what `ParseError` is. A value that cannot be encoded — a
 //! callable, a `secret` property — is a value the program itself built, so it is
 //! a bug in the program and a `LogicError`, exactly as `Core\Json::encode`
 //! already answers.

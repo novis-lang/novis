@@ -1,14 +1,11 @@
-//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 4 — `Core\Time` and the types it answers with, one module because they
-//! are one domain: `Duration` (the type of a duration such as `30s` or
-//! `1h30m`, `rule:types/duration`), `Instant`, `Zone` and `DateTime`. The pattern grammar
-//! `DateTime::format` and `Time::parse` share is [`crate::cldr`], which is a
-//! grammar of its own and so a module of its own.
+//! `Core\Time` and the types it answers with, one module because they are one domain:
+//! `Duration` (the type of a duration such as `30s` or `1h30m`, `rule:types/duration`),
+//! `Instant`, `Zone` and `DateTime`. The pattern grammar `DateTime::format` and `Time::parse`
+//! share is [`crate::cldr`], which is a grammar of its own and so a module of its own.
 //!
 //! # Two arithmetics, and the type says which one
 //!
-//! § 4's opening rule, restated here only because it is what splits this
-//! module into the parts below: an `Instant` moves by a `Duration`, an exact
+//! `Core\Time`'s opening rule, and what splits this module into the parts below: an `Instant` moves by a `Duration`, an exact
 //! count of nanoseconds that nothing can lengthen; a `DateTime` moves by a
 //! count of a `Unit`, a calendar step a DST boundary or a short month can make
 //! longer or shorter. So `Duration` needs no calendar at all and is written
@@ -19,9 +16,9 @@
 //! # Decision: `jiff`, for the type set rather than the API
 //!
 //! What `jiff` buys is that its own types
-//! map one-to-one onto the ones § 4 already wrote: [`jiff::Timestamp`] is an
+//! map one-to-one onto `Core\Time`'s: [`jiff::Timestamp`] is an
 //! `Instant`, [`jiff::tz::TimeZone`] is a `Zone`, and its `Zoned`/`civil`
-//! split is the same absolute-versus-civil distinction the spec is built on —
+//! split is the same absolute-versus-civil distinction `Core\Time` is built on —
 //! so nothing here has to invent a bridging concept. It is pure Rust with no
 //! build script, and on a platform with no IANA database (Windows) it embeds
 //! one rather than shelling out, which is what makes `Zone::of` answer the
@@ -57,13 +54,12 @@
 //!
 //! # There is no `Core\Month`, and there is not going to be one
 //!
-//! § 4 writes no member that takes or answers with one, `Core\Time\DateTime::Weekday` existing
-//! only because `$d->weekday()` does, and an enum nothing names is surface with
-//! no spec home. This is written down because it is the question that keeps
-//! being re-asked, not because anything is missing: three earlier notes here
-//! described a member the spec never had. **§ 4 itself is whole** — `withTime`,
-//! its last row and its only one that *takes* a component view rather than
-//! answering with one, is [`nvs_core_time_datetime_with_time`].
+//! No `Core\Time` member takes or answers with one, `Core\Time\DateTime::Weekday` existing
+//! only because `$d->weekday()` does, and an enum nothing names is surface no member
+//! needs. This is written down because it is the question that keeps being re-asked,
+//! not because anything is missing. **`Core\Time` is whole**: `withTime`, the only member
+//! that *takes* a component view rather than answering with one, is
+//! [`nvs_core_time_datetime_with_time`].
 //!
 //! # `sleep` parks the task, and a wait off a core still blocks its thread
 //!
@@ -136,6 +132,13 @@
 //!   of those numbers. A parse's answer cannot be taken apart into the text it
 //!   came from. The neighbouring class to be careful with is `Core\Uri`, whose
 //!   `parse` keeps the host and the path as text and so is contagious.
+//!
+//! # What has no member
+//!
+//! There are no calendar-system converters and no holiday dates: they have no
+//! place in a Tier 0 library (`rule:core-api/tier-placement`). The number of
+//! days in a month has no member either: it is `$d->startOf(Unit::Month)` and
+//! one month's arithmetic from there.
 
 use std::sync::OnceLock;
 use std::time::SystemTime;
@@ -177,7 +180,7 @@ pub const DURATION_NAME: &str = r"Core\Time\Duration";
 /// written duration cannot come to mean different things.
 pub const FROM_NANOS_SYMBOL: &str = "nvs_core_time_duration_nanoseconds";
 
-/// Spec § 4's `Core\Time\Duration` — an exact count of nanoseconds, and the
+/// `Core\Time\Duration` — an exact count of nanoseconds, and the
 /// one arithmetic that a DST boundary or a short month cannot change the
 /// length of.
 ///
@@ -650,7 +653,7 @@ const NANOS_SLOT: usize = 0;
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 ///
-/// One arm per class rather than one match over all of them: § 4 is one
+/// One arm per class rather than one match over all of them: `Core\Time` is one
 /// domain but several classes, and a class's symbols stay beside the class.
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     duration_address(symbol)
@@ -718,7 +721,7 @@ fn built(nanos: i64) -> Value {
 /// A `Core\Time\Duration` of `nanos`, for another module answering one.
 ///
 /// The out-of-crate-module half of [`built`], and the counterpart to
-/// [`nanos_of`] — spec § 4's type belongs to this module, so a member elsewhere
+/// [`nanos_of`] — the type belongs to this module, so a member elsewhere
 /// that answers a `Duration` builds it through here rather than reaching for
 /// [`DURATION`]'s layout. `Core\RateLimit\Decision`'s `retryAfter` is the first.
 pub(crate) fn duration_of(nanos: i64) -> Value {
@@ -989,8 +992,8 @@ nvs_runtime::nvs_helper! {
 /// [`DURATION_NAME`]'s reason.
 pub const ZONE_NAME: &str = r"Core\Time\Zone";
 
-/// Spec § 4's `Core\Time\Zone` — the thing every instant↔calendar conversion
-/// takes explicitly, since § 4 has no ambient timezone at all.
+/// `Core\Time\Zone` — the thing every instant↔calendar conversion
+/// takes explicitly, since `Core\Time` has no ambient timezone at all.
 ///
 /// One `string` slot holding the zone's **id**: an IANA identifier
 /// (`"Europe/Berlin"`) for a region, or a `±HH:MM[:SS]` offset spelling for a
@@ -1146,7 +1149,7 @@ fn zone_address(symbol: &str) -> Option<*const u8> {
 /// [`DURATION_NAME`]'s reason.
 pub const INSTANT_NAME: &str = r"Core\Time\Instant";
 
-/// Spec § 4's `Core\Time\Instant` — an absolute point on the timeline, with no
+/// `Core\Time\Instant` — an absolute point on the timeline, with no
 /// zone and no calendar of its own.
 ///
 /// Two `int` slots, which are exactly [`jiff::Timestamp`]'s own state: the
@@ -1401,20 +1404,20 @@ fn instant_address(symbol: &str) -> Option<*const u8> {
 }
 
 // ============================================================================
-// `Core\Time\DateTime` — registration, and § 4's two enums
+// `Core\Time\DateTime` — registration, and `Core\Time`'s two enums
 // ============================================================================
 
 /// `Core\Time\DateTime`'s fully-qualified name, written once, for
 /// [`DURATION_NAME`]'s reason.
 pub const DATETIME_NAME: &str = r"Core\Time\DateTime";
 
-/// Spec § 4's `Core\Unit` — the calendar step a `DateTime` moves by, which is
-/// the half of § 4's two arithmetics a DST boundary or a short month can
+/// `Core\Unit` — the calendar step a `DateTime` moves by, which is
+/// the half of `Core\Time`'s two arithmetics a DST boundary or a short month can
 /// lengthen.
 ///
 /// Flat under `Core`, where `rule:enums/an-enum-lives-in-the-class-that-uses-it`
 /// places an enum no single class owns. The values are the CLDR-free ascending
-/// order the spec writes them in, smallest first, so a comparison between two
+/// order, smallest first, so a comparison between two
 /// of them means what it reads as.
 pub const UNIT: CoreEnum = CoreEnum {
     name: r"Core\Unit",
@@ -1437,8 +1440,8 @@ pub const UNIT: CoreEnum = CoreEnum {
 /// [`UNIT`]'s reference card — `rule:core-api/reference-card`.
 const UNIT_DOC: EnumDoc = EnumDoc {
     short: "The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit \
-            `startOf`, `endOf` and `difference` count in — the half of § 4's two arithmetics \
-            a DST boundary or a short month can lengthen or shorten, listed smallest first.",
+            `startOf`, `endOf` and `difference` count in. A DST change or a short month can make \
+            one step longer or shorter. The cases are listed smallest first.",
     cases: &[
         CaseDoc {
             name: "Nanosecond",
@@ -1490,7 +1493,7 @@ const UNIT_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// Spec § 4's `Core\Time\DateTime::Weekday`, Monday-first — ISO-8601's own order, which is
+/// `Core\Time\DateTime::Weekday`, Monday-first — ISO-8601's own order, which is
 /// what `date("N")` already answers and what [`crate::cldr`]'s tables index
 /// by.
 ///
@@ -1549,7 +1552,7 @@ const WEEKDAY_DOC: EnumDoc = EnumDoc {
 };
 
 /// The `{year?, month?, day?, hour?, minute?, second?, nanos?}` bag
-/// `$d->with(…)` takes — spec § 4's replacement for `setDate`, `setTime` and
+/// `$d->with(…)` takes — the replacement for `setDate`, `setTime` and
 /// `setISODate` at once.
 ///
 /// Every option defaults to [`Const::Null`], which is that variant's own
@@ -1594,8 +1597,8 @@ const WITH_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// Spec § 4's `Core\Time\DateTime` — a civil date and time **in a zone**, and
-/// the half of § 4's two arithmetics that counts calendar units.
+/// `Core\Time\DateTime` — a civil date and time **in a zone**, and
+/// the half of `Core\Time`'s two arithmetics that counts calendar units.
 ///
 /// Three slots: an [`INSTANT`]'s two, plus a [`ZONE`]'s one. That is
 /// [`jiff::Zoned`]'s own state, and it is the representation with no
@@ -2130,7 +2133,7 @@ fn datetime_address(symbol: &str) -> Option<*const u8> {
 /// reason.
 pub const TIME_NAME: &str = r"Core\Time";
 
-/// Spec § 4's entry points — the namespace class that produces the values the
+/// `Core\Time`'s entry points — the namespace class that produces the values the
 /// classes above are members of.
 pub const TIME: CoreClass = CoreClass {
     name: TIME_NAME,
@@ -2456,7 +2459,7 @@ pub const DATE_NAME: &str = r"Core\Time\Date";
 /// without the four fields a zone-free date does not carry.
 ///
 /// A separate roster rather than a subslice of that one because the two are
-/// the same *shape* by coincidence rather than by rule: § 4 gives `DateTime`
+/// the same *shape* by coincidence rather than by rule: `Core\Time` gives `DateTime`
 /// seven fields and `Date` three, and a `Date` that grew an `hour` option
 /// would be a `DateTime`.
 const DATE_WITH_OPTIONS: &[CoreOption] = &[
@@ -2477,7 +2480,7 @@ const DATE_WITH_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// Spec § 4's `Core\Time\Date` — the zone-free calendar half of a
+/// `Core\Time\Date` — the zone-free calendar half of a
 /// [`DATETIME`], with the same `plus`/`minus`/`with`/`compareTo`/`format`
 /// shape and the constructor `Date::at`.
 ///
@@ -2789,7 +2792,7 @@ const TIME_OF_DAY_WITH_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// Spec § 4's `Core\Time\TimeOfDay` — the zone-free clock half of a
+/// `Core\Time\TimeOfDay` — the zone-free clock half of a
 /// [`DATETIME`], and [`DATE`]'s opposite number in every way including its
 /// shape.
 ///
@@ -3061,7 +3064,7 @@ fn time_of_day_address(symbol: &str) -> Option<*const u8> {
 // ============================================================================
 
 /// A `Core\Time\Instant` at `at`, for a member **outside this module** holding
-/// a [`SystemTime`] — spec § 14's `Core\IO::modifiedAt` and the `modifiedAt`
+/// a [`SystemTime`] — `Core\IO::modifiedAt` and the `modifiedAt`
 /// slot of `Core\IO\Metadata` are the two so far.
 ///
 /// The seam exists so that [`INSTANT`]'s two-slot representation — the epoch
@@ -3784,8 +3787,8 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Time::fromIso(string $text): Instant` — an ISO-8601 timestamp
     /// that carries its own offset, which is the whole of what `strtotime`
-    /// replaces here. A relative expression is not accepted in either half
-    /// (§ 4), and a *civil* time with no offset is `Time::parse`, which needs
+    /// replaces here. A relative expression is not accepted in either half,
+    /// and a *civil* time with no offset is `Time::parse`, which needs
     /// a zone.
     ///
     /// The refusal is a `ParseError` on the same rule
@@ -3865,7 +3868,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$i->plus(Duration $d): Instant` — the exact arithmetic of § 4's two,
+    /// `$i->plus(Duration $d): Instant` — the exact arithmetic of `Core\Time`'s two,
     /// so it crosses a DST boundary without noticing one. A calendar step is
     /// `DateTime::plus($n, Unit::Day)`.
     ///
@@ -3981,7 +3984,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Time\Zone::system(): Zone` — the host's configured zone,
     /// replacing `date_default_timezone_get`.
     ///
-    /// **Not** an ambient default (§ 4): it is an ordinary value a program
+    /// **Not** an ambient default: it is an ordinary value a program
     /// asks for and then passes explicitly, so a call site still names the
     /// zone it converts in. There is no `date_default_timezone_set`.
     fn nvs_core_time_zone_system(_ctx, args: [0]) {
@@ -4170,7 +4173,7 @@ fn stepped(args: &[Value], member: &str, sign: i64) -> Result<Value, Fault> {
 ///
 /// Computed on the **civil** fields and then placed back in the zone, which is
 /// what makes `startOf(Unit::Day)` the local midnight rather than a fixed
-/// number of hours back: § 4's calendar arithmetic is civil arithmetic, and
+/// number of hours back: `Core\Time`'s calendar arithmetic is civil arithmetic, and
 /// the zone decides afterwards what instant that names.
 fn floored(at: &Zoned, unit: jiff::Unit, scale: i64, member: &str) -> Result<Zoned, Fault> {
     let civil = at.datetime();
@@ -4274,7 +4277,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$d->plus(int $count, Unit $unit): DateTime` — § 4's *calendar* half,
+    /// `$d->plus(int $count, Unit $unit): DateTime` — the *calendar* half,
     /// so adding `1, Unit::Month` lands on the same day-of-month clamped to
     /// the month's length, and crossing a DST boundary makes a 23- or 25-hour
     /// day. The exact half is `$d->toInstant()->plus(24h)`.
@@ -4364,8 +4367,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$d->withTime(TimeOfDay $t): DateTime` — spec § 4's "common half of
-    /// `with`, spelled as the operation it is".
+    /// `$d->withTime(TimeOfDay $t): DateTime` — the common half of `with`,
+    /// spelled as the operation it is.
     ///
     /// The same body as [`nvs_core_time_datetime_with`] reached from a
     /// component view instead of an options bag, and the one call of the two
@@ -4402,8 +4405,8 @@ nvs_runtime::nvs_helper! {
     /// `$d->endOf(Unit $u): DateTime` — the **last** instant of the unit,
     /// which is one nanosecond before the next one starts.
     ///
-    /// A distinct operation from `startOf` at a DST boundary, which is § 4's
-    /// stated reason both exist: the two are not a fixed distance apart on a
+    /// A distinct operation from `startOf` at a DST boundary, which is why
+    /// both exist: the two are not a fixed distance apart on a
     /// day the zone lengthens or shortens.
     ///
     /// The unit that holds the last representable instant has no next unit to
@@ -4490,7 +4493,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$d->date(): Date` — § 4's first component view, and the one that
+    /// `$d->date(): Date` — the first component view, and the one that
     /// drops the zone as well as the time: the civil date this value reads as
     /// **where it is**, which is why a zone conversion first
     /// (`$d->toInstant()->in($z)->date()`) can answer a different day.
@@ -4534,7 +4537,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$d->dayOfYear(): uint` — replaces `date("z")`, one-based where PHP's
-    /// is zero-based, because every other day count in § 4 is one-based too.
+    /// is zero-based, because every other day count in `Core\Time` is one-based too.
     fn nvs_core_time_datetime_day_of_year(_ctx, args: [1]) {
         let at = zoned_of(args, 0, "dayOfYear")?;
         Ok(Value::uint(at.day_of_year().unsigned_abs().into()))
@@ -4586,7 +4589,7 @@ fn optional(args: &[Value], at: usize, member: &str, option: &str) -> Result<Opt
 
 nvs_runtime::nvs_helper! {
     /// `$i->in(Zone $zone): DateTime` — the only instant→calendar conversion
-    /// there is, and the reason § 4 needs no ambient timezone.
+    /// there is, and the reason `Core\Time` needs no ambient timezone.
     fn nvs_core_time_instant_in(_ctx, args: [2]) {
         let at = instant_of(args, 0, "in")?;
         let zone = zone_of(args, 1, "in")?;
@@ -4617,7 +4620,7 @@ nvs_runtime::nvs_helper! {
         let text = text_of(args, 1, "Core\\Time::parse")?;
         let pattern = text_of(args, 2, "Core\\Time::parse")?;
         let zone = zone_of(args, 3, "parse")?;
-        // The two failures are different spec § 10 classes on purpose: a
+        // The two failures are different `Core\Error` classes on purpose: a
         // pattern this call site wrote wrongly is a bug in the program, while
         // text that does not match a well-formed pattern is exactly "input did
         // not match a format this code declared".
@@ -4749,7 +4752,7 @@ fn parts(year: i64, month: i64, day: i64) -> Option<(i16, i8, i8)> {
 }
 
 /// The date `year-month-day`, or the throw `rule:core-api/shape-rules` R4 owes for a triple that
-/// is not one — which is the whole of why § 4 has no `checkdate`.
+/// is not one — which is the whole of why `Core\Time` has no `checkdate`.
 fn date_from_parts(year: i64, month: i64, day: i64, member: &str) -> Result<Value, Fault> {
     let Some((year, month, day)) = parts(year, month, day) else {
         return Err(out_of_range(
@@ -4789,7 +4792,7 @@ fn date_stepped(args: &[Value], member: &str, sign: i64) -> Result<Value, Fault>
     let label = format!(r"Core\Time\Date::{member}");
     let at = date_of(args, 0, member)?;
     let (unit, scale) = unit_of(args, 2, &label)?;
-    // § 4's two arithmetics, one level down: a date has no time of day, so a
+    // `Core\Time`'s two arithmetics, one level down: a date has no time of day, so a
     // step smaller than a day has nothing here to move. Refusing is the only
     // honest answer — truncating it to zero would make
     // `$d->plus(23, Unit::Hour)` silently the same date, and rounding it to a
@@ -4821,7 +4824,7 @@ fn date_stepped(args: &[Value], member: &str, sign: i64) -> Result<Value, Fault>
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Date::at(int $year, uint $month, uint $day): Date` — § 4's zone-free
+    /// `Date::at(int $year, uint $month, uint $day): Date` — `Core\Time`'s zone-free
     /// constructor, and the one place a date that does not exist throws.
     fn nvs_core_time_date_at(_ctx, args: [3]) {
         let label = r"Core\Time\Date::at";

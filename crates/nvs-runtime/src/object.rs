@@ -566,7 +566,7 @@ pub struct ClassDesc {
     attributes: Vec<AttributeDesc>,
     /// The address of the **native** function that renders an instance of this
     /// class as a `string`, or null for every class that has none — which is
-    /// every class a program declares, and every `Core` class the spec gives
+    /// every class a program declares, and every `Core` class the registry gives
     /// no `toString`.
     ///
     /// Not a [`Self::methods`] row, and the difference is the calling
@@ -583,7 +583,7 @@ pub struct ClassDesc {
     /// The address of the **native** function that orders two instances of
     /// this class — `rule:classes/comparable`'s `compareTo` — or null for
     /// every class that carries none, which is every class a program declares
-    /// and every `Core` class the spec gives no such member.
+    /// and every `Core` class the registry gives no such member.
     ///
     /// [`Self::render`]'s field, one member along, and for its reason exactly:
     /// the address is a native helper that **borrows** both operands, while a
@@ -1816,7 +1816,7 @@ impl ClassDesc {
     /// a class carrying no `#[Db\Derive]`.
     ///
     /// Unlike [`Self::codec`] the order is not an output order: there is no
-    /// encoding half at all (spec § 18's `Core\Db\Codec` declares `fromRow`
+    /// encoding half at all (`Core\Db\Codec` declares `fromRow`
     /// and nothing else), so this is read to *fill* a constructor and the
     /// order it is read in is the constructor's.
     #[must_use]

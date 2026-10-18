@@ -1,5 +1,5 @@
 --TEST--
-`throw` refuses an operand that no `catch` could match — a string here, and by the same rule any class outside the standard library's § 10 tree
+`throw` refuses an operand that no `catch` could match — a string here, and by the same rule any class that does not extend `Throwable`
 --FILE--
 <?nvs
 // `nvs_ir::lower::exception` builds a landing pad against that tree and lowers

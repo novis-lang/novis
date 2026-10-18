@@ -654,7 +654,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// `autoload 'Prefix' from 'a', 'b';` and `autoload discover 'glob';` —
     /// `rule:programs/autoload`'s two forms, spelled the way
-    /// [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)
+    /// [`docs/reference/lang/10-programs.md`](/docs/reference/lang/10-programs.md)
     /// writes them.
     ///
     /// A file-scope form that is not a statement, exactly like

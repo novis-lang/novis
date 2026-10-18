@@ -4,9 +4,8 @@
 //!
 //! # What is here, and what is not
 //!
-//! Every one of
-//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 15's
-//! members but two: `method`, `isHead`, `path` and `query` — the request
+//! Every one of `Core\Request`'s members but two: `method`, `isHead`, `path`
+//! and `query` — the request
 //! *line*, and the one fact reporting a `HEAD` as a `Get` would otherwise lose
 //! — `header`, `headers` and `cookie`, the fields that arrived with it, and
 //! `body`, `bodyStream`, `files`, `post` and `json`, the five members here that
@@ -42,8 +41,8 @@
 //! a program that read a path out of a scheduled script and got `""` would
 //! route on it.
 //!
-//! `LogicError` rather than a class of this module's own. It is § 10's "a bad
-//! state" exactly — the program asked a question its own situation has no
+//! `LogicError` rather than a class of this module's own. It is the `Core\Error`
+//! tree's "a bad state" exactly — the program asked a question its own situation has no
 //! answer to — and a named class would be a `catch` name for a condition no
 //! correct program ever recovers from.
 //!
@@ -90,11 +89,11 @@
 //! door, before an isolate exists, so what this throw covers is an embedder
 //! that wrote a verb of its own onto a context.
 //!
-//! `HEAD` answers `Get`, which is § 15's own sentence and not a convenience: a
+//! `HEAD` answers `Get`, which is `Core\Request`'s own rule and not a convenience: a
 //! `Get`-only route table must match a `HEAD` request, because a `HEAD` *is* a
 //! `Get` whose body is dropped. So `Core\Http\Method::Head` is a case
 //! `method()` never answers, and the truth is `isHead`'s to carry — a member
-//! this member's shape creates rather than one § 15 would otherwise need, and
+//! this member's shape creates rather than one `Core\Request` would otherwise need, and
 //! the reason the two are read off the same token in the same file.
 //!
 //! # One field, or every one of them
@@ -158,11 +157,10 @@
 //! # What `query` costs, and what it does not carry
 //!
 //! `query` parses the raw query string **once per request**, through
-//! [`crate::uri::parse_query`] — the same code `Core\Uri::parseQuery` runs,
-//! which is what spec § 9 promises when it says reproducing PHP's bracket
-//! convention there is what lets this member answer the same shape. The *shape*
-//! is what is shared and not the element type: `Core\Uri::parseQuery` is a
-//! § 12 member and answers a value's decoded octets as `bytes`, while a served
+//! [`crate::uri::parse_query`] — the same code `Core\Uri::parseQuery` runs, so
+//! reproducing PHP's bracket convention there is what lets this member answer
+//! the same shape. The *shape* is what is shared and not the element type:
+//! `Core\Uri::parseQuery` answers a value's decoded octets as `bytes`, while a served
 //! request's parameters are read as text at the door, so this member passes
 //! `crate::uri::Values::Text` and keeps the refusal for octets no `string`
 //! holds. That enum is the whole of the difference. The first read holds the
@@ -171,7 +169,7 @@
 //! the same way. The array is copy-on-write, so handing a reader a reference
 //! to part of it is safe — `json()`'s own argument for its document.
 //!
-//! **Each reader is typed by how many values it reads.** § 9's bracket
+//! **Each reader is typed by how many values it reads.** PHP's bracket
 //! convention makes a parameter a `string` *or* a nested array, so the reading
 //! is split by shape rather than answered as `mixed`: `query` and `post` answer
 //! `?tainted string` — one unbracketed value, and `null` for an absent name and
@@ -205,9 +203,9 @@ const CARD: ClassDoc = ClassDoc {
             every method.",
 };
 
-/// Spec § 15's `Core\Request`, as much of it as the request line answers.
+/// `Core\Request`, as much of it as the request line answers.
 ///
-/// The rows are in the order the spec's roster reads: the request line first,
+/// The rows are in this order: the request line first,
 /// then the fields that arrived with it, then what the body spells, then the
 /// three facts the request arrived on. `mount` and `route` sit last because
 /// each answers a match made before the program ran rather than anything the
@@ -1160,7 +1158,7 @@ const BODY_STREAM_CARD: ClassDoc = ClassDoc {
             is never in memory at once.",
 };
 
-/// The class `bodyStream` answers with — spec § 15's `Iterable<bytes>`, given
+/// The class `bodyStream` answers with — its published `Iterable<bytes>`, given
 /// the name the registry needs to write it.
 ///
 /// # Decision: it is its own iterator, where [`crate::io::LINES`] is a snapshot
@@ -1190,7 +1188,7 @@ const BODY_STREAM_CARD: ClassDoc = ClassDoc {
 /// [`crate::io::LINES`]'s answer: everything it does is the three names on
 /// [`crate::instance`]'s dispatch roster, so it is a *handle* in the sense
 /// `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse`
-/// names. Spec § 15 writes `bodyStream(): Iterable<bytes>` and no member on the
+/// names. The registry writes `bodyStream(): Iterable<bytes>` and no member on the
 /// thing it answers with.
 pub(crate) const BODY_STREAM: CoreClass = CoreClass {
     name: BODY_STREAM_NAME,
@@ -1245,7 +1243,7 @@ const FILES_CARD: ClassDoc = ClassDoc {
 /// [`BODY_STREAM`]'s answer: everything it does is the three names on
 /// [`crate::instance`]'s dispatch roster, so it is a *handle* in the sense
 /// `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse`
-/// names. Spec § 15 writes `files(): Iterable<Part>` and puts every member on
+/// names. The registry writes `files(): Iterable<Part>` and puts every member on
 /// the part rather than on the walk.
 pub(crate) const FILES: CoreClass = CoreClass {
     name: FILES_NAME,
@@ -1279,7 +1277,7 @@ const PART_ORDINAL: usize = 3;
 /// the walk passes it and `post()` reads back — so this class is never a form
 /// field's carrier and has no member that would answer for one.
 ///
-/// # All three readers are `tainted`, and the spec taints two
+/// # All three readers are `tainted`
 ///
 /// `filename` and `contentType` are what § 2 marks, and `name` is marked here
 /// as well: a field name arrives off the same wire, from a peer that is under
@@ -2124,7 +2122,7 @@ pub(crate) fn cookie_of<'a>(inbound: &'a Inbound, name: &[u8]) -> Option<&'a [u8
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::method(): Core\Http\Method` — spec § 15's verb, and the
+    /// `Core\Request::method(): Core\Http\Method` — the request's verb, and the
     /// one place a request's method token becomes a case of the closed roster.
     ///
     /// An enum answers as its ordinal, exactly as a user-declared enum does
@@ -2284,7 +2282,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::path(): tainted string` — spec § 15's path, with the
+    /// `Core\Request::path(): tainted string` — the request's path, with the
     /// matched mount's prefix already removed.
     ///
     /// The strip is `rule:http-server/a-request-resolves-in-five-steps` step 2's and happens before the program runs,
@@ -2298,7 +2296,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::query(string $name): ?tainted string` — spec § 15's
+    /// `Core\Request::query(string $name): ?tainted string` — the
     /// query-string reader, replacing `$_GET` and `filter_input(INPUT_GET, …)`.
     ///
     /// The parse is [`crate::uri::parse_query`]'s and not a second one; the
@@ -2489,7 +2487,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::post(string $name): ?tainted string` — spec § 15's submitted-form
+    /// `Core\Request::post(string $name): ?tainted string` — the submitted-form
     /// reader, replacing `$_POST` and `filter_input(INPUT_POST, …)`.
     ///
     /// [`nvs_core_request_query`]'s answer over a body instead of a query
@@ -2651,7 +2649,7 @@ fn shaped_subject(parsed: NvsArray, name: &Value) -> Value {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::header(string $name): ?tainted string` — spec § 15's
+    /// `Core\Request::header(string $name): ?tainted string` — the
     /// single-field reader, replacing the `HTTP_*` half of `$_SERVER` and
     /// `filter_input(INPUT_SERVER, …)`.
     ///
@@ -2731,7 +2729,7 @@ fn host_named(inbound: &Inbound) -> Option<Vec<u8>> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::clientIp(): ?tainted string` — spec § 15's client
+    /// `Core\Request::clientIp(): ?tainted string` — the request's client
     /// address, decided once at the door and only read here.
     ///
     /// The walk that decided it is `nvs_server::forwarded`'s
@@ -2753,7 +2751,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::scheme(): tainted string` — spec § 15's effective scheme.
+    /// `Core\Request::scheme(): tainted string` — the request's effective scheme.
     ///
     /// Two spellings and no third, so a program compares against a word rather
     /// than reaching for a roster: the carrier holds one of two cases and this
@@ -2767,7 +2765,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::host(): ?tainted string` — spec § 15's authority, read
+    /// `Core\Request::host(): ?tainted string` — the request's authority, read
     /// off the `Host` field and normalised by [`host_named`], which owns why.
     ///
     /// No forwarded host header is read here or anywhere else: deriving an
@@ -2782,7 +2780,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::headers(): array<array<tainted string>>` — spec § 15's
+    /// `Core\Request::headers(): array<array<tainted string>>` — the
     /// whole-header reader, replacing `getallheaders`.
     ///
     /// Nested rather than one string per name, because a field the peer sent
@@ -2805,7 +2803,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::cookie(string $name): ?tainted string` — spec § 15's
+    /// `Core\Request::cookie(string $name): ?tainted string` — the
     /// cookie reader, replacing `$_COOKIE` and `filter_input(INPUT_COOKIE, …)`.
     ///
     /// The parse is [`cookie_lines`]'s and the visibility rule is
@@ -2854,7 +2852,7 @@ fn request_body(ctx: &Ctx) -> usize {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::body(): tainted string` — spec § 15's whole-body reader,
+    /// `Core\Request::body(): tainted string` — the whole-body reader,
     /// replacing `file_get_contents('php://input')`.
     ///
     /// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s first of three ways to read a body, and the only one that
@@ -3260,7 +3258,7 @@ fn whole_body(ctx: &mut Ctx, member: &str) -> Result<Vec<u8>, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::bodyStream(): Iterable<tainted bytes>` — spec § 15's
+    /// `Core\Request::bodyStream(): Iterable<tainted bytes>` — the
     /// streaming body reader, and `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s second of three ways.
     ///
     /// **It reads nothing.** The pull is `advance()`'s, one chunk at a time, so
@@ -4278,7 +4276,7 @@ mod tests {
         assert_eq!(
             method_ordinal("HEAD"),
             method_ordinal("GET"),
-            "spec § 15 reports `HEAD` as `Get`, so a `Get`-only route table matches one"
+            "`Core\\Request` reports `HEAD` as `Get`, so a `Get`-only route table matches one"
         );
     }
 

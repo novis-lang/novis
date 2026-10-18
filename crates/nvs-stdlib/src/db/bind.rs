@@ -153,7 +153,7 @@ pub(super) fn bound_of(value: Value) -> Bound {
 /// carrying its `SQLSTATE` and message. Everything left is the wire.
 ///
 /// The middle one is `Core\Db\DbError` — `rule:core-classes/db-error`'s single class for every refusal the server made, sitting beside
-/// `Core\Db\RolledBack` in spec § 10's tree so that a `catch` can tell a
+/// `Core\Db\RolledBack` in the `Core\Error` tree so that a `catch` can tell a
 /// refusal the program did not choose from one it did. Nothing about the
 /// message changes with the class, and § 8 requires it to carry no bound value.
 ///
@@ -426,7 +426,7 @@ impl Binds {
 }
 
 /// Everything `rule:core-classes/db-statement-members` and `rule:core-classes/db-parameters` do to a call before it reaches the socket:
-/// § 18's `$params` rule, the rewrite, and the encoding.
+/// the `$params` keying rule, the rewrite, and the encoding.
 ///
 /// **Both halves are the receiver's own driver's**, which is the one thing a
 /// caller cannot state: [`rendering_of`] reads it off the connection filed
@@ -439,7 +439,7 @@ impl Binds {
 /// different ones: `member` is the bare name [`connection_of`] builds
 /// `Class::member` out of, and `named` is the whole spelling the messages here
 /// already hold a class in. The argument slots are read the same way for each
-/// member, since § 18 gives both the identical two parameters.
+/// member, since both take the identical two parameters.
 ///
 /// # Errors
 ///
@@ -495,7 +495,8 @@ pub(super) fn statement_in(
         ))
     })?;
 
-    // § 18: "list-keyed for `?`, string-keyed for `:name`, mixing throws".
+    // A `$params` array is list-keyed for `?` and string-keyed for `:name`,
+    // and an array that mixes the two throws.
     // The refusal is here rather than in the rewriter because an array is
     // the only thing that can be both, and the rewriter is handed one form.
     let held = crate::arr::borrowed(params);
@@ -608,10 +609,10 @@ pub(super) struct Batch {
     pub(super) binds: Vec<Binds>,
 }
 
-/// § 18's `$sets`, read as one [`statement_of`] per set with the expansions
-/// checked to agree.
+/// `executeMany`'s `$sets`, read as one [`statement_of`] per set with the
+/// expansions checked to agree.
 ///
-/// **Each set is a whole `$params`**, so it gains § 18's keying rule, § 5's
+/// **Each set is a whole `$params`**, so it gains the keying rule, § 5's
 /// rewrite and § 9's encoding from the member that already owns them — a set
 /// cannot be bound by a weaker rule than the one `execute` would have applied
 /// to it on its own.
@@ -964,7 +965,7 @@ mod tests {
     /// would be told to fix its duration.
     ///
     /// Reached through `queried_rows` rather than `statement_of`, which is the
-    /// only thing that makes this the *read* path's assertion: § 18's buffered
+    /// only thing that makes this the *read* path's assertion: the buffered
     /// read has a preamble of its own, and a guard reached only from the member
     /// bodies below it is one a later caller can skip.
     // covers: Core\Db\Transaction::query

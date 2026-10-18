@@ -607,7 +607,7 @@ pub(crate) fn reject_generator_clone(inner: &Expr, env: &mut Env<'_>) {
 
 /// The same shape for `throw`, over the two ways an operand can fail to be a
 /// `Throwable`: a type that can hold no object at all, and a class outside
-/// spec § 10's tree.
+/// the `Core\Error` exception tree.
 ///
 /// The second half is what [`is_throwable_shaped`] answers for `rule:security/secret-sinks-refuse`'s
 /// constructor rule, asked here of the thrown value instead. `mixed` and
@@ -630,9 +630,8 @@ pub(crate) fn reject_unthrowable(ty: TypeId, span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "thrown here")
         .with_help(
-            "every class a `catch` can match descends from `Throwable` (the standard library's \
-             § 10 tree): throw a `RuntimeError`, a `LogicError` or one of your own classes \
-             extending one",
+            "every class a `catch` can match extends `Throwable`. Throw a `RuntimeError`, a \
+             `LogicError` or one of your own classes that extends one",
         ),
     );
 }

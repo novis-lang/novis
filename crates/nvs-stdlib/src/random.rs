@@ -1,7 +1,6 @@
-//! `Core\Random` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 11's first table, which is a CSPRNG **always**.
+//! `Core\Random`, which is a CSPRNG **always**.
 //!
-//! That section collapses PHP's `rand`, `mt_rand`, `random_int`, `lcg_value`,
+//! The class collapses PHP's `rand`, `mt_rand`, `random_int`, `lcg_value`,
 //! `shuffle`, `str_shuffle` and `array_rand` into one class and keeps none of
 //! the insecure generators under any name. So there is no fast-but-predictable
 //! tier here to fall back to and none to add later: every member draws from a
@@ -87,7 +86,7 @@
 //! `new Core\Random\Seeded(42)` holds a [`SplitMix`] state of its own in a slot
 //! and draws every member from it, so a seed fixes that one value's sequence
 //! and nothing else's. The separation is a **type** rather than a mode this
-//! class can be put into, which is spec § 11's own argument: a generator that
+//! class can be put into: a generator that
 //! reproduces says so at every call site that takes one, and cannot be reached
 //! for where an unpredictable one was meant. `srand` and `mt_srand` have no
 //! equivalent, because seeding the global generator is the spelling this
@@ -122,8 +121,7 @@ const RANDOM_CARD: ClassDoc = ClassDoc {
             that repeats from a seed, use `Core\\Random\\Seeded`.",
 };
 
-/// `Core\Random`'s registry rows, in the spec's own order — all seven of
-/// § 11's first table.
+/// `Core\Random`'s registry rows, all seven members.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&RANDOM_CARD),
@@ -315,8 +313,7 @@ const SHUFFLE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Random::token`'s default draw, which spec § 11 writes as
-/// `token(uint $bytes = 32)`.
+/// `Core\Random::token`'s default draw, the `32` in `token(uint $bytes = 32)`.
 ///
 /// Stated once and used in the registry row so the signature the compiler
 /// resolves and the number the helper documents cannot drift apart.
@@ -329,8 +326,8 @@ pub(crate) const SEEDED_NEW_SYMBOL: &str = "nvs_core_random_seeded_new";
 /// `new Core\Random\Seeded(int $seed)` — the constructor
 /// [`crate::registry::CONSTRUCTORS`] registers.
 ///
-/// A positional parameter rather than an options bag: spec § 11 writes
-/// "constructed from an explicit seed", and a generator whose whole state is
+/// A positional parameter rather than an options bag: the generator is
+/// constructed from an explicit seed, and a generator whose whole state is
 /// that seed has nothing else to be told. There is no default, because a
 /// *seeded* generator nobody gave a seed is the unpredictable one this class
 /// exists to be distinguishable from.
@@ -1052,9 +1049,8 @@ nvs_runtime::nvs_helper! {
     /// `mt_rand() / mt_getrandmax()` idiom.
     ///
     /// Uniform in `[0, 1)`: `0.0` is drawable and `1.0` is not, which is the
-    /// half-open interval every "scale it into my own range" use expects, and
-    /// the one the spec row writes. 53 random bits, the whole significand of an
-    /// `f64`.
+    /// half-open interval every "scale it into my own range" use expects. 53
+    /// random bits, the whole significand of an `f64`.
     fn nvs_core_random_float(ctx, args: [0]) {
         let _ = args;
         Ok(draw(ctx, float_from))
@@ -1224,7 +1220,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **A fresh array, not a reordering in place.** PHP's `shuffle` takes its
     /// subject by reference and answers `bool`; an Novis array is a copy-on-write
-    /// *value*, so there is nothing to mutate and the spec's signature returns
+    /// *value*, so there is nothing to mutate and the published signature returns
     /// the new order instead.
     ///
     /// **Keys are discarded**, exactly as PHP's own `shuffle` renumbers: a

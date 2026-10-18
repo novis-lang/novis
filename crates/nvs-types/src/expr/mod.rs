@@ -946,7 +946,7 @@ pub(crate) fn infer(
         }
         // `never` whatever the operand is — the expression does not complete,
         // which is what `rule:expressions/catch-arm-is-an-expression`'s arm relies on. The operand is still
-        // held to spec § 10's tree: `nvs_ir::lower::exception` builds a
+        // held to the `Core\Error` tree: `nvs_ir::lower::exception` builds a
         // landing pad against it and lowers no other shape.
         ExprKind::Throw(inner) => {
             let ty = check_expr(inner, None, live, scope, ctx, env);

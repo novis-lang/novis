@@ -1126,10 +1126,10 @@ fn required_key_names(options: &[crate::ty::CoreShapeField]) -> String {
 /// **This is reportable at all only because of `rule:core-api/shape-rules` R2.** The verb is the
 /// member's own name and the bag has to be written out as a literal at the call
 /// site ([`check_options_arg`] is the refusal that makes it so), so both halves
-/// of § 7's question are in hand while compiling — which is the payoff R2 was
+/// of the rule's question are in hand while compiling — which is the payoff R2 was
 /// designed for, arriving in a place nobody planned it for. Where the verb is
-/// genuinely dynamic, § 7 moves the check to the send itself, which is the
-/// spec's `send(Core\Http\Request)` row and throws before the *first* attempt.
+/// genuinely dynamic, the rule moves the check to the send itself, the
+/// `request(Core\Http\Method, …)` member, which throws before the *first* attempt.
 ///
 /// Which members carry the obligation, and the two option names it is written
 /// over, are `nvs_stdlib::registry::idempotent_retry_rule`'s — this pass holds
@@ -1911,7 +1911,7 @@ pub(crate) fn written_class_of(
             ));
         }
         if crate::derive::hydrates_a_row(&owner_name) {
-            // Both of § 18's hydrating members, because the question is the
+            // Both of `Core\Db`'s hydrating members, because the question is the
             // class's and not the statement's:
             // `rule:core-classes/db-column-types`'s map is read over the same
             // `#[Db\Derive]` mapping whether the rows were buffered or walked,

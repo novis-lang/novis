@@ -9,11 +9,9 @@
 //! why it is an integration test rather than a `#[cfg(test)]` module: it needs
 //! the repository, not the crate.
 //!
-//! **The enumerable set is what is registered, not what the spec owes.**
-//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) §§ 1-12
-//! is the work list. A member the registry does not hold is not a member, and the
-//! compiler refuses to resolve a call to one, so there is nothing here to
-//! check. What this forbids is the other order: registering a member, then
+//! **The enumerable set is what is registered.** A member the registry does not
+//! hold is not a member, and the compiler refuses to resolve a call to one, so
+//! there is nothing here to check. What this forbids is the other order: registering a member, then
 //! never writing the case.
 //!
 //! **The second gate is depth, and it is the same corpus read a second way.**

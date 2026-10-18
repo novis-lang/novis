@@ -439,7 +439,7 @@ pub fn build_class_layouts(
     // (`nvs_hir::errors`), and a user class extending it needs its four slots
     // already claimed before its own are appended.
     for (name, _) in nvs_hir::errors::TREE {
-        // Public on `own_methods`' terms, and for its reason: spec § 10's four
+        // Public on `own_methods`' terms, and for its reason: `Throwable`'s four
         // properties are read from inside every `catch` block, and a
         // synthesized declaration writes no modifier to read. Readonly, because
         // the synthesized constructor writes each slot inline and nothing writes
@@ -457,7 +457,7 @@ pub fn build_class_layouts(
         // that no source walk can find. One per class that declares
         // properties of its own — `nvs_hir::errors::declares_constructor`.
         let methods = if nvs_hir::errors::declares_constructor(name) {
-            // Public: spec § 10's tree is constructed by every program that
+            // Public: the `Core\Error` tree is constructed by every program that
             // throws, and a synthesized member writes no modifier — see
             // `own_methods` on why absent reads as `public`. Neither parameter
             // roster is filled, which is `ClassLayout::methods`' empty case:

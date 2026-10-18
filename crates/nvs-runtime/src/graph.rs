@@ -138,7 +138,7 @@ mod node {
 ///
 /// One shape rather than a refused/malformed pair: every caller classifies it
 /// into a `Throwable` of its own choosing — `Core\Serialize::decode` answers
-/// spec § 10's `ParseError` for all of them, and the live boundary answers a
+/// `ParseError` for all of them, and the live boundary answers a
 /// diagnostic — so a second axis here would be one nothing reads.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GraphError(String);

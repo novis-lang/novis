@@ -1,6 +1,5 @@
-//! `Core\Validate` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 12's prose roster, "what survives of `filter`: the genuine validators
-//! only" — all six of it. Four name a *format* a human wrote (`isEmail`,
+//! `Core\Validate`, what survives of `filter`: the genuine validators only, all
+//! six of them. Four name a *format* a human wrote (`isEmail`,
 //! `isDomain`, `isIp`, `isMac`) and two ask what a `string` is made of
 //! (`isAscii`, `isPrintable`). Every one answers `bool`, takes
 //! the subject first, and **launders nothing** — that is the whole reason the
@@ -87,7 +86,7 @@
 //! `{version: 6}` accept exactly one. The option is
 //! `rule:types/single-value-types`'s
 //! set of allowed values rather than an `int`, so `{version: 5}` does not compile —
-//! spec § 12 names this as the reason `isIpV4`/`isIpV6` are *gone* rather than
+//! and that is the reason `isIpV4`/`isIpV6` are *gone* rather than
 //! being two more member names. It is the registry's first union-typed option,
 //! and [`crate::registry::CoreTy::Union`] records what that costs.
 //!
@@ -152,6 +151,11 @@
 //! [`Qual::Launder`] by construction and would be exactly the false confidence
 //! this module's docs refuse above — passing a syntax check is not the same
 //! fact as being safe at a sink.
+//!
+//! Three tests have no member because another call already does them: a URL
+//! test is `Uri::tryParse($s)?->scheme() != null`, a test for one of several
+//! allowed values is `Arr::contains($allowed, $value)`, and an IPv4 or IPv6
+//! test is the `{version: 4}` or `{version: 6}` option.
 
 use nvs_runtime::{Fault, Tag, Value};
 
@@ -559,7 +563,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Validate::isIp(string $s, {version?: 4|6}): bool` — replacing
     /// `filter_var($s, FILTER_VALIDATE_IP)` and its two family flags, which
-    /// spec § 12 folds into this one option.
+    /// this one option replaces.
     ///
     /// [`std::net::IpAddr`]'s parser, so `::` compression, an embedded-IPv4
     /// tail and the leading-zero refusal are the standard library's rather
@@ -658,11 +662,7 @@ mod tests {
         // Counted, not read off six lines: a seventh member added without a
         // thought for its qualifier fails here rather than passing by absence.
         let members: Vec<&'static CoreMethod> = CLASS.members().collect();
-        assert_eq!(
-            members.len(),
-            6,
-            "spec § 12's prose roster is six validators"
-        );
+        assert_eq!(members.len(), 6, "`Core\\Validate` is six validators");
 
         for method in &members {
             assert!(

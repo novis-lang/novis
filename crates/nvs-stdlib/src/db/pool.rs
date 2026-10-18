@@ -255,7 +255,7 @@ pub(super) fn rendering_of(
 /// second place holding the two `Fault::fatal`s that say the request's own
 /// table is wrong.
 ///
-/// **This is where spec § 18's `close` is enforced for every other member.**
+/// **This is where `close` is enforced for every other member.**
 /// A closed handle still names its entry — [`nvs_runtime::Ctx::connection_is_filed`]
 /// is what says so — and every member that needs the connection refuses here
 /// rather than each carrying its own guard, because "the connection is gone" is

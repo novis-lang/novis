@@ -895,7 +895,7 @@ impl Ctx {
         self.event_stream == Some(EventStreamDoor::Connection)
     }
 
-    /// Declares what this request's response *means* — spec § 15's status,
+    /// Declares what this request's response *means* — its status,
     /// set by `Core\Response::setStatus`.
     ///
     /// The neighbour above is the model: one word recorded on the context, put
@@ -919,7 +919,7 @@ impl Ctx {
     }
 
     /// Sets one header on this request's response, replacing any value this
-    /// request had already set under that name — spec § 15's `setHeader`, and
+    /// request had already set under that name — `Core\Response::setHeader`, and
     /// `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`
     /// 's override of a policy-owned header.
     ///
@@ -947,8 +947,8 @@ impl Ctx {
         self.headers.set(name, value);
     }
 
-    /// A second value under a name that may already carry one — spec § 15's
-    /// `addCookie`, and the half of the header path [`Self::declare_header`]
+    /// A second value under a name that may already carry one —
+    /// `Core\Response::addCookie`, and the half of the header path [`Self::declare_header`]
     /// deliberately is not.
     ///
     /// **Pushes without searching**, which is the whole difference. A

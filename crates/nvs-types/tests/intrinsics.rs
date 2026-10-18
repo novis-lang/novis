@@ -275,7 +275,7 @@ fn a_literal_date_format_is_validated_while_checking() {
         "a zonal field in a parse pattern: {zonal:?}"
     );
 
-    // And what stays silent: the two spec § 4 patterns, the zonal one at the
+    // And what stays silent: the two `Core\Time` patterns, the zonal one at the
     // member that has no zone argument to disagree with, and a computed
     // pattern, which is § 2's rule again.
     let fine = check_call(
@@ -940,7 +940,7 @@ fn a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted() {
     );
 }
 
-/// A connection to write a query against, as a string literal. `connect` is § 18's entry
+/// A connection to write a query against, as a string literal. `connect` is `Core\Db`'s entry
 /// point and its return type is what puts `Core\Db\Connection` on `$db`, which
 /// is the class § 1's rows are matched nominally against.
 fn query(sql: &str, params: &str) -> Diagnostics {
@@ -1130,7 +1130,7 @@ fn granting(host: &str) -> Capabilities {
 }
 
 /// `Core\Db::open` with `host` written into its settings object, checked
-/// against `grants` — § 18's call, and the only one whose literal this pass
+/// against `grants` — `Core\Db`'s call, and the only one whose literal this pass
 /// reads out of a *field* rather than out of an argument.
 fn open(host: &str, grants: Option<&Capabilities>) -> Diagnostics {
     check_src_granted(

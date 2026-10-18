@@ -859,7 +859,7 @@ fn server_version_answers_what_the_connection_kept() {
     );
 }
 
-/// Spec § 18's `streamAs<T>`: the walk above at the class its call site wrote,
+/// `Core\Db`'s `streamAs<T>`: the walk above at the class its call site wrote,
 /// on both spellings of `Core\Db\Queryable`.
 ///
 /// **The one promise of this member no leg can vary**, which is why it is

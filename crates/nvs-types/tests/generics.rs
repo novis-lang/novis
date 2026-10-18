@@ -148,8 +148,8 @@ fn an_int_literal_reaches_a_uint_parameter_of_a_generic_core_member() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// The call-site half of the same wall. `docs/spec/01-core-library.md` § 6
-/// writes `decodeAs<T>` because no parameter position holds `T`; every other
+/// The call-site half of the same wall. `Core\Json::decodeAs<T>` takes its
+/// type argument written out because no parameter position holds `T`; every other
 /// `Core` member infers its variables from the arguments, so writing them is
 /// a second spelling of a fact those arguments already settle.
 #[test]
@@ -246,7 +246,7 @@ fn a_class_named_inside_a_refused_new_type_argument_list_is_still_resolved() {
 // `nvs_stdlib::registry::GENERIC_CLASSES` — the roster that says which `new`
 // target may carry a list at all, and how many arguments it takes.
 
-/// The accepting half: spec § 9's two collections, each written with exactly
+/// The accepting half: `Core`'s two generic collections, each written with exactly
 /// the arguments its roster row declares.
 #[test]
 fn a_core_owned_generic_class_takes_the_arguments_its_roster_row_declares() {

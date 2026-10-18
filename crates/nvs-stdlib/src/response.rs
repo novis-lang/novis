@@ -13,7 +13,7 @@
 //! request, and what the bytes are called is the static-file policy's table
 //! rather than anything this module declares.
 //!
-//! Beside them, § 15's `setStatus`, `setHeader`, `redirect` and `addCookie`,
+//! Beside them, `setStatus`, `setHeader`, `redirect` and `addCookie`,
 //! and `rule:core-classes/html-later`'s `slotted`: the five members here that
 //! shape a response without writing one.
 //!
@@ -106,7 +106,7 @@
 //! `setHeader` crosses the way the two words above do — `Ctx::declare_header`
 //! records it, the finish path takes it, `Completion::headers` carries it and
 //! `nvs_server`'s `answer` writes it — but what it records is a **list of
-//! pairs**, because spec § 15 makes it an override of *one* policy-owned
+//! pairs**, because each call is an override of *one* policy-owned
 //! header and a response has as many of those as a program names. The list
 //! replaces rather than appends: the member is `setHeader`, a second value
 //! under one name is `addCookie`'s question, and a replaced pair keeps the
@@ -393,11 +393,11 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: STREAM_SYMBOL,
             doc: Some(&STREAM_DOC),
         },
-        // § 4's body table ends above; § 15's other members follow it in that
-        // section's own order, `setStatus` first. Two orders rather than one
-        // because the two lists answer different questions — which shape a
-        // body is, and what else a response says — and interleaving them
-        // would leave a reader unable to check either against its source.
+        // § 4's body table ends above; the members that shape a response
+        // without writing one follow it, `setStatus` first. Two groups rather
+        // than one because the two lists answer different questions — which
+        // shape a body is, and what else a response says — and interleaving
+        // them would leave a reader unable to read either as one list.
         CoreMethod {
             name: "setStatus",
             names: &["code"],
@@ -1033,7 +1033,7 @@ const ADD_COOKIE_DOC: MethodDoc = MethodDoc {
 /// [`crate::registry::ENUMS`], so the two cannot drift apart.
 pub(crate) const SAME_SITE_NAME: &str = r"Core\Response::SameSite";
 
-/// `rule:http-server/cookies-are-secure-httponly-and-lax`'s `SameSite`, as the enum the spec says it is and never the
+/// `rule:http-server/cookies-are-secure-httponly-and-lax`'s `SameSite`, as an enum and never the
 /// string `[http.cookies]` writes.
 ///
 /// Numbered from zero, unlike [`REDIRECT`] beside it: this attribute's three
@@ -1099,7 +1099,7 @@ pub(crate) const REDIRECT: CoreEnum = CoreEnum {
 /// [`REDIRECT`]'s reference card — `rule:core-api/reference-card`.
 ///
 /// Named for its cases rather than `REDIRECT_DOC`, which the member above it
-/// already is: the class and the enum share the one word the spec gives them.
+/// already is: the class and the enum share the one word `Redirect`.
 const REDIRECT_CASES_DOC: EnumDoc = EnumDoc {
     short: "Which redirect a response is. The three cases are the redirect statuses whose \
             meaning is defined without reference to what browsers historically did with them, \
@@ -1316,7 +1316,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::setStatus(uint $code): void` — spec § 15's status,
+    /// `Core\Response::setStatus(uint $code): void` — the response's status,
     /// replacing `http_response_code`.
     ///
     /// One effect and no second: the code is declared on this request's
@@ -1379,8 +1379,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::setHeader(string $name, string $value): void` — spec
-    /// § 15's header, replacing `header`.
+    /// `Core\Response::setHeader(string $name, string $value): void` — a
+    /// response header, replacing `header`.
     ///
     /// The module doc owns the three decisions this member is: the list rather
     /// than a word, the refusal of `Content-Type`, and why both parameters are
@@ -1446,7 +1446,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Response::redirect(string $url, Core\Response::Redirect $status): void`
-    /// — spec § 15's redirect, replacing a `Location` written through `header`
+    /// — a redirect, replacing a `Location` written through `header`
     /// beside an `http_response_code`.
     ///
     /// Two declarations and no write, which is the whole of what makes this
@@ -1693,7 +1693,7 @@ fn attributable(value: &str) -> bool {
 nvs_runtime::nvs_helper! {
     /// `Core\Response::addCookie(string $name, string $value, {secure?: bool,
     /// httpOnly?: bool, sameSite?: Core\Response::SameSite, path?: string,
-    /// domain?: string, maxAge?: Core\Time\Duration}): void` — spec § 15's
+    /// domain?: string, maxAge?: Core\Time\Duration}): void` — a
     /// cookie, replacing `setcookie` and `setrawcookie` both.
     ///
     /// **One member where PHP has two, because the difference between them was

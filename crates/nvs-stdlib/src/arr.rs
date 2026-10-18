@@ -1,5 +1,4 @@
-//! `Core\Arr` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 2, over `nvs_runtime`'s insertion-ordered, copy-on-write `array<T>`.
+//! `Core\Arr`, over `nvs_runtime`'s insertion-ordered, copy-on-write `array<T>`.
 //!
 //! Every member here is pure (`rule:core-api/shape-rules` R3) and borrows its subject rather
 //! than consuming it — see [`crate`]'s own docs for why that falls out of
@@ -29,7 +28,7 @@
 //! `array<string>`s answers `array<string>`, which a call site can index and
 //! read without a cast, where `array<mixed>` would force one at every use.
 //!
-//! What that costs is a *shape* rule the spec's signature already implies and
+//! What that costs is a *shape* rule the published signature already implies and
 //! this is the one place it is written down: `T` binds from the base and `U`
 //! from the **first** trailing layer (`nvs_types::generics` binds
 //! first-occurrence-wins and substitutes before it checks a single argument),
@@ -43,7 +42,7 @@
 //!
 //! `diff` and `intersect` take `{on?: SetOn, by?: callable, comparator?:
 //! callable}`, and the twelve PHP functions they replace differ only in how
-//! those three interact. The rule, spec § 2's *Ordering* paragraph: **`on`
+//! those three interact. The rule: **`on`
 //! selects the part of an entry that is compared — the value, the key, or
 //! both — and `by` and `comparator` apply to the part it selected.** So a
 //! `by` under `Arr::SetOn::Keys` replaces the *key*, not the
@@ -53,8 +52,8 @@
 //! # A callback that does not want a key is never handed one
 //!
 //! [`nvs_core_arr_map`], [`nvs_core_arr_filter`] and [`nvs_core_arr_reduce`]
-//! each call back into Novis code per entry, and § 2's "every callback receives
-//! `($value, $key)` and may declare fewer parameters" means the key is
+//! each call back into Novis code per entry, and `Core\Arr`'s rule that every
+//! callback receives `($value, $key)` and may declare fewer parameters means the key is
 //! frequently built and then dropped by the trimming in
 //! `nvs_runtime::call_callable`. On a list that is a rendered decimal and an
 //! `NvsStr` allocation per entry, for nothing. So each of them reads
@@ -85,6 +84,12 @@
 //! can observe a key, so its walk collects none rather than collecting and
 //! discarding them.
 //!
+//! # No zip and no map over several arrays
+//!
+//! A map over several arrays at once, and a zip, have no member: each is a
+//! `foreach` over `Arr::keys`. A zip's element type would be `array<T|U>`,
+//! which gives up the element typing every other member here is checked by.
+//!
 //! # Known gaps
 //!
 //! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/arr.rs` lists them.
@@ -107,7 +112,7 @@ const CARD: ClassDoc = ClassDoc {
             a new array, and the array you pass in does not change.",
 };
 
-/// `Core\Arr`'s registry rows, in the spec's own order.
+/// `Core\Arr`'s registry rows.
 ///
 /// Declared beside the implementations rather than in one flat table, so
 /// adding a member touches this file and nothing else. [`crate::registry`]'s
@@ -725,9 +730,7 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_arr_average",
             doc: Some(&AVERAGE_DOC),
         },
-        // Last rather than in the spec's order because the spec has no row for
-        // it yet: spec §§ 6 and 15 owe that entry, and this comment goes when
-        // it lands.
+        // `shapeAs` sits last, apart from the groups the rows above fall in.
         CoreMethod {
             name: "shapeAs",
             names: &["a"],
@@ -1937,7 +1940,7 @@ const SHAPE_AS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `float|decimal` — what dividing spec § 2's `int|float|decimal` by a count
+/// `float|decimal` — what dividing `Core\Arr`'s `int|float|decimal` by a count
 /// can land on, and the whole of what `average` answers under its `?`.
 ///
 /// `int` is not on it, deliberately: an average is a quotient, and `rule:types/arithmetic` already makes `int / int` yield `int|float` rather than an `int`. A
@@ -1959,8 +1962,8 @@ pub const ORDER: CoreEnum = CoreEnum {
 
 /// [`ORDER`]'s reference card — `rule:core-api/reference-card`, on the first enum documented.
 const ORDER_DOC: EnumDoc = EnumDoc {
-    short: "The direction `Core\\Arr::sort` and `sortByKey` put elements in — spec § 2's \
-            `{order: …}` option, which is `Asc` when omitted.",
+    short: "The direction `Core\\Arr::sort` and `sortByKey` put elements in. It is the \
+            `{order: …}` option, and it is `Asc` when you leave it out.",
     cases: &[
         CaseDoc {
             name: "Asc",
@@ -1989,8 +1992,8 @@ pub const SET_ON: CoreEnum = CoreEnum {
 
 /// [`SET_ON`]'s reference card — `rule:core-api/reference-card`.
 const SET_ON_DOC: EnumDoc = EnumDoc {
-    short: "Which part of an entry `Core\\Arr::diff` and `intersect` compare — spec § 2's \
-            `{on: …}` option, which is `Values` when omitted; `by` and `comparator` apply to \
+    short: "Which part of an entry `Core\\Arr::diff` and `intersect` compare. It is the \
+            `{on: …}` option, and it is `Values` when you leave it out; `by` and `comparator` apply to \
             the part it selects.",
     cases: &[
         CaseDoc {
@@ -2009,7 +2012,7 @@ const SET_ON_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `int|string` — `rule:types/arrays`'s two array-key types, which the spec's § 2
+/// `int|string` — `rule:types/arrays`'s two array-key types, which `Core\Arr`
 /// writes at every member taking or producing a key.
 ///
 /// **Element positions only**, which is why its `string` arm stays the
@@ -2041,7 +2044,7 @@ const ARRAY_KEY_CONTAGIOUS: &[CoreTy] = &[CoreTy::Int, CoreTy::Text(Qual::Contag
 /// the spelling this module's own docs record as the one the registry can
 /// state.
 ///
-/// A union is legal in either direction ([`CoreTy::Union`]), so the spec's
+/// A union is legal in either direction ([`CoreTy::Union`]), so the published
 /// `array<T|U>` is written literally rather than flattened to `array<mixed>`.
 /// `T` binds from the base and `U` from the *first* trailing layer, and
 /// `nvs_types::generics` substitutes both before a single argument is checked
@@ -2052,10 +2055,10 @@ const ARRAY_KEY_CONTAGIOUS: &[CoreTy] = &[CoreTy::Int, CoreTy::Text(Qual::Contag
 /// call did not write.
 const COMBINED: &[CoreTy] = &[CoreTy::Var("T"), CoreTy::Var("U")];
 
-/// `{preserveKeys?: bool}` — the bag the spec's § 2 *Structure* rows share.
+/// `{preserveKeys?: bool}` — the bag `Core\Arr`'s structure members share.
 ///
-/// The default is `false` everywhere it appears, and it means what that
-/// section says it means: **every** key is discarded and the result renumbered
+/// The default is `false` everywhere it appears, and it means the same thing
+/// everywhere: **every** key is discarded and the result renumbered
 /// from `"0"`, rather than PHP's renumber-integers-keep-strings, which is the
 /// key-type-dependent behaviour
 /// `rule:types/preserve-keys` removes.
@@ -2076,7 +2079,7 @@ const RANGE_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Int(1),
 }];
 
-/// `Core\Arr::countBy`'s `{by?: callable}` — the spec's § 2 *Combining* bag
+/// `Core\Arr::countBy`'s `{by?: callable}` — the combining bag
 /// that `unique`, `diff` and `intersect` share the `by` half of.
 ///
 /// The same option [`SORT_OPTIONS`] declares and the same default: there is no
@@ -2088,8 +2091,8 @@ const BY_OPTION: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `{on?: SetOn, by?: callable, comparator?: callable}` — the bag the spec's
-/// § 2 set members share, in the order the ABI passes them.
+/// `{on?: SetOn, by?: callable, comparator?: callable}` — the bag `Core\Arr`'s
+/// set members share, in the order the ABI passes them.
 ///
 /// `by` and `comparator` default to [`Const::Null`] for the reason that
 /// variant's own docs give: a `callable` has no "no callback" value, so the
@@ -2129,8 +2132,8 @@ const COLUMN_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `Core\Arr::from`'s `{limit?: uint}` — the spec's § 2 prose calls it "the
-/// only guard against materialising an unbounded generator", so an omitted
+/// `Core\Arr::from`'s `{limit?: uint}` — the only guard against materialising
+/// an unbounded generator, so an omitted
 /// limit is [`Const::Null`] and means *no* limit rather than zero, and a
 /// written `{limit: 0}` is an empty result the caller asked for.
 const FROM_OPTIONS: &[CoreOption] = &[CoreOption {
@@ -2141,10 +2144,9 @@ const FROM_OPTIONS: &[CoreOption] = &[CoreOption {
 
 /// `Core\Arr::sort`'s
 /// `{by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}`
-/// — the eleven PHP sort functions plus `array_multisort` in one bag, which is
-/// what the spec's § 2 *Ordering* note means by "descending is
-/// `{order: Arr::Order::Desc}`, key-preservation is an option rather than a letter
-/// in the name."
+/// — the eleven PHP sort functions plus `array_multisort` in one bag: descending
+/// is `{order: Arr::Order::Desc}`, and key-preservation is an option rather than a
+/// letter in the name.
 ///
 /// [`nvs_core_arr_sort`]'s own docs own what each option does and which
 /// combinations are refused. Two things about the *declaration* belong here:
@@ -2179,8 +2181,8 @@ const SORT_OPTIONS: &[CoreOption] = &[
 ///
 /// `by` is absent because the thing compared is already the key, and
 /// `preserveKeys` is absent because a sort *by* key that renumbered would
-/// have thrown away what it just sorted on. Both are the spec's own row
-/// (§ 2 *Ordering*), not a narrowing this module chose; [`nvs_core_arr_sort_by_key`]'s
+/// have thrown away what it just sorted on. Both are the published signature,
+/// not a narrowing this module chose; [`nvs_core_arr_sort_by_key`]'s
 /// docs own why the row is shaped that way.
 const SORT_BY_KEY_OPTIONS: &[CoreOption] = &[
     CoreOption {
@@ -2302,7 +2304,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// A member of its own rather than left to `count(…) === 0` because
     /// `rule:core-api/one-paradigm-per-operation` is about *spellings the
-    /// library offers*, and the spec's § 2 table lists this one: the question
+    /// library offers*, and `Core\Arr` offers this one: the question
     /// "is it empty" is answered without the caller having to know that a
     /// count is `uint` and therefore needs `0` written as one.
     fn nvs_core_arr_is_empty(_ctx, args: [1]) {
@@ -2331,7 +2333,7 @@ nvs_runtime::nvs_helper! {
     /// `array_filter` and both of its flags.
     ///
     /// **Keys are preserved**, exactly as `array_filter` preserves them: the
-    /// spec's § 2 table names no `preserveKeys` option here, and a filtered
+    /// member declares no `preserveKeys` option, and a filtered
     /// result whose keys silently renumbered would make this the one member
     /// that changes what a following `Core\Arr::keys` answers.
     ///
@@ -2426,7 +2428,7 @@ nvs_runtime::nvs_helper! {
     /// **Keys are preserved**, which is PHP's own single-array behaviour and
     /// the one `Core\Arr::filter` already keeps: `array_map` renumbers only in
     /// its multi-array form, which `rule:core-api/shape-rules` R20 leaves no room for anyway.
-    /// Re-keying is `mapKeys`, its own member in the spec's § 2 table.
+    /// Re-keying is `mapKeys`, its own member.
     ///
     /// The callback receives `($value, $key)` and may declare fewer parameters,
     /// the same rule and the same `nvs_runtime::call_callable` trimming
@@ -2507,8 +2509,8 @@ nvs_runtime::nvs_helper! {
     /// `array_combine(array_map(…), …)` dance and the userland `keyBy` idiom.
     ///
     /// [`nvs_core_arr_map`]'s mirror: that member replaces the value and keeps
-    /// the key, this one replaces the key and keeps the value, and the spec's
-    /// § 2 prose calls this the only member that changes a key. The callback
+    /// the key, this one replaces the key and keeps the value, and it is the
+    /// only member that changes a key. The callback
     /// receives `($value, $key)` and may declare fewer parameters, the rule
     /// [`nvs_core_arr_filter`] documents.
     ///
@@ -2603,8 +2605,7 @@ nvs_runtime::nvs_helper! {
     /// nothing and answers "which entries grouped here" as well as "what". A
     /// caller wanting lists writes `Core\Arr::values` over the buckets, which
     /// is the member for exactly that and is not recoverable the other way
-    /// round. `map` and `filter` preserve keys for the same reason and the
-    /// spec's § 2 prose says so.
+    /// round. `map` and `filter` preserve keys for the same reason.
     ///
     /// Buckets are built in a `Vec` beside the result rather than mutated
     /// through it: `NvsArray::set` would hand back a *borrowed* bucket to
@@ -3145,7 +3146,7 @@ nvs_runtime::nvs_helper! {
 /// `slice` answer the same entries whatever the keys happen to be — the
 /// key-type independence
 /// `rule:types/array-combination`
-/// asks of every § 2 member, here reaching the *positions* rather than the
+/// asks of every `Core\Arr` member, here reaching the *positions* rather than the
 /// result's keys.
 fn window(
     count: usize,
@@ -3253,7 +3254,7 @@ nvs_runtime::nvs_helper! {
     /// `rule:types/preserve-keys`'s rule rather than this member's opinion — `array_splice`'s
     /// "renumber the integers, keep the strings" is exactly the key-type
     /// dependence that rule refuses. There is no `{preserveKeys?: bool}`
-    /// option, and not only because the spec row declares none: the entries
+    /// option, and not only because the published signature declares none: the entries
     /// either side of the window and the ones spliced into it cannot all keep
     /// a key without colliding, so the option would have no honest meaning.
     ///
@@ -3417,7 +3418,7 @@ nvs_runtime::nvs_helper! {
     /// keys. PHP escapes that by renumbering the integer keys and keeping the
     /// string ones, which is the key-type-dependent behaviour `rule:types/preserve-keys`
     /// removes; renumbering *every* key is the same answer applied uniformly,
-    /// and it is what spec § 2 means by `{preserveKeys: false}` wherever the
+    /// and it is what `{preserveKeys: false}` means wherever the
     /// option appears. The option is not declared here because, as in the
     /// padding members, keeping a key is not a choice that can be offered.
     ///
@@ -3444,12 +3445,12 @@ nvs_runtime::nvs_helper! {
     ///
     /// PHP splits that question across a statement that answers two at once:
     /// `array_shift($a)` hands back the element *and* mutates `$a`. `rule:core-api/shape-rules` R3
-    /// makes nothing mutate, so the spec's § 2 table splits it in two —
+    /// makes nothing mutate, so `Core\Arr` splits it in two —
     /// `Core\Arr::first` gets the element, this gets the remainder — and an
     /// empty array yields an empty array rather than a `null` and a warning.
     ///
     /// **Every surviving key is kept.** The member declares no `preserveKeys`
-    /// option, and the spec's § 2 rule that the option's `false` default
+    /// option, and the rule that the option's `false` default
     /// discards every key applies where it *appears*; here there is nothing to
     /// choose, so this behaves like [`nvs_core_arr_filter`], which also drops
     /// entries without renumbering the ones that remain. That is deliberately
@@ -3565,7 +3566,7 @@ nvs_runtime::nvs_helper! {
     /// keys and keeping the string ones, which is exactly the
     /// key-type-dependent rule
     /// `rule:types/preserve-keys` removes; renumbering *every* key is the same answer applied
-    /// uniformly, and it is what spec § 2 says `{preserveKeys: false}` means
+    /// uniformly, and it is what `{preserveKeys: false}` means
     /// wherever the option appears. Neither member declares the option,
     /// because keeping a key here is not a choice that can be offered.
     ///
@@ -3666,7 +3667,7 @@ nvs_runtime::nvs_helper! {
     /// `array_flip`.
     ///
     /// Duplicate values collapse, **the last occurrence winning**, which is
-    /// PHP's rule and the spec's § 2 *Structure* note. The result is keyed in
+    /// PHP's rule too. The result is keyed in
     /// first-occurrence order all the same, because a re-`set` of an existing
     /// key overwrites in place rather than moving the entry to the end —
     /// `rule:types/arrays`'s insertion order is a property of the *key*, not of the
@@ -3720,8 +3721,8 @@ nvs_runtime::nvs_helper! {
     /// the integers. `appendAll` is this member's variadic sibling and answers
     /// the same shape for the same reason.
     ///
-    /// The declared parameter is `array<array<T>>` rather than the spec's
-    /// original `array<T>`, and that is the whole of the pair's type story:
+    /// The declared parameter is `array<array<T>>` rather than `array<T>`, and
+    /// that is the whole of the pair's type story:
     /// unwrapping *one* level is exactly what a nested element type can state,
     /// so this member keeps `T` all the way to its answer. It is
     /// [`nvs_core_arr_flatten_deep`] that cannot, and its own docs say why.
@@ -3758,7 +3759,7 @@ nvs_runtime::nvs_helper! {
     /// the return would then claim one more level of nesting than the answer
     /// has. That is unsound, not merely imprecise, so this member erases
     /// instead (`rule:types/grammar`'s one unchecked position). A caller that knows the depth is two
-    /// uses `flatten` and keeps its `T`; the spec's rows say both.
+    /// uses `flatten` and keeps its `T`; the two registry rows say both.
     ///
     /// An explicit stack rather than recursion: the nesting depth is the
     /// caller's data, and a deeply nested argument must not be able to reach
@@ -3798,7 +3799,7 @@ nvs_runtime::nvs_helper! {
     /// be an `int` — `column($rows, 0)` and `column($rows, "0")` name one
     /// column, exactly as `$row[0]` and `$row["0"]` do.
     ///
-    /// **Three questions the spec's row does not answer**, the first two
+    /// **Three questions the published signature does not answer**, the first two
     /// settled PHP's way because a program porting `array_column` meets them
     /// on its first call and a different answer would be a silent behaviour
     /// change rather than a diagnosed one:
@@ -3995,7 +3996,7 @@ nvs_runtime::nvs_helper! {
     /// integers from `$start` to `$end` inclusive, replacing PHP's `range`.
     ///
     /// The first member with an `rule:core-api/shape-rules` R2 options bag, and therefore the
-    /// first whose arity says something the spec's signature does not:
+    /// first whose arity says something the published signature does not:
     /// `{step?: int}` is flattened into one ordinary argument by
     /// `nvs_ir::lower::lower_call_args`, so this is an `args: [3]` helper and
     /// `args[2]` is always present — the call site materialized the default
@@ -4008,8 +4009,8 @@ nvs_runtime::nvs_helper! {
     /// * **A `step` of zero or less throws**, rather than looping forever or
     ///   silently reversing. PHP raises `ValueError`; this raises the tree's
     ///   root, because a `Core` helper cannot yet name the class it throws
-    ///   (`nvs_runtime::Ctx::set_runtime_error_class`) — spec § 10's
-    ///   `LogicError` is the class this owes once it can.
+    ///   (`nvs_runtime::Ctx::set_runtime_error_class`) — the `Core\Error`
+    ///   tree's `LogicError` is the class this owes once it can.
     /// * **A step that overshoots stops at the last in-range value**, so
     ///   `range(1, 10, {step: 3})` is `1, 4, 7, 10` and
     ///   `range(1, 10, {step: 4})` is `1, 5, 9`.
@@ -4077,7 +4078,7 @@ nvs_runtime::nvs_helper! {
     /// `iterator_to_array($it, false)` and the only reading that composes.
     ///
     /// **`{limit: n}` stops after `n` elements** and an omitted limit does not
-    /// stop at all — the spec's § 2 prose calls this the only guard against
+    /// stop at all — this is the only guard against
     /// materialising an unbounded generator, so it is the *drive* that stops
     /// rather than the result being truncated afterwards: a generator asked
     /// for three elements runs three segments of its body and no more.
@@ -4109,8 +4110,8 @@ nvs_runtime::nvs_helper! {
     /// — one array's values used as the keys of another's, replacing PHP's
     /// `array_combine`.
     ///
-    /// **Two arrays of different lengths throw**, which is the spec's § 2
-    /// *Structure* note and `rule:core-api/shape-rules` R4: PHP 8 raises a `ValueError` here, and
+    /// **Two arrays of different lengths throw**, which is
+    /// `rule:core-api/shape-rules` R4: PHP 8 raises a `ValueError` here, and
     /// the shorter-wins alternative would silently drop data. The two are
     /// walked by their own cursors, so it is each array's *entry count* that
     /// has to match — neither side's keys are looked at, and the `$keys`
@@ -4244,12 +4245,12 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Arr::reduce(array<T> $a, callable $fn, U $initial): U` — the
-    /// spec's § 2 *Iteration and aggregation* fold, replacing `array_reduce`.
+    /// fold, replacing `array_reduce`.
     ///
     /// # The callback takes the carry first
     ///
     /// `($carry, $value, $key)`, and may declare fewer parameters (R9). That
-    /// extends § 2's "every callback receives `($value, $key)`" with a leading
+    /// extends `Core\Arr`'s "every callback receives `($value, $key)`" with a leading
     /// carry rather than departing from it: the pair is still there, in the
     /// same order, and a fold has nowhere else to put the accumulator that
     /// every language — `array_reduce` included — writes first.
@@ -4378,7 +4379,7 @@ impl Drop for Extracted {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Arr::sort(array<T> $a, {by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}): array<T>`
-    /// — the spec's § 2 *Ordering* member that replaces `sort`, `rsort`,
+    /// — the ordering member that replaces `sort`, `rsort`,
     /// `asort`, `arsort`, `usort`, `uasort`, `natsort`, `natcasesort` and
     /// `array_multisort`.
     ///
@@ -4592,7 +4593,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Arr::sortByKey(array<T> $a, {order?: Order, comparator?: callable}): array<T>`
-    /// — the spec's § 2 *Ordering* second member, replacing `ksort`, `krsort`
+    /// — the second ordering member, replacing `ksort`, `krsort`
     /// and `uksort`.
     ///
     /// A second entry point into [`nvs_core_arr_sort`]'s machinery rather than
@@ -4954,13 +4955,13 @@ nvs_runtime::nvs_helper! {
     /// The first `Core` member to answer `?T`. The empty array is `null`, not
     /// a throw: `rule:core-api/shape-rules` R5 makes `?T` the absence spelling and R4's throw is
     /// for a *failure*, which asking a possibly-empty array for its first
-    /// entry is not. The spec's § 2 notes the one thing this costs — over an
+    /// entry is not. This costs one thing — over an
     /// `array<?T>` the answer cannot tell "absent" from "present and null",
     /// which `isEmpty` answers directly.
     ///
     /// PHP's three spellings all move or read an internal array pointer;
-    /// there is none here, and the spec's § 2 says why a cursor inside a
-    /// copy-on-write *value* is incoherent.
+    /// there is none here, because a cursor inside a copy-on-write *value* is
+    /// incoherent.
     fn nvs_core_arr_first(_ctx, args: [1]) {
         let subject = subject(args, "first")?;
         Ok(match subject.next_slot(0) {
@@ -5100,8 +5101,8 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Always strict.** `in_array`'s default is a loose comparison, so
     /// `in_array("abc", [0])` is `true` in PHP versions before 8.0 and
-    /// `in_array(0, ["a"])` still surprises people; the spec's § 2 table
-    /// names this one "(always strict)" and there is no third argument to
+    /// `in_array(0, ["a"])` still surprises people; this member is always
+    /// strict and there is no third argument to
     /// forget. What "strict" means is `nvs_runtime::value_identical`, whose
     /// own module docs own every row of it, including the two that differ
     /// from a naive bit comparison (`0.0` and `-0.0` are one value, `NaN` is
@@ -5144,13 +5145,13 @@ nvs_runtime::nvs_helper! {
     /// `array_unique`.
     ///
     /// **The first occurrence of each wins, and keeps its key**, which is
-    /// `array_unique`'s own behaviour; the spec's § 2 table names no
-    /// `preserveKeys` option here, for the reason [`nvs_core_arr_filter`]
+    /// `array_unique`'s own behaviour; the member declares no
+    /// `preserveKeys` option, for the reason [`nvs_core_arr_filter`]
     /// gives — a member that renumbered would change what a following
     /// `Core\Arr::keys` answers.
     ///
     /// **Compared by strict identity**, so `1` and `"1"` are two entries.
-    /// That is the spec's § 2 *Combining* note in full: PHP's default is
+    /// PHP's default is
     /// `SORT_STRING`, which casts every element to a string and therefore
     /// collapses `0`, `"0"`, `false` and `null` into one. Reproducing that
     /// would make this the one member whose answer depends on a value's
@@ -5542,7 +5543,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// Which part of an entry a set member compares — spec § 2's `Core\Arr::SetOn`,
+/// Which part of an entry a set member compares — `Core\Arr::SetOn`,
 /// decoded from the `{on: ...}` option's integer case.
 ///
 /// [`SET_ON`] is where the cases and their values are stated; this is the
@@ -5790,8 +5791,8 @@ nvs_runtime::nvs_helper! {
     /// here, because a `string` and an `int` have no order between them.
     /// `min(["1e2", "50"])` is the other side of the same rule: PHP reads two
     /// numeral strings as numbers and answers `"50"`, and this member compares
-    /// them bytewise, exactly as [`nvs_core_arr_sort`] does. The spec's § 2 has
-    /// no comparator option on either member; a caller who wants one writes
+    /// them bytewise, exactly as [`nvs_core_arr_sort`] does. Neither member has
+    /// a comparator option; a caller who wants one writes
     /// `first(sort($a, {by: ...}))`. Both halves are pinned in
     /// `tests/conformance/core/arr-min-and-max-*`.
     ///
@@ -5842,8 +5843,8 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Arr::average(array<int|float|decimal> $a): ?(float|decimal)` —
-    /// the spec's replacement for `array_sum($a)/count($a)`, "with the empty
-    /// case answered".
+    /// the replacement for `array_sum($a)/count($a)`, with the empty
+    /// case answered.
     ///
     /// **`null` over an empty array**, on [`nvs_core_arr_min`]'s terms:
     /// `rule:core-api/failure-throws` makes `?T` the absence spelling, and the average of nothing is
@@ -5884,7 +5885,7 @@ nvs_runtime::nvs_helper! {
 }
 
 /// What [`nvs_core_arr_sum`], [`nvs_core_arr_product`] and
-/// [`nvs_core_arr_average`] accumulate into — spec § 2's
+/// [`nvs_core_arr_average`] accumulate into — `Core\Arr`'s
 /// `int|float|decimal` as the three shapes an accumulator can be in.
 ///
 /// The promotion rules are `rule:types/arithmetic`'s, applied
@@ -7105,8 +7106,8 @@ mod tests {
         out
     }
 
-    /// Every row verified against PHP 8.5's own `range`, which is what the
-    /// spec's **Replaces** column promises this subsumes.
+    /// Every row verified against PHP 8.5's own `range`, which this member
+    /// replaces.
     // covers: Core\Arr::range
     #[test]
     fn range_matches_phps_ascending_descending_and_stepped_forms() {

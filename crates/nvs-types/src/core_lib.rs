@@ -253,7 +253,7 @@ fn method_sig(
         returns_static: false,
         params_bind_static: Vec::new(),
         return_binds_static: false,
-        // `rule:core-api/shape-rules` R2: every `Core` parameter is callable by the spec's
+        // `rule:core-api/shape-rules` R2: every `Core` parameter is callable by the registry's
         // `$name`. The row carries one name per positional slot and none
         // for a trailing bag, so `param_names` re-aligns them to `params`
         // — see its own docs for why the bag's entry is made there.
@@ -1416,7 +1416,7 @@ mod tests {
     /// program exactly as a request body is, and `secret`'s answer carries the
     /// other axis as well because a password is confidential *and* untrusted.
     /// `Core\Cli::arguments` is the seventh and the same reading a third time:
-    /// spec § 15's raw word list came off a command line somebody else wrote,
+    /// its raw word list came off a command line somebody else wrote,
     /// so a path or a URL built out of one passes its own launderer first, and
     /// the qualifier sits on the *element* because the array itself is the
     /// program's own. `Core\IO::stdin` is the eighth, and the one member of its
@@ -1424,8 +1424,8 @@ mod tests {
     /// the program chose, while standard input is a descriptor somebody else
     /// attached, so what comes back is as much the invoker's as a command-line
     /// word is. `Core\Request::path` is the ninth and the least surprising of
-    /// them — spec § 15's opening sentence marks every value these classes
-    /// answer that came from outside the process, and a request path is the
+    /// them — every value the server and request classes answer that came
+    /// from outside the process is marked, and a request path is the
     /// canonical one. `header`, `headers` and `cookie` are the tenth, eleventh
     /// and twelfth, and the same sentence read three more times: a field line
     /// and a cookie are what a client sent. `headers` puts the qualifier two
@@ -1444,8 +1444,8 @@ mod tests {
     /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
     /// marks `filename` and `contentType`, and `name` is marked with them
     /// because a peer chooses the field name it sends back as freely as it
-    /// chooses the other two — `nvs_stdlib::request`'s `PART` doc owns why the
-    /// spec's two marks became three. `filename` is the one of the sixteen with
+    /// chooses the other two — `nvs_stdlib::request`'s `PART` doc owns why all
+    /// three are marked. `filename` is the one of the sixteen with
     /// a named launderer standing in front of it: it is a claim about a file on
     /// someone else's machine, and `Core\IO::within` is what turns one into a
     /// path here.
@@ -1463,9 +1463,9 @@ mod tests {
     /// expanded against the disk at boot, so the prefix is the operator's text
     /// while which row a request selects is the peer's choice. The
     /// twenty-first and twenty-second are `Core\Socket\Message`'s two payload
-    /// readers, and they are spec § 15's sentence read once more one layer
-    /// out: a WebSocket frame is untrusted input off a network exactly as a
-    /// request body is, which
+    /// readers, and they are the same reading once more one layer out: a
+    /// WebSocket frame is untrusted input off a network exactly as a request
+    /// body is, which
     /// `rule:concurrency/a-connection-is-a-loop`
     /// states outright. They are the only rows here whose answer is
     /// *nullable*, because a message carries one payload kind and answers
@@ -1851,7 +1851,7 @@ mod tests {
     /// **`query`, `post` and `json` are the plain rows that answer outside
     /// data with nowhere to put the mark**, and they are the hole this
     /// repository has already
-    /// written down rather than an oversight: spec § 9's bracket convention
+    /// written down rather than an oversight: the bracket convention
     /// makes a value a `string` or a nested `array`, a decoded JSON document is
     /// that same array, `nvs_types` has no tainted array to hold either, so all
     /// three rows answer `mixed` and the mark has nowhere to sit —
@@ -1996,7 +1996,7 @@ mod tests {
     /// the request is made of — fails here rather than at a review.
     ///
     /// The `names` column is what identifies the parameter, and `rule:core-api/shape-rules` R2
-    /// makes that the spec's own signature column rather than a convention
+    /// makes that the registry's own signature column rather than a convention
     /// this test invented.
     #[test]
     fn an_outbound_url_parameter_refuses_a_tainted_operand() {

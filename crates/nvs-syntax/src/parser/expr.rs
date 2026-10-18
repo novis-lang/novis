@@ -53,8 +53,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// Parses a `foreach` header's subject. Identical to [`Self::parse_expr`]
     /// except that [`Self::parse_postfix`]'s loop will not consume a bare
-    /// `as` — that keyword belongs to `foreach` itself
-    /// ([`docs/spec/00-overview.md` § 3.2](/docs/spec/00-overview.md)).
+    /// `as` — that keyword belongs to `foreach` itself.
     /// Converting the subject still works, just parenthesized:
     /// `foreach (($m as array<int>) as int $v)` — the parens start a fresh
     /// [`Self::parse_expr`] call, which lifts the suppression for its own
@@ -1166,10 +1165,8 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// An optional `<T, U>` written between a member name and the `(` of a
     /// call — `<User>` in `Core\Json::decodeAs<User>($body)`, which
-    /// `rule:core-classes/derive-attribute` and
-    /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-    /// § 6 both write. Returns what was written, empty when this is not a
-    /// type-argument list at all.
+    /// `rule:core-classes/derive-attribute` writes. Returns what was written,
+    /// empty when this is not a type-argument list at all.
     ///
     /// Unlike [`Self::parse_type_args`], which is only ever reached from a
     /// type position, this one is genuinely ambiguous: `Foo::BAR < X > ($y)`
@@ -1269,14 +1266,14 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// the callee's signature and so belongs to `nvs_types` (E0713/E0714).
     ///
     /// **A `name` here is any word, keyword or not.** `rule:core-api/shape-rules`
-    /// R2 makes every parameter callable by the `$name` the spec writes, and
+    /// R2 makes every parameter callable by its published `$name`, and
     /// seven of those names — `Core\Arr::map`'s `$fn` and its siblings — are
     /// spellings the lexer reserves. The `:` is the whole disambiguation: no
     /// expression in argument position starts with a keyword followed by one,
     /// so admitting a [`Keyword`](TokenKind::Keyword) token before it costs the
     /// grammar nothing and takes the same one-token contextual reading `spawn`
     /// and `type` already take ([`crate::token`]). Renaming the parameter is
-    /// the alternative, and R2 makes the spec authoritative for the name.
+    /// the alternative, and R2 makes the published signature authoritative for the name.
     pub(super) fn parse_arg(&mut self) -> Arg {
         let start = self.peek().span;
         if self.eat(TokenKind::Ellipsis).is_some() {
@@ -1707,7 +1704,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 // a JSON document or an HTML attribute set arrives as. Nothing
                 // is ambiguous here — the token is followed by a `:` inside an
                 // already-open anonymous object, where no statement keyword can begin —
-                // and refusing them would put a spelling in the spec that no
+                // and refusing them would publish a parameter name that no
                 // call site could write.
                 let name = if matches!(self.peek().kind, TokenKind::Keyword(_)) {
                     self.bump().span
@@ -2431,10 +2428,8 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// `require` — the sole surviving same-frame inclusion keyword
     /// (`rule:statements/require-is-the-only-inclusion-construct`):
-    /// an expression, not a statement, per
-    /// [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md):
-    /// same frame, same globals, same statics as the caller. Precedence
-    /// mirrors `print`/`throw` above: it consumes a full expression, not
+    /// an expression, not a statement: same frame, same globals, same statics
+    /// as the caller. Precedence mirrors `print`/`throw` above: it consumes a full expression, not
     /// just a primary.
     pub(super) fn parse_require(&mut self) -> Expr {
         let start = self.bump().span;

@@ -156,10 +156,8 @@ pub(crate) enum TagCheck {
 /// parameters, borrowing every one of them.
 ///
 /// The trailing arguments a shorter callable does not want are dropped rather
-/// than passed, which is
-/// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-/// § 2's "every callback receives `($value, $key)` and may declare fewer
-/// parameters" — the rule that removes PHP's `ARRAY_FILTER_USE_KEY`/
+/// than passed, which is `Core\Arr`'s "every callback receives `($value, $key)` and may
+/// declare fewer parameters" — the rule that removes PHP's `ARRAY_FILTER_USE_KEY`/
 /// `ARRAY_FILTER_USE_BOTH` flags. A caller therefore passes every argument it
 /// already holds and lets the trimming happen here; the one reason to ask
 /// [`callable_arity`] first is an argument that would have to be *built* — see
@@ -182,7 +180,7 @@ pub(crate) enum TagCheck {
 /// [`Fault::Fatal`] when `callable` is not a callable value at all, or declares
 /// more parameters than the caller has to offer — both engine faults: the
 /// checker only admits an `rule:types/callable-values` callable value where a `callable` is
-/// expected, and no `Core` member offers fewer than the spec says it does.
+/// expected, and no `Core` member offers fewer than its published signature says it does.
 pub fn call_callable(ctx: &mut Ctx, callable: Value, args: &[Value]) -> Result<Value, Fault> {
     call_callable_with(ctx, callable, args, TagCheck::Required)
 }
@@ -296,7 +294,7 @@ fn invoke_label(callable: Value) -> String {
 /// is the other half of that ABI.
 ///
 /// Too *many* arguments is not an error: [`call_callable`] trims to the
-/// arity the callable recorded, which is spec § 2's "every callback receives
+/// arity the callable recorded, which is `Core\Arr`'s "every callback receives
 /// `($value, $key)` and may declare fewer parameters" and is also PHP's own
 /// answer for extra positional arguments to a userland function. Too *few* is
 /// the catchable `LogicError` below rather than the engine fault
@@ -547,7 +545,7 @@ pub fn bind_callable(callable: Value, this: Value) -> Result<Value, Fault> {
 /// two helpers compiled Novis code calls a callable through.
 ///
 /// A native caller has no arity mistake to make — a `Core` member offers every
-/// argument the spec says it does, so [`call_callable`] answers it with an
+/// argument its published signature says it does, so [`call_callable`] answers it with an
 /// engine fault. An Novis call site's list is whatever was written there, and
 /// `rule:types/anonymous-function`
 /// gives the checker no parameter list to count it against, so too few is

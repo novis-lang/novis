@@ -470,7 +470,7 @@ pub struct Completion {
     /// The server adds it to the response's Content-Security-Policy, so a
     /// policy that limits styles still lets the block's style apply.
     pub style_nonce: Option<Box<str>>,
-    /// What the child declared this response *means* — spec § 15's status code,
+    /// What the child declared this response *means* — its status code,
     /// or `None` where nothing set one.
     ///
     /// The field above owns the reasoning for both: this is the same one
@@ -478,8 +478,8 @@ pub struct Completion {
     /// a response is declared with. A child that is not answering a request
     /// carries it and nobody reads it.
     pub status: Option<u16>,
-    /// What else the child said this response carries — spec § 15's
-    /// `setHeader` and `addCookie`, in the order it declared them, and empty
+    /// What else the child said this response carries —
+    /// `Core\Response`'s `setHeader` and `addCookie`, in the order it declared them, and empty
     /// where it declared none.
     ///
     /// The two fields above own the reasoning for all three; this is the one

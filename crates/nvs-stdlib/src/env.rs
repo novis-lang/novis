@@ -1,9 +1,7 @@
-//! `Core\Env` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 15's environment half, which is
-//! `rule:statements/no-host-populated-variables`'s replacement
+//! `Core\Env` — `rule:statements/no-host-populated-variables`'s replacement
 //! for `$_ENV` and `getenv()`.
 //!
-//! Four members — `get`, `all`, `mode` and `context` — and § 15's three
+//! Four members — `get`, `all`, `mode` and `context` — and three
 //! constants, `EOL`, `OS` and `VERSION`, whose one shared decision is on
 //! [`CONSTANTS`]. `mode` and `context` read no environment variable; the
 //! section on `mode` below says why they sit on this class anyway, and
@@ -80,8 +78,8 @@
 //! # `mode` is the one member here that reads no environment at all
 //!
 //! `rule:config/two-modes-and-the-default-is-production`'s
-//! run mode is set through `Core\Config` like every other directive, and spec
-//! § 15 says outright that no environment variable is consulted for it. So the
+//! run mode is set through `Core\Config` like every other directive, and no
+//! environment variable is consulted for it. So the
 //! member sits on this class for the reason a program asks the question —
 //! "which deployment am I" is the same question as "what is `OS`" — and not
 //! because of where the answer is kept. There is deliberately no `NVS_ENV` or
@@ -160,7 +158,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: CONSTANTS,
 };
 
-/// § 15's three constants — `PHP_EOL`, `PHP_OS_FAMILY` and `PHP_VERSION`, each
+/// The three constants — `PHP_EOL`, `PHP_OS_FAMILY` and `PHP_VERSION`, each
 /// with the one thing about it that is decided rather than transcribed.
 ///
 /// A `CoreConst` is folded into the program at the site that names it, so all

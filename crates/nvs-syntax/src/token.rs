@@ -81,9 +81,9 @@ pub enum TriviaKind {
 ///
 /// Reserved words that PHP already fully reserves — `int`, `string`, `static`,
 /// `self`, and so on — are their own [`Keyword`] variant, not an [`Ident`]. Three
-/// spellings the spec introduces are deliberately kept *contextual* instead:
+/// spellings Novis introduces are deliberately kept *contextual* instead:
 /// `spawn`, `script` and `with` (the `spawn script … with(…)` grammar,
-/// [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)) and `type`
+/// [`docs/reference/lang/80-concurrency.md`](/docs/reference/lang/80-concurrency.md)) and `type`
 /// (the alias declaration, `rule:statements/nothing-gets-a-second-name`)
 /// lex as plain [`Ident`]s; the parser recognises them by text only at the one
 /// grammar position each is meaningful in. Reserving common English words

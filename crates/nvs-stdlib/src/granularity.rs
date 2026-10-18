@@ -190,7 +190,7 @@ impl Unit {
     ///
     /// Negative-from-the-end is the same rule
     /// `rule:core-api/shape-rules` R8 fixes
-    /// for every range in the spec; `at` is a range of one.
+    /// for every range in `Core`; `at` is a range of one.
     #[must_use]
     pub fn at(self, subject: &str, index: i64) -> Option<&str> {
         let from_start = if index < 0 {

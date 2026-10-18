@@ -1,6 +1,5 @@
-//! The identity-keyed store behind `docs/spec/01-core-library.md` § 9's
-//! `Core\ObjectMap` and `Core\ObjectSet`: an ordinary Novis array, used as the
-//! hash table it already is.
+//! The identity-keyed store behind `Core\ObjectMap` and `Core\ObjectSet`: an
+//! ordinary Novis array, used as the hash table it already is.
 //!
 //! # Decision: the store is an `NvsArray` keyed by the identity hash
 //!
@@ -223,7 +222,7 @@ pub(crate) fn edit<R>(
 }
 
 /// Replaces slot `index` with an empty store, releasing what it held — the
-/// `clear` of every § 9 collection.
+/// `clear` of `Core\ObjectMap` and `Core\ObjectSet`.
 ///
 /// A fresh store rather than an entry-by-entry removal: the slot write
 /// releases the old array, which releases every value it held, so the refcount

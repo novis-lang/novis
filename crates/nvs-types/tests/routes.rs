@@ -748,7 +748,7 @@ fn an_unknown_written_url_name_is_a_diagnostic() {
 #[test]
 fn a_named_link_argument_is_folded_like_a_positional_one() {
     // `rule:core-api/parameters-are-callable-by-name`: `$name` and `$params`
-    // are filled by the names the spec publishes as surely as by position, and
+    // are filled by the names the registry publishes as surely as by position, and
     // the call's own argument mapping is what says so — so § 4's refusals are
     // the same refusals when the link is written that way, and a link that
     // throws at run time is a computed name and nothing else.

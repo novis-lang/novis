@@ -605,7 +605,7 @@ pub(super) fn column_name<'a>(
     })
 }
 
-/// Spec § 18's "An unknown column name throws", with the names that would have
+/// The throw for an unknown column name, with the names that would have
 /// worked — the one thing a caller holding a misspelling wants next.
 pub(super) fn unknown_column(class: &str, member: &str, name: &[u8], columns: &NvsArray) -> Fault {
     let known: Vec<String> = columns
@@ -854,7 +854,7 @@ nvs_runtime::nvs_helper! {
     /// `PDOStatement::fetchColumn`.
     ///
     /// **An empty result is `null`, which a NULL column is too**, and the two
-    /// are not told apart here. The declared type is § 18's `mixed`, so there
+    /// are not told apart here. The declared type is `mixed`, so there
     /// is no `?T` to put the absence in that the value itself could not
     /// already be; a caller that has to distinguish them asks `count()`, which
     /// is exact. The alternative — throwing on an empty result — would make

@@ -1973,7 +1973,7 @@ impl<'a> Lowering<'a> {
     /// * **No arm matching throws.** PHP raises `UnhandledMatchError`;
     ///   `nvs_hir::errors`' tree is closed and has no such entry, so this
     ///   raises the entry that already means "a bug in the program",
-    ///   `LogicError` (`docs/spec/01-core-library.md` § 10). The message names
+    ///   `LogicError`. The message names
     ///   the construct rather than the unmatched value: rendering an arbitrary
     ///   subject would need the `Stringable`/`mixed` rendering this crate does
     ///   not have, and the carrier `Self::throw_source` hands the raise already
@@ -2152,7 +2152,7 @@ impl<'a> Lowering<'a> {
                 );
                 // Argument 2 is the `{previous}` bag, flattened: this throw
                 // chains to nothing, so it is the option's own `null` default,
-                // widened into the `Ty::Tagged` slot spec § 10's
+                // widened into the `Ty::Tagged` slot the option's
                 // `Throwable|null` erases to. `lower_call_args` does the same
                 // for a written `new`; this site builds the list by hand and
                 // so has to say it.
@@ -5495,7 +5495,7 @@ impl<'a> Lowering<'a> {
         );
         let (message, _) = self.emit(unset, Ty::Str, InstKind::ConstStr(message));
         // Argument 2 is the `{previous}` bag flattened to its own `null`
-        // default, widened into the `Ty::Tagged` slot spec § 10's
+        // default, widened into the `Ty::Tagged` slot the option's
         // `Throwable|null` erases to — the list `Self::lower_match`'s own
         // throw builds by hand, for the same reason.
         let (absent, _) = self.emit(unset, Ty::Null, InstKind::ConstNull);

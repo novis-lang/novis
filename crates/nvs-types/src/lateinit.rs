@@ -57,8 +57,6 @@
 //! mirroring [`crate::ctor_init`]'s identical bound for a hooked required
 //! property and holding for the same reason: neither pass has a model of a
 //! hook's body, so a read of one is left to that same runtime throw.
-//! `rule:classes/lateinit`'s own *Revisiting* section defers the question to
-//! `docs/spec/`.
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::QName;

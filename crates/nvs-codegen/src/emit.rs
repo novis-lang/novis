@@ -1738,7 +1738,7 @@ impl Emitter<'_, '_> {
             // arithmetic rows are the numeric types, and a `bool` is PHP's
             // "convert to an `int` first" and nothing else. `Mod` over a
             // `float` is `E0717`, the one refusal both operands are numbers
-            // for — the spec's `Core\Math::mod` row makes `%` the integer
+            // for — the `Core\Math::mod` registry row makes `%` the integer
             // operator, so the floating-point remainder is that member.
             // `Ty::Decimal` and `Ty::Tagged` never arrive: `nvs-ir` rewrites
             // the first into the `Helper::Decimal*` family and the second into
@@ -1756,7 +1756,7 @@ impl Emitter<'_, '_> {
     ///
     /// A trap is a request-isolation failure, not a wrong answer, so neither case may reach `srem`/`urem`:
     ///
-    /// * **A zero divisor** throws spec § 10's `ArithmeticError`, carrying
+    /// * **A zero divisor** throws `ArithmeticError`, carrying
     ///   PHP's own `Modulo by zero` message. That is the branch: compare,
     ///   branch to a block that raises and takes this instruction's error edge
     ///   ([`nvs_ir::ir::Inst::on_error`]), carry on in a fresh one. The
@@ -1811,7 +1811,7 @@ impl Emitter<'_, '_> {
     /// remainder is zero. Guards stand in front of it, and each is a
     /// trap — a request-isolation failure — rather than a wrong answer, so none may reach `sdiv`/`udiv`:
     ///
-    /// * **A zero divisor** throws spec § 10's `ArithmeticError` carrying
+    /// * **A zero divisor** throws `ArithmeticError` carrying
     ///   PHP's own `Division by zero` message, exactly as
     ///   [`Self::emit_int_mod`] does and by the same route: the exception is
     ///   built by [`nvs_runtime::nvs_raise_new`] from a baked-in descriptor
@@ -2203,7 +2203,7 @@ impl Emitter<'_, '_> {
         Ok((value, cont))
     }
 
-    /// Raise spec § 10's `ArithmeticError` inline and leave the current block
+    /// Raise `ArithmeticError` inline and leave the current block
     /// on [`nvs_ir::ir::Inst::on_error`]'s edge.
     ///
     /// Every arithmetic throw in this file goes through here — the zero

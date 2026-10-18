@@ -959,7 +959,7 @@ fn report_not_generic(qname: &nvs_hir::QName, span: Span, env: &mut Env<'_>) {
             "user-declared type parameters are deferred (`rule:types/declaration`); only a \
              compiler-owned generic declaration may be written with one — \
              `Iterable<T>`/`Iterator<T>` (`rule:iteration/concrete-generic-implements`) and \
-             `docs/spec/01-core-library.md` § 9's `Core` collections",
+             the `Core` collections `ObjectMap`, `ObjectSet` and `Heap`",
         ),
     );
 }
@@ -970,7 +970,7 @@ fn report_not_generic(qname: &nvs_hir::QName, span: Span, env: &mut Env<'_>) {
 ///
 /// Two rosters, because `rule:types/grammar` makes "which name may carry a list" a
 /// resolution question and there are two kinds of compiler-owned answer.
-/// [`nvs_stdlib::registry::GENERIC_CLASSES`] holds spec § 9's collections,
+/// [`nvs_stdlib::registry::GENERIC_CLASSES`] holds `Core`'s generic collections,
 /// named in full because `Core\ObjectSet` is the only spelling there is.
 /// [`nvs_hir::interfaces::RESERVED`] holds `rule:iteration/concrete-generic-implements`'s two interfaces,
 /// named by their short name and only as a single global segment — so a user
@@ -1017,8 +1017,8 @@ fn lower_generic_interface(
         .with_help(
             if nvs_stdlib::registry::class_type_params(&qname.to_string()).is_some() {
                 format!(
-                    "`docs/spec/01-core-library.md` § 9 declares `{qname}<{names}>`; the arguments \
-                 are positional, and nothing about a `Core` collection infers them"
+                    "`{qname}` is declared as `{qname}<{names}>`. Write the type arguments in \
+                 that order. A `Core` collection does not infer them"
                 )
             } else {
                 format!(

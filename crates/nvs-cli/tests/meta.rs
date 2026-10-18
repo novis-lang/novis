@@ -161,8 +161,8 @@ fn the_golden_for_order_matches_the_contract() {
         serde_json::json!({
             "name": r"Core\Arr::Order",
             "doc": {
-                "short": "The direction `Core\\Arr::sort` and `sortByKey` put elements in — spec \
-                          § 2's `{order: …}` option, which is `Asc` when omitted.",
+                "short": "The direction `Core\\Arr::sort` and `sortByKey` put elements in. It is \
+                          the `{order: …}` option, and it is `Asc` when you leave it out.",
                 "cases": [
                     { "name": "Asc", "desc": "Smallest first — what an omitted `{order: …}` means." },
                     { "name": "Desc", "desc": "Largest first." }

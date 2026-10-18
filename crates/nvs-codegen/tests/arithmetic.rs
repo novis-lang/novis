@@ -39,7 +39,7 @@ fn a_modulo_by_minus_one_answers_zero_rather_than_trapping() {
 fn a_modulo_by_zero_throws_arithmetic_error_rather_than_trapping() {
     // The whole reason this operator needs the throw path: `srem` on a zero
     // divisor traps, which is a request-isolation failure rather than a
-    // wrong answer. The message is PHP's own, and the class is spec § 10's
+    // wrong answer. The message is PHP's own, and the class is
     // `ArithmeticError` — raised by naming a descriptor from the inline code,
     // since there is no helper call here to carry a `Fault` out of.
     assert_eq!(
@@ -113,8 +113,8 @@ echo $q;
 fn an_integer_addition_traps_on_overflow() {
     // `rule:types/arithmetic`'s overflow row, at the bound and one step inside it. The check is
     // the machine's own overflow flag (`Emitter::emit_checked_int_arith`), so
-    // the not-taken side is a predicted branch and the taken one raises spec
-    // § 10's `ArithmeticError` from a baked-in descriptor, exactly as the zero
+    // the not-taken side is a predicted branch and the taken one raises
+    // `ArithmeticError` from a baked-in descriptor, exactly as the zero
     // divisor above does.
     assert_eq!(
         output_of(

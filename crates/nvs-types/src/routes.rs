@@ -1062,7 +1062,7 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 ///   `rule:routing/matching-is-not-dispatching` keeps
 ///   this compiler out of the handler's body on purpose. The roster is
 ///   [`crate::signatures::SignatureTable`], which [`crate::error_lib::seed`]
-///   has already filled with spec § 10's tree, so `Core\NotFound` answers
+///   has already filled with the `Core\Error` tree, so `Core\NotFound` answers
 ///   exactly as an application's own class does.
 /// - an **`example`** naming a field the return type does not declare. The rule
 ///   asks for the example to decode "with the same decoder `rule:core-classes/derive-attribute` already

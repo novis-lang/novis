@@ -89,7 +89,7 @@ impl ErrorClass {
     }
 
     /// A handle on another class of the *same* table, by name — how
-    /// [`Ctx::error_desc`] reaches spec § 10's `ParseError` from the
+    /// [`Ctx::error_desc`] reaches `ParseError` from the
     /// `RuntimeError` the embedder installed.
     ///
     /// Sharing the table is the point: the returned handle keeps it alive by
@@ -215,14 +215,14 @@ impl Pending {
 }
 
 impl Ctx {
-    /// Records the message behind a `THROWN` or `FATAL` status, as spec
-    /// § 10's `RuntimeError`.
+    /// Records the message behind a `THROWN` or `FATAL` status, as
+    /// `RuntimeError`.
     pub fn set_pending(&mut self, message: impl Into<Cow<'static, str>>) {
         self.set_pending_as(ThrownClass::Runtime, message);
     }
 
-    /// Records the message behind a `THROWN`, naming which of spec § 10's
-    /// classes a `catch` will see — [`ThrownClass`] owns the roster.
+    /// Records the message behind a `THROWN`, naming which of the `Core\Error`
+    /// tree's classes a `catch` will see — [`ThrownClass`] owns the roster.
     pub fn set_pending_as(&mut self, class: ThrownClass, message: impl Into<Cow<'static, str>>) {
         self.pending = Some(Pending::Message(class, message.into()));
         // A message has no object yet and so no frame to supersede: whatever
@@ -260,12 +260,12 @@ impl Ctx {
         Some(pending.message().into_owned())
     }
 
-    /// Installs the class a bare-message failure is promoted to — spec
-    /// § 10's `RuntimeError`, "the world said no", which is what a runtime
+    /// Installs the class a bare-message failure is promoted to —
+    /// `RuntimeError`, "the world said no", which is what a runtime
     /// helper's failure is.
     ///
     /// It is also this context's *anchor into the compiled unit's class
-    /// table*: every other § 10 class is reached from it by name
+    /// table*: every other exception-tree class is reached from it by name
     /// ([`ErrorClass::sibling`]), so a helper that throws a
     /// [`ThrownClass::Parse`] needs no second installation call. One handle
     /// rather than one per class because they are not independent — they all
@@ -293,7 +293,7 @@ impl Ctx {
     ///
     /// **The program's own table is asked first.** It is the one
     /// [`Self::set_runtime_error_class`] installed rather than a second
-    /// registration, for that method's own reason — § 10's classes and every
+    /// registration, for that method's own reason — the exception tree's classes and every
     /// class the program declares are all rows of one table, and a second
     /// handle on it would be a second thing to keep in step. A name it does not
     /// hold is put to [`Self::set_core_classes`]'s resolver, which is what lets

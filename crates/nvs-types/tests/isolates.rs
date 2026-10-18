@@ -144,7 +144,7 @@ fn a_spawn_s_handle_is_not_assignable_to_a_string() {
 ///
 /// The operand is a variable rather than the literal `await 5`, which does not
 /// parse: `await` is contextual and is read as the operator only before what
-/// the production needs (`docs/spec/00-overview.md` § 2).
+/// the production needs.
 #[test]
 fn await_refuses_an_operand_no_spawn_produced() {
     let diags = check_in_method("int $n = 5;\nvar $r = await $n;");
@@ -265,8 +265,8 @@ fn an_upgrade_refuses_a_tainted_entry_path() {
 
 /// The other half of that lowering: `mixed` admits everything, so an entry that
 /// is neither of the two accepted shapes has to be refused by the rule rather
-/// than by the parameter — and it is refused as the `string` the spec's column
-/// writes.
+/// than by the parameter — and it is refused as the `string` the published
+/// signature writes.
 #[test]
 fn an_upgrade_refuses_an_entry_that_is_neither_shape() {
     let diags = check_in_method("Core\\Socket::upgrade(7);");

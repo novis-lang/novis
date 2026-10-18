@@ -64,8 +64,8 @@
 //! `nvs_types::expr::args`' `reject_keyless_retry` reports it while compiling and the body has
 //! nothing left to judge. What this module owns is the two option names the rule is written over,
 //! handed to the checker by [`crate::registry::idempotent_retry_rule`] rather than copied into it.
-//! The dynamic half § 7 also names — a verb chosen at run time — arrives with the spec's
-//! `send(Core\Http\Request)` row and throws before the first attempt rather than before the second.
+//! The dynamic half § 7 also names — a verb chosen at run time — is `request(Core\Http\Method, …)`,
+//! which throws before the first attempt rather than before the second.
 //!
 //! # The reply is read through members, and its body is `tainted`
 //!

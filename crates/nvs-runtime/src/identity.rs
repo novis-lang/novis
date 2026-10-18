@@ -2,8 +2,8 @@
 //!
 //! One comparison, defined once, because `Core\Arr`'s members and every
 //! `ObjectSet`/`ObjectMap` operation ask the same question —
-//! `docs/spec/01-core-library.md` § 2 says `contains`, `keyOf`, `unique`,
-//! `diff` and `intersect` "compare by **strict identity**", and a second
+//! `Core\Arr`'s `contains`, `keyOf`, `unique`, `diff` and `intersect`
+//! compare by **strict identity**, and a second
 //! answer living in `nvs-stdlib` would be a second set of PHP-divergence
 //! decisions nothing keeps in step. It is also what `==` means:
 //! `rule:expressions/equality-semantics`'s table is this module's rows, reached by whichever door the
