@@ -7382,7 +7382,7 @@
           "notesHtml": "",
           "doc": {
             "shortHtml": "Closes the stream and answers everything <code>add</code> fed it, decompressed — the same octets <code>Core\\Compress::decompress</code> answers over the concatenation, under the same bound.",
-            "returnHtml": "The decompressed octets as <code>tainted bytes</code>, never a truncation; the stream is finished afterwards and its chunks released. Tainted because a frame's contents are whatever it said they were, which is <code>rule:security/tainted-sources</code>' reading for every other reader of untrusted octets.",
+            "returnHtml": "The decompressed octets as <code>tainted bytes</code>, never a truncation; the stream is finished afterwards and its chunks released. The bytes are <code>tainted</code> because they come from input the program does not control.",
             "errors": [
               {
                 "error": "ParseError",
@@ -19258,7 +19258,7 @@
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "<code>$json</code> is not a valid JSON document, nests deeper than <code>maxDepth</code>, or contains a whole number too large for <code>int</code>; the one issue it carries has an empty path."
+                "descHtml": "<code>$json</code> is not a valid JSON document, nests deeper than <code>maxDepth</code>, has an object with the same key twice, or contains a whole number too large for <code>int</code>. The one issue it carries has an empty path."
               },
               {
                 "error": "LogicError",
@@ -19315,7 +19315,7 @@
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "<code>$json</code> is not a valid JSON document, nests deeper than <code>maxDepth</code>, contains a whole number too large for <code>int</code>, is not an object at the top level (an array, for an <code>array&lt;C&gt;</code>), or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them. A list stops at its first bad element, and each of its paths carries that element's position."
+                "descHtml": "<code>$json</code> is not a valid JSON document, nests deeper than <code>maxDepth</code>, has an object with the same key twice, contains a whole number too large for <code>int</code>, is not an object at the top level (an array, for an <code>array&lt;C&gt;</code>), or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them. A list stops at its first bad element, and each of its paths carries that element's position."
               },
               {
                 "error": "LogicError",
@@ -33580,7 +33580,7 @@
         },
         {
           "name": "Value",
-          "type": "{text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\\Time\\Date}|{time: Core\\Time\\TimeOfDay}|{duration: Core\\Time\\Duration}|{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float}"
+          "type": "{text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\\Time\\Date}|{time: Core\\Time\\TimeOfDay}|{duration: Core\\Time\\Duration}|{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float}|{runs: array<{text: string, style: ?uint}>}"
         }
       ],
       "constants": [],
@@ -33732,7 +33732,7 @@
         },
         {
           "name": "Value",
-          "type": "{text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\\Time\\Date}|{time: Core\\Time\\TimeOfDay}|{duration: Core\\Time\\Duration}|{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float}"
+          "type": "{text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\\Time\\Date}|{time: Core\\Time\\TimeOfDay}|{duration: Core\\Time\\Duration}|{day: Core\\Time\\Date, clock: Core\\Time\\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float}|{runs: array<{text: string, style: ?uint}>}"
         },
         {
           "name": "Entry",
@@ -33778,7 +33778,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "<code>Workbook::createForDownload</code> sends the file to the browser as a download named <code>$name</code>.\nThe response headers are sent at once, and each part of the file is sent when it is ready."
+            "shortHtml": "<code>Workbook::createForDownload</code> sends the file to the browser as a download named <code>$name</code>.\nThe response headers are sent at once, and each part of the file is sent when it is ready.\nIf the program stops before <code>finish</code>, the download is cut off and the error log names <code>$name</code>."
           },
           "slug": "createfordownload",
           "url": "/reference/core/novis-spreadsheet-workbook/createfordownload/",
@@ -34026,7 +34026,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "<code>finish</code> writes the end of the file and sends the last part. Call it once, after the last row.\nA workbook that is never finished is not a valid file, and the program logs an error for it."
+            "shortHtml": "<code>finish</code> writes the end of the file and sends the last part. Call it once, after the last row.\nA workbook that is never finished is not a valid file. A download that is never finished is cut off."
           },
           "slug": "finish",
           "url": "/reference/core/novis-spreadsheet-workbook/finish/",
@@ -35725,7 +35725,7 @@
               },
               {
                 "name": "env",
-                "descHtml": "The environment variables of the program, as name =&gt; value. This replaces all of them, so a variable that is not in the array is not set. Without it, the program gets the same variables as this program. A <code>secret</code> value must be revealed first."
+                "descHtml": "The environment variables of the program, as name =&gt; value. This replaces all of them, so a variable that is not in the array is not set. Without it, the program gets only these variables from this program: <code>PATH</code>, <code>HOME</code> or <code>USERPROFILE</code>, <code>TEMP</code>, <code>TMP</code>, <code>LANG</code>, and <code>SYSTEMROOT</code> on Windows. A <code>secret</code> value must be revealed first."
               },
               {
                 "name": "timeout",
@@ -35814,7 +35814,7 @@
               },
               {
                 "name": "env",
-                "descHtml": "The environment variables of the program, as name =&gt; value. This replaces all of them, so a variable that is not in the array is not set. Without it, the program gets the same variables as this program. A <code>secret</code> value must be revealed first."
+                "descHtml": "The environment variables of the program, as name =&gt; value. This replaces all of them, so a variable that is not in the array is not set. Without it, the program gets only these variables from this program: <code>PATH</code>, <code>HOME</code> or <code>USERPROFILE</code>, <code>TEMP</code>, <code>TMP</code>, <code>LANG</code>, and <code>SYSTEMROOT</code> on Windows. A <code>secret</code> value must be revealed first."
               },
               {
                 "name": "timeout",
@@ -41462,7 +41462,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "stream(string $contentType, ?int $length = null, ?string $etag = null): Core\\Response\\Stream",
+          "signature": "stream(string $contentType, ?int $length = null, ?string $etag = null, ?string $mustEnd = null): Core\\Response\\Stream",
           "params": [
             {
               "kind": "param",
@@ -41487,6 +41487,14 @@
               "default": "null",
               "optional": true,
               "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "mustEnd",
+              "type": "?string",
+              "default": "null",
+              "optional": true,
+              "variadic": false
             }
           ],
           "options": [],
@@ -41497,7 +41505,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Starts a response body that your program sends in parts, and sets the header <code>Content-Type</code> to <code>$contentType</code>. The status and the headers are sent when this is called, and the body ends when the program ends.",
+            "shortHtml": "Starts a response body that your program sends in parts, and sets the header <code>Content-Type</code> to <code>$contentType</code>. The status and the headers are sent when this is called. The body ends when the program ends, or when your program calls <code>end()</code> on the stream.",
             "params": [
               {
                 "name": "contentType",
@@ -41510,6 +41518,10 @@
               {
                 "name": "etag",
                 "descHtml": "A version name for the body, or <code>null</code>. It is sent as the <code>ETag</code> header. Give a new name when the bytes change. A browser that resumes a download sends the name back, and gets the whole body if the name is old. It becomes a header, so a <code>tainted</code> value does not compile."
+              },
+              {
+                "name": "mustEnd",
+                "descHtml": "A name for the body, such as the name of a download, or <code>null</code>. With a name, the body is complete only after your program calls <code>end()</code> on the stream. If the program stops before that, the body is cut off. The browser then shows a failed download, and the error log names the body."
               }
             ],
             "returnHtml": "A <code>Core\\Response\\Stream</code>. Call its <code>write()</code> method to send each part. Set the status and the headers before you call this method. Using this and <code>echo</code> in one response does not compile. A browser that reads this body with <code>EventSource</code> connects again when the body ends. For events that a page receives while it is open, use <code>Core\\Sse::upgrade</code>.",
@@ -41826,7 +41838,7 @@
       "id": "Response.Stream",
       "name": "Core\\Response\\Stream",
       "section": "",
-      "summary": "A response body that your program sends in parts. `Core\\Response::stream()` returns it, and its `write()` method sends each part. The body ends when the program ends.",
+      "summary": "A response body that your program sends in parts. `Core\\Response::stream()` returns it, and its `write()` method sends each part. The body ends when the program ends, or when your program calls `end()`.",
       "surface": "",
       "enums": [],
       "types": [],
@@ -41872,7 +41884,7 @@
               },
               {
                 "error": "LogicError",
-                "descHtml": "The stream was started with a <code>$length</code>, and this part goes past the end of <code>length()</code>. Nothing is sent."
+                "descHtml": "The stream was started with a <code>$length</code>, and this part goes past the end of <code>length()</code>. Nothing is sent. It is also thrown when <code>end()</code> was already called on the stream."
               }
             ]
           },
@@ -41937,13 +41949,36 @@
           "slug": "length",
           "url": "/reference/core/response-stream/length/",
           "examples": "core/Response-Stream/length"
+        },
+        {
+          "id": "Response.Stream.end",
+          "name": "end",
+          "static": false,
+          "receiver": "stream",
+          "generics": null,
+          "signature": "end(): void",
+          "params": [],
+          "options": [],
+          "returnType": "void",
+          "notes": "",
+          "qualifier": "",
+          "section": "",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Ends the body. The client receives the end of the body at once, and your program can go on running. Calling <code>end()</code> a second time does nothing.",
+            "returnHtml": "Nothing. A stream started with <code>$mustEnd</code> needs this call, or the body is cut off when the program stops. A <code>write()</code> after <code>end()</code> throws an error."
+          },
+          "slug": "end",
+          "url": "/reference/core/response-stream/end/",
+          "examples": "core/Response-Stream/end"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "response-stream",
       "url": "/reference/core/response-stream/",
-      "summaryHtml": "<p>A response body that your program sends in parts. <code>Core\\Response::stream()</code> returns it, and its <code>write()</code> method sends each part. The body ends when the program ends.</p>",
+      "summaryHtml": "<p>A response body that your program sends in parts. <code>Core\\Response::stream()</code> returns it, and its <code>write()</code> method sends each part. The body ends when the program ends, or when your program calls <code>end()</code>.</p>",
       "surfaceHtml": ""
     },
     {
@@ -48929,7 +48964,7 @@
                 "descHtml": "Prefixed to the failure, as on every other assertion."
               }
             ],
-            "returnHtml": "Nothing. A <code>$body</code> that returned having left a task of its own still running throws, naming the budget it overran — <code>rule:testing/task-tree-and-virtual-clock</code>, read at the one moment it means anything.",
+            "returnHtml": "Nothing. A <code>$body</code> that returned having left a task of its own still running throws, naming the budget it overran. The check runs when <code>$body</code> returns.",
             "errors": [
               {
                 "error": "Core\\Test\\Failure",

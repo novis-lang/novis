@@ -93,6 +93,14 @@
           "key": "debug.inline",
           "class": "RuntimeTighten",
           "apply": "Reload"
+        },
+        {
+          "id": "directive:debug.mode",
+          "title": "debug.mode",
+          "examples": "config/debug-mode",
+          "key": "debug.mode",
+          "class": "RuntimeTighten",
+          "apply": "Reload"
         }
       ]
     },
