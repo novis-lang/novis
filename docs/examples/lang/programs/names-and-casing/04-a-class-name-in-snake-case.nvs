@@ -1,0 +1,11 @@
+<?nvs
+// Shows that a class name must start with a capital letter, so this program
+// does not compile. The message gives the name to write instead.
+// proof: compile-error
+
+class order_line {
+    public int $quantity = 1;
+}
+
+order_line $line = new order_line();
+echo $line->quantity, "\n";

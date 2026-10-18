@@ -1,6 +1,6 @@
 <?nvs
-// Only the first letter of a name is checked. Everything after it is yours,
-// so an abbreviation can keep the capitals people write it with.
+// The compiler checks the first letter of a name and that it has no underscore.
+// An abbreviation can keep the capitals people write it with.
 
 class HTTPClient {
     public static function parseXMLPayload(string $body): uint {
