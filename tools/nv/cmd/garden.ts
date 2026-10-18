@@ -14,6 +14,10 @@
 // `runner` service of `tests/garden/compose.yaml`, from an image its files are copied into, and no step
 // bind-mounts anything from the host.
 //
+// The Node reference is the official Node image running the Garden's `app.js`, not the Garden's own
+// image, which compiles Node from source: `tests/garden/node.Dockerfile` says why. hyper is the
+// Garden's image, built once and reused.
+//
 // The origin is a debug `nvs` for Linux, because a debug build checks invariants a release build does
 // not. On Windows it is the WSL leg's build, from the same mirror and target directory. On Linux it is
 // this checkout's `cargo build`. Anywhere else, `--nvs-bin` names one.
@@ -148,17 +152,23 @@ async function linuxNvs(o: Options, dest: string): Promise<void> {
   if (!magic.equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46]))) throw new Fail(`${o.nvsBin ?? dest} is not a Linux ELF binary`);
 }
 
-/** The two build contexts: the origin's three files, and the Garden's harness with `sweep.py` added. */
+/**
+ * The three build contexts: the origin's three files, the Node reference's `app.js`, and the Garden's
+ * harness with `sweep.py` added.
+ */
 async function stage(o: Options): Promise<void> {
   rmSync(STAGE, { recursive: true, force: true });
   const origin = join(STAGE, "origin");
+  const node = join(STAGE, "node");
   const runner = join(STAGE, "runner");
-  mkdirSync(origin, { recursive: true });
-  mkdirSync(runner, { recursive: true });
+  for (const dir of [origin, node, runner]) mkdirSync(dir, { recursive: true });
 
   await linuxNvs(o, join(origin, "nvs"));
   copyFileSync(join(ASSETS, "echo.nvs"), join(origin, "echo.nvs"));
   copyFileSync(join(ASSETS, "origin.Dockerfile"), join(origin, "Dockerfile"));
+
+  copyFileSync(join(CHECKOUT, "images", "node_stdlib", "app.js"), join(node, "app.js"));
+  copyFileSync(join(ASSETS, "node.Dockerfile"), join(node, "Dockerfile"));
 
   cpSync(join(CHECKOUT, "tools"), join(runner, "tools"), { recursive: true });
   for (const f of ["docker-compose.yml", "quirks.yml"]) copyFileSync(join(CHECKOUT, f), join(runner, f));

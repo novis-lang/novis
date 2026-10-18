@@ -844,8 +844,8 @@ and to the Garden's hyper and Node origins, and lists what `nvs` reads different
 the same way on Windows with Docker Desktop and on Linux. The Garden's harness reaches each origin by
 container IP, which only a container on the Garden's network can reach under Docker Desktop, so the
 harness runs in one, with its files copied into the image rather than mounted. [`tools/nv/cmd/garden.ts`](../../tools/nv/cmd/garden.ts)'s head
-comment owns how, and `tests/garden/` holds the files it builds from. The first run compiles hyper and
-Node from source in Docker, and later runs reuse those images. A panic in the `nvs` log fails the run;
+comment owns how, and `tests/garden/` holds the files it builds from. The first run compiles hyper from
+source in Docker, and later runs reuse that image. Node is the official release image. A panic in the `nvs` log fails the run;
 a reading is for a person to sort into a bug, a new refused row, or strictness that stays. It is not a
 CI job: each finding becomes a test in the smuggling suite, which CI runs. Run it again by hand after a
 change to how a request head is read (`crates/nvs-server/src/io.rs`, `serve.rs`, `Core\Request`'s header

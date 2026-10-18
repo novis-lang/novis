@@ -10,6 +10,12 @@ services:
     build:
       context: ${NV_GARDEN_STAGE:?bun nv garden sets this}/origin
 
+  # The Garden's Node origin, built from the official Node image instead of from source.
+  # `node.Dockerfile` says why.
+  node_stdlib:
+    build:
+      context: ${NV_GARDEN_STAGE:?bun nv garden sets this}/node
+
   # The Garden's harness and `sweep.py`. It runs with `docker compose run`, which gives it the label
   # `com.docker.compose.service=runner` that `targets.py` reads from every container on the network.
   # The Docker socket is how `targets.py` finds each origin's address.
