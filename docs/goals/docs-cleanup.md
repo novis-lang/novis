@@ -227,9 +227,16 @@ record, a module doc or a line in its goal.
 the playbook holds only traps that can still happen.
 
 - [ ] AGENTS.md outside the markers holds only what the managed block lacks, and no rule number, step count or budget contradicts it. The text names the mid-work check, `bun nv verify --fast -p <crate>` after each slice, and the shell shapes the guard refuses, each with the call to make instead. `AGENTS.md:1`, `AGENTS.md:392`
-- [ ] `commands.md` and `conventions.md` lose every section another home holds, every measured figure and every story, and the dead `§ Names` anchor and section references are fixed. `docs/agent/commands.md:24`, `docs/agent/conventions.md:494`, `docs/agent/testing.md:16`
+- [x] `commands.md` and `conventions.md` lose every section another home holds, every measured figure and every story, and the dead `§ Names` anchor and section references are fixed. `docs/agent/commands.md:24`, `docs/agent/conventions.md:494`, `docs/agent/testing.md:16`
+  - [x] `commands.md`'s figures and stories go, and its *Disk* and WSL sections point at `disk.ts`, `mirror.ts`, `Cargo.toml` and `tests_without_pdb.rs`
+  - [x] `conventions.md` loses its stories, the plan, the spec's test and the measured link count
+  - [x] `conventions.md`'s pack heading is fixed; `testing.md` is looper's managed text, so its dead `§ Names` link is looper's template's to fix
 - [ ] `optimization-prompt.md`, `carried-refusals.md` (with its readers in `holes.ts`, `owners.ts` and `refusals.rs`) and `guard-name-debt.md` are deleted; its three causes move to `commands.md` or `testing.md`. `coordinator.md` and `loop-authoring.md` lose their history and stale numbers. `docs/agent/coordinator.md:19`, `tools/nv/cmd/owners.ts:38`
 - [ ] The playbook loses every bullet about a removed tool, every story, every bullet that contradicts a rule (such as the `git stash` one) and every duplicate, and `[orient] traps = 8`. `docs/agent/playbook/running-things/a-before-after-measurement-is-worth-a-git-stash-and-the-base.md:1`, `looper.toml:8`
+  - [x] the two bullets `looper playbook retire --check` named are retired
+  - [x] no bullet names a removed `bun nv` command; the carried-refusals bullet goes with that file's item
+  - [ ] the `git stash` bullet, the stories and the duplicates are deleted
+  - [ ] `[orient] traps = 8` in `looper.toml`
 - [ ] `how-novis-is-written.mdx`'s count of notes comes from `numbers.json` or goes. `website/src/content/docs/in-depth/how-novis-is-written.mdx:62`
 
 ### 6. each language feature's facts are in its about.md, its details.md and its examples, once
@@ -287,19 +294,25 @@ check. `bun nv reference` is the example run alone (`--only`, `--primer`, `--age
 regenerates the reference, so a chapter or card edit needs `bun nv render --website` by hand
 (`docs/agent/commands.md` § *Verifying*). Stage 4 is `done`: `bun nv verify --doc` is green.
 
-The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as last session found.
-`bun nv site --check` also fails on pages this goal has not touched: stale question entries, long
-paragraphs in `compare.mdx` and `run-as-a-service.mdx`, and the `/reference/types/` link.
-`looper playbook retire --check` names two `dead_code` bullets under `playbook/writing-novis/`
-that predate this goal; they are stage 5's.
+Stage 5 has begun. `commands.md` and `conventions.md` carry no measured figure, no story and no
+citation of the plan or the spec; `commands.md`'s *Disk* and WSL sections point at `disk.ts`,
+`mirror.ts`, `Cargo.toml`'s `[profile.dev]` and `tests_without_pdb.rs`, which own the reasoning.
+`looper playbook retire --check` is clean. No playbook bullet names a removed `bun nv` command but
+the carried-refusals one, which goes with that file. `looper.toml` has no `[orient]` table yet, so
+`traps = 8` is a new one.
+
+The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last two
+sessions found. `bun nv site --check` also fails on pages this goal has not touched: stale question
+entries, long paragraphs in `compare.mdx` and `run-as-a-service.mdx`, and the `/reference/types/` link.
 
 ### Next
 
-Stage 5, on `docs/agent/commands.md`, `docs/agent/conventions.md` and the playbook.
-- [ ] `commands.md` and `conventions.md` lose every section another home holds, every measured figure and every story; the dead `§ Names` anchor is fixed. `docs/agent/commands.md:24`, `docs/agent/conventions.md:494`, `docs/agent/testing.md:16`
-- [ ] The two bullets `looper playbook retire --check` names are deleted, and the playbook loses each bullet about a removed tool. `docs/agent/playbook/writing-novis/a-helper-landed-ahead-of-its-caller-fails-verify-py-on.md:1`, `looper.toml:8`
+Stage 5, on the docs/agent files to delete, their tool readers and the playbook.
+- [ ] `optimization-prompt.md`, `carried-refusals.md` and `guard-name-debt.md` are deleted with their readers, and the carried-refusals playbook bullet with them; `coordinator.md` and `loop-authoring.md` lose their history and stale numbers. `tools/nv/cmd/holes.ts:41`, `tools/nv/cmd/owners.ts:69`, `crates/nvs-ir/tests/refusals.rs:96`, `docs/agent/coordinator.md:19`
+- [ ] The playbook loses the `git stash` bullet, its stories and its duplicates, and `looper.toml` sets `[orient] traps = 8`. `docs/agent/playbook/running-things/a-before-after-measurement-is-worth-a-git-stash-and-the-base.md:1`, `looper.toml:8`
 ### Backlog
 
 - `docs/design.md` is deleted once looper's managed block no longer links it. `docs/goals/docs-cleanup.md:163`
+- `docs/agent/testing.md` is looper-managed (`looper lint` refuses a hand edit) and links a `§ *Names*` that `conventions.md` lacks; looper's template owns the fix. `docs/agent/testing.md:16`
 - About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them to the `rule:` id each meant needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
 - Stages 6 to 8 put each fact about a language feature in one place: its `about.md`, a new `details.md` or an example. The syntax pages and the chapters are built from them. `docs/goals/docs-cleanup.md:213`
