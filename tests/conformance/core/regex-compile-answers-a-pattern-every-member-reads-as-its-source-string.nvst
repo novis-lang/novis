@@ -2,7 +2,7 @@
 Core\Regex::compile answers a Pattern that every Pattern|string member reads exactly as it reads the source string, and its options are the inline flag groups — `rule:core-classes/regex-two-tiers` and `rule:core-classes/regex-syntax`
 --FILE--
 <?nvs
-// § 5's `compile` row and the six rows typed `Pattern|string`. What a compiled
+// `Core\Regex::compile` and the six members typed `Pattern|string`. What a compiled
 // pattern *is* — a handle carrying the source and its flags, cached eagerly —
 // is `regex-compile-carries-the-four-flags`'s subject. This case asks the
 // agreement question instead: whichever member takes the union answers the

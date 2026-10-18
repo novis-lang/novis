@@ -262,7 +262,7 @@
 //! from PHP's in both directions and deliberately: PHP accepts a space in a
 //! path and this refuses it, PHP refuses a URI whose host is empty and this
 //! accepts `file:///tmp`. And it **launders nothing** — whether a URL may be
-//! *fetched* is `Core\Http::allowUrl` at § 16
+//! *fetched* is `Core\Http::allowUrl`
 //! (`rule:http-server/allow-url-pins-the-address`); a
 //! `true` here says only that the text is a URI.
 //!

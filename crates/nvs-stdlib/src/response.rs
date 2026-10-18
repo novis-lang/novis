@@ -264,7 +264,7 @@ const STATUS_MIN: u16 = 100;
 /// The highest status `setStatus` admits.
 ///
 /// `599` and not `999`, which is what the wire format and `hyper` both allow:
-/// § 15 gives a status code a **class**, taken from its first digit, and the
+/// A status code has a **class**, taken from its first digit, and the
 /// five classes stop at `5`. A `6xx` is three digits a peer has no rule for, so
 /// admitting it would be admitting a status whose only defined meaning is that
 /// nothing downstream knows what it means — the same fail-closed direction
@@ -300,8 +300,8 @@ const CARD: ClassDoc = ClassDoc {
             the status line and the headers.",
 };
 
-/// `Core\Response`'s registry rows — § 15's body members, in § 4's own table
-/// order for the ones that exist.
+/// `Core\Response`'s registry rows — its body members, for the ones that
+/// exist.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

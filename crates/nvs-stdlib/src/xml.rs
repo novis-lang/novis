@@ -525,7 +525,7 @@ const KIND_ENUM_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `Core\Xml\Reader`'s registry rows — the stream half of § 17, which is a walk
+/// `Core\Xml\Reader`'s registry rows — the stream half of `Core\Xml`, which is a walk
 /// over a document and nothing else.
 ///
 /// Two members, and the tree's are not among them: `read` advances the walk and
@@ -3683,7 +3683,7 @@ mod tests {
             .find(
                 |member| matches!(member.return_ty, CoreTy::Instance(name) if name == WRITER_NAME),
             )
-            .expect("§ 17's writing door is registered");
+            .expect("`Core\\Xml`'s writing door is registered");
         assert!(
             writer
                 .params
@@ -5569,7 +5569,7 @@ mod tests {
             .collect();
         assert!(
             !stream.is_empty(),
-            "the stream half of § 17 is registered, so there is something to be disjoint from"
+            "the stream half of `Core\\Xml` is registered, so there is something to be disjoint from"
         );
 
         for class in &stream {
@@ -5608,7 +5608,7 @@ mod tests {
         }
         assert!(
             opened.contains(&"tree") && opened.contains(&"stream"),
-            "§ 17 is two shapes and both are reachable: {opened:?}"
+            "`Core\\Xml` is two shapes and both are reachable: {opened:?}"
         );
     }
 

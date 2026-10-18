@@ -1086,7 +1086,7 @@ fn compiled_prepared(
 ///   finite automata cannot express (a lookaround, a backreference) and a
 ///   pattern that is simply malformed. Both are handed on, and the second is
 ///   refused again by the backtracker a line later — so a malformed pattern
-///   still reaches § 5's diagnostic and no accepted pattern is lost.
+///   still reaches the compile-time diagnostic and no accepted pattern is lost.
 /// * Every other variant is the linear engine hitting a **limit** while
 ///   building a program it could express perfectly well —
 ///   [`regex::Error::CompiledTooBig`] today, and the enum is `non_exhaustive`,

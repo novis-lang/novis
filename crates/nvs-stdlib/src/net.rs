@@ -1,7 +1,7 @@
 //! `Core\Net` — `rule:core-classes/net-one-api-three-transports`'s socket
 //! surface, over the runtime's own reactor and nothing else.
 //!
-//! Spec § 16's one class replacing `socket_*`, `stream_socket_*` and
+//! The one class replacing `socket_*`, `stream_socket_*` and
 //! `fsockopen`. All five entry points are here — an outbound TCP connection, a
 //! listening TCP socket, a bound datagram socket, an outbound Unix-domain
 //! connection and a listening Unix-domain one — with the accept on the listener
@@ -202,7 +202,7 @@ const CARD: ClassDoc = ClassDoc {
             the same over a Unix-domain socket path. Each one needs a grant in the configuration.",
 };
 
-/// Spec § 16's `Core\Net` —
+/// `Core\Net` —
 /// `rule:core-classes/net-one-api-three-transports`'s five entry points, each
 /// saying in its name what it opens.
 pub(crate) const CLASS: CoreClass = CoreClass {

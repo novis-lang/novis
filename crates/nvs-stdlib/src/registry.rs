@@ -3188,8 +3188,8 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::mime::TYPE,
     // What `Core\Xml\Node::kind` answers with, and the one roster both parsers
     // build against — closed at five, so a walk over a document is exhaustive.
-    // Beside `Core\Mime`'s because both are § 17's, and for the reason that
-    // section's classes sit together in [`CLASSES`].
+    // Beside `Core\Mime`'s because both are document formats, and for the
+    // reason the format classes sit together in [`CLASSES`].
     crate::xml::KIND,
     crate::log::LEVEL,
     crate::env::MODE,

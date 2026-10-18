@@ -2,7 +2,7 @@
 Core\Regex::replaceWith hands its callback exactly the sequence Core\Regex::matchAll reports — same count, same offsets, same texts — and an identity callback is the identity on the subject — `rule:core-classes/regex-syntax`
 --FILE--
 <?nvs
-// § 5's `replaceWith` row, asked the one question its two siblings cannot.
+// `Core\Regex::replaceWith`, asked the one question its two siblings cannot.
 // `regex-replace-with-hands-each-match-to-a-callback` pins what the member
 // answers and `...-sees-the-original-subject-and-runs-once-per-replacement`
 // pins what one callback is handed and how often. Both read `replaceWith`

@@ -17,7 +17,7 @@ class Money {
         $this->cents = $cents;
     }
 
-    // § 6's `Core\Json\Codec` declares this half as `toJson(): mixed`.
+    // `Core\Json\Codec` declares this half as `toJson(): mixed`.
     public function toJson(): mixed {
         return $this->cents;
     }

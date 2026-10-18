@@ -15,7 +15,7 @@
 use std::path::Path;
 use std::process::{Command, Output};
 
-/// A program whose one statement is § 18's `Core\Db::open` with a **literal**
+/// A program whose one statement is `Core\Db::open` with a **literal**
 /// host, which is what makes the grant a question the compiler can answer.
 const OPENS_A_LITERAL_HOST: &str = r#"<?nvs
 var $far = Core\Db::open({

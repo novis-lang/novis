@@ -14,7 +14,7 @@ class Kind {
     }
 }
 
-// The stream half of § 17. `read` answers the next node or `null`, so the walk
+// The stream half of `Core\Xml`. `read` answers the next node or `null`, so the walk
 // is a loop that stops when the document is finished rather than a tree a
 // program is handed whole — what it holds is one node, not the document.
 class Walk {

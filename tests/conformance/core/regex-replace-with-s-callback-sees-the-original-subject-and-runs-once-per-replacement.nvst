@@ -2,7 +2,7 @@
 Core\Regex::replaceWith hands its callback a whole Match whose offsets index the original subject, and calls it exactly once per replacement it performs — `rule:core-classes/regex-syntax`
 --FILE--
 <?nvs
-// § 5's `replaceWith` row. `regex-replace-with-hands-each-match-to-a-callback`
+// `Core\Regex::replaceWith`. `regex-replace-with-hands-each-match-to-a-callback`
 // pins what the member answers; this one pins what the *callback* is handed
 // and how often it is handed anything, which is the half a returned string
 // cannot show on its own.
