@@ -1,0 +1,12 @@
+<?nvs
+// Shows that a subclass constructor must call `parent::constructor(...)`
+// when the parent has a constructor. This one does not, so it does not compile.
+// proof: compile-error
+
+class Base {
+    public function constructor(public int $a) {}
+}
+
+class Child extends Base {
+    public function constructor(public int $b) {}
+}

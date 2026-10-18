@@ -1,0 +1,8 @@
+<?nvs
+// Shows that no class can extend a `final` class. This does not compile.
+// To build on `Sealed`, put a `Sealed` object in a property and call its methods.
+// proof: compile-error
+
+final class Sealed {}
+
+class Widened extends Sealed {}
