@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/check.rs",
+  "title": "A hook on a static property compiles and never runs.",
+  "text": "`public static int $a { get => 3; }` passes `nvs check`, and `C::$a` reads `0`: the hook is dropped. `rule:classes/property-hooks` scopes a hook to a property's reads and writes through an instance, and a `static` property has none. It closes when a hook on a `static` property is a diagnostic, as a hook on a `readonly` one is `E0843`, with a conformance case.",
+  "goal": "release-hardening"
+}
