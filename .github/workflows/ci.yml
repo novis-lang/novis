@@ -843,11 +843,16 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Install toolchain
-        run: rustup toolchain install --no-self-update
+      # The action runs in its own container, so the runner's toolchain is not
+      # there. `rust-version` installs the channel `rust-toolchain.toml` pins
+      # inside it, which the file's override then selects.
+      - name: Read the pinned channel
+        id: toolchain
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
         with:
           command: check
+          rust-version: ${{ steps.toolchain.outputs.channel }}
 
   # ---------------------------------------------------------------------------
   # The other half of `supply-chain`. `cargo deny` decides what Novis may link;
