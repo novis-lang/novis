@@ -1,0 +1,16 @@
+<?nvs
+// Shows that `by $voice` needs a property that is never `null`.
+// `$voice` is `?Greets`, so this does not compile.
+// proof: compile-error
+
+interface Greets {
+    public function greet(): string;
+}
+
+class Maybe implements Greets by $voice {
+    private ?Greets $voice;
+
+    public function constructor(?Greets $voice) {
+        $this->voice = $voice;
+    }
+}

@@ -704,10 +704,28 @@ before assigning it reads `0` (`data/gaps/nvs-types/a-constructor-reads-a-proper
 and a `static` constructor compiles and `new` runs it
 (`data/gaps/nvs-types/a-static-constructor-compiles-and-new.json`).
 
+`inheritance` and `interfaces` are done, each fact run on the binary, and no text disagreed with it;
+the chapter did not change. `inheritance`'s `details.md` has `extends A, B`, `E0303` and `E0305`,
+`E0410` on every path, a second `parent::constructor` call, `E0309` when the parent has none, `E0471`,
+`parent::` reaching a grandparent, a default value coming from the variable's declared type, `E0449`,
+`E0785`, `new static()`, `E0786`, `E0106`, `E0835`, `E0783`, `E0784`, `is` and the `class<T>` sites
+(`E0496`, `E0235`, `E0794`, `E0708`). Examples 04 to 11 are the chapter's eight blocks that no example
+showed. `about.md` said "marks" twice and example 01 "answers", now rewritten. `interfaces`'
+`details.md` has `E0254`, `E0246`, the constant read with `static::`, `E0435`, `E0313`, the `static`
+method, `E0449`, `E0303` both ways, `E0305`, a parent class winning over a default method, `E0859`,
+each `E0720` form, the forward covering only methods without a body and reading the property on
+every call, the `lateinit` `LogicError`, `E0721` and `E0227`. Examples 04 to 08 are the chapter's
+five blocks that no example showed. Probing found two gaps, owned by `release-hardening`. **A method
+override with another signature compiles, and a call through the parent reads the wrong type**: an
+`int` method overridden by a `string` one gives the string's address as a number, and other
+parameter types exit 5. That is a type confusion in safe code
+(`data/gaps/nvs-types/a-method-override-with-another-signature.json`). An `abstract` method with a
+body compiles and acts as an ordinary method (`data/gaps/nvs-types/an-abstract-method-with-a-body.json`).
+
 ### Next
 
-`50-classes` goes on. The next group is `inheritance` (`50-classes.md:443`), `interfaces` (`:709`),
-`property-hooks` (`:915`) and `lateinit` (`:991`); take each feature id from `bun nv proofs --json`.
+`50-classes` goes on. The next group is `property-hooks` (`50-classes.md:915`), `lateinit` (`:991`)
+and the features after it in chapter order; take each feature id from `bun nv proofs --json`.
 `lateinit` is the `LateInit` interface; plain `lateinit` is `properties`' fact already. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -721,7 +739,7 @@ you meant to test. A probe's method goes in a class: a top-level `function` stop
 An enum is `enum Suit { Hearts, Spades }`, with no `case`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `50-classes` from inheritance, in chapter order. `docs/reference/lang/50-classes.md:443`
+- [ ] `50-classes` from property hooks, in chapter order. `docs/reference/lang/50-classes.md:915`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:classes`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
