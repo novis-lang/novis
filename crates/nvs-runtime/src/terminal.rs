@@ -298,7 +298,7 @@ fn color_depth(out_is_tty: bool) -> ColorDepth {
 /// whose output is piped into `less` is still drawing for the terminal its
 /// diagnostics go to, and asking only one stream would answer the fallback for
 /// it.
-#[cfg(unix)]
+#[cfg(all(unix, not(miri)))]
 fn window_size() -> Option<(u32, u32)> {
     for fd in [libc::STDOUT_FILENO, libc::STDERR_FILENO, libc::STDIN_FILENO] {
         // Written out field by field rather than zeroed, so the `unsafe` below
@@ -328,7 +328,7 @@ fn window_size() -> Option<(u32, u32)> {
 /// See the `unix` arm. `GetConsoleScreenBufferInfo` reports the *window* as
 /// well as the buffer, and the window is the visible rectangle a program draws
 /// into; the buffer behind it is usually far taller.
-#[cfg(windows)]
+#[cfg(all(windows, not(miri)))]
 fn window_size() -> Option<(u32, u32)> {
     use windows_sys::Win32::System::Console::{
         CONSOLE_SCREEN_BUFFER_INFO, GetConsoleScreenBufferInfo, GetStdHandle, STD_ERROR_HANDLE,
@@ -359,9 +359,12 @@ fn window_size() -> Option<(u32, u32)> {
     None
 }
 
-/// Neither Unix nor Windows: there is no terminal to measure, so the fallback
-/// is the whole answer.
-#[cfg(not(any(unix, windows)))]
+/// Neither Unix nor Windows, or running under Miri: there is no terminal to
+/// measure, so the fallback is the whole answer. Miri emulates neither the
+/// `TIOCGWINSZ` `ioctl` nor the console calls, and aborts the whole test binary
+/// on the first one, so every test that renders for a terminal draws at the
+/// fallback size there instead.
+#[cfg(any(miri, not(any(unix, windows))))]
 fn window_size() -> Option<(u32, u32)> {
     None
 }
