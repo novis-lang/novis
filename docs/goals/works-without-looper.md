@@ -10,7 +10,7 @@ stages:
     context: [docs/agent/prose.md, tools/nv/cmd/guard.ts]
   - id: 2
     title: looper runs the project's command for each check
-    status: open
+    status: done
 checks:
   - id: lint
     stage: 1
@@ -107,39 +107,27 @@ agent without looper skips the guard, the prose check and the commit shape check
 repository, so both ways give one verdict.
 
 - [x] Once looper's goal `project-gates` is reached, `looper.toml` names the `bun nv` command for each gate. If it is not reached when this item comes up, the session writes `BLOCKED looper's goal project-gates is not reached`, because only the user starts looper's loop. `looper.toml:1`
-- [ ] AGENTS.md and the agent docs name the `bun nv` command for each gate, and `looper …` only for loop work. `AGENTS.md:1`, `docs/agent/prose.md:5`
+- [x] AGENTS.md and the agent docs name the `bun nv` command for each gate, and `looper …` only for loop work. `AGENTS.md:1`, `docs/agent/prose.md:5`
 
 ## Handoff
 
 ### State
 
-Stage 1 is done, and stage 2's first item. `looper.toml`'s `[gates]` names `bun nv links`, `bun nv
-layout --check`, `bun nv prose` and `bun tools/nv/main.ts guard --gate`. `--gate` is looper's protocol
-(reason on stderr, exit 2). The settings keep the exact `looper guard` entry `looper doctor` wants, and
-their other entry is `command -v looper >/dev/null 2>&1 || bun nv guard`, so the rules run once
-either way. Checked by hand: `looper guard` and the bare entry both deny a whole `cat` of a big file,
-and `looper doctor`, `looper links` and `looper layout` pass. Not checked: a fresh Claude Code session
-running the new entry, because the hooks load at start.
+Both stages are done, and the goal is reached. `docs/agent/prose.md` and `docs/agent/testing.md` are on
+`looper.toml`'s `[sync] skip` and name `bun nv prose` and `bun nv affected`. `[prose] scope` stays,
+because AGENTS.md's managed block renders it. This file's decisions are in `docs/agent/commands.md`
+§ *Without looper*, and its open backlog moved to `release-hardening`'s. `looper doctor`,
+`bun nv verify --doc` and `bun nv owners --closes works-without-looper` pass.
 
-`without-looper` was red only because the loop's PATH has no `sh`. The test now runs the hook through
-`git hook run`, which starts git's own sh as a commit does.
-
-The nightly CI failures are on `1a78b49ef`. `main` is ahead of origin and not pushed, so the fixes
-in `a9fdc1a97` and `8f8966275` are not in that run. The proof debt and the warm-start budget are goal
-`release-hardening`'s.
+The nightly CI run's reds are all on `1a78b49ef`, the pushed `main`. Local `main` already fixes the
+render, supply-chain, attribution and `docs/novis.md` jobs (`a9fdc1a97`, `8f8966275`), and the perf
+debt and cost guards are `release-hardening`'s. Pushing is the user's.
 
 ### Next
 
-Stage 2's last item and the goal's end, on `AGENTS.md`, `docs/agent/prose.md` and this file.
-- [ ] AGENTS.md and the agent docs name `bun nv prose` and the hook's own shape check, and `looper …` only for loop work. `docs/agent/prose.md:5` and `:17` sit inside looper's managed block, so their wording changes through looper's template or a `[sync] skip`. `AGENTS.md:1`
-- [ ] The goal-end gates: `bun nv verify --doc`, then `bun nv owners --closes works-without-looper`, then move this file's decisions to `docs/agent/commands.md` § *Without looper* before the file is deleted. `docs/goals/works-without-looper.md:23`
+Nothing: the driver retires this goal, and `release-hardening` is live next.
 
 ### Backlog
 
+- The rest moved to `release-hardening`'s backlog.
 - Two looper gaps. Its `links` misses `<a id>` anchors, a skip for generated pages and a code span that wraps onto the next line, which looper's goal `project-gates` notes. And `looper guard` matched a commit in looper's own checkout against a claim on this tree's `docs/goals/README.md`, which no looper goal owns yet (`crates/looper-core/src/claims.rs` in looper's repository).
-- CI's Windows cost guard missed `serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names` once at 1.38× of 1.5×. Watch for a repeat before changing the margin. `crates/nvs-cli/src/serve.rs:4093`
-- `bun nv verify` does not run `nv render --website --check`, so the website data goes stale unseen until CI. `tools/nv/cmd/verify.ts:153`
-- Two flakes to fix at the cause. `test_request_dispatches_in_process_through_the_compiled_route_table` was red once, also alone, because `Core\Env::context()` was not `Request` (`crates/nvs-cli/src/runner.rs:3410`). And `live_edit`'s two compile-race tests missed their 30 s swap deadline beside the other binaries on a disk 98% full, and passed alone (`crates/nvs-cli/tests/live_edit.rs:1016`).
-- The warm-start budget of 6 ms of work. At `1a78b49ef` Linux measured 7.4 ms and macOS 6.8 ms, where macOS measured 5.6 ms at `e110c9c0b`, and Windows is over it on every run. Find which of the commits between the two adds start-up work. `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.
-- `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed. `tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`
-- `Core\Ldap::connect` dials each address of a host in turn, so a `localhost` block pays 2 s on Windows. `crates/nvs-stdlib/src/ldap/mod.rs:489`, `crates/nvs-host/src/net.rs:438`
