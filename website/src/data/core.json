@@ -40182,6 +40182,10 @@
               {
                 "error": "LogicError",
                 "descHtml": "The program is not answering a request."
+              },
+              {
+                "error": "ParseError",
+                "descHtml": "The value of this header is not valid UTF-8."
               }
             ]
           },
@@ -40211,6 +40215,10 @@
               {
                 "error": "LogicError",
                 "descHtml": "The program is not answering a request."
+              },
+              {
+                "error": "ParseError",
+                "descHtml": "The value of a header is not valid UTF-8."
               }
             ]
           },
@@ -40255,6 +40263,10 @@
               {
                 "error": "LogicError",
                 "descHtml": "The program is not answering a request."
+              },
+              {
+                "error": "ParseError",
+                "descHtml": "The value of this cookie is not valid UTF-8."
               }
             ]
           },
@@ -40506,7 +40518,7 @@
               },
               {
                 "error": "ParseError",
-                "descHtml": "The request says it has a <code>multipart/form-data</code> body, but its <code>boundary</code> is missing, given twice or not valid. Or the body does not have the form that the request declared."
+                "descHtml": "The request says it has a <code>multipart/form-data</code> body, but its <code>boundary</code> is missing, given twice or not valid. Or the body does not have the form that the request declared. Or the name, file name or <code>Content-Type</code> of a part is not valid UTF-8."
               },
               {
                 "error": "IOError",
@@ -40562,7 +40574,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "A field has a percent escape that decodes to bytes that are not UTF-8."
+                "descHtml": "The name or value of a field is not valid UTF-8. In an urlencoded form, this includes a percent escape that decodes to bytes that are not UTF-8."
               },
               {
                 "error": "IOError",
@@ -40618,7 +40630,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "A field has a percent escape that decodes to bytes that are not UTF-8."
+                "descHtml": "The name or value of a field is not valid UTF-8. In an urlencoded form, this includes a percent escape that decodes to bytes that are not UTF-8."
               },
               {
                 "error": "IOError",
