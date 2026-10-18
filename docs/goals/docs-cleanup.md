@@ -266,6 +266,11 @@ with each.
 - [ ] The other ten chapters, one per slice: `10-programs`, `20-types`, `30-expressions`, `50-classes`, `55-enums`, `60-iteration`, `70-errors`, `80-concurrency`, `90-attributes`, `95-testing`. `docs/reference/lang/10-programs.md:1`
   - [x] `10-programs`: six `details.md`, examples 04 for `doc-comments`, `names-and-casing` and `ending-a-program`, and five wrong claims fixed
   - [ ] `20-types`
+    - [x] `every-binding-has-a-type`, `numbers-bool-int-uint-float-decimal`, `text-string-and-bytes` and `array-t`
+    - [ ] `callable-classes-object-shapes`, `mixed`, `nullable-union-single-value-and-enum-case-types` and `void-never-self-static`
+    - [ ] `type-aliases`, `values-written-in-the-code`, `widening-without-as` and `the-conversion-operator-as`
+    - [ ] `property-keys`, `property-paths`, `strings-with-holes` and `narrowing`
+    - [ ] `truthiness`, `parameters`, `properties-and-constants`, `qualifiers-tainted-and-secret` and `what-does-not-exist`
   - [ ] `30-expressions`, `50-classes` and `55-enums`
   - [ ] `60-iteration`, `70-errors` and `80-concurrency`
   - [ ] `90-attributes` and `95-testing`
@@ -402,6 +407,24 @@ its `details.md` has the status byte, `exit("…")` adding no newline and `E0228
 chapter's `exit(3)` block (`// proof: exit 3`). A `catch` does not stop `exit` and `finally` does not
 run, which no text said.
 
+`20-types`' first four features are done, each fact run on the binary. `every-binding-has-a-type`
+found a disagreement in three texts: the chapter and `try-catch-finally`'s `details.md` said two
+`catch` clauses in one function need two names, but they may share one when they catch the same
+type, and only clauses of different types are `E0406`. All three now say so
+(`20-types.md:36`, `try-catch-finally/details.md:9`, its example 04's comment). Probing that found
+a compiler panic: a plain local, then a `catch` variable of the same name and type, passes the
+checker and panics in lowering. It is the gap record `data/gaps/nvs-ir/a-catch-variable-that-reuses-a.json`,
+owned by `release-hardening`. Its `details.md` has `E0401`, `E0301` both ways, `E0414` for an empty
+or mixed array and the `catch` rule; examples 04 and 05 are the chapter's two type-error blocks.
+`numbers-bool-int-uint-float-decimal` and `text-string-and-bytes` had `about.md` in the essay voice
+and were rewritten to § *Text an end user reads*. Their `details.md` have `E0407`, `E0455`, `E0716`,
+`E0708`, the overflow messages and `true as string` being `"1"`; and `E0482` (for `bytes` too),
+`E0707`, `E0715` and `E0716`. Numbers' example 04 is the chapter's `E0455` block, and text's is its
+`fromHex` block with the `RuntimeError`. `array-t`'s `details.md` has the appended key after a gap,
+`E0401` for a literal and an append, the missing key's `RuntimeError`, `E0707` and `E0467`; example
+04 is the chapter's key and copy block. The 20-types chapter changed, so its `lang:types` benches
+are perf-stale until the chapter's last edit, as the playbook says.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -411,7 +434,7 @@ sessions found, and the red bench `benches/members/core/Ldap-Connection/delete.n
 
 ### Next
 
-`20-types`, the next chapter (21 features, 1,448 lines), one feature per slice, the way `break-and-continue` was done: read
+`20-types` from `callable-classes-object-shapes` (17 features left), one feature per slice, the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -419,7 +442,10 @@ binary, write `details.md`, and turn each chapter code block no example shows in
 `--comments <dir>`.
 A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` beside it, and a
 probe is a file under `.agent-tmp/` written with Write, since the guard refuses a redirect.
-- [ ] `20-types` from its top, in chapter order. `docs/reference/lang/20-types.md:1`
+A probe catching two error types needs two variable names, or it stops at `E0406` before the line
+you meant to test.
+- [ ] `20-types` from `callable-classes-object-shapes`, in chapter order. `docs/reference/lang/20-types.md:187`
+- [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:types`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
 

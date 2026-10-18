@@ -13,4 +13,5 @@ An array is a value. When you pass it to a function, the function gets its own c
 missing.
 
 **The examples below** show a list made with `var` and one with a written type, then a lookup table,
-then a grouped report that starts from an empty array.
+then a grouped report that starts from an empty array. The last one shows how keys are numbered,
+and that an assigned array is a copy.
