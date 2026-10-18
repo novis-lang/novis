@@ -22,7 +22,8 @@ var $slots = fn(Page $page): array<Core\Html\Markup> => {
     return ["page" => html`{$sum}`];
 };
 
-// The last line of each page is the text of the slot. This prints it for each page.
+// The last line of each page is the footer row: `This page` and the text of the slot.
+// This prints that line for each page.
 var $reader = Reader::open(Document::fromHtml($html)->slots($slots)->render()->bytes);
 for (uint $n = 1; $n <= $reader->pageCount; $n++) {
     array<string> $lines = Core\Str::split($reader->text($n), "\n");
