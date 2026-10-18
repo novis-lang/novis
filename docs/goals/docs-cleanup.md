@@ -749,10 +749,31 @@ two `get` hooks stop at `E0901` (`data/gaps/nvs-types/a-property-with-two-get-ho
 `??=` on a property that has a value calls the guard (`data/gaps/nvs-ir/a-coalescing-assignment-to-a-property.json`).
 `initProperty(int $name)` compiles too, which is the override-signature gap already recorded.
 
+`stringable`, `comparable`, `parses` and `objects-are-handles` are done, each fact run on the binary,
+and no text disagreed with it; the chapter and the syntax page did not change. `stringable`'s
+`details.md` has `E0412` (a `toString` without `implements` too), `E0449`, `E0111` for
+`__toString`, `E0401`, `E0466`, `Stringable` as a type, a `null` giving the empty string and a throw
+from `toString`; example 04 is the chapter's error block. `comparable`'s has `E0411` for each case
+(two classes, a subclass and its parent, a number, a `?V`), `E0449`, one call per operator and `==`;
+example 04 is the chapter's error block. `parses`' has `E0449`, `E0404` for a return type other than
+`static`, the `tainted` property (`E0401`), `E0752` with the list of capture types, and the
+`404`/`400` split, which `a-segment-the-class-refuses-never-reaches-the-handler.nvst` pins; examples
+04 and 05 are the chapter's route block and its `E0752` block. `objects-are-handles`' has the
+subclass clone, a `private` constructor, objects inside a cloned array being shared, `!=`, `E0466`
+and `== null`; `clone` of a `null` `?T` throwing `LogicError` went to
+`is-new-clone-throw-print-exit-isset-empty`'s `details.md`, which owns `clone`. Probing found a
+safety bug: **an ordering of two objects is checked on their static class alone**, so two
+`Comparable`-typed operands of different classes, or a subclass whose `compareTo(self)` gets a parent
+object, read the wrong type or exit 5 (`data/gaps/nvs-types/an-ordering-of-two-objects-passes.json`,
+owned by `release-hardening`). The override-signature gap now names the built-in interfaces: a
+`toString(): int` stops `echo` with an internal error, and `parse(string $s)` drops the `tainted`
+qualifier.
+
 ### Next
 
-`50-classes` goes on. The next group is `stringable` (`50-classes.md:1133`), `comparable`
-(`:1171`), `parses` (`:1216`) and the features after it in chapter order; take each feature id from
+`50-classes` goes on. The next group is `nullable-objects-and` (`50-classes.md:1327`),
+`object-the-top-of-every-class-type` (`:1368`) and `what-a-class-cannot-declare` (`:1413`), which close
+the chapter, then the perf record below and `55-enums`; take each feature id from
 `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -767,7 +788,7 @@ An enum is `enum Suit { Hearts, Spades }`, with no `case`. An array with string 
 `array<int>`: `array<string, int>` is `E0101`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `50-classes` from `Stringable`, in chapter order. `docs/reference/lang/50-classes.md:1133`
+- [ ] `50-classes` from `Nullable objects and ?->`, in chapter order. `docs/reference/lang/50-classes.md:1327`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:classes`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
