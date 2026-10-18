@@ -82,16 +82,19 @@ after_session = [{ run = ["bun", "nv", "sweep"], timeout = 900, on_fail = "pause
 # The timeout covers its own 600-second cap on `bun install` and the copies.
 before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 900, on_fail = "pause" }]
 
-# The project's own refusals are `bun nv guard`'s rules (`tools/nv/cmd/guard.ts`), a `PreToolUse` hook of
-# its own beside `looper guard`, so they hold without looper.
-
 # `scope` is the words looper writes into `docs/agent/prose.md`. The files the prose check reads and its
-# rules are `tools/nv/cmd/prose.ts`'s, and `[gates] prose` makes `looper prose` run it.
+# rules are `tools/nv/cmd/prose.ts`'s.
 [prose]
 scope = "Text an end user reads"
 
+# Each gate is the project's own command, which runs the same without looper: `looper links`, `layout`
+# and `prose` run it in place of looper's check. `looper guard` runs `guard` after its claims, in place of
+# its built-in rules, and `tools/nv/cmd/guard.ts` says how the settings run it where looper is not installed.
 [gates]
+links = ["bun", "nv", "links"]
+layout = ["bun", "nv", "layout", "--check"]
 prose = ["bun", "nv", "prose"]
+guard = ["bun", "tools/nv/main.ts", "guard", "--gate"]  # not `bun nv`, whose script line would open every reason
 
 [sync]
 skip = [

@@ -144,13 +144,15 @@ reached into the same one repeatedly.
 
 **The 400-line floor is enforced on both sides.** `bun nv peek` refuses a bare `path` over
 `--max-lines` — 400, which is AGENTS.md rule 3's "whole file under ~400 lines".
-The harness's own tools have no such floor, so `.claude/settings.json` runs `bun nv guard` as a
-`PreToolUse` hook for `Read` and `Bash`. Its `RULES` in `tools/nv/cmd/guard.ts` refuse a whole `Read`, `cat` or `sed -n` of a tracked file over
+The harness's own tools have no such floor, so `bun nv guard` runs as a `PreToolUse` hook. Its `RULES`
+in `tools/nv/cmd/guard.ts` refuse a whole `Read`, `cat` or `sed -n` of a tracked file over
 that same 400 lines, `sleep`, a kill by process name, a write through a shell, a build or test cut with
-`head` or `tail`, and the other habits listed there, each with the call to make instead. The second
-hook, `looper guard`, adds what needs a loop: an edit or a `git add` of a file another session claims
-(§ *Other sessions' edits*). Without looper it fails, and the call goes through. `bun nv guard --check` says whether the hook is
-wired. Claude Code is the only harness that reads `.claude/`; every other one gets the floor from
+`head` or `tail`, and the other habits listed there, each with the call to make instead. Where looper
+is installed, the settings' `looper guard` hook checks what needs a loop, an edit or a `git add` of a
+file another session claims (§ *Other sessions' edits*), and then runs `bun nv guard --gate` through
+`looper.toml`'s `[gates] guard`. Where it is not, that hook fails and the call goes through, and the
+settings' second hook runs `bun nv guard` for `Read` and `Bash`. `bun nv guard --check` says whether
+that hook is wired. Claude Code is the only harness that reads `.claude/`; every other one gets the floor from
 `bun nv peek` alone.
 
 ## One shell
@@ -850,7 +852,7 @@ claims, `looper exec` and the loop itself.
 | `looper verify` | Run `bun nv verify`, the `[verify] run` of `looper.toml`, or `bun nv affected --run` interactively. § *Verifying* names the narrow forms. |
 | `looper affected` | `bun nv affected`. |
 | `looper check [--name <text>]` | Run the `run` of each check in the live goal's front matter. Judge its matchers by reading the output. |
-| `looper links`, `looper layout --check` | `bun nv links` and `bun nv layout --check`. |
+| `looper links`, `looper layout` | `bun nv links` and `bun nv layout --check`, which looper runs through `looper.toml`'s `[gates]`. |
 | `looper prose [--all]` | `bun nv prose [--all]`, which `looper prose` runs through `looper.toml`'s `[gates] prose`. |
 | `looper lint` | Loop-only: it checks the goal files. Keep a goal's front matter in the shape the goal format gives, and name lint in the handoff as not run. |
 | `looper goal …` | Edit the goal's front matter by hand, in the shape the goal format gives. |
@@ -858,7 +860,7 @@ claims, `looper exec` and the loop itself.
 | `looper wrap` | Apply the plan sections with `bun nv plan --apply <file>`, overwrite `## Handoff`, tick what is done, and commit each slice with `git commit -F <file>`. |
 | `looper log`, `looper playbook retire` | No equivalent. |
 | `looper sync`, `looper doctor`, `looper clean` | Not needed. Never edit the text between looper's markers by hand. |
-| `looper guard` | Nothing to run. The settings run `bun nv guard` as its own hook, with or without looper. Without looper, nothing checks another session's claims. |
+| `looper guard` | Nothing to run. With no looper on PATH, the settings' second hook runs `bun nv guard`, which holds every rule. With looper, `looper guard` runs it through `[gates] guard`. Without looper, nothing checks another session's claims. |
 | `looper exec list`, `looper exec log`, `looper exec wait`, `looper exec kill` | No equivalent. Ask the user before stopping a process another session started. |
 | `looper claims`, `looper claims release` | No equivalent. There are no claims, so stage only your own files by name. |
 | `looper loop start` | No equivalent. The unattended loop needs looper. |

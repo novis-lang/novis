@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { decide, parse, RULES, type Tool, wiredTools } from "../cmd/guard.ts";
+import { decide, HOOK, parse, RULES, type Tool, wiredTools } from "../cmd/guard.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 
@@ -176,7 +176,7 @@ describe("nv guard", () => {
   });
 
   test("the wiring is read from the settings' PreToolUse entries", () => {
-    const hook = (matcher: string) => ({ matcher, hooks: [{ type: "command", command: "bun nv guard" }] });
+    const hook = (matcher: string) => ({ matcher, hooks: [{ type: "command", command: HOOK }] });
     expect(wiredTools({ hooks: { PreToolUse: [hook("Read|Bash")] } })).toEqual(["Read", "Bash"]);
     expect(wiredTools({ hooks: { PreToolUse: [hook("Read")] } })).toEqual(["Read"]);
     expect(wiredTools({})).toEqual([]);

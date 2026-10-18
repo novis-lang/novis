@@ -1,7 +1,4 @@
-// `bun nv guard`: the `PreToolUse` hook that holds this repository's rules, wired in
-// `.claude/settings.json` for `Read` and `Bash`. The settings' second hook, `looper guard`, adds what
-// needs a loop, the edit claims and the entries `looper exec` reads, and where looper is not installed
-// it fails without blocking the call. It reads the harness's event
+// `bun nv guard`: the `PreToolUse` hook that holds this repository's rules. It reads the harness's event
 // from standard input and denies a call that does by hand what an `nv` command or an AGENTS.md rule
 // already covers. A denial's reason starts `guard: <rule>:` and names the call to make instead. A
 // hook's denial holds in every permission mode, including the `auto` mode the loop runs its sessions
@@ -17,11 +14,16 @@
 // words with its quotes removed. This is not a shell: it is enough to find a command's name, its flags
 // and its file arguments, and a heredoc's body is skipped so its text is never read as commands.
 //
-// `bun nv guard --check` says whether the hook is wired for both tools, and whether every `nv`
-// command a rule names is registered. It exits 0 when both hold and 1 when one does not. The hook
-// itself always exits 0.
+// Where looper is installed, `.claude/settings.json`'s `looper guard` entry runs it: looper checks its
+// edit claims and records the entries `looper exec` reads, then runs `bun nv guard --gate`, which
+// `looper.toml`'s `[gates] guard` names. `--gate` answers in looper's protocol: a denial is its reason
+// on standard error and exit 2, and an allowed call is exit 0. Where looper is not installed, the
+// settings' `HOOK` entry runs `bun nv guard` for `Read` and `Bash`, which prints the harness's deny
+// decision and always exits 0. Either way the rules run once per call, in one `bun` process, and with
+// looper that includes every `Edit` and `Write`, which its entry also matches and these rules allow.
 //
-// It starts `bun` on every `Read` and `Bash` call, beside the `looper guard` process looper's hook starts.
+// `bun nv guard --check` says whether `HOOK` is wired for both tools, and whether every `nv` command a
+// rule names is registered. It exits 0 when both hold and 1 when one does not.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
@@ -33,8 +35,8 @@ export const summary = "the PreToolUse hook's rules, which deny a raw command an
 
 export type Tool = "Read" | "Bash";
 export const TOOLS: Tool[] = ["Read", "Bash"];
-/** The hook command `.claude/settings.json` runs. */
-export const HOOK = "bun nv guard";
+/** The hook command `.claude/settings.json` runs for a session with no looper on PATH. */
+export const HOOK = "command -v looper >/dev/null 2>&1 || bun nv guard";
 
 export interface Call {
   tool: Tool;
@@ -638,8 +640,9 @@ async function check(): Promise<number> {
 
 export async function run(args: string[]): Promise<number> {
   if (args[0] === "--check" && args.length === 1) return check();
-  if (args.length) {
-    console.error("usage: bun nv guard [--check]   (the hook reads its event from standard input)");
+  const gate = args[0] === "--gate" && args.length === 1;
+  if (args.length && !gate) {
+    console.error("usage: bun nv guard [--check | --gate]   (the hook reads its event from standard input)");
     return 2;
   }
   let event: unknown;
@@ -649,6 +652,10 @@ export async function run(args: string[]): Promise<number> {
     return 0;
   }
   const reason = decide(event);
+  if (reason && gate) {
+    console.error(reason);
+    return 2;
+  }
   if (reason) {
     const out = { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: reason } };
     console.log(JSON.stringify(out));
