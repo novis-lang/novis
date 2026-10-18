@@ -15,3 +15,6 @@ really is, and `static::class` gives the class the call was made on.
 
 **Good to know:** a constant that holds a list gives you a new list on every read. If you change
 the list you got, the next read is unchanged.
+
+**The examples below** show constants with `self::` and `static::`, the name of a class as text, and
+a constant list of allowed values. The last one shows `static::` with a list, which does not compile.
