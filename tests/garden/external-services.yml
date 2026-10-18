@@ -1,0 +1,9 @@
+# Replaces the Garden's empty `external-services.yml` in the runner image, so its `targets.py`
+# knows the `nvs` origin that `compose.yaml` adds. The address is the container's own IP on
+# `http-garden_default`, which `targets.py` looks up by the service label. The timeout is longer
+# than the Garden's 50 ms default because the origin is a debug build.
+nvs:
+  x-props:
+    role: origin
+    port: 80
+    timeout: 0.2

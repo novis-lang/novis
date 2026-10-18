@@ -837,6 +837,20 @@ and a report that names `__tsan_func_entry` is a broken annotation rather than a
 it. Its target directory is under `/var/tmp` and its own, because `RUSTFLAGS` is part of a fingerprint
 and sharing one with the leak sweep would rebuild the tree on every alternation.
 
+## HTTP Garden: `bun nv garden`
+
+`bun nv garden [--rounds N] [--seed N] [--refs hyper,node_stdlib]` sends mutated requests to `nvs serve`
+and to the Garden's hyper and Node origins, and lists what `nvs` reads differently from both. It runs
+the same way on Windows with Docker Desktop and on Linux. The Garden's harness reaches each origin by
+container IP, which only a container on the Garden's network can reach under Docker Desktop, so the
+harness runs in one, with its files copied into the image rather than mounted. [`tools/nv/cmd/garden.ts`](../../tools/nv/cmd/garden.ts)'s head
+comment owns how, and `tests/garden/` holds the files it builds from. The first run compiles hyper and
+Node from source in Docker, and later runs reuse those images. A panic in the `nvs` log fails the run;
+a reading is for a person to sort into a bug, a new refused row, or strictness that stays. It is not a
+CI job: each finding becomes a test in the smuggling suite, which CI runs. Run it again by hand after a
+change to how a request head is read (`crates/nvs-server/src/io.rs`, `serve.rs`, `Core\Request`'s header
+and body readers), and before a release.
+
 ## Without looper
 
 Nothing an agent needs to do its work depends on looper being installed. looper is absent when
