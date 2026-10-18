@@ -98,11 +98,11 @@ A value that can be `null`, such as a `?float`, is also refused. Test it first w
 | `int / int`, `uint / uint` | `int\|float`: `6 / 3` is `2`, `7 / 2` is `3.5`. The union binds to a declared `float`; `int $n = 7 / 2` is a compile error. `Core\Math::intDiv` is integer division |
 | either side `float` | `float` for `+ - * / **`; `%` is a compile error (`Core\Math::mod` is the float remainder) |
 | `int ⊕ uint` | **compile error** — convert one side with `as int` / `as uint`. An integer literal beside a `uint` is a `uint` |
-| `decimal ⊕ decimal`, `decimal ⊕ int` | `decimal`, exact; division rounds at the widest scale the result admits |
+| `decimal ⊕ decimal`, `decimal ⊕ int`, `decimal ⊕ uint` for `+ - * / %` | `decimal`, exact; division rounds at the widest scale the result admits |
 | `decimal ⊕ float` | **compile error** — a `float` literal beside a `decimal` is a `float`, so `$d + 0.2` is refused; write `$d + (0.2 as decimal)` |
-| `%` | integers only, sign of the dividend; `Modulo by zero` throws |
-| `**` | an integer result for integer operands — a negative exponent throws unless the base is `1` or `-1`; `2 ** 0.5` is a `float` |
-| `/ 0` | `Division by zero` throws, whatever the operand types — the zero divisor is refused before they are consulted, so there is one rule and not two. `Core\Math::fdiv` is IEEE's `INF` where you want it |
+| `%` | integers and `decimal`, sign of the dividend; `Modulo by zero` throws |
+| `**` | an integer result for integer operands — a negative exponent throws unless the base is `1` or `-1`; `2 ** 0.5` is a `float`; a `decimal` base is a compile error, and `Core\Decimal::pow` is the power |
+| `/ 0` | `ArithmeticError` throws, whatever the operand types — the zero divisor is refused before they are consulted, so there is one rule and not two. Its message is `Division by zero`, and for a `decimal` the message of a result out of range. `Core\Math::fdiv` is IEEE's `INF` where you want it |
 
 ```nvs
 <?nvs
@@ -209,7 +209,7 @@ Bit shift by negative number
 | `?T` against `null` | the null test; it narrows in the branch where it held |
 | `mixed` | decided at run time from the tags; different kinds answer `false` |
 
-`< <= > >= <=>` order numbers (any pairing of the four numeric types, exactly, with no conversion), two `bool`s (`false < true`), and two objects of one class that implements `Comparable`. Everything else is refused where it is written: two strings order through `Core\Str::compare`, an enum through `as int`, and arrays, `bytes`, `callable` and `null` do not order at all. `<=>` answers `-1`, `0` or `1` as an `int`.
+`< <= > >= <=>` order numbers (any pairing of the four numeric types, exactly, with no conversion), two `bool`s (`false < true`), and two objects of one class that implements `Comparable`. Everything else is refused where it is written: two strings order through `Core\Str::compare`, an enum through `as int`, and arrays, `bytes`, `callable` and `null` do not order at all. On numbers and `bool`s, `<=>` answers `-1`, `0` or `1` as an `int`; on two objects it answers what `compareTo` returns, unchanged.
 
 ```nvs
 <?nvs
