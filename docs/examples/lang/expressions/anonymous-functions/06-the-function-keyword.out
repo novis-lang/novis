@@ -1,0 +1,9 @@
+error[E0222]: anonymous `function` expressions are not supported
+  --> 06-the-function-keyword.nvs:5:15
+  |
+5 | callable $f = function (int $x): int { return $x + 1; };
+  |               ^^^^^^^^ write an anonymous function with `fn`
+  = help: use `fn(...) => ...` (an expression body) or `fn(...) => { ... }` (a block body)
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

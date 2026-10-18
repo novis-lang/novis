@@ -1,0 +1,16 @@
+<?nvs
+// Shows an anonymous function that calls itself. Its name comes after `fn`,
+// and the name works only inside the function.
+
+callable $factorial = fn fact(int $n): int => $n <= 1 ? 1 : $n * fact($n - 1);
+
+// The name also works with a block body.
+callable $fib = fn fib(int $n): int => {
+    if ($n <= 1) {
+        return $n;
+    }
+    return fib($n - 1) + fib($n - 2);
+};
+
+// This prints 120 55.
+echo $factorial(5), " ", $fib(10), "\n";

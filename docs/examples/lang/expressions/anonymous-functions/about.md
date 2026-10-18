@@ -14,3 +14,6 @@ the class the function was written in, or of a subclass. Any other object, or `n
 
 **Good to know:** there is no `use (...)` list. A call through a `callable` returns `mixed`, so use
 `as` to say which type you read.
+
+**The examples below** write small functions, show what a function captures and check a form. Example
+04 reads `$this`, example 05 calls itself, and example 06 does not compile.

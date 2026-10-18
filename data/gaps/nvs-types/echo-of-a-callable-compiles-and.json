@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/expr/operators.rs",
+  "title": "Echo of a callable compiles and throws a RuntimeError that names an internal class.",
+  "text": "`callable $f = fn(): int => 1; echo $f;` passes `nvs check`, and the run throws `RuntimeError` \"cannot convert an object of class `Script$fn0` to `string`: it does not implement `Stringable`\". A `callable` never has a string form, so the checker can know this, as it does for `void` with `E0707`, and `Script$fn0` is a name the program never wrote. It closes when a `callable` after `echo` or `.` is `E0707`, with a conformance case.",
+  "goal": "release-hardening"
+}
