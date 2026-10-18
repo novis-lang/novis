@@ -14,4 +14,5 @@ and `parent::constructor(...)` runs its constructor.
 a new object of the same class. That is what makes it safe to call from a subclass.
 
 **The examples below** show the two kinds of method, then `self` beside `static` in a subclass, then
-a subclass that calls the version its parent wrote.
+a subclass that calls the version its parent wrote. The last two show a chain of calls with an
+anonymous function that keeps `$this`, and a method with the return type `static` that does not compile.
