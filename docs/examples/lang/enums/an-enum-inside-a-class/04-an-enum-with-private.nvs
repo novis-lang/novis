@@ -1,0 +1,8 @@
+<?nvs
+// Shows that an enum in a class body takes no `private` or `public`. Remove the
+// word, and the class compiles.
+// proof: compile-error
+
+class Order {
+    private enum Status { Open, Paid }
+}

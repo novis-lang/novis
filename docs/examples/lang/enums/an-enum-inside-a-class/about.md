@@ -10,4 +10,6 @@ implements an interface does not inherit the interface's enum. Write `Status` in
 enum that several classes use is declared outside the classes.
 
 **The examples below** show an order that keeps its status, a command line program with its own exit
-codes, and an interface whose enum every class that implements it returns.
+codes, and an interface whose enum every class that implements it returns. Then three programs that
+do not compile: an enum with `private`, a subclass that names its parent's enum, and a `use` of an
+enum.
