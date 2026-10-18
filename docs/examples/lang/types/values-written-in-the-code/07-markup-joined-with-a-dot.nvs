@@ -1,0 +1,7 @@
+<?nvs
+// Shows that `.` cannot join markup to a string. Join two markup values with `+`.
+// This program does not compile.
+// proof: compile-error
+
+Core\Html\Markup $m = html`<p>x</p>`;
+string $s = $m . "!";

@@ -12,4 +12,5 @@ An html template, written ``html`...` ``, is a piece of a web page. Its type is 
 Every value you insert into it is escaped, so a value cannot add a tag.
 
 **The examples below** show the ways to write a number, the two kinds of quotes, a message built
-from a template, and a page fragment with inserted values.
+from a template, a page fragment with inserted values, the escapes of a double-quoted string,
+durations, and a program that joins markup with `.` and does not compile.
