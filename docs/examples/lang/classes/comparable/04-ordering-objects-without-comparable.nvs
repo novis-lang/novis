@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `<` on two objects needs the interface `Comparable`. `Point` does
+// not implement it, so this program does not compile.
+// proof: compile-error
+
+class Point {
+    public int $x = 1;
+}
+
+var $a = new Point();
+var $b = new Point();
+if ($a < $b) {
+    echo "less\n";
+}
