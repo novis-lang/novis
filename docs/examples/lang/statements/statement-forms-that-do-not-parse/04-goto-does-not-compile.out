@@ -1,0 +1,9 @@
+error[E0203]: `goto` is not supported
+   --> 04-goto-does-not-compile.nvs:10:9
+   |
+10 |         goto done;
+   |         ^^^^^^^^^^ makes the control-flow graph unstructured
+   = help: restructure with a loop, an early `return`, or a boolean flag
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

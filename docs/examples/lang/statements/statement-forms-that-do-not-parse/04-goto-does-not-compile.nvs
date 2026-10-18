@@ -1,0 +1,12 @@
+<?nvs
+// Shows that `goto` is not allowed. The compiler error names the three ways
+// to write it instead. This program does not compile.
+// proof: compile-error
+
+int $n = 0;
+while ($n < 3) {
+    $n++;
+    if ($n == 2) {
+        goto done;
+    }
+}
