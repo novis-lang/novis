@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/cmd/disk.ts, tools/nv/select/record.ts, docs/goals/README.md]
   - id: 2
     title: verify is red only for a real fault
-    status: open
+    status: done
     context: [crates/nvs-stdlib/tests/ldap.rs, crates/nvs-cli/tests/live_edit.rs]
   - id: 4
     title: the dead tooling and the stale state are gone
@@ -127,7 +127,9 @@ is swept only when it is low.
   - [x] The `Timeout` that is left, seen only with two processes and every core busy, is found at its cause.
   - [x] The 2-second floor of every Samba case is explained, and removed if it is a fallback in the connect.
   - [x] The `.nvst` cases that write to Samba name their entries with `Core\Os::pid()`, so two trees at once do not clash.
-- [ ] The `live_edit` 30-second swap is found and fixed at its cause. `crates/nvs-cli/tests/live_edit.rs:1010`
+- [x] The `live_edit` 30-second swap is found and fixed at its cause. `crates/nvs-cli/tests/live_edit.rs:1010`
+  - [x] The case is run under load until it fails, or until enough runs pass to rule load out.
+  - [x] The cause is fixed without raising `BOUND`.
 - [x] `verify.ts`'s module doc no longer lists either as a load failure. `tools/nv/cmd/verify.ts:1`
 
 ### 4. the dead tooling and the stale state are gone
@@ -172,27 +174,28 @@ edits no shared table by hand.
 
 ### State
 
-Stage 2's `ldap` item is done, `.nvst` half included. Only the `live_edit` item is left.
+Stage 2 is done. Stage 4 has not started.
 
-- The 12 `.nvst` cases that write to Samba name each entry, and each account's `sAMAccountName`,
-  with `Core\Os::pid()`, which needs no grant (`crates/nvs-stdlib/src/os.rs:58`). The two that match
-  by a name prefix put a fixed word after the pid (`Theater <pid> Hall`), so pid 12 does not match
-  pid 123's entries. `ldap-set-password` now logs the new account in with `Core\Ldap::open` over the
-  cleartext port 16389, because an `nvs.toml` block cannot carry a name made at run time, and it
-  checks `u:EXAMPLE\Staff-%d` under `--EXPECTF--`. All 12 pass, and so did two copies sent at once.
-  The two writing cases left alone write nothing that exists: `ldap-password-writes-need-tls` and
-  `ldap-writes-throw-for-a-bad-name-a-value-with-no-form-or-no-entry`.
-- `tools/nv/cmd/verify.ts` names neither `ldap` nor `live_edit`, so its item is ticked.
+- `a_file_that_changes_during_a_compile_discards_that_compile` did not fail under load. The
+  `covws` binary passed 12 whole runs, four copies at a time, beside one busy loop per core. The
+  case alone takes 5 s idle and 8 to 9 s on a busy machine. `nv guard` refuses a whole-tree
+  `cargo test`, so that load was not tried.
+- The fault that matches the report is in the case. Its clock started at the `app.nvs` write and
+  was not restarted at the `lib.nvs` write. So `BOUND` covered both compiles, the thrown-away one
+  and the next one, where it is meant for one edit. The case now restarts the clock at the
+  `lib.nvs` write, as the link-switch case beside it does
+  (`crates/nvs-cli/tests/live_edit.rs:1066`). `BOUND` is unchanged. If the case is red again,
+  it is a real fault: read `server.said()` in the failure.
+- `script.rs`'s background check was read for a missed retry after a discard
+  (`crates/nvs-cli/src/script.rs:875`), and none was found.
 
 The nightly run 39013536848 is still the newest, and nothing in it is new.
 
 ### Next
 
-Stage 2, `live_edit`'s 30-second swap, on `crates/nvs-cli/tests/live_edit.rs` alone:
-- [ ] Run `a_file_that_changes_during_a_compile_discards_that_compile` under load, beside a full `cargo test`, until it fails, and read what `server.said()` printed. `crates/nvs-cli/tests/live_edit.rs:977`
-- [ ] Fix the cause the output shows: a missed file event, a compile that never ends, or a deadline that measures a busy machine. Never raise `BOUND`. `crates/nvs-cli/tests/live_edit.rs:29`, `crates/nvs-cli/tests/live_edit.rs:1010`
-
-Then stage 4 begins, with `tools/nv/main.ts:23`.
+Stage 4, the dead `nv` commands and the second guard hook, on `tools/nv/` and `.claude/settings.json`:
+- [ ] Delete `nv pack`, `nv allow`, `nv audit`, `nv query` and `nv class-cards`, with their tests and allowlist entries. `tools/nv/main.ts:25`, `tools/nv/main.ts:35`, `tools/nv/main.ts:58`
+- [ ] Move `bun nv guard`'s `proof-loop` rule into `looper.toml`'s `[[guard.deny]]`, and delete its hook and command. `tools/nv/cmd/guard.ts:319`, `.claude/settings.json:10`, `.claude/settings.json:48`
 
 ### Backlog
 
