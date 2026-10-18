@@ -4390,8 +4390,8 @@ A class implementing the global interface `PropertyObserver` declares
 and is told of every read and write of every property it declares — hooked or not, in the
 constructor or later, in a subclass too — after the value has settled. An element write or an
 element `unset`, such as `$a->rows[] = 1`, calls `onPropertySet` once with the whole array, and
-calls no `onPropertyGet`. The observer cannot change the value; a throwing `onPropertySet` fails
-the write. A class that does not implement the interface pays nothing.
+calls no `onPropertyGet`. The observer cannot change the value. A throwing `onPropertySet` throws
+from the write, after the value is stored. A class that does not implement the interface pays nothing.
 
 ```nvs
 <?nvs

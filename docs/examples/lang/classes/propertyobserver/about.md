@@ -8,7 +8,8 @@ so `onPropertySet` sees what was really stored. A write to one element, such as
 `$account->history[] = 5`, calls `onPropertySet` once with the whole array after the change.
 
 An observer reports, and it does not decide. Both methods return nothing, so they cannot change the
-value a read gives back. A method that throws an error stops that read or that write.
+value a read gives back. If a method throws an error, the read or the write throws it. The value
+of a write is already stored then.
 
 **Good to know:** writing a property inside one of these two methods calls the method again. Test the
 name first, or the program runs until the call stack is too deep.

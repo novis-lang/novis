@@ -44,7 +44,8 @@ Novis calls them after every read and every write of a property of the class.
 - A write to one element calls `onPropertySet` once. It gets the whole array.
 - The value has the type `mixed`. Text you build from it with `as string` or `.` is a
   `tainted string`.
-- The observer cannot change the value. If `onPropertySet` throws an error, the write fails.
+- The observer cannot change the value. If `onPropertySet` throws an error, the write throws it.
+  The new value is already stored.
 - A class that does not implement `PropertyObserver` does not run any extra code.
 
 ## Do and don't

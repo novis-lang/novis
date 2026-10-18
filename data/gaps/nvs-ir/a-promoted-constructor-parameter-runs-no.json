@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-ir/src/lower/mod.rs",
+  "title": "A promoted constructor parameter runs no PropertyGuard and no PropertyObserver.",
+  "text": "`rule:classes/property-guard-runs-before-the-write` runs the guard on every write, in the constructor too, and `rule:classes/property-observer-pipeline` reports every write. A promoted parameter is stored with neither: `constructor(public int $balance) {}` in a class whose `beforePropertySet` always throws makes `new A(-5)` succeed, and `$a->balance` is `-5`. No `onPropertySet` runs for it either. A guard that keeps a value in range can therefore be passed by any class that promotes the property, which is a check that does not hold. It closes when the store of a promoted parameter runs the same pipeline as `$this->balance = $balance;`, with a conformance case for the guard and the observer.",
+  "goal": "release-hardening"
+}
