@@ -11,4 +11,4 @@ The labels are tried in the order you wrote them, and `default` is tried last wh
 is true is the one that runs.
 
 **The examples below** show a choice between three answers, then labels that share a body, then
-`switch (true)` sorting a number into bands.
+`switch (true)` sorting a number into bands, then a `default` between two labels.

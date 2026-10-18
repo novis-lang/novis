@@ -1,0 +1,20 @@
+<?nvs
+// Shows a `default` written between two labels. It is still tried last, and
+// it falls through into the body after it.
+
+array<int> $codes = [1, 2, 9];
+
+foreach ($codes as int $code) {
+    echo $code, ": ";
+    switch ($code) {
+        case 1:
+            echo "one, ";
+        default:
+            echo "other, ";
+        case 2:
+            echo "two";
+    }
+    echo "\n";
+}
+
+// This prints "1: one, other, two", then "2: two", then "9: other, two".

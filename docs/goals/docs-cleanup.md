@@ -356,6 +356,17 @@ fact, and examples 01 and 02 show the chapter's blocks. The chapter's `if (…):
 is `statement-forms-that-do-not-parse`'s example 05, since that feature owns the alternative syntax.
 Its `details.md` now names all five `end…` keywords, each checked on the binary.
 
+`40-statements` is done: `for`, `foreach` and `switch` closed it, and no text disagreed with the
+binary. `for`'s `details.md` adds `E0125` (two declarations), `E0124` (a declaration mixed with
+expressions), the condition list running in full on every test, and `E0406` for a second loop's
+counter; example 04 is the chapter's `for (;;)` and 05 its `E0125` block. `foreach`'s `details.md`
+adds mixed `var` and written types, `E0101`, the qualifier `var` keeps, a wider written type,
+`E0444`, the parenthesised conversion and `E0443`, `E0414` for a literal subject, an `inout` loop
+walking the array itself, and `E0406`; examples 05 to 08 are the chapter's generator, its wider type
+with a converted subject, and its two error blocks. `switch`'s `details.md` adds `==`, `E0466`, and
+a `default` in the middle falling through, which is example 04. The `switch` level for `break` and
+`continue` stays `break-and-continue`'s fact.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -365,13 +376,13 @@ sessions found, and the red bench `benches/members/core/Ldap-Connection/delete.n
 
 ### Next
 
-The rest of `40-statements`, one feature per slice, the way `break-and-continue` was done: read its
-chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the binary,
-write `details.md`, and turn each chapter code block no example shows into an example
-(`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless`, then
-`bun nv proofs --run --only <id>` and `--comments <dir>`.
-- [ ] `for`, `foreach` and `switch`, which closes `40-statements`. `docs/reference/lang/40-statements.md:100`
-- [ ] Then `10-programs`, the next chapter. `docs/reference/lang/10-programs.md:1`
+`10-programs`, the next chapter, one feature per slice, the way `break-and-continue` was done: read
+its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
+binary, write `details.md`, and turn each chapter code block no example shows into an example
+(`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
+`bun nv proofs --run --only <id>` (one `--only` per run: a second replaces the first) and
+`--comments <dir>`.
+- [ ] `10-programs`, its first sections. `docs/reference/lang/10-programs.md:8`
 
 ### Backlog
 
