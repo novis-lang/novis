@@ -592,12 +592,33 @@ error blocks. Probing found a compiler bug: `true < 3` and `1 < 2 < 3` pass the 
 `E0901`, now the gap record `data/gaps/nvs-types/ordering-a-bool-against-a-number.json`, owned by
 `release-hardening`. `llms-full.txt` is rendered again.
 
+The next four `30-expressions` features are done, each fact run on the binary, and the chapter did
+not change. `logical-operators-and-truth`'s `details.md` has `E0226` with `!=` for `xor`, the `bool`
+result, `E0718`, the values easy to get wrong (`"0.0"`, `NAN`, `-0.0`), nothing kept after the
+expression (`E0459`), and where `W1023` is given: the whole condition of `if`, `while`, `? :` and
+`?:`, never an operand of `&&`, `||` or `!`. Narrowing it there found a wrong claim in two texts:
+`narrowing`'s `about.md` and `details.md` said a property is never narrowed, but a path of `readonly`
+properties is, as `rule:types/narrowing` says; both now say so. The syntax page's list of false
+values (`syntax/operators/comparison.mdx`) now has the empty `bytes` value. `string-operators`'
+`details.md` has `E0707`, `E0412`, `E0710`, a `mixed` array's `RuntimeError`, `+` binding before
+`.`, `.=` on an `int` (`E0401`) and on a `null` `?string`, and the tainted and secret results;
+`about.md` no longer says every error names a replacement (`void`'s does not). `and-the-ternary`'s
+`details.md` has the result types, `W1022`, `??=`'s value, `E0105` for `??*=`, the `uint` `??-=`
+`ArithmeticError`, `?->` not running its arguments and `E0479`; example 04 is the chapter's `??-=`,
+`??.=` and nested ternary lines, 05 its `E0479` block. `assignment`'s `details.md` has the twelve
+compound forms, each `E0401`, `E0706`, `E0716` on a `?int`, the run-time errors, a missing key's
+`RuntimeError`, `E0105`, `E0782`, `E0301` and `if ($a = 0)`; example 04 is the chapter's
+compound-operator block, 05 `/=` on an `int`. Probing found two gaps, both owned by
+`release-hardening`: a static property read through an instance (`$p->x`, `$p?->x`) passes
+`nvs check` and stops at `E0901` (`data/gaps/nvs-types/a-static-property-read-through-an.json`),
+and `$this = new P()` compiles and rebinds `$this`
+(`data/gaps/nvs-types/an-assignment-to-this-compiles-and.json`).
+
 ### Next
 
-`30-expressions` continues: 12 features left. The next group is `logical-operators-and-truth`
-(`30-expressions.md:265`, 20 lines), `string-operators` (18), `and-the-ternary` (60) and
-`assignment` (22). The chapter's
-`inout` line (`30-expressions.md:472`) is already fixed. Work each feature the way `break-and-continue` was done: read
+`30-expressions` continues: 8 features left. The next group is `match` (`30-expressions.md:385`,
+25 lines), `is-new-clone-throw-print-exit-isset-empty` (`30-expressions.md:411`), and the features
+after it in chapter order. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -610,7 +631,7 @@ you meant to test. A probe's method goes in a class: a top-level `function` stop
 An enum is `enum Suit { Hearts, Spades }`, with no `case`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `30-expressions` from `logical-operators-and-truth`, in chapter order. `docs/reference/lang/30-expressions.md:265`
+- [ ] `30-expressions` from `match`, in chapter order. `docs/reference/lang/30-expressions.md:385`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:expressions`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
@@ -621,6 +642,8 @@ body, and a script under `.agent-tmp/` that writes and runs each; the guard refu
 - Two diagnostics disagree with the binary's own behaviour: `E0233`'s help for a nested `use` says it
   "applies to the whole file", but a `use` covers only the code below it, and `E0303` for a class no
   `autoload` root has names no root. Product text, so it needs its own owner. `crates/nvs-types/src/locals.rs:2023`
+- `E0479`'s help for a write through `?->` suggests `if ($x !== null)`, an operator Novis does not
+  have; `and-the-ternary`'s example 05 prints it. Product text, same owner question. `crates/nvs-types/src/expr/assign.rs:1115`
 - Many compiler diagnostics print a `rule:` id or the word "refused" in their help text, such as `E0234`, `E0413`, `E0448` and `E0230`. That text is held to § *Text an end user reads* when it is changed; this goal changes no product text, so it needs its own owner. `crates/nvs-types/src/expr/members.rs:2345`
 - About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
 - The guard messages and `peek.ts`/`splice.ts` comments cite "AGENTS.md rule 1" and "rule 3" by the block's numbers, which a template change can move; citing `commands.md` sections would not. `tools/nv/cmd/guard.ts:259`
