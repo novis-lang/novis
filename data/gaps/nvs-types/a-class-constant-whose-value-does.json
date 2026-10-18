@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/expr/members.rs",
+  "title": "A class constant whose value does not fit its type is reported only where it is read, under the wrong error.",
+  "text": "`public const uint W = -1;` and `public const int S = \"a\";` compile while nothing reads them. A read of either is `E0792` (\"has no compile-time value to inline\"), whose help says the value must be a number, a string or an array of them, which both already are. A property default that does not fit its type is `E0472` at the declaration. It closes when a constant's value is checked against its declared type at the declaration, with a conformance case.",
+  "goal": "release-hardening"
+}
