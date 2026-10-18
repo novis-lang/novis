@@ -41,7 +41,7 @@ stages:
         rules: [types/conversion, http-server/engine-depth-is-bounded-per-decoder]
   - id: 6
     title: "every parser that reads outside bytes has a fuzz target, and the smuggling payloads are tests"
-    status: open
+    status: done
     context: [fuzz/Cargo.toml, .github/workflows/ci.yml, crates/nvs-server/src/serve.rs, docs/rules/testing/the-deep-lane.md]
     extra:
       context:
@@ -202,7 +202,10 @@ in the nightly fuzz job. The published request-smuggling payloads are fixed serv
   - [x] An empty inbound `Transfer-Encoding` beside a `Content-Length` is a refused row.
   - [x] The chunk-line payloads are rows of the broken-body table.
   - [x] The 0.CL and Expect shapes are a table of their own, counting final responses.
-- [ ] HTTP Garden runs once against `nvs serve`, and each finding becomes a test. The handoff records the run.
+- [x] HTTP Garden runs once against `nvs serve`, and each finding becomes a test. The handoff records the run.
+  - [x] An `nvs` origin echoing the Garden's JSON, built from the WSL mirror.
+  - [x] A mutation sweep against hyper and Node, keeping what `nvs` reads differently from both.
+  - [x] The UTF-8 finding fixed with tests, and the bare-LF prefix a refused row.
 
 ### 7. compiled code is checked against its unoptimised twin, and aarch64 Linux runs the tests
 
@@ -265,29 +268,38 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 5 are done. Stage 6 is live, and only HTTP Garden is left in it.
+Stages 1 to 6 are done. Stage 7 is next.
 
-- Every parser the stage names has a target. `request_head` (`fuzz/fuzz_targets/request_head.rs`)
-  feeds `nvs_server::heads::Scanner` whole, split in two and a byte at a time, and asserts the same
-  verdicts. Where `httparse` reads a complete first head with a bare LF or two lengths, it asserts
-  that head is refused. Its CRLF tokens are a dictionary, `fuzz/dicts/request_head.dict`, which the
-  `fuzz-smoke` step now passes to any target that has one. It ran 180 s clean in WSL from the
-  accept mirror, reaching complete heads, lengths and chunked bodies.
-- `hyper` refuses an empty inbound `Transfer-Encoding`, and any comma in a request's
-  `Content-Length` (`from_digits`). The scanner now sees a comma past the 64 bytes it keeps
-  (`crates/nvs-server/src/heads.rs:262`), so it refuses that row without relying on `hyper`.
-- The smuggling suite has the funky-chunks rows, the 0.CL row and two Expect rows
-  (`crates/nvs-server/src/serve.rs:9153`). All passed on the first run, so none found a bug.
-- The nightly failures the sweep listed are still the `e110c9c0b` run the last handoff triaged.
+- **The HTTP Garden run.** The Garden (`narfindustries/http-garden`, cloned under `.agent-tmp/`)
+  ran from a runner container on its own Docker network, against an `nvs` debug build from the WSL
+  mirror serving an echo program, with hyper and Node as references (the Garden's nginx and Go
+  images do not build on Windows). 5,000 mutated requests, 14 distinct readings where `nvs`
+  differs from both. One was a bug, one is a new row, and the rest are `nvs` being stricter:
+  - **The bug:** a header value with an obs-text byte that is not UTF-8 became a `string`
+    unchecked. A debug build caught it as a broken invariant (`crates/nvs-runtime/src/string.rs:875`),
+    and a release build would have read it through `from_utf8_unchecked`. A search for the same
+    shape found multipart field names and values, and a part's name, file name and `Content-Type`.
+    All now go through `peer_text` (`crates/nvs-stdlib/src/request.rs:2100`): headers, cookies and
+    parts throw `ParseError`, and form fields throw the `RuntimeError` an urlencoded field throws.
+    After the fix, 5,000 rounds logged no broken invariant.
+  - **The row:** a bare LF before the request line is refused (`crates/nvs-server/src/serve.rs:9178`).
+  - **Stricter, and kept:** `Host:: a` and a non-ASCII `Host` are `400`; a method outside the eight
+    is `501`, also with `Expect: 100-continue`; a `400` whose head frames no body keeps the
+    connection, which `rule:errors/http-message-defects` allows.
+- The nightly failures the sweep listed are the `1a78b49ef` run, 60 commits behind local `main`.
+  Render, attribution and the yanked `inout` are already current locally; the warm-start budget,
+  the Windows throughput margin (1.38× again, same commit) and proof debt are backlog items below.
 
 ### Next
 
-Stage 6's last item, then stage 7, on `crates/nvs-server/` and `crates/nvs-codegen/` (`rule:testing/the-deep-lane`, `rule:errors/http-message-defects`):
-- [ ] HTTP Garden once against `nvs serve`, in WSL with Docker, each finding a test in the smuggling suite, and the run recorded here. `crates/nvs-server/src/serve.rs:9153`
-- [ ] A way to compile with `opt_level` `none`, used only by the differential check. `crates/nvs-codegen/src/lib.rs:1973`
+Stage 7, on `crates/nvs-codegen/` and `.github/workflows/ci.yml` (`rule:testing/the-deep-lane`):
+- [ ] A way to compile with `opt_level` `none`, used only by the differential check. `crates/nvs-codegen/src/lib.rs:2005`
+- [ ] A CI job runs the conformance suite both ways and fails on any difference. `.github/workflows/ci.yml:217`
 
 ### Backlog
 
+- `NvsStr::new` takes any `&[u8]`, so the UTF-8 invariant rests on every caller, and the HTTP Garden bug was one that forgot. A checked constructor for bytes from outside, with `new` kept for payloads already text, closes the class (`crates/nvs-runtime/src/string.rs:462`).
+- Two more unchecked `string`s: a MySQL column name (`crates/nvs-stdlib/src/db/column.rs:67`, also `db/execute.rs:835`, `db/stream.rs:345`), and a signed cookie's plaintext, opened with empty AAD (`crates/nvs-stdlib/src/signed_cookie.rs:309`).
 - `bun nv verify` stops at `crates/nvs-stdlib/tests/spec_registry_coverage.rs:433`: `3a833d02d` deleted the last milestone record, so `data/plan/milestones/` no longer exists, and two tests refuse an empty directory on purpose. The session that retired the milestones decides what replaces them (`tools/nv/cmd/owners.ts:127`).
 - `Core\IO::within` does not refuse what `rule:errors/path-component-refusals` lists, beyond device names (`crates/nvs-stdlib/src/io.rs:3657`).
 - The Font attack waits on the user's edit or permission: drop `// hostile: ends-early 4 FATAL`, the `echo "step 4\n"` line and the memory sentence (`tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs:3`).
