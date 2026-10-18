@@ -1,0 +1,9 @@
+error[E0110]: `order_line` must be PascalCase, e.g. `OrderLine`
+  --> 04-a-class-name-in-snake-case.nvs:6:7
+  |
+6 | class order_line {
+  |       ^^^^^^^^^^ class name must be PascalCase
+  = suggestion: rename to `OrderLine`: `OrderLine`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
