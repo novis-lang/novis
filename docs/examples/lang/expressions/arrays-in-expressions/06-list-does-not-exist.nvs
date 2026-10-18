@@ -1,0 +1,7 @@
+<?nvs
+// Shows that `list(...)` does not exist, so this program does not compile.
+// Write `[int $a, int $b] = $pair;` instead.
+// proof: compile-error
+
+array<int> $pair = [1, 2];
+list(int $a, int $b) = $pair;
