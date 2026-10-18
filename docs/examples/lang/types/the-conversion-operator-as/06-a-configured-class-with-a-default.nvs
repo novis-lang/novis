@@ -1,0 +1,23 @@
+<?nvs
+// Shows a class chosen by a setting, with a default class when the setting names no class.
+
+interface Renders
+{
+    public static function extension(): string;
+}
+
+class CsvReport implements Renders
+{
+    public static function extension(): string
+    {
+        return "csv";
+    }
+}
+
+// The default is checked while the program compiles.
+class<Renders> $fallback = 'CsvReport' as class<Renders>;
+
+// No class `PdfReport` exists, so `as ?class<Renders>` gives `null`, and `??` uses the default.
+string $setting = "PdfReport";
+class<Renders> $format = ($setting as ?class<Renders>) ?? $fallback;
+echo $format::extension(), "\n";

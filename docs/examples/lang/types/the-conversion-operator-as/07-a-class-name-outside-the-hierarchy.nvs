@@ -1,0 +1,9 @@
+<?nvs
+// Shows that a class name written in the code must name a class of the right type.
+// `Rock` does not extend `Animal`, so this program does not compile.
+// proof: compile-error
+
+class Animal {}
+class Rock {}
+
+class<Animal> $c = 'Rock' as class<Animal>;

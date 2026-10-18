@@ -1,0 +1,7 @@
+<?nvs
+// Shows that `as ?int` is not allowed on a value that is already an `int`.
+// The result can never be `null`, so write `as int`. This program does not compile.
+// proof: compile-error
+
+int $i = 7;
+?int $a = $i as ?int;

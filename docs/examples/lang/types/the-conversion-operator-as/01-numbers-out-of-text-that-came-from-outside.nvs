@@ -1,7 +1,6 @@
 <?nvs
-// Anything a program reads from a file, a form or a command line arrives as
-// text, even when it looks like a number. `as` is how you ask for the number,
-// and the whole of the text has to spell one.
+// Shows how `as` converts text from a file, a form or a command line to a number.
+// The whole text must be a number.
 
 array<string> $fields = ["12", "-4", "2.5", "19.90"];
 
@@ -13,7 +12,7 @@ decimal $price = $fields[3] as decimal;
 echo $units + $adjustment, "\n";
 echo $weight * 2, "\n";
 
-// A number becomes text whenever you ask, and `decimal` keeps the two places
-// it was written with.
+// `as string` converts a number to text. A `decimal` keeps its two decimal places,
+// so this prints `19.90`.
 echo $price as string, "\n";
 echo ($units as string) . " units", "\n";

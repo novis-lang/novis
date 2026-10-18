@@ -1,0 +1,7 @@
+3.5 3.5 3
+43 1000 3
+1|||
+cannot convert `float` 3.9 to `int`
+cannot convert `int` -1 to `uint`
+cannot convert string "abc" to `int`
+-1 -1 42
