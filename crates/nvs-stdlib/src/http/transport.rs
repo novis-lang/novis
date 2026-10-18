@@ -2928,10 +2928,10 @@ pub(crate) mod tests {
     use rustls::pki_types::CertificateDer;
     use std::cell::RefCell;
     use std::io::{ErrorKind, Read, Write};
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
+    use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpListener};
     use std::rc::Rc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::{Arc, Mutex, mpsc};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex, PoisonError, mpsc};
     use std::time::{Duration, Instant};
 
     /// What an origin thread reports once it has served every reply it was
@@ -3401,41 +3401,139 @@ pub(crate) mod tests {
     /// than one a test stood in for.
     ///
     /// It answers `refusal`'s status line instead, where a case gives one, and
-    /// opens nothing. The counter is live and the handle carries every `CONNECT`
-    /// head in arrival order: a case asserting that nothing was retried reads
-    /// the counter without joining, for [`tls_origin`]'s reason.
+    /// opens nothing. The counter is live: a case asserting that nothing was
+    /// retried reads it without joining, for [`tls_origin`]'s reason. The
+    /// [`Tunnels`] carry every `CONNECT` head in arrival order, and a case keeps
+    /// them bound until it is done with the proxy, because dropping them closes
+    /// it.
     fn proxy(
         expects: usize,
         refusal: Option<&'static str>,
-    ) -> (
-        SocketAddr,
-        Arc<AtomicUsize>,
-        std::thread::JoinHandle<Vec<String>>,
-    ) {
+    ) -> (SocketAddr, Arc<AtomicUsize>, Tunnels) {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
         let at = listener.local_addr().expect("its own address");
         listener
             .set_nonblocking(true)
             .expect("an accept that does not outlive the count");
-        let asked = Arc::new(Mutex::new(Vec::new()));
+        let shared = Arc::new(Proxied::default());
         let opened = Arc::new(AtomicUsize::new(0));
-        let (mine, counting) = (Arc::clone(&asked), Arc::clone(&opened));
-        let thread = std::thread::spawn(move || {
+        let (proxied, counting) = (Arc::clone(&shared), Arc::clone(&opened));
+        let accepting = std::thread::spawn(move || {
             let ends = Instant::now() + Duration::from_secs(20);
-            while asked.lock().expect("the proxy's record").len() < expects && Instant::now() < ends
+            while !proxied.done.load(Ordering::SeqCst)
+                && proxied.asked.lock().expect("the proxy's record").len() < expects
+                && Instant::now() < ends
             {
                 let Ok((stream, _)) = listener.accept() else {
                     std::thread::sleep(Duration::from_millis(1));
                     continue;
                 };
                 counting.fetch_add(1, Ordering::Relaxed);
-                let recording = Arc::clone(&asked);
-                std::thread::spawn(move || tunnelled(stream, refusal, &recording));
+                proxied.keep(&stream);
+                let tunnel = Arc::clone(&proxied);
+                proxied.spawn(move || tunnelled(stream, refusal, &tunnel));
             }
-            let held = mine.lock().expect("the proxy's record");
-            held.clone()
         });
-        (at, opened, thread)
+        let tunnels = Tunnels {
+            shared,
+            accepting: Some(accepting),
+        };
+        (at, opened, tunnels)
+    }
+
+    /// What a [`proxy`]'s threads share: the `CONNECT` heads in arrival order,
+    /// a copy of every socket a tunnel uses, the threads to join, and whether
+    /// the case is done with the proxy.
+    #[derive(Default)]
+    struct Proxied {
+        asked: Mutex<Vec<String>>,
+        open: Mutex<Vec<std::net::TcpStream>>,
+        threads: Mutex<Vec<std::thread::JoinHandle<()>>>,
+        done: AtomicBool,
+    }
+
+    impl Proxied {
+        /// Keeps a copy of `socket`, so dropping the [`Tunnels`] can close it.
+        /// A socket kept after that close is closed here instead.
+        fn keep(&self, socket: &std::net::TcpStream) {
+            if let Ok(copy) = socket.try_clone() {
+                self.open
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push(copy);
+            }
+            if self.done.load(Ordering::SeqCst) {
+                drop(socket.shutdown(Shutdown::Both));
+            }
+        }
+
+        /// Starts `work` on a thread that dropping the [`Tunnels`] joins.
+        fn spawn(&self, work: impl FnOnce() + Send + 'static) {
+            let thread = std::thread::spawn(work);
+            self.threads
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(thread);
+        }
+    }
+
+    /// A [`proxy`]'s threads. [`Tunnels::join`] waits for the `CONNECT`s the
+    /// case expects and returns their heads. Dropping the value closes every
+    /// tunnel and joins every thread, so none of them outlives the case.
+    struct Tunnels {
+        shared: Arc<Proxied>,
+        accepting: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl Tunnels {
+        /// Waits until the proxy has the `CONNECT`s it expects, or for its
+        /// twenty seconds, and returns their heads in arrival order.
+        fn join(mut self) -> std::thread::Result<Vec<String>> {
+            if let Some(accepting) = self.accepting.take() {
+                accepting.join()?;
+            }
+            Ok(self
+                .shared
+                .asked
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone())
+        }
+    }
+
+    impl Drop for Tunnels {
+        fn drop(&mut self) {
+            self.shared.done.store(true, Ordering::SeqCst);
+            if let Some(accepting) = self.accepting.take() {
+                drop(accepting.join());
+            }
+            for socket in self
+                .shared
+                .open
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .iter()
+            {
+                drop(socket.shutdown(Shutdown::Both));
+            }
+            // A tunnel's thread starts its second copy before it ends, so the
+            // list is taken again until a pass finds it empty.
+            loop {
+                let threads = std::mem::take(
+                    &mut *self
+                        .shared
+                        .threads
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner),
+                );
+                if threads.is_empty() {
+                    break;
+                }
+                for thread in threads {
+                    drop(thread.join());
+                }
+            }
+        }
     }
 
     /// One connection's `CONNECT` and whatever the tunnel behind it carries.
@@ -3449,11 +3547,7 @@ pub(crate) mod tests {
     /// [`answer_tls`]'s reason: a client that walks away from a refused tunnel
     /// is what two of these cases are written to see, and each claim they make
     /// is made on the client's side.
-    fn tunnelled(
-        mut stream: std::net::TcpStream,
-        refusal: Option<&'static str>,
-        state: &Mutex<Vec<String>>,
-    ) {
+    fn tunnelled(mut stream: std::net::TcpStream, refusal: Option<&'static str>, state: &Proxied) {
         drop(stream.set_nonblocking(false));
         drop(stream.set_read_timeout(Some(Duration::from_secs(5))));
         let mut head = Vec::new();
@@ -3469,7 +3563,7 @@ pub(crate) mod tests {
         }
         let asked = String::from_utf8_lossy(&head).into_owned();
         let target = asked.split(' ').nth(1).unwrap_or_default().to_owned();
-        state.lock().expect("the proxy's record").push(asked);
+        state.asked.lock().expect("the proxy's record").push(asked);
         if let Some(refusal) = refusal {
             drop(stream.write_all(refusal.as_bytes()));
             drop(stream.flush());
@@ -3480,6 +3574,7 @@ pub(crate) mod tests {
             drop(stream.flush());
             return;
         };
+        state.keep(&origin);
         if stream
             .write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
             .is_err()
@@ -3489,7 +3584,7 @@ pub(crate) mod tests {
         drop(stream.flush());
         let mut from_client = stream.try_clone().expect("the client's half");
         let mut to_origin = origin.try_clone().expect("the origin's half");
-        std::thread::spawn(move || drop(std::io::copy(&mut from_client, &mut to_origin)));
+        state.spawn(move || drop(std::io::copy(&mut from_client, &mut to_origin)));
         let (mut from_origin, mut to_client) = (origin, stream);
         drop(std::io::copy(&mut from_origin, &mut to_client));
     }
@@ -3630,7 +3725,7 @@ pub(crate) mod tests {
     #[test]
     fn a_bypassed_host_connects_directly_under_the_full_policy() {
         let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
-        let (proxying, opened, _) = proxy(1, None);
+        let (proxying, opened, _tunnels) = proxy(1, None);
 
         let mut through = through(proxying);
         through.by_name = true;
@@ -3763,11 +3858,11 @@ pub(crate) mod tests {
     #[test]
     fn a_proxy_refusing_connect_is_an_io_error_and_407_names_authentication() {
         let nowhere: SocketAddr = "192.0.2.1:443".parse().expect("a literal address");
-        let (forbidding, _, _) = proxy(
+        let (forbidding, _, _forbidding_tunnels) = proxy(
             1,
             Some("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n"),
         );
-        let (challenging, _, _) = proxy(
+        let (challenging, _, _challenging_tunnels) = proxy(
             1,
             Some("HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n"),
         );
@@ -3873,7 +3968,7 @@ pub(crate) mod tests {
     #[test]
     fn a_refused_connect_is_not_retried_as_an_answer() {
         let nowhere: SocketAddr = "192.0.2.1:443".parse().expect("a literal address");
-        let (refusing, opened, _) = proxy(
+        let (refusing, opened, _tunnels) = proxy(
             4,
             Some("HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n"),
         );
@@ -3905,7 +4000,7 @@ pub(crate) mod tests {
     fn a_tunnelled_connection_is_pooled_apart_from_a_direct_one() {
         let ok = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
         let (at, served) = origin(vec![ok, ok]);
-        let (proxying, opened, _) = proxy(1, None);
+        let (proxying, opened, _tunnels) = proxy(1, None);
 
         send(&call(at, "test"), &mut never).expect("the direct answer");
         let mut tunnelled = call(at, "test");
@@ -4414,10 +4509,22 @@ pub(crate) mod tests {
             "{refused:?}"
         );
 
-        // Nothing was sent, so the origin is still waiting: connect to it
-        // ourselves to let the thread finish.
-        let _ = std::net::TcpStream::connect(at);
-        drop(served);
+        // Nothing was sent, so the origin is still waiting. One request of the
+        // case's own lets its thread finish, and the join shows it is the only
+        // request the origin saw.
+        let mut own = std::net::TcpStream::connect(at).expect("the origin");
+        own.write_all(b"GET /ok HTTP/1.1\r\nHost: origin\r\n\r\n")
+            .expect("a request");
+        let mut reply = [0_u8; 64];
+        drop(own.read(&mut reply));
+        drop(own);
+        let behind = served.join().expect("the origin thread");
+        assert_eq!(behind.asked.len(), 1, "{:?}", behind.asked);
+        assert!(
+            !behind.asked[0].contains("/admin"),
+            "the injected line never reached the origin: {:?}",
+            behind.asked
+        );
     }
 
     /// A chunk header that is not a length is a statement about the other end,
@@ -6312,7 +6419,7 @@ pub(crate) mod tests {
         );
 
         let (at, served) = socket_origin(Some("chat.v1"));
-        let (proxying, reached, _) = proxy(1, None);
+        let (proxying, reached, _tunnels) = proxy(1, None);
         let mut direct = call(at, "Core\\Http\\Client::openSocket");
         direct.url = format!("ws://{at}/chat");
         let mut past = through(proxying);
