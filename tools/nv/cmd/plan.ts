@@ -239,7 +239,7 @@ function check(): number {
       console.log(`  ${name.padEnd(20)} ${String(n).padStart(6)} bytes   ${round0(n / aim)}x the aim, ${ceiling - n} B under the ${ceiling} B ceiling`);
     }
   }
-  console.log("  Every one of these is shipped into every session by nv pack and nv brief.");
+  console.log("  Every one of these is shipped into every session by nv brief.");
   console.log(`  The aim is guidance; the ${ceiling} B ceiling is a gate on GROWTH: nv plan --apply`);
   console.log("  refuses an edit that leaves a field both over it and bigger than it was. A shrink");
   console.log("  is always taken, so there is never prose to shave -- a sentence is replaced instead.");

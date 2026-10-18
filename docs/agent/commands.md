@@ -630,9 +630,9 @@ bun nv debt [--goal <slug>]                           # pays the floor debt: the
 bun nv benches [--owed]                               # the bench turn by hand
 bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
 bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or complete a side worktree by hand
-bun nv allow --learn <events.jsonl>                   # record a session's shell calls, add the owed allow rules
+
 bun nv plan --apply <wrap-file | -> [--dry]           # check, then write, a wrap's plan, plan-edit and milestone sections
-bun nv pack [--goal <slug>] [--stage <n>]             # the pack sections only Novis has
+
 ```
 
 Each is a piece of the old loop driver that a person or a hook can run alone. Each exits 0 green, 1
