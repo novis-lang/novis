@@ -24,6 +24,6 @@ echo Prices::format($coffee), "\n";
 echo Prices::format(Prices::double($coffee)), "\n";
 
 // This object has a third field. It still fits, because it has the two
-// fields the shape asks for.
+// fields the shape needs.
 var $line = {amount: 120, currency: "EUR", note: "milk"};
 echo Prices::format($line), "\n";
