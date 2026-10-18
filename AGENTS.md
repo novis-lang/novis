@@ -93,7 +93,7 @@ which are whole where they stand.
    what it reads changed — and then only the acceptance checks your change reaches that are not green
    yet. A loop session runs `looper verify` instead, which runs `bun nv verify` alone and joins the
    tree's run if one is going, because the driver sweeps the rest. Never choose a wider command
-   yourself: `nv guard` refuses one, and `bun nv affected` without `--run` says what would run and why.
+   yourself: `looper guard` refuses one, and `bun nv affected` without `--run` says what would run and why.
 5. **A debug cargo command never takes `-p`.** `cargo build`, `cargo test` and `cargo clippy
    --all-targets` are the whole tree and warm in seconds; a `-p <crate>` resolves features over that one
    package and writes a second copy of every workspace crate beside the first, and a day of those

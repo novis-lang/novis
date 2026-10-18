@@ -137,8 +137,8 @@ is swept only when it is low.
 **Does:** no command, hook, file or doc block remains that nothing reads, and local verify runs the
 doc checks CI runs.
 
-- [ ] `nv pack`, `nv allow`, `nv audit`, `nv query` and `nv class-cards` are deleted with their tests and allowlist entries. `tools/nv/main.ts:23`
-- [ ] `bun nv guard`'s `proof-loop` rule moves into `looper.toml`'s `[[guard.deny]]`, and its hook and command are deleted. `.claude/settings.json:10`, `tools/nv/cmd/guard.ts:296`
+- [x] `nv pack`, `nv allow`, `nv audit`, `nv query` and `nv class-cards` are deleted with their tests and allowlist entries. `tools/nv/main.ts:23`
+- [x] `bun nv guard`'s `proof-loop` rule moves into `looper.toml`'s `[[guard.deny]]`, and its hook and command are deleted. `.claude/settings.json:10`, `tools/nv/cmd/guard.ts:296`
 - [ ] `nv links` and `nv layout` give way to `looper links` and `looper layout` in CI. Of `nv proofs --comments` and `looper prose`, the one that judges both Markdown and `.nvs` comments stays. `.github/workflows/ci.yml:974`
 - [ ] CI's `docs` job checks run in `bun nv verify`, each only when what it reads changed. `.github/workflows/ci.yml:945`, `tools/nv/cmd/verify.ts:1`
 - [ ] The stale references go: the `docs/decisions/README.md` sync skip, the owner-gate wording, the dead hooks in `commands.md`, and the settings entries a wider entry already allows. `looper.toml:79`, `tools/nv/cmd/owners.ts:14`, `docs/agent/commands.md:630`, `.claude/settings.json:130`
@@ -174,31 +174,30 @@ edits no shared table by hand.
 
 ### State
 
-Stage 2 is done. Stage 4 has not started.
+Stage 4's first two items are done.
 
-- `a_file_that_changes_during_a_compile_discards_that_compile` did not fail under load. The
-  `covws` binary passed 12 whole runs, four copies at a time, beside one busy loop per core. The
-  case alone takes 5 s idle and 8 to 9 s on a busy machine. `nv guard` refuses a whole-tree
-  `cargo test`, so that load was not tried.
-- The fault that matches the report is in the case. Its clock started at the `app.nvs` write and
-  was not restarted at the `lib.nvs` write. So `BOUND` covered both compiles, the thrown-away one
-  and the next one, where it is meant for one edit. The case now restarts the clock at the
-  `lib.nvs` write, as the link-switch case beside it does
-  (`crates/nvs-cli/tests/live_edit.rs:1066`). `BOUND` is unchanged. If the case is red again,
-  it is a real fault: read `server.said()` in the failure.
-- `script.rs`'s background check was read for a missed retry after a discard
-  (`crates/nvs-cli/src/script.rs:875`), and none was found.
+- `nv pack`, `nv allow`, `nv audit`, `nv query` and `nv class-cards` are gone, with their tests,
+  allowlist entries and doc mentions. `bun nv audit python` was the guard of
+  `rule:tooling/the-repository-tools-are-one-bun-program`, and nothing ran it, so the rule no longer
+  names it.
+- `bun nv guard` and its hook are gone. Its `proof-loop`, `cargo-p` and `heavy-run` rules are four
+  `[[guard.deny]]` regexes in `looper.toml`, pinned by `tools/nv/test/guard-deny.test.ts`, and
+  `looper guard` was probed with them by hand. `whole-read` and `inline-write` are looper's
+  built-ins, except two parts nothing covers now: a `cat` or `sed -n` of a big file through Bash, and
+  a write from `python -c` or `bun -e`.
 
 The nightly run 39013536848 is still the newest, and nothing in it is new.
 
 ### Next
 
-Stage 4, the dead `nv` commands and the second guard hook, on `tools/nv/` and `.claude/settings.json`:
-- [ ] Delete `nv pack`, `nv allow`, `nv audit`, `nv query` and `nv class-cards`, with their tests and allowlist entries. `tools/nv/main.ts:25`, `tools/nv/main.ts:35`, `tools/nv/main.ts:58`
-- [ ] Move `bun nv guard`'s `proof-loop` rule into `looper.toml`'s `[[guard.deny]]`, and delete its hook and command. `tools/nv/cmd/guard.ts:319`, `.claude/settings.json:10`, `.claude/settings.json:48`
+Stage 4, CI's `docs` job and the doc checks in verify, on `.github/workflows/ci.yml` and `tools/nv/cmd/verify.ts`:
+- [ ] Swap `nv links` and `nv layout` for `looper links` and `looper layout` in CI, and keep the one of `nv proofs --comments` and `looper prose` that judges both Markdown and `.nvs` comments. `.github/workflows/ci.yml:974`, `.github/workflows/ci.yml:976`
+- [ ] Run CI's `docs` checks in `bun nv verify`, each only when what it reads changed. `.github/workflows/ci.yml:945`, `tools/nv/cmd/verify.ts:1`
+- [ ] Remove the stale references: the `docs/decisions/README.md` sync skip, the owner-gate wording, the dead hooks in `commands.md`, and the settings entries a wider entry already allows. `looper.toml:103`, `tools/nv/cmd/owners.ts:14`, `docs/agent/commands.md:623`, `.claude/settings.json:120`
 
 ### Backlog
 
+- `test_request_dispatches_in_process_through_the_compiled_route_table` was red once in the `covws` verify, also alone, and green on every rerun. The unclaimed path gave status 200 and an empty body, so `Core\Env::context()` was not `Request` in that run. `crates/nvs-cli/src/runner.rs:3410`, `crates/nvs-cli/tests/fixtures/runner/in-process-request.nvs:31`
 - The Windows warm-start budget: 13 ms of work on a quiet hosted runner against 6 ms. A regression or the runner's file scanning; `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.
 - `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed. `tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`
 - The debt's progress items for the legs show `running` from the start of the run to its end, though their turn took 2 seconds. `tools/nv/cmd/debt.ts:250`

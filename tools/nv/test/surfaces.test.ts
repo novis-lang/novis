@@ -1,5 +1,5 @@
-// The `nv` commands a session or the hook reaches by name, run against this tree: `brief --where` and
-// `guard --check`. Each test fails when the command stops answering the question a session asks it.
+// The `nv` command a session reaches by name, run against this tree: `brief --where`. The test fails
+// when the command stops answering the question a session asks it.
 
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
@@ -15,11 +15,5 @@ describe("the commands a session reaches by name", () => {
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("docs/rules/testing.md#");
     expect(r.stdout).toContain("rule:testing/");
-  });
-
-  test("guard --check finds the hook wired for Read and Bash in the committed settings", async () => {
-    const r = await nv("guard", "--check");
-    expect(r.code).toBe(0);
-    expect(r.stdout).toStartWith("guard: wired for Read and Bash");
   });
 });
