@@ -18,13 +18,13 @@ Every function in Novis is a method of a class. A function that does not need an
 
 ## never, self and static
 
-These three types are only allowed as a return type.
+`never` and `static` are only allowed as a return type. `self` may also be a parameter type.
 
 <Snippet src="syntax/declaring/02-never-self-static.nvs" />
 
 - `never` means the method does not return. It throws an error or ends the program.
-- The caller still needs a `return` on every other path. The compiler does not count a call to a
-  `never` method as the end of the caller.
+- A call to a `never` method ends the caller's path. The caller needs no `return` after it.
+  This is not true when a child class overrides the method.
 - `self` is the class that declares the method. `static` is the class the method was called on.
 - `self` and `static` are not values. `return self;` does not compile. Write `self::NAME` to read a
   constant.

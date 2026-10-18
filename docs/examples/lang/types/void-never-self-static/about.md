@@ -1,13 +1,16 @@
-Four return types say things an ordinary type cannot.
+Four return types say something an ordinary type cannot.
 
-`void` says the call produces no value. The method is called for what it does, and what comes back
-cannot be printed, given a name or passed on. `never` says the method does not come back at all: it
-throws, or it ends the program.
+`void` means the method returns no value. You call it as a statement of its own. You cannot print
+the result, store it in a variable or pass it to another method.
 
-`self` and `static` both name a class, and the difference is which one. `self` is the class the
-method was written in. `static` is the class the call actually named, so a base class can hand back
-an instance of whichever subclass was asked for, and the caller is given that subclass rather than
-the base.
+`never` means the method does not return to its caller. It always throws an error or ends the
+program.
 
-The examples show a method called only for its effect, a chain of calls that each hand the object
-back, and a base class that builds whichever kind was asked for.
+`self` and `static` both name a class. `self` is the class the method is written in. `static` is the
+class the call names. So a method in a base class can return an instance of the child class it was
+called on, and the caller gets that child class.
+
+The examples show a method called only for what it does, a chain of calls on one object, and a base
+class that creates an instance of whichever child class the call names. Example 04 shows that a
+`void` result cannot be printed. Example 05 shows that a call to a `never` method ends the caller's
+path.

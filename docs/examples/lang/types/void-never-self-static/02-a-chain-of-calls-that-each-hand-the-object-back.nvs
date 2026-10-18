@@ -1,8 +1,6 @@
 <?nvs
-// A method returning `self` hands its own object back, so calls can be
-// written one after another on the same line. `self` names the class the
-// method was written in, which is what makes the next call in the chain
-// resolve against that class.
+// Each method returns `self`, the class it is written in, and returns `$this`.
+// So you can call the next method on the result, all on one line.
 
 final class Query {
     public string $table = "";

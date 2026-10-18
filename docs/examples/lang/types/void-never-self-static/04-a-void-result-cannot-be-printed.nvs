@@ -1,0 +1,10 @@
+<?nvs
+// Shows that the result of a `void` method cannot be printed.
+// This program does not compile.
+// proof: compile-error
+
+class Helper {
+    public static function nothing(): void {}
+}
+
+echo Helper::nothing();

@@ -1,0 +1,9 @@
+error[E0707]: `void` has no string form
+   --> 04-a-void-result-cannot-be-printed.nvs:10:6
+   |
+10 | echo Helper::nothing();
+   |      ^^^^^^^^^^^^^^^^^ converted to `string` here
+   = help: a call that returns `void` has no value at all, so there is nothing here to print
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
