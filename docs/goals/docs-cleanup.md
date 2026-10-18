@@ -238,7 +238,7 @@ the playbook holds only traps that can still happen.
   - [x] the `git stash` bullet is deleted
   - [ ] the stories and the duplicates are deleted, one playbook directory per slice
   - [x] `[orient] traps = 8` in `looper.toml`
-- [ ] `how-novis-is-written.mdx`'s count of notes comes from `numbers.json` or goes. `website/src/content/docs/in-depth/how-novis-is-written.mdx:62`
+- [x] `how-novis-is-written.mdx`'s count of notes comes from `numbers.json` or goes. `website/src/content/docs/in-depth/how-novis-is-written.mdx:62`
 
 ### 6. each language feature's facts are in its about.md, its details.md and its examples, once
 
@@ -302,21 +302,28 @@ citation of the plan or the spec; `commands.md`'s *Disk* and WSL sections point 
 reads the live goal's items alone, `bun nv owners --registers` lists two registers, and the guard-name
 causes are in `loop-authoring.md` § 3. `coordinator.md` and `loop-authoring.md` carry no story, no
 milestone and no stale number. `looper.toml` sets `[orient] traps = 8`, and the `git stash` bullet
-is deleted. `looper playbook retire --check` is clean. The playbook still holds 1,164 bullets, so its
-stories and duplicates are a sweep of several sessions, one directory per slice.
+is deleted. `looper playbook retire --check` is clean.
 
-The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last two
+The playbook sweep has begun. `divergences/` and `splitting-a-file/` are done: two divergences
+bullets repeated `tooling/`'s `benches/` bullet and `running-things/`'s `os error 5` bullet and are
+deleted; the other 22 are live traps (each `until` anchor checked). Most bullets name a concrete
+example beside their trap, and that is not a story: a story is a bullet whose only content is what
+a session did. `how-novis-is-written.mdx` no longer prints a count of notes, because the count only
+falls while this sweep runs.
+
+The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last three
 sessions found. `bun nv site --check` also fails on pages this goal has not touched: stale question
 entries, long paragraphs in `compare.mdx` and `run-as-a-service.mdx`, and the `/reference/types/` link.
 
 ### Next
 
-Stage 5, on the playbook's smaller directories: a bullet that tells a story, repeats another or
-contradicts a rule is deleted, never reworded (standing decision). Each slice is one directory; a
-read-only subagent may list the candidates first, and the session checks each before deleting it.
-- [ ] `divergences/` (20 bullets) and `splitting-a-file/` (4) lose their stories and duplicates. `docs/agent/playbook/divergences/0-x-at-ints-smallest-value-wraps-back-to-itself-in-silence.md:1`
-- [ ] `running-things/` (146) loses its stories and duplicates; `tooling/` (198), `writing-novis/` (316) and `writing-a-test-case/` (480) follow, split across sessions. `docs/agent/playbook/writing-a-test-case/a-0-default-on-a-uint-is-uint-int-so-it-does-not-fit.md:1`
-- [ ] `how-novis-is-written.mdx`'s count of notes comes from `numbers.json` or goes. `website/src/content/docs/in-depth/how-novis-is-written.mdx:62`
+Stage 5, the playbook's larger directories: a bullet that tells a story, repeats another or
+contradicts a rule is deleted, never reworded (standing decision). Each slice is one directory;
+grep the other directories for each bullet's key term (an error text, a symbol) to find duplicates,
+and keep the copy in the directory the trap belongs to.
+- [ ] `running-things/` (146 bullets) loses its stories and duplicates. `docs/agent/playbook/running-things/a-stray-nvs-exe-locks-target-debug-nvs-exe-and-the-rebuild.md:1`
+- [ ] `tooling/` (198) follows; `writing-novis/` (316) and `writing-a-test-case/` (480) after it, split across sessions. `docs/agent/playbook/writing-a-test-case/a-0-default-on-a-uint-is-uint-int-so-it-does-not-fit.md:1`
+- [ ] Then AGENTS.md outside the markers, stage 5's first item. `AGENTS.md:1`
 ### Backlog
 
 - `docs/design.md` is deleted once looper's managed block no longer links it. `docs/goals/docs-cleanup.md:163`
