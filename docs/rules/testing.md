@@ -1620,7 +1620,7 @@ skips with one shared reason, so a finished goal's floor does not fail over a pr
 when it finished; a feature leaves the list when it gains its help, and nothing is ever added to it,
 because a feature that lands owes its help at once.
 
-The `about` page is owed by every feature, so `data/proofs/policy.json` carries no `about` skip. A
+The `about` page is owed by every feature, so no file under `data/proofs/skip/` carries an `about` skip. A
 description that fails the shape check is rewritten, never padded or trimmed to fit: too long means it
 explains edge cases the tests own, and too short means its lead sentence carries the page.
 

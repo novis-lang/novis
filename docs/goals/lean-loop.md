@@ -161,7 +161,7 @@ edits no shared table by hand.
 
 - [ ] The `Core` class table is one file per class, collected in one place. `crates/nvs-stdlib/src/registry.rs:1774`
 - [ ] Each `nvs` command registers itself, so a new command edits no central `match`. `crates/nvs-cli/src/main.rs:144`
-- [ ] `data/proofs/policy.json` is one file per feature. `data/proofs/policy.json:1`
+- [x] `data/proofs/policy.json`'s skips are one file per feature, under `data/proofs/skip/`. `tools/nv/schema/proofs.ts:51`
 
 ### 7. a generated file never conflicts in a merge
 
@@ -175,33 +175,31 @@ edits no shared table by hand.
 
 ### State
 
-Stage 5 is done. Stage 4's one open item waits on looper.
+Stage 5 is done. Stage 6's proof policy is done. Stage 4's one open item waits on looper.
 
-- The diagnostic codes are one file per range under `crates/nvs-diagnostics/src/code/`, and
-  `code/mod.rs`'s head comment is the table of ranges and files. `code::E_*`, `code::ALL` (same order)
-  and `code::card` are unchanged. `ir.rs` declares no code, so its `pub use` carries an `#[expect]`
-  that its first code makes fail. `nv holes`, `nv reference`, `every_code_is_tested.rs` and the 66
-  playbook `until: gone` anchors read the area files now.
-- `.loop/` keeps `last-sweep.md`, `machine.json`, `checks/` and `status.txt`, the files `tools/nv` or
-  looper read. The rest of it and `tools/__pycache__/` are deleted. Both are git-ignored.
-- The swap to `looper links` and `looper layout` waits on looper. On this tree `looper links` reports
-  9203 problems, nearly all an `<a id>` anchor it does not read, plus `docs/novis.md`, which `nv links`
-  skips as generated. `looper layout` reads README.md's `## Layout`, and the listing is in
-  CONTRIBUTING.md. CI has no looper binary.
-- `looper prose` reads a whole `.nvs` file, code included, so `[prose] paths` lists the Markdown
-  alone, and `nv proofs --comments` stays for the `.nvs` comments.
-- The `docs/decisions/README.md` sync skip and the `Bash(looper <cmd>:*)` entries stay: without them,
-  `looper sync --check` drifts. The settings lost ten entries for `nv` commands that are gone.
+- The proof skips are record type `proof_skip`, one file per feature at its roster path under
+  `data/proofs/skip/`, with a `feature` field for the id, because a path does not give the id back.
+  `data/proofs/policy.json` keeps `report` and `owes`, which apply to the whole tree, so `perf.ts` is
+  unchanged. An index check refuses two files for one feature. `nv proofs --json` printed the same
+  bytes before and after the split.
+- The doc gate was red because each area file's `declared` module saw only its own codes. The
+  `codes!` macro now brings `crate::code::*` into each one. `crates/nvs-diagnostics/src/lib.rs:68`
+- The swap to `looper links` and `looper layout` waits on looper: its `links` reads no `<a id>` and
+  does not skip `docs/novis.md`, its `layout` reads README.md and the listing is in CONTRIBUTING.md,
+  and CI has no looper binary.
+- `looper prose` reads a whole `.nvs` file, code included, so `nv proofs --comments` stays for the
+  `.nvs` comments.
 
-The nightly run 39013536848 is still the newest. Its `docs` failure is `nv check` on `e110c9c0b`, green
-here.
+Nightly run 39013536848 on `e110c9c0b` is still the newest. `docs` (`nv check`) is green here, and the
+five-driver matrix's queue arity was fixed by `460a68396`, after it. The `proofs` jobs fail on perf
+figures owed until the goal end, and `cost guards / windows` on the warm-start budget (Backlog).
 
 ### Next
 
-Stage 6's proof policy, on `data/proofs/` and its two readers:
-- [ ] Split `data/proofs/policy.json` into one file per feature under `data/proofs/policy/`. `data/proofs/policy.json:1`
-- [ ] `collect.ts` and `perf.ts` read the directory, and their tests pass. `tools/nv/proofs/collect.ts:52`, `tools/nv/proofs/perf.ts:38`
-- [ ] Then the `Core` class table, one file per class, as a group of its own. `crates/nvs-stdlib/src/registry.rs:1774`
+Stage 6's `Core` class table, on `crates/nvs-stdlib/src/registry.rs` and the domain modules:
+- [ ] Decide the collection: `CLASSES` lists 82 `crate::<module>::CLASS` lines, and its doc names a `crate::symbols` module that does not exist. `crates/nvs-stdlib/src/registry.rs:1763`
+- [ ] Each class registers from its own file, and `CLASSES` keeps the spec's § order. `crates/nvs-stdlib/src/registry.rs:1774`
+- [ ] Then each `nvs` command registers itself, as a group of its own. `crates/nvs-cli/src/main.rs:1656`
 
 ### Backlog
 

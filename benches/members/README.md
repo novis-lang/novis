@@ -122,7 +122,7 @@ names the two answers, the second being a `// proof: gap` marker on the bench.
   compare, never a finding: what the ratio should be is the bench's own claim.
 - **`// requires: unix`** — the bench opens a Unix-domain socket, which this build has only on
   Unix, so `--record-perf` leaves it out on Windows. The ledger is measured on Windows, so such a
-  member's perf proof is a `skip` entry in `data/proofs/policy.json` naming that reason, and the
+  member's perf proof is a `perf` skip in its file under `data/proofs/skip/` naming that reason, and the
   bench on disk is what a Unix sweep measures.
 - **`// requires: <service>`** — the bench talks to that service of `tests/db/compose.yaml`, such
   as `samba-ad` or `redis`, and the runner brings it up before the bench runs, as it does for an

@@ -1,0 +1,4 @@
+{
+  "feature": "Core\\Net::connectLocal",
+  "perf": "The member needs a Unix-domain transport, which this build has only on Unix, and the perf ledger is measured on Windows; the bench on disk is marked `requires: unix` and passes there."
+}

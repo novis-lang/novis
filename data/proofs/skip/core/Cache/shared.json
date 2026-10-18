@@ -1,0 +1,4 @@
+{
+  "feature": "Core\\Cache::shared",
+  "perf": "The member dials a store the sweep does not run: unconfigured, every iteration measures the refusal, and configured, it measures another server and the network between them rather than Novis."
+}
