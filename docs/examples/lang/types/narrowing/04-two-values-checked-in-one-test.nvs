@@ -1,0 +1,28 @@
+<?nvs
+// Shows that one test with `&&` or `||` can check two values that might be `null`.
+
+class Sum
+{
+    // The block runs only when both tests are true. So both values are a `float` there.
+    public static function both(?float $a, ?float $b): float
+    {
+        if ($a != null && $b != null) {
+            return $a + $b;
+        }
+        return 0.0;
+    }
+
+    // The code after the `return` runs only when both values are not `null`.
+    public static function guarded(?float $a, ?float $b): float
+    {
+        if ($a == null || $b == null) {
+            return -1.0;
+        }
+        return $a + $b;
+    }
+}
+
+echo Sum::both(1.5, 2.0), "\n";
+echo Sum::both(null, 2.0), "\n";
+echo Sum::guarded(1.0, 2.0), "\n";
+echo Sum::guarded(1.0, null), "\n";

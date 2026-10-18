@@ -11,4 +11,4 @@ such as `$job->mode` to a variable first.
 
 **The examples below** use a value that might be `null` in one expression and then in an `if`
 block. Then they check the kind of an object, with `as` as the strict form, and act on a job's
-settings.
+settings. The last two check two values in one test, and show a method call that does not compile.
