@@ -1,0 +1,11 @@
+<?nvs
+// Shows that a variable declared in one branch of an `if` cannot be read after
+// the `if`. When `$flag` is false, `$x` has no value, so this program does not
+// compile.
+// proof: compile-error
+
+bool $flag = true;
+if ($flag) {
+    int $x = 1;
+}
+echo $x;

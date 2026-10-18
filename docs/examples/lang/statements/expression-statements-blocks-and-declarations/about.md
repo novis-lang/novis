@@ -11,4 +11,5 @@ where you may read the variable: only where every path has given it a value. A v
 assigned in one branch of an `if` is readable after the `if` when every branch assigns it.
 
 **The examples below** show the statements a program is made of, how to declare a variable before
-its value is known, and these forms together in a program that prices an order.
+its value is known, and these forms together in a program that prices an order. The last one reads a
+variable that only one branch declares, and does not compile.
