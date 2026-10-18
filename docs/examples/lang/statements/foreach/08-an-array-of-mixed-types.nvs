@@ -1,0 +1,8 @@
+<?nvs
+// Shows that `var` needs one element type. This array has an `int` and a
+// `string`, so this program does not compile.
+// proof: compile-error
+
+foreach ([1, "two"] as var $item) {
+    echo $item, "\n";
+}

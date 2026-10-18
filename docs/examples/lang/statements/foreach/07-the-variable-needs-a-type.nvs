@@ -1,0 +1,10 @@
+<?nvs
+// Shows that a `foreach` variable needs its type or `var`. `$score` has
+// neither, so this program does not compile.
+// proof: compile-error
+
+array<int> $scores = [3, 5];
+
+foreach ($scores as $score) {
+    echo $score, "\n";
+}

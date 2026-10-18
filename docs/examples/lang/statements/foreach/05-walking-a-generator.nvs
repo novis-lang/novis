@@ -1,0 +1,20 @@
+<?nvs
+// Shows `foreach` over a generator. The function returns an `Iterator<int>`,
+// so `$page` is an `int`. A generator has no keys.
+
+class Pages
+{
+    // Gives the numbers from 1 to `$last`, one at a time.
+    public static function upTo(int $last): Iterator<int>
+    {
+        int $page = 1;
+        while ($page <= $last) {
+            yield $page;
+            $page++;
+        }
+    }
+}
+
+foreach (Pages::upTo(3) as int $page) {
+    echo "page ", $page, "\n";
+}
