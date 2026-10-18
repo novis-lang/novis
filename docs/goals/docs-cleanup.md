@@ -318,7 +318,14 @@ Docker-stopped and `CLAUDECODE` traps), contradicted the code (`try.ts` runs the
 flaky test whose trap the general "passed alone" bullet already states, or described a trap the
 tooling now handles (`runPrograms`' retry).
 
-The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last four
+`tooling/` is done: 182 bullets stay. The 16 deleted ones repeated another bullet (the
+`.agent-tmp/msg.txt`, doc-comment insertion, `NOT IMPLEMENTED` note, `peek re:`, hand-edited record,
+render-binary and splice-anchor traps, and three `running-things/` ones on perf staleness and the
+proofs roster), contradicted the code (`splice.ts:169` refuses a repeated anchor, `site.ts:1300`
+reads `target/release` first), described a trap the tooling now handles (`suiteVerdict`, `show`'s
+exact match), or were about the deleted decision records and Python tools.
+
+The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last five
 sessions found. `bun nv site --check` also fails on pages this goal has not touched: stale question
 entries, long paragraphs in `compare.mdx` and `run-as-a-service.mdx`, and the `/reference/types/` link.
 
@@ -328,8 +335,8 @@ Stage 5, the playbook's larger directories: a bullet that tells a story, repeats
 contradicts a rule is deleted, never reworded (standing decision). Each slice is one directory;
 grep the other directories for each bullet's key term (an error text, a symbol) to find duplicates,
 and keep the copy in the directory the trap belongs to.
-- [ ] `tooling/` (198 bullets) loses its stories and duplicates; grep `running-things/` too, which repeats some `bun nv` traps. `docs/agent/playbook/tooling/a-bench-the-sweep-reports-red-names-no-cause-in-the-run-s-pr.md:1`
-- [ ] `writing-novis/` (316) and `writing-a-test-case/` (480) after it, split across sessions. `docs/agent/playbook/writing-a-test-case/a-0-default-on-a-uint-is-uint-int-so-it-does-not-fit.md:1`
+- [ ] `writing-novis/` (316 bullets, about 190 KB) loses its stories and duplicates; grep `writing-a-test-case/` too, which repeats some language traps. Print the bullets 40 files a call, because a larger output spills to a file the read guard refuses. `docs/agent/playbook/writing-novis/`
+- [ ] `writing-a-test-case/` (480), split across two sessions by file name. `docs/agent/playbook/writing-a-test-case/a-0-default-on-a-uint-is-uint-int-so-it-does-not-fit.md:1`
 - [ ] Then AGENTS.md outside the markers, stage 5's first item. `AGENTS.md:1`
 ### Backlog
 
