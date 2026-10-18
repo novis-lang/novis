@@ -1,7 +1,6 @@
 <?nvs
-// A value also moves on its own into a place that holds more than it does: a
-// place that accepts nothing as well, a place that accepts one of several
-// types, and a place that accepts anything at all.
+// Shows a value assigned to a wider type with no `as`: a nullable type, a union
+// and `mixed`.
 
 interface Sends {
     public function send(): string;
@@ -23,8 +22,8 @@ mixed $anything = $count;
 
 echo $optional ?? 0, " ", $either as string, " ", $anything as string, "\n";
 
-// An object moves the same way: into a parent, into an interface it carries
-// out, and into the plain `object` every class fits.
+// An object is assigned to its parent class, to an interface its class
+// implements, and to `object`.
 Email $parent = new Invoice();
 Sends $contract = new Invoice();
 object $plain = new Invoice();

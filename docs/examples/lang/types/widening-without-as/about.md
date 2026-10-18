@@ -1,16 +1,16 @@
-Some values move into a wider place on their own, with nothing written at the spot where it happens.
+Some values are converted to a wider type without `as`. This happens when you assign a value, pass
+an argument, return a value or put an element in an array.
 
-A whole number goes where a fraction is wanted. Any value goes into a place that also accepts `null`,
-into a place that accepts several types, and into a place that accepts anything. An object goes where
-one of its parents, or one of the interfaces it carries out, is wanted. One of a small fixed set of
-words goes where any text is wanted.
+An `int` or a `uint` is converted to a `float`. A value is converted to a nullable type, to a union
+that contains its type, and to `mixed`. An object is converted to a parent class, to an interface its
+class implements, and to `object`. A single-value type such as `"read"` is converted to `string`.
 
-Only the first of those changes the value itself, and it is checked while the program runs. A whole
-number past nine thousand million million cannot be held exactly as a fraction, so the program stops
-there instead of quietly handing you a different number.
+Only the conversion to `float` changes the value. It is checked while the program runs. A number
+above 2^53 cannot be stored exactly in a `float`, so the program throws an `ArithmeticError`.
 
-**Good to know:** nothing else in the language converts on its own. Text into a number, a number into
-text, or a whole number into one that cannot be negative — each of those is written with `as`.
+No other conversion happens without `as`. A `string` to a number, a number to a `string`, and an
+`int` to a `uint` each need `as`.
 
-**The examples below** take whole numbers into fractions first, then the wider places, then a price
-list that uses both.
+**The examples below** show a whole number used as a `float`, the wider types, a price list with
+both kinds of number, an anonymous object at a shape, and a program that assigns an `int` to a `uint`
+and does not compile.
