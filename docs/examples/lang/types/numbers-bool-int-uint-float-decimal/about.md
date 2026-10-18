@@ -1,15 +1,18 @@
-Five kinds of number, each for a different job, and none of them quietly gives a wrong answer.
+Novis has one true-or-false type and four number types.
 
-`bool` is true or false and takes part in no sums at all. `int` is a whole number that can go below
-zero; `uint` is one that cannot, and counts twice as high in exchange. `float` is the quick,
-slightly inexact fraction every machine has in hardware — right for a weight, a ratio or a
-measurement. `decimal` keeps exactly the number that was written down, to twenty-eight places,
-which is what money needs.
+- `bool` is `true` or `false`. You cannot use it in arithmetic.
+- `int` is a whole number that can be negative.
+- `uint` is a whole number that cannot be negative. It can count twice as high as an `int`.
+- `float` is a fast number with a fraction. It is not always exact, so use it for a weight or a
+  ratio.
+- `decimal` is an exact number with up to 28 decimal places. Use it for money.
 
-A whole number that runs out of room stops with an error rather than wrapping round to a small
-number or turning into a fraction behind your back. Signed and unsigned whole numbers do not mix in
-one sum, and neither do decimals and floats: pick the one the job needs and say so where the value
-is named.
+A number written in the code gets its type from where you put it. `float $weight = 3;` makes `3` a
+`float`, and `decimal $price = 1.10;` makes `1.10` a `decimal`.
 
-**Good to know:** a plain number written in the source takes its kind from where it is put, so the
-same `6` is a count in one line and a price in the next.
+If a whole number gets too big or too small for its type, the program throws an `ArithmeticError`.
+`int` and `uint` cannot be used in one sum. `decimal` and `float` cannot be used in one sum either.
+Convert one side with `as`.
+
+**The examples below** show whole numbers that are too big, money and a measurement, and a parcel
+priced at a shop counter. The last one adds a `decimal` and a `float`, so it does not compile.
