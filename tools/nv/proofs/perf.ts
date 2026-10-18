@@ -1,5 +1,5 @@
 // The perf ledger: `bun nv proofs --record-perf` measures a feature's bench and appends one record to
-// `docs/perf/members.ndjson`, and `--perf-report` writes `docs/perf/members.md` from every record in it.
+// `data/perf/members.ndjson`, and `--perf-report` writes `data/perf/members.md` from every record in it.
 // `rule:testing/member-perf-ledger` is what a record holds and when it is current, and
 // `benches/members/README.md` is what a bench program is.
 //
@@ -33,7 +33,7 @@ import { fingerprint, implHash, knownGap, LEDGER, ledgerRecords, owed, type Poli
 import { benchFile, implFile, read, type Entry } from "./roster.ts";
 import { skipReason, spawnProof } from "./run.ts";
 
-export const PERF_REPORT = "docs/perf/members.md";
+export const PERF_REPORT = "data/perf/members.md";
 const CALIBRATION = "benches/members/_calibration";
 const POLICY_FILE = "data/proofs/policy.json";
 
@@ -346,7 +346,7 @@ const byKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const num = (v: unknown) => (typeof v === "number" ? v : 0);
 
 /**
- * `--perf-report`: writes `docs/perf/members.md`, the ledger's front page, whole. It has three parts. What
+ * `--perf-report`: writes `data/perf/members.md`, the ledger's front page, whole. It has three parts. What
  * the program did: one row per feature, the same on every machine, each count diffed against the record
  * before it. The candidates: features whose `units` figure sits far above their group's median, past the
  * ceiling for their declared complexity, or recorded as a known gap. Then the clock, one table per

@@ -3,7 +3,6 @@
   "status": "shipped",
   "seeAlso": [
     "testing/perf-two-mechanisms",
-    "testing/perf-history-file",
     "testing/the-deep-lane"
   ],
   "guardedBy": [

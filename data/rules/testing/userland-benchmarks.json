@@ -2,7 +2,6 @@
   "title": "A cross-engine comparison is a `benches/userland/` case with one twin per engine",
   "status": "shipped",
   "seeAlso": [
-    "testing/perf-secondary-figures",
     "testing/member-perf-ledger",
     "testing/perf-two-mechanisms"
   ],

@@ -1974,7 +1974,7 @@ step, and the byte-identical gate is what stops one rotting silently.
   closest engine to what Novis is trying to be, a fast JIT behind a scripting surface with the
   batteries in the binary, so its numbers are the ones that test this project's own claims.
 
-<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims).</sub>
+<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims).</sub>
 
 <a id="tooling-telemetry-is-two-opt-ins"></a>
 

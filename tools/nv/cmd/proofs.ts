@@ -17,7 +17,7 @@
 //                                          a directory, against the plain-comment bounds; runs nothing
 //     bun nv proofs --record-perf          measure every bench in scope with no current figure, and append
 //                                          a record per feature to the perf ledger
-//     bun nv proofs --perf-report          write docs/perf/members.md from the ledger
+//     bun nv proofs --perf-report          write data/perf/members.md from the ledger
 //
 // `--group` and `--only ID...` narrow the scope of `--owed`, `--gaps`, `--gate`, `--json`, `--run`,
 // `--verify` and `--record-perf`, and `--id` narrows `--run`, `--verify` and `--record-perf`. `--run`,
