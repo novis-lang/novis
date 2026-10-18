@@ -1,0 +1,8 @@
+error[E0101]: expected a `foreach` binding's type, or `var`
+  --> 07-the-variable-needs-a-type.nvs:8:21
+  |
+8 | foreach ($scores as $score) {
+  |                     ^ a `foreach` binding writes its type, or `var` to take the subject's element type (`rule:types/grammar`.2)
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

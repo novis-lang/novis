@@ -12,4 +12,5 @@ loop walks a copy of the array, so adding or removing elements in the body does 
 it visits.
 
 **The examples below** show values, then keys with values, then `inout`, each with `var` first and
-a written type after. The last one loops over what a function returns.
+a written type after. Then come a loop over what a function returns, a generator, a wider type, and
+two loops that do not compile.
