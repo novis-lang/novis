@@ -1,0 +1,8 @@
+<?nvs
+// Shows that `exit(3)` ends the program with exit status 3.
+// The last line does not run.
+// proof: exit 3
+
+echo "stopping", "\n";
+exit(3);
+echo "not reached", "\n";

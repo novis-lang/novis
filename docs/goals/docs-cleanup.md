@@ -254,7 +254,7 @@ with each.
   - [x] `roster.ts`'s `DETAILS` and `detailsFile`, and `collect.ts`'s `detailsProblems`, judged by the `comments` proof and `--comments`
   - [x] checked: an example could end with exit 1, but only its empty stdout was compared, so nothing pinned the diagnostic
   - [x] `// proof: compile-error` in `run.ts`: exit 1, a diagnostic on stderr, and the `.out` is the diagnostic with the path shortened; documented in `docs/examples/README.md`
-- [ ] `40-statements` is done first, as the pattern: each feature's facts sorted into its three homes, the chapter's unique code blocks made examples. `docs/reference/lang/40-statements.md:244`, `docs/examples/lang/statements/break-and-continue/about.md:1`
+- [x] `40-statements` is done first, as the pattern: each feature's facts sorted into its three homes, the chapter's unique code blocks made examples. `docs/reference/lang/40-statements.md:244`, `docs/examples/lang/statements/break-and-continue/about.md:1`
   - [x] `break-and-continue`: `details.md`, the chapter's two code blocks as examples 04 and 05
   - [x] `return`: `details.md`, and example 04, a `void` method's `return 0;` that does not compile
   - [x] `throw`: no `details.md`, since `about.md` has every fact, and example 04, an uncaught error ending with status 1
@@ -262,8 +262,13 @@ with each.
   - [x] `catch-as-an-expression`: `details.md`, examples 04 (the result type) and 05 (`E0126`)
   - [x] `echo-print-unset-exit-yield`: `details.md`, and example 04 (`E0234`)
   - [x] `statement-forms-that-do-not-parse`: `details.md`, example 04 (`goto`), and `about.md`'s two wrong claims fixed
-  - [ ] the chapter's features before `break-and-continue`, from its top
+  - [x] the chapter's features before `break-and-continue`, from its top
 - [ ] The other ten chapters, one per slice: `10-programs`, `20-types`, `30-expressions`, `50-classes`, `55-enums`, `60-iteration`, `70-errors`, `80-concurrency`, `90-attributes`, `95-testing`. `docs/reference/lang/10-programs.md:1`
+  - [x] `10-programs`: six `details.md`, examples 04 for `doc-comments`, `names-and-casing` and `ending-a-program`, and five wrong claims fixed
+  - [ ] `20-types`
+  - [ ] `30-expressions`, `50-classes` and `55-enums`
+  - [ ] `60-iteration`, `70-errors` and `80-concurrency`
+  - [ ] `90-attributes` and `95-testing`
 
 ### 7. the syntax pages show each feature's about.md, details and examples
 
@@ -380,6 +385,23 @@ binary accepts text after a `@see` line, so it now says "at the start of a line"
 `a-program-is-a-file-of-top-level-statements`, `a-complete-program-annotated` and `comments` need no
 `details.md`: `about.md` has every chapter fact, and the examples show the code.
 
+`10-programs` is done. Its last six features each have a `details.md`, every fact run on the binary,
+and five claims were wrong. `names-and-casing`: `about.md` and example 02 said only a name's first
+letter is checked, but an underscore is refused too (`$line_count` is `E0112`, enum case `GOLD_RANK`
+`E0110`); its `details.md` lists `E0110` to `E0114` and `E0122`, and example 04 is the chapter's
+`order_line` block. `namespaces-and-use`: example 02 said a `use` covers the whole file, but it covers
+only the code below it; `details.md` adds `E0243`, `E0233`, `E0240`, `E0212`, `E0238`, `E0217` and
+the enum or alias in a class body (`E0133`). `require`: the chapter said a computed path is read at
+run time, but any path not fixed while compiling throws `RuntimeError` when reached, even to a file
+that exists (`10-programs.md:264`); class constants joined with `.` count as fixed. `autoload`: both
+the chapter and `about.md` said a missing class's error lists the searched roots; it is a plain
+`E0303`, and `nvs check --autoload-map` shows the roots (`10-programs.md:301`). File paths: the
+chapter said `'data/' . $name` throws, but it is `E0840` while compiling, as `about.md` said
+(`10-programs.md:325`). `ending-a-program`: `about.md` was rewritten to § *Text an end user reads*,
+its `details.md` has the status byte, `exit("…")` adding no newline and `E0228`, and example 04 is the
+chapter's `exit(3)` block (`// proof: exit 3`). A `catch` does not stop `exit` and `finally` does not
+run, which no text said.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -389,20 +411,24 @@ sessions found, and the red bench `benches/members/core/Ldap-Connection/delete.n
 
 ### Next
 
-`10-programs`, the next chapter, one feature per slice, the way `break-and-continue` was done: read
+`20-types`, the next chapter (21 features, 1,448 lines), one feature per slice, the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
 `bun nv proofs --run --only <id>` (one `--only` per run: a second replaces the first) and
 `--comments <dir>`.
-- [ ] `10-programs` from `names-and-casing` to `ending-a-program`: names, namespaces, `require`,
-  `autoload`, file paths and ending a program. `docs/reference/lang/10-programs.md:168`
+A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` beside it, and a
+probe is a file under `.agent-tmp/` written with Write, since the guard refuses a redirect.
+- [ ] `20-types` from its top, in chapter order. `docs/reference/lang/20-types.md:1`
 
 ### Backlog
 
 - `docs/design.md` is deleted once looper's managed block no longer links it; the v3 block still does. `docs/goals/docs-cleanup.md:163`
 - The v3 block's § *looper only orchestrates* says most of what AGENTS.md § *Novis works without looper* says. That section is the user's and stays; the overlap is looper's template to trim. `AGENTS.md:37`
 - `docs/agent/testing.md` is looper-managed (`looper lint` refuses a hand edit) and links a `§ *Names*` that `conventions.md` lacks; looper's template owns the fix. `docs/agent/testing.md:16`
+- Two diagnostics disagree with the binary's own behaviour: `E0233`'s help for a nested `use` says it
+  "applies to the whole file", but a `use` covers only the code below it, and `E0303` for a class no
+  `autoload` root has names no root. Product text, so it needs its own owner. `crates/nvs-types/src/locals.rs:2023`
 - Many compiler diagnostics print a `rule:` id or the word "refused" in their help text, such as `E0234`, `E0413`, `E0448` and `E0230`. That text is held to § *Text an end user reads* when it is changed; this goal changes no product text, so it needs its own owner. `crates/nvs-types/src/expr/members.rs:2345`
 - About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
 - The guard messages and `peek.ts`/`splice.ts` comments cite "AGENTS.md rule 1" and "rule 3" by the block's numbers, which a template change can move; citing `commands.md` sections would not. `tools/nv/cmd/guard.ts:259`

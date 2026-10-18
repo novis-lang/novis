@@ -1,12 +1,12 @@
-A program ends on its own once its last line has run, and whatever started it is told all was well.
+A program ends when its last line has run. Its exit status is then `0`, which tells the shell that
+all went well.
 
-`exit` ends it sooner. Written on its own it stops the program right where it stands and still
-reports success, which is what you want when there is simply nothing left to do. Give it a number
-and that number becomes the status the shell reads afterwards — zero for fine, anything else for a
-problem — so a program that checks or imports something can answer with it. Statuses run from 0 to
-255, and a larger number wraps into that range. Give it a line of text instead and the text is
-written out first, and the program still reports success.
+`exit` ends the program early. `exit;` ends it with status `0`. `exit(3);` ends it with status `3`,
+and the shell can read that number. A status is a number from 0 to 255. A program that checks or
+imports something can use it to report how many problems it found. `exit("Nothing to do.");`
+prints the text and ends with status `0`.
 
-**In plain words:** `exit` is a full stop, not an error. Nothing catches it, and no clean-up block
-further up gets its turn. `die` is not a second word for it. A program that ends because an error
-got away from it reports a failure instead, and says where the error came from.
+**Good to know:** `exit` is not an error. A `catch` does not stop it, and a `finally` block does not
+run. `die` does not exist in Novis. If an error is thrown and nothing catches it, the program ends
+with status `1` and prints where the error came from.
+The last example shows that a line after `exit` does not run.
