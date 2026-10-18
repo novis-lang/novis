@@ -1,0 +1,13 @@
+<?nvs
+// Shows that a method call through `object` does not compile. Test the class
+// with `is` first, or convert the value with `as`.
+// proof: compile-error
+
+class Tag {
+    public function shout(): string {
+        return "TAG";
+    }
+}
+
+object $o = new Tag();
+echo $o->shout(), "\n";
