@@ -1,0 +1,8 @@
+<?nvs
+// Shows that a `decimal` and a `float` cannot be added. Convert one side
+// with `as` first. This program does not compile.
+// proof: compile-error
+
+decimal $price = 1.10;
+float $discount = 0.5;
+echo $price + $discount, "\n";
