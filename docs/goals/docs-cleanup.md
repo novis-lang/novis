@@ -19,7 +19,7 @@ stages:
   - id: 4
     title: every public page is on the website alone
     status: open
-    context: [docs/docker.md, docs/why-tainted-and-secret.md, docs/release.md, tools/nv/cmd/reference.ts, website/src/content/docs/guides/production/docker.mdx]
+    context: [docs/release.md, tools/nv/cmd/release.ts, tools/nv/cmd/reference.ts, website/src/content/docs/install/index.mdx]
   - id: 5
     title: "AGENTS.md is one document, and docs/agent says each thing once"
     status: open
@@ -209,8 +209,8 @@ record, a module doc or a line in its goal.
 
 **Does:** a user finds every public fact on the website, and `docs/` holds no copy of one.
 
-- [ ] `docs/docker.md`'s public parts join `guides/production/docker.mdx`: the image and its tags, the variants, Compose, CLI use, stopping, health probes and verifying. The stale "one process on one core" section is dropped. Building locally and *Why not Alpine* go to `docker/README.md`. `release.yml`'s documentation label, the Dockerfile, `smoke.sh` and `.gitignore` are repointed. `.github/workflows/release.yml:588`, `docker/Dockerfile:15`
-- [ ] `docs/why-tainted-and-secret.md`'s three readers, its comparison table and its five points become a website page under `in-depth/`. *What not to claim yet* goes to `rule:programs/three-claims`. `README.md:17` is repointed. `website/src/content/docs/in-depth/concepts/tainted-input.mdx:1`
+- [x] `docs/docker.md`'s public parts join `guides/production/docker.mdx`: the image and its tags, the variants, Compose, CLI use, stopping, health probes and verifying. The stale "one process on one core" section is dropped. Building locally and *Why not Alpine* go to `docker/README.md`. `release.yml`'s documentation label, the Dockerfile, `smoke.sh` and `.gitignore` are repointed. `.github/workflows/release.yml:588`, `docker/Dockerfile:15`
+- [x] `docs/why-tainted-and-secret.md`'s three readers, its comparison table and its five points become a website page under `in-depth/`. *What not to claim yet* goes to `rule:programs/three-claims`. `README.md:17` is repointed. `website/src/content/docs/in-depth/concepts/tainted-input.mdx:1`
 - [ ] `docs/release.md` keeps the procedure. *Verifying a published binary* goes to the install page, the user-facing half of the version scheme goes to the website, and its wrong counts are fixed. `docs/release.md:180`, `tools/nv/cmd/release.ts:88`
 - [ ] `bun nv reference` writes `/llms-full.txt` into the website build, and `docs/novis.md`, its CI `--check` and verify's staleness step are deleted. `tools/nv/cmd/reference.ts:786`, `.github/workflows/ci.yml:892`, `tools/nv/cmd/verify.ts:1047`
 - [ ] `docs/reference/tools/30-php-differences.md` gets a website page, and `README.md:44` is repointed. `docs/reference/findings.md`'s open items become gap records, and the file is deleted with its citations. `tests/conformance/core/arr-sort-orders-decimals.nvst:9`
@@ -272,14 +272,23 @@ still-true facts are in module docs: `sort.rs` (where the key sort is slower), `
 Goal `fewer-allocations` states its `Markup`, hash and format designs itself. The measured tables
 and the cross-engine figures were dropped.
 
-The sweep's CI failures are on `main`, not this branch: `docs`, `proofs` on three platforms, the cost
-guards, supply chain, attribution and `docs/novis.md`. None is this goal's.
+Stage 4 is two items in. `docs/docker.md` is gone: its public parts are the website's Docker guide,
+the local build and *Why not Alpine* are `docker/README.md`, and the image's documentation label
+points at the guide's source. `docs/why-tainted-and-secret.md` is gone into the tainted-input
+concept page, and its *What not to claim yet* is in `rule:programs/three-claims`. Both paths are in
+`DELETED_DOC_CITE` (`tools/nv/cmd/rules.ts:110`).
+
+The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch: `docs`, `proofs` on
+three platforms, the cost guards, supply chain, attribution and `docs/novis.md`. None is this
+goal's. `bun nv site --check` also fails on pages this goal has not touched: 813 stale or broken
+question entries, five long paragraphs in `compare.mdx` and `run-as-a-service.mdx`, and the
+`/reference/types/` link.
 
 ### Next
 
-Stage 4, on `docs/docker.md`, `docs/why-tainted-and-secret.md` and the website pages they join.
-- [ ] `docs/docker.md`'s public parts join the website's Docker guide; the build and *Why not Alpine* go to `docker/README.md`. `docs/docker.md:1`, `website/src/content/docs/guides/production/docker.mdx:1`, `.github/workflows/release.yml:588`, `docker/Dockerfile:15`
-- [ ] `docs/why-tainted-and-secret.md` becomes a website page under `in-depth/`, and *What not to claim yet* goes to `rule:programs/three-claims`. `docs/why-tainted-and-secret.md:1`, `website/src/content/docs/in-depth/concepts/tainted-input.mdx:1`, `README.md:17`
+Stage 4, on `docs/release.md`, `tools/nv/cmd/release.ts` and the install page.
+- [ ] `docs/release.md` keeps the procedure; *Verifying a published binary* goes to the install page, and the user-facing half of *The version scheme* goes to the website. `docs/release.md:153`, `docs/release.md:182`, `website/src/content/docs/install/index.mdx:1`, `tools/nv/cmd/release.ts:82`
+- [ ] `docs/reference/tools/30-php-differences.md` gets a website page, and `README.md:44` is repointed. `docs/reference/findings.md`'s open items become gap records. `tests/conformance/core/arr-sort-orders-decimals.nvst:9`
 
 ### Backlog
 
