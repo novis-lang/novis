@@ -14,4 +14,5 @@ the name of the folder that `..` points to from this file. If the file is in `Bl
 prefix is `Site\Blog`.
 
 **Good to know:** every `autoload` declaration is read when the program is compiled. A class that
-cannot be found stops the compile, and the error lists the folders that were searched.
+cannot be found stops the compile with an error. `nvs check --autoload-map` shows which folders
+each prefix uses.
