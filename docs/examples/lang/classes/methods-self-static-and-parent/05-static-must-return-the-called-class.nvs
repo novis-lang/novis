@@ -1,0 +1,10 @@
+<?nvs
+// Shows that a method with the return type `static` cannot return `new self()`.
+// A call on a subclass would get the wrong class, so this does not compile.
+// proof: compile-error
+
+class Builder {
+    public function copy(): static {
+        return new self();
+    }
+}

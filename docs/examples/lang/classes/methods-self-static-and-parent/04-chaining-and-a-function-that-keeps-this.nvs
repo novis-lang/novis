@@ -1,0 +1,24 @@
+<?nvs
+// Shows a method that returns `$this`, so calls can be chained. It also shows
+// an anonymous function that keeps the object it was made on.
+
+class Acc {
+    private int $n = 0;
+
+    public function bump(): self {
+        $this->n = $this->n + 1;
+        return $this;
+    }
+
+    // The function reads `$this->n` when it is called, not when it is made.
+    public function adder(): callable {
+        return fn(int $k): int => $this->n + $k;
+    }
+}
+
+var $a = new Acc();
+var $f = $a->adder();
+$a->bump()->bump();
+
+// `$n` is 2 now, so this prints `5`.
+echo $f(3) as int, "\n";
