@@ -1,5 +1,5 @@
 {
-  "title": "Every `Core` parameter is callable by the name the spec writes, and that name is compatibility surface",
+  "title": "Every `Core` parameter is callable by the name its signature writes, and that name is compatibility surface",
   "status": "shipped",
   "seeAlso": [
     "core-api/options-bag",

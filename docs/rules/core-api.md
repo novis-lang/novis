@@ -138,7 +138,7 @@ Native and feature-gated, which is how the metrics class and the shared cache ti
 is the general rule rather than a special case, and it is what keeps the `Core` name unconditional
 ([`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present)) while the thing it talks to is optional.
 
-The placements the tests produce, outside the `Core` classes the spec lists:
+The placements the tests produce, beyond the `Core` classes the registry already holds:
 
 - **Core despite a sandbox case.** `Core\Zip` and `Core\Compress` parse hostile bytes (test 5), but an
   archive's real defects are `../` and absolute-path entries, symlink entries and decompression bombs.
@@ -388,7 +388,8 @@ things, that is not a second spelling ([`core-api/each-door-takes-a-different-th
 
 A member name is a full word. Class names may abbreviate, but only from a closed list — `Str`, `Arr`, `Fs`,
 `Io`, `Uri`, `Db`, `Id` — and members may not, except the conventional mathematical spellings `abs`, `min`,
-`max` and `sqrt`. So `Core\Str::length`, never `Core\Str::len`.
+`max` and `sqrt`. So `Core\Str::length`, never `Core\Str::len`. An enum case is held to the same rule:
+`Weekday::Monday`, `Month::January`, `Unit::Millisecond`.
 
 Abbreviation is where a naming convention stops being mechanical: decided one member at a time, it
 produces `len` beside `wordCount` in the same class. A closed list at the class level and no discretion
@@ -740,7 +741,7 @@ may not exist beside `$instant->format($fmt)`.
 
 This closes the second and less visible kind of duplication, the one a function list cannot show: a
 procedural function beside every method of a class, so that a whole API exists twice. A tree API and a streaming reader over the same data are *different jobs* rather
-than twins, and the spec says so explicitly where that could be misread. So are two parsers onto one
+than twins, and each such class's introduction page says so where that could be misread. So are two parsers onto one
 tree: `Core\Html::parse` and `Core\Xml::parse` take different languages under opposite failure
 contracts and produce the same node family, so each tree operation is written once and reached through
 neither door's own surface ([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)).
@@ -750,6 +751,21 @@ pipeline ([`expressions/pipeline-substitution`](expressions.md#expressions-pipel
 nothing to reach. The one genuinely reachable two-spellings case is a compile error: a `Core` *instance*
 member written as a static call is refused, because such a member's receiver travels in argument slot 0 and
 would otherwise pass the same arity check the instance call passes.
+
+**Where the language has an operator, `Core` has no member for it.** `Core\Arr` covers whole-array
+operations only, and element access stays in the language:
+
+| Operation | Written | Note |
+|---|---|---|
+| read an element | `$a[$k]` | throws on a missing key ([`core-api/shape-rules`](core-api.md#core-api-shape-rules) R4) |
+| read a possibly-absent element | `$a[$k] ?? $default` | there is no `Arr::get` |
+| write an element | `$a[$k] = $v` | |
+| remove an element | `unset($a[$k])` | an array element of a named holder only ([`classes/unset-is-refused-on-a-property`](classes.md#classes-unset-is-refused-on-a-property)) |
+| test whether a key exists | `Arr::hasKey($a, $k)` | the one way to test for a key |
+| combine two arrays | `Arr::overlay` / `underlay` / `appendAll` | `$a + $b` does not compile ([`types/array-combination`](types.md#types-array-combination)) |
+
+The same division holds elsewhere: `**` is exponentiation, so there is no `Math::pow`; `%` is integer
+modulo, so `Math::mod` exists only for `float`; `is` is an operator, so `Core\Reflect` has no `isA`.
 
 <sub>See also [`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution).</sub>
 
@@ -881,32 +897,32 @@ argument almost every callback uses, so the common callback is `fn($v)` with not
 
 <a id="core-api-parameters-are-callable-by-name"></a>
 
-## Every `Core` parameter is callable by the name the spec writes, and that name is compatibility surface
+## Every `Core` parameter is callable by the name its signature writes, and that name is compatibility surface
 
 `rule:core-api/parameters-are-callable-by-name`
 
-Every parameter of every `Core` member may be written by name at the call site — the `$name` the spec's
-signature column writes, and the trailing bag under the one name `options` — under exactly the rules a
-user-declared method's parameters follow ([`types/arrays`](types.md#types-arrays)): written order is evaluation order, a name
-fills its own slot, a defaulted parameter may be skipped, a positional after a name is refused, and a name
-never reaches a variadic tail.
+Every parameter of every `Core` member may be written by name at the call site — the `$name` the member's
+signature writes in `nvs meta --json`, and the trailing bag under the one name `options` — under exactly the
+rules a user-declared method's parameters follow ([`types/arrays`](types.md#types-arrays)): written order is evaluation order, a
+name fills its own slot, a defaulted parameter may be skipped, a positional after a name is refused, and a
+name never reaches a variadic tail.
 
 A parameter's **name is compatibility surface**, versioned where its type is, so renaming one is a
-breaking change. That is the price of the feature and it is paid deliberately: the spec has published
-every parameter name since it was written, so the surface was already public, and a surface a user's own
-method has that a `Core` member lacks is one more rule to learn. The name lives once, on the registry row
-beside the type, and the reference card looks it up rather than repeating it
-([`core-api/reference-card`](core-api.md#core-api-reference-card)). Nothing on the request path changes — a `name:` resolves while checking
-and the helper ABI is untouched. No member's shape, order, parameter list or bag moved for this: a name
-labels a slot that already exists, never adds one.
+breaking change. That is the price of the feature and it is paid deliberately: every published signature
+shows its parameter names, so the surface is public already, and a surface a user's own method has that a
+`Core` member lacks is one more rule to learn. The name lives once, on the registry row beside the type,
+and the reference card looks it up rather than repeating it ([`core-api/reference-card`](core-api.md#core-api-reference-card)). Nothing on
+the request path changes — a `name:` resolves while checking and the helper ABI is untouched. No member's
+shape, order, parameter list or bag moved for this: a name labels a slot that already exists, never adds
+one.
 
 - **Memory:** per process, one static string slice per registry row, in read-only data. Nothing per
   request or per task.
 
 **Declined:**
 - **Positional-only `Core` members, with the options bag as their only by-name surface.** It kept
-  parameter names out of the compatibility surface, but the spec publishes every name anyway, and the
-  grammar and checker rules for named arguments already exist for user-declared methods
+  parameter names out of the compatibility surface, but every signature publishes its names anyway, and
+  the grammar and checker rules for named arguments already exist for user-declared methods
   ([`types/arrays`](types.md#types-arrays)), so all it bought was an asymmetry between the two.
 
 <sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`types/arrays`](types.md#types-arrays).</sub>
@@ -919,7 +935,9 @@ labels a slot that already exists, never adds one.
 
 After the subject come the required arguments in dataflow order, and then **at most one** trailing optional
 anonymous object ([`types/object-top`](types.md#types-object-top)) whose shape is declared as a `type` alias. There are no `bool`
-flag parameters, no `int` bitmasks, and no positional optional tail longer than one.
+flag parameters, no `int` bitmasks, and no positional optional tail longer than one. **A variadic member
+takes no bag**: the bag must be last and a variadic parameter already is, so a member that wants both
+takes an `array` in place of the variadic.
 
 The bag is the home of every optional knob because it is named, order-free and structurally checked, and a
 bag written entirely from compile-time constants folds to a constant. It also flattens at the call site
@@ -1132,26 +1150,30 @@ zero payload. Every member registered before this lowers byte for byte as it did
 
 <a id="core-api-field-wise-precedence"></a>
 
-## Where the registry and the spec both describe an implemented member, precedence is field by field
+## The registry is the only source of a Core member, and a field it has not written is absent
 
 `rule:core-api/field-wise-precedence`
 
-For an implemented member, a documentation field the registry carries is authoritative and a field it lacks
-falls back to the spec-derived default. For a member not yet implemented, the spec is all there is. A
-consumer that finds the two disagreeing about something both state — a parameter documented in one and not
-declared in the other, a signature that has drifted — warns rather than silently choosing.
+The registry is the only source of a `Core` member's surface and its reference documentation: its
+signature, its parameter names and types, its qualifiers, its options and its card
+([`core-api/reference-card`](core-api.md#core-api-reference-card)). `nvs meta --json` publishes it, and every consumer — the website's
+`Core` pages, `nvs help`, a hover, the one-file reference — reads that output and nothing else.
 
-The spec stays authoritative for the **surface**: every member, implemented or not, its signature as
-designed, its types and the reasoning behind its design. What it stops being, for an implemented member, is
-the place the card's wording is edited ([`core-api/reference-card`](core-api.md#core-api-reference-card)).
+A documentation field the registry has not written is **absent**, never filled from somewhere else. The
+JSON leaves the key out, so a consumer tells "not written yet" from "written, and empty" without learning a
+convention, and shows the field as missing. Each field stands alone: a member whose card has a short
+description and no parameter text shows the one and not the other, so a card is filled in one field at a
+time and no consumer waits on a whole card. The same reading keeps a consumer correct against an older
+toolchain whose rows carry fewer fields.
 
-Precedence is **field by field** rather than source by source, and that is what made the move incremental:
-the seam shipped empty, every member documented afterwards upgraded on its own, and no consumer was ever
-blocked on an unfilled field. It is also what keeps a consumer correct against a toolchain older than the
-backfill.
+A class's introduction page under `docs/reference/core/` or `docs/reference/novis/` is prose beside the
+card, never a second copy of anything the registry carries.
 
-The warnings are the drift detector. Nothing else notices that a member's spec entry and its implementation
-have diverged, because the two are read by different tools for different reasons.
+**Declined:**
+- **A design document beside the registry that lists every member and is authoritative for the ones not
+  implemented yet.** Two descriptions of one member drift, and a consumer has to choose between them
+  member by member. Nothing in such a list ever designed a member the registry lacked, so it only
+  restated the registry.
 
 <sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/tier-roster`](core-api.md#core-api-tier-roster).</sub>
 
@@ -1321,6 +1343,13 @@ rather than replacing it ([`core-api/one-paradigm-per-operation`](core-api.md#co
 a place for the capability check and a place for the methods. The `resource` atom survives in the type
 grammar ([`types/grammar`](types.md#types-grammar)) only for opaque handles an extension supplies, and `Core` never produces
 one.
+
+**A `Core` object has methods and no properties.** Its slots are `nvs-stdlib`'s layout rather than a
+surface (`nvs_stdlib::registry::CoreTy::Instance`), so a value it exposes is reached through a reader —
+`$write->affected()`, never `$write->affected` — and `Core\RateLimit`'s `Decision` and `Core\Script`'s
+`ExitReport` answer the same way. The exception classes under `Core\Error` are the one roster that has
+readonly properties — `$e->message`, `$e->previous`, `$e->backtrace`, `$e->location`, and `issues` on
+`ParseError` and `Core\Db\DbError` — and no `getX()` accessors.
 
 <sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`classes/no-destructors`](classes.md#classes-no-destructors), [`types/grammar`](types.md#types-grammar).</sub>
 
@@ -1591,7 +1620,7 @@ moves into Rust.
   of the trade, and a build feature can strip it if a deployment ever cares.
 
 **Declined:**
-- **The spec as the documentation's only home.** It keeps the documentation far from the code it
+- **A design document as the documentation's only home.** It keeps the documentation far from the code it
   describes, and the registry has to carry every parameter's name anyway
   ([`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name)), so the names would live in two places.
 - **Extended prose in Rust too.** Long markdown inside string literals, with its escaping and review

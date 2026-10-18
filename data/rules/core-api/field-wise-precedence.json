@@ -1,5 +1,5 @@
 {
-  "title": "Where the registry and the spec both describe an implemented member, precedence is field by field",
+  "title": "The registry is the only source of a Core member, and a field it has not written is absent",
   "status": "shipped",
   "seeAlso": [
     "core-api/reference-card",

@@ -2,7 +2,7 @@
 constants, and the enums beside them at top level — top level because the registry's roster is, an enum
 having no owner class there. Each member's reference card (`rule:core-api/reference-card`) sits under a
 `doc` key — `short`, `params` with each parameter's `name`, `desc` and shape keys, `return`, `errors` —
-and each member also carries its signature half: `kind`, `signature` in the spec's own spelling, `params`
+and each member also carries its signature half: `kind`, `signature` written as `name(type $a, type $b = 1, {opt?: T}): ret`, `params`
 with types, qualifiers and defaults, `options`, `returns`; a class its `typeParams` and `constructor`, a
 constant its `type` and `value`. Five rosters declared outside the registry sit beside `classes` and
 `enums`: `exceptions`, `interfaces`, `attributes`, `directives`, and `capabilities`, one row per member

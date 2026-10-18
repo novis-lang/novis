@@ -15,3 +15,10 @@ rather than replacing it (`rule:core-api/one-paradigm-per-operation`). An object
 a place for the capability check and a place for the methods. The `resource` atom survives in the type
 grammar (`rule:types/grammar`) only for opaque handles an extension supplies, and `Core` never produces
 one.
+
+**A `Core` object has methods and no properties.** Its slots are `nvs-stdlib`'s layout rather than a
+surface (`nvs_stdlib::registry::CoreTy::Instance`), so a value it exposes is reached through a reader —
+`$write->affected()`, never `$write->affected` — and `Core\RateLimit`'s `Decision` and `Core\Script`'s
+`ExitReport` answer the same way. The exception classes under `Core\Error` are the one roster that has
+readonly properties — `$e->message`, `$e->previous`, `$e->backtrace`, `$e->location`, and `issues` on
+`ParseError` and `Core\Db\DbError` — and no `getX()` accessors.

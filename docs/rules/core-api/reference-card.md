@@ -34,7 +34,7 @@ moves into Rust.
   of the trade, and a build feature can strip it if a deployment ever cares.
 
 **Declined:**
-- **The spec as the documentation's only home.** It keeps the documentation far from the code it
+- **A design document as the documentation's only home.** It keeps the documentation far from the code it
   describes, and the registry has to carry every parameter's name anyway
   (`rule:core-api/parameters-are-callable-by-name`), so the names would live in two places.
 - **Extended prose in Rust too.** Long markdown inside string literals, with its escaping and review

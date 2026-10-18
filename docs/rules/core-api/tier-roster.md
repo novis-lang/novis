@@ -7,7 +7,7 @@ Native and feature-gated, which is how the metrics class and the shared cache ti
 is the general rule rather than a special case, and it is what keeps the `Core` name unconditional
 (`rule:core-api/core-means-always-present`) while the thing it talks to is optional.
 
-The placements the tests produce, outside the `Core` classes the spec lists:
+The placements the tests produce, beyond the `Core` classes the registry already holds:
 
 - **Core despite a sandbox case.** `Core\Zip` and `Core\Compress` parse hostile bytes (test 5), but an
   archive's real defects are `../` and absolute-path entries, symlink entries and decompression bombs.

@@ -1,6 +1,8 @@
 After the subject come the required arguments in dataflow order, and then **at most one** trailing optional
 anonymous object (`rule:types/object-top`) whose shape is declared as a `type` alias. There are no `bool`
-flag parameters, no `int` bitmasks, and no positional optional tail longer than one.
+flag parameters, no `int` bitmasks, and no positional optional tail longer than one. **A variadic member
+takes no bag**: the bag must be last and a variadic parameter already is, so a member that wants both
+takes an `array` in place of the variadic.
 
 The bag is the home of every optional knob because it is named, order-free and structurally checked, and a
 bag written entirely from compile-time constants folds to a constant. It also flattens at the call site

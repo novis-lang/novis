@@ -96,6 +96,10 @@ between two kinds.
 - **Memory:** a shape at the type-argument door is compile-time work and one interned descriptor,
   O(distinct types in the program) and nothing per request.
 
+An array has no internal cursor. A cursor inside a copy-on-write value would be copied with the array,
+so a copy would carry its iteration position. `foreach` and `Core\Arr`'s `first`, `last`, `firstKey` and
+`lastKey` cover every use.
+
 **Declined:**
 - **Integer keys kept beside string keys.** Two key domains need a rule for converting between them,
   and that rule is where `$a[8]`, `$a["8"]` and `$a["08"]` stop meaning what they look like.

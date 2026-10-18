@@ -106,8 +106,14 @@ case asks `Core\Str` for it.
 `rule:classes/reserved-spellings-are-lower-case`
 
 Keywords are matched exactly: `if` is a keyword, `IF` and `If` are not. The same holds for the
-contextual keywords — `spawn`, `script`, `with`, `type`, `from`, `by`, `get`, `set` — for the
-`true`/`false`/`null` literals, and for the `<?nvs` open tag.
+contextual keywords — `spawn`, `script`, `with`, `await`, `type`, `from`, `by`, `get`, `set`,
+`discover` — for the `true`/`false`/`null` literals, and for the `<?nvs` open tag.
+
+A contextual keyword lexes as an ordinary identifier and is read as a keyword only where what follows
+it fits its production: `script` after `spawn`, an operand after `await`, `discover` directly after
+`autoload`. So a program that already uses one of these spellings as a constant, a function, a method or
+a class name still parses. The one reading this claims is `await($x)`, which is the operator over a
+parenthesised operand and not a call to a function named `await`.
 
 A mis-cased keyword gets no diagnostic of its own, deliberately. The casing rule makes `IF`, `ECHO` and
 `TRUE` legal class names, so nothing lexical distinguishes a mistyped `if` from a deliberate reference
