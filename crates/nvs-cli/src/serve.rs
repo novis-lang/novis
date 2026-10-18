@@ -4054,7 +4054,7 @@ mod tests {
     fn serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names() {
         let _alone = crate::testing::measuring_alone();
         const CORES: usize = 4;
-        const ROUNDS: usize = 3;
+        const ROUNDS: usize = 10;
         /// Four cores serve at least half again the requests per second one
         /// serves. The paragraph above is why the floor is here and not at four.
         const SCALES_BY: f64 = 1.5;
