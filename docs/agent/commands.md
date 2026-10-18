@@ -207,6 +207,24 @@ A file has one editor at a time. A session's first edit of a file claims it unti
 | `looper claims [--json]` | Every claim in the project's trees, with its session, loop, goal, file and age |
 | `looper claims release <session>` | Frees the session's claims, and records who asked. An agent may free only a dead session's. |
 
+## A conflict in a generated file
+
+A generated file is committed and never merged by hand. `.gitattributes` marks each one
+`linguist-generated` and names the command that writes it. When a merge or a rebase stops on one,
+take either side, then render it again from the merged sources and stage what the command wrote:
+
+```sh
+git checkout --theirs <file>              # or --ours: either side, since the render replaces it
+bun nv render                             # data/schema/, data/spec/, classes.rs, the website's grammar and data
+bun nv render --website                   # website/src/data/core.json and reference.json, with a built binary
+bun nv rules --render                     # docs/rules/*.md and docs/ground-rules.md
+bun nv reference                          # docs/novis.md, with a built binary
+```
+
+Run only the command that writes the conflicted file. A side loop's catch-up does this itself for
+the files `looper.toml`'s `[merge]` table names. The perf ledger `docs/perf/members.ndjson`
+never conflicts: it is append-only, and `merge=union` keeps the lines of both sides.
+
 ## A debug cargo command never takes `-p`
 
 `cargo build`, `cargo test` and `cargo clippy --all-targets -- -D warnings` — bare, at the root — are
