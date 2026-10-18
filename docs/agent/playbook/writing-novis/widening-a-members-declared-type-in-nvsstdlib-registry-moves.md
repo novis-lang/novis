@@ -1,6 +1,6 @@
 - **Widening a member's declared type in `nvs_stdlib::registry` moves four expectations, none naming
   the constant you edited.** Adding to `router.rs`'s `CAPTURE` union changed a rendering pinned in
   `crates/nvs-types/src/core_lib.rs`'s tainted-answer roster, two `--EXPECTF-ERROR--` cases under
-  `tests/conformance/core/`, and the generated `docs/novis.md`. One `grep -rn` for the old rendering
-  across `crates docs tests` finds all four, and since the rendered union order is not the
+  `tests/conformance/core/`, and the generated `website/public/llms-full.txt`. One `grep -rn` for the old rendering
+  across `crates tests website/public` finds all four, and since the rendered union order is not the
   declaration order, `bun nv try <case>` prints the real one. `until: gone crates/nvs-types/src/core_lib.rs:nvs_stdlib::registry`

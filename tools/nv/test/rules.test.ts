@@ -71,6 +71,13 @@ describe("nv rules --check, deleted docs", () => {
     expect(doc("`website/src/content/docs/guides/production/docker.mdx`")).toEqual([]);
   });
 
+  test("the reference that became /llms-full.txt is a deleted doc, and a file named like it is not", () => {
+    expect(doc("`docs/novis.md` is built from this command")).toHaveLength(1);
+    expect(doc("[`docs/novis.md`](../novis.md) is the one-file reference")).toHaveLength(1);
+    expect(doc("the old `.cursor/rules/novis.mdc` is retired")).toEqual([]);
+    expect(doc("the website's `/llms-full.txt`")).toEqual([]);
+  });
+
   test("the reference findings list is a deleted doc by its file name in any form", () => {
     expect(doc("// `docs/reference/findings.md`'s P15 is the report")).toHaveLength(1);
     expect(doc("/// findings.md's D33, decided here")).toHaveLength(1);

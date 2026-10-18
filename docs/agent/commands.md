@@ -60,8 +60,8 @@ The rulebook is the same arrangement one tree over: `bun nv rules --render` writ
 every line, and `--render --check` reports a rendered copy that has drifted. There are no decision
 records: a rule's fragment holds its reasons and its Declined list, and `bun nv rules --check` fails on
 a record directory or a citation of one. This is the pattern
-`docs/novis.md` already established below — derive the machine-derivable half, and let a `--check` fail
-when the committed copy stops agreeing with it.
+`/llms-full.txt` follows below: derive the machine-derivable half, and let a `--check` fail when the
+committed copy stops agreeing with it.
 
 **The chain is the `chain:` list in the front matter of `docs/goals/README.md`, and `looper goal` edits
 it.** A goal's position is its place in that list, so moving a goal renames no file and writes no
@@ -331,10 +331,10 @@ itself before the wrap: `bun nv links` after any doc edit, and `bun nv rules --c
 `docs/rules/`. A rulebook finding is a property of the whole set, so a rename there is what makes a
 citation elsewhere go dead.
 
-**`docs/novis.md` is written by `nv verify`, not checked by it.** The reference is generated from the
-binary and the chapters under `docs/reference/`, and verify's `reference` step regenerates it whenever
-either changed. An edit to either after step 3 leaves it stale, so make that edit before verifying, and
-name `docs/novis.md` in the `## commit:` of the slice that changed its sources.
+**`website/public/llms-full.txt` is checked by CI, not by `nv verify`.** It is rendered from the
+binary and the chapters under `docs/reference/`, so a change to a chapter or a card leaves it stale.
+Run `bun nv render --website` after that change, and name the file in the `## commit:` of the slice
+that changed its sources.
 
 `bun nv layout` is the one a **code** change trips. It holds CONTRIBUTING.md's layout listing to the tree:
 every row names something on disk, every crate, bench package and tracked top-level directory has a row,
@@ -402,17 +402,17 @@ check is made of and why each atom was selected or not.
 ## The user-facing reference
 
 ```sh
-bun nv reference                          # regenerate docs/novis.md from the binary + docs/reference/, run every example
-bun nv reference --check                  # is the committed docs/novis.md current? (CI)
-bun nv reference --examples-only --only 20-types   # one chapter's examples while writing it
+bun nv reference                          # run every example in the chapters under docs/reference/
+bun nv reference --only 20-types          # one chapter's examples while writing it
 bun nv reference --primer                 # prove `nvs agent primer`: its examples run, its refusal codes exist
+bun nv render --website                   # write website/public/llms-full.txt, with the Core pages' data
 ```
 
-`docs/novis.md` is the one file a language user, a search engine or a language model reads, and it
-is **generated**: Part B and the tables inside chapters come from `nvs meta --json`, the prose from
-one chapter per topic under `docs/reference/`. `nv verify` runs `bun nv reference` as a step after the
-case trees, so the file follows the registry on every green run and a chapter example the binary no
-longer agrees with fails the run. [docs/reference/README.md](../reference/README.md) is the format
+The website's `/llms-full.txt` is the one file a language user, a search engine or a language model
+reads, and it is **generated**: Part B and the tables inside chapters come from `nvs meta --json`, the
+prose from one chapter per topic under `docs/reference/`. `nv verify` runs `bun nv reference` as a step
+after the case trees, so a chapter example the binary no longer agrees with fails the run. CI's
+`reference` job runs the examples and `bun nv render --website --check`. [docs/reference/README.md](../reference/README.md) is the format
 and the rules.
 
 ```sh

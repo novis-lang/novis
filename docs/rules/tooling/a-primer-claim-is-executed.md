@@ -1,7 +1,7 @@
 Every claim the primer makes is proven against the compiler that ships with it: each example in it is
 run and must print what the primer says it prints, and each diagnostic code it names must be one that
-compiler declares. `bun nv reference --primer --check` is that proof, and it is the harness
-`docs/novis.md`'s examples already run under, applied to the one document that is read by someone who
+compiler declares. `bun nv reference --primer` is that proof, and it is the harness
+the chapters' examples already run under, applied to the one document that is read by someone who
 has nothing else.
 
 A code is checked as a code because the text beside it is often a fragment that no `nvs check` can be

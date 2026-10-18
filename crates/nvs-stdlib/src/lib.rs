@@ -111,7 +111,7 @@
 //! # What measures the roster
 //!
 //! The registry is the only source of what `Core` has: the website's Core
-//! reference, `docs/novis.md` and `nvs meta --json` are all built from it.
+//! reference, its `/llms-full.txt` and `nvs meta --json` are all built from it.
 //! `tests/conformance_coverage.rs` measures it against the corpus: a
 //! registered member with no `.nvst` case that calls it fails
 //! `cargo test -p nvs-stdlib`.
