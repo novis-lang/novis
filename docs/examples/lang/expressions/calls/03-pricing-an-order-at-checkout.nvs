@@ -51,8 +51,7 @@ Checkout::add(inout $total, Checkout::tax($basket->goods()));
 // This prints: goods 4349 shipping standard total 5713
 echo "goods ", $basket->goods(), " shipping ", $method, " total ", $total, "\n";
 
-// A reduced rate is named at the call, and nothing else about it changes.
-// This prints: reduced total 5061
+// The argument `rate: 5` sets a reduced tax rate. This prints: reduced total 5061
 int $reduced = 0;
 Checkout::add(inout $reduced, $basket->goods());
 Checkout::add(inout $reduced, $shipping[$method]($basket->goods()) as int);
