@@ -469,7 +469,7 @@ not a class name
 - `Class::m(args)` calls a static method, `$o->m(args)` an instance method; results chain, `Greeter::make()->greet("x")`, and a `new` chains without parentheses.
 - Arguments are positional, or named `name: value` in any order, and a named argument may skip a defaulted parameter in the middle. Evaluation is in written order.
 - `...$array` spreads an `array<T>` into a variadic `T ...$rest` parameter — only into one; the fixed parameters before it are still written out.
-- A parameter declared `inout T $x` is written back to the caller's variable, and the call writes `inout` too: `M::bump(inout $n)`. Only a local can be passed `inout`, not an array element.
+- A parameter declared `inout T $x` is written back to the caller's variable, and the call writes `inout` too: `M::bump(inout $n)`. A local or an instance property can be passed `inout`, not an array element.
 - A `callable` value is called through the variable that holds it, `$f(1)`, an element, `$ops["k"](1)`, or a parenthesised property, `($this->cb)(1)`. The call answers `mixed`, so `int $r = $f(1) as int`. Extra arguments are dropped; too few throw at the call.
 - A call that returns `void` is a statement and no operand.
 

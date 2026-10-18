@@ -1,5 +1,5 @@
 {
-  "title": "An `inout` argument is a local, and never an element or a property",
+  "title": "An `inout` argument is a local or an instance property, and never an element",
   "status": "shipped",
   "seeAlso": [
     "statements/inout-is-written-at-the-call",
