@@ -39,6 +39,73 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap};
 
 use crate::render_diagnostics;
 
+/// Audit the configuration tree without running anything.
+///
+/// A namespace of its own rather than part of `nvs check`, which checks
+/// *source*: a configuration tree and a program are audited separately.
+// `rule:config/check-and-dump-audit-the-tree-offline` separates the two.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
+
+/// `nvs config`'s own subcommands.
+///
+/// `rule:config/check-and-dump-audit-the-tree-offline` names `check` and `dump`, and this enum
+/// holds both.
+#[derive(clap::Subcommand)]
+enum Command {
+    /// Resolve the configuration tree and report what it holds, exiting
+    /// non-zero on any refusal.
+    ///
+    /// Offline: it reads the files and nothing else, so a tree is validated in
+    /// CI before it is deployed.
+    // What the audit deliberately does not assert is this module's doc.
+    Check {
+        /// The files to read, in order. This is the same list `--config` takes.
+        /// With no file named, `./nvs.toml` is read. If there is none, the data
+        /// folder's `nvs.toml` is read. If there is neither, the default
+        /// settings are used.
+        // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
+        // steps 1 to 4.
+        files: Vec<PathBuf>,
+    },
+    /// Print every key in force, one per line, in dotted-key order.
+    ///
+    /// An include may override the file that pulled it in *on condition* that
+    /// every override is recoverable; this is where it is recovered in full.
+    // `rule:config/later-wins-and-every-override-is-recorded`. What is printed,
+    // and the one thing deliberately absent from it, is [`dump`]'s own doc
+    // comment.
+    Dump {
+        /// The root files to read — `check`'s list, read the same way.
+        files: Vec<PathBuf>,
+        /// Also name the file each key was written in, and the file it
+        /// overrode.
+        #[arg(long)]
+        origin: bool,
+        /// Write the resolved configuration as one canonical TOML document
+        /// instead, for diffing two environments.
+        #[arg(long, conflicts_with = "origin")]
+        toml: bool,
+    },
+}
+
+impl Args {
+    /// Runs the `nvs config` subcommand clap parsed, over the run's `--config` list.
+    pub(crate) fn run(self, config: &[PathBuf]) -> ExitCode {
+        match self.command {
+            Command::Check { files } => check(config, &files),
+            Command::Dump {
+                files,
+                origin,
+                toml,
+            } => dump(config, &files, origin, toml),
+        }
+    }
+}
+
 /// The reader this binary resolves the configuration tree through: the real
 /// filesystem, with `rule:config/ownership-is-the-trust-boundary`'s **ownership check not applied**.
 ///

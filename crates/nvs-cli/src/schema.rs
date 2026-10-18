@@ -68,6 +68,96 @@ use crate::config::{LocalFiles, named_roots, working_directory};
 use crate::queue::address_of;
 use crate::render_diagnostics;
 
+/// Converge a database on a schema value, or read the one it already holds.
+///
+/// The operator's spelling of `Core\Db\Schema`: the difference against the
+/// live server is computed every time, so there is no migration to order
+/// and no history to keep.
+// `rule:core-classes/schema-converges`.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
+
+/// `nvs schema`'s own subcommands.
+///
+/// Three, and they are one walk stopped at three points:
+/// `rule:core-classes/schema-introspection`'s read alone is `dump`, the
+/// difference that read feeds is `plan`, and running what the difference says is
+/// `apply`. There is no `status` beside them because `plan` against a converged
+/// database already prints nothing, and no `rollback` because
+/// `rule:core-classes/schema-converges` keeps no history to roll back to.
+#[derive(clap::Subcommand)]
+enum Command {
+    /// Print the difference between a schema value and the database, and run
+    /// none of it.
+    ///
+    /// Every step carries its grade, the reason for that grade and its complete
+    /// SQL — including the steps `apply` refuses, which is what makes a plan
+    /// useful against a database this deployment may not write to at all.
+    // `rule:core-classes/schema-plan`.
+    Plan {
+        /// The root files to read, in order — `config check`'s list, read the
+        /// same way.
+        files: Vec<PathBuf>,
+        /// The `[db.<name>]` block to plan against.
+        #[arg(long)]
+        connection: String,
+        /// The JSON file holding the schema value, as `dump` writes one.
+        #[arg(long)]
+        schema: PathBuf,
+    },
+    /// Run the steps of that plan that may run.
+    ///
+    /// Without `--including-risky` this refuses a plan holding a step that is
+    /// not `Safe` and names the first one. A report is never run either way.
+    // `rule:core-classes/schema-apply-capability`'s `applySafe`, on a command
+    // line.
+    Apply {
+        /// The root files to read, in order.
+        files: Vec<PathBuf>,
+        /// The `[db.<name>]` block to converge.
+        #[arg(long)]
+        connection: String,
+        /// The JSON file holding the schema value.
+        #[arg(long)]
+        schema: PathBuf,
+        /// Run the steps that can hold a long lock or fail on existing rows as
+        /// well, saying so here rather than discovering it in production.
+        #[arg(long)]
+        including_risky: bool,
+    },
+    /// Write out the schema value the database already holds, as JSON.
+    Dump {
+        /// The root files to read, in order.
+        files: Vec<PathBuf>,
+        /// The `[db.<name>]` block to read.
+        #[arg(long)]
+        connection: String,
+    },
+}
+
+impl Args {
+    /// Runs the `nvs schema` subcommand clap parsed, over the run's `--config` list.
+    pub(crate) fn run(self, config: &[PathBuf]) -> ExitCode {
+        match self.command {
+            Command::Plan {
+                files,
+                connection,
+                schema,
+            } => plan(config, &files, &connection, &schema),
+            Command::Apply {
+                files,
+                connection,
+                schema,
+                including_risky,
+            } => apply(config, &files, &connection, &schema, including_risky),
+            Command::Dump { files, connection } => dump(config, &files, &connection),
+        }
+    }
+}
+
 /// How long the whole handshake may take, as [`crate::queue`]'s own deadline and
 /// for its reason: finite because a command that hangs reports nothing at all,
 /// and generous because the server is often a container the operator started
