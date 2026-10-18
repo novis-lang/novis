@@ -110,10 +110,10 @@ const CARD: ClassDoc = ClassDoc {
             value to stderr or return it as a string.",
 };
 
-/// Spec § 16's `Core\Debug`, as much of it as `rule:errors/debug-dump` declares.
+/// `Core\Debug`, as much of it as `rule:errors/debug-dump` declares.
 ///
-/// The coverage, trace and profile members that section also lists are not
-/// here: they are `rule:testing/debug-surface`'s, which goal `trace-timeline` builds.
+/// The coverage, trace and profile members are not here: they are
+/// `rule:testing/debug-surface`'s, which goal `trace-timeline` builds.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

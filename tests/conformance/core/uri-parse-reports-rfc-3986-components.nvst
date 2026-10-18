@@ -5,7 +5,7 @@
 // covers: Core\Uri::query
 // covers: Core\Uri::scheme
 // covers: Core\Uri::userInfo
-// § 12: every component comes back exactly as written — still
+// Every component comes back exactly as written — still
 // percent-encoded, still in the case it arrived in, with the default port
 // still there. `parse` reports; it does not normalize.
 var $u = Core\Uri::parse("https://alice@example.COM:8443/a/b%20c?x=1&y=2#top");
@@ -18,7 +18,7 @@ echo $u->path(), "\n";
 echo $u->query() as string, "\n";
 echo $u->fragment() as string, "\n";
 
-// § 12: `parse` takes a URI *reference*, which is what a request line
+// `parse` takes a URI *reference*, which is what a request line
 // carries, so a relative one is a `Uri` with three absent components.
 var $r = Core\Uri::parse("/only/a/path");
 echo $r->path(), "\n";
@@ -27,20 +27,20 @@ if ($r->userInfo() == null) { echo "no user info\n"; }
 if ($r->port() == null) { echo "no port\n"; }
 if ($r->fragment() == null) { echo "no fragment\n"; }
 
-// § 12: an empty authority is not a missing one, which is the distinction
+// An empty authority is not a missing one, which is the distinction
 // `parse_url`'s array cannot hold.
 var $f = Core\Uri::parse("file:///tmp/x");
 echo "[", $f->host() as string, "]\n";
 if ($r->host() == null) { echo "no host at all\n"; }
 
-// § 12: `?` written with nothing after it is an empty query; no `?` is no
+// `?` written with nothing after it is an empty query; no `?` is no
 // query.
 var $empty = Core\Uri::parse("http://h/p?");
 if ($empty->query() == "") { echo "empty query\n"; }
 var $none = Core\Uri::parse("http://h/p");
 if ($none->query() == null) { echo "no query\n"; }
 
-// § 12: an IPv6 literal is a host with its brackets on, since that is what
+// An IPv6 literal is a host with its brackets on, since that is what
 // RFC 3986 § 3.2.2's host component is.
 var $six = Core\Uri::parse("http://[::1]:8080/x");
 echo $six->host() as string, "\n";

@@ -885,7 +885,7 @@ fn stream_as_answers_rows_at_the_class_it_was_written_with() {
     const ROW: &str = r"Core\Db\Row";
 
     for owner in [r"Core\Db\Connection", r"Core\Db\Transaction"] {
-        let class = registry::class(owner).expect("§ 18's class is registered");
+        let class = registry::class(owner).expect("`Core\\Db`'s class is registered");
         let answers = |member: &str| {
             class
                 .members()

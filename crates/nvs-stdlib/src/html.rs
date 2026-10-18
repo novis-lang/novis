@@ -2501,7 +2501,7 @@ mod tests {
             (r"Core\Taint::assertTrustedBytes", false),
             (r"Core\Uri::encodeComponent", false),
             (r"Core\Uri::encodeFormValue", false),
-            // The writing half of § 17 is a launderer once per member that puts
+            // The writing half of `Core\Xml` is a launderer once per member that puts
             // something into a document, and none of them answers a carrier:
             // nothing auto-escapes into an XML document the way `echo` does
             // into an HTTP response, so the predicate's first condition fails

@@ -1343,11 +1343,11 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // failed request sends one. A name and never the bytes, so this take is the
     // whole of what a response of any size costs here.
     let file_body = isolate_ctx.take_file_body();
-    // Spec § 15's status, taken on the same paths and for the same reason: a
+    // The status `Core\Response` declared, taken on the same paths and for the same reason: a
     // child that threw still said what it said, and a child that set a status
     // and then failed is exactly the case where the declaration matters most.
     let status = isolate_ctx.take_status();
-    // Spec § 15's headers, taken on the same paths again and for the same
+    // The headers `Core\Response` declared, taken on the same paths again and for the same
     // reason. A list rather than a word, and empty for the child that set none.
     let headers = isolate_ctx.take_headers();
     // `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
@@ -2498,7 +2498,7 @@ mod tests {
         );
     }
 
-    /// Spec § 15's two declarations cross on **every** path out of [`finish`],
+    /// `Core\Response`'s two declarations cross on **every** path out of [`finish`],
     /// the throwing one included — which is the whole of what this boundary
     /// decides about them.
     ///

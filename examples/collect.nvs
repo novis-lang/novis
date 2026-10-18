@@ -28,7 +28,7 @@ echo 'sha256=' . Core\Encoding::toHex(Core\Hash::of('nvs', Core\Hash::Digest::Sh
 echo 'base64=' . Core\Encoding::toBase64(Core\Encoding::encodeText('nvs', Core\Charset::Utf8)) . "\n";
 
 echo 'dice=' . Core\Random::int(5, 5) . "\n";
-// Spec § 11: there is no `Uuid::isValid` — asking whether text is a UUID is
+// There is no `Uuid::isValid` — asking whether text is a UUID is
 // `tryParse` compared against `null`, which is `parse` asked once rather than
 // twice.
 echo 'uuid=' . (Core\Uuid::tryParse('00000000-0000-4000-8000-000000000000') != null ? 'valid' : 'invalid') . "\n";

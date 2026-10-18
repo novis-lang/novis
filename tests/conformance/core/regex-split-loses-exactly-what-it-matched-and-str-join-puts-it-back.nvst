@@ -2,7 +2,7 @@
 Core\Regex::split loses exactly the text it matched — its pieces interleaved with Core\Regex::matchAll's put the subject back — and Core\Str::join is its inverse wherever the pattern is one literal — `rule:core-classes/regex-syntax`
 --FILE--
 <?nvs
-// § 5's `split` row, asked what its two siblings do not.
+// `Core\Regex::split`, asked what its two siblings do not.
 // `regex-split-counts-the-pieces-it-produced` and `regex-split-honours-its-
 // options` both pin the *options* — `limit` at both ends of its range, and
 // when `keepEmpty` is applied — by counting pieces. Neither asks what the

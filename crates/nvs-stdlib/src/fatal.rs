@@ -335,7 +335,7 @@ mod tests {
     // covers: Core\Fatal::onUncaughtThrow
     #[test]
     fn on_uncaught_throw_receives_the_real_throwable() {
-        // Spec § 10's root shape, installed the one way a context takes one —
+        // `RuntimeError`'s root shape, installed the one way a context takes one —
         // an installed class is what promotes a bare failure to an object at
         // all, exactly as `crate::log`'s own agreement test needs.
         const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];

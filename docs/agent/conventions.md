@@ -119,8 +119,8 @@ the exact stdout, byte for byte
   the runner does not know is an error, and that includes PHP comparison sections.
 - A new file under `tests/conformance/` is picked up with no registration.
 
-**The four shapes a depth case takes.** Every section of Part I has had a pass, so a new case reaches
-for one of these rather than for a section, and what it adds is the boundary or the invariant the
+**The four shapes a depth case takes.** Every pure `Core` class has had a pass, so a new case reaches
+for one of these rather than for a class, and what it adds is the boundary or the invariant the
 member is written around — never another row of the same shape. `bun nv gaps` finds the
 candidates; the playbook owns the spellings that will not compile.
 
