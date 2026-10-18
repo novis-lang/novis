@@ -29,11 +29,10 @@ work the acceptance test then rejects — which costs far more than the session 
 § *Session workflow* step 2 is the ceiling's only home, and `looper.toml`'s `[budget]` repeats it for the
 driver. Raise it only with evidence.
 
-**Then reconsider the strategy, not just the number.** A shape follows from whichever budget binds, and
-that has already flipped once here: with only the clock in view, grouping more slices per session looked
-like the answer; with the ceiling in view, sessions were *already* finishing over the line doing one
-slice, and the answer became to read less per session. A measurement that flatters the strategy you
-already hold is the one to re-derive first. So:
+**Then reconsider the strategy, not just the number.** A shape follows from whichever budget binds: with
+the clock binding, grouping more slices per session is the answer; with the ceiling binding, it is
+reading less per session. A measurement that flatters the strategy you already hold is the one to
+re-derive first. So:
 
 | If the sessions show | Then |
 |---|---|
@@ -72,7 +71,7 @@ stages:
   down into a stage, never from deleting one.
 - **Name the rule fragment.** A rule's fragment under `docs/rules/` is what is true now, with its
   reasons and its Declined list. Two or three fragments per stage is the shape.
-- **A goal's other data goes in `extra`.** `milestone`, `files` and `env` are Novis's own fields, which
+- **A goal's other data goes in `extra`.** `files` and `env` are Novis's own fields, which
   looper never reads inside, and `tools/nv/lib/chain.ts` is what reads them.
 
 Three rules make it work:
@@ -93,7 +92,7 @@ manifest everybody works around.
 ### What a new goal inherits, and what it owes
 
 Most of the optimisation is **in the tools, and a new goal gets it for free**: `bun nv peek`, `verify`,
-`splice`, `plan` and `disk`, the rules and the session workflow in `AGENTS.md`, the handoff contract,
+`splice` and `disk`, the rules and the session workflow in `AGENTS.md`, the handoff contract,
 the playbook and `conventions.md`. They are about how this repository is read and written, not about
 what any goal is doing.
 
@@ -112,24 +111,27 @@ looper stops on an exit code, never on a session's opinion. So a goal must be ex
 that exit 0 and output that matches exactly. **If it cannot be, do not run it unattended** — no reliable
 stop condition means the run does not end with nobody watching.
 
-Failure modes worth naming, all of which have happened here:
+Failure modes worth naming:
 
-- **A threshold is not a milestone.** An acceptance list that checks fixtures rather than coverage is
+- **A threshold is not the goal.** An acceptance list that checks fixtures rather than coverage is
   reached long before the work is. If "complete" means every member, the check must be a test that
   *reads the source of truth* and fails naming what is missing. A count of
   conformance cases is a proxy; a test that enumerates the source of truth is not.
 - **A green suite is not a run guard.** `cargo test` passes on a suite that never ran your new guard, so a
   named test must be checked for having *existed and run*. That is what a check's `tests` list is for,
   and it is why most of the tests a goal names do not exist when it is written: writing one is how an
-  item finishes.
+  item finishes. A name that matches nothing fails its check and holds the goal open, for one of three
+  causes. The work landed under another name: rewrite the name in the check. The work was pinned by a
+  `.nvst` case instead: move the check to the suite that owns it. The test is unwritten: write it, and
+  never rename it to something green, which hides an open hole. A session that lands a guard test
+  reconciles its name in the goal's check in the same slice.
 - **A chore is not a check.** A check that counts a backlog across the whole tree — every doc not yet
   swept, every item not yet summarized — is a pass the user fires, never a goal. It is red on arrival
   and holds the run on work no session of the goal can clear. A check has to be
   something the goal's own work turns green. `looper lint` does not look for a chore, so this is the
   author's to catch while the goal is written.
-- **A tag is not a build.** One goal's gate was `unowned: 0` from the owners audit, and
-  its first stage tagged every gap to the goal itself — which is what made the count zero, so the goal
-  was reached with forty items tagged to it and none built. A gate over a register must ask what the
+- **A tag is not a build.** A gate of `unowned: 0` from the owners audit turns green the moment a
+  stage tags every gap to the goal itself, with none of them built. A gate over a register must ask what the
   goal's own tag cannot answer: `bun nv owners --closes <slug>` is red while any item names the goal,
   and a session runs it itself before it writes `DONE`.
 
@@ -175,10 +177,9 @@ it to make the decision at the moment it is least equipped to.
 Stages run in order, so the acceptance report names exactly how far the loop got. The shape that keeps
 earning its place:
 
-1. **Catch-up, if anything is owed** — decisions accepted *after* the milestone that owns their work was
-   reported done. This runs before new breadth for one reason: every fixture written in the meantime is
-   written against a rule that is about to change, and the rewrite compounds. One goal's catch-up stage
-   had reached 48 files before it was paid off. Put it first or pay for it later, with interest.
+1. **Catch-up, if anything is owed** — decisions accepted *after* the goal that owns their work was
+   reached. This runs before new breadth for one reason: every fixture written in the meantime is
+   written against a rule that is about to change, and the rewrite compounds.
 2. **A non-regression floor** — the checks every later goal keeps green, **never traded for anything
    above it.** This is what makes a long unattended run safe. In looper's format it is the `floor:` of
    `docs/goals/README.md`, and a check joins it only when it sets `floor: true`.

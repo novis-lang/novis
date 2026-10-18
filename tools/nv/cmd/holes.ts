@@ -24,8 +24,7 @@
 // registry in `crates/nvs-diagnostics/src/lib.rs` gives its constant, and `no-such-constant` for one it
 // does not declare. `crates/nvs-ir/tests/refusals.rs` holds each code to a conformance case.
 //
-// The items are the live goal's numbered items in its goal file, `docs/goals/<slug>.md`, and the
-// carried ones in `docs/agent/carried-refusals.md`, which number from 900. A site belongs to the item
+// The items are the live goal's numbered items in its goal file, `docs/goals/<slug>.md`. A site belongs to the item
 // that names its enclosing function in backticks, or else to the item with the nearest `crates/…:NN`
 // anchor in the same file; a site neither claims is unattributed. The named cases are the `cases`
 // lists of the live goal's checks, in the same file's front matter. Nothing here is a gate.
@@ -38,9 +37,6 @@ import { ROOT } from "../lib/paths.ts";
 
 export const summary = "the shapes the language still refuses: nv holes [--item N | --unattributed | --cases | --sites | --guarded | --json]";
 
-const CARRIED_MD = "docs/agent/carried-refusals.md";
-/** Carried items number from here, so they cannot collide with a goal's own items. */
-const CARRIED_BASE = 900;
 const REGISTRY = "crates/nvs-diagnostics/src/lib.rs";
 /** Where a refusal can live. Both crates lower; nothing else does. */
 const SOURCES = ["crates/nvs-ir/src", "crates/nvs-codegen/src"];
@@ -257,16 +253,10 @@ function itemsIn(path: string): Item[] {
   });
 }
 
-/** The goal's items, then the carried ones. Null, after saying why, when a carried one is misnumbered. */
-function items(): Item[] | null {
-  const carried = itemsIn(CARRIED_MD);
-  const low = carried.find((i) => i.n < CARRIED_BASE);
-  if (low) {
-    console.error(`${CARRIED_MD}: item ${low.n} must be numbered from ${CARRIED_BASE} so it cannot collide with a goal's own item ${low.n}`);
-    return null;
-  }
+/** The live goal's items, or none when the chain names no live goal. */
+function items(): Item[] {
   const prose = goalProse();
-  return [...(prose === null ? [] : itemsIn(prose)), ...carried];
+  return prose === null ? [] : itemsIn(prose);
 }
 
 /** The live goal's prose, or null when the chain names no live goal. */
@@ -362,7 +352,6 @@ export async function run(args: string[]): Promise<number> {
   const files = sources();
   const found = sites(files);
   const scheduled = items();
-  if (scheduled === null) return 1;
   const cases = namedCases();
   const guards = guarded(files);
   const byItem = attribute(found, scheduled);
@@ -393,7 +382,7 @@ export async function run(args: string[]): Promise<number> {
   if (item !== null) {
     const one = scheduled.find((i) => i.n === item);
     if (!one) {
-      console.log(`no item ${item} in ${goalProse() ?? "the live goal's prose"} or ${CARRIED_MD}`);
+      console.log(`no item ${item} in ${goalProse() ?? "the live goal's prose"}`);
       return 1;
     }
     console.log(`item ${one.n}: ${one.title}\n`);
@@ -424,8 +413,7 @@ export async function run(args: string[]): Promise<number> {
     byFile(show, (s) => `    :${s.line}  ${head(s.message, 110)}`);
     if (unattributed && show.length > 0) {
       console.log("\nEach is a hole nobody scheduled or a decision nobody wrote down. Both are the");
-      console.log("goal's business before the code is -- an item in the live goal's prose, or one in");
-      console.log(`${CARRIED_MD}.`);
+      console.log("goal's business before the code is -- an item in the live goal's prose.");
     }
     return 0;
   }

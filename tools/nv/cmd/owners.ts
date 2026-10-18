@@ -29,9 +29,8 @@
 // designed rules, `--check` exits 1 while any is refused, and `--closes <slug>` exits 1 while any names
 // that goal, because a designed rule is reached when it ships.
 //
-// `--registers` counts every place owed work is written down: the gap records, the refusal runs in
-// `docs/agent/carried-refusals.md`, the guard names in `docs/agent/guard-name-debt.md`, and the
-// playbook bullets whose `until` names a state of the tree. It takes their counts and nothing else, since each has a gate over its own discipline.
+// `--registers` counts every place owed work is written down: the gap records and the playbook bullets
+// whose `until` names a state of the tree. It takes their counts and nothing else, since each has a gate over its own discipline.
 // The prose scan finds every gap that lives only in prose: a module doc heading that words owed work
 // outside a gap block, a `Known gaps` block that is not the one pointer line to its module's records,
 // and a numbered `gap N` reference. It reads Rust sources and tests, crate manifests and conformance
@@ -66,8 +65,6 @@ const UNOWNED = "unowned";
 const PLAYBOOK = "docs/agent/playbook";
 
 const CARRIED_GAPS = "docs/agent/carried-gaps.md";
-const CARRIED_REFUSALS = "docs/agent/carried-refusals.md";
-const GUARD_DEBT = "docs/agent/guard-name-debt.md";
 /** What the prose scan reads: every Rust source and test, every crate manifest, every conformance case. */
 const PROSE_SOURCES = ["crates/*/src/**/*.rs", "crates/*/tests/**/*.rs", "crates/*/Cargo.toml", "tests/**/*.nvst"];
 
@@ -279,17 +276,12 @@ interface Register {
   owners: string[];
 }
 
-/** The lines of a markdown file that open an entry, per `pattern`. */
 /** One empty owner per playbook bullet file, since a bullet names no owner. */
 function playbookBullets(): string[] {
   const dirs = readdirSync(join(ROOT, PLAYBOOK), { withFileTypes: true }).filter((d) => d.isDirectory());
   return dirs.flatMap((d) => readdirSync(join(ROOT, PLAYBOOK, d.name)).filter((f) => f.endsWith(".md")).map(() => ""));
 }
 
-function entryLines(path: string, pattern: RegExp): string[] {
-  if (!existsSync(join(ROOT, path))) return [];
-  return readFileSync(join(ROOT, path), "utf8").split("\n").filter((l) => pattern.test(l)).map(() => "");
-}
 
 
 /** Every place owed work is written down, in the order a gap is most often written. */
@@ -297,10 +289,6 @@ export function registers(found: Gap[]): Register[] {
   const all: (Omit<Register, "owners"> & { read: () => string[] })[] = [
     { name: "module docs", where: "data/gaps/", read: () => found.map((g) => g.owner),
       what: "a gap record, naming the goal that owns it" },
-    { name: "carried-refusals.md", where: CARRIED_REFUSALS, read: () => entryLines(CARRIED_REFUSALS, /^9\d\d\. /),
-      what: "a run of `nvs-ir` refusal sites, numbered from 900" },
-    { name: "guard-name-debt.md", where: GUARD_DEBT, read: () => entryLines(GUARD_DEBT, /^- \[/),
-      what: "a guard test a goal record's check names and the tree does not hold yet" },
     { name: "playbook until", where: `${PLAYBOOK}/`, read: playbookBullets,
       what: "a trap whose `until` names the state of the tree that retires it" },
   ];
