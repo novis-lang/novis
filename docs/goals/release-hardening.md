@@ -224,8 +224,31 @@ Seeded property tests cover path grants and the address table. A nightly serve s
 live bytes per request grow.
 
 - [ ] A runner mode sends many cases through one worker and compares each output with its fresh run. `crates/nvs-cli/src/runner.rs:1`
-- [ ] The Miri job runs the `nvs-runtime` and `nvs-stdlib` unit tests that need no JIT. `.github/workflows/ci.yml:1082`
+- [ ] The Miri job runs the `nvs-runtime` and `nvs-stdlib` unit tests that need no JIT. `.github/workflows/ci.yml:1104`
+  The user decided how: one pass that lists every failure, never a rerun per failure, and a job that
+  finishes inside its budget. Measure with one background run and hand off, never round after round
+  inside a session.
+  - [ ] Miri runs under nextest, `cargo +nightly miri nextest run`, in CI and locally. Each test gets its
+    own process, so a test Miri cannot run fails alone and the run goes on. TSAN covers the cross-test
+    races this gives up.
+  - [ ] A test that does what Miri can never do gets `#[cfg_attr(miri, ignore = "<the reason>")]` on
+    itself, never a module skip and never a CI skip list. Found so far: a Unix socket
+    (`ctx::output::tests::a_context_sends_both_writers_to_syslog_when_the_target_names_it`), `openat`
+    (`beneath`'s tests and the runtime's `capability` tests that reach the file doors), a process
+    (`child_watch`), `mmap` with a guard page (the `json` depth tests) and `ring`'s C and assembly.
+    The rest of `beneath` and `capability` is what Miri is for, so it keeps running.
+  - [ ] A test that is only slow under Miri runs a smaller input under `cfg!(miri)`, never a skip
+    (the `uri` budget test and the large-text JSON tests).
+  - [ ] `nvs-runtime` and `nvs-stdlib` run as separate jobs or `--partition` shards, each well under its
+    `timeout-minutes`, so the job ends green or red and never cancelled.
+  - [ ] Miri's default model, Stacked Borrows. Its first run reported undefined behaviour in the pool
+    allocator: a retag through a reference over a block, reached through `counting_alloc::Counting`
+    wrapping `alloc::Pooled` (`crates/nvs-runtime/src/alloc.rs:226`). Fix it at its cause if the fix is
+    local. If it needs `-Zmiri-tree-borrows` instead, stop with `BLOCKED` and name the report: the
+    model is the user's call.
 - [ ] Seeded property tests: a grant on `a/secret1` never grants `a/secret`, and every address in a denied range is denied in each of its spellings.
+  - [x] The tests are in `crates/nvs-config/tests/capability.rs`, committed unverified as `2003e3d40`.
+  - [ ] Verified green and kept.
 - [ ] A nightly soak serves many requests and fails when live bytes grow with the request count. `crates/nvs-runtime/tests/server_memory.rs:1`
 
 ### 9. a security fix gets an advisory, and a release proves what it ships
