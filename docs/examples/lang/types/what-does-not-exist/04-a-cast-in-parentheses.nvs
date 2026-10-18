@@ -1,0 +1,6 @@
+<?nvs
+// Shows that a cast in parentheses does not compile. The error names the `as` conversion to write.
+// proof: compile-error
+
+float $price = 3.9;
+echo (int)$price, "\n";

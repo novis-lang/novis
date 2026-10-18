@@ -1,0 +1,7 @@
+<?nvs
+// Shows that `gettype` and `settype` do not exist. Use `is` or `as` instead.
+// proof: compile-error
+
+mixed $value = 1;
+echo gettype($value), "\n";
+settype($value, "string");

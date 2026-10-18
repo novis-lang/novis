@@ -1,7 +1,5 @@
 <?nvs
-// Shows a price list being read line by line: no cast, no free function, and
-// text that never takes part in arithmetic. This is what most of the work of
-// bringing a PHP program over looks like.
+// Shows a program that reads a price list with `as`, `Core\Str::split` and `Core\Str::compare`.
 
 class PriceList {
     public static function summarise(array<string> $lines): string {
@@ -9,18 +7,18 @@ class PriceList {
         string $firstName = "";
 
         foreach ($lines as string $line) {
-            // Every name in a destructuring says what it holds.
+            // This takes the array apart. Each variable has its own type.
             [string $name, string $amount] = Core\Str::split($line, ",");
 
-            // A field that is not a number answers `null` here, rather than
-            // turning into a zero somewhere further down.
+            // For text that is not a number, the result is `null`.
+            // So the line "plums,not a price" is skipped.
             ?int $price = $amount as ?int;
             if ($price == null) {
                 continue;
             }
             $total = $total + $price;
 
-            // Two pieces of text are ordered with a member, not with `<`.
+            // `Core\Str::compare` orders two strings. It is less than 0 when `$name` comes first.
             if ($firstName == "" || Core\Str::compare($name, $firstName) < 0) {
                 $firstName = $name;
             }

@@ -1,0 +1,10 @@
+error[E0225]: `(int)expr` is not supported
+  --> 04-a-cast-in-parentheses.nvs:6:6
+  |
+6 | echo (int)$price, "\n";
+  |      ^^^^^^^^^^^ Novis keeps exactly one conversion spelling
+  = help: use `expr as int` — it throws instead of silently truncating
+  = suggestion (review): rewrite as `$price as int`: `$price as int`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
