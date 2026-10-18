@@ -1,0 +1,7 @@
+<?nvs
+// Shows that an `int` is not converted to a `uint` without `as`. Write `$i as uint`.
+// This program does not compile.
+// proof: compile-error
+
+int $i = 3;
+uint $u = $i;
