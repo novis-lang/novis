@@ -22,7 +22,7 @@ stages:
     context: [docs/release.md, tools/nv/cmd/release.ts, tools/nv/cmd/reference.ts, website/src/content/docs/install/index.mdx]
   - id: 5
     title: "AGENTS.md is one document, and docs/agent says each thing once"
-    status: open
+    status: done
     context: [docs/agent/commands.md, docs/agent/conventions.md, docs/agent/playbook.md, looper.toml]
   - id: 6
     title: "each language feature's facts are in its about.md, its details.md and its examples, once"
@@ -69,6 +69,10 @@ by tools, so each deletion takes its tooling with it.
 ## Standing decisions
 
 **The user decided:**
+- **Novis works without looper** (AGENTS.md § *Novis works without looper*). Nothing is moved,
+  replaced or deleted so that the work needs looper. Stage 5's trim of AGENTS.md keeps every `bun nv`
+  command a session without looper uses, such as `bun nv affected --run` for verify, even where the
+  managed block names a `looper` command.
 - **The website wins for anything public.** `docs/` keeps only what developers of Novis need for
   the project's own work. Where a doc repeats the website, the doc's copy is deleted. Where a doc has
   public content the website lacks, it moves to the website first, written to AGENTS.md § *Text an
@@ -226,7 +230,7 @@ record, a module doc or a line in its goal.
 **Does:** AGENTS.md says each thing once, every file under `docs/agent/` is current and unique, and
 the playbook holds only traps that can still happen.
 
-- [ ] AGENTS.md outside the markers holds only what the managed block lacks, and no rule number, step count or budget contradicts it. The text names the mid-work check, `bun nv verify --fast -p <crate>` after each slice, and the shell shapes the guard refuses, each with the call to make instead. `AGENTS.md:1`, `AGENTS.md:392`
+- [x] AGENTS.md outside the markers holds only what the managed block lacks, and no rule number, step count or budget contradicts it. The text names the mid-work check, `bun nv verify --fast -p <crate>` after each slice, and the shell shapes the guard refuses, each with the call to make instead. `AGENTS.md:1`, `AGENTS.md:392`
 - [x] `commands.md` and `conventions.md` lose every section another home holds, every measured figure and every story, and the dead `§ Names` anchor and section references are fixed. `docs/agent/commands.md:24`, `docs/agent/conventions.md:494`, `docs/agent/testing.md:16`
   - [x] `commands.md`'s figures and stories go, and its *Disk* and WSL sections point at `disk.ts`, `mirror.ts`, `Cargo.toml` and `tests_without_pdb.rs`
   - [x] `conventions.md` loses its stories, the plan, the spec's test and the measured link count
@@ -271,97 +275,38 @@ repeats none of their text.
 ### State
 
 Stage 1 is done but for one file. **Blocked on looper, not on this repo:** `docs/design.md` stays as
-a five-line pointer, because looper's managed block in AGENTS.md links it (`AGENTS.md:392`) and
-`looper lint` refuses a hand edit inside the markers. Once looper's `agents` template stops linking
-it, delete the file, add `design\.md` to `DELETED_DOC_CITE` (`tools/nv/cmd/rules.ts:107`) and tick
-stage 1's last sub-item. Stage 1 stays `open` until then.
+a five-line pointer, because looper's managed block in AGENTS.md links it and `looper lint` refuses a
+hand edit inside the markers. Once looper's `agents` template stops linking it, delete the file, add
+`design\.md` to `DELETED_DOC_CITE` (`tools/nv/cmd/rules.ts:107`) and tick stage 1's last sub-item.
 
-Stage 2 is done.
+Stages 2, 3 and 4 are done.
 
-Stage 3 is done. `docs/perf/` is gone: every ledger is under `data/perf/`, and `bun nv rules
---check` fails on a new citation of `docs/perf/` (`tools/nv/cmd/rules.ts:107`). The perf notes'
-still-true facts are in module docs: `sort.rs` (where the key sort is slower), `nvs-codegen`'s
-`lib.rs` (the tier is not where time goes), and the costs `performance-pass.md` named in `regex.rs`,
-`layout.rs`, `ctor_init.rs`, `scheduler.rs`, `channel.rs`, `request.rs` and the task-stack rule.
-Goal `fewer-allocations` states its `Markup`, hash and format designs itself. The measured tables
-and the cross-engine figures were dropped.
+Stage 5 is done. AGENTS.md's project half is the priority ordering, § *Novis works without looper*
+(copied verbatim from `main`'s 254ff50d1, so the merge is clean), § *The rules only this project has*,
+§ *Text an end user reads*, § *In the loop* and the stack departures. Every `bun nv` instruction the
+cut sections held is still named there or in `docs/agent/commands.md`: `peek`, `splice --patch`,
+`affected --run` as the gate, `verify --fast -p <crate>` as the mid-work check, and the `looper wrap`
+steps by hand. New homes: `commands.md` § *What the guards refuse, and the call to make instead*
+(each refusal of `bun nv guard` and `looper guard`), § *Scratch files and worktrees*, and the side-goal
+paragraph under § *The loop's hooks*; `conventions.md` § *A handoff*. Every citation of a removed
+section or rule number is repointed, including `guard.ts`'s `cargo-p` message, which cited
+"AGENTS.md rule 5" where the block's rule 5 is something else.
 
-Stage 4's items are all done. `docs/novis.md` is gone: `bun nv render --website` writes
-`website/public/llms-full.txt` through `tools/nv/renderers/website-llms.ts`, and Astro copies it to
-`/llms-full.txt`. The file is committed beside `core.json`, because `pages.yml` builds without a
-binary, so "at build time" is the sync step and CI's `render --website --check` is its staleness
-check. `bun nv reference` is the example run alone (`--only`, `--primer`, `--agent-walk`); its
-`--check`, `--stale-fails`, `--no-examples` and `--examples-only` are gone. `nv verify` no longer
-regenerates the reference, so a chapter or card edit needs `bun nv render --website` by hand
-(`docs/agent/commands.md` § *Verifying*). Stage 4 is `done`: `bun nv verify --doc` is green.
-
-Stage 5 has begun. `commands.md` and `conventions.md` carry no measured figure, no story and no
-citation of the plan or the spec; `commands.md`'s *Disk* and WSL sections point at `disk.ts`,
-`mirror.ts`, `Cargo.toml`'s `[profile.dev]` and `tests_without_pdb.rs`, which own the reasoning.
-`optimization-prompt.md`, `carried-refusals.md` and `guard-name-debt.md` are gone; `bun nv holes`
-reads the live goal's items alone, `bun nv owners --registers` lists two registers, and the guard-name
-causes are in `loop-authoring.md` § 3. `coordinator.md` and `loop-authoring.md` carry no story, no
-milestone and no stale number. `looper.toml` sets `[orient] traps = 8`, and the `git stash` bullet
-is deleted. `looper playbook retire --check` is clean.
-
-The playbook sweep has begun. `divergences/` and `splitting-a-file/` are done: two divergences
-bullets repeated `tooling/`'s `benches/` bullet and `running-things/`'s `os error 5` bullet and are
-deleted; the other 22 are live traps (each `until` anchor checked). Most bullets name a concrete
-example beside their trap, and that is not a story: a story is a bullet whose only content is what
-a session did. `how-novis-is-written.mdx` no longer prints a count of notes, because the count only
-falls while this sweep runs.
-
-`running-things/` is done: 124 bullets stay. The 22 deleted ones repeated another bullet (the
-worktree `node_modules`, `sd_notify`, perf-stale, nightly-CI, `<?nvs`, debug-stack, `bun nv try`,
-Docker-stopped and `CLAUDECODE` traps), contradicted the code (`try.ts` runs the covws build,
-`proofs.ts:86` reads `target/release` first, the roster bullet cited the deleted spec), named one
-flaky test whose trap the general "passed alone" bullet already states, or described a trap the
-tooling now handles (`runPrograms`' retry).
-
-`tooling/` is done: 182 bullets stay. The 16 deleted ones repeated another bullet (the
-`.agent-tmp/msg.txt`, doc-comment insertion, `NOT IMPLEMENTED` note, `peek re:`, hand-edited record,
-render-binary and splice-anchor traps, and three `running-things/` ones on perf staleness and the
-proofs roster), contradicted the code (`splice.ts:169` refuses a repeated anchor, `site.ts:1300`
-reads `target/release` first), described a trap the tooling now handles (`suiteVerdict`, `show`'s
-exact match), or were about the deleted decision records and Python tools.
-
-`writing-novis/` is done: 297 bullets stay. The 19 deleted ones repeated another bullet (the
-`HANDLES` roster, `regex::grow`, the `nvs_ir::Helper` symbol table, the `CoreTy` variant's
-`mentions` arm, the type-parse backtrack, the `spawn script` `Err` edge, the row-less symbol,
-`array<K, V>` twice, `Bytes::length` against `slice`, the error-path phrase, the cross-crate
-`#[non_exhaustive]` match, the four gates of a new row, the frozen union rendering), contradicted
-the code (`bind.rs:186` makes only `ErrorKind::Other` a `DbError`, `verify.ts:53` runs `fmt`
-first, one bullet told a session to join `UNCLASSIFIED`), cited the deleted spec, or described a
-sweep `capability.rs`'s `takes_a_path` now handles.
-
-`writing-a-test-case/` is done, and with it the whole playbook sweep: 439 bullets stay. The 41
-deleted ones repeated another bullet: the `E0406` scope cluster (the two "same type may reuse a
-name" bullets stay, because they add a rule), the `E0459` loop narrowing, `?? 0` on a `uint`,
-`as ?string` on `null`, the `uint` array subscript in a bench (six), the error-path window, the
-`--GET--` sink, the one-`#[cfg(test)]` scan (three), the floor of three, the attribution of a `?T`,
-`array<T>` or title-only class, `bun nv try` dropping sections, `Arr::append`, the debug UTF-8
-check, the `Ctx` pending throw, `%2$s`, `missing/..`, the task `echo` buffer, the multi-argument
-`echo`, `cfg(unix)` against a `cargo`-named check and `as` precedence. Four contradicted the code: two
-said a new attack or example fails `nv verify` until formatted (`verify.ts:55` formats it, and
-`identity.rs:44` reads only `tests/` and `examples/`), one advised `(0 as uint)`, and
-`running-things/`'s `#[global_allocator]` bullet named `debug_assertions` where
-`nvs-runtime/src/lib.rs:279` uses `not(test)`. A `bun nv try` copy each in `running-things/` and
-`tooling/` went with the cluster.
-
-The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last seven
-sessions found. `bun nv site --check` also fails on pages this goal has not touched: stale question
-entries, long paragraphs in `compare.mdx` and `run-as-a-service.mdx`, and the `/reference/types/` link.
+The sweep's red items are not this branch's: the CI jobs fail on remote `main`, as earlier sessions
+found, and the red bench `benches/members/core/Ldap-Connection/delete.nvs` belongs to the `ldap` work
+on `main`. `bun nv site --check` also fails on pages this goal has not touched.
 
 ### Next
 
-Stage 5's last item, AGENTS.md outside the markers. The file set is `AGENTS.md` alone, against
-the managed block below it. Carried decision: the project's half holds only what the block lacks.
-- [ ] Delete from the project's half each section the block restates: *Where to look*, the rules the block lists as 1 to 14, and *Session workflow* with its *Keep each slice small*. Move any fact only the project's half has into the block's named home (`docs/agent/commands.md`, `conventions.md`, `grounding.md`) first. `AGENTS.md:14`, `AGENTS.md:392`
-- [ ] Name the mid-work check, `bun nv verify --fast -p <crate>`, and each shell shape the guard refuses with the call to make instead (a `>` redirect is one: `looper guard` refused it this session). `AGENTS.md:1`, `docs/agent/commands.md:1`
-- [ ] No rule number, step count or budget in the project's half contradicts the block's, then `looper lint` and `bun nv verify --doc`. Then stage 5 is done. `AGENTS.md:392`
+Stage 6's first item, the proofs tooling for `details.md`. The file set is `tools/nv/proofs/`.
+- [ ] The proofs roster knows an optional `details.md` under a feature's examples folder, and holds it to the comment bounds. `tools/nv/proofs/roster.ts:27`
+- [ ] Whether the examples tree accepts an example that shows a compile error is checked, and support is added if it does not. `tools/nv/proofs/roster.ts:27`
+- [ ] Then `40-statements` as the pattern, one feature at a time. `docs/reference/lang/40-statements.md:244`, `docs/examples/lang/statements/break-and-continue/about.md:1`
+
 ### Backlog
 
 - `docs/design.md` is deleted once looper's managed block no longer links it. `docs/goals/docs-cleanup.md:163`
 - `docs/agent/testing.md` is looper-managed (`looper lint` refuses a hand edit) and links a `§ *Names*` that `conventions.md` lacks; looper's template owns the fix. `docs/agent/testing.md:16`
-- About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them to the `rule:` id each meant needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
-- Stages 6 to 8 put each fact about a language feature in one place: its `about.md`, a new `details.md` or an example. The syntax pages and the chapters are built from them. `docs/goals/docs-cleanup.md:213`
+- About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
+- The guard messages and `peek.ts`/`splice.ts` comments cite "AGENTS.md rule 1" and "rule 3" by the block's numbers, which a template change can move; citing `commands.md` sections would not. `tools/nv/cmd/guard.ts:259`
+- Stages 7 and 8 render the syntax pages and the chapters from each feature's `about.md` and `details.md`. `docs/goals/docs-cleanup.md:257`
