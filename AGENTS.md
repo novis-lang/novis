@@ -69,6 +69,23 @@ When choosing between designs:
 - Saving memory at the cost of an invariant every future contributor must remember is the wrong direction —
   that is the account the unsafe modules are already drawing on.
 
+## Novis works without looper
+
+**Every Novis developer, and CI, can do all of the project's work without looper.** Only a few people
+have looper installed, and CI never does. So every gate a change must pass (build, test, verify, the
+guard, the prose and commit checks, the doc and layout checks) is written once in `bun nv` and runs with
+`bun nv` alone. Looper may run that command. It never replaces it.
+
+- **Never move, replace or delete a command, a check or an instruction so that the work needs looper.**
+  A change that would do so is wrong even when looper's version checks more: extend `bun nv` instead,
+  and change looper to run it.
+- Only loop coordination is looper's alone: the loop itself, claims, `looper exec`, goal lint and the
+  goals README render.
+- Where looper's managed block below names a `looper` command for a gate, the `bun nv` command it runs is
+  what a session without looper uses, and this section wins over the block. A cleanup of this file keeps
+  every such `bun nv` command. [commands.md](docs/agent/commands.md#without-looper) § *Without looper*
+  names the command for each.
+
 ## The rules you will otherwise break
 
 Each is one sentence here because not knowing it exists is the entire cost. The mechanism, and why, is in
