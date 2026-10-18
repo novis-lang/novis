@@ -583,7 +583,7 @@ pub fn pinned_address(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::I
 /// The open is [`resolve`]'s path through [`crate::beneath`], so a link planted after the check
 /// fails it.
 pub fn open_read(ctx: &Ctx, path: &Path, member: &str) -> Result<File, Fault> {
-    let at = resolve(ctx, path, &[Cap::FsRead], member)?;
+    let at = resolve_file(ctx, path, &[Cap::FsRead], member)?;
     nvs_footprint::file(path);
     crate::beneath::open_file(&at, crate::beneath::Mode::Read)
         .map_err(|err| io_failure(member, path, &err))
@@ -637,7 +637,7 @@ pub fn open(ctx: &Ctx, path: &Path, access: Access, member: &str) -> Result<File
         Access::Write | Access::Append => &[Cap::FsWrite],
         Access::ReadWrite => &[Cap::FsRead, Cap::FsWrite],
     };
-    let at = resolve(ctx, path, caps, member)?;
+    let at = resolve_file(ctx, path, caps, member)?;
     if matches!(access, Access::Read | Access::ReadWrite) {
         nvs_footprint::file(path);
     }
@@ -674,7 +674,7 @@ pub fn open(ctx: &Ctx, path: &Path, access: Access, member: &str) -> Result<File
 /// `path`, checked before anything is created for [`write()`]'s reason. [`io_failure`]'s `IOError`
 /// when the create itself fails — including `AlreadyExists`, which is what a refused overwrite is.
 pub fn create(ctx: &Ctx, path: &Path, overwrite: bool, member: &str) -> Result<File, Fault> {
-    let at = resolve_write(ctx, path, member)?;
+    let at = resolve_file(ctx, path, &[Cap::FsWrite], member)?;
     crate::beneath::create_file(&at, overwrite).map_err(|err| io_failure(member, path, &err))
 }
 
@@ -707,6 +707,28 @@ fn resolve(ctx: &Ctx, path: &Path, caps: &[Cap], member: &str) -> Result<PathBuf
     device_refusal(path, member)?;
     let at = nvs_config::capability::resolved(path, &nvs_config::resolve::Disk);
     allow(ctx, path, at, caps, member)
+}
+
+/// [`resolve`] for a door that opens a file, which a path ending with a separator never names.
+///
+/// The resolved path has no separator at its end, so it would open a file named like the folder
+/// that path spells. This checks the path as the program wrote it, after the grant, so a path
+/// outside the grant is still refused as a capability.
+///
+/// # Errors
+///
+/// [`resolve`]'s, or an `IOError` for a path that ends with a separator.
+fn resolve_file(ctx: &Ctx, path: &Path, caps: &[Cap], member: &str) -> Result<PathBuf, Fault> {
+    let at = resolve(ctx, path, caps, member)?;
+    let written = path.as_os_str().to_string_lossy();
+    if written.ends_with(std::path::is_separator) {
+        let err = std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "a path that ends with a separator names a folder, not a file",
+        );
+        return Err(io_failure(member, path, &err));
+    }
+    Ok(at)
 }
 
 /// [`resolve_write`] for a door that changes the name itself rather than the file it names: the
@@ -782,7 +804,7 @@ fn allow(
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
 /// `path`, or [`io_failure`]'s `IOError` when the write itself fails.
 pub fn write(ctx: &Ctx, path: &Path, bytes: &[u8], member: &str) -> Result<(), Fault> {
-    let at = resolve_write(ctx, path, member)?;
+    let at = resolve_file(ctx, path, &[Cap::FsWrite], member)?;
     crate::beneath::create_file(&at, true)
         .and_then(|mut file| std::io::Write::write_all(&mut file, bytes))
         .map_err(|err| io_failure(member, path, &err))
@@ -816,8 +838,8 @@ pub fn write(ctx: &Ctx, path: &Path, bytes: &[u8], member: &str) -> Result<(), F
 /// two paths name one file, or the copy itself fails. The message names [`pair`]'s both-ends
 /// spelling, because either end can be the one at fault.
 pub fn copy(ctx: &Ctx, from: &Path, to: &Path, member: &str) -> Result<(), Fault> {
-    let from_at = resolve(ctx, from, &[Cap::FsRead], member)?;
-    let at = resolve_write(ctx, to, member)?;
+    let from_at = resolve_file(ctx, from, &[Cap::FsRead], member)?;
+    let at = resolve_file(ctx, to, &[Cap::FsWrite], member)?;
     let fail = |err: &std::io::Error| io_failure(member, &pair(from, to), err);
     let refuse = |why: &str| fail(&std::io::Error::new(std::io::ErrorKind::InvalidInput, why));
     let mut source = crate::beneath::open_file(&from_at, crate::beneath::Mode::Read)
@@ -1606,9 +1628,9 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr};
 
     use super::{
-        Cap, Ctx, Fault, PINNED_ADDRESSES, Path, Scope, ThrownClass, create, exec, granted,
-        install_resolver, open_read, pin_host, pin_host_addresses, rename, require, shell_target,
-        spawn_target, temp_dir, working_dir, write,
+        Access, Cap, Ctx, Fault, PINNED_ADDRESSES, Path, Scope, ThrownClass, copy, create, exec,
+        granted, install_resolver, open, open_read, pin_host, pin_host_addresses, rename, require,
+        shell_target, spawn_target, temp_dir, working_dir, write,
     };
 
     /// The member a case refuses on behalf of. `run` and not `spawn` for no reason beyond being the
@@ -2103,6 +2125,37 @@ mod tests {
             panic!("there is no `/srv/data/console.txt` to open");
         };
         assert_eq!(class, ThrownClass::Io, "{message}");
+    }
+
+    /// A path that ends with a separator names a folder, so no file door opens or creates a file
+    /// by the name in front of it. The resolved path has lost the separator, and only the path as
+    /// written still shows it.
+    #[test]
+    fn a_path_ending_with_a_separator_is_refused_by_every_file_door() {
+        let root = scratch("trailing-separator");
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(snapshot_of(
+            "[capabilities.fs]\nread = true\nwrite = true\n",
+        ));
+        let source = root.join("source.txt");
+        std::fs::write(&source, b"x").expect("the scratch folder is writable");
+        let folder = format!("{}/", root.join("folder").display());
+        let path = Path::new(&folder);
+        let refusals = [
+            open_read(&ctx, path, MEMBER).map(drop),
+            open(&ctx, path, Access::Write, MEMBER).map(drop),
+            write(&ctx, path, b"x", MEMBER),
+            create(&ctx, path, true, MEMBER).map(drop),
+            copy(&ctx, &source, path, MEMBER),
+        ];
+        for refused in refusals {
+            let Err(Fault::Thrown(class, message)) = refused else {
+                panic!("`{folder}` ends with a separator, so the door refuses it");
+            };
+            assert_eq!(class, ThrownClass::Io, "{message}");
+            assert!(message.contains("ends with a separator"), "{message}");
+        }
+        assert!(!root.join("folder").exists(), "no file was created");
     }
 
     /// The other half of the same rule, which the cases above cannot show: every other target kind
