@@ -7,7 +7,7 @@
       {
         "hooks": [
           {
-            "command": "bun nv guard",
+            "command": "command -v looper >/dev/null 2>&1 || bun nv guard",
             "type": "command"
           }
         ],
