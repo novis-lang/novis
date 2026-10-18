@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/expr/mod.rs",
+  "title": "A `match` with two `default` arms compiles, and so does a `switch` with two `default` labels.",
+  "text": "`match ($n) { default => \"first\", 1 => \"one\", default => \"second\" }` compiles and gives `\"first\"` for every subject but `1`, so the second `default` can never run and nothing says so. A `switch` with two `default:` labels compiles too, and runs the first. It closes when a second `default` in either is a compile error where it is written, with a conformance case.",
+  "goal": "release-hardening"
+}

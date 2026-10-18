@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/expr/operators.rs",
+  "title": "A negative literal compared with a `uint` throws when it runs.",
+  "text": "`uint $u = 3; echo ($u == -1) as string;` compiles, and then throws `ArithmeticError` (\"Integer negation overflowed\"): the literal `1` is placed at `uint` and then negated. A `switch` label or a `match` arm of `-1` against a `uint` subject throws the same when it is reached. `rule:types/ordering` and `rule:expressions/equality-semantics` compare `int` and `uint` exactly over both ranges, so `-1` against a `uint` is `false`. It closes when the comparison gives `false`, or the literal is a compile error where it is written, with a conformance case.",
+  "goal": "release-hardening"
+}

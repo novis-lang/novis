@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-ir/src/lower/control.rs",
+  "title": "A `match` arm that calls a `void` method stops with an internal error.",
+  "text": "`match ($n) { 1 => A::f(), default => A::f() };`, where `A::f` returns `void`, passes the checker, and the build then stops with `E0901` (\"internal error: a phi of representation `void`\"). With one `void` arm and one `print` arm, or with the `match` assigned to a `mixed` local, it stops with `E0901` (\"an operand used before it is defined\"). A `void` call has no value, so an arm that is one is `E0707` where it is written, as `echo` of a `void` call is. It closes when that is so, with a conformance case.",
+  "goal": "release-hardening"
+}
