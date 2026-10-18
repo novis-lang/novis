@@ -1,0 +1,9 @@
+error[E0499]: `static::` does not resolve a static property
+   --> 09-static-on-a-static-property.nvs:10:16
+   |
+10 |         return static::$n;
+   |                ^^^^^^ the called class is only known at run time
+   = help: write `self::` for the class this is declared in, or name the class whose storage is meant
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

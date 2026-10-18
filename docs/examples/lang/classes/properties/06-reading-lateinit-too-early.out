@@ -1,0 +1,2 @@
+threw: `Widget`'s property `$logger` is read before it is initialized
+log
