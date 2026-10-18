@@ -1,0 +1,9 @@
+error[E0122]: a property must declare `public`, `protected` or `private`
+  --> 04-a-member-with-no-visibility.nvs:7:9
+  |
+7 |     int $balance = 0;
+  |         ^^^^^^^^ no visibility written here
+  = suggestion: write `public`: `public `
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
