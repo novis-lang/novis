@@ -211,9 +211,12 @@ record, a module doc or a line in its goal.
 
 - [x] `docs/docker.md`'s public parts join `guides/production/docker.mdx`: the image and its tags, the variants, Compose, CLI use, stopping, health probes and verifying. The stale "one process on one core" section is dropped. Building locally and *Why not Alpine* go to `docker/README.md`. `release.yml`'s documentation label, the Dockerfile, `smoke.sh` and `.gitignore` are repointed. `.github/workflows/release.yml:588`, `docker/Dockerfile:15`
 - [x] `docs/why-tainted-and-secret.md`'s three readers, its comparison table and its five points become a website page under `in-depth/`. *What not to claim yet* goes to `rule:programs/three-claims`. `README.md:17` is repointed. `website/src/content/docs/in-depth/concepts/tainted-input.mdx:1`
-- [ ] `docs/release.md` keeps the procedure. *Verifying a published binary* goes to the install page, the user-facing half of the version scheme goes to the website, and its wrong counts are fixed. `docs/release.md:180`, `tools/nv/cmd/release.ts:88`
+- [x] `docs/release.md` keeps the procedure. *Verifying a published binary* goes to the install page, the user-facing half of the version scheme goes to the website, and its wrong counts are fixed. `docs/release.md:180`, `tools/nv/cmd/release.ts:88`
 - [ ] `bun nv reference` writes `/llms-full.txt` into the website build, and `docs/novis.md`, its CI `--check` and verify's staleness step are deleted. `tools/nv/cmd/reference.ts:786`, `.github/workflows/ci.yml:892`, `tools/nv/cmd/verify.ts:1047`
 - [ ] `docs/reference/tools/30-php-differences.md` gets a website page, and `README.md:44` is repointed. `docs/reference/findings.md`'s open items become gap records, and the file is deleted with its citations. `tests/conformance/core/arr-sort-orders-decimals.nvst:9`
+  - [x] the website's *Coming from PHP* page shows the chapter's three features through `FeatureSection.astro`, and the README links it
+  - [ ] `findings.md`'s open items (U13, M10 and any the triage still counts) become gap records or rule text
+  - [ ] the eight files that cite `findings.md` are rewritten, the file is deleted, and its path joins `DELETED_DOC_CITE`
 
 ### 5. AGENTS.md is one document, and docs/agent says each thing once
 
@@ -272,11 +275,15 @@ still-true facts are in module docs: `sort.rs` (where the key sort is slower), `
 Goal `fewer-allocations` states its `Markup`, hash and format designs itself. The measured tables
 and the cross-engine figures were dropped.
 
-Stage 4 is two items in. `docs/docker.md` is gone: its public parts are the website's Docker guide,
-the local build and *Why not Alpine* are `docker/README.md`, and the image's documentation label
-points at the guide's source. `docs/why-tainted-and-secret.md` is gone into the tainted-input
-concept page, and its *What not to claim yet* is in `rule:programs/three-claims`. Both paths are in
-`DELETED_DOC_CITE` (`tools/nv/cmd/rules.ts:110`).
+Stage 4 is three items in, and half of a fourth. `docs/docker.md` is gone: its public parts are the
+website's Docker guide, the local build and *Why not Alpine* are `docker/README.md`, and the image's
+documentation label points at the guide's source. `docs/why-tainted-and-secret.md` is gone into the
+tainted-input concept page, and its *What not to claim yet* is in `rule:programs/three-claims`.
+Both paths are in `DELETED_DOC_CITE` (`tools/nv/cmd/rules.ts:110`). `docs/release.md` is the
+procedure only: checking a release archive is on the install page, and the version scheme for users
+is on *What changed*. The website has a *Coming from PHP* page, built from the chapter's three
+features' `about.md` and examples by `website/src/components/FeatureSection.astro`; the chapter
+stays, because the binary embeds it.
 
 The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch: `docs`, `proofs` on
 three platforms, the cost guards, supply chain, attribution and `docs/novis.md`. None is this
@@ -286,9 +293,9 @@ question entries, five long paragraphs in `compare.mdx` and `run-as-a-service.md
 
 ### Next
 
-Stage 4, on `docs/release.md`, `tools/nv/cmd/release.ts` and the install page.
-- [ ] `docs/release.md` keeps the procedure; *Verifying a published binary* goes to the install page, and the user-facing half of *The version scheme* goes to the website. `docs/release.md:153`, `docs/release.md:182`, `website/src/content/docs/install/index.mdx:1`, `tools/nv/cmd/release.ts:82`
-- [ ] `docs/reference/tools/30-php-differences.md` gets a website page, and `README.md:44` is repointed. `docs/reference/findings.md`'s open items become gap records. `tests/conformance/core/arr-sort-orders-decimals.nvst:9`
+Stage 4, on `docs/reference/findings.md` and the eight files that cite it.
+- [ ] `findings.md`'s open items, U13 and M10, become gap records under `data/gaps/` or rule text; U13 already has `data/gaps/nvs-types/a-throwable-property-is-writable.json`. `docs/reference/findings.md:165`, `docs/reference/findings.md:408`
+- [ ] Every citation of `findings.md` is rewritten to the rule or gap it meant, the file is deleted, and its path joins `DELETED_DOC_CITE`. `tests/conformance/core/arr-sort-orders-decimals.nvst:9`, `crates/nvs-types/src/expr/args.rs:1`, `crates/nvs-stdlib/src/registry.rs:1`, `tools/nv/cmd/rules.ts:110`
 
 ### Backlog
 

@@ -1,0 +1,27 @@
+---
+/**
+ * One feature as a section of a hand-written page: an `h2` of the given
+ * heading, the feature's `about.md` and every example it has, all read in
+ * place from `docs/examples/` by src/lib/feature.ts. A feature with no
+ * `about.md` fails the build, so a page cannot link a feature that does not
+ * exist.
+ */
+import FeatureExamples from '~/components/FeatureExamples.astro'
+import { aboutFor } from '~/lib/feature'
+
+interface Props {
+  /** The feature's path under `docs/examples/`, such as `tools/php-differences/the-short-list`. */
+  examples: string
+  heading: string
+  id: string
+}
+
+const { examples, heading, id } = Astro.props
+const feature = { examples }
+const about = aboutFor(feature)
+if (!about) throw new Error(`docs/examples/${examples}/about.md does not exist`)
+---
+
+<h2 id={id}>{heading}</h2>
+{about.blocks.map((html) => <Fragment set:html={html} />)}
+<FeatureExamples feature={feature} />
