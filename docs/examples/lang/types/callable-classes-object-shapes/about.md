@@ -13,4 +13,5 @@ is checked when it runs, and `as ?class<T>` gives `null` for a wrong name.
 you use it: `$f(4) as int`.
 
 **The examples below** pass a pricing rule around, check a value against a shape, and pick a
-report class from a name in quotes and from a setting.
+report class from a name in quotes and from a setting. The last two get the class of an `object`
+back, and show a shape without a name as a compile error.
