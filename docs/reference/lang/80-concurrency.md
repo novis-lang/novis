@@ -233,6 +233,9 @@ var $result = await $job;
 - A path written as a string literal starts at the folder of the file that contains it. A
   relative path built while the program runs throws a `RuntimeError`: build it with
   `Core\Path::join` from a full path (§ *File paths: a relative path starts at the folder of its file*).
+- A path is evaluated once, where the spawn is written, before the child starts.
+- `with(…)` takes the same `name: value` arguments as a call, and a trailing comma is allowed.
+- `await`'s operand is a unary expression, so `await $h->handle` awaits the property `handle`.
 - `with(…)` is optional. `output: 'capture'` collects what the child writes into the result;
   `output: 'inherit'` lets the child write straight to the parent's standard output, interleaved
   with the parent's own lines in whatever order the two run — only after `await` is all of it

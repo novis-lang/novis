@@ -7,6 +7,9 @@ type Ids = array<SomeClass>;      // fine
 type Result = SomeClass|NotFound; // fine
 ```
 
+The check runs at resolution, not while parsing: `type Id = SomeClass;` parses like any other alias,
+and the resolver is where it becomes a diagnostic.
+
 Allowing the bare form would be `use SomeClass as Id;` wearing the type grammar as a disguise: a
 second name a *runtime* observer would plausibly expect to mean what `SomeClass` means everywhere,
 which is exactly what `rule:statements/nothing-gets-a-second-name` closes. A `type` alias exists to

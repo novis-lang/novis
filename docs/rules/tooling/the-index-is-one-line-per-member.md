@@ -10,7 +10,7 @@ from an empty result over a list that merely happens not to mention it. That is 
 enumerated from the registry rather than written, and why the guard is a member-for-member
 correspondence rather than a count.
 
-A line carries the member's signature in the spec's own spelling and the capability the call is gated
+A line carries the member's signature as `nvs meta --json` writes it and the capability the call is gated
 on, written after it in brackets: `Core\IO::read(string $path): string  [fs.read]`. The capability is
 joined from `rule:security/capability-declaration-is-one-table`'s one table at render time, never
 copied onto a member row — that table's own rule refuses a per-member field, and this reads it rather

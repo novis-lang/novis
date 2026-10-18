@@ -1,16 +1,20 @@
-For an implemented member, a documentation field the registry carries is authoritative and a field it lacks
-falls back to the spec-derived default. For a member not yet implemented, the spec is all there is. A
-consumer that finds the two disagreeing about something both state — a parameter documented in one and not
-declared in the other, a signature that has drifted — warns rather than silently choosing.
+The registry is the only source of a `Core` member's surface and its reference documentation: its
+signature, its parameter names and types, its qualifiers, its options and its card
+(`rule:core-api/reference-card`). `nvs meta --json` publishes it, and every consumer — the website's
+`Core` pages, `nvs help`, a hover, the one-file reference — reads that output and nothing else.
 
-The spec stays authoritative for the **surface**: every member, implemented or not, its signature as
-designed, its types and the reasoning behind its design. What it stops being, for an implemented member, is
-the place the card's wording is edited (`rule:core-api/reference-card`).
+A documentation field the registry has not written is **absent**, never filled from somewhere else. The
+JSON leaves the key out, so a consumer tells "not written yet" from "written, and empty" without learning a
+convention, and shows the field as missing. Each field stands alone: a member whose card has a short
+description and no parameter text shows the one and not the other, so a card is filled in one field at a
+time and no consumer waits on a whole card. The same reading keeps a consumer correct against an older
+toolchain whose rows carry fewer fields.
 
-Precedence is **field by field** rather than source by source, and that is what made the move incremental:
-the seam shipped empty, every member documented afterwards upgraded on its own, and no consumer was ever
-blocked on an unfilled field. It is also what keeps a consumer correct against a toolchain older than the
-backfill.
+A class's introduction page under `docs/reference/core/` or `docs/reference/novis/` is prose beside the
+card, never a second copy of anything the registry carries.
 
-The warnings are the drift detector. Nothing else notices that a member's spec entry and its implementation
-have diverged, because the two are read by different tools for different reasons.
+**Declined:**
+- **A design document beside the registry that lists every member and is authoritative for the ones not
+  implemented yet.** Two descriptions of one member drift, and a consumer has to choose between them
+  member by member. Nothing in such a list ever designed a member the registry lacked, so it only
+  restated the registry.

@@ -898,6 +898,10 @@ between two kinds.
 - **Memory:** a shape at the type-argument door is compile-time work and one interned descriptor,
   O(distinct types in the program) and nothing per request.
 
+An array has no internal cursor. A cursor inside a copy-on-write value would be copied with the array,
+so a copy would carry its iteration position. `foreach` and `Core\Arr`'s `first`, `last`, `firstKey` and
+`lastKey` cover every use.
+
 **Declined:**
 - **Integer keys kept beside string keys.** Two key domains need a rule for converting between them,
   and that rule is where `$a[8]`, `$a["8"]` and `$a["08"]` stop meaning what they look like.
@@ -1758,6 +1762,9 @@ type Id = SomeClass;              // rejected
 type Ids = array<SomeClass>;      // fine
 type Result = SomeClass|NotFound; // fine
 ```
+
+The check runs at resolution, not while parsing: `type Id = SomeClass;` parses like any other alias,
+and the resolver is where it becomes a diagnostic.
 
 Allowing the bare form would be `use SomeClass as Id;` wearing the type grammar as a disguise: a
 second name a *runtime* observer would plausibly expect to mean what `SomeClass` means everywhere,
