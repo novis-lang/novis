@@ -6,8 +6,9 @@ string. An object can be joined when its class implements `Stringable`, and the 
 method is used.
 
 Four things cannot be converted to a string, and joining one does not compile: a `bytes` value, an
-array, an enum case, and a call that returns nothing. The error message says what to write in its
-place. For example, you choose the encoding of a `bytes` value or the fields of an array yourself.
+array, an enum case, and a call that returns nothing. For the first three, the error message says
+what to write instead. For example, you choose the encoding of a `bytes` value or the fields of an
+array yourself.
 
 A string in double quotes inserts values in the same way: `"Hello $name"` and `"{$order->total}"`.
 
