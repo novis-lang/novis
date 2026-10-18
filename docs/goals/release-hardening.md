@@ -212,6 +212,7 @@ in the nightly fuzz job. The published request-smuggling payloads are fixed serv
   - [x] An `nvs` origin echoing the Garden's JSON, built from the WSL mirror.
   - [x] A mutation sweep against hyper and Node, keeping what `nvs` reads differently from both.
   - [x] The UTF-8 finding fixed with tests, and the bare-LF prefix a refused row.
+  - [x] The run is a command, `bun nv garden`, and its recheck of 5,000 rounds against hyper and Node found no panic and only the kept `501` for a method outside the eight. `tools/nv/cmd/garden.ts:1`
 
 ### 7. compiled code is checked against its unoptimised twin, and aarch64 Linux runs the tests
 
