@@ -204,11 +204,18 @@ const VERSION: &str = concat!(
     ")"
 );
 
+/// The variable that compiles every unit of this process with Cranelift's optimiser off. It works
+/// on presence, as `NOVIS_NO_FILE_CACHE` does, and the conformance suite's second CI run sets it
+/// (`rule:testing/probes-on-is-a-tested-configuration`).
+const NO_OPTIMISE: &str = "NOVIS_NO_OPTIMISE";
+
 /// The environment variables `nvs` reads, which `nvs --help` lists below the options.
 const ENVIRONMENT: &str = "\
 Environment:
   NOVIS_NO_INIT        Do not create `nvs.toml` in the data folder, as `--no-init` does.
   NOVIS_NO_FILE_CACHE  Read and write no compiled artifact, so every program is compiled again.
+  NOVIS_NO_OPTIMISE    Compile without optimisations, and read and write no compiled artifact.
+                       The test suite uses it to check that both builds print the same output.
   NVS_FOOTPRINT_LOG    Append each `Core` class looked up, file read, directory listed and path
                        tested to this file, one line each. Used to record what a test run needs.";
 
@@ -527,6 +534,12 @@ fn main() -> ExitCode {
     // ours. An ordinary `nvs` finds no footer and falls straight through.
     if let Some(payload) = bundle::embedded() {
         return bundle::run(payload);
+    }
+
+    // After the bundle check, so a bundled application always runs optimised code. Before any
+    // command compiles, so every unit of this process is compiled at the same level.
+    if std::env::var_os(NO_OPTIMISE).is_some() {
+        nvs_codegen::compile_unoptimised();
     }
 
     let cli = Cli::parse();
