@@ -1,5 +1,5 @@
 --TEST--
-what `Core\IO::stdin` answers is `tainted`, so it reaches this class's own path sink only through a launderer that names it — spec § 14, `rule:security/tainted-qualifier` and `rule:security/launderers-are-sink-named`
+what `Core\IO::stdin` answers is `tainted`, so it reaches this class's own path sink only through a launderer that names it — `rule:security/tainted-qualifier` and `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
 // The bytes are whatever the invoker attached to the program, so they are as

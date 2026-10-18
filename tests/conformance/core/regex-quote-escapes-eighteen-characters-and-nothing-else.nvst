@@ -2,7 +2,7 @@
 Core\Regex::quote escapes exactly 18 printable ASCII characters and is the identity on the other 77, so quoting is what stops a literal from reading as a pattern — `rule:security/regex-pattern-is-a-sink`
 --FILE--
 <?nvs
-// Spec § 5's `quote` row. The differential case
+// `Core\Regex::quote`. The differential case
 // `regex-quote-and-preg_quote-escape-different-sets-and-match-the-same-literals`
 // counts the property `preg_quote` shares — a quoted literal matches itself
 // and nothing else — and deliberately never names a set, because the two

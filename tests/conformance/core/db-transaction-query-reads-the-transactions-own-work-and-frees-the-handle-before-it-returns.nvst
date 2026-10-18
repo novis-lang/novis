@@ -8,7 +8,7 @@ use Core\Db\RolledBack;
 use Core\Db\Row;
 use Core\Db\Transaction;
 
-// `rule:classes/no-traits`'s delegation is one body under two receivers, so § 18's buffered
+// `rule:classes/no-traits`'s delegation is one body under two receivers, so the buffered
 // read is the transaction's too. What only this receiver can be asked is what
 // the read sees: a row the open transaction wrote and nothing has committed.
 var $db = Db::connect("main");

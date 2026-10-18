@@ -1,5 +1,5 @@
 --TEST--
-Every rendering spelling of a `Core`-owned class the spec gives a `toString` agrees with the member call written out, for each of the three classes that have one — `rule:classes/stringable`
+Every rendering spelling of a `Core`-owned class the registry gives a `toString` agrees with the member call written out, for each of the three classes that have one — `rule:classes/stringable`
 --FILE--
 <?nvs
 // `rule:classes/stringable` makes the implicit rendering a `toString()` call, so the four

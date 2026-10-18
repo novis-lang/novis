@@ -1,8 +1,8 @@
 --TEST--
-`Core\Path::withExtension`'s four refusals name what stopped them, and the extension is checked before the path — spec § 8, `rule:core-api/shape-rules` R4 and R20
+`Core\Path::withExtension`'s four refusals name what stopped them, and the extension is checked before the path — `rule:core-api/shape-rules` R4 and R20
 --FILE--
 <?nvs
-// Spec § 8's one member that refuses four different ways, none of which had a
+// `Core\Path`'s one member that refuses four different ways, none of which had a
 // case asserting its *message*. The neighbouring `Core\Path` cases pin what the
 // decomposition members answer; this one pins where the rewriting member stops
 // accepting, what it says there, and — because two of a call's arguments can be

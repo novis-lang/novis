@@ -1,5 +1,5 @@
 --TEST--
-`$uri->resolve` answers exactly the bases RFC 3986 § 5.2.1 calls absolute and § 5.2.3 gives a path to merge into, and every refusal on either side is one catchable message rather than a plausible answer — spec § 12
+`$uri->resolve` answers exactly the bases RFC 3986 § 5.2.1 calls absolute and § 5.2.3 gives a path to merge into, and every refusal on either side is one catchable message rather than a plausible answer
 --FILE--
 <?nvs
 // RFC 3986 § 5.4's abnormal table is already run row by row, and every row of it

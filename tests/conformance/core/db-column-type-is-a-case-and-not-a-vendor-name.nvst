@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Column::type` answers a `Core\Db\Column::Type` case, so a program branches on something the backends agree about rather than on the vendor type name `getColumnMeta` hands back — `rule:core-classes/db-column-types`, spec § 18
+`Core\Db\Column::type` answers a `Core\Db\Column::Type` case, so a program branches on something the backends agree about rather than on the vendor type name `getColumnMeta` hands back — `rule:core-classes/db-column-types`
 --FILE--
 <?nvs
 // covers: Core\Db\Column::Type

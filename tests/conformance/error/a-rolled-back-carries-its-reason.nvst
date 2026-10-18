@@ -1,8 +1,8 @@
 --TEST--
-`Core\Db\RolledBack` is a class in spec § 10's tree under `RuntimeError`, and its `reason` is the string it was constructed with — spec § 18, `rule:core-classes/db-transactions`
+`Core\Db\RolledBack` is a class in the `Throwable` tree under `RuntimeError`, and its `reason` is the string it was constructed with — `rule:core-classes/db-transactions`
 --FILE--
 <?nvs
-// § 18 gives the class one property of its own beyond the root's four, and
+// The class has one property of its own beyond the root's four, and
 // the synthesized constructor fills it from the message: the one string a
 // caller passes *is* the reason, so both spellings agree.
 try {

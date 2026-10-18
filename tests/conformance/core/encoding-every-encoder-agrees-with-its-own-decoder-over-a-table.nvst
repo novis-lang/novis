@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding`'s three encoders each agree with their own decoder over one table of buffers, counted rather than read off lines, and the URL-safe spelling is the standard one with two substitutions and no padding — spec § 7, RFC 4648 §§ 4, 5 and 6
+`Core\Encoding`'s three encoders each agree with their own decoder over one table of buffers, counted rather than read off lines, and the URL-safe spelling is the standard one with two substitutions and no padding — RFC 4648 §§ 4, 5 and 6
 --FILE--
 <?nvs
 // One question asked of all three pairs: does `toX` followed by `fromX` give

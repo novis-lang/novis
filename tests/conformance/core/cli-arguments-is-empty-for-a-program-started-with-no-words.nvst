@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli::arguments` is empty for a program started with no words of its own, rather than answering the process's own argument vector — spec § 15, `rule:security/capability-check-at-the-door`
+`Core\Cli::arguments` is empty for a program started with no words of its own, rather than answering the process's own argument vector — `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // The other side of the bound, and the one that says where the words come

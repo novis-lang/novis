@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::tryParse` answers for every one of the 128 ASCII bytes in a path position — never throwing, and `null` at exactly the bytes `Core\Uri::parse` refuses — spec § 12, `rule:expressions/try-parse`
+`Core\Uri::tryParse` answers for every one of the 128 ASCII bytes in a path position — never throwing, and `null` at exactly the bytes `Core\Uri::parse` refuses — `rule:expressions/try-parse`
 --FILE--
 <?nvs
 // The neighbouring agreement case sweeps twenty-one hand-picked subjects. This

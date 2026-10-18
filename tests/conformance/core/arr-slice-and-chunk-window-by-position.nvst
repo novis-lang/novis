@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::slice and ::chunk window by entry position and discard keys unless asked, spec § 2 and `rule:types/preserve-keys`
+Core\Arr::slice and ::chunk window by entry position and discard keys unless asked, `rule:types/preserve-keys`
 --FILE--
 <?nvs
 array<string> $a = ["a", "b", "c", "d", "e"];

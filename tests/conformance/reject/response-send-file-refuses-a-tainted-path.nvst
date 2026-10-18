@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::sendFile`'s path is a sink and refuses a tainted argument, where the same response's `text` body takes one — a path component directs the resolver and a body's octets are framed — `rule:security/sink-predicate`, `rule:security/response-body-is-one-typed-member`, spec § 15
+`Core\Response::sendFile`'s path is a sink and refuses a tainted argument, where the same response's `text` body takes one — a path component directs the resolver and a body's octets are framed — `rule:security/sink-predicate`, `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
 // `rule:security/sink-predicate`'s table puts a filesystem path component on

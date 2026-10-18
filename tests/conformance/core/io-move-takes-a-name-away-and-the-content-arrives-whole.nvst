@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::move ends with the content at the destination and nothing at the source, across a directory as well as in place, and it replaces a destination that was already taken — spec § 14
+Core\IO::move ends with the content at the destination and nothing at the source, across a directory as well as in place, and it replaces a destination that was already taken
 --FILE--
 <?nvs
 // A rename is two claims and a member that only made the first one looks

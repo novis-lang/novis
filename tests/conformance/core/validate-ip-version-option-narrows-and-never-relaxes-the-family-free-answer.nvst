@@ -1,8 +1,8 @@
 --TEST--
-`Core\Validate::isIp`'s `{version}` option at each of its four edges — absent, empty, `4` and `6` — is a narrowing: over a whole table the un-narrowed answer is exactly the disjunction of the two families, the empty bag is the absent one, and no subject belongs to both — docs/spec/01-core-library.md § 12
+`Core\Validate::isIp`'s `{version}` option at each of its four edges — absent, empty, `4` and `6` — is a narrowing: over a whole table the un-narrowed answer is exactly the disjunction of the two families, the empty bag is the absent one, and no subject belongs to both
 --FILE--
 <?nvs
-// § 12 folds `FILTER_FLAG_IPV4` and `FILTER_FLAG_IPV6` into one `{version?: 4|6}`
+// `isIp` folds `FILTER_FLAG_IPV4` and `FILTER_FLAG_IPV6` into one `{version?: 4|6}`
 // option, so the option has four edges a caller can write: absent, `{}`, `4`
 // and `6`. `validate-ip-families-and-the-two-byte-classes.nvst` names what each
 // of the two values answers for a v4 and a v6 subject; this case pins the

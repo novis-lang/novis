@@ -1,5 +1,5 @@
 --TEST--
-`Core\Csv::parse` reads RFC 4180 and `Core\Csv::format` writes it back, spec § 12's second table
+`Core\Csv::parse` reads RFC 4180 and `Core\Csv::format` writes it back
 --FILE--
 <?nvs
 // The reader's grammar: a quoted field holds the separator and a bare CRLF, a

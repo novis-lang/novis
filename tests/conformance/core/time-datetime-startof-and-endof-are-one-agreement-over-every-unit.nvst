@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4: `startOf` and `endOf` agree over every granularity, and `next`/`previous` over every weekday
+`Core\Time`: `startOf` and `endOf` agree over every granularity, and `next`/`previous` over every weekday
 --FILE--
 <?nvs
-// Spec § 4. `startOf` and `endOf` are not two members that each answer
+// `startOf` and `endOf` are not two members that each answer
 // plausibly on their own row: they are one agreement, asked here of every
 // `Core\Unit` granularity at once and asserted by *counting*, so a member that
 // grew its own idea of a unit's extent fails here while still printing a

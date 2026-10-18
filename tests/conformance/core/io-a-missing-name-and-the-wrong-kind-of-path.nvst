@@ -1,5 +1,5 @@
 --TEST--
-the boundaries of Core\IO's metadata and removal members, both sides of each: `exists` answers for a name `size` throws on, `remove` refuses a directory, and `removeDir` refuses that same directory until the entry in it is gone — spec § 14
+the boundaries of Core\IO's metadata and removal members, both sides of each: `exists` answers for a name `size` throws on, `remove` refuses a directory, and `removeDir` refuses that same directory until the entry in it is gone
 --FILE--
 <?nvs
 // Everything here runs with the grant in place, so the operating system is what

@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::fillKeys answers what Core\Arr::fromKeysAndValues answers for the same keys paired with one value repeated, over a table of key lists — the empty one and the repeating ones included — and the pairing is over every key, not every distinct one, per spec § 2
+Core\Arr::fillKeys answers what Core\Arr::fromKeysAndValues answers for the same keys paired with one value repeated, over a table of key lists — the empty one and the repeating ones included — and the pairing is over every key, not every distinct one
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/arr.rs:2404`'s doc states the relation in words: the

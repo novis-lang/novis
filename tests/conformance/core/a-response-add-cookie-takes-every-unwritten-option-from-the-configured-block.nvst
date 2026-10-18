@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::addCookie` takes every option its call site left out from `[http.cookies]`, and the defaults are observable through the two rules that read them -- `rule:http-server/cookies-are-secure-httponly-and-lax`, spec § 15
+`Core\Response::addCookie` takes every option its call site left out from `[http.cookies]`, and the defaults are observable through the two rules that read them -- `rule:http-server/cookies-are-secure-httponly-and-lax`
 --FILE--
 <?nvs
 // covers: Core\Response::SameSite

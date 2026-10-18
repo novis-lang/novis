@@ -1,5 +1,5 @@
 --TEST--
-`Core\Arr::sort` orders `decimal`s exactly and by value rather than by scale, and every member sharing the natural ordering agrees with it — `rule:types/arithmetic` and `rule:types/conversion`, spec § 2
+`Core\Arr::sort` orders `decimal`s exactly and by value rather than by scale, and every member sharing the natural ordering agrees with it — `rule:types/arithmetic` and `rule:types/conversion`
 --FILE--
 <?nvs
 // The natural ordering covers every type the checker admits, and `decimal` was

@@ -1,9 +1,9 @@
 --TEST--
-`Core\Arr::from`'s `{limit}` stops the drive rather than truncating the result, asserted at the exact element count and one past it — spec § 2, `rule:iteration/two-interfaces`
+`Core\Arr::from`'s `{limit}` stops the drive rather than truncating the result, asserted at the exact element count and one past it — `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
 // covers: lang:iteration/materialising-a-sequence-core-arr-from
-// Spec § 2 calls `{limit}` the only guard against materialising a sequence that
+// `{limit}` is the only guard against materialising a sequence that
 // never ends, which is a claim about the *drive* and not about the answer: a
 // member that drained everything and then cut the result would give the same
 // array and would be no guard at all. The two are told apart by counting the
@@ -69,7 +69,7 @@ echo Drive::at(4), "\n";
 echo Drive::at(5), "\n";
 echo Drive::unbounded(), "\n";
 
-// The same bound over the third shape § 2 accepts. An array is already
+// The same bound over the third shape `Core\Arr::from` accepts. An array is already
 // materialised, so there is no drive to stop and `{limit}` is a plain prefix of
 // it — at zero, at the exact count and one past it, with the keys discarded
 // either way because the result is always a list whichever shape went in.

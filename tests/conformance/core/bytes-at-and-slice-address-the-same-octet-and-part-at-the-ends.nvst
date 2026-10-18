@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes::at` names the same octet `slice` cuts a one-byte window at, over every index of a sweep, and the two part company exactly at the ends — `at` throws where `slice` clamps or answers the empty buffer — `rule:types/bytes`, `rule:core-api/shape-rules` R4/R8
+`Core\Bytes::at` names the same octet `slice` cuts a one-byte window at, over every index of a sweep, and the two part company exactly at the ends — `at` throws where `slice` clamps or answers the empty buffer — `rule:types/bytes`, `rule:core-api/shape-rules` R4/R8
 --FILE--
 <?nvs
 // `at` and `slice` are one addressing rule read two ways: R8's sign rule over
@@ -25,7 +25,7 @@ class Probe {
     }
 }
 
-// There is no `bytes` literal (00-overview § 5), so the subject is hex — PNG's
+// There is no `bytes` literal, so the subject is hex — PNG's
 // eight-byte signature, whose octets include 0x89 and 0xff-adjacent values that
 // a signed reading would answer negative for.
 bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a");

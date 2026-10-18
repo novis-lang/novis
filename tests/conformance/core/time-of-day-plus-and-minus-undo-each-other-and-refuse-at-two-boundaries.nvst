@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4: `Core\Time\TimeOfDay`'s `plus` and `minus` are one step taken in opposite directions — 480 counts undone in each direction over a table of times and every unit that moves a clock, one hour reached six ways down the unit ladder, and the pair's two boundaries named on both sides: the largest unit that moves against the smallest that refuses, and the largest count a span holds against the first that does not
+`Core\Time\TimeOfDay`'s `plus` and `minus` are one step taken in opposite directions — 480 counts undone in each direction over a table of times and every unit that moves a clock, one hour reached six ways down the unit ladder, and the pair's two boundaries named on both sides: the largest unit that moves against the smallest that refuses, and the largest count a span holds against the first that does not
 --FILE--
 <?nvs
-// § 4: a time of day has no date under it, so the step wraps and is total —
+// A time of day has no date under it, so the step wraps and is total —
 // which makes `plus` and `minus` exact inverses everywhere rather than only
 // away from midnight. The sibling case
 // `time-of-day-wraps-at-midnight-and-orders-by-the-same-clock` pins the wrap

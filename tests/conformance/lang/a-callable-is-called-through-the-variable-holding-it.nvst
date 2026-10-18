@@ -37,9 +37,9 @@ $prefix = "two";
 echo $tag("x"), "\n";
 
 // Both sides of the arity bound. An anonymous function may declare *fewer* parameters
-// than the call passes — spec § 1's callback rule, which is also PHP's answer
-// for extra positional arguments — and the extras are dropped rather than
-// being an error.
+// than the call passes — `rule:core-api/callback-receives-value-and-key`,
+// which is also PHP's answer for extra positional arguments — and the extras
+// are dropped rather than being an error.
 callable $first = fn (int $a): int => $a;
 echo $first(7, 8, 9) as string, "\n";
 callable $seven = fn (): int => 7;

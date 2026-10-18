@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::ceil, floor, truncate and round answer the row itself on every integer-valued float, keeping the sign of a zero, and part from one another only where a fraction is present — docs/spec/01-core-library.md § 3
+Core\Math::ceil, floor, truncate and round answer the row itself on every integer-valued float, keeping the sign of a zero, and part from one another only where a fraction is present
 --FILE--
 <?nvs
 // Four members over one rule: each picks an integer-valued `float` at or near

@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Random` draw is swept for its invariants: an int stays inside its closed bounds and reaches both of them, a float fills the unit interval, no two buffers repeat, `pick` only ever answers an element of its subject, and `shuffle` is a permutation rather than a fresh draw — spec § 11, `rule:core-api/shape-rules` R5
+Every `Core\Random` draw is swept for its invariants: an int stays inside its closed bounds and reaches both of them, a float fills the unit interval, no two buffers repeat, `pick` only ever answers an element of its subject, and `shuffle` is a permutation rather than a fresh draw — `rule:core-api/shape-rules` R5
 --FILE--
 <?nvs
 // A drawn value cannot be asserted, so every member here is pinned by
@@ -12,7 +12,7 @@ Every `Core\Random` draw is swept for its invariants: an int stays inside its cl
 // nothing here repeats them.
 int $i = 0;
 
-// Spec § 11: `int` is closed at *both* ends, so a die is the range where both
+// `Core\Random::int` is closed at *both* ends, so a die is the range where both
 // endpoints are also the extremes of the sweep. 200 draws reach 1 and 6 unless
 // the generator is skewed — missing either is a 2 * (5/6)^200 event, which is
 // under 1 in 10^15, so `$lowest` and `$highest` are an assertion and not a

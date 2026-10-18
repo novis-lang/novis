@@ -1,8 +1,8 @@
 --TEST--
-Core\Path::normalize answers a normal form, join and dirname re-render the same path, and no segment can move the base's root — spec § 8
+Core\Path::normalize answers a normal form, join and dirname re-render the same path, and no segment can move the base's root
 --FILE--
 <?nvs
-// The sibling cases pin § 8's members row by row. This one pins the three
+// The sibling cases pin `Core\Path`'s members row by row. This one pins the three
 // properties the section is written around, over a sweep of the paths those
 // rows are drawn from — a member getting each row right and the property
 // wrong would pass there and fail here.

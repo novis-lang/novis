@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 // covers: Core\Db\DbError
-// The place in spec § 10's tree, asserted on both sides and with no server
+// The place in the `Throwable` tree, asserted on both sides and with no server
 // anywhere near it: what this pins is which `catch` clause a refusal reaches,
 // which is decided by `crates/nvs-hir/src/errors.rs` alone.
 use Core\Db\DbError;

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Csv::parse` and `::format` accept and refuse the same dialects, asserted by agreement over a table rather than by either member's own answer, and the one asymmetry is the `escape` byte only the reader has — spec § 12's second table
+`Core\Csv::parse` and `::format` accept and refuse the same dialects, asserted by agreement over a table rather than by either member's own answer, and the one asymmetry is the `escape` byte only the reader has
 --FILE--
 <?nvs
 // `csv-honours-a-non-default-dialect-and-refuses-a-bad-one.nvst` asks each

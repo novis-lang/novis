@@ -1,5 +1,5 @@
 --TEST--
-Every member of `Core\IO\File` leaves the handle just past what it touched, and `tell` is the one question that proves they agree rather than each keeping its own count — spec § 14
+Every member of `Core\IO\File` leaves the handle just past what it touched, and `tell` is the one question that proves they agree rather than each keeping its own count
 --FILE--
 <?nvs
 // One question asked of every member of the roster: where did you leave the

@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes::contains`, `startsWith` and `endsWith` agree with `indexOf`, `slice` and `compare` on every ordered pair of a swept table, and `compare` is antisymmetric across the same sweep — `rule:types/bytes`, `rule:core-api/shape-rules` R6
+`Core\Bytes::contains`, `startsWith` and `endsWith` agree with `indexOf`, `slice` and `compare` on every ordered pair of a swept table, and `compare` is antisymmetric across the same sweep — `rule:types/bytes`, `rule:core-api/shape-rules` R6
 --FILE--
 <?nvs
 // The three predicates are not three rules: each one is a question `indexOf`,
@@ -21,7 +21,7 @@ class Sign {
     }
 }
 
-// There is no `bytes` literal (00-overview § 5), so the table is hex and each
+// There is no `bytes` literal, so the table is hex and each
 // row is built through `Core\Encoding`. The rows are chosen so the sweep has
 // something to find: the empty buffer, PNG's signature, its own head and tail
 // as separate rows, a needle that occurs only in the middle, the two octets

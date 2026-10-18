@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::flattenDeep answers the same leaves at every nesting depth including one far past a recursive walk's stack, and an array written into itself flattens to the snapshot it stored rather than diverging, per spec § 2
+Core\Arr::flattenDeep answers the same leaves at every nesting depth including one far past a recursive walk's stack, and an array written into itself flattens to the snapshot it stored rather than diverging
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/arr.rs:2219`'s doc gives two reasons for the shape of

@@ -1,5 +1,5 @@
 --TEST--
-Nine Core\Math members are exactly odd and two exactly even on every row of two swept tables, atanh is odd only to within a rounding step, and NaN is the one input where no member's parity can be asked — docs/spec/01-core-library.md § 3
+Nine Core\Math members are exactly odd and two exactly even on every row of two swept tables, atanh is odd only to within a rounding step, and NaN is the one input where no member's parity can be asked
 --FILE--
 <?nvs
 // Almost nothing about a transcendental member can be asserted across hosts:

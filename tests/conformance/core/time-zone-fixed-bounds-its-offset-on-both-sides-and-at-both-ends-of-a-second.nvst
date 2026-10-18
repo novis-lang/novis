@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `Zone::fixed` names the last offset it accepts and the first it refuses, on both signs and at both ends of a whole second
+`Core\Time`: `Zone::fixed` names the last offset it accepts and the first it refuses, on both signs and at both ends of a whole second
 --FILE--
 <?nvs
 // `Core\Time\Zone::fixed` has two bounds and both are stated as a bound rather

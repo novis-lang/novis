@@ -1,8 +1,8 @@
 --TEST--
-Core\Math::sqrt and cbrt round trip exactly over every row whose root is representable, Core\Math::log does the same on exact powers of its base, and the rows where the intermediate is irrational come back near rather than equal — docs/spec/01-core-library.md § 3
+Core\Math::sqrt and cbrt round trip exactly over every row whose root is representable, Core\Math::log does the same on exact powers of its base, and the rows where the intermediate is irrational come back near rather than equal
 --FILE--
 <?nvs
-// § 3 gives each of these members an inverse in the same class, so the question
+// `Core\Math` gives each of these members an inverse in the same class, so the question
 // the class owes an answer for is what a round trip through one costs. The
 // answer is a property of the *row*, not of the member: a round trip is exact
 // exactly where the intermediate value it goes through is representable, and
@@ -34,7 +34,7 @@ foreach ($squares as float $n) {
 }
 echo "sqrt rows=", $sqRows, " back=", $sqBack, "\n";
 
-// Perfect cubes of both signs — `cbrt` exists in § 3 rather than being left to
+// Perfect cubes of both signs — `cbrt` exists in `Core\Math` rather than being left to
 // `pow($n, 1/3)` precisely because it answers on a negative — and the dyadic
 // cubes 0.5, 1.5, 2.5 and 0.125 cubed.
 array<float> $cubes = [

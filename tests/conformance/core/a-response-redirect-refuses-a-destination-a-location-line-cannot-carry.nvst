@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::redirect` names both sides of what a `Location` line carries, and declares nothing when it refuses -- spec § 15
+`Core\Response::redirect` names both sides of what a `Location` line carries, and declares nothing when it refuses
 --FILE--
 <?nvs
 // The bound is the header line's, not the URL grammar's: a field value is

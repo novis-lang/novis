@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\DbError::$kind` answers a normalised `Core\Db\DbError::Kind` case for a refusal a running engine made, and `Other` for an error no server classified — spec § 18, `rule:core-classes/db-error`
+`Core\Db\DbError::$kind` answers a normalised `Core\Db\DbError::Kind` case for a refusal a running engine made, and `Other` for an error no server classified — `rule:core-classes/db-error`
 --FILE--
 <?nvs
 // covers: Core\Db\DbError::Kind
@@ -21,7 +21,7 @@ try {
         "\n";
 }
 
-// A statement the server will not run at all, which § 18 files under `Syntax`
+// A statement the server will not run at all is filed under `Syntax`,
 // whether the defect is the grammar or the name of a table.
 try {
     $db->query("select * from nowhere", []);

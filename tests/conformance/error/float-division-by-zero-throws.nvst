@@ -81,7 +81,7 @@ try {
 }
 
 // 5. `Core\Math::fdiv` is what is left to ask with, and the reason the throw is
-//    affordable at all — spec § 3's table. It answers all three IEEE cases the
+//    affordable at all. It answers all three IEEE cases the
 //    operator now refuses.
 echo "fdiv: ", Core\Math::fdiv(1.0, 0.0), "|", Core\Math::fdiv(1.0, -0.0), "|",
      Core\Math::isNan(Core\Math::fdiv(0.0, 0.0)) as string, "\n";

@@ -1,5 +1,5 @@
 --TEST--
-a value that arrived on the request line is `tainted`, and the launderer `rule:security/sink-predicate` makes name its sink is the whole route from it to that sink — spec § 15, `rule:security/tainted-qualifier` and `rule:security/launderers-are-sink-named`, `rule:security/sink-predicate` and `rule:security/unclassified-parameter-refuses-tainted`, `rule:testing/in-process-request`
+a value that arrived on the request line is `tainted`, and the launderer `rule:security/sink-predicate` makes name its sink is the whole route from it to that sink — `rule:security/tainted-qualifier` and `rule:security/launderers-are-sink-named`, `rule:security/sink-predicate` and `rule:security/unclassified-parameter-refuses-tainted`, `rule:testing/in-process-request`
 --FILE--
 <?nvs
 // `a-launder-row-hands-a-tainted-value-to-the-sink-it-names` walks the same
@@ -22,7 +22,7 @@ a value that arrived on the request line is `tainted`, and the launderer `rule:s
 // (`rule:core-classes/env-context`). The child is the `if` branch, and it is
 // the only side with a request to read.
 if (Core\Env::context() == Core\Env::Context::Request) {
-    // Spec § 15: the path is a `tainted string`, because the peer wrote it.
+    // The path is a `tainted string`, because the peer wrote it.
     tainted string $raw = Core\Request::path();
     echo "path=", $raw, "\n";
 

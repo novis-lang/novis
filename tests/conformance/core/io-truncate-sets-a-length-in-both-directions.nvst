@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO\File::truncate` sets the file's length in either direction — a smaller size drops the tail, a larger one extends with zeroes, and zero is not a special case — spec § 14
+`Core\IO\File::truncate` sets the file's length in either direction — a smaller size drops the tail, a larger one extends with zeroes, and zero is not a special case
 --FILE--
 <?nvs
 // covers: Core\IO\File::truncate

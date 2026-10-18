@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Random\Seeded` draw holds the invariant its `Core\Random` twin is pinned by, swept over a run of draws — spec § 11, `rule:core-api/shape-rules` R5
+Every `Core\Random\Seeded` draw holds the invariant its `Core\Random` twin is pinned by, swept over a run of draws — `rule:core-api/shape-rules` R5
 --FILE--
 <?nvs
 // covers: Core\Random\Seeded::int, Core\Random\Seeded::float, Core\Random\Seeded::bytes, Core\Random\Seeded::token, Core\Random\Seeded::pick, Core\Random\Seeded::sample, Core\Random\Seeded::shuffle

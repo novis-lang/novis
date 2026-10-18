@@ -1,5 +1,5 @@
 --TEST--
-`Core\Csv::format($rows, {header: $names})` over a `{header: true}` read is the identity on the document, because a row is written by its values in order and its keys are ignored — spec § 12's second table
+`Core\Csv::format($rows, {header: $names})` over a `{header: true}` read is the identity on the document, because a row is written by its values in order and its keys are ignored
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/csv.rs`'s module doc states the composition rather

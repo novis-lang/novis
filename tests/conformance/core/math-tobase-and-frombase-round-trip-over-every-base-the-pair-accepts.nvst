@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::toBase and fromBase are inverses at every one of the thirty-five bases they accept, over both signs and both ends of int, and the written form carries the sign, no leading zero, and no more digits than the base before it needed — docs/spec/01-core-library.md § 3
+Core\Math::toBase and fromBase are inverses at every one of the thirty-five bases they accept, over both signs and both ends of int, and the written form carries the sign, no leading zero, and no more digits than the base before it needed
 --FILE--
 <?nvs
 // math-base-conversion-round-trips.nvst names the inverse property and shows it

@@ -1,5 +1,5 @@
 --TEST--
-Spec § 5: `Core\Regex::match` answers a `?Match`, whose four members read the groups it captured
+`Core\Regex::match` answers a `?Match`, whose four members read the groups it captured
 --FILE--
 <?nvs
 // `rule:core-api/shape-rules` R3: there is no `$matches` out-parameter. The match *is* the

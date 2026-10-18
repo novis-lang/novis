@@ -1,10 +1,10 @@
 --TEST--
-`Core\Validate`'s six members draw the lines spec § 12's prose states, and `{version?: 4|6}` is `rule:types/single-value-types`'s set of allowed values rather than an `int`
+`Core\Validate`'s six members each draw their own line, and `{version?: 4|6}` is `rule:types/single-value-types`'s set of allowed values rather than an `int`
 --FILE--
 <?nvs
-// docs/spec/01-core-library.md § 12: "isEmail, isIp(string $s,
-// {version?: 4|6}), isMac, isDomain, isAscii, isPrintable — all
-// (subject, ...): bool, all neutral." `crates/nvs-stdlib/src/validate.rs`'s
+// `Core\Validate` has six members: isEmail, isIp(string $s, {version?: 4|6}),
+// isMac, isDomain, isAscii and isPrintable. Each takes the subject first,
+// returns a bool and is neutral. `crates/nvs-stdlib/src/validate.rs`'s
 // own module doc owns where each line falls and every divergence from
 // `filter_var` it takes deliberately.
 

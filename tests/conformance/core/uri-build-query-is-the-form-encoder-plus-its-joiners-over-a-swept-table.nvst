@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::buildQuery` is asserted by invariance over a swept table of names and values: every pair is `encodeFormValue` on both halves joined by `=`, every built string parses back to the same map, the separator count is one per pair, and an empty map builds the empty string — spec § 12
+`Core\Uri::buildQuery` is asserted by invariance over a swept table of names and values: every pair is `encodeFormValue` on both halves joined by `=`, every built string parses back to the same map, the separator count is one per pair, and an empty map builds the empty string
 --FILE--
 <?nvs
 // Two cases already name this member: one shows the bracket convention row by
@@ -38,7 +38,7 @@ array<string> $subjects = [
     "a~b*c",
     "-_.",
 ];
-// `parseQuery` answers a value as `bytes` (spec § 12) and `Core\Json::encode`
+// `parseQuery` answers a value as `bytes` and `Core\Json::encode`
 // has no encoding for one, so the two whole-array comparisons below run
 // through this walk. It converts leaves and nothing else, so the key order it
 // is asserting is untouched.

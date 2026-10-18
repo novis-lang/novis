@@ -1,5 +1,5 @@
 --TEST--
-`queryAs<T>` fills a `decimal` field and a `bytes` field from the columns § 9 maps to them, and an `Instant` field over a column that read back as a `DateTime` is a `ParseError` naming both classes — `rule:core-classes/db-column-types`, `rule:core-classes/derive-generates-what-is-missing`, spec § 18
+`queryAs<T>` fills a `decimal` field and a `bytes` field from the columns § 9 maps to them, and an `Instant` field over a column that read back as a `DateTime` is a `ParseError` naming both classes — `rule:core-classes/db-column-types`, `rule:core-classes/derive-generates-what-is-missing`
 --FILE--
 <?nvs
 // `nvs_stdlib::db::row`'s `converted` answers a field the same way § 6's

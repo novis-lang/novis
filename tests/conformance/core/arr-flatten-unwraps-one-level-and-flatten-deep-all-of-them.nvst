@@ -1,8 +1,8 @@
 --TEST--
-Core\Arr::flatten unwraps exactly one level and keeps its element type, while ::flattenDeep unwraps every level and erases to mixed, per spec § 2 and `rule:types/preserve-keys`
+Core\Arr::flatten unwraps exactly one level and keeps its element type, while ::flattenDeep unwraps every level and erases to mixed, per `rule:types/preserve-keys`
 --FILE--
 <?nvs
-// Spec § 2: two members rather than one with a depth count, because every
+// Two members rather than one with a depth count, because every
 // real call means one level or all of them.
 array<array<string>> $rows = [["a", "b"], ["c"], []];
 echo Core\Json::encode(Core\Arr::flatten($rows)), "\n";

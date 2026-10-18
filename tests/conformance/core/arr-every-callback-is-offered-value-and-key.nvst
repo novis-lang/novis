@@ -1,9 +1,9 @@
 --TEST--
-Every Core\Arr callback is offered ($value, $key) and trimmed to what it declared, so the two spellings of one function agree — spec § 2
+Every Core\Arr callback is offered ($value, $key) and trimmed to what it declared, so the two spellings of one function agree
 --FILE--
 <?nvs
-// The depth claim is *agreement*, not another row of answers. Spec § 2 gives
-// this class one callback protocol — every callback receives `($value, $key)`
+// The depth claim is *agreement*, not another row of answers. `Core\Arr` has
+// one callback protocol — every callback receives `($value, $key)`
 // and may declare fewer parameters, which is what removes PHP's
 // `ARRAY_FILTER_USE_KEY`/`ARRAY_FILTER_USE_BOTH` pair — and
 // `nvs_runtime::call_callable` trims the tail to the arity the callable wrote.

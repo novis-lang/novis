@@ -1,5 +1,5 @@
 --TEST--
-`Core\Validate::isPrintable` refuses Unicode general category `Cc` and nothing else: both refused runs are found by sweeping rather than named, the invisible characters just outside the category are accepted, and the answer over a string is the conjunction over its characters — docs/spec/01-core-library.md § 12
+`Core\Validate::isPrintable` refuses Unicode general category `Cc` and nothing else: both refused runs are found by sweeping rather than named, the invisible characters just outside the category are accepted, and the answer over a string is the conjunction over its characters
 --FILE--
 <?nvs
 // `validate-ascii-and-printable-name-their-own-bounds.nvst` names where this

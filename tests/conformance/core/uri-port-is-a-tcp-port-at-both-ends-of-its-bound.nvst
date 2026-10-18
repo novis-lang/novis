@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri`'s port is `0-65535` at both ends, absent where none and where an empty one was written, and `with` draws the same bound from the other direction — spec § 12, RFC 3986 § 3.2.3
+`Core\Uri`'s port is `0-65535` at both ends, absent where none and where an empty one was written, and `with` draws the same bound from the other direction — RFC 3986 § 3.2.3
 --FILE--
 <?nvs
 // RFC 3986 § 3.2.3's *grammar* is `*DIGIT` while its *prose* defines the

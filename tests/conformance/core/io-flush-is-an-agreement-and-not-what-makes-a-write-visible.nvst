@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO\File::flush` is an agreement between two handles rather than the thing that makes a write visible — every write has already reached the operating system by the time it returns, so a second reader has each one before any flush and the flush after it changes nothing, at sizes on both sides of any buffer a layer might plausibly keep — spec § 14
+`Core\IO\File::flush` is an agreement between two handles rather than the thing that makes a write visible — every write has already reached the operating system by the time it returns, so a second reader has each one before any flush and the flush after it changes nothing, at sizes on both sides of any buffer a layer might plausibly keep
 --FILE--
 <?nvs
 // covers: Core\IO\File::flush

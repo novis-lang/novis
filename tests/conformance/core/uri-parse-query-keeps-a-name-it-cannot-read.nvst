@@ -1,8 +1,8 @@
 --TEST--
-`Core\Uri::parseQuery` at the edges of a name: an empty pair contributes nothing, a valueless one contributes the empty string, and a malformed or unusual name is kept whole rather than repaired — spec § 12
+`Core\Uri::parseQuery` at the edges of a name: an empty pair contributes nothing, a valueless one contributes the empty string, and a malformed or unusual name is kept whole rather than repaired
 --FILE--
 <?nvs
-// A value is `bytes` (spec § 12) and `Core\Json::encode` has no encoding for
+// A value is `bytes` and `Core\Json::encode` has no encoding for
 // one, so the shape is rendered through this walk. Every row below is about a
 // *name*, and a name is the array key the pair is filed under, so it is a
 // `string` either way.

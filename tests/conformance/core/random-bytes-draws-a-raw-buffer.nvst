@@ -1,11 +1,11 @@
 --TEST--
-Core\Random::bytes draws a raw buffer of the count it is given, two draws differ, and a zero-byte draw throws — spec § 11, `rule:types/bytes` and `rule:types/conversion`, `rule:core-api/shape-rules` R4
+Core\Random::bytes draws a raw buffer of the count it is given, two draws differ, and a zero-byte draw throws — `rule:types/bytes` and `rule:types/conversion`, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // A random answer cannot be asserted, so every line pins an invariant of the
 // draw rather than the draw itself.
 
-// Spec § 11: `bytes(uint $count): bytes` counts octets, and `rule:types/bytes` makes
+// `Core\Random::bytes(uint $count): bytes` counts octets, and `rule:types/bytes` makes
 // that buffer a primitive with its own length member rather than an array.
 var $key = Core\Random::bytes(16);
 echo Core\Bytes::length($key), "\n";

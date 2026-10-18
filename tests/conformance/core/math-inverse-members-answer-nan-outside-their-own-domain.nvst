@@ -1,8 +1,8 @@
 --TEST--
-Core\Math's inverse trigonometric members each answer IEEE's NaN outside their own domain rather than throwing, and agree with each other about where that domain ends — docs/spec/01-core-library.md § 3
+Core\Math's inverse trigonometric members each answer IEEE's NaN outside their own domain rather than throwing, and agree with each other about where that domain ends
 --FILE--
 <?nvs
-// § 3's rule is that a domain error is IEEE's value and not a throw, and these
+// `Core\Math`'s rule is that a domain error is IEEE's value and not a throw, and these
 // six members are where it has the most to say: three of them stop at a
 // different place and two of them never stop at all. One table is swept through
 // all six, and every claim below is a *count* over it, so a member that grew its

@@ -1,10 +1,10 @@
 --TEST--
-`Core\Time::parse` refuses in two of spec § 10's classes, and which one is decided by which of its arguments was wrong — spec §§ 4 and 10, `rule:core-api/shape-rules` R20
+`Core\Time::parse` refuses in two different error classes, and which one is decided by which of its arguments was wrong — `rule:core-api/shape-rules` R20
 --FILE--
 <?nvs
 // `Core\Time::parse` is `DateTime::createFromFormat` and `strptime` over
-// `crates/nvs-stdlib/src/cldr.rs`'s patterns, and it is the one § 4 member that
-// throws two *different* § 10 classes. The split is deliberate and it is about
+// `crates/nvs-stdlib/src/cldr.rs`'s patterns, and it is the one `Core\Time` member that
+// throws two *different* error classes. The split is deliberate and it is about
 // which argument is at fault: a pattern is written by the call site, so a bad
 // one is a bug in the program and a `LogicError`, while text arrives from
 // somewhere else, so text that does not match a well-formed pattern is exactly
@@ -32,7 +32,7 @@ echo Core\Time::parse("24-06-01", "yy-MM-dd", $berlin)->format("yyyy-MM-dd"), "|
 //
 // Each pattern is read out of a variable: `Core\Time::parse` is on `rule:expressions/intrinsic-list-is-closed`
 // 's list, so its *literal* form is refused while compiling instead, and
-// § 2's division leaves the computed spelling as the one whose class a `catch`
+// that division leaves the computed spelling as the one whose class a `catch`
 // can still name.
 string $reservedLetter = "yyyy-MM-dd j";
 string $unterminated = "yyyy 'unterminated";

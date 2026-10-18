@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO\File::flush` hands what was written to the operating system, where a second handle reads it, and a `readLine` that answered `null` answers again once the file has grown — the end of a file is a position and not a latch — spec § 14
+`Core\IO\File::flush` hands what was written to the operating system, where a second handle reads it, and a `readLine` that answered `null` answers again once the file has grown — the end of a file is a position and not a latch
 --FILE--
 <?nvs
 // Novis holds no buffer of its own in front of the descriptor, so `flush` is a

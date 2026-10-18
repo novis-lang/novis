@@ -1,5 +1,5 @@
 --TEST--
-`Core\Out::capture`'s `{through:}` reads the carrier it is handed and answers a rewritten one — spec § 12, `rule:security/capture-answers-the-carrier`
+`Core\Out::capture`'s `{through:}` reads the carrier it is handed and answers a rewritten one — `rule:security/capture-answers-the-carrier`
 --FILE--
 <?nvs
 // `rule:security/capture-answers-the-carrier`: the filter takes and answers the

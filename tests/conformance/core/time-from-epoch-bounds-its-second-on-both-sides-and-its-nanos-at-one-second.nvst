@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `Core\Time::fromEpoch` names the last epoch second it accepts and the first it refuses at both ends, and bounds its `nanos` option at exactly one second
+`Core\Time::fromEpoch` names the last epoch second it accepts and the first it refuses at both ends, and bounds its `nanos` option at exactly one second
 --FILE--
 <?nvs
 // `Core\Time::fromEpoch(int $seconds, {nanos?: uint}): Instant` has three

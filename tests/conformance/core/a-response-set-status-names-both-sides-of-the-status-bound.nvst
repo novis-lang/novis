@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::setStatus` names the last status it accepts and the first it refuses, and refuses a code that a narrowing cast would have folded back into range -- spec § 15
+`Core\Response::setStatus` names the last status it accepts and the first it refuses, and refuses a code that a narrowing cast would have folded back into range
 --FILE--
 <?nvs
 // A bound asserted on both sides: a member that stopped one code early would

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::fold` answers Unicode's full case folding, which is a comparison key rather than text to show — spec § 1 *Transformation*
+`Core\Str::fold` answers Unicode's full case folding, which is a comparison key rather than text to show
 --FILE--
 <?nvs
 // Folding is a different function from the lower-case mapping: its whole job

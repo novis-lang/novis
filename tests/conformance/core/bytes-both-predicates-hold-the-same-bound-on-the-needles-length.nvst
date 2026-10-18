@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes::startsWith` and `endsWith` hold the same bound on the needle's length — empty, full width, and one byte past it — and agree with each other wherever a prefix and a suffix are the same buffer — `rule:types/bytes`, `rule:core-api/shape-rules` R6
+`Core\Bytes::startsWith` and `endsWith` hold the same bound on the needle's length — empty, full width, and one byte past it — and agree with each other wherever a prefix and a suffix are the same buffer — `rule:types/bytes`, `rule:core-api/shape-rules` R6
 --FILE--
 <?nvs
 // Both members are written around one bound: a needle is answered `true` up to
@@ -20,7 +20,7 @@ class Yn {
     }
 }
 
-// There is no `bytes` literal (00-overview § 5), so the subject is hex. The two
+// There is no `bytes` literal, so the subject is hex. The two
 // extended buffers are the subject with one byte added at each end, which is
 // what makes the k = 9 needle a *real* buffer rather than a `slice` that
 // silently stops short: `slice` would answer 8 bytes for a 9-byte window and

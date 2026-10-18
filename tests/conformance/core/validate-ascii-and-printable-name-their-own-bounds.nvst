@@ -1,8 +1,8 @@
 --TEST--
-`Core\Validate::isAscii` and `isPrintable` each name the last code point they accept beside the first they refuse, and the sweep between the two bounds counts the four cells they carve out — docs/spec/01-core-library.md § 12
+`Core\Validate::isAscii` and `isPrintable` each name the last code point they accept beside the first they refuse, and the sweep between the two bounds counts the four cells they carve out
 --FILE--
 <?nvs
-// § 12's two character-class predicates draw two *different* lines over the
+// `Core\Validate`'s two character-class predicates draw two *different* lines over the
 // same subject: `isAscii` asks an encoding question (every byte under `0x80`)
 // and `isPrintable` a Unicode one (no `char` in general category `Cc`).
 // `validate-ip-families-and-the-two-byte-classes.nvst` crosses them at three

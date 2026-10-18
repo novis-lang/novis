@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::encode` writes every value JSON has a spelling for and refuses the rest in `LogicError`, each refusal wrapped in its own name — spec § 6, `rule:core-api/shape-rules` R4, `rule:core-classes/derive-reports-every-field`, `rule:types/bytes`
+`Core\Json::encode` writes every value JSON has a spelling for and refuses the rest in `LogicError`, each refusal wrapped in its own name — `rule:core-api/shape-rules` R4, `rule:core-classes/derive-reports-every-field`, `rule:types/bytes`
 --FILE--
 <?nvs
 // `rule:core-classes/derive-reports-every-field`: participation in a wire format is written, never inferred, so
@@ -24,7 +24,7 @@ final class Plain {
 decimal $exact = 19.99;
 uint $width = Core\Str::length("ab");
 
-// One value per tag JSON has a spelling for, plus both array shapes: spec § 6
+// One value per tag JSON has a spelling for, plus both array shapes: `Core\Json`
 // writes a list as an array and a string-keyed map as an object. A `decimal`
 // is written as a string, because `rule:types/decimal` is exact and JSON's one
 // number type is a `float` in every consumer that reads it.
@@ -68,7 +68,7 @@ echo "wrapped=", $wrapped, "\n";
 // The class is `LogicError` and not `RuntimeError` on purpose: an unencodable
 // value was built by the program, so it is a bug in the program rather than
 // something the world did. Every refusal counted above went through that same
-// clause, so this names which of § 10's two branches it was.
+// clause, so this names which of the error tree's two branches it was.
 try {
     var $unreachable = Core\Json::encode(new Plain(1));
     echo "not refused=", $unreachable, "\n";

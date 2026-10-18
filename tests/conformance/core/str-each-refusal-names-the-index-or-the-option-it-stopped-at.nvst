@@ -1,8 +1,8 @@
 --TEST--
-`Core\Str`'s five refusals each name what they stopped at — the index and the length it is outside of, the size, the needle, and which of `wrap`'s two options — spec § 1, `rule:types/conversion`
+`Core\Str`'s five refusals each name what they stopped at — the index and the length it is outside of, the size, the needle, and which of `wrap`'s two options — `rule:types/conversion`
 --FILE--
 <?nvs
-// Spec § 1's five throwing sites, none of which had a case asserting its
+// `Core\Str`'s five throwing sites, none of which had a case asserting its
 // *message*. The neighbouring `Core\Str` cases pin what each member answers;
 // this one pins where each stops accepting and what it says there, because a
 // refusal a caller cannot act on is the same dead end `substr_count`'s

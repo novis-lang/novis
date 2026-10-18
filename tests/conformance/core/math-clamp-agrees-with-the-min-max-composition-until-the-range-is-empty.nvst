@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::clamp answers exactly what min(max($x, $lo), $hi) answers on every row of a non-empty range, in either composition order, and parts from it only where the range is empty — docs/spec/01-core-library.md § 3
+Core\Math::clamp answers exactly what min(max($x, $lo), $hi) answers on every row of a non-empty range, in either composition order, and parts from it only where the range is empty
 --FILE--
 <?nvs
 // `clamp` is the one member of the ordering trio that is not a binary fold, so

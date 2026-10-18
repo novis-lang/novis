@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding`'s base64 pair pins padding to the operand's length, refuses a symbol neither alphabet admits, and round-trips a buffer no `string` could hold — spec § 7, `rule:types/bytes` and `rule:types/conversion`
+`Core\Encoding`'s base64 pair pins padding to the operand's length, refuses a symbol neither alphabet admits, and round-trips a buffer no `string` could hold — `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 class B64 {
@@ -71,7 +71,7 @@ echo B64::both("00ff80fe"), "\n";
 echo B64::standard("AP+A/g=="), "\n";
 echo B64::url("AP-A_g"), "\n";
 
-// And a buffer that does have one: `as bytes` is total and free (§ 3), so a
+// And a buffer that does have one: `as bytes` is total and free (`rule:types/conversion`), so a
 // `string` reaches the same pair through the same two members.
 bytes $text = "nvs" as bytes;
 echo Core\Encoding::toBase64($text), "\n";

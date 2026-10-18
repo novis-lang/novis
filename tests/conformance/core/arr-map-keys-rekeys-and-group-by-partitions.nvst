@@ -1,8 +1,8 @@
 --TEST--
-Core\Arr::mapKeys is the one member that changes a key and Core\Arr::groupBy partitions in first-occurrence order keeping every key, per spec § 2 and `rule:types/preserve-keys`
+Core\Arr::mapKeys is the one member that changes a key and Core\Arr::groupBy partitions in first-occurrence order keeping every key, per `rule:types/preserve-keys`
 --FILE--
 <?nvs
-// Spec § 2: `mapKeys` is `map`'s mirror — that member keeps the key and
+// `mapKeys` is `map`'s mirror — that member keeps the key and
 // changes the value, this one keeps the value and changes the key. Every
 // Core\Arr callback receives ($value, $key) and may declare fewer parameters.
 array<string> $names = ["a" => "Ada", "b" => "Bo"];

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::json` throws on a value JSON cannot spell and leaves the body untouched, because a refusal that has already written half a document is not a refusal -- `rule:security/response-body-is-one-typed-member`, spec § 10
+`Core\Response::json` throws on a value JSON cannot spell and leaves the body untouched, because a refusal that has already written half a document is not a refusal -- `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
 // The boundary this member stops at is `Core\Json::encode`'s own, reached

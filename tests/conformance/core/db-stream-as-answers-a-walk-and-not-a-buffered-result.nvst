@@ -1,8 +1,8 @@
 --TEST--
-`streamAs<T>` answers `Core\Db\Stream` at the class its call site wrote, which is not the `Core\Db\Rows` the buffering half of the same pair answers — `rule:core-classes/db-streaming`, `rule:core-classes/db-statement-members`, spec § 18
+`streamAs<T>` answers `Core\Db\Stream` at the class its call site wrote, which is not the `Core\Db\Rows` the buffering half of the same pair answers — `rule:core-classes/db-streaming`, `rule:core-classes/db-statement-members`
 --FILE--
 <?nvs
-// § 18 puts four hydrating readings of one statement on `Core\Db\Queryable`,
+// `Core\Db\Queryable` has four hydrating readings of one statement,
 // and the two axes are independent: `query`/`stream` decides where the rows
 // are, and the written type argument decides what each row becomes. So the
 // answer's *class* is the walk's and its *type argument* is the call site's,

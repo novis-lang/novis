@@ -1,5 +1,5 @@
 --TEST--
-`$e->location` is written at the `throw` rather than at the `new`: one never thrown reads empty, and a rethrow moves it to the rethrow site — spec § 10
+`$e->location` is written at the `throw` rather than at the `new`: one never thrown reads empty, and a rethrow moves it to the rethrow site
 --FILE--
 <?nvs
 // covers: lang:errors/properties-not-accessors, lang:errors/rethrowing

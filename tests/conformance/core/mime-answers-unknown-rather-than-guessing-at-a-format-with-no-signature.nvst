@@ -1,5 +1,5 @@
 --TEST--
-`Core\Mime::Type::Unknown` is an ordinary answer and not a failure: a format serialized as text has no signature, and a prefix too short for one is not a guess at the rest — spec § 17
+`Core\Mime::Type::Unknown` is an ordinary answer and not a failure: a format serialized as text has no signature, and a prefix too short for one is not a guess at the rest
 --FILE--
 <?nvs
 // covers: Core\Mime::Type

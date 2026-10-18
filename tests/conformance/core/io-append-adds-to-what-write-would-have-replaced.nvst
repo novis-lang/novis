@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::append adds to the end of a file and creates one where there was nothing, which is the whole of how it parts from Core\IO::write — asserted over every state a path can be in and counted, so a member that truncated on one of them still fails — spec § 14
+Core\IO::append adds to the end of a file and creates one where there was nothing, which is the whole of how it parts from Core\IO::write — asserted over every state a path can be in and counted, so a member that truncated on one of them still fails
 --FILE--
 <?nvs
 // The two whole-file writers, over the three states the door can tell apart.

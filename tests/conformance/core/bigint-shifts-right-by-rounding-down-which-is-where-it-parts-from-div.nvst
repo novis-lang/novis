@@ -1,5 +1,5 @@
 --TEST--
-`Core\BigInt::shr` divides by a power of two and rounds toward negative infinity, which is where it parts from `div`, and past a receiver's own width the two signs end differently — `rule:types/arithmetic`, spec § 13
+`Core\BigInt::shr` divides by a power of two and rounds toward negative infinity, which is where it parts from `div`, and past a receiver's own width the two signs end differently — `rule:types/arithmetic`
 --FILE--
 <?nvs
 // covers: Core\BigInt::shr

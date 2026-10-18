@@ -1,5 +1,5 @@
 --TEST--
-`transaction` hands its callable a `Core\Db\Transaction`, which has the connection's whole query surface and is still not a connection — `rule:core-classes/db-transactions`, `rule:classes/no-traits`, spec § 18
+`transaction` hands its callable a `Core\Db\Transaction`, which has the connection's whole query surface and is still not a connection — `rule:core-classes/db-transactions`, `rule:classes/no-traits`
 --FILE--
 <?nvs
 // `rule:core-classes/db-transactions` replaces `beginTransaction`/`commit`/`rollBack` with one member

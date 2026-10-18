@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Session` member called before `start` refuses with a throw the root of spec § 10's tree catches, so a program that cannot use sessions can say so -- `rule:core-api/session-roster`
+A `Core\Session` member called before `start` refuses with a throw `Throwable`, the root of the error tree, catches, so a program that cannot use sessions can say so -- `rule:core-api/session-roster`, `rule:errors/throwable-hierarchy`
 --FILE--
 <?nvs
 // The sibling cases pinned the class and the wording. This pins the *tree*: the
@@ -47,7 +47,7 @@ echo "caught by the root of the tree ", $caught, " of 6\n";
 
 // And the request continues past all six. A refusal that left the program
 // unable to go on would be a fatal wearing a class name, which is the
-// distinction spec § 10's tree exists to draw.
+// distinction the error class tree exists to draw.
 echo "and the program is still running\n";
 --EXPECT--
 caught by the root of the tree 6 of 6

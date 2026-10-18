@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request`'s refusal is an ordinary `Throwable` a program continues past, and reading twice refuses twice -- `rule:security/request-state-throws-in-an-isolate`, `rule:errors/on-limit`, spec § 15
+`Core\Request`'s refusal is an ordinary `Throwable` a program continues past, and reading twice refuses twice -- `rule:security/request-state-throws-in-an-isolate`, `rule:errors/on-limit`
 --FILE--
 <?nvs
 // The edge on the other side of the refusal: what a program can do *after*

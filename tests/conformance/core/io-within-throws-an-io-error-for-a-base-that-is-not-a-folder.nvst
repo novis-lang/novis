@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::within throws an IOError for a base that does not exist or is a file, where a missing `$path` is still answered — spec § 14 *Resolution*, `rule:security/launderers-are-sink-named`
+Core\IO::within throws an IOError for a base that does not exist or is a file, where a missing `$path` is still answered — `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
 // A missing `$path` resolves through its deepest existing ancestor, so a

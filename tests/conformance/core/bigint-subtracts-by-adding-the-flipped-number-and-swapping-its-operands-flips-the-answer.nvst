@@ -1,5 +1,5 @@
 --TEST--
-`Core\BigInt::sub` agrees with adding the flipped number, and swapping its operands flips its answer, over a sign sweep that crosses the `int` bound — `rule:types/arithmetic`, spec § 13
+`Core\BigInt::sub` agrees with adding the flipped number, and swapping its operands flips its answer, over a sign sweep that crosses the `int` bound — `rule:types/arithmetic`
 --FILE--
 <?nvs
 // covers: Core\BigInt::sub

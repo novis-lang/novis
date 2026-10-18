@@ -1,5 +1,5 @@
 --TEST--
-Nothing is sniffed: a frame decompressed under a case it was not written by is refused as malformed, and by a `ParseError` rather than an `IOError` — spec § 17
+Nothing is sniffed: a frame decompressed under a case it was not written by is refused as malformed, and by a `ParseError` rather than an `IOError` — `Core\Compress`
 --FILE--
 <?nvs
 // The codec is an argument and never a guess. A member that sniffed the header

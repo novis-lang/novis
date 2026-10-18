@@ -1,5 +1,5 @@
 --TEST--
-The six `Core\Arr` members that reshape a list answer the empty array with the empty array rather than refusing it — spec § 2, `rule:core-api/shape-rules` R3
+The six `Core\Arr` members that reshape a list answer the empty array with the empty array rather than refusing it — `rule:core-api/shape-rules` R3
 --FILE--
 <?nvs
 // The *agreement* shape over the boundary a reshaping member is most likely to

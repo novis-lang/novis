@@ -1,5 +1,5 @@
 --TEST--
-Core\Json::decode's maxDepth counts PHP's way, holds at 512 and refuses 513, and a maxDepth outside 1..=1024 is a LogicError rather than a ParseError — spec § 6
+Core\Json::decode's maxDepth counts PHP's way, holds at 512 and refuses 513, and a maxDepth outside 1..=1024 is a LogicError rather than a ParseError
 --FILE--
 <?nvs
 // `maxDepth` is a bound on *stack*: the parse recurses one frame per nesting
@@ -24,7 +24,7 @@ for (int $d = 1; $d <= 8; $d = $d + 1) {
 }
 echo "accepted ", $accepted, " of 8\n";
 
-// The default is 512, spec § 6's and PHP's own, and it is a real number
+// The default is 512, the registry's and PHP's own, and it is a real number
 // rather than whatever the parser underneath happens to allow: serde_json's
 // own limit is 128, and this module turns it off precisely so the declared
 // default is reachable. 511 nestings around a scalar is depth 512 and holds;

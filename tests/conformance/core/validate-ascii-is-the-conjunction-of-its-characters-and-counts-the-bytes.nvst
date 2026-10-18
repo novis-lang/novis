@@ -1,5 +1,5 @@
 --TEST--
-`Core\Validate::isAscii` over a whole string is the conjunction of its answer over each of that string's code points, and is true exactly where the byte count equals the code-point count — both counted over one sweep, and both independent of where in the subject the offending character sits — docs/spec/01-core-library.md § 12
+`Core\Validate::isAscii` over a whole string is the conjunction of its answer over each of that string's code points, and is true exactly where the byte count equals the code-point count — both counted over one sweep, and both independent of where in the subject the offending character sits
 
 --FILE--
 <?nvs

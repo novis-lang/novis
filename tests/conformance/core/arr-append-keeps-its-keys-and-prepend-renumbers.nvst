@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::append keeps the subject's keys and prepend always returns a list, spec § 2 and `rule:types/preserve-keys`
+Core\Arr::append keeps the subject's keys and prepend always returns a list, `rule:types/preserve-keys`
 --FILE--
 <?nvs
 array<string> $list = ["a", "b"];

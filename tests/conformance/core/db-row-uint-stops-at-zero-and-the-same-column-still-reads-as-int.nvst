@@ -40,7 +40,7 @@ foreach ($asked as string $column) {
 // The twin reader over the very same column, which answers it.
 echo "int over below: ", $row->int("below") ?? 0, "\n";
 
-// A NULL column is an absence and not a refusal — `rule:core-classes/db-column-types`, spec § 18.
+// A NULL column is an absence and not a refusal — `rule:core-classes/db-column-types`.
 ?uint $missed = $row->uint("missed");
 if ($missed == null) {
     echo "uint over missed: null\n";

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Validate::isDomain`'s labels are RFC 1123 § 2.1's letters, digits and interior hyphens, and every ASCII code point answers the same in a domain of its own as in the domain half of an address, counted — docs/spec/01-core-library.md § 12
+`Core\Validate::isDomain`'s labels are RFC 1123 § 2.1's letters, digits and interior hyphens, and every ASCII code point answers the same in a domain of its own as in the domain half of an address, counted
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/validate.rs`'s module doc draws `isDomain` as RFC 1123

@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `Core\Time\Duration`'s eight constructors, its four readers and its `toString` are one nanosecond scale, and the sign is a rendering the grammar does not read (`rule:types/duration`)
+`Core\Time\Duration`'s eight constructors, its four readers and its `toString` are one nanosecond scale, and the sign is a rendering the grammar does not read (`rule:types/duration`)
 --FILE--
 <?nvs
 // covers: Core\Time\Duration::toNanoseconds, Core\Time\Duration::toMicroseconds, Core\Time\Duration::toMilliseconds, Core\Time\Duration::toSeconds, Core\Time\Duration::toString

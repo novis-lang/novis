@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: each `Core\Time\Duration` unit is a fixed length (`rule:types/duration`), asserted at both sides of every carry and at both sides of the type's own range
+Each `Core\Time\Duration` unit is a fixed length (`rule:types/duration`), asserted at both sides of every carry and at both sides of the type's own range
 --FILE--
 <?nvs
 // Each unit is a fixed number of nanoseconds (`rule:types/duration`), and the place

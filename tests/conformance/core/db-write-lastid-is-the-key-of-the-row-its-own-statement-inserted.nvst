@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Write::lastId` is the key of the row its own statement inserted: a `?uint` a caller unwraps, the last row's key where one statement inserted several, still that key after later inserts have run, `null` for a statement that inserted no row at all, and `null` where the row was written with a key no `uint` holds — `rule:core-classes/db-statement-members`, spec § 18
+`Core\Db\Write::lastId` is the key of the row its own statement inserted: a `?uint` a caller unwraps, the last row's key where one statement inserted several, still that key after later inserts have run, `null` for a statement that inserted no row at all, and `null` where the row was written with a key no `uint` holds — `rule:core-classes/db-statement-members`
 --FILE--
 <?nvs
 // covers: Core\Db\Write::lastId

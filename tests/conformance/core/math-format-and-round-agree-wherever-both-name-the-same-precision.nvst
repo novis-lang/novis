@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::format renders exactly what Core\Math::round answers at the same precision, over a whole table and at every mode, and parts from it only where round has no opinion — the separators and the precisions below zero — docs/spec/01-core-library.md § 3
+Core\Math::format renders exactly what Core\Math::round answers at the same precision, over a whole table and at every mode, and parts from it only where round has no opinion — the separators and the precisions below zero
 --FILE--
 <?nvs
 // Two members carrying one rounding rule between them. `round` answers a

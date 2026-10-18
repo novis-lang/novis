@@ -1,8 +1,8 @@
 --TEST--
-`streamAs<T>` walks a result set a row at a time and builds each row into the class its call site wrote, through a connection and through a transaction alike — `rule:core-classes/db-streaming`, `rule:core-classes/derive-attribute`, `rule:classes/no-traits`, spec § 18
+`streamAs<T>` walks a result set a row at a time and builds each row into the class its call site wrote, through a connection and through a transaction alike — `rule:core-classes/db-streaming`, `rule:core-classes/derive-attribute`, `rule:classes/no-traits`
 --FILE--
 <?nvs
-// Spec § 18 gives `stream` and `streamAs<T>` one statement, one binding rule
+// `stream` and `streamAs<T>` share one statement, one binding rule
 // and one held connection: what differs is that the walk's element is a
 // `Core\Db\Row` on the first and the written class on the second. So this case
 // asks for the rows a member that buffered could answer just as well, and what

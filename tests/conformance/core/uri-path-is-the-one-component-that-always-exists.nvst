@@ -1,5 +1,5 @@
 --TEST--
-`$uri->path` answers a `string` for every reference the grammar admits, where the other six readers each answer `null` somewhere — RFC 3986 § 3.3's path is not optional, and `""` is a path rather than the absence of one — spec § 12
+`$uri->path` answers a `string` for every reference the grammar admits, where the other six readers each answer `null` somewhere — RFC 3986 § 3.3's path is not optional, and `""` is a path rather than the absence of one
 --FILE--
 <?nvs
 // Six of `Core\Uri`'s seven component readers are typed `?string` (or `?int`);

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Regex::split`'s `limit` is asserted at both ends of its range — the exact piece count, one past it, and a negative that drops every piece — and `keepEmpty` is applied after the limit, never before it — docs/spec/01-core-library.md § 4
+`Core\Regex::split`'s `limit` is asserted at both ends of its range — the exact piece count, one past it, and a negative that drops every piece — and `keepEmpty` is applied after the limit, never before it
 --FILE--
 <?nvs
 // "a1b2c3d" splits on a digit into exactly four pieces, so four is the bound

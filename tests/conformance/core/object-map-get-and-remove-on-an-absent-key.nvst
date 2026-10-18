@@ -1,5 +1,5 @@
 --TEST--
-`Core\ObjectMap<K, V>::get` and `::remove` answer nothing and change nothing for a key the map does not hold — docs/spec/01-core-library.md § 9
+`Core\ObjectMap<K, V>::get` and `::remove` answer nothing and change nothing for a key the map does not hold
 --FILE--
 <?nvs
 // covers: Core\ObjectMap::get, Core\ObjectMap::remove, Core\ObjectMap::count
@@ -68,7 +68,7 @@ echo $weights->get($blue) ?? -1, " ", $weights->has($blue) ? "yes" : "no", " ", 
 
 // `get` answering `null` is not the same question as `has`: a map that holds
 // `null` under a key answers `null` from `get` and `true` from `has`, which is
-// the ambiguity § 9 leaves `has` to resolve.
+// the ambiguity `has` exists to resolve.
 Core\ObjectMap<Tag, ?int> $marks = new Core\ObjectMap<Tag, ?int>();
 $marks->set($red, null);
 echo $marks->get($red) ?? -1, " ", $marks->has($red) ? "yes" : "no", "\n";

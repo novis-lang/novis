@@ -1,5 +1,5 @@
 --TEST--
-`Core\Arr::from` and a `foreach` drive one sequence the same way, agreeing on the entries seen and on the advances made at every prefix of it, over all three shapes — spec § 2, `rule:iteration/two-interfaces` and `rule:iteration/foreach-subjects`
+`Core\Arr::from` and a `foreach` drive one sequence the same way, agreeing on the entries seen and on the advances made at every prefix of it, over all three shapes — `rule:iteration/two-interfaces` and `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/arr.rs:2527`'s doc says `{limit: n}` stops the *drive*
@@ -122,7 +122,7 @@ foreach ($nums as int $v2) {
 echo Core\Json::encode(Core\Arr::from($nums)), " ", Core\Json::encode($iterableWalk), "\n";
 
 // Shape three, where the two callers differ on purpose and the agreement says
-// exactly where: § 2 makes `from`'s answer a list whichever shape went in, and
+// exactly where: `from`'s answer is a list whichever shape went in, and
 // a `foreach` binds each key beside its value. So the two agree on the
 // *values*, in order, and the keys are the part `from` drops.
 array<int> $keyed = ["w" => 7, "x" => 7, "y" => 9, "z" => 4, "" => 0];

@@ -1,8 +1,8 @@
 --TEST--
-Core\Arr's five numeric folds give one answer over any one-entry subject and three over an empty one, where only sum's and product's answers are their own fold's identity — spec § 2, `rule:core-api/shape-rules` R5
+Core\Arr's five numeric folds give one answer over any one-entry subject and three over an empty one, where only sum's and product's answers are their own fold's identity — `rule:core-api/shape-rules` R5
 --FILE--
 <?nvs
-// Spec § 2's five numeric folds -- min, max, sum, product, average -- are one
+// `Core\Arr`'s five numeric folds -- min, max, sum, product, average -- are one
 // family, and this case asks all five the same question over one table of
 // subjects so that what is asserted is their *agreement* rather than five
 // separate answers. A member that grew its own empty case, or its own

@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::abs is max($x, -$x) and min's negation, and Core\Math::sign is what min and max say about $x against zero, on every row of both arms — `abs` agreeing with its derivation even where both refuse, and `sign` parting from it only at NaN — docs/spec/01-core-library.md § 3
+Core\Math::abs is max($x, -$x) and min's negation, and Core\Math::sign is what min and max say about $x against zero, on every row of both arms — `abs` agreeing with its derivation even where both refuse, and `sign` parting from it only at NaN
 --FILE--
 <?nvs
 // Neither `abs` nor `sign` needs a comparison of its own: both are already

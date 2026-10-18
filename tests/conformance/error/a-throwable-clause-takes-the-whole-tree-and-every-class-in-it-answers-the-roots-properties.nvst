@@ -1,5 +1,5 @@
 --TEST--
-A `Throwable` clause takes all twelve classes of the tree, every one of them answers the three properties the root declares whatever its depth, and a user class extending the root joins there rather than on either half — all counted rather than read off one arm — spec § 10
+A `Throwable` clause takes all twelve classes of the tree, every one of them answers the three properties the root declares whatever its depth, and a user class extending the root joins there rather than on either half — all counted rather than read off one arm
 --FILE--
 <?nvs
 // covers: Throwable

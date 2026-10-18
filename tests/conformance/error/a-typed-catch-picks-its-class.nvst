@@ -1,5 +1,5 @@
 --TEST--
-A typed `catch` matches its class and every subclass of it, and `Throwable` is the root of the tree — spec § 10
+A typed `catch` matches its class and every subclass of it, and `Throwable` is the root of the tree
 --FILE--
 <?nvs
 // covers: lang:errors/try-catch-finally

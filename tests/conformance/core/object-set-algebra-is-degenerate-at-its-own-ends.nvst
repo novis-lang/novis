@@ -1,5 +1,5 @@
 --TEST--
-`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` agree at their degenerate ends — the receiver itself and a disjoint set — over every shape of receiver, counted rather than read off a line — docs/spec/01-core-library.md § 9, `rule:expressions/object-identity-equality`
+`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` agree at their degenerate ends — the receiver itself and a disjoint set — over every shape of receiver, counted rather than read off a line — `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 // covers: Core\ObjectSet::union, Core\ObjectSet::intersect, Core\ObjectSet::diff

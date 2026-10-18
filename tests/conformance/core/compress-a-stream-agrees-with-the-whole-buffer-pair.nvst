@@ -1,8 +1,8 @@
 --TEST--
-A `Core\Compress` stream answers what the whole-buffer pair answers over the concatenation of its chunks, for every codec and whatever shape the chunks arrived in — spec § 17, `rule:core-api/one-paradigm-per-operation`
+A `Core\Compress` stream answers what the whole-buffer pair answers over the concatenation of its chunks, for every codec and whatever shape the chunks arrived in — `rule:core-api/one-paradigm-per-operation`
 --FILE--
 <?nvs
-// § 17's incremental half exists so that a program feeding octets in pieces
+// `Core\Compress`'s incremental half exists so that a program feeding octets in pieces
 // does not have to concatenate them itself. Its whole contract is that the
 // chunking is not observable: `finish` answers what the whole-buffer member
 // would over the concatenation, which is asserted here by **counting** across

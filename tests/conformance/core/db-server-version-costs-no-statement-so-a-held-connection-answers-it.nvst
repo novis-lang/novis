@@ -1,5 +1,5 @@
 --TEST--
-Spec § 18's `serverVersion()` is a field read and not a statement, and the proof is where a statement is refused: it answers between two rows of a `stream`, on the connection that walk is holding — `rule:core-classes/db-streaming` and `rule:core-classes/db-connection-busy-state`
+`serverVersion()` is a field read and not a statement, and the proof is where a statement is refused: it answers between two rows of a `stream`, on the connection that walk is holding — `rule:core-classes/db-streaming` and `rule:core-classes/db-connection-busy-state`
 --FILE--
 <?nvs
 // covers: Core\Db\Connection::serverVersion

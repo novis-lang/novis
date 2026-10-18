@@ -1,5 +1,5 @@
 --TEST--
-`Core\Mime::Type::Ebml` is one case for both formats that share the EBML header, because what tells a WebM from a Matroska file is the `DocType` element, which is a parse and not a prefix — spec § 17
+`Core\Mime::Type::Ebml` is one case for both formats that share the EBML header, because what tells a WebM from a Matroska file is the `DocType` element, which is a parse and not a prefix
 --FILE--
 <?nvs
 // Two containers that differ only in the `DocType` element (`4282`) naming the

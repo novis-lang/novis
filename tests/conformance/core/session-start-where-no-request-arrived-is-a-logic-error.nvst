@@ -73,7 +73,7 @@ echo "Core\\Request refuses alike ", $alike, " of 2\n";
 echo "the process is still readable: draining=",
     Core\Server::isDraining() ? "true" : "false", "\n";
 
-// It is catchable at the root of spec § 10's tree as well: a program that cannot
+// It is catchable at `Throwable`, the root of the tree, as well: a program that cannot
 // open a session is one that can say so, not one that dies.
 uint $byRoot = 0;
 try {

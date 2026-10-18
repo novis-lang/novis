@@ -1,8 +1,8 @@
 --TEST--
-`Core\Hash::hmac` zero-extends a key up to exactly one block and replaces the first key past it with its own digest, asserted from both sides of that bound — spec § 11, `rule:types/bytes` and `rule:types/conversion`
+`Core\Hash::hmac` zero-extends a key up to exactly one block and replaces the first key past it with its own digest, asserted from both sides of that bound — `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
-// § 11: RFC 2104 has one width at which a key stops being used as written —
+// RFC 2104 has one width at which a key stops being used as written —
 // the digest's block. At or below it the key is zero-extended to the block; one
 // octet past it the key becomes `H(key)` and *that* is zero-extended instead.
 // Both rules are already exercised in the middle of their ranges by the vector
@@ -11,7 +11,7 @@
 // perfectly plausible digest on either range alone.
 //
 // The block is 64 octets for SHA-256 and 128 for SHA-384 and SHA-512 — the one
-// number the two halves of § 11's `StrongDigest` disagree on, so each is asked
+// number the two halves of `StrongDigest` disagree on, so each is asked
 // about its own.
 class Width
 {

@@ -1,5 +1,5 @@
 --TEST--
-`Core\BigInt`'s `gcd`, `lcm`, `sqrt`, `pow`, `powMod` and the two shifts each answer their own definition over a sweep rather than a table of remembered answers — `rule:types/arithmetic`, spec § 13
+`Core\BigInt`'s `gcd`, `lcm`, `sqrt`, `pow`, `powMod` and the two shifts each answer their own definition over a sweep rather than a table of remembered answers — `rule:types/arithmetic`
 --FILE--
 <?nvs
 // The number-theory members are each defined by an identity, and asserting the

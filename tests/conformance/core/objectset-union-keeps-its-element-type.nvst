@@ -1,5 +1,5 @@
 --TEST--
-`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` each answer at the receiver's own element type, so the three compose — docs/spec/01-core-library.md § 9
+`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` each answer at the receiver's own element type, so the three compose
 --FILE--
 <?nvs
 final class Tag {

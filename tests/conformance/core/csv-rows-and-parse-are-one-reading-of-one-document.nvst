@@ -1,5 +1,5 @@
 --TEST--
-A document walked with `Core\Csv::rows` and one read whole with `Core\Csv::parse` divide the same bytes the same way, across a read boundary and every ragged shape — spec § 12's second table
+A document walked with `Core\Csv::rows` and one read whole with `Core\Csv::parse` divide the same bytes the same way, across a read boundary and every ragged shape
 --FILE--
 <?nvs
 // The agreement, asked of both members over the shapes where a fed-buffer

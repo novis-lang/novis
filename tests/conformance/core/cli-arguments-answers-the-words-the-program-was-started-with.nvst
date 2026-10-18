@@ -1,12 +1,12 @@
 --TEST--
-`Core\Cli::arguments` answers the program's own words in the order they were written, one element per word and no splitting — spec § 15, `rule:tooling/commands-are-compiled`
+`Core\Cli::arguments` answers the program's own words in the order they were written, one element per word and no splitting — `rule:tooling/commands-are-compiled`
 --ARGS--
 greet
 ada lovelace
 --dry-run
 --FILE--
 <?nvs
-// Spec § 15's raw list: what a program reads when it declares no `#[Command]`
+// `Core\Cli::arguments` is the raw list: what a program reads when it declares no `#[Command]`
 // and parses its own line. Three words that between them cover what a shell
 // would have done and this format does not: a plain one, one holding a space,
 // and one spelled like an option the runner itself might have taken.

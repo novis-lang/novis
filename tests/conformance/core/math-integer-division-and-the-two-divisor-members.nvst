@@ -15,7 +15,7 @@ echo Core\Math::mod(7.5, 2.0), "|", Core\Math::mod(-7.5, 2.0), "\n";
 echo Core\Math::gcd(84, 36), "|", Core\Math::gcd(-84, 36), "|", Core\Math::gcd(0, 0), "\n";
 echo Core\Math::lcm(4, 6), "|", Core\Math::lcm(4, 0), "\n";
 
-// Spec § 3: a division by zero throws, which is why `fdiv`'s silent INF and
+// A division by zero throws, which is why `fdiv`'s silent INF and
 // `fmod`'s silent NAN have no equivalent.
 try {
     echo Core\Math::intDiv(1, 0), "\n";

@@ -2,7 +2,7 @@
 Core\Regex::quote makes a literal exactly one match, at offset 0, spanning its own subject and reaching no other, wherever a metacharacter sits in it — `rule:security/regex-pattern-is-a-sink`
 --FILE--
 <?nvs
-// Spec § 5's `quote` row, from the side its two siblings leave open.
+// `Core\Regex::quote`, from the side its two siblings leave open.
 // `regex-quote-escapes-eighteen-characters-and-nothing-else` names the escaped
 // set and then asks `matches` — a yes-or-no question — of eight hand-picked
 // rows; the differential case against `preg_quote` counts the property the two

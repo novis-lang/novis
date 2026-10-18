@@ -1,5 +1,5 @@
 --TEST--
-`Core\Validate::isIp`'s numeric and structural bounds are each named beside the neighbour they refuse — the last octet value, the two group counts, a group's fourth hex digit and the one `::` an address may hold — and three sweeps count that exactly one width per family is accepted — docs/spec/01-core-library.md § 12
+`Core\Validate::isIp`'s numeric and structural bounds are each named beside the neighbour they refuse — the last octet value, the two group counts, a group's fourth hex digit and the one `::` an address may hold — and three sweeps count that exactly one width per family is accepted
 
 --FILE--
 <?nvs

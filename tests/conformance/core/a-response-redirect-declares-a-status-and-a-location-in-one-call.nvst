@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::redirect` is two declarations and no byte of body, and its status argument is optional -- spec § 15
+`Core\Response::redirect` is two declarations and no byte of body, and its status argument is optional
 --FILE--
 <?nvs
 // Like `setStatus` and `setHeader`, and unlike `rule:security/response-body-is-one-typed-member`'s five body

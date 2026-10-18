@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4: `Core\Time\TimeOfDay`'s dial has two ends and they are named together — the first and last representable reading, that no reading of any field combination lies outside them, that they are one nanosecond apart in both directions so the far side of each end is the other, that a whole turn from either end is the identity in every unit, that the step wraps where the order does not, and that `at` refuses the reading one past the top
+`Core\Time\TimeOfDay`'s dial has two ends and they are named together — the first and last representable reading, that no reading of any field combination lies outside them, that they are one nanosecond apart in both directions so the far side of each end is the other, that a whole turn from either end is the identity in every unit, that the step wraps where the order does not, and that `at` refuses the reading one past the top
 --FILE--
 <?nvs
-// § 4: a time of day is a position in the 24-hour cycle, so the dial is closed
+// A time of day is a position in the 24-hour cycle, so the dial is closed
 // and its two ends touch. The sibling cases use both ends as table rows —
 // `time-of-day-compare-to-is-one-total-order-and-arr-sort-agrees-with-it` and
 // `time-of-day-plus-and-minus-undo-each-other-and-refuse-at-two-boundaries` —

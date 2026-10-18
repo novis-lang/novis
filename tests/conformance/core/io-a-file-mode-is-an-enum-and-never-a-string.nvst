@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO::FileMode`'s four cases are the whole of what replaces `fopen`'s mode-string grammar, and each does exactly one thing to the file that is already there: `Append` keeps it, `Write` empties it, `ReadWrite` creates it and empties nothing — spec § 14 R11
+`Core\IO::FileMode`'s four cases are the whole of what replaces `fopen`'s mode-string grammar, and each does exactly one thing to the file that is already there: `Append` keeps it, `Write` empties it, `ReadWrite` creates it and empties nothing
 --FILE--
 <?nvs
 // covers: Core\IO::FileMode

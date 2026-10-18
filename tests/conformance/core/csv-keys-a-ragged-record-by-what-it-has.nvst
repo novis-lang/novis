@@ -1,5 +1,5 @@
 --TEST--
-`Core\Csv::parse` answers a ragged document rather than throwing, keying each record by what it actually holds — spec § 12's second table
+`Core\Csv::parse` answers a ragged document rather than throwing, keying each record by what it actually holds
 --FILE--
 <?nvs
 // A record with more fields than the header keys the surplus by its column

@@ -1,5 +1,5 @@
 --TEST--
-`executeMany` answers the sum of what its runs wrote rather than a `Core\Db\Write`, so a batch offers no `lastId` to read off it — `rule:core-classes/db-statement-members`, spec § 18
+`executeMany` answers the sum of what its runs wrote rather than a `Core\Db\Write`, so a batch offers no `lastId` to read off it — `rule:core-classes/db-statement-members`
 --FILE--
 <?nvs
 // covers: Core\Db\Connection::executeMany

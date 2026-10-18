@@ -1,5 +1,5 @@
 --TEST--
-`Core\Xml\Node::namespaceUri` answers the URI the enclosing declaration bound an element's prefix to, while `name` still answers the spelling the document wrote — spec § 17, `rule:core-classes/html-parsing`
+`Core\Xml\Node::namespaceUri` answers the URI the enclosing declaration bound an element's prefix to, while `name` still answers the spelling the document wrote — `rule:core-classes/html-parsing`
 --FILE--
 <?nvs
 // covers: Core\Xml\Node::namespaceUri

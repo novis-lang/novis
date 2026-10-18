@@ -1,5 +1,5 @@
 --TEST--
-Spec § 5: `Core\Regex\Match::offset` counts `rule:types/string-is-utf8`'s graphemes, from `0` to the subject's own length inclusive
+`Core\Regex\Match::offset` counts `rule:types/string-is-utf8`'s graphemes, from `0` to the subject's own length inclusive
 --FILE--
 <?nvs
 // covers: Core\Regex\Match::offset

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::hmac` accepts every one of spec § 11's ten `StrongDigest` cases and keys each of them — RFC 2104, RFC 4231 test case 2, spec § 11's roster table
+`Core\Hash::hmac` accepts every one of the ten `StrongDigest` cases and keys each of them — RFC 2104, RFC 4231 test case 2
 --FILE--
 <?nvs
 // `StrongDigest` grew from three cases to ten, and a union of enum-case types

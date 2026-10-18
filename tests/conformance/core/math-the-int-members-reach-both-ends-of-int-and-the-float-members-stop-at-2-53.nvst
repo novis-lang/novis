@@ -1,5 +1,5 @@
 --TEST--
-Core\Math's `int`-parameter members are asked about both ends of `int` and refuse only where the *answer* has no room, while its `float`-parameter members cannot be asked about those ends at all — `rule:types/conversion` and `rule:types/arithmetic` and docs/spec/01-core-library.md § 3
+Core\Math's `int`-parameter members are asked about both ends of `int` and refuse only where the *answer* has no room, while its `float`-parameter members cannot be asked about those ends at all — `rule:types/conversion` and `rule:types/arithmetic`
 --FILE--
 <?nvs
 // The depth claim is *a bound asserted on both sides*, and the bound is not

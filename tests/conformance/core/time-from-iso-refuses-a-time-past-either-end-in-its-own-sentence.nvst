@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `Core\Time::fromIso` refuses a well-formed timestamp past either end of the timestamp range as a `ParseError` with one sentence of its own naming the range, and never the calendar library's parameter name, `rule:core-api/shape-rules`
+`Core\Time::fromIso` refuses a well-formed timestamp past either end of the timestamp range as a `ParseError` with one sentence of its own naming the range, and never the calendar library's parameter name, `rule:core-api/shape-rules`
 --FILE--
 <?nvs
 // covers: Core\Time::fromIso

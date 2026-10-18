@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::redirect` admits every case of its closed status set, and the codes it leaves out stay spellable beside it -- spec § 15
+`Core\Response::redirect` admits every case of its closed status set, and the codes it leaves out stay spellable beside it
 --FILE--
 <?nvs
 // covers: Core\Response::Redirect

@@ -1,5 +1,5 @@
 --TEST--
-A nested `transaction` is a level of its own: a `rollBack` inside it undoes that level and leaves the one around it to commit, its answer travels out through the nesting, and an option the whole transaction settles is refused at depth rather than run weaker — `rule:core-classes/db-transactions`, spec § 18
+A nested `transaction` is a level of its own: a `rollBack` inside it undoes that level and leaves the one around it to commit, its answer travels out through the nesting, and an option the whole transaction settles is refused at depth rather than run weaker — `rule:core-classes/db-transactions`
 --FILE--
 <?nvs
 // covers: Core\Db\Transaction::transaction

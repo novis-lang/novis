@@ -1,5 +1,5 @@
 --TEST--
-A class that writes `Core\Db\Codec`'s `fromRow` and carries no `#[Db\Derive]` is hydrated through the member it wrote, handed the `Core\Db\Row` a `query` would have answered with — `rule:core-classes/derive-generates-what-is-missing`, `rule:core-classes/derive-attribute`, spec § 18
+A class that writes `Core\Db\Codec`'s `fromRow` and carries no `#[Db\Derive]` is hydrated through the member it wrote, handed the `Core\Db\Row` a `query` would have answered with — `rule:core-classes/derive-generates-what-is-missing`, `rule:core-classes/derive-attribute`
 --FILE--
 <?nvs
 // The row format is one-directional, so `Core\Db\Codec` declares `fromRow`

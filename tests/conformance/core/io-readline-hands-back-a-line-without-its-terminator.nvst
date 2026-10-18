@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO\File::readLine` walks a handle a line at a time, agreeing with `Core\IO::lines` about what a line is, and `flush` is a promise about the operating system rather than about the disk — spec § 14
+`Core\IO\File::readLine` walks a handle a line at a time, agreeing with `Core\IO::lines` about what a line is, and `flush` is a promise about the operating system rather than about the disk
 --FILE--
 <?nvs
 // covers: Core\IO\File::readLine

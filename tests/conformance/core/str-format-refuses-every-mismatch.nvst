@@ -9,7 +9,7 @@ Core\Str::format throws for every argument-mismatch PHP's printf family hides, o
 // § 2 leaves a computed argument to run time with ordinary runtime validation,
 // and this case is what asserts that half is unchanged: the same four
 // mismatches, the same four messages, from the one implementation both paths
-// share — and one class, spec § 10's `LogicError`, since a template and its
+// share — and one class, `LogicError`, since a template and its
 // argument list are the program's own writing rather than input.
 
 // Too few arguments for the placeholders written.

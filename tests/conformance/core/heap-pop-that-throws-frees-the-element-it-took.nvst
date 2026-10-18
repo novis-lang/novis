@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Heap::pop` whose comparator throws while the rest is re-ordered frees the element it had already taken, so a request that catches the throw a thousand times holds no more memory than one that never threw — `rule:errors/on-limit`, docs/spec/01-core-library.md § 9
+A `Core\Heap::pop` whose comparator throws while the rest is re-ordered frees the element it had already taken, so a request that catches the throw a thousand times holds no more memory than one that never threw — `rule:errors/on-limit`
 --FILE--
 <?nvs
 // covers: Core\Heap::pop

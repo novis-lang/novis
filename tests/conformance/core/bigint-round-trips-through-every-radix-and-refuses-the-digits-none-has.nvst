@@ -1,5 +1,5 @@
 --TEST--
-`Core\BigInt::format` and `parse` round-trip through all 35 radixes, and text that is not an integer in the radix asked for is a `ParseError` while a radix outside 2 to 36 is a `LogicError` — `rule:core-api/shape-rules` and `rule:types/conversion`, spec § 13
+`Core\BigInt::format` and `parse` round-trip through all 35 radixes, and text that is not an integer in the radix asked for is a `ParseError` while a radix outside 2 to 36 is a `LogicError` — `rule:core-api/shape-rules` and `rule:types/conversion`
 --FILE--
 <?nvs
 // `format` writes and `parse` reads back, so a round trip through *every*

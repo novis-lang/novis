@@ -1,5 +1,5 @@
 --TEST--
-`Core\Xml\Node::attributes` answers an element's attributes as the pairs they always were, in the order the document wrote them, and every other kind of node carries none — spec § 17, `rule:core-classes/html-parsing`
+`Core\Xml\Node::attributes` answers an element's attributes as the pairs they always were, in the order the document wrote them, and every other kind of node carries none — `rule:core-classes/html-parsing`
 --FILE--
 <?nvs
 // covers: Core\Xml\Node::attributes

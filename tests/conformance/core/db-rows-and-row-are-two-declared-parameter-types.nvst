@@ -1,5 +1,5 @@
 --TEST--
-Every `Rows` and `Row` reader is reached through a declared parameter, so where the value came from does not decide what it can answer — and a `?Row` is not a `Row` — `rule:core-classes/db-column-types`, spec § 18
+Every `Rows` and `Row` reader is reached through a declared parameter, so where the value came from does not decide what it can answer — and a `?Row` is not a `Row` — `rule:core-classes/db-column-types`
 --FILE--
 <?nvs
 // The agreement question: a result set and a row are *types*, so the two
@@ -9,7 +9,7 @@ Every `Rows` and `Row` reader is reached through a declared parameter, so where 
 // the fetch was asked with, so a helper taking "a row" had to be told which
 // kind of row it was getting.
 //
-// `Rows` is generic at what its rows hydrated into (spec § 18's Results table),
+// `Rows` is generic at what its rows hydrated into,
 // so the declared type writes that argument: `query` answers `Rows<Row>`, and
 // there is no bare spelling that leaves it open — the same rule every `Core`
 // generic follows.

@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::format writes a hundred decimals and refuses the hundred-and-first, naming the count it was handed — spec § 3
+Core\Math::format writes a hundred decimals and refuses the hundred-and-first, naming the count it was handed
 --FILE--
 <?nvs
 // The bound, named on both sides. A hundred decimals is past every digit an

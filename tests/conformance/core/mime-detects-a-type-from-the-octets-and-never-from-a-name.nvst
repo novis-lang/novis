@@ -1,5 +1,5 @@
 --TEST--
-`Core\Mime::detect` reads a type out of the octets themselves, and the class has no parameter a file name could arrive in — spec § 17, `rule:core-api/tier-roster`
+`Core\Mime::detect` reads a type out of the octets themselves, and the class has no parameter a file name could arrive in — `rule:core-api/tier-roster`
 --FILE--
 <?nvs
 // The whole table swept and the agreements counted, rather than read off a

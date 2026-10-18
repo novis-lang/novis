@@ -1,5 +1,5 @@
 --TEST--
-An inline-HTML run is a statement: it is echoed in place, in source order, only on the path that reaches it, and byte-for-byte what an `echo` of the same literal writes — spec 00-overview.md § 1
+An inline-HTML run is a statement: it is echoed in place, in source order, only on the path that reaches it, and byte-for-byte what an `echo` of the same literal writes
 --FILE--
 <?nvs
 // The sibling case `inline-html-is-written-verbatim.nvst` owns *what* a run

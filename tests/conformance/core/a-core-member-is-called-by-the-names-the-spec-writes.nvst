@@ -1,5 +1,5 @@
 --TEST--
-every `Core` parameter is callable by the spec's `$name` — a static and an instance member written out of order, a defaulted positional skipped in the middle, the trailing bag as `options:`, and written order as evaluation order (`rule:core-api/shape-rules` R2, `rule:types/arrays`)
+every `Core` parameter is callable by the registry's `$name` — a static and an instance member written out of order, a defaulted positional skipped in the middle, the trailing bag as `options:`, and written order as evaluation order (`rule:core-api/shape-rules` R2, `rule:types/arrays`)
 --FILE--
 <?nvs
 final class Tap {
@@ -14,8 +14,8 @@ final class Tap {
     }
 }
 
-// The names are `docs/spec/01-core-library.md`'s signature column, so which
-// parameter an argument fills is its name and not its place in the list.
+// The names are the registry's parameter names, so which parameter an argument
+// fills is its name and not its place in the list.
 echo Core\Str::repeat(times: 3, s: "ab"), "\n";
 
 // A defaulted positional skipped in the *middle*: `$padding` takes the

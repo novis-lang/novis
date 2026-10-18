@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli::arguments` hands back a word that looks like syntax as the value it is — `--` ends nothing, `-abc` is one word rather than three flags and `--name=value` is one rather than a pair — spec § 15, `rule:tooling/commands-are-compiled`
+`Core\Cli::arguments` hands back a word that looks like syntax as the value it is — `--` ends nothing, `-abc` is one word rather than three flags and `--name=value` is one rather than a pair — `rule:tooling/commands-are-compiled`
 --ARGS--
 --
 --
@@ -10,7 +10,7 @@
 --file
 --FILE--
 <?nvs
-// § 15's list is *raw*: nothing between the shell and this array has an opinion
+// `Core\Cli::arguments` is *raw*: nothing between the shell and this array has an opinion
 // about what a word means. The existing cases pin the order, the empty program
 // and the taint; what none of them reaches is the six spellings every argument
 // parser in the world treats as syntax — the end-of-options `--`, the standard

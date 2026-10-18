@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::parse` reports RFC 3986's components without normalizing one of them, and `Uri::tryParse` is the same parse with `null` where it throws — spec § 12, `rule:expressions/try-parse`
+`Core\Uri::parse` reports RFC 3986's components without normalizing one of them, and `Uri::tryParse` is the same parse with `null` where it throws — `rule:expressions/try-parse`
 --FILE--
 <?nvs
 // covers: Core\Uri::query

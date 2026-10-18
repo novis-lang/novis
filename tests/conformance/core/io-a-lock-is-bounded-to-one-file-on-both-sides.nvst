@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO\File::lock`'s bound is one file and it is named on both sides — three handles on three files hold three locks at once, while a second spelling of a path already held is refused, and a `close` frees the file it named and no other — spec § 14
+`Core\IO\File::lock`'s bound is one file and it is named on both sides — three handles on three files hold three locks at once, while a second spelling of a path already held is refused, and a `close` frees the file it named and no other
 --FILE--
 <?nvs
 // The cases already on disk all ask about one file, so each of them passes

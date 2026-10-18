@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO\File::truncate` assigns the file's length and touches nothing else: over every relation between the new size and both the old length and the handle's position — below it, at it, above it — the position is unchanged and the file measures exactly the size asked for, counted over the whole table — spec § 14
+`Core\IO\File::truncate` assigns the file's length and touches nothing else: over every relation between the new size and both the old length and the handle's position — below it, at it, above it — the position is unchanged and the file measures exactly the size asked for, counted over the whole table
 --FILE--
 <?nvs
 // Two other cases pin `truncate` one line at a time: that it shortens and

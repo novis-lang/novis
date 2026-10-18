@@ -48,7 +48,7 @@ try {
     echo "string over id: refused\n";
 }
 
-// A NULL column is an absence and not a refusal — `rule:core-classes/db-column-types`, spec § 18.
+// A NULL column is an absence and not a refusal — `rule:core-classes/db-column-types`.
 ?Core\Uuid $missed = $row->uuid("missed");
 if ($missed == null) {
     echo "uuid over missed: null\n";

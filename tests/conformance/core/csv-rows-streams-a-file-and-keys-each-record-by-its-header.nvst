@@ -1,5 +1,5 @@
 --TEST--
-`Core\Csv::rows` walks an open file a record at a time, keying each record by the header and reading nothing until the walk is taken — spec § 12's second table, `rule:core-api/verb-lexicon`
+`Core\Csv::rows` walks an open file a record at a time, keying each record by the header and reading nothing until the walk is taken — `rule:core-api/verb-lexicon`
 --FILE--
 <?nvs
 // The document holds the two things a reader fed a chunk at a time has to get

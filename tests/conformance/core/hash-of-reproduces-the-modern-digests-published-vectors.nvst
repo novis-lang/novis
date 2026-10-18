@@ -1,9 +1,9 @@
 --TEST--
-`Core\Hash::of` reproduces the published vector of every `Core\Hash::Digest` case added past the original six — spec § 11's roster table, `rule:types/bytes` and `rule:types/conversion`
+`Core\Hash::of` reproduces the published vector of every `Core\Hash::Digest` case added past the original six — `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
-// Spec § 11's roster grew from six cases to fifteen, and the nine below are
-// the additions: three more SHA-2 widths, all four of FIPS 202's SHA-3, the
+// `Core\Hash::Digest` has fifteen cases, and this case pins the nine past the
+// first six: three more SHA-2 widths, all four of FIPS 202's SHA-3, the
 // Castagnoli checksum and BLAKE3. `hash-of-reproduces-each-digests-published-
 // vectors.nvst` is the same case for the original six and is not repeated
 // here.

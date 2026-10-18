@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::of`, `hmac`, `equals` and `Stream::update` take a `tainted` argument and answer a digest with no mark, the `neutral` their spec rows declare `rule:security/unclassified-parameter-refuses-tainted`, `rule:security/tainted-qualifier`
+`Core\Hash::of`, `hmac`, `equals` and `Stream::update` take a `tainted` argument and answer a digest with no mark, the `neutral` their registry entries declare — `rule:security/unclassified-parameter-refuses-tainted`, `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 // Every value below is `tainted`, the way a request's body and headers are.

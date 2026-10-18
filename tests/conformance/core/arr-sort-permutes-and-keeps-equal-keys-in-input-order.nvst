@@ -1,5 +1,5 @@
 --TEST--
-Spec § 2: `Core\Arr::sort` answers a permutation of its subject under every combination of its four options, and equal keys keep their input order — which `Core\Arr::Order::Desc` therefore does not reverse
+`Core\Arr::sort` answers a permutation of its subject under every combination of its four options, and equal keys keep their input order — which `Core\Arr::Order::Desc` therefore does not reverse
 --FILE--
 <?nvs
 // The tables this member answers are already pinned one option at a time by

@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO::canonicalize` answers one resolution for every spelling of one file and is a fixed point over its own answer — the agreement `Core\Path::normalize` cannot reach — and it throws for a name that is not there, where `Core\IO::exists` answers `false` — spec § 14 *Resolution*, `rule:security/launderers-are-sink-named`
+`Core\IO::canonicalize` answers one resolution for every spelling of one file and is a fixed point over its own answer — the agreement `Core\Path::normalize` cannot reach — and it throws for a name that is not there, where `Core\IO::exists` answers `false` — `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
 // Agreement, not a value: the resolved path is the operating system's own

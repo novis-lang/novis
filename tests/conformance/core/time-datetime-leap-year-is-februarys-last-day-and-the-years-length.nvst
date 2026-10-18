@@ -1,10 +1,10 @@
 --TEST--
-Spec § 4: `Core\Time\DateTime::isLeapYear` is one fact said three ways — the flag, whether `Core\Time\Date::at($y, 2, 29)` is accepted, and whether the year's ordinal count reaches 366 — counted over a table of years spanning both halves of the century rule in both signs and both ends of the range, asserting the three agree rather than what each answered; and the calendar interval a `Date` spans is wider at both ends than the one a UTC `DateTime` does, which is why the year's length is also read from inside the year
+`Core\Time\DateTime::isLeapYear` is one fact said three ways — the flag, whether `Core\Time\Date::at($y, 2, 29)` is accepted, and whether the year's ordinal count reaches 366 — counted over a table of years spanning both halves of the century rule in both signs and both ends of the range, asserting the three agree rather than what each answered; and the calendar interval a `Date` spans is wider at both ends than the one a UTC `DateTime` does, which is why the year's length is also read from inside the year
 --FILE--
 <?nvs
-// § 4 gives the leap year three independent readings. `isLeapYear` asks the
+// The leap year has three independent readings. `isLeapYear` asks the
 // underlying civil year; `Date::at` asks the calendar, because a date that
-// does not exist throws where it is built and that is the whole reason § 4
+// does not exist throws where it is built and that is the whole reason `Core\Time`
 // has no `checkdate`; `dayOfYear` counts. A member that grew its own leap
 // rule still prints plausibly on its own line, so what is asserted here is
 // that the three **agree**, row for row, and never what any one of them said.

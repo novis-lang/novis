@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::stat answers in one call what ::size, ::isFile, ::isDir and ::modifiedAt answer in four, and every pair agrees — asserted by counting the agreements rather than by printing each answer, so a member that grew its own reading of the same `stat` fails here while still looking right on its own line — spec § 14, `rule:core-api/shape-rules` R17
+Core\IO::stat answers in one call what ::size, ::isFile, ::isDir and ::modifiedAt answer in four, and every pair agrees — asserted by counting the agreements rather than by printing each answer, so a member that grew its own reading of the same `stat` fails here while still looking right on its own line — `rule:core-api/shape-rules` R17
 --FILE--
 <?nvs
 // The four single-question members and the one that answers all four exist

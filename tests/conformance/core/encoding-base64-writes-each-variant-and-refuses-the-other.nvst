@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding`'s base64 family writes each variant's own spelling and refuses the other's — spec § 7, `rule:types/conversion`
+`Core\Encoding`'s base64 family writes each variant's own spelling and refuses the other's — `rule:types/conversion`
 --FILE--
 <?nvs
 class B64 {
@@ -32,7 +32,7 @@ echo Core\Encoding::toBase64Url($raw), "\n";
 echo "[", Core\Encoding::toBase64(Core\Encoding::fromHex("")), "]\n";
 
 // Each half round-trips its own form. The standard one is padded; the URL-safe
-// one is not, which is the `rtrim(strtr(…))` idiom the spec row replaces.
+// one is not, which is the `rtrim(strtr(…))` idiom this member replaces.
 echo B64::standard("+/++"), "\n";
 echo B64::standard("/w=="), "\n";
 echo B64::url("_w"), "\n";

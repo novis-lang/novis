@@ -24,7 +24,7 @@ An anonymous function's parameter naming a class is checked against the argument
 //
 // `Core\Out::capture`'s `{through:}` is the vehicle for the first half because
 // it is the one `Core` member that hands a callback an object — its own
-// `Core\Cli\Text` carrier (spec § 12). A `callable` is opaque as to signature
+// `Core\Cli\Text` carrier. A `callable` is opaque as to signature
 // (`rule:types/anonymous-function`), so nothing static stands between the option and what the
 // callable declares, and these two checks are the whole of what stands there at
 // run time.
@@ -59,7 +59,7 @@ array<callable> $filters = [
     // at all — the same nothing `mixed` gets, and for the same reason.
     fn (Marker $c) => $c,
     fn (?Marker $c) => $c,
-    // `rule:types/grammar`'s opaque top, and § 2's one unchecked position.
+    // `rule:types/grammar`'s opaque top, and its one unchecked position.
     fn (object $c) => $c,
     fn (mixed $c) => $c,
 ];

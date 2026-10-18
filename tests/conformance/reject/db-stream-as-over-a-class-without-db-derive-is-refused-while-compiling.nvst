@@ -1,5 +1,5 @@
 --TEST--
-`streamAs<T>` over a class carrying no `#[Db\Derive]` is refused while compiling, on both spellings of the member — `rule:core-classes/derive-attribute`, `rule:core-classes/db-streaming`, spec § 18
+`streamAs<T>` over a class carrying no `#[Db\Derive]` is refused while compiling, on both spellings of the member — `rule:core-classes/derive-attribute`, `rule:core-classes/db-streaming`
 --FILE--
 <?nvs
 // `rule:core-classes/derive-attribute` makes hydration opt-in, and the opt-in

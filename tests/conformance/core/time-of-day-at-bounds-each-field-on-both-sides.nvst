@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4: `Core\Time\TimeOfDay::at` bounds each of its four fields, and every bound is named on both sides — hour 23 against 24, minute 59 against 60, second 59 against 60 and nanoseconds 999,999,999 against 1,000,000,000 — with the refusal naming the whole reading it was handed rather than the field that spoiled it
+`Core\Time\TimeOfDay::at` bounds each of its four fields, and every bound is named on both sides — hour 23 against 24, minute 59 against 60, second 59 against 60 and nanoseconds 999,999,999 against 1,000,000,000 — with the refusal naming the whole reading it was handed rather than the field that spoiled it
 --FILE--
 <?nvs
-// § 4: `at` is the only way to write a `TimeOfDay`'s four fields, so the four
+// `at` is the only way to write a `TimeOfDay`'s four fields, so the four
 // bounds it enforces are the whole of what a reading can be. Each is asserted
 // on both sides here: a member that stopped one entry early would print
 // plausibly against either half alone, and a member that clamped instead of

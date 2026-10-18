@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::hmac` answers RFC 4231's vectors for a key shorter than the block, a binary key and a key longer than the block, and `Core\Hash::equals` answers over operands of unequal length — spec § 11, `rule:types/bytes` and `rule:types/conversion`
+`Core\Hash::hmac` answers RFC 4231's vectors for a key shorter than the block, a binary key and a key longer than the block, and `Core\Hash::equals` answers over operands of unequal length — `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // RFC 2104's construction pads the key to the hash's block size, or hashes it
@@ -69,7 +69,7 @@ if (Core\Hash::equals(
 // which RFC 4231 does not publish and which a caller reaches by mistake rather
 // than on purpose — is the all-zero block. It is a real key to this member, not
 // an error: nothing in the construction is undefined for it, and refusing it
-// here would be a rule a program could not discover from § 11's signature.
+// here would be a rule a program could not discover from the registry's signature.
 bytes $noKey = Core\Encoding::fromHex("");
 if (Core\Hash::equals(
     Core\Hash::hmac("Hi There", $noKey, Core\Hash::Digest::Sha256),
@@ -78,7 +78,7 @@ if (Core\Hash::equals(
     echo "an empty key is a zero block\n";
 }
 
-// § 11's `equals` is constant-time in *where* two equal-length operands
+// `Core\Hash::equals` is constant-time in *where* two equal-length operands
 // diverge and says nothing about their lengths — a digest's width is a
 // property of its algorithm and never a secret — so a length mismatch is
 // answered immediately and answered `false`. These are the rows that pin the

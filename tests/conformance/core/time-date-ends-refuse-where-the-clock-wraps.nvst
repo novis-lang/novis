@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4: the calendar has two ends and the clock has none — `Core\Time\Date::plus`/`minus` refuse at -9999-01-01 and 9999-12-31 in every unit a date takes, one step inside either end is answered, and the step is not modular, where the same two members on a `TimeOfDay` wrap instead and refuse nothing; and the count itself has its own bound, one entry wide, with a different sentence on each side of it
+The calendar has two ends and the clock has none — `Core\Time\Date::plus`/`minus` refuse at -9999-01-01 and 9999-12-31 in every unit a date takes, one step inside either end is answered, and the step is not modular, where the same two members on a `TimeOfDay` wrap instead and refuse nothing; and the count itself has its own bound, one entry wide, with a different sentence on each side of it
 --FILE--
 <?nvs
-// § 4 gives `Date` and `TimeOfDay` the same two members over the same
+// `Date` and `TimeOfDay` have the same two members over the same
 // `Core\Unit`, and they answer differently at their extremes for one reason:
 // a clock dial is closed and a calendar is an interval. Everything below is
 // that one difference, counted from both sides rather than read off a row —
@@ -35,7 +35,7 @@ class Both {
 }
 
 // The five units a date takes, and the six a clock takes. The two lists are
-// disjoint and together they are `Core\Unit` entire — which is § 4's two
+// disjoint and together they are `Core\Unit` entire — which is `Core\Time`'s two
 // arithmetics written as an enum, and the reason neither sweep below can be
 // widened to the other's values.
 array<Core\Unit> $calendar = [

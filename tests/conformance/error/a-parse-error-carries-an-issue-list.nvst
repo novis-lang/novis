@@ -1,5 +1,5 @@
 --TEST--
-ParseError carries spec § 10's `issues` list: empty unless a thrower populated it, one entry for a malformed JSON document — `rule:core-classes/derive-reports-every-field`
+ParseError carries an `issues` list: empty unless a thrower populated it, one entry for a malformed JSON document — `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
 // covers: ParseError

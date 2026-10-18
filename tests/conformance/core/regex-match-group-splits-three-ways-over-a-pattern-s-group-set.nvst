@@ -1,5 +1,5 @@
 --TEST--
-`Core\Regex\Match::group` answers three different things over a pattern's whole group set and refuses everything outside it, quoting back the key it was handed — spec § 5, `rule:core-api/shape-rules` R4 and R5
+`Core\Regex\Match::group` answers three different things over a pattern's whole group set and refuses everything outside it, quoting back the key it was handed — `rule:core-api/shape-rules` R4 and R5
 --FILE--
 <?nvs
 // R3: the match *is* the return value, and `matchAll` binds a `Core\Regex\Match`
@@ -95,7 +95,7 @@ foreach (Core\Regex::matchAll("order 4711 shipped", "(?<kind>[a-z]+) (\\d+)(?<ma
         echo "first-undeclared=refused\n";
     }
 
-    // Which of § 10's branches the refusal is: a plain `Fault::thrown` and so a
+    // Which branch of the error tree the refusal is: a plain `Fault::thrown` and so a
     // `RuntimeError`, which is the clause every refusal counted above went
     // through.
     try {

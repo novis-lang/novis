@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Heap<T>` holds one entry per `push` — duplicates and equal keys included — and `peek`/`pop` on an empty one throw rather than answering `null` — docs/spec/01-core-library.md § 9, `rule:core-api/shape-rules` R5, `rule:expressions/object-identity-equality`
+A `Core\Heap<T>` holds one entry per `push` — duplicates and equal keys included — and `peek`/`pop` on an empty one throw rather than answering `null` — `rule:core-api/shape-rules` R5, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 // covers: Core\Heap::push, Core\Heap::peek, Core\Heap::pop, Core\Heap::count, Core\Heap::isEmpty
@@ -17,7 +17,7 @@ class Task implements Comparable {
     }
 }
 
-// § 9 gives the class an `isEmpty`, and `rule:core-api/shape-rules` R5 bans the `peekOrNull`
+// The class has an `isEmpty`, and `rule:core-api/shape-rules` R5 bans the `peekOrNull`
 // twin a `?T` return would invite — so the empty heap is a throw, and the
 // message names the member that asked. `pop`'s spelling of it is pinned by
 // `heap-orders-by-comparable-or-by-its-comparator.nvst`; this is `peek`'s.
@@ -60,7 +60,7 @@ var $second = $tasks->pop();
 echo "identity ", $first == $once, $second == $once, $first == $second, "\n";
 
 // Equal keys: `compareTo` answering 0 orders neither before the other, so the
-// order among the three is not something a binary heap promises. What § 9
+// order among the three is not something a binary heap promises. What `Core\Heap`
 // does promise is that every one of them comes out — asserted as the key each
 // carries and the count, never as the names' order.
 var $ties = new Core\Heap<Task>();

@@ -1,5 +1,5 @@
 --TEST--
-`$uri->compareTo` normalizes both references per RFC 3986 § 6.2.2 and then compares components, while `parse` still reports what was written — spec § 12, `rule:classes/comparable`, `rule:expressions/object-identity-equality`
+`$uri->compareTo` normalizes both references per RFC 3986 § 6.2.2 and then compares components, while `parse` still reports what was written — `rule:classes/comparable`, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 // covers: Core\Uri::compareTo

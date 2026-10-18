@@ -12,7 +12,7 @@ echo Core\Uuid::variant($id), "\n";
 // And a constant it does not state: `Core\Env` is a name `nvs_hir` resolves
 // because nothing under `Core\` needs a declaration, which used to make every
 // member of it trusted. The registry is the roster, and that class holds exactly
-// the three constants spec § 15 names — so `SAPI`, which PHP has and Novis has
+// the three constants the registry names — so `SAPI`, which PHP has and Novis has
 // no equivalent for, is knowably wrong here.
 echo Core\Env::SAPI, "\n";
 echo Core\Log::info("started"), "\n";

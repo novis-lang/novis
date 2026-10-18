@@ -1,5 +1,5 @@
 --TEST--
-`Core\Csv::format` quotes a field exactly where a byte in it would otherwise change the parse, and the four bytes that trigger it move with the dialect — counted over a sweep, not read off a rendering — spec § 12's second table
+`Core\Csv::format` quotes a field exactly where a byte in it would otherwise change the parse, and the four bytes that trigger it move with the dialect — counted over a sweep, not read off a rendering
 --FILE--
 <?nvs
 // The round trip pins that reading undoes writing

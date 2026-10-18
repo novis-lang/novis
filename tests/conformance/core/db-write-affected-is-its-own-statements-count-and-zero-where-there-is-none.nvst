@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Write::affected` is the count of the statement that answered it: a statement matching no row answers `0`, a statement whose kind has no count answers `0` rather than an earlier statement's rows, and a write keeps its count while later statements run — `rule:core-classes/db-statement-members`, spec § 18
+`Core\Db\Write::affected` is the count of the statement that answered it: a statement matching no row answers `0`, a statement whose kind has no count answers `0` rather than an earlier statement's rows, and a write keeps its count while later statements run — `rule:core-classes/db-statement-members`
 --FILE--
 <?nvs
 // covers: Core\Db\Write::affected

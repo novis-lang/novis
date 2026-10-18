@@ -1,13 +1,14 @@
 --TEST--
-No environment variable selects the run mode: `APP_ENV`, `NVS_ENV` and `NVS_MODE` are readable values and none of them moves `Core\Env::mode` — spec § 15
+No environment variable selects the run mode: `APP_ENV`, `NVS_ENV` and `NVS_MODE` are readable values and none of them moves `Core\Env::mode`
 --ENV--
 APP_ENV=development
 NVS_ENV=development
 NVS_MODE=development
 --FILE--
 <?nvs
-// Spec § 15 says it outright: the mode "is set through `Core\Config`, like every
-// other directive, and no environment variable is consulted for it". PHP has no
+// `rule:config/no-environment-variable-selects-the-mode` says it outright: the mode is
+// set through `Core\Config` like every other directive, and no environment variable is
+// consulted for it. PHP has no
 // run mode at all, so every framework invented a variable for this — and the
 // convention this case pins is Novis *not* having one, on `rule:core-api/shape-rules` R6's rule
 // that no operation is reachable two ways.

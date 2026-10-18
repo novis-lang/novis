@@ -1,5 +1,5 @@
 --TEST--
-`readLine` leaves the handle exactly where the line ended — terminator cluster and all — so a `tell` taken before one is an offset `seek` can hand back to read the same line again — spec § 14
+`readLine` leaves the handle exactly where the line ended — terminator cluster and all — so a `tell` taken before one is an offset `seek` can hand back to read the same line again
 --FILE--
 <?nvs
 // `readLine` reads a chunk and gives the tail back by seeking, which is an

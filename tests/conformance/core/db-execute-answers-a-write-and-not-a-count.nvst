@@ -1,5 +1,5 @@
 --TEST--
-`execute` answers a `Core\Db\Write` rather than the count `PDO::exec` returns, so what a write did is read off one object with three questions on it — `rule:core-classes/db-statement-members`, spec § 18
+`execute` answers a `Core\Db\Write` rather than the count `PDO::exec` returns, so what a write did is read off one object with three questions on it — `rule:core-classes/db-statement-members`
 --FILE--
 <?nvs
 // covers: Core\Db\Connection::execute
@@ -11,7 +11,7 @@
 var $db = Core\Db::connect("main");
 var $write = $db->execute("insert into accounts (owner) values (?) returning id", ["ada"]);
 
-// The three readings § 18's Results table gives a `Write`, as their own types.
+// The three readings the registry gives a `Write`, as their own types.
 // They are members and not properties: nothing a `Core` class owns has a
 // property a program can reach.
 uint $affected = $write->affected();

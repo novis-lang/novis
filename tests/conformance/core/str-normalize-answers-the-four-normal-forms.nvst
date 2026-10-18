@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::normalize` answers UAX #15's four normal forms over two independent axes, and only the canonical pair round-trips — spec § 1 *Transformation*
+`Core\Str::normalize` answers UAX #15's four normal forms over two independent axes, and only the canonical pair round-trips
 --FILE--
 <?nvs
 // covers: Core\Str::NormalForm

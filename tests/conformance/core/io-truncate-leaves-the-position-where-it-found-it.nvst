@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO\File::truncate` moves the file's end and not the handle, so a write after one that shortened the file lands past the new end — spec § 14
+`Core\IO\File::truncate` moves the file's end and not the handle, so a write after one that shortened the file lands past the new end
 --FILE--
 <?nvs
 // Every other member of this class leaves the handle just past what it

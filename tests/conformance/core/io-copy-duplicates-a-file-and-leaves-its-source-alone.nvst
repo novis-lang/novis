@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::copy puts the source's content at the destination and leaves the source exactly as it was, over an absent, an empty and an occupied destination — counted, so a member that answered plausibly for the absent one still fails — spec § 14
+Core\IO::copy puts the source's content at the destination and leaves the source exactly as it was, over an absent, an empty and an occupied destination — counted, so a member that answered plausibly for the absent one still fails
 --FILE--
 <?nvs
 // The three states the destination can be in, because the interesting half of

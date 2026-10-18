@@ -1,5 +1,5 @@
 --TEST--
-`Core\BigInt::sign` is the answer `compareTo` gives against zero, over magnitudes no `int` holds and magnitudes whose low words are all zero — `rule:classes/comparable`, spec § 13
+`Core\BigInt::sign` is the answer `compareTo` gives against zero, over magnitudes no `int` holds and magnitudes whose low words are all zero — `rule:classes/comparable`
 --FILE--
 <?nvs
 // covers: Core\BigInt::sign

@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO\File::readLine` at its boundaries: an empty file has no lines, a lone terminator is one empty line, an interior empty line is a line, and a line longer than the buffer one read fills is still one line — spec § 14
+`Core\IO\File::readLine` at its boundaries: an empty file has no lines, a lone terminator is one empty line, an interior empty line is a line, and a line longer than the buffer one read fills is still one line
 --FILE--
 <?nvs
 // covers: Core\IO\File::readLine

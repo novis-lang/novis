@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::compare` answers a sign over one of two orderings, and `{natural: true}` selects the other one — spec § 1 *Comparison*, `rule:core-api/shape-rules` R20
+`Core\Str::compare` answers a sign over one of two orderings, and `{natural: true}` selects the other one — `rule:core-api/shape-rules` R20
 --FILE--
 <?nvs
 // The answer is `-1`, `0` or `1` and never a byte difference — PHP 8 already
@@ -12,8 +12,8 @@ echo Core\Str::compare("Zoo", "apple"), "\n";
 echo Core\Str::compare("HELLO", "hello"), "\n";
 echo Core\Str::compare("HELLO", "hello", {caseInsensitive: true}), "\n";
 
-// The other selects a *different* ordering. This is the pair the spec names:
-// the sign flips because a digit run compares as a number.
+// The other selects a *different* ordering. On this pair the sign flips
+// because a digit run compares as a number.
 echo Core\Str::compare("img12", "img2"), "\n";
 echo Core\Str::compare("img12", "img2", {natural: true}), "\n";
 echo Core\Str::compare("2", "10", {natural: true}), "\n";

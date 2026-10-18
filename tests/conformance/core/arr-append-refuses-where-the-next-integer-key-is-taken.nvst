@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::append throws the LogicError `$a[] = $v` throws where the largest integer key is already i64::MAX, spec § 2 and `rule:core-api/shape-rules` R3
+Core\Arr::append throws the LogicError `$a[] = $v` throws where the largest integer key is already i64::MAX, `rule:core-api/shape-rules` R3
 --FILE--
 <?nvs
 // The member is the expression form of `$a[] = $v`, so it owes that

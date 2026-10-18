@@ -1,5 +1,5 @@
 --TEST--
-`Core\Debug::dump` writes exactly `render` of each argument plus a newline, so its variadic form, its split form and `render` all agree over one sweep — and `Core\Out::capture` never swallows a dump — spec § 16, `rule:errors/diagnostic-record`, `rule:errors/renderings` and `rule:errors/debug-dump`, `rule:security/capture-answers-the-carrier`
+`Core\Debug::dump` writes exactly `render` of each argument plus a newline, so its variadic form, its split form and `render` all agree over one sweep — and `Core\Out::capture` never swallows a dump — `rule:errors/diagnostic-record`, `rule:errors/renderings` and `rule:errors/debug-dump`, `rule:security/capture-answers-the-carrier`
 --FILE--
 <?nvs
 // covers: lang:errors/inspecting-a-value

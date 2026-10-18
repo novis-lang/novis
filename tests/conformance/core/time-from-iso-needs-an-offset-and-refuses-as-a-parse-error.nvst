@@ -1,8 +1,8 @@
 --TEST--
-Core\Time::fromIso accepts only a text that carries its own offset and refuses the rest as a ParseError under its own name — spec §§ 4, 10
+Core\Time::fromIso accepts only a text that carries its own offset and refuses the rest as a ParseError under its own name
 --FILE--
 <?nvs
-// § 4 gives `fromIso` the half of `strtotime` that reads an ISO-8601
+// `fromIso` is the half of `strtotime` that reads an ISO-8601
 // timestamp, so what it needs is an *absolute* point and the text has to
 // carry its own offset. A civil time with none is `Core\Time::parse`'s
 // question, which takes a zone as a third argument in order to answer it,
@@ -47,7 +47,7 @@ foreach ($texts as string $text) {
             $sameSecond = $sameSecond + 1;
         }
     } catch (ParseError $bad) {
-        // The class is § 10's `ParseError` and not a bare `RuntimeError`:
+        // The class is `ParseError` and not a bare `RuntimeError`:
         // this member's one argument is text that arrived from elsewhere,
         // which is the same rule `Core\Time::parse` splits its two classes
         // by. A wrong class would not be caught here and would end the case.

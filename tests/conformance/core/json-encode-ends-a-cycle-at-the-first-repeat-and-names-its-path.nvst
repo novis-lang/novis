@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::encode` ends a cycle at the first repeat on the path and names the chain that closed it, while a value merely held twice is written twice and depth alone ends nothing — `rule:classes/an-encoder-ends-a-cycle-by-identity`, spec § 6
+`Core\Json::encode` ends a cycle at the first repeat on the path and names the chain that closed it, while a value merely held twice is written twice and depth alone ends nothing — `rule:classes/an-encoder-ends-a-cycle-by-identity`
 --FILE--
 <?nvs
 use Core\Json;

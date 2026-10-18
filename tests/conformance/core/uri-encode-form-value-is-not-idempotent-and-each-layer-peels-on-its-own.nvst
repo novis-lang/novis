@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::encodeFormValue` is deliberately not idempotent — it escapes the `%` it writes, so over the ASCII sweep encoding twice is a fixed point for exactly the 65 bytes it passes through and differs for the other 63, one decode peels exactly one layer for all 128, and the space that became a `+` is re-encoded as `%2B` rather than left alone — spec § 12, RFC 3986 § 2.1
+`Core\Uri::encodeFormValue` is deliberately not idempotent — it escapes the `%` it writes, so over the ASCII sweep encoding twice is a fixed point for exactly the 65 bytes it passes through and differs for the other 63, one decode peels exactly one layer for all 128, and the space that became a `+` is re-encoded as `%2B` rather than left alone — RFC 3986 § 2.1
 --FILE--
 <?nvs
 // An encoder that skipped a byte already looking escaped — the "smart" encoder

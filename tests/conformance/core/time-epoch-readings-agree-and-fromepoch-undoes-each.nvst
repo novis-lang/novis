@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `Instant`'s three epoch readings agree about one instant, and `Core\Time::fromEpoch` rebuilds it from each of them
+`Instant`'s three epoch readings agree about one instant, and `Core\Time::fromEpoch` rebuilds it from each of them
 --FILE--
 <?nvs
 // The three readers are three resolutions of one number, and `fromEpoch` is

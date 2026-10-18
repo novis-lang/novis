@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding::encodeText` and `::decodeText` agree, over every charset the registry names crossed with a table of texts: a text a charset can spell comes back as itself — spec § 7, `rule:types/conversion`
+`Core\Encoding::encodeText` and `::decodeText` agree, over every charset the registry names crossed with a table of texts: a text a charset can spell comes back as itself — `rule:types/conversion`
 --FILE--
 <?nvs
 // covers: Core\Charset

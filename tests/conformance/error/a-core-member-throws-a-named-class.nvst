@@ -1,5 +1,5 @@
 --TEST--
-Spec § 10: a Core member's failure is the class its own row promises, so a narrow catch clause matches it and the wider ones still do
+A Core member's failure is the error class its own row promises, so a narrow catch clause matches it and the wider ones still do
 --FILE--
 <?nvs
 // `Core\Time::parse` promises ParseError for text that does not match the

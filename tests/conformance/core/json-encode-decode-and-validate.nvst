@@ -25,8 +25,8 @@ echo Core\Json::encode($price), "\n";
 echo Core\Json::isValid("{\"k\":1}") ? "yes" : "no", "|",
      Core\Json::isValid("{oops}") ? "yes" : "no", "\n";
 
-// Every refusal is a ParseError, which spec § 10 puts under RuntimeError:
-// "input did not match a format this code declared".
+// Every refusal is a ParseError, which extends RuntimeError: the input did not
+// match a format this code declared.
 try {
     Core\Json::decode("{oops}");
     echo "not reached\n";

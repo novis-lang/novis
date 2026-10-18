@@ -1,9 +1,9 @@
 --TEST--
-Spec § 4: `Core\Time\Date`'s six members agree over one table of dates — `at` and `format` are inverses, a step undoes itself except where a month clamps, `with` is the identity on the parts `format` just read, and `compareTo` is the table's own order
+`Core\Time\Date`'s six members agree over one table of dates — `at` and `format` are inverses, a step undoes itself except where a month clamps, `with` is the identity on the parts `format` just read, and `compareTo` is the table's own order
 --FILE--
 <?nvs
 // covers: Core\Time\Date::plus, Core\Time\Date::minus, Core\Time\Date::with, Core\Time\Date::compareTo, Core\Time\Date::format
-// § 4: one table, in calendar order, carrying every civil boundary a date
+// One table, in calendar order, carrying every civil boundary a date
 // member can be wrong about — the two century rules (1900 is not a leap year,
 // 2000 and 2400 are), a month end that a step has to clamp, and a year on
 // either side of the epoch. Every claim below is asserted by *counting*
@@ -57,7 +57,7 @@ for (; $i < 10; $i = $i + 1) {
 }
 echo "renders=", $renders as string, " rebuilds=", $rebuilds as string, "|\n";
 
-// § 4's *absolute* half of the calendar step: a day and a week are fixed
+// The *absolute* half of the calendar step: a day and a week are fixed
 // lengths on a zone-free date, so `plus` and `minus` in either of them undo
 // each other on every row with nothing to clamp.
 int $j = 0;
@@ -74,7 +74,7 @@ for (; $j < 10; $j = $j + 1) {
 }
 echo "day=", $byDay as string, " week=", $byWeek as string, "|\n";
 
-// § 4's *calendar* half, where a step can land in a shorter month and clamp.
+// The *calendar* half, where a step can land in a shorter month and clamp.
 // The claim is not that the round trip holds — it does not — but that clamping
 // is the **only** reason it fails: the trip returns exactly when the outward
 // step kept the day of the month it started on. Asserted for `Month`,

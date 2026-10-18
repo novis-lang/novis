@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::bytes` answers `tainted bytes`, so a plain `bytes` binding refuses it exactly as one refuses a `bodyStream` chunk — spec § 15, `rule:security/tainted-qualifier`
+`Core\Request::bytes` answers `tainted bytes`, so a plain `bytes` binding refuses it exactly as one refuses a `bodyStream` chunk — `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 // The qualifier is what a second body reader could quietly drop: `body()`

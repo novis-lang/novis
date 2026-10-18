@@ -1,8 +1,8 @@
 --TEST--
-`Core\Validate::isEmail`'s local part is a dot-atom of RFC 5322 § 3.2.3 `atext`, so a leading, trailing or doubled dot is refused where an interior one is not, and the 128 ASCII code points sort into the two counts that difference carves out — docs/spec/01-core-library.md § 12
+`Core\Validate::isEmail`'s local part is a dot-atom of RFC 5322 § 3.2.3 `atext`, so a leading, trailing or doubled dot is refused where an interior one is not, and the 128 ASCII code points sort into the two counts that difference carves out
 --FILE--
 <?nvs
-// § 12's `isEmail` is a *line*, not a parser: `crates/nvs-stdlib/src/validate.rs`'s
+// `Core\Validate::isEmail` is a *line*, not a parser: `crates/nvs-stdlib/src/validate.rs`'s
 // module doc states it as one `@`, a dot-atom local part of at most 64 bytes,
 // and a hostname of at least two labels — and states the four RFC 5322 shapes
 // it refuses on purpose. `validate-length-limits-are-pinned-on-both-sides.nvst`

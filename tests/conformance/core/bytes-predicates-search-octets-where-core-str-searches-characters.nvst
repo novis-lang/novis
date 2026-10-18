@@ -1,11 +1,11 @@
 --TEST--
-Spec § 7: `Core\Bytes::contains`, `startsWith` and `endsWith` search octets where `Core\Str`'s three search characters — they answer the same question on every needle a `string` can name, and 18 of the 28 windows of one subject are needles no `string` can name at all — `rule:types/bytes`, `rule:types/string-is-utf8` and `rule:types/conversion`, `rule:core-api/shape-rules` R6
+`Core\Bytes::contains`, `startsWith` and `endsWith` search octets where `Core\Str`'s three search characters — they answer the same question on every needle a `string` can name, and 18 of the 28 windows of one subject are needles no `string` can name at all — `rule:types/bytes`, `rule:types/string-is-utf8` and `rule:types/conversion`, `rule:core-api/shape-rules` R6
 --FILE--
 <?nvs
 // `Core\Bytes` and `Core\Str` carry the same three predicate names, and every
 // other case about them uses an ASCII subject, where the two classes cannot be
-// told apart. `rule:types/string-is-utf8` makes a `string` position a *character* and § 1
-// makes a `bytes` position an *octet*, so the whole difference lives on a
+// told apart. `rule:types/string-is-utf8` makes a `string` position a *character* and
+// `rule:types/bytes` makes a `bytes` position an *octet*, so the whole difference lives on a
 // subject whose characters are wider than one byte — and it is a difference in
 // the **domain**, not in the answers: on a needle both classes can be asked,
 // they agree, and what separates them is how many needles there are to ask

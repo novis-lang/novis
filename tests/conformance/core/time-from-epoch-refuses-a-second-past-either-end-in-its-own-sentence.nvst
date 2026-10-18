@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `Core\Time::fromEpoch` refuses a second past either end of the timestamp range with one sentence of its own that names the range in seconds, and never the calendar library's parameter name, `rule:core-api/shape-rules`
+`Core\Time::fromEpoch` refuses a second past either end of the timestamp range with one sentence of its own that names the range in seconds, and never the calendar library's parameter name, `rule:core-api/shape-rules`
 --FILE--
 <?nvs
 // covers: Core\Time::fromEpoch

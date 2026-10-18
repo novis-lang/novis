@@ -7,7 +7,7 @@ use Core\Db;
 use Core\Db\RolledBack;
 use Core\Db\Transaction;
 
-// `rule:classes/no-traits`'s delegation is one body under two receivers, so § 18's three
+// `rule:classes/no-traits`'s delegation is one body under two receivers, so the three
 // readings of a `Write` are the transaction's too — and asserting them here is
 // what a fifth forwarding body would have to keep answering the same way.
 var $db = Db::connect("main");

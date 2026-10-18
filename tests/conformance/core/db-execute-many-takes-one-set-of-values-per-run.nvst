@@ -1,5 +1,5 @@
 --TEST--
-`executeMany` takes an array of sets and not `execute`'s flat `$params`, so a batch of one statement cannot be written as a batch of one run's values — `rule:core-classes/db-parameters` and `rule:core-classes/db-statement-members`, spec § 18
+`executeMany` takes an array of sets and not `execute`'s flat `$params`, so a batch of one statement cannot be written as a batch of one run's values — `rule:core-classes/db-parameters` and `rule:core-classes/db-statement-members`
 --FILE--
 <?nvs
 // covers: Core\Db\Connection::executeMany

@@ -1,8 +1,8 @@
 --TEST--
-`Core\Hash\Stream::update`/`finish` agree with `Core\Hash::of` over every chunking of one input, for every `Core\Hash::Digest` — spec § 11, `rule:types/bytes` and `rule:types/conversion`
+`Core\Hash\Stream::update`/`finish` agree with `Core\Hash::of` over every chunking of one input, for every `Core\Hash::Digest` — `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
-// § 11: the streaming pair's whole contract is an *agreement* with the
+// The streaming pair's whole contract is an *agreement* with the
 // one-shot member — `finish` answers what `Core\Hash::of` would over the
 // concatenation of every chunk, whatever shape the updates arrived in. So the
 // question is asked of each of `Core\Hash::Digest`'s six cases with the same table
@@ -134,7 +134,7 @@ echo "length: ", Core\Str::length($message), "\n";
 int $total = Chunkings::all($message, Core\Hash::Digest::Sha256);
 echo "chunkings per digest: ", $total, "\n";
 
-// § 11 keeps `Crc32`, `Md5` and `Sha1` for interop, and the stream takes the
+// `Core\Hash` keeps `Crc32`, `Md5` and `Sha1` for interop, and the stream takes the
 // whole enum for the same reason, so the agreement is asserted over all six
 // rather than over the two the other streaming cases sweep. A member that
 // grew a chunking rule of its own — a checksum accumulated per update, a

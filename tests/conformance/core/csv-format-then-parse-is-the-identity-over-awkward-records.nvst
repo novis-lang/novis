@@ -1,5 +1,5 @@
 --TEST--
-`Core\Csv::format` then `Core\Csv::parse` is the identity over a table of awkward records, and the one record it is not — spec § 12's second table
+`Core\Csv::format` then `Core\Csv::parse` is the identity over a table of awkward records, and the one record it is not
 --FILE--
 <?nvs
 // The writer's rule is "quote a field exactly where a byte in it would

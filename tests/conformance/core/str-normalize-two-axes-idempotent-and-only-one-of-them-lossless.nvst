@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::normalize`'s four forms are idempotent, the compatibility axis absorbs the canonical one, and only the canonical pair is lossless — spec § 1 *Transformation*, UAX #15
+`Core\Str::normalize`'s four forms are idempotent, the compatibility axis absorbs the canonical one, and only the canonical pair is lossless — UAX #15
 --FILE--
 <?nvs
 // The member's doc calls the four forms "two independent axes". That is a set

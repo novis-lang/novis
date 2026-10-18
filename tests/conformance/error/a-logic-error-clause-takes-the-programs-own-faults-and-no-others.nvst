@@ -1,5 +1,5 @@
 --TEST--
-A `LogicError` clause takes the program's own faults and nothing on the `RuntimeError` branch, counted over the whole branch rather than read off one line, and three unrelated `Core` members agree on which half their refusal belongs to — spec § 10
+A `LogicError` clause takes the program's own faults and nothing on the `RuntimeError` branch, counted over the whole branch rather than read off one line, and three unrelated `Core` members agree on which half their refusal belongs to
 --FILE--
 <?nvs
 // covers: LogicError, lang:errors/the-throwable-tree

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding`'s eleven members all answer the empty subject with the empty answer rather than refusing it, counted across the whole class, and the one-octet buffer is where each spelling's padding is widest — spec § 7, `rule:types/bytes` and `rule:types/conversion`
+`Core\Encoding`'s eleven members all answer the empty subject with the empty answer rather than refusing it, counted across the whole class, and the one-octet buffer is where each spelling's padding is widest — `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // The degenerate subject, asked of the whole class at once. Nothing here is a

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Env::EOL`, `::OS` and `::VERSION` each answer one fact about the machine, so a case asserts the shape every platform's answer has to have rather than the answer one platform gives — `EOL` ends in a line feed and is one or two characters, `OS` is one of `Core\Env::Platform`'s six cases, and `VERSION` is three dot-separated pieces — spec § 15, `rule:core-api/shape-rules` R6
+`Core\Env::EOL`, `::OS` and `::VERSION` each answer one fact about the machine, so a case asserts the shape every platform's answer has to have rather than the answer one platform gives — `EOL` ends in a line feed and is one or two characters, `OS` is one of `Core\Env::Platform`'s six cases, and `VERSION` is three dot-separated pieces — `rule:core-api/shape-rules` R6
 --FILE--
 <?nvs
 // A constant is folded at the site that names it, so this case cannot print any
@@ -18,8 +18,8 @@ if (Core\Str::endsWith(Core\Env::EOL, "\n") && $eol >= 1 && $eol <= 2) {
     echo "EOL: something else\n";
 }
 
-// Nothing reads it: spec § 1 says the platform's line ending is never consulted
-// when text is split, so a file written with `\r\n` and one written with `\n`
+// Nothing reads it: the platform's line ending is never consulted when text is
+// split, so a file written with `\r\n` and one written with `\n`
 // have the same lines whatever this constant says. That is the claim, and it is
 // asserted by agreement between the two members that split.
 array<string> $split = Core\Str::lines("one\r\ntwo\nthree");

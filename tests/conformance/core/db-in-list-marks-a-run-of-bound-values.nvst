@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::inList marks a run of bound values at every non-zero arity, and what it answers is an ordinary value a program can hold — docs/spec/01-core-library.md § 18, `rule:core-classes/db-parameters`
+Core\Db::inList marks a run of bound values at every non-zero arity, and what it answers is an ordinary value a program can hold — `rule:core-classes/db-parameters`
 --FILE--
 <?nvs
 // `rule:core-classes/db-parameters` makes `inList` the *explicit* marker that one bound parameter

@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::copy of a file onto itself throws an IOError and leaves the file whole, under the same spelling and under a second one through `..` — the door refuses it on every platform rather than letting a truncating copy empty the source — spec § 14
+Core\IO::copy of a file onto itself throws an IOError and leaves the file whole, under the same spelling and under a second one through `..` — the door refuses it on every platform rather than letting a truncating copy empty the source
 --FILE--
 <?nvs
 // covers: Core\IO::copy

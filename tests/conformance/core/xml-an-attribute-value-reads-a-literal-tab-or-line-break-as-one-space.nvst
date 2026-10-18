@@ -1,5 +1,5 @@
 --TEST--
-`Core\Xml\Node::attributes` answers a value with each literal tab, line feed and `\r\n` read as one space, and a character reference for one kept as written — XML 1.0 § 3.3.3, spec § 17
+`Core\Xml\Node::attributes` answers a value with each literal tab, line feed and `\r\n` read as one space, and a character reference for one kept as written — XML 1.0 § 3.3.3
 --FILE--
 <?nvs
 // covers: Core\Xml\Node::attributes

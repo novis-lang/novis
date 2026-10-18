@@ -1,5 +1,5 @@
 --TEST--
-`Core\BigInt::compareTo` is the ordering, and `<=>`, `<`, `>`, `<=`, `>=`, the sign of a difference and `Core\Arr::sort` all agree with it over a table — `rule:classes/comparable`, spec § 13
+`Core\BigInt::compareTo` is the ordering, and `<=>`, `<`, `>`, `<=`, `>=`, the sign of a difference and `Core\Arr::sort` all agree with it over a table — `rule:classes/comparable`
 --FILE--
 <?nvs
 // covers: Core\BigInt::compareTo

@@ -65,7 +65,7 @@ try {
 }
 
 // 4. § 5's worked example: a user-written composite assertion intercepts one
-// and raises its own, with the inherited constructor spec § 10 gives the root.
+// and raises its own, with the inherited constructor of the root `Throwable`.
 final class UserCheck {
     public static function assertValid(int $n): void {
         try {

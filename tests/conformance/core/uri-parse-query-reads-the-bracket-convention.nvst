@@ -1,8 +1,8 @@
 --TEST--
-`Core\Uri::parseQuery` reads PHP's bracket convention in full and answers `array<mixed>` — spec § 12
+`Core\Uri::parseQuery` reads PHP's bracket convention in full and answers `array<mixed>`
 --FILE--
 <?nvs
-// docs/spec/01-core-library.md § 12: `a[]=1&a[]=2` builds a list under one
+// `a[]=1&a[]=2` builds a list under one
 // key, `a[b]=c` builds a map, and the two nest to any depth. Every value is
 // therefore a `bytes` *or* a nested array, which is why the row is
 // `array<mixed>`; `Core\Json::encode` is what lets a case see the whole shape

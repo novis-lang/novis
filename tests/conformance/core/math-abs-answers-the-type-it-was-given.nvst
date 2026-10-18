@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::abs answers the type of its argument, so an `int`, a `float` and a `decimal` each go back into a binding of their own type with no `as`, per spec § 3
+Core\Math::abs answers the type of its argument, so an `int`, a `float` and a `decimal` each go back into a binding of their own type with no `as`
 --FILE--
 <?nvs
 // The argument binds `abs`'s bounded variable, so the result is typed as the

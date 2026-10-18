@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::bytes draws over the whole octet range rather than over any text subset of it — 6000 single-octet draws reach all 256 values, NUL among them, and the high bit is set about half the time — spec § 11, `rule:types/bytes` and `rule:types/conversion`
+Core\Random::bytes draws over the whole octet range rather than over any text subset of it — 6000 single-octet draws reach all 256 values, NUL among them, and the high bit is set about half the time — `rule:types/bytes` and `rule:types/conversion`
 
 --FILE--
 <?nvs

@@ -1,5 +1,5 @@
 --TEST--
-Core\Path::join, ::normalize and ::relativeTo do spec § 8's path algebra, and none of the three is a launderer
+Core\Path::join, ::normalize and ::relativeTo do pure path algebra, and none of the three is a launderer
 --FILE--
 <?nvs
 // Every built path is read back through Core\Path::SEPARATOR: these three
@@ -13,7 +13,7 @@ echo Core\Str::replace(Core\Path::join($root, "html", "index.php"), Core\Path::S
 echo Core\Str::replace(Core\Path::join($root, "/etc/passwd"), Core\Path::SEPARATOR, "/"), "|", Core\Str::replace(Core\Path::join($root), Core\Path::SEPARATOR, "/"), "|\n";
 
 // It is not a launderer, and does not pretend to be one: a `..` segment still
-// walks up. Spec § 8 names Core\IO::within as the member that knows the base.
+// walks up. Core\IO::within is the member that knows the base.
 echo Core\Str::replace(Core\Path::join($root, "..", "etc"), Core\Path::SEPARATOR, "/"), "|\n";
 
 // normalize resolves `.` and `..` by counting components, and re-renders, so
