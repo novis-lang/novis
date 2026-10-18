@@ -1,15 +1,17 @@
-`mixed` is the one type Novis does not check. It holds a value of any kind, and what an operation on
-it means is worked out while the program runs, from the value that is actually there.
+`mixed` is the one type Novis does not check. A `mixed` variable can contain a value of any type.
+What an operation on it does is decided while the program runs, from the value it contains.
 
-This is where input from outside the program lands, and deliberately so: a query string, a form post,
-the fields of decoded JSON. Calling those numbers or text before anyone has looked would be a lie
-written into the type, and one the program has no way to notice later. So they arrive as `mixed`, and
-you turn each one into the type you want with `as`, which stops with an error when the value is not
-that. `is` is the other half: it asks what the value actually is, without converting anything.
+Input from outside the program has the type `mixed`: a query string, a form post, the fields of
+decoded JSON. Nothing has checked these values yet. Convert each one to the type you need with `as`.
+If the value cannot be converted, `as` throws an error. `is` tests what the value is and does not
+convert it.
 
-A `mixed` never becomes something narrower on its own. Handing one to a parameter that wants a
-`string` is refused where it is written, rather than going wrong later.
+A `mixed` value is never converted to a narrower type for you. Passing one to a `string` parameter
+does not compile until you convert it with `as string`.
 
-**Good to know:** every operation on a `mixed` is decided while the program runs, which costs more
-than the same operation on a declared type. Convert once, close to where the value arrives, and work
-with the real type after that.
+**Good to know:** an operation on a `mixed` value is slower than the same operation on a declared
+type. Convert the value once, close to where it arrives, and use the typed value after that.
+
+**The examples below** read a page number from a query string, describe each field of a decoded
+payload, and convert an order line from outside. The last two use a `mixed` value directly, and show
+a `mixed` argument to a `string` parameter as a compile error.

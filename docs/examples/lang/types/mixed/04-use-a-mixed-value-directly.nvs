@@ -1,0 +1,17 @@
+<?nvs
+// Shows the operations you can use on a `mixed` value without converting it first.
+
+mixed $m = 5;
+mixed $row = ["k" => "v"];
+mixed $text = "x";
+
+// Each operation checks the value while the program runs. This prints `6 5 v xy X`.
+echo $m + 1, " ", $m as string, " ", $row["k"], " ", $text . "y", " ", Core\Str::upper($text as string), "\n";
+
+// Arithmetic needs a number, so `"abc" + 1` throws an error.
+mixed $bad = "abc";
+try {
+    echo $bad + 1, "\n";
+} catch (RuntimeError $e) {
+    echo "no arithmetic on text\n";
+}
