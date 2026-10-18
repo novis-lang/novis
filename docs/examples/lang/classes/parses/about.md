@@ -13,5 +13,5 @@ own class, and Novis calls `parse` for you. A parameter typed at a class that do
 **Good to know:** the return type `static` means the class the call named, so a subclass that
 inherits `parse` gets an object of the subclass back.
 
-**The examples below** show a product code built from text, what a subclass gets back, and a list of
-values from a form checked one by one.
+**The examples below** show a product code built from text, what a subclass gets back, a list of
+values from a form checked one by one, a class used in a route, and a route that does not compile.

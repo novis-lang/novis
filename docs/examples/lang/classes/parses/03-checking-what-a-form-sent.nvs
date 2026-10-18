@@ -1,6 +1,6 @@
 <?nvs
-// Shows the everyday use: text a form sent is turned into values one by one,
-// and the lines the class refuses are reported to the person who sent them.
+// Shows text from a form converted into values one by one. Each line where
+// `parse` throws an error is reported to the person who sent the form.
 
 final class Recipient implements Parses {
     public function constructor(public tainted string $address) {}
