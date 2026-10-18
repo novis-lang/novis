@@ -367,6 +367,19 @@ with a converted subject, and its two error blocks. `switch`'s `details.md` adds
 a `default` in the middle falling through, which is example 04. The `switch` level for `break` and
 `continue` stays `break-and-continue`'s fact.
 
+`10-programs`' first five sections are done. `code-mode-and-html-mode` found a disagreement: the
+chapter said the `;` before `?>` is optional in both tag forms, but the binary makes it optional in
+`<?= ?>` alone and gives `E0101` for `<?nvs echo "a" ?>`; the chapter line now says so
+(`10-programs.md:77`). Its `details.md` holds that, the shebang facts (`E0009`) and the escaping in a
+request and in an html template, each run on the binary; examples 01 and 02 already show the
+chapter's blocks, and the shebang script is `tools/cli`'s example. `doc-comments`' `details.md` adds
+`E0323` (`@see` to nothing), `E0325` (`@example` outside `examples/` or `tests/`), `E0128`, `E0127`
+for a `///` above a statement as well as a blank line or the end of the file, and `W1011`; example 04
+is `@param` as a compile error. Its `about.md` said the tags go "at the end of the comment", but the
+binary accepts text after a `@see` line, so it now says "at the start of a line".
+`a-program-is-a-file-of-top-level-statements`, `a-complete-program-annotated` and `comments` need no
+`details.md`: `about.md` has every chapter fact, and the examples show the code.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -382,7 +395,8 @@ binary, write `details.md`, and turn each chapter code block no example shows in
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
 `bun nv proofs --run --only <id>` (one `--only` per run: a second replaces the first) and
 `--comments <dir>`.
-- [ ] `10-programs`, its first sections. `docs/reference/lang/10-programs.md:8`
+- [ ] `10-programs` from `names-and-casing` to `ending-a-program`: names, namespaces, `require`,
+  `autoload`, file paths and ending a program. `docs/reference/lang/10-programs.md:168`
 
 ### Backlog
 
