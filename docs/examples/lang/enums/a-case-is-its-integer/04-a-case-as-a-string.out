@@ -1,0 +1,9 @@
+error[E0708]: `Rank` cannot be converted to `string`
+  --> 04-a-case-as-a-string.nvs:7:6
+  |
+7 | echo Rank::Silver as string, "\n";
+  |      ^^^^^^^^^^^^^^^^^^^^^^ converted here
+  = help: an enum case is a named integer (`rule:enums/no-class-machinery`), not text — `$case as int as string`, or a member of your own that names it
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
