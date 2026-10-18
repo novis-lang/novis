@@ -655,7 +655,7 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 ///
 /// `rule:routing/matched-once-before-the-handler`'s match, which is a `Core\Router` name and so lives in that
 /// module — but is produced by `Core\Request::route()` rather than by
-/// anything on the class above, because § 1 puts the match on the *request*.
+/// anything on `Core\Router` itself, because § 1 puts the match on the *request*.
 // rank: 390
 pub(crate) const MATCH: CoreClass = CoreClass {
     name: MATCH_NAME,

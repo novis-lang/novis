@@ -1624,7 +1624,7 @@ const CARD: ClassDoc = ClassDoc {
 /// has no door to put a check at.
 ///
 /// `rule:programs/framework-core-half`'s last row, and the third of the three this stage adds to
-/// `Core`. Beside the two above because it completes them and not because
+/// `Core`. Ranked beside `Core\Mail` and `Core\Storage` because it completes them and not because
 /// it shares anything else: it is the one entry in that table placed by
 /// test 4 — data the language already had to carry — rather than by an
 /// outside world it waits on. [`crate::cldr`] owns why the rules are a

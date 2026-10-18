@@ -2134,8 +2134,8 @@ fn datetime_address(symbol: &str) -> Option<*const u8> {
 /// reason.
 pub const TIME_NAME: &str = r"Core\Time";
 
-/// Spec § 4's entry points — the namespace class that produces the values the
-/// classes above are members of.
+/// Spec § 4's entry points — the namespace class that produces the values of
+/// the other classes in this module.
 // rank: 220
 pub const TIME: CoreClass = CoreClass {
     name: TIME_NAME,

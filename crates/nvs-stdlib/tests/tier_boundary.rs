@@ -192,11 +192,11 @@ fn no_class_outside_tier_zero_registers_a_core_name() {
         doors.join(", ")
     );
 
-    let registry_src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/registry.rs");
-    let text = fs::read_to_string(&registry_src)
-        .unwrap_or_else(|err| panic!("{}: {err}", registry_src.display()));
-    if const_body(&text, "pub const CLASSES: &[CoreClass] = &[", &registry_src).contains("#[cfg") {
-        conditional.push(format!("{}'s `CLASSES`", registry_src.display()));
+    let classes_src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/classes.rs");
+    let text = fs::read_to_string(&classes_src)
+        .unwrap_or_else(|err| panic!("{}: {err}", classes_src.display()));
+    if const_body(&text, "pub const CLASSES: &[CoreClass] = &[", &classes_src).contains("#[cfg") {
+        conditional.push(format!("{}'s `CLASSES`", classes_src.display()));
     }
 
     let tree_src = nvs_repo::path("crates/nvs-hir/src/errors.rs");

@@ -119,12 +119,12 @@ const CARD: ClassDoc = ClassDoc {
 /// `rule:security/protocol-roster`'s second roster entry, as two rows.
 ///
 /// `rule:security/protocol-roster`'s second roster entry, and the third caller of the one
-/// construction above — [`crate::csrf`] seals a domain tag and a session
+/// construction `Core\SignedCookie` uses — [`crate::csrf`] seals a domain tag and a session
 /// identifier where the cookie seals a payload, so this crate still holds
 /// one AEAD and not three. Its own module doc owns why the session arrives
 /// as an argument, why there is no key ring here, and why a class whose
 /// whole point is a missing accessor is not `rule:core-api/shape-rules` R17's "reachable two
-/// ways" against the cookie above.
+/// ways" against `Core\SignedCookie`.
 // rank: 960
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,

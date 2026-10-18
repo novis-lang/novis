@@ -119,7 +119,7 @@ const CARD: ClassDoc = ClassDoc {
 /// `getenv`, and beside `Core\Config` because the two are the same operator's
 /// two answers to "what was this process started with". The one class here
 /// that reaches the operating system and is deliberately *not* in the
-/// capability table below: [`crate::env`]'s module doc owns why a
+/// capability table, [`CAPABILITIES`](crate::registry::CAPABILITIES): [`crate::env`]'s module doc owns why a
 /// process-wide fact the operator chose is not a door, and why every value
 /// it hands back is `tainted` instead.
 // rank: 650

@@ -217,7 +217,7 @@ impl Drop for Open {
 /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`'s
 /// answer, and the one value on this class that outlives the call that made
 /// it: a conversation the program holds until its own task ends. What it
-/// answers with is `Core\Socket\Message` above, because one RFC 6455 frame
+/// answers with is `Core\Socket\Message`, because one RFC 6455 frame
 /// gets one shape whichever end of the wire it arrived at.
 // rank: 1200
 pub(crate) const SOCKET: CoreClass = CoreClass {

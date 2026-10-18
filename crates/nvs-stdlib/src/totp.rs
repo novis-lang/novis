@@ -123,7 +123,7 @@ const SECRET: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
 /// `rule:security/protocol-roster`'s third roster entry, as two rows.
 ///
 /// `rule:security/protocol-roster`'s third roster entry, and the one class in this crate that
-/// is *not* on the near side of the AEAD above: a one-time code is HMAC by
+/// is *not* on the near side of `Core\Crypto`'s AEAD: a one-time code is HMAC by
 /// RFC 6238, and [`crate::totp`]'s own module doc is the home of why the
 /// algorithm is SHA-1 when nothing else here is, why the window has no
 /// widening argument, and why "no replay" is a counter the caller stores

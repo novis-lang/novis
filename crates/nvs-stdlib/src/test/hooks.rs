@@ -42,8 +42,8 @@ const fn reader(
 /// table, one reader per row.
 ///
 /// `rule:testing/after-each-test` and `rule:testing/class-hooks`: what the
-/// runner passes to a test hook, beside `Core\Test` for the reason the
-/// response above is.
+/// runner passes to a test hook, beside `Core\Test` for the reason
+/// `Core\Test\Response` is.
 // rank: 490
 pub(crate) const OUTCOME: CoreClass = CoreClass {
     name: OUTCOME_NAME,
