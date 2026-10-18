@@ -298,6 +298,12 @@ with each.
       - [x] `anonymous-objects`
       - [x] `refused-in-expression-position`
       - [x] `lang:expressions`' perf recorded after the chapter's last edit
+    - [ ] `50-classes`, then `lang:classes`' perf recorded after the chapter's last edit
+      - [x] `declaring-a-class`, `properties`, `methods-self-static-and-parent` and `constants-and-class`
+      - [ ] `inheritance`, `interfaces`, `property-hooks` and `lateinit`
+      - [ ] `PropertyGuard` to `Parses`
+      - [ ] `objects-are-handles` to `what-a-class-cannot-declare`
+      - [ ] `lang:classes`' perf recorded after the chapter's last edit
   - [ ] `60-iteration`, `70-errors` and `80-concurrency`
   - [ ] `90-attributes` and `95-testing`
 
@@ -674,11 +680,35 @@ already declared with the same type, or written twice in one pattern, compiles a
 (`data/gaps/nvs-types/a-destructuring-variable-that-is-already.json`). A `yield` used as a value in
 a method with no other `yield` is `E0445`, not `E0448`; the rest of `details.md` names `E0448`.
 
+`50-classes`' first four features are done, each fact run on the binary, and no text disagreed with
+it; the chapter did not change. `declaring-a-class`' `details.md` has `E0122` for each member kind,
+`E0114`, `E0110`, `E0471` (a `private` member in a subclass, a `private` constructor), `E0233` in a
+class body, a method or an `if`, `E0402`, `E0405`, the inherited constructor, `E0722` and `new A`;
+examples 04 and 05 are the chapter's no-visibility and no-constructor blocks. `properties`'
+`details.md` leaves the defaults, `E0472` and `E0101` to `lang:types/properties-and-constants`'
+`details.md`, and has `+=` not counting as the assignment, a `?T` starting as `null`, `E0248`, the
+early `return`, `E0428`, `E0853`, `E0427`, `E0249`, each `E0782` form, `E0413`, the shared static
+value, `E0499`, `E0309` and `E0471`; `about.md`'s list of defaults gained `bool` and a class
+constant. Examples 04 to 09 are the chapter's six blocks that no example showed.
+`methods-self-static-and-parent`' `details.md` has the anonymous function reaching `private`
+members, a static method called on an object, `E0496`, `E0778`, `E0779`, `E0702`, `E0303`, `E0410`,
+`self` losing the subclass (`E0405`), `E0741`, `new self()` in a static method, and `E0834`;
+example 04 is the chapter's `Acc` block, 05 an `E0741` method. `constants-and-class`' `details.md`
+has `E0113`, `E0106`, `E0309`, `E0105`, `E0700`, `E0496`, `E0833` with a narrower type allowed, an
+interface constant read through `static::`, `E0832` (also for a `?int`), `E0831`, and `E0702`;
+example 04 is an `E0832` block. Probing found four gaps, owned by `release-hardening`: a member
+declared twice passes `nvs check` and stops at `E0901` or exits 5 with no output
+(`data/gaps/nvs-types/a-class-member-declared-twice-passes.json`), a constructor reading a property
+before assigning it reads `0` (`data/gaps/nvs-types/a-constructor-reads-a-property-before.json`),
+`final` on a constant is accepted and does nothing (`data/gaps/nvs-syntax/final-on-a-class-constant-is.json`),
+and a `static` constructor compiles and `new` runs it
+(`data/gaps/nvs-types/a-static-constructor-compiles-and-new.json`).
+
 ### Next
 
-`50-classes` starts. The next group is `declaring-a-class` (`50-classes.md:8`), `properties`
-(`:104`), `methods-self-static-and-parent` (`:306`) and `constants-and-class` (`:381`); take each
-feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
+`50-classes` goes on. The next group is `inheritance` (`50-classes.md:443`), `interfaces` (`:709`),
+`property-hooks` (`:915`) and `lateinit` (`:991`); take each feature id from `bun nv proofs --json`.
+`lateinit` is the `LateInit` interface; plain `lateinit` is `properties`' fact already. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -691,7 +721,7 @@ you meant to test. A probe's method goes in a class: a top-level `function` stop
 An enum is `enum Suit { Hearts, Spades }`, with no `case`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `50-classes` from declaring a class, in chapter order. `docs/reference/lang/50-classes.md:8`
+- [ ] `50-classes` from inheritance, in chapter order. `docs/reference/lang/50-classes.md:443`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:classes`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
