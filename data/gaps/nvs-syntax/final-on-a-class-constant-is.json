@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-syntax/src/parser/decl.rs",
+  "title": "`final` on a class constant is accepted and has no effect.",
+  "text": "`final` on a property and `static` on a constant are `E0106`, but `final public const int N = 1;` compiles, and a subclass that redeclares `N` compiles too and reads its own value. No rule says what `final` on a constant means. It closes when `final` on a constant is either `E0106` or stops a redeclaration with a diagnostic, decided in a rule, with a conformance case.",
+  "goal": "release-hardening"
+}

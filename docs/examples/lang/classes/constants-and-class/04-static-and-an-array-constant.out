@@ -1,0 +1,9 @@
+error[E0832]: `static::STEPS` reads `Retry::STEPS`, which is `array<int>` and has no scalar value
+   --> 04-static-and-an-array-constant.nvs:10:32
+   |
+10 |         return Core\Arr::count(static::STEPS);
+   |                                ^^^^^^^^^^^^^ read through `static::`
+   = help: `rule:statements/static-is-a-member-modifier`: a `static::` constant is read at run time off the called class's table, which carries `string`, `int`, `uint`, `bool` and `float` values and nothing else — write `self::` or the class name, which inline the constant, or make the constant a scalar
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
