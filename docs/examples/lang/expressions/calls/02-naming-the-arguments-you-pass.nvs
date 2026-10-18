@@ -1,6 +1,6 @@
 <?nvs
-// Shows the ways an argument list is written: by position, by name in any
-// order, and as a list poured into a method that takes any number of
+// Shows the ways to write the arguments of a call: by position, by name in
+// any order, and as an array passed to a method that takes any number of
 // arguments.
 
 class Ticket {
@@ -24,18 +24,17 @@ class Ticket {
     }
 }
 
-// By position: the arguments line up with the parameters, left to right.
+// By position: the first argument is for the first parameter, and so on.
 // This prints 43.
 echo Ticket::price(2, 20, 3), "\n";
 
-// By name, in whatever order reads best, and how you leave out a parameter in
-// the middle: `each` keeps its default of 20. This prints 26.
+// By name, in any order. The parameter `each` in the middle is left out, so
+// it has its default of 20. This prints 26.
 echo Ticket::price(booking: 6, seats: 1), "\n";
 
-// As many arguments as you have to hand. This prints 26.
+// Any number of arguments. This prints 26.
 echo Ticket::cheapest(43, 26, 33), "\n";
 
-// A list you already hold goes into the same method in one piece, with `...`.
-// This prints 26.
+// `...` passes each value of an array as one argument. This prints 26.
 array<int> $offers = [43, 26, 33];
 echo Ticket::cheapest(...$offers), "\n";

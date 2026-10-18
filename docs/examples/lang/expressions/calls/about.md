@@ -1,16 +1,15 @@
-A call runs a method and gives back whatever that method returns.
+A call runs a method and returns the method's result.
 
-You write the class or the object, the method's name, and the arguments in brackets. Results chain,
-so the object one call gives back is what the next call is written on. Arguments go in the order the
-method declares them, or by name in any order — which is also how you leave out a parameter in the
-middle that already has a default. A method whose last parameter takes the rest accepts as many
-arguments as you pass, and a list you already hold is poured in whole. A parameter marked `inout` is
-written back into the variable you passed, and you write `inout` at the call as well, so the change
-is visible where it happens.
+You write the class or the object, the name of the method, and the arguments in brackets. You can
+call a method on the result of a call directly. Arguments go in the order of the parameters. You can
+also write them by name, in any order. A name also lets you leave out a parameter in the middle that
+has a default. A variadic parameter, written `...$rest`, takes any number of arguments. `...$list`
+at the call passes each value of an array as an argument. An `inout` parameter writes its new value
+back to the variable you passed. You write `inout` at the call as well.
 
-**Good to know:** a value that holds a function — in a variable, an array element or a property — is
-called through whatever holds it, and its arguments are checked while the program runs rather than
-before it starts.
+**Good to know:** you call a `callable` through the variable, the array element or the property
+that contains it. Its arguments are checked when the program runs.
 
 **The examples below** take these in turn: calling and chaining, naming the arguments you pass, and
-pricing an order with the handler the customer chose.
+pricing an order with the handler the customer chose. The last one shows each way to write a call in
+one program.

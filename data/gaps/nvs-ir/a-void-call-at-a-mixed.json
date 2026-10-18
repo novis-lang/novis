@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-ir/src/lower/control.rs",
+  "title": "A `void` call at a `mixed` position or as a `match` arm stops with an internal error.",
+  "text": "`mixed $x = A::f();`, where `A::f` returns `void`, passes the checker, and the build then stops with `E0901` (\"internal error: an operand used before it is defined\"). So does a `match` with a `void` call in one arm and a value in another, used as a statement or assigned to `mixed`. `match ($n) { 1 => A::f(), default => A::f() };` stops with `E0901` (\"a phi of representation `void`\"). At an `int` local the same call is `E0401`, and under `echo` it is `E0707`. A `void` call has no value, so at `mixed` or as an arm it is a compile error where it is written. It closes when that is so, with a conformance case.",
+  "goal": "release-hardening"
+}
