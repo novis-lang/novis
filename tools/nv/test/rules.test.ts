@@ -64,6 +64,13 @@ describe("nv rules --check, deleted docs", () => {
     expect(doc("[the pass](../perf/performance-pass.md)")).toHaveLength(1);
   });
 
+  test("a public page that moved to the website is a deleted doc, and the files that took its rest are not", () => {
+    expect(doc("# `docs/docker.md` § *Building an image locally*")).toHaveLength(1);
+    expect(doc("([why](docs/why-tainted-and-secret.md))")).toHaveLength(1);
+    expect(doc("# `docker/README.md` § *Building an image locally*")).toEqual([]);
+    expect(doc("`website/src/content/docs/guides/production/docker.mdx`")).toEqual([]);
+  });
+
   test("the Core spec cited by a section mark is a finding in either case", () => {
     expect(doc("// Spec § 16's `Core\\Net`")).toHaveLength(1);
     expect(doc("/// what spec § 4 says")).toHaveLength(1);

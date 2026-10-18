@@ -18,3 +18,11 @@ keep their standing place in `rule:programs/memory-priority`'s ordering — what
 project says about itself first. The landing page, the tutorial and the first example lead with an
 isolate and a qualifier, never with a benchmark and never with a PHP comparison. A PHP comparison page
 may exist; it is not the front door.
+
+**The first claim is worded about who enforces it, never about how complete the escaping is.** Not
+"XSS is impossible": auto-escaping closes text-node XSS, while an unquoted or URL-valued attribute,
+an inline `<script>` and CSS context are positions the escape does not cover
+(`rule:core-classes/html-template`), and each needs the launderer for its own sink
+(`rule:security/launderers-are-sink-named`). *Injection is a compile error* is the sentence the
+project writes, and it is the stronger one. Nor is the first claim paired with "faster than PHP":
+pairing a retired claim with a live one weakens both.
