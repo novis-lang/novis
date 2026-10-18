@@ -249,11 +249,19 @@ live bytes per request grow.
     `http::transport` cases are fixed: the `proxy` helper returns `Tunnels`, which closes and joins
     every tunnel when dropped, and the header-injection case joins its origin.
   - [ ] A test that is only slow under Miri runs a smaller input under `cfg!(miri)`, never a skip
-    (the `uri` budget test and the large-text JSON tests).
+    (the `uri` budget test and the large-text JSON tests). The first full pass found 119 in
+    `nvs-stdlib`, 57 passing over 60 s and 62 stopped at five minutes. By module: regex 12, cache 11,
+    compress 10, crypto 10, cli 9, jwe 7, sort 6, xml 6, db 5, html 5, password 4, cldr 3, str 3,
+    ast 2, http::transport 2, json 2, multipart 2, path 2, registry 2, request 2, topic 2, and one
+    each in arr, bigint, bus, command, csv, hash, http, random, test, totp, uri and zip. In
+    `nvs-runtime`, six deep-structure tests in `array`, `ctx::output`, `floor`, `identity` and
+    `object` stop at five minutes. The names come from the pass's log:
+    `grep -E '^\s+(TIMEOUT|PASS) \[\s*>?([6-9][0-9]|[0-9]{3})' .agent-tmp/miri-nx-nvs-stdlib.log`.
   - [ ] `nvs-runtime` and `nvs-stdlib` run as separate jobs or `--partition` shards, each well under its
     `timeout-minutes`, so the job ends green or red and never cancelled. The user chose shards: job
-    `miri-units` in `.github/workflows/ci.yml` runs 3 for `nvs-runtime` and 8 for `nvs-stdlib`,
-    sized from the first local pass. Tick it once a nightly run shows every shard well inside its
+    `miri-units` in `.github/workflows/ci.yml` runs 3 for `nvs-runtime` and 8 for `nvs-stdlib`.
+    Lower `nvs-runtime` to 2: its whole crate took 457 s locally with the `sanitizer` feature
+    (`nvs-stdlib` took 6,697 s). Tick it once a nightly run shows every shard well inside its
     timeout. It needs `.config/nextest.toml`'s `miri` profile committed.
   - [x] Miri's default model, Stacked Borrows, stays. The undefined behaviour in the pool allocator
     is a block reused through a pointer that covers only its last owner's size. Tree Borrows accepts
