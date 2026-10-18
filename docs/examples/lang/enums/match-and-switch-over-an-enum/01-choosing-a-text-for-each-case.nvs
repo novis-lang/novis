@@ -9,7 +9,7 @@ class Name {
         return match ($mode) {
             Mode::Read => "read",
             Mode::Write => "write",
-            // `default` answers for every case that no arm above names.
+            // `default` is used for every case that no arm above names.
             default => "other",
         };
     }
@@ -18,5 +18,5 @@ class Name {
 // This prints `write`.
 echo Name::of(Name::Mode::Write), "\n";
 
-// This prints `other`. No arm names `Exec`, so `default` answers.
+// This prints `other`. No arm names `Exec`, so the `default` arm is used.
 echo Name::of(Name::Mode::Exec), "\n";
