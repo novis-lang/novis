@@ -1,0 +1,12 @@
+<?nvs
+// Shows what happens when no `catch` handles an error. The program ends with
+// status 1, and the error goes to standard error.
+// proof: exit 1
+
+echo "loading the price list\n";
+
+// Nothing catches this error, so the program ends here.
+throw new RuntimeError("the price list is empty");
+
+// This line never runs.
+echo "prices loaded\n";

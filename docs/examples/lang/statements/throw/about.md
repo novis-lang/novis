@@ -12,3 +12,7 @@ LogicError("no name")` gives the name when there is one, and raises the error wh
 
 **Good to know:** `{previous: $e}` as a last argument records the error that caused this one. The
 error you add then keeps the first one with it.
+
+**The examples below** show a method that reports a value it cannot use, a `throw` written where a
+value is expected, and an error that keeps the error that caused it. The last one shows a program
+that ends because no `catch` handles its error.
