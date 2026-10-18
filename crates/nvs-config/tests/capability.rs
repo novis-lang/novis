@@ -1241,6 +1241,18 @@ impl Seeded {
         self.next() % bound
     }
 
+    /// An index below `len`, which is never zero. Every length here is far below `u32::MAX`, so
+    /// this is the value `below` gives for it.
+    fn index(&mut self, len: usize) -> usize {
+        self.next() as usize % len
+    }
+
+    /// The low 16 bits of the next value.
+    fn low16(&mut self) -> u16 {
+        let [low, high, ..] = self.next().to_le_bytes();
+        u16::from_le_bytes([low, high])
+    }
+
     /// A path component of one to nine bytes. It starts with `d`, so it is never `.`, `..` or a
     /// device name, and the rest is drawn from bytes a grant root is commonly written with.
     fn component(&mut self) -> String {
@@ -1248,7 +1260,7 @@ impl Seeded {
         let len = 1 + self.below(8);
         let mut out = String::from("d");
         for _ in 0..len {
-            out.push(char::from(BYTES[self.below(BYTES.len() as u32) as usize]));
+            out.push(char::from(BYTES[self.index(BYTES.len())]));
         }
         out
     }
@@ -1327,7 +1339,7 @@ fn spellings(v4: std::net::Ipv4Addr, seeded: &mut Seeded) -> [std::net::Ipv6Addr
     let [a, b, c, d] = v4.octets();
     let high = u16::from_be_bytes([a, b]);
     let low = u16::from_be_bytes([c, d]);
-    let mut noise = || seeded.next() as u16;
+    let mut noise = || seeded.low16();
     [
         v4.to_ipv6_mapped(),
         v4.to_ipv6_compatible(),
@@ -1394,7 +1406,7 @@ fn every_address_in_a_denied_range_is_denied_in_each_of_its_spellings() {
         for _ in 0..500 {
             let mut segments = [0_u16; 8];
             for segment in &mut segments {
-                *segment = seeded.next() as u16;
+                *segment = seeded.low16();
             }
             segments[0] = base | (segments[0] & (u16::MAX >> prefix));
             let v6 = Ipv6Addr::from(segments);
@@ -1417,7 +1429,7 @@ fn an_exception_for_a_generated_address_excepts_two_spellings_and_no_wider_one()
     let disk = Disk::of(&["/srv"]);
     let mut seeded = Seeded(0x1b87_3593);
     for _ in 0..200 {
-        let (base, prefix, _) = DENIED_V4[seeded.below(DENIED_V4.len() as u32) as usize];
+        let (base, prefix, _) = DENIED_V4[seeded.index(DENIED_V4.len())];
         let v4 = Ipv4Addr::from(u32::from_be_bytes(base) | (seeded.next() & (u32::MAX >> prefix)));
         let caps = granting(&format!("[net]\ninternal = [\"{v4}\"]\n"), &disk);
         let [mapped, wider @ ..] = spellings(v4, &mut seeded);
