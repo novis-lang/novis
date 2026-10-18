@@ -247,7 +247,7 @@ live bytes per request grow.
     local. If it needs `-Zmiri-tree-borrows` instead, stop with `BLOCKED` and name the report: the
     model is the user's call.
 - [ ] Seeded property tests: a grant on `a/secret1` never grants `a/secret`, and every address in a denied range is denied in each of its spellings.
-  - [x] The tests are in `crates/nvs-config/tests/capability.rs`, committed unverified as `2003e3d40`.
+  - [x] The tests are in `crates/nvs-config/tests/capability.rs`, committed as `ae40a9e58`; `cargo test --test capability` passes.
   - [ ] Verified green and kept.
 - [ ] A nightly soak serves many requests and fails when live bytes grow with the request count. `crates/nvs-runtime/tests/server_memory.rs:1`
 
