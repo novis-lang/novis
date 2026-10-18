@@ -69,7 +69,7 @@ $corp->delete("OU=Patrons,DC=example,DC=test");
 connect = ["corp"]
 
 [ldap.corp]
-url = "ldaps://localhost:16636"
+url = "ldaps://127.0.0.1:16636"
 user = "CN=Administrator,CN=Users,DC=example,DC=test"
 password = "Novis-test-1"
 tls_ca_file = "ca.crt"

@@ -28,16 +28,16 @@ echo "same as LDAPS: ", $plain->whoami() == $secure->whoami() ? "yes" : "no", "\
 --FILE nvs.toml--
 [capabilities.ldap]
 connect = ["corp", "plain"]
-cleartext = ["localhost"]
+cleartext = ["127.0.0.1"]
 
 [ldap.corp]
-url = "ldaps://localhost:16636"
+url = "ldaps://127.0.0.1:16636"
 user = "CN=Administrator,CN=Users,DC=example,DC=test"
 password = "Novis-test-1"
 tls_ca_file = "ca.crt"
 
 [ldap.plain]
-url = "ldap://localhost:16389"
+url = "ldap://127.0.0.1:16389"
 user = "CN=Administrator,CN=Users,DC=example,DC=test"
 password = "Novis-test-1"
 tls = "none"

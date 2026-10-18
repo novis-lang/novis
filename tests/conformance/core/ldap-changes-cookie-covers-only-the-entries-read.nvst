@@ -37,7 +37,7 @@ echo "after the loop: ", Core\Bytes::length($whole->cookie()) > 0 ? "a new cooki
 connect = ["corp"]
 
 [ldap.corp]
-url = "ldaps://localhost:16636"
+url = "ldaps://127.0.0.1:16636"
 base = "DC=example,DC=test"
 user = "CN=Administrator,CN=Users,DC=example,DC=test"
 password = "Novis-test-1"
