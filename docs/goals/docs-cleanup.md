@@ -9,11 +9,11 @@ stages:
     status: open
     context: [tools/nv/cmd/rules.ts, docs/design.md]
   - id: 2
-    title: the Core spec is gone, and the website's Core pages are built from the registry
+    title: "the Core spec is gone, and the website's Core pages are built from the registry"
     status: done
     context: [docs/spec/01-core-library.md, tools/nv/renderers/website-core.ts, tools/nv/renderers/spec-tables.ts, crates/nvs-stdlib/tests/spec_registry_coverage.rs]
   - id: 3
-    title: docs/perf is gone, its ledgers are data and its findings have homes
+    title: "docs/perf is gone, its ledgers are data and its findings have homes"
     status: open
     context: [tools/nv/proofs/ledger.ts, tools/nv/proofs/perf.ts, tools/nv/cmd/scaling.ts, docs/perf/userland-gap.md, docs/goals/fewer-allocations.md]
   - id: 4
@@ -21,7 +21,7 @@ stages:
     status: open
     context: [docs/docker.md, docs/why-tainted-and-secret.md, docs/release.md, tools/nv/cmd/reference.ts, website/src/content/docs/guides/production/docker.mdx]
   - id: 5
-    title: AGENTS.md is one document, and docs/agent says each thing once
+    title: "AGENTS.md is one document, and docs/agent says each thing once"
     status: open
     context: [docs/agent/commands.md, docs/agent/conventions.md, docs/agent/playbook.md, looper.toml]
   - id: 6
@@ -33,13 +33,13 @@ stages:
     status: open
     context: [website/src/lib/feature.ts, tools/nv/cmd/site.ts, website/src/content/docs/syntax/control-flow/break-continue-return.mdx]
   - id: 8
-    title: "the chapters under docs/reference/lang are generated from about.md and details.md"
+    title: the chapters under docs/reference/lang are generated from about.md and details.md
     status: open
     context: [tools/nv/proofs/roster.ts, crates/nvs-cli/src/agent.rs, tools/nv/cmd/reference.ts]
 checks:
   - id: rules
     stage: 1
-    name: the rulebook is clean, and no file cites a deleted doc
+    name: "the rulebook is clean, and no file cites a deleted doc"
     run: [bun, nv, rules, --check]
   - id: doc-links
     stage: 4
@@ -47,7 +47,7 @@ checks:
     run: [bun, nv, verify, --doc]
   - id: lint
     stage: 5
-    name: goals, chain, README and playbook lint clean
+    name: "goals, chain, README and playbook lint clean"
     run: [looper, lint]
   - id: playbook-retired
     stage: 5
@@ -197,8 +197,8 @@ record, a module doc or a line in its goal.
 
 - [x] `members.ndjson`, `members.md` and `bench-budget.json` move to `data/perf/`, with every path constant, the `ci-changes.ts` lane, `brief.ts`'s homes and the rule records' `guardedBy`. `tools/nv/proofs/ledger.ts:11`, `tools/nv/proofs/perf.ts:36`, `tools/nv/cmd/scaling.ts:156`, `tools/nv/cmd/ci-changes.ts:91`, `data/rules/testing/member-perf-ledger.json:10`
 - [x] `history.ndjson` is deleted, and the rules `testing/perf-history-file` and `testing/perf-secondary-figures` are retired.
-- [ ] The three open findings with no record become gap records: an unread POST body of 16 KB or more can lose the response, a head of 100 header lines is answered 431, and `nvs lsp` grows near-quadratically. `docs/perf/performance-pass.md:1`
-- [ ] `performance-review.md`'s *Bounded* costs go into each module's `//!` cost section, and `scaling --areas --reviewed` is retired with it. `tools/nv/cmd/scaling.ts:1046`
+- [x] The three open findings with no record become gap records: an unread POST body of 16 KB or more can lose the response, a head of 100 header lines is answered 431, and `nvs lsp` grows near-quadratically. `docs/perf/performance-pass.md:1`
+- [x] `performance-review.md`'s *Bounded* costs go into each module's `//!` cost section, and `scaling --areas --reviewed` is retired with it. `tools/nv/cmd/scaling.ts:1046`
 - [ ] `userland-gap.md` and `brainsort-evaluation.md` give their still-true lines to `crates/nvs-runtime/src/callable.rs`, `crates/nvs-stdlib/src/sort.rs` and `crates/nvs-stdlib/src/arr.rs`. Goal `fewer-allocations` states its own design where it cites § F, § I and the `Markup` decision, and its stage 9 loses the items this stage does. `docs/goals/fewer-allocations.md:91`, `docs/goals/fewer-allocations.md:167`
 - [ ] Every citation of `docs/perf/` is rewritten, including `perf_guards.rs`'s assertion message, and `docs/perf/` joins `RECORD_CITE`. `benches/abi-probe/tests/perf_guards.rs:2814`
 
@@ -259,34 +259,34 @@ a five-line pointer, because looper's managed block in AGENTS.md links it (`AGEN
 it, delete the file, add `design\.md` to `DELETED_DOC_CITE` (`tools/nv/cmd/rules.ts:107`) and tick
 stage 1's last sub-item. Stage 1 stays `open` until then.
 
-Stage 2 is done. Session 4's WIP commit `a33a6d128` carried its last slice: the bare `§ N` marks that
-meant the spec, rewritten to the class they name. This session checked it, and committed what was
-left: `DELETED_DOC_CITE` refuses `spec § N` in either case, with a case in `rules.test.ts`. The other
-bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of decision records an
-earlier goal deleted; see the backlog.
+Stage 2 is done.
 
-Stage 3's first two items are done. The perf ledger, its report and the bench budget are under
-`data/perf/`, and every path constant, the `proofs` CI lane, `brief.ts`'s homes and the citations
-moved with them. `history.ndjson` is deleted, and its two rules are retired with their `seeAlso`
-entries and the `commands.md` line that cited one.
+Stage 3's first four items are done. The perf ledgers are under `data/perf/`, and `history.ndjson`
+is gone with its two rules. The three open findings of `performance-pass.md` are gap records:
+`data/gaps/nvs-server/an-unread-post-body-can-lose-the-response.json` and
+`header-line-limit-is-hyper-default.json`, owned by `release-hardening`, and
+`data/gaps/nvs-lsp/open-document-analysis-grows-quadratically.json`, owned by `editor-fixes`.
+`performance-review.md` is deleted. Six of its *Bounded* costs are now a `# What it costs` section in
+their module docs: `sql.rs`, `multipart.rs`, `bigint.rs`, `nvs-server/src/serve.rs`, and the LSP's
+`index.rs` and `document.rs`. The rest were dropped: they were already in their module docs or a rule,
+the code they named is gone (`ClassLayout::slot_of`), or they were a constant factor.
+`scaling --areas --reviewed` is retired.
 
-`docs/perf/userland.ndjson` is the one ledger no item names. `bun nv bench --json` appends to it
-(`tools/nv/cmd/bench.ts:9`), so it moves to `data/perf/` with stage 3's last item.
+`docs/perf/` now holds `performance-pass.md`, `userland-gap.md`, `brainsort-evaluation.md` and
+`userland.ndjson`. `bun nv bench --json` appends to the ledger (`tools/nv/cmd/bench.ts:9`).
 
-The sweep's CI failures are on `main`, not this branch: `docs`, `proofs` on three platforms (about
-280 `perf: stale` members), the Windows warm-start budget and the db matrix. None is this goal's.
+The sweep's CI failures are on `main`, not this branch: `docs`, `proofs` on three platforms, the cost
+guards, supply chain, attribution and `docs/novis.md`. None is this goal's.
 
 ### Next
 
-Stage 3 on `docs/perf/` and `tools/nv/cmd/scaling.ts`: the open findings get homes.
-- [ ] The three open findings with no record become gap records under `data/gaps/`: an unread POST body of 16 KB or more can lose the response, a head of 100 header lines is answered 431, and `nvs lsp` grows near-quadratically. `docs/perf/performance-pass.md:12`, `docs/perf/performance-pass.md:28`, `docs/perf/performance-pass.md:34`
-- [ ] `performance-review.md`'s *Bounded* costs go into each module's `//!` cost section, and `scaling --areas --reviewed` is retired with it. `tools/nv/cmd/scaling.ts:1046`, `tools/nv/cmd/scaling.ts:147`
-- [ ] `tests/conformance/core/arr-every-callback-is-offered-value-and-key.nvst:12` cites `docs/perf/userland-gap.md`; stage 3's last item rewrites it with every other `docs/perf/` citation. `docs/goals/docs-cleanup.md:203`
+Stage 3's last two items, on `docs/perf/` and the files that cite it.
+- [ ] `userland-gap.md` and `brainsort-evaluation.md` give their still-true lines to `crates/nvs-runtime/src/callable.rs`, `crates/nvs-stdlib/src/sort.rs` and `crates/nvs-stdlib/src/arr.rs`. Goal `fewer-allocations` states its own design where it cites § F, § I and `performance-pass.md` § *Decided*. `docs/perf/userland-gap.md:1`, `docs/perf/brainsort-evaluation.md:1`, `docs/goals/fewer-allocations.md:91`
+- [ ] `performance-pass.md`'s still-true lines go to their module docs or rules, and the file is deleted. `docs/perf/performance-pass.md:1`
+- [ ] Every citation of `docs/perf/` is rewritten, including `perf_guards.rs`'s assertion message and `tests/conformance/core/arr-every-callback-is-offered-value-and-key.nvst:12`. `userland.ndjson` moves to `data/perf/`, and `docs/perf/` joins `RECORD_CITE`. `benches/abi-probe/tests/perf_guards.rs:2814`, `tools/nv/cmd/bench.ts:9`, `tools/nv/cmd/rules.ts:107`
 
 ### Backlog
 
 - `docs/design.md` is deleted once looper's managed block no longer links it. `docs/goals/docs-cleanup.md:163`
 - About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them to the `rule:` id each meant needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
-- `docs/perf/userland.ndjson` moves to `data/perf/` with `bench.ts`'s usage line. `tools/nv/cmd/bench.ts:9`
 - Stages 6 to 8 put each fact about a language feature in one place: its `about.md`, a new `details.md` or an example. The syntax pages and the chapters are built from them. `docs/goals/docs-cleanup.md:213`
-
