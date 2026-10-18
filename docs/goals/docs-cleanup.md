@@ -460,6 +460,21 @@ text disagreed with the binary. Its `details.md` has `E0110`, use above the decl
 `E0133`, `E0303` in a child class, `E0307`, an alias of an alias, `E0310` and `E0304`. Example 04 is
 the chapter's `?User` and union block, and 05 its `E0307` block.
 
+`values-written-in-the-code` and `widening-without-as` are done, each fact run on the binary, and
+no text disagreed with it. `values-written-in-the-code` owns the html template too (no other feature
+does). Its `details.md` has the escapes, `E0431` for an escape that is not valid UTF-8 (the
+chapter's "octal `\0` through `\777`" omits that), `E0011` in every form, the bare interpolation
+reaching one level, `"${name}"` printing as written, `E0707` and `E0412` in a string, `E0433`, a
+duration's `==` being identity, `E0117`, and the template's `W1012`, `E0010`, `E0790`, `E0710`,
+`E0319` and `E0417`. Examples 05 to 07 are the chapter's escapes block, its durations block and its
+`.` on markup error block. The `html"…"` error block is not an example: it prints four cascading
+errors. `widening-without-as` had `about.md` and examples 01 and 02's comments in the essay voice,
+now rewritten. Its `details.md` has the untyped literal, the `ArithmeticError` above 2^53 (also for
+9007199254740994, which a `float` stores exactly), single-value types, each `E0401` that needs `as`,
+and the shape field conversion. Example 04 is an anonymous object at a shape, 05 the chapter's
+`int` into `uint` block. A local typed with a bare shape is `E0134`, so a probe names the shape
+with `type` first.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -469,7 +484,8 @@ sessions found, and the red bench `benches/members/core/Ldap-Connection/delete.n
 
 ### Next
 
-`20-types` from `values-written-in-the-code` (12 features left), one feature per slice, the way `break-and-continue` was done: read
+`20-types` from `the-conversion-operator-as` (10 features left, and it is the longest section at 176
+lines, so take it alone), one feature per slice, the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -479,7 +495,7 @@ A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` 
 probe is a file under `.agent-tmp/` written with Write, since the guard refuses a redirect.
 A probe catching two error types needs two variable names, or it stops at `E0406` before the line
 you meant to test. A probe's method goes in a class: a top-level `function` stops at `E0215`.
-- [ ] `20-types` from `values-written-in-the-code`, in chapter order. `docs/reference/lang/20-types.md:417`
+- [ ] `20-types` from `the-conversion-operator-as`, in chapter order. `docs/reference/lang/20-types.md:632`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:types`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
