@@ -291,8 +291,13 @@ with each.
       - [x] `operators-that-do-not-parse`
       - [x] `arithmetic`
       - [x] `comparison-and-equality`
-    - [ ] `logical-operators-and-truth`, `string-operators`, `and-the-ternary` and `assignment`
-    - [ ] the rest of `30-expressions`, then `lang:expressions`' perf recorded after the chapter's last edit
+    - [x] `logical-operators-and-truth`, `string-operators`, `and-the-ternary` and `assignment`
+    - [x] the rest of `30-expressions`, then `lang:expressions`' perf recorded after the chapter's last edit
+      - [x] `match` to `anonymous-functions`
+      - [x] `arrays-in-expressions`
+      - [x] `anonymous-objects`
+      - [x] `refused-in-expression-position`
+      - [x] `lang:expressions`' perf recorded after the chapter's last edit
   - [ ] `60-iteration`, `70-errors` and `80-concurrency`
   - [ ] `90-attributes` and `95-testing`
 
@@ -648,11 +653,32 @@ is a plain one (`data/gaps/nvs-types/a-variadic-parameter-on-an-anonymous.json`)
 callable compiles and throws naming `Script$fn0`
 (`data/gaps/nvs-types/echo-of-a-callable-compiles-and.json`).
 
+`30-expressions` is done: `arrays-in-expressions`, `anonymous-objects` and
+`refused-in-expression-position` closed it, each fact run on the binary. The chapter did not change,
+and `lang:expressions`' perf is recorded. `arrays-in-expressions`' `details.md` has `E0414`,
+`E0434`, `"08"`, the next key after a negative one and after `unset`, `E0481`, the spread's later key
+winning and `E0401`, writes creating inner arrays, a nested read's error, `isset` on a `null` value,
+`E0700`, destructuring by key (extra entries skipped, mixed forms, a variable key), `E0101`, `E0102`,
+`E0482`, no pattern in `foreach` and `E0230`; examples 04 to 06 are the chapter's three blocks.
+`anonymous-objects`' `details.md` has field-name forms (`E0101`, no spread), `E0494`, `E0117`,
+`E0401` on a write, a function in a field and `E0477`, the run-time error for a missing or optional
+field, `isset`, a class at a shape, `clone`, JSON sorted by name, and `echo` throwing; its
+`about.md` and examples 01 and 02 said a shape or `==` "asks", now rewritten. Examples 04 and 05
+are the chapter's two blocks. `refused-in-expression-position`'s `about.md` said every error names a
+replacement, but a backtick is a plain `E0001`; its `details.md` lists each form's code and help,
+and example 04 is the chapter's `$$name` block. Example 03 named PHP twice, now rewritten. Probing
+found two gaps, owned by `release-hardening`: type arguments after a built-in type name
+(`iterable<int>`, `int<int>`) lose the method body and give `E0786` or `E0823`
+(`data/gaps/nvs-syntax/type-arguments-after-a-built-in-type.json`), and a destructuring variable
+already declared with the same type, or written twice in one pattern, compiles and overwrites it
+(`data/gaps/nvs-types/a-destructuring-variable-that-is-already.json`). A `yield` used as a value in
+a method with no other `yield` is `E0445`, not `E0448`; the rest of `details.md` names `E0448`.
+
 ### Next
 
-`30-expressions` continues: 3 features left. The next group is `arrays-in-expressions`
-(`30-expressions.md:588`), `anonymous-objects` (`:655`) and `refused-in-expression-position`
-(`:680`). Work each feature the way `break-and-continue` was done: read
+`50-classes` starts. The next group is `declaring-a-class` (`50-classes.md:8`), `properties`
+(`:104`), `methods-self-static-and-parent` (`:306`) and `constants-and-class` (`:381`); take each
+feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -665,8 +691,8 @@ you meant to test. A probe's method goes in a class: a top-level `function` stop
 An enum is `enum Suit { Hearts, Spades }`, with no `case`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `30-expressions` from arrays in expressions, in chapter order. `docs/reference/lang/30-expressions.md:588`
-- [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:expressions`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
+- [ ] `50-classes` from declaring a class, in chapter order. `docs/reference/lang/50-classes.md:8`
+- [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:classes`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
 
