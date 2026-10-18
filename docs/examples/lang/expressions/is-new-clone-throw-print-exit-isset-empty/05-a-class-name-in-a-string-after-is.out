@@ -1,0 +1,9 @@
+error[E0496]: the right-hand side of `is` is a type or a class reference, and this is neither
+  --> 05-a-class-name-in-a-string-after-is.nvs:9:22
+  |
+9 |         return $v is $name;
+  |                      ^^^^^ not a class name
+  = help: Novis has no dynamic class names (`rule:types/conversion`, the rule that rejects `$$var` and `eval`) — write the class, or convert the name once and carry the result: `$name as class<Base>` yields a class reference this site accepts, checked against `Base`'s hierarchy where the conversion stands (`rule:types/class-reference-sites`)
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
