@@ -11,4 +11,5 @@ walked twice, or nested inside a loop over itself. A cursor has no keys, so a lo
 bind a key.
 
 **The examples below** show a cursor written by hand, then a class that gives out a fresh cursor per
-loop, then a search result read page by page.
+loop, then a search result read page by page. Example 04 shows that a loop over a cursor cannot get
+a key.

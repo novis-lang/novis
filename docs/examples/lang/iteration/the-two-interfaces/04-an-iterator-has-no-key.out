@@ -1,0 +1,9 @@
+error[E0444]: an `Iterable`/`Iterator` subject has no key to bind
+   --> 04-an-iterator-has-no-key.nvs:16:28
+   |
+16 | foreach (Steps::upTo(3) as string $k => int $v) {
+   |                            ^^^^^^^^^ no key exists here
+   = help: `rule:iteration/two-interfaces` gives `Iterator<T>` exactly `advance()` and `current()`; drop the `$k =>` or iterate an `array<T>` instead
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

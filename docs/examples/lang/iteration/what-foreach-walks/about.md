@@ -11,3 +11,4 @@ can be walked. One function can then read a list, a cart or a database result th
 
 **The examples below** show an array with and without its keys, then an object and a generator, then
 a checkout that adds up a shopping cart. Each one uses `var` first and a written type after it.
+Example 04 shows a second loop over the same iterator.
