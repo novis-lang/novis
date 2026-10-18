@@ -12,4 +12,5 @@ the value that ended it. A second loop in the same function needs a different na
 the third part before the next test.
 
 **The examples below** show a `var` counter that numbers a list, two counters that meet in the
-middle, and `uint` counters that send rows in batches.
+middle, `uint` counters that send rows in batches, a `for (;;)` loop, and a header that does not
+compile.

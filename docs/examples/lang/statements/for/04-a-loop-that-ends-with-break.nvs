@@ -1,0 +1,16 @@
+<?nvs
+// Shows a `for` loop with an empty header. `for (;;)` has no test, so only
+// `break` ends it.
+
+int $tries = 0;
+
+for (;;) {
+    $tries++;
+    echo "try ", $tries, "\n";
+    if ($tries == 3) {
+        break;
+    }
+}
+
+// The loop ran three times. This prints 3.
+echo $tries, "\n";
