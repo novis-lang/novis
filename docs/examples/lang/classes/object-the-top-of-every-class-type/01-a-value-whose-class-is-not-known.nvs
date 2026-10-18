@@ -27,6 +27,6 @@ object $two = Pick::second();
 // while the program runs, so this prints `red|blue`.
 echo $one->text as string, "|", $two->text as string, "\n";
 
-// `as Tag` says which class you mean. The result is an ordinary `Tag`.
+// `as Tag` converts the value to a `Tag`. The result is an ordinary `Tag`.
 Tag $tag = $one as Tag;
 echo $tag->text, "\n";

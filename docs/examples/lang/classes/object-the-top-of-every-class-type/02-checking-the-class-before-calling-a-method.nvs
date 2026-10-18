@@ -16,8 +16,8 @@ class Robot {
 
 class Voice {
     public static function of(object $thing): string {
-        // Each branch narrows the value to one class, which opens that class's
-        // methods for the branch.
+        // Each branch narrows the value to one class. Inside the branch, you can
+        // call the methods of that class.
         if ($thing is Duck) {
             return $thing->speak();
         }
