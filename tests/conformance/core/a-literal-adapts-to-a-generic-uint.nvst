@@ -2,10 +2,10 @@
 A literal beside a generic parameter takes the type the bindings gave that parameter, in either argument order -- `rule:types/conversion` and `rule:types/arithmetic`, `rule:types/single-value-types`, `rule:types/arithmetic`
 --FILE--
 <?nvs
-// findings.md's D33. A generic call binds its type variables before it checks
-// its arguments, so a literal at a position only substitution closes has
-// nothing to be placed against on the first pass -- and `2` beside a `uint`
-// was `E0401: expected uint, found int`. `check_generic_args` in
+// A generic call binds its type variables before it checks its arguments, so
+// a literal at a position only substitution closes has nothing to be placed
+// against on the first pass. It is placed against the substituted type, so
+// `2` beside a `uint` is a `uint` and not `E0401`. `check_generic_args` in
 // `crates/nvs-types/src/expr/args.rs` owns the rule and why it is placement
 // rather than assignability.
 

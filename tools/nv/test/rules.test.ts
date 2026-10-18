@@ -71,6 +71,13 @@ describe("nv rules --check, deleted docs", () => {
     expect(doc("`website/src/content/docs/guides/production/docker.mdx`")).toEqual([]);
   });
 
+  test("the reference findings list is a deleted doc by its file name in any form", () => {
+    expect(doc("// `docs/reference/findings.md`'s P15 is the report")).toHaveLength(1);
+    expect(doc("/// findings.md's D33, decided here")).toHaveLength(1);
+    expect(doc("[the list](findings.md#triage)")).toHaveLength(1);
+    expect(doc("for (const f of findings) report(f);")).toEqual([]);
+  });
+
   test("the Core spec cited by a section mark is a finding in either case", () => {
     expect(doc("// Spec § 16's `Core\\Net`")).toHaveLength(1);
     expect(doc("/// what spec § 4 says")).toHaveLength(1);

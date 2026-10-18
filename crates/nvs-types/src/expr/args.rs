@@ -1336,9 +1336,8 @@ pub(crate) fn option_names(options: &[crate::ty::CoreShapeField]) -> String {
 ///    re-point, and the same two `nvs_ir::lower::is_aliasing_read` already
 ///    recognises as durable storage.
 ///
-///    **An array element is not one of them, and that is permanent** —
-///    findings.md's D22, which was filed against the word *yet* this refusal
-///    used to carry. `rule:types/arrays`'s copy-on-write leaves an element no
+///    **An array element is not one of them, and that is permanent.**
+///    `rule:types/arrays`'s copy-on-write leaves an element no
 ///    address that survives a call, so the only way to accept
 ///    `M::bump(inout $a["k"])` is to copy the element into a temporary at the
 ///    call site and copy it back afterwards. That is a reference only for as
@@ -1488,7 +1487,7 @@ pub(crate) fn check_inout_arg(
 /// knowing it early is free.
 ///
 /// **A literal at a position only the bindings close is *placed* against the
-/// substituted type, not compared to it** — findings.md's D33, decided here.
+/// substituted type, not compared to it.**
 /// The alternative, admitting the literal to the binding pass on the strength
 /// of the type it reports with nothing to be placed against, is the wrong one
 /// in both directions: `Core\Test::assertSame($u, 2)` binds `T` to `uint` and

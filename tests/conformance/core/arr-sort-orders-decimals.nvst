@@ -2,11 +2,10 @@
 `Core\Arr::sort` orders `decimal`s exactly and by value rather than by scale, and every member sharing the natural ordering agrees with it — `rule:types/arithmetic` and `rule:types/conversion`
 --FILE--
 <?nvs
-// The natural ordering covers every type the checker admits, and `decimal` was
-// the one it did not: `Core\Arr::sort` over an `array<decimal>` threw at run
-// time, naming the tag pair, because `nvs_stdlib::ordering` had a row for
-// `int`/`uint`/`float` and none for the exact scalar beside them.
-// `docs/reference/findings.md`'s D34 is the report.
+// The natural ordering covers every type the checker admits, `decimal`
+// included: `nvs_stdlib::ordering` has a row for the exact scalar beside
+// `int`/`uint`/`float`, so `Core\Arr::sort` over an `array<decimal>` orders
+// it rather than throwing on the tag pair.
 //
 // Sorted by value and not by scale: `rule:types/conversion`'s last paragraph makes `19.90`
 // and `19.9000` equal, so the two sit together and the *input* order between

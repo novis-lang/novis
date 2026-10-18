@@ -4035,8 +4035,7 @@ pub fn iterable_element(class: &str) -> Option<&'static CoreTy> {
 /// of this same class and answering `int` is exactly what the interface
 /// requires, and a class carrying that row cannot be un-`Comparable`. A roster
 /// beside it would be a second copy of the same fact, wrong the first time a
-/// domain module adds the member without it — which is how the time types
-/// spent this whole gap (`docs/reference/findings.md` D1).
+/// domain module adds the member without it.
 ///
 /// The `self`-typed parameter is load-bearing rather than decoration: `rule:classes/ordering-lowers-to-compare-to` refuses a comparison across classes, so a `compareTo` taking anything
 /// else answers a different question and is not this interface's member.
