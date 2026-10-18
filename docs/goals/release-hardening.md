@@ -242,17 +242,25 @@ live bytes per request grow.
     itself, never a module skip and never a CI skip list. Found so far: a Unix socket
     (`ctx::output::tests::a_context_sends_both_writers_to_syslog_when_the_target_names_it`), `openat`
     (`beneath`'s tests and the runtime's `capability` tests that reach the file doors), a process
-    (`child_watch`), `mmap` with a guard page (the `json` depth tests) and `ring`'s C and assembly.
-    The rest of `beneath` and `capability` is what Miri is for, so it keeps running.
+    (`child_watch`), `mmap` with a guard page (the `json` depth tests), `ring`'s C and assembly, and
+    SQLite's C (`sqlite3_threadsafe`, the `db` tests). The rest of `beneath` and `capability` is
+    what Miri is for, so it keeps running.
+  - [x] A test that ends with its threads still running joins them, never an ignore. The eight
+    `http::transport` cases are fixed: the `proxy` helper returns `Tunnels`, which closes and joins
+    every tunnel when dropped, and the header-injection case joins its origin.
   - [ ] A test that is only slow under Miri runs a smaller input under `cfg!(miri)`, never a skip
     (the `uri` budget test and the large-text JSON tests).
   - [ ] `nvs-runtime` and `nvs-stdlib` run as separate jobs or `--partition` shards, each well under its
-    `timeout-minutes`, so the job ends green or red and never cancelled.
-  - [ ] Miri's default model, Stacked Borrows. Its first run reported undefined behaviour in the pool
-    allocator: a retag through a reference over a block, reached through `counting_alloc::Counting`
-    wrapping `alloc::Pooled` (`crates/nvs-runtime/src/alloc.rs:226`). Fix it at its cause if the fix is
-    local. If the code is sound and only Stacked Borrows rejects it, choose the model that fits
-    Novis, write why in the Miri job's comment, and go on.
+    `timeout-minutes`, so the job ends green or red and never cancelled. The user chose shards: job
+    `miri-units` in `.github/workflows/ci.yml` runs 3 for `nvs-runtime` and 8 for `nvs-stdlib`,
+    sized from the first local pass. Tick it once a nightly run shows every shard well inside its
+    timeout. It needs `.config/nextest.toml`'s `miri` profile committed.
+  - [x] Miri's default model, Stacked Borrows, stays. The undefined behaviour in the pool allocator
+    is a block reused through a pointer that covers only its last owner's size. Tree Borrows accepts
+    it, and a fix in the pool costs Miri its precision on every recycled block. The user chose the
+    `sanitizer` feature for `nvs-runtime`'s run instead, for ASAN's reason, with
+    `-Zmiri-ignore-leaks` because the cache keeps its blocks by design. The `miri-units` comment
+    says why.
 - [ ] Seeded property tests: a grant on `a/secret1` never grants `a/secret`, and every address in a denied range is denied in each of its spellings.
   - [x] The tests are in `crates/nvs-config/tests/capability.rs`, committed as `ae40a9e58`; `cargo test --test capability` passes.
   - [ ] Verified green and kept.
