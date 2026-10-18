@@ -1,0 +1,9 @@
+error[E0479]: `?->` cannot be written through
+   --> 05-writing-through-the-nullsafe-operator.nvs:10:1
+   |
+10 | $p?->x = 2;
+   | ^^^^^^ this yields `null` when the receiver is `null`
+   = help: `null` is not a place to assign to — test the receiver instead: `if ($x !== null) { $x->p = …; }`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

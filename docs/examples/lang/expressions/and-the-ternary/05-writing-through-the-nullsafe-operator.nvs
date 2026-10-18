@@ -1,0 +1,10 @@
+<?nvs
+// Shows that you cannot assign a value through `?->`. Test the object for `null` first.
+// proof: compile-error
+
+class Point {
+    public int $x = 1;
+}
+
+?Point $p = new Point();
+$p?->x = 2;
