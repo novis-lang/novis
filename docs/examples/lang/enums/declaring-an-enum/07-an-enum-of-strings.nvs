@@ -1,0 +1,6 @@
+<?nvs
+// Shows that an enum cannot have text behind its cases. Only `int` and `uint`
+// are allowed.
+// proof: compile-error
+
+enum Suit: string { Hearts, Spades }

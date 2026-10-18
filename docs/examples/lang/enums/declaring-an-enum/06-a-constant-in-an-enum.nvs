@@ -1,0 +1,10 @@
+<?nvs
+// Shows that an enum contains only cases. A constant does not compile, so put
+// it in a class.
+// proof: compile-error
+
+enum Suit {
+    Hearts,
+    Spades,
+    const int COUNT = 2;
+}
