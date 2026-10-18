@@ -1,0 +1,4 @@
+{
+  "feature": "lang:programs/ending-a-program",
+  "perf": "A program ends once, so nothing can be iterated: a bench here would measure startup, not `exit`."
+}

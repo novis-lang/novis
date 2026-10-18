@@ -52,7 +52,7 @@ describe("a `.cmd` example", () => {
 describe("`nv proofs --gate --no-skip PROOF`", () => {
   test("a feature the policy skips for PROOF owes it, and a skip of another proof is still a skip", () => {
     const skips = new Map([["tools:cli/x", { examples: "why", hostile: "why" }]]);
-    expect(skippedOf("tools:cli/x", skips, ["examples"])).toEqual({ examples: "skipped in data/proofs/policy.json" });
+    expect(skippedOf("tools:cli/x", skips, ["examples"])).toEqual({ examples: "skipped in data/proofs/skip/" });
     expect(skippedOf("tools:cli/x", skips, [])).toEqual({});
     expect(skippedOf("tools:cli/y", skips, ["examples"])).toEqual({});
   });
@@ -62,7 +62,7 @@ describe("`nv proofs --gate --no-skip PROOF`", () => {
     const run = (...args: string[]) => Bun.spawnSync(["bun", "tools/nv/main.ts", "proofs", "--gate", ...args, "--only", "tools:cli/nvs-info"], { cwd: ROOT });
     const failed = run("--no-skip", "hostile");
     expect(failed.exitCode).toBe(1);
-    expect(failed.stdout.toString()).toContain("hostile: skipped in data/proofs/policy.json");
+    expect(failed.stdout.toString()).toContain("hostile: skipped in data/proofs/skip/");
     expect(run("--no-skip", "nonsense").exitCode).toBe(2);
   });
 });

@@ -1,0 +1,4 @@
+{
+  "feature": "Core\\Test::advance",
+  "perf": "A bench runs under `nvs run`, where no `#[Test(at: ...)]` fixes a clock, so every iteration would measure the `LogicError` rather than the move."
+}

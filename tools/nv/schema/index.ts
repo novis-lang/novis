@@ -10,7 +10,7 @@ import type { RecordType } from "../lib/schema.ts";
 import { gap } from "./gap.ts";
 import { milestone } from "./milestone.ts";
 import { planStatus } from "./plan-status.ts";
-import { helpBacklog, proofPolicy } from "./proofs.ts";
+import { helpBacklog, proofPolicy, proofSkip } from "./proofs.ts";
 import { referenceChapter } from "./reference.ts";
 import { rule } from "./rule.ts";
 import { specCoreMembers } from "./spec.ts";
@@ -25,5 +25,6 @@ export const RECORDS: RecordType<any>[] = [
   referenceChapter,
   specCoreMembers,
   proofPolicy,
+  proofSkip,
   helpBacklog,
 ];

@@ -56,39 +56,10 @@
         "required": [],
         "additionalProperties": false
       }
-    },
-    "skip": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "properties": {
-          "tests": {
-            "type": "string"
-          },
-          "examples": {
-            "type": "string"
-          },
-          "perf": {
-            "type": "string"
-          },
-          "hostile": {
-            "type": "string"
-          },
-          "about": {
-            "type": "string"
-          },
-          "help": {
-            "type": "string"
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      }
     }
   },
   "required": [
-    "report",
-    "skip"
+    "report"
   ],
   "additionalProperties": false
 }

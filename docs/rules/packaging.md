@@ -2303,7 +2303,7 @@ like every manifest class ([`packaging/extension-calls-are-statically-typed`](pa
 `nvs meta --json` entry, which carries `"internal": true`. So does a manifest enum or a source
 class's type alias that no public member's signature of the component names, directly or through a
 type alias such a signature uses: only the engine takes it. Neither is a feature, so neither is on the proofs roster
-([`testing/feature-proofs`](testing.md#testing-feature-proofs)), in `data/proofs/policy.json` or on the website.
+([`testing/feature-proofs`](testing.md#testing-feature-proofs)), under `data/proofs/skip/` or on the website.
 
 A file is the component's own when `nvs_hir`'s graph walk added it from the component's `nvs.source`
 section: it carries the name `<class>:<path>` and no path on disk, so no file a program writes or

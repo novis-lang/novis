@@ -1,0 +1,6 @@
+{
+  "feature": "Novis\\Spreadsheet\\Sheet::constructor",
+  "examples": "`new Sheet` stores six values and calls nothing; a program meets a `Sheet` from `Workbook::sheet`, and the examples of that method and of `add` show how a sheet is started and filled.",
+  "perf": "`new Sheet` stores six values and calls nothing; `Workbook::sheet` builds one on every call, so its figure includes this one.",
+  "hostile": "`new Sheet` stores six typed read-only values and calls nothing, so a wrong value does not compile; the rows and parts a request sends reach the sheet through `add` and the part methods, whose attacks send hostile ones."
+}

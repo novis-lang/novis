@@ -14,8 +14,8 @@
 //! [`nvs_db::SqliteColumn::column_type`] folds every `TIMESTAMP` spelling into
 //! [`nvs_db::ColumnType::DateTime`], which this member refuses by class. Every
 //! proof program in this repository connects to an in-memory SQLite block, so
-//! that member's example, attack and bench are skip entries in
-//! `data/proofs/policy.json` and its tests are not.
+//! that member's example, attack and bench are skipped in its file under
+//! `data/proofs/skip/` and its tests are not.
 
 use super::*;
 
@@ -1964,8 +1964,8 @@ mod tests {
     ///
     /// This is the one place the answer is reached at all. SQLite folds every
     /// `TIMESTAMP` spelling into `ColumnType::DateTime`, so this member's
-    /// example, attack and bench are skip entries in
-    /// `data/proofs/policy.json` and the `.nvst` case beside them can
+    /// example, attack and bench are skipped in its file under
+    /// `data/proofs/skip/` and the `.nvst` case beside them can
     /// pin the refusals and nothing else. A row built here holds whatever it is
     /// given, so the `TIMESTAMPTZ` column the member is written for is one
     /// [`NvsArray::set`] away.

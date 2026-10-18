@@ -1,0 +1,4 @@
+{
+  "feature": "lang:expressions/refused-in-expression-position",
+  "perf": "Every construct here is a compile error, so there is no program to iterate; the replacements carry their own figures."
+}

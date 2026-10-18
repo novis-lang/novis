@@ -1,6 +1,6 @@
 // What each feature on the roster has on disk, and what it still owes. `rule:testing/feature-proofs` is
-// what a feature owes. Here it is data: `POLICY` per kind, with one feature excused from one proof by a
-// skip entry in `data/proofs/policy.json` whose value is the reason.
+// what a feature owes. Here it is data: `POLICY` per kind, with one feature excused from one proof by its
+// skip file under `data/proofs/skip/`, whose value for that proof is the reason.
 //
 // A test is attributed to a feature by a `covers:` marker, in a `.nvst` case or above a Rust `#[test]`.
 // A `Core` member is also credited by a case that calls it as `Class::member(`. An example, an attack and
@@ -16,6 +16,8 @@ import { analyseAll, digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { comparePaths, splitlines } from "../lib/py.ts";
 import { inPart, noteKey, unrecorded } from "../lib/reads.ts";
+import { load } from "../lib/store.ts";
+import { proofSkip } from "../schema/proofs.ts";
 import { LEDGER, LEDGER_WHOLE, ledgerRows, perfKey } from "./ledger.ts";
 import { anchorKey, CALL_ROOTS, callsIn, callsKey, coversKey, MARKER_ROOTS, markersIn } from "./markers.ts";
 import { aboutFile, benchFile, examplesDir, hostileDir, implFile, noteRoster, programsIn, read, type Entry, type Kind } from "./roster.ts";
@@ -63,7 +65,7 @@ type Table = Record<string, unknown>;
 const isTable = (v: unknown): v is Table => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /**
- * `POLICY` with the policy file's `owes` applied, `all` before each kind, and the skip map, with every
+ * `POLICY` with the policy file's `owes` applied, `all` before each kind, and the skip files' map, with every
  * help-backlog feature skipping `help`. `noPerf`, and `NVS_PROOFS_NO_PERF=1` in the environment, stop
  * the perf proof from being owed and leave the ledger and the benches as they are.
  */
@@ -74,8 +76,11 @@ export function loadPolicy(noPerf: boolean): { policy: Policy; skips: Skips } {
   const owes = isTable(doc.owes) ? doc.owes : {};
   if (isTable(owes.all)) for (const k of Object.keys(policy) as Kind[]) Object.assign(policy[k], owes.all);
   for (const k of Object.keys(policy) as Kind[]) if (isTable(owes[k])) Object.assign(policy[k], owes[k]);
-  const skip = isTable(doc.skip) ? doc.skip : {};
-  for (const [fid, reasons] of Object.entries(skip)) if (isTable(reasons)) skips.set(fid, { ...(reasons as Record<string, string>) });
+  for (const { value } of load(proofSkip)) {
+    if (!isTable(value)) continue;
+    const { feature, ...reasons } = value;
+    skips.set(feature, { ...skips.get(feature), ...(reasons as Record<string, string>) });
+  }
   if (existsSync(abs(HELP_BACKLOG))) {
     const backlog: Table = JSON.parse(read(HELP_BACKLOG));
     for (const fid of Array.isArray(backlog.features) ? (backlog.features as string[]) : []) {
@@ -426,11 +431,11 @@ export function collect(entries: Entry[], scanned: Scans = scans()): Map<string,
   return out;
 }
 
-/** Each of `named` that `data/proofs/policy.json` skips for the feature `id`, proof -> one sentence. It is
- * what `--gate --no-skip` adds to what the feature owes. */
+/** Each of `named` that the feature `id`'s file under `data/proofs/skip/` skips, proof -> one sentence. It
+ * is what `--gate --no-skip` adds to what the feature owes. */
 export function skippedOf(id: string, skips: Skips, named: readonly string[]): Record<string, string> {
   const skip = skips.get(id) ?? {};
-  return Object.fromEntries(named.filter((p) => p in skip).map((p) => [p, "skipped in data/proofs/policy.json"]));
+  return Object.fromEntries(named.filter((p) => p in skip).map((p) => [p, "skipped in data/proofs/skip/"]));
 }
 
 /** What `entry` still owes, proof -> one sentence. Empty means complete. */
