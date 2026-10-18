@@ -1,0 +1,1 @@
+- **A file under `docs/agent/` can be looper's managed text, and `looper lint` refuses a hand edit to it.** `docs/agent/testing.md` is written by `looper sync`, so a fix to it, even a dead link, fails lint. Check `looper lint` after editing any `docs/agent/` file, and leave a managed one's fix to looper's template. `until: gone docs/agent/testing.md:§ *Names*`
