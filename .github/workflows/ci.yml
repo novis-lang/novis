@@ -1168,6 +1168,61 @@ jobs:
             lower::tests::a_generator_lowers_to_a_factory_a_state_class_and_a_resumption_switch \
             lower::tests::an_anon_fn_lowers_to_a_captured_environment_object_and_an_invoke_method
 
+  # The `nvs-runtime` and `nvs-stdlib` unit tests under Miri, through nextest's `miri` profile
+  # (`.config/nextest.toml`). Each test is a process of its own, so a test Miri cannot run fails
+  # alone and the run still lists every other result. A test Miri can never run carries
+  # `#[cfg_attr(miri, ignore = "<the reason>")]` on itself, and this job keeps no skip list.
+  #
+  # Each crate runs as `--partition` shards, so every shard ends inside `timeout-minutes` and the
+  # job is green or red, never cancelled. When a crate's tests outgrow its shards, raise `of` for
+  # that crate here.
+  #
+  # `nvs-runtime` runs with its `sanitizer` feature, for the reason `counting_alloc`'s module doc
+  # gives for ASAN: the size-class cache keeps a freed block instead of freeing it, so a checker
+  # cannot see a use-after-free inside one. The cache's own tests still run here, on `Pooled`
+  # directly. Blocks they leave in the cache are never freed, by design, so Miri's leak report is
+  # off for this crate, and its leak guards, which measure the allocator, cover leaks instead.
+  miri-units:
+    name: miri units (${{ matrix.crate }} ${{ matrix.shard }}/${{ matrix.of }})
+    needs: changes
+    if: needs.changes.outputs.deep == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { crate: nvs-runtime, shard: 1, of: 3, features: --features nvs-runtime/sanitizer, leaks: -Zmiri-ignore-leaks }
+          - { crate: nvs-runtime, shard: 2, of: 3, features: --features nvs-runtime/sanitizer, leaks: -Zmiri-ignore-leaks }
+          - { crate: nvs-runtime, shard: 3, of: 3, features: --features nvs-runtime/sanitizer, leaks: -Zmiri-ignore-leaks }
+          - { crate: nvs-stdlib, shard: 1, of: 8 }
+          - { crate: nvs-stdlib, shard: 2, of: 8 }
+          - { crate: nvs-stdlib, shard: 3, of: 8 }
+          - { crate: nvs-stdlib, shard: 4, of: 8 }
+          - { crate: nvs-stdlib, shard: 5, of: 8 }
+          - { crate: nvs-stdlib, shard: 6, of: 8 }
+          - { crate: nvs-stdlib, shard: 7, of: 8 }
+          - { crate: nvs-stdlib, shard: 8, of: 8 }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
+        with:
+          components: miri
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: miri-units-${{ matrix.crate }}
+      # Built from crates.io at a pinned version with its own lock file, and kept by the cache
+      # above, so a warm run installs nothing.
+      - name: install cargo-nextest
+        run: cargo install cargo-nextest@0.9.148 --locked
+      - name: miri nextest (${{ matrix.crate }})
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation ${{ matrix.leaks }}
+          INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
+        run: >-
+          cargo +nightly miri nextest run --profile miri -p ${{ matrix.crate }} --lib
+          ${{ matrix.features }} --partition hash:${{ matrix.shard }}/${{ matrix.of }}
+
   # ---------------------------------------------------------------------------
   # The half Miri cannot reach: the crates that execute generated machine code,
   # where the refcount and COW protocols compiled code manipulates by raw
