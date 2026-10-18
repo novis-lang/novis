@@ -126,8 +126,9 @@ is swept only when it is low.
   - [x] Two processes of the binary at once, as two worktrees' verify runs are, no longer clash on fixed entry names in the one Samba (`own`).
   - [x] The `Timeout` that is left, seen only with two processes and every core busy, is found at its cause.
   - [x] The 2-second floor of every Samba case is explained, and removed if it is a fallback in the connect.
+  - [x] The `.nvst` cases that write to Samba name their entries with `Core\Os::pid()`, so two trees at once do not clash.
 - [ ] The `live_edit` 30-second swap is found and fixed at its cause. `crates/nvs-cli/tests/live_edit.rs:1010`
-- [ ] `verify.ts`'s module doc no longer lists either as a load failure. `tools/nv/cmd/verify.ts:1`
+- [x] `verify.ts`'s module doc no longer lists either as a load failure. `tools/nv/cmd/verify.ts:1`
 
 ### 4. the dead tooling and the stale state are gone
 
@@ -171,30 +172,27 @@ edits no shared table by hand.
 
 ### State
 
-Stage 2's `ldap` item is done. The `.nvst` half of it and `live_edit` are left.
+Stage 2's `ldap` item is done, `.nvst` half included. Only the `live_edit` item is left.
 
-- **The 2-second floor** was the dial to `::1`. Windows takes 2 s to report a refused loopback
-  connect (2.09 s measured), `localhost` resolves to `::1` first, and Docker publishes Samba on
-  `127.0.0.1` alone. Every Samba URL in `crates/nvs-stdlib/tests/ldap.rs`, the LDAP `.nvst` cases and
-  `nvs.toml` now names `127.0.0.1`. The binary went from 9.6 s to 2.4 s alone. The 90 LDAP cases
-  pass in 5.5 s.
-- **The `Timeout`** came from the host's path to Samba under load. With 24 busy loops, 20 TLS
-  handshakes inside the container took 131 ms (89 ms idle). From the host through the published
-  port, they took 1.6 s (0.19 s idle). Two copies with every case at once then queue on Samba's four
-  workers past the 30 s deadline: 35 timeouts. `SAMBA_AT_ONCE` (`crates/nvs-stdlib/tests/ldap.rs:49`)
-  lets four Samba cases of one process run at once. With it, two copies and the busy loops pass
-  (about 300 s each), and the binary takes 4.4 s alone.
-- That rerun found two Samba halves still on fixed names (`OU=Framework`, `OU=Catalog`). Both now use `own`.
+- The 12 `.nvst` cases that write to Samba name each entry, and each account's `sAMAccountName`,
+  with `Core\Os::pid()`, which needs no grant (`crates/nvs-stdlib/src/os.rs:58`). The two that match
+  by a name prefix put a fixed word after the pid (`Theater <pid> Hall`), so pid 12 does not match
+  pid 123's entries. `ldap-set-password` now logs the new account in with `Core\Ldap::open` over the
+  cleartext port 16389, because an `nvs.toml` block cannot carry a name made at run time, and it
+  checks `u:EXAMPLE\Staff-%d` under `--EXPECTF--`. All 12 pass, and so did two copies sent at once.
+  The two writing cases left alone write nothing that exists: `ldap-password-writes-need-tls` and
+  `ldap-writes-throw-for-a-bad-name-a-value-with-no-form-or-no-entry`.
+- `tools/nv/cmd/verify.ts` names neither `ldap` nor `live_edit`, so its item is ticked.
 
 The nightly run 39013536848 is still the newest, and nothing in it is new.
 
 ### Next
 
-Stage 2, the `.nvst` cases that write to Samba, on `tests/conformance/core/ldap-*.nvst`:
-- [ ] Find whether a Novis program can read a value unique to its run, for example a process id (not checked). Then the cases that write to Samba name their entries with it, so two trees at once do not clash. `tests/conformance/core/ldap-add-modify-delete-rename.nvst:23`
-- [ ] A case whose `--EXPECT--` prints an entry name keeps its output the same. Print the fixed part, or use `--EXPECTF--`. `tests/conformance/core/ldap-set-password.nvst:58`
+Stage 2, `live_edit`'s 30-second swap, on `crates/nvs-cli/tests/live_edit.rs` alone:
+- [ ] Run `a_file_that_changes_during_a_compile_discards_that_compile` under load, beside a full `cargo test`, until it fails, and read what `server.said()` printed. `crates/nvs-cli/tests/live_edit.rs:977`
+- [ ] Fix the cause the output shows: a missed file event, a compile that never ends, or a deadline that measures a busy machine. Never raise `BOUND`. `crates/nvs-cli/tests/live_edit.rs:29`, `crates/nvs-cli/tests/live_edit.rs:1010`
 
-Then `live_edit`, a session of its own: `crates/nvs-cli/tests/live_edit.rs:1010`, and `verify.ts`'s module doc, `tools/nv/cmd/verify.ts:1`.
+Then stage 4 begins, with `tools/nv/main.ts:23`.
 
 ### Backlog
 
