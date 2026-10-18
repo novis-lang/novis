@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-stdlib/src/registry.rs, crates/nvs-cli/src/main.rs, data/proofs/policy.json]
   - id: 7
     title: a generated file never conflicts in a merge
-    status: open
+    status: done
     context: [.gitattributes, tools/nv/cmd/render.ts]
 checks:
   - id: lint
@@ -177,29 +177,27 @@ edits no shared table by hand.
 
 **Does:** every file a tool writes is declared generated, and a merge renders it again.
 
-- [ ] `.gitattributes` marks every rendered file generated, and the perf ledger `members.ndjson` as `merge=union`. `.gitattributes:43`
-- [ ] `commands.md` says how a person resolves a merge conflict in a generated file: take either side, then render. `docs/agent/commands.md:1`
-- [ ] Once looper's goal `landing-fixes` is reached, `looper.toml`'s `[merge]` table names every rendered file and the commands that render them. If it is not reached when this item comes up, the session writes `BLOCKED looper's goal landing-fixes is not reached`, because only the user starts looper's loop. `looper.toml:1`
+- [x] `.gitattributes` marks every rendered file generated, and the perf ledger `members.ndjson` as `merge=union`. `.gitattributes:43`
+- [x] `commands.md` says how a person resolves a merge conflict in a generated file: take either side, then render. `docs/agent/commands.md:1`
+- [x] Once looper's goal `landing-fixes` is reached, `looper.toml`'s `[merge]` table names every rendered file and the commands that render them. If it is not reached when this item comes up, the session writes `BLOCKED looper's goal landing-fixes is not reached`, because only the user starts looper's loop. `looper.toml:1`
 
 ## Handoff
 
 ### State
 
-Stages 5 and 6 are done. Stage 7 is next. Stage 4's one open item waits on looper.
+Stages 1, 2, 5, 6 and 7 are done. Stage 4's one open item is the goal's last, and it waits on
+looper work that no looper goal owns: looper's chain is empty.
 
-- Every `nvs` command is on `conventions.md` § *An `nvs` command*. `Command` in
-  `crates/nvs-cli/src/main.rs` is one tuple variant per command, and the only doc comment left
-  on a variant is the hidden alias `InstallService(service::Install)`.
-- A group's module holds `Args` with the group's help, a private `Command` enum, and `Args::run`.
-  `nvs api`'s is in `api_diff.rs`, `ExtLang` is `ext::Lang`, and `service::Install` has its own
-  `run`. `service::Args::runs_a_stored_line` is how `main` skips the data folder for `nvs service
-  run`. `run_hosted` and `unaccepted` stay in `main.rs`, because they parse `Cli`.
-- The service install-help test moved to `service.rs`'s tests, and calls `crate::tests::words`.
-- All 112 `--help` and `-h` pages print what they printed before, apart from the build's commit
-  stamp. The walker was a scratch script.
-- The swap to `looper links` and `looper layout` waits on looper: its `links` reads no `<a id>` and
-  does not skip `docs/novis.md`, its `layout` reads README.md and the listing is in CONTRIBUTING.md,
-  and CI has no looper binary.
+- `.gitattributes` marks every file `nv render`, `nv render --website`, `nv rules --render` and
+  `nv reference` write as `linguist-generated`, and `docs/perf/members.ndjson` as `merge=union`.
+  The two website rules lines it had named files `nv site`'s `RETIRED` list deletes, and are gone.
+- `looper.toml`'s `[merge]` names the files the two binary-free commands write, and renders them with
+  `nv render` and `nv rules --render`. `core.json`, `reference.json` and `docs/novis.md` need a built
+  binary, so a conflict in one stays a landing session. `looper doctor` is clean.
+- `commands.md` § *A conflict in a generated file* is how a person resolves one.
+- The swap to `looper links` and `looper layout` still waits: looper's `links` has no option to read
+  `<a id>` or skip `docs/novis.md`, its `layout` reads only README.md and the listing is in
+  CONTRIBUTING.md, and CI has no looper binary.
 - `looper prose` reads a whole `.nvs` file, code included, so `nv proofs --comments` stays for the
   `.nvs` comments.
 
@@ -208,12 +206,11 @@ Nightly run 39108526796 on `1a78b49ef` is still the newest, and every failure it
 
 ### Next
 
-Stage 7's first two items, as three slices, on `.gitattributes`, `tools/nv/cmd/render.ts` and `docs/agent/commands.md`.
-- [ ] List every file `nv render` and `nv rules --render` write, and mark each `linguist-generated` beside the rules pages already marked. `.gitattributes:39`, `tools/nv/cmd/render.ts:1`
-- [ ] Mark the perf ledger `members.ndjson` `merge=union`, at the path it has now; goal `docs-cleanup` moves it. `.gitattributes:43`, `docs/perf/members.ndjson:1`
-- [ ] Say in `commands.md` how a person resolves a conflict in a generated file: take either side, then render. `docs/agent/commands.md:1`
-
-The third item waits on looper's goal `landing-fixes`; if it is not reached, write `BLOCKED`.
+Stage 4's last item, on `.github/workflows/ci.yml` and `tools/nv/cmd/verify.ts`, once the user has
+looper's `links` and `layout` fixed, or decides the item goes.
+- [ ] CI installs looper and runs `looper links` and `looper layout --check` in place of `nv links` and `nv layout --check`. `.github/workflows/ci.yml:976`
+- [ ] `DOC_CHECKS` runs the same two, and `nv links` and `nv layout` are deleted with their tests and allowlist entries. `tools/nv/cmd/verify.ts:151`
+- [ ] Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes lean-loop`, and the owed perf atoms. `tools/nv/cmd/owners.ts:13`
 
 ### Backlog
 
