@@ -1,11 +1,15 @@
-A `type` alias gives a long type a short name. Write `type UserId = uint;` and the two are the same
-type everywhere after that — not a new kind of value, just another way of writing the one you already
-have, so nothing needs converting in either direction.
+A `type` alias gives a type a short name. After `type UserId = uint;`, `UserId` and `uint` are the
+same type. A value of one is a value of the other, so you never convert between them.
 
-The name goes next to the imports at the top of a file, or inside a class, interface or enum, where it
-belongs to that owner and is reached through it. It may not be a second name for a single class: a
-class already has one. What it is for is a shape that would otherwise be spelled out every time — a
-union, an array of arrays, or the set of fields a method hands back.
+You write an alias at the top level of a file, or inside a class, interface or enum. An alias
+inside a class belongs to that class. Outside the class, you write the class name first:
+`Basket::Lines`.
 
-**In plain words:** it is a nickname for a type, and only the compiler ever sees it. An alias costs
-nothing while the program runs.
+An alias cannot be a second name for one class, because a class already has a name. Use an alias
+for a type that is long to write: a union, a nested array, or the fields of an object a method
+returns.
+
+An alias exists only while the program compiles. It has no cost while the program runs.
+
+Example 04 names a nullable class and a union. Example 05 shows that an alias of one class does not
+compile.

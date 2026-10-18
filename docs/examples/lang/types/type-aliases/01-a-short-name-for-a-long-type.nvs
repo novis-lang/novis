@@ -1,8 +1,6 @@
 <?nvs
-// Three types that would be tiresome to write out at every place they are
-// used, each given a name at the top of the file. The name and the type it
-// stands for are interchangeable: a value can move between them freely,
-// because after the compiler has read the file there is only one type there.
+// Three aliases at the top of the file give three types a short name.
+// An alias and its type are the same type, so a value moves between them without `as`.
 
 type UserId = uint;
 type Answer = int|string;

@@ -267,8 +267,12 @@ with each.
   - [x] `10-programs`: six `details.md`, examples 04 for `doc-comments`, `names-and-casing` and `ending-a-program`, and five wrong claims fixed
   - [ ] `20-types`
     - [x] `every-binding-has-a-type`, `numbers-bool-int-uint-float-decimal`, `text-string-and-bytes` and `array-t`
-    - [ ] `callable-classes-object-shapes`, `mixed`, `nullable-union-single-value-and-enum-case-types` and `void-never-self-static`
+    - [x] `callable-classes-object-shapes`, `mixed`, `nullable-union-single-value-and-enum-case-types` and `void-never-self-static`
     - [ ] `type-aliases`, `values-written-in-the-code`, `widening-without-as` and `the-conversion-operator-as`
+      - [x] `type-aliases`
+      - [ ] `values-written-in-the-code`
+      - [ ] `widening-without-as`
+      - [ ] `the-conversion-operator-as`
     - [ ] `property-keys`, `property-paths`, `strings-with-holes` and `narrowing`
     - [ ] `truthiness`, `parameters`, `properties-and-constants`, `qualifiers-tainted-and-secret` and `what-does-not-exist`
   - [ ] `30-expressions`, `50-classes` and `55-enums`
@@ -440,6 +444,22 @@ and `iterable`; examples 04 to 06 are the chapter's three blocks. Arithmetic on 
 `int|string` parameter compiles and gives `mixed`, which no text states and this session did not
 probe further.
 
+`void-never-self-static` and `type-aliases` are done, each fact run on the binary.
+`void-never-self-static` found two wrong claims, both in the chapter and in the syntax page
+`website/src/content/docs/syntax/functions/declaring.mdx`. A call to a `never` method does end the
+caller's path, as `rule:statements/a-body-never-falls-off-its-end` says, unless a subclass overrides
+it (`20-types.md:335`). `self` also works as a parameter type, so it is not return-only. Its
+`about.md` was in the essay voice and is rewritten, and so are examples 01 and 02's comments. Its
+`details.md` has `E0742`, `E0707`, `E0401`, `E0739`, `E0822`, the override case, `E0303`, `E0741`
+and `E0321`. Example 04 is the chapter's `echo` of a `void` call (`E0707`), and example 05 is a
+caller with no `return` after a `never` call. Probing found a missing diagnostic: a `void` or
+`never` property is not `E0742`, and fails only on its default or its constructor. That is the gap
+record `data/gaps/nvs-types/a-void-or-never-property-passes.json`, owned by `release-hardening`.
+`type-aliases` had `about.md` and example 01's comment in the essay voice, now rewritten, and no
+text disagreed with the binary. Its `details.md` has `E0110`, use above the declaration, `E0233`,
+`E0133`, `E0303` in a child class, `E0307`, an alias of an alias, `E0310` and `E0304`. Example 04 is
+the chapter's `?User` and union block, and 05 its `E0307` block.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -449,7 +469,7 @@ sessions found, and the red bench `benches/members/core/Ldap-Connection/delete.n
 
 ### Next
 
-`20-types` from `void-never-self-static` (14 features left), one feature per slice, the way `break-and-continue` was done: read
+`20-types` from `values-written-in-the-code` (12 features left), one feature per slice, the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -458,8 +478,8 @@ binary, write `details.md`, and turn each chapter code block no example shows in
 A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` beside it, and a
 probe is a file under `.agent-tmp/` written with Write, since the guard refuses a redirect.
 A probe catching two error types needs two variable names, or it stops at `E0406` before the line
-you meant to test.
-- [ ] `20-types` from `void-never-self-static`, in chapter order. `docs/reference/lang/20-types.md:331`
+you meant to test. A probe's method goes in a class: a top-level `function` stops at `E0215`.
+- [ ] `20-types` from `values-written-in-the-code`, in chapter order. `docs/reference/lang/20-types.md:417`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:types`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
