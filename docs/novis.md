@@ -19659,7 +19659,7 @@ Returns the value of one request header by its name.
 
 **Returns** `?tainted string` — The value as a `tainted` string, exactly as it arrived. The result is `null` when the request has no header of that name. When the header arrived on more than one line, the values are joined with `, ` in the order they arrived. `headers()` returns each line on its own.
 
-**Throws** `LogicError` — The program is not answering a request.
+**Throws** `LogicError` — The program is not answering a request.; `ParseError` — The value of this header is not valid UTF-8.
 
 <a id="core-core-request-headers"></a>
 #### `Core\Request::headers`
@@ -19672,7 +19672,7 @@ Returns every header of the request, grouped by name.
 
 **Returns** `array<array<tainted string>>` — An `array<array<tainted string>>`. Each key is a header name in lower case. Its value is a list with one entry for each line of that header, in the order the lines arrived. The array is empty when the request has no headers.
 
-**Throws** `LogicError` — The program is not answering a request.
+**Throws** `LogicError` — The program is not answering a request.; `ParseError` — The value of a header is not valid UTF-8.
 
 <a id="core-core-request-cookie"></a>
 #### `Core\Request::cookie`
@@ -19689,7 +19689,7 @@ Returns the value of one cookie by its name.
 
 **Returns** `?tainted string` — The value as a `tainted` string, exactly as it arrived. Nothing is decoded. The result is `null` when the request has no cookie of that name. When the name starts with `__Host-` and the cookie arrived twice, the result is `null` too.
 
-**Throws** `LogicError` — The program is not answering a request.
+**Throws** `LogicError` — The program is not answering a request.; `ParseError` — The value of this cookie is not valid UTF-8.
 
 <a id="core-core-request-body"></a>
 #### `Core\Request::body`
@@ -19775,7 +19775,7 @@ Returns the files that a form uploaded, one at a time in a `foreach` loop.
 
 **Returns** `Core\Request\Files` — An `Iterable<Core\Request\Part>`. Each loop step gives the next file as it arrives. The text fields are not in the loop, and `post` reads them after it. The loop runs zero times when the request has no `multipart/form-data` body.
 
-**Throws** `LogicError` — The program is not answering a request. Or `body`, `bodyStream` or `post` already read the body. After this call, `body`, `bytes`, `bodyStream` and `json` throw this error too. `post` still works after the loop.; `ParseError` — The request says it has a `multipart/form-data` body, but its `boundary` is missing, given twice or not valid. Or the body does not have the form that the request declared.; `IOError` — The connection failed while the loop read the body, or the body ended before its last boundary.
+**Throws** `LogicError` — The program is not answering a request. Or `body`, `bodyStream` or `post` already read the body. After this call, `body`, `bytes`, `bodyStream` and `json` throw this error too. `post` still works after the loop.; `ParseError` — The request says it has a `multipart/form-data` body, but its `boundary` is missing, given twice or not valid. Or the body does not have the form that the request declared. Or the name, file name or `Content-Type` of a part is not valid UTF-8.; `IOError` — The connection failed while the loop read the body, or the body ended before its last boundary.
 
 <a id="core-core-request-post"></a>
 #### `Core\Request::post`
@@ -19792,7 +19792,7 @@ Returns one submitted form field by its name, as text. The fields are read the s
 
 **Returns** `?tainted string` — The field's value as a `tainted string`, or `null` when the form has no field with this name. A name with square brackets, such as `item[]=pen`, also gives `null`. Read those values with `postArray`. This method reads the body to its end. On a `multipart/form-data` request, call it **after** `files()`, because it skips the uploads on its way to the last field.
 
-**Throws** `LogicError` — This program is not answering a request, or `body` or `bodyStream` already read the body of this request. Calling `post` after `files()` is allowed.; `ParseError` — The body is not the form it says it is, or a `multipart/form-data` body has no boundary.; `RuntimeError` — A field has a percent escape that decodes to bytes that are not UTF-8.; `IOError` — The connection failed while the body was read, or the body ended before the length it declared.
+**Throws** `LogicError` — This program is not answering a request, or `body` or `bodyStream` already read the body of this request. Calling `post` after `files()` is allowed.; `ParseError` — The body is not the form it says it is, or a `multipart/form-data` body has no boundary.; `RuntimeError` — The name or value of a field is not valid UTF-8. In an urlencoded form, this includes a percent escape that decodes to bytes that are not UTF-8.; `IOError` — The connection failed while the body was read, or the body ended before the length it declared.
 
 <a id="core-core-request-postarray"></a>
 #### `Core\Request::postArray`
@@ -19809,7 +19809,7 @@ Returns every value of one form field that has square brackets, such as `item[]=
 
 **Returns** `array<tainted string>` — An `array<tainted string>`. `item[]=pen&item[]=book` gives `["pen", "book"]`, and `size[shirt]=M` gives `["shirt" => "M"]`. A name without brackets gives an array with its one value. A name that is not in the form gives an empty array. Like `post`, this method reads the body to its end, so call it **after** `files()`.
 
-**Throws** `LogicError` — This program is not answering a request, or `body` or `bodyStream` already read the body of this request.; `ParseError` — The body is not the form it says it is, or a value under this name has a second pair of brackets, such as `item[a][b]=c`. Read nested values with `postAs`.; `RuntimeError` — A field has a percent escape that decodes to bytes that are not UTF-8.; `IOError` — The connection failed while the body was read, or the body ended before the length it declared.
+**Throws** `LogicError` — This program is not answering a request, or `body` or `bodyStream` already read the body of this request.; `ParseError` — The body is not the form it says it is, or a value under this name has a second pair of brackets, such as `item[a][b]=c`. Read nested values with `postAs`.; `RuntimeError` — The name or value of a field is not valid UTF-8. In an urlencoded form, this includes a percent escape that decodes to bytes that are not UTF-8.; `IOError` — The connection failed while the body was read, or the body ended before the length it declared.
 
 <a id="core-core-request-postas"></a>
 #### `Core\Request::postAs`
