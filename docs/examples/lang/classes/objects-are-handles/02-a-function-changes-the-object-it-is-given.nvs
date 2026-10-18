@@ -1,6 +1,6 @@
 <?nvs
 // Shows that a function receives the caller's object and not a copy. The same
-// object is also kept in an array and in a property. Every handle reads one object.
+// object is also kept in an array and in a property. All of them read one object.
 
 class Order {
     public int $total = 0;

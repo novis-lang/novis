@@ -20,7 +20,8 @@ These forms of `new` do not compile:
 `$p == $q` is `false` after `$q = clone $p`. A class cannot change what `clone` does. A method named
 `clone` is an ordinary method, and `clone` does not call it. `clone` on an `int` or another type that
 is not an object is the error `E0781`. On a `mixed` value that is not an object, it throws a
-`LogicError` when it runs.
+`LogicError` when it runs. On a `?Point` value that is `null`, it compiles and throws a
+`LogicError` too.
 
 `throw` takes a `Throwable`. `throw "oops"` is the error `E0780`. A `throw` can be the right side of
 `??`, `?:`, `||` and `&&`, or one result of a ternary.
