@@ -31,11 +31,11 @@ stages:
 checks:
   - id: lint
     stage: 4
-    name: goals, chain, README and playbook lint clean
+    name: "goals, chain, README and playbook lint clean"
     run: [looper, lint]
   - id: doctor
     stage: 4
-    name: looper finds no drift in the project's config
+    name: "looper finds no drift in the project's config"
     run: [looper, doctor]
   - id: doc-links
     stage: 4
@@ -122,10 +122,10 @@ is swept only when it is low.
 
 **Does:** `ldap` and `live_edit` pass under the load of a full `bun nv verify`, as they do alone.
 
-- [ ] The `ldap` socket deadlines are found and fixed at their cause. `crates/nvs-stdlib/tests/ldap.rs:277`, `crates/nvs-stdlib/tests/ldap.rs:1485`
+- [x] The `ldap` socket deadlines are found and fixed at their cause. `crates/nvs-stdlib/tests/ldap.rs:277`, `crates/nvs-stdlib/tests/ldap.rs:1485`
   - [x] Two processes of the binary at once, as two worktrees' verify runs are, no longer clash on fixed entry names in the one Samba (`own`).
-  - [ ] The `Timeout` that is left, seen only with two processes and every core busy, is found at its cause.
-  - [ ] The 2-second floor of every Samba case is explained, and removed if it is a fallback in the connect.
+  - [x] The `Timeout` that is left, seen only with two processes and every core busy, is found at its cause.
+  - [x] The 2-second floor of every Samba case is explained, and removed if it is a fallback in the connect.
 - [ ] The `live_edit` 30-second swap is found and fixed at its cause. `crates/nvs-cli/tests/live_edit.rs:1010`
 - [ ] `verify.ts`'s module doc no longer lists either as a load failure. `tools/nv/cmd/verify.ts:1`
 
@@ -171,35 +171,28 @@ edits no shared table by hand.
 
 ### State
 
-Stage 1 is done. Stage 2's `ldap` item is half done.
+Stage 2's `ldap` item is done. The `.nvst` half of it and `live_edit` are left.
 
-The red `ldap` runs in looper's verify logs (`var/verify/mwl/*/progress.log`) came from lane worktrees,
-whose verify runs share the one `samba-ad` with main's. Two copies of the binary started at once
-reproduced the clash: `AlreadyExists` on an OU, `NoSuchObject` on a delete, `InvalidCredentials` on a
-login. Each entry a Samba case adds now carries the process id (`own`,
-`crates/nvs-stdlib/tests/ldap.rs:33`), and two copies at once no longer clash.
+- **The 2-second floor** was the dial to `::1`. Windows takes 2 s to report a refused loopback
+  connect (2.09 s measured), `localhost` resolves to `::1` first, and Docker publishes Samba on
+  `127.0.0.1` alone. Every Samba URL in `crates/nvs-stdlib/tests/ldap.rs`, the LDAP `.nvst` cases and
+  `nvs.toml` now names `127.0.0.1`. The binary went from 9.6 s to 2.4 s alone. The 90 LDAP cases
+  pass in 5.5 s.
+- **The `Timeout`** came from the host's path to Samba under load. With 24 busy loops, 20 TLS
+  handshakes inside the container took 131 ms (89 ms idle). From the host through the published
+  port, they took 1.6 s (0.19 s idle). Two copies with every case at once then queue on Samba's four
+  workers past the 30 s deadline: 35 timeouts. `SAMBA_AT_ONCE` (`crates/nvs-stdlib/tests/ldap.rs:49`)
+  lets four Samba cases of one process run at once. With it, two copies and the busy loops pass
+  (about 300 s each), and the binary takes 4.4 s alone.
+- That rerun found two Samba halves still on fixed names (`OU=Framework`, `OU=Catalog`). Both now use `own`.
 
-The `Timeout`s are not explained yet. What the probes showed:
-- Alone: green in 9.6 s. With 24 `yes` busy loops on 16 cores: green in 102 s.
-- Two copies and the busy loops together: one `Timeout`. It was the 30-second read of
-  `CN=Administrators` at `crates/nvs-stdlib/tests/ldap.rs:1222`.
-- Samba runs `prefork children = 4`, so four single-threaded workers serve every connection of
-  every process. A slow search on one worker holds up every connection that worker serves (not checked).
-- Every Samba case takes at least 2.0 s alone, and so does the case that dials a closed port. That
-  looks like a refused first address of `localhost`, maybe `::1`, which Windows retries for 2 s
-  before it moves on (not checked).
-
-The 20 `.nvst` cases that write to Samba have the same fixed names, so two worktrees' trees can
-still clash.
-
-The nightly run 39013536848 is still the newest, and nothing in it is new since the last handoff.
+The nightly run 39013536848 is still the newest, and nothing in it is new.
 
 ### Next
 
-Stage 2, `ldap`, on `crates/nvs-stdlib/tests/ldap.rs` and `crates/nvs-stdlib/src/ldap/mod.rs`:
-- [ ] The 2-second floor: time one `connect` to `ldaps://localhost:16636` against `127.0.0.1`. If `::1` costs the 2 s, the test blocks use `127.0.0.1`. `crates/nvs-stdlib/tests/ldap.rs:103`, `crates/nvs-stdlib/src/ldap/mod.rs:358`
-- [ ] The `Timeout` left: rerun two copies with the busy loops and `--report-time`, and find which wait passes 30 s, Samba's four workers or the Docker port proxy. `crates/nvs-stdlib/tests/ldap.rs:1222`
-- [ ] The `.nvst` cases that write to Samba name their entries so two trees at once do not clash. `tests/conformance/core/ldap-add-modify-delete-rename.nvst:23`
+Stage 2, the `.nvst` cases that write to Samba, on `tests/conformance/core/ldap-*.nvst`:
+- [ ] Find whether a Novis program can read a value unique to its run, for example a process id (not checked). Then the cases that write to Samba name their entries with it, so two trees at once do not clash. `tests/conformance/core/ldap-add-modify-delete-rename.nvst:23`
+- [ ] A case whose `--EXPECT--` prints an entry name keeps its output the same. Print the fixed part, or use `--EXPECTF--`. `tests/conformance/core/ldap-set-password.nvst:58`
 
 Then `live_edit`, a session of its own: `crates/nvs-cli/tests/live_edit.rs:1010`, and `verify.ts`'s module doc, `tools/nv/cmd/verify.ts:1`.
 
@@ -209,3 +202,4 @@ Then `live_edit`, a session of its own: `crates/nvs-cli/tests/live_edit.rs:1010`
 - `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed. `tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`
 - The debt's progress items for the legs show `running` from the start of the run to its end, though their turn took 2 seconds. `tools/nv/cmd/debt.ts:250`
 - `looper guard` matched a commit in looper's own checkout against a claim on mwl's `docs/goals/README.md`, because the claim check compares paths without their tree. Looper's `crates/looper-core/src/claims.rs` owns it.
+- `Core\Ldap::connect` dials each address of a host in turn, so a `localhost` block pays 2 s on Windows when only `127.0.0.1` listens. `NvsTcp::connect_racing` would race them. `crates/nvs-stdlib/src/ldap/mod.rs:489`, `crates/nvs-host/src/net.rs:438`
