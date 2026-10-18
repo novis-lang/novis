@@ -1,0 +1,15 @@
+<?nvs
+// Shows that `->` on a value that might be `null` does not compile.
+// `$d` has the type `?Dog` and no test checks it, so this program does not compile.
+// proof: compile-error
+
+class Dog
+{
+    public function speak(): string
+    {
+        return "woof";
+    }
+}
+
+?Dog $d = new Dog();
+echo $d->speak(), "\n";

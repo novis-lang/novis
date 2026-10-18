@@ -1,0 +1,9 @@
+error[E0459]: `null|Dog` may be `null`, so `->` cannot reach a member of it
+   --> 05-a-method-call-on-a-value-that-might-be-null.nvs:15:6
+   |
+15 | echo $d->speak(), "\n";
+   |      ^^ this receiver is nullable
+   = help: test it first — inside `if ($x != null) { … }` the receiver is no longer nullable — or use `?->`, which answers `null` instead of reaching the member
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
