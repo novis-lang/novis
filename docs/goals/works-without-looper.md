@@ -7,7 +7,7 @@ stages:
   - id: 1
     title: nv owns every check looper has
     status: open
-    context: [docs/agent/prose.md, tools/nv/test/guard-deny.test.ts]
+    context: [docs/agent/prose.md, tools/nv/cmd/guard.ts]
   - id: 2
     title: looper runs the project's command for each check
     status: open
@@ -91,7 +91,7 @@ agent without looper skips the guard, the prose check and the commit shape check
 
 **Does:** every gate a change must pass runs without looper, with its rules in one home.
 
-- [ ] `bun nv guard` holds looper's generic built-in rules and the four `[[guard.deny]]` rules, which move into it. `d4671aab6^:tools/nv/cmd/guard.ts` is the starting point. `looper.toml:85`
+- [x] `bun nv guard` holds looper's generic built-in rules and the four `[[guard.deny]]` rules, which move into it. `d4671aab6^:tools/nv/cmd/guard.ts` is the starting point. `looper.toml:85`
 - [ ] The `PreToolUse` hook is a script that runs `looper guard` where looper is installed and `bun nv guard` where it is not. `.claude/settings.json:10`
 - [ ] `bun nv prose` checks the shape of the touched Markdown in `[prose] paths`: a sentence over 25 words, a dash that joins two sentences, and a banned word. `docs/agent/prose.md:5`, `looper.toml:106`
 - [ ] `tools/git-hooks/commit-msg` checks the subject's shape itself, from the type list and length `[commits]` holds now. `tools/git-hooks/commit-msg:89`, `looper.toml:124`
@@ -110,19 +110,29 @@ repository, so both ways give one verdict.
 
 ### State
 
-The goal is new, and nothing is on disk for it yet. Goal `lean-loop` ahead of it claimed `DONE`,
-and its backlog moved here. Looper's goal `project-gates` is written in looper's repository.
+`bun nv guard` is back (`tools/nv/cmd/guard.ts`, pinned by `tools/nv/test/guard.test.ts`). It holds
+the four rules `looper.toml`'s `[[guard.deny]]` had, now gone, and looper's generic ones: `sleep`, a
+kill by name, a shell write and a build cut by `head` or `tail`. One call measured 69 ms. The
+settings run it as its own hook on `Read|Bash`, beside `looper guard`. The one script that picks either
+waits on looper: `looper lint` fails unless `looper guard` is its own entry, since `looper sync`'s
+template writes it, so that item moves with stage 2. Without looper, that entry fails without blocking.
+
+The nightly CI run was on `1a78b49ef`, and `main` is ahead of origin. `a9fdc1a97` and `8f8966275`
+fixed `docs`, `supply chain`, `third-party attribution` and the website data, and are not pushed. The
+miri timeout is fixed here. The proof debt and the warm-start budget are goal `release-hardening`'s.
 
 ### Next
 
-Stage 1, on `tools/nv/main.ts`, `.claude/settings.json` and `looper.toml`.
-- [ ] `bun nv guard` comes back, from `d4671aab6^:tools/nv/cmd/guard.ts`, with the deny rules moved out of `looper.toml`, and the hook script picks it or `looper guard`. `.claude/settings.json:10`, `looper.toml:85`
-- [ ] `bun nv prose` for the Markdown in `[prose] paths`. `looper.toml:106`
-- [ ] The commit hook checks the subject's shape without looper. `tools/git-hooks/commit-msg:89`
+Stage 1, on `tools/nv/main.ts`, `looper.toml`, `tools/git-hooks/commit-msg` and `docs/agent/commands.md`.
+- [ ] `bun nv prose` for the Markdown in `[prose] paths`, with `[prose]` moving out of `looper.toml`. `docs/agent/prose.md:5`, `looper.toml:85`
+- [ ] The commit hook checks the subject's shape without looper, from `[commits]`. `tools/git-hooks/commit-msg:89`
+- [ ] `tools/nv/test/without-looper.test.ts` runs `nv guard`, `nv prose` and the commit hook with a PATH holding no looper. This machine has two looper directories on PATH. `tools/nv/cmd/guard.ts:1`
+- [ ] `commands.md` § *Without looper* names an `nv` command for every gate. `docs/agent/commands.md:850`
 
 ### Backlog
 
 - Two looper gaps. Its `links` misses `<a id>` anchors, a skip for generated pages and a code span that wraps onto the next line, which looper's goal `project-gates` notes. And `looper guard` matched a commit in looper's own checkout against a claim on this tree's `docs/goals/README.md`, which no looper goal owns yet (`crates/looper-core/src/claims.rs` in looper's repository).
+- CI's Windows cost guard missed `serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names` once at 1.38× of 1.5×. Watch for a repeat before changing the margin. `crates/nvs-cli/src/serve.rs:4093`
 - `bun nv verify` does not run `nv render --website --check`, so the website data goes stale unseen until CI. `tools/nv/cmd/verify.ts:153`
 - Two flakes to fix at the cause. `test_request_dispatches_in_process_through_the_compiled_route_table` was red once, also alone, because `Core\Env::context()` was not `Request` (`crates/nvs-cli/src/runner.rs:3410`). And `live_edit`'s two compile-race tests missed their 30 s swap deadline beside the other binaries on a disk 98% full, and passed alone (`crates/nvs-cli/tests/live_edit.rs:1016`).
 - The warm-start budget of 6 ms of work. At `1a78b49ef` Linux measured 7.4 ms and macOS 6.8 ms, where macOS measured 5.6 ms at `e110c9c0b`, and Windows is over it on every run. Find which of the commits between the two adds start-up work. `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.

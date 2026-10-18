@@ -40,7 +40,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   "ext-templates": () => import("./cmd/ext-templates.ts"),
   gaps: () => import("./cmd/gaps.ts"),
   "gen-attribution": () => import("./cmd/gen-attribution.ts"),
-
+  guard: () => import("./cmd/guard.ts"),
   holes: () => import("./cmd/holes.ts"),
   layout: () => import("./cmd/layout.ts"),
   legs: () => import("./cmd/legs.ts"),

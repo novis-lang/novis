@@ -9,7 +9,7 @@
 // while a perf record is stale, so a person runs `--owed` before a release. It resumes a pass that was
 // stopped, since each bench is recorded the moment it is judged. `--owed` narrows it to the benches
 // selected for being owed; a bench never recorded stays unrecorded, and the next pass without `--owed`
-// picks it up. `looper.toml`'s `[[guard.deny]]` refuses this command in a session.
+// picks it up. `nv guard` refuses this command as a heavy run.
 //
 // It exits 0 when no bench is red, 1 when one is or the release build failed, and 2 on a usage error.
 
