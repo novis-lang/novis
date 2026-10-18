@@ -1,0 +1,9 @@
+error[E0117]: an anonymous object here is ambiguous with a block
+  --> 05-an-object-at-the-start-of-a-statement.nvs:6:1
+  |
+6 | {x: 1};
+  | ^^^^^^ `{` already means a block in this position
+  = help: wrap it in parentheses: `({...})` (`rule:types/anonymous-object`)
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

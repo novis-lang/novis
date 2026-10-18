@@ -21,7 +21,7 @@ Point $alias = $start;
 $alias->y = 99;
 echo $start->y, "\n";
 
-// `==` asks whether two variables name one object. It does not compare the
+// `==` checks whether two variables name one object. It does not compare the
 // fields, so these two are different even with equal values.
 Point $twin = {x: 10, y: 99};
 if ($start == $twin) {
