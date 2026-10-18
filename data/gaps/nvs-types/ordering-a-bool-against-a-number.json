@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/expr/operators.rs",
+  "title": "Ordering a `bool` against a number stops with an internal error.",
+  "text": "`echo (true < 3) as string;` passes the checker, and the build then stops with `E0901` (\"internal error: a binary operator over mismatched representations\", `crates/nvs-codegen/src/emit.rs:1493`). A chained `1 < 2 < 3` reaches the same error, since it is `(1 < 2) < 3`. `rule:types/ordering` orders two numerics and two `bool`s, and names no row for a `bool` against a number. It closes when that pair is `E0715` where it is written, with a conformance case.",
+  "goal": "release-hardening"
+}

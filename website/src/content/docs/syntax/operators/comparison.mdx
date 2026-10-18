@@ -22,7 +22,8 @@ Two values that can never be equal do not compile. `1 == "1"` is an example. Con
 first: `$s == ($n as string)`.
 
 `<`, `<=`, `>`, `>=` and `<=>` compare numbers and `bool` values. `<=>` returns `-1`, `0` or `1`.
-Objects can be compared when their class implements `Comparable`.
+Objects can be compared when their class implements `Comparable`. For two objects, `<=>` returns
+the result of their `compareTo` method.
 
 ## Logic
 

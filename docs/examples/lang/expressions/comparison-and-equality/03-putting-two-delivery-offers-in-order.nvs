@@ -19,8 +19,8 @@ class Offer implements Comparable {
 Offer $standard = new Offer("Speedy", 499, 4);
 Offer $express = new Offer("Speedy", 1299, 1);
 
-// `<=>` gives -1, 0 or 1, and reads as "how does the left compare to the
-// right". This prints -1, because 499 comes before 1299.
+// `<=>` on two offers returns what `compareTo` returns. This prints -1,
+// because 499 comes before 1299.
 echo $standard <=> $express, "\n";
 
 // Because `Offer` implements `Comparable`, the ordering operators work on two

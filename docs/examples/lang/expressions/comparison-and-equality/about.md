@@ -1,14 +1,16 @@
-Equality answers one question — are these two values the same? — and `==` and `!=` are the whole of
-it. Neither one converts anything, so a number is never quietly equal to text: `1 == "1"` does not
-compile at all, and the compiler points at the comparison and tells you to convert one side
-yourself. Numbers of different kinds do compare, because they are one domain, so `1 == 1.0` is true.
-Text compares character by character, arrays compare their contents, and two objects are equal only
-when they are the same object, so a copy is never equal to the original it was made from.
+`==` tests whether two values are equal, and `!=` tests whether they are different. These are the
+only two equality operators.
 
-`<`, `<=`, `>`, `>=` and `<=>` put two values in order. They take numbers, two `bool`s, and two
-objects of a class that implements `Comparable`. Text orders through `Core\Str::compare` instead,
-because there is more than one sensible answer for it. `<=>` gives back `-1`, `0` or `1`, which is
-exactly what sorting needs.
+Neither operator converts a value. `1 == "1"` does not compile, and the error tells you to convert
+one side first. Numbers of different types do compare, so `1 == 1.0` is true. Two strings are equal
+when they have the same characters. Two arrays are equal when they have the same keys and values in
+the same order. Two objects are equal only when they are the same object, so a copy is not equal to
+the original.
 
-**The examples below** take these in turn: what to do when a number arrives as text, how arrays,
-objects and a missing value compare, and putting two delivery offers in order by price.
+`<`, `<=`, `>`, `>=` and `<=>` put two values in order. They work on numbers, on two `bool` values,
+and on two objects of a class that implements `Comparable`. They do not work on strings. Use
+`Core\Str::compare` to order two strings. On numbers, `<=>` returns `-1`, `0` or `1`.
+
+**The examples below** show a number that arrived as text, then arrays, objects and a missing value,
+then two delivery offers put in order by price. The last two show the errors for an `int` compared
+with a string and for `<` on two strings.
