@@ -1001,7 +1001,7 @@ null
 - `{{` is a `{` and `}}` is a `}`. They are text, not holes.
 - An empty hole `{}`, a `{` with no `}` and a `}` with no `{` do not compile (`E0861`).
 - A string written directly in the code is checked while compiling, one hole at a time. A wrong name
-  does not compile (`E0405`), and the error points at that name.
+  does not compile (`E0405`, or `E0861` for a set of strings), and the error points at that name.
 - A string literal at a parameter typed `string<K>` needs no `as`.
 - Any other string is checked by `as` while the program runs. A wrong hole throws a `RuntimeError`.
   `as ?string<K>` gives `null` instead.

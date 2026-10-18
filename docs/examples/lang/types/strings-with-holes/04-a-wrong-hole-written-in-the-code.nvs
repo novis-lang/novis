@@ -1,0 +1,16 @@
+<?nvs
+// Shows that the holes of a string written in the code are checked while compiling.
+// `Order` has no property `$totl`, so this program does not compile.
+// proof: compile-error
+
+class Order {
+    public int $total = 40;
+}
+
+class Query {
+    public static function where(string<property<Order>> $condition): string {
+        return "WHERE " . ($condition as string);
+    }
+}
+
+echo Query::where("{totl} > 10"), "\n";

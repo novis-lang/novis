@@ -10,5 +10,5 @@ any other string while the program runs, and throws an error if a hole is wrong.
 (text from outside the program) stays tainted after `as string<K>`, so a condition from a request
 cannot be the text of a database query. `Core\Str::parts` splits the string into its text and holes.
 
-**The examples below** check the fields in a query condition, fill a message template, and check a
-condition built while the program runs.
+**The examples below** check the fields in a query condition, fill a message template, check a
+condition built while the program runs, and show a wrong hole that does not compile.
