@@ -259,7 +259,10 @@ with each.
   - [x] `return`: `details.md`, and example 04, a `void` method's `return 0;` that does not compile
   - [x] `throw`: no `details.md`, since `about.md` has every fact, and example 04, an uncaught error ending with status 1
   - [x] `try-catch-finally`: `details.md`, examples 04 (`E0406`) and 05 (`finally` on `continue`), and the bare-`try` claim fixed in both chapters
-  - [ ] the chapter's other features, in its order
+  - [x] `catch-as-an-expression`: `details.md`, examples 04 (the result type) and 05 (`E0126`)
+  - [x] `echo-print-unset-exit-yield`: `details.md`, and example 04 (`E0234`)
+  - [x] `statement-forms-that-do-not-parse`: `details.md`, example 04 (`goto`), and `about.md`'s two wrong claims fixed
+  - [ ] the chapter's features before `break-and-continue`, from its top
 - [ ] The other ten chapters, one per slice: `10-programs`, `20-types`, `30-expressions`, `50-classes`, `55-enums`, `60-iteration`, `70-errors`, `80-concurrency`, `90-attributes`, `95-testing`. `docs/reference/lang/10-programs.md:1`
 
 ### 7. the syntax pages show each feature's about.md, details and examples
@@ -331,6 +334,19 @@ block is examples 02 and 03 already. A `return`, `break` or `continue` leaving `
 `E0251`) is the errors chapter's fact, and goes to `lang:errors/try-catch-finally`'s `details.md`
 when `70-errors` is done; that feature has its own `about.md` and examples, which overlap this one's.
 
+The three sections after `throw` are done the same way, each fact run on the binary.
+`catch-as-an-expression`'s `details.md` adds the precedence, the optional variable, `E0245`, the
+union type and `E0401`, `E0126`, the enclosing `finally` and `W1006`. The chapter's "the binding is a
+local of the enclosing function" is half true: an arm's variable clashes with an earlier local
+(`E0406`), but a later declaration and a second arm may reuse the name. Its example 04 is the
+chapter's `mixed` union and a `?int`, and 05 is the chapter's `E0126` block.
+`echo-print-unset-exit-yield`'s `details.md` adds `E0234`, `E0413`, `exit` as an expression,
+`E0445`, `E0446` and `E0448` for `yield from`; example 04 is the chapter's `unset($x)` block.
+`statement-forms-that-do-not-parse` had two wrong claims in `about.md`: `[$a, $b] = …` does not
+compile (each variable needs its type, as the chapter says), and a label, `declare` and the
+alternative syntax get a general syntax error that names no replacement. Its `details.md` lists each
+form's code, and example 04 is the chapter's `goto` block.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -345,14 +361,16 @@ chapter section, its `about.md` and its syntax page, probe each fact `about.md` 
 write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless`, then
 `bun nv proofs --run --only <id>` and `--comments <dir>`.
-- [ ] `catch-as-an-expression`, the next section, then `echo-print-unset-exit-yield` and `statement-forms-that-do-not-parse`. `docs/reference/lang/40-statements.md:397`
-- [ ] Then the chapter's features before `break-and-continue`, from its top. `docs/reference/lang/40-statements.md:1`
+- [ ] `expression-statements-blocks-and-declarations`, then `if-elseif-else` and `while-and-do-while`. `docs/reference/lang/40-statements.md:8`
+- [ ] Then `for`, `foreach` and `switch`, which closes `40-statements`. `docs/reference/lang/40-statements.md:100`
+- [ ] Then `10-programs`, the next chapter. `docs/reference/lang/10-programs.md:1`
 
 ### Backlog
 
 - `docs/design.md` is deleted once looper's managed block no longer links it; the v3 block still does. `docs/goals/docs-cleanup.md:163`
 - The v3 block's § *looper only orchestrates* says most of what AGENTS.md § *Novis works without looper* says. That section is the user's and stays; the overlap is looper's template to trim. `AGENTS.md:37`
 - `docs/agent/testing.md` is looper-managed (`looper lint` refuses a hand edit) and links a `§ *Names*` that `conventions.md` lacks; looper's template owns the fix. `docs/agent/testing.md:16`
+- Many compiler diagnostics print a `rule:` id or the word "refused" in their help text, such as `E0234`, `E0413`, `E0448` and `E0230`. That text is held to § *Text an end user reads* when it is changed; this goal changes no product text, so it needs its own owner. `crates/nvs-types/src/expr/members.rs:2345`
 - About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
 - The guard messages and `peek.ts`/`splice.ts` comments cite "AGENTS.md rule 1" and "rule 3" by the block's numbers, which a template change can move; citing `commands.md` sections would not. `tools/nv/cmd/guard.ts:259`
 - `lang:statements/try-catch-finally` and `lang:errors/try-catch-finally` are one syntax and two features, each with an `about.md` and three examples saying much the same. Stage 6's `70-errors` slice decides whether the errors one keeps only what its chapter adds. `docs/examples/lang/errors/try-catch-finally/about.md:1`
