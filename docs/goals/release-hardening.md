@@ -48,7 +48,7 @@ stages:
         rules: [testing/the-deep-lane]
   - id: 7
     title: "compiled code is checked against its unoptimised twin, and aarch64 Linux runs the tests"
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/lib.rs, .github/workflows/ci.yml]
     extra:
       context:
@@ -212,9 +212,9 @@ in the nightly fuzz job. The published request-smuggling payloads are fixed serv
 **Does:** the conformance suite runs with Cranelift's optimiser on and off, and the outputs must
 match. A Linux aarch64 leg runs the test job.
 
-- [ ] A way to compile with `opt_level` `none`, used only by this check. `crates/nvs-codegen/src/lib.rs:1973`
-- [ ] A CI job runs the conformance suite both ways and fails on any difference. `.github/workflows/ci.yml:115`
-- [ ] The test matrix gains a Linux aarch64 leg. `.github/workflows/ci.yml:129`
+- [x] A way to compile with `opt_level` `none`, used only by this check. `crates/nvs-codegen/src/lib.rs:1973`
+- [x] A CI job runs the conformance suite both ways and fails on any difference. `.github/workflows/ci.yml:115`
+- [x] The test matrix gains a Linux aarch64 leg. `.github/workflows/ci.yml:129`
 
 ### 8. requests that share a worker share nothing, and memory stays flat
 
@@ -268,35 +268,32 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 6 are done. Stage 7 is next.
+Stages 1 to 7 are done. Stage 8 is next.
 
-- **The HTTP Garden run.** The Garden (`narfindustries/http-garden`, cloned under `.agent-tmp/`)
-  ran from a runner container on its own Docker network, against an `nvs` debug build from the WSL
-  mirror serving an echo program, with hyper and Node as references (the Garden's nginx and Go
-  images do not build on Windows). 5,000 mutated requests, 14 distinct readings where `nvs`
-  differs from both. One was a bug, one is a new row, and the rest are `nvs` being stricter:
-  - **The bug:** a header value with an obs-text byte that is not UTF-8 became a `string`
-    unchecked. A debug build caught it as a broken invariant (`crates/nvs-runtime/src/string.rs:875`),
-    and a release build would have read it through `from_utf8_unchecked`. A search for the same
-    shape found multipart field names and values, and a part's name, file name and `Content-Type`.
-    All now go through `peer_text` (`crates/nvs-stdlib/src/request.rs:2100`): headers, cookies and
-    parts throw `ParseError`, and form fields throw the `RuntimeError` an urlencoded field throws.
-    After the fix, 5,000 rounds logged no broken invariant.
-  - **The row:** a bare LF before the request line is refused (`crates/nvs-server/src/serve.rs:9178`).
-  - **Stricter, and kept:** `Host:: a` and a non-ASCII `Host` are `400`; a method outside the eight
-    is `501`, also with `Expect: 100-continue`; a `400` whose head frames no body keeps the
-    connection, which `rule:errors/http-message-defects` allows.
-- The nightly failures the sweep listed are the `1a78b49ef` run, 60 commits behind local `main`.
-  Render, attribution and the yanked `inout` are already current locally; the warm-start budget,
-  the Windows throughput margin (1.38× again, same commit) and proof debt are backlog items below.
+- **The unoptimised twin.** `NOVIS_NO_OPTIMISE` in the environment makes `nvs` call
+  `nvs_codegen::compile_unoptimised` before any command compiles, so every unit of that process is
+  at `opt_level` `none` (`crates/nvs-codegen/src/lib.rs:842`), and `cache::unit_for` reads and writes
+  no artifact (`crates/nvs-cli/src/cache.rs:1562`). A bundled app ignores it. The `.nvst` runner's
+  children inherit it. Locally, all 2,948 conformance cases pass with it set, and `--dump-asm`
+  differs at the two levels.
+- **CI.** The `test` job runs the suite a second time with the variable set, on every leg, and the
+  matrix has a `linux-aarch64` leg on `ubuntu-24.04-arm` (`.github/workflows/ci.yml:131`). The compose
+  images all publish arm64. Neither has run on GitHub yet: stage 10's pushed run is their first.
+- `rule:testing/probes-on-is-a-tested-configuration` now says the opt-level half is on disk; its
+  probes half (a suite run with coverage on) is still not.
+- The nightly the sweep listed is again `1a78b49ef`, the same stale remote `main` as before.
 
 ### Next
 
-Stage 7, on `crates/nvs-codegen/` and `.github/workflows/ci.yml` (`rule:testing/the-deep-lane`):
-- [ ] A way to compile with `opt_level` `none`, used only by the differential check. `crates/nvs-codegen/src/lib.rs:2005`
-- [ ] A CI job runs the conformance suite both ways and fails on any difference. `.github/workflows/ci.yml:217`
+Stage 8, on `crates/nvs-cli/src/runner.rs`, `crates/nvs-test/src/run.rs` and `.github/workflows/ci.yml` (`rule:testing/the-deep-lane`):
+- [ ] A runner mode sends many cases through one worker and compares each output with its fresh run. `crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`
+- [ ] The Miri job runs the `nvs-runtime` and `nvs-stdlib` unit tests that need no JIT. `.github/workflows/ci.yml:1104`
+- [ ] Seeded property tests for path grants and the address table. `crates/nvs-runtime/src/capability.rs:552`, `crates/nvs-config/src/capability.rs:262`
 
 ### Backlog
+
+- The `linux-aarch64` leg and the unoptimised suite step have never run on GitHub. Read both on stage 10's first pushed run before anything else on it (`.github/workflows/ci.yml:131`).
+- The suite's probes-on run is still owed: the coverage flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:2394`, `rule:testing/probes-on-is-a-tested-configuration`).
 
 - `NvsStr::new` takes any `&[u8]`, so the UTF-8 invariant rests on every caller, and the HTTP Garden bug was one that forgot. A checked constructor for bytes from outside, with `new` kept for payloads already text, closes the class (`crates/nvs-runtime/src/string.rs:462`).
 - Two more unchecked `string`s: a MySQL column name (`crates/nvs-stdlib/src/db/column.rs:67`, also `db/execute.rs:835`, `db/stream.rs:345`), and a signed cookie's plaintext, opened with empty AAD (`crates/nvs-stdlib/src/signed_cookie.rs:309`).

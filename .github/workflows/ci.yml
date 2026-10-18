@@ -104,9 +104,10 @@ jobs:
   # ---------------------------------------------------------------------------
   # The matrix that matters: Novis generates native code, so "it compiles" is not
   # the same claim on each platform. Windows uses SEH and a different calling
-  # convention; aarch64 is a different backend in Cranelift entirely.
+  # convention; aarch64 is a different backend in Cranelift entirely, and Linux
+  # aarch64 runs it under ELF and the System V convention, which macOS does not.
   #
-  # All three run whenever any code changes, and the lane gate never narrows
+  # All four run whenever any code changes, and the lane gate never narrows
   # them. This is a public repository: which host a contributor pushes from is
   # unknowable, so no platform's coverage may rest on an assumption about who is
   # developing on what. What the gate skips is a run that changed no build input
@@ -130,6 +131,8 @@ jobs:
         include:
           - name: linux-x86_64
             os: ubuntu-latest
+          - name: linux-aarch64
+            os: ubuntu-24.04-arm
           - name: windows-x86_64
             os: windows-latest
           - name: macos-aarch64
@@ -219,12 +222,20 @@ jobs:
       # generation is what differs per target.
       - name: Conformance suite
         run: cargo run --quiet -p nvs-cli -- test tests/conformance/
+      # The same suite with Cranelift's optimiser off (`rule:testing/probes-on-is-a-tested-configuration`).
+      # Every case checks its output against the expectation it states, so a case that passes above
+      # and fails here is a difference between the two levels, and either one failing fails the job.
+      # On every leg, because each target is its own Cranelift backend.
+      - name: Conformance suite, unoptimised
+        env:
+          NOVIS_NO_OPTIMISE: '1'
+        run: cargo run --quiet -p nvs-cli -- test tests/conformance/
       - name: Stop the compose servers (Linux)
         if: always() && runner.os == 'Linux'
         run: docker compose -f tests/db/compose.yaml down --volumes
 
   # ---------------------------------------------------------------------------
-  # The release-profile guards, on the same three platforms as `test`. A job of
+  # The release-profile guards, on the three operating systems `test` covers. A job of
   # its own, beside `test` rather than inside it, so the release compile has its
   # own deadline and its own cache: inside `test`, a Windows leg that timed out
   # skipped the cache's save step and started cold on every run after it.
