@@ -6,8 +6,7 @@ interface Notifier {
     public function notify(string $text): string;
 }
 
-// In PHP this class would be written inside the call at the bottom of the file.
-// Here it stands on its own, at file scope, like every other class.
+// This class is declared at the top level of the file, like every other class.
 class ConsoleNotifier implements Notifier {
     public function notify(string $text): string {
         return "console: " . $text;
@@ -36,7 +35,7 @@ class Job {
 // This prints "console: job finished".
 echo (new Job(new ConsoleNotifier()))->run(), "\n";
 
-// The same job, told about a different notifier. This prints
+// The same job, with a different notifier. This prints
 // "recorded: job finished" and then "job finished".
 var $recorder = new RecordingNotifier();
 echo (new Job($recorder))->run(), "\n";

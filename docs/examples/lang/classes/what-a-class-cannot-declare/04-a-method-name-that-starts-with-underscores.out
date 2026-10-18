@@ -1,0 +1,9 @@
+error[E0111]: method names must be camelCase, e.g. `get`
+  --> 04-a-method-name-that-starts-with-underscores.nvs:7:21
+  |
+7 |     public function __get(string $name): mixed {
+  |                     ^^^^^ method name must be camelCase
+  = suggestion: rename to `get`: `get`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

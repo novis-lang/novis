@@ -1,0 +1,9 @@
+<?nvs
+// Shows that a class cannot be declared inside another class. Move `Inner` to
+// the top level of the file.
+// proof: compile-error
+
+class Outer {
+    public class Inner {
+    }
+}

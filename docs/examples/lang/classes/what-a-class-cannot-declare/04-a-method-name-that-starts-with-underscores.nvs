@@ -1,0 +1,10 @@
+<?nvs
+// Shows that a method name cannot start with `__`. The error names the method
+// without the underscores.
+// proof: compile-error
+
+class Legacy {
+    public function __get(string $name): mixed {
+        return 1;
+    }
+}

@@ -1419,8 +1419,8 @@ the roots, the attributes chapter the metadata usually read off them.
   and no destructor.
 - **Anonymous classes.** `new class { … }` does not exist; declare a named class.
 - **Nested classes.** A `class` or an `interface` inside a class body is refused; every class is
-  declared at file scope. An `enum` is the one type a class body may declare (see
-  [Declaring an enum](55-enums.md#declaring-an-enum)).
+  declared at file scope. An `enum` and a `type` alias are the only types a class body may declare
+  (see [Declaring an enum](55-enums.md#declaring-an-enum)).
 
 ```nvs error
 <?nvs
