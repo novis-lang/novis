@@ -18,7 +18,6 @@
     },
     "state": {
       "enum": [
-        "done",
         "open",
         "ongoing"
       ]
