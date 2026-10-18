@@ -1,0 +1,10 @@
+error[E0227]: traits do not exist
+   --> 08-there-is-no-trait.nvs:6:1
+   |
+ 6 | trait Greets {
+   | ^^^^^^^^^^^^^^... not supported
+   | (continues to line 10)
+   = help: use an interface default/private method for shared behavior, or `implements Interface by $field;` for shared state (`rule:classes/no-traits`)
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

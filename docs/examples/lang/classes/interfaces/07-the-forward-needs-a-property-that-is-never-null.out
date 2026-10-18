@@ -1,0 +1,9 @@
+error[E0720]: `$voice` is `null|Greets`, which cannot satisfy `Greets`
+   --> 07-the-forward-needs-a-property-that-is-never-null.nvs:10:34
+   |
+10 | class Maybe implements Greets by $voice {
+   |                                  ^^^^^^ a delegate is dispatched on at every forwarded call, so it may not be nullable
+   = help: declare `$voice` as `Greets`, or as a non-nullable class that implements it (`rule:classes/delegation-by-field`)
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

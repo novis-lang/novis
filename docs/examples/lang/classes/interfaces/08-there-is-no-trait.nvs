@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `trait` does not exist, so this does not compile.
+// To share a method, write it with a body in an interface.
+// proof: compile-error
+
+trait Greets {
+    public function hi(): string {
+        return "hi";
+    }
+}
