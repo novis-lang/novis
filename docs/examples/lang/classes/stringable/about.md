@@ -11,5 +11,5 @@ compile. Write `as string` there yourself.
 **Good to know:** the method is called on the real class of the object, so a subclass that writes its
 own `toString` is the one that runs.
 
-**The examples below** show a price with its own text form, the four places that text appears, and a
-receipt built out of several such classes.
+**The examples below** show a price with its own text form, the four places that text appears, a
+receipt built out of several such classes, and a class without `Stringable` that does not compile.

@@ -1,0 +1,11 @@
+<?nvs
+// Shows that a class must implement `Stringable` before its objects can be
+// written out. `Point` does not, so this program does not compile.
+// proof: compile-error
+
+class Point {
+    public int $x = 1;
+}
+
+var $p = new Point();
+echo "point $p\n";
