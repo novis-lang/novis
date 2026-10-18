@@ -12,4 +12,5 @@ for two mixes that are easy to misread. In `$n ?? 0 + 10`, the `+` runs first, s
 `10`. In `"n=" . $ok ? "x" : "y"`, the whole `"n=" . $ok` is the condition.
 
 **The examples below** show the arithmetic order, then `**` with a minus sign, then `as` and `.` in a
-line of text built from a form field.
+line of text built from a form field. The last one shows `!` with `is`, the pipeline `|>` and a
+method call on `new`.
