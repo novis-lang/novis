@@ -1,0 +1,6 @@
+<?nvs
+// Shows that `/=` does not compile on an `int`. `/` can give a `float`, and `$n` is always an `int`.
+// proof: compile-error
+
+int $n = 4;
+$n /= 2;

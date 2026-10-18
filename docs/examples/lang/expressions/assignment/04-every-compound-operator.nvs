@@ -1,0 +1,31 @@
+<?nvs
+// Shows each compound operator on an `int`, and `/=` on a `float`.
+
+// Each line changes `$n` and prints the new value.
+int $n = 10;
+$n += 5;
+echo $n, " ";
+$n -= 3;
+echo $n, " ";
+$n *= 2;
+echo $n, " ";
+$n %= 7;
+echo $n, " ";
+$n **= 3;
+echo $n, " ";
+$n <<= 1;
+echo $n, " ";
+$n >>= 2;
+echo $n, " ";
+$n &= 7;
+echo $n, " ";
+$n |= 8;
+echo $n, " ";
+$n ^= 1;
+// This line prints: 15 12 24 3 27 54 13 5 13 12
+echo $n, "\n";
+
+// `/` can give a fraction, so `/=` works on a `float`. This prints 4.5.
+float $f = 9.0;
+$f /= 2;
+echo $f, "\n";
