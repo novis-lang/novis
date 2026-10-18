@@ -1,6 +1,6 @@
 <?nvs
-// Shows the everyday use: small classes that know their own text form, printed
-// together as a receipt. Each line holds a `Money`, and the receipt holds lines.
+// Shows small classes that each have a `toString` method, printed together as a
+// receipt. Each line has a `Money`, and the receipt has a list of lines.
 
 final class Money implements Stringable {
     public function constructor(private int $cents) {}

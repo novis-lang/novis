@@ -1,0 +1,9 @@
+error[E0412]: `Point` cannot be converted to `string` here; it does not implement `Stringable`
+   --> 04-an-object-without-stringable-in-a-string.nvs:11:13
+   |
+11 | echo "point $p\n";
+   |             ^^ converted to `string` here
+   = help: implement `Stringable`'s `toString(): string` on the class
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
