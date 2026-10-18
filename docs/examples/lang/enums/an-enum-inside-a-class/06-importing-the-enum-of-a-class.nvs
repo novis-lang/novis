@@ -1,0 +1,12 @@
+<?nvs
+// Shows that `use` cannot import an enum from a class. Write `use Shop\Order;`
+// and then `Order::Status`.
+// proof: compile-error
+
+namespace Shop;
+
+use Shop\Order::Status;
+
+class Order {
+    enum Status { Open, Paid }
+}

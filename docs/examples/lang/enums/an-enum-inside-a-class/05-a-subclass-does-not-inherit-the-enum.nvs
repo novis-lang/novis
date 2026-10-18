@@ -1,0 +1,13 @@
+<?nvs
+// Shows that a subclass does not inherit an enum. `Refund` extends `Order`, but
+// `Refund::Status` does not exist. Write `Order::Status`.
+// proof: compile-error
+
+class Order {
+    enum Status { Open, Paid }
+}
+
+class Refund extends Order {
+}
+
+echo Refund::Status::Paid as int, "\n";
