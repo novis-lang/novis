@@ -617,30 +617,30 @@ every width for one run, `NVS_VALGRIND_JOBS` and `NVS_TRY_JOBS` one caller's; no
 Its callers are the valgrind sweep and `bun nv try`, which runs its snippets this wide and prints the
 blocks back in the order you asked for them.
 
-## The loop's hooks, one command each
+## The loop's hooks, and the commands beside them
 
 ```sh
-bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]   # judge one suite as an nvs-suite check
+bun nv sweep [--keep-runs <n>]                        # sweeps the disk, reads nightly CI: looper's after_session hook
+bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
+bun nv debt [--goal <slug>]                           # pays the floor debt: the floor check `floor-debt`
+
 bun nv legs [--goal <slug>] [--full]                  # the WSL leg and the valgrind sweep over a goal's fixtures
 bun nv services --up [--goal <slug>]                  # Docker preflight, then the goal's services up and healthy
-bun nv sweep [--keep-runs <n>]                        # sweeps the disk, reads nightly CI: looper's after_session hook
-bun nv debt [--goal <slug>]                           # pays the floor debt: the floor check `floor-debt`
+bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]   # judge one case tree, with a pass floor
 bun nv benches [--owed]                               # the bench turn by hand
-bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
 bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or complete a side worktree by hand
 
 bun nv plan --apply <wrap-file | -> [--dry]           # check, then write, a wrap's plan, plan-edit and milestone sections
 
 ```
 
-Each is a piece of the old loop driver that a person or a hook can run alone. Each exits 0 green, 1
-red and 2 on a usage error, except `bun nv sweep`, which always exits 0 and writes what was red into
-`.loop/last-sweep.md`, below the lines looper's own sweep wrote there. `--goal` and `--stage` win over
-`LOOPER_GOAL` and `LOOPER_STAGE`, which win over the live goal and its handoff's next stage.
-`looper.toml` wires three of them: `bun nv verify` as `[verify] run`, `bun nv side --prepare --hook` as
-`[hooks] before_run`, and `bun nv sweep` as `[hooks] after_session`, whose comments there say why each
-timeout and `on_fail` are what they are. looper runs
-none of the others on its own. Each command's `--help` and module doc own its flags.
+Each exits 0 green, 1 red and 2 on a usage error, except `bun nv sweep`, which always exits 0 and writes
+what was red into `.loop/last-sweep.md`, below the lines looper's own sweep wrote there. `--goal` and
+`--stage` win over `LOOPER_GOAL` and `LOOPER_STAGE`, which win over the live goal and its handoff's next
+stage. looper runs the first three on its own: `looper.toml` wires `bun nv side --prepare --hook` as
+`[hooks] before_run` and `bun nv sweep` as `[hooks] after_session`, whose comments there say why each
+timeout and `on_fail` are what they are, and `docs/goals/README.md`'s floor runs `bun nv debt` as
+`floor-debt`. A person runs the rest. Each command's `--help` and module doc own its flags.
 
 ## Disk
 

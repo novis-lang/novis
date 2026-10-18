@@ -92,15 +92,11 @@ paths = [
   "website/**/*.mdx",
   "website/**/*.md",
   "**/about.md",
-  "docs/examples/**/*.nvs",
-  "tests/hostile/**/*.nvs",
-  "benches/members/**/*.nvs",
-  "website/snippets/**/*.nvs",
 ]
 
 [sync]
 skip = [
-  "docs/decisions/README.md",
+  "docs/decisions/README.md",    # the template writes it, and `bun nv rules --check` fails on a decision record directory
   "docs/agent/commands.md",
   "docs/agent/conventions.md",
   "docs/agent/doc-style.md",
