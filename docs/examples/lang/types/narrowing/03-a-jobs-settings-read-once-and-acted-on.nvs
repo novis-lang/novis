@@ -1,6 +1,6 @@
 <?nvs
 // A job's settings are a mode, which is one of three words, and a mailbox that may be `null`.
-// Checking a field such as `$job->mode` does not change its type.
+// Checking a property such as `$job->mode` does not change its type.
 // Checking a local variable does. So `plan` copies each field to a variable first.
 
 class Job
