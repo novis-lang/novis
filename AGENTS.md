@@ -253,7 +253,7 @@ What a loop session owes on top of the block's § *Session workflow*:
   the home, and the header of `tools/nv/cmd/lints.ts` the reasoning.
 - **`package.json` takes its dependencies at caret ranges,** and the committed `bun.lock` pins each one.
 
-<!-- looper:begin agents v2 -->
+<!-- looper:begin agents v3 -->
 ## Where to look
 
 | You are | Run or read |
@@ -276,6 +276,19 @@ What a loop session owes on top of the block's § *Session workflow*:
 **Every fact has exactly one home.** If two files state the same thing, the home wins and the other is a
 bug. Fix the bug rather than reconciling the two in your head.
 
+## looper only orchestrates
+
+- **The project works the same without looper.** Only a few of its developers have looper, and CI never
+  does. Every check a change must pass runs without looper, with the same verdict both ways. That
+  covers the build, the tests, verify, the links, the layout, the prose check, the guard and the commit
+  hook. Each is the project's own command, and looper runs it through `looper.toml`'s `[verify]` and `[gates]`.
+- **looper's own part is orchestration:** the loop and its sessions, claims, `looper exec`, and the goal
+  format with its lint and render.
+- **Never move, replace or delete a command, a check or an instruction so that the work needs looper.**
+  Where looper's check does more than the project's, extend the project's command and name it in
+  `[gates]`.
+- [commands.md](docs/agent/commands.md) § *Without looper* names what to run for each looper command.
+
 ## The rules you will otherwise break
 
 Each is one sentence here, because not knowing it exists is the entire cost. The file named after each
@@ -286,7 +299,8 @@ rule is its home.
 2. **One shell call runs one command.** Use `&&` between dependent steps (commands.md).
 3. **Read a big file in the region you need.** Read a file under about 400 lines whole, and Grep for
    the anchor of a bigger one (commands.md).
-4. **Test only what a change can affect, through one `looper verify` at the end** (testing.md).
+4. **Test only what a change can affect, through one `looper verify` at the end,** or its steps
+   without looper (testing.md, commands.md).
 5. **A session finishes in one pass,** as *Session workflow* below says.
 6. **A comment says what the code does now, and is rewritten as a whole** (conventions.md).
 7. **Docs describe the present only.** They carry no dates and no "previously" (doc-style.md).
@@ -324,7 +338,8 @@ Every session runs the same steps, in this order, and **stops**:
    120k with the previous one committed. Before you take an item, write two to six checkpoints under it
    in the goal file, each a step you can tick alone. Tick each as you reach it, and the item once all are
    ticked. Tick on from checkpoints an earlier session left.
-3. **Verify what you touched, once, at the end of the group:** `looper verify`.
+3. **Verify what you touched, once, at the end of the group:** `looper verify`, or its steps without
+   looper.
 4. **Write the handoff once for the whole group.** Overwrite the live goal's `## Handoff` with where the
    work stands and the next group with its anchors. Tick what you finished. Add a playbook bullet if a
    trap cost you time.
