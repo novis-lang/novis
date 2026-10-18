@@ -39,6 +39,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   "exe-icons": () => import("./cmd/exe-icons.ts"),
   "ext-templates": () => import("./cmd/ext-templates.ts"),
   gaps: () => import("./cmd/gaps.ts"),
+  garden: () => import("./cmd/garden.ts"),
   "gen-attribution": () => import("./cmd/gen-attribution.ts"),
   guard: () => import("./cmd/guard.ts"),
   holes: () => import("./cmd/holes.ts"),
