@@ -1,0 +1,9 @@
+<?nvs
+// Shows that a tainted string cannot be a regular expression.
+// `Core\Regex::quote` gives a pattern that matches the text exactly.
+// This program does not compile.
+// proof: compile-error
+
+tainted string $search = "a+";
+Core\Regex\Pattern $pattern = Core\Regex::compile($search);
+echo Core\Regex::matches("aaa", $pattern) ? "match" : "no match", "\n";

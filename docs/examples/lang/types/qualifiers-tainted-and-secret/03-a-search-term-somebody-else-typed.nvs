@@ -1,7 +1,5 @@
 <?nvs
-// Shows a search term that somebody else typed being used twice over, and an
-// API key that must never reach the output. The marks are what stop the term
-// becoming a pattern of its own and the key becoming a log line.
+// Shows a tainted search term in a pattern and in a link, and a secret API key in a header.
 
 class Orders {
     public static function search(tainted string $term, secret string $apiKey): void {
@@ -11,8 +9,8 @@ class Orders {
             "Order 1044, coffee grinder",
         ];
 
-        // Quoting the term first means a search for "c.ffee" looks for those six
-        // characters, instead of letting the dot match any character at all.
+        // `Core\Regex::quote` returns a plain pattern that matches the exact text.
+        // So the search for "c.ffee" matches no order, because no label has a dot.
         Core\Regex\Pattern $pattern = Core\Regex::compile(Core\Regex::quote($term));
         uint $hits = 0;
         foreach ($labels as string $label) {
@@ -21,11 +19,11 @@ class Orders {
             }
         }
 
-        // Encoding it makes the term safe to put in a link, whatever was typed.
+        // `Core\Uri::encodeComponent` returns a plain string that is safe in a link.
         string $link = "https://example.test/orders?q=" . Core\Uri::encodeComponent($term);
 
-        // Only the line that hands the key to the service is allowed to uncover
-        // it, and it has to say why. Everything else still refuses it.
+        // Only this line needs the key as a plain string, so only this line calls
+        // `Core\Secret::reveal`. Everywhere else, `$apiKey` is still secret.
         string $authorization = "Bearer " . Core\Secret::reveal($apiKey, "sending it to the orders service");
 
         echo $hits, " of ", Core\Arr::count($labels), " orders match\n";

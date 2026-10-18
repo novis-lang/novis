@@ -1,0 +1,8 @@
+error[E0401]: expected `string`, found `tainted string`
+  --> 04-tainted-text-in-a-plain-string.nvs:7:16
+  |
+7 | string $name = $input;
+  |                ^^^^^^ this is `tainted string`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
