@@ -13,8 +13,9 @@
 //     bun nv proofs --run --id ID --show   first each of the feature's programs as it runs: a `== <path>`
 //                                          line, its output, its exit status and time
 //     bun nv proofs --bless FILE...        write each example's `.out` from what it prints, and show it
-//     bun nv proofs --comments PATH...     judge the comments of these programs, or of every `.nvs` under
-//                                          a directory, against the plain-comment bounds; runs nothing
+//     bun nv proofs --comments PATH...     judge the comments of these programs and `details.md` files, or
+//                                          of every one under a directory, against the plain-comment
+//                                          bounds; runs nothing
 //     bun nv proofs --record-perf          measure every bench in scope with no current figure, and append
 //                                          a record per feature to the perf ledger
 //     bun nv proofs --perf-report          write data/perf/members.md from the ledger
@@ -55,9 +56,9 @@ import { resolve } from "node:path";
 import { abs, rel } from "../lib/paths.ts";
 import { ArgError, comparePaths, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { inPart } from "../lib/reads.ts";
-import { collect, collectParts, commentProblems, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, skippedOf, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
+import { collect, collectParts, gapTitle, HELP_BACKLOG_REASON, implHashes, knownGap, loadPolicy, owed, PROOFS, shownProofs, skippedOf, textProblems, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
 import { perfReport, recordPerf } from "../proofs/perf.ts";
-import { aboutFile, benchFile, examplesDir, hostileDir, noteRoster, programsIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
+import { aboutFile, benchFile, DETAILS, examplesDir, hostileDir, noteRoster, programsIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { bless, namedBinary, type Pass, PROOF_BINARY, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
 import { featureGroup } from "../select/store.ts";
@@ -192,6 +193,7 @@ function printEntry(out: string[], fid: string, entries: Entry[], proofs: Map<st
   if (match.anchor) out.push(`   implemented at ${match.anchor}`);
   out.push("");
   out.push(`   about     ${p.about || "none at " + aboutFile(match)}`);
+  if (p.details) out.push(`   details   ${p.details}`);
   out.push(`   tests     ${p.nvst.length} case(s), ${p.rust.length} Rust`);
   for (const f of p.nvst.slice(0, 6)) out.push(`     ${f}`);
   if (p.inferred) out.push(`     (${p.inferred} credited by a call rather than a \`covers:\` marker)`);
@@ -301,23 +303,24 @@ function takeNamed(args: string[]): { rest: string[]; named: { label: string; id
 /** A path as the user wrote it, from the working directory, made repository-relative. */
 const repoPath = (p: string) => rel(resolve(p));
 
-/** `--comments`: judges the named programs, or every `.nvs` under a named directory, against the
- * bounds of AGENTS.md § *Text an end user reads*. It reads and never runs anything. */
+/** `--comments`: judges the named programs and `details.md` files, or every one under a named directory,
+ * against the bounds of AGENTS.md § *Text an end user reads*. It reads and never runs anything. */
 function checkComments(out: string[], targets: string[]): number {
-  const files = [...new Set(targets.map(repoPath).flatMap((t) => (statSync(abs(t), { throwIfNoEntry: false })?.isDirectory() ? walk(t, ".nvs") : [t])))].sort(comparePaths);
+  const under = (t: string) => [...walk(t, ".nvs"), ...walk(t, DETAILS).filter((p) => p.endsWith(`/${DETAILS}`))];
+  const files = [...new Set(targets.map(repoPath).flatMap((t) => (statSync(abs(t), { throwIfNoEntry: false })?.isDirectory() ? under(t) : [t])))].sort(comparePaths);
   let bad = 0;
   for (const path of files) {
-    const problems = commentProblems(path);
+    const problems = textProblems(path);
     if (problems.length === 0) continue;
     bad++;
     out.push(`  ${path}`, ...problems.map((p) => `      ${p}`));
   }
   const rule = "`Text an end user reads` in AGENTS.md";
   if (bad) {
-    out.push(`nv proofs comments: ${bad} of ${files.length} program(s) miss the bounds of ${rule}.`);
+    out.push(`nv proofs comments: ${bad} of ${files.length} file(s) miss the bounds of ${rule}.`);
     return 1;
   }
-  out.push(`nv proofs comments: ${files.length} program(s), each inside the bounds of ${rule}.`);
+  out.push(`nv proofs comments: ${files.length} file(s), each inside the bounds of ${rule}.`);
   return 0;
 }
 

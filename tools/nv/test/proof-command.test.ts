@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, realpathSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { ROOT } from "../lib/paths.ts";
-import { skippedOf } from "../proofs/collect.ts";
-import { commandArgs, matchesOut, spawnProof } from "../proofs/run.ts";
+import { detailsProblems, skippedOf } from "../proofs/collect.ts";
+import { commandArgs, exampleOutput, matchesOut, spawnProof } from "../proofs/run.ts";
 import { scratch } from "./scratch.ts";
 
 describe("a `.cmd` example", () => {
@@ -46,6 +46,53 @@ describe("a `.cmd` example", () => {
     } finally {
       s.cleanup();
     }
+  });
+});
+
+describe("a `proof: compile-error` example", () => {
+  const ran = { stdout: "", stderr: "error[E0475]: `break 2` names more levels than enclose it\n  --> docs/examples/lang/x/04-too-far.nvs:3:11\n" };
+
+  test("its `.out` is the diagnostic, with the path shortened to the file name", () => {
+    const source = "<?nvs\n// proof: compile-error\nbreak 2;\n";
+    expect(exampleOutput("docs/examples/lang/x/04-too-far.nvs", source, ran)).toBe("error[E0475]: `break 2` names more levels than enclose it\n  --> 04-too-far.nvs:3:11\n");
+    const windows = { stdout: "", stderr: ran.stderr.replace("docs/examples/lang/x/", "docs\\examples\\lang\\x\\") };
+    expect(exampleOutput("docs/examples/lang/x/04-too-far.nvs", source, windows)).toContain("--> 04-too-far.nvs:3:11");
+  });
+
+  test("an example without the line freezes its standard output alone", () => {
+    expect(exampleOutput("a.nvs", "<?nvs\necho 1;\n", { stdout: "1", stderr: "noise" })).toBe("1");
+  });
+});
+
+describe("a feature's `details.md`", () => {
+  const judge = (text: string) => {
+    const s = scratch();
+    try {
+      s.put("details.md", text);
+      return detailsProblems(relative(ROOT, join(s.root, "details.md")).replaceAll("\\", "/"));
+    } finally {
+      s.cleanup();
+    }
+  };
+
+  test("plain paragraphs and list items inside the bounds pass, at any length", () => {
+    const para = "A level counts every loop. ".repeat(40);
+    expect(judge(`${para}\n\n- A \`switch\` is one level.\n- The number is written in the code.\n`)).toEqual([]);
+  });
+
+  test("a heading, a code block, a dash and a long sentence are each named with their line", () => {
+    const long = Array.from({ length: 30 }, (_, i) => `w${i}`).join(" ") + ".";
+    const problems = judge(`# Title\n\nOne idea — and another.\n\n\`\`\`nvs\n\`\`\`\n\n- ${long}\n`);
+    expect(problems[0]).toStartWith("1: opens with a heading");
+    expect(problems).toContain("3: a dash joins two sentences; write two");
+    expect(problems).toContain("5: a code block, and the examples are where code goes");
+    expect(problems.some((p) => p.startsWith("8: a 30-word sentence"))).toBe(true);
+  });
+
+  test("each list item is its own run of prose, so two short items do not add up", () => {
+    const half = Array.from({ length: 15 }, (_, i) => `w${i}`).join(" ");
+    expect(judge(`- ${half}\n- ${half}\n`)).toEqual([]);
+    expect(judge(`${half}\n${half}\n`)).toHaveLength(1);
   });
 });
 

@@ -18,7 +18,7 @@ import { comparePaths, splitlines } from "../lib/py.ts";
 import { inPart, noteKey, unrecorded } from "../lib/reads.ts";
 import { LEDGER, LEDGER_WHOLE, ledgerRows, perfKey } from "./ledger.ts";
 import { anchorKey, CALL_ROOTS, callsIn, callsKey, coversKey, MARKER_ROOTS, markersIn } from "./markers.ts";
-import { aboutFile, benchFile, examplesDir, hostileDir, implFile, noteRoster, programsIn, read, type Entry, type Kind } from "./roster.ts";
+import { aboutFile, benchFile, DETAILS, detailsFile, examplesDir, hostileDir, implFile, noteRoster, programsIn, read, type Entry, type Kind } from "./roster.ts";
 
 /** Every proof a feature can owe, in the order the audit prints them. */
 export const PROOFS = ["tests", "examples", "perf", "hostile", "about", "help"] as const;
@@ -158,16 +158,54 @@ export function commentProblems(path: string): string[] {
     if (lines.length > bound) {
       problems.push(`${number}: ${top ? "the top comment" : "a comment above a step"} is ${lines.length} lines, and ${bound} is the bound`);
     }
-    const prose = lines.join(" ");
-    if (prose.includes("—") || prose.includes(" -- ")) problems.push(`${number}: a dash joins two sentences; write two`);
-    for (const sentence of prose.split(/(?<=[.!?:])\s+/)) {
-      const words = sentence.split(/\s+/).filter(Boolean);
-      if (words.length > COMMENT_SENTENCE_WORDS) {
-        problems.push(`${number}: a ${words.length}-word sentence opening \`${words.slice(0, 5).join(" ")} ...\`; ${COMMENT_SENTENCE_WORDS} is the bound`);
-      }
-    }
+    problems.push(...proseProblems(number, lines.join(" ")));
   });
   return problems;
+}
+
+/** The sentence and dash bounds over one run of prose that starts on line `number`, as `line: what`. */
+function proseProblems(number: number, prose: string): string[] {
+  const problems: string[] = [];
+  if (prose.includes("—") || prose.includes(" -- ")) problems.push(`${number}: a dash joins two sentences; write two`);
+  for (const sentence of prose.split(/(?<=[.!?:])\s+/)) {
+    const words = sentence.split(/\s+/).filter(Boolean);
+    if (words.length > COMMENT_SENTENCE_WORDS) {
+      problems.push(`${number}: a ${words.length}-word sentence opening \`${words.slice(0, 5).join(" ")} ...\`; ${COMMENT_SENTENCE_WORDS} is the bound`);
+    }
+  }
+  return problems;
+}
+
+/**
+ * What is wrong with the shape of a feature's `details.md`, as `line: what`: a heading or front matter
+ * at the top, a code block, and each paragraph and `-` list item held to a comment's sentence and dash
+ * bounds. It has no word limit.
+ */
+export function detailsProblems(path: string): string[] {
+  const text = read(path);
+  const problems: string[] = [];
+  const head = text.trimStart();
+  if (head.startsWith("#") || head.startsWith("---")) problems.push("1: opens with a heading or front matter, and the page supplies the title");
+  let block: [number, string[]] | null = null;
+  const flush = () => {
+    if (block) problems.push(...proseProblems(block[0], block[1].join(" ")));
+    block = null;
+  };
+  splitlines(text).forEach((line, i) => {
+    const t = line.trim();
+    if (t.startsWith("```")) problems.push(`${i + 1}: a code block, and the examples are where code goes`);
+    if (!t || t.startsWith("```")) return flush();
+    if (/^[-*] /.test(t)) flush();
+    if (!block) block = [i + 1, []];
+    block[1].push(t.replace(/^[-*] /, ""));
+  });
+  flush();
+  return problems;
+}
+
+/** What is wrong with the plain-text bounds of `path`: a `details.md` or a proof program. */
+export function textProblems(path: string): string[] {
+  return path.endsWith(`/${DETAILS}`) || path === DETAILS ? detailsProblems(path) : commentProblems(path);
 }
 
 /** `// proof: gap <gap id>` in a proof: a bug it found that nobody has fixed yet, recorded as
@@ -194,6 +232,8 @@ export interface Proofs {
   /** The website description, when it is on disk, and what is wrong with its shape. */
   about: string;
   aboutProblem: string;
+  /** The exact rules beside the description, when it is on disk, or "". */
+  details: string;
   bench: string;
   /** The newest record taken on this machine, which `--id` prints. */
   perf: Record<string, unknown> | null;
@@ -388,6 +428,7 @@ export function collect(entries: Entry[], scanned: Scans = scans()): Map<string,
       hostile: [],
       about: "",
       aboutProblem: "",
+      details: "",
       bench: "",
       perf: null,
       perfAny: null,
@@ -410,6 +451,7 @@ export function collect(entries: Entry[], scanned: Scans = scans()): Map<string,
       p.about = aboutFile(e);
       p.aboutProblem = aboutProblem(p.about);
     }
+    if (existsSync(abs(detailsFile(e)))) p.details = detailsFile(e);
     for (const dir of [examplesDir(e), hostileDir(e)]) {
       p.gaps.push(...programs(dir).sort(comparePaths).filter((f) => knownGap(read(f))));
     }
@@ -455,16 +497,17 @@ export function owed(entry: Entry, proofs: Proofs, policy: Policy, skips: Skips)
   }
   if (want.help && !("help" in skip) && entry.help) out.help = entry.help;
   if (want.comments && !("comments" in skip)) {
-    // Not a proof of its own: it judges the programs the other proofs are made of.
-    const programs = [...proofs.examples, ...proofs.hostile];
+    // Not a proof of its own: it judges the programs the other proofs are made of, and `details.md`.
+    const files = [...proofs.examples, ...proofs.hostile];
     if (proofs.bench) {
       const siblings = [".scale.nvs", ".twin.nvs"].map((s) => proofs.bench!.replace(/\.nvs$/, s));
-      programs.push(proofs.bench, ...siblings.filter((f) => existsSync(join(ROOT, f))));
+      files.push(proofs.bench, ...siblings.filter((f) => existsSync(join(ROOT, f))));
     }
-    const missed = programs.map((f) => [f, commentProblems(f)] as const).filter(([, problems]) => problems.length > 0);
+    if (proofs.details) files.push(proofs.details);
+    const missed = files.map((f) => [f, textProblems(f)] as const).filter(([, problems]) => problems.length > 0);
     if (missed.length > 0) {
       const [first, problems] = missed[0]!;
-      out.comments = `${missed.length} program(s) outside the plain-comment bounds, first ${first} line ${problems[0]}`;
+      out.comments = `${missed.length} file(s) outside the plain-comment bounds, first ${first} line ${problems[0]}`;
     }
   }
   if (want.perf && !("perf" in skip)) {
