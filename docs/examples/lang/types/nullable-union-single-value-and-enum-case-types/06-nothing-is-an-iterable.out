@@ -1,0 +1,8 @@
+error[E0401]: expected `iterable`, found `array<int>`
+  --> 06-nothing-is-an-iterable.nvs:7:15
+  |
+7 | iterable $i = $xs;
+  |               ^^^ this is `array<int>`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

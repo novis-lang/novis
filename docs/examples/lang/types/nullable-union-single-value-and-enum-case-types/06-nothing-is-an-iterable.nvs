@@ -1,0 +1,7 @@
+<?nvs
+// Shows that no value can be assigned to an `iterable` variable, not even an array.
+// This program does not compile.
+// proof: compile-error
+
+array<int> $xs = [1, 2];
+iterable $i = $xs;

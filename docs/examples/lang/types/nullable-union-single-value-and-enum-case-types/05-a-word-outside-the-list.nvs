@@ -1,0 +1,7 @@
+<?nvs
+// Shows that a variable of the type `"read"|"write"` only accepts those two words.
+// `"delete"` is not one of them, so this program does not compile.
+// proof: compile-error
+
+"read"|"write" $mode = "read";
+$mode = "delete";
