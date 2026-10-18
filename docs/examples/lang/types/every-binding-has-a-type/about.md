@@ -14,4 +14,5 @@ A value of another type does not compile, and neither does reading a variable be
 loop counter after the loop.
 
 **The examples below** show `var` and then a written type, a loop counter read after its loop, and an
-order where every value has a type.
+order where every value has a type. The last two do not compile: one assigns a string to an `int`,
+and one gives `var` an array with two element types.

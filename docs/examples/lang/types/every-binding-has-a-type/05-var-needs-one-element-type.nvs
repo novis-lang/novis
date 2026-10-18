@@ -1,0 +1,6 @@
+<?nvs
+// Shows that `var` needs an array whose elements have one type. This array has
+// an `int` and a `string`, so this program does not compile.
+// proof: compile-error
+
+var $xs = [1, "two", 3];

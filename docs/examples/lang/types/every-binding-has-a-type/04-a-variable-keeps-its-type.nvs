@@ -1,0 +1,7 @@
+<?nvs
+// Shows that a variable keeps the type of its declaration. `$count` is an `int`,
+// so the string on the last line does not compile.
+// proof: compile-error
+
+int $count = 1;
+$count = "two";
