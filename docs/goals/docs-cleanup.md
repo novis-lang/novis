@@ -265,7 +265,7 @@ with each.
   - [x] the chapter's features before `break-and-continue`, from its top
 - [ ] The other ten chapters, one per slice: `10-programs`, `20-types`, `30-expressions`, `50-classes`, `55-enums`, `60-iteration`, `70-errors`, `80-concurrency`, `90-attributes`, `95-testing`. `docs/reference/lang/10-programs.md:1`
   - [x] `10-programs`: six `details.md`, examples 04 for `doc-comments`, `names-and-casing` and `ending-a-program`, and five wrong claims fixed
-  - [ ] `20-types`
+  - [x] `20-types`
     - [x] `every-binding-has-a-type`, `numbers-bool-int-uint-float-decimal`, `text-string-and-bytes` and `array-t`
     - [x] `callable-classes-object-shapes`, `mixed`, `nullable-union-single-value-and-enum-case-types` and `void-never-self-static`
     - [x] `type-aliases`, `values-written-in-the-code`, `widening-without-as` and `the-conversion-operator-as`
@@ -278,12 +278,13 @@ with each.
       - [x] `property-paths`
       - [x] `strings-with-holes`
       - [x] `narrowing`
-    - [ ] `truthiness`, `parameters`, `properties-and-constants`, `qualifiers-tainted-and-secret` and `what-does-not-exist`
+    - [x] `truthiness`, `parameters`, `properties-and-constants`, `qualifiers-tainted-and-secret` and `what-does-not-exist`
       - [x] `truthiness`
       - [x] `parameters`
-      - [ ] `properties-and-constants`
-      - [ ] `qualifiers-tainted-and-secret`
-      - [ ] `what-does-not-exist`
+      - [x] `properties-and-constants`
+      - [x] `qualifiers-tainted-and-secret`
+      - [x] `what-does-not-exist`
+      - [x] `lang:types`' perf recorded after the chapter's last edit
   - [ ] `30-expressions`, `50-classes` and `55-enums`
   - [ ] `60-iteration`, `70-errors` and `80-concurrency`
   - [ ] `90-attributes` and `95-testing`
@@ -533,6 +534,28 @@ a missing diagnostic: a variadic parameter that is not the last compiles and act
 now the gap record `data/gaps/nvs-types/a-variadic-parameter-that-is-not.json`, owned by
 `release-hardening`. `website/public/llms-full.txt` is rendered again with the chapter changes.
 
+`20-types` is done: its last three features closed it, each fact run on the binary, and no text
+disagreed with it. `lang:types`' perf is recorded after the chapter's last edit.
+`properties-and-constants`' `about.md` was in the essay voice, now rewritten. Its `details.md` has
+`E0101` for an untyped property, what a default may be and `E0472`, `E0409` in the constructor and
+for a `static` property, `E0246`, `E0401` at the declared type, and `E0792` on every read of a
+constant whose value does not fold (another class's constant, an enum case, `self::B + 1`, `.`).
+Example 04 is a computed default (`E0472`). Probing found two gaps, both owned by
+`release-hardening`. A `private` or `protected` constant can be read from anywhere
+(`data/gaps/nvs-types/a-private-or-protected-class-constant.json`). A constant whose value does not
+fit its type compiles until read, and is then `E0792`
+(`data/gaps/nvs-types/a-class-constant-whose-value-does.json`).
+`qualifiers-tainted-and-secret`'s `about.md` and examples 01 to 03's comments were in the essay voice,
+now rewritten. Its `details.md` has `E0102` for a qualifier on another type or in the wrong order,
+each `E0401` sink, `as string` keeping the qualifier, `E0790`, `E0422`, `E0724`, `E0791`, the array
+literal that drops `secret`, and `revealBytes`. Examples 04 to 07 are the chapter's six error blocks:
+`Core\Debug::dump` and `Core\Json::encode` share 07 with the interpolated `echo`.
+`what-does-not-exist`'s `about.md` and examples 01 to 03's comments were rewritten, and `about.md` no
+longer says each diagnostic names the replacement: `gettype`'s `E0320` names none. Its `details.md`
+has `E0225`, `E0320`, `E0208`, `E0482`, `E0716`, `E0715`, `E0466`, `E0230` and `E0418`. The
+chapter's `(int)$n` block moved from the `as` section into this one. Examples 04 to 06 are that
+block, the `gettype` and `settype` blocks, and a string in arithmetic.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -542,10 +565,10 @@ sessions found, and the red bench `benches/members/core/Ldap-Connection/delete.n
 
 ### Next
 
-`20-types` from `properties-and-constants` (3 features left; `properties-and-constants` is 32
-lines, `qualifiers-tainted-and-secret` 123 and `what-does-not-exist` the rest, so take them
-together), one feature per slice. The chapter's `(int)$n` error block
-(`20-types.md:756`) goes to `what-does-not-exist` with its own section. Work each feature the way `break-and-continue` was done: read
+`30-expressions` from its top, one feature per slice: 16 features in 694 lines, so about four a
+session. `precedence-and-associativity` (53 lines), `operators-that-do-not-parse` (28),
+`arithmetic` (108) and `comparison-and-equality` (68) are the first group. The chapter's
+`inout` line (`30-expressions.md:472`) is already fixed. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -555,8 +578,8 @@ A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` 
 probe is a file under `.agent-tmp/` written with Write, since the guard refuses a redirect.
 A probe catching two error types needs two variable names, or it stops at `E0406` before the line
 you meant to test. A probe's method goes in a class: a top-level `function` stops at `E0215`.
-- [ ] `20-types` from `properties-and-constants`, in chapter order. `docs/reference/lang/20-types.md:1262`
-- [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:types`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
+- [ ] `30-expressions` from its top, in chapter order. `docs/reference/lang/30-expressions.md:8`
+- [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:expressions`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
 
