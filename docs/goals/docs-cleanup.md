@@ -311,7 +311,14 @@ example beside their trap, and that is not a story: a story is a bullet whose on
 a session did. `how-novis-is-written.mdx` no longer prints a count of notes, because the count only
 falls while this sweep runs.
 
-The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last three
+`running-things/` is done: 124 bullets stay. The 22 deleted ones repeated another bullet (the
+worktree `node_modules`, `sd_notify`, perf-stale, nightly-CI, `<?nvs`, debug-stack, `bun nv try`,
+Docker-stopped and `CLAUDECODE` traps), contradicted the code (`try.ts` runs the covws build,
+`proofs.ts:86` reads `target/release` first, the roster bullet cited the deleted spec), named one
+flaky test whose trap the general "passed alone" bullet already states, or described a trap the
+tooling now handles (`runPrograms`' retry).
+
+The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last four
 sessions found. `bun nv site --check` also fails on pages this goal has not touched: stale question
 entries, long paragraphs in `compare.mdx` and `run-as-a-service.mdx`, and the `/reference/types/` link.
 
@@ -321,8 +328,8 @@ Stage 5, the playbook's larger directories: a bullet that tells a story, repeats
 contradicts a rule is deleted, never reworded (standing decision). Each slice is one directory;
 grep the other directories for each bullet's key term (an error text, a symbol) to find duplicates,
 and keep the copy in the directory the trap belongs to.
-- [ ] `running-things/` (146 bullets) loses its stories and duplicates. `docs/agent/playbook/running-things/a-stray-nvs-exe-locks-target-debug-nvs-exe-and-the-rebuild.md:1`
-- [ ] `tooling/` (198) follows; `writing-novis/` (316) and `writing-a-test-case/` (480) after it, split across sessions. `docs/agent/playbook/writing-a-test-case/a-0-default-on-a-uint-is-uint-int-so-it-does-not-fit.md:1`
+- [ ] `tooling/` (198 bullets) loses its stories and duplicates; grep `running-things/` too, which repeats some `bun nv` traps. `docs/agent/playbook/tooling/a-bench-the-sweep-reports-red-names-no-cause-in-the-run-s-pr.md:1`
+- [ ] `writing-novis/` (316) and `writing-a-test-case/` (480) after it, split across sessions. `docs/agent/playbook/writing-a-test-case/a-0-default-on-a-uint-is-uint-int-so-it-does-not-fit.md:1`
 - [ ] Then AGENTS.md outside the markers, stage 5's first item. `AGENTS.md:1`
 ### Backlog
 
