@@ -139,9 +139,10 @@ doc checks CI runs.
 
 - [x] `nv pack`, `nv allow`, `nv audit`, `nv query` and `nv class-cards` are deleted with their tests and allowlist entries. `tools/nv/main.ts:23`
 - [x] `bun nv guard`'s `proof-loop` rule moves into `looper.toml`'s `[[guard.deny]]`, and its hook and command are deleted. `.claude/settings.json:10`, `tools/nv/cmd/guard.ts:296`
-- [ ] `nv links` and `nv layout` give way to `looper links` and `looper layout` in CI. Of `nv proofs --comments` and `looper prose`, the one that judges both Markdown and `.nvs` comments stays. `.github/workflows/ci.yml:974`
-- [ ] CI's `docs` job checks run in `bun nv verify`, each only when what it reads changed. `.github/workflows/ci.yml:945`, `tools/nv/cmd/verify.ts:1`
-- [ ] The stale references go: the `docs/decisions/README.md` sync skip, the owner-gate wording, the dead hooks in `commands.md`, and the settings entries a wider entry already allows. `looper.toml:79`, `tools/nv/cmd/owners.ts:14`, `docs/agent/commands.md:630`, `.claude/settings.json:130`
+- [ ] `nv links` and `nv layout` give way to `looper links` and `looper layout` in CI, once looper's `links` reads `<a id>` anchors and skips generated pages, its `layout` can read CONTRIBUTING.md, and CI installs looper. `.github/workflows/ci.yml:976`
+- [x] `looper prose` judges the Markdown and `nv proofs --comments` the `.nvs` comments, because `looper prose` reads a whole `.nvs` file as prose. `looper.toml:89`
+- [x] CI's `docs` job checks run in `bun nv verify`, each only when what it reads changed. `.github/workflows/ci.yml:945`, `tools/nv/cmd/verify.ts:151`
+- [x] The stale references go: the owner-gate wording, the dead hooks in `commands.md`, and the settings entries for commands that are gone. The `docs/decisions/README.md` sync skip and the `looper …` entries stay, because looper's templates write both. `tools/nv/cmd/owners.ts:13`, `docs/agent/commands.md:620`, `.claude/settings.json:19`
 - [ ] The old driver's files under `.loop/` that nothing reads, and `tools/__pycache__/`, are deleted from the main checkout. `looper.toml:1`
 
 ### 5. a diagnostic code is never raced
@@ -174,32 +175,37 @@ edits no shared table by hand.
 
 ### State
 
-Stage 4's first two items are done.
+Stage 4 has one open item that waits on looper, and one left to do.
 
-- `nv pack`, `nv allow`, `nv audit`, `nv query` and `nv class-cards` are gone, with their tests,
-  allowlist entries and doc mentions. `bun nv audit python` was the guard of
-  `rule:tooling/the-repository-tools-are-one-bun-program`, and nothing ran it, so the rule no longer
-  names it.
-- `bun nv guard` and its hook are gone. Its `proof-loop`, `cargo-p` and `heavy-run` rules are four
-  `[[guard.deny]]` regexes in `looper.toml`, pinned by `tools/nv/test/guard-deny.test.ts`, and
-  `looper guard` was probed with them by hand. `whole-read` and `inline-write` are looper's
-  built-ins, except two parts nothing covers now: a `cat` or `sed -n` of a big file through Bash, and
-  a write from `python -c` or `bun -e`.
+- `bun nv verify` runs the eight checks of CI's `docs` job as script steps (`DOC_CHECKS`,
+  `tools/nv/cmd/verify.ts:151`), each selected on what it was seen to read. `release --check` also
+  reads the tags, which no file key covers, so CI still runs it.
+- `nv render --check` was red on HEAD: `data/schema/milestone.schema.json` still listed the `done`
+  state. It is rendered again, with `website/src/data/numbers.json`.
+- The swap to `looper links` and `looper layout` waits on looper. On this tree `looper links` reports
+  9203 problems, nearly all an `<a id>` anchor it does not read, plus `docs/novis.md`, which `nv links`
+  skips as generated. `looper layout` reads README.md's `## Layout`, and the listing is in
+  CONTRIBUTING.md. CI has no looper binary.
+- `looper prose` reads a whole `.nvs` file, code included, so `[prose] paths` lists the Markdown
+  alone, and `nv proofs --comments` stays for the `.nvs` comments.
+- The `docs/decisions/README.md` sync skip and the `Bash(looper <cmd>:*)` entries stay: without them,
+  `looper sync --check` drifts. The settings lost ten entries for `nv` commands that are gone.
 
-The nightly run 39013536848 is still the newest, and nothing in it is new.
+The nightly run 39013536848 is still the newest. Its `docs` failure is `nv check` on `e110c9c0b`, green
+here.
 
 ### Next
 
-Stage 4, CI's `docs` job and the doc checks in verify, on `.github/workflows/ci.yml` and `tools/nv/cmd/verify.ts`:
-- [ ] Swap `nv links` and `nv layout` for `looper links` and `looper layout` in CI, and keep the one of `nv proofs --comments` and `looper prose` that judges both Markdown and `.nvs` comments. `.github/workflows/ci.yml:974`, `.github/workflows/ci.yml:976`
-- [ ] Run CI's `docs` checks in `bun nv verify`, each only when what it reads changed. `.github/workflows/ci.yml:945`, `tools/nv/cmd/verify.ts:1`
-- [ ] Remove the stale references: the `docs/decisions/README.md` sync skip, the owner-gate wording, the dead hooks in `commands.md`, and the settings entries a wider entry already allows. `looper.toml:103`, `tools/nv/cmd/owners.ts:14`, `docs/agent/commands.md:623`, `.claude/settings.json:120`
+Stage 4's last item, then stage 5 on `crates/nvs-diagnostics/src/lib.rs`:
+- [ ] Delete the old driver's files under `.loop/` that nothing reads, and `tools/__pycache__/`, from the main checkout. First, grep `tools/nv` and looper's docs for each name, because `last-sweep.md`, `machine.json` and `checks/` are still read. `looper.toml:1`, `tools/nv/cmd/sweep.ts:17`
+- [ ] Split the code table into one module per area, each with its reserved range. `crates/nvs-diagnostics/src/lib.rs:140`
+- [ ] A test refuses a code outside its module's range and a code used twice. `crates/nvs-diagnostics/src/lib.rs:1`
 
 ### Backlog
 
-- `test_request_dispatches_in_process_through_the_compiled_route_table` was red once in the `covws` verify, also alone, and green on every rerun. The unclaimed path gave status 200 and an empty body, so `Core\Env::context()` was not `Request` in that run. `crates/nvs-cli/src/runner.rs:3410`, `crates/nvs-cli/tests/fixtures/runner/in-process-request.nvs:31`
-- The Windows warm-start budget: 13 ms of work on a quiet hosted runner against 6 ms. A regression or the runner's file scanning; `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.
+- Looper's `links` needs `<a id>` anchors and a generated-page skip, and its `layout` a configurable file, before stage 4's first item can land. Looper's own goals own it.
+- `test_request_dispatches_in_process_through_the_compiled_route_table` was red once in the `covws` verify, also alone, and green on every rerun. `Core\Env::context()` was not `Request` in that run. `crates/nvs-cli/src/runner.rs:3410`
+- The Windows warm-start budget: 13 ms of work on a quiet hosted runner against 6 ms. `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.
 - `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed. `tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`
-- The debt's progress items for the legs show `running` from the start of the run to its end, though their turn took 2 seconds. `tools/nv/cmd/debt.ts:250`
-- `looper guard` matched a commit in looper's own checkout against a claim on mwl's `docs/goals/README.md`, because the claim check compares paths without their tree. Looper's `crates/looper-core/src/claims.rs` owns it.
-- `Core\Ldap::connect` dials each address of a host in turn, so a `localhost` block pays 2 s on Windows when only `127.0.0.1` listens. `NvsTcp::connect_racing` would race them. `crates/nvs-stdlib/src/ldap/mod.rs:489`, `crates/nvs-host/src/net.rs:438`
+- `looper guard` matched a commit in looper's own checkout against a claim on mwl's `docs/goals/README.md`. Looper's `crates/looper-core/src/claims.rs` owns it.
+- `Core\Ldap::connect` dials each address of a host in turn, so a `localhost` block pays 2 s on Windows. `crates/nvs-stdlib/src/ldap/mod.rs:489`, `crates/nvs-host/src/net.rs:438`
