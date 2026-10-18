@@ -12,3 +12,6 @@ method throws an error, the property still has no value, and the next read calls
 **Good to know:** the write that gives the property its first value inside `initProperty` does not run
 a `set` hook, `PropertyGuard` or `PropertyObserver`. A second task that reads the property while the
 method runs waits until it returns.
+
+**The examples below** show a property set on the first read, one method for several properties, a
+second try after an error, and the error when a property stays empty.

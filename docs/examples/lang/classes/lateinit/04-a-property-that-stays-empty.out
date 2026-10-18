@@ -1,0 +1,5 @@
+initProperty author
+Ada
+Ada
+initProperty views
+`initProperty` returned, but `$views` is still not initialized.

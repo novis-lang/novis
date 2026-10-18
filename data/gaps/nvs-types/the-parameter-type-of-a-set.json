@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/check.rs",
+  "title": "The parameter type of a set hook is not checked against its property.",
+  "text": "`public int $a { set (string $v) { … } }` compiles, and the constructor's `$this->a = 42` then exits 5 with no output: the `int` reaches the hook as a `string`. A write is checked against the property's type, never the hook's parameter, so any parameter type the property's type does not fit is a type confusion in safe code. A wider parameter, such as `int|string` on an `int` property, is harmless, because the write is still `E0401` for a `string`. It closes when a `set` hook whose parameter type does not accept the property's type is a diagnostic, with a conformance case.",
+  "goal": "release-hardening"
+}

@@ -10,4 +10,4 @@ itself, so a `set` hook stores with `$this->name = ...` and does not call itself
 throws an error stops the write, and the property keeps the value it had.
 
 **The examples below** show a `set` hook that checks a value, a `get` hook that works one out, and a
-class that keeps a name and a display form in step.
+class that keeps a name and a display form in step. Example 04 does not compile.

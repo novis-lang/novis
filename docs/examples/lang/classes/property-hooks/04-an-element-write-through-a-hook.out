@@ -1,0 +1,9 @@
+error[E0478]: an array element cannot be written through the hooked property `xs`
+   --> 04-an-element-write-through-a-hook.nvs:21:1
+   |
+21 | $b->xs[0] = 1;
+   | ^^^^^^ reading this runs its `get` hook
+   = help: `rule:classes/property-hooks` makes a hooked property a pair of accessors, not a slot, so the separated array would have nowhere to go — read it into a local, write the element there, and assign the local back through the property
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

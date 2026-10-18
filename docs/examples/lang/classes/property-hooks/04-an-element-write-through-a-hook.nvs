@@ -1,0 +1,21 @@
+<?nvs
+// Shows that you cannot write one array element through a hooked property,
+// so this does not compile. Copy the array to a variable, change it there,
+// and assign the variable back.
+// proof: compile-error
+
+class Box {
+    public array<int> $xs {
+        get => $this->xs;
+        set (array<int> $v) {
+            $this->xs = $v;
+        }
+    }
+
+    public function constructor() {
+        $this->xs = [];
+    }
+}
+
+var $b = new Box();
+$b->xs[0] = 1;
