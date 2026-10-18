@@ -12,3 +12,5 @@ may write `$o->name` there. `&&` works the same way.
 
 **The examples below** show a value that may be missing, then a choice between two values, then a
 settings file with its gaps filled in: the short `?->` and `??` first, then the test written out.
+The last two show `??-=` and `??.=` with a ternary inside a ternary, and the error for a write
+through `?->`.

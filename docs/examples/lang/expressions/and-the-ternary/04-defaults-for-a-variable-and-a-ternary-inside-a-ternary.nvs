@@ -1,0 +1,17 @@
+<?nvs
+// Shows `??-=` and `??.=` on a variable that is `null`, and one ternary inside another.
+
+// `??-=` starts from 0 when the value is `null`. This prints -3.
+?int $credit = null;
+$credit ??-= 3;
+echo $credit, "\n";
+
+// `??.=` starts from an empty string. This prints "x".
+?string $log = null;
+$log ??.= "x";
+echo $log, "\n";
+
+// The second ternary is the last arm of the first one. The tests run from left
+// to right, so this prints "big".
+int $n = 5;
+echo $n > 9 ? "huge" : $n > 3 ? "big" : "small", "\n";
