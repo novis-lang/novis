@@ -4,8 +4,8 @@
 // value. The same loop then checks any form, so adding a field is adding a line.
 
 class Form {
-    // Each rule is given the value of its field and gives back an empty text
-    // when the value is fine.
+    // Each rule gets the value of its field. It returns an empty string when
+    // the value is fine.
     public static function check(array<string> $values, array<callable> $rules): array<tainted string> {
         array<tainted string> $problems = [];
 

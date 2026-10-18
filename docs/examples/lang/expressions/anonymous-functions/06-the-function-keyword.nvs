@@ -1,0 +1,5 @@
+<?nvs
+// Shows that `function` does not make an anonymous function. Write `fn` instead.
+// proof: compile-error
+
+callable $f = function (int $x): int { return $x + 1; };

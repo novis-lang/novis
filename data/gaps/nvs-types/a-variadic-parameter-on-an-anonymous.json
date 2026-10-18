@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/expr/calls.rs",
+  "title": "A variadic parameter on an anonymous function compiles as a plain one.",
+  "text": "`fn(int ...$xs): int => Core\\Arr::count($xs)` is `E0401` at `$xs` (\"expected `array<mixed>`, found `int`\"): `check_anon_fn` ignores the `...` and binds `$xs` as one `int`. No error names the `...` itself, and no text says whether an anonymous function may be variadic. It closes when the `...` is either a diagnostic at the parameter or binds an array of the arguments, with a conformance case.",
+  "goal": "release-hardening"
+}
