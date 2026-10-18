@@ -1,5 +1,5 @@
 # PHP's internal function names, one per line, sorted. Two tests read this list and fail when a Core
-# reference card, the Core spec chapter or a reference chapter's keywords name one of them
+# reference card, a Core class introduction or a reference chapter's keywords name one of them
 # (rule:programs/no-compatibility-promise): `no_member_text_says_what_it_replaces_in_php` in
 # crates/nvs-stdlib/src/registry.rs and tools/nv/test/php-names.test.ts. It maps no name to anything.
 #

@@ -1,4 +1,4 @@
-// The `Core` chapter of the spec and the `Core` class introductions name no PHP function, no PHP
+// The `Core` and `Novis` class introductions name no PHP function, no PHP
 // superglobal and not PHP itself (`rule:programs/no-compatibility-promise`), because the website and
 // `docs/novis.md` publish both. The cards are held to the same list and the same test of a word by
 // `no_member_text_says_what_it_replaces_in_php` in `crates/nvs-stdlib/src/registry.rs`.
@@ -74,10 +74,10 @@ describe("php names", () => {
     expect(names("`$name` or `$_` alone")).toEqual([]);
   });
 
-  test("the Core spec chapter, the class introductions and every chapter's keywords name no PHP function", () => {
+  test("the class introductions and every chapter's keywords name no PHP function", () => {
     const novis = novisNames();
     const inDir = (dir: string) => readdirSync(join(ROOT, dir)).filter((f) => f.endsWith(".md")).map((f) => `${dir}/${f}`);
-    const whole = ["docs/spec/01-core-library.md", ...inDir("docs/reference/core"), ...inDir("docs/reference/novis")];
+    const whole = [...inDir("docs/reference/core"), ...inDir("docs/reference/novis")];
     // The concept page is the one reference chapter that may name PHP.
     const chapters = [...inDir("docs/reference/lang"), ...inDir("docs/reference/tools")].filter((f) => !f.endsWith("30-php-differences.md"));
     // `Core\Password::verify` reads bcrypt hashes PHP wrote, which is interop rather than translation.

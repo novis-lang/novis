@@ -175,18 +175,19 @@ class intros and the `about.md` files, and no file cites the spec.
   - [x] `registryClasses` builds classes, members, shape types, constants and owned enums from `nvs meta --json`
   - [x] the summary is the card's sentence plus the introduction, and `blocksHtml` renders its fences and tables
   - [x] the signature linker reads `Core\Arr::Order` and an enum case `Core\Hash::Digest::Sha256` as one name, and the site builds
-- [ ] The spec's machinery is deleted: `parseSpec`, the `spec-tables` renderer, the `spec_core_members` record and schema, `website/config/spec-overrides.mjs`, the "Spec note" and unparsed-row UI, the spec tests in `render.test.ts`, the spec path in `php-names.test.ts`, the existence check in `gaps.ts`, and `spec_registry_coverage.rs` with its four empty ratchets. `tools/nv/renderers/spec-tables.ts:17`, `tools/nv/cmd/gaps.ts:509`, `crates/nvs-stdlib/tests/spec_registry_coverage.rs:725`
+- [x] The spec's machinery is deleted: `parseSpec`, the `spec-tables` renderer, the `spec_core_members` record and schema, `website/config/spec-overrides.mjs`, the "Spec note" and unparsed-row UI, the spec tests in `render.test.ts`, the spec path in `php-names.test.ts`, the existence check in `gaps.ts`, and `spec_registry_coverage.rs` with its four empty ratchets. `tools/nv/renderers/spec-tables.ts:17`, `tools/nv/cmd/gaps.ts:509`, `crates/nvs-stdlib/tests/spec_registry_coverage.rs:725`
   - [x] the renderer, the record, its schema, the overrides, the UI, the tests in `render.test.ts` and the check in `gaps.ts`
   - [x] `spec_registry_coverage.rs`, its four ratchets, `owners.ts`'s ratchet register, the rules' `guardedBy` and the six playbook bullets about them
-  - [ ] the spec path in `php-names.test.ts`, which goes with `docs/spec/` itself
+  - [x] the spec path in `php-names.test.ts`, which goes with `docs/spec/` itself
 - [x] The spec's unique conventions become rules: a variadic member takes no options shape (`rule:core-api/options-bag`), a `readonly` property of a `Core` value object is read as `->x()`, and what is a member and what is an operator (`rule:core-api/one-paradigm-per-operation`). `00-overview.md`'s unique facts go to `rule:types/grammar`, the lexer's and the parser's module docs and `rule:security/isolate-shares-nothing`. The fragments that call the spec authoritative are reworded. `docs/rules/core-api/field-wise-precedence.md:1`, `docs/rules/core-api/tier-roster.md:37`, `crates/nvs-syntax/src/lexer.rs:600`
   - [x] the preamble's conventions: options-bag, one-paradigm-per-operation, a-lifetime-is-an-object; field-wise-precedence, parameters-are-callable-by-name, reference-card and tier-roster reworded
   - [x] `00-overview.md`'s unique facts: reserved-spellings-are-lower-case, alias-is-never-a-bare-class, `80-concurrency.md`
   - [x] the sections' unique facts: types/arrays, members-are-full-words, throwable-hierarchy, and the module docs of `str`, `arr`, `math`, `cldr`, `time`, `regex`, `encoding`, `hash`, `objmap`, `validate`
 - [ ] A script rewrites every citation of the spec, about 630 files: `spec § N` becomes the class it names, or is dropped where a `rule:` id stands beside it. `docs/spec/` is deleted and joins `RECORD_CITE`. `tests/conformance/core/`, `crates/nvs-stdlib/src/arr.rs:1`
   - [x] `crates/`, `Cargo.toml`, `docs/agent/`, `docs/rules/`, `findings.md`, `examples/`, and the cards and diagnostics that named the spec
-  - [ ] `tests/conformance/`, about 515 files
-  - [ ] `docs/spec/` deleted with `php-names.test.ts`'s path, `ci-changes.ts`'s lane and the primer playbook bullet; it joins `DELETED_DOC_CITE`
+  - [x] `tests/conformance/`, about 515 files
+  - [x] `docs/spec/` deleted with `php-names.test.ts`'s path, `ci-changes.ts`'s lane and the primer playbook bullet; it joins `DELETED_DOC_CITE`
+  - [ ] bare `§ N` citations that meant the spec, which the `spec §` grep misses, under `crates/` and `tests/conformance/`
 - [x] `website/README.md` says how the Core reference is built now. `website/README.md:43`
 
 ### 3. docs/perf is gone, its ledgers are data and its findings have homes
@@ -267,22 +268,34 @@ the markers. It goes once looper's `agents` template stops linking it; then add 
 Stage 2's website half is done: `website-core.ts` reads only `nvs meta --json` and the class
 introductions, and the spec's machinery is deleted.
 
-Stage 2's spec half is most of the way. Every unique fact of both spec files now has a home (the
-goal's stage 2 checkpoints name them), and `rule:core-api/field-wise-precedence` says the registry is
-the only source. No file outside `tests/conformance/`, `docs/spec/` itself, `php-names.test.ts`,
-`ci-changes.ts` and one playbook bullet cites the spec. Four cards and six diagnostics that named
-the spec are reworded, with the two `.nvst` cases that pin those help lines. Three spec claims the
-audit found already contradicted (`Instant`'s `<`, `Task::all`'s callable field, `decodeAs`'s inline
-shape) were not moved anywhere.
+Stage 2's spec half is done but for bare section marks. `docs/spec/` is deleted, and `bun nv rules
+--check` refuses a citation of it by path or relative link (`DELETED_DOC_CITE`,
+`tools/nv/cmd/rules.ts:107`). Every `spec § N`, "the spec" and `docs/spec/` citation is gone from
+the tree outside `docs/goals/`: about 600 conformance cases lost theirs, comment and description
+lines only. Where a rewritten comment needed a fact, the binary's source decided it
+(`ParseError` extends `RuntimeError`, `crates/nvs-hir/src/errors.rs:110`). Three spec claims the
+audit found already contradicted (`Instant`'s `<`, `Task::all`'s callable field, `decodeAs`'s
+inline shape) were not moved anywhere. Stage 2 stays `open` for the bare marks below.
 
-The nightly CI failures the sweep reported are on `main`'s commit `e110c9c`, not this branch.
+The nightly CI failures the sweep reported are on `main`'s commit `e110c9c`, which this branch
+contains: `docs` (`routing/a-gate-answers-around-every-handler` names no owner), `proofs` on three
+platforms (about 280 `perf: stale` members), the Windows warm-start budget and the db matrix. None
+is this goal's. `bun nv check` is clean on this branch, and the others need a perf re-measure and a
+db fix on `main`.
+
+`E:` had under 1 GB free at the end of this session, and `nv disk --clean` frees 26 MB. Its verify
+went red only on `nvs-cli`'s `bundle` test, which could not write its executables (os error 112).
+Every other step it reached passed, and `nvs test tests/conformance` passed in full on its own. Run
+`looper verify` again once there is space, before this branch lands.
 
 ### Next
 
-Stage 2's last piece, on `tests/conformance/` and `docs/spec/`. One or two sessions:
-- [ ] Every `spec § N`, "the spec" and `docs/spec/` citation under `tests/conformance/` is rewritten, about 515 files with one or two each: name the class the section stood for, or drop the citation where a `rule:` id stands beside it. Split it across writing subagents by directory, one after another. `tests/conformance/core/`, `tests/conformance/array/the-append-counter-s-last-key-is-usable-and-the-one-past-it-is-refused.nvst:33`
-- [ ] `docs/spec/` is deleted, with `php-names.test.ts`'s path, `ci-changes.ts`'s `refdoc` entry and `docs/agent/playbook/tooling/a-primer-marker-goes-in-docs-reference-whatever-else-names.md`. `docs/spec/` joins `DELETED_DOC_CITE` and `DELETED_DOC_GREP`, with a case in `rules.test.ts`. `tools/nv/cmd/rules.ts:107`, `tools/nv/test/php-names.test.ts:80`, `tools/nv/cmd/ci-changes.ts:83`
-- [ ] Bare `§ N` citations under `crates/` that point at no live document (db, http, router, regex, script modules) are checked and fixed. `crates/nvs-stdlib/src/db/mod.rs:1`
+Stage 2's last piece: bare `§ N` marks that meant the spec. The `spec §` grep misses them, and
+about 770 files under `crates/` and `tests/conformance/` carry a bare `§`, most of them an RFC's
+or a rule chapter's. One session, read-only Explore subagents to classify, then writing ones:
+- [ ] Classify every bare `§ N` under `tests/conformance/` and `crates/` with no document named on its line or the one before: the spec's, another live doc's, or a dead doc's. `tests/conformance/core/db-a-connection-names-its-driver-and-is-open-until-closed.nvst:34` (about 30 db cases repeat its `# § 3:`), `tests/conformance/core/response-send-file-streams-the-file-under-its-media-type.nvst:5`, `tests/conformance/core/arr-combination-members-share-one-key-order-rule.nvst:33`
+- [ ] Rewrite the spec's and the dead docs' marks as the class or the `rule:` id they meant (confirm each id with `bun nv rules --show`), and tick stage 2's last sub-item. `crates/nvs-stdlib/src/db/mod.rs:1`
+- [ ] Set stage 2 `done` in the front matter, then start stage 3 on `docs/perf/`: `tests/conformance/core/arr-every-callback-is-offered-value-and-key.nvst:12` cites `docs/perf/userland-gap.md`. `docs/goals/docs-cleanup.md:197`
 
 ### Backlog
 

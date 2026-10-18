@@ -48,11 +48,13 @@ describe("nv rules --check, deleted docs", () => {
     expect(doc("//! `docs/plan/design.md` § *Safepoints*")).toEqual([{ where: "crates/x.rs:1", what: "cites a deleted doc" }]);
     expect(doc("# the policy in docs/implementation-plan.md's section")).toHaveLength(1);
     expect(doc("a note in docs/future-ideas.md")).toHaveLength(1);
+    expect(doc("// the signature column of `docs/spec/01-core-library.md`")).toHaveLength(1);
   });
 
   test("a deleted doc cited by a relative link is a finding", () => {
     expect(doc("[the frozen design](../plan/design.md)")).toHaveLength(1);
     expect(doc("[the plan](implementation-plan.md)")).toHaveLength(1);
+    expect(doc("[the Core spec](../spec/01-core-library.md#10-coreerror)")).toHaveLength(1);
   });
 
   test("a doc that still exists is not a finding, and a file carrying the marker is skipped", () => {
