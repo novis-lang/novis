@@ -231,12 +231,13 @@ the playbook holds only traps that can still happen.
   - [x] `commands.md`'s figures and stories go, and its *Disk* and WSL sections point at `disk.ts`, `mirror.ts`, `Cargo.toml` and `tests_without_pdb.rs`
   - [x] `conventions.md` loses its stories, the plan, the spec's test and the measured link count
   - [x] `conventions.md`'s pack heading is fixed; `testing.md` is looper's managed text, so its dead `§ Names` link is looper's template's to fix
-- [ ] `optimization-prompt.md`, `carried-refusals.md` (with its readers in `holes.ts`, `owners.ts` and `refusals.rs`) and `guard-name-debt.md` are deleted; its three causes move to `commands.md` or `testing.md`. `coordinator.md` and `loop-authoring.md` lose their history and stale numbers. `docs/agent/coordinator.md:19`, `tools/nv/cmd/owners.ts:38`
+- [x] `optimization-prompt.md`, `carried-refusals.md` (with its readers in `holes.ts`, `owners.ts` and `refusals.rs`) and `guard-name-debt.md` are deleted; its three causes move to `loop-authoring.md` § 3, beside a check's `tests` list. `coordinator.md` and `loop-authoring.md` lose their history and stale numbers. `docs/agent/coordinator.md:19`, `tools/nv/cmd/owners.ts:38`
 - [ ] The playbook loses every bullet about a removed tool, every story, every bullet that contradicts a rule (such as the `git stash` one) and every duplicate, and `[orient] traps = 8`. `docs/agent/playbook/running-things/a-before-after-measurement-is-worth-a-git-stash-and-the-base.md:1`, `looper.toml:8`
   - [x] the two bullets `looper playbook retire --check` named are retired
   - [x] no bullet names a removed `bun nv` command; the carried-refusals bullet goes with that file's item
-  - [ ] the `git stash` bullet, the stories and the duplicates are deleted
-  - [ ] `[orient] traps = 8` in `looper.toml`
+  - [x] the `git stash` bullet is deleted
+  - [ ] the stories and the duplicates are deleted, one playbook directory per slice
+  - [x] `[orient] traps = 8` in `looper.toml`
 - [ ] `how-novis-is-written.mdx`'s count of notes comes from `numbers.json` or goes. `website/src/content/docs/in-depth/how-novis-is-written.mdx:62`
 
 ### 6. each language feature's facts are in its about.md, its details.md and its examples, once
@@ -297,9 +298,12 @@ regenerates the reference, so a chapter or card edit needs `bun nv render --webs
 Stage 5 has begun. `commands.md` and `conventions.md` carry no measured figure, no story and no
 citation of the plan or the spec; `commands.md`'s *Disk* and WSL sections point at `disk.ts`,
 `mirror.ts`, `Cargo.toml`'s `[profile.dev]` and `tests_without_pdb.rs`, which own the reasoning.
-`looper playbook retire --check` is clean. No playbook bullet names a removed `bun nv` command but
-the carried-refusals one, which goes with that file. `looper.toml` has no `[orient]` table yet, so
-`traps = 8` is a new one.
+`optimization-prompt.md`, `carried-refusals.md` and `guard-name-debt.md` are gone; `bun nv holes`
+reads the live goal's items alone, `bun nv owners --registers` lists two registers, and the guard-name
+causes are in `loop-authoring.md` § 3. `coordinator.md` and `loop-authoring.md` carry no story, no
+milestone and no stale number. `looper.toml` sets `[orient] traps = 8`, and the `git stash` bullet
+is deleted. `looper playbook retire --check` is clean. The playbook still holds 1,164 bullets, so its
+stories and duplicates are a sweep of several sessions, one directory per slice.
 
 The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last two
 sessions found. `bun nv site --check` also fails on pages this goal has not touched: stale question
@@ -307,9 +311,12 @@ entries, long paragraphs in `compare.mdx` and `run-as-a-service.mdx`, and the `/
 
 ### Next
 
-Stage 5, on the docs/agent files to delete, their tool readers and the playbook.
-- [ ] `optimization-prompt.md`, `carried-refusals.md` and `guard-name-debt.md` are deleted with their readers, and the carried-refusals playbook bullet with them; `coordinator.md` and `loop-authoring.md` lose their history and stale numbers. `tools/nv/cmd/holes.ts:41`, `tools/nv/cmd/owners.ts:69`, `crates/nvs-ir/tests/refusals.rs:96`, `docs/agent/coordinator.md:19`
-- [ ] The playbook loses the `git stash` bullet, its stories and its duplicates, and `looper.toml` sets `[orient] traps = 8`. `docs/agent/playbook/running-things/a-before-after-measurement-is-worth-a-git-stash-and-the-base.md:1`, `looper.toml:8`
+Stage 5, on the playbook's smaller directories: a bullet that tells a story, repeats another or
+contradicts a rule is deleted, never reworded (standing decision). Each slice is one directory; a
+read-only subagent may list the candidates first, and the session checks each before deleting it.
+- [ ] `divergences/` (20 bullets) and `splitting-a-file/` (4) lose their stories and duplicates. `docs/agent/playbook/divergences/0-x-at-ints-smallest-value-wraps-back-to-itself-in-silence.md:1`
+- [ ] `running-things/` (146) loses its stories and duplicates; `tooling/` (198), `writing-novis/` (316) and `writing-a-test-case/` (480) follow, split across sessions. `docs/agent/playbook/writing-a-test-case/a-0-default-on-a-uint-is-uint-int-so-it-does-not-fit.md:1`
+- [ ] `how-novis-is-written.mdx`'s count of notes comes from `numbers.json` or goes. `website/src/content/docs/in-depth/how-novis-is-written.mdx:62`
 ### Backlog
 
 - `docs/design.md` is deleted once looper's managed block no longer links it. `docs/goals/docs-cleanup.md:163`
