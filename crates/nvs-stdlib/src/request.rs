@@ -609,10 +609,16 @@ const HEADER_DOC: MethodDoc = MethodDoc {
           request has no header of that name. When the header arrived on more than one line, the \
           values are joined with `, ` in the order they arrived. `headers()` returns each line on \
           its own.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "The program is not answering a request.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The program is not answering a request.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The value of this header is not valid UTF-8.",
+        },
+    ],
 };
 
 /// `Core\Request::headers`'s reference card — `rule:core-api/reference-card`.
@@ -622,10 +628,16 @@ const HEADERS_DOC: MethodDoc = MethodDoc {
     ret: "An `array<array<tainted string>>`. Each key is a header name in lower case. Its value \
           is a list with one entry for each line of that header, in the order the lines arrived. \
           The array is empty when the request has no headers.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "The program is not answering a request.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The program is not answering a request.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The value of a header is not valid UTF-8.",
+        },
+    ],
 };
 
 /// `Core\Request::cookie`'s reference card — `rule:core-api/reference-card`.
@@ -640,10 +652,16 @@ const COOKIE_DOC: MethodDoc = MethodDoc {
     ret: "The value as a `tainted` string, exactly as it arrived. Nothing is decoded. The result \
           is `null` when the request has no cookie of that name. When the name starts with \
           `__Host-` and the cookie arrived twice, the result is `null` too.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "The program is not answering a request.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The program is not answering a request.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The value of this cookie is not valid UTF-8.",
+        },
+    ],
 };
 
 /// `Core\Request::body`'s reference card — `rule:core-api/reference-card`.
@@ -827,7 +845,8 @@ const FILES_DOC: MethodDoc = MethodDoc {
             error: "ParseError",
             desc: "The request says it has a `multipart/form-data` body, but its `boundary` is \
                    missing, given twice or not valid. Or the body does not have the form that \
-                   the request declared.",
+                   the request declared. Or the name, file name or `Content-Type` of a part is \
+                   not valid UTF-8.",
         },
         ErrorDoc {
             error: "IOError",
@@ -865,7 +884,8 @@ const POST_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "A field has a percent escape that decodes to bytes that are not UTF-8.",
+            desc: "The name or value of a field is not valid UTF-8. In an urlencoded form, this \
+                   includes a percent escape that decodes to bytes that are not UTF-8.",
         },
         ErrorDoc {
             error: "IOError",
@@ -902,7 +922,8 @@ const POST_ARRAY_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "A field has a percent escape that decodes to bytes that are not UTF-8.",
+            desc: "The name or value of a field is not valid UTF-8. In an urlencoded form, this \
+                   includes a percent escape that decodes to bytes that are not UTF-8.",
         },
         ErrorDoc {
             error: "IOError",
@@ -1902,7 +1923,23 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8], member: &'static str) -> Resul
         if name.is_empty() {
             continue;
         }
-        crate::uri::place(&mut out, name, Value::str(NvsStr::new(value)));
+        let name = peer_text(
+            name,
+            ThrownClass::Runtime,
+            member,
+            "the name of a form field",
+        )?;
+        let value = peer_text(
+            value,
+            ThrownClass::Runtime,
+            member,
+            "the value of a form field",
+        )?;
+        crate::uri::place(
+            &mut out,
+            name.as_bytes(),
+            Value::str(NvsStr::new(value.as_bytes())),
+        );
     }
     Ok(out)
 }
@@ -2045,6 +2082,42 @@ fn joined_field(inbound: &Inbound, name: &[u8]) -> Option<Vec<u8>> {
         }
     }
     joined
+}
+
+/// Octets the peer wrote outside the body as text, or the error of `class`
+/// that says they have none. `what` names them for the message.
+///
+/// `rule:types/string-is-utf8`: a header value, a multipart part's
+/// declarations and a multipart field are octets, and RFC 9110 § 5.5 still
+/// lets a peer write obs-text in a header, so neither `hyper` nor the door
+/// nor [`crate::multipart`] has made them text. Octets that are not UTF-8 are
+/// thrown as [`nvs_core_request_body`] throws a body that is not, and never
+/// repaired. Every reader that builds a `string` or an array key out of them
+/// checks here first, because a payload that skipped this check is undefined
+/// behaviour at its first read. A form field throws `RuntimeError`, the class
+/// [`crate::uri::parse_query`] throws for an urlencoded field that is not
+/// UTF-8, so one defect is one class whichever encoding the form used.
+fn peer_text<'a>(
+    octets: &'a [u8],
+    class: ThrownClass,
+    member: &str,
+    what: &str,
+) -> Result<&'a str, Fault> {
+    std::str::from_utf8(octets).map_err(|why| {
+        Fault::thrown_as(
+            class,
+            format!(
+                "Core\\Request::{member}(): {what} is not valid UTF-8 ({why}). A `string` can \
+                 only contain valid UTF-8."
+            ),
+        )
+    })
+}
+
+/// [`peer_text`]'s answer as a `string` value, or its `ParseError`.
+fn field_text(octets: &[u8], member: &str, what: &str) -> Result<Value, Fault> {
+    let text = peer_text(octets, ThrownClass::Parse, member, what)?;
+    Ok(Value::str(NvsStr::new(text.as_bytes())))
 }
 
 /// The request's field lines grouped by lower-cased name, each group in arrival
@@ -2711,7 +2784,7 @@ nvs_runtime::nvs_helper! {
         let inbound = inbound_of(ctx, "header")?;
         Ok(match joined_field(inbound, name.as_bytes()) {
             None => Value::null(),
-            Some(value) => Value::str(NvsStr::new(&value)),
+            Some(value) => field_text(&value, "header", "the value of this header")?,
         })
     }
 }
@@ -2817,7 +2890,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_request_host(ctx, _args: [0]) {
         Ok(match host_named(inbound_of(ctx, "host")?) {
             None => Value::null(),
-            Some(host) => Value::str(NvsStr::new(&host)),
+            Some(host) => field_text(&host, "host", "the `Host` header")?,
         })
     }
 }
@@ -2837,7 +2910,7 @@ nvs_runtime::nvs_helper! {
         for (name, lines) in grouped_fields(inbound) {
             let mut values = NvsArray::new();
             for line in lines {
-                values.append(Value::str(NvsStr::new(line)));
+                values.append(field_text(line, "headers", "the value of a header")?);
             }
             out.set(NvsStr::new(name.as_bytes()), Value::array(values));
         }
@@ -2872,7 +2945,7 @@ nvs_runtime::nvs_helper! {
         let inbound = inbound_of(ctx, "cookie")?;
         Ok(match cookie_of(inbound, name.as_bytes()) {
             None => Value::null(),
-            Some(value) => Value::str(NvsStr::new(value)),
+            Some(value) => field_text(value, "cookie", "the value of this cookie")?,
         })
     }
 }
@@ -3590,7 +3663,10 @@ fn files_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
         }
     };
     let more = opened.is_some();
-    let held = opened.map_or_else(Value::null, |(head, ordinal)| part_value(&head, ordinal));
+    let held = match opened {
+        None => Value::null(),
+        Some((head, ordinal)) => part_value(&head, ordinal)?,
+    };
     crate::instance::set_slot(receiver, FILES_PART, held);
     Ok(Value::bool(more))
 }
@@ -3617,28 +3693,47 @@ fn files_part(value: Value) -> Result<Value, Fault> {
     Ok(held)
 }
 
-/// One [`PART`] instance, built out of the header block the parse read.
+/// One [`PART`] instance, built out of the header block the parse read, or the
+/// `ParseError` [`peer_text`] throws for a declaration that is not UTF-8.
 ///
 /// The three declarations are copied here rather than borrowed from the parse,
 /// because the part outlives the buffer they were read out of: the very next
 /// `advance()` compacts it. That is one short allocation per *file* part, which
 /// is O(in-flight) and bounded by `MAX_PARTS`.
-fn part_value(head: &crate::multipart::PartHead, ordinal: usize) -> Value {
-    crate::instance::build(
+fn part_value(head: &crate::multipart::PartHead, ordinal: usize) -> Result<Value, Fault> {
+    // All three are checked before any is built: a `Value` owns its reference
+    // and nothing releases one an early return leaves behind.
+    let name = peer_text(
+        &head.name,
+        ThrownClass::Parse,
+        "files",
+        "the name of a part",
+    )?;
+    let filename = peer_text(
+        &head.filename,
+        ThrownClass::Parse,
+        "files",
+        "the file name of a part",
+    )?;
+    // RFC 7578 § 4.4's default where the part declared none, which is the class
+    // doc's decision and not a repair of a missing value.
+    let content_type = peer_text(
+        head.content_type.as_deref().unwrap_or(b"text/plain"),
+        ThrownClass::Parse,
+        "files",
+        "the `Content-Type` of a part",
+    )?;
+    Ok(crate::instance::build(
         &PART,
         [
-            Value::str(NvsStr::new(&head.name)),
-            Value::str(NvsStr::new(&head.filename)),
-            // RFC 7578 § 4.4's default where the part declared none, which is
-            // the class doc's decision and not a repair of a missing value.
-            Value::str(NvsStr::new(
-                head.content_type.as_deref().unwrap_or(b"text/plain"),
-            )),
+            Value::str(NvsStr::new(name.as_bytes())),
+            Value::str(NvsStr::new(filename.as_bytes())),
+            Value::str(NvsStr::new(content_type.as_bytes())),
             Value::uint(
                 u64::try_from(ordinal).expect("`MAX_PARTS` bounds a body at a thousand parts"),
             ),
         ],
-    )
+    ))
 }
 
 /// What one of [`PART`]'s three readers answers: the slot the part was built
@@ -4107,8 +4202,8 @@ nvs_runtime::nvs_helper! {
 mod tests {
     use super::{
         CLASS, CoreTy, FILES_NAME, MOUNT, MOUNT_NAME, PART_NAME, client_text, cookie_of,
-        grouped_fields, host_named, joined_field, method_ordinal, nvs_core_request_body,
-        nvs_core_request_body_stream, nvs_core_request_body_stream_advance,
+        field_text, grouped_fields, host_named, joined_field, method_ordinal,
+        nvs_core_request_body, nvs_core_request_body_stream, nvs_core_request_body_stream_advance,
         nvs_core_request_body_stream_current, nvs_core_request_body_stream_iterate,
         nvs_core_request_bytes, nvs_core_request_files, nvs_core_request_files_advance,
         nvs_core_request_files_current, nvs_core_request_files_iterate, nvs_core_request_is_head,
@@ -4119,12 +4214,12 @@ mod tests {
         nvs_core_request_part_content_type, nvs_core_request_part_filename,
         nvs_core_request_part_name, nvs_core_request_part_read_all, nvs_core_request_part_save_to,
         nvs_core_request_post, nvs_core_request_post_array, nvs_core_request_post_as,
-        nvs_core_request_query_as, scheme_text,
+        nvs_core_request_query_as, part_value, peer_text, scheme_text,
     };
     use crate::router::METHOD;
     use nvs_runtime::{
-        CONSTRUCTOR, ClassDesc, ClassTable, CodecField, CodecTy, Ctx, Inbound, MethodRow, NvsFn,
-        NvsObj, OK, RequestBody, Scheme, ShapeCodec, Value,
+        CONSTRUCTOR, ClassDesc, ClassTable, CodecField, CodecTy, Ctx, Fault, Inbound, MethodRow,
+        NvsFn, NvsObj, OK, RequestBody, Scheme, ShapeCodec, ThrownClass, Value,
     };
     use std::net::IpAddr;
 
@@ -4611,6 +4706,89 @@ mod tests {
             grouped_fields(&carrying(&[])).is_empty(),
             "a request carrying no headers groups to nothing"
         );
+    }
+
+    /// A field value with an obs-text octet that is not UTF-8 has no `string`
+    /// to be, so every header and cookie reader throws a `ParseError` for it,
+    /// and a value that is UTF-8 beyond ASCII is answered verbatim. HTTP Garden
+    /// found the first half against `nvs serve`: `Connection: ke\xf9p-alive`
+    /// reached a `string` unchecked, which a debug build caught as a broken
+    /// invariant and a release build would have read as `&str`.
+    // covers: Core\Request::header, Core\Request::headers, Core\Request::cookie
+    #[test]
+    fn a_field_value_that_is_not_utf8_throws_and_one_that_is_is_verbatim() {
+        let mut inbound = Inbound::new("GET", "/", "");
+        inbound.push_header("Connection", b"ke\xf9p-alive");
+        inbound.push_header("Cookie", b"id=\xff; name=caf\xc3\xa9");
+        inbound.push_header("X-Name", "café".as_bytes());
+        let header = joined_field(&inbound, b"connection").expect("the field arrived");
+        let mut thrown = Vec::new();
+        thrown.push(field_text(&header, "header", "this header"));
+        let cookie = cookie_of(&inbound, b"id").expect("the cookie arrived");
+        thrown.push(field_text(cookie, "cookie", "this cookie"));
+        for (name, lines) in grouped_fields(&inbound) {
+            if name == "connection" {
+                thrown.push(field_text(lines[0], "headers", "a header"));
+            }
+        }
+        assert_eq!(thrown.len(), 3, "each reader was asked once");
+        for answer in thrown {
+            match answer {
+                Err(Fault::Thrown(ThrownClass::Parse, message)) => assert!(
+                    message.contains("is not valid UTF-8"),
+                    "the message does not name the defect: {message}"
+                ),
+                Err(other) => {
+                    panic!("the reader failed as something other than a ParseError: {other:?}")
+                }
+                Ok(_) => panic!("a value that is not UTF-8 became a `string`"),
+            }
+        }
+        let name = joined_field(&inbound, b"x-name").expect("the field arrived");
+        let text = field_text(&name, "header", "this header").expect("UTF-8 is a string");
+        assert_eq!(
+            text.as_text().map(|t| t.as_bytes().to_vec()),
+            Some("café".as_bytes().to_vec())
+        );
+        let cookie = cookie_of(&inbound, b"name").expect("the cookie arrived");
+        let text = field_text(cookie, "cookie", "this cookie").expect("UTF-8 is a string");
+        assert_eq!(
+            text.as_text().map(|t| t.as_bytes().to_vec()),
+            Some("café".as_bytes().to_vec())
+        );
+    }
+
+    /// A multipart part's declarations are octets as well: a file name that is
+    /// not UTF-8 throws a `ParseError` before any of the part is built, and a
+    /// form field that is not UTF-8 throws the `RuntimeError` an urlencoded
+    /// field throws for the same defect.
+    // covers: Core\Request::files, Core\Request::post
+    #[test]
+    fn a_part_declaration_or_form_field_that_is_not_utf8_throws() {
+        let head = crate::multipart::PartHead {
+            name: b"upload".to_vec(),
+            filename: b"r\xe9sum\xe9.pdf".to_vec(),
+            content_type: None,
+        };
+        match part_value(&head, 0) {
+            Err(Fault::Thrown(ThrownClass::Parse, message)) => assert!(
+                message.contains("the file name of a part is not valid UTF-8"),
+                "the message does not name the defect: {message}"
+            ),
+            Err(other) => panic!("the part failed as something other than a ParseError: {other:?}"),
+            Ok(_) => panic!("a file name that is not UTF-8 became a `string`"),
+        }
+        match peer_text(
+            b"\xff",
+            ThrownClass::Runtime,
+            "post",
+            "the value of a form field",
+        ) {
+            Err(Fault::Thrown(ThrownClass::Runtime, _)) => {}
+            other => {
+                panic!("a form field that is not UTF-8 did not throw a RuntimeError: {other:?}")
+            }
+        }
     }
 
     /// A cookie name is matched byte for byte: nothing is substituted in either
