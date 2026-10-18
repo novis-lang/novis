@@ -44,7 +44,7 @@ re-derive first. So:
 | The same trap appears in the playbook twice | An append-mostly file cannot notice it already knows something, and each copy is charged to every session afterwards. Delete the copy. |
 
 Whatever number you change — the ceiling or the 120k gate — **say in the commit which one it is and
-why.** AGENTS.md § *Session workflow* step 2 is the one place either lives, and it takes no slice count.
+why.** AGENTS.md § *The context budget* is the one place either lives, and it takes no slice count.
 
 ## 2. Scope the context — decide what a session may read, before deciding what it does
 
