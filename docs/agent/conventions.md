@@ -267,6 +267,10 @@ All five in the module that owns the class; `bun nv peek --locate <symbol>` reso
 to a file and line. Worked example: `crates/nvs-stdlib/src/json.rs`, which is small enough to
 read whole.
 
+A new *class* is a `CoreClass` const whose line above, past any attributes, is `// rank: N`: the
+place it takes in `registry::CLASSES`, which `bun nv render` writes into `classes.rs`. Pick a rank
+between its neighbours' — they are spaced by ten.
+
 **1. The row**, in that module's `pub const CLASS: CoreClass`:
 
 ```rust

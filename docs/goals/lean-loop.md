@@ -159,12 +159,12 @@ outside its module's range.
 **Does:** a goal that adds a `Core` class, a CLI command or a feature's proof policy adds a file and
 edits no shared table by hand.
 
-- [ ] The `Core` class table is one file per class, collected in one place. `crates/nvs-stdlib/src/registry.rs:1774`
+- [x] The `Core` class table is one file per class, collected in one place. `crates/nvs-stdlib/src/registry.rs:1774`
   - [x] The collection is decided: a committed, rendered `crates/nvs-stdlib/src/classes.rs`, ordered by a rank each class states beside its own const.
-  - [ ] A `nv render` renderer writes `classes.rs` from every ranked `CoreClass` const under `crates/nvs-stdlib/src/`, and `registry.rs` re-exports it as `CLASSES`.
-  - [ ] Each const in today's table carries its rank, seeded from its position so the order is unchanged, and `nvs meta --json` prints the same bytes.
-  - [ ] The table's prose comments move into each const's own doc, rewritten for where they now stand.
-  - [ ] A test fails on a `CoreClass` const that has no rank and is not on a short roster of unregistered ones, such as `crate::cursor::CLASS`.
+  - [x] A `nv render` renderer writes `classes.rs` from every ranked `CoreClass` const under `crates/nvs-stdlib/src/`, and `registry.rs` re-exports it as `CLASSES`.
+  - [x] Each const in today's table carries its rank, seeded from its position so the order is unchanged, and `nvs meta --json` prints the same bytes.
+  - [x] The table's prose comments move into each const's own doc, rewritten for where they now stand.
+  - [x] A test fails on a `CoreClass` const that has no rank and is not on a short roster of unregistered ones, such as `crate::cursor::CLASS`.
 - [ ] Each `nvs` command registers itself, so a new command edits no central `match`. `crates/nvs-cli/src/main.rs:144`
 - [x] `data/proofs/policy.json`'s skips are one file per feature, under `data/proofs/skip/`. `tools/nv/schema/proofs.ts:51`
 
@@ -180,17 +180,14 @@ edits no shared table by hand.
 
 ### State
 
-Stage 5 is done. Stage 6's proof policy is done, and the `Core` class table's collection is decided.
-Stage 4's one open item waits on looper.
+Stage 5 is done. Stage 6's proof policy and `Core` class table are done; its CLI command item is
+open. Stage 4's one open item waits on looper.
 
-- The class table becomes a committed, rendered `crates/nvs-stdlib/src/classes.rs`. A generated
-  `include!` from `build.rs` was declined: `nv-scan` keys a footprint per row of `CLASSES`, and a file
-  outside the tree has no rows for it to see. The order needs a key because the website's `Core`
-  index lists classes in `CLASSES` order (`website/src/lib/core.ts:95`), so each const states a rank.
-  The table has 175 rows. Its consts are spread over `src/`, the `db` and `ldap` ones in submodules.
-- `Cargo.lock` held `inout 0.2.3`, which is yanked, and `THIRD-PARTY-LICENSES.txt` was stale, so CI's
-  `supply chain` and `third-party attribution` were red. `website/src/data/core.json` and
-  `reference.json` were stale too. Local verify does not run `nv render --website --check`.
+- The class table is `crates/nvs-stdlib/src/classes.rs`, rendered by
+  `tools/nv/renderers/core-classes.ts` from the `// rank: N` line above each `CoreClass` const, and
+  `registry.rs` re-exports it. Its 175 rows are in the old table's order, entry for entry. A const
+  with no rank fails `nv render` unless the renderer's `UNRANKED` names it. The table's comments are
+  each const's doc now. `nv-scan` attributes rows of any const array, so it needed no change.
 - The swap to `looper links` and `looper layout` waits on looper: its `links` reads no `<a id>` and
   does not skip `docs/novis.md`, its `layout` reads README.md and the listing is in CONTRIBUTING.md,
   and CI has no looper binary.
@@ -204,14 +201,13 @@ warm-start budget (Backlog).
 
 ### Next
 
-Stage 6's `Core` class table, on `crates/nvs-stdlib/src/registry.rs`, a new renderer under
-`tools/nv/` and the domain modules. The checkpoints are under the stage 6 item.
-- [ ] The renderer: scan `crates/nvs-stdlib/src/**/*.rs` for a ranked `CoreClass` const, resolve its public path (the `db` and `ldap` classes sit in submodules and are re-exported), and write `src/classes.rs`, sorted by rank and then by path. Register it beside the others `nv render` runs. `crates/nvs-stdlib/src/registry.rs:1774`
-- [ ] Seed one rank per row from today's order, then replace the table with `pub use crate::classes::CLASSES` and prove `nvs meta --json` prints the same bytes. `crates/nvs-cli/src/meta.rs:190`
-- [ ] Move each prose comment in the table to its const's doc, and fix the table's own doc, which names a `crate::symbols` module that does not exist. `crates/nvs-stdlib/src/lib.rs:33`
-- [ ] Update the readers of the table's text: `tier_boundary.rs` reads its body for `#[cfg`, and `nv-scan` keys a row per class. `crates/nvs-stdlib/tests/tier_boundary.rs:198`, `tools/nv-scan/src/items.rs:1594`
+Stage 6's last item: each `nvs` command registers itself, on `crates/nvs-cli/src/main.rs` and the
+command modules it declares. Write the checkpoints under the stage 6 item first.
+- [ ] Decide the shape: clap's `Command` enum is one central `#[derive(Subcommand)]` and the dispatch is one `match command`. Find how a module can own its variant and its arm, with `--help` output byte for byte the same. `crates/nvs-cli/src/main.rs:361`, `crates/nvs-cli/src/main.rs:1826`
+- [ ] Move one command to that shape and prove its help and exit codes unchanged, then the rest. `crates/nvs-cli/src/main.rs:1991`
+- [ ] `conventions.md` says how a new command is added. `docs/agent/conventions.md:1`
 
-Then each `nvs` command registers itself, as a group of its own. `crates/nvs-cli/src/main.rs:1656`
+Then stage 7, `.gitattributes` and the merge rule for generated files. `.gitattributes:43`
 
 ### Backlog
 

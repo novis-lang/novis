@@ -217,7 +217,7 @@ const CARD: ClassDoc = ClassDoc {
 /// document, because its payload is meant to be *read* by whoever holds the
 /// token where a seal's is meant to be hidden
 /// (`rule:core-api/each-door-takes-a-different-thing`). It shares the key
-/// ring with the cookie above and nothing else. [`crate::signature`]'s own
+/// ring with `Core\SignedCookie` and nothing else. [`crate::signature`]'s own
 /// module doc is the home of the wire format, of the domain byte that stops
 /// one ring being replayed across three doors, and of why a verified
 /// payload value is text.

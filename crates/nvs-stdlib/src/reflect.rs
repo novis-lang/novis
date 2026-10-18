@@ -1509,8 +1509,8 @@ const CONSTANT_INFO_CARD: ClassDoc = ClassDoc {
 /// against, so the value is [`nvs_core_reflect_class_info_constant`]'s to hand
 /// back — the same split `properties` and `get` already make.
 ///
-/// The description's third roster, and its own class for the two above's
-/// reason: what a row carries past its name and its bit is a fact no other
+/// The description's third roster, and its own class for the reason
+/// [`METHOD_INFO`] and [`PROPERTY_INFO`] are: what a row carries past its name and its bit is a fact no other
 /// row has — whether the declaration folded to a value at all.
 // rank: 1440
 pub(crate) const CONSTANT_INFO: CoreClass = CoreClass {

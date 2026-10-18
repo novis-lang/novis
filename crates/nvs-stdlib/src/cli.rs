@@ -2426,7 +2426,7 @@ const COLOR_CARD: ClassDoc = ClassDoc {
 /// them, which a single encoded number would make an arithmetic puzzle.
 ///
 /// § 13's styling half — `rule:tooling/styling-is-a-value-not-a-grammar`'s two value types, which exist so that
-/// the carrier above has something to wear that is not a grammar.
+/// the `Core\Cli\Text` carrier has something to wear that is not a grammar.
 // rank: 590
 pub(crate) const COLOR: CoreClass = CoreClass {
     name: COLOR_NAME,

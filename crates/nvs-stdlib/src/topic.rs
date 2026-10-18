@@ -229,10 +229,10 @@ pub(crate) const NAME: &str = r"Core\Topic";
 /// name for the same connection, and the first thing it could get wrong is
 /// being used from a different one.
 ///
-/// `rule:core-classes/topic`, and beside the class whose `receive` is the only thing a
+/// `rule:core-classes/topic`, and ranked beside `Core\Socket`, whose `receive` is the only thing a
 /// topic delivery arrives through: the bus is the *second* of § 3's two
 /// sources, so it is not a facility of its own but the far end of a member
-/// already registered above. [`crate::topic`] owns why the subscriber table
+/// `Core\Socket` already registers. [`crate::topic`] owns why the subscriber table
 /// is per core and holds a weak reference, and why `publish` — § 4's third
 /// row — is not here yet.
 // rank: 810

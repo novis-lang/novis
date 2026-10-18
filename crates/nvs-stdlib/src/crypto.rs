@@ -672,10 +672,11 @@ const KEY_PAIR_CARD: ClassDoc = ClassDoc {
 
 /// `rule:core-api/tier-roster`'s AEAD-only surface, as registry rows.
 ///
-/// `rule:core-api/tier-roster`'s "AEAD only", and beside the two above for their reason:
-/// this is the class whose `secret bytes` key crosses the same boundary
-/// without any member removing the mark, which is what keeps the roster
-/// above closed at two. [`crate::crypto`] owns the construction and why
+/// `rule:core-api/tier-roster`'s "AEAD only", and ranked beside `Core\Secret` and
+/// `Core\Password` for their reason: this is the class whose `secret bytes` key
+/// crosses the same boundary without any member removing the mark, which is
+/// what keeps `rule:core-classes/secret-reveal`'s roster closed at two.
+/// [`crate::crypto`] owns the construction and why
 /// there is no cipher argument.
 // rank: 920
 pub(crate) const CLASS: CoreClass = CoreClass {

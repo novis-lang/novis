@@ -427,7 +427,7 @@ const VERIFY_ISSUED_OPTIONS: &[CoreOption] = &[
 /// is the one class here that reads a field an attacker wrote. Its own
 /// module doc is the home of why `alg` is only ever compared, why the
 /// expiry is a positional `Duration` rather than a claim, and why a claim
-/// comes back as `tainted string` when the cookie above launders.
+/// comes back as `tainted string` when `Core\SignedCookie` launders.
 // rank: 980
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
