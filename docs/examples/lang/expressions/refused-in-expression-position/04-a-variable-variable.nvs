@@ -1,0 +1,8 @@
+<?nvs
+// Shows that a variable variable such as `$$name` does not exist, so this
+// program does not compile. Use an array with a key for each name instead.
+// proof: compile-error
+
+string $name = "value";
+string $value = "x";
+echo $$name;

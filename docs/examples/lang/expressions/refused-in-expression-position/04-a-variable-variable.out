@@ -1,0 +1,9 @@
+error[E0202]: variable variables (`$$name` / `${expr}`) are not supported
+  --> 04-a-variable-variable.nvs:8:6
+  |
+8 | echo $$name;
+  |      ^^^^^^ defeats name resolution and type inference
+  = help: use an explicit `array<T>` instead — its keys are `string`, so one entry per name
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

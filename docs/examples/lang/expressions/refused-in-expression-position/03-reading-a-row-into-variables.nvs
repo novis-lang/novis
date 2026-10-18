@@ -17,7 +17,7 @@ array<string> $form = ["email" => "grace@example.com", "country" => "US"];
 echo $form["email"], "\n";
 echo $form["phone"] ?? "no phone given", "\n";
 
-// The key can come from a variable, which is what `$$name` was for in PHP. An
-// array read does the same work and the compiler still knows the type.
+// The key can come from a variable. This replaces a variable variable such as
+// `$$name`, and the result still has a type: here it is a `string`.
 string $wanted = "country";
 echo $form[$wanted], "\n";
