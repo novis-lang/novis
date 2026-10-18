@@ -273,12 +273,17 @@ with each.
       - [x] `values-written-in-the-code`
       - [x] `widening-without-as`
       - [x] `the-conversion-operator-as`
-    - [ ] `property-keys`, `property-paths`, `strings-with-holes` and `narrowing`
+    - [x] `property-keys`, `property-paths`, `strings-with-holes` and `narrowing`
       - [x] `property-keys`
       - [x] `property-paths`
-      - [ ] `strings-with-holes`
-      - [ ] `narrowing`
+      - [x] `strings-with-holes`
+      - [x] `narrowing`
     - [ ] `truthiness`, `parameters`, `properties-and-constants`, `qualifiers-tainted-and-secret` and `what-does-not-exist`
+      - [x] `truthiness`
+      - [x] `parameters`
+      - [ ] `properties-and-constants`
+      - [ ] `qualifiers-tainted-and-secret`
+      - [ ] `what-does-not-exist`
   - [ ] `30-expressions`, `50-classes` and `55-enums`
   - [ ] `60-iteration`, `70-errors` and `80-concurrency`
   - [ ] `90-attributes` and `95-testing`
@@ -506,6 +511,28 @@ a non-object, the run-time messages (an empty part too), `E0235` for `$obj->$pat
 Example 04 is the chapter's `as` error, extended to each message, and 05 a wrong literal path. The
 chapter did not change.
 
+`strings-with-holes`, `narrowing`, `truthiness` and `parameters` are done, each fact run on the
+binary. `strings-with-holes` found a disagreement: the chapter said a wrong hole written in the code
+is `E0405`, but for a set of strings it is `E0861`; the chapter line now says so
+(`20-types.md:1004`). Its `details.md` adds a hole's spaces, `E0401` for a literal at a local, the
+run-time messages and the tainted case; example 04 is a wrong hole (`E0405`). `narrowing` needed
+no fix. Its `details.md` adds `E0477` after the false branch of `is`, the false branch of `==` on a
+set keeping the full type, `switch (true)`, where narrowing ends (`E0459`) and `?->`; examples 04
+and 05 are the chapter's `&&`/`||` block and its `E0459` block. `truthiness` had `about.md` and
+examples 01 and 02's comments in the essay voice, now rewritten; its `details.md` adds enum cases,
+`mixed`, `-0.0`, `empty`/`isset`, `E0466` for an int `match (true)` label and the `bool` positions;
+example 04 is the chapter's `as bool` block. `parameters` found a wrong claim in four texts: the
+chapter (`20-types.md:1227`), `30-expressions.md:472`, the syntax page `syntax/functions/parameters.mdx`
+and `rule:statements/an-inout-argument-is-a-local` all said a property cannot be passed `inout`. The
+binary and the conformance cases (`a-by-reference-argument-is-written-inout-at-both-ends.nvst`,
+`an-inout-argument-names-storage-that-outlives-the-call.nvst`) accept an instance property, which
+`check_inout_arg` (`crates/nvs-types/src/expr/args.rs:1361`) does on purpose. All four now say so;
+the rule's id is kept and its title changed. Its `details.md` has `E0451`, `E0402`, `E0488`, `E0486`,
+`E0487`, the `E0439` list, `E0440`, `E0713`, `E0237` and `E0493`; example 04 is `E0713`. Probing found
+a missing diagnostic: a variadic parameter that is not the last compiles and acts as a plain one,
+now the gap record `data/gaps/nvs-types/a-variadic-parameter-that-is-not.json`, owned by
+`release-hardening`. `website/public/llms-full.txt` is rendered again with the chapter changes.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -515,8 +542,9 @@ sessions found, and the red bench `benches/members/core/Ldap-Connection/delete.n
 
 ### Next
 
-`20-types` from `strings-with-holes` (7 features left; `strings-with-holes` is 55 lines, `narrowing`
-140, so take them together), one feature per slice. The chapter's `(int)$n` error block
+`20-types` from `properties-and-constants` (3 features left; `properties-and-constants` is 32
+lines, `qualifiers-tainted-and-secret` 123 and `what-does-not-exist` the rest, so take them
+together), one feature per slice. The chapter's `(int)$n` error block
 (`20-types.md:756`) goes to `what-does-not-exist` with its own section. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -527,7 +555,7 @@ A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` 
 probe is a file under `.agent-tmp/` written with Write, since the guard refuses a redirect.
 A probe catching two error types needs two variable names, or it stops at `E0406` before the line
 you meant to test. A probe's method goes in a class: a top-level `function` stops at `E0215`.
-- [ ] `20-types` from `strings-with-holes`, in chapter order. `docs/reference/lang/20-types.md:993`
+- [ ] `20-types` from `properties-and-constants`, in chapter order. `docs/reference/lang/20-types.md:1262`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:types`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
