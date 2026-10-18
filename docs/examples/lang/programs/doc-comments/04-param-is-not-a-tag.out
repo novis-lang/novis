@@ -1,0 +1,9 @@
+error[E0128]: `@param` is not a documentation tag
+  --> 04-param-is-not-a-tag.nvs:9:9
+  |
+9 |     /// @param int $cents the price to double
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not `@see` or `@example`
+  = help: name the parameter in a sentence instead — its type is already in the signature
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

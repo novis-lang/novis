@@ -1,0 +1,15 @@
+<?nvs
+// Shows that `@param` is not a tag in a doc comment, so this program does not
+// compile. The signature already gives the type of `$cents`.
+// proof: compile-error
+
+/// A price in cents.
+final class Price {
+    /// Doubles a price.
+    /// @param int $cents the price to double
+    public static function double(int $cents): int {
+        return $cents * 2;
+    }
+}
+
+echo Price::double(250), "\n";
