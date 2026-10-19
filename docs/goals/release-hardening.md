@@ -357,10 +357,23 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 9 are done. Stage 10 waits on full run 39272328614.
+Stages 1 to 9 are done. Stage 10 waits on full run 39276660114.
 
-- **`main` is pushed at `067fae174`, and full run 39272328614 is dispatched on it.** Its push run
-  39272322471 is cancelled. The user gave the push-and-watch loop to this loop alone.
+- **`main` is pushed at `94ff16d2f`, and full run 39276660114 is dispatched on it.** Its push run
+  39276646244 is cancelled. The user gave the push-and-watch loop to this loop alone.
+- **Run 39272328614 (`067fae174`) failed two jobs in its first 15 minutes. It was cancelled, and
+  both are fixed:**
+  - `asan`: a stack-buffer-overflow in `nvs-stdlib`'s `html_later`, right after ASan warned it was
+    ignoring `__asan_handle_no_return` on a stack it did not know. A panic unwinding on a task's
+    coroutine stack left stale poison that a later task hit. The previous run was green on the same
+    code. `corosensei`'s own `sanitizer` feature reports each switch and unpoisons a stack before
+    reuse. `nvs-host/asan` forwards it, and the ASan step turns it on (`2ad211bb6`,
+    `crates/nvs-host/Cargo.toml:31`, `.github/workflows/ci.yml:1290`). Under WSL, nine `html_later`
+    runs and the whole step had no ASan report. Its four failures there check file modes and Unix
+    sockets, which `/mnt/e` lacks.
+  - `test / windows-x86_64`: the Chocolatey feed answered 503 for `memurai-developer`. The step
+    now checks `choco`'s exit code and tries four times (`94ff16d2f`, `.github/workflows/ci.yml:187`).
+  - So that run checked neither the Windows `test` leg's time nor the zip attack.
 - **Run 39258294723 (`f115f6791`) was green on every job but two, and both are fixed:**
   - `proofs / windows-x86_64`: the `Core\Zip::extract` attack printed its last line and was still
     running at its 30 s limit. Step 6c created 19,200 folders (300 files, 64 deep), 6.7 s of the
@@ -387,8 +400,9 @@ Stages 1 to 9 are done. Stage 10 waits on full run 39272328614.
   - Stamp an example with an `nvs` built from the tree being stamped.
   - `cost guards` missed core scaling once on Linux (1.33× of 1.5×) and once on Windows. Each
     passed on the next run. A timing guard that fails with no change behind it is run again.
-  - `bun nv verify` fails on load only in `nvs-ext` `spreadsheet_read`, `nvs-cli` `live_edit` and
-    `init`, and `nvs-stdlib` `ldap`. Each passes alone.
+  - `bun nv verify` fails on load only in `nvs-ext` `spreadsheet_read`, `nvs-cli` `live_edit`,
+    `init` and `examples` (`cache-shared-tls.nvs` missed its connect deadline), and `nvs-stdlib`
+    `ldap`. Each passes alone.
 - **Shard logs:** `gh api --allow-escape-sequences repos/novis-lang/novis/actions/jobs/<id>/logs`,
   strip `\x1b\[[0-9;]*m` with `perl -pe`, then grep `(TIMEOUT|PASS|FAIL) +\[ *>?([0-9]{3})\.`.
 - **A watch script** that prints each failed job and step once, and the run's end, is a few lines
@@ -399,7 +413,8 @@ Stages 1 to 9 are done. Stage 10 waits on full run 39272328614.
 Stage 10's push-and-watch loop over `.github/workflows/ci.yml`:
 - [x] Run 39258294723: every failure is fixed at its cause and committed (`b99670cc9`, `067fae174`), and stage 8 is done. `docs/goals/release-hardening.md:263`
 - [x] `main` is pushed at `067fae174`, and full run 39272328614 is dispatched. `docs/goals/release-hardening.md:332`
-- [ ] Watch run 39272328614 at step level. On a failure, fix it while the run goes on, then push and dispatch again once it ends. `docs/goals/release-hardening.md:336`
+- [x] Run 39272328614: the `asan` and Windows Redis failures are fixed at their causes and committed (`2ad211bb6`, `94ff16d2f`), and `main` is pushed with full run 39276660114 dispatched. `.github/workflows/ci.yml:1290`
+- [ ] Watch run 39276660114 at step level with the watch script the State describes, under Monitor. On a failure, fix it, then push and dispatch again. `docs/goals/release-hardening.md:336`
 - [ ] Check `test / windows-x86_64`'s total time against its new 120 minutes, and the zip attack on `proofs / windows-x86_64`. `.github/workflows/ci.yml:127`
 - [ ] When one run is green on every job, tick stage 10's two open items with its id, set stage 10 done, run the goal-end gates (`bun nv verify --doc`, `bun nv owners --closes release-hardening`), and write `DONE`. `docs/goals/release-hardening.md:351`
 
