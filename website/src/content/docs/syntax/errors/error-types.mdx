@@ -3,12 +3,13 @@ title: Error types
 covers: ['lang:errors/the-throwable-tree', 'lang:errors/properties-not-accessors', 'lang:errors/constructing-and-subclassing', 'Throwable', 'LogicError', 'RuntimeError', 'IOError', 'ParseError', 'TimeoutError', 'RecursionError', 'ArithmeticError', 'Core\Cli\NotInteractive', 'Core\Db\DbError', 'Core\Db\RolledBack', 'Core\Script\Finished']
 description: The classes an error can have, the properties every error has, and how to write your own error class.
 ---
+import FeatureSection from '@components/FeatureSection.astro'
 import Snippet from '@components/Snippet.astro'
 
 Every error is an object of a class under `Throwable`. The list of classes is short and fixed.
 Each built-in failure throws one of them.
 
-<Snippet src="syntax/error-types/01-built-in-errors.nvs" />
+<FeatureSection examples="lang/errors/the-throwable-tree" heading="The error classes" id="the-throwable-tree" />
 
 | Class | Extends | Thrown for |
 |---|---|---|
@@ -27,27 +28,11 @@ Each built-in failure throws one of them.
 The page of every `Core` method lists the classes it throws. So a `catch` can name exactly the
 class it expects.
 
-## Properties
+<FeatureSection examples="lang/errors/properties-not-accessors" heading="Properties" id="properties" />
 
-Every error has four properties, and no methods to read them:
+`Core\Db\DbError` also has `kind`, and `Core\Db\RolledBack` has `reason`.
 
-| Property | Type | Value |
-|---|---|---|
-| `message` | `string` | the text given to the constructor |
-| `previous` | `?Throwable` | the error that caused this one, or `null` |
-| `backtrace` | `array<string>` | the calls that led to the error, one `Class::method() at file:line` each, the last call first |
-| `location` | `string` | the `file:line` of the `throw` |
-
-`ParseError` also has `issues`, a list of the problems found. `Core\Db\DbError` has `kind`, and
-`Core\Db\RolledBack` has `reason`. There are no error numbers. The class is the kind of failure.
-
-## Your own error class
-
-The constructor of every error class is `constructor(string $message, {previous?: Throwable})`.
-The message is required. Your class can extend any class in the list. If it has its own
-constructor, it calls `parent::constructor($message)` and can add properties.
-
-<Snippet src="syntax/error-types/02-your-own-error.nvs" />
+<FeatureSection examples="lang/errors/constructing-and-subclassing" heading="Your own error class" id="your-own-error-class" />
 
 ## Ending the program is not an error
 

@@ -135,11 +135,11 @@
   },
   "syntax/errors/assert-and-dump.mdx": {
     "Core\\Test\\Failure": "ad8300273588bcbf",
-    "lang:errors/assertion-failures": "88db8374fafda2b9",
-    "lang:errors/inspecting-a-value": "aed577d1aafee13c"
+    "lang:errors/assertion-failures": "841dc7eff7913cf7",
+    "lang:errors/inspecting-a-value": "ec2c0309b592bb83"
   },
   "syntax/errors/catch-expression.mdx": {
-    "lang:statements/catch-as-an-expression": "afbf4d44ec9c0788"
+    "lang:statements/catch-as-an-expression": "0363fd2a5454bdf3"
   },
   "syntax/errors/error-types.mdx": {
     "ArithmeticError": "fc4903c59062fa25",
@@ -148,30 +148,30 @@
     "Core\\Db\\RolledBack": "e253aa9c8bdbe69f",
     "Core\\Script\\Finished": "d67e0a8d12713160",
     "IOError": "dcea56a0ab16c5c1",
-    "lang:errors/constructing-and-subclassing": "728544e799ad3a70",
-    "lang:errors/properties-not-accessors": "6c7355f56135af3a",
-    "lang:errors/the-throwable-tree": "131de6f6dac10316",
+    "lang:errors/constructing-and-subclassing": "749b2e2a7e6fde6e",
+    "lang:errors/properties-not-accessors": "d7645c307def8b51",
+    "lang:errors/the-throwable-tree": "8846908112668a5a",
     "LogicError": "cd5f4e4f9909071d",
     "ParseError": "745c7b0b84cecbaf",
     "RecursionError": "3cb3c356b0494e81",
     "RuntimeError": "1791596ea867a73b",
-    "Throwable": "7077ca7901eb238c",
+    "Throwable": "a4635907584cea25",
     "TimeoutError": "4c638020de9e7f10"
   },
   "syntax/errors/limits.mdx": {
-    "lang:errors/capability-denials-are-catchable": "ab28d1ff5f226a7f",
-    "lang:errors/fatal-errors-limits-no-catch-sees": "be8273bb85f50929",
-    "lang:errors/recursion-depth": "1f5f5b10c2cd3562"
+    "lang:errors/capability-denials-are-catchable": "1bd1900e4df38ee4",
+    "lang:errors/fatal-errors-limits-no-catch-sees": "f851900587a26a8b",
+    "lang:errors/recursion-depth": "1994b3462ba8f601"
   },
   "syntax/errors/rethrowing.mdx": {
-    "lang:errors/an-uncaught-throw": "53a30945bc339e60",
-    "lang:errors/rethrowing": "34f63fcfb5a41045"
+    "lang:errors/an-uncaught-throw": "ff59ccbcdfbd86cf",
+    "lang:errors/rethrowing": "d783db9b0e9d48b7"
   },
   "syntax/errors/throw-and-catch.mdx": {
-    "lang:errors/throw": "65bc00d73f9f647c",
-    "lang:errors/try-catch-finally": "2d609e464bdf57d2",
-    "lang:statements/throw": "d98da1aaaa686567",
-    "lang:statements/try-catch-finally": "bcfe6b5f24665829"
+    "lang:errors/throw": "f6826da4f4fb1419",
+    "lang:errors/try-catch-finally": "e7e6f75fde655bbb",
+    "lang:statements/throw": "28be615236a98628",
+    "lang:statements/try-catch-finally": "2e420b13e3cf8fc5"
   },
   "syntax/functions/anonymous-functions.mdx": {
     "lang:expressions/anonymous-functions": "50529d0705e4f9aa"

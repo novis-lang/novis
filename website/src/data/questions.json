@@ -13635,7 +13635,7 @@
   },
   "/syntax/errors/assert-and-dump/": {
     "feature": "syntax/errors/assert-and-dump.mdx",
-    "hash": "ad7f79e564fddaf8",
+    "hash": "ef30d803d4c80db6",
     "questions": [
       "How do I print a readable view of a variable for debugging?",
       "Show the contents of a value without changing the page output",
@@ -13646,7 +13646,7 @@
   },
   "/syntax/errors/catch-expression/": {
     "feature": "syntax/errors/catch-expression.mdx",
-    "hash": "a6deafbd355c6bfb",
+    "hash": "9b7a4aa3c94ac75c",
     "questions": [
       "How do I use a fallback value when a call throws an error?",
       "Give a default value on error in one line without a try block",
@@ -13657,7 +13657,7 @@
   },
   "/syntax/errors/error-types/": {
     "feature": "syntax/errors/error-types.mdx",
-    "hash": "fe7278cdc34fff0c",
+    "hash": "746f2dd00202f5e8",
     "questions": [
       "Which error classes exist and when is each one thrown?",
       "How do I write my own error class?",
@@ -13669,7 +13669,7 @@
   },
   "/syntax/errors/limits/": {
     "feature": "syntax/errors/limits.mdx",
-    "hash": "80bb24c3cf2a7d46",
+    "hash": "cb10709d7d1e7011",
     "questions": [
       "What happens when a function calls itself too many times?",
       "Why does reading a file fail without a permission?",
@@ -13680,7 +13680,7 @@
   },
   "/syntax/errors/rethrowing/": {
     "feature": "syntax/errors/rethrowing.mdx",
-    "hash": "bb953691281aeee2",
+    "hash": "db47430d0124d92b",
     "questions": [
       "How do I throw a caught error again?",
       "What happens to an error that nothing catches?",
@@ -13691,7 +13691,7 @@
   },
   "/syntax/errors/throw-and-catch/": {
     "feature": "syntax/errors/throw-and-catch.mdx",
-    "hash": "98718eb9240b85b0",
+    "hash": "9ff12095f5748ac4",
     "questions": [
       "How do I throw an error from a function?",
       "How do I handle an error with try and catch?",

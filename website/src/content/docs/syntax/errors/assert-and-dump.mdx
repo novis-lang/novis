@@ -3,25 +3,19 @@ title: Assertions and dumping values
 covers: ['lang:errors/assertion-failures', 'lang:errors/inspecting-a-value', 'Core\Test\Failure']
 description: What a failed assertion throws, and how to print a readable view of any value.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 A `Core\Test::assert...` method that fails throws `Core\Test\Failure`. `Core\Debug::render` returns
 a readable view of any value as a `Core\Cli\Text`. Its `text()` method gives the string.
 
-<Snippet src="syntax/assert-and-dump/01-assert-and-dump.nvs" />
+<FeatureSection examples="lang/errors/assertion-failures" heading="A failed assertion" id="assertion-failures" />
 
-- `Core\Test\Failure` extends `Throwable` directly. A `catch (RuntimeError $e)` does not catch it.
-- In a test method, the test runner catches it and reports the test as failed.
-- Outside a test, it is a normal error that ends the program if nothing catches it.
-- `Core\Debug::render` shows control characters, such as a tab, as `\t`.
-- A very deep or very long value is shortened. A `secret` property is hidden.
+<FeatureSection examples="lang/errors/inspecting-a-value" heading="Seeing what a value is" id="inspecting-a-value" />
 
 ## Use this when the output must stay clean
 
 `Core\Debug::dump($value)` writes the same view to standard error. It never goes into the normal
-output, so a web page or a captured output does not change. Inside a web request, it writes a log
-record at the `Debug` level. In production, that record is not kept unless `[log] level` is
-`"Debug"`.
+output, so a web page or a captured output does not change.
 
 ## Do and don't
 

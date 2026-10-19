@@ -3,31 +3,14 @@ title: Rethrowing and uncaught errors
 covers: ['lang:errors/rethrowing', 'lang:errors/an-uncaught-throw']
 description: How to throw a caught error again, and what happens to an error that nothing catches.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 `throw $e;` inside a `catch` throws the same error again. The next `try` outside can catch it.
-The class, the `message` and the `previous` stay the same. The `location` changes to the line of
-the new `throw`.
+An error that nothing catches ends the program with exit status `1`.
 
-<Snippet src="syntax/rethrowing/01-rethrowing.nvs" />
+<FeatureSection examples="lang/errors/rethrowing" heading="Rethrowing" id="rethrowing" />
 
-## An error that nothing catches
-
-An error that no `catch` handles ends the program with exit status `1`. Everything printed before
-it stays in the output. The error goes to standard error as one log line. That line has the
-message, the class and one entry for each function call, innermost first.
-
-The log line is JSON by default. With `format = "text"` in the `[log]` block of `nvs.toml`, it is
-plain text:
-
-```text
-[error] no row 7
-  class => string(12) "RuntimeError"
-#0 Repo::get() at main.nvs:4
-#1 <script>() at main.nvs:9
-```
-
-There is no global error handler. You catch an error, or it ends the program.
+<FeatureSection examples="lang/errors/an-uncaught-throw" heading="An error that nothing catches" id="an-uncaught-throw" />
 
 ## Use this when you want to add information
 
