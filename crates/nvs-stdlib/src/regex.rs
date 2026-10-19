@@ -1182,12 +1182,32 @@ fn search_cost(built: &Compiled, spelled: &str) -> usize {
 /// The budget is fixed when the program is built and cannot be moved per
 /// match, which is why [`CACHE`] keys on it.
 ///
+/// A subroutine call (`\g<1>`, `\g0`, `(?P>name)`) is refused here, before the
+/// engine sees it, as `rule:core-classes/regex-syntax` requires. `fancy-regex`
+/// parses one and compiles it by copying the group it calls into the program,
+/// down to a recursion depth of 19, so a pattern that calls itself twice is
+/// 2^19 copies of itself: gigabytes from a hundred bytes of text, before any
+/// step budget applies. Past that depth the call fails to match, which is the
+/// approximation that rule forbids.
+///
+/// **What it spends:** the pattern parsed a second time, once per pattern per
+/// core on a cache miss, and only for a pattern the linear engine refused.
+///
 /// # Errors
 ///
 /// The sentence [`build`] answers with for a pattern neither engine compiles;
 /// it quotes `pattern` as the program wrote it rather than [`effective`]'s
 /// flag-wrapped form.
 fn backtracking(pattern: &str, spelled: &str, budget: usize) -> Result<Compiled, String> {
+    // A text that does not parse falls through, so the builder below names
+    // its own parse error.
+    if fancy_regex::Expr::parse_tree(spelled).is_ok_and(|tree| tree.contains_subroutines) {
+        return Err(format!(
+            "`{pattern}` is not a pattern either engine can compile: it uses a subroutine \
+             call, such as `\\g<1>` or `(?P>name)`. Subroutine calls and recursion are not \
+             supported."
+        ));
+    }
     Ok(Compiled::Backtracking(
         fancy_regex::RegexBuilder::new(spelled)
             .backtrack_limit(budget)
@@ -2511,6 +2531,42 @@ mod tests {
             .expect_err("an unclosed group is not a pattern");
         assert!(format!("{err:?}").contains("(unclosed"), "{err:?}");
     }
+
+    /// A subroutine call is refused before `fancy-regex` builds it, in every
+    /// syntax that engine reads as one. Built, `a|b\g0\g0` is 2^19 copies of
+    /// itself and `a|b\g0\g0\g0` 3^19: the second ran the `regex` fuzz target
+    /// out of memory, in the shape of [`FUZZ_SUBROUTINE_BLOWUP`].
+    #[test]
+    fn a_subroutine_call_is_refused_before_it_is_built() {
+        for pattern in [
+            FUZZ_SUBROUTINE_BLOWUP,
+            r"a|b\g0\g0",
+            r"a|b\g0\g0\g0",
+            r"(a)\g1",
+            r"(a)\g<1>",
+            r"(a)\g'1'",
+            r"(?<w>a)\g<w>",
+            r"(?P<w>a)(?P>w)",
+            r"(a)\g<-1>",
+        ] {
+            let refused = validate(pattern).expect_err(pattern);
+            assert!(refused.contains("subroutine call"), "{pattern}: {refused}");
+            // The runtime path reaches the same refusal, whatever tier a
+            // literal was prepared for.
+            for prepared in [None, Some(Tier::Backtracking)] {
+                let refused = tiered(pattern, NO_FLAGS, prepared).expect_err(pattern);
+                assert!(refused.contains("subroutine call"), "{pattern}: {refused}");
+            }
+        }
+        // A backreference is not a subroutine call and stays on the second tier.
+        assert_eq!(validate(r"(a)\1"), Ok(Tier::Backtracking));
+    }
+
+    /// The input the `regex` fuzz target ran out of memory on, byte for byte:
+    /// two `\g0` calls of the whole pattern under a top-level alternation.
+    const FUZZ_SUBROUTINE_BLOWUP: &str = "{|C{tion6%\x0b\0]G{?\n{|C{C|\x01\n\x0b\x03\x0b\\g0\x03\0\0\
+        \\n\x16\n?3\n?+]C|\x01\n\x0b\x03\x03Punctuation6%\x0b\0]G{?\n{|C{C|\x01\n\x0b\x03\x0b\
+        \\g0\x03\0\0\\n\x16\n?3\n?+]\x04\x01%Script?\n?,'";
 
     /// The catastrophic pair every backtracking-budget assertion below runs
     /// against: a backreference puts the pattern on the second tier and stops
