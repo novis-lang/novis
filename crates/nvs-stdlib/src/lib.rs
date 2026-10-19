@@ -348,9 +348,11 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         .chain([
             html::MARKUP_SYMBOL,
             html::MARKUP_CONCAT_SYMBOL,
+            html::MARKUP_APPEND_SYMBOL,
             html::ESCAPE_TEXT_SYMBOL,
             html::MARKUP_TEXT_SYMBOL,
             cli::TEXT_CONCAT_SYMBOL,
+            cli::TEXT_APPEND_SYMBOL,
         ])
         .map(|symbol| (symbol, address_of(symbol)))
         .collect()
@@ -551,10 +553,11 @@ mod tests {
                 // are two symbols and one construct — and `await`, `rule:core-classes/html-auto-escape`'s `as Markup` and `Markup + Markup`, `rule:tooling/styling-is-a-value-not-a-grammar`'s
                 // `Text + Text`, and `rule:core-classes/html-template`'s html
                 // template, whose segment and hole are a second pair behind one
-                // construct: eight symbols behind six constructs, each syntax
-                // rather than a call, so none of them has a row either — see
-                // `script`'s, `html`'s and `cli`'s module docs.
-                + 8
+                // construct, and the two carriers' `$x = $x + …` appends: ten
+                // symbols behind six constructs, each syntax rather than a
+                // call, so none of them has a row either — see `script`'s,
+                // `html`'s and `cli`'s module docs.
+                + 10
         );
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
     }

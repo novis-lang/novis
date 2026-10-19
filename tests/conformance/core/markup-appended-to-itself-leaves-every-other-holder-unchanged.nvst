@@ -1,0 +1,38 @@
+--TEST--
+`$page = $page + $b` grows `$page` alone, so a copy, a list entry and a caller's argument keep what they held — `rule:core-classes/html-auto-escape`
+--FILE--
+<?nvs
+class Page {
+    public static function grow(Core\Html\Markup $page): Core\Html\Markup {
+        $page = $page + ("!" as Core\Html\Markup);
+        return $page;
+    }
+}
+
+// Each step adds to the page, and each value stored on the way keeps its own text.
+var $page = "a" as Core\Html\Markup;
+array<Core\Html\Markup> $steps = [];
+uint $i = 0;
+while ($i < 3) {
+    $steps[] = $page;
+    $page = $page + ("b" as Core\Html\Markup);
+    $i = $i + 1;
+}
+echo $page, "|", $steps[0], "|", $steps[1], "|", $steps[2], "\n";
+
+// A copy taken before the step still has the old text.
+var $copy = $page;
+$page = $page + ("c" as Core\Html\Markup);
+echo $page, "|", $copy, "\n";
+
+// The page added to itself.
+$page = $page + $page;
+echo $page, "\n";
+
+// A method that grows its parameter does not change the caller's variable.
+echo Page::grow($copy), "|", $copy, "\n";
+--EXPECT--
+abbb|a|ab|abb
+abbbc|abbb
+abbbcabbbc
+abbb!|abbb

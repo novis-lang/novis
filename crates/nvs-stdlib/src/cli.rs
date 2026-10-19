@@ -1091,6 +1091,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cli_text_styled" => (nvs_core_cli_text_styled as *const ()).cast(),
         "nvs_core_cli_text_text" => (nvs_core_cli_text_text as *const ()).cast(),
         TEXT_CONCAT_SYMBOL => (nvs_core_cli_text_concat as *const ()).cast(),
+        TEXT_APPEND_SYMBOL => (nvs_core_cli_text_append as *const ()).cast(),
         "nvs_core_cli_color_index" => (nvs_core_cli_color_index as *const ()).cast(),
         "nvs_core_cli_color_rgb" => (nvs_core_cli_color_rgb as *const ()).cast(),
         "nvs_core_cli_style_of" => (nvs_core_cli_style_of as *const ()).cast(),
@@ -2355,31 +2356,113 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_cli_text_concat(_ctx, args: [2]) {
         let mut runs = NvsArray::new();
         for (operand, position) in [(args[0], "the left operand"), (args[1], "the right operand")] {
-            let carrier = crate::instance::receiver(operand, &TEXT, position)?;
-            let held = crate::instance::slot(carrier, TEXT_RUNS);
-            // Unreachable from source: a carrier's slots hold what this module
-            // put there. The check stays because the ABI is `*const Value`,
-            // which carries no promise.
-            let array = held.array_ptr().ok_or_else(|| {
-                Fault::fatal(format!(
-                    "{position} of `Text + Text` holds its runs in an array, got tag {}",
-                    held.tag_byte()
-                ))
-            })?;
-            for entry in crate::str::Elements::of(array) {
-                #[expect(
-                    unsafe_code,
-                    reason = "the sum keeps a reference of its own to every run \
-                              its operands lend it, and both operands are live \
-                              for the length of this call"
-                )]
-                unsafe {
-                    entry.retain();
-                }
-                runs.append(entry);
-            }
+            append_runs(&mut runs, runs_of(operand, position)?);
         }
         of_runs(runs)
+    }
+}
+
+/// The runs array of the `Text` in `operand`, **borrowed** from its slot.
+fn runs_of(operand: Value, position: &str) -> Result<*mut nvs_runtime::ArrayHeader, Fault> {
+    let carrier = crate::instance::receiver(operand, &TEXT, position)?;
+    let held = crate::instance::slot(carrier, TEXT_RUNS);
+    // Unreachable from source: a carrier's slots hold what this module put
+    // there. The check stays because the ABI is `*const Value`, which carries
+    // no promise.
+    held.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{position} of `Text + Text` holds its runs in an array, got tag {}",
+            held.tag_byte()
+        ))
+    })
+}
+
+/// Appends every entry of `from` to `runs`, each with a reference of its own.
+fn append_runs(runs: &mut NvsArray, from: *mut nvs_runtime::ArrayHeader) {
+    for entry in crate::str::Elements::of(from) {
+        #[expect(
+            unsafe_code,
+            reason = "`runs` keeps a reference of its own to every run `from` lends \
+                      it, and `from` is live for the length of the caller's call"
+        )]
+        unsafe {
+            entry.retain();
+        }
+        runs.append(entry);
+    }
+}
+
+/// The symbol `$out = $out + $b` lowers to where `$out` is a local holding a
+/// `Text` — [`TEXT_CONCAT_SYMBOL`]'s composition, appending into the left
+/// operand where nothing else holds it.
+///
+/// Row-less for [`TEXT_CONCAT_SYMBOL`]'s reason, and reached only from that
+/// one statement shape, because writing into the left operand is sound only
+/// where its holder is re-pointed at the answer.
+pub const TEXT_APPEND_SYMBOL: &str = "nvs_core_cli_text_append";
+
+nvs_runtime::nvs_helper! {
+    /// `$out = $out + $b` over two `Core\Cli\Text` — the same composition as
+    /// [`nvs_core_cli_text_concat`], and the whole of what
+    /// [`TEXT_APPEND_SYMBOL`] does.
+    ///
+    /// `nvs_ir` calls this only where the variable that holds the left operand
+    /// is re-pointed at the answer. When that variable is the left object's one
+    /// owner, the right operand's runs are appended to the left's runs, and its
+    /// rendering to the left's rendering. A run's rendering closes its own
+    /// styling, so the two renderings joined are the rendering of the joined
+    /// runs. Any other left operand, and a right operand that is the same
+    /// object, takes the copy.
+    ///
+    /// **What it spends:** nothing per composition on the in-place path beyond
+    /// the doubling of the runs array and of the rendering. The copy path
+    /// spends what [`nvs_core_cli_text_concat`] does.
+    fn nvs_core_cli_text_append(_ctx, args: [2]) {
+        let carrier = crate::instance::receiver(args[0], &TEXT, "the left operand")?;
+        let other = crate::instance::receiver(args[1], &TEXT, "the right operand")?;
+        let added = runs_of(args[1], "the right operand")?;
+        runs_of(args[0], "the left operand")?;
+        let rendered = crate::instance::slot(other, nvs_runtime::CARRIER_TEXT_SLOT);
+        for (held, position) in [
+            (crate::instance::slot(carrier, nvs_runtime::CARRIER_TEXT_SLOT), "the left operand"),
+            (rendered, "the right operand"),
+        ] {
+            // Unreachable from source, for `runs_of`'s reason.
+            if held.str_ptr().is_none() {
+                return Err(Fault::fatal(format!(
+                    "{position} of `Text + Text` holds its rendering in a string, got tag {}",
+                    held.tag_byte()
+                )));
+            }
+        }
+        if carrier == other || !crate::instance::sole_owner(carrier) {
+            let mut runs = NvsArray::new();
+            append_runs(&mut runs, runs_of(args[0], "the left operand")?);
+            append_runs(&mut runs, added);
+            return of_runs(runs);
+        }
+        let held = crate::instance::take_slot(carrier, TEXT_RUNS);
+        let Some(array) = held.array_ptr() else {
+            unreachable!("`runs_of` checked the left operand's runs above");
+        };
+        #[expect(
+            unsafe_code,
+            reason = "`take_slot` handed this frame the slot's own reference, which \
+                      the handle takes over and `set_slot` hands back"
+        )]
+        let mut runs = unsafe { NvsArray::from_raw(array) };
+        append_runs(&mut runs, added);
+        crate::instance::set_slot(carrier, TEXT_RUNS, Value::array(runs));
+        crate::instance::append_to_text_slot(carrier, nvs_runtime::CARRIER_TEXT_SLOT, rendered);
+        #[expect(
+            unsafe_code,
+            reason = "the left argument is a live object for the length of the call, \
+                      and the answer is a second reference to it"
+        )]
+        unsafe {
+            args[0].retain();
+        }
+        Ok(args[0])
     }
 }
 

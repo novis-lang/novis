@@ -911,6 +911,10 @@ pub enum ExprInfo {
         /// to: [`crate::CORE_HTML_MARKUP_CONCAT`] or
         /// [`crate::CORE_CLI_TEXT_CONCAT`].
         symbol: &'static str,
+        /// The symbol `$x = $x + …` lowers to instead, where `$x` is a local:
+        /// [`crate::CORE_HTML_MARKUP_APPEND`] or [`crate::CORE_CLI_TEXT_APPEND`],
+        /// which append into the left operand when `$x` is its one owner.
+        append: &'static str,
     },
     /// `$x is T`, keyed by the *`is` expression's* own span: the type its
     /// right-hand side lowered to.

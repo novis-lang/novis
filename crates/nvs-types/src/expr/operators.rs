@@ -1334,14 +1334,17 @@ fn carrier_composition_result(
     // `nvs_ir::ty::Ty` erases both to `Ty::Object`, so the lowering sees one
     // pair of representations and two possible symbols. See
     // `ExprInfo::CarrierComposition`.
-    let symbol = if left == crate::CORE_HTML_MARKUP_CLASS {
-        crate::CORE_HTML_MARKUP_CONCAT
+    let (symbol, append) = if left == crate::CORE_HTML_MARKUP_CLASS {
+        (
+            crate::CORE_HTML_MARKUP_CONCAT,
+            crate::CORE_HTML_MARKUP_APPEND,
+        )
     } else {
-        crate::CORE_CLI_TEXT_CONCAT
+        (crate::CORE_CLI_TEXT_CONCAT, crate::CORE_CLI_TEXT_APPEND)
     };
     env.exprs.record(
         span,
-        crate::expr_table::ExprInfo::CarrierComposition { symbol },
+        crate::expr_table::ExprInfo::CarrierComposition { symbol, append },
     );
     Some(lhs)
 }
