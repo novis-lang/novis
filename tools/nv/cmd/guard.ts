@@ -14,13 +14,12 @@
 // words with its quotes removed. This is not a shell: it is enough to find a command's name, its flags
 // and its file arguments, and a heredoc's body is skipped so its text is never read as commands.
 //
-// Where looper is installed, `.claude/settings.json`'s `looper guard` entry runs it: looper checks its
-// edit claims and records the entries `looper exec` reads, then runs `bun nv guard --gate`, which
-// `looper.toml`'s `[gates] guard` names. `--gate` answers in looper's protocol: a denial is its reason
-// on standard error and exit 2, and an allowed call is exit 0. Where looper is not installed, the
-// settings' `HOOK` entry runs `bun nv guard` for `Read` and `Bash`, which prints the harness's deny
-// decision and always exits 0. Either way the rules run once per call, in one `bun` process, and with
-// looper that includes every `Edit` and `Write`, which its entry also matches and these rules allow.
+// `.claude/settings.json`'s one hook entry, `HOOK`, runs the guard of looper's copy in `tools/looper/`,
+// which needs Bun alone. The copy checks its edit claims, then runs `bun tools/nv/main.ts guard --gate`,
+// which `looper.toml`'s `[gates] guard` names in place of the copy's built-in rules. `--gate` answers in
+// looper's protocol: a denial is its reason on standard error and exit 2, and an allowed call is exit 0.
+// Run without `--gate`, `bun nv guard` answers in the harness's protocol instead: it prints the deny
+// decision and always exits 0.
 //
 // `bun nv guard --check` says whether `HOOK` is wired for both tools, and whether every `nv` command a
 // rule names is registered. It exits 0 when both hold and 1 when one does not.
@@ -35,8 +34,8 @@ export const summary = "the PreToolUse hook's rules, which deny a raw command an
 
 export type Tool = "Read" | "Bash";
 export const TOOLS: Tool[] = ["Read", "Bash"];
-/** The hook command `.claude/settings.json` runs for a session with no looper on PATH. */
-export const HOOK = "command -v looper >/dev/null 2>&1 || bun nv guard";
+/** The hook command `.claude/settings.json` runs before a tool call: the guard of looper's copy. */
+export const HOOK = 'bun "$CLAUDE_PROJECT_DIR/tools/looper/main.ts" guard';
 
 export interface Call {
   tool: Tool;

@@ -1,5 +1,6 @@
 {
   "env": {
+    "CLAUDE_CODE_SHELL_PREFIX": "bash -c 'exec bun \"$(git rev-parse \"--show-toplevel\")/tools/looper/main.ts\" sh \"$0\"'",
     "CLAUDE_CODE_USE_POWERSHELL_TOOL": "0"
   },
   "hooks": {
@@ -7,16 +8,7 @@
       {
         "hooks": [
           {
-            "command": "command -v looper >/dev/null 2>&1 || bun nv guard",
-            "type": "command"
-          }
-        ],
-        "matcher": "Read|Bash"
-      },
-      {
-        "hooks": [
-          {
-            "command": "looper guard",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/tools/looper/main.ts\" guard",
             "type": "command"
           }
         ],
@@ -117,7 +109,6 @@
       "Bash(mkdir -p .agent-tmp:*)",
       "Bash(rm .agent-tmp/:*)",
       "Bash(rm -f .agent-tmp/:*)",
-      "Bash(looper:*)",
       "Bash(looper orient:*)",
       "Bash(looper status:*)",
       "Bash(looper lint:*)",
@@ -139,7 +130,22 @@
       "Bash(gh workflow run ci.yml --ref main)",
       "Bash(gh run cancel:*)",
       "Bash(gh run watch:*)",
-      "Bash(gh api repos/novis-lang/novis/actions/:*)"
+      "Bash(gh api repos/novis-lang/novis/actions/:*)",
+      "Bash(bun tools/looper/main.ts orient:*)",
+      "Bash(bun tools/looper/main.ts status:*)",
+      "Bash(bun tools/looper/main.ts lint:*)",
+      "Bash(bun tools/looper/main.ts render:*)",
+      "Bash(bun tools/looper/main.ts goal:*)",
+      "Bash(bun tools/looper/main.ts check:*)",
+      "Bash(bun tools/looper/main.ts harvested:*)",
+      "Bash(bun tools/looper/main.ts verify:*)",
+      "Bash(bun tools/looper/main.ts affected:*)",
+      "Bash(bun tools/looper/main.ts wrap:*)",
+      "Bash(bun tools/looper/main.ts doctor:*)",
+      "Bash(bun tools/looper/main.ts log:*)",
+      "Bash(bun tools/looper/main.ts links:*)",
+      "Bash(bun tools/looper/main.ts layout:*)",
+      "Bash(bun tools/looper/main.ts prose:*)"
     ]
   }
 }

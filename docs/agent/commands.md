@@ -114,13 +114,12 @@ file and says so once you have reached into the same one repeatedly.
 The harness's own tools have no such floor, so `bun nv guard` runs as a `PreToolUse` hook. Its `RULES`
 in `tools/nv/cmd/guard.ts` refuse a whole `Read`, `cat` or `sed -n` of a tracked file over
 that same 400 lines, `sleep`, a kill by process name, a write through a shell, a build or test cut with
-`head` or `tail`, and the other habits listed there, each with the call to make instead. Where looper
-is installed, the settings' `looper guard` hook checks what needs a loop, an edit or a `git add` of a
-file another session claims (§ *Other sessions' edits*), and then runs `bun nv guard --gate` through
-`looper.toml`'s `[gates] guard`. Where it is not, that hook fails and the call goes through, and the
-settings' second hook runs `bun nv guard` for `Read` and `Bash`. `bun nv guard --check` says whether
-that hook is wired. Claude Code is the only harness that reads `.claude/`; every other one gets the floor from
-`bun nv peek` alone.
+`head` or `tail`, and the other habits listed there, each with the call to make instead. The settings'
+one hook runs the guard of looper's copy, `bun "$CLAUDE_PROJECT_DIR/tools/looper/main.ts" guard`, which
+needs Bun alone. It checks an edit or a `git add` of a file another session claims (§ *Other sessions'
+edits*), and then runs `bun nv guard --gate` through `looper.toml`'s `[gates] guard`. `bun nv guard
+--check` says whether that hook is wired. Claude Code is the only harness that reads `.claude/`; every
+other one gets the floor from `bun nv peek` alone.
 
 ## What the guards refuse, and the call to make instead
 
@@ -774,31 +773,21 @@ and body readers), and before a release.
 
 ## Without looper
 
-Nothing an agent needs to do its work depends on looper being installed. looper is absent when
-`command -v looper` fails. The agent then runs no `looper` command and does what this table says. Its
-handoff names the loop-only checks it could not run. Every gate a change must pass has a `bun nv`
-command, and `tools/nv/test/without-looper.test.ts` runs the guard, the prose check and the commit hook
-with no looper on PATH. What has no `nv` command is loop coordination: goal lint, the goals README,
-claims, `looper exec` and the loop itself.
+Every `looper` command in these files is the project's own. looper's copy in `tools/looper/` runs it
+with Bun alone, so a clone with no `looper` program runs `bun tools/looper/main.ts <command>` or
+`./loop <command>` instead. Each gate a change must pass is still a `bun nv` command, which the copy
+runs through `looper.toml`'s `[verify]` and `[gates]`. `tools/nv/test/without-looper.test.ts` runs the
+guard, the prose check and the commit hook with no looper on PATH.
 
-| looper command | Without looper |
+Only what spans projects needs looper's service. Without the service, each command runs on as this
+table says.
+
+| What needs looper's service | Without it |
 |---|---|
-| `looper orient [--full]` | Read the front matter of `docs/goals/README.md`, whose first `chain` slug is the live goal. Then read `docs/goals/<slug>.md` and `docs/agent/playbook.md`. |
-| `looper verify` | Run `bun nv verify`, the `[verify] run` of `looper.toml`, or `bun nv affected --run` interactively. § *Verifying* names the narrow forms. |
-| `looper affected` | `bun nv affected`. |
-| `looper check [--name <text>]` | Run the `run` of each check in the live goal's front matter. Judge its matchers by reading the output. |
-| `looper links`, `looper layout` | `bun nv links` and `bun nv layout --check`, which looper runs through `looper.toml`'s `[gates]`. |
-| `looper prose [--all]` | `bun nv prose [--all]`, which `looper prose` runs through `looper.toml`'s `[gates] prose`. |
-| `looper lint` | Loop-only: it checks the goal files. Keep a goal's front matter in the shape the goal format gives, and name lint in the handoff as not run. |
-| `looper goal …` | Edit the goal's front matter by hand, in the shape the goal format gives. |
-| `looper render` | Leave the body of `docs/goals/README.md` as it is. The next `looper render` rewrites it. |
-| `looper wrap` | Overwrite `## Handoff`, tick what is done, and commit each slice with `git commit -F <file>`. |
-| `looper log`, `looper playbook retire` | No equivalent. |
-| `looper sync`, `looper doctor`, `looper clean` | Not needed. Never edit the text between looper's markers by hand. |
-| `looper guard` | Nothing to run. With no looper on PATH, the settings' second hook runs `bun nv guard`, which holds every rule. With looper, `looper guard` runs it through `[gates] guard`. Without looper, nothing checks another session's claims. |
-| `looper exec list`, `looper exec log`, `looper exec wait`, `looper exec kill` | No equivalent. Ask the user before stopping a process another session started. |
-| `looper claims`, `looper claims release` | No equivalent. There are no claims, so stage only your own files by name. |
-| `looper loop start` | No equivalent. The unattended loop needs looper. |
+| The heavy-job slots shared across projects | `looper verify`, `looper check` and a heavy Bash call run at once, without a slot. |
+| The usage wall shared across the account | A wall a session meets holds the loops of this project only. |
+| `looper project add` | It exits 3, since it registers the project with the service. |
+| looper's web UI | `looper status`, `looper log` and `looper exec list` print what it shows. |
 
 `tools/git-hooks/commit-msg` is this repository's own hook, and needs no looper. It rejects a trailer
 and a subject out of the shape `looper.toml`'s `[commits]` sets.
@@ -810,10 +799,7 @@ and without looper, so each check is written once, in `bun nv`, and `looper.toml
 - A check's configuration lives with the check unless looper still reads it. `[commits]` stays in
   `looper.toml` because `looper wrap` reads it, and the hook reads it there with awk. `[prose] scope` stays
   because AGENTS.md's managed block renders it. `docs/agent/prose.md` and `testing.md` are on `[sync] skip`, so they name the `bun nv` command.
-- The settings keep an entry whose command is exactly `looper guard`, because `looper doctor` and
-  `looper sync` want it. The second entry starts `bun nv guard` only where looper is absent, so the
-  rules run once either way. The cost is a `bun` start per guarded tool call, where looper's guard was
-  one native binary.
+- The settings have one guard entry, the copy's, and it runs `bun nv guard --gate` through
+  `[gates] guard`. So the rules run once per call. The cost is two `bun` starts per guarded call: the
+  copy's, then the gate's.
 - The commit hook stays in sh and awk, so a commit starts no new process.
-- Joining another session's verify run is loop coordination, so a session without looper runs
-  `bun nv verify` with `run_in_background` and joins nothing.

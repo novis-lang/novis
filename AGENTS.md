@@ -36,16 +36,16 @@ When choosing between designs:
 
 ## Novis works without looper
 
-**Every Novis developer, and CI, can do all of the project's work without looper.** The block's
-§ *looper only orchestrates* is the rule. What Novis adds to it:
+**Every Novis developer, and CI, can do all of the project's work without looper installed.** The
+block's § *The project carries its tools* is the rule. What Novis adds to it:
 
 - **Every gate is written once in `bun nv`:** the build, the tests, verify, the guard, the prose and
-  commit checks, and the doc and layout checks. Where looper's check does more, extend `bun nv` and
-  change looper to run it.
-- **Where the block names a `looper` command for a gate, the `bun nv` command it runs is what a
-  session without looper uses, and this section wins over the block.** A cleanup of this file keeps
-  every such `bun nv` command. [commands.md](docs/agent/commands.md#without-looper) § *Without looper*
-  names the command for each.
+  commit checks, and the doc and layout checks. looper's copy runs each through `looper.toml`'s
+  `[verify]` and `[gates]`. Where looper's check does more, extend `bun nv` and name it there.
+- **A cleanup of this file keeps every `bun nv` command it names.** Where no `looper` program is
+  installed, `bun tools/looper/main.ts <command>` runs each `looper` command the files name.
+  [commands.md](docs/agent/commands.md#without-looper) § *Without looper* says what runs differently
+  without looper's service.
 
 ## The rules only this project has
 
@@ -72,9 +72,8 @@ Each is here because not knowing it exists is the entire cost. The file named af
   gate runs once, at the end of the group ([commands.md](docs/agent/commands.md) § *Verifying*).
 - **The end-of-group gate is `bun nv affected --run`.** It runs `bun nv verify` over what the change
   reaches, then the acceptance checks it reaches that are not green yet. In the loop, `looper verify`
-  runs `bun nv verify` and joins a run already going. Without looper, `looper wrap` is the handoff
-  overwritten by hand and one `git commit -F <file>` per slice ([commands.md](docs/agent/commands.md)
-  § *Without looper*).
+  runs `bun nv verify` and joins a run already going ([commands.md](docs/agent/commands.md)
+  § *Verifying*).
 - **The guards refuse a shell habit a tool covers, and each refusal names the call to make instead.**
   A `>` redirect into the tree, a whole read of a big file, `cargo test -p`, `sleep` and a run wider
   than the change are among them ([commands.md](docs/agent/commands.md) § *What the guards refuse*).
@@ -256,7 +255,7 @@ What a loop session owes on top of the block's § *Session workflow*:
 |---|---|
 | A session of the unattended loop | Nothing. The driver piped the orientation pack in behind your prompt. |
 | Working interactively | `looper orient --full`: the live goal, its handoff, its decisions and the traps |
-| Working without looper | [commands.md](docs/agent/commands.md) § *Without looper*: what to do instead of each command |
+| Working without looper's service | [commands.md](docs/agent/commands.md) § *Without looper*: what runs differently without it |
 
 - **[docs/agent/commands.md](docs/agent/commands.md)**: how the project is driven, and the shell rules.
 - **[docs/agent/conventions.md](docs/agent/conventions.md)**: the shape of a commit, a comment, a test
@@ -271,18 +270,14 @@ What a loop session owes on top of the block's § *Session workflow*:
 **Every fact has exactly one home.** If two files state the same thing, the home wins and the other is a
 bug. Fix the bug rather than reconciling the two in your head.
 
-## looper only orchestrates
+## The project carries its tools
 
-- **The project works the same without looper.** Only a few of its developers have looper, and CI never
-  does. Every check a change must pass runs without looper, with the same verdict both ways. That
-  covers the build, the tests, verify, the links, the layout, the prose check, the guard and the commit
-  hook. Each is the project's own command, and looper runs it through `looper.toml`'s `[verify]` and `[gates]`.
-- **looper's own part is orchestration:** the loop and its sessions, claims, `looper exec`, and the goal
-  format with its lint and render.
-- **Never move, replace or delete a command, a check or an instruction so that the work needs looper.**
-  Where looper's check does more than the project's, extend the project's command and name it in
-  `[gates]`.
-- [commands.md](docs/agent/commands.md) § *Without looper* names what to run for each looper command.
+- **Every `looper` command is the project's own.** The kit's copy in `tools/looper/` runs with Bun
+  alone, so every clone and CI run the same checks with the same verdict.
+- **The copy is synced, never edited.** `looper sync --from <kit>` writes it from looper's kit, and
+  `looper lint` fails on a hand edit. A change to it goes into looper's kit.
+- **looper's service only spans projects:** the heavy-job slots, the usage wall, the registry and the
+  web UI. [commands.md](docs/agent/commands.md) § *Without looper* says what runs differently without it.
 
 ## The rules you will otherwise break
 
@@ -294,8 +289,8 @@ rule is its home.
 2. **One shell call runs one command.** Use `&&` between dependent steps (commands.md).
 3. **Read a big file in the region you need.** Read a file under about 400 lines whole, and Grep for
    the anchor of a bigger one (commands.md).
-4. **Test only what a change can affect, through one `looper verify` at the end,** or its steps
-   without looper (testing.md, commands.md).
+4. **Test only what a change can affect, through one `looper verify` at the end** (testing.md,
+   commands.md).
 5. **A session finishes in one pass,** as *Session workflow* below says.
 6. **A comment says what the code does now, and is rewritten as a whole** (conventions.md).
 7. **Docs describe the present only.** They carry no dates and no "previously" (doc-style.md).
@@ -321,6 +316,9 @@ rule is its home.
   - Read-only subagents go out together. Ones that write run one after another, unless each has its
     own worktree.
   - A subagent's report is a pointer to check, not evidence.
+- **Wide work goes to subagents, whatever its size.** A search across many files, the list a sweep
+  covers and a CI log go to read-only subagents. A batch of similar files, such as pages, examples or
+  test cases, goes to writing subagents once the session has landed what they build on.
 
 ## Session workflow
 
@@ -333,8 +331,9 @@ Every session runs the same steps, in this order, and **stops**:
    120k with the previous one committed. Before you take an item, write two to six checkpoints under it
    in the goal file, each a step you can tick alone. Tick each as you reach it, and the item once all are
    ticked. Tick on from checkpoints an earlier session left.
-3. **Verify what you touched, once, at the end of the group:** `looper verify`, or its steps without
-   looper.
+3. **Verify what you touched, once, at the end of the group:** `looper verify`. While you work, a build
+   is the only check, and no test runs between slices. Fix every failure verify names in one pass, then
+   run it once more.
 4. **Write the handoff once for the whole group.** Overwrite the live goal's `## Handoff` with where the
    work stands and the next group with its anchors. Tick what you finished. Add a playbook bullet if a
    trap cost you time.
@@ -351,6 +350,9 @@ Every session runs the same steps, in this order, and **stops**:
   goal. `looper render` writes the README's body, so never edit it by hand.
 - **A reached goal is not harvested: its file is deleted.** Only a check that sets `floor: true` moves
   into the floor.
+- **A goal is written so its sessions run fast:** stages that fit one session, a complete `### Next`,
+  gates, settled choices, and named splits and lanes. The shape is
+  [conventions.md](docs/agent/conventions.md) § *A goal*. A session follows its stage's `**Split:**` line.
 
 ## Commits
 
