@@ -993,8 +993,51 @@ impl<'a> Lowering<'a> {
                 self.lower_string_self_concat(name, current, value, env, cur);
                 return;
             }
+            if let Some(&(current, Ty::Object)) = env.get(&name)
+                && let ExprKind::Binary {
+                    op: BinaryOp::Add,
+                    lhs,
+                    rhs,
+                } = &value.kind
+                && matches!(&lhs.kind, ExprKind::Variable(span)
+                    if strip_sigil(span_text(self.src, *span)) == name)
+                && let Some(ExprInfo::CarrierComposition { append, .. }) =
+                    self.exprs.lookup(value.span)
+            {
+                self.lower_carrier_self_append(name, current, append, (lhs, rhs), env, cur);
+                return;
+            }
         }
         self.lower_store(target, &Stored::Expr(value), false, env, cur);
+    }
+    /// `$page = $page + $b;` where `$page` is a plain local holding a sink
+    /// carrier — `rule:core-classes/html-auto-escape`'s `Markup + Markup` or
+    /// `Text + Text` through the carrier's `append` symbol, which writes into
+    /// `$page`'s own object whenever `$page` is its one owner.
+    ///
+    /// The call borrows both operands, as every `CoreCall` does, and answers a
+    /// reference of its own: the same object grown in place, or a new one. The
+    /// binding's old reference is released after the call and the binding is
+    /// re-pointed at the answer, so an in-place answer ends at one owner again.
+    /// A throw leaves by the call's error edge before the release, with the
+    /// binding still owning what it owned.
+    ///
+    /// Statement position only, for [`Self::lower_string_self_concat`]'s
+    /// reason. A loop of these is linear in the bytes appended, where the copy
+    /// [`Self::lower_carrier_concat`] makes is quadratic.
+    fn lower_carrier_self_append(
+        &mut self,
+        name: String,
+        current: ValueId,
+        append: &'static str,
+        (lhs, rhs): (&Expr, &Expr),
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
+        let (rv, _) = self.lower_expr(rhs, Some(Ty::Object), env, cur);
+        let (answer, _) = self.lower_carrier_concat(append, [(lhs, current), (rhs, rv)], env, cur);
+        self.emit_release(*cur, current);
+        env.insert(name, (answer, Ty::Object));
     }
     /// The same assignment in **value** position — `int $b = ($a = 2);`, and
     /// the right-associative chain `$a = $b = 0;` where the inner one is the

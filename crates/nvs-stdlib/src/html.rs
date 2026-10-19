@@ -83,6 +83,18 @@
 //! [`MARKUP_TEXT_SYMBOL`], which answer a hole's bytes rather than a carrier
 //! per hole.
 //!
+//! **A page built with `+` in a loop is linear.** `$page = $page + $row` on a
+//! local lowers to [`MARKUP_APPEND_SYMBOL`] rather than
+//! [`MARKUP_CONCAT_SYMBOL`] (`nvs_ir::lower::stmt`'s
+//! `lower_carrier_self_append`), and where `$page` is the object's one owner
+//! its text grows in place under `nvs_runtime::string`'s doubling, as a string
+//! `.=` does. What that spends is the doubling's own: a page built this way
+//! holds up to twice its bytes until it is freed, charged to the request
+//! (`rule:programs/memory-priority`). Every other `+` copies both operands into
+//! a new carrier, because something else may still read the left one.
+//! `Core\Cli\Text` takes the same lowering through
+//! [`crate::cli::TEXT_APPEND_SYMBOL`].
+//!
 //! **The sink's automatic lift is none of them, and none of it is here.** Every
 //! non-`Markup` value `echo` is handed inside an HTTP request is escaped with
 //! no call written at the site, and the decision is the *sink's*: `nvs_runtime`'s
@@ -322,6 +334,15 @@ pub const MARKUP_SYMBOL: &str = "nvs_core_html_markup";
 /// that took its operands from anywhere.
 pub const MARKUP_CONCAT_SYMBOL: &str = "nvs_core_html_markup_concat";
 
+/// The symbol `$page = $page + $b` lowers to where `$page` is a local holding a
+/// `Markup` — [`MARKUP_CONCAT_SYMBOL`]'s composition, appending into the left
+/// operand where nothing else holds it.
+///
+/// Row-less for [`MARKUP_CONCAT_SYMBOL`]'s reason. It is reached only from that
+/// one statement shape, because writing into the left operand is sound only
+/// where its holder is re-pointed at the answer.
+pub const MARKUP_APPEND_SYMBOL: &str = "nvs_core_html_markup_append";
+
 /// The symbol an html template's hole lowers to — `rule:core-classes/html-template`'s
 /// escape, answering the escaped **bytes** where [`nvs_core_html_escape`]
 /// answers a carrier.
@@ -533,6 +554,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_html_to_source" => (nvs_core_html_to_source as *const ()).cast(),
         MARKUP_SYMBOL => (nvs_core_html_markup as *const ()).cast(),
         MARKUP_CONCAT_SYMBOL => (nvs_core_html_markup_concat as *const ()).cast(),
+        MARKUP_APPEND_SYMBOL => (nvs_core_html_markup_append as *const ()).cast(),
         ESCAPE_TEXT_SYMBOL => (nvs_core_html_escape_text as *const ()).cast(),
         MARKUP_TEXT_SYMBOL => (nvs_core_html_markup_text as *const ()).cast(),
         _ => return None,
@@ -826,18 +848,62 @@ nvs_runtime::nvs_helper! {
     /// `Markup` is a value type, so `$a + $b` leaves both of them where they
     /// were, and a chain of `n` fragments is `n - 1` of these.
     fn nvs_core_html_markup_concat(_ctx, args: [2]) {
-        let left = markup_slot(args[0], "the left operand")?;
-        let right = markup_slot(args[1], "the right operand")?;
-        let left = text(&left, "the left operand of `Markup + Markup`")?;
-        let right = text(&right, "the right operand of `Markup + Markup`")?;
+        markup_concat(args[0], args[1])
+    }
+}
 
-        let mut out = String::with_capacity(left.len() + right.len());
-        out.push_str(left);
-        out.push_str(right);
-        Ok(crate::instance::build(
-            &MARKUP,
-            [Value::str(NvsStr::new(out.as_bytes()))],
-        ))
+/// [`nvs_core_html_markup_concat`]'s body: a new `Markup` holding both
+/// operands' bytes, and neither operand touched.
+fn markup_concat(left: Value, right: Value) -> Result<Value, Fault> {
+    let left = markup_slot(left, "the left operand")?;
+    let right = markup_slot(right, "the right operand")?;
+    let left = text(&left, "the left operand of `Markup + Markup`")?;
+    let right = text(&right, "the right operand of `Markup + Markup`")?;
+
+    let mut out = String::with_capacity(left.len() + right.len());
+    out.push_str(left);
+    out.push_str(right);
+    Ok(crate::instance::build(
+        &MARKUP,
+        [Value::str(NvsStr::new(out.as_bytes()))],
+    ))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$page = $page + $b` over two `Core\Html\Markup` — the same composition
+    /// as [`nvs_core_html_markup_concat`], and the whole of what
+    /// [`MARKUP_APPEND_SYMBOL`] does.
+    ///
+    /// `nvs_ir` calls this only where the variable that holds the left operand
+    /// is re-pointed at the answer. When that variable is the left object's one
+    /// owner, nothing else can see the object, so its text grows in place and
+    /// the answer is the same object with one more reference. The statement then
+    /// releases the variable's old reference. Any other left operand, and a
+    /// right operand that is the same object, takes the copy.
+    ///
+    /// **What it spends:** nothing per composition on the in-place path, where
+    /// the text's doubling (`nvs_runtime::string`'s § *Capacity*) is the whole
+    /// cost: a page built in a loop holds up to twice its bytes. The copy path
+    /// spends what [`nvs_core_html_markup_concat`] does.
+    fn nvs_core_html_markup_append(_ctx, args: [2]) {
+        let carrier = crate::instance::receiver(args[0], &MARKUP, "the left operand")?;
+        let right = markup_slot(args[1], "the right operand")?;
+        text(&right, "the right operand of `Markup + Markup`")?;
+        let left = crate::instance::slot(carrier, nvs_runtime::CARRIER_TEXT_SLOT);
+        text(&left, "the left operand of `Markup + Markup`")?;
+        if args[0].bits() == args[1].bits() || !crate::instance::sole_owner(carrier) {
+            return markup_concat(args[0], args[1]);
+        }
+        crate::instance::append_to_text_slot(carrier, nvs_runtime::CARRIER_TEXT_SLOT, right);
+        #[expect(
+            unsafe_code,
+            reason = "the left argument is a live object for the length of the call, \
+                      and the answer is a second reference to it"
+        )]
+        unsafe {
+            args[0].retain();
+        }
+        Ok(args[0])
     }
 }
 
@@ -2114,6 +2180,40 @@ mod tests {
             joined.release();
             separator.release();
             parts.release();
+        }
+    }
+
+    /// `$page = $page + $b` appends into `$page`'s own object where `$page` is
+    /// its one owner, and copies where a second variable also holds it.
+    #[test]
+    fn markup_append_grows_a_sole_owner_in_place_and_copies_a_shared_one() {
+        let page = markup(b"<p>");
+        let row = markup(b"a & b");
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let grown = call(super::nvs_core_html_markup_append, &mut ctx, &[page, row])
+            .expect("appending carriers never fails");
+        assert_eq!(grown.bits(), page.bits());
+        assert_eq!(carried(grown), "<p>a & b");
+
+        // A second owner makes the append a copy, and the first owner's text
+        // stays as it was.
+        let copied = call(super::nvs_core_html_markup_append, &mut ctx, &[page, row])
+            .expect("appending carriers never fails");
+        assert_ne!(copied.bits(), page.bits());
+        assert_eq!(carried(copied), "<p>a & ba & b");
+        assert_eq!(carried(page), "<p>a & b");
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the references it built above and the two the \
+                      helper answered with"
+        )]
+        unsafe {
+            copied.release();
+            grown.release();
+            page.release();
+            row.release();
         }
     }
 

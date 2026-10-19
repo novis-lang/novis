@@ -585,7 +585,7 @@ impl<'a> Lowering<'a> {
     /// the read aliases and the value is what the call takes — and because
     /// `symbol` is what pushed the flat spelling past
     /// `clippy::too_many_arguments`.
-    fn lower_carrier_concat(
+    pub(crate) fn lower_carrier_concat(
         &mut self,
         symbol: &'static str,
         operands: [(&Expr, ValueId); 2],
@@ -838,7 +838,7 @@ impl<'a> Lowering<'a> {
         if op == BinaryOp::Add
             && lty == Ty::Object
             && rty == Ty::Object
-            && let Some(ExprInfo::CarrierComposition { symbol }) = self.exprs.lookup(whole.span)
+            && let Some(ExprInfo::CarrierComposition { symbol, .. }) = self.exprs.lookup(whole.span)
         {
             return self.lower_carrier_concat(symbol, [(&**lhs, lv), (&**rhs, rv)], env, cur);
         }

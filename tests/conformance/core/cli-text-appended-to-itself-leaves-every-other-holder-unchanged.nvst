@@ -1,0 +1,30 @@
+--TEST--
+`$out = $out + $b` over `Cli\Text` grows `$out` alone, so a copy and a list entry keep what they held — `rule:tooling/styling-is-a-value-not-a-grammar`
+--FILE--
+<?nvs
+// Each step adds to the text, and each value stored on the way keeps its own runs.
+var $out = Core\Cli\Text::plain("a");
+array<Core\Cli\Text> $steps = [];
+uint $i = 0;
+while ($i < 3) {
+    $steps[] = $out;
+    $out = $out + Core\Cli\Text::plain("b");
+    $i = $i + 1;
+}
+echo $out, "|", $steps[0], "|", $steps[1], "|", $steps[2], "\n";
+
+// A copy taken before the step still has the old text.
+var $copy = $out;
+$out = $out + Core\Cli\Text::plain(Core\Str::fromCodePoint(27));
+echo $out, "|", $copy, "\n";
+
+// The text added to itself.
+$out = $out + $out;
+echo $out, "\n";
+Core\Cli::write($out);
+echo "\n";
+--EXPECT--
+abbb|a|ab|abb
+abbb␛|abbb
+abbb␛abbb␛
+abbb␛abbb␛

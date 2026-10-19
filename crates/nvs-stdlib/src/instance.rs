@@ -912,6 +912,68 @@ pub(crate) fn set_slot(receiver: *mut ObjHeader, index: usize, value: Value) {
     }
 }
 
+/// Takes slot `index`'s reference out of `receiver`, leaving `null` in the
+/// slot — the first half of growing what a slot holds in place, which
+/// [`set_slot`] finishes by writing the grown value back.
+///
+/// The caller then owns the reference the slot owned, so a string or an array
+/// it held alone is solely owned by the caller, and an append into it writes
+/// in place rather than copying. Where something else also holds that value,
+/// the append's own copy-on-write still separates the two.
+pub(crate) fn take_slot(receiver: *mut ObjHeader, index: usize) -> Value {
+    let held = slot(receiver, index);
+    #[expect(
+        unsafe_code,
+        reason = "the slot holds a live reference for the length of the call, which \
+                  is `Value::retain`'s whole obligation"
+    )]
+    unsafe {
+        held.retain();
+    }
+    set_slot(receiver, index, Value::null());
+    held
+}
+
+/// Appends `suffix`'s bytes to the string in slot `index` of `receiver`.
+///
+/// The bytes are written in place when the slot was the string's one owner
+/// and it has room, and [`nvs_runtime::nvs_str_append`]'s doubling makes the
+/// room. A loop of these is therefore linear in the bytes appended. Both
+/// strings must be in a live slot, and they may be the same allocation.
+pub(crate) fn append_to_text_slot(receiver: *mut ObjHeader, index: usize, suffix: Value) {
+    let held = take_slot(receiver, index);
+    let (Some(target), Some(suffix)) = (held.str_ptr(), suffix.str_ptr()) else {
+        unreachable!("a carrier's text slot holds a string, which its caller checked");
+    };
+    #[expect(
+        unsafe_code,
+        reason = "`target`'s reference was taken out of the slot and is handed to \
+                  `nvs_str_append`, which yields the one that replaces it; `suffix` \
+                  is owned by a slot that is live for the length of the call"
+    )]
+    let grown =
+        unsafe { nvs_runtime::NvsStr::from_raw(nvs_runtime::nvs_str_append(target, suffix)) };
+    set_slot(receiver, index, Value::str(grown));
+}
+
+/// Whether `receiver` has exactly one owner — the one test that lets a
+/// carrier's composition write into its left operand.
+///
+/// An argument of a `CoreCall` is borrowed, so the one owner is whatever holds
+/// the value the caller passed. Only `nvs_ir`'s lowering of `$x = $x + …` calls
+/// a member that asks this, and there that owner is `$x`, which the statement
+/// re-points at the answer anyway.
+pub(crate) fn sole_owner(receiver: *mut ObjHeader) -> bool {
+    #[expect(
+        unsafe_code,
+        reason = "the receiver argument owns a reference to a live allocation, so \
+                  it is live for the length of the call"
+    )]
+    unsafe {
+        NvsObj::refcount_of(receiver) == 1
+    }
+}
+
 /// Slot `index` of `receiver`, **borrowed** — the caller takes no reference,
 /// exactly as `nvs_ir::InstKind::FieldGet` does not.
 ///

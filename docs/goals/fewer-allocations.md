@@ -6,7 +6,7 @@ context: [docs/rules/testing/member-perf-ledger.md]
 stages:
   - id: 1
     title: "Markup + Markup appends into the left operand"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/operator.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-stdlib/src/html.rs, crates/nvs-runtime/src/string.rs]
   - id: 2
     title: "the runtime's array reserves and is looked up by a borrowed key"
@@ -127,11 +127,11 @@ implementation gains a few owned-or-borrowed paths in the runtime's array and st
 
 **Does:** `$page = $page + html`…`` over n rows is linear, as string `.=` is (`rule:core-classes/html-auto-escape`).
 
-- [ ] The lowering of a carrier composition hands the left operand's reference to the helper where its holder is re-pointed at the result, as `lower_string_self_concat` does for strings. `crates/nvs-ir/src/lower/operator.rs:841`, `crates/nvs-ir/src/lower/stmt.rs:942`
-- [ ] The helper appends into the carrier's text when the object and its string each have one reference, and copies otherwise. `crates/nvs-stdlib/src/html.rs:828`, `crates/nvs-runtime/src/string.rs:378`
-- [ ] A ladder builds a page with `+` in a loop and declares `expect linear` (`rule:testing/member-perf-ledger`). `benches/scaling/templates/markup-concat.nvs:1`
-- [ ] The leak check over the ladder's program is clean. `tools/leak-check.sh:1`
-- [ ] `html.rs`'s module doc says a page built with `Markup + Markup` in a loop is linear, and what the doubling spends (`rule:programs/memory-priority`). `crates/nvs-stdlib/src/html.rs:73`
+- [x] `$x = $x + …` on a local carrier lowers to the carrier's append helper and re-points the binding at its answer, as `lower_string_self_concat` does for strings. `crates/nvs-ir/src/lower/stmt.rs:lower_carrier_self_append`
+- [x] The helper appends into the carrier's text (and a `Cli\Text`'s runs) when the object has one owner, and copies otherwise; the string and array appends do their own copy-on-write. `crates/nvs-stdlib/src/html.rs:nvs_core_html_markup_append`, `crates/nvs-stdlib/src/cli.rs:nvs_core_cli_text_append`
+- [x] A ladder builds a page with `+` in a loop and declares `expect linear` (`rule:testing/member-perf-ledger`). `benches/scaling/templates/markup-concat.nvs:1`
+- [x] The leak check over the ladder's program is clean. `tools/leak-check.sh:1`
+- [x] `html.rs`'s module doc says a page built with `Markup + Markup` in a loop is linear, and what the doubling spends (`rule:programs/memory-priority`). `crates/nvs-stdlib/src/html.rs:73`
 
 ### 2. the runtime's array reserves and is looked up by a borrowed key
 
@@ -256,20 +256,28 @@ and those hits stay.
 
 ### State
 
-No stage has started. Eighteen gap records under `data/gaps/` name this goal, and stages 2 to 9 list
-each by its file. `bun nv owners --closes fewer-allocations` lists what is still open.
+Stage 1 is done. `$page = $page + $row` on a local `Markup` or `Cli\Text` lowers to a new row-less
+append symbol (`MARKUP_APPEND_SYMBOL`, `TEXT_APPEND_SYMBOL`, recorded on
+`ExprInfo::CarrierComposition`'s `append`), and `bun nv scaling --check templates/markup-concat`
+judges the loop linear. The call borrows both operands like every `CoreCall`, and the in-place answer
+is the same object with one more reference, which the statement's release of the old binding brings
+back to one. `$page += $row` and a chain `$page = $page + $a + $b` still take the copy. Eighteen gap
+records under `data/gaps/` name this goal; `bun nv owners --closes fewer-allocations` lists them.
+
+The nightly run 39278568537 was `cancelled` with no job scheduled, in the same GitHub Actions outage
+`release-hardening`'s handoff records; nothing in the tree caused it.
 
 ### Next
 
-**Stage 1: Markup + Markup**, one file set: `crates/nvs-ir/src/lower/operator.rs`,
-`crates/nvs-ir/src/lower/stmt.rs`, `crates/nvs-stdlib/src/html.rs`, `crates/nvs-runtime/src/string.rs`.
-No gate.
+**Stage 2: the runtime's array reserves and is looked up by a borrowed key**, one file set:
+`crates/nvs-runtime/src/array.rs`, `crates/nvs-stdlib/src/arr.rs`. No gate. Follow the stage's
+`**Split:**` line first: an `Explore` subagent lists every caller of `key_bytes` and every member that
+builds a result of a known entry count.
 
-- [ ] The carrier-composition lowering hands the left reference over where its holder is re-pointed (`rule:core-classes/html-auto-escape`). `crates/nvs-ir/src/lower/operator.rs:841`, `crates/nvs-ir/src/lower/stmt.rs:942`
-- [ ] The helper appends in place at one reference each, and copies otherwise. `crates/nvs-stdlib/src/html.rs:828`, `crates/nvs-runtime/src/string.rs:378`
-- [ ] The ladder declares `expect linear`, judged by `bun nv scaling --check templates/markup-concat` (`rule:testing/member-perf-ledger`). `benches/scaling/templates/markup-concat.nvs:1`
-- [ ] The leak check over the ladder's program is clean. `tools/leak-check.sh:1`
-- [ ] `html.rs`'s module doc says the loop is linear and what the doubling spends (`rule:programs/memory-priority`). `crates/nvs-stdlib/src/html.rs:73`
+- [ ] `NvsArray` has a capacity constructor, and each member that knows its entry count uses it. `crates/nvs-runtime/src/array.rs:899`, `crates/nvs-stdlib/src/arr.rs:3102`
+- [ ] `key_bytes` borrows the key for the length of the lookup, and each caller is read against the change. `crates/nvs-stdlib/src/arr.rs:2723`
+- [ ] `core/Arr/keys.nvs`, `core/Arr/filter.nvs` and `core/Arr/hasKey.nvs` declare their new counts, recorded with `bun nv proofs --record-perf` (`rule:testing/member-perf-ledger`). `benches/members/core/Arr/keys.nvs:1`, `benches/members/core/Arr/hasKey.nvs:1`
+- [ ] The two records are deleted. `data/gaps/nvs-stdlib/member-that-builds-an-array-grows.json:1`, `data/gaps/nvs-stdlib/key-argument-is-copied-onto-the.json:1`
 
 ### Backlog
 
