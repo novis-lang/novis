@@ -18,9 +18,6 @@
 //   left when the steps have a history, then one line per item of the tree, indented by its depth. Each
 //   line holds the item's id and name, its state, its count and its time. A child job's items stand
 //   under the item that started it.
-// - `exec --exclusive -- <argv>` runs one command as a recorded `bash` job that holds every heavy-job
-//   slot, and exits with its code. A wait first prints the service's waiting line. Under a slot holder,
-//   or without the service, it takes none.
 //
 // With `--json`, `list` prints `{"jobs", "slots"}` with `slots` null without the service, `log` `{"id", "lines"}`, `kill` `{"id", "killed", "by",
 // "command"}`, `wait` `{"id", "state", "code", "lines"}` and `progress` the `View`. A refusal exits 1.
@@ -31,11 +28,7 @@
 // - `log --lines` without `--from` holds at most that many lines, and `wait` at most `WAIT_LINES`.
 // - `progress` holds one view, within the bounds of `../jobs/progress.ts`.
 
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { out } from "../jobs/sh.ts";
-import { type Lease, looperHome, type Seen, SLOT_VAR, seenSlots, takeSlots } from "../jobs/slots.ts";
-import { startJob } from "../jobs/spawn.ts";
+import { looperHome, type Seen, seenSlots } from "../jobs/slots.ts";
 import { type Entry, jobName, type JobState, storeOf } from "../jobs/store.ts";
 import { jobPids, listeners } from "../os/index.ts";
 import { type Item, MAX_BYTES, MAX_ITEMS, tookMs } from "../jobs/fold.ts";
@@ -156,32 +149,9 @@ function slotLines(seen: Seen): string[] {
   }
   for (const w of seen.waiting) {
     const project = w.project === null ? "-" : base(w.project);
-    lines.push(`waiting  ${w.all ? "every slot" : "one slot"}  ${w.kind}  ${project}  ${oneLine(w.command)}`);
+    lines.push(`waiting  ${w.kind}  ${project}  ${oneLine(w.command)}`);
   }
   return lines;
-}
-
-/** `exec --exclusive -- <argv>`: runs `argv` as a recorded `bash` job that holds every slot, and exits with its code. */
-async function exclusive(args: string[]): Promise<Report> {
-  const [dashes, ...argv] = args;
-  if (dashes !== "--" || argv.length === 0) throw usage("`exec --exclusive` takes `-- <argv>`");
-  const cwd = process.cwd();
-  const command = argv.join(" ");
-  const project = existsSync(join(cwd, "looper.toml")) ? cwd : null;
-  let lease: Lease | null = null;
-  if (!process.env[SLOT_VAR]) {
-    const asked = await takeSlots(looperHome(), "all", { kind: "bash", project, command }, (line) => process.stderr.write(`${line}\n`));
-    if ("lease" in asked) lease = asked.lease;
-    else if ("failed" in asked) process.stderr.write(`looper exec: no heavy slot: ${asked.failed}\n`);
-  }
-  try {
-    const env = lease === null ? process.env : { ...process.env, [SLOT_VAR]: lease.id };
-    const job = startJob(storeOf(cwd), { kind: "bash", argv, cwd, env, command, project, onOutput: out });
-    await lease?.hold(job.id);
-    return { code: await job.done, own: true };
-  } finally {
-    await lease?.release();
-  }
 }
 
 function listLine(e: Entry, now: number): string {
@@ -331,10 +301,8 @@ export const execCommand: Command = {
         return wait(rest);
       case "progress":
         return progress(rest);
-      case "--exclusive":
-        return exclusive(rest);
       default: {
-        const takes = "`exec` takes `list`, `log`, `kill`, `wait`, `progress` or `--exclusive`";
+        const takes = "`exec` takes `list`, `log`, `kill`, `wait` or `progress`";
         throw usage(action === undefined ? takes : `${takes}, and got \`${action}\``);
       }
     }

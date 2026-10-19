@@ -1,4 +1,4 @@
-// The slot client: how a kit job asks looper's service for heavy-job slots, which span every project on
+// The slot client: how a kit job asks looper's service for a heavy-job slot, which spans every project on
 // the machine only while the service runs (decision 0027). `docs/kit-contract.md` § *The heavy-job
 // slots* is the endpoint, which goal `kit-supervisor` serves.
 //
@@ -6,7 +6,8 @@
 //   that has `current` beside it, as `looper service install` lays it out. The service's port is the
 //   text of `<home>/looper.port`.
 // - `takeSlots` asks `POST /api/slots/take` on `127.0.0.1` every `ASK_EVERY_MS` until the service
-//   grants a lease. While it waits it hands the service's waiting line to `onWait` once.
+//   grants a lease of one slot. A job never asks for more than one (decision 0029). While it waits it
+//   hands the service's waiting line to `onWait` once.
 // - The lease is held while the asking process runs. `Lease.hold` names the job that holds it, and
 //   `Lease.release` gives it back. The service frees the lease of a process that ended, so no crash
 //   leaks one.
@@ -122,14 +123,14 @@ export async function askService(home: string | null, path: string, body?: unkno
 }
 
 /**
- * Asks the service of `home` for the slots `take` names, for `asker`, until it grants them. A wait
+ * Asks the service of `home` for the slot `take` names, for `asker`, until it grants it. A wait
  * hands the service's waiting line to `onWait` once. Gives `absent` or `failed` at once for `none`.
  */
 export async function takeSlots(home: string | null, take: Take, asker: Asker, onWait: (line: string) => void): Promise<Asked> {
   if (take === "none") return { absent: "the command takes no slot" };
   const port = portOf(home);
   if (typeof port === "string") return { absent: port };
-  const body = { pid: process.pid, started: started(process.pid), all: take === "all", ...asker };
+  const body = { pid: process.pid, started: started(process.pid), ...asker };
   let told = false;
   for (;;) {
     let answer: unknown;
@@ -158,7 +159,7 @@ export interface Seen {
   /** Each held slot: its index, its lease and the job the lease names, null before `hold`. */
   held: { index: number; lease: string; job: string | null }[];
   /** The askers that wait, the longest waiting first. */
-  waiting: { pid: number; since: number; all: boolean; kind: string; project: string | null; command: string }[];
+  waiting: { pid: number; since: number; kind: string; project: string | null; command: string }[];
 }
 
 /** The slots of the service of `home`, or null when no service answers with them. */

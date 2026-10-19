@@ -234,7 +234,6 @@ export interface Commits {
 
 export interface Jobs {
   heavy: string[];
-  exclusive: string[];
   hide_windows: boolean;
 }
 
@@ -357,7 +356,7 @@ export function defaultConfig(): Config {
     wrap: { section: [], checks: [] },
     sync: { skip: [] },
     commits: { subject_max: 71, types: [...COMMIT_TYPES] },
-    jobs: { heavy: [], exclusive: [], hide_windows: true },
+    jobs: { heavy: [], hide_windows: true },
     merge: { generated: [], render: [] },
     launch: [],
   };
@@ -682,11 +681,19 @@ const sync = table<SyncSettings>("SyncSettings", { skip: strings }, () => defaul
 
 const commits = table<Commits>("Commits", { subject_max: usize, types: strings }, () => defaultConfig().commits);
 
-const jobs = table<Jobs>(
-  "Jobs",
-  { heavy: strings, exclusive: strings, hide_windows: bool },
-  () => defaultConfig().jobs,
-);
+const jobsTable = table<Jobs>("Jobs", { heavy: strings, hide_windows: bool }, () => defaultConfig().jobs);
+
+/** What `[jobs] exclusive` is refused with: no job takes every slot (decision 0029). */
+export const NO_EXCLUSIVE = "`exclusive` is removed, because a job takes at most one heavy slot. List these commands under `heavy` instead";
+
+/** `[jobs]`, which refuses `exclusive` with `NO_EXCLUSIVE`. */
+const jobs: Reader<Jobs> = {
+  expects: jobsTable.expects,
+  read(v, at) {
+    if (isMap(v) && "exclusive" in v) throw new Refusal([...at, "exclusive"], NO_EXCLUSIVE, "key");
+    return jobsTable.read(v, at);
+  },
+};
 
 const merge = table<Merge>("Merge", { generated: strings, render: argvs }, () => defaultConfig().merge);
 
