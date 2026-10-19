@@ -3,35 +3,16 @@ title: Limits and permissions
 covers: ['lang:errors/recursion-depth', 'lang:errors/fatal-errors-limits-no-catch-sees', 'lang:errors/capability-denials-are-catchable']
 description: Which limits throw an error you can catch, and which ones stop the program at once.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 A call stack that is too deep throws `RecursionError`. A call that needs a permission you did not
 give in `nvs.toml` throws `RuntimeError`. You can catch both. The program then continues.
 
-<Snippet src="syntax/limits/01-recursion-and-access.nvs" />
+<FeatureSection examples="lang/errors/recursion-depth" heading="A call stack that is too deep" id="recursion-depth" />
 
-- A file read, a file write and starting a script each need a permission (a capability) in `nvs.toml`.
-- The error message names the method, the permission and the path. A `help:` line says where to add it.
-- With no `nvs.toml`, no permission is given.
+<FeatureSection examples="lang/errors/capability-denials-are-catchable" heading="A call without permission" id="capability-denials" />
 
-This block gives read access to the current folder:
-
-```toml
-[capabilities.fs]
-read = ["."]
-```
-
-## Limits that stop the program
-
-The `[limits]` block of `nvs.toml` sets `memory`, `cpu_time`, `wall_time` and `max_output`. A
-program that uses more memory than `memory` stops at once with `FATAL`. When `nvs.toml` does not
-set `memory`, the limit is `128M`. This is not an error object. No `catch` runs, no `finally` runs, and the exit status is `1`.
-
-`Core\Fatal::onLimit` registers one function that runs when a limit stops the program. It gets an
-array, and its `limit` key is the name of the limit. The program still ends after it.
-
-Two more things stop the program in the same way: `send` on a closed `Core\Task\Channel`, and a
-channel created with capacity `0`.
+<FeatureSection examples="lang/errors/fatal-errors-limits-no-catch-sees" heading="Limits that stop the program" id="limits-that-stop-the-program" />
 
 ## Do and don't
 

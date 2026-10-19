@@ -3,20 +3,12 @@ title: catch as an expression
 covers: ['lang:statements/catch-as-an-expression']
 description: How to write catch after an expression, to give a fallback value when it throws.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 `Repo::get($id) catch (IOError $e) => 0` returns the result of `Repo::get($id)`. If that call
 throws an `IOError`, the result is `0`. It is the short form of a `try` block that only needs a value.
 
-<Snippet src="syntax/catch-expression/01-catch-expression.nvs" />
-
-- You can add more arms: `f() catch (LogicError $a) => x catch (IOError $b) => y`. They are tested in order.
-- All arms check what the first expression threw. `x` is not checked by the `IOError` arm.
-- An arm is one expression. `return`, `break` and `continue` do not compile there. `throw` is allowed.
-- The type of the result includes the type of every arm. If `get` returns `int` and the arm gives `null`, the result is `?int`.
-- If no arm matches the error, the error is thrown again. The next `try` outside can catch it.
-- There is no `finally` in this form. Use a `try` block for that.
-- `catch` includes everything to its left up to an assignment. In `$x = $a / $b catch (ArithmeticError) => 0`, it covers the whole division.
+<FeatureSection examples="lang/statements/catch-as-an-expression" heading="catch after an expression" id="catch-as-an-expression" />
 
 ## Use this when you need statements
 
