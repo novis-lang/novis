@@ -887,9 +887,31 @@ heavy slot another session's `--record-perf` held, and was stopped before it ran
 checked with `bun nv verify --doc`, `bun nv rules --check`, `bun nv owners`, `--comments` and each
 feature's `--run --only`, all green.
 
+`70-errors`' first four features are done, each fact run on the binary. One claim was wrong: the
+chapter's property table said a throw at a file's top level has an empty `backtrace`, but it has one
+`<script>() at file:line` frame; the table now says so, and that an object never thrown has an empty
+one (`70-errors.md:87`). `the-throwable-tree`'s `details.md` has `E0303` for `Exception` and `Error`,
+`new Throwable`, `ArithmeticError`'s messages and parent, the classes a user class may extend, and
+`Core\Test\Failure` and `Core\Script::finish()`; example 04 is the chapter's `Exception` block.
+`properties-not-accessors`' has each `get…()` and `code` (`E0405`), `E0782`, `location` before and
+after a second throw, the top-level frame, `E0459` on `previous`, `issues`, and `dump`/`echo`/JSON of
+an error; example 04 is the chapter's `getMessage` block. Its `about.md` said an error "knows", and
+example 03 "asked of it", now rewritten. `constructing-and-subclassing`'s has `E0401` for an `int` or
+`tainted` message and a wrong `previous`, `E0454`, named arguments, `E0410` and `E0402`. `throw`'s
+has `E0780` (an interface-typed variable too), a `null` `?LogicError` or a non-`Throwable` `mixed`
+throwing `LogicError` "Can only throw objects", where `throw` stands as a value, `E0401` for
+`int $x = throw …`, and `E0320`; its `about.md` said "no answer for", now rewritten. Probing found two
+gaps, owned by `release-hardening`: `implements Throwable` (or any class of the tree) compiles and
+acts as `extends` (`data/gaps/nvs-types/implements-with-a-class-of.json`), and a `catch` naming a
+non-throwable class compiles and never runs, while `catch (int $e)` stops at `E0901`
+(`data/gaps/nvs-types/a-catch-clause-that-names-a.json`). `llms-full.txt` is rendered again. The
+sweep's red jobs are run 39173391347 on `main` at be3e8a605, not this branch. The first
+`looper verify` failed one `nvs-cli` agent test on Windows error 1455 (the paging file is too small)
+while another session's `--record-perf` ran; the second run was green.
+
 ### Next
 
-`70-errors` starts at its first section (`70-errors.md:8`), three or four features per session;
+`70-errors` goes on at `try-catch-finally` (`70-errors.md:200`), three or four features per session;
 take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -904,7 +926,7 @@ An enum is `enum Suit { Hearts, Spades }`, with no `case`. An array with string 
 `array<int>`: `array<string, int>` is `E0101`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `70-errors` from its first section; it decides what `lang:errors/try-catch-finally` keeps. `docs/reference/lang/70-errors.md:1`
+- [ ] `70-errors` from `try-catch-finally`; it decides what `lang:errors/try-catch-finally` keeps, and gains `E0250`/`E0251`. `docs/reference/lang/70-errors.md:200`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog

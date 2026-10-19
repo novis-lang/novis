@@ -1,0 +1,7 @@
+<?nvs
+// Shows that `Exception` does not exist. Extend `RuntimeError` or
+// `LogicError` instead.
+// proof: compile-error
+
+class ConfigError extends Exception {
+}

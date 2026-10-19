@@ -5775,7 +5775,7 @@ Every throwable has four properties and no accessor methods:
 |---|---|---|
 | `message` | `string` | the text given to the constructor |
 | `previous` | `?Throwable` | the throwable given as `{previous: …}`, or `null` |
-| `backtrace` | `array<string>` | one `Class::method() at file:line` per frame the throw unwound out of, innermost first; empty for a throw at a file's top level |
+| `backtrace` | `array<string>` | one `Class::method() at file:line` per frame the throw unwound out of, innermost first; one `<script>() at file:line` frame for a throw at a file's top level, and empty for an object never thrown |
 | `location` | `string` | `file:line` of the `throw` — empty until the object is thrown, and rewritten by every throw of the same object |
 
 `ParseError` adds `issues`, an array of `{path, message}` records, one per problem the parser

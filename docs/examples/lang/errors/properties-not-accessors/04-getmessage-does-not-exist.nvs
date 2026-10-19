@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `getMessage()` does not exist. The error tells you to read the
+// `message` property instead.
+// proof: compile-error
+
+try {
+    throw new LogicError("boom");
+} catch (Throwable $e) {
+    echo $e->getMessage();
+}

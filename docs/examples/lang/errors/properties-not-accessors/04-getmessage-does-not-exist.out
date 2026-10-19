@@ -1,0 +1,9 @@
+error[E0405]: `Throwable` has no method named `getMessage`
+  --> 04-getmessage-does-not-exist.nvs:9:10
+  |
+9 |     echo $e->getMessage();
+  |          ^^ referenced here
+  = help: an exception has properties and no accessor methods. Write `->message`. The properties are `message`, `previous`, `backtrace`, `location`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
