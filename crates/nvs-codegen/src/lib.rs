@@ -203,9 +203,24 @@
 //! widening the integer side and `$n < $f` by a helper, so a `BinOp` whose
 //! operands differ in representation is an internal error.
 //!
-//! # Known gaps
+//! # A `Terminator::Switch` is a compare chain
 //!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-codegen/src/lib.rs` lists them.
+//! **This is a stated bound.** `nvs_ir::ir::Terminator::Switch` lowers to one
+//! compare and branch per case, in case order. That is correct for any case
+//! set, and the IR does not require a dense or sorted one. Its one producer is
+//! `rule:iteration/generators`'s generator resumption: one arm per `yield`,
+//! plus the entry and exhausted arms. So a generator with `k` `yield`s pays up
+//! to `k + 2` compares on every resume, and a request's latency grows with the
+//! number of `yield`s in one generator body, never with its input.
+//!
+//! A Novis `switch` statement never reaches this terminator. It lowers to a
+//! `Branch` chain (`nvs_ir::lower::Lowering::lower_switch`), because a label is
+//! any expression of the subject's type.
+//!
+//! What closes it: a Cranelift `br_table` over a dense case set, chosen here
+//! when the cases are contiguous integers, and `lower_switch` recognising a
+//! dense all-integer `switch` and emitting the terminator. It waits for a
+//! measured program whose resumes or `switch` show up in a profile.
 
 mod emit;
 mod ty;

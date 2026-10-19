@@ -40,9 +40,18 @@
 //! Division is the one operation that may round: half to even, at the maximum
 //! scale the result admits, fixed in the language and not configurable.
 //!
-//! # Known gaps
+//! # Every operator is a helper call
 //!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-runtime/src/decimal.rs` lists them.
+//! **This is a stated bound.** Every `decimal` operator is an out-of-line
+//! helper call from the emitted code, including `+`, `-` and a comparison at
+//! equal scale, which could be i128 instructions inline. Each costs one call
+//! and the sixteen-byte argument and result moves around it, and nothing is
+//! allocated. The results are identical either way, so this is latency only.
+//!
+//! What closes it: `nvs-codegen` emitting the equal-scale add, subtract and
+//! compare inline, with the overflow check `checked_add` makes here, and
+//! calling a helper only to rescale. It waits for a measured program whose
+//! `decimal` arithmetic shows up in a profile.
 
 use std::cmp::Ordering;
 

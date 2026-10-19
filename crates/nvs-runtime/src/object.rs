@@ -103,7 +103,8 @@
 //! overrides. Every other `$obj->method()` binds to a label from the
 //! receiver's declared type, so nothing on that path pays for this. A
 //! compile-time slot index in place of the name, on the table this one already
-//! builds, is `data/gaps/nvs-ir/virtual-dispatch-resolves-by-name-not.json`.
+//! builds, is the stated bound in `nvs_ir`'s § *A virtual call looks its method
+//! up by name*.
 //!
 //! Cost, as [AGENTS.md](/AGENTS.md) requires: one `(String, *const u8)`
 //! pair per method *reachable* on each class — so a deep hierarchy holds its

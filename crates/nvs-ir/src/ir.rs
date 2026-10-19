@@ -935,7 +935,7 @@ pub enum InstKind {
     /// the program overrides the declaration it resolves to. Otherwise it binds
     /// to a label, so nothing on that path pays for a name lookup. See
     /// `nvs_runtime::object`'s docs for why the table is keyed by name, and
-    /// `data/gaps/nvs-ir/virtual-dispatch-resolves-by-name-not.json` for the
+    /// this crate's § *A virtual call looks its method up by name* for the
     /// slot index that would replace it.
     CallVirtual {
         /// The late-static-binding class to dispatch on — a
@@ -3302,8 +3302,8 @@ pub enum Terminator {
     /// contiguous or sorted; a duplicate case is unreachable rather than an
     /// error, exactly as a duplicate `if` arm would be. `nvs-codegen` lowers
     /// this to a compare chain, which is why order is what it is. A jump table
-    /// over a dense case set is
-    /// `data/gaps/nvs-codegen/a-switch-terminator-lowers-to-a-compare-chain.json`.
+    /// over a dense case set is the stated bound in `nvs_codegen`'s
+    /// § *A `Terminator::Switch` is a compare chain*.
     ///
     /// Each arm carries its own [`EdgeId`] for the same reason
     /// [`Terminator::Branch`]'s two do: `rule:testing/debug-probes`'s branch probe is

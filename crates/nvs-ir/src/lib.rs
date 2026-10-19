@@ -584,6 +584,32 @@
 //!     run that one chain, because the checker interns them as a single flat
 //!     union and the target is what is left once `null` is dropped.
 //!
+//! # A virtual call looks its method up by name
+//!
+//! **This is a stated bound.** An instance call lowers to [`ir::InstKind::Call`],
+//! bound to the statically resolved label, when nothing in the program
+//! overrides that declaration. `nvs_types` answers that whole-program question
+//! once per call, as `nvs_types::expr_table::ResolvedCall::overridden`. When
+//! something does, and for the two shapes with no static answer
+//! (`static::`/`new static`, and a call resolving to a body-less declaration),
+//! the call is [`ir::InstKind::CallVirtual`] or [`ir::InstKind::NewDynamic`]
+//! over [`ty::Ty::ClassDesc`]. That looks the name up in the per-class method
+//! table [`ir::Class::methods`] carries, so each such call pays one name
+//! lookup in that table, and allocates nothing. A call that binds to a label
+//! pays nothing for it.
+//!
+//! A **`mixed`** receiver names no class for either instruction, so
+//! `rule:types/erased-member-access`'s deferral covers the call too: it is one
+//! [`ir::Helper::CallErasedMethod`]
+//! ([`lower::Lowering::lower_erased_method_call`]), with the member name an
+//! immortal constant and every argument packed into one array, checked against
+//! the callee's own method row by `nvs_runtime::callable`'s `check_param_tags`.
+//!
+//! What closes it: a compile-time slot index into the table
+//! `nvs_runtime::object` already builds, in place of the name, so the lookup is
+//! an index. It waits for a measured program whose overridden calls show up in
+//! a profile.
+//!
 //! # Known gaps
 //!
 //! Each gap is a record, and `bun nv gaps --module crates/nvs-ir/src/lib.rs` lists them.
