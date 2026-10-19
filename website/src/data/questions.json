@@ -13848,7 +13848,7 @@
   },
   "/syntax/start-here/": {
     "feature": "syntax/start-here.mdx",
-    "hash": "01bd8cd229e997d4",
+    "hash": "804b947d98864af3",
     "questions": [
       "What does a first Novis program look like?",
       "What is different in Novis if I know PHP?",
@@ -13858,7 +13858,7 @@
   },
   "/syntax/testing/fixtures-and-assertions/": {
     "feature": "syntax/testing/fixtures-and-assertions.mdx",
-    "hash": "da2b00d79f56def9",
+    "hash": "2e55392831afd3ed",
     "questions": [
       "How do I share setup objects between tests?",
       "Run the same test with several sets of input",
@@ -13870,7 +13870,7 @@
   },
   "/syntax/testing/writing-tests/": {
     "feature": "syntax/testing/writing-tests.mdx",
-    "hash": "4c6015daefd2804d",
+    "hash": "68d715562d64a6ab",
     "questions": [
       "How do I write a unit test in Novis?",
       "How do I skip a test and give a reason?",
