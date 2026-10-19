@@ -111,9 +111,23 @@ fn ctx_word() -> MemFlagsData {
     MemFlagsData::new().with_notrap()
 }
 
+/// The unit's data objects defined so far: the counter that keeps their names
+/// unique, and every immortal string by its bytes.
+///
+/// The map is what lets two identical string literals in one unit share one
+/// data object, so a unit that writes `"id"` in forty places holds it once.
+/// It is compile-time memory, one entry per distinct literal in the unit, and
+/// is dropped with the unit builder. The object is read-only and its refcount
+/// is pinned, so nothing can tell two sites that share it apart.
+#[derive(Default)]
+pub(crate) struct Literals {
+    count: usize,
+    strings: FxHashMap<Box<[u8]>, DataId>,
+}
+
 /// Everything about the compilation *unit* that emitting one function needs:
 /// the runtime signatures, the unit's own function and class tables, and the
-/// running literal counter that keeps data-object names unique.
+/// unit's [`Literals`].
 ///
 /// Bundled rather than passed one by one because every field has the same
 /// lifetime and the same "read this, don't rebuild it" role — and because
@@ -129,8 +143,8 @@ pub(crate) struct UnitTables<'a> {
     /// Every `static` property the unit declares, by `(declaring class, name)`
     /// — see [`crate::UnitBuilder::statics`].
     pub statics: &'a FxHashMap<(String, String), u32>,
-    /// One entry per emitted `ConstStr`, so data-object names stay unique.
-    pub literals: &'a mut usize,
+    /// See [`Literals`].
+    pub literals: &'a mut Literals,
     /// The program-wide number of this function's first statement, which every
     /// coverage probe in it adds to its own `StmtId` — see
     /// `nvs_ir::Program::stmt_spans`.
@@ -399,7 +413,7 @@ struct Emitter<'a, 'f> {
     classes: &'a Classes,
     /// Every `static` property the unit declares — see [`crate::UnitBuilder::statics`].
     statics: &'a FxHashMap<(String, String), u32>,
-    literals: &'a mut usize,
+    literals: &'a mut Literals,
     /// See [`UnitTables::stmt_base`].
     stmt_base: u32,
     /// See [`UnitTables::edge_base`].
@@ -1318,9 +1332,8 @@ impl Emitter<'_, '_> {
     /// Puts a whole immortal string — header and payload — in the unit's data
     /// section and materializes its address.
     ///
-    /// Every call site gets its own data object: identical literals are not
-    /// shared, which the crate docs carry as a known gap and costs a few bytes
-    /// of unit rather than anything on the request path.
+    /// Identical literals in one unit share one data object
+    /// ([`Literals`]).
     fn emit_immortal_str(&mut self, bytes: &[u8]) -> Result<Value, CodegenError> {
         let data = self.immortal_str_data(bytes)?;
         Ok(self.literal_address(data))
@@ -1330,7 +1343,13 @@ impl Emitter<'_, '_> {
     /// as the definition itself — which is what a *second* data object holding
     /// this string in one of its slots relocates against, a relocation naming a
     /// `DataId` and never a value in some function.
+    ///
+    /// The first call for some bytes defines the object, and every later call
+    /// in the same unit returns that one.
     fn immortal_str_data(&mut self, bytes: &[u8]) -> Result<DataId, CodegenError> {
+        if let Some(&data) = self.literals.strings.get(bytes) {
+            return Ok(data);
+        }
         let mut object =
             Vec::with_capacity(nvs_runtime::PAYLOAD_OFFSET.saturating_add(bytes.len()));
         object.extend_from_slice(&nvs_runtime::immortal_header_bytes(bytes));
@@ -1342,7 +1361,9 @@ impl Emitter<'_, '_> {
             u64::try_from(nvs_runtime::HEADER_ALIGN)
                 .map_err(|_| internal("a string header's alignment past u64"))?,
         );
-        self.define_literal_data(&desc)
+        let data = self.define_literal_data(&desc)?;
+        self.literals.strings.insert(bytes.into(), data);
+        Ok(data)
     }
 
     /// A hole-free html template: the whole `Core\Html\Markup` in the unit's
@@ -1433,8 +1454,8 @@ impl Emitter<'_, '_> {
     /// the `DataId` rather than an address — a data object that *contains*
     /// another one names it that way.
     fn define_literal_data(&mut self, desc: &DataDescription) -> Result<DataId, CodegenError> {
-        let name = format!("nvs_bytes_{}", *self.literals);
-        *self.literals += 1;
+        let name = format!("nvs_bytes_{}", self.literals.count);
+        self.literals.count += 1;
 
         let data = self
             .module

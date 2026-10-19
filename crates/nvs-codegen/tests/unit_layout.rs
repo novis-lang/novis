@@ -38,6 +38,26 @@ fn disassembling_names_each_frame_and_shows_the_code_that_would_have_run() {
     assert!(text.matches("load_ext_name").count() >= 2, "{text}");
 }
 
+#[test]
+fn two_identical_string_literals_share_one_data_object() {
+    // The two fixtures differ only in whether the second literal repeats the
+    // first, so the shared one names one data symbol fewer and the same number
+    // of addresses.
+    let symbols = |source: &str| {
+        let text = nvs_codegen::clif(&lower(source)).expect("the fixture compiles");
+        let names: Vec<&str> = text
+            .lines()
+            .filter_map(|line| line.split_once("= symbol ").map(|(_, name)| name.trim()))
+            .collect();
+        let distinct: std::collections::BTreeSet<&str> = names.iter().copied().collect();
+        (names.len(), distinct.len())
+    };
+    let (shared_sites, shared_objects) = symbols("<?nvs\necho \"same\";\necho \"same\";\n");
+    let (distinct_sites, distinct_objects) = symbols("<?nvs\necho \"same\";\necho \"diff\";\n");
+    assert_eq!(shared_sites, distinct_sites);
+    assert_eq!(shared_objects + 1, distinct_objects);
+}
+
 // No shape the front end accepts and this backend does not is reachable from
 // source in this area: every refusal in `emit_binop` is an
 // internal-consistency check whose roster comment names what subtracts to
