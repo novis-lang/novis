@@ -201,11 +201,18 @@ because std has no stable raw-entry API, so the change is contained to `string.r
 **Does:** closes `an-xml-writer-holds-a-string-per-piece`, `id-in-force-is-copied-into` and
 `a-decoded-objects-issue-prefixes-grow-with-depth-squared`.
 
-- [ ] `Core\Xml\Writer` appends to one string it alone references. `core/Xml/writer.nvs` declares its count. `crates/nvs-stdlib/src/xml.rs:2993`, `benches/members/core/Xml/writer.nvs:1`
-- [ ] An event with no `id` of its own shares the walk's `lastId` string. `crates/nvs-stdlib/src/http/stream.rs:623`, `crates/nvs-stdlib/src/http/stream.rs:1313`
-- [ ] The leak check covers the shared `lastId` edge, over a fixture whose events carry no `id`. `tools/leak-check.sh:1`
+- [x] `Core\Xml\Writer` appends to one string it alone references. `core/Xml/writer.nvs` declares its count. `crates/nvs-stdlib/src/xml.rs:2993`, `benches/members/core/Xml/writer.nvs:1`
+- [x] An event with no `id` of its own shares the walk's `lastId` string. `crates/nvs-stdlib/src/http/stream.rs:623`, `crates/nvs-stdlib/src/http/stream.rs:1313`
+- [x] The leak check covers the shared `lastId` edge, over a fixture whose events carry no `id`. `tools/leak-check.sh:1`
 - [ ] The JSON decoder builds an issue's path from the open frames' keys when it makes the issue. `crates/nvs-stdlib/src/json.rs:3759`
+  - [ ] An issue carries its path as segments borrowed from the contract, innermost first.
+  - [ ] A frame pushes its child's segment onto each issue the child hands up.
+  - [ ] The root renders each path once, and `Fields::prefix` and `Positions::path` are gone.
+  - [ ] A bench ramps the depth of a nested class, and the record is deleted.
 - [ ] The three records are deleted. `data/gaps/nvs-stdlib/an-xml-writer-holds-a-string-per-piece.json:1`, `data/gaps/nvs-stdlib/id-in-force-is-copied-into.json:1`, `data/gaps/nvs-stdlib/a-decoded-objects-issue-prefixes-grow-with-depth-squared.json:1`
+  - [x] The XML writer's record is deleted.
+  - [x] The `lastId` record is deleted.
+  - [ ] The JSON prefix record is deleted.
 
 ### 7. a constant is built once, when the unit is compiled
 
@@ -256,28 +263,31 @@ and those hits stay.
 
 ### State
 
-Stages 1, 2, 3, 4, 5, 10 and 11 are done.
+Stages 1, 2, 3, 4, 5, 10 and 11 are done. Stage 6 has two of its three slices:
 
-Stage 5, three slices:
+- `Core\Xml\Writer`: `WRITTEN_SLOT` is one string, and `Pen::emit` appends to it in place through
+  `instance::append_bytes_to_text_slot`, which calls the new `NvsStr::append` (bytes in hand, no
+  suffix string). `nvs_str_append` and `NvsStr::append` share `append_onto` in `string.rs`.
+  `endDocument` moves the string out of the slot, so it copies nothing. A document holds at most
+  twice its size until then. Step 7 of `tests/hostile/core/Xml/writer/01-calls-in-the-wrong-order.nvs`
+  (one million elements) passes, so its `proof: gap` marker is gone. `core/Xml/writer.nvs` declares
+  `allocations 23`: its id is `$i % 10` and its three names escape to one length, so every document
+  doubles the same number of times. `core/Xml-Writer/content.nvs` went to `iterations 2048`: one
+  writer's doubling growth read as per-op growth at batches 32 to 128.
+- `Core\Http\Stream::events`: `EventScan` carries `Id::Carried`, the walk's `lastId` slot value
+  borrowed, or `Id::Set`, the bytes of this block's `id` line. An event with no `id` of its own
+  retains the carried string. A new id is one string, with one reference for the event and one for
+  the slot. Step 3 of `tests/hostile/core/Http-Event/id/01-ids-ignored-repeated-and-copied.nvs`
+  (one 65000-byte id, 100000 events kept, 64M limit) used to stop at the memory limit, and now it
+  finishes and checks every event's id. Its `ends-early` directive is gone.
+- `tools/leak-check.sh` was clean over a fixture of events with and without their own id and over
+  the XML hostile case.
 
-- `Core\Regex`: a call reads its step budget through `Budget`, which reads the request's
-  `[limits]` only when a backtracking program needs it. A cache entry for a linear program matches
-  under every budget. `Request::get` renders a setting as an owned `String`, and that was both of
-  the allocations. `core/Regex/matches.nvs` counts 0, and every other `Core\Regex` member is 2 lower
-  and re-measured.
-- `Core\Metrics`: `Registry::rewrite` writes an existing series through a borrowed key. `SeriesKey`
-  is a `Borrow` target that orders like `Series`, and labels already sorted are not copied.
-  `Registry::request` passes its labels sorted. The free `record` takes the call site as a closure,
-  called only by a write that creates a series or throws. `gauge`, `increment` and `observe` count 0
-  allocations. Their benches went to `iterations 2048`: at 256 a 0-allocation op leaves the ramp to
-  callgrind, whose run-to-run jitter at batch 32 to 128 read as growth.
-- `Core\Csv::parse`: a thread keeps one `csv_core::Reader` for the last dialect it parsed (`READER`),
-  about 1 KB per thread, reset per call. `parse` went from about 21,900 ns/op to under 3,300, and from
-  22 allocations to 21, since `distinct` reads a stack array now. `core/Csv/parse.nvs` declares
-  `allocations 21`.
+Two of the stage's three records are deleted, and so is `stream.rs`'s `Known gaps` block. Seven gap
+records name this goal, so the `owners` check stays red until stage 9.
 
-The three records are deleted, and so are the `Known gaps` blocks of `nvs-stdlib`'s `metrics.rs` and
-`csv.rs`. Nine gap records name this goal, so the `owners` check stays red until stage 9.
+On the user's request, this session also re-recorded the twelve stale `Core\Regex` figures, which
+CI's `Feature proofs` step failed on, in a commit of their own.
 
 The callgrind leg of the perf proof runs `/var/tmp/nvs-target-wsl/debug/nvs`, which nothing rebuilds.
 It was 17 hours old this session. `syncMirror` from `tools/nv/accept/mirror.ts` and then
@@ -290,16 +300,24 @@ The `looper` on PATH has no `verify`; `bun tools/looper/main.ts verify` runs it.
 
 ### Next
 
-**Stage 6: a member's working memory is the size of its input.** Closes
-`an-xml-writer-holds-a-string-per-piece`, `id-in-force-is-copied-into` and
-`a-decoded-objects-issue-prefixes-grow-with-depth-squared`. The three share no file. The `lastId`
-slice adds a refcount edge, so it takes the leak check.
+**Stage 6, its last slice: the JSON decoder's issue paths.** Closes
+`a-decoded-objects-issue-prefixes-grow-with-depth-squared`. Then stage 6 is done.
 
-- [ ] `Core\Xml\Writer` appends to one string it alone references. `core/Xml/writer.nvs` declares its count. `crates/nvs-stdlib/src/xml.rs:2993`, `benches/members/core/Xml/writer.nvs:1`
-- [ ] An event with no `id` of its own shares the walk's `lastId` string. `crates/nvs-stdlib/src/http/stream.rs:623`, `crates/nvs-stdlib/src/http/stream.rs:1313`
-- [ ] The leak check covers the shared `lastId` edge, over a fixture whose events carry no `id`. `tools/leak-check.sh:1`
 - [ ] The JSON decoder builds an issue's path from the open frames' keys when it makes the issue. `crates/nvs-stdlib/src/json.rs:3759`
-- [ ] The three records are deleted. `data/gaps/nvs-stdlib/an-xml-writer-holds-a-string-per-piece.json:1`, `data/gaps/nvs-stdlib/id-in-force-is-copied-into.json:1`, `data/gaps/nvs-stdlib/a-decoded-objects-issue-prefixes-grow-with-depth-squared.json:1`
+- [ ] The JSON prefix record is deleted. `data/gaps/nvs-stdlib/a-decoded-objects-issue-prefixes-grow-with-depth-squared.json:1`
+
+The design this session settled on, unbuilt. A path segment is a key or a position: the key borrows
+`field.key` from the frame's `Contract<'a>`, so a frame holds no string. An issue in flight carries
+its segments innermost first, relative to the frame whose `issues` holds it. `decode_field` and
+`decode_list` give issues that already start at their own field. An issue a child frame hands up,
+through `Fields::resume`'s `finished` arm and `Positions::receive`, gets the child's segment pushed:
+`self.next - 1`'s key in `Fields`, its position in `Positions`. `decode_object` and `decode_each` push
+their `at` and render each path once, reversed and joined with dots. That makes a path O(depth) to
+build and holds each key once. Prepending to a `String` at each level would be quadratic in time.
+The call sites: `Fields::prefix` (`json.rs:2690`), `Positions::path` (`json.rs:2902`), `path_of`
+(`json.rs:3759`), `decode_nested` (`json.rs:3412`), `decode_list` (`json.rs:3596`) and
+`decode_object` (`json.rs:2499`). Module docs § *What it spends* (`json.rs:258`) states the prefix
+cost, and it changes with the slice. The bench ramps the depth of a class that nests itself.
 
 A change in `nvs-runtime` that lowers a count is not seen by a bench whose figure is keyed on another
 file. Re-measure every bench that reaches the changed path with `bun nv proofs --record-perf --force
