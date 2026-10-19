@@ -10,4 +10,5 @@ program. So does a file that does not compile, or a misspelled `output:` setting
 the line that starts the script, and you catch them with `try`.
 
 **The examples below** show a failed script read as a result, your own mistake told apart from the
-script's failure, and a group of jobs where one fails and the other two still finish.
+script's failure, and a group of jobs where one fails and the other two still finish. The last one
+shows the error when your program may not start scripts.

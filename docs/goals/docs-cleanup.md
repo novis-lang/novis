@@ -309,7 +309,7 @@ with each.
       - [x] `match-and-switch-over-an-enum` to `an-enum-inside-a-class`
       - [x] `what-an-enum-does-not-have` and `core-enums`
       - [x] `lang:enums`' perf recorded after the chapter's last edit
-  - [ ] `60-iteration`, `70-errors` and `80-concurrency`
+  - [x] `60-iteration`, `70-errors` and `80-concurrency`
     - [x] `60-iteration`: its chapter did not change, so `lang:iteration`'s perf is current
       - [x] `what-foreach-walks` and `the-two-interfaces`
       - [x] `generators` to `what-does-not-exist`
@@ -318,7 +318,11 @@ with each.
       - [x] `try-catch-finally` to `recursion-depth`
       - [x] `fatal-errors-limits-no-catch-sees` to `inspecting-a-value`
       - [x] `lang:errors`' perf recorded after the chapter's last edit
-    - [ ] `80-concurrency`, then `lang:concurrency`' perf recorded after the chapter's last edit
+    - [x] `80-concurrency`, then `lang:concurrency`' perf recorded after the chapter's last edit
+      - [x] `no-colouring-i-o-just-waits` to `limit-and-deadline`
+      - [x] `a-child-s-throw` to `isolates-spawn-script-and-await`
+      - [x] `a-child-shares-nothing` to `what-does-not-exist`
+      - [x] `lang:concurrency`' perf recorded after the chapter's last edit
   - [ ] `90-attributes` and `95-testing`
 
 ### 7. the syntax pages show each feature's about.md, details and examples
@@ -1001,9 +1005,29 @@ as `Class::method(...)` compiles, and `$this->n` reads `1` where the default is 
 `send` on a full channel or a `foreach` on an open empty one with no other task waits forever, so a
 probe of it needs a timeout. `llms-full.txt` is rendered again.
 
+`80-concurrency` is done: `a-child-shares-nothing`, `a-child-s-failure-is-a-value` and
+`what-does-not-exist` closed it, each fact run on the binary, and `lang:concurrency`' perf is
+recorded. The chapter and the syntax page did not change. One claim was wrong:
+`what-does-not-exist`'s `about.md` said each error names what to write instead, but `new Thread()`
+and `new Fiber()` are a plain `E0303`, and `spawn worker` a general syntax error; the clause is gone.
+`a-child-shares-nothing`'s `details.md` has an array static, `on: "here"`, a child started from a
+task, and a child using a parent's variable (`E0301`, so the spawn throws). No new example: 01
+shows the chapter's block. The failure feature's `details.md` has the `error` type (`E0459`
+without `?->`), its two fields and the missing-field `RuntimeError`, the child's own class name,
+`RecursionError` and `ArithmeticError`, a `try` around `await` catching nothing, `inherit`,
+`exit(3)` with no status in the result, the one message for a missing file and a compile error, and
+the denial's two lines. Its example 04 is the chapter's no-grant block, with its own `[[app]]`
+entry in `nvs.toml` that sets `spawn = false`. `what-does-not-exist`'s `details.md` has `Thread`,
+`Promise`, `parallel\Runtime`, `E0320` for `pcntl_fork` and `curl_multi_init`, `spawn worker`,
+`E0204`, `E0211` and `E0209`; example 04 is the chapter's `Fiber` block. Probing found a gap, owned
+by `release-hardening`: **a `throw` of an anonymous object compiles, and no `catch` sees it**, not
+even `catch (Throwable)`, so `throw $r->error` in a parent ends the program
+(`data/gaps/nvs-types/a-throw-of-an-anonymous-object.json`). The sweep's red jobs are run
+39173391347 on `main` at be3e8a605, not this branch.
+
 ### Next
 
-`80-concurrency` goes on from `a-child-shares-nothing` (`80-concurrency.md:310`), three or four features per session;
+`90-attributes` starts from its first feature (`90-attributes.md:8`), three or four features per session;
 take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -1022,7 +1046,8 @@ A probe with a limit or a grant runs with `nvs run --config <file>.toml`, which 
 `nvs.toml`; an example needs its own `[[app]]` entry in the root `nvs.toml` instead (`nvs.toml:497`).
 A spawning probe has an `nvs.toml` with `[capabilities.script] spawn = true` beside it, and a probe
 runner gives each run a timeout, since a channel or a task with nothing to wait for never ends.
-- [ ] `80-concurrency` from `a-child-shares-nothing`, then `a-child-s-failure-is-a-value` and `what-does-not-exist`, which close the chapter. A file that does not compile and a missing file are the failure feature's facts. Then `bun nv proofs --record-perf --group lang:concurrency`. `docs/reference/lang/80-concurrency.md:310`
+- [ ] `90-attributes` from `an-attribute-is-an-anonymous-object-attached-to-a-declaration`, then reading attributes back and the names the compiler acts on; its JSON, route, API and command sections are long and may each take a session. Then `bun nv proofs --record-perf --group lang:attributes` if the chapter changed. `docs/reference/lang/90-attributes.md:8`
+- [ ] `95-testing`, which closes stage 6. `docs/reference/lang/95-testing.md:8`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
@@ -1033,6 +1058,8 @@ runner gives each run a timeout, since a channel or a task with nothing to wait 
 - Two diagnostics disagree with the binary's own behaviour: `E0233`'s help for a nested `use` says it
   "applies to the whole file", but a `use` covers only the code below it, and `E0303` for a class no
   `autoload` root has names no root. Product text, so it needs its own owner. `crates/nvs-types/src/locals.rs:2023`
+- `E0802`'s help for an anonymous function as a spawn entry says "In `spawn worker` it would capture
+  the variables around it", but `spawn worker` does not exist. Product text, same owner question. `crates/nvs-types/src/expr/isolate.rs:540`
 - `E0479`'s help for a write through `?->` suggests `if ($x !== null)`, an operator Novis does not
   have; `and-the-ternary`'s example 05 prints it. Product text, same owner question. `crates/nvs-types/src/expr/assign.rs:1115`
 - Many compiler diagnostics print a `rule:` id or the word "refused" in their help text, such as `E0234`, `E0413`, `E0448` and `E0230`. That text is held to § *Text an end user reads* when it is changed; this goal changes no product text, so it needs its own owner. `crates/nvs-types/src/expr/members.rs:2345`
