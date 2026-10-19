@@ -1,6 +1,0 @@
-{
-  "module": "tools/nv/cmd/rules.ts",
-  "title": "About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records.",
-  "text": "`DELETED_DOC_CITE` catches a record or a deleted doc by its path, its relative link or `spec § N`. A bare `§ N` names no file, so the check cannot tell it from an RFC's section mark. It closes when every bare mark names its document or is rewritten to the rule or module doc that holds the fact, and `rules --check` refuses a bare mark that names no document.",
-  "goal": "release-hardening"
-}
