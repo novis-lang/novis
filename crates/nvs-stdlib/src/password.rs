@@ -648,11 +648,16 @@ mod tests {
             Ok(true),
             "a hash PHP wrote is one this class reads"
         );
-        assert_eq!(
-            answer(nvs_core_password_verify, &["hunter2", php_stored()]),
-            Ok(false),
-            "the wrong password is a `false`, not a refusal"
-        );
+        // One verify takes half a minute under Miri even at cost 4, and the
+        // ceiling case below asserts this same `false` there, so Miri runs
+        // only the first half.
+        if !cfg!(miri) {
+            assert_eq!(
+                answer(nvs_core_password_verify, &["hunter2", php_stored()]),
+                Ok(false),
+                "the wrong password is a `false`, not a refusal"
+            );
+        }
     }
 
     /// `rule:security/needs-rehash-answers-weaker`: every bcrypt tag in the roster has fallen behind, because a
