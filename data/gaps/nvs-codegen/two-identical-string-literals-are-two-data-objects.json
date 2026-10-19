@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-codegen/src/lib.rs",
-  "title": "Two identical string literals in one unit are two data objects.",
-  "text": "Each `InstKind::ConstStr` emits its own immortal header and payload under its own name (`emit_immortal_str`, `crates/nvs-codegen/src/emit.rs:1300-1309`), so a unit that writes `\"id\"` in forty places holds forty copies of it. Nothing on the request path pays, because each site materializes one address either way; the cost is unit bytes and some instruction-cache locality. Closing it means keying a map on the literal's bytes beside `emit::Emitter::define_literal`'s counter.",
-  "goal": "fewer-allocations"
-}

@@ -1265,8 +1265,8 @@ struct UnitBuilder<M> {
     /// `finalize_definitions` relocates. The `Mutex` is what makes that
     /// Rust closure `Send`, which `cranelift-jit` requires; it is uncontended.
     desc_symbols: Arc<Mutex<FxHashMap<String, usize>>>,
-    /// One entry per emitted `ConstStr`, so data-object names stay unique.
-    literals: usize,
+    /// See [`emit::Literals`].
+    literals: emit::Literals,
     entries: Vec<(String, cranelift_module::FuncId)>,
     /// Set only by [`disassemble`]: the accumulated text of every function's
     /// generated code. `None` is the ordinary compile, which asks Cranelift
@@ -2217,7 +2217,7 @@ impl<M: Module> UnitBuilder<M> {
             desc_symbols,
             statics: FxHashMap::default(),
             static_defaults: Vec::new(),
-            literals: 0,
+            literals: emit::Literals::default(),
             entries: Vec::new(),
             disasm,
             clif: None,
