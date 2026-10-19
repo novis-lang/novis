@@ -22,6 +22,13 @@ doctest = false
 # build that enables it without `-Zsanitizer=thread` fails to link. That
 # module's doc owns why the gate is a feature rather than `cfg(sanitize)`.
 tsan = []
+# The same for AddressSanitizer, which `corosensei` carries itself: its
+# `sanitizer` feature reports each stack switch to the sanitizer and unpoisons a
+# finished task's stack before the pool hands it to the next task. Without it, a
+# panic that unwinds on a task's stack leaves stale poison behind, and a later
+# task on that stack reports a stack-buffer-overflow that is not there. Off, and
+# turned on by CI's `asan` job alone, for the same link reason as `tsan`.
+asan = ["corosensei/sanitizer"]
 
 [dependencies]
 nvs-runtime.workspace = true

@@ -72,7 +72,9 @@
 //! switch saying the stack moved. Without it a run under `tools/tsan.sh` reports
 //! at every task boundary. None of it is compiled into any build but that leg's,
 //! and that module's doc owns why the switch draws a happens-before edge rather
-//! than suppressing one.
+//! than suppressing one. AddressSanitizer needs the same news, and `corosensei`
+//! gives it under this crate's `asan` feature, which CI's `asan` job alone turns
+//! on: `Cargo.toml` says what a run without it reports.
 //!
 //! [`blocking`] is the other half of that: the pool `rule:http-server/a-core-is-never-blocked-on-a-syscall` sends a
 //! filesystem call, a name resolution or a wait on a child process to, bounded
