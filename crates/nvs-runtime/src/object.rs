@@ -271,9 +271,9 @@
 //! `nvs_stdlib::instance` is that decision's home. `next` and `prev` stay null
 //! because the constant never enters a [`LiveList`], so no teardown sweep
 //! reaches it and [`dismantle`] never runs on it. And a slot is only ever
-//! read: the one emitter is the literal fold, whose carrier has no member that
-//! writes one, so an immortal instance cannot come to hold — or to close — a
-//! cycle.
+//! read: the two emitters are the html literal fold and a written duration,
+//! and neither class has a member that writes a slot, so an immortal instance
+//! cannot come to hold — or to close — a cycle.
 //!
 //! **What it spends**, as [AGENTS.md](/AGENTS.md) requires: the header and its
 //! slots once per literal, charged to the compiled unit rather than to a

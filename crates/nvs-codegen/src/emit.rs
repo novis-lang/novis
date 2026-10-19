@@ -603,6 +603,12 @@ impl Emitter<'_, '_> {
                 let value = self.emit_const_markup(text.as_bytes())?;
                 self.define(inst, value)?;
             }
+            // `rule:types/duration`'s written duration: a whole
+            // `Core\Time\Duration` in the data section, on the same terms.
+            InstKind::ConstDuration(nanos) => {
+                let value = self.emit_const_duration(*nanos)?;
+                self.define(inst, value)?;
+            }
             InstKind::ConstStr(text) => {
                 let (value, next) = self.emit_const_str(cur, text.as_bytes())?;
                 self.define(inst, value)?;
@@ -1407,6 +1413,43 @@ impl Emitter<'_, '_> {
         desc.write_data_addr(
             u32::try_from(slot).map_err(|_| internal("an object's slot payload past u32"))?,
             text_ref,
+            0,
+        );
+
+        let object = self.define_literal_data(&desc)?;
+        Ok(self.literal_address(object))
+    }
+
+    /// A written duration: the whole `Core\Time\Duration` in the unit's data
+    /// section, [`Self::emit_const_markup`]'s shape with an `int` slot.
+    ///
+    /// The class word is the one relocation, against the descriptor
+    /// `nvs_stdlib` leaked for the process. The slot's payload is the count
+    /// itself, in host byte order for [`nvs_runtime::immortal_object_bytes`]'s
+    /// reason. Every site gets its own instance, because `==` on two objects
+    /// is identity and `90m == 1h30m` is `false`.
+    fn emit_const_duration(&mut self, nanos: i64) -> Result<Value, CodegenError> {
+        let mut bytes = nvs_runtime::immortal_object_bytes(&[Tag::Int]);
+        let slot = nvs_runtime::field_offset(0)
+            .checked_add(nvs_runtime::Value::BITS_OFFSET)
+            .ok_or_else(|| internal("an object's slot payload past the address space"))?;
+        bytes
+            .get_mut(slot..slot + 8)
+            .ok_or_else(|| internal("an `int` slot past the object's bytes"))?
+            .copy_from_slice(&nanos.to_ne_bytes());
+
+        let mut desc = DataDescription::new();
+        desc.define(bytes.into_boxed_slice());
+        desc.set_align(
+            u64::try_from(nvs_runtime::OBJ_ALIGN)
+                .map_err(|_| internal("an object header's alignment past u64"))?,
+        );
+        let class = self.class_desc_data(nvs_stdlib::time::DURATION_NAME)?;
+        let class_ref = self.module.declare_data_in_data(class, &mut desc);
+        desc.write_data_addr(
+            u32::try_from(nvs_runtime::OBJ_CLASS_OFFSET)
+                .map_err(|_| internal("an object's class word past u32"))?,
+            class_ref,
             0,
         );
 

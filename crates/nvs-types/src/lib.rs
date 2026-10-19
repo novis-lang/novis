@@ -266,7 +266,6 @@ pub use nvs_stdlib::script::{
     AWAIT_SYMBOL as CORE_SCRIPT_AWAIT, FINISH_SYMBOL as CORE_SCRIPT_FINISH,
     SPAWN_METHOD_SYMBOL as CORE_SCRIPT_SPAWN_METHOD, SPAWN_SYMBOL as CORE_SCRIPT_SPAWN,
 };
-pub use nvs_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
 pub use nvs_stdlib::{CodecElement, CodecField, CodecTy, EnumCases, FieldDefault};
 pub use routes::{ApiError, ParamIn, Route, RouteParam, RouteTable};
 pub use ty::{CoreShape, CoreShapeField, Ty, TypeId, TypeInterner};
