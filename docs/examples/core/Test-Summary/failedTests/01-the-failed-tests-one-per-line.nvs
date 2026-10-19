@@ -1,0 +1,38 @@
+<?nvs
+// Shows an `#[AfterClass]` method that prints the name of each failed test on
+// its own line.
+
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class FailedList
+{
+    public static function lines(string $class, array<string> $tests): string
+    {
+        string $text = '';
+        foreach ($tests as string $test) {
+            $text = $text . 'failed: ' . $class . '::' . $test . "\n";
+        }
+        return $text;
+    }
+}
+
+class PasswordTest
+{
+    #[Test]
+    public function itNeedsTwelveCharacters(): void
+    {
+        Test::assertTrue(Core\Str::length('correct horse') >= 12);
+    }
+
+    // `failedTests()` is empty when every test passed, so this prints nothing.
+    #[AfterClass]
+    public static function printFailed(Summary $summary): void
+    {
+        echo FailedList::lines($summary->class(), $summary->failedTests());
+    }
+}
+
+// This prints two lines, one for each failed test.
+echo FailedList::lines('PasswordTest', ['itNeedsTwelveCharacters', 'itNeedsANumber']);

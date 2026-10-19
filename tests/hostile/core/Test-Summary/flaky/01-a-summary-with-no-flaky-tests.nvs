@@ -1,0 +1,31 @@
+<?nvs
+// Attack: a program makes its own `Summary` whose `flaky()` is always `0`, so a
+// limit on flaky tests never fails the run. Only the test runner creates a
+// `Summary`, so the program should not compile.
+// hostile: expect-refusal
+
+use Core\Test\Summary;
+
+// 1. An interface extends `Summary`, and a class implements that interface.
+interface QuietSummary extends Summary
+{
+}
+
+class NoFlakyTests implements QuietSummary
+{
+    public function flaky(): int
+    {
+        return 0;
+    }
+}
+
+// 2. A class extends `Summary` and returns `0` flaky tests.
+class StableSummary extends Summary
+{
+    public function flaky(): int
+    {
+        return 0;
+    }
+}
+
+echo (new StableSummary())->flaky(), "\n";

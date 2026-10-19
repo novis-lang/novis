@@ -1,0 +1,40 @@
+<?nvs
+// Shows an `#[AfterClass]` method that prints how many tests of the class were
+// skipped. The second test below has `skip:`, so it does not run.
+
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class Invoice
+{
+    public static function number(int $year, int $count): string
+    {
+        return 'INV-' . $year . '-' . Core\Str::padStart($count . '', 4, '0');
+    }
+}
+
+class InvoiceTest
+{
+    #[Test]
+    public function itPadsTheCount(): void
+    {
+        Test::assertSame(Invoice::number(2026, 7), 'INV-2026-0007');
+    }
+
+    #[Test(skip: "the credit note format is not decided yet")]
+    public function itNumbersACreditNote(): void
+    {
+        Test::assertSame(Invoice::number(2026, 8), 'CN-2026-0008');
+    }
+
+    // `skipped()` is `1` here.
+    #[AfterClass]
+    public static function printSkipped(Summary $summary): void
+    {
+        echo $summary->class(), ': ', $summary->skipped(), " skipped\n";
+    }
+}
+
+// This prints `INV-2026-0007`.
+echo Invoice::number(2026, 7), "\n";

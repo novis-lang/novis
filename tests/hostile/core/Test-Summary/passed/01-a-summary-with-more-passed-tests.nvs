@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program makes its own `Summary` whose `passed()` is larger than the
+// real count, so a status page shows a better result. Only the test runner
+// creates a `Summary`, so the program should not compile.
+// hostile: expect-refusal
+
+use Core\Test\Summary;
+
+// 1. A class extends `Summary` and returns the largest whole number.
+class EveryTestPassed extends Summary
+{
+    public function passed(): int
+    {
+        return 9223372036854775807;
+    }
+}
+
+// 2. A class implements `Summary` as if it were an interface.
+class PretendSummary implements Summary
+{
+    public function passed(): int
+    {
+        return 100;
+    }
+}
+
+// 3. A function that expects a `Summary` from the runner is given the program's own class.
+class StatusPage
+{
+    public static function line(Summary $summary): string
+    {
+        return $summary->passed() . ' passed';
+    }
+}
+
+echo StatusPage::line(new EveryTestPassed()), "\n";

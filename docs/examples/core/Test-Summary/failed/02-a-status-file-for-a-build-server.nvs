@@ -1,0 +1,37 @@
+<?nvs
+// Shows an `#[AfterClass]` method that writes `red` or `green` to a status file.
+// A build server can read this file and show a colored light.
+
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class Light
+{
+    public static function color(int $failed): string
+    {
+        return $failed > 0 ? 'red' : 'green';
+    }
+}
+
+class InventoryTest
+{
+    #[Test]
+    public function itNeverGoesBelowZero(): void
+    {
+        int $stock = 2;
+        int $ordered = 3;
+        Test::assertSame($ordered > $stock ? 0 : $stock - $ordered, 0);
+    }
+
+    #[AfterClass]
+    public static function writeStatus(Summary $summary): void
+    {
+        IO::write(Path::fromCwd('build-light.txt'), Light::color($summary->failed()));
+    }
+}
+
+// This prints `red green`.
+echo Light::color(1), ' ', Light::color(0), "\n";

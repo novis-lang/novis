@@ -1,0 +1,42 @@
+<?nvs
+// Shows an `#[AfterClass]` method that prints a heading with the class name and
+// its counts. A long test log is then easy to read class by class.
+
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class Heading
+{
+    public static function of(string $class, int $passed, int $failed): string
+    {
+        return '== ' . $class . ': ' . $passed . ' passed, ' . $failed . ' failed ==';
+    }
+}
+
+class Basket
+{
+    public static function count(array<string> $items): uint
+    {
+        return Core\Arr::count($items);
+    }
+}
+
+class BasketTest
+{
+    #[Test]
+    public function itCountsTheItems(): void
+    {
+        Test::assertSame(Basket::count(['tea', 'milk']), 2);
+    }
+
+    // `class()` returns the name of this test class, here `BasketTest`.
+    #[AfterClass]
+    public static function printHeading(Summary $summary): void
+    {
+        echo Heading::of($summary->class(), $summary->passed(), $summary->failed()), "\n";
+    }
+}
+
+// This prints `== BasketTest: 1 passed, 0 failed ==`.
+echo Heading::of('BasketTest', 1, 0), "\n";
