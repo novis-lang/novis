@@ -3797,18 +3797,23 @@ mod tests {
     /// Fifty thousand names is where a scan over every earlier name stops
     /// finishing inside a test run, so this is the regression for the set as
     /// much as for the answer. The short tag keeps the scan's half asserted.
+    /// Under Miri the tag has five hundred names, still far past the scan.
     // covers: Core\Xml::parse
     #[test]
     fn a_wide_tag_is_read_in_linear_time_and_a_repeated_name_is_still_refused() {
         use std::fmt::Write as _;
 
+        let names = if cfg!(miri) { 500 } else { 50_000 };
         let mut wide = String::from("<item");
-        for i in 0..50_000 {
+        for i in 0..names {
             write!(wide, " a{i}=\"{i}\"").expect("writing to a String cannot fail");
         }
         let document = parse(&format!("{wide}/>")).expect("distinct names are well-formed");
-        assert_eq!(document.children[0].attributes.len(), 50_000);
-        assert_eq!(document.children[0].attributes[49_999].0, "a49999");
+        assert_eq!(document.children[0].attributes.len(), names);
+        assert_eq!(
+            document.children[0].attributes[names - 1].0,
+            format!("a{}", names - 1)
+        );
 
         let err = parse(&format!("{wide} a7=\"again\"/>"))
             .expect_err("a name repeated past the scan is caught by the set");
@@ -4687,15 +4692,22 @@ mod tests {
     /// A document of a million empty elements builds a Rust tree some thirty
     /// times its own size. The parse asks the budget as it builds, so the
     /// request stops near its ceiling instead of holding that whole tree first.
+    /// Under Miri the document is a twentieth of that and the ceiling 1 MiB, so
+    /// the tree it would build is still six times the ceiling.
     // covers: Core\Xml::parse
     #[test]
     fn a_parse_stops_at_the_memory_limit_while_it_builds_the_tree() {
+        let (elements, limit) = if cfg!(miri) {
+            (50_000, 1 << 20)
+        } else {
+            (1_000_000, 16 << 20)
+        };
         let mut ctx = Ctx::buffered();
-        ctx.set_memory_limit(16 << 20);
-        let source = word(&format!("<list>{}</list>", "<i/>".repeat(1_000_000)));
+        ctx.set_memory_limit(limit);
+        let source = word(&format!("<list>{}</list>", "<i/>".repeat(elements)));
         assert!(call(super::nvs_core_xml_parse, &mut ctx, &[source]).is_err());
         assert!(
-            ctx.memory_peak() < 48 << 20,
+            ctx.memory_peak() < 3 * limit,
             "{} bytes at the peak",
             ctx.memory_peak()
         );

@@ -5450,9 +5450,16 @@ mod tests {
     // covers: Core\Cli\Color::index
     #[test]
     fn every_palette_entry_carries_its_own_number_and_stops_at_the_last_one() {
+        // Under Miri the sweep takes the entries at each edge of the palette's
+        // three ranges, because all 256 take minutes there.
+        let entries: Vec<u8> = if cfg!(miri) {
+            vec![0, 1, 7, 8, 15, 16, 17, 100, 231, 232, 254, 255]
+        } else {
+            (0..=255).collect()
+        };
         let mut ctx = nvs_runtime::Ctx::buffered();
-        let mut carried = 0_u32;
-        for entry in 0..=255_u64 {
+        let mut carried = 0_usize;
+        for entry in entries.iter().map(|&entry| u64::from(entry)) {
             let color =
                 nvs_runtime::call(nvs_core_cli_color_index, &mut ctx, &[Value::uint(entry)])
                     .expect("an entry the palette has");
@@ -5468,7 +5475,8 @@ mod tests {
             }
         }
         assert_eq!(
-            carried, 256,
+            carried,
+            entries.len(),
             "a palette entry does not carry its own number in its own slot"
         );
 
@@ -5484,7 +5492,7 @@ mod tests {
             );
         }
 
-        for entry in 16..=255_u8 {
+        for entry in entries.iter().copied().filter(|&entry| entry >= 16) {
             let ink = Ink {
                 kind: INK_INDEXED,
                 value: u64::from(entry),
