@@ -1033,8 +1033,8 @@ const DOCTYPE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// [`WRITER`]'s slots, in declaration order: the chunks of the document written
-/// so far …
+/// [`WRITER`]'s slots, in declaration order: the document written so far, as
+/// one string only the writer references …
 const WRITTEN_SLOT: usize = 0;
 /// … the names of the elements open around the writer …
 const OPEN_NAMES_SLOT: usize = 1;
@@ -2873,9 +2873,9 @@ fn quoted(text: &str) -> String {
 /// than keeping a copy, so there is no arrangement in which a refusal has
 /// already moved half the state: a member decides on everything it is going to
 /// write before it writes any of it. A writer holds no native allocation, for
-/// the reason a reader holds none — the pieces of the document written so far
-/// are a Novis array, the names of the elements open around it are another, and
-/// the rest is counts and flags.
+/// the reason a reader holds none — the document written so far is a Novis
+/// string, the names of the elements open around it are a Novis array, and the
+/// rest is counts and flags.
 ///
 /// What it spends, per `rule:programs/memory-priority`: the document it is
 /// building, which is what a writer is for and what `endDocument` hands back.
@@ -2978,23 +2978,21 @@ impl Pen {
 
     /// Appends `chunk` to what the document holds.
     ///
-    /// The pieces are kept apart and joined once, in [`end_document`], so no
-    /// write copies what was written before it. Each piece is a string of its
-    /// own, so until the join a document of many small writes holds many times
-    /// its own size: gap `nvs-stdlib/an-xml-writer-holds-a-string-per-piece`.
-    /// The write cannot move the array for [`Open::push`]'s
-    /// reason: no member hands a writer's own arrays out, so
-    /// [`NvsArray::set_index`]'s copy-on-write separation never fires and the
-    /// handle stays the one the slot names.
+    /// The document is one string, and no member hands it out before
+    /// [`end_document`] takes it, so the slot is its one owner and the chunk is
+    /// written in place. Its room doubles when it runs out, so a document of
+    /// many small writes holds at most twice its own size, and a write that
+    /// fits allocates nothing.
     ///
     /// # Errors
     ///
     /// [`Self::count`]'s.
     fn emit(&self, chunk: &str) -> Result<(), Fault> {
-        let mut written = self.array(WRITTEN_SLOT)?;
-        let at =
-            i64::try_from(written.count()).expect("a document's piece count is under `i64::MAX`");
-        written.set_index(at, Value::str(NvsStr::new(chunk.as_bytes())));
+        let held = crate::instance::slot(self.object, WRITTEN_SLOT);
+        if held.str_ptr().is_none() {
+            return Err(wrong_slot(&WRITER, self.member, WRITTEN_SLOT, held));
+        }
+        crate::instance::append_bytes_to_text_slot(self.object, WRITTEN_SLOT, chunk.as_bytes());
         Ok(())
     }
 
@@ -3139,20 +3137,21 @@ fn end_document(receiver: Value) -> Result<Value, Fault> {
         return pen.refuse("a document has a root element, and none was written");
     }
 
-    let written = pen.array(WRITTEN_SLOT)?;
-    let mut document = String::new();
-    for at in 0..written.count() {
-        let at = i64::try_from(at).expect("a document's piece count is under `i64::MAX`");
-        let held = written.get_index(at);
-        let Some(piece) = held.as_ref().and_then(|piece| piece.as_text()) else {
-            return Err(Fault::fatal(format!(
-                "{WRITER_NAME}::endDocument found a piece of its document that is not text"
-            )));
-        };
-        document.push_str(piece);
+    let held = crate::instance::slot(pen.object, WRITTEN_SLOT);
+    if held.str_ptr().is_none() {
+        return Err(wrong_slot(&WRITER, pen.member, WRITTEN_SLOT, held));
     }
+    // The document's own reference moves to the result, so nothing is copied.
+    // Its spare room, up to its own size again, goes with it, as it does for a
+    // string a program built with `.=`.
+    let document = crate::instance::take_slot(pen.object, WRITTEN_SLOT);
+    crate::instance::set_slot(
+        pen.object,
+        WRITTEN_SLOT,
+        Value::str(NvsStr::empty_immortal()),
+    );
     pen.set_count(STATE_SLOT, FINISHED);
-    Ok(Value::str(NvsStr::new(document.as_bytes())))
+    Ok(document)
 }
 
 /// [`nvs_core_xml_writer_start_element`]'s body.
@@ -3447,7 +3446,7 @@ nvs_runtime::nvs_helper! {
         Ok(crate::instance::build(
             &WRITER,
             [
-                Value::array(NvsArray::new()),
+                Value::str(NvsStr::empty_immortal()),
                 Value::array(NvsArray::new()),
                 counted(0),
                 Value::bool(false),
@@ -4758,8 +4757,8 @@ mod tests {
     /// is accepted again on the next element. Twenty thousand names on one tag
     /// are accepted and the first is still refused a second time, which a check
     /// that scanned every earlier name could only do in quadratic time. Under
-    /// Miri the tag carries fifty names, because each write there rechecks
-    /// every piece written before it. The native run keeps the pin.
+    /// Miri the tag carries fifty names, so the run stays inside CI's time
+    /// limit. The native run keeps the pin.
     // covers: Core\Xml\Writer::attribute
     #[test]
     fn attribute_values_parse_back_and_names_are_checked_per_tag() {
@@ -5214,8 +5213,7 @@ mod tests {
         dropped(document);
 
         // The ceiling is a constant, so this half has no smaller input. Under
-        // Miri each write rechecks every piece written before it, and the
-        // half takes minutes, so it runs only outside Miri.
+        // Miri the half takes minutes, so it runs only outside Miri.
         if cfg!(miri) {
             for held in words.into_iter().chain([writer]) {
                 dropped(held);

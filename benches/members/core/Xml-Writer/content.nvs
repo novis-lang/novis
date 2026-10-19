@@ -1,6 +1,6 @@
 <?nvs
 // Writes short texts with characters to escape into an element, as a program does when it exports product names.
-// bench: iterations 256
+// bench: iterations 2048
 // bench: complexity linear
 
 class Bench {

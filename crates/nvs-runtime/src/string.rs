@@ -958,6 +958,31 @@ impl NvsStr {
         }
     }
 
+    /// Appends `bytes` to this string, consuming this handle and giving the
+    /// result's — [`nvs_str_append`] for bytes a member has in hand rather than
+    /// in a string of their own.
+    ///
+    /// The bytes are written in place when this handle is the string's one
+    /// owner and it has room, and otherwise the payload moves once into an
+    /// allocation [`grown_capacity`] doubles. So a loop of these is linear in
+    /// the bytes appended, and an append that fits allocates nothing. A
+    /// refused allocation gives this string back unchanged. The result's
+    /// grapheme count is unknown.
+    #[must_use]
+    pub fn append(self, bytes: &[u8]) -> Self {
+        let target = self.into_raw();
+        #[expect(
+            unsafe_code,
+            reason = "`target`'s one reference was given up by `into_raw` and is \
+                      handed to `append_onto`, which yields the one reclaimed \
+                      here; `bytes` is a live borrow that cannot point into the \
+                      bytes past the target's length"
+        )]
+        unsafe {
+            Self::from_raw(append_onto(target, bytes.as_ptr(), bytes.len(), None))
+        }
+    }
+
     /// The payload of the string `ptr` refers to, borrowed without taking a
     /// reference of its own.
     ///
@@ -1572,25 +1597,56 @@ pub unsafe extern "C" fn nvs_str_append(
                   payload regions, bounded by the `cap` each was made with"
     )]
     unsafe {
-        let header = &*target;
-        let len = header.len.get();
         let added = (*suffix).len.get();
-        let needed = len
-            .checked_add(added)
-            .expect("an Novis string's length cannot overflow a usize");
         let src = suffix.cast::<u8>().add(PAYLOAD_OFFSET);
         // Read before either payload moves, and used after: an append changes
         // the count of the string it answers, so a stale word would outlive
         // the bytes it counted. `None` on either side leaves the result
-        // `COUNT_UNKNOWN`, which the in-place path below writes back over the
+        // `COUNT_UNKNOWN`, which the in-place path writes back over the
         // target's own — the one place a cached count is *invalidated* rather
         // than corrected.
         let counts = cached_count(target).zip(cached_count(suffix));
+        append_onto(target, src, added, counts)
+    }
+}
+
+/// [`nvs_str_append`]'s body over a byte range: appends the `added` bytes at
+/// `src` to `target`, consuming its reference and yielding the result's.
+///
+/// `counts` is the target's and the suffix's cached grapheme counts, read
+/// before anything moves, or `None` to leave the result's count unknown.
+///
+/// # Safety
+///
+/// `target` must refer to a live Novis string allocation whose reference this
+/// caller owns and does not release again. `src` must be readable for `added`
+/// bytes, and may lie inside `target`'s payload only before its length.
+#[expect(
+    unsafe_code,
+    reason = "the caller's contract covers both pointers; every write below stays \
+              inside one allocation's payload, bounded by its `cap`"
+)]
+unsafe fn append_onto(
+    target: *mut StrHeader,
+    src: *const u8,
+    added: usize,
+    counts: Option<(usize, usize)>,
+) -> *mut StrHeader {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `target` is live and `src` readable for \
+                  `added` bytes; every write stays inside a payload's `cap`"
+    )]
+    unsafe {
+        let header = &*target;
+        let len = header.len.get();
+        let needed = len
+            .checked_add(added)
+            .expect("an Novis string's length cannot overflow a usize");
         if header.refcount.get() == 1 && header.cap >= needed {
-            // The two ranges cannot overlap even when `suffix == target`: the
-            // source is the first `added` bytes of the payload and the
-            // destination begins at `len`, which is `added` when they are the
-            // same allocation and irrelevant when they are not.
+            // The two ranges cannot overlap even when `src` is inside the
+            // target: the source then lies before `len`, and the destination
+            // begins at `len`.
             let dst = target.cast::<u8>().add(PAYLOAD_OFFSET + len);
             std::ptr::copy_nonoverlapping(src, dst, added);
             header.len.set(needed);
@@ -1619,8 +1675,8 @@ pub unsafe extern "C" fn nvs_str_append(
         {
             remember_count(grown.as_ref(), joined);
         }
-        // Last, so that `suffix`'s bytes are read before a `suffix == target`
-        // release can free them.
+        // Last, so that the suffix's bytes are read before a release of the
+        // target that holds them can free them.
         nvs_str_release(target);
         grown.as_ptr()
     }

@@ -2,17 +2,18 @@
 // Writes a small XML document one node at a time, as a program does when it sends an order to another system.
 // bench: iterations 256
 // bench: complexity linear
+// bench: allocations 23
 
 class Bench {
     public static function run(uint $rounds): uint {
-        array<string> $customers = ["Ada Lovelace", "Smith & Sons", "Grace Hopper"];
+        array<string> $customers = ["Smith & Sons", "Jones & Sons", "Brown & Sons"];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             Core\Xml\Writer $out = Core\Xml::writer();
             $out->startDocument();
             $out->startElement("order");
-            $out->attribute("id", $i as string);
+            $out->attribute("id", ($i % 10) as string);
             $out->startElement("customer");
             $out->content($customers[($total % 3) as int]);
             $out->endElement();
