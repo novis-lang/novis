@@ -274,7 +274,10 @@ live bytes per request grow.
     The regex, crypto and jwe tests are done: all 59 that run pass under Miri locally, the longest
     in 106 s. Two tests whose only work is PBKDF2 at the iteration floor carry an ignore, because
     a thousand iterations take 76 s under Miri and the floor is a hundred thousand: there is no
-    smaller input. That is the same reason as an operation Miri lacks.
+    smaller input. That is the same reason as an operation Miri lacks. The password, cache, str
+    and html tests take a smaller input too. Three carry an ignore for that same reason: the two
+    Argon2 tests at the module's own 19 MiB parameters, and `http`'s scan of its own source text.
+    Two `cache` tests skip only their source-text scan under Miri.
   - [ ] `nvs-runtime` and `nvs-stdlib` run as separate jobs or `--partition` shards, each well under its
     `timeout-minutes`, so the job ends green or red and never cancelled. The user chose shards: job
     `miri-units` in `.github/workflows/ci.yml` runs 2 for `nvs-runtime` and 12 for `nvs-stdlib`.
@@ -339,38 +342,45 @@ Stages 1 to 7 are done. Stage 8 is under way.
 - **Property tests.** Done: three seeded cases in `crates/nvs-config/tests/capability.rs` (`ae40a9e58`).
 - **Miri.** The nightly on `be3e8a605` (run 39173391347) was the first `miri-units` run on GitHub.
   No shard found undefined behaviour. Every failure was a leak report, an operation Miri lacks, an
-  assert that fails only under Miri, or a timeout. Since then: ignore-leaks and
-  deterministic floats for both crates, 2 shards for `nvs-runtime` and 12 for `nvs-stdlib`
-  (`.github/workflows/ci.yml:1185`), the 6 `session` tests join their store's threads, 27 more
-  Miri-only failures carry an ignore, and the 6 `nvs-runtime` timeouts take a smaller input.
-- **Timeouts still open:** 42 in `nvs-stdlib` on that nightly, after regex, crypto and jwe. By
-  module: http 5, html 5, password 4, cache 3, sort 3, str 3, then one or two each. Passing tests
-  of 150 to 290 s also fill the shards (`sort`, `compress`, `request`, `hash`). The list of that
-  nightly, timeouts and passes over 60 s, comes from the 8 stdlib shard jobs' logs: strip the
-  literal `^[[..m` colour codes, then grep `(TIMEOUT|PASS) \[ *([6-9][0-9]|[0-9]{3})\.`.
-- **What costs time under Miri**, measured locally where CI is about 5 times slower: compiling
-  `\w` 85 s, `\d` 8.5 s, `[a-z]` 0.7 s; a P-256 multiplication 18 s; X25519 1.2 s; PBKDF2 76 s
-  per thousand iterations; about 4 s per thousand backtracking steps. Each test also pays about
-  5 s to start, and four times that when eight run at once.
+  assert that fails only under Miri, or a timeout. Fixed since: leaks and floats, the shards
+  (`.github/workflows/ci.yml:1185`), the `session` threads, 27 Miri-only failures, the 6
+  `nvs-runtime` timeouts, and the regex, crypto, jwe, password, cache, str and html timeouts.
+- **This session's local Miri run** of 25 tests, eight at once (CI is about 5 times slower, so a
+  test needs about 60 s locally to fit CI's 300 s): 20 pass. Still over 60 s: html's attribute
+  test 144 s and cap-close test 133 s, `sort`'s string corners 139 s and integer corners 279 s,
+  `str`'s `indexOf` 121 s and `split` 112 s, the bcrypt verify 64 s. Timed out at 300 s: `sort`'s
+  two size sweeps, html's walk test, and the streamed-reply test. html5ever is the slow part of
+  html: about 20 kB of input takes two minutes, whatever the cap.
+- **The socket test fails under Miri, not slow**: `talks`' peer stops reading after 5 s
+  (`crates/nvs-stdlib/src/http/transport.rs:3224`) while Miri still writes the 200 kB message, so
+  `heard.closed` is `None` (`crates/nvs-stdlib/src/http/socket.rs:1600`).
+- **Nightly timeouts left** outside these modules: compress, cli, xml, db, cldr and one or two in
+  others. The list is in the 8 stdlib shard logs of run 39173391347 (`gh run view --job <id> --log`):
+  strip the literal `^[[..m` codes, then grep `(TIMEOUT|PASS) \[ *([6-9][0-9]|[0-9]{3})\.`.
+  Many `http` and `html` tests pass at 130 to 150 s on CI with almost no work, so a test's start
+  costs that much there.
 - **Local runs** go from the WSL mirror `/var/tmp/nvs-target-wsl-src/mnt-e-mwl`, brought up to date
   with `syncMirror` from `tools/nv/accept/mirror.ts`, and `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl`.
+  The run is `cargo +nightly miri nextest run --profile miri -p nvs-stdlib --lib -E '<filter>'`
+  with CI's `MIRIFLAGS`.
 - **The rest of that nightly**: proofs is the backlog's proof debt; `docs/novis.md` was the stale
   `core.json` that `b23b5116f` fixed; `fuzz smoke / regex` is the subroutine blow-up that
   `crates/nvs-stdlib/src/regex.rs:1207` now refuses; the test and cost legs are in the backlog.
 
 ### Next
 
-Stage 8, Miri's slow `nvs-stdlib` tests, on the files that hold them (`rule:testing/the-deep-lane`):
-- [ ] The http, html, password, cache, sort and str timeouts take a smaller input under `cfg!(miri)`, measured with one local Miri run of those modules, as regex, crypto and jwe were. `crates/nvs-stdlib/src/html.rs:1`, `crates/nvs-stdlib/src/password.rs:1`
-- [ ] The JSON depth and large-text tests. `crates/nvs-stdlib/src/json.rs:3943`
-- [ ] Then the runner mode that sends many cases through one worker. `crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`
+Stage 8, the Miri tests still over 60 s locally, on the files that hold them (`rule:testing/the-deep-lane`):
+- [ ] `sort`: the size sweeps time out with `MIRI_SIZES`, and the round tests are at 139 and 279 s. Cut the sizes to a few under 1001 and `rounds` to a hundredth. `crates/nvs-stdlib/src/sort.rs:316`, `crates/nvs-stdlib/src/sort.rs:435`
+- [ ] html: a cap of 16 under Miri and fewer tags in the walk test, checked first on a native run with the cap forced to 16 so `per_tag <= 4 * cap` still holds; then 300 attributes. `crates/nvs-stdlib/src/html.rs:1404`, `crates/nvs-stdlib/src/html.rs:3177`
+- [ ] http: the streamed reply at 192 KiB for `zstd`, whose blocks are 128 KiB, and less for the other two; the socket peer's 5 s wait longer under Miri. `crates/nvs-stdlib/src/http/transport.rs:4670`, `crates/nvs-stdlib/src/http/transport.rs:3224`
+- [ ] `str`'s `indexOf` and `split`, then the JSON tests. `crates/nvs-stdlib/src/str.rs:5927`, `crates/nvs-stdlib/src/json.rs:3943`
 
 ### Backlog
 
+- Then the runner mode that sends many cases through one worker (`crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`).
 - `nvs-runtime`'s pool hands a block back through a pointer narrowed to its last owner's size. Exposing each block's provenance and rebuilding the pointer in `push` and the same-class `realloc` removed the report, but no unit test reproduced it, and the user chose the `sanitizer` feature instead (`crates/nvs-runtime/src/alloc.rs:176`).
 - The `linux-aarch64` leg and the unoptimised suite step have never run on GitHub. Read both on stage 10's first pushed run before anything else on it (`.github/workflows/ci.yml:131`).
 - The suite's probes-on run is still owed: the coverage flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:2394`, `rule:testing/probes-on-is-a-tested-configuration`).
-
 - `NvsStr::new` takes any `&[u8]`, so the UTF-8 invariant rests on every caller, and the HTTP Garden bug was one that forgot. A checked constructor for bytes from outside, with `new` kept for payloads already text, closes the class (`crates/nvs-runtime/src/string.rs:462`).
 - Two more unchecked `string`s: a MySQL column name (`crates/nvs-stdlib/src/db/column.rs:67`, also `db/execute.rs:835`, `db/stream.rs:345`), and a signed cookie's plaintext, opened with empty AAD (`crates/nvs-stdlib/src/signed_cookie.rs:309`).
 - `bun nv verify` stops at `crates/nvs-stdlib/tests/spec_registry_coverage.rs:433`: `3a833d02d` deleted the last milestone record, so `data/plan/milestones/` no longer exists, and two tests refuse an empty directory on purpose. The session that retired the milestones decides what replaces them (`tools/nv/cmd/owners.ts:127`).
