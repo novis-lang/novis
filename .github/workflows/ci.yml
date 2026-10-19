@@ -114,7 +114,7 @@ jobs:
   # at all — a goal's handoff, a playbook bullet. `rule:testing/lane-table`.
   # ---------------------------------------------------------------------------
   test:
-    name: test / ${{ matrix.name }}
+    name: test / ${{ matrix.name }}${{ matrix.part && format(' ({0})', matrix.part) || '' }}
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
@@ -122,10 +122,13 @@ jobs:
     # The release-profile guards are the `cost-guards` job, so the two profiles never share a
     # deadline or a cache. The limit is sized for a cold cache, which every dependency bump causes:
     # a job cut off by its limit skips rust-cache's post step and saves nothing, so a limit only a
-    # warm cache fits keeps the leg cold and red on every later run. A cold Windows or macOS leg
-    # spends most of it in the build and in `nvs-ext`'s pdf and spreadsheet tests. A cold Windows
-    # leg reached 90 minutes once the conformance step added its shared-worker run: a 37-minute
-    # build, 31 minutes of tests and 17 of conformance left the unoptimised suite 4 minutes.
+    # warm cache fits keeps the leg cold and red on every later run.
+    #
+    # Windows is two legs, because one leg was the whole run's wall clock: a cold one took 110
+    # minutes, a 43-minute build, 35 of tests and 28 of the two conformance runs. The `tests` leg
+    # builds the workspace and runs `cargo test`, the `conformance` leg runs the two suites, and the
+    # two run side by side. They share one cache entry, which the `tests` leg alone saves: its
+    # workspace build covers everything the `conformance` leg compiles.
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -137,6 +140,10 @@ jobs:
             os: ubuntu-24.04-arm
           - name: windows-x86_64
             os: windows-latest
+            part: tests
+          - name: windows-x86_64
+            os: windows-latest
+            part: conformance
           - name: macos-aarch64
             os: macos-latest
     steps:
@@ -152,6 +159,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: ${{ matrix.name }}
+          save-if: ${{ matrix.part != 'conformance' }}
 
       # Some Rust tests check the tree through `bun nv` (`nvs-ir`'s refusal roster reads
       # `bun nv holes`), so the test job needs Bun and the tools' dependencies too.
@@ -212,7 +220,8 @@ jobs:
           -subj "/CN=Novis CI placeholder CA"
           -keyout "$RUNNER_TEMP/ca.key" -out tests/db/ca.crt
 
-      - run: cargo build --workspace --all-targets
+      - if: matrix.part != 'conformance'
+        run: cargo build --workspace --all-targets
 
       # `--wait` makes "up" mean healthy, so no test races Samba's provisioning. `NVS_LDAP_SAMBA`
       # makes the LDAP tests fail when they cannot reach the server, and not skip.
@@ -222,10 +231,12 @@ jobs:
           docker compose -f tests/db/compose.yaml up -d --wait redis samba-ad
           echo "NVS_LDAP_SAMBA=1" >> "$GITHUB_ENV"
 
-      - run: cargo test --workspace --all-targets
+      - if: matrix.part != 'conformance'
+        run: cargo test --workspace --all-targets
       # Doc tests are excluded from --all-targets and are real tests for a
       # library this API-heavy.
-      - run: cargo test --workspace --doc
+      - if: matrix.part != 'conformance'
+        run: cargo test --workspace --doc
 
       # The `.nvst` conformance suite, on every platform for the reason the
       # `cost-guards` job is: each case runs generated machine code, and code
@@ -235,12 +246,14 @@ jobs:
       # leak a served process would have between requests, and it costs one more in-process run of
       # those cases, not a second pass of the suite.
       - name: Conformance suite
+        if: matrix.part != 'tests'
         run: cargo run --quiet -p nvs-cli -- test --shared-worker tests/conformance/
       # The same suite with Cranelift's optimiser off (`rule:testing/probes-on-is-a-tested-configuration`).
       # Every case checks its output against the expectation it states, so a case that passes above
       # and fails here is a difference between the two levels, and either one failing fails the job.
       # On every leg, because each target is its own Cranelift backend.
       - name: Conformance suite, unoptimised
+        if: matrix.part != 'tests'
         env:
           NOVIS_NO_OPTIMISE: '1'
         run: cargo run --quiet -p nvs-cli -- test tests/conformance/
@@ -1045,56 +1058,78 @@ jobs:
   # every time is the same 60s repeated, while 300s starting from everything
   # every previous night found is coverage that accumulates.
   # `rule:testing/the-deep-lane`.
+  #
+  # Three legs of five targets each, run one after another, and one Rust cache for all three. A leg
+  # per target took fifteen of the run's twenty concurrent job slots and saved fifteen copies of
+  # the same `fuzz` build, 307 MB each, into the repository's 10 GB cache, where they evicted the
+  # `test` legs' caches and sent the Windows leg into a cold 43-minute build. A leg is 25 minutes
+  # of fuzzing on top of its build. Only the first leg saves the cache the three restore.
   # ---------------------------------------------------------------------------
   fuzz-smoke:
-    name: fuzz smoke / ${{ matrix.target }}
+    name: fuzz smoke / ${{ join(matrix.targets, ', ') }}
     needs: changes
     if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        target: [ast, cookie, decompress, image_path, json, lex, multipart, parse, prefix, regex, reply_head, request_head, serialize, uri, xml]
+        include:
+          - { leg: 1, targets: [ast, cookie, decompress, image_path, json] }
+          - { leg: 2, targets: [lex, multipart, parse, prefix, regex] }
+          - { leg: 3, targets: [reply_head, request_head, serialize, uri, xml] }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: fuzz-${{ matrix.target }}
+          key: fuzz
           workspaces: fuzz -> target
+          save-if: ${{ matrix.leg == 1 }}
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --locked
       # The key carries the run id so every night saves a new entry, and the prefix restores the
-      # newest one that exists — the accumulate-forever shape, not the write-once shape.
+      # newest one that exists — the accumulate-forever shape, not the write-once shape. A leg's
+      # entry is the corpus of its own five targets.
       - name: Last night's corpus
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: fuzz/corpus/${{ matrix.target }}
-          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
-          restore-keys: fuzz-corpus-${{ matrix.target }}-
+          path: fuzz/corpus
+          key: fuzz-corpus-leg${{ matrix.leg }}-${{ github.run_id }}
+          restore-keys: fuzz-corpus-leg${{ matrix.leg }}-
       # `fuzz/corpus/` is the accumulated corpus and is not in the repository, so
       # a target's hand-written seeds live in `fuzz/seeds/<target>/` and are
-      # copied in here. `ast` reads `parse`'s, because both take one source text
+      # copied in before it runs. `ast` reads `parse`'s, because both take one source text
       # and a second copy of the same files is a second thing to keep true.
       # Nothing the cache restored is at risk: libFuzzer names what it saves
       # after the input's hash, so a seed can only overwrite itself. The guard is
       # for a target with no seeds of its own, as `lex` and `uri` are.
-      - name: Seed corpus for ${{ matrix.target }}
-        run: |
-          seeds=fuzz/seeds/${{ matrix.target }}
-          if [ "${{ matrix.target }}" = ast ]; then seeds=fuzz/seeds/parse; fi
-          if [ -d "$seeds" ]; then
-            mkdir -p fuzz/corpus/${{ matrix.target }}
-            cp "$seeds"/* fuzz/corpus/${{ matrix.target }}/
-          fi
+      #
       # A target whose inputs need bytes a seed file cannot keep, as `request_head` needs CRLF under
       # an LF checkout, has a libFuzzer dictionary in `fuzz/dicts/<target>.dict` instead.
-      - name: Fuzz ${{ matrix.target }} for 300s
+      #
+      # A target that fails does not stop the leg: every target gets its 300s, and the leg fails at
+      # the end with an error naming each target that failed.
+      - name: Fuzz each target for 300s
         run: |
-          dict=fuzz/dicts/${{ matrix.target }}.dict
-          if [ -f "$dict" ]; then dict="-dict=$dict"; else dict=; fi
-          cargo +nightly fuzz run ${{ matrix.target }} -- $dict -max_total_time=300
+          failed=
+          for target in ${{ join(matrix.targets, ' ') }}; do
+            echo "::group::fuzz $target"
+            seeds=fuzz/seeds/$target
+            if [ "$target" = ast ]; then seeds=fuzz/seeds/parse; fi
+            if [ -d "$seeds" ]; then
+              mkdir -p "fuzz/corpus/$target"
+              cp "$seeds"/* "fuzz/corpus/$target/"
+            fi
+            dict=fuzz/dicts/$target.dict
+            if [ -f "$dict" ]; then dict="-dict=$dict"; else dict=; fi
+            cargo +nightly fuzz run "$target" -- $dict -max_total_time=300 || failed="$failed $target"
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::fuzz targets that failed:$failed"
+            exit 1
+          fi
 
   # ---------------------------------------------------------------------------
   # Three jobs share the memory-safety work and none of them covers another's
