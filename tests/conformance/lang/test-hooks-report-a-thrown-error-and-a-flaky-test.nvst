@@ -4,6 +4,8 @@ a test that throws gives its hook an `Outcome` whose failure is the error's mess
 test
 --FILE--
 <?nvs
+// covers: Core\Test\Outcome::class, Core\Test\Outcome::name, Core\Test\Outcome::attempt, Core\Test\Outcome::passed, Core\Test\Outcome::failures
+// covers: Core\Test\Summary::class, Core\Test\Summary::passed, Core\Test\Summary::failed, Core\Test\Summary::flaky, Core\Test\Summary::skipped, Core\Test\Summary::failedTests
 use Core\Test;
 use Core\Test\AfterClass;
 use Core\Test\AfterEachTest;

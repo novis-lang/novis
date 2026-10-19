@@ -366,4 +366,135 @@ mod tests {
             }
         }
     }
+
+    fn dropped(value: Value) {
+        #[expect(unsafe_code, reason = "the reader transferred what it returned")]
+        // SAFETY: a reader's answer carries a reference of its own, and this
+        // test is the caller that would otherwise hold it.
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// What `member` returns for `receiver`, owned by the caller.
+    fn read(ctx: &mut nvs_runtime::Ctx, member: nvs_runtime::NvsFn, receiver: Value) -> Value {
+        nvs_runtime::call(member, ctx, &[receiver]).expect("a reader of its own class cannot fail")
+    }
+
+    fn text_of(ctx: &mut nvs_runtime::Ctx, member: nvs_runtime::NvsFn, receiver: Value) -> String {
+        let value = read(ctx, member, receiver);
+        let text = value
+            .as_text()
+            .expect("the reader returns a string")
+            .to_owned();
+        dropped(value);
+        text
+    }
+
+    fn int_of(ctx: &mut nvs_runtime::Ctx, member: nvs_runtime::NvsFn, receiver: Value) -> i64 {
+        let value = read(ctx, member, receiver);
+        value.as_int().expect("the reader returns an integer")
+    }
+
+    fn texts_of(
+        ctx: &mut nvs_runtime::Ctx,
+        member: nvs_runtime::NvsFn,
+        receiver: Value,
+    ) -> Vec<String> {
+        let value = read(ctx, member, receiver);
+        let texts = {
+            let list = value.as_array().expect("the reader returns a list");
+            (0..list.count())
+                .map(|index| {
+                    let item = list.get_index(i64::try_from(index).expect("a short list"));
+                    let item = item.expect("a list has every index below its count");
+                    item.as_text().expect("each item is a string").to_owned()
+                })
+                .collect()
+        };
+        dropped(value);
+        texts
+    }
+
+    /// Each reader returns the slot its builder wrote, and reading twice
+    /// returns the same value. A receiver of the other class, or one that is
+    /// not an object, throws.
+    // covers: Core\Test\Outcome::class, Core\Test\Outcome::name, Core\Test\Outcome::attempt, Core\Test\Outcome::passed, Core\Test\Outcome::failures
+    // covers: Core\Test\Summary::class, Core\Test\Summary::passed, Core\Test\Summary::failed, Core\Test\Summary::flaky, Core\Test\Summary::skipped, Core\Test\Summary::failedTests
+    #[test]
+    fn each_reader_returns_its_slot_and_a_receiver_of_another_class_throws() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let failures = ["the queue is empty".to_owned()];
+        let failed = outcome(r"Shop\CartTest", "itAdds#1", 2, &failures);
+        assert_eq!(
+            text_of(&mut ctx, nvs_core_test_outcome_class, failed),
+            r"Shop\CartTest"
+        );
+        assert_eq!(
+            text_of(&mut ctx, nvs_core_test_outcome_name, failed),
+            "itAdds#1"
+        );
+        assert_eq!(int_of(&mut ctx, nvs_core_test_outcome_attempt, failed), 2);
+        let passed = read(&mut ctx, nvs_core_test_outcome_passed, failed);
+        assert_eq!(
+            passed.as_bool(),
+            Some(false),
+            "a run with a failure did not pass"
+        );
+        assert_eq!(
+            texts_of(&mut ctx, nvs_core_test_outcome_failures, failed),
+            failures
+        );
+        assert_eq!(
+            texts_of(&mut ctx, nvs_core_test_outcome_failures, failed),
+            failures,
+            "releasing a reading leaves the outcome whole"
+        );
+
+        let clean = outcome(r"Shop\CartTest", "itAdds", 1, &[]);
+        let passed = read(&mut ctx, nvs_core_test_outcome_passed, clean);
+        assert_eq!(passed.as_bool(), Some(true), "a run with no failure passed");
+        assert!(texts_of(&mut ctx, nvs_core_test_outcome_failures, clean).is_empty());
+
+        let counts = Counts {
+            passed: 3,
+            failed: 1,
+            flaky: 2,
+            skipped: 4,
+        };
+        let names = ["itCharges".to_owned()];
+        let class = summary(r"Shop\CartTest", counts, &names);
+        assert_eq!(
+            text_of(&mut ctx, nvs_core_test_summary_class, class),
+            r"Shop\CartTest"
+        );
+        assert_eq!(int_of(&mut ctx, nvs_core_test_summary_passed, class), 3);
+        assert_eq!(int_of(&mut ctx, nvs_core_test_summary_failed, class), 1);
+        assert_eq!(int_of(&mut ctx, nvs_core_test_summary_flaky, class), 2);
+        assert_eq!(int_of(&mut ctx, nvs_core_test_summary_skipped, class), 4);
+        assert_eq!(
+            texts_of(&mut ctx, nvs_core_test_summary_failed_tests, class),
+            names
+        );
+
+        assert!(
+            nvs_runtime::call(nvs_core_test_outcome_passed, &mut ctx, &[class]).is_err(),
+            "a summary is not an outcome"
+        );
+        let _ = ctx.take_pending();
+        assert!(
+            nvs_runtime::call(nvs_core_test_summary_failed, &mut ctx, &[failed]).is_err(),
+            "an outcome is not a summary"
+        );
+        let _ = ctx.take_pending();
+        assert!(
+            nvs_runtime::call(nvs_core_test_outcome_name, &mut ctx, &[Value::int(7)]).is_err(),
+            "an integer is not an outcome"
+        );
+        let _ = ctx.take_pending();
+
+        dropped(failed);
+        dropped(clean);
+        dropped(class);
+    }
 }
