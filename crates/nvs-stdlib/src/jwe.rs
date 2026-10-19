@@ -1579,21 +1579,25 @@ mod tests {
         let text = "id=42; role=admin";
         let payload = Value::str(NvsStr::new(text.as_bytes()));
         // Under Miri the `PBES2` case is left out, for `too_slow_for_miri`'s
-        // reason.
+        // reason. The `ECDH-ES` case seals once there: the IV is drawn after
+        // the algorithm's branch, so `dir`'s two seals already test it, and a
+        // second agreement and its opening are most of this test's Miri time.
         let cases = cases
             .iter()
             .filter(|(picked, ..)| !(cfg!(miri) && *picked == USE_PASSWORD));
         for (picked, material, kind, alg) in cases {
             let key = built(*picked, material, kind.map_or(NO_KIND, KeyKind::tag));
-            let first = encrypted(&mut ctx, payload, key);
-            let second = encrypted(&mut ctx, payload, key);
+            let mut tokens = vec![encrypted(&mut ctx, payload, key)];
+            if !(cfg!(miri) && *picked == USE_OWN) {
+                tokens.push(encrypted(&mut ctx, payload, key));
+                assert_ne!(tokens[0], tokens[1], "{alg}: two seals drew one IV");
+            }
             #[expect(unsafe_code, reason = "this frame holds the only reference")]
             unsafe {
                 key.release();
             }
-            assert_ne!(first, second, "{alg}: two seals drew one IV");
 
-            for token in [&first, &second] {
+            for token in &tokens {
                 let parts = segments(token).expect("encrypt writes five segments");
                 assert!(
                     protected_of(token).starts_with(&format!(r#"{{"alg":"{alg}","enc":"{ENC}""#)),
