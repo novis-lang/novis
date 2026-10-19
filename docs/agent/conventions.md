@@ -50,6 +50,16 @@ from a report — no reporter's name, no quote ([user-report.md](user-report.md)
 Write the message to a file and use `git commit -F <file>` — never `-m` for anything multi-line, per
 [commands.md](commands.md).
 
+## Names
+
+- **A test's name states the behaviour it checks,** as a sentence a reader can check against the
+  body: `every_syntactic_form_is_reachable_through_a_heading` (`crates/nvs-cli/tests/agent.rs`), or
+  `"a doc that still exists is not a finding"` (`tools/nv/test/rules.test.ts`). A `.nvst` case is
+  named the same way, in kebab-case (§ *A `.nvst` test case*).
+- **A doc and a goal slug are kebab-case,** and so is a TypeScript file ([bun.md](bun.md)).
+- **Example data and every name that came out of a report are neutral,** as AGENTS.md § *The rules
+  only this project has* says.
+
 ## A code comment
 
 A comment says what the code does **now**. It is never a record of how the code got here, and this
