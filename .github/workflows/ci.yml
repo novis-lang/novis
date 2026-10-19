@@ -175,7 +175,10 @@ jobs:
 
       # macOS and Windows runners cannot run the compose file's Linux containers, so each starts a
       # Redis on the port the compose file publishes: Homebrew's build on macOS, and Memurai, a
-      # Redis-compatible server, on Windows, which has no Redis build of its own.
+      # Redis-compatible server, on Windows, which has no Redis build of its own. The Chocolatey
+      # feed sometimes answers 503 for a few seconds, so the install is tried four times. pwsh does
+      # not stop on a failed native command, so the loop checks `choco`'s exit code itself, and a
+      # last failure names the install. 3010 is `choco`'s "installed, reboot pending".
       - name: A Redis server (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -185,7 +188,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          choco install memurai-developer -y --no-progress
+          for ($try = 1; ; $try++) {
+            choco install memurai-developer -y --no-progress
+            if ($LASTEXITCODE -in 0, 3010) { break }
+            if ($try -eq 4) { throw "choco install memurai-developer failed 4 times, last exit code $LASTEXITCODE" }
+            Start-Sleep -Seconds (20 * $try)
+          }
           Start-Process "C:\Program Files\Memurai\memurai.exe" -ArgumentList '--port', '16379'
 
       # The repository's `nvs.toml` names `tests/db/ca.crt` in its server-backed `[db]` blocks, and a
