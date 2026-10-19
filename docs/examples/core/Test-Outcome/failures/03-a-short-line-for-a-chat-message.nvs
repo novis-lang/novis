@@ -1,0 +1,48 @@
+<?nvs
+// Shows a hook that makes one short line from the first failure message. A team
+// can post this line in a chat when a test fails at night.
+
+use Core\Arr;
+use Core\Str;
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class ChatLine
+{
+    // A long message is cut after 40 characters, and `...` is added.
+    public static function of(string $test, array<string> $failures): ?string
+    {
+        // A passed run has no failure, so there is no message to post.
+        string $first = Arr::first($failures) ?? '';
+        if ($first == '') {
+            return null;
+        }
+        if (Str::length($first) > 40) {
+            $first = Str::slice($first, 0, 40) . '...';
+        }
+        return 'Test ' . $test . ' failed: ' . $first;
+    }
+}
+
+class SearchTest
+{
+    #[Test]
+    public function itFindsTheProductByName(): void
+    {
+        array<string> $found = Arr::filter(['green tea', 'black tea', 'cake'], fn(string $name): bool => Str::contains($name, 'tea'));
+        Test::assertCount($found, 2);
+    }
+
+    #[AfterEachTest]
+    public function prepareTheMessage(Outcome $outcome): void
+    {
+        ?string $line = ChatLine::of($outcome->name(), $outcome->failures());
+        if ($line != null) {
+            echo $line, "\n";
+        }
+    }
+}
+
+// This prints the line with a long message cut short.
+echo ChatLine::of('itFindsTheProductByName', ["Core\\Test::assertCount failed: the array has 1 element, not 2"]) ?? '', "\n";

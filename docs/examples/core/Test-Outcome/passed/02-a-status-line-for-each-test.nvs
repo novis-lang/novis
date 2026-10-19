@@ -1,0 +1,45 @@
+<?nvs
+// Shows a hook that prints one status line for each test. The line starts with
+// `PASS` or `FAIL`, so a script can find the failed tests.
+
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class Status
+{
+    public static function line(bool $passed, string $test): string
+    {
+        return ($passed ? 'PASS ' : 'FAIL ') . $test;
+    }
+}
+
+class Voucher
+{
+    // The prices are in cents. A voucher never makes the price lower than 0.
+    public static function apply(int $price, int $voucher): int
+    {
+        if ($voucher > $price) {
+            return 0;
+        }
+        return $price - $voucher;
+    }
+}
+
+class VoucherTest
+{
+    #[Test]
+    public function itNeverGoesBelowZero(): void
+    {
+        Test::assertSame(Voucher::apply(300, 500), 0);
+    }
+
+    #[AfterEachTest]
+    public function printStatus(Outcome $outcome): void
+    {
+        echo Status::line($outcome->passed(), $outcome->name()), "\n";
+    }
+}
+
+// This prints `FAIL itNeverGoesBelowZero`.
+echo Status::line(false, 'itNeverGoesBelowZero'), "\n";

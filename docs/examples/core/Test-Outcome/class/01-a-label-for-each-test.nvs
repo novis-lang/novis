@@ -1,0 +1,49 @@
+<?nvs
+// Shows a hook that prints a label for each failed test. The label is the class
+// name and the test name, so you can search for it in your code.
+
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class Label
+{
+    // This joins the class name and the test name with `::`.
+    public static function of(string $class, string $test): string
+    {
+        return $class . '::' . $test;
+    }
+}
+
+class Cart
+{
+    public static function total(array<int> $prices): int
+    {
+        int $sum = 0;
+        foreach ($prices as int $price) {
+            $sum = $sum + $price;
+        }
+        return $sum;
+    }
+}
+
+class CartTest
+{
+    #[Test]
+    public function itAddsThePrices(): void
+    {
+        Test::assertSame(Cart::total([450, 1200]), 1650);
+    }
+
+    // `class()` returns the name of this test class.
+    #[AfterEachTest]
+    public function printLabel(Outcome $outcome): void
+    {
+        if (!$outcome->passed()) {
+            echo 'failed: ', Label::of($outcome->class(), $outcome->name()), "\n";
+        }
+    }
+}
+
+// This prints `CartTest::itAddsThePrices`.
+echo Label::of('CartTest', 'itAddsThePrices'), "\n";

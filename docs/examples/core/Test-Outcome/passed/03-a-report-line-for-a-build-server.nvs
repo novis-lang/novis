@@ -1,0 +1,41 @@
+<?nvs
+// Shows a hook that writes a JUnit XML line for each test. Many build servers
+// read this format and show the failed tests in red.
+
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class JUnit
+{
+    // A failed test gets a `<failure/>` element inside its `<testcase>`.
+    public static function testCase(string $class, string $test, bool $passed): string
+    {
+        string $open = "<testcase classname=\"" . $class . "\" name=\"" . $test . "\"";
+        if ($passed) {
+            return $open . "/>\n";
+        }
+        return $open . "><failure/></testcase>\n";
+    }
+}
+
+class LoginTest
+{
+    #[Test]
+    public function itAcceptsTheRightPassword(): void
+    {
+        Test::assertTrue(Core\Str::length('correct horse') > 8);
+    }
+
+    #[AfterEachTest]
+    public function report(Outcome $outcome): void
+    {
+        string $line = JUnit::testCase($outcome->class(), $outcome->name(), $outcome->passed());
+        IO::append(Path::fromCwd('junit-cases.xml'), $line);
+    }
+}
+
+// This prints the line of a failed test.
+echo JUnit::testCase('LoginTest', 'itAcceptsTheRightPassword', false);
