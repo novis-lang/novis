@@ -45,6 +45,8 @@ checks:
 
 # Every section mark in the code names the document it cites
 
+<!-- nv-rules:record-examples -->
+
 ## Why
 
 About 5,300 lines under `crates/` and `tests/conformance/` carry a `§ N` mark that names no document.
