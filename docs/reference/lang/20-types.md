@@ -939,22 +939,20 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 # `mixed`
 
 `mixed` is the one type Novis does not check. A `mixed` variable can contain a value of any type.
-What an operation on it does is decided while the program runs, from the value it contains.
 
-Input from outside the program has the type `mixed`: a query string, a form post, the fields of
-decoded JSON. Nothing has checked these values yet. Convert each one to the type you need with `as`.
-If the value cannot be converted, `as` throws an error. `is` tests what the value is and does not
-convert it.
+Input from outside the program has the type `mixed`: a query string, a form post, decoded JSON.
+Convert each value to the type you need with `as`. If that is not possible, `as` throws an error.
+`is` tests what the value is and does not convert it.
 
 A `mixed` value is never converted to a narrower type for you. Passing one to a `string` parameter
-does not compile until you convert it with `as string`.
+does not compile until you write `as string`.
 
-**Good to know:** an operation on a `mixed` value is slower than the same operation on a declared
-type. Convert the value once, close to where it arrives, and use the typed value after that.
+**Good to know:** an operation on a `mixed` value is slower than on a declared type. Convert the
+value once, close to where it arrives.
 
 **The examples below** read a page number from a query string, describe each field of a decoded
-payload, and convert an order line from outside. The last two use a `mixed` value directly, and show
-a `mixed` argument to a `string` parameter as a compile error.
+payload, and convert an order line. The last two use a `mixed` value directly and show the compile
+error.
 
 You can use a `mixed` value in arithmetic, as a condition, with `[]`, with `->`, with `.` and with
 `is` or `as`. Each operation checks the value while the program runs. If the value has the wrong
@@ -2274,10 +2272,8 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 Changing a value into another type is written one way in Novis: `as`, followed by the type you want.
 
-A conversion gives you a value of that type, or it throws an error where it was written. It never
-rounds, never drops a fraction, and never uses a zero or an empty string because the value does not
-fit. Text becomes a number only when the whole text is a number. Write a question mark in front of
-the type, as in `as ?int`, and the result is `null` where the plain form would throw. Add `??` to
+A conversion gives a value of that type, or it throws an error. It never rounds, never drops a
+fraction, and never uses a zero or an empty string instead. With `as ?int`, the result is `null` where the plain form would throw. Add `??` to
 use a default value instead.
 
 `as` also checks an object against a shape, such as `as Point`, and turns a class name into a class
@@ -2286,9 +2282,8 @@ reference with `as class<T>`.
 **Good to know:** `as` converts only the value directly before it, so `$a + $b as float` converts
 `$b` alone.
 
-**The examples below** read numbers out of text that came from outside the program, then give a
-default or list the answers that are not numbers. Then they add up an order total and skip a row
-that throws an error. The next examples show which error each conversion throws, and choose a class
+**The examples below** read numbers out of text from outside the program, add up an order total, and
+skip a row that throws an error. Then they show which error each conversion throws and choose a class
 by its name. The last two do not compile.
 
 `as` can be written more than once: `$m as int as string` converts to `int` and then to `string`.
@@ -2647,19 +2642,18 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 A property key is a value that names one public property of a class.
 
-You use a key when the name of a property is known only while the program runs. A sort column in a
-web address and a field in a form are two examples. The type `property<User>` contains the names of
-the public properties of `User`, and of the public properties it inherits. `as` converts a string to
-a key. If the string does not name a public property, `as` throws an error. `as ?property<User>`
-gives `null` instead. With a key, `$user->$key` reads or writes the property it names.
+You use a key when the name of a property is known only while the program runs, such as a sort
+column in a web address. The type `property<User>` contains the names of the public properties of
+`User`, and inherited ones. `as` converts a string to a key, and throws an error if the string
+does not name a public property. `as ?property<User>` gives `null` instead. `$user->$key` reads or
+writes the named property.
 
-**Good to know:** the name of a `private` or `protected` property never converts to a key. A write
-through a key does not compile when the class has a public `readonly` property.
+**Good to know:** a `private` or `protected` property never converts to a key. A write through a key
+does not compile when the class has a public `readonly` property.
 
-**The examples below** sort a table by a column from the web address, show a function that accepts a
-key or any string, update the fields that a list of changes names, and update an object from a JSON
-request body. Then they show a write of the wrong type, a key of a parent class used on a child
-class, and a class with a public `readonly` property.
+**The examples below** sort a table by a column from the web address and update the fields a list of
+changes names. Then they show a write of the wrong
+type and a key of a parent class used on a child class.
 
 In `property<T>`, `T` must be a class with at least one public property. An interface, an enum or a
 type such as `int` is the error `E0799`.
@@ -2989,20 +2983,16 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 A property path is a value that names a field across related objects, such as `customer.address.city`.
 
 The type `propertyPath<Order>` contains paths that start at the class `Order`. Each name in a path is a
-public property. The first name is a property of `Order`. Each name after it is a property of the
-class that the name before it reaches. That property can be an object, a nullable object or an array
-of objects. A string written in a call to a `propertyPath<Order>` parameter is checked when the
-program compiles. A wrong name does not compile, and the error points at that name. `as` checks any
-other string while the program runs. If a name is wrong, `as` throws an error.
-`as ?propertyPath<Order>` gives `null` instead.
+public property of the class that the name before it reaches. That property can be an object, a
+nullable object or an array of objects. A string written in a call to a `propertyPath<Order>`
+parameter is checked when the program compiles. `as` checks any other string while the program runs,
+and throws an error if a name is wrong. `as ?propertyPath<Order>` gives `null` instead.
 
 **Good to know:** a `private` or `protected` property is never part of a path. A path can come back to
-the same class, such as `parent.parent.name`, and has no length limit. `$path as string` gives the
-text of the path.
+the same class, such as `parent.parent.name`.
 
-**The examples below** go from an order to its customer, address and lines, sort a list by a field
-from the web address, and use `propertyPath<static>` in a parent class. Then they show the errors for
-a wrong path in a string and in the code.
+**The examples below** go from an order to its customer, address and lines, and sort a list by a
+field from the web address. Then they show the errors for a wrong path.
 
 Every name in a path but the last must be a property whose type is a class `C`, a `?C` or an
 `array<C>`. The next name is a property of `C`. The last name can be any public property.
@@ -3462,17 +3452,16 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 A test that proves what a value is lets you use it as that thing, in the code the test guards.
 
 The shortest form is one expression: `$user != null ? $user->name : "guest"`. The right side of `&&`
-runs only when the left side is true, so `$user != null && $user->active` works too. `||` works the
-same way when its left side is false. An `if` block or a `match (true)` arm does the same for more
-code. You can test for `null`, test the kind of object with `is`, or compare with a fixed word. When
-you are sure what a value is, `as` converts it and throws an error if you are wrong.
+runs only when the left side is true, so `$user != null && $user->active` works too. An `if` block
+or a `match (true)` arm does the same for more code. You can test for `null`, test the kind of
+object with `is`, or compare with a fixed word.
 
 **Good to know:** a test works only for a variable or a `readonly` property, and only until you
 write to the variable. Copy any other property, such as `$job->mode`, to a variable first.
 
-**The examples below** use a value that might be `null` in one expression and then in an `if`
-block. Then they check the kind of an object, with `as` as the strict form, and act on a job's
-settings. The last two check two values in one test, and show a method call that does not compile.
+**The examples below** use a value that might be `null`, check the kind of an object, and act on a
+job's settings. The last two check two values in one test, and show a method call that does not
+compile.
 
 Four tests narrow a variable:
 

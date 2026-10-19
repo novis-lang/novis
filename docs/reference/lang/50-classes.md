@@ -229,20 +229,17 @@ echo $c->n, "\n";
 A property is a named value that each object of a class has.
 
 Every property declares its type and its visibility. A property without a default value must be
-assigned in the constructor, on every path out of it. The compiler checks that, so every object has a
-value for every property from the moment it is created. A default value must be a constant the
-compiler already knows: a number, a string, a `bool`, an enum case, a class constant, `[]` or `null`.
+assigned in the constructor, on every path out of it. A default value must
+be a constant: a number, a string, a `bool`, an enum case, a class constant, `[]` or `null`.
 
 Three keywords change when a property gets its value. `readonly` means the constructor sets it once
 and no later code can change it. `lateinit` means another part of the program sets it after `new`
-returns. Reading a `lateinit` property before that first write throws an error. `static` means there
-is one value for the whole class instead of one per object, and it starts every request at the value
-you declared.
+returns. Reading it before that first write throws an error. `static` means there is one value for
+the whole class, and it starts every request at the value you declared.
 
-**The examples below** show the three shapes in that order: defaults and a constructor, then
-`readonly`, then a `static` counter with a `lateinit` property beside it. The next ones show a
-constructor that does not compile, each kind of default, a `lateinit` read that throws, `isinit`,
-a `readonly` write and `static::` on a property.
+**The examples below** show defaults, a constructor, `readonly`, `static` and `lateinit`. Others
+show a constructor that does not compile, a `lateinit` read that throws, `isinit`, a `readonly`
+write and `static::` on a property.
 
 Only a plain `=` assigns a property in the constructor. `$this->n += 1;` reads the property first, so
 a constructor with only that line is the error `E0409`. A `?T` property with no default and no
@@ -580,19 +577,16 @@ A method is a function that belongs to a class.
 An instance method runs on one object, and `$this` is that object. A `static` method belongs to the
 class itself. It has no `$this`, and you call it as `Class::method()`.
 
-Inside a class, three names reach a method without writing the class name again. `self` is the class
-the code is written in. `static` is the class the call was made on, which may be a class that extends
-it. `parent` is the class this one extends, so `parent::format()` calls the version the parent wrote
-and `parent::constructor(...)` runs its constructor.
-
-**In plain words:** `self` is where the code was written. `static` is who called it.
+Three keywords call a method without writing the class name. `self` is the
+class the code is written in. `static` is the class the call was made on, which may be a subclass.
+`parent` is the class this one extends, so `parent::format()` calls the parent's version.
 
 **Good to know:** a method that says it returns `static` must return the object it was called on, or
-a new object of the same class. That is what makes it safe to call from a subclass.
+a new object of the same class.
 
-**The examples below** show the two kinds of method, then `self` beside `static` in a subclass, then
-a subclass that calls the version its parent wrote. The last two show a chain of calls with an
-anonymous function that keeps `$this`, and a method with the return type `static` that does not compile.
+**The examples below** show the two kinds of method, `self` beside `static` in a subclass, and a
+subclass that calls its parent's version. The last two show a chain of calls with an anonymous
+function that keeps `$this`, and a return type `static` that does not compile.
 
 An anonymous function written inside a method keeps that method's `$this`. It may read the class's
 `private` properties and call its `private` methods.
@@ -806,24 +800,21 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 A class can hold named values that never change, and every class knows its own name.
 
-A constant is written `public const int MAX = 3;` inside the class, with its type. Code inside the
-class reads it as `self::MAX`, and code anywhere else as `Limits::MAX`. Both put the value in place
-where you read it, so they cost nothing at run time. That is also why the value has to be written
-directly in the code, as one value or a list of values.
+A constant is written `public const int MAX = 3;`, with its type. Code inside the
+class reads it as `self::MAX`, and code anywhere else as `Limits::MAX`. The value must be written
+directly in the code, as one value or a list.
 
 A subclass can give a constant a new value. In a method, `static::MAX` reads the value of the class
-the call was made on, and `self::MAX` reads the value of the class the code is written in.
-`static::` works only for a single value, such as a number or a string, and not inside an anonymous
-function.
+the call was made on. `self::MAX` reads the value of the class the code is written in. `static::`
+works only for a single value, not inside an anonymous function.
 
 `Limits::class` gives the name of a class as a string. `$order::class` gives the class a value
-really is, and `static::class` gives the class the call was made on.
+really is.
 
-**Good to know:** a constant that holds a list gives you a new list on every read. If you change
-the list you got, the next read is unchanged.
+A constant list gives you a new list on every read.
 
-**The examples below** show constants with `self::` and `static::`, the name of a class as text, and
-a constant list of allowed values. The last one shows `static::` with a list, which does not compile.
+**The examples below** show `self::` and `static::`, class names as text, a constant list, and
+`static::` with a list, which does not compile.
 
 A constant name is SCREAMING_SNAKE_CASE, so `const int max` is the error `E0113`. `static` on a
 constant is the error `E0106`. An unknown constant is `E0309`. A constant cannot be assigned:

@@ -961,25 +961,23 @@ tags.1: expected string, found a number
 
 # `#[Core\Route]` and `#[Core\Access]`: the route table
 
-`#[Core\Route]` on a method gives it a path and an HTTP method. `#[Core\Access]` on the same method
-says who may use it. A route needs both attributes.
+`#[Core\Route]` on a method gives it a path and an HTTP method. `#[Core\Access]` says who may
+use it. A route needs both.
 
 A path has fixed segments and captures. `{id}` matches one segment. `{id?}` matches one segment or
-none, and must come last. `{path...}` matches all remaining segments. Each capture gives its value
-to the parameter with the same name, converted to the type of that parameter.
+none, and must come last. `{path...}` matches all remaining segments. Each capture goes to
+the parameter with the same name, converted to its type.
 
-Novis collects every route into one table when the program is compiled. `Core\Router::url` builds a
-link from the name of a route, and the link is checked at the same time. An unknown route name or a
-missing capture is a compile error.
+Novis collects every route into one table at compile time. `Core\Router::url` builds a
+link from the name of a route. An unknown route name or a missing capture is a compile error.
 
-**Good to know:** the server matches each request to a route before your program runs. Your entry
-file calls `Core\Router::dispatch`, which calls the method of that route. A gate class of your own
-checks each request first and writes the error pages. A program can also read the match with
-`Core\Request::route()` and call the method itself.
+The server matches each request to a route before your program runs. Your entry file calls
+`Core\Router::dispatch`, which calls that route's method. A program can also read the match with
+`Core\Request::route()`.
 
-**The examples below** show one route and its link, the three kinds of capture, and the links for a
-product list page. Then they show routes in another file, a program that calls the route method
-itself, and a route with no `#[Core\Access]`, which does not compile.
+**The examples below** show a route and its link, the three captures, product list links, routes in
+another file, calling a route method yourself, and a route with no `#[Core\Access]`, which does not
+compile.
 
 A path must start with `/`, or it is `E0750`. A `{name?}` or `{name...}` capture that is not the last
 segment is `E0750` too. A route with no `method:` is `E0747`, and a `method:` that is not a case of
@@ -2087,21 +2085,17 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 that implements the interface `I`, with one of that class's attributes beside it.
 
 Each row has two fields. `instance` is the object, and `attribute` is the one attribute on that
-class's `$member` whose fields match the shape `T`. A class that carries no such attribute has `null`
-there. `$member` is the name of a method or a property, or an empty string for the attributes written
-on the class itself. The rows are sorted by the full class name, so the order is the same on every
-machine.
+class's `$member` whose fields match the shape `T`. Without such an attribute, it is `null`. `$member` is the name of a method or a property, or an empty string for the attributes written
+on the class itself. Rows are sorted by full class name.
 
 Novis finds the classes and their attributes while it compiles your program. A framework uses this
-to read the settings of the classes it found. In a loop over `Core\Program::implementing`, the
-variable has the type of the interface. `Core\Attributes::get` needs a class name, so it cannot read
-the attributes there. `implementingWith` reads them for each class.
+to read the settings of the classes it found.
 
 **Good to know:** two attributes on one class that both match `T` are an error. Use a narrower
 shape, or read that class with `Core\Attributes::all<T>`.
 
-The examples show a report label, the attributes on a class itself, an admin menu, a class without
-the member, which does not compile, and the path of each page's route.
+The examples show a report label, class attributes, an admin menu, each page's route path, and a
+missing member, which does not compile.
 
 `I` follows the same rules as for `Core\Program::implementing`. The list has the same classes in
 the same order, and `E0743`, `E0744` and `E0442` are given for the same mistakes. The call takes two

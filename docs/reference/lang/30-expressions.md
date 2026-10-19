@@ -14,16 +14,14 @@ the same strength meet.
 Novis uses the order most languages use: `*` and `/` before `+` and `-`, then the comparisons, then
 `&&`, then `||`, and the assignment last. `**` runs before a minus sign in front of it, and a chain
 of them is read from the right. So `-2 ** 2` is `-4` and `2 ** 3 ** 2` is `512`. A conversion with
-`as` binds tighter than every operator around it. The `.` that joins two strings binds looser than
-`+`, `-`, `*` and the shifts. A ternary inside another one groups to the right.
+`as` binds tighter than every operator around it.
 
-**Good to know:** parentheses cost nothing when the program runs. The compiler gives warning `W1022`
+**Good to know:** the compiler gives warning `W1022`
 for two mixes that are easy to misread. In `$n ?? 0 + 10`, the `+` runs first, so the default is
-`10`. In `"n=" . $ok ? "x" : "y"`, the whole `"n=" . $ok` is the condition.
+`10`.
 
-**The examples below** show the arithmetic order, then `**` with a minus sign, then `as` and `.` in a
-line of text built from a form field. The last one shows `!` with `is`, the pipeline `|>` and a
-method call on `new`.
+**The examples below** show the arithmetic order, `**` with a minus sign, and `as` and `.` in a line
+of text. The last one shows `!` with `is`, the pipeline `|>` and a method call on `new`.
 
 The full order, from the operators that run first to the ones that run last:
 
@@ -1284,19 +1282,16 @@ Thank you.
 Five short operators for values that may be missing, and for choosing between two values.
 
 `$a ?? $b` gives `$a`, or `$b` when `$a` is `null` or the array key is not there. `$a ??= $b` writes
-`$b` into `$a` only when `$a` is `null` or missing, and a missing key may be at any level.
-`$a ?: $b` gives `$a` when it counts as something and `$b` when it counts as nothing, so an empty
-string or a zero picks `$b`. `$o?->name` gives `null` when `$o` is `null`. `$c ? $a : $b` gives `$a`
-when `$c` is true and `$b` when it is not.
+`$b` into `$a` only when `$a` is `null` or missing. `$a ?: $b` gives `$b` when `$a` counts as
+nothing, such as an empty string or a zero. `$o?->name` gives `null` when `$o` is `null`.
+`$c ? $a : $b` gives `$a` when `$c` is true and `$b` when it is not.
 
-**Good to know:** only the side you end up with is run, so a method call on the other side never
-runs. In `$o != null ? $o->name : "none"`, the first side runs only when `$o` is not `null`, so you
-may write `$o->name` there. `&&` works the same way.
+**Good to know:** only the side you end up with is run. In `$o != null ? $o->name : "none"`, the
+first side runs only when `$o` is not `null`. `&&` works the same way.
 
-**The examples below** show a value that may be missing, then a choice between two values, then a
-settings file with its gaps filled in: the short `?->` and `??` first, then the test written out.
-The last two show `??-=` and `??.=` with a ternary inside a ternary, and the error for a write
-through `?->`.
+**The examples below** show a missing value, a choice between two values and a settings
+file with its gaps filled in. The last two show `??-=` and `??.=`, and the error for a write through
+`?->`.
 
 `??` runs its right side only when the left side is `null` or a missing key. The right side may be
 `throw`: `$id ?? throw new LogicError("no id")`. A missing key at any level gives the right side, so
@@ -1530,20 +1525,17 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 # Assignment
 
 `=` writes a value into a local variable, a property, a static property or an array element. It is
-an expression as well as a statement: its value is what was just written, so `$a = $b = 3` sets both
-and `($a = 5) + 1` gives 6.
+also an expression. Its value is what was just written, so `$a = $b = 3` sets both.
 
-Every compound form, such as `+=`, `-=`, `*=` or `.=`, is a short way to write `$x = $x op e`. The
-target is worked out a single time, so `$totals[next()] += 1` runs `next()` once. A compound form
-cannot change the type of what it writes into, so `$n /= 2` on an `int` does not compile.
+Every compound form, such as `+=` or `.=`, is a short way to write `$x = $x op e`. The target is
+worked out once, so `$totals[next()] += 1` runs `next()` once. A compound form cannot change the
+type of its target, so `$n /= 2` on an `int` does not compile.
 
 `??+=`, `??-=` and `??.=` update a value that may not exist yet. `$count["paid"] ??+= 1` starts
-from `0` when the key is missing or the value is `null`. A string starts from `""`. Use the plain
-form when the target always has a value.
+from `0` when the key is missing or the value is `null`. A string starts from `""`.
 
-**The examples below** take these in turn: writing and updating a value, updating what is inside an
-array and an object, and tallying a report with `??+=` first and the same update written out after.
-The last two show every compound operator, and the error for `/=` on an `int`.
+**The examples below** write and update values, update arrays and objects, and tally a report with
+`??+=`. The last two show every compound operator, and the error for `/=` on an `int`.
 
 The compound forms are `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `.=`, `<<=`, `>>=`, `&=`, `|=` and `^=`.
 There is no `<=>=` and no `|>=`.
@@ -2025,20 +2017,18 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 Eight small expressions that test a value, build one, copy one or stop the program.
 
-`$x is T` is true when the value in `$x` is a `T` now. In the branch where the test is true, `$x`
-has the type `T`, so you can use it as a `T` there. When the class is only known while the program
-runs, `$x is $cls` tests against a `class<T>` variable. `new C(...)` builds an object.
+`$x is T` is true when the value in `$x` is a `T`. Where the test is true, `$x` has the type
+`T`. `$x is $cls` tests against a `class<T>` variable. `new C(...)` builds an object.
 
-`clone $o` makes a shallow copy. Numbers, text and arrays are copied. An object in a property is
-shared with the original. `isset($x)` is true when `$x` is there and its value is not `null`.
-`empty($x)` is true when `$x` is false by the truth table. Both work on a variable, a property or an
-array element, and a key that is not there gives `false`.
+`clone $o` makes a shallow copy. An object in a property is
+shared with the original. `isset($x)` is true when `$x` is there and is not `null`. `empty($x)` is
+true when `$x` is false by the truth table. Both work on a variable, a property or an array element.
 
-**Good to know:** `throw`, `print` and `exit` are expressions too, so each one can be the right side
-of `??`. `print` writes one value and gives `1`, and `exit` ends the program.
+**Good to know:** `throw`, `print` and `exit` are expressions too, so each can be the right side of
+`??`. `print` writes one value and gives `1`.
 
 **The examples below** show a type test, an object and its copy, and settings that may be missing.
-The last two show all of these in one program, and a `string` after `is`, which does not compile.
+The last two show all of these, and a `string` after `is`, which does not compile.
 
 `is` works with every type a value can have: a class, an interface, `int`, `?int`, `null`, a union
 such as `int|string` and an array type such as `array<int>`. When the declared type of the variable
@@ -2821,21 +2811,17 @@ An anonymous function is a small function you write where you need it. You can k
 variable, pass it to another call or store it in a list.
 
 `fn` is the only way to write one. After the arrow comes one expression, whose value the function
-returns, or a block in braces. Every parameter has a type. A block always declares its return type.
-An anonymous function captures each outside variable it uses. This means it copies the value when
-the function is written. Changing that variable later does not change what the function sees.
-Inside a method, the object is captured too.
+returns, or a block in braces. Every parameter has a type. A block declares its return type.
+The function copies each outside variable it uses when the function is written.
 
-`$fn->bindTo($obj)` and `$fn->bind($obj)` return a copy of the function that uses `$obj` as `$this`.
-`$fn->call($obj, ...)` makes that copy and calls it with the other arguments. The object must be of
-the class the function was written in, or of a subclass. Any other object, or `null`, throws a
-`LogicError`.
+`$fn->bindTo($obj)` and `$fn->bind($obj)` return a copy that uses `$obj` as `$this`.
+`$fn->call($obj, ...)` makes that copy and calls it. The object must be of the class the function
+was written in, or a subclass. Any other object, or `null`, throws a `LogicError`.
 
-**Good to know:** there is no `use (...)` list. A call through a `callable` returns `mixed`, so use
-`as` to say which type you read.
+**Good to know:** there is no `use (...)` list. A call through a `callable` returns `mixed`.
 
-**The examples below** write small functions, show what a function captures and check a form. Example
-04 reads `$this`, example 05 calls itself, and example 06 does not compile.
+**The examples below** write functions, show captures and check a form.
+Example 04 reads `$this`, 05 calls itself, and 06 does not compile.
 
 These forms do not compile:
 
@@ -3122,22 +3108,20 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 # Arrays in expressions
 
-An array holds a list of values, or a table where every value has a name. This is the syntax for
-building one, reading it and changing it.
+An array is a list of values, or a table where every value has a name.
 
 You write an array as `[10, 20]` or `["city" => "Graz"]`. `var $prices = [10, 20]` takes the type
 from the values, so `$prices` is an `array<int>`. An empty array, or one whose values have different
-types, needs the type written: `array<int> $prices = []` or `array<int|string> $row = [1, "a"]`.
-`$prices[] = 30` adds a value at the end. Every key is text, so `$prices[8]` and `$prices["8"]` are
-one entry. Reading a key that is not there throws a `RuntimeError`, so write `$prices["milk"] ?? 0`
-where a missing key is normal, and `isset($prices["milk"])` to test for one.
+types, needs the type written: `array<int> $prices = []`. `$prices[] = 30` adds a value at the end.
+Every key is text, so `$prices[8]` and `$prices["8"]` are one entry. Reading a key that is not there
+throws a `RuntimeError`. Write `$prices["milk"] ?? 0` where a missing key is normal.
 
-**Good to know:** an array is a value. Assigning it, passing it to a function and returning it each
-give a copy, so a change on one side is never seen on the other.
+**Good to know:** an array is a value. Assigning, passing or returning it gives a copy, so a change
+on one side is never seen on the other.
 
-**The examples below** build a list and a price table with `var` first and a written type after,
-then read keys that may be missing, then group rows for a small report. Example 04 shows keys,
-spread and nested arrays, and example 05 shows destructuring. Example 06 does not compile.
+**The examples below** build a list and a price table, read missing keys and group rows.
+Example 04 shows keys, spread and nested arrays, 05 destructuring, and 06 does
+not compile.
 
 `var $a = [];` is the error `E0414`, because an empty array has no values to take a type from.
 `var $a = [1, "x"];` is `E0414` too. Its help names the type to write: `array<int|string>`.
