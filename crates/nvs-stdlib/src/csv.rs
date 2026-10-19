@@ -313,7 +313,7 @@ const ROWS_RECORD_AT: usize = 2;
 /// `a_class_with_slots_has_instance_members_and_the_reverse` names, beside
 /// `Core\IO\Lines`: its slots are read, just not through a member of its own.
 ///
-/// What `Core\Csv::rows` answers with: § 12's streaming read, as a name a
+/// What `Core\Csv::rows` answers with: the streaming read, as a name a
 /// return type can write. Its own docs say why it carries the iteration trio
 /// itself where `Core\IO\Lines` hands back a cursor — a record that has not
 /// been read yet cannot be in a snapshot.

@@ -220,9 +220,9 @@ const CARD: ClassDoc = ClassDoc {
 /// about the path it is already serving would be matching twice, which is what
 /// § 1 exists to remove.
 ///
-/// § 15's link half only — `rule:routing/link-name-and-params-are-checked`'s `url`/`urlAbsolute`. `match` and
+/// The link half only — `rule:routing/link-name-and-params-are-checked`'s `url`/`urlAbsolute`. `match` and
 /// `methodsFor` answer a request and land with the server; [`crate::router`]
-/// owns why, and owns the enum that section's `method` parameter takes.
+/// owns why, and owns the enum the `method` parameter takes.
 // rank: 380
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,

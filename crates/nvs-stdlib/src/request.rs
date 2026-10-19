@@ -211,7 +211,7 @@ const CARD: ClassDoc = ClassDoc {
 /// each answers a match made before the program ran rather than anything the
 /// peer sent.
 ///
-/// § 15's second request-facing class, and the one every value that came
+/// The second request-facing class, and the one every value that came
 /// from outside the process arrives through: `rule:statements/no-host-populated-variables`'s replacement for
 /// `$_GET`, `$_POST`, `$_COOKIE` and `$_FILES`, of which the request line —
 /// `method`, `path`, `query` — is registered. Beside `Core\Server` for the
@@ -1228,7 +1228,7 @@ const BODY_STREAM_CARD: ClassDoc = ClassDoc {
 /// names. The registry writes `bodyStream(): Iterable<bytes>` and no member on the
 /// thing it answers with.
 ///
-/// What `Core\Request::bodyStream` answers with, and the whole of § 15's
+/// What `Core\Request::bodyStream` answers with, and the whole of its
 /// `Iterable<bytes>` — a name for the walk, with no member on it, exactly as
 /// `Core\IO\Lines` is. It is the one `Iterable` in `Core` that is its own
 /// iterator rather than a snapshot, and its own docs say why: the next chunk
@@ -1371,7 +1371,7 @@ const PART_ORDINAL: usize = 3;
 /// And what that walk yields: `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s file part, which is a part iff
 /// it declared a `filename`. Three readers of what one upload said about
 /// itself, all of them `tainted`, and no `size` — [`crate::request`]'s `PART`
-/// docs own why the spec's two marks became three and why there is no
+/// docs own why all three are `tainted` and why there is no
 /// fourth reader.
 // rank: 740
 pub(crate) const PART: CoreClass = CoreClass {

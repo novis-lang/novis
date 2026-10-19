@@ -199,7 +199,7 @@ const CARD: ClassDoc = ClassDoc {
 /// `Core\Mime`'s registry rows — the detection, and the one direction in which
 /// a case becomes a name.
 ///
-/// § 17's detection class, beside the codec class for the reason both are
+/// The detection class, beside the codec class for the reason both are
 /// Tier 0: what a program is allowed to conclude about untrusted octets is
 /// policy. Its whole knowledge is a compiled-in table of literal
 /// signatures — [`crate::mime`] owns why that is not libmagic's rule

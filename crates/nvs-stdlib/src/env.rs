@@ -113,7 +113,7 @@ const CARD: ClassDoc = ClassDoc {
 
 /// The registry row. See [`crate::registry::CLASSES`].
 ///
-/// § 15's environment half — `rule:statements/no-host-populated-variables`'s replacement for `$_ENV` and
+/// The environment half — `rule:statements/no-host-populated-variables`'s replacement for `$_ENV` and
 /// `getenv`, and beside `Core\Config` because the two are the same operator's
 /// two answers to "what was this process started with". The one class here
 /// that reaches the operating system and is deliberately *not* in the

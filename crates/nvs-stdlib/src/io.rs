@@ -1895,7 +1895,7 @@ const METADATA_CARD: ClassDoc = ClassDoc {
 /// [`crate::time`], which is where [`crate::time::instant_at_system_time`]'s
 /// own doc argues it belongs.
 ///
-/// What `Core\IO::stat` answers with — § 14's whole metadata bullet as one
+/// What `Core\IO::stat` answers with — every metadata question as one
 /// value, so a program asking more than one question about a path pays for
 /// one syscall. Its own docs argue why it is an instance rather than a
 /// shape (`rule:types/shape-type`), and why the questions it answers are also members of

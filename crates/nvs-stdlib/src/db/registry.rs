@@ -1300,7 +1300,7 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
 /// fit, and it is the one that holds the connection.
 ///
 /// What `query` answers with — `rule:core-classes/db-statement-members`'s buffered result set, and all
-/// six of § 18's readers over it. Five read the rows it holds and
+/// six of its readers over it. Five read the rows it holds and
 /// `columns()` reads the description beside them, which is why it is
 /// readable before a row is.
 // rank: 1520
@@ -1418,7 +1418,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 /// which is the universal path and what that roster means by leaving it
 /// out.
 ///
-/// One row of that set: § 18's associative reading plus the eleven typed
+/// One row of that set: the associative reading plus the eleven typed
 /// readers `rule:core-classes/db-column-types` puts in place of PHP's three fetch modes. Four of
 /// the eleven answer only their refusal until § 9's structured columns land.
 // rank: 1540
@@ -1587,9 +1587,9 @@ pub(crate) const ROW: CoreClass = CoreClass {
 /// arrived.
 ///
 /// What `execute` answers with: § 4's two counts and the id a `RETURNING`
-/// clause handed back, as the three readers § 18 now writes — for the reason
+/// clause handed back, as three readers — for the reason
 /// [`CoreTy::Instance`](crate::registry::CoreTy::Instance) states, that a `Core` instance has no property a
-/// program can reach, which that section's own preamble records.
+/// program can reach.
 // rank: 1550
 pub(crate) const WRITE: CoreClass = CoreClass {
     name: WRITE_NAME,
@@ -1652,7 +1652,7 @@ pub(crate) const WRITE: CoreClass = CoreClass {
 /// differ per driver, which is the shape `rule:core-api/shape-rules`
 /// R11 removes.
 ///
-/// One column of what a statement described — § 18's three readers in place
+/// One column of what a statement described — three readers in place
 /// of `getColumnMeta`'s per-driver array, reached through `Rows::columns`
 /// and produced nowhere else. Its `type()` is what gives `crate::db`'s
 /// `COLUMN_TYPE` a member that answers one.
@@ -1706,7 +1706,8 @@ pub(crate) const COLUMN: CoreClass = CoreClass {
 /// has no members at all, because it is accepted only as a bound parameter.
 ///
 /// What `inList` answers with: `rule:core-classes/db-parameters`'s explicit
-/// expansion marker. [`crate::db`] owns why the expansion itself stays in
+/// expansion marker, memberless because `Core\Db` accepts it nowhere but a
+/// bound parameter. [`crate::db`] owns why the expansion itself stays in
 /// `nvs-db`.
 // rank: 1570
 pub(crate) const IN_LIST: CoreClass = CoreClass {

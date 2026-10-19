@@ -392,7 +392,7 @@ pub(crate) const COMPRESSOR_NAME: &str = r"Core\Compress\Compressor";
 /// a coder, why this is a class of its own beside [`DECOMPRESSOR`], and what
 /// either one spends.
 ///
-/// § 17's incremental pair, beside the class whose two openers answer them.
+/// The incremental pair, beside the class whose two openers answer them.
 /// Two classes rather than one because an instance carries no qualifier:
 /// `rule:security/tainted-sources` makes the decompressing half's `finish`
 /// answer `tainted bytes` and the compressing half's answer `bytes`, which
