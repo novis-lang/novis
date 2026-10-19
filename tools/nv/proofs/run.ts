@@ -108,18 +108,23 @@ export function requiredServices(source: string): string[] {
 
 /** Why this host runs none of the compose file's containers, read from `docker info --format
  * {{.OSType}}`: null when it runs them. `info` is null when no `docker` program could be started. A
- * Docker that is installed but not answering is not a reason here: `up` then fails and says why, so a
- * developer who forgot to start Docker sees a failure and not a skip. */
-export function noDockerReason(info: { code: number; stdout: string } | null): string | null {
+ * Docker that is installed and not answering is a reason too, with the last line `info` wrote: that is
+ * how a hosted Windows runner's Docker program meets a request for Linux containers, and one rule on
+ * every platform makes it a skip there and on a developer's machine alike. */
+export function noDockerReason(info: { code: number; stdout: string; stderr: string } | null): string | null {
   if (info === null) return "this host has no Docker";
   const os = info.stdout.trim();
-  if (info.code !== 0 || os === "" || os === "linux") return null;
+  if (info.code === 0 && os === "linux") return null;
+  if (info.code !== 0 || os === "") {
+    const said = info.stderr.trim().split(/\r?\n/).at(-1) ?? "";
+    return `this host's Docker is not answering (\`docker info\` exit ${info.code}${said ? `: ${said}` : ""})`;
+  }
   return `this host's Docker runs ${os} containers, and ${COMPOSE} has Linux ones`;
 }
 
 /** `noDockerReason` for this host, probed once per process by the first program that names a service. */
 let dockerProbe: Promise<string | null> | null = null;
-function dockerAbsent(): Promise<string | null> {
+export function dockerAbsent(): Promise<string | null> {
   dockerProbe ??= runProc(["docker", "info", "--format", "{{.OSType}}"], { cwd: ROOT, timeoutMs: 60_000 }).then(
     (r) => noDockerReason(r),
     () => noDockerReason(null),

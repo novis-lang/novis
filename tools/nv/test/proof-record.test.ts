@@ -174,12 +174,13 @@ describe("the judged run and the recording run", () => {
     expect(why).toContain("no service in tests/db/compose.yaml");
   });
 
-  test("a `requires:` service program is skipped where Docker runs no Linux containers, and fails where Docker is down", () => {
+  test("a `requires:` service program is skipped wherever Docker runs no Linux containers, a Docker that does not answer included", () => {
     expect(noDockerReason(null)).toBe("this host has no Docker");
-    expect(noDockerReason({ code: 0, stdout: "windows\n" })).toContain("runs windows containers");
-    expect(noDockerReason({ code: 0, stdout: "linux\n" })).toBeNull();
-    // Installed but not answering: `up` fails and says why, so the program is not skipped.
-    expect(noDockerReason({ code: 1, stdout: "" })).toBeNull();
+    expect(noDockerReason({ code: 0, stdout: "windows\n", stderr: "" })).toContain("runs windows containers");
+    expect(noDockerReason({ code: 0, stdout: "linux\n", stderr: "" })).toBeNull();
+    const down = noDockerReason({ code: 1, stdout: "", stderr: "Client:\nerror during connect: the daemon is not running\n" });
+    expect(down).toBe("this host's Docker is not answering (`docker info` exit 1: error during connect: the daemon is not running)");
+    expect(noDockerReason({ code: 124, stdout: "", stderr: "" })).toBe("this host's Docker is not answering (`docker info` exit 124)");
   });
 
   test("a program without a service, or with one the compose file does not declare, is never a service skip", async () => {
