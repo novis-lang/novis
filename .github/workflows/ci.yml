@@ -123,8 +123,10 @@ jobs:
     # deadline or a cache. The limit is sized for a cold cache, which every dependency bump causes:
     # a job cut off by its limit skips rust-cache's post step and saves nothing, so a limit only a
     # warm cache fits keeps the leg cold and red on every later run. A cold Windows or macOS leg
-    # spends most of it in the build and in `nvs-ext`'s pdf and spreadsheet tests.
-    timeout-minutes: 90
+    # spends most of it in the build and in `nvs-ext`'s pdf and spreadsheet tests. A cold Windows
+    # leg reached 90 minutes once the conformance step added its shared-worker run: a 37-minute
+    # build, 31 minutes of tests and 17 of conformance left the unoptimised suite 4 minutes.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
