@@ -1536,14 +1536,16 @@ mod tests {
     /// The peer is what reads the wire here, so a text sent as binary, a
     /// message split in two or two messages swapped all fail on what arrived
     /// rather than on what this end believes it wrote. The text is larger than
-    /// one read so a message written in pieces would show.
+    /// one read so a message written in pieces would show. Under Miri it is a
+    /// tenth of that: both ends run on one interpreter there, and masking
+    /// 200 kB takes longer than the peer waits.
     // covers: Core\Http\Socket::send
     // covers: Core\Http\Socket::sendBytes
     #[test]
     fn a_send_writes_one_whole_message_of_its_kind_and_nothing_past_the_lifetime() {
         let (at, served) = talking_origin(None, Vec::new());
         let mut open = opened(at, Duration::from_secs(5), Duration::from_secs(30), 1 << 20);
-        let long = "w".repeat(200_000);
+        let long = "w".repeat(if cfg!(miri) { 20_000 } else { 200_000 });
 
         super::written(
             &mut open,

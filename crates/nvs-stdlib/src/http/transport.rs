@@ -3220,8 +3220,10 @@ pub(crate) mod tests {
         stream
             .set_nonblocking(false)
             .expect("a connection that waits for its handshake");
+        // Under Miri the wait is a minute, because writing a long message
+        // there takes longer than five seconds.
         stream
-            .set_read_timeout(Some(Duration::from_secs(5)))
+            .set_read_timeout(Some(Duration::from_secs(if cfg!(miri) { 60 } else { 5 })))
             .expect("a bound on this origin's own wait");
         answered(&mut stream, chosen);
         let mut peer =
@@ -4668,15 +4670,27 @@ pub(crate) mod tests {
     /// what a buffered decode already does.
     #[test]
     fn a_streamed_reply_is_decoded_as_it_arrives_rather_than_gathered_first() {
-        // Under Miri the payload is a quarter of the size. That is still more
-        // than one block of every codec's framing.
-        let payload = noise(if cfg!(miri) { 256 << 10 } else { 1 << 20 });
-        for (coding, codec) in [
-            ("gzip", Codec::Gzip),
-            ("br", Codec::Brotli),
-            ("zstd", Codec::Zstd),
+        // Under Miri each payload is smaller: 64 KiB for `gzip` and `br`, and
+        // 384 KiB for `zstd`. The `zstd` decoder gives out nothing until it
+        // holds more than its window, so the three quarters before the cut
+        // must be more than two of its 128 KiB blocks. A native run passes
+        // at these sizes, and fails with `zstd` at 256 KiB. Under Miri the
+        // `zstd` frame is also written as raw blocks, because compressing
+        // 384 KiB there takes minutes, and this case is about the decoder.
+        for (coding, codec, small) in [
+            ("gzip", Codec::Gzip, 64 << 10),
+            ("br", Codec::Brotli, 64 << 10),
+            ("zstd", Codec::Zstd, 384 << 10),
         ] {
-            let frame = compress_to(codec, &payload).expect("a frame this case wrote");
+            let payload = noise(if cfg!(miri) { small } else { 1 << 20 });
+            let frame = if cfg!(miri) && matches!(codec, Codec::Zstd) {
+                ruzstd::encoding::compress_to_vec(
+                    payload.as_slice(),
+                    ruzstd::encoding::CompressionLevel::Uncompressed,
+                )
+            } else {
+                compress_to(codec, &payload).expect("a frame this case wrote")
+            };
             // Three quarters, so that every backend has whole blocks of its own
             // framing to work from before the tail arrives.
             let cut = frame.len() / 4 * 3;
@@ -4702,10 +4716,9 @@ pub(crate) mod tests {
             );
 
             assert!(
-                reply
-                    .body
-                    .pull()
-                    .expect("what has already arrived, decoded"),
+                reply.body.pull().unwrap_or_else(|thrown| panic!(
+                    "a `{coding}` stream decodes what has already arrived: {thrown:?}"
+                )),
                 "a `{coding}` stream answers its first pull from the octets it has"
             );
             let early = reply.body.held().len();
