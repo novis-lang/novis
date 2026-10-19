@@ -363,7 +363,10 @@ fn judge(case: &Case, opts: &Options, workdir: &Path, record: &[(String, String)
         && let Some(worker) = &opts.shared
         && shares_a_worker(case)
     {
-        report = shared_verdict(case, &stdout, worker.run(&workdir.join("case.nvs")));
+        let shared = worker
+            .run(&workdir.join("case.nvs"))
+            .map(|output| named_as_fresh(workdir, &output));
+        report = shared_verdict(case, &stdout, shared);
     }
 
     if report.is_empty() {
@@ -380,7 +383,7 @@ fn judge(case: &Case, opts: &Options, workdir: &Path, record: &[(String, String)
 /// and the cases run in parallel. So a case that needs a request, arguments,
 /// `--ENV--`, files beside it, a `--SKIPIF--` or a `--CLEAN--` runs fresh only.
 /// So does a case that expects an error, because the worker returns standard
-/// output alone.
+/// output alone, and a case whose program names one of [`TOP_LEVEL_ONLY`].
 fn shares_a_worker(case: &Case) -> bool {
     case.run == Subcommand::Run
         && case.request.is_none()
@@ -392,6 +395,34 @@ fn shares_a_worker(case: &Case) -> bool {
         && case.skipif.is_none()
         && case.clean.is_none()
         && !case.expects_failure()
+        && !TOP_LEVEL_ONLY
+            .iter()
+            .any(|member| case.file.contains(member))
+}
+
+/// What only `nvs run`'s own top level gives a program, and an isolate on a
+/// worker does not: the unit under test that `Core\Test::request` answers
+/// through, the `#[Command]` table and the program's name, the context a
+/// command line sets, and the work that runs after the response. A served
+/// request has none of these either, so a case that names one runs fresh only.
+const TOP_LEVEL_ONLY: [&str; 4] = [
+    "Test::request",
+    "Command::",
+    "Env::context",
+    "afterResponse",
+];
+
+/// `output` with the program's absolute path written as `case.nvs`.
+///
+/// A fresh run names its program `case.nvs`, and the worker runs it by its
+/// absolute path, so the program's own name in what it prints differs. Both
+/// the path itself and its JSON spelling are rewritten. Every other path keeps
+/// its directory, as it does in a fresh run.
+fn named_as_fresh(workdir: &Path, output: &str) -> String {
+    let path = workdir.join("case.nvs").display().to_string();
+    output
+        .replace(&path.replace('\\', "\\\\"), "case.nvs")
+        .replace(&path, "case.nvs")
 }
 
 /// The report for a case's run on the shared worker, empty when it agrees
@@ -959,9 +990,25 @@ mod tests {
                 "another subcommand",
                 "--TEST--\nt\n--RUN--\ntest\n--FILE--\n<?nvs\n--EXPECT--\n",
             ),
+            (
+                "an in-process request",
+                "--TEST--\nt\n--FILE--\n<?nvs\nCore\\Test::request('GET', '/');\n--EXPECT--\n",
+            ),
         ] {
             assert!(!shares_a_worker(&parsed(text)), "a case with {what}");
         }
+    }
+
+    #[test]
+    fn the_programs_own_absolute_path_reads_as_case_nvs_and_no_other_path_changes() {
+        let workdir = Path::new("/tmp/run/7");
+        let own = workdir.join("case.nvs").display().to_string();
+        let other = workdir.join("report.txt").display().to_string();
+        let json = own.replace('\\', "\\\\");
+        assert_eq!(
+            named_as_fresh(workdir, &format!("{own}:3 {json} {other}")),
+            format!("case.nvs:3 case.nvs {other}")
+        );
     }
 
     #[test]
