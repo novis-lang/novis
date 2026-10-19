@@ -25,18 +25,18 @@
   },
   "syntax/basics/comments.mdx": {
     "lang:programs/comments": "9acb13a1eb668099",
-    "lang:programs/doc-comments": "24b09d86a5ee2ff5"
+    "lang:programs/doc-comments": "ac91aa038db06004"
   },
   "syntax/basics/constants.mdx": {
-    "lang:classes/constants-and-class": "fa4b0e6866663a7d"
+    "lang:classes/constants-and-class": "c326cd5de8cdadfb"
   },
   "syntax/basics/files-and-statements.mdx": {
     "lang:programs/a-program-is-a-file-of-top-level-statements": "f51c46ee225c7f7a",
-    "lang:programs/code-mode-and-html-mode": "2886116d78f17597",
-    "lang:programs/names-and-casing": "5b919afa2d162042"
+    "lang:programs/code-mode-and-html-mode": "d2e4f160f07e133d",
+    "lang:programs/names-and-casing": "e09736bfbaa31b29"
   },
   "syntax/basics/variables.mdx": {
-    "lang:types/every-binding-has-a-type": "dd36d2fa193703ff"
+    "lang:types/every-binding-has-a-type": "5291ea776aa61e80"
   },
   "syntax/classes/anonymous-objects.mdx": {
     "lang:expressions/anonymous-objects": "aaea7ea2477e55dc"
@@ -174,38 +174,38 @@
     "lang:statements/try-catch-finally": "2e420b13e3cf8fc5"
   },
   "syntax/functions/anonymous-functions.mdx": {
-    "lang:expressions/anonymous-functions": "50529d0705e4f9aa"
+    "lang:expressions/anonymous-functions": "60fad7609cbc3fef"
   },
   "syntax/functions/calls.mdx": {
-    "lang:expressions/calls": "f48b263308e48fa2"
+    "lang:expressions/calls": "5c9921ef2261f40d"
   },
   "syntax/functions/declaring.mdx": {
-    "lang:types/void-never-self-static": "656a82389884795e"
+    "lang:types/void-never-self-static": "a24dbcb9023b04e5"
   },
   "syntax/functions/parameters.mdx": {
-    "lang:types/parameters": "95d4fc8716a909d9"
+    "lang:types/parameters": "cdd757ae6c63c144"
   },
   "syntax/operators/arithmetic.mdx": {
-    "lang:expressions/arithmetic": "ff67c48497b119e0",
-    "lang:expressions/assignment": "d0b9aae015dcb3c3"
+    "lang:expressions/arithmetic": "d24317af6e608f54",
+    "lang:expressions/assignment": "cffd675b766ac8b9"
   },
   "syntax/operators/comparison.mdx": {
-    "lang:expressions/comparison-and-equality": "d9461e5271186485",
-    "lang:expressions/logical-operators-and-truth": "145bbc2075bc3b14"
+    "lang:expressions/comparison-and-equality": "1760fd8f809f7c6a",
+    "lang:expressions/logical-operators-and-truth": "93a0d2afd37b5306"
   },
   "syntax/operators/null-coalescing.mdx": {
-    "lang:expressions/and-the-ternary": "d082efd61d67d36b"
+    "lang:expressions/and-the-ternary": "0b7ca8410f877668"
   },
   "syntax/operators/pipeline.mdx": {
-    "lang:expressions/the-pipeline-operator": "f46c9685d8c115ff"
+    "lang:expressions/the-pipeline-operator": "a20f2ae467c119ac"
   },
   "syntax/operators/precedence.mdx": {
-    "lang:expressions/operators-that-do-not-parse": "9c9ccdd39494a367",
-    "lang:expressions/precedence-and-associativity": "a058f698d75a15dc",
-    "lang:expressions/refused-in-expression-position": "a54a17de8d49f285"
+    "lang:expressions/operators-that-do-not-parse": "f8672290b8e8e146",
+    "lang:expressions/precedence-and-associativity": "caf827b99c941671",
+    "lang:expressions/refused-in-expression-position": "b316fb477f127286"
   },
   "syntax/operators/string-operators.mdx": {
-    "lang:expressions/string-operators": "644f8e446d09edc3"
+    "lang:expressions/string-operators": "477e7e4eed63f31d"
   },
   "syntax/programs/file-paths-and-exit.mdx": {
     "lang:programs/ending-a-program": "092d6927e14702dc",
