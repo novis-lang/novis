@@ -7,31 +7,24 @@ stages:
   - id: 1
     title: the compiler knows which capability each `Core` member needs
     status: open
-    context: [crates/nvs-stdlib/src/cap.rs, crates/nvs-stdlib/src/registry.rs, docs/rules/security/authority-is-the-enclosing-namespace.md]
+    context: [crates/nvs-stdlib/src/cap.rs, crates/nvs-stdlib/tests/capability.rs, docs/rules/security/authority-is-the-enclosing-namespace.md]
     extra:
       context:
-        rules: [security/authority-is-the-enclosing-namespace, security/capability-check-at-the-door]
+        rules: [security/authority-is-the-enclosing-namespace, security/capability-check-at-the-door, testing/capability-completeness-test]
   - id: 2
     title: the grant table is read, keyed on namespace prefixes, and the longest prefix wins
     status: open
-    context: [crates/nvs-config/src/tree.rs, crates/nvs-config/src/cache.rs, docs/rules/security/grants-are-keyed-on-a-namespace.md, docs/rules/security/longest-prefix-wins.md, docs/rules/packaging/package-toml-is-a-tool-input.md, docs/rules/config/the-extension-set-is-in-every-unit-key.md]
+    context: [crates/nvs-config/src/cache.rs, crates/nvs-config/src/resolve.rs, docs/rules/security/grants-are-keyed-on-a-namespace.md, docs/rules/security/longest-prefix-wins.md, docs/rules/packaging/package-toml-is-a-tool-input.md, docs/rules/config/the-extension-set-is-in-every-unit-key.md]
     extra:
       context:
         rules: [security/grants-are-keyed-on-a-namespace, security/longest-prefix-wins, security/capability-roster-is-closed, packaging/package-toml-is-a-tool-input, config/the-extension-set-is-in-every-unit-key]
   - id: 3
     title: every `Core` call site is checked against the grants of its enclosing namespace
     status: open
-    context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-diagnostics/src/lib.rs, docs/rules/security/authority-is-the-enclosing-namespace.md, docs/rules/security/package-authority-is-granted-one-line-at-a-time.md]
+    context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-diagnostics/src/code/config.rs, docs/rules/security/authority-is-the-enclosing-namespace.md, docs/rules/security/package-authority-is-granted-one-line-at-a-time.md]
     extra:
       context:
         rules: [security/authority-is-the-enclosing-namespace, security/package-authority-is-granted-one-line-at-a-time, security/no-runtime-grant]
-  - id: 4
-    title: an optional capability compiles behind a guard, and `Core\Cap::has` answers for its namespace
-    status: open
-    context: [crates/nvs-stdlib/src/cap.rs, crates/nvs-types/src/expr/calls.rs, docs/rules/security/optional-capability-degrades.md]
-    extra:
-      context:
-        rules: [security/optional-capability-degrades, security/no-runtime-grant]
   - id: 5
     title: a package file stays under its package's namespace, and a package path cannot escape the package
     status: open
@@ -39,6 +32,13 @@ stages:
     extra:
       context:
         rules: [packaging/a-package-file-stays-under-its-declared-prefix, packaging/a-package-cannot-reach-its-host, security/path-scope-canonicalise-then-prefix]
+  - id: 4
+    title: an optional capability compiles behind a guard, and `Core\Cap::has` answers for its namespace
+    status: open
+    context: [crates/nvs-stdlib/src/cap.rs, crates/nvs-types/src/expr/calls.rs, docs/rules/security/optional-capability-degrades.md]
+    extra:
+      context:
+        rules: [security/optional-capability-degrades, security/no-runtime-grant]
   - id: 6
     title: the grant table has its feature proofs, and its rules are shipped
     status: open
@@ -82,26 +82,29 @@ file by walking up from the working directory, the way `git` finds `.git`. Only 
 the whole file, folds into every compiled unit's cache key, the way the extension set does
 (`rule:config/the-extension-set-is-in-every-unit-key`, `crates/nvs-config/src/cache.rs:168`). The
 operator's `nvs.toml` can only narrow it: the grant a call site holds is the intersection of the two
-(`rule:security/grants-are-keyed-on-a-namespace`).
+(`rule:security/grants-are-keyed-on-a-namespace`). The reader is a new module,
+`crates/nvs-config/src/grants.rs`, beside `capability.rs`.
 
-**The longest matching key wins** (`rule:security/longest-prefix-wins`, which this goal owns). A bare
-key grants that namespace's own declarations, a subtree key grants every depth, and two keys that
-match identically are an error naming both.
-
-**The capability a `Core` member needs is recorded once, beside the member.** Stage 1 adds it to the
-member's registry entry, and a test enumerates every door that calls
-`nvs_runtime::capability::require` and fails naming a member whose entry does not record the same
-capability. The runtime check stays exactly as it is: the compile-time check is the namespace's
-grant, and the door still checks the operator's ceiling and the scope (`rule:security/no-runtime-grant`).
+**The capability a `Core` member needs is recorded once, beside the member, in
+`nvs_stdlib::registry::CAPABILITIES`** (`crates/nvs-stdlib/src/registry.rs:1809`). That table already
+exists, with its completeness tests (`crates/nvs-stdlib/tests/capability.rs:262`, `:290`), so stage 1
+adds no field: it adds the lookup the checker reads, and a test that every door calling
+`nvs_runtime::capability::require` or `require_as` names the capability its member's row records. A
+new `Core` class that opens a door adds its rows there as it always has: goal `core-web-push`'s
+`send` is `net.connect`, and goal `core-passkey`'s class reaches nothing and has no row. The runtime
+check stays exactly as it is: the compile-time check is the namespace's grant, and the door still
+checks the operator's ceiling and the scope (`rule:security/no-runtime-grant`).
 
 **A file belongs to a package when it was reached through an autoload root inside a directory that
 holds a `package.toml`.** That manifest gives the package's name and its required and optional
-capabilities. This needs no package manager, so the tests build the layout by hand and this goal does
-not wait for goal `package-client`. Hand-copied code with no manifest gets the grant check and no
-file check.
+capabilities, read by a second new module, `crates/nvs-config/src/package.rs`, which reads those keys
+and nothing else; goal `package-client`'s manifest reader calls it for them. This needs no package
+manager, so the tests build the layout by hand and this goal does not wait for goal
+`package-client`. Hand-copied code with no manifest gets the grant check and no file check.
 
-**The diagnostics take the next free codes of the `E06xx` band** in `crates/nvs-diagnostics/src/lib.rs`,
-and each message names the namespace, the capability and the grant line that would fix it.
+**The diagnostics take the next free codes of the `E06xx` band**, after `E0654`
+(`crates/nvs-diagnostics/src/code/config.rs:822`), and each message names the namespace, the
+capability and the grant line that would fix it.
 
 **Trade-offs.** Security gains the most: a compromised dependency can compute but cannot act unless a
 human wrote its name in a grant line. Latency on the request path is unchanged, because the check is
@@ -111,25 +114,37 @@ request. Simplicity: a program with no `[grants]` table compiles and runs exactl
 an unmatched namespace holds the application's authority
 (`rule:security/an-unmatched-namespace-holds-the-application`). Users gain one table to learn.
 
+**Lanes.** Stages 1 (`nvs-stdlib`), 2 (`nvs-config/src/grants.rs`, `cache.rs`) and 5 (`nvs-hir`,
+`nvs-config/src/package.rs`) touch disjoint files and run in any order. Stage 3 needs 1 and 2. Stage 4
+needs 3 and 5, because its guard asks which package declared a capability optional, so stage 5 runs
+before it. Stage 6 is last. The whole goal can run as a side goal beside the chain now. Stage 6 creates
+`docs/reference/tools/35-packages.md`, which goals `api-compat` and `package-client` add headings to,
+so those merge after it.
+
 ## Stages
 
 ### 1. the compiler knows which capability each `Core` member needs
 
-**Does:** every `Core` member that opens a door records the capability it needs, and a test proves
-the record matches the door.
+**Does:** the checker can ask which capability a `Core` member needs, and a test proves every door
+agrees with its member's row.
 
-- [ ] Each door's capability is a field of its member's registry entry, read by the checker through `nvs_stdlib::cap` as `is_capability` is. `crates/nvs-stdlib/src/cap.rs:136`, `crates/nvs-stdlib/src/registry.rs:1`
-- [ ] A test lists every `capability::require` call and fails naming a member whose entry disagrees (`rule:security/authority-is-the-enclosing-namespace`). `crates/nvs-runtime/src/capability.rs:71`
+**Split:** first, an `Explore` subagent returns a door → member → capability table: every
+`capability::require` and `require_as` call under `crates/nvs-stdlib/src/` and `crates/nvs-runtime/src/`,
+as `file.rs:NN`, the member string and the `Cap` it passes.
+
+- [ ] `nvs_stdlib::cap::needs(class, member)`, read from `registry::CAPABILITIES`, as `is_capability` is read by the checker. `crates/nvs-stdlib/src/cap.rs:144`, `crates/nvs-stdlib/src/registry.rs:1809`
+- [ ] A test scans the sources as `nvs_stdlib_reaches_the_os_only_through_the_gate` does, and fails naming a door whose `Cap` disagrees with its member's row (`rule:security/authority-is-the-enclosing-namespace`, `rule:testing/capability-completeness-test`). `crates/nvs-stdlib/tests/capability.rs:332`, `crates/nvs-runtime/src/capability.rs:71`
 
 ### 2. the grant table is read, keyed on namespace prefixes, and the longest prefix wins
 
 **Does:** the grant table parses, every capability in it is on the roster, and a lookup returns the
 grants of the longest matching key.
 
-- [ ] The reader of `[grants]` in the application's `package.toml`, found by walking up as `git` finds `.git`, with an unknown capability an error (`rule:packaging/package-toml-is-a-tool-input`, `rule:security/grants-are-keyed-on-a-namespace`). `crates/nvs-config/src/capability.rs:686`, `crates/nvs-config/src/tree.rs:494`
-- [ ] The grant table alone folds into every compiled unit's cache key, so an edited grant line is an ordinary cache miss (`rule:config/the-extension-set-is-in-every-unit-key`). `crates/nvs-config/src/cache.rs:168`
-- [ ] A bare key grants that namespace's own declarations, a subtree key grants every depth, the longest key wins, and two keys that match identically are an error naming both (`rule:security/longest-prefix-wins`). `crates/nvs-config/src/capability.rs:686`
-- [ ] A key under `Core` is an error. `crates/nvs-config/src/capability.rs:58`
+- [ ] The reader of `[grants]` in the application's `package.toml`, found by walking up as `git` finds `.git`, with an unknown capability an error (`rule:packaging/package-toml-is-a-tool-input`, `rule:security/grants-are-keyed-on-a-namespace`). `crates/nvs-config/src/grants.rs:1`, `crates/nvs-config/src/resolve.rs:392`
+- [ ] The grant table alone folds into every compiled unit's cache key, so an edited grant line is an ordinary cache miss (`rule:config/the-extension-set-is-in-every-unit-key`). `crates/nvs-config/src/cache.rs:179`
+- [ ] A bare key grants that namespace's own declarations, a subtree key grants every depth, the longest key wins, and two keys that match identically are an error naming both (`rule:security/longest-prefix-wins`). `crates/nvs-config/src/grants.rs:1`
+- [ ] A key under `Core` is an error. `crates/nvs-config/src/grants.rs:1`
+- [ ] Tests: each of the four items above, with the `package.toml` written by the test. `crates/nvs-config/tests/grants.rs:1`
 
 ### 3. every `Core` call site is checked against the grants of its enclosing namespace
 
@@ -138,7 +153,19 @@ granted it, intersected with the operator's configuration.
 
 - [ ] The enclosing namespace is the call's authority: file-scope code is not exempt, an anonymous function keeps the namespace it was declared in, and a `use` import transfers nothing (`rule:security/authority-is-the-enclosing-namespace`). `crates/nvs-types/src/expr/calls.rs:506`
 - [ ] A namespace granted nothing holds nothing, and an empty grant line is how that is written (`rule:security/package-authority-is-granted-one-line-at-a-time`). `crates/nvs-types/src/capability.rs:49`
-- [ ] A required capability not granted is a compile error naming the namespace, the capability and the line that fixes it. `crates/nvs-diagnostics/src/lib.rs:3028`
+- [ ] A required capability not granted is a compile error naming the namespace, the capability and the line that fixes it. `crates/nvs-diagnostics/src/code/config.rs:822`
+- [ ] Conformance cases: each item above, and a program with no `[grants]` table compiling as before (`rule:security/an-unmatched-namespace-holds-the-application`). `tests/conformance/cap/grants-a-namespace-holds-only-what-it-is-granted.nvst:1`
+
+### 5. a package file stays under its package's namespace, and a package path cannot escape the package
+
+**Does:** the compiler knows which package a file is in, refuses a file that declares a namespace
+outside its package, and refuses a `require` or `autoload` path that leaves the package.
+
+- [ ] The package's own manifest read for its name and its required and optional capabilities, and nothing else. `crates/nvs-config/src/package.rs:1`
+- [ ] The file to package map, built from the autoload roots as the standing decision says. `crates/nvs-hir/src/requires.rs:1248`, `crates/nvs-hir/src/autoload.rs:259`
+- [ ] A package file declaring a namespace outside `Vendor\Package` is a compile error naming the file, the namespace and the package (`rule:packaging/a-package-file-stays-under-its-declared-prefix`). `crates/nvs-hir/src/requires.rs:1248`
+- [ ] A `require` or `autoload` path in a package that escapes it through `..`, an absolute path or a symlink is a compile error, by canonicalise then prefix check (`rule:packaging/a-package-cannot-reach-its-host`, `rule:security/path-scope-canonicalise-then-prefix`). `crates/nvs-hir/src/requires.rs:662`
+- [ ] Tests: a hand-built package layout for each refusal, the symlink case through a fake canonicalizer as `crates/nvs-stdlib/tests/capability.rs:91` does. `crates/nvs-cli/tests/package_grants.rs:1`
 
 ### 4. an optional capability compiles behind a guard, and `Core\Cap::has` answers for its namespace
 
@@ -146,39 +173,48 @@ granted it, intersected with the operator's configuration.
 throws a catchable error when it runs without the grant.
 
 - [ ] The guard is one branch, emitted only at a call site in a package that declared the capability optional (`rule:security/optional-capability-degrades`). `crates/nvs-types/src/expr/calls.rs:506`
-- [ ] `Core\Cap::has` answers what its own call site holds. `crates/nvs-stdlib/src/cap.rs:126`
-
-### 5. a package file stays under its package's namespace, and a package path cannot escape the package
-
-**Does:** the compiler knows which package a file is in, refuses a file that declares a namespace
-outside its package, and refuses a `require` or `autoload` path that leaves the package.
-
-- [ ] The file to package map, built from the autoload roots as the standing decision says. `crates/nvs-hir/src/requires.rs:1248`, `crates/nvs-hir/src/autoload.rs:139`
-- [ ] A package file declaring a namespace outside `Vendor\Package` is a compile error naming the file, the namespace and the package (`rule:packaging/a-package-file-stays-under-its-declared-prefix`). `crates/nvs-hir/src/requires.rs:1248`
-- [ ] A `require` or `autoload` path in a package that escapes it through `..`, an absolute path or a symlink is a compile error, by canonicalise then prefix check (`rule:packaging/a-package-cannot-reach-its-host`). `crates/nvs-hir/src/requires.rs:662`
+- [ ] `Core\Cap::has` answers what its own call site holds. `crates/nvs-stdlib/src/cap.rs:201`
+- [ ] Conformance cases: an optional capability compiles and throws without the grant, and `Core\Cap::has` answers `false` in that package. `tests/conformance/cap/grants-an-optional-capability-throws-where-it-is-not-granted.nvst:1`
 
 ### 6. the grant table has its feature proofs, and its rules are shipped
 
 **Does:** the grant table is one feature with its proofs, and every rule this goal owns is `shipped`.
 
-- [ ] The chapter `docs/reference/tools/35-packages.md` opens with `# Grants: what each namespace may do`, and `bun nv proofs --id 'tools:packages/grants-what-each-namespace-may-do'` owes nothing. `docs/reference/tools/35-packages.md:1`
+**Split:** after the chapter heading lands, one writing subagent writes the about page, the examples
+and the bench, then a second writes the attack, each held to § *Text an end user reads* in `AGENTS.md`.
+
+- [ ] The chapter `docs/reference/tools/35-packages.md` opens with `# Grants: what each namespace may do`, linked from the reference index. `docs/reference/tools/35-packages.md:1`, `docs/reference/README.md:1`
+- [ ] The about page and the examples. `docs/examples/tools/packages/grants-what-each-namespace-may-do/about.md:1`
+- [ ] The bench. `benches/members/tools/packages/grants-what-each-namespace-may-do.nvs:1`
 - [ ] The attack: a package file declares the application's namespace to take its grants, and does not compile. `tests/hostile/tools/packages/grants-what-each-namespace-may-do/01-borrow-the-application-namespace.nvs:1`
-- [ ] Every rule this goal owns is `shipped` with its cases in `guardedBy`, and `bun nv owners --closes namespace-grants` passes. `data/rules/security/grants-are-keyed-on-a-namespace.json:1`
+- [ ] `bun nv proofs --id 'tools:packages/grants-what-each-namespace-may-do'` owes nothing. `docs/reference/tools/35-packages.md:1`
+- [ ] `rule:security/authority-is-the-enclosing-namespace` is `shipped` with its cases in `guardedBy`. `data/rules/security/authority-is-the-enclosing-namespace.json:3`
+- [ ] `rule:security/grants-are-keyed-on-a-namespace` is `shipped`. `data/rules/security/grants-are-keyed-on-a-namespace.json:3`
+- [ ] `rule:security/longest-prefix-wins` is `shipped`. `data/rules/security/longest-prefix-wins.json:3`
+- [ ] `rule:security/package-authority-is-granted-one-line-at-a-time` is `shipped`. `data/rules/security/package-authority-is-granted-one-line-at-a-time.json:3`
+- [ ] `rule:security/optional-capability-degrades` is `shipped`. `data/rules/security/optional-capability-degrades.json:3`
+- [ ] `rule:packaging/a-package-file-stays-under-its-declared-prefix` is `shipped`. `data/rules/packaging/a-package-file-stays-under-its-declared-prefix.json:3`
+- [ ] `rule:packaging/a-package-cannot-reach-its-host` is `shipped`, and `bun nv owners --closes namespace-grants` passes. `data/rules/packaging/a-package-cannot-reach-its-host.json:3`
 
 ## Handoff
 
 ### State
 
-The goal is new. No stage is started. The anchors above were checked against the tree when it was
-written. Nothing in the tree reads a per-namespace grant table yet.
+The goal has not started. `registry::CAPABILITIES` already records each door member's capability,
+and its completeness tests pass. Nothing reads a per-namespace grant table, nothing reads
+`package.toml`, and `docs/reference/tools/35-packages.md` does not exist.
 
 ### Next
 
-Stage 1, on the `Core` registry and the capability helper:
-- record each door's capability on its member's entry (`rule:security/authority-is-the-enclosing-namespace`). `crates/nvs-stdlib/src/cap.rs:136`
-- the test that every `capability::require` call agrees with its entry. `crates/nvs-runtime/src/capability.rs:71`
+**Stage 1: the checker's capability lookup**, one file set: `crates/nvs-stdlib/src/cap.rs`,
+`crates/nvs-stdlib/tests/capability.rs`. No gate.
+
+- [ ] An `Explore` subagent's door → member → capability table. `crates/nvs-runtime/src/capability.rs:71`
+- [ ] `nvs_stdlib::cap::needs` over `registry::CAPABILITIES` (`rule:security/authority-is-the-enclosing-namespace`). `crates/nvs-stdlib/src/cap.rs:144`
+- [ ] The test that every door agrees with its member's row (`rule:testing/capability-completeness-test`). `crates/nvs-stdlib/tests/capability.rs:332`
 
 ### Backlog
 
+- Stage 2 (`nvs-config`) and stage 5 (`nvs-hir`) can run beside stage 1 as side goals. `crates/nvs-config/src/grants.rs`
 - `nvs pkg fetch` writes the grant lines for fetched packages in goal `package-client` (`docs/goals/package-client.md`).
 - The audit warning for an unmatched autoload root is goal `package-audit`'s (`docs/goals/package-audit.md`).

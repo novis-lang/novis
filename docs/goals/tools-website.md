@@ -5,19 +5,33 @@ summary: "The website has a Tools area with an overview and one page per tool, e
 context: [tools/nv/cmd/site.ts, website/astro.config.ts, website/config/site.mjs]
 stages:
   - id: 1
-    title: a terminal block shows what `nvs` printed, and a replay renames, applies an action and shows a lens
+    title: a terminal block shows what `nvs` printed
     status: open
-    context: [tools/nv/cmd/site.ts, tools/nv/lib/replay.ts, website/src/components/Replay.astro, website/config/replay-frames.mjs, website/config/replay-player.mjs, tools/nv/test/site-replay.test.ts, docs/rules/testing/a-terminal-block-shows-what-nvs-printed.md, docs/rules/testing/a-replay-renames-applies-an-action-and-shows-a-lens.md]
+    context: [tools/nv/cmd/site.ts, tools/nv/lib/term.ts, website/src/components/Terminal.astro, website/src/components/Snippet.astro, docs/rules/testing/a-terminal-block-shows-what-nvs-printed.md]
     extra:
       context:
-        rules: [testing/a-terminal-block-shows-what-nvs-printed, testing/a-replay-renames-applies-an-action-and-shows-a-lens, testing/a-replay-plays-what-the-language-server-returned, testing/website-pages-are-stamped]
+        rules: [testing/a-terminal-block-shows-what-nvs-printed, testing/website-pages-are-stamped]
+  - id: 7
+    title: a replay renames, applies an action, shows a lens and walks calls
+    status: open
+    context: [tools/nv/cmd/site.ts, tools/nv/lib/replay.ts, website/src/components/Replay.astro, website/config/replay-frames.mjs, website/config/replay-player.mjs, tools/nv/test/site-replay.test.ts, docs/rules/testing/a-replay-renames-applies-an-action-and-shows-a-lens.md]
+    extra:
+      context:
+        rules: [testing/a-replay-renames-applies-an-action-and-shows-a-lens, testing/a-replay-plays-what-the-language-server-returned]
   - id: 2
-    title: a debugger replay plays what `nvs dap` returned, and a screenshot is taken from a real run
+    title: a debugger replay plays what `nvs dap` returned
     status: open
-    context: [tools/nv/cmd/site.ts, tools/nv/test/chromium.ts, website/config/replay-player.mjs, package.json, docs/rules/testing/a-debugger-replay-plays-what-nvs-dap-returned.md, docs/rules/testing/a-screenshot-is-taken-from-a-real-run.md]
+    context: [tools/nv/cmd/site.ts, tools/nv/lib/dap-replay.ts, website/config/replay-player.mjs, docs/rules/testing/a-debugger-replay-plays-what-nvs-dap-returned.md]
     extra:
       context:
-        rules: [testing/a-debugger-replay-plays-what-nvs-dap-returned, testing/a-screenshot-is-taken-from-a-real-run, testing/a-replay-plays-what-the-language-server-returned, testing/the-viewer-shows-the-stream-and-hands-off-every-artifact]
+        rules: [testing/a-debugger-replay-plays-what-nvs-dap-returned, testing/a-replay-plays-what-the-language-server-returned]
+  - id: 8
+    title: a screenshot is taken from a real run
+    status: open
+    context: [tools/nv/cmd/site.ts, tools/nv/lib/shoot.ts, tools/nv/test/chromium.ts, package.json, docs/rules/testing/a-screenshot-is-taken-from-a-real-run.md]
+    extra:
+      context:
+        rules: [testing/a-screenshot-is-taken-from-a-real-run, testing/the-viewer-shows-the-stream-and-hands-off-every-artifact]
   - id: 3
     title: the Tools area, its overview, and the three pages that move into it
     status: open
@@ -33,12 +47,19 @@ stages:
       context:
         rules: [testing/the-tools-area-has-a-page-for-each-tool, testing/website-pages-are-stamped, testing/examples-live-in-the-repository]
   - id: 5
-    title: the debugger, debug viewer, profiler and API document pages
+    title: the debugger and API document pages
     status: open
     context: [website/astro.config.ts, website/src/data/questions.json, docs/examples/tools/cli]
     extra:
       context:
-        rules: [testing/the-tools-area-has-a-page-for-each-tool, testing/a-debugger-replay-plays-what-nvs-dap-returned, testing/a-screenshot-is-taken-from-a-real-run, testing/website-pages-are-stamped]
+        rules: [testing/the-tools-area-has-a-page-for-each-tool, testing/a-debugger-replay-plays-what-nvs-dap-returned, testing/website-pages-are-stamped]
+  - id: 9
+    title: the debug viewer and profiler pages
+    status: open
+    context: [website/astro.config.ts, website/src/data/questions.json, tools/nv/lib/shoot.ts]
+    extra:
+      context:
+        rules: [testing/the-tools-area-has-a-page-for-each-tool, testing/a-screenshot-is-taken-from-a-real-run, testing/website-pages-are-stamped]
   - id: 6
     title: the home page points at the Tools area, and every page is stamped
     status: open
@@ -72,8 +93,8 @@ shows almost none of it. The tools are spread across Guides and Install: running
 section links to the editor install page (`website/src/components/home/Tooling.astro:29`). The user's
 words: "we should list each and every of this powerful features in detail, with examples and
 screenshots, so devs instantly get the picture of it." A picture that nothing checks shows a tool as it
-was, so every picture here is made from a real run and checked as a snippet's output is. It runs
-after every goal whose tool it shows.
+was, so every picture here is made from a real run and checked as a snippet's output is. Each page
+waits for the goals whose tool it shows; the picture kinds and the area do not.
 
 ## Standing decisions
 
@@ -117,7 +138,8 @@ the 7 of `simple-programs/` and the 11 of `cookbook/`, which are programs; the 8
 whose `configuration.mdx` and `project-layout.mdx` set up a program; `testing/index.mdx`,
 `test-a-route.mdx` and `test-doubles.mdx`, which write tests; the 6 of `production/`, whose
 `run-as-a-service.mdx` and `limits-and-logs.mdx` run a server in production; and the 3 of
-`example-apps/`.
+`example-apps/`. The new pages are `tools/index.mdx`, and `tools/<tool>/index.mdx` for `editor`,
+`formatter`, `test-runner`, `cli`, `debugger`, `debug-viewer`, `profiler` and `api-document`.
 
 **Which goals build what each page shows.** Debug viewer: `debug-service`, `debug-viewer`, and
 `request-aware-editor`'s `nvs debug to-test`. Debugger: `debugger-core` and `debugger-adapter`.
@@ -127,6 +149,29 @@ the `nvs fmt` already built. Test runner: the runner already built, `test-surfac
 `bench-counters` and `diagnostic-records`' reports. API document: `api-document` over `nvs build
 --openapi` and `nvs api diff`. CLI: `cli-housekeeping`, and `diagnostic-records`' `nvs check --json`.
 
+**Gates.** A goal has landed when its file under `docs/goals/` is gone. Stages 1 and 3 need no other
+goal. Stage 7's `action`, `lens` and hover card need none; its `rename` step needs `renameProvider` in
+`crates/nvs-lsp/tests/handshake.rs` (`editor-refactors` stage 1), and its `calls` step needs
+`callHierarchyProvider` there (`request-aware-editor` stage 2). Stage 2 needs `nvs dap` to step:
+stages 1 and 2 of `docs/goals/debugger-adapter.md` are `done`, or that file is gone. Stage 8 needs
+`debug-viewer` landed for the viewer's shots and stage 5 of `docs/goals/trace-timeline.md` for the
+profile shot. Each page item in stages 4, 5 and 9 needs every goal the list above names for its tool.
+A session whose gate fails takes the next item or stage that has none, and says so in the handoff.
+
+**Lanes.** Stage 1 (`tools/nv/lib/term.ts`, `website/src/components/Terminal.astro`) and stage 7
+(`tools/nv/lib/replay.ts`, `website/config/replay-*.mjs`) touch disjoint files beside
+`tools/nv/cmd/site.ts`, where each adds its own `--check snippets` branch, so they run in order or as a
+side goal that rebases on that one file. Stage 3 touches the area and the moved pages, disjoint from 1
+and 7, and can run first. Stage 2 follows 7, because both extend `website/config/replay-player.mjs`; stage 8
+adds `--shoot` and the `shots` part to `site.ts` and runs after 1 and 2 there. Stages 4, 5 and 9
+share `website/astro.config.ts` and `website/src/data/questions.json` and run in order; each page
+inside them is its own file. Stage 6 runs last.
+
+**Narrow checks.** `bun nv site --check` takes parts (`tools/nv/cmd/site.ts:193`). Stages 1, 7 and 2
+run `bun nv site --check snippets`; stage 8 the new `shots` part; stage 3 `structure questions guides`;
+stages 4, 5 and 9 `tools snippets stale questions prose`. Only stage 6 runs the whole check. The
+replay's browser test runs alone: `NV_BROWSER=1 bun test tools/nv/test/replay-browser.test.ts`.
+
 **Trade-offs, all together.** Request path and binary: nothing. The site: one small script per kind
 of picture, and the PNG files of the screenshots. CI: `--check` starts `nvs dap` once per debugger
 replay and a browser once per screenshot, in the job that already builds `nvs`. Usability: a reader
@@ -135,59 +180,93 @@ area, three new kinds of checked picture, and no hand-drawn image to keep up to 
 
 ## Stages
 
-### 1. a terminal block shows what `nvs` printed, and a replay renames, applies an action and shows a lens
+### 1. a terminal block shows what `nvs` printed
 
-**Does:** two new kinds of checked picture for text a tool prints and for editor features beyond
-completion.
+**Does:** a checked picture of the text a tool prints.
 
-- [ ] A `.term` beside a fixture lists commands, `--bless` writes `.term.out` from what `nvs` printed, and `--check snippets` fails when it changed (`rule:testing/a-terminal-block-shows-what-nvs-printed`). `tools/nv/cmd/site.ts:1177`, `tools/nv/cmd/site.ts:189`
-- [ ] A `<Terminal>` component shows the block, with its masked values shown as written.
-- [ ] The replay gains `rename`, `action`, `lens` and `calls` steps and a hover card, recorded and checked like a list (`rule:testing/a-replay-renames-applies-an-action-and-shows-a-lens`). `tools/nv/cmd/site.ts:70-112`, `tools/nv/lib/replay.ts`
-- [ ] The player draws them. `website/config/replay-player.mjs`, `website/src/components/Replay.astro`
-- [ ] Tests over a fixture for each new step and for a stale `.term.out`, and the declined bullet in `rule:testing/a-replay-plays-what-the-language-server-returned` rewritten. Both rules `shipped`. `tools/nv/test/site-replay.test.ts`, `tools/nv/test/replay-browser.test.ts`
+- [ ] A `.term` beside a fixture lists commands, `--bless` writes `.term.out` from what `nvs` printed, and `--check snippets` fails when it changed (`rule:testing/a-terminal-block-shows-what-nvs-printed`). `tools/nv/lib/term.ts:1`, `tools/nv/cmd/site.ts:1172`, `tools/nv/cmd/site.ts:1208`
+- [ ] A `<Terminal>` component shows the block, with its masked values shown as written. `website/src/components/Terminal.astro:1`
+- [ ] Tests over a fixture for a fresh and a stale `.term.out`. `tools/nv/test/site-term.test.ts:1`
+- [ ] `rule:testing/a-terminal-block-shows-what-nvs-printed` `shipped`. `data/rules/testing/a-terminal-block-shows-what-nvs-printed.json:3`
 
-### 2. a debugger replay plays what `nvs dap` returned, and a screenshot is taken from a real run
+### 7. a replay renames, applies an action, shows a lens and walks calls
 
-**Does:** the debugger's picture is a recorded `nvs dap` session, and the viewer's and the profiler's
-are screenshots of real runs.
+**Does:** the editor replay covers the features beyond completion.
 
-- [ ] A `.dap` beside a snippet lists breakpoints and steps, `--bless` records the answers into `.dap.out`, and `--check snippets` fails when `nvs dap` returns something else (`rule:testing/a-debugger-replay-plays-what-nvs-dap-returned`).
-- [ ] The player shows the breakpoint, the stopped line, the call stack and the variables.
-- [ ] `bun nv site --shoot` serves an app under `apps/` in development with `[debug] store` on, sends the fixed requests, starts `nvs debug`, and takes each `.shot`'s screenshot with Playwright beside its `.shot.out` (`rule:testing/a-screenshot-is-taken-from-a-real-run`). `tools/nv/cmd/site.ts:1432-1448`, `tools/nv/test/chromium.ts`
-- [ ] A profile shot opens a real `--profile=speedscope` export in the speedscope build the extension bundles, and its `.shot.out` holds the frames and call counts without times.
-- [ ] A `shots` part of `--check` fails a stale or missing `.shot.out`, and tests for it. Both rules `shipped`. `tools/nv/cmd/site.ts:189`
+- [ ] The replay gains `action` and `lens` steps and a hover card, recorded and checked like a list (`rule:testing/a-replay-renames-applies-an-action-and-shows-a-lens`). `tools/nv/lib/replay.ts:16`, `tools/nv/lib/replay.ts:223`, `website/config/replay-frames.mjs:29`, `tools/nv/cmd/site.ts:1129`
+- [ ] The `rename` step, once its gate holds. `tools/nv/lib/replay.ts:16`
+- [ ] The `calls` step, once its gate holds. `tools/nv/lib/replay.ts:16`
+- [ ] The player draws them. `website/config/replay-player.mjs:140`, `website/src/components/Replay.astro:63`
+- [ ] Tests over a fixture for each new step, and the browser test. `tools/nv/test/site-replay.test.ts:1`, `tools/nv/test/replay-browser.test.ts:32`
+- [ ] The declined bullet on hover cards in `rule:testing/a-replay-plays-what-the-language-server-returned` rewritten, and `rule:testing/a-replay-renames-applies-an-action-and-shows-a-lens` `shipped`. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:56`, `data/rules/testing/a-replay-renames-applies-an-action-and-shows-a-lens.json:3`
+
+### 2. a debugger replay plays what `nvs dap` returned
+
+**Does:** the debugger's picture is a recorded `nvs dap` session.
+
+- [ ] A `.dap` beside a snippet lists breakpoints and steps, `--bless` records the answers into `.dap.out`, and `--check snippets` fails when `nvs dap` returns something else (`rule:testing/a-debugger-replay-plays-what-nvs-dap-returned`). `tools/nv/lib/dap-replay.ts:1`, `tools/nv/cmd/site.ts:1172`, `tools/nv/cmd/site.ts:1208`
+- [ ] The player shows the breakpoint, the stopped line, the call stack and the variables. `website/config/replay-player.mjs:56`
+- [ ] Tests over a fixture for a fresh and a stale `.dap.out`. `tools/nv/test/site-dap.test.ts:1`
+- [ ] `rule:testing/a-debugger-replay-plays-what-nvs-dap-returned` `shipped`. `data/rules/testing/a-debugger-replay-plays-what-nvs-dap-returned.json:3`
+
+### 8. a screenshot is taken from a real run
+
+**Does:** the viewer's and the profiler's pictures are screenshots of real runs, checked through text.
+
+- [ ] `bun nv site --shoot` serves an app under `apps/` in development with `[debug] store` on, sends the fixed requests, starts `nvs debug`, and takes each `.shot`'s screenshot with the Chromium driver beside its `.shot.out` (`rule:testing/a-screenshot-is-taken-from-a-real-run`). `tools/nv/lib/shoot.ts:1`, `tools/nv/cmd/site.ts:1739`, `tools/nv/cmd/site.ts:1567`, `tools/nv/test/chromium.ts:31`
+- [ ] A profile shot opens a real `--profile=speedscope` export in the speedscope build the extension bundles, and its `.shot.out` holds the frames and call counts without times. `tools/nv/lib/shoot.ts:1`
+- [ ] A `shots` part of `--check` fails a stale or missing `.shot.out`, and tests for it. `tools/nv/cmd/site.ts:193`, `tools/nv/cmd/site.ts:1646`, `tools/nv/test/site-shots.test.ts:1`
+- [ ] `rule:testing/a-screenshot-is-taken-from-a-real-run` `shipped`. `data/rules/testing/a-screenshot-is-taken-from-a-real-run.json:3`
 
 ### 3. the Tools area, its overview, and the three pages that move into it
 
 **Does:** Tools is an area with its sidebar, the three pages and their snippets move with no trace,
 and the overview page exists.
 
-- [ ] Tools joins `AREAS` after Reference, the sidebar gains its group, and the `structure` check names five areas (`rule:testing/the-tools-area-has-a-page-for-each-tool`). `website/config/site.mjs:37-47`, `website/astro.config.ts:160`, `tools/nv/cmd/site.ts:147`, `tools/nv/cmd/site.ts:603-630`
-- [ ] The three pages and their snippets move, with their entries in `questions.json` keyed to the new addresses and their sidebar entries gone. `website/astro.config.ts:447`, `website/astro.config.ts:462`, `website/astro.config.ts:700`, `website/src/data/questions.json:405`, `website/src/data/questions.json:416`, `website/src/data/questions.json:892`
+- [ ] Tools joins `AREAS` after Reference, the sidebar gains its group before In-Depth, and the `structure` check names five areas (`rule:testing/the-tools-area-has-a-page-for-each-tool`). `website/config/site.mjs:42`, `website/astro.config.ts:669`, `tools/nv/cmd/site.ts:151`, `tools/nv/cmd/site.ts:612`
+- [ ] The three pages and their snippets move, with their entries in `questions.json` keyed to the new addresses and their sidebar entries gone. `website/astro.config.ts:447`, `website/astro.config.ts:462`, `website/astro.config.ts:702`, `website/src/data/questions.json:416`, `website/src/data/questions.json:427`, `website/src/data/questions.json:930`, `website/src/content/docs/guides/testing/run-tests.mdx:12`
 - [ ] The two entries for the moved pages in the testing guide's list are removed, not repointed, so the list names only pages that are still in Guides. `website/src/content/docs/guides/testing/index.mdx:10`, `website/src/content/docs/guides/testing/index.mdx:16`
-- [ ] Every other link to an old address points at the new one. `website/src/content/docs/install/index.mdx:108`, `website/src/content/docs/guides/how-to-use/project-layout.mdx:48`, `website/src/components/Replay.astro:63`, `tools/nv/test/replay-browser.test.ts:32`
-- [ ] The replay rule's notice sentence names the editor page instead of the install page. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md`
-- [ ] A `tools` part of `--check`: each of the eight tool pages exists, shows a checked picture and covers its features. The overview page with a line per tool.
+- [ ] Every other link to an old address points at the new one: the install page, the project layout page, the moved coverage page's own link, the replay component and its browser test. `website/src/content/docs/install/index.mdx:124`, `website/src/content/docs/guides/how-to-use/project-layout.mdx:48`, `website/src/content/docs/guides/testing/coverage.mdx:26`, `website/src/components/Replay.astro:63`, `tools/nv/test/replay-browser.test.ts:32`
+- [ ] The replay rule's notice sentence names the editor page instead of the install page. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:19`
+- [ ] The overview page with a line per tool. `website/src/content/docs/tools/index.mdx:1`
+- [ ] A `tools` part of `--check`: each of the eight tool pages exists, shows a checked picture and covers its features. It names each page still owed until stages 4, 5 and 9 land. `tools/nv/cmd/site.ts:193`, `tools/nv/cmd/site.ts:1646`
 
 ### 4. the editor, formatter, test runner and CLI pages
 
 **Does:** four tool pages, each with its pictures and its `covers:` list.
 
-- [ ] Editor: the moved page, then rename, the code actions and generators, the lenses with "used by N routes, M tests", call hierarchy, the route hover and the taint path, each as a replay. Examples from `docs/examples/tools/editor/`.
-- [ ] Formatter: what `nvs fmt` changes, as a terminal block of `--diff`, and `--check` with its exit codes.
-- [ ] Test runner: the moved pages, then the options, `#[Property]`, mutation testing and benches, each with a terminal block. `docs/examples/tools/cli/nvs-test`
-- [ ] CLI: `nvs check --json`, the cache commands, `nvs update-check` and `nvs telemetry`, each with a terminal block, and a link to the full command list. `website/src/content/docs/reference/index.mdx:13`
-- [ ] Each page in the voice of AGENTS.md § *Text an end user reads*, with its questions, and stamped.
+**Split:** one writing subagent per page, one after another, each with the page's gate checked first,
+its examples and pictures, and AGENTS.md § *Text an end user reads*. The session alone edits
+`website/astro.config.ts`'s sidebar and `website/src/data/questions.json`, runs `--bless`, and checks
+each page.
 
-### 5. the debugger, debug viewer, profiler and API document pages
+- [ ] Editor: the moved page, then rename, the code actions and generators, the lenses with "used by N routes, M tests", call hierarchy, the route hover and the taint path, each as a replay. Examples from `docs/examples/tools/editor/`. `website/src/content/docs/tools/editor/index.mdx:1`
+- [ ] Formatter: what `nvs fmt` changes, as a terminal block of `--diff`, and `--check` with its exit codes. `website/src/content/docs/tools/formatter/index.mdx:1`
+- [ ] Test runner: the moved pages, then the options, `#[Property]`, mutation testing and benches, each with a terminal block. `website/src/content/docs/tools/test-runner/index.mdx:1`, `website/src/content/docs/tools/test-runner/coverage.mdx:1`, `docs/examples/tools/cli/nvs-test/about.md:1`
+- [ ] CLI: `nvs check --json`, the cache commands, `nvs update-check` and `nvs telemetry`, each with a terminal block, and a link to the full command list. `website/src/content/docs/tools/cli/index.mdx:1`, `website/src/content/docs/reference/index.mdx:13`
+- [ ] Each page's sidebar entry, its questions, and its stamp (`rule:testing/website-pages-are-stamped`). `website/astro.config.ts:669`, `website/src/data/questions.json:1`
 
-**Does:** the four pages whose pictures are a debugger replay, screenshots and a terminal block.
+### 5. the debugger and API document pages
 
-- [ ] Debugger: `launch.json`, a breakpoint, stepping and the variables, as debugger replays.
-- [ ] Debug viewer: starting it, the request list, a request's timeline, search, grouped exceptions, compare with two responses' diff, replay, and a request made into a test that asserts its response, as screenshots and a terminal block.
-- [ ] Profiler: `--profile=callgrind` and `--profile=speedscope` as terminal blocks, the speedscope screenshot, and the sentence that the probe per call makes call-heavy code look slower.
-- [ ] API document: `nvs build --openapi` and `nvs api diff` as terminal blocks, and `#[Api]` completion as a replay. `docs/examples/tools/cli/nvs-build-openapi`, `docs/examples/tools/cli/nvs-api-diff`
-- [ ] Each page in the plain voice, with its questions, and stamped.
+**Does:** the two pages whose pictures are debugger replays and terminal blocks.
+
+**Split:** one writing subagent per page, one after another, as in stage 4. The session alone edits the
+sidebar and `questions.json` and runs `--bless`.
+
+- [ ] Debugger: `launch.json`, a breakpoint, stepping and the variables, as debugger replays. `website/src/content/docs/tools/debugger/index.mdx:1`
+- [ ] API document: `nvs build --openapi` and `nvs api diff` as terminal blocks, and `#[Api]` completion as a replay. `website/src/content/docs/tools/api-document/index.mdx:1`, `docs/examples/tools/cli/nvs-build-openapi/about.md:1`, `docs/examples/tools/cli/nvs-api-diff/about.md:1`
+- [ ] Each page's sidebar entry, its questions, and its stamp. `website/astro.config.ts:669`, `website/src/data/questions.json:1`
+
+### 9. the debug viewer and profiler pages
+
+**Does:** the two pages whose pictures are screenshots.
+
+**Split:** one writing subagent per page, one after another, after the session has run `--shoot`. The
+session alone edits the sidebar and `questions.json`.
+
+- [ ] Debug viewer: starting it, the request list, a request's timeline, search, grouped exceptions, compare with two responses' diff, replay, and a request made into a test that asserts its response, as screenshots and a terminal block. `website/src/content/docs/tools/debug-viewer/index.mdx:1`
+- [ ] Profiler: `--profile=callgrind` and `--profile=speedscope` as terminal blocks, the speedscope screenshot, and the sentence that the probe per call makes call-heavy code look slower. `website/src/content/docs/tools/profiler/index.mdx:1`
+- [ ] Each page's sidebar entry, its questions, and its stamp. `website/astro.config.ts:669`, `website/src/data/questions.json:1`
 
 ### 6. the home page points at the Tools area, and every page is stamped
 
@@ -195,22 +274,28 @@ and the overview page exists.
 passes its check.
 
 - [ ] The Tooling section lists the tools with one line each and links to the overview, and no link points at a moved page. `website/src/components/home/Tooling.astro:29`, `website/src/components/home/Tooling.astro:76`
-- [ ] The overview shows each tool's first picture.
-- [ ] `bun nv site --check` passes, every rule this goal owns is `shipped`, and `bun nv owners --closes tools-website` passes.
+- [ ] The overview shows each tool's first picture. `website/src/content/docs/tools/index.mdx:1`
+- [ ] `bun nv site --check` passes, `rule:testing/the-tools-area-has-a-page-for-each-tool` is `shipped`, and `bun nv owners --closes tools-website` passes. `data/rules/testing/the-tools-area-has-a-page-for-each-tool.json:3`
 
 ## Handoff
 
 ### State
 
-The goal is new. No stage is started. The anchors above were checked against the tree when it was
-written. It runs after every other developer-tooling goal, because each page shows a tool another goal builds.
+No stage is started. `tools/nv/cmd/site.ts` has no `.term`, `.dap` or `.shot` handling, and the replay
+has the `type`, `accept` and `hover` steps only. The Tools area does not exist. Most tool goals are not
+reached, so stages 1, 3 and the ungated half of 7 are the work that can start.
 
 ### Next
 
-Stage 1, terminal blocks and the replay's new steps, on `tools/nv/cmd/site.ts` and
-`tools/nv/lib/replay.ts`:
-- the `.term` format and its check (`rule:testing/a-terminal-block-shows-what-nvs-printed`). `tools/nv/cmd/site.ts:1177`
-- the `rename`, `action`, `lens` and `calls` steps and the hover card. `tools/nv/cmd/site.ts:70`
-- the player and its browser test. `website/config/replay-player.mjs`
+**Stage 1, terminal blocks**, on `tools/nv/cmd/site.ts`, `tools/nv/lib/term.ts` and
+`website/src/components/Terminal.astro`. Gate: none.
+
+- [ ] The `.term` format, `--bless` and the `--check snippets` branch (`rule:testing/a-terminal-block-shows-what-nvs-printed`). `tools/nv/lib/term.ts:1`, `tools/nv/cmd/site.ts:1172`, `tools/nv/cmd/site.ts:1208`
+- [ ] The `<Terminal>` component. `website/src/components/Terminal.astro:1`
+- [ ] Tests for a fresh and a stale `.term.out`. `tools/nv/test/site-term.test.ts:1`
+- [ ] `rule:testing/a-terminal-block-shows-what-nvs-printed` `shipped`. `data/rules/testing/a-terminal-block-shows-what-nvs-printed.json:3`
 
 ### Backlog
+
+- Stage 3 needs no other goal and can run next or as a side goal (`docs/rules/testing/the-tools-area-has-a-page-for-each-tool.md`).
+- Stage 7's `action` and `lens` steps need no other goal (`docs/rules/testing/a-replay-renames-applies-an-action-and-shows-a-lens.md`).

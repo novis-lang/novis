@@ -7,31 +7,55 @@ stages:
   - id: 1
     title: "the check finds every bare mark, and no file gains one"
     status: open
-    context: [tools/nv/cmd/rules.ts, tools/nv/test/rules.test.ts]
+    context: [tools/nv/cmd/rules.ts, tools/nv/test/rules.test.ts, docs/agent/conventions.md]
   - id: 2
-    title: "the standard library's marks name their documents"
+    title: "the standard library's queue and database files' marks name their documents"
     status: open
-    context: [crates/nvs-stdlib/src/queue.rs, crates/nvs-stdlib/src/db/execute.rs, crates/nvs-stdlib/src/uri.rs]
+    context: [tools/data/bare-section-marks.json, crates/nvs-stdlib/src/queue.rs, crates/nvs-stdlib/src/db/execute.rs]
+  - id: 9
+    title: "the rest of the standard library's marks name their documents"
+    status: open
+    context: [tools/data/bare-section-marks.json, crates/nvs-stdlib/src/uri.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/response.rs]
   - id: 3
-    title: "the database drivers' marks name their documents"
+    title: "the PostgreSQL, MySQL and SQLite drivers' marks name their documents"
     status: open
-    context: [crates/nvs-db/src/pg.rs, crates/nvs-db/src/mysql.rs, crates/nvs-db/src/sqlite.rs]
+    context: [tools/data/bare-section-marks.json, crates/nvs-db/src/pg.rs, crates/nvs-db/src/mysql.rs, crates/nvs-db/src/sqlite.rs]
+  - id: 10
+    title: "the TDS driver and the rest of the database crate's marks name their documents"
+    status: open
+    context: [tools/data/bare-section-marks.json, crates/nvs-db/src/tds/plan.rs, crates/nvs-db/src/conn.rs]
   - id: 4
-    title: "the compiler crates' marks name their documents"
+    title: "the type checker's, parser's and code generator's marks name their documents"
     status: open
-    context: [crates/nvs-types/src/lib.rs, crates/nvs-ir/src/lib.rs, crates/nvs-diagnostics/src/lib.rs]
+    context: [tools/data/bare-section-marks.json, crates/nvs-types/src/routes.rs, crates/nvs-types/src/lib.rs]
+  - id: 11
+    title: "the IR, HIR and diagnostics crates' marks name their documents"
+    status: open
+    context: [tools/data/bare-section-marks.json, crates/nvs-ir/src/lib.rs, crates/nvs-diagnostics/src/lib.rs]
   - id: 5
-    title: "the server, runtime and host crates' marks name their documents"
+    title: "the server and host crates' marks name their documents"
     status: open
-    context: [crates/nvs-server/src/lib.rs, crates/nvs-runtime/src/lib.rs, crates/nvs-host/src/lib.rs]
+    context: [tools/data/bare-section-marks.json, crates/nvs-server/src/lib.rs, crates/nvs-host/src/lib.rs]
+  - id: 12
+    title: "the runtime crate's marks name their documents"
+    status: open
+    context: [tools/data/bare-section-marks.json, crates/nvs-runtime/src/lib.rs]
   - id: 6
-    title: "the config, CLI and remaining crates' marks name their documents"
+    title: "the config, LDAP, test and render crates' marks name their documents"
     status: open
-    context: [crates/nvs-config/src/lib.rs, crates/nvs-cli/src/cache.rs]
+    context: [tools/data/bare-section-marks.json, crates/nvs-config/src/lib.rs]
+  - id: 13
+    title: "the CLI crate's marks name their documents"
+    status: open
+    context: [tools/data/bare-section-marks.json, crates/nvs-cli/src/cache.rs]
   - id: 7
-    title: "the conformance cases' marks name their documents"
+    title: "the core conformance cases' marks name their documents"
     status: open
-    context: [tests/conformance/core/uri-resolve-runs-rfc-3986-s-5-4-abnormal-table.nvst]
+    context: [tools/data/bare-section-marks.json, tests/conformance/core/uri-resolve-runs-rfc-3986-s-5-4-abnormal-table.nvst]
+  - id: 14
+    title: "the other conformance cases' marks name their documents"
+    status: open
+    context: [tools/data/bare-section-marks.json]
   - id: 8
     title: "the check refuses every bare mark"
     status: open
@@ -79,15 +103,39 @@ for a document that does not exist.
 - **A mark that cites a standard keeps its number and gains the standard's name,** even where the
   head comment already named it: `§ 3's TLS` becomes `RFC 8446 § 3's TLS`.
 - **Stage 1 records each file's count of bare marks,** and the check fails when a file's count
-  rises or a file with none gains one. A stage lowers the counts it reaches in the same commit.
-  Stage 8 deletes the record, and the check then refuses every bare mark.
-- **One crate group per session at most.** A slice is a set of files the session read in full,
-  committed with the counts it lowered.
+  rises or a file with none gains one. A stage lowers the counts it reaches in the same commit, by
+  `bun nv rules --record-marks`. Stage 8 deletes the record, and the check then refuses every bare
+  mark.
+- **The record drives every slice.** A stage's files are the entries of
+  `tools/data/bare-section-marks.json` under the paths its items name, taken largest count first until
+  about 600 bare marks, which is what each stage was sized to from a raw count of `§ N`. Where a
+  stage's entries total more, the session stops at about 600 and its handoff names the files left as
+  the next group.
+- **The history lookup and the edits are delegated.** For each file, an `Explore` subagent runs the
+  history method above and returns a table, one row per mark: line, mark, the record and section it
+  meant, and the replacement (a `rule:` id, "delete", "module doc", or the standard's name). The
+  session checks each table against the rules it names. Writing subagents then apply the checked
+  tables, one batch of files after another, and the session reads each batch's diff before the next.
+  A slice is a batch whose diff the session read, committed with the counts it lowered.
+
+**Lanes.** Stages 2 to 7 and 9 to 14 cover disjoint crates and directories, so any two can run at
+once as lanes after stage 1. Every lane edits `tools/data/bare-section-marks.json`; at merge it is
+regenerated with `bun nv rules --record-marks`, never merged by hand. A lane avoids a crate another
+goal is editing: stages 2, 9, 4, 11, 12 and 6 touch files goal `namespace-grants` edits
+(`crates/nvs-stdlib/src/cap.rs`, `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-types/src/capability.rs`,
+`crates/nvs-hir/src/requires.rs`, `crates/nvs-diagnostics/src/code/config.rs`,
+`crates/nvs-runtime/src/capability.rs`, `crates/nvs-config/src/resolve.rs`), and stage 13 touches
+`crates/nvs-cli/`, which every package goal edits. Such a stage waits until that goal's file is gone
+from `docs/goals/`, or skips the shared files and leaves them for its handoff.
+
+**Gates.** Every stage after the first needs `tools/data/bare-section-marks.json` (stage 1). Stage 8
+needs every other stage done. When a crate stage's shared files are held by a live goal, the session
+takes another crate stage, named in the lanes above.
 
 **Trade-offs.** No program, message or result changes: only comments, conformance case
 descriptions and one check. No memory and no time on the request path. Simplicity of the
 implementation gains, because every citation in the code leads to a text that exists. The cost is
-sessions: the larger crates take several each.
+sessions: fourteen stages, each about one session.
 
 ## Stages
 
@@ -96,85 +144,157 @@ sessions: the larger crates take several each.
 **Does:** `bun nv rules --check` counts the bare marks in every tracked file under `crates/` and
 `tests/conformance/`, and fails when a file has more than its recorded count.
 
-- [ ] `conventions.md` § *Citing a document* states the three forms a section mark takes. `docs/agent/conventions.md:363`
-- [ ] A bare-mark finder beside `deletedDocFindings`, with cases for each kept form and for a bare mark. `tools/nv/cmd/rules.ts:118`, `tools/nv/test/rules.test.ts:44`
-- [ ] The per-file counts are recorded in `tools/data/bare-section-marks.json`, which `bun nv rules --record-marks` writes and the check reads. `tools/nv/cmd/rules.ts:146`
-- [ ] The check fails on a count that rose and on a new file with a mark, and passes on a count that fell. `tools/nv/test/rules.test.ts:44`
+- [ ] `conventions.md` § *Citing a document* states the three forms a section mark takes. `docs/agent/conventions.md:367`
+- [ ] A bare-mark finder beside `deletedDocFindings`, with cases for each kept form and for a bare mark. `tools/nv/cmd/rules.ts:120`, `tools/nv/test/rules.test.ts:29`
+- [ ] The per-file counts are recorded in `tools/data/bare-section-marks.json`, which `bun nv rules --record-marks` writes and the check reads. `tools/nv/cmd/rules.ts:144`, `tools/nv/cmd/rules.ts:467`
+- [ ] The check fails on a count that rose and on a new file with a mark, and passes on a count that fell. `tools/nv/test/rules.test.ts:46`
 
-### 2. the standard library's marks name their documents
+### 2. the standard library's queue and database files' marks name their documents
+
+**Does:** no queue or database file under `crates/nvs-stdlib/` has a bare mark.
+
+**Split:** one `Explore` subagent per file returns its mark table; writing subagents apply the tables
+in batches, one after another, as the standing decision says.
+
+- [ ] The queue files. `crates/nvs-stdlib/src/queue.rs:1`, `crates/nvs-stdlib/tests/queue.rs:1`, `crates/nvs-stdlib/tests/queue_sqlite.rs:1`, `crates/nvs-stdlib/src/topic.rs:1`, `crates/nvs-stdlib/src/bus.rs:1`
+- [ ] The database layer: every file under `crates/nvs-stdlib/src/db/` the record lists, and `crates/nvs-stdlib/tests/db_stream.rs`. `crates/nvs-stdlib/src/db/execute.rs:1`, `crates/nvs-stdlib/src/db/transaction.rs:1`
+- [ ] Their counts at zero in the record. `tools/data/bare-section-marks.json:1`
+
+### 9. the rest of the standard library's marks name their documents
 
 **Does:** no file under `crates/nvs-stdlib/` has a bare mark.
 
-- [ ] The queue files. `crates/nvs-stdlib/src/queue.rs:1`, `crates/nvs-stdlib/tests/queue.rs:1`
-- [ ] The database layer. `crates/nvs-stdlib/src/db/execute.rs:1`, `crates/nvs-stdlib/src/db/transaction.rs:1`
-- [ ] The HTTP, URI and request files. `crates/nvs-stdlib/src/uri.rs:1`, `crates/nvs-stdlib/src/request.rs:18`, `crates/nvs-stdlib/src/http.rs:5`
-- [ ] Every other file in the crate, and its counts at zero.
+**Split:** as stage 2.
 
-### 3. the database drivers' marks name their documents
+- [ ] The HTTP, URI and request files: `uri.rs`, `request.rs`, `response.rs`, `socket.rs`, `http.rs`, `router.rs`, `sse.rs` and `http/`. `crates/nvs-stdlib/src/uri.rs:1`, `crates/nvs-stdlib/src/request.rs:18`, `crates/nvs-stdlib/src/http.rs:5`
+- [ ] The rest of the crate's entries in the record, largest first: `ratelimit.rs`, `cache.rs`, `log.rs`, `script.rs`, `encoding.rs`, `crypto.rs`, `command.rs` and the files below them. `crates/nvs-stdlib/src/ratelimit.rs:1`
+- [ ] The crate's counts at zero. `tools/data/bare-section-marks.json:1`
 
-**Does:** no file under `crates/nvs-db/` has a bare mark. Many of these cite a wire protocol's
-documentation, which keeps its number and gains its name.
+### 3. the PostgreSQL, MySQL and SQLite drivers' marks name their documents
+
+**Does:** the three drivers have no bare mark. Many of these cite a wire protocol's documentation,
+which keeps its number and gains its name.
+
+**Split:** as stage 2.
 
 - [ ] The PostgreSQL driver. `crates/nvs-db/src/pg.rs:1`
-- [ ] The MySQL driver. `crates/nvs-db/src/mysql.rs:1`
-- [ ] The SQLite driver and the rest of the crate, and its counts at zero. `crates/nvs-db/src/sqlite.rs:1`
+- [ ] The MySQL and MariaDB drivers, and the handshake tests. `crates/nvs-db/src/mysql.rs:1`, `crates/nvs-db/src/maria.rs:1`, `crates/nvs-db/tests/handshake.rs:1`
+- [ ] The SQLite driver, and these files' counts at zero. `crates/nvs-db/src/sqlite.rs:1`
 
-### 4. the compiler crates' marks name their documents
+### 10. the TDS driver and the rest of the database crate's marks name their documents
 
-**Does:** no file under `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-codegen` or
-`nvs-diagnostics` has a bare mark.
+**Does:** no file under `crates/nvs-db/` has a bare mark.
 
-- [ ] `nvs-types`. `crates/nvs-types/src/lib.rs:1`
-- [ ] `nvs-ir`, `nvs-hir`, `nvs-syntax` and `nvs-codegen`. `crates/nvs-ir/src/lib.rs:1`
-- [ ] `nvs-diagnostics`, and the group's counts at zero. `crates/nvs-diagnostics/src/lib.rs:1`
+**Split:** as stage 2.
 
-### 5. the server, runtime and host crates' marks name their documents
+- [ ] Every file under `crates/nvs-db/src/tds/`. `crates/nvs-db/src/tds/plan.rs:1`, `crates/nvs-db/src/tds/rpc.rs:1`
+- [ ] `conn.rs`, `sql.rs`, `lib.rs`, `span.rs`, `direct.rs`, `ddl.rs` and `tests/pool_reuse.rs`. `crates/nvs-db/src/conn.rs:1`
+- [ ] The crate's counts at zero. `tools/data/bare-section-marks.json:1`
 
-**Does:** no file under `nvs-server`, `nvs-runtime` or `nvs-host` has a bare mark.
+### 4. the type checker's, parser's and code generator's marks name their documents
 
-- [ ] `nvs-server`. `crates/nvs-server/src/lib.rs:1`
-- [ ] `nvs-runtime`. `crates/nvs-runtime/src/lib.rs:1`
-- [ ] `nvs-host`, and the group's counts at zero. `crates/nvs-host/src/lib.rs:1`
+**Does:** no file under `nvs-types`, `nvs-syntax` or `nvs-codegen` has a bare mark.
 
-### 6. the config, CLI and remaining crates' marks name their documents
+**Split:** as stage 2.
+
+- [ ] `nvs-types`'s routes, intrinsics and expression files. `crates/nvs-types/src/routes.rs:1`, `crates/nvs-types/tests/routes.rs:1`, `crates/nvs-types/src/expr/operators.rs:1`
+- [ ] The rest of `nvs-types`'s entries in the record. `crates/nvs-types/src/lib.rs:1`
+- [ ] `nvs-syntax` and `nvs-codegen`, and the three crates' counts at zero. `crates/nvs-syntax/src/lib.rs:1`, `crates/nvs-codegen/src/lib.rs:1`
+
+### 11. the IR, HIR and diagnostics crates' marks name their documents
+
+**Does:** no file under `nvs-ir`, `nvs-hir` or `nvs-diagnostics` has a bare mark.
+
+**Split:** as stage 2.
+
+- [ ] `nvs-ir`. `crates/nvs-ir/src/ir.rs:1`, `crates/nvs-ir/src/lower/convert.rs:1`
+- [ ] `nvs-hir`. `crates/nvs-hir/src/lib.rs:1`
+- [ ] `nvs-diagnostics`, and the three crates' counts at zero. `crates/nvs-diagnostics/src/lib.rs:1`
+
+### 5. the server and host crates' marks name their documents
+
+**Does:** no file under `nvs-server` or `nvs-host` has a bare mark.
+
+**Split:** as stage 2.
+
+- [ ] `nvs-server`'s schedule, serve and mount files. `crates/nvs-server/src/schedule.rs:1`, `crates/nvs-server/src/serve.rs:1`, `crates/nvs-server/src/mount.rs:1`
+- [ ] The rest of `nvs-server`'s entries in the record. `crates/nvs-server/src/lib.rs:1`
+- [ ] `nvs-host`, and both crates' counts at zero. `crates/nvs-host/src/lib.rs:1`
+
+### 12. the runtime crate's marks name their documents
+
+**Does:** no file under `nvs-runtime` has a bare mark.
+
+**Split:** as stage 2.
+
+- [ ] The capability, routes, metrics and pool files. `crates/nvs-runtime/src/capability.rs:1`, `crates/nvs-runtime/src/routes.rs:1`
+- [ ] The files under `crates/nvs-runtime/src/ctx/`. `crates/nvs-runtime/src/ctx/mod.rs:1`
+- [ ] The rest of the crate's entries in the record, and its counts at zero. `crates/nvs-runtime/src/lib.rs:1`
+
+### 6. the config, LDAP, test and render crates' marks name their documents
+
+**Does:** no file under `nvs-config`, `nvs-ldap`, `nvs-test` or `nvs-render` has a bare mark.
+
+**Split:** as stage 2.
+
+- [ ] `nvs-config`. `crates/nvs-config/src/http.rs:1`, `crates/nvs-config/src/lib.rs:1`
+- [ ] `nvs-ldap`, `nvs-test` and `nvs-render`, and the four crates' counts at zero. `crates/nvs-ldap/src/lib.rs:1`
+
+### 13. the CLI crate's marks name their documents
 
 **Does:** no file under `crates/` has a bare mark.
 
-- [ ] `nvs-config`. `crates/nvs-config/src/lib.rs:1`
-- [ ] `nvs-cli`. `crates/nvs-cli/src/cache.rs:27`
-- [ ] `nvs-ldap`, `nvs-test`, `nvs-render` and every other crate, and the counts under `crates/` at zero.
+**Split:** as stage 2.
 
-### 7. the conformance cases' marks name their documents
+- [ ] `nvs-cli`'s cache, worker and serve files. `crates/nvs-cli/src/cache.rs:27`, `crates/nvs-cli/src/worker.rs:1`, `crates/nvs-cli/src/serve.rs:1`
+- [ ] The rest of `nvs-cli`'s entries in the record, and every count under `crates/` at zero. `crates/nvs-cli/src/main.rs:1`
+
+### 7. the core conformance cases' marks name their documents
+
+**Does:** no case under `tests/conformance/core/` has a bare mark.
+
+**Split:** as stage 2, with one `Explore` subagent per batch of about twenty cases, since each case is
+short.
+
+- [ ] The cases whose names start `a` to `d`. `tests/conformance/core/uri-resolve-runs-rfc-3986-s-5-4-abnormal-table.nvst:1`
+- [ ] The cases from `e` on, and the directory's counts at zero. `tools/data/bare-section-marks.json:1`
+
+### 14. the other conformance cases' marks name their documents
 
 **Does:** no case under `tests/conformance/` has a bare mark.
 
-- [ ] `tests/conformance/core/`. `tests/conformance/core/uri-resolve-runs-rfc-3986-s-5-4-abnormal-table.nvst:1`
-- [ ] `lang/`, `reject/`, `class/`, `error/` and `config/`, and the counts at zero.
+**Split:** as stage 7.
+
+- [ ] `tests/conformance/lang/`. `tools/data/bare-section-marks.json:1`
+- [ ] `reject/`, `class/`, `error/` and `config/`, and every count at zero. `tools/data/bare-section-marks.json:1`
 
 ### 8. the check refuses every bare mark
 
 **Does:** the record of counts is gone, and `rules --check` fails on any bare mark under `crates/`
 or `tests/conformance/`.
 
-- [ ] `tools/data/bare-section-marks.json` and `--record-marks` are deleted, and the check refuses every bare mark. `tools/nv/cmd/rules.ts:118`
-- [ ] The cases in `rules.test.ts` pin the refusal. `tools/nv/test/rules.test.ts:44`
+- [ ] `tools/data/bare-section-marks.json` and `--record-marks` are deleted, and the check refuses every bare mark. `tools/nv/cmd/rules.ts:120`
+- [ ] The cases in `rules.test.ts` pin the refusal. `tools/nv/test/rules.test.ts:29`
 
 ## Handoff
 
 ### State
 
 The goal is new. Nothing is built. The mark counts and the history method above were checked on
-`side/docs-cleanup` when the goal was written.
+`side/docs-cleanup` when the goal was written. Stage sizes come from a raw `§ N` count; the record
+stage 1 writes replaces it.
 
 ### Next
 
-Stage 1, the check, on `tools/nv/cmd/rules.ts` and `tools/nv/test/rules.test.ts`:
-- [ ] The bare-mark finder and its cases. `tools/nv/cmd/rules.ts:118`
-- [ ] The recorded counts and the check that holds them. `tools/nv/cmd/rules.ts:146`
-
-Stage 2 follows in its own session, on `crates/nvs-stdlib/`.
+Stage 1, the check, on `tools/nv/cmd/rules.ts`, `tools/nv/test/rules.test.ts` and
+`docs/agent/conventions.md`. No gate.
+- [ ] `conventions.md` § *Citing a document* states the three kept forms. `docs/agent/conventions.md:367`
+- [ ] The bare-mark finder and its cases. `tools/nv/cmd/rules.ts:120`, `tools/nv/test/rules.test.ts:29`
+- [ ] The record and `--record-marks`, read by the check. `tools/nv/cmd/rules.ts:144`, `tools/nv/cmd/rules.ts:467`
+- [ ] The cases for a count that rose, a new file with a mark, and a count that fell. `tools/nv/test/rules.test.ts:46`
 
 ### Backlog
 
+- Stage 2 follows in its own session, on `crates/nvs-stdlib/` (`tools/data/bare-section-marks.json`).
 - A `§ N` in a doc under `docs/` is outside this goal. `bun nv verify --doc` checks links, not
-  marks. `docs/agent/conventions.md:363`
+  marks. `docs/agent/conventions.md:367`

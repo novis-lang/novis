@@ -5,23 +5,30 @@ summary: "The registry publishes a signed advisory feed whose every entry is in 
 context: [crates/nvs-cli/src/package/mod.rs, docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md]
 stages:
   - id: 1
-    title: the registry publishes a signed advisory feed, and the client verifies it
+    title: the advisory feed's schema is stated, and the client verifies the feed against the log
     status: open
-    context: [crates/nvs-cli/src/package/log.rs, crates/nvs-cli/src/package/index.rs, apps/registry/src/Withhold.nvs, apps/registry/src/Releases.nvs]
+    context: [crates/nvs-cli/src/package/log.rs, crates/nvs-cli/src/package/note.rs, crates/nvs-cli/src/package/index.rs]
+    extra:
+      context:
+        rules: [packaging/a-known-bad-version-is-retracted-not-deleted, packaging/the-operator-only-withholds, packaging/the-registry-keeps-an-append-only-log]
+  - id: 5
+    title: the registry publishes the signed advisory feed and names the second checkpoint copy
+    status: open
+    context: [apps/registry/src/App.nvs, apps/registry/src/Withhold.nvs, apps/registry/src/Releases.nvs, apps/registry/src/Index.nvs, apps/registry/src/Events.nvs]
     extra:
       context:
         rules: [packaging/a-known-bad-version-is-retracted-not-deleted, packaging/the-operator-only-withholds, packaging/the-registry-keeps-an-append-only-log]
   - id: 2
     title: "`nvs pkg audit` names the minimum bump that clears each advisory, and compares a second copy of the checkpoint"
     status: open
-    context: [crates/nvs-cli/src/package/resolve.rs, crates/nvs-cli/src/package/lock.rs]
+    context: [crates/nvs-cli/src/package/resolve.rs, crates/nvs-cli/src/package/lock.rs, crates/nvs-cli/src/package/index.rs, crates/nvs-cli/src/package/advisory.rs]
     extra:
       context:
-        rules: [packaging/a-known-bad-version-is-retracted-not-deleted, packaging/resolution-takes-the-highest-minimum, packaging/the-registry-keeps-an-append-only-log]
+        rules: [packaging/a-known-bad-version-is-retracted-not-deleted, packaging/resolution-takes-the-highest-minimum, packaging/the-registry-keeps-an-append-only-log, packaging/a-package-is-its-digest]
   - id: 3
     title: "`nvs pkg audit` warns on an autoload root no grant line mentions"
     status: open
-    context: [crates/nvs-hir/src/autoload.rs, crates/nvs-config/src/capability.rs, docs/rules/security/an-unmatched-namespace-holds-the-application.md]
+    context: [crates/nvs-hir/src/autoload.rs, crates/nvs-config/src/grants.rs, crates/nvs-cli/src/main.rs, docs/rules/security/an-unmatched-namespace-holds-the-application.md]
     extra:
       context:
         rules: [security/an-unmatched-namespace-holds-the-application, security/grants-are-keyed-on-a-namespace]
@@ -57,8 +64,10 @@ authority, and audit is where that is reported.
 
 **The advisory feed is a signed file the registry publishes**, with one entry per retraction and per
 withhold, each carrying its reason and, for a retraction, its fixed-in version. The feed is signed with
-the log's Ed25519 key as a signed note, and every entry is also a log entry (goal `registry-log`), so a
-feed that hides an advisory disagrees with the log.
+the log's Ed25519 key as a signed note (`crates/nvs-cli/src/package/note.rs`, goal `registry-log`), and
+every entry is also a log entry, so a feed that hides an advisory disagrees with the log. Stage 1 writes
+the feed's schema into `rule:packaging/a-known-bad-version-is-retracted-not-deleted`'s fragment, and
+the service writes to it in stage 5.
 
 **`nvs pkg audit` reads the lock, never the network's idea of the graph.** For each locked version under an
 advisory it prints the advisory, its reason and the smallest version that clears it, and exits
@@ -70,9 +79,32 @@ names, so a private registry names its own. `nvs pkg audit` fetches both and fai
 neither extends the other by a consistency proof. When no second copy is named, audit says so in one
 line and does not fail.
 
+**This goal adds the second-copy field to the index schema.** Goal `package-client` defines the index
+and does not carry it. Stage 2 adds an optional `checkpoint_copy` URL to the index root, read by
+`crates/nvs-cli/src/package/index.rs` and stated in `rule:packaging/a-package-is-its-digest`'s schema,
+under the same schema version because absent means "no second copy". Stage 5 makes the service write
+it from its own configuration. Why: the field has one reader, audit, and an optional field breaks no
+client that predates it.
+
 **The hand-copied-namespace warning** names each autoload root that lies under a directory no grant
 line mentions. It is a warning, never an error, because the same shape describes a second source tree
 of the application's own (`rule:security/an-unmatched-namespace-holds-the-application`).
+
+**Lanes.** Stage 1 (`advisory.rs`) and stage 3 (`audit.rs`'s autoload walk) touch disjoint files and
+can run in either order. Stage 2 also writes `audit.rs`, so stages 2 and 3 run one after the other,
+whichever is unblocked first; stage 2 needs stage 1's reader. Stage 5 is the app lane
+(`apps/registry/`), disjoint from the Rust stages; it shares `apps/registry/src/App.nvs`'s route wiring
+with goal `registry-website`, so those merges are serial. The `nvs pkg audit` subcommand goes into
+`crates/nvs-cli/src/main.rs`'s `Command` enum (`crates/nvs-cli/src/main.rs:373`), which goals
+`api-compat`, `package-client`, `registry-log` and `registry-service` also edit. Stage 4 writes
+`docs/reference/tools/35-packages.md`, where every package goal adds a heading.
+
+**Gates.** Stage 3 needs goals `namespace-grants` and `package-client` reached:
+`docs/goals/namespace-grants.md` and `docs/goals/package-client.md` are gone. Stage 1 needs goal
+`registry-log` reached: `docs/goals/registry-log.md` is gone. Stage 2 needs stage 1 and
+`crates/nvs-cli/src/package/lock.rs`. Stage 5 needs goal `registry-service` reached:
+`docs/goals/registry-service.md` is gone. A session whose stage is gated takes the earliest open stage
+whose gate holds, and ends `BLOCKED` naming the missing file when none does.
 
 **Trade-offs.** Nothing runs on the request path, and no program changes. Audit costs one feed fetch
 and two checkpoint fetches per run. Users gain one command that CI runs, and one warning that tells
@@ -80,50 +112,75 @@ them which code holds the application's authority without a grant line.
 
 ## Stages
 
-### 1. the registry publishes a signed advisory feed, and the client verifies it
+### 1. the advisory feed's schema is stated, and the client verifies the feed against the log
 
-**Does:** the service writes the feed from its retractions and withholds, and the client checks its
-signature and its entries against the log.
+**Does:** the feed's schema is in its rule, and the client checks the feed's signature and its entries
+against the log.
 
-- [ ] The feed's schema and signature, written by the service. `apps/registry/src/Advisories.nvs:1`, `apps/registry/src/Withhold.nvs:1`
-- [ ] The client's reader and its check against the log (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`). `crates/nvs-cli/src/package/advisory.rs:1`, `crates/nvs-cli/src/package/log.rs:1`
+- [ ] The feed's schema and signature, written into the rule's fragment (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`). `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:1`
+- [ ] The client's reader and its check against the log: a bad signature, and an advisory the log holds but the feed lacks, are hard errors. `crates/nvs-cli/src/package/advisory.rs:1`, `crates/nvs-cli/src/package/log.rs:1`
+- [ ] Tests over a feed built with `nvs registry log append`: a valid feed, a changed byte, and a hidden advisory. `crates/nvs-cli/tests/package_audit.rs:1`
+
+### 5. the registry publishes the signed advisory feed and names the second checkpoint copy
+
+**Does:** the service writes the feed from its retractions and withholds, and its index root names the
+second checkpoint copy when the operator configures one.
+
+**Split:** after the session lands `Advisories.nvs`, a writing subagent writes its test.
+
+- [ ] The signed feed, written by the service from each retraction and withhold. `apps/registry/src/Advisories.nvs:1`, `apps/registry/src/Withhold.nvs:1`
+- [ ] The index root's `checkpoint_copy`, from the service's configuration. `apps/registry/src/Index.nvs:1`
+- [ ] A test: a retraction and a withhold each appear in the feed, and the client's reader accepts it. `apps/registry/src/AdvisoriesTest.nvs:1`
 
 ### 2. `nvs pkg audit` names the minimum bump that clears each advisory, and compares a second copy of the checkpoint
 
 **Does:** audit reports each advisory against the lock with its fix, and fails on a split view of the
 log.
 
+**Split:** after the session lands the report, a writing subagent writes the tests.
+
 - [ ] The report and its non-zero exit, with a `--json` form. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-cli/src/package/lock.rs:1`
-- [ ] The second-copy comparison. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-cli/src/package/log.rs:1`
+- [ ] The optional `checkpoint_copy` field in the index reader, and the schema line in `rule:packaging/a-package-is-its-digest`. `crates/nvs-cli/src/package/index.rs:1`, `docs/rules/packaging/a-package-is-its-digest.md:1`
+- [ ] The second-copy comparison, and the one line when none is named. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-cli/src/package/log.rs:1`
+- [ ] Tests: a locked retracted version names its fixed-in version and exits non-zero, a withheld one the same, an unlisted one is silent, and two disagreeing copies fail. `crates/nvs-cli/tests/package_audit.rs:1`
 
 ### 3. `nvs pkg audit` warns on an autoload root no grant line mentions
 
 **Does:** audit names each autoload root whose namespace holds the application's authority only
 because no grant line matches it.
 
-- [ ] The walk over the program's autoload roots against the grant table (`rule:security/an-unmatched-namespace-holds-the-application`). `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-hir/src/autoload.rs:139`
+- [ ] The `nvs pkg audit` subcommand, if stage 2 has not added it. `crates/nvs-cli/src/main.rs:373`
+- [ ] The walk over the program's autoload roots against the grant table (`rule:security/an-unmatched-namespace-holds-the-application`). `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-hir/src/autoload.rs:199`, `crates/nvs-config/src/grants.rs:1`
+- [ ] Tests: a root under a granted prefix is silent, an ungranted one warns, and the exit stays zero. `crates/nvs-cli/tests/package_audit.rs:1`
 
 ### 4. `nvs pkg audit` has its feature proofs, and its rules are shipped
 
 **Does:** audit is a feature with its proofs, and every rule this goal owns is `shipped`.
 
-- [ ] The heading `# nvs pkg audit` in `docs/reference/tools/35-packages.md`, owing nothing. `docs/reference/tools/35-packages.md:1`
-- [ ] The attack: a registry hides an advisory from its feed that its log holds. `tests/hostile/tools/packages/nvs-audit/01-a-hidden-advisory.nvs:1`
-- [ ] Both rules `shipped`, and `bun nv owners --closes package-audit` passes. `data/rules/packaging/a-known-bad-version-is-retracted-not-deleted.json:1`
+**Split:** after the session writes the heading, one writing subagent writes `about.md` and the
+examples `bun nv proofs --id 'tools:packages/nvs-pkg-audit'` lists, then a second writes the attack.
+
+- [ ] The heading `# nvs pkg audit` in `docs/reference/tools/35-packages.md`. `docs/reference/tools/35-packages.md:1`
+- [ ] `about.md` and the examples the proofs command lists. `docs/examples/tools/packages/nvs-pkg-audit/about.md:1`
+- [ ] The attack: a registry hides an advisory from its feed that its log holds. `tests/hostile/tools/packages/nvs-pkg-audit/01-a-hidden-advisory.nvs:1`
+- [ ] `rule:packaging/a-known-bad-version-is-retracted-not-deleted` and `rule:security/an-unmatched-namespace-holds-the-application` are `shipped`, and `bun nv owners --closes package-audit` passes. `data/rules/packaging/a-known-bad-version-is-retracted-not-deleted.json:1`, `data/rules/security/an-unmatched-namespace-holds-the-application.json:1`
 
 ## Handoff
 
 ### State
 
-The goal is new. No stage is started. It needs goals `package-client`, `registry-log` and
-`registry-service` reached.
+The goal is new. No stage is started. Stage 3's gate (goals `namespace-grants` and `package-client`)
+is the first to hold; stage 1 waits for goal `registry-log`, and stage 5 for goal `registry-service`.
 
 ### Next
 
-Stage 1, the feed:
-- the service writes the signed feed (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`). `apps/registry/src/Advisories.nvs:1`
-- the client reads and checks it. `crates/nvs-cli/src/package/advisory.rs:1`
+Stage 3, the unmatched-namespace warning, on `crates/nvs-cli/src/package/audit.rs`,
+`crates/nvs-cli/src/main.rs` and `crates/nvs-cli/tests/package_audit.rs`. Gate:
+`docs/goals/namespace-grants.md` and `docs/goals/package-client.md` are gone.
+- [ ] The `nvs pkg audit` subcommand. `crates/nvs-cli/src/main.rs:373`
+- [ ] The walk over the autoload roots against the grant table (`rule:security/an-unmatched-namespace-holds-the-application`). `crates/nvs-cli/src/package/audit.rs:1`
+- [ ] Its tests. `crates/nvs-cli/tests/package_audit.rs:1`
 
 ### Backlog
 
-- None.
+- Stage 1, the advisory reader, follows goal `registry-log` (`crates/nvs-cli/src/package/advisory.rs`).

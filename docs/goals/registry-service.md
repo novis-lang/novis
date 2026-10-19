@@ -19,12 +19,19 @@ stages:
       context:
         rules: [packaging/a-publish-token-is-scoped-and-expires, packaging/a-package-name-is-vendor-slash-name, config/ownership-is-the-trust-boundary]
   - id: 3
-    title: a publish builds the archive from a git commit, refuses what the rules refuse, and lands in the static index
+    title: "`nvs registry build` builds the archive from a git commit, and `nvs pkg publish` sends one"
     status: open
-    context: [crates/nvs-cli/src/package/pack.rs, crates/nvs-cli/src/package/git.rs, crates/nvs-cli/src/package/diff.rs, crates/nvs-cli/src/package/index.rs, docs/rules/packaging/the-registry-builds-the-archive-from-git.md, docs/rules/packaging/publishing-never-overwrites.md]
+    context: [crates/nvs-cli/src/package/pack.rs, crates/nvs-cli/src/package/git.rs, crates/nvs-cli/src/package/diff.rs, crates/nvs-cli/src/main.rs, crates/nvs-cli/Cargo.toml, docs/rules/packaging/the-registry-builds-the-archive-from-git.md]
     extra:
       context:
-        rules: [packaging/the-registry-builds-the-archive-from-git, packaging/publishing-never-overwrites, packaging/only-a-major-may-break-the-api, packaging/a-package-cannot-reach-its-host, packaging/a-git-dependency-is-root-only, packaging/a-package-is-its-digest]
+        rules: [packaging/the-registry-builds-the-archive-from-git, packaging/only-a-major-may-break-the-api, packaging/a-package-cannot-reach-its-host, packaging/a-git-dependency-is-root-only, packaging/a-package-is-its-digest]
+  - id: 7
+    title: the service's publish refuses what the rules refuse, and the release lands in the static index
+    status: open
+    context: [apps/registry/src/App.nvs, apps/registry/src/Vendors.nvs, crates/nvs-cli/src/package/index.rs, docs/rules/packaging/publishing-never-overwrites.md, docs/rules/packaging/a-package-is-its-digest.md]
+    extra:
+      context:
+        rules: [packaging/publishing-never-overwrites, packaging/the-registry-builds-the-archive-from-git, packaging/a-package-is-its-digest, packaging/a-package-name-is-vendor-slash-name]
   - id: 4
     title: a release waits seven days unless an owner confirms it, an owner unlists, and the operator only withholds
     status: open
@@ -33,30 +40,51 @@ stages:
       context:
         rules: [packaging/a-release-waits-seven-days-unless-an-owner-confirms, packaging/a-known-bad-version-is-retracted-not-deleted, packaging/an-owner-may-unlist, packaging/the-operator-only-withholds, packaging/the-registry-keeps-an-append-only-log]
   - id: 5
-    title: an owner is notified by Web Push, webhooks, feeds and an inbox, never by email
+    title: an owner is notified by Web Push, a channel is verified, and an account without one cannot publish
     status: open
-    context: [crates/nvs-stdlib/src/webpush.rs, crates/nvs-config/src/capability.rs, docs/rules/packaging/an-owner-is-notified-without-email.md, docs/rules/core-classes/web-push-sends-an-encrypted-message.md]
+    context: [crates/nvs-stdlib/src/webpush.rs, apps/registry/src/Vendors.nvs, docs/rules/packaging/an-owner-is-notified-without-email.md, docs/rules/core-classes/web-push-sends-an-encrypted-message.md]
     extra:
       context:
-        rules: [packaging/an-owner-is-notified-without-email, core-classes/web-push-sends-an-encrypted-message, packaging/a-release-waits-seven-days-unless-an-owner-confirms]
-  - id: 6
-    title: an account stays active by proof, never by token, and the service has its guide and proofs
+        rules: [packaging/an-owner-is-notified-without-email, core-classes/web-push-sends-an-encrypted-message]
+  - id: 8
+    title: an owner is notified by a signed webhook with retries, verified by a one-time code
     status: open
-    context: [docs/rules/packaging/an-account-stays-active-by-proof-not-by-token.md, docs/reference/tools/35-packages.md]
+    context: [crates/nvs-config/src/capability.rs, apps/registry/src/Channels.nvs, docs/rules/packaging/an-owner-is-notified-without-email.md]
+    extra:
+      context:
+        rules: [packaging/an-owner-is-notified-without-email, packaging/a-package-cannot-reach-its-host]
+  - id: 9
+    title: the feeds, the inbox and the commands show every event, never by email
+    status: open
+    context: [apps/registry/src/Push.nvs, apps/registry/src/Webhooks.nvs, crates/nvs-cli/src/package/publish.rs, crates/nvs-cli/src/package/login.rs, docs/rules/packaging/an-owner-is-notified-without-email.md]
+    extra:
+      context:
+        rules: [packaging/an-owner-is-notified-without-email, packaging/a-release-waits-seven-days-unless-an-owner-confirms]
+  - id: 6
+    title: an account stays active by proof, never by token
+    status: open
+    context: [docs/rules/packaging/an-account-stays-active-by-proof-not-by-token.md, apps/registry/src/Push.nvs, apps/registry/src/Webhooks.nvs]
     extra:
       context:
         rules: [packaging/an-account-stays-active-by-proof-not-by-token, packaging/an-owner-is-notified-without-email, packaging/a-registry-account-is-a-passkey]
+  - id: 10
+    title: the service has its deploy guide and its proofs, and its rules are shipped
+    status: open
+    context: [apps/registry/README.md, docs/reference/tools/35-packages.md]
+    extra:
+      context:
+        rules: [packaging/the-registry-is-a-novis-program]
 checks:
   - id: registry-tests
-    stage: 6
+    stage: 10
     name: the registry application's own tests pass
     run: [cargo, run, -q, --bin, nvs, --, test, apps/registry]
   - id: service-proofs
-    stage: 6
+    stage: 10
     name: the publishing commands owe no feature proof
     run: [bun, nv, proofs, --gate, --only, "tools:packages/nvs-pkg-login-and-nvs-pkg-whoami", "tools:packages/nvs-pkg-publish", "tools:packages/nvs-pkg-retract-and-nvs-pkg-unlist"]
   - id: owners-closes
-    stage: 6
+    stage: 10
     name: no gap record or designed rule names this goal
     run: [bun, nv, owners, --closes, registry-service]
     reach: true
@@ -79,8 +107,23 @@ already runs, so a publisher's `nvs pkg publish --dry-run` predicts exactly what
 **The service is `apps/registry/`, a Novis application like `apps/notes/`.** It stores its data in
 SQLite through `Core\Db`, signs users in with `Core\Passkey` (goal `core-passkey`), and runs `nvs`
 subcommands as child processes, granted in its own `nvs.toml`. Its tests run with
-`nvs test apps/registry` against a temporary database, a push service and a webhook receiver on
-loopback listeners, and a git repository served from a loopback listener the test grants.
+`nvs test apps/registry` against a temporary database and a push service and a webhook receiver on
+loopback listeners. The app runs `nvs registry build` through one class, and its tests replace that
+class with `Core\Test::double` fed the JSON that `crates/nvs-cli/tests/registry_build.rs` pins.
+
+**The test git server speaks HTTPS, never plain HTTP, and only the Rust tests run it.**
+`crates/nvs-cli/tests/registry_build.rs` serves `git http-backend` behind a rustls listener with a
+certificate `rcgen` issues per run; both are already `nvs-cli` dev-dependencies for a loopback TLS
+peer (`crates/nvs-cli/Cargo.toml:131`). `nvs registry build` takes `--ca-file <pem>`, an operator flag
+the service passes from its own configuration and never from a publisher, and a publisher's `http:` or
+`file:` URL is refused. Why: the tested path is the production path, no insecure switch exists to be
+left on, and one git server in one language is simpler than two.
+
+**The clock is Core's, so tests move it.** Every time the service stores or compares (the seven-day
+window, the 60-day activity rule, the daily salt, token expiry) comes from Core's clock, never from
+SQLite's `now`. Tests fix it with `#[Test(at: ...)]` and move it with `Core\Test::advance`
+(`rule:testing/determinism-declared-on-the-test`). Why: a window test then takes no real time and
+never flakes at midnight.
 
 **No email, no SMS, no password, and no binding to any forge.** There is no GitHub or GitLab sign-in
 and no OIDC trusted publishing. An account is one or more passkeys and one-time recovery codes shown
@@ -98,7 +141,7 @@ version is never reassigned. `Core\` and `Novis\` are the project account's alon
 **A publish token** is scoped to one vendor or one package, expires after one year at most, starts with
 `nvsreg_` so secret scanners find a leaked one, and is stored by the registry only as a hash.
 `nvs pkg login` stores it in the data folder under the ownership check the artifact cache uses
-(`crates/nvs-cli/src/cache.rs:1793`).
+(`crates/nvs-cli/src/cache.rs:1258`).
 
 **The registry builds the archive from git.** `nvs pkg publish` sends a repository URL, a commit, a
 version and the package's directory within the repository. `nvs pkg publish` may name a subdirectory, and
@@ -163,6 +206,26 @@ reminders start, such as after 14, 30 or 45 quiet days.
 per version per day. One count per address per day goes through a hash with a daily salt, and the
 salt is deleted when the day ends. Copies from mirrors and from `vendor/` are not counted.
 
+**Lanes.** The Rust lane (`crates/nvs-cli/src/package/login.rs`, `build.rs`, `publish.rs`,
+`retract.rs`, `unlist.rs`) is disjoint from `apps/registry/`, so stage 3 can run beside stage 2's app
+items, and stage 4's and stage 9's Rust items can go to their own sessions. Its one shared file is
+`crates/nvs-cli/src/main.rs`'s `Command` enum (`crates/nvs-cli/src/main.rs:373`), which goals
+`api-compat`, `package-client` and `registry-log` also edit, so those merges are serial. Every app
+stage edits `apps/registry/src/App.nvs`'s route wiring and the schema, so no two app stages run at
+once. Their order is 1, 2, 7, 4, 5, 8, 9, 6, except that stage 8 needs only stage 2 and may go
+earlier. Stages 5 and 8 write disjoint channel files (`Push.nvs`, `Webhooks.nvs`) and share only
+`Channels.nvs`. Stage 10 writes `docs/reference/tools/35-packages.md`, where every package
+goal adds a heading, so it merges serially with them.
+
+**Gates.** Stage 1 needs `Core\Passkey`: `data/rules/core-classes/passkey-verifies-a-webauthn-ceremony.json`
+reads `"status": "shipped"`; until then, the session takes stage 1's first item alone. Stage 2's `nvs pkg
+login` needs `crates/nvs-cli/src/package/mod.rs`. Stage 3 needs goals `package-client` and `api-compat`
+reached: `docs/goals/package-client.md` and `docs/goals/api-compat.md` are gone. Stage 4 needs goal
+`registry-log` reached: `docs/goals/registry-log.md` is gone. Stage 5 needs `Core\WebPush`:
+`data/rules/core-classes/web-push-sends-an-encrypted-message.json` reads `"status": "shipped"`; until
+then, the session takes stage 8, which needs only stage 2. A session whose stage is gated takes the
+earliest open stage whose gate holds, and ends `BLOCKED` naming the missing file when none does.
+
 **Trade-offs.** No language feature changes, and the request path of other programs is untouched. The
 service is a program its operator runs; its memory is per request, with SQLite on disk. Security is
 the reason for every choice above: no forge to compromise, no password to phish, no mailbox to take
@@ -177,73 +240,152 @@ passkey, one verified notification channel, and, for a hotfix, one confirmation 
 **Does:** a person signs up with a passkey after a small proof-of-work, receives recovery codes once,
 adds more passkeys and signs in.
 
-- [ ] `apps/registry/` with its `nvs.toml`, schema and test setup, in the shape of `apps/notes/` (`rule:packaging/the-registry-is-a-novis-program`). `apps/notes/src/App.nvs:1`
+**Split:** an `Explore` subagent returns `Core\Passkey`'s calls for registration and sign-in from its
+reference card, one line each, and the list of `apps/notes/` files with what each holds.
+
+- [ ] `apps/registry/` with its `nvs.toml`, schema and test setup, in the shape of `apps/notes/` (`rule:packaging/the-registry-is-a-novis-program`). `apps/notes/src/App.nvs:1`, `apps/registry/src/App.nvs:1`
 - [ ] Sign-up with its proof-of-work, passkeys through `Core\Passkey`, recovery codes stored hashed, and sign-in; nothing asks for an email (`rule:packaging/a-registry-account-is-a-passkey`). `apps/registry/src/Accounts.nvs:1`
+- [ ] Tests: a sign-up without the proof-of-work refused, recovery codes shown once and each usable once, a second passkey added only while signed in. `apps/registry/src/AccountsTest.nvs:1`
+- [ ] `rule:packaging/a-registry-account-is-a-passkey` is `shipped` with these tests in `guardedBy`. `data/rules/packaging/a-registry-account-is-a-passkey.json:1`
 
 ### 2. a vendor has owners, and a token is scoped, hashed and expires
 
 **Does:** owners manage a vendor, and a token publishes only inside its scope until it expires.
 
+**Split:** after the session lands the schema for vendors and tokens, one writing subagent writes
+`Tokens.nvs` and its test, then a second writes `login.rs` (the Rust lane).
+
 - [ ] Vendors and owners, an owner added only with a passkey. The check that the new owner has a verified channel lands with stage 5. `apps/registry/src/Vendors.nvs:1`
 - [ ] Tokens: scope, expiry, the `nvsreg_` prefix, hashed storage and revocation (`rule:packaging/a-publish-token-is-scoped-and-expires`). `apps/registry/src/Tokens.nvs:1`
-- [ ] `nvs pkg login` stores a token in the data folder under the ownership check, and `nvs pkg whoami` prints the account and its scope. `crates/nvs-cli/src/package/login.rs:1`, `crates/nvs-config/src/data.rs:446`
+- [ ] Tests: a token outside its scope refused, an expired one refused, a revoked one refused, and only its hash stored. `apps/registry/src/TokensTest.nvs:1`
+- [ ] `nvs pkg login` stores a token in the data folder under the ownership check, and `nvs pkg whoami` prints the account and its scope, with a test of a token file writable by another account. `crates/nvs-cli/src/package/login.rs:1`, `crates/nvs-config/src/data.rs:446`
+- [ ] `rule:packaging/a-publish-token-is-scoped-and-expires` is `shipped`. `data/rules/packaging/a-publish-token-is-scoped-and-expires.json:1`
 
-### 3. a publish builds the archive from a git commit, refuses what the rules refuse, and lands in the static index
+### 3. `nvs registry build` builds the archive from a git commit, and `nvs pkg publish` sends one
 
-**Does:** `nvs pkg publish` sends a commit, the service builds and checks the archive, records a release
-that is never overwritten, and serves it in the index the client reads.
+**Does:** `nvs registry build` clones a commit over HTTPS, packs, digests and checks it and prints JSON
+for the service; `nvs pkg publish` sends a commit, and `--dry-run` predicts the digest.
 
-- [ ] `nvs registry build`: clone, pack, digest, the namespace and manifest checks, and the API diff against the previous release, as JSON for the service (`rule:packaging/the-registry-builds-the-archive-from-git`). `crates/nvs-cli/src/package/build.rs:1`
+**Split:** an `Explore` subagent lists the functions `pack.rs`, `git.rs` and `diff.rs` export, one
+line each with its anchor. After the session lands `build.rs`, a writing subagent writes the HTTPS
+loopback git server and the tests.
+
+- [ ] `nvs registry build`: clone, pack, digest, the namespace and manifest checks, and the API diff against the previous release, as JSON for the service, with `--ca-file` (`rule:packaging/the-registry-builds-the-archive-from-git`). `crates/nvs-cli/src/package/build.rs:1`, `crates/nvs-cli/src/main.rs:373`
 - [ ] `nvs pkg publish`, with `--dry-run` running the same packing locally to print the digest. `crates/nvs-cli/src/package/publish.rs:1`
-- [ ] The service's publish endpoint, the repository binding, and every refusal in the standing decision (`rule:packaging/publishing-never-overwrites`). `apps/registry/src/Publish.nvs:1`
+- [ ] Tests against the HTTPS loopback server: the JSON a build prints, the dry-run digest equal to the build's, an `http:` URL refused, a repository over the size limit refused, and a namespace outside the name refused. `crates/nvs-cli/tests/registry_build.rs:1`
+
+### 7. the service's publish refuses what the rules refuse, and the release lands in the static index
+
+**Does:** the service runs the build, records a release that is never overwritten, and serves it in
+the index the client reads.
+
+**Split:** after the session lands `Publish.nvs`, one writing subagent writes the refusal tests, then
+a second writes `Index.nvs`'s download count and its test.
+
+- [ ] The service's publish endpoint, the build class the tests double, the repository binding, and every refusal in the standing decision (`rule:packaging/publishing-never-overwrites`). `apps/registry/src/Publish.nvs:1`
+- [ ] Tests: one per refusal in the standing decision, a republished version refused, and a changed repository URL refused without a passkey. `apps/registry/src/PublishTest.nvs:1`
 - [ ] The static index in the client's schema, archive downloads, and the salted daily count. `apps/registry/src/Index.nvs:1`, `crates/nvs-cli/src/package/index.rs:1`
+- [ ] Tests: the client's index reader parses what the service writes, and one address counts once per day across a day change. `apps/registry/src/IndexTest.nvs:1`
+- [ ] `rule:packaging/publishing-never-overwrites` and `rule:packaging/the-registry-builds-the-archive-from-git` are `shipped`. `data/rules/packaging/publishing-never-overwrites.json:1`, `data/rules/packaging/the-registry-builds-the-archive-from-git.json:1`
 
 ### 4. a release waits seven days unless an owner confirms it, an owner unlists, and the operator only withholds
 
 **Does:** a token-only release is pending for seven days, an owner's passkey releases it or freezes
 the first stable API at once, and unlisting and withholding work as their rules say, each logged.
 
+**Split:** after the session lands `Releases.nvs` and `Events.nvs`, one writing subagent writes
+`retract.rs` and `unlist.rs` (the Rust lane), then a second writes the tests.
+
 - [ ] The pending state, the dependency wait, the passkey confirmation and the one-time stable confirmation (`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`). `apps/registry/src/Releases.nvs:1`
 - [ ] `nvs pkg retract`, with the same wait for a token and none for a passkey (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`). `crates/nvs-cli/src/package/retract.rs:1`
 - [ ] `nvs pkg unlist` and its passkey step, reversible (`rule:packaging/an-owner-may-unlist`), and the operator's withhold as a signed advisory with its reason (`rule:packaging/the-operator-only-withholds`). `crates/nvs-cli/src/package/unlist.rs:1`, `apps/registry/src/Withhold.nvs:1`
-- [ ] A log entry for every event in the standing decision. `apps/registry/src/Events.nvs:1`, `crates/nvs-cli/src/package/log.rs:1`
+- [ ] A log entry through `nvs registry log append` for every event in the standing decision. `apps/registry/src/Events.nvs:1`, `crates/nvs-cli/src/package/log.rs:1`
+- [ ] Tests under a fixed clock: a token release selectable after seven days and not before, a passkey release at once, a release behind a pending dependency, an unlist reversed, a withhold carrying its reason, and one log entry per event. `apps/registry/src/ReleasesTest.nvs:1`
+- [ ] `rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`, `rule:packaging/an-owner-may-unlist` and `rule:packaging/the-operator-only-withholds` are `shipped`. `data/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.json:1`, `data/rules/packaging/an-owner-may-unlist.json:1`, `data/rules/packaging/the-operator-only-withholds.json:1`
 
-### 5. an owner is notified by Web Push, webhooks, feeds and an inbox, never by email
+### 5. an owner is notified by Web Push, a channel is verified, and an account without one cannot publish
 
-**Does:** every event reaches each owner through the channels they set up and through the channels
-that are always present, and an account without a verified channel cannot publish or become an owner.
+**Does:** an owner registers push devices, a device is verified by its test push, and an account with
+no verified channel cannot publish or become an owner.
+
+**Split:** after the session lands `Channels.nvs`'s verified state, one writing subagent writes
+`Push.nvs`, then a second writes the tests.
 
 - [ ] Web Push: device registration while signed in with a passkey, each message sent through `Core\WebPush`, a gone subscription dropped, and each device's last answer shown (`rule:packaging/an-owner-is-notified-without-email`, `rule:core-classes/web-push-sends-an-encrypted-message`). `apps/registry/src/Push.nvs:1`, `crates/nvs-stdlib/src/webpush.rs:1`
-- [ ] Webhooks: a signed POST through the outbound address table, with retries. `apps/registry/src/Webhooks.nvs:1`, `crates/nvs-config/src/capability.rs:262`
-- [ ] Verification: a test push answered with its one-time code, a webhook code returned on the website or by its link, and a channel that stops working no longer counting. `apps/registry/src/Channels.nvs:1`
+- [ ] Verification: a test push answered with its one-time code, and a channel that stops working no longer counting. `apps/registry/src/Channels.nvs:1`
 - [ ] A publish, and adding an owner, refused for an account with no verified channel. `apps/registry/src/Publish.nvs:1`, `apps/registry/src/Vendors.nvs:1`
+- [ ] Tests against the loopback push service: a device verified by its code, a gone device dropped, and both refusals. `apps/registry/src/PushTest.nvs:1`
+
+### 8. an owner is notified by a signed webhook with retries, verified by a one-time code
+
+**Does:** an owner gives a webhook URL, the registry verifies it with a one-time code and then sends
+every event to it as a signed POST, with retries.
+
+**Split:** after the session lands the signed POST, a writing subagent writes the tests.
+
+- [ ] Webhooks: a signed POST through the outbound address table, with retries. `apps/registry/src/Webhooks.nvs:1`, `crates/nvs-config/src/capability.rs:262`
+- [ ] Verification: a one-time code returned on the website or by the link in the message, and a webhook that still fails after its retries no longer counting. `apps/registry/src/Channels.nvs:1`
+- [ ] Tests against the loopback receiver: the signature checks, a retry after a failure, an internal address refused, and a failing webhook that stops counting. `apps/registry/src/WebhooksTest.nvs:1`
+
+### 9. the feeds, the inbox and the commands show every event, never by email
+
+**Does:** the channels that are always present carry every event, and the commands print what the
+caller did not confirm.
+
+**Split:** `Feeds.nvs` and the Rust lane (`publish.rs`, `login.rs`) are disjoint: one writing subagent
+writes the Rust items after the session lands the feeds.
+
 - [ ] The signed feed per vendor, the website inbox, the public pending feed, and a device added or removed notifying every other channel of the account. `apps/registry/src/Feeds.nvs:1`
-- [ ] `nvs pkg publish` and `nvs pkg whoami` print the pending releases the caller did not confirm, and `nvs pkg publish` warns when no owner of the vendor has a working channel. `crates/nvs-cli/src/package/publish.rs:1`
+- [ ] Tests: each event kind in the vendor feed and the inbox, and a device added notifying the other device and the webhook. `apps/registry/src/FeedsTest.nvs:1`
+- [ ] `nvs pkg publish` and `nvs pkg whoami` print the pending releases the caller did not confirm, and `nvs pkg publish` warns when no owner of the vendor has a working channel, with tests. `crates/nvs-cli/src/package/publish.rs:1`, `crates/nvs-cli/src/package/login.rs:1`
+- [ ] `rule:packaging/an-owner-is-notified-without-email` is `shipped`. `data/rules/packaging/an-owner-is-notified-without-email.json:1`
 
-### 6. an account stays active by proof, never by token, and the service has its guide and proofs
+### 6. an account stays active by proof, never by token
 
-**Does:** an account with no passkey sign-in or reminder answer for 60 days can no longer publish, and
-the service can be deployed from its guide.
+**Does:** an account with no passkey sign-in or reminder answer for 60 days can no longer publish.
 
 - [ ] The activity clock: a passkey sign-in or a reminder answer counts, token use never does, and after 60 days only a passkey sign-in revives the account (`rule:packaging/an-account-stays-active-by-proof-not-by-token`). `apps/registry/src/Activity.nvs:1`
 - [ ] The "Yes, I am here" reminder: the start the owner chose, the one-time code in the encrypted push payload, the small page the notification opens, and the one-time link in a webhook message. `apps/registry/src/Push.nvs:1`, `apps/registry/src/Webhooks.nvs:1`
+- [ ] Tests under a fixed clock moved by `Core\Test::advance`: token use on day 59 does not count, a reminder answer does, and on day 61 only a passkey sign-in revives. `apps/registry/src/ActivityTest.nvs:1`
+- [ ] `rule:packaging/an-account-stays-active-by-proof-not-by-token` is `shipped`. `data/rules/packaging/an-account-stays-active-by-proof-not-by-token.json:1`
+
+### 10. the service has its deploy guide and its proofs, and its rules are shipped
+
+**Does:** the service can be deployed from its guide, the commands are features with their proofs, and
+every rule this goal owns is `shipped`.
+
+**Split:** after the session writes the three headings, one writing subagent per heading, one after
+another, writes its `about.md` and the examples `bun nv proofs --id` lists, then one writes the three
+attacks. All follow AGENTS.md § *Text an end user reads*.
+
 - [ ] The deploy guide in `apps/registry/README.md`, and the client's tests run against the service. `apps/registry/README.md:1`
-- [ ] The headings `# nvs pkg login and nvs pkg whoami`, `# nvs pkg publish` and `# nvs pkg retract and nvs pkg unlist` in `docs/reference/tools/35-packages.md`, each owing nothing; every rule this goal owns `shipped`; `bun nv owners --closes registry-service` passes. `docs/reference/tools/35-packages.md:1`
+- [ ] The headings `# nvs pkg login and nvs pkg whoami`, `# nvs pkg publish` and `# nvs pkg retract and nvs pkg unlist`. `docs/reference/tools/35-packages.md:1`
+- [ ] `about.md` and examples for `nvs pkg login and nvs pkg whoami`. `docs/examples/tools/packages/nvs-pkg-login-and-nvs-pkg-whoami/about.md:1`
+- [ ] `about.md` and examples for `nvs pkg publish`. `docs/examples/tools/packages/nvs-pkg-publish/about.md:1`
+- [ ] `about.md` and examples for `nvs pkg retract and nvs pkg unlist`. `docs/examples/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/about.md:1`
+- [ ] The attacks: a stolen token publishing outside its scope, a publish of an internal repository URL, and a token-only retraction trying to skip the wait. `tests/hostile/tools/packages/nvs-pkg-publish/01-a-token-outside-its-scope.nvs:1`
+- [ ] `rule:packaging/the-registry-is-a-novis-program` is `shipped`, and `bun nv owners --closes registry-service` passes. `data/rules/packaging/the-registry-is-a-novis-program.json:1`
 
 ## Handoff
 
 ### State
 
-The goal is new. No stage is started. It needs goals `api-compat`, `package-client`, `registry-log`,
-`core-passkey` and `core-web-push` reached.
+The goal is new. No stage is started, and `apps/registry/` does not exist. Stage 1's gate is open
+until goal `core-passkey` ships `rule:core-classes/passkey-verifies-a-webauthn-ceremony`.
 
 ### Next
 
-Stage 1, the application and its accounts:
-- `apps/registry/` in the shape of `apps/notes/` (`rule:packaging/the-registry-is-a-novis-program`). `apps/notes/src/App.nvs:1`
-- sign-up with its proof-of-work, and sign-in with `Core\Passkey` (`rule:packaging/a-registry-account-is-a-passkey`). `apps/registry/src/Accounts.nvs:1`
+Stage 1, the application and its accounts, on `apps/registry/`. Gate:
+`data/rules/core-classes/passkey-verifies-a-webauthn-ceremony.json` reads `"status": "shipped"`; until
+it does, take the first item alone.
+- [ ] `apps/registry/` with its `nvs.toml`, schema and test setup, in the shape of `apps/notes/` (`rule:packaging/the-registry-is-a-novis-program`). `apps/registry/src/App.nvs:1`
+- [ ] Sign-up with its proof-of-work, passkeys, recovery codes and sign-in (`rule:packaging/a-registry-account-is-a-passkey`). `apps/registry/src/Accounts.nvs:1`
+- [ ] Their tests. `apps/registry/src/AccountsTest.nvs:1`
+- [ ] `rule:packaging/a-registry-account-is-a-passkey` is `shipped`. `data/rules/packaging/a-registry-account-is-a-passkey.json:1`
 
 ### Backlog
+
+- Stage 3, `nvs registry build` and `nvs pkg publish`, is the Rust lane; its gate is goals `package-client` and `api-compat` reached (`docs/goals/package-client.md`).
 
 - Search, package pages, account pages and the policy page are goal `registry-website`'s (`docs/goals/registry-website.md`).
 - The advisory feed and `nvs pkg audit` are goal `package-audit`'s (`docs/goals/package-audit.md`).
