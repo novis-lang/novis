@@ -45,6 +45,19 @@ describe("nv site --stale", () => {
     expect(staleness(world(), root).stale).toEqual([]);
   });
 
+  test("a lang feature's changed details.md or example makes its page stale", () => {
+    const root = site().root;
+    s.put("docs/examples/lang/statements/match/about.md", "A match.\n");
+    s.put("docs/examples/lang/statements/match/details.md", "Arms run in order.\n");
+    s.put("docs/examples/lang/statements/match/01-basic.nvs", "<?nvs\necho 1;\n");
+    stamp(world(), ["syntax/match.mdx"], root);
+    s.put("docs/examples/lang/statements/match/details.md", "Arms run in order, and the first match wins.\n");
+    expect(staleness(world(), root).stale).toEqual(["reference/strings.mdx: Core\\Str::length (never stamped)", "syntax/match.mdx: lang:statements/match (changed since its stamp)"]);
+    stamp(world(), ["syntax/match.mdx"], root);
+    s.put("docs/examples/lang/statements/match/01-basic.nvs", "<?nvs\necho 2;\n");
+    expect(staleness(world(), root).stale).toContain("syntax/match.mdx: lang:statements/match (changed since its stamp)");
+  });
+
   test("a changed card or chapter section makes its page stale", () => {
     const root = site().root;
     stamp(world(), ["reference/strings.mdx", "syntax/match.mdx"], root);
@@ -211,9 +224,9 @@ describe("nv site --check syntax", () => {
     s.put(`${DOCS}/syntax/empty.mdx`, "---\ntitle: Empty\ncovers: []\n---\n\n## Do and don't\n\nText.\n");
     expect(syntaxProblems(world(), root)).toEqual([
       `${DOCS}/syntax/empty.mdx: covers no feature`,
-      `${DOCS}/syntax/empty.mdx: shows no <Snippet>`,
+      `${DOCS}/syntax/empty.mdx: shows no <Snippet> or <FeatureSection>`,
       `${DOCS}/syntax/empty.mdx: has no \`## Do and don't\` heading with a list under it`,
-      `${DOCS}/syntax/match.mdx: shows no <Snippet>`,
+      `${DOCS}/syntax/match.mdx: shows no <Snippet> or <FeatureSection>`,
       `${DOCS}/syntax/match.mdx: has no \`## Do and don't\` heading with a list under it`,
       "uncovered: lang:statements/while",
     ]);
@@ -222,6 +235,12 @@ describe("nv site --check syntax", () => {
   test("a page with covers, a snippet and a Do and don't list passes", () => {
     const root = site().root;
     s.put(`${DOCS}/syntax/match.mdx`, "---\ntitle: match\ncovers: ['lang:statements/match', 'lang:statements/while']\n---\n\n<Snippet src=\"syntax/match/01-basic.nvs\" />\n\n## Do and don't\n\n- Do this.\n");
+    expect(syntaxProblems(world(), root)).toEqual([]);
+  });
+
+  test("a page that shows its features with <FeatureSection> passes", () => {
+    const root = site().root;
+    s.put(`${DOCS}/syntax/match.mdx`, "---\ntitle: match\ncovers: ['lang:statements/match', 'lang:statements/while']\n---\n\n<FeatureSection examples=\"lang/statements/match\" heading=\"match\" id=\"match\" />\n\n## Do and don't\n\n- Do this.\n");
     expect(syntaxProblems(world(), root)).toEqual([]);
   });
 });

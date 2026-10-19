@@ -99,8 +99,8 @@
     "lang:concurrency/what-does-not-exist": "0eac691553f11c94"
   },
   "syntax/control-flow/break-continue-return.mdx": {
-    "lang:statements/break-and-continue": "4c4dfd5abf6f8692",
-    "lang:statements/return": "590137cb9dc139e3"
+    "lang:statements/break-and-continue": "1e0e93d51246745b",
+    "lang:statements/return": "5b6f3c15be5d4894"
   },
   "syntax/control-flow/foreach.mdx": {
     "lang:iteration/core-collections-are-iterable": "08f8f188a02fd1a8",

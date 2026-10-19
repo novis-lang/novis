@@ -303,7 +303,8 @@ export function card(root: string, entry: Entry, meta: Meta): string {
   return JSON.stringify(found ?? null);
 }
 
-/** The hash a page's stamp records for a feature: its card, its `about.md` and its examples. */
+/** The hash a page's stamp records for a feature: its card, its `about.md`, and every other file in its
+ * directory, which is its examples, their outputs and a language feature's `details.md`. */
 export function featureHash(root: string, entry: Entry, meta: Meta): string {
   const h = createHash("sha256");
   h.update(card(root, entry, meta));
@@ -1376,7 +1377,7 @@ const DO_DONT_RE = /^## Do and don['’]t[ \t]*\n+- /m;
 
 /**
  * The `syntax` part: every Syntax page but the landing page covers at least one feature, shows at least
- * one `<Snippet>` and has a `## Do and don't` heading with a list under it, and no language or type
+ * one `<Snippet>` or `<FeatureSection>` (a feature's `about.md`, examples and `details.md`) and has a `## Do and don't` heading with a list under it, and no language or type
  * feature is uncovered.
  */
 export function syntaxProblems(world: World, root: string = ROOT): string[] {
@@ -1385,7 +1386,7 @@ export function syntaxProblems(world: World, root: string = ROOT): string[] {
     if (!page.key.startsWith("syntax/") || page.key === SYNTAX_INDEX) continue;
     const at = `${DOCS}/${page.key}`;
     if (!page.covers?.length) problems.push(`${at}: covers no feature`);
-    if (!/<Snippet\s+src=/.test(page.body)) problems.push(`${at}: shows no <Snippet>`);
+    if (!/<(Snippet\s+src|FeatureSection\s+examples)=/.test(page.body)) problems.push(`${at}: shows no <Snippet> or <FeatureSection>`);
     if (!DO_DONT_RE.test(page.body)) problems.push(`${at}: has no \`## Do and don't\` heading with a list under it`);
   }
   for (const id of staleness(world, root).uncovered) problems.push(`uncovered: ${id}`);

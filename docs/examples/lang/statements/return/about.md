@@ -9,6 +9,6 @@ not compile.
 `return` also works outside any method, at the top level of a file. There it ends the file. In the
 file you started, that ends the program.
 
-**The examples below** show a method that answers as soon as it has found what it was looking for,
+**The examples below** show a method that returns as soon as it has found what it was looking for,
 then a `void` method that ends early, then a program that stops because it has nothing to do. The
 last one shows a `void` method with a value in its `return`, which does not compile.

@@ -1,11 +1,13 @@
 /**
- * What a Reference page reads from `docs/examples/`, in place: a feature's
- * `about.md`, its examples and its `nvs.toml`. The site keeps no copy of any.
+ * What a Reference or Syntax page reads from `docs/examples/`, in place: a
+ * feature's `about.md`, its examples, its `nvs.toml` and, for a language
+ * feature, its `details.md`. The site keeps no copy of any.
  *
  * A feature's directory is its `examples` field in core.json or
  * reference.json, which is its feature path in the proofs roster
  * (`core/Time-Date/at`, `novis/Pdf-Document/standard`, `types/Arr-Order`,
- * `config/limits-hard`), so no page splits an id into a path by hand.
+ * `config/limits-hard`, `lang/statements/return`), so no page splits an id
+ * into a path by hand.
  *
  * `about.md` is plain paragraphs and `-` lists with inline code, bold,
  * italics and links, which is all the about pages use. Its last line may be
@@ -30,12 +32,13 @@ export function changesFor(id: string): Change[] {
 // The globs are relative to this file, so their keys start with this prefix.
 const ROOT = '../../../docs/examples/'
 
-const abouts = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools}/**/about.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const sources = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools}/**/*.{nvs,cmd}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const outputs = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools}/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const abouts = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools,lang}/**/about.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const details = import.meta.glob('../../../docs/examples/lang/**/details.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const sources = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools,lang}/**/*.{nvs,cmd}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const outputs = import.meta.glob('../../../docs/examples/{core,novis,types,config,tools,lang}/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const tomls = import.meta.glob('../../../docs/examples/{config,tools}/**/nvs.toml', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
-/** Anything with a directory under `docs/examples/`: a class member, a type, a configuration key, a CLI section. */
+/** Anything with a directory under `docs/examples/`: a class member, a type, a configuration key, a CLI section, a language feature. */
 export interface Feature {
   examples: string
 }
@@ -119,6 +122,16 @@ export function aboutFor(feature: Feature): About | null {
   const first = prose.trim().split(/\r?\n\s*\r?\n/)[0] ?? ''
   const summary = first.replace(/\s+/g, ' ').replace(/`/g, '').replace(/\*\*?/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim()
   return { blocks: blocksHtml(prose), summary, related, path }
+}
+
+/**
+ * A language feature's `details.md` as HTML blocks, the way `aboutFor` reads
+ * `about.md`, or `null` when it has none. The file is optional, and it has
+ * no `related:` line.
+ */
+export function detailsFor(feature: Feature): string[] | null {
+  const text = details[`${ROOT}${feature.examples}/details.md`]
+  return text === undefined ? null : blocksHtml(text)
 }
 
 export interface Example {
