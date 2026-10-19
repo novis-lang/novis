@@ -382,6 +382,13 @@ The decisions only this file held have homes: the website as the home of everyth
 `docs/agent/doc-style.md`, and `details.md` is held to AGENTS.md § *Text an end user reads*. Every
 backlog item is a gap record under `data/gaps/` or side goal `section-marks`.
 
+The nightly run 39185807455 failed in 19 jobs. Every one is `main`'s at `f8ad800d3`, a commit this
+branch does not contain, and none touches a doc. They are the process-tree test
+(`crates/nvs-cli/tests/run_command.rs:778`), miri not knowing the `UTC` zone
+(`crates/nvs-stdlib/src/time.rs:5378`), `Core\Test\Outcome` and `Core\Test\Summary` owing their proofs
+(classes only `main` has), and the warm-start bench over its 6 ms budget. They are left to `main`'s
+loop, which is landing CI fixes, and this branch changes no product code for them.
+
 ### Next
 
 - [ ] Write `DONE docs-cleanup is reached` to the status file, with no other change: looper runs the acceptance checks, retires the goal and lands the branch. `docs/goals/docs-cleanup.md:1`
