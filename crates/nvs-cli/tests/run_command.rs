@@ -756,10 +756,12 @@ fn a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not() {
         pids: Vec::new(),
     };
 
+    // The reader lives to the end of the case. Dropping it would close the
+    // pipe, and `nvs` would end on a broken pipe at its next write, taking the
+    // child and the watcher with it before they are looked at.
+    let mut out = BufReader::new(left.nvs.stdout.take().expect("standard output is piped"));
     let mut line = String::new();
-    BufReader::new(left.nvs.stdout.take().expect("standard output is piped"))
-        .read_line(&mut line)
-        .expect("`nvs` prints a line");
+    out.read_line(&mut line).expect("`nvs` prints a line");
     left.pids = line
         .split_whitespace()
         .map(|pid| {
@@ -770,6 +772,10 @@ fn a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not() {
     let &[child, grandchild] = left.pids.as_slice() else {
         panic!("the line is two process ids: {line:?}");
     };
+    assert!(
+        matches!(left.nvs.try_wait(), Ok(None)),
+        "`nvs` still runs once it has printed the line"
+    );
     let watchers: Vec<u32> = children_of(left.nvs.id())
         .into_iter()
         .filter(|&pid| pid != child)
