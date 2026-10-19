@@ -2359,7 +2359,8 @@ nvs_runtime::nvs_helper! {
         // for it, as this module's doc says.
         let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
 
-        let mut kept = NvsArray::new();
+        // Room for every entry, the most a predicate can keep.
+        let mut kept = NvsArray::with_capacity(base.count());
         let mut from = 0usize;
         while let Some(slot) = base.next_slot(from) {
             from = slot + 1;
@@ -2449,7 +2450,7 @@ nvs_runtime::nvs_helper! {
         // Read once for the whole walk — [`nvs_core_arr_filter`]'s comment.
         let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
 
-        let mut out = NvsArray::new();
+        let mut out = NvsArray::with_capacity(base.count());
         // The live slots, as an iterator, so the walk goes through
         // `nvs_runtime::bounded_loop` and the deadline poll arrives with the
         // shape rather than being remembered here — `rule:http-server/time-is-bounded-inside-a-helper`'s first
@@ -2530,7 +2531,8 @@ nvs_runtime::nvs_helper! {
     /// released as soon as its bytes are read.
     fn nvs_core_arr_map_keys(ctx, args: [2]) {
         let base = held_subject(args, "mapKeys")?;
-        let mut out = NvsArray::new();
+        // Room for every entry, the most the new keys can name.
+        let mut out = NvsArray::with_capacity(base.count());
         let mut from = 0usize;
         while let Some(slot) = base.next_slot(from) {
             from = slot + 1;
@@ -2555,7 +2557,9 @@ nvs_runtime::nvs_helper! {
                 key_arg.release();
             }
             let named = named?;
-            let fresh = key_bytes(&named, "mapKeys");
+            // Copied into the new key before the release below ends the
+            // bytes' owner — [`key_bytes`] borrows.
+            let fresh = key_bytes(&named, "mapKeys").map(|key| NvsStr::new(&key));
             #[expect(
                 unsafe_code,
                 reason = "the new key is a fresh value this frame owns; a \
@@ -2578,7 +2582,7 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 value.retain();
             }
-            out.set(NvsStr::new(&fresh), value);
+            out.set(fresh, value);
         }
         Ok(Value::array(out))
     }
@@ -2643,7 +2647,8 @@ nvs_runtime::nvs_helper! {
                 key_arg.release();
             }
             let named = named?;
-            let bucket = key_bytes(&named, "groupBy");
+            // Copied out before the release below — [`key_bytes`] borrows.
+            let bucket = key_bytes(&named, "groupBy").map(|key| key.to_vec());
             #[expect(
                 unsafe_code,
                 reason = "the bucket name is a fresh value this frame owns; a \
@@ -2672,7 +2677,7 @@ nvs_runtime::nvs_helper! {
             buckets[position].1.set(key, value);
         }
 
-        let mut out = NvsArray::new();
+        let mut out = NvsArray::with_capacity(buckets.len());
         for (name, bucket) in buckets {
             out.set(NvsStr::new(&name), Value::array(bucket));
         }
@@ -2720,20 +2725,57 @@ fn integer(value: &Value, member: &str, position: &str) -> Result<i64, Fault> {
 /// from the argument's own representation — so this is where the same
 /// normalization happens for that path. Both spellings therefore find the same
 /// entry, which is what makes `hasKey($a, 5)` and `$a["5"]` agree.
-fn key_bytes(value: &Value, member: &str) -> Result<Vec<u8>, Fault> {
+///
+/// Nothing is allocated: a string's bytes are borrowed from the value, and an
+/// integer is rendered into a buffer on the stack. **The borrow holds no
+/// reference of its own**, and the compiler cannot see that, because
+/// releasing a [`Value`] does not end its borrow. A caller that releases the
+/// value while it still needs the key copies the bytes out first, as
+/// `mapKeys`, `groupBy` and `countBy` do with a callback's result.
+fn key_bytes<'a>(value: &'a Value, member: &str) -> Result<KeyBytes<'a>, Fault> {
     if let Some(bytes) = value.as_str_bytes() {
-        return Ok(bytes.to_vec());
+        return Ok(KeyBytes::Borrowed(bytes));
     }
     if let Some(int) = value.as_int() {
-        return Ok(int.to_string().into_bytes());
+        return Ok(KeyBytes::rendered(int));
     }
     if let Some(uint) = value.as_uint() {
-        return Ok(uint.to_string().into_bytes());
+        return Ok(KeyBytes::rendered(uint));
     }
     Err(Fault::fatal(format!(
         "Core\\Arr::{member} expected an `int|string` key, got tag {}",
         value.tag_byte()
     )))
+}
+
+/// The bytes [`key_bytes`] gives: a string argument's own, or an integer's
+/// decimal on the stack. Twenty digits fit both `i64::MIN` and `u64::MAX`.
+enum KeyBytes<'a> {
+    Borrowed(&'a [u8]),
+    Rendered { digits: [u8; 20], len: usize },
+}
+
+impl KeyBytes<'_> {
+    /// `number`'s decimal, written into the buffer with no allocation.
+    fn rendered(number: impl std::fmt::Display) -> Self {
+        use std::io::Write as _;
+        let mut digits = [0u8; 20];
+        let mut rest = &mut digits[..];
+        write!(rest, "{number}").expect("twenty bytes fit any 64-bit integer");
+        let len = 20 - rest.len();
+        Self::Rendered { digits, len }
+    }
+}
+
+impl std::ops::Deref for KeyBytes<'_> {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        match self {
+            Self::Borrowed(bytes) => bytes,
+            Self::Rendered { digits, len } => &digits[..*len],
+        }
+    }
 }
 
 /// A borrowed `NvsArray` handle over an argument's pointer, for the members
@@ -3111,7 +3153,7 @@ nvs_runtime::nvs_helper! {
         })?;
         let subject = borrowed(array);
 
-        let mut out = NvsArray::new();
+        let mut out = NvsArray::with_capacity(subject.count());
         let mut from = 0usize;
         while let Some(slot) = subject.next_slot(from) {
             let key = subject
@@ -3217,7 +3259,7 @@ nvs_runtime::nvs_helper! {
         let preserve = preserve_keys(&args[3], "slice")?;
         let (start, end) = window(base.count(), &args[1], &args[2], "slice")?;
 
-        let mut out = NvsArray::new();
+        let mut out = NvsArray::with_capacity(end.saturating_sub(start));
         let mut from = 0usize;
         let mut position = 0usize;
         while position < end {
@@ -3477,7 +3519,7 @@ nvs_runtime::nvs_helper! {
             Some(first) => first + 1,
             None => return Ok(Value::array(NvsArray::new())),
         };
-        let mut out = NvsArray::new();
+        let mut out = NvsArray::with_capacity(subject.count() - 1);
         while let Some(slot) = subject.next_slot(from) {
             copy_entry(&subject, slot, &mut out);
             from = slot + 1;
@@ -3509,7 +3551,7 @@ nvs_runtime::nvs_helper! {
         })?;
         let subject = borrowed(array);
 
-        let mut out = NvsArray::new();
+        let mut out = NvsArray::with_capacity(subject.count().saturating_sub(1));
         let mut pending = subject.next_slot(0);
         while let Some(slot) = pending {
             pending = subject.next_slot(slot + 1);
@@ -3633,7 +3675,7 @@ nvs_runtime::nvs_helper! {
             from = slot + 1;
         }
 
-        let mut out = NvsArray::new();
+        let mut out = NvsArray::with_capacity(slots.len());
         for slot in slots.into_iter().rev() {
             let value = subject
                 .value_at(slot)
@@ -3691,7 +3733,8 @@ nvs_runtime::nvs_helper! {
         })?;
         let subject = borrowed(array);
 
-        let mut out = NvsArray::new();
+        // Room for every entry, the most the values can name.
+        let mut out = NvsArray::with_capacity(subject.count());
         let mut from = 0usize;
         while let Some(slot) = subject.next_slot(from) {
             let key = subject
@@ -3832,7 +3875,8 @@ nvs_runtime::nvs_helper! {
             _ => Some(key_bytes(&args[2], "column")?),
         };
 
-        let mut out = NvsArray::new();
+        // Room for every row, the most that can have the column.
+        let mut out = NvsArray::with_capacity(base.count());
         let mut from = 0usize;
         while let Some(slot) = base.next_slot(from) {
             from = slot + 1;
@@ -3885,7 +3929,7 @@ nvs_runtime::nvs_helper! {
         })?;
         let subject = borrowed(array);
 
-        let mut out = NvsArray::new();
+        let mut out = NvsArray::with_capacity(subject.count());
         let mut from = 0usize;
         while let Some(slot) = subject.next_slot(from) {
             let value = subject
@@ -3965,7 +4009,8 @@ nvs_runtime::nvs_helper! {
         })?;
         let keys = borrowed(keys);
 
-        let mut out = NvsArray::new();
+        // Room for every key, the most that stay distinct.
+        let mut out = NvsArray::with_capacity(keys.count());
         let mut from = 0usize;
         while let Some(slot) = keys.next_slot(from) {
             let key = keys
@@ -4096,7 +4141,7 @@ nvs_runtime::nvs_helper! {
             .map(|limit| usize::try_from(limit).unwrap_or(usize::MAX));
         let drained = nvs_runtime::sequence::drain(ctx, args[0], limit, r"Core\Arr::from")?;
 
-        let mut out = NvsArray::new();
+        let mut out = NvsArray::with_capacity(drained.len());
         for value in drained {
             out.append(value);
         }
@@ -4134,7 +4179,8 @@ nvs_runtime::nvs_helper! {
             )));
         }
 
-        let mut out = NvsArray::new();
+        // Room for every key, the most that stay distinct.
+        let mut out = NvsArray::with_capacity(keys.count());
         let mut key_from = 0usize;
         let mut value_from = 0usize;
         while let (Some(key_slot), Some(value_slot)) =
@@ -4194,7 +4240,8 @@ nvs_runtime::nvs_helper! {
         let by = optional_callback(&args[1], "countBy", "by")?;
         let subject = Held::new(args[0], borrowed(array));
 
-        let mut out = NvsArray::new();
+        // Room for every entry, the most buckets the entries can name.
+        let mut out = NvsArray::with_capacity(subject.count());
         let mut from = 0usize;
         while let Some(slot) = subject.next_slot(from) {
             let value = subject
@@ -4202,8 +4249,13 @@ nvs_runtime::nvs_helper! {
                 .expect("next_slot only names live entries");
             from = slot + 1;
 
-            let bucket = match by {
-                None => key_bytes(&value, "countBy")?,
+            let plain: KeyBytes<'_>;
+            let named_bucket: Vec<u8>;
+            let bucket: &[u8] = match by {
+                None => {
+                    plain = key_bytes(&value, "countBy")?;
+                    &plain
+                }
                 Some(callback) => {
                     let key = subject
                         .key_at(slot)
@@ -4221,7 +4273,9 @@ nvs_runtime::nvs_helper! {
                         key_arg.release();
                     }
                     let named = named?;
-                    let bucket = key_bytes(&named, "countBy");
+                    // Copied out before the release below — [`key_bytes`]
+                    // borrows.
+                    let bucket = key_bytes(&named, "countBy").map(|key| key.to_vec());
                     #[expect(
                         unsafe_code,
                         reason = "the bucket name is a fresh value this frame \
@@ -4231,12 +4285,13 @@ nvs_runtime::nvs_helper! {
                     unsafe {
                         named.release();
                     }
-                    bucket?
+                    named_bucket = bucket?;
+                    &named_bucket
                 }
             };
 
-            let seen = out.get(&bucket).and_then(|count| count.as_uint()).unwrap_or(0);
-            out.set(NvsStr::new(&bucket), Value::uint(seen + 1));
+            let seen = out.get(bucket).and_then(|count| count.as_uint()).unwrap_or(0);
+            out.set(NvsStr::new(bucket), Value::uint(seen + 1));
         }
         Ok(Value::array(out))
     }
@@ -4568,7 +4623,7 @@ nvs_runtime::nvs_helper! {
             merge_sort(&mut permutation, &mut compare)?;
         }
 
-        let mut out = NvsArray::new();
+        let mut out = NvsArray::with_capacity(permutation.len());
         for index in permutation {
             #[expect(
                 unsafe_code,
@@ -4708,7 +4763,7 @@ nvs_runtime::nvs_helper! {
             crate::sort::by_bytes(&mut permutation, &keys, descending);
         }
 
-        let mut out = NvsArray::new();
+        let mut out = NvsArray::with_capacity(permutation.len());
         for index in permutation {
             #[expect(
                 unsafe_code,
@@ -5176,7 +5231,8 @@ nvs_runtime::nvs_helper! {
         // which own nothing themselves.
         let mut extracted = Extracted(Vec::new());
         let mut seen: std::collections::HashSet<Identity> = std::collections::HashSet::new();
-        let mut out = NvsArray::new();
+        // Room for every entry, the most that can be distinct.
+        let mut out = NvsArray::with_capacity(subject.count());
         let mut from = 0usize;
         while let Some(slot) = subject.next_slot(from) {
             let value = subject
@@ -5464,7 +5520,8 @@ nvs_runtime::nvs_helper! {
     /// why the return type is spelled `array<T|U>` rather than `array<mixed>`.
     fn nvs_core_arr_overlay(_ctx, args: [2]) {
         let base = subject(args, "overlay")?;
-        let mut out = NvsArray::new();
+        // Room for the base, the least the result has.
+        let mut out = NvsArray::with_capacity(base.count());
         copy_all(&base, &mut out);
         for_each_layer(&args[1], "overlay", |layer| {
             overlay_into(&mut out, layer, false);
@@ -5486,7 +5543,8 @@ nvs_runtime::nvs_helper! {
     /// rather than a merge.
     fn nvs_core_arr_overlay_deep(_ctx, args: [2]) {
         let base = subject(args, "overlayDeep")?;
-        let mut out = NvsArray::new();
+        // Room for the base, the least the result has.
+        let mut out = NvsArray::with_capacity(base.count());
         copy_all(&base, &mut out);
         for_each_layer(&args[1], "overlayDeep", |layer| {
             overlay_into(&mut out, layer, true);
@@ -5508,7 +5566,8 @@ nvs_runtime::nvs_helper! {
     /// names — `rule:core-api/shape-rules` R15.
     fn nvs_core_arr_underlay(_ctx, args: [2]) {
         let base = subject(args, "underlay")?;
-        let mut out = NvsArray::new();
+        // Room for the base, the least the result has.
+        let mut out = NvsArray::with_capacity(base.count());
         copy_all(&base, &mut out);
         for_each_layer(&args[1], "underlay", |layer| {
             underlay_into(&mut out, layer);
@@ -5682,7 +5741,8 @@ fn set_member(
         }
     }
 
-    let mut out = NvsArray::new();
+    // Room for every entry of the subject, the most the comparison keeps.
+    let mut out = NvsArray::with_capacity(subject.count());
     let mut from = 0usize;
     while let Some(slot) = subject.next_slot(from) {
         let key = subject
@@ -6453,6 +6513,28 @@ mod tests {
         )]
         unsafe {
             subject.release();
+        }
+    }
+
+    /// [`super::key_bytes`] renders an integer into a twenty-byte buffer on the
+    /// stack, so the two longest decimals a key can have are the ones to pin.
+    #[test]
+    fn key_bytes_renders_the_longest_integers_whole() {
+        let lowest = Value::int(i64::MIN);
+        let highest = Value::uint(u64::MAX);
+        let text = Value::str(NvsStr::new(b"name"));
+        assert_eq!(&*super::key_bytes(&lowest, "test").unwrap(), b"-9223372036854775808");
+        assert_eq!(&*super::key_bytes(&highest, "test").unwrap(), b"18446744073709551615");
+        assert_eq!(&*super::key_bytes(&text, "test").unwrap(), b"name");
+        assert!(super::key_bytes(&Value::bool(true), "test").is_err());
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built above, and \
+                      `key_bytes` only borrowed it"
+        )]
+        unsafe {
+            text.release();
         }
     }
 

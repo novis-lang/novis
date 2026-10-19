@@ -386,10 +386,19 @@ impl Table {
     /// removal from the middle — is one call to this and then the ordinary
     /// hash-form path. Materializing the keys here is what makes it O(n): the
     /// bet the module docs state is that a list is written as a list.
+    ///
+    /// The hash form reserves what the packed vector had reserved, so an
+    /// array built with [`NvsArray::with_capacity`] keeps its room when its
+    /// first key is not `"0"`. **What it spends:** an index sized to the
+    /// vector's capacity, which is at most twice its length.
     fn hashed_mut(&mut self) -> &mut Hashed {
         if let Shape::Packed(values) = &mut self.shape {
             let packed = std::mem::take(values);
-            let mut hashed = Hashed::default();
+            let mut hashed = Hashed {
+                entries: Vec::with_capacity(packed.capacity()),
+                index: HashMap::with_capacity(packed.capacity()),
+                live: 0,
+            };
             for (index, value) in packed.into_iter().enumerate() {
                 let displaced = hashed.set(NvsStr::new(index.to_string().as_bytes()), value);
                 debug_assert!(displaced.is_none(), "a packed key appears exactly once");
@@ -900,6 +909,28 @@ impl NvsArray {
         let boxed = Box::new(ArrayHeader {
             refcount: Cell::new(1),
             table: RefCell::new(Table::default()),
+        });
+        let ptr = NonNull::from(Box::leak(boxed));
+        Self { ptr }
+    }
+
+    /// A fresh empty array with room for `capacity` entries, so a builder that
+    /// knows its result's size appends with no growth. The room survives a
+    /// first key that is not `"0"`, since the hash form takes it over.
+    ///
+    /// **What it spends:** a builder that passes an upper bound, such as
+    /// `Core\Arr::filter`, holds room for entries it never writes until the
+    /// result is freed. Each caller passes a count no larger than an array it
+    /// already holds, so the reserve is bounded by memory the request has
+    /// already been charged for.
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        let boxed = Box::new(ArrayHeader {
+            refcount: Cell::new(1),
+            table: RefCell::new(Table {
+                next_index: None,
+                shape: Shape::Packed(Vec::with_capacity(capacity)),
+            }),
         });
         let ptr = NonNull::from(Box::leak(boxed));
         Self { ptr }
@@ -2856,6 +2887,30 @@ mod tests {
         array.unset(b"8");
         array.append(Value::int(14));
         assert_eq!(keys_of(&array), ["0", "1", "7", "9"]);
+    }
+
+    /// A reserved array is the same array: packed while its keys are a list,
+    /// hashed with its room once they are not, and the same keys either way.
+    #[test]
+    fn a_reserved_array_keeps_its_room_through_either_shape() {
+        let mut list = NvsArray::with_capacity(4);
+        list.append(Value::int(1));
+        list.append(Value::int(2));
+        assert!(list.is_packed());
+        assert_eq!(keys_of(&list), ["0", "1"]);
+
+        let mut named = NvsArray::with_capacity(4);
+        named.set(key("name"), Value::int(1));
+        assert!(!named.is_packed());
+        {
+            let table = named.header().table.borrow();
+            let Shape::Hashed(hashed) = &table.shape else {
+                unreachable!("a non-numeric key degrades the table")
+            };
+            assert!(hashed.entries.capacity() >= 4);
+        }
+        named.append(Value::int(2));
+        assert_eq!(keys_of(&named), ["name", "0"]);
     }
 
     #[test]
