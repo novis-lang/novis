@@ -2,9 +2,8 @@
 // Measures writing a large number as text in base 36, as a program does when it
 // turns an order number into a short code.
 // bench: iterations 256
-// bench: complexity quadratic
-// proof: gap nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically
-// bench: calls 0
+// bench: complexity karatsuba
+// bench: calls 2
 
 class Bench {
     public static function run(uint $rounds): uint {

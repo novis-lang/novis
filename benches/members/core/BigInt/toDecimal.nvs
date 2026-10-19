@@ -2,7 +2,7 @@
 // Measures converting a number to a `decimal`. A program does this when a
 // total it added up as whole numbers becomes an amount of money.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity constant
 

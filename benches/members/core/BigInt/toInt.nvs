@@ -2,7 +2,7 @@
 // Measures converting a number back to an `int`. A program does this to store
 // a large total in a database column.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity constant
 

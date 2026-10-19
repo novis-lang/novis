@@ -2,7 +2,7 @@
 // Measures reading the sign of a number, as a program does before it decides
 // whether a balance is in debt.
 // bench: iterations 1024
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

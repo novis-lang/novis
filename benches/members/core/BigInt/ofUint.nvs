@@ -2,7 +2,7 @@
 // Measures building a number from a plain `uint`, as a program does before it
 // adds up counts that grow past what a `uint` holds.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

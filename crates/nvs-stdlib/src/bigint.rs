@@ -67,15 +67,32 @@
 //!
 //! # What it costs
 //!
-//! `toString`, `format` and `parse` use the library's radix conversion, which
-//! is taken to be quadratic in the digits; the library's source is not checked.
-//! [`MAX_BITS`] bounds every operand, so the cost is bounded per call.
+//! The figures are `num-bigint` 0.5's, read off its source, with `n` the
+//! operands' width. `mul` is schoolbook to 32 limbs, Karatsuba to 256 and
+//! Toom-3 above. `div` and `mod` are Burnikel-Ziegler once the dividend is past
+//! 128 limbs and the divisor past 64, so they cost a multiplication's times
+//! `log n`. `sqrt` is [`root`], which halves the width and corrects by Newton
+//! steps, so it costs a few of those divisions. `toString` and
+//! `format` are the library's conversion, which splits by squared powers of
+//! the radix from 32 limbs up, and a power-of-two radix is linear.
+//!
+//! **`parse` is not the library's** where the library is quadratic: it
+//! multiplies the whole number so far by one limb's worth of digits per step.
+//! Text past twice [`LEAF_DIGITS`] in a radix that is not a power of two is read
+//! by halves ([`from_digits`]), at a multiplication's cost times `log n`. That
+//! matters because `parse` reads text a request sent, and nothing but the
+//! request's memory ceiling bounds its length.
+//!
+//! [`MAX_BITS`] bounds only what `pow` and `shl` produce. Every other member's
+//! operands are as wide as the program made them, so its cost per call is
+//! bounded by the request's memory ceiling and by the growth its bench
+//! declares.
 //!
 //! # Known gaps
 //!
 //! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/bigint.rs` lists them.
 
-use num_bigint::{BigInt, Sign};
+use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
 use nvs_runtime::{Decimal, Fault, NvsStr, ThrownClass, Value};
 
@@ -904,6 +921,77 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
     })
 }
 
+/// The digits [`from_digits`] hands to the library's own conversion in one
+/// piece. That conversion multiplies the whole number so far by one limb's
+/// worth of digits per step, so it is quadratic in what it reads, and below
+/// twice this length the quadratic term is smaller than a split's overhead.
+const LEAF_DIGITS: usize = 1024;
+
+/// `text` read as an optional sign and then digits in `radix`, or [`None`]
+/// where it is not one. `text` holds no `_`, which `parse` refuses first.
+///
+/// Short text and a power-of-two radix go to [`BigInt::parse_bytes`]: the
+/// first is cheap, and the library reads the second in linear time with
+/// shifts. Long text in any other radix is read by [`from_digits`], whose
+/// cost is a multiplication's times the logarithm of the length, where the
+/// library's is quadratic. Both accept the same shapes, which
+/// `parse_by_halves_reads_what_the_library_reads` pins.
+///
+/// **What it spends:** one byte per digit for the digit values, as the library
+/// does, plus the powers of the radix [`from_digits`] multiplies by, which
+/// together are about as wide as the result. All of it is freed before this
+/// returns.
+fn parsed(text: &str, radix: u32) -> Option<BigInt> {
+    let (sign, digits) = match text.as_bytes() {
+        [b'-', rest @ ..] => (Sign::Minus, rest),
+        [b'+', rest @ ..] => (Sign::Plus, rest),
+        all => (Sign::Plus, all),
+    };
+    if digits.len() <= 2 * LEAF_DIGITS || radix.is_power_of_two() {
+        return BigInt::parse_bytes(text.as_bytes(), radix);
+    }
+    let values = digits
+        .iter()
+        .map(|&byte| {
+            char::from(byte)
+                .to_digit(radix)
+                .and_then(|value| u8::try_from(value).ok())
+        })
+        .collect::<Option<Vec<u8>>>()?;
+    let mut powers = Vec::new();
+    let magnitude = from_digits(&values, radix, &mut powers)?;
+    Some(BigInt::from_biguint(sign, magnitude))
+}
+
+/// The number `values` spells, most significant digit first, by divide and
+/// conquer: the low part is `LEAF_DIGITS << k` digits, at least half of the
+/// whole, and the high part is multiplied by `radix` to that length and added.
+///
+/// `powers[k]` is `radix` to the power `LEAF_DIGITS << k`, each the square of
+/// the one before, built on first use and shared by every split of one call.
+/// [`None`] where a value is not a digit of `radix`, which [`parsed`] has
+/// already checked.
+fn from_digits(values: &[u8], radix: u32, powers: &mut Vec<BigUint>) -> Option<BigUint> {
+    if values.len() <= 2 * LEAF_DIGITS {
+        return BigUint::from_radix_be(values, radix);
+    }
+    let mut k = 0;
+    while LEAF_DIGITS << (k + 1) < values.len() {
+        k += 1;
+    }
+    let (high, low) = values.split_at(values.len() - (LEAF_DIGITS << k));
+    let high = from_digits(high, radix, powers)?;
+    let low = from_digits(low, radix, powers)?;
+    if powers.is_empty() {
+        powers.push(BigUint::from(radix).pow(u32::try_from(LEAF_DIGITS).ok()?));
+    }
+    while powers.len() <= k {
+        let square = powers.last().map(|last| last * last)?;
+        powers.push(square);
+    }
+    Some(high * powers.get(k)? + low)
+}
+
 /// `rule:types/arithmetic`'s refusal, at this class's magnitudes: the sentence
 /// every member that cannot answer throws, as an `ArithmeticError`.
 fn refused(message: String) -> Fault {
@@ -959,7 +1047,7 @@ nvs_runtime::nvs_helper! {
         let radix = radix(&args[1], "parse")?;
         Some(text)
             .filter(|text| !text.as_bytes().contains(&b'_'))
-            .and_then(|text| BigInt::parse_bytes(text.as_bytes(), radix))
+            .and_then(|text| parsed(text, radix))
             .ok_or_else(|| {
                 Fault::thrown_as(
                     ThrownClass::Parse,
@@ -1083,7 +1171,36 @@ nvs_runtime::nvs_helper! {
                 "Core\\BigInt::sqrt(): a negative value has no integer square root".to_owned(),
             ));
         }
-        built(&value.sqrt())
+        built(&BigInt::from(root(value.magnitude())))
+    }
+}
+
+/// The width below which [`root`] takes the library's `sqrt` whole.
+const ROOT_LEAF_BITS: u64 = 4096;
+
+/// `⌊√value⌋`, by halving. The library's `sqrt` runs Newton's iteration at
+/// full width from a float estimate, so it divides at full width about
+/// `log n` times. Here the root of the top half of the bits, shifted back
+/// and plus one, is a start above the root with half its bits right. Integer
+/// Newton from above only falls, and stops at the floor, and from that start
+/// it takes a few steps. The widths halve, so the total is a few full-width
+/// divisions, and `sqrt_by_halves_is_the_librarys_root` pins the result.
+///
+/// **What it spends:** one start and one quotient at each width, freed as
+/// the next width is reached.
+fn root(value: &BigUint) -> BigUint {
+    let bits = value.bits();
+    if bits <= ROOT_LEAF_BITS {
+        return value.sqrt();
+    }
+    let k = bits / 4;
+    let mut x = (root(&(value >> (2 * k))) + 1u32) << k;
+    loop {
+        let y = (&x + value / &x) >> 1u32;
+        if y >= x {
+            return x;
+        }
+        x = y;
     }
 }
 
@@ -1762,6 +1879,34 @@ mod tests {
         }
     }
 
+    /// [`root`] halves its width and corrects by Newton steps, and every width
+    /// must give the library's own root. The sweep is a perfect square, its
+    /// neighbours on both sides and an all-ones value, at widths on both sides
+    /// of one, two and three halvings, because a start one below the root or
+    /// a loop that stops a step early is right on most rows.
+    // covers: Core\BigInt::sqrt
+    #[test]
+    fn sqrt_by_halves_is_the_librarys_root() {
+        let widths = [
+            ROOT_LEAF_BITS + 1,
+            2 * ROOT_LEAF_BITS + 3,
+            4 * ROOT_LEAF_BITS + 1,
+            9 * ROOT_LEAF_BITS,
+        ];
+        let one = BigUint::from(1u32);
+        let mut checked = 0usize;
+        for width in widths {
+            let ones = (&one << width) - &one;
+            let half = (&one << (width / 2)) + BigUint::from(12345u32);
+            let square = &half * &half;
+            for value in [ones, &square - &one, square.clone(), &square + &one] {
+                assert_eq!(root(&value), value.sqrt(), "{} bits", value.bits());
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, widths.len() * 4);
+    }
+
     /// `sub` is `add` of the flipped operand, and swapping its two operands
     /// flips its answer — the pair of properties that fails first when a member
     /// subtracts magnitudes and decides the sign afterwards, which is right
@@ -2128,6 +2273,71 @@ mod tests {
             )
             .expect_err("one base outside either end is refused");
         }
+    }
+
+    /// [`parsed`] reads long text by halves, and every split must agree with
+    /// the library's own one-pass reading. The lengths sit on both sides of
+    /// each split point, and the radices are odd, ten and the widest. Signs,
+    /// leading zeros and a bad digit at either end are in the sweep, because a
+    /// split that drops a zero digit or skips the last check reads plausibly.
+    // covers: Core\BigInt::parse
+    #[test]
+    fn parse_by_halves_reads_what_the_library_reads() {
+        let lengths = [
+            2 * LEAF_DIGITS,
+            2 * LEAF_DIGITS + 1,
+            3001,
+            4 * LEAF_DIGITS + 1,
+            9001,
+        ];
+        let mut checked = 0usize;
+        for radix in [3u32, 10, 36] {
+            for length in lengths {
+                let mut seed = u64::from(radix) * 7919 + length as u64;
+                let digits: String = (0..length)
+                    .map(|_| {
+                        seed = seed
+                            .wrapping_mul(6364136223846793005)
+                            .wrapping_add(1442695040888963407);
+                        char::from_digit(u32::try_from(seed >> 33).unwrap_or(0) % radix, radix)
+                            .unwrap_or('0')
+                    })
+                    .collect();
+                let zeros = format!(
+                    "{}{}",
+                    "0".repeat(LEAF_DIGITS + 7),
+                    &digits[..length - LEAF_DIGITS - 7]
+                );
+                for text in [
+                    digits.clone(),
+                    format!("-{digits}"),
+                    format!("+{digits}"),
+                    zeros,
+                ] {
+                    assert_eq!(
+                        parsed(&text, radix),
+                        BigInt::parse_bytes(text.as_bytes(), radix),
+                        "radix {radix}, {} characters",
+                        text.len()
+                    );
+                    checked += 1;
+                }
+                for bad in [
+                    format!("{digits}!"),
+                    format!("!{digits}"),
+                    format!("-+{digits}"),
+                ] {
+                    assert_eq!(
+                        parsed(&bad, radix),
+                        None,
+                        "radix {radix}, {} characters",
+                        bad.len()
+                    );
+                    checked += 1;
+                }
+            }
+        }
+        assert_eq!(checked, 3 * lengths.len() * 7);
     }
 
     /// `pow` is repeated multiplication rather than a table of remembered

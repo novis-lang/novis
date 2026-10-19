@@ -2,7 +2,7 @@
 // Measures taking an amount away from a large balance, as a program does when
 // it draws down a quota too large for an `int`.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

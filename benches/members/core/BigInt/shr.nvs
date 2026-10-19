@@ -2,7 +2,7 @@
 // Measures shifting a number to the right, as a program does to read the whole
 // part out of a fixed-point value.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

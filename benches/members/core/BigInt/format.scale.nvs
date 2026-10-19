@@ -1,0 +1,24 @@
+<?nvs
+// Measures `format` in base 36 on numbers of n/3 to n binary digits, at growing sizes of n.
+// bench: start 64000
+// bench: max 512000
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $one = Core\BigInt::of(1);
+        uint $digits = 0;
+        // Sixteen sizes from n/3 up to n. Each size is 7% smaller than the one before.
+        // Large numbers are written in halves. Sizes over a range of three times make the cost grow smoothly.
+        array<uint> $parts = [1000, 934, 872, 814, 760, 709, 662, 618, 577, 539, 503, 470, 439, 410, 382, 357];
+        uint $unit = ($size / 1000) as uint;
+        foreach ($parts as uint $part) {
+            var $wide = $one->shl($unit * $part)->sub($one);
+            $digits = $digits + Core\Str::length($wide->format({radix: 36}));
+        }
+        return $digits;
+    }
+}
+
+echo Bench::run(64000), "\n";
