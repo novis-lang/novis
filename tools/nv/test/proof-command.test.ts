@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 import { binary } from "../cmd/proofs.ts";
 import { ROOT } from "../lib/paths.ts";
 import { detailsProblems, skippedOf } from "../proofs/collect.ts";
-import { commandArgs, exampleOutput, matchesOut, spawnProof, testReport } from "../proofs/run.ts";
+import { commandArgs, exampleOutput, firstDifference, matchesOut, spawnProof, testReport } from "../proofs/run.ts";
 import { scratch } from "./scratch.ts";
 
 describe("a `.cmd` example", () => {
@@ -38,6 +38,11 @@ describe("a `.cmd` example", () => {
   test("a program's `.out` has no `...` line: it matches only itself", () => {
     expect(matchesOut("a\nx\nb\n", "a\n...\nb\n", false)).toBe(false);
     expect(matchesOut("a\n...\nb", "a\n...\nb\n", false)).toBe(true);
+  });
+
+  test("a failure names the first line the output and its `.out` differ on", () => {
+    expect(firstDifference("Anna\r\nDora\n", "Anna\nCarla\n")).toBe("line 2 is `Dora` where the .out has `Carla`");
+    expect(firstDifference("Anna\n", "Anna\nCarla\n")).toBe("line 2 is nothing where the .out has `Carla`");
   });
 
   test("it runs the binary in an empty directory of its own, which is gone afterwards", async () => {

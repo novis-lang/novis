@@ -491,6 +491,17 @@ export function matchesOut(stdout: string, want: string, command: boolean): bool
   return fits[have.length]!;
 }
 
+/** Where `stdout` first leaves `want`, as `matchesOut` reads both without elision: the line number and
+ * the two lines, so a failure on a host nobody can log into says what the program printed. */
+export function firstDifference(stdout: string, want: string): string {
+  const got = normalise(stdout).split("\n");
+  const expected = normalise(want).split("\n");
+  let i = 0;
+  while (i < got.length && i < expected.length && got[i] === expected[i]) i++;
+  const line = (lines: string[]) => (i < lines.length ? `\`${lines[i]!.slice(0, 160)}\`` : "nothing");
+  return `line ${i + 1} is ${line(got)} where the .out has ${line(expected)}`;
+}
+
 /** The status an example says it ends with, and 0 for every example that says nothing. */
 function declaredExit(source: string): number {
   if (EXAMPLE_COMPILE_ERROR_RE.test(source)) return COMPILE_ERROR_EXIT;
@@ -557,8 +568,9 @@ async function runExample(nvs: string, path: string, unlogged = false): Promise<
   if (compileError && !REFUSED_RE.test(out.stderr)) return ["fail", "it declares `proof: compile-error`, and stderr has no compile diagnostic", out];
   const expected = sibling(path, ".out");
   if (!existsSync(abs(expected))) return ["fail", `no ${basename(expected)} beside it`, out];
-  if (!matchesOut(exampleOutput(path, source, out), read(expected), path.endsWith(".cmd"))) {
-    return ["fail", `${compileError ? "the diagnostic" : "stdout"} differs from its .out`, out];
+  const printed = exampleOutput(path, source, out);
+  if (!matchesOut(printed, read(expected), path.endsWith(".cmd"))) {
+    return ["fail", `${compileError ? "the diagnostic" : "stdout"} differs from its .out: ${firstDifference(printed, read(expected))}`, out];
   }
   return ["ok", "", out];
 }
