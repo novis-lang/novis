@@ -356,8 +356,17 @@ repeats none of their text.
   - [x] the eleven sources, seeded from the chapters' front matter, headings and markers
   - [x] `langFeatures` in `roster.ts` builds the entries from the sources and stops on a chapter that disagrees
   - [x] the examples README and the reference README name the file
-- [ ] A renderer writes each chapter from its features' `about.md` and `details.md` in roster order, and a `--check` refuses a hand edit. `tools/nv/proofs/roster.ts:28`
+- [x] A renderer writes each chapter from its features' `about.md` and `details.md` in roster order, and a `--check` refuses a hand edit. `tools/nv/renderers/lang-chapters.ts:1`
+  - [x] `lang-chapters` in `RENDERERS`: the source's front matter, then per feature its texts and one `## Example NN` per example, with the fence its proof directive names, cases in `tools/nv/test/lang-chapters.test.ts`
+  - [x] the examples that took a grant from the root `nvs.toml` carry their own, so a chapter example runs the way the examples tree runs it
+  - [x] `bun nv reference` holds all 664 examples, and `render --check` is current
+  - [x] the reference README, the examples README, `chapters.ts` and `reference.ts` say the chapters are generated
 - [ ] `nvs agent primer` and `show`, and `/llms-full.txt`, read the generated chapters, and their tests pass unchanged in shape. `crates/nvs-cli/src/agent.rs:187`
+  - [x] the five `agent.rs` tests that quoted the old prose read the generated text, and every syntactic form is still reached through a heading
+  - [x] `site.ts`'s `card` is empty for a `lang` feature, and the 63 pages that went stale through it are stamped
+  - [x] `website/public/llms-full.txt` rendered again
+  - [ ] every `lang` group's perf recorded after the render
+  - [ ] the full `looper verify` green on the commit
 
 ## Handoff
 
@@ -479,35 +488,49 @@ The sweep's red jobs are run 39185807455 again, which ran on `main` at f8ad800d3
 run view`; this branch does not contain that commit). The `proofs` jobs fail on `main`'s own new
 `Core\Test\Summary` members, which have no `about.md` or examples. This branch cannot fix them.
 
-Stage 8's first slice is done: the design. Each chapter's source is
-`docs/examples/lang/<chapter>/chapter.md`, beside its features (`tools/nv/proofs/chapters.ts`, the
-format in its header and in `docs/examples/README.md` § *A chapter's features*). It has `order`,
-`title`, `summary` and `keywords`, one `# ` line per feature, and the two markers. The directory is the
-chapter's id, and the output is `docs/reference/lang/<order>-<id>.md`. No chapter has a preamble, so
-the format allows none: a sentence there is a problem. `<!-- generated: X -->` sits after the feature
-whose text it follows, and `<!-- primer -->` above the one feature it marks (`a-complete-program-annotated`).
-`langFeatures` (`roster.ts`) builds the `lang` entries from the sources and throws `RosterError` when
-a chapter's headings are not its source's. An entry's anchor and help still come from the chapter
-section, on purpose: `implFile` keys the perf ledger and `card` in `site.ts:301` hashes the section
-into the site lock, so moving the anchor would make every `lang` bench and every syntax page stale in
-this slice. Until the renderer lands, the front matter is in both the source and the chapter.
+Stage 8 is done. Each chapter's source is `docs/examples/lang/<chapter>/chapter.md`
+(`tools/nv/proofs/chapters.ts`), and `bun nv render` writes `docs/reference/lang/<order>-<id>.md` from
+it (`tools/nv/renderers/lang-chapters.ts`, in `RENDERERS`, so CI's `render --check` fails on a hand
+edit). A section is the source's `# ` heading, the `about.md`, the `details.md`, then one
+`## Example NN: <name>` heading per example with its fence and its `.out` as an `output` fence:
+`compile-error` is `nvs error`, `exit N` is `nvs exit=N`, `test` is `nvs test` (with `exit=` when
+declared), a `.nvsr` example is `nvs skip` with a `text` fence. An example's path in its output is
+written `main.nvs`. The feature's `nvs.toml` goes before each example without another example's
+`entry` block (an entry naming a missing file is `E0605`), and a sibling file goes before an
+example whose source or config names its first segment. The old `##` subsections are gone; the
+example headings are what keeps `nvs agent find inout`, `readonly`, `implements` and `html` working,
+and `types/values-written-in-the-code`'s example 04 was renamed `04-an-html-template-with-a-hole-for-any-expression`
+so `find html` and `find any-expression` reach the html template. The chapters are 908 KB (from
+about 300 KB), which the binary embeds once.
+
+Seven features took a grant from the root `nvs.toml`'s per-`entry` blocks, which a chapter reader
+never sees. Each now has its own `nvs.toml` (`errors/capability-denials-are-catchable`,
+`errors/fatal-errors-limits-no-catch-sees`, four `concurrency` features, and
+`attributes/core-route-and-core-access-the-route-table`), and the root's blocks for them are gone;
+their hostile attacks keep theirs. `bun nv reference` holds 664 of 664, the primer 3 of 3, and
+`cargo test --test agent` 63 of 63; five tests quoted the old prose and now read the generated text,
+with the same checks. The agents chapter's transcript and primer heading list follow the binary.
+`site.ts`'s `card` is `""` for a `lang` entry, so a chapter render alone stales no page, and the 63
+pages stale through that change were stamped. `tools/data/select-mutations.json`'s chapter mutation
+targets the `autoload` section's first line.
+
+**Not done yet: the perf record and the full verify.** The session hit its context budget while
+`--record-perf` waited for a heavy slot, so it was stopped before it started. The commit was made
+after the targeted checks above, `bun nv render --check`, `bun nv site --check stale`, `bun nv rules
+--check`, `bun nv links`, `looper lint` and the `lang-chapters`, `chapters`, `site` and
+`select-mutations` bun tests. The full verify was not run. Every `lang` bench is stale through
+`implFile` (the chapter file changed), which `bun nv proofs --id 'lang:enums/declaring-an-enum'`
+shows as `OWED: perf stale`.
 
 ### Next
 
-Stage 8's renderer, in the slices below. Two choices to make first, each with its safe default:
-- **The generated section's shape.** `about.md`, then `details.md`, then each example as an `nvs`
-  fence with its `.out` as an `output` fence, so `chapterFeatures`' code check and `bun nv reference`
-  keep working unchanged. A `compile-error` example becomes an `nvs error` fence, an `exit N` one
-  `nvs exit=N`, a `test` one `nvs test`. A sibling file or `nvs.toml` an example reads becomes a
-  `file=` fence before it. The old `##` subsections and their prose go: every fact is in a feature's text.
-- **What a generated chapter makes stale.** Every `lang` section changes, so every `lang` bench goes
-  stale through `implFile`, and every syntax page through `card`. Recommended: make `card` return ""
-  for a `lang` entry, because `featureHash` already hashes the files the section is made from, and
-  pay `--record-perf` once per chapter group after the render.
-- [ ] A renderer writes each chapter from its source and its features' `about.md`, `details.md` and examples, and `--check` fails on a hand edit; the source's front matter then leaves the chapter's hand. `tools/nv/proofs/chapters.ts:1`, `tools/nv/cmd/reference.ts:15`
-- [ ] `bun nv reference` runs the generated chapters, and `nvs agent primer`'s tests pass with `a-complete-program-annotated` as the generated section. `crates/nvs-cli/src/agent.rs:176`
-- [ ] `nvs agent` embeds the generated chapters (`include_str!`), and its tests pass unchanged in shape. `crates/nvs-cli/src/agent.rs:188`
-- [ ] A chapter edited in stage 8 owes `bun nv proofs --record-perf --group lang:<chapter>` after its last edit, and a bench that calls a `Core` method declares that call in `calls`. `tools/nv/proofs/roster.ts:28`
+- [ ] `looper verify` (or `bun nv affected --run`) on this commit, and fix whatever it names. `tools/nv/renderers/lang-chapters.ts:1`
+- [ ] `bun nv proofs --record-perf --group lang:programs --group lang:types --group lang:expressions --group lang:statements --group lang:classes --group lang:enums --group lang:iteration --group lang:errors --group lang:concurrency --group lang:attributes --group lang:testing`, run in the background, and commit the ledger. Then tick stage 8's last items and set it `done`. `tools/nv/proofs/roster.ts:56`
+
+Then stages 2 to 8 are done, and stage 1 waits on looper's template (Backlog). The goal-end gates are
+next: `bun nv verify --doc` with every broken doc link fixed, and `bun nv owners --closes docs-cleanup`
+with every gap closed or given an owner. Then decide the `try-catch-finally` and `throw` pairs below:
+the generator renders both, so merging them is now only a content choice.
 
 A probe on the binary: a file under `.agent-tmp/` written with Write, with an `nvs.toml` beside it
 for a grant, run with `nvs run --config <file>.toml` for a limit. A method goes in a class, an enum
@@ -530,5 +553,6 @@ is `enum Suit { Hearts, Spades }`, and two caught error types need two variable 
 - Many compiler diagnostics print a `rule:` id or the word "refused" in their help text, such as `E0234`, `E0413`, `E0448` and `E0230`. That text is held to § *Text an end user reads* when it is changed; this goal changes no product text, so it needs its own owner. `crates/nvs-types/src/expr/members.rs:2345`
 - About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
 - The guard messages and `peek.ts`/`splice.ts` comments cite "AGENTS.md rule 1" and "rule 3" by the block's numbers, which a template change can move; citing `commands.md` sections would not. `tools/nv/cmd/guard.ts:259`
-- `lang:statements/try-catch-finally` and `lang:errors/try-catch-finally` are one syntax and two features. Their `details.md` files split the facts, but their `about.md` files and examples 01 to 03 still say much the same. `throw-and-catch.mdx` shows both, under two headings; merging them deletes a roster id, so stage 8's generator decides. `statements/throw` and `errors/throw` are the same pair. `docs/examples/lang/errors/try-catch-finally/about.md:1`
-- Stages 7 and 8 render the syntax pages and the chapters from each feature's `about.md` and `details.md`. `docs/goals/docs-cleanup.md:257`
+- `lang:statements/try-catch-finally` and `lang:errors/try-catch-finally` are one syntax and two features. Their `details.md` files split the facts, but their `about.md` files and examples 01 to 03 still say much the same. `throw-and-catch.mdx` shows both, under two headings, and the generator renders both; merging them deletes a roster id and a chapter heading. `statements/throw` and `errors/throw` are the same pair. `docs/examples/lang/errors/try-catch-finally/about.md:1`
+- `nvs agent find` matches a heading's slug and nothing in a section's text, so a form a generated chapter names only in prose is found through an example's name or not at all. Every form `every_syntactic_form_is_reachable_through_a_heading` lists is reached today. A search over a section's code spans would remove the dependence on names; it is a change to the binary, so it needs its own owner. `crates/nvs-cli/src/agent.rs:823`
+- `docs/examples/README.md` § *A grant the examples need* says the root `nvs.toml` grants no capability, but its `[[app]] root = "."` block grants `script.spawn`. `docs/examples/README.md:243`
