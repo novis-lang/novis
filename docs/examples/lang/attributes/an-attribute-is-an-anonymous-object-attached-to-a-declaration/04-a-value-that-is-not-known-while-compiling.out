@@ -1,0 +1,9 @@
+error[E0725]: an attribute's field value is not a compile-time constant
+   --> 04-a-value-that-is-not-known-while-compiling.nvs:10:18
+   |
+10 |     #[Cache(key: "host-" . $host)]
+   |                  ^^^^^^^^^^^^^^^ this is computed when the program runs
+   = help: `rule:attributes/payload-is-a-compile-time-constant`: an attribute payload is a value written directly in the code, a class constant or an enum case — it lives in the constant pool, so there is no point at which a variable, a call or a `new` could be evaluated
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

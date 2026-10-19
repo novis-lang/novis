@@ -1,0 +1,12 @@
+<?nvs
+// Shows that every value in an attribute must be known while the program is
+// compiled. `$host` is a variable, so this program does not compile.
+// proof: compile-error
+
+type Cache = {key: string};
+string $host = "example.test";
+
+class Page {
+    #[Cache(key: "host-" . $host)]
+    public function show(): int { return 1; }
+}

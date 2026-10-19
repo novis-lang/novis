@@ -1025,9 +1025,31 @@ even `catch (Throwable)`, so `throw $r->error` in a parent ends the program
 (`data/gaps/nvs-types/a-throw-of-an-anonymous-object.json`). The sweep's red jobs are run
 39173391347 on `main` at be3e8a605, not this branch.
 
+`90-attributes`' first three features are done, each fact run on the binary, and no text disagreed
+with it; the chapter and the syntax page did not change. `an-attribute-is-an-anonymous-object`'s
+`details.md` has `E0303` and `E0726` for the name, `E0401` with the missing field (also for `#[Name]`
+with no list), no positional form, `E0494`, the allowed values, `E0725` for a variable, a call,
+`new`, `1 + 2` and `{$x}`, `E0727`, the enum case and hook sites, `E0101` before a statement, and
+repeats kept in order; example 04 is the chapter's `E0725` block. `reading-attributes-back`'s has
+`E0728` (example 04), `E0729`, `E0442`, `E0730`, `E0471`, `E0798`, the promoted parameter, no
+inheritance (a subclass and an inherited method find nothing), an interface method, `all<{}>`
+counting `#[Core\Json\Derive]` too, constants folded where written (`Shop\K`), `E0792` with `E0731`,
+and each call giving a copy. `the-names-the-compiler-acts-on`'s has `E0454`, `E0401`, `E0304`,
+`E0767`, `E0726` for `#[Core\Nope]`, `E0405` for `Core\Json::Derive`, `E0212`, the bare form being
+metadata, reading a `Core\Route` with a shape, and `E0789`; example 04 is the chapter's `colour`
+block. Probing found three gaps, owned by `release-hardening`. `E::constructor(...)` on an enum
+passes the checker: as a value it panics in lowering, and as a retrieval target it gives nothing, so
+an attribute on an enum, an enum case or a class constant is never read
+(`data/gaps/nvs-types/a-constructor-reference-to-an-enum.json`). An array literal in a payload is
+`array<mixed>`, so an `array<int>` field is `E0401`
+(`data/gaps/nvs-types/an-array-literal-in-an-attribute.json`). A `Core` attribute at a site where it
+means nothing (`#[Core\Command]` above a class) compiles and does nothing, and
+`#[Core\Json\Derive()]` with a list compiles and adds no codec
+(`data/gaps/nvs-types/a-compiler-read-attribute-on-a.json`).
+
 ### Next
 
-`90-attributes` starts from its first feature (`90-attributes.md:8`), three or four features per session;
+`90-attributes` goes on from `core-json-derive-and-core-json-field` (`90-attributes.md:171`), one or two of its long features per session;
 take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -1046,7 +1068,7 @@ A probe with a limit or a grant runs with `nvs run --config <file>.toml`, which 
 `nvs.toml`; an example needs its own `[[app]]` entry in the root `nvs.toml` instead (`nvs.toml:497`).
 A spawning probe has an `nvs.toml` with `[capabilities.script] spawn = true` beside it, and a probe
 runner gives each run a timeout, since a channel or a task with nothing to wait for never ends.
-- [ ] `90-attributes` from `an-attribute-is-an-anonymous-object-attached-to-a-declaration`, then reading attributes back and the names the compiler acts on; its JSON, route, API and command sections are long and may each take a session. Then `bun nv proofs --record-perf --group lang:attributes` if the chapter changed. `docs/reference/lang/90-attributes.md:8`
+- [ ] `90-attributes` from `core-json-derive-and-core-json-field-a-class-with-a-json-codec`, then the route table, the OpenAPI document, the command table and the two `Core\Program` features; the JSON, route, API and command sections are long and may each take a session. Then `bun nv proofs --record-perf --group lang:attributes` if the chapter changed. `docs/reference/lang/90-attributes.md:171`
 - [ ] `95-testing`, which closes stage 6. `docs/reference/lang/95-testing.md:8`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
