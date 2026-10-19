@@ -995,6 +995,10 @@ mod tests {
     /// descriptor. Asserted in both directions, and against the class's own
     /// registered symbol rather than merely against "some address", so a
     /// derivation that found *a* member would still fail.
+    #[cfg_attr(
+        miri,
+        ignore = "it compares function addresses, and Miri gives one function several"
+    )]
     #[test]
     fn every_core_class_declaring_compare_to_has_a_dispatch_row() {
         let mut comparable = 0;

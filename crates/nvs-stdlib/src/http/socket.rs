@@ -1615,6 +1615,7 @@ mod tests {
     /// ended the conversation before the peer said anything. The script talks
     /// for twelve seconds, longer than the lifetime, and the idle bound is
     /// longer still, so the lifetime is what ends it.
+    #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn socket_max_duration_ends_an_endless_conversation() {
         let script = (0..600)

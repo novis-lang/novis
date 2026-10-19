@@ -1089,6 +1089,10 @@ mod tests {
     /// A filtered record that took a slot would have evicted that window, and
     /// the repeat would be a second line.
     // covers: Core\Log::write
+    #[cfg_attr(
+        miri,
+        ignore = "the window is one real second, and Miri takes longer than that between writes"
+    )]
     #[test]
     fn a_record_below_the_minimum_takes_no_coalescing_slot() {
         let mut ctx = Ctx::buffered();
