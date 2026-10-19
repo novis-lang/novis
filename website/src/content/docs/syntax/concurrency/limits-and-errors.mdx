@@ -26,7 +26,9 @@ When one task throws an error, Novis stops the other tasks. Then the call throws
 
 - The error you catch is the one the task threw. It has the same class and message.
 - When your `catch` runs, no task of the group is still running.
-- Only the first error is thrown. The other tasks are stopped before they can throw.
+- Only the first error is thrown. The other tasks are stopped where they wait.
+- A task that throws before it waits is not stopped in time. Its error is printed on standard
+  error, and your program goes on.
 
 ## Do and don't
 

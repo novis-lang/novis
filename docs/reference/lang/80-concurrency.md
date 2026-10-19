@@ -238,9 +238,9 @@ var $result = await $job;
 - `with(…)` takes the same `name: value` arguments as a call, and a trailing comma is allowed.
 - `await`'s operand is a unary expression, so `await $h->handle` awaits the property `handle`.
 - `with(…)` is optional. `output: 'capture'` collects what the child writes into the result;
-  `output: 'inherit'` lets the child write straight to the parent's standard output, interleaved
-  with the parent's own lines in whatever order the two run — only after `await` is all of it
-  there. Any other spelling throws `LogicError` at the spawn. `args:` takes any value, copies it into
+  `output: 'inherit'` appends the child's output to the parent's when the handle is awaited, after
+  every line the parent wrote before that `await`, and a handle never awaited prints nothing. Any
+  other spelling throws `LogicError` at the spawn. `args:` takes any value, copies it into
   the child, and the child reads it back with `Core\Script::args()`; a child spawned without the
   option reads `null`. `limits:` sets a sub-cap the child runs under — tighter than what is left of
   the tree's budget, never wider — and `grants:` names the capabilities it holds, intersected with
@@ -258,7 +258,7 @@ The result is a record with four fields:
 |---|---|---|
 | `ok` | `bool` | `true` when the child ended normally |
 | `value` | `mixed` | what the child's top-level `return` answered — convert it with `as`; a child with no `return` answers `null` |
-| `output` | `string` | everything the child wrote, when `output` is `'capture'`; empty when inherited |
+| `output` | `Core\Html\Markup\|Core\Cli\Text` | everything the child wrote, when `output` is `'capture'`; empty when inherited. `as string` gives the text |
 | `error` | `?{class: string, message: string}` | the class name and message of the child's uncaught throw; `null` when `ok` |
 
 ```toml file=nvs.toml

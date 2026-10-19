@@ -1,0 +1,4 @@
+the parent prints first
+the child says hello
+ok: true
+`await` was given a handle a previous `await` already collected

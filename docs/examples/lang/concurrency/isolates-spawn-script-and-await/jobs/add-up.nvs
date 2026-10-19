@@ -1,0 +1,8 @@
+<?nvs
+// This file reads the value the parent gave in `args:`.
+array<int> $numbers = Core\Script::args() as array<int>;
+int $total = 0;
+foreach ($numbers as int $n) {
+    $total += $n;
+}
+return $total;

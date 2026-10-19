@@ -27,7 +27,7 @@ The result has four fields:
 | `error` | `?{class: string, message: string}` | the error that ended the child, or `null` |
 
 - `with(...)` is optional. `output: "capture"` is the default. `output: "inherit"` prints the
-  child's output directly, mixed with the parent's output.
+  child's output when you `await` it. A child you never `await` prints nothing.
 - `value` has the type `mixed`. Convert it with `as`. Text converted from it is a `tainted string`.
 - `output` is a `Core\Html\Markup` when the program writes HTML, and a `Core\Cli\Text` otherwise.
   To use it as a `string`, write `$result->output as string`.
