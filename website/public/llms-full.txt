@@ -7011,13 +7011,15 @@ https://example.test/users/7
 **The server matches a request. It never calls a route method.** `nvs serve` matches every
 request against the route table once, before the program runs. `Core\Request::route()` returns
 that match, or `null` when no route has this verb and path. The server then runs the mount's entry
-file for every request, matched or not. This is how the router is designed, and it is not a
-missing feature:
+file for every request, matched or not. The entry file calls the method in one of two ways.
+`Core\Router::dispatch` calls it, with a gate of your own that checks each request and writes the
+error pages, and sets the `404`, `405` or `400` itself. Or the program reads the match and calls the
+method itself:
 
 - The server does not call the method that carries the `#[Core\Route]`, and it does not use that
-  method's return value. The entry file reads the match and calls the method.
-- The server sends no `404` and no `405` of its own. The entry file sets them with
-  `Core\Response::setStatus`. `Core\Router::methodsFor` returns the verbs a path has: an empty
+  method's return value.
+- Without `dispatch`, the server sends no `404` and no `405` of its own. The entry file sets them
+  with `Core\Response::setStatus`. `Core\Router::methodsFor` returns the verbs a path has: an empty
   array is the `404`, and any other array is the `Allow` header of a `405`.
 - The CSRF check on `Post`, `Put`, `Patch` and `Delete` is the one decision the server enforces
   on a matched route. The `allow:` value of `#[Core\Access]` is recorded and not enforced. The

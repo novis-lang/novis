@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/routes.rs",
+  "title": "A `Core\\Router::url` value of the wrong type compiles and builds a link the route does not match.",
+  "text": "For a route `/{id}` whose parameter is `uint $id`, `Core\\Router::url(\"u\", [\"id\" => \"x\"])`, `[\"id\" => -3]` and `[\"id\" => 2.5]` all pass `nvs check` and build `/x`, `/-3` and `/2.5`, none of which the route matches. `rule:routing/link-name-and-params-are-checked` checks the name and the keys of a literal `$params`, and `rule:routing/a-capture-narrows-to-a-closed-set` refuses a literal outside a closed set (`E0772`), but no check holds a value to the capture's declared type, so the promise that a link is never a path the router would not claim holds for closed sets alone. It closes when a literal value that the capture's conversion would refuse is a compile error, with a conformance case.",
+  "goal": "release-hardening"
+}

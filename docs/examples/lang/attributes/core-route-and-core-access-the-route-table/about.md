@@ -15,4 +15,5 @@ checks each request first and writes the error pages. A program can also read th
 `Core\Request::route()` and call the method itself.
 
 **The examples below** show one route and its link, the three kinds of capture, and the links for a
-product list page.
+product list page. Then they show routes in another file, a program that calls the route method
+itself, and a route with no `#[Core\Access]`, which does not compile.
