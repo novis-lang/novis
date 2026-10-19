@@ -1,0 +1,4 @@
+{"level":1,"tags":["disk","full"]}
+true full
+level: expected a declared enum case, found a number
+tags.1: expected string, found a number

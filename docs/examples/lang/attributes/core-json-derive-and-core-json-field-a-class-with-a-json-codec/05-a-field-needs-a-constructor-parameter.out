@@ -1,0 +1,9 @@
+error[E0460]: `$name` is a `#[Json\Derive]` field with no constructor parameter
+  --> 05-a-field-needs-a-constructor-parameter.nvs:8:19
+  |
+8 |     public string $name;
+  |                   ^^^^^ nothing decodes into this
+  = help: `rule:core-classes/derive-field-list`: a decode is an ordinary `new`, so every field needs a same-named constructor parameter — add one, or write `#[Json\Field(skip: true)]`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -12,4 +12,5 @@ type, or is `null` where that is not allowed, the decode throws a `ParseError`. 
 bad field at once.
 
 The examples show a class encoded as JSON, a renamed key and a skipped property, and a request body
-read into an object.
+read into an object. Then they show each check of a decode, a field with no constructor parameter,
+and an enum and an array in a decode.
