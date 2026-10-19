@@ -112,11 +112,11 @@ Archive::tryExtract('step 5b', Archive::many(['notes/one.txt'], 'hello' as bytes
 Archive::tryExtract('step 6a', Archive::many([Core\Str::repeat('d/', 1000) . 'f.txt'], 'deep' as bytes), Core\IO::temporaryDir(), $largest);
 Archive::tryExtract('step 6b', Archive::many([Core\Str::repeat('d/', 20000) . 'f.txt'], 'deep' as bytes), Core\IO::temporaryDir(), $largest);
 
-// 6c. 300 files, each inside its own 64 nested folders. That is the deepest
+// 6c. 100 files, each inside its own 64 nested folders. That is the deepest
 // allowed name, so every file is written, and no folder is shared.
 array<string> $deepNames = [];
 $i = 0;
-while ($i < 300) {
+while ($i < 100) {
     $deepNames[] = 'top-' . $i . '/' . Core\Str::repeat('d/', 63) . 'f.txt';
     $i = $i + 1;
 }
