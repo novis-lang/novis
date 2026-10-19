@@ -49,18 +49,15 @@
 //!
 //! # What it spends
 //!
-//! Per call: one borrow of the `labels` array, one `(String, String)` per
-//! label written, the call site rendered as a `String`, and the owned series
-//! key the registry builds for its lookup, all freed before the member
-//! returns. Per *name* a program
-//! writes: the series itself, and one `String` holding the `file:line` that
-//! fixed it. Nothing is charged to a request, and nothing grows with requests
-//! served — `rule:programs/memory-priority`'s O(in-flight) reading of the same
-//! cost `nvs_runtime::metrics` states in full.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/metrics.rs` lists them.
+//! Per call to a series that exists: one borrow of the `labels` array and one
+//! `(String, String)` per label written, freed before the member returns. A
+//! call with no labels allocates nothing. The registry finds the series
+//! through borrowed text, and the call site is rendered only by a write that
+//! creates a series or throws. Per *name* a program writes: the series itself,
+//! and one `String` holding the `file:line` that fixed it. Nothing is charged
+//! to a request, and nothing grows with requests served —
+//! `rule:programs/memory-priority`'s O(in-flight) reading of the same cost
+//! `nvs_runtime::metrics` states in full.
 
 use nvs_runtime::metrics::{Refused, Written};
 use nvs_runtime::{Fault, ThrownClass, Value};
@@ -358,22 +355,24 @@ fn write(args: &[Value], member: &str, written: Written) -> Result<Value, Fault>
         unsafe_code,
         reason = "the carrier came out of a `SourceConst` the compiled unit baked into its own data section, which outlives every request served from it"
     )]
-    let site = unsafe { nvs_runtime::source::of_operand(args[0]) }
-        .map(|source| nvs_runtime::source::location(&source));
+    let site = || {
+        unsafe { nvs_runtime::source::of_operand(args[0]) }
+            .map(|source| nvs_runtime::source::location(&source))
+    };
     let name = name_of(&args[1], member)?;
     let labels = labels_of(args[3]);
     let written_labels: Vec<(&str, &str)> = labels
         .iter()
         .map(|(label, value)| (label.as_str(), value.as_str()))
         .collect();
-    match nvs_runtime::metrics::record(site.as_deref(), name, written, &written_labels) {
+    match nvs_runtime::metrics::record(site, name, written, &written_labels) {
         // `rule:observability/past-max-series-a-new-series-is-refused`: a series
         // lost to the bound is the deployment's problem, counted where an
         // operator reads it, and the call answers as though it had been
         // recorded. A program has nothing to handle here and no way to act on
         // it.
         Ok(()) | Err(Refused::Cardinality { .. }) => Ok(Value::null()),
-        Err(refusal) => Err(mismatch(member, name, &refusal, site.as_deref())),
+        Err(refusal) => Err(mismatch(member, name, &refusal, site().as_deref())),
     }
 }
 
@@ -606,14 +605,14 @@ mod tests {
     #[test]
     fn a_metrics_name_used_as_a_gauge_then_incremented_throws_naming_both_sites() {
         metrics::record(
-            Some("queue.nvs:12"),
+            || Some("queue.nvs:12".to_owned()),
             "queue_depth",
             Written::Gauge(7.0),
             &[],
         )
         .expect("a gauge write fixes the name to a gauge");
         let refusal = metrics::record(
-            Some("queue.nvs:31"),
+            || Some("queue.nvs:31".to_owned()),
             "queue_depth",
             Written::Increment(1),
             &[],
@@ -652,28 +651,28 @@ mod tests {
     fn core_metrics_accumulates_with_the_exporter_feature_off() {
         let mail = [("queue", "mail")];
         metrics::record(
-            Some("jobs.nvs:8"),
+            || Some("jobs.nvs:8".to_owned()),
             "jobs_run_total",
             Written::Increment(2),
             &mail,
         )
         .expect("a counter write is recorded");
         metrics::record(
-            Some("jobs.nvs:8"),
+            || Some("jobs.nvs:8".to_owned()),
             "jobs_run_total",
             Written::Increment(1),
             &mail,
         )
         .expect("a second write accumulates onto the first");
         metrics::record(
-            Some("jobs.nvs:9"),
+            || Some("jobs.nvs:9".to_owned()),
             "job_seconds",
             Written::Observe(0.25),
             &[],
         )
         .expect("a histogram write is recorded");
         metrics::record(
-            Some("jobs.nvs:10"),
+            || Some("jobs.nvs:10".to_owned()),
             "workers_idle",
             Written::Gauge(4.0),
             &[],

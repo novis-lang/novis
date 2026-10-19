@@ -107,7 +107,9 @@
 //! cadence of its own. Those modules are the half a build without the
 //! `exporter` feature loses, and this one is in every build either way.
 
+use std::borrow::{Borrow, Cow};
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
@@ -539,7 +541,12 @@ impl Registry {
     /// One series, by name and labels, or `None` if nothing has written it.
     #[must_use]
     pub fn read(&self, name: &str, labels: &[(&str, &str)]) -> Option<&Value> {
-        self.series.get(&key(name, labels))
+        let labels = sorted(labels);
+        let wanted = Lookup {
+            name,
+            labels: &labels,
+        };
+        self.series.get(&wanted as &dyn SeriesKey)
     }
 
     /// What a name is fixed to, or `None` for one nothing has used.
@@ -642,18 +649,54 @@ impl Registry {
         written: Written,
         labels: &[(&str, &str)],
     ) -> Result<(), Refused> {
+        if self.rewrite(name, written, labels) {
+            return Ok(());
+        }
+        self.create(site, name, written, labels)
+    }
+
+    /// A write to a series that already exists under a shape it fits, made
+    /// through a borrowed key. `false` where the write needs [`Registry::create`]:
+    /// a new series, a new name, or a mismatch to refuse.
+    ///
+    /// This is the path every write after a series' first one takes, so it
+    /// builds no owned key. Labels a caller passes sorted by name are not
+    /// copied either, and [`Registry::request`] passes its three that way.
+    fn rewrite(&mut self, name: &str, written: Written, labels: &[(&str, &str)]) -> bool {
+        let labels = sorted(labels);
+        let fits = self.shapes.get(name).is_some_and(|shape| {
+            shape.kind == written.kind()
+                && shape
+                    .labels
+                    .iter()
+                    .map(String::as_str)
+                    .eq(labels.iter().map(|(label, _)| *label))
+        });
+        let wanted = Lookup {
+            name,
+            labels: &labels,
+        };
+        match self.series.get_mut(&wanted as &dyn SeriesKey) {
+            Some(value) if fits => {
+                apply(written, value);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// [`Registry::record`]'s path for a write [`Registry::rewrite`] could not
+    /// make: it fixes the name, applies § 7's bound, and builds the series.
+    fn create(
+        &mut self,
+        site: Option<&str>,
+        name: &str,
+        written: Written,
+        labels: &[(&str, &str)],
+    ) -> Result<(), Refused> {
         let series = self.admit(name, written.kind(), labels, site)?;
-        match (written, self.series.get_mut(&series)) {
-            (Written::Increment(by), Some(Value::Counter(total))) => {
-                *total = total.saturating_add(by);
-            }
-            (Written::Observe(value), Some(Value::Histogram(histogram))) => {
-                histogram.observe(value);
-            }
-            (Written::Gauge(value), Some(Value::Gauge(held))) => *held = value,
-            // Unreachable: `admit` answered `Ok`, so the series exists and its
-            // value is the one `empty` built for this verb's own kind.
-            _ => {}
+        if let Some(value) = self.series.get_mut(&series) {
+            apply(written, value);
         }
         Ok(())
     }
@@ -692,10 +735,11 @@ impl Registry {
     pub fn request(&mut self, method: &str, status: u16, route: Option<&str>, took: Duration) {
         let status = digits(status);
         let status = std::str::from_utf8(&status).unwrap_or("000");
+        // Sorted by label name, so `Registry::rewrite` borrows them as written.
         let labels = [
             ("method", method),
-            ("status", status),
             ("route", route.unwrap_or_default()),
+            ("status", status),
         ];
         let _ = self.increment("nvs_requests_total", 1, &labels);
         let _ = self.observe("nvs_request_duration_seconds", took.as_secs_f64(), &labels);
@@ -954,11 +998,11 @@ fn this_core() -> Arc<Mutex<Registry>> {
 /// One `Core\Metrics` write onto this thread's registry, building one if this
 /// thread has none.
 ///
-/// `site` is the writing call's own `file:line`, which the member reads off the
-/// constant its call was compiled with — see `nvs_stdlib::registry`'s
-/// `SOURCE_MEMBERS`. It is held only where it fixes a name
-/// ([`Shape::site`]), so the cost is one `String` per *name* a program writes
-/// and nothing per call.
+/// `site` renders the writing call's own `file:line`, which the member reads off
+/// the constant its call was compiled with — see `nvs_stdlib::registry`'s
+/// `SOURCE_MEMBERS`. It is called only where a write cannot reuse a series
+/// that exists, and held only where it fixes a name ([`Shape::site`]). So the
+/// cost is one `String` per *name* a program writes and nothing per call.
 ///
 /// # Errors
 ///
@@ -967,13 +1011,17 @@ fn this_core() -> Arc<Mutex<Registry>> {
 /// no-op `rule:observability/past-max-series-a-new-series-is-refused` defines —
 /// [`Refused`]'s own docs own that split.
 pub fn record(
-    site: Option<&str>,
+    site: impl FnOnce() -> Option<String>,
     name: &str,
     written: Written,
     labels: &[(&str, &str)],
 ) -> Result<(), Refused> {
     let registry = this_core();
-    held(&registry).record(site, name, written, labels)
+    let mut registry = held(&registry);
+    if registry.rewrite(name, written, labels) {
+        return Ok(());
+    }
+    registry.create(site().as_deref(), name, written, labels)
 }
 
 /// Where this thread's registry fixed `name` to its kind, as `file:line`, or
@@ -1036,6 +1084,109 @@ fn key(name: &str, labels: &[(&str, &str)]) -> Series {
     Series {
         name: name.to_owned(),
         labels,
+    }
+}
+
+/// `written` applied to the value of the series it names.
+///
+/// A value of another kind is left alone. Neither caller reaches that case:
+/// both have checked that the series' shape is this verb's own kind.
+fn apply(written: Written, value: &mut Value) {
+    match (written, value) {
+        (Written::Increment(by), Value::Counter(total)) => *total = total.saturating_add(by),
+        (Written::Observe(value), Value::Histogram(histogram)) => histogram.observe(value),
+        (Written::Gauge(value), Value::Gauge(held)) => *held = value,
+        _ => {}
+    }
+}
+
+/// `labels` in [`key`]'s order, borrowed where the caller already sorted them.
+fn sorted<'a>(labels: &'a [(&'a str, &'a str)]) -> Cow<'a, [(&'a str, &'a str)]> {
+    if labels.is_sorted() {
+        return Cow::Borrowed(labels);
+    }
+    let mut owned = labels.to_vec();
+    owned.sort_unstable();
+    Cow::Owned(owned)
+}
+
+/// A [`Series`] as a lookup reads it: the name and the labels in order, from
+/// either an owned key or a borrowed one.
+///
+/// The map's keys are owned [`Series`], and a `Borrow` into this trait is what
+/// lets a write find one through borrowed text. Its order is the one
+/// `Series` derives: the name, then the pairs compared one by one, then the
+/// count of pairs.
+trait SeriesKey {
+    /// The family's name.
+    fn name(&self) -> &str;
+    /// How many label pairs there are.
+    fn count(&self) -> usize;
+    /// The label pair at `at`, in sorted order.
+    fn pair(&self, at: usize) -> (&str, &str);
+}
+
+impl SeriesKey for Series {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn count(&self) -> usize {
+        self.labels.len()
+    }
+
+    fn pair(&self, at: usize) -> (&str, &str) {
+        let (label, value) = &self.labels[at];
+        (label, value)
+    }
+}
+
+/// A series key over borrowed text, sorted by [`sorted`].
+struct Lookup<'a> {
+    name: &'a str,
+    labels: &'a [(&'a str, &'a str)],
+}
+
+impl SeriesKey for Lookup<'_> {
+    fn name(&self) -> &str {
+        self.name
+    }
+
+    fn count(&self) -> usize {
+        self.labels.len()
+    }
+
+    fn pair(&self, at: usize) -> (&str, &str) {
+        self.labels[at]
+    }
+}
+
+impl<'a> Borrow<dyn SeriesKey + 'a> for Series {
+    fn borrow(&self) -> &(dyn SeriesKey + 'a) {
+        self
+    }
+}
+
+impl PartialEq for dyn SeriesKey + '_ {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for dyn SeriesKey + '_ {}
+
+impl PartialOrd for dyn SeriesKey + '_ {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for dyn SeriesKey + '_ {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.name().cmp(other.name()).then_with(|| {
+            let mine = (0..self.count()).map(|at| self.pair(at));
+            mine.cmp((0..other.count()).map(|at| other.pair(at)))
+        })
     }
 }
 
@@ -1114,6 +1265,34 @@ mod tests {
         let defaulted = Registry::of(&configured(Setting::Text("otlp".to_owned()), None))
             .expect("an otlp exporter builds a registry");
         assert_eq!(defaulted.max_series(), 10_000);
+    }
+
+    /// A write to an existing series finds it through borrowed labels in any
+    /// order, so two orders of one label set add up on one series.
+    #[test]
+    fn labels_in_any_order_write_one_series() {
+        let mut registry = Registry::new(64);
+        registry
+            .increment("jobs_total", 2, &[("queue", "mail"), ("host", "a")])
+            .expect("a new series is recorded");
+        registry
+            .increment("jobs_total", 3, &[("host", "a"), ("queue", "mail")])
+            .expect("the existing series is written");
+        registry
+            .increment("jobs_total", 4, &[("host", "b"), ("queue", "mail")])
+            .expect("a second series is recorded");
+        assert_eq!(
+            registry.read("jobs_total", &[("queue", "mail"), ("host", "a")]),
+            Some(&Value::Counter(5))
+        );
+        assert_eq!(
+            registry.read("jobs_total", &[("host", "b"), ("queue", "mail")]),
+            Some(&Value::Counter(4))
+        );
+        assert!(matches!(
+            registry.increment("jobs_total", 1, &[("host", "a")]),
+            Err(Refused::Labels { .. })
+        ));
     }
 
     /// § 7 on both sides: the last series the bound accepts is recorded, the
