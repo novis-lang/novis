@@ -3,22 +3,11 @@ title: String operators
 covers: ['lang:expressions/string-operators']
 description: How . joins values into a string, and how .= adds to a string variable.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 `.` joins two values into one string. `.=` adds a value to the end of a string variable.
 
-<Snippet src="syntax/string-operators/01-concatenation.nvs" />
-
-Each side of `.` can be one of these:
-
-- a `string`
-- a number: `int`, `uint`, `float` or `decimal`
-- a `bool`. `true` becomes `"1"`, and `false` becomes `""`
-- `null`, which becomes `""`
-- an object whose class implements `Stringable`
-
-An array, `bytes` and an enum case do not compile with `.`. Use `Core\Json::encode($array)` for
-an array, and `$data as string` for `bytes`.
+<FeatureSection examples="lang/expressions/string-operators" heading=". and .=" id="string-operators" />
 
 ## Use this when you build a string from many values
 

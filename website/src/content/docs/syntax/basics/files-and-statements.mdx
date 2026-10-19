@@ -6,41 +6,16 @@ covers:
   - lang:programs/names-and-casing
 description: What a Novis file is, how its statements run, and how names are written.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 A program is one `.nvs` file. It starts with the tag `<?nvs`. The statements after the tag run from
 top to bottom. Each statement ends with `;`.
 
-<Snippet src="syntax/files-and-statements/01-statements.nvs" />
+<FeatureSection examples="lang/programs/a-program-is-a-file-of-top-level-statements" heading="A program is a file" id="a-program-is-a-file" />
 
-`echo` writes text to the output. It does not add a new line, so the program writes `"\n"` itself.
+<FeatureSection examples="lang/programs/code-mode-and-html-mode" heading="HTML around the code" id="html-around-the-code" />
 
-## HTML around the code
-
-Use this when the program writes a page. Text outside the tags goes to the output unchanged. `?>`
-ends the code, and `<?nvs` starts it again. `<?= $value ?>` writes one value into the text.
-
-<Snippet src="syntax/files-and-statements/02-html-mode.nvs" />
-
-A loop or an `if` can start in one code block and end in another. The text between them is repeated
-or skipped. In a web request, `<?= ?>` escapes the value, so it cannot add HTML tags to the page.
-
-A file that starts with `#!` is code from its second line. It needs no `<?nvs` tag. Use this for a
-script that you start directly from the terminal.
-
-## How names are written
-
-The compiler checks how each name is written. A name in the wrong case does not compile.
-
-| Name | How to write it | Example |
-|---|---|---|
-| class, interface, enum, namespace | `PascalCase` | `OrderLine` |
-| method, property, parameter, variable | `camelCase` | `$lineCount` |
-| class constant | `SCREAMING_SNAKE_CASE` | `MAX_LINES` |
-| enum case | `PascalCase` | `Rank::Gold` |
-| the constructor | `constructor` | `function constructor()` |
-
-No name may start with `_`. Names are case-sensitive.
+<FeatureSection examples="lang/programs/names-and-casing" heading="How names are written" id="how-names-are-written" />
 
 ## Do and don't
 

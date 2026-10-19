@@ -3,66 +3,20 @@ title: Anonymous functions
 covers: ['lang:expressions/anonymous-functions']
 description: How to write an anonymous function with fn, store it in a callable, name it so it can call itself, and which outside variables it can use.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 An anonymous function is a function you write with `fn` and store in a `callable` variable:
 `callable $double = fn(int $x): int => $x * 2;`. Usually it has no name. It has a name only when
 it calls itself.
 
-<Snippet src="syntax/anonymous-functions/01-fn.nvs" />
+<FeatureSection examples="lang/expressions/anonymous-functions" heading="fn" id="fn" />
 
-- `fn(...) => expression` returns the value of the expression.
-- `fn(...): int => { ... }` runs a block. The block uses `return`, and the return type is required.
-- Every parameter has a type.
-- A call through a `callable` variable returns `mixed`. Convert the result with `as`. Text
-  converted from `mixed` is a `tainted string`.
-- `fn` is the only way to write an anonymous function. `function () {}` does not compile.
-
-## Recursion
-
-An anonymous function that calls itself needs a name. Write the name between `fn` and the
-parameters: `fn fact(int $n): int => ...`.
-
-<Snippet src="syntax/anonymous-functions/03-recursion.nvs" />
-
-- The name works only inside the function's own body. Code outside the function cannot use it.
-- A call through the name is checked against the function's parameters and return type.
-- The variable the function is stored in does not work for this. `$factorial($n - 1)` inside the
-  function does not compile, because `$factorial` has no value yet when the function is created.
-- Write a method when other code also needs to call the function.
-
-## Outside variables
-
-An anonymous function can use the variables around it. It captures each one: it copies the value
-when the function is created.
-
-<Snippet src="syntax/anonymous-functions/02-capture.nvs" />
-
-- A later change to the outside variable does not change the captured copy.
-- A change inside the function does not change the outside variable.
-- Inside a method, an anonymous function can use `$this`.
-
-## A method as a callable
-
-A method reference gives you a method as a callable. Write the call with `(...)` in place of the
-arguments: `callable $len = Core\Str::length(...);`. Then `$len("abc")` returns `3`.
-
-- `$obj->method(...)` gives a method of one object.
-- `self::f(...)` and `static::f(...)` give a static method of the current class.
-
-## A new `$this`
-
-`$fn->bindTo($obj)` returns a copy of the callable that uses `$obj` as `$this`. `$fn->bind($obj)`
-is the same method. `$fn->call($obj, ...)` makes the copy and calls it with the other arguments.
-
-- The object must be of the class the function was written in, or of a subclass. Any other object,
-  and `null`, throws a `LogicError`.
-- A function that does not use `$this` is returned unchanged.
-- There is no second argument for a scope. It does not compile.
+How to call a `callable` is on the page [Calling a function](/syntax/functions/calls/).
 
 ## Do and don't
 
 - Do keep an anonymous function short. Write a method when it needs many lines.
+- Do write a method when other code also needs to call the function.
 - Do write the return type on an anonymous function with a block body.
 - Don't change an outside variable after you create an anonymous function and expect it to use the new value. The function has a copy.
 - Don't write `function () {}`. It does not compile. Use `fn`.

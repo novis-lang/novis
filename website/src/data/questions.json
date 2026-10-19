@@ -13366,7 +13366,7 @@
   },
   "/syntax/basics/comments/": {
     "feature": "syntax/basics/comments.mdx",
-    "hash": "e05cdbaf6852dd47",
+    "hash": "1608333290e5de9f",
     "questions": [
       "How do I write a comment in Novis?",
       "Write a comment over several lines",
@@ -13377,7 +13377,7 @@
   },
   "/syntax/basics/constants/": {
     "feature": "syntax/basics/constants.mdx",
-    "hash": "6ca6ca19b355a9b2",
+    "hash": "b423142019a46954",
     "questions": [
       "How do I declare a value that never changes?",
       "Can I define a global constant?",
@@ -13388,7 +13388,7 @@
   },
   "/syntax/basics/files-and-statements/": {
     "feature": "syntax/basics/files-and-statements.mdx",
-    "hash": "68cc23199347240f",
+    "hash": "8d26542e039dfa29",
     "questions": [
       "How does a Novis file start?",
       "How do I mix HTML and code in one file?",
@@ -13399,7 +13399,7 @@
   },
   "/syntax/basics/variables/": {
     "feature": "syntax/basics/variables.mdx",
-    "hash": "e34c269f490faa2e",
+    "hash": "a301563fe73c6c35",
     "questions": [
       "How do I declare a variable in Novis?",
       "What does var do when I declare a variable?",
@@ -13703,7 +13703,7 @@
   },
   "/syntax/functions/anonymous-functions/": {
     "feature": "syntax/functions/anonymous-functions.mdx",
-    "hash": "f0d685c250e6ffe7",
+    "hash": "9491da24dbfeb30f",
     "questions": [
       "How do I write a function without a name and store it in a variable?",
       "How do I write a closure that calls itself?",
@@ -13714,7 +13714,7 @@
   },
   "/syntax/functions/calls/": {
     "feature": "syntax/functions/calls.mdx",
-    "hash": "c77a406631162a35",
+    "hash": "13535e2afac00f75",
     "questions": [
       "How do I pass arguments by name?",
       "How do I pass array elements as separate arguments?",
@@ -13725,7 +13725,7 @@
   },
   "/syntax/functions/declaring/": {
     "feature": "syntax/functions/declaring.mdx",
-    "hash": "c4855760e11c4b22",
+    "hash": "ba96be4c83709987",
     "questions": [
       "How do I write a function in Novis?",
       "Can I write a function outside a class?",
@@ -13735,7 +13735,7 @@
   },
   "/syntax/functions/parameters/": {
     "feature": "syntax/functions/parameters.mdx",
-    "hash": "c3ae95e7409b6495",
+    "hash": "71a927697c930d18",
     "questions": [
       "How do I give a parameter a default value?",
       "How do I accept any number of arguments?",
@@ -13746,7 +13746,7 @@
   },
   "/syntax/operators/arithmetic/": {
     "feature": "syntax/operators/arithmetic.mdx",
-    "hash": "ae6496e723bb4bb8",
+    "hash": "40215e3d792941ce",
     "questions": [
       "How do I add, divide or raise a number to a power?",
       "What happens when I divide by zero?",
@@ -13758,7 +13758,7 @@
   },
   "/syntax/operators/comparison/": {
     "feature": "syntax/operators/comparison.mdx",
-    "hash": "7b153ea513ddd318",
+    "hash": "6b0a38ecac459f71",
     "questions": [
       "How do I check if two values are equal?",
       "Why does comparing a number with a string not compile?",
@@ -13769,7 +13769,7 @@
   },
   "/syntax/operators/null-coalescing/": {
     "feature": "syntax/operators/null-coalescing.mdx",
-    "hash": "797b069bfb8734aa",
+    "hash": "5a7c9ebb2a380646",
     "questions": [
       "How do I use a default value when a variable is null?",
       "Read an array key that may be missing without an error",
@@ -13780,7 +13780,7 @@
   },
   "/syntax/operators/pipeline/": {
     "feature": "syntax/operators/pipeline.mdx",
-    "hash": "a59a67c6517f91bb",
+    "hash": "213524bc72108c41",
     "questions": [
       "How do I pass a value through several steps from left to right?",
       "What does the |> operator do?",
@@ -13791,7 +13791,7 @@
   },
   "/syntax/operators/precedence/": {
     "feature": "syntax/operators/precedence.mdx",
-    "hash": "bb774724a2478b77",
+    "hash": "a27315efe3d5ef05",
     "questions": [
       "Which operator runs first in an expression?",
       "Why is -2 ** 2 equal to -4?",
@@ -13802,7 +13802,7 @@
   },
   "/syntax/operators/string-operators/": {
     "feature": "syntax/operators/string-operators.mdx",
-    "hash": "6e808d6dcdfbf1ab",
+    "hash": "154354fa703d68f5",
     "questions": [
       "How do I join two strings together?",
       "How do I add text to the end of a string variable?",

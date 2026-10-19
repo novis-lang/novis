@@ -339,7 +339,7 @@ repeats none of their text.
 - [ ] Each syntax page renders its covered features, keeps its own frame, *Use this when* and *Do and don't*, and loses its snippets for those features. `website/src/content/docs/syntax/control-flow/break-continue-return.mdx:1`
   - [x] `control-flow/break-continue-return.mdx`, stamped
   - [x] the rest of `control-flow/`
-  - [ ] `errors/`, `functions/`, `operators/` and `basics/`
+  - [x] `errors/`, `functions/`, `operators/` and `basics/`
   - [ ] `values/`, `programs/` and `classes/`
   - [ ] `concurrency/`, `attributes/` and `testing/`
 - [x] The site lock hashes a `lang` feature's `about.md`, `details.md` and examples. `tools/nv/cmd/site.ts:306`
@@ -381,25 +381,30 @@ a `<FeatureSection examples=…>` where it needed a `<Snippet>` (`syntaxProblems
 `featureHash` already hashes every file in a feature's directory, and a new case pins a changed
 `details.md` and example making the page stale.
 
-All of `syntax/control-flow/` is converted: eight pages, each one `<FeatureSection>` (`h2`) per
-covered feature, its frame, *Use this when* and *Do and don't* kept, its bullets gone because
-`about.md` and `details.md` say each of them, and its snippets under `website/snippets/syntax/`
-deleted. Every bullet of the seven pages this session converted was already in a feature's text, so
-no `details.md` changed. Each built page's `method-example` count equals its features' example
-files. `iterators.mdx` also covers the `Core` ids `Iterable` and `Iterator`, which have no Reference
-page, so it keeps their method table. `other-statements.mdx` keeps its table of statements Novis
-does not have, as a quick reference beside the feature that says each one.
+`syntax/control-flow/`, `errors/`, `functions/`, `operators/` and `basics/` are converted: 28
+pages, each one `<FeatureSection>` (`h2`) per covered feature, its frame, *Use this when* and *Do
+and don't* kept, its bullets gone because `about.md` and `details.md` say each of them, and its
+snippets under `website/snippets/syntax/` deleted. Every bullet was already in a feature's text, so
+no `details.md` changed; the few facts no feature has (no global constants, no functions outside a
+class, each statement ends with `;`, `Core\Math::fdiv`) stay in the page's frame. A built page's
+`method-example` count is its features' `.nvs` files plus one per `<FeatureSection>`, and every
+converted page matches. `iterators.mdx` keeps the `Iterator` method table and `error-types.mdx`
+keeps its class table and the `finish` snippet, because they cover `Core` ids. `other-statements.mdx`
+keeps its table of statements Novis does not have.
+
+`throw-and-catch.mdx` shows both `throw` features and both `try-catch-finally` features, each
+under its own heading, and both `about.md` files stay: merging two would delete a roster id and a
+chapter heading, which is stage 8's generator to decide if it is still wanted.
 
 **A converted page owes two stamps**: `bun nv site --stamp <page key>` in `website/site.lock.json`,
 and its search questions in `website/src/data/questions.json`, since a handwritten page's question
 hash is its file. Reread the questions against the new page, then `MSYS_NO_PATHCONV=1 bun nv site
---questions --stamp /syntax/<dir>/<page>/`. The last session missed the second for
-`break-continue-return`; this one stamped all eight.
+--questions --stamp /syntax/<dir>/<page>/`. Every converted page has both.
 
 `bun nv site --check` fails on findings no page of this goal touched: `structure` (2,
-`/reference/types/`), `questions` (826 broken Core URLs), `syntax` (46 uncovered `Core` enums and
+`/reference/types/`), `questions` (820 broken Core URLs), `syntax` (46 uncovered `Core` enums and
 errors), `apps` (`notes` and `paperwork`, the `Novis\Intl\Icu` extension not loaded on this host)
-and `prose` (5, `run-as-a-service.mdx` and `compare.mdx`). `stale` lists 123 page-feature pairs,
+and `prose` (5, `run-as-a-service.mdx` and `compare.mdx`). `stale` lists 88 page-feature pairs,
 which are stage 6's content edits; each drops off when its page is converted and stamped.
 
 The sweep's red jobs are run 39185807455, which ran on `main` at f8ad800d3 (checked with `gh run
@@ -415,9 +420,7 @@ built page's headings and `method-example` count, and both stamps (see *State*).
 page has and neither text has is a fact: check it on the binary and move it into the feature's
 `details.md`. A page that also covers a `Core` id (`LateInit`, `PropertyGuard`) keeps a `<Snippet>`
 or a short table, or links the Reference page for that id. Write a page whole with Write: the guard
-refuses a heredoc script. `throw-and-catch.mdx` covers both `try-catch-finally` features, which
-decides the backlog item on their two `about.md` files.
-- [ ] `errors/`, `functions/`, `operators/` and `basics/`. `website/src/content/docs/syntax/errors/throw-and-catch.mdx:1`
+refuses a heredoc script, and `looper verify` piped into `tail`.
 - [ ] `values/`, `programs/` and `classes/`. `website/src/content/docs/syntax/classes/objects.mdx:1`
 - [ ] `concurrency/`, `attributes/` and `testing/`. `website/src/content/docs/syntax/concurrency/tasks.mdx:1`
 - [ ] A chapter edited in stage 7 or 8 owes `bun nv proofs --record-perf --group lang:<chapter>` after its last edit, and a bench that calls a `Core` method declares that call in `calls`. `tools/nv/proofs/roster.ts:28`
@@ -441,5 +444,5 @@ is `enum Suit { Hearts, Spades }`, and two caught error types need two variable 
 - Many compiler diagnostics print a `rule:` id or the word "refused" in their help text, such as `E0234`, `E0413`, `E0448` and `E0230`. That text is held to § *Text an end user reads* when it is changed; this goal changes no product text, so it needs its own owner. `crates/nvs-types/src/expr/members.rs:2345`
 - About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
 - The guard messages and `peek.ts`/`splice.ts` comments cite "AGENTS.md rule 1" and "rule 3" by the block's numbers, which a template change can move; citing `commands.md` sections would not. `tools/nv/cmd/guard.ts:259`
-- `lang:statements/try-catch-finally` and `lang:errors/try-catch-finally` are one syntax and two features. Their `details.md` files split the facts, but their `about.md` files and examples 01 to 03 still say much the same; stage 7, which shows both on one syntax page, decides whether one `about.md` goes. `docs/examples/lang/errors/try-catch-finally/about.md:1`
+- `lang:statements/try-catch-finally` and `lang:errors/try-catch-finally` are one syntax and two features. Their `details.md` files split the facts, but their `about.md` files and examples 01 to 03 still say much the same. `throw-and-catch.mdx` shows both, under two headings; merging them deletes a roster id, so stage 8's generator decides. `statements/throw` and `errors/throw` are the same pair. `docs/examples/lang/errors/try-catch-finally/about.md:1`
 - Stages 7 and 8 render the syntax pages and the chapters from each feature's `about.md` and `details.md`. `docs/goals/docs-cleanup.md:257`

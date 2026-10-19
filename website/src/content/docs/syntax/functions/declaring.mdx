@@ -3,31 +3,15 @@ title: Declaring a function
 covers: ['lang:types/void-never-self-static']
 description: How to write a function as a static method, and the return types void, never, self and static.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 Every function in Novis is a method of a class. A function that does not need an object is a
-`static` method. You call it with the class name: `Price::show(1000)`.
+`static` method. You call it with the class name: `Price::show(1000)`. There are no functions
+outside a class. The built-in functions are methods too, such as `Core\Str::length($s)`.
 
-<Snippet src="syntax/declaring/01-static-method.nvs" />
+Every parameter and the return type are written out. There is no default type.
 
-- Every parameter and the return type are written out. There is no default type.
-- `void` means the method returns nothing. A call to it is a statement. `echo Price::show(1)` does
-  not compile.
-- There are no functions outside a class. The built-in functions are methods too, such as
-  `Core\Str::length($s)`.
-
-## never, self and static
-
-`never` and `static` are only allowed as a return type. `self` may also be a parameter type.
-
-<Snippet src="syntax/declaring/02-never-self-static.nvs" />
-
-- `never` means the method does not return. It throws an error or ends the program.
-- A call to a `never` method ends the caller's path. The caller needs no `return` after it.
-  This is not true when a child class overrides the method.
-- `self` is the class that declares the method. `static` is the class the method was called on.
-- `self` and `static` are not values. `return self;` does not compile. Write `self::NAME` to read a
-  constant.
+<FeatureSection examples="lang/types/void-never-self-static" heading="void, never, self and static" id="void-never-self-static" />
 
 ## Do and don't
 

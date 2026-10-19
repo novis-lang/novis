@@ -3,46 +3,16 @@ title: Arithmetic and assignment
 covers: ['lang:expressions/arithmetic', 'lang:expressions/assignment']
 description: The operators + - * / % and **, the operators that change a variable, and the errors they throw.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 `+`, `-`, `*`, `/`, `%` and `**` work on the four number types: `int`, `uint`, `float` and
-`decimal`.
+`decimal`. `=` and the operators like `+=` store a value in a variable.
 
-<Snippet src="syntax/arithmetic/01-arithmetic.nvs" />
-
-| Operator | What it does |
-|---|---|
-| `+` `-` `*` | add, subtract, multiply |
-| `/` | divide. `7 / 2` is `3.5`, and `6 / 3` is `2` |
-| `%` | the remainder after division. It works on whole numbers and `decimal` |
-| `**` | the power. `2 ** 10` is `1024` |
-
-Arithmetic needs numbers on both sides. `"3" * 2` does not compile. Write `($s as int) * 2`.
-
-A value that can be `null`, such as a `?float`, does not compile either. Test it first with
-`if ($a != null)`, or give it a default with `??`: `($a ?? 0.0) + 1.5`.
-
-## Errors
-
-<Snippet src="syntax/arithmetic/02-errors.nvs" />
-
-These operations throw an `ArithmeticError`:
-
-- a division by zero, with `/` or `%`
-- a result that is too big or too small for its type
-- a negative power of a whole number, such as `2 ** -1`
+<FeatureSection examples="lang/expressions/arithmetic" heading="Arithmetic" id="arithmetic" />
 
 `Core\Math::fdiv` divides two `float` values and returns `INF` for a division by zero.
 
-## Changing a variable
-
-<Snippet src="syntax/arithmetic/03-assignment.nvs" />
-
-- `=` stores a value. `$a = $b = 3` stores `3` in both variables.
-- `+=`, `-=`, `*=`, `/=`, `%=`, `**=` and `.=` change the variable that is already there.
-- `++` adds one and `--` subtracts one. `$n++` gives the old value, and `++$n` gives the new value.
-- An operator like `+=` never changes the type of the variable. So `$n /= 2` does not compile
-  when `$n` is an `int`.
+<FeatureSection examples="lang/expressions/assignment" heading="Changing a variable" id="assignment" />
 
 ## Use this when you work with bits
 

@@ -3,19 +3,11 @@ title: The pipeline operator |>
 covers: ['lang:expressions/the-pipeline-operator']
 description: How |> passes a value through a chain of calls, from left to right.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 `$value |> f($_)` is the same as `f($value)`. `$_` is the place where the value is used.
 
-<Snippet src="syntax/pipeline/01-pipeline.nvs" />
-
-- You can chain `|>`. `$a |> f($_) |> g($_)` is the same as `g(f($a))`.
-- The right side is a call, an array index, a property or method access, or an expression in
-  parentheses.
-- `$_` must appear exactly once on each right side. Without it, the code does not compile.
-- `$_` has no meaning outside the right side of `|>`.
-
-`|>` does not make the program slower. The compiler turns it into the nested calls.
+<FeatureSection examples="lang/expressions/the-pipeline-operator" heading="|>" id="pipeline" />
 
 ## Use this when you apply several steps to one value
 
