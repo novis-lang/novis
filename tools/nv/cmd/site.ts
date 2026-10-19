@@ -658,7 +658,7 @@ const LINK_RE = /\]\((\/(?!\/)[^)\s]*)\)|href=["'](\/(?!\/)[^"']*)["']/g;
 
 /**
  * Every URL the site builds, each ending in `/`: one per handwritten page, the Core reference's class and
- * method pages, and the Configuration and CLI reference's landing and entry pages.
+ * method pages, and the Configuration, CLI and Types reference's landing and entry pages.
  */
 export function builtUrls(root: string = ROOT): Set<string> {
   const urls = new Set<string>(["/"]);
@@ -674,7 +674,7 @@ export function builtUrls(root: string = ROOT): Set<string> {
     }
   }
   const refPages = (JSON.parse(readAt(root, REFERENCE_FILE) || '{"pages":[]}') as { pages: RefPage[] }).pages;
-  for (const area of ["config", "cli"]) urls.add(`/reference/${area}/`);
+  for (const area of ["config", "cli", "types"]) urls.add(`/reference/${area}/`);
   for (const p of refPages) urls.add(p.url);
   return urls;
 }

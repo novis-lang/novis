@@ -196,7 +196,7 @@
   },
   "syntax/operators/comparison.mdx": {
     "lang:expressions/comparison-and-equality": "d16e53e2bbb81ebe",
-    "lang:expressions/logical-operators-and-truth": "67e9571c4304e5b6"
+    "lang:expressions/logical-operators-and-truth": "c967a863da3946a1"
   },
   "syntax/operators/null-coalescing.mdx": {
     "lang:expressions/and-the-ternary": "e25895702ee83066"
@@ -251,8 +251,8 @@
     "lang:types/truthiness": "de9922a294f233a5"
   },
   "syntax/values/enums.mdx": {
-    "Core\\Arr::Order": "5933688e0cc27d92",
-    "Core\\Arr::SetOn": "6f39a54cea93305f",
+    "Core\\Arr::Order": "eb75f04c86d36ba5",
+    "Core\\Arr::SetOn": "20c7cc6b7b55d1a5",
     "Core\\Audience": "563cd38183dc8ae6",
     "Core\\Charset": "2a993835856562a7",
     "Core\\Cldr::PluralCategory": "ec3ee07e5dc9b804",
@@ -283,7 +283,7 @@
     "Core\\Script\\ExitReport::Reason": "e63043b3805e9273",
     "Core\\Str::NormalForm": "8eae3cf1719255d7",
     "Core\\Time\\DateTime::Weekday": "6c3793ac2f62eab3",
-    "Core\\Unit": "eb68c4e10f572009",
+    "Core\\Unit": "325e36d708bf2e5a",
     "Core\\Xml\\Node::Kind": "f35464494f865164",
     "lang:enums/a-case-is-its-integer": "04f8987f6309f33c",
     "lang:enums/a-union-of-cases-is-a-narrower-type": "054a6546b50bd8b1",
