@@ -304,12 +304,17 @@ with each.
       - [x] `PropertyGuard` to `Parses`
       - [x] `objects-are-handles` to `what-a-class-cannot-declare`
       - [x] `lang:classes`' perf recorded after the chapter's last edit
-    - [ ] `55-enums`, then `lang:enums`' perf recorded after the chapter's last edit
+    - [x] `55-enums`, then `lang:enums`' perf recorded after the chapter's last edit
       - [x] `declaring-an-enum` to `comparing-cases`
-      - [ ] `match-and-switch-over-an-enum` to `an-enum-inside-a-class`
-      - [ ] `what-an-enum-does-not-have` and `core-enums`
-      - [ ] `lang:enums`' perf recorded after the chapter's last edit
+      - [x] `match-and-switch-over-an-enum` to `an-enum-inside-a-class`
+      - [x] `what-an-enum-does-not-have` and `core-enums`
+      - [x] `lang:enums`' perf recorded after the chapter's last edit
   - [ ] `60-iteration`, `70-errors` and `80-concurrency`
+    - [x] `60-iteration`: its chapter did not change, so `lang:iteration`'s perf is current
+      - [x] `what-foreach-walks` and `the-two-interfaces`
+      - [x] `generators` to `what-does-not-exist`
+    - [ ] `70-errors`, then `lang:errors`' perf recorded after the chapter's last edit
+    - [ ] `80-concurrency`, then `lang:concurrency`' perf recorded after the chapter's last edit
   - [ ] `90-attributes` and `95-testing`
 
 ### 7. the syntax pages show each feature's about.md, details and examples
@@ -856,10 +861,36 @@ both, the three types not converting into each other (`E0401`, an `Iterator<int>
 block. Probing found that `current(): string` on an `Iterator<int>` class compiles and a loop reads
 the string's address as an `int`, now named in the override-signature gap record.
 
+`60-iteration` is done: `generators`, `core-collections-are-iterable`,
+`materialising-a-sequence-core-arr-from` and `what-does-not-exist` closed it, each fact run on the
+binary. The chapter did not change, so `lang:iteration`'s perf stays current. One claim was wrong:
+`what-does-not-exist`'s `about.md` said each error names what to write instead, but `E0303` for
+`Countable` names nothing, and `E0320`'s help names no `Core\Arr` method; the sentence is gone.
+`generators`' `details.md` has `E0446` (and `E0303` for `Generator`), `E0739` with no `yield`,
+`E0445`, each `E0448` form, `E0401`, `E0447`, `E0492`, arguments copied at the call, `advance()`
+after the end, `E0444`, `E0858` and the `clone` message, when `finally` runs, a `catch` in the body,
+and `E0443` for a generator in `mixed`; examples 04 to 08 are the chapter's five blocks no example
+showed (two of them compile errors). `core-collections-are-iterable`'s has the map being an
+`Iterable<K>`, `E0401` and `E0444` for a map's value, a heap with a compare function, and a closed
+channel's second loop. `materialising-a-sequence-core-arr-from`'s has the result type, an array
+literal in the call giving `array<mixed>` (so `array<int> $b = Core\Arr::from([1, 2, 3]);` is
+`E0401`), keys dropped, `E0401` for `mixed`, `limit`'s `uint` type, `limit: 0` running nothing,
+`E0454`, and a limited generator continuing where it stopped. `what-does-not-exist`'s has `E0303`,
+`E0320`, `E0482` and `E0443`; examples 04 and 05 are the chapter's two error blocks. Probing found
+three generator bugs, owned by `release-hardening`. A `yield` of a literal into an `Iterator<?int>`
+or `Iterator<int|string>` panics the compiler (`data/gaps/nvs-ir/a-generator-of-a-nullable-or.json`).
+A `yield` in a `finally` stops at `E0901` (`data/gaps/nvs-ir/a-yield-inside-a-finally.json`). **A
+generator that threw runs its body again from its last `yield` on the next `advance()`, and a
+`finally` the throw left runs a second time when it is freed**
+(`data/gaps/nvs-ir/a-generator-that-throws-is-not.json`). `looper verify` waited an hour for a
+heavy slot another session's `--record-perf` held, and was stopped before it ran; the slice was
+checked with `bun nv verify --doc`, `bun nv rules --check`, `bun nv owners`, `--comments` and each
+feature's `--run --only`, all green.
+
 ### Next
 
-`60-iteration` continues at `Generators` (`60-iteration.md:163`), three or four features per
-session; take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
+`70-errors` starts at its first section (`70-errors.md:8`), three or four features per session;
+take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -873,7 +904,6 @@ An enum is `enum Suit { Hearts, Spades }`, with no `case`. An array with string 
 `array<int>`: `array<string, int>` is `E0101`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `60-iteration`'s last four features, from `Generators`. `docs/reference/lang/60-iteration.md:163`
 - [ ] `70-errors` from its first section; it decides what `lang:errors/try-catch-finally` keeps. `docs/reference/lang/70-errors.md:1`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
