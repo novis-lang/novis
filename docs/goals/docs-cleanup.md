@@ -955,9 +955,30 @@ declared `calls 2`, but since `ece7b500f` (merged from `main`) a `Core` call is 
 bench now declares `calls 3` (`benches/members/lang/errors/throw.nvs:6`). `main` still says 2. Any
 other bench that calls a `Core` method fails the same way when its chapter is next recorded.
 
+`80-concurrency`'s first four features are done, each fact run on the binary. One claim was wrong in
+three texts: the chapter, `core-task-all-a-fixed-set-of-tasks`' `about.md` and the syntax page
+`syntax/concurrency/tasks.mdx` said a field function with no return type gives `mixed`. A method
+cannot omit it (`E0823`), a block `fn` cannot (`E0450`), and an expression `fn` gets its expression's
+type; only a plain `callable` variable gives `mixed`. All three now say so (`80-concurrency.md:45`).
+`no-colouring-i-o-just-waits`' `details.md` has `async`, `await` and `Fiber`, a task running until
+it waits, a nested group, each task's `echo` printed in written order after the group (a stopped or
+throwing task's too), and static properties. `core-task-all`'s has the field types, `tainted` after
+`as string`, a `void` field, a missing field's `RuntimeError`, `{}` and `E0401`; example 04 is the
+chapter's array block (a compile error). `core-task-map`'s has the parameter forms (the key is
+always a `string`), the result type, a `callable(int): int` variable working where a plain
+`callable` is `E0401`, and an `Iterator` or `mixed` subject being `E0401`. `limit-and-deadline`'s
+has `E0453`, `E0454`, `limit`'s `uint` type, `deadline`'s `Duration` type, both messages,
+`TimeoutError` being a `RuntimeError`, `deadline: 0ms`, a stopped task's `finally` not running, and
+nested deadlines. `core-task-map`'s `about.md` said "holds", now rewritten. Probing found a gap,
+owned by `release-hardening`: a `Core\Task::all` field function with a parameter compiles and the
+call ends with an internal error (`data/gaps/nvs-types/a-task-group-function-that-takes.json`).
+It also found, for the next slice, that when two tasks throw, the second one's error is printed as
+`uncaught in a cancelled sibling: second`, while the syntax page says the other tasks are stopped
+before they can throw. `llms-full.txt` is rendered again.
+
 ### Next
 
-`80-concurrency` starts at its top (`80-concurrency.md:8`), three or four features per session;
+`80-concurrency` goes on from `a-child-s-throw` (`80-concurrency.md:141`), three or four features per session;
 take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -974,7 +995,7 @@ body, and a script under `.agent-tmp/` that writes and runs each; the guard refu
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
 A probe with a limit or a grant runs with `nvs run --config <file>.toml`, which replaces the root
 `nvs.toml`; an example needs its own `[[app]]` entry in the root `nvs.toml` instead (`nvs.toml:497`).
-- [ ] `80-concurrency` from `no-colouring-i-o-just-waits`, then `core-task-all-a-fixed-set-of-tasks`, `core-task-map-one-task-per-element` and `limit-and-deadline`. `docs/reference/lang/80-concurrency.md:8`
+- [ ] `80-concurrency` from `a-child-s-throw`, then `core-task-channel-t-a-bounded-queue-between-tasks` and `isolates-spawn-script-and-await`. Check the second-throw report against `syntax/concurrency/limits-and-errors.mdx`'s "stopped before they can throw". `docs/reference/lang/80-concurrency.md:141`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
