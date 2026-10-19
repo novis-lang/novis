@@ -1,5 +1,4 @@
-PHP's iteration helpers do not exist in Novis. Naming one is a compile error, and the message names
-what to write instead.
+PHP's iteration helpers do not exist in Novis. Naming one is a compile error.
 
 There is no `ArrayAccess`, `Countable`, `IteratorAggregate`, `Traversable` or `Generator`, and no
 `iterator_to_array`, `count`, `current`, `next` or `reset`. Each one has a replacement. A class
@@ -11,4 +10,5 @@ an object, `$basket[0]`, has no interface behind it. Give the class a method and
 **Good to know:** you meet all of these when you compile, never while the program is running.
 
 **The examples below** show the three replacements: `Iterable<T>` for `IteratorAggregate`, `Core\Arr`
-for the free functions, and methods of your own for `ArrayAccess` and `Countable`.
+for the free functions, and methods of your own for `ArrayAccess` and `Countable`. The last two
+examples show `Countable` and `iterator_to_array` as compile errors.

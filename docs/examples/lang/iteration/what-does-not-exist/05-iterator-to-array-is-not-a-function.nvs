@@ -1,0 +1,16 @@
+<?nvs
+// Shows that `iterator_to_array` is not a function, so this call does not compile.
+// Write `Core\Arr::from(Numbers::upTo(3))` instead.
+// proof: compile-error
+
+class Numbers {
+    public static function upTo(int $n): Iterator<int> {
+        int $i = 1;
+        while ($i <= $n) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+var $all = iterator_to_array(Numbers::upTo(3));
