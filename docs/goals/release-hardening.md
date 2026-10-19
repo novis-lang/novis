@@ -347,20 +347,20 @@ is `BLOCKED` and names the call.
 Stages 1 to 7 are done. Stage 8 is under way.
 
 - **Property tests.** Done: three seeded cases in `crates/nvs-config/tests/capability.rs` (`ae40a9e58`).
-- **Miri.** The nightly on `be3e8a605` (run 39173391347) was the first `miri-units` run on GitHub.
-  No shard found undefined behaviour. Every failure was a leak report, an operation Miri lacks, an
-  assert that fails only under Miri, or a timeout. Every timeout that run listed now has a smaller
-  input under `cfg!(miri)` or a reasoned ignore, the last of them this session: bigint `pow` and
-  `shl`, csv rows, zip directory, multipart field bound, request form bound and temp path, random
-  sample, the test ledger, and arr, env and hash. `multipart`'s part-count cap is a constant and
-  takes an ignore, as do `registry`'s two card scans. `http`'s two were already ignored. The
-  acceptance sweep's list for this session was that same run, so nothing in it is new.
-- **Local Miri times of this group** (CI is about 5 to 7 times slower, so a test needs under about
-  40 s locally to fit CI's 300 s, and these ran beside a verify): csv 53 s, hash 29 s, zip 12 s,
-  bigint 38 and 39 s, `test`'s ledger 33 s, env 29 s, random and arr 25 s, the urlencoded form
-  24 s, multipart 16 s, temp path 10 s. csv spends about 43 ms per record walked and as much again
-  before the walk opens, so it is the first time to read on the next nightly, then the streamed
-  reply (49 s).
+- **Miri.** The second nightly, run 39185807455 on `f8ad800d3`, ran every shard to its end inside
+  the 45-minute timeout, none cancelled: the longest job took 38 minutes and its test step 30, much
+  of it tests stopped at 300 s. No undefined behaviour. It predates the 17 local commits from
+  `6cf210fd9` on, which fix most of its 57 timeouts. To tell a new failure from a fixed one,
+  compare each test's body at the run's `headSha` and at `HEAD` for a `cfg!(miri)` or an ignore.
+- **This session:** the run's four failures take the stage's existing ignores (`time`'s `at` for
+  the zone database, `sleep` and `transport`'s refused connect and backoff for a real-time
+  deadline), and `totp`, `cache`'s expired sweep, `topic`'s charge and `math`'s `log` take a
+  smaller input. Those four pass under Miri locally in 12 to 27 s.
+- **Still slow on that run with nothing done for them:** 5 in `nvs-stdlib` (listed in Next) and 3
+  in `nvs-runtime` whose Miri branch was already in that run, so their input is still too big.
+- **Local Miri times** (CI is about 5 to 7 times slower, so a test needs under about 40 s locally
+  to fit CI's 300 s): csv 53 s and the streamed reply 49 s are the two above that, from the last
+  group.
 - **The nightly's cheapest tests took 60 to 150 s on CI**, so each Miri test pays a large fixed
   cost there. That cost, not the slow tests, decides whether the shards fit their timeouts.
 - **Shard logs:** `gh run view --job <id> --log`, then `perl -pe 's/\^\[\[[0-9;]*m//g'` (the codes
@@ -377,11 +377,10 @@ Stages 1 to 7 are done. Stage 8 is under way.
 
 ### Next
 
-Stage 8, the Miri job read on a new nightly (`rule:testing/the-deep-lane`):
-- [ ] Ask the user to push `main` and let the nightly run. The status line says so. `.github/workflows/ci.yml:1185`
-- [ ] Read every `miri-units` shard of that run: each timeout or failure gets a smaller input or a reasoned ignore, csv's rows test first. `crates/nvs-stdlib/src/csv.rs:1674`
-- [ ] If a shard still ends cancelled, weigh the fixed cost per test against the shard count before shrinking more tests. `.github/workflows/ci.yml:1185`
-- [ ] Once every shard ends well inside its timeout, tick the two Miri checkpoints of stage 8. `docs/goals/release-hardening.md:263`
+Stage 8, the last Miri timeouts of run 39185807455, in `nvs-stdlib` and `nvs-runtime` tests (`rule:testing/the-deep-lane`):
+- [ ] A smaller input or a reasoned ignore for the five `nvs-stdlib` tests nothing has touched: `crates/nvs-stdlib/src/lib.rs:708`, `crates/nvs-stdlib/src/ast.rs:1488`, `crates/nvs-stdlib/src/xml.rs:4676`, `crates/nvs-stdlib/src/xml.rs:4757`, `crates/nvs-stdlib/src/xml.rs:5159`.
+- [ ] A smaller Miri input for the three `nvs-runtime` tests whose branch is still too slow on CI: `crates/nvs-runtime/src/floor.rs:1098`, `crates/nvs-runtime/src/identity.rs:830`, `crates/nvs-runtime/src/ctx/output.rs:1262`. Each under 40 s locally (`-p nvs-runtime --features nvs-runtime/sanitizer`).
+- [ ] Then ask the user to push `main`, read the next nightly's shards, and tick the two Miri checkpoints of stage 8 once every shard ends well inside its timeout. `docs/goals/release-hardening.md:263`
 
 ### Backlog
 
@@ -393,6 +392,7 @@ Stage 8, the Miri job read on a new nightly (`rule:testing/the-deep-lane`):
 - Two more unchecked `string`s: a MySQL column name (`crates/nvs-stdlib/src/db/column.rs:67`, also `db/execute.rs:835`, `db/stream.rs:345`), and a signed cookie's plaintext, opened with empty AAD (`crates/nvs-stdlib/src/signed_cookie.rs:309`).
 - `bun nv verify` stops at `crates/nvs-stdlib/tests/spec_registry_coverage.rs:433`: `3a833d02d` deleted the last milestone record, so `data/plan/milestones/` no longer exists, and two tests refuse an empty directory on purpose. The session that retired the milestones decides what replaces them (`tools/nv/cmd/owners.ts:127`).
 - `Core\IO::within` does not refuse what `rule:errors/path-component-refusals` lists, beyond device names (`crates/nvs-stdlib/src/io.rs:3657`).
+- `test / linux-x86_64` on `f8ad800d3`: `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` found no watcher process beside the child, `[]` (`crates/nvs-cli/tests/run_command.rs:778`, added by `2c74f48ae`).
 - `test / macos-aarch64` on `be3e8a605`: the `nvs-cli` `nvs` test binary died of SIGSEGV with no stack-overflow line, after 116 of 247 tests. The test is not named. It needs a run with `--test-threads=1` on macOS (`.github/workflows/ci.yml:131`).
 - CI's warm-start budget still fails, on Linux too: 6.9 ms on `be3e8a605`. A warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`). The budget stays 6 ms and stays one budget for every platform: cut the work until it fits, measuring where each remaining millisecond goes. Raise it only for a cost the tree cannot remove, and name that cost in `ci.yml`'s comment.
 - CI's `proofs` jobs fail on proof debt: stale perf records (`bun nv benches --owed`) and owed proofs (`bun nv proofs --owed`). Stage 10 owns it (`.github/workflows/ci.yml:1`).
