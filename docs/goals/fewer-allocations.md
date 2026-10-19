@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-ir/src/lower/expr.rs]
   - id: 3
     title: "a string carries its hash"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/array.rs]
   - id: 4
     title: "a call into a callback allocates nothing the callback does not take"
@@ -170,10 +170,10 @@ an `int` takes, and only a larger one renders (`rule:types/arrays`).
 decision, and caching the digest changes nothing about which hasher made it. `Borrow<[u8]>` has to go,
 because std has no stable raw-entry API, so the change is contained to `string.rs` and `array.rs`.
 
-- [ ] `StrHeader` caches the digest of its bytes. `crates/nvs-runtime/src/string.rs:169`
-- [ ] The array's index keys on a type whose `Hash` writes the cached word, and a lookup from bare bytes computes it the same way. `crates/nvs-runtime/src/array.rs:26`
-- [ ] A guard test shows a second lookup with the same string hashes nothing. `crates/nvs-runtime/src/array.rs:946`
-- [ ] `string.rs`'s module doc says what the cached word spends per string (`rule:programs/memory-priority`). `crates/nvs-runtime/src/string.rs:1`
+- [x] `StrHeader` caches the digest of its bytes. `crates/nvs-runtime/src/string.rs:169`
+- [x] The array's index keys on a type whose `Hash` writes the cached word, and a lookup from bare bytes computes it the same way. `crates/nvs-runtime/src/array.rs:26`
+- [x] A guard test shows a second lookup with the same string hashes nothing. `crates/nvs-runtime/src/array.rs:946`
+- [x] `string.rs`'s module doc says what the cached word spends per string (`rule:programs/memory-priority`). `crates/nvs-runtime/src/string.rs:1`
 
 ### 4. a call into a callback allocates nothing the callback does not take
 
@@ -256,7 +256,22 @@ and those hits stay.
 
 ### State
 
-Stages 1, 2, 10 and 11 are done. A `uint` subscript branches on its value in
+Stages 1, 2, 3, 10 and 11 are done. A string's header has a fifth word, the SipHash digest an array
+index files it under, filled on the first lookup by `KeyRef::digest` and reset by every in-place write
+that changes `len`. The keys are one `RandomState` per process (`DIGEST_KEYS`), so a cached word is
+right in every array. The index is a `HashMap<Filed, usize>` whose `PassDigest` hasher passes the word
+through, and it is looked up as `dyn Lookup`, so a stored key and a `KeyRef` share one map. Growing an
+index re-files its keys without hashing them. `NvsStr`'s `Hash` and `Borrow<[u8]>` are gone. The
+compiled-code reads (`array::entry`, `nvs_array_has_key`) pass the key's header, and the `&[u8]`
+methods of `NvsArray` hash bare bytes on every call. A string literal is immortal and its data is not
+writable, so `$a["name"]` still hashes on every lookup: `string.rs` § *The cached digest* states it.
+Every string allocation is 8 bytes larger. Codegen reads only the published offsets, so no codegen
+change was needed.
+
+The nightly run 39278827562 tested `2dfe330c6`, which is older than the ldap fix `23b0e6611`, so its
+failure needed no change.
+
+A `uint` subscript branches on its value in
 `Lowering::lower_uint_array_key`: at or under `i64::MAX` it is the same word reinterpreted as an `int`,
 and above it `Helper::UintToString` renders it. The two arms join as a `Ty::Tagged` key. Every runtime
 read already tells a key's tag apart, and `nvs-codegen`'s `emit_tagged_key_array_set` branches on the
@@ -268,9 +283,7 @@ position at 3, `i64::MAX` and `u64::MAX`, and the leak check over the same shape
 playbook trap about a `uint` bench index is deleted.
 
 `NvsArray::overwrite` replaces the value of a live entry through a borrowed key, so
-`core/ObjectMap/set.nvs` counts 0 allocations. The nightly run 39278827562 failed
-`tests/conformance/core/ldap-typed-values.nvst` on a one-second `pwdLastSet` stamp, which `23b0e6611`
-fixed.
+`core/ObjectMap/set.nvs` counts 0 allocations.
 
 `NvsArray::with_capacity` reserves a packed vector, and the hash form takes
 the room over when the first key is not `"0"`; every `Core\Arr` member that knows its result's entry
@@ -289,17 +302,19 @@ The `looper` on PATH has no `verify`; `bun tools/looper/main.ts verify` runs it.
 
 ### Next
 
-**Stage 3: a string carries its hash**, one file set: `crates/nvs-runtime/src/string.rs`,
-`crates/nvs-runtime/src/array.rs`. The array's index is a `HashMap<NvsStr, usize>` keyed through
-`Borrow<[u8]>`, so every lookup hashes the key bytes again. SipHash stays. It is a new field in
-`StrHeader`, so it is a layout change: if codegen reads a fixed `StrHeader` offset, stop and state the
-bound in stage 9 instead (§ *Standing decisions*, small and medium work only).
+**Stage 4: a call into a callback allocates nothing the callback does not take**, one file set:
+`crates/nvs-runtime/src/callable.rs`, `crates/nvs-stdlib/src/arr.rs`. Closes
+`call-through-a-callable-builds-its` and `walk-builds-its-callbacks-key-argument`.
 
-- [ ] `StrHeader` caches the digest of its bytes. `crates/nvs-runtime/src/string.rs:169`
-- [ ] The array's index keys on a type whose `Hash` writes the cached word, and a lookup from bare bytes computes it the same way. `crates/nvs-runtime/src/array.rs:26`
-- [ ] A guard test shows a second lookup with the same string hashes nothing. `crates/nvs-runtime/src/array.rs:946`
-- [ ] `string.rs`'s module doc says what the cached word spends per string (`rule:programs/memory-priority`). `crates/nvs-runtime/src/string.rs:1`
+- [ ] `call_callable` builds its argument slots inline for a small count. `smallvec` is already a workspace dependency. `crates/nvs-runtime/src/callable.rs:184`
+- [ ] A walk reads the callback's arity off `CALLABLE_ARITY_SLOT` before it builds the key, and builds no key for a callback that takes one parameter. `crates/nvs-stdlib/src/arr.rs:4905`
+- [ ] `lang/expressions/calls.nvs` and `core/Arr/find.nvs` declare their new counts (`rule:testing/member-perf-ledger`). `benches/members/lang/expressions/calls.nvs:1`, `benches/members/core/Arr/find.nvs:1`
+- [ ] The two records are deleted. `data/gaps/nvs-runtime/call-through-a-callable-builds-its.json:1`, `data/gaps/nvs-stdlib/walk-builds-its-callbacks-key-argument.json:1`
 
 ### Backlog
+
+- A string literal used as an array key hashes on every lookup, because its header is in the unit's
+  read-only data. It is a stated bound in `crates/nvs-runtime/src/string.rs` § *The cached digest*.
+  Closing it needs a writable digest word per literal, which is a codegen layout change.
 
 - `nvs lsp` grows close to quadratically with the open document's size. It is tooling, not the request path, and goal `editor-fixes` owns its record. `data/gaps/nvs-lsp/open-document-analysis-grows-quadratically.json`

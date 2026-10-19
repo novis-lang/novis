@@ -1,4 +1,4 @@
-//! Novis's refcounted string: one heap allocation, a four-word header, and the
+//! Novis's refcounted string: one heap allocation, a five-word header, and the
 //! bytes inline behind it.
 //!
 //! This is the representation both `nvs_ir::ty::Ty::Str` and
@@ -12,10 +12,10 @@
 //! # Layout
 //!
 //! ```text
-//! offset 0                                          offset size_of::<StrHeader>()
-//! +-------------+-----------+---------+-----------+ +------------------------------+
-//! | refcount    | len       | cap     | graphemes | | cap bytes, the first len live |
-//! +-------------+-----------+---------+-----------+ +------------------------------+
+//! offset 0                                                   offset size_of::<StrHeader>()
+//! +-------------+-----------+---------+-----------+--------+ +------------------------------+
+//! | refcount    | len       | cap     | graphemes | digest | | cap bytes, the first len live |
+//! +-------------+-----------+---------+-----------+--------+ +------------------------------+
 //! ```
 //!
 //! One allocation, not two. A `Box<StrData>` holding a `Box<[u8]>` would be
@@ -78,6 +78,27 @@
 //! tags share this allocation and a `bytes` payload need not be UTF-8, but
 //! nothing ever asks a `bytes` for a grapheme count, so no `bytes` allocation
 //! has a cached one and no seam of one is ever read as text.
+//!
+//! # The cached digest, and what it spends
+//!
+//! An array's index files each key under a SipHash digest of its bytes
+//! ([`crate::array`]'s § *the index map hashes with std's `RandomState`*). The
+//! fifth word keeps that digest, so `$b[$k]` hashes `$k` on the first lookup
+//! and reads the word on every later one, and an index that grows re-files
+//! its keys without hashing any of them again. [`KeyRef::digest`] fills it
+//! **lazily**, for the grapheme count's reason, and every in-place write that
+//! changes `len` resets it to [`DIGEST_UNKNOWN`].
+//!
+//! The digest is keyed once per process ([`DIGEST_KEYS`]), not once per array,
+//! because one cached word has to be right in every array the string meets.
+//! Iteration order is insertion order, so no program can observe a digest,
+//! and the keys stay as secret as a per-array key was.
+//!
+//! What it costs is **8 more bytes per string allocation**: memory footprint
+//! spent on latency. An immortal header is never written, so a string literal
+//! used as a key, `$a["name"]`, still hashes on every lookup. Caching that one
+//! needs a writable word in the compiled unit, which the unit's data does not
+//! have.
 //!
 //! # Why the refcount is a plain `Cell`
 //!
@@ -184,6 +205,11 @@ pub struct StrHeader {
     /// primitives when they can correct a seam — never for an immortal header,
     /// which two requests share and this module's docs say is never written.
     graphemes: Cell<usize>,
+    /// The digest an array index files this payload under, or
+    /// [`DIGEST_UNKNOWN`] while no lookup has needed it. Written by
+    /// [`KeyRef::digest`] on the first lookup, reset wherever `len` is, and
+    /// never written for an immortal header.
+    digest: Cell<u64>,
 }
 
 /// Byte offset of the reference count within [`StrHeader`].
@@ -210,6 +236,115 @@ pub const PAYLOAD_OFFSET: usize = std::mem::size_of::<StrHeader>();
 /// why the state fits in the word rather than costing a second one for a flag.
 pub const COUNT_UNKNOWN: usize = usize::MAX;
 
+/// The cached digest of a string no array lookup has hashed yet.
+///
+/// `0` so that a header [`immortal_header_bytes`] zero-fills already says it.
+/// [`digest_of`] never answers it, so the state costs no word of its own.
+const DIGEST_UNKNOWN: u64 = 0;
+
+/// The keys every array index in this process hashes with.
+///
+/// One per process, not one per map, because a digest cached in a string's
+/// header has to be right for every array the string is later looked up in.
+/// A string a request allocates stays on its thread, and a copy sent to
+/// another thread is a new allocation that starts at [`DIGEST_UNKNOWN`].
+static DIGEST_KEYS: std::sync::OnceLock<std::hash::RandomState> = std::sync::OnceLock::new();
+
+#[cfg(test)]
+thread_local! {
+    /// How many payloads [`digest_of`] has hashed on this thread: what a guard
+    /// test reads to show a lookup that hashed nothing.
+    pub(crate) static DIGESTS_TAKEN: Cell<usize> = const { Cell::new(0) };
+}
+
+/// The digest an array index files `bytes` under: SipHash with this
+/// process's [`DIGEST_KEYS`], never [`DIGEST_UNKNOWN`].
+pub(crate) fn digest_of(bytes: &[u8]) -> u64 {
+    #[cfg(test)]
+    DIGESTS_TAKEN.with(|taken| taken.set(taken.get() + 1));
+    let digest = std::hash::BuildHasher::hash_one(
+        DIGEST_KEYS.get_or_init(std::hash::RandomState::new),
+        bytes,
+    );
+    digest.max(1)
+}
+
+/// An array key to look an entry up by: its bytes, and the header its digest
+/// is cached in where the key is a string.
+///
+/// [`crate::array`]'s index hashes every key through [`KeyRef::digest`], so a
+/// key with a header pays [`digest_of`] once and a bare one on every lookup.
+#[derive(Clone, Copy)]
+pub(crate) struct KeyRef<'a> {
+    bytes: &'a [u8],
+    header: Option<&'a StrHeader>,
+}
+
+impl<'a> KeyRef<'a> {
+    /// Bytes with no string around them, so nothing caches their digest.
+    pub(crate) fn bare(bytes: &'a [u8]) -> Self {
+        Self {
+            bytes,
+            header: None,
+        }
+    }
+
+    /// The payload of `key`, whose header caches its digest.
+    pub(crate) fn of(key: &'a NvsStr) -> Self {
+        Self {
+            bytes: key.as_bytes(),
+            header: Some(key.header()),
+        }
+    }
+
+    /// [`KeyRef::of`] for a raw pointer compiled code passed.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must refer to a live Novis string allocation, and stay live for
+    /// `'a`.
+    #[expect(
+        unsafe_code,
+        reason = "the pointee's liveness is the caller's obligation to state"
+    )]
+    pub(crate) unsafe fn of_raw(ptr: *const StrHeader) -> Self {
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees the pointee is live for 'a"
+        )]
+        unsafe {
+            Self {
+                bytes: NvsStr::bytes_of(ptr),
+                header: Some(&*ptr),
+            }
+        }
+    }
+
+    /// The key's bytes.
+    pub(crate) fn bytes(&self) -> &'a [u8] {
+        self.bytes
+    }
+
+    /// The digest an array index files this key under. The first call on a
+    /// string hashes its payload and caches the result in its header, and
+    /// every later call reads the word. An immortal header is never written,
+    /// for the reason [`remember_count`] gives, so a literal hashes each time.
+    pub(crate) fn digest(&self) -> u64 {
+        let Some(header) = self.header else {
+            return digest_of(self.bytes);
+        };
+        let cached = header.digest.get();
+        if cached != DIGEST_UNKNOWN {
+            return cached;
+        }
+        let digest = digest_of(self.bytes);
+        if header.refcount.get() != IMMORTAL_REFCOUNT {
+            header.digest.set(digest);
+        }
+        digest
+    }
+}
+
 /// The alignment a [`StrHeader`] must be written at.
 ///
 /// Published for `nvs-codegen`, which places one in a data section rather than
@@ -233,7 +368,7 @@ pub const IMMORTAL_REFCOUNT: usize = usize::MAX;
 
 /// The header bytes a compiled unit writes in front of a string literal's
 /// payload, in the host's byte order — the payload itself, because the
-/// grapheme count is one of the four words and a literal's is free here.
+/// grapheme count is one of the five words and a literal's is free here.
 ///
 /// This is the whole of what `nvs-codegen` needs to know about [`StrHeader`]:
 /// it emits these bytes, then the `len` payload bytes, and hands out the
@@ -266,6 +401,8 @@ pub fn immortal_header_bytes(payload: &[u8]) -> [u8; PAYLOAD_OFFSET] {
     ] {
         header[offset..offset + std::mem::size_of::<usize>()].copy_from_slice(&word.to_ne_bytes());
     }
+    // The digest word stays zero, which is `DIGEST_UNKNOWN`: the keys it is
+    // computed with are chosen when the process starts, after this ran.
     header
 }
 
@@ -310,6 +447,7 @@ static EMPTY_IMMORTAL: SharedHeader = SharedHeader(StrHeader {
     // reason: nothing may write this header, so the lazy fill is not available
     // to it. An empty payload has no clusters, so there is nothing to scan.
     graphemes: Cell::new(0),
+    digest: Cell::new(DIGEST_UNKNOWN),
 });
 
 /// The allocation shape for a string with room for `cap` payload bytes.
@@ -672,6 +810,7 @@ impl NvsStr {
                 len: Cell::new(len),
                 cap,
                 graphemes: Cell::new(COUNT_UNKNOWN),
+                digest: Cell::new(DIGEST_UNKNOWN),
             });
         }
         Some(ptr)
@@ -1100,24 +1239,6 @@ impl PartialEq for NvsStr {
 
 impl Eq for NvsStr {}
 
-/// Hashes the payload, and only the payload — never the pointer.
-///
-/// Together with [`Borrow<[u8]>`](std::borrow::Borrow) below this is what lets
-/// [`crate::array`]'s index map be keyed by a handle and looked up by bytes:
-/// a key is stored twice as a pointer, never twice as bytes. The two impls
-/// must agree, which they do because both defer to `<[u8] as Hash>`.
-impl std::hash::Hash for NvsStr {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.as_bytes().hash(state);
-    }
-}
-
-impl std::borrow::Borrow<[u8]> for NvsStr {
-    fn borrow(&self) -> &[u8] {
-        self.as_bytes()
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The primitives compiled code calls
 // ---------------------------------------------------------------------------
@@ -1298,6 +1419,7 @@ unsafe fn concat_onto(lhs: *mut StrHeader, rest: &[*const StrHeader]) -> *mut St
         if reused {
             header.len.set(needed);
             header.graphemes.set(COUNT_UNKNOWN);
+            header.digest.set(DIGEST_UNKNOWN);
         } else {
             nvs_str_release(lhs);
         }
@@ -1473,6 +1595,7 @@ pub unsafe extern "C" fn nvs_str_append(
             std::ptr::copy_nonoverlapping(src, dst, added);
             header.len.set(needed);
             header.graphemes.set(COUNT_UNKNOWN);
+            header.digest.set(DIGEST_UNKNOWN);
             if let Some((held, gained)) = counts
                 && let Some(joined) =
                     joined_count(NvsStr::text_of(target), held + gained, std::iter::once(len))
@@ -1901,7 +2024,7 @@ mod tests {
         assert_eq!(LEN_OFFSET, word);
         assert_eq!(CAP_OFFSET, 2 * word);
         assert_eq!(GRAPHEMES_OFFSET, 3 * word);
-        assert_eq!(PAYLOAD_OFFSET, 4 * word);
+        assert_eq!(PAYLOAD_OFFSET, 5 * word);
     }
 
     #[test]
@@ -1932,6 +2055,29 @@ mod tests {
             );
             assert_eq!(NvsStr::bytes_of(same), b"abcd");
             assert_eq!(NvsStr::refcount_of(same), 1);
+            for ptr in [same, b, c, d] {
+                nvs_str_release(ptr);
+            }
+        }
+    }
+
+    /// An append in place changes the bytes under a cached digest, so it
+    /// resets the digest, and the next lookup hashes the new bytes.
+    #[test]
+    fn appending_in_place_resets_the_cached_digest() {
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            let (b, c, d) = (
+                NvsStr::new(b"b").into_raw(),
+                NvsStr::new(b"c").into_raw(),
+                NvsStr::new(b"d").into_raw(),
+            );
+            let acc = nvs_str_append(NvsStr::new(b"a").into_raw(), b);
+            let grown = nvs_str_append(acc, c);
+            assert_eq!(KeyRef::of_raw(grown).digest(), digest_of(b"abc"));
+            let same = nvs_str_append(grown, d);
+            assert_eq!(same, grown, "the append was made in place");
+            assert_eq!(KeyRef::of_raw(same).digest(), digest_of(b"abcd"));
             for ptr in [same, b, c, d] {
                 nvs_str_release(ptr);
             }

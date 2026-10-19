@@ -33,6 +33,11 @@
 //! SipHash: security over latency, the one direction the ordering allows.
 //! It also means this module adds no dependency at all.
 //!
+//! The digest is computed once per string, not once per lookup:
+//! [`crate::string`]'s § *The cached digest* keeps it in the key's header, and
+//! the index's hasher passes that word through. A lookup by bare bytes, such
+//! as [`NvsArray::get`], hashes them on every call.
+//!
 //! # Decision: a list-shaped array is packed, and hashes nothing
 //!
 //! An array whose keys are exactly `"0"`…`"n−1"` in insertion order stores a
@@ -226,12 +231,14 @@
 //! **one pointer per header**, interned process-wide, so a process pays
 //! O(distinct array types in the program) and an array pays a word.
 
+use std::borrow::Borrow;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::{BuildHasherDefault, Hash, Hasher};
 use std::ptr::NonNull;
 
-use crate::string::{NvsStr, StrHeader};
+use crate::string::{KeyRef, NvsStr, StrHeader};
 use crate::value::Value;
 
 /// One key/value pair, owning one reference to each.
@@ -285,7 +292,7 @@ struct Hashed {
     /// Key to position in [`Hashed::entries`]. Holds its own reference to each
     /// key, which is the same allocation the entry holds: a key is stored
     /// twice as a pointer, never twice as bytes.
-    index: HashMap<NvsStr, usize>,
+    index: Index,
     /// How many of [`Hashed::entries`] are `Some` — the array's `count()`.
     live: usize,
 }
@@ -301,9 +308,89 @@ impl Default for Table {
     }
 }
 
+/// Key to position, hashed by the digest each key's string caches.
+type Index = HashMap<Filed, usize, BuildHasherDefault<PassDigest>>;
+
+/// A key as [`Index`] stores it. It hashes as its string's cached digest, so
+/// growing the index re-files every key without hashing its bytes again.
+struct Filed(NvsStr);
+
+/// What [`Index`] is looked up by: a stored key, or a [`KeyRef`] from a
+/// lookup. Both hash as [`KeyRef::digest`] and compare by bytes, which is
+/// what lets one map take either.
+trait Lookup {
+    fn key(&self) -> KeyRef<'_>;
+}
+
+impl Lookup for Filed {
+    fn key(&self) -> KeyRef<'_> {
+        KeyRef::of(&self.0)
+    }
+}
+
+impl Lookup for KeyRef<'_> {
+    fn key(&self) -> KeyRef<'_> {
+        *self
+    }
+}
+
+impl Hash for dyn Lookup + '_ {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.key().digest());
+    }
+}
+
+impl PartialEq for dyn Lookup + '_ {
+    fn eq(&self, other: &Self) -> bool {
+        self.key().bytes() == other.key().bytes()
+    }
+}
+
+impl Eq for dyn Lookup + '_ {}
+
+/// The same hash as `dyn Lookup`'s, which `Borrow` requires.
+impl Hash for Filed {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.key().digest());
+    }
+}
+
+impl PartialEq for Filed {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_bytes() == other.0.as_bytes()
+    }
+}
+
+impl Eq for Filed {}
+
+impl<'a> Borrow<dyn Lookup + 'a> for Filed {
+    fn borrow(&self) -> &(dyn Lookup + 'a) {
+        self
+    }
+}
+
+/// [`Index`]'s hasher. Every key it sees is already a SipHash digest, so it
+/// passes that word through and computes nothing.
+#[derive(Default)]
+struct PassDigest(u64);
+
+impl Hasher for PassDigest {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, _: &[u8]) {
+        unreachable!("an index key hashes as its digest alone")
+    }
+
+    fn write_u64(&mut self, digest: u64) {
+        self.0 = digest;
+    }
+}
+
 /// One bucket of a key index, its control byte included — what a `HashMap`
 /// holds per entry, and so the stride that prices the index's growth.
-const INDEX_BUCKET: usize = size_of::<NvsStr>() + size_of::<usize>() + 1;
+const INDEX_BUCKET: usize = size_of::<Filed>() + size_of::<usize>() + 1;
 
 /// The slots a store's first allocation takes, however few are asked of it.
 const FIRST_SLOTS: usize = 4;
@@ -396,7 +483,7 @@ impl Table {
             let packed = std::mem::take(values);
             let mut hashed = Hashed {
                 entries: Vec::with_capacity(packed.capacity()),
-                index: HashMap::with_capacity(packed.capacity()),
+                index: Index::with_capacity_and_hasher(packed.capacity(), Default::default()),
                 live: 0,
             };
             for (index, value) in packed.into_iter().enumerate() {
@@ -413,9 +500,9 @@ impl Table {
 
     /// The value at `key`, borrowed: no reference is added, the same way
     /// `nvs_ir::ir::InstKind::FieldGet` reads a property.
-    fn get(&self, key: &[u8]) -> Option<Value> {
+    fn get(&self, key: KeyRef<'_>) -> Option<Value> {
         match &self.shape {
-            Shape::Packed(values) => values.get(packed_index(key)?).copied(),
+            Shape::Packed(values) => values.get(packed_index(key.bytes())?).copied(),
             Shape::Hashed(hashed) => hashed.get(key),
         }
     }
@@ -450,10 +537,10 @@ impl Table {
     /// owned: the entry keeps its key and its position, so nothing is built.
     /// Hands `value` back where `key` is absent. The append counter needs no
     /// note, since it saw `key` when the entry was inserted.
-    fn overwrite(&mut self, key: &[u8], value: Value) -> Result<Value, Value> {
+    fn overwrite(&mut self, key: KeyRef<'_>, value: Value) -> Result<Value, Value> {
         match &mut self.shape {
             Shape::Packed(values) => {
-                match packed_index(key).and_then(|slot| values.get_mut(slot)) {
+                match packed_index(key.bytes()).and_then(|slot| values.get_mut(slot)) {
                     Some(held) => Ok(std::mem::replace(held, value)),
                     None => Err(value),
                 }
@@ -473,7 +560,7 @@ impl Table {
     fn get_index(&self, index: i64) -> Option<Value> {
         match &self.shape {
             Shape::Packed(values) => values.get(usize::try_from(index).ok()?).copied(),
-            Shape::Hashed(hashed) => hashed.get(index.to_string().as_bytes()),
+            Shape::Hashed(hashed) => hashed.get(KeyRef::bare(index.to_string().as_bytes())),
         }
     }
 
@@ -597,9 +684,9 @@ impl Table {
     /// forbids. The counter is untouched either way, so
     /// `$a = [1,2,3]; unset($a[2]); $a[] = 9;` appends at `3` in both shapes,
     /// which is what PHP 8.5 does.
-    fn remove(&mut self, key: &[u8]) -> Option<Value> {
+    fn remove(&mut self, key: KeyRef<'_>) -> Option<Value> {
         if let Shape::Packed(values) = &mut self.shape {
-            match packed_index(key).filter(|slot| *slot < values.len()) {
+            match packed_index(key.bytes()).filter(|slot| *slot < values.len()) {
                 None => return None,
                 Some(slot) if slot + 1 == values.len() => return values.pop(),
                 Some(_) => {}
@@ -724,32 +811,45 @@ impl Table {
 impl Hashed {
     /// The value at `key`, borrowed: no reference is added, the same way
     /// `nvs_ir::ir::InstKind::FieldGet` reads a property.
-    fn get(&self, key: &[u8]) -> Option<Value> {
-        let slot = *self.index.get(key)?;
+    fn get(&self, key: KeyRef<'_>) -> Option<Value> {
+        let slot = self.find(key)?;
         self.entries[slot].as_ref().map(|entry| entry.value)
+    }
+
+    /// The position `key` is indexed at, hashing it only if its digest is not
+    /// cached yet.
+    fn find(&self, key: KeyRef<'_>) -> Option<usize> {
+        self.index.get(&key as &dyn Lookup).copied()
     }
 
     /// Inserts or overwrites, taking over `key`'s and `value`'s references and
     /// handing back whatever it displaced for the caller to release. The
     /// append counter is [`Table`]'s, and is already up to date by here.
+    ///
+    /// One index probe serves both outcomes, so even a key that caches no
+    /// digest, a literal, is hashed once.
     fn set(&mut self, key: NvsStr, value: Value) -> Option<Value> {
-        if let Some(&slot) = self.index.get(key.as_bytes()) {
-            let entry = self.entries[slot]
-                .as_mut()
-                .expect("an indexed slot is always live");
-            return Some(std::mem::replace(&mut entry.value, value));
-        }
         let slot = self.entries.len();
-        self.index.insert(key.clone(), slot);
-        self.entries.push(Some(Entry { key, value }));
-        self.live += 1;
-        None
+        match self.index.entry(Filed(key.clone())) {
+            std::collections::hash_map::Entry::Occupied(found) => {
+                let entry = self.entries[*found.get()]
+                    .as_mut()
+                    .expect("an indexed slot is always live");
+                Some(std::mem::replace(&mut entry.value, value))
+            }
+            std::collections::hash_map::Entry::Vacant(room) => {
+                room.insert(slot);
+                self.entries.push(Some(Entry { key, value }));
+                self.live += 1;
+                None
+            }
+        }
     }
 
     /// Replaces the value of the live entry at `key`, handing back the one it
     /// displaced, or hands `value` back where `key` is absent.
-    fn overwrite(&mut self, key: &[u8], value: Value) -> Result<Value, Value> {
-        let Some(&slot) = self.index.get(key) else {
+    fn overwrite(&mut self, key: KeyRef<'_>, value: Value) -> Result<Value, Value> {
+        let Some(slot) = self.find(key) else {
             return Err(value);
         };
         let entry = self.entries[slot]
@@ -768,8 +868,8 @@ impl Hashed {
     ///
     /// Leaves a hole rather than shifting, then sweeps when the holes
     /// outnumber the live entries — see this module's docs.
-    fn remove(&mut self, key: &[u8]) -> Option<Value> {
-        let slot = self.index.remove(key)?;
+    fn remove(&mut self, key: KeyRef<'_>) -> Option<Value> {
+        let slot = self.index.remove(&key as &dyn Lookup)?;
         let entry = self.entries[slot]
             .take()
             .expect("an indexed slot is always live");
@@ -784,11 +884,11 @@ impl Hashed {
 
     /// Gives the entry at `from` the key `to`, at the same position, and
     /// answers whether it did. `to` must not be present already.
-    fn rename(&mut self, from: &[u8], to: NvsStr) -> bool {
-        let Some(slot) = self.index.remove(from) else {
+    fn rename(&mut self, from: KeyRef<'_>, to: NvsStr) -> bool {
+        let Some(slot) = self.index.remove(&from as &dyn Lookup) else {
             return false;
         };
-        self.index.insert(to.clone(), slot);
+        self.index.insert(Filed(to.clone()), slot);
         let entry = self.entries[slot]
             .as_mut()
             .expect("an indexed slot is always live");
@@ -803,7 +903,7 @@ impl Hashed {
         self.index.clear();
         for (slot, entry) in self.entries.iter().enumerate() {
             let key = &entry.as_ref().expect("holes were just dropped").key;
-            self.index.insert(key.clone(), slot);
+            self.index.insert(Filed(key.clone()), slot);
         }
     }
 
@@ -827,7 +927,7 @@ impl Hashed {
     fn separate(&self) -> Self {
         let mut copy = Self {
             entries: Vec::with_capacity(self.live),
-            index: HashMap::with_capacity(self.live),
+            index: Index::with_capacity_and_hasher(self.live, Default::default()),
             live: self.live,
         };
         for entry in self.entries.iter().flatten() {
@@ -840,7 +940,8 @@ impl Hashed {
             unsafe {
                 entry.value.retain();
             }
-            copy.index.insert(entry.key.clone(), copy.entries.len());
+            copy.index
+                .insert(Filed(entry.key.clone()), copy.entries.len());
             copy.entries.push(Some(Entry {
                 key: entry.key.clone(),
                 value: entry.value,
@@ -1003,7 +1104,7 @@ impl NvsArray {
     /// The value stored at `key`, borrowed rather than retained.
     #[must_use]
     pub fn get(&self, key: &[u8]) -> Option<Value> {
-        self.header().table.borrow().get(key)
+        self.header().table.borrow().get(KeyRef::bare(key))
     }
 
     /// Whether `key` is present — `Core\Arr::hasKey`.
@@ -1081,7 +1182,11 @@ impl NvsArray {
     /// allocation at all.
     pub fn overwrite(&mut self, key: &[u8], value: Value) -> Result<(), Value> {
         self.make_unique();
-        let old = self.header().table.borrow_mut().overwrite(key, value)?;
+        let old = self
+            .header()
+            .table
+            .borrow_mut()
+            .overwrite(KeyRef::bare(key), value)?;
         #[expect(
             unsafe_code,
             reason = "the table owned exactly one reference to the value \
@@ -1191,7 +1296,7 @@ impl NvsArray {
             return;
         }
         self.make_unique();
-        let removed = self.header().table.borrow_mut().remove(key);
+        let removed = self.header().table.borrow_mut().remove(KeyRef::bare(key));
         if let Some(value) = removed {
             #[expect(
                 unsafe_code,
@@ -1216,7 +1321,7 @@ impl NvsArray {
         self.make_unique();
         let mut table = self.header().table.borrow_mut();
         table.note_key(to.as_bytes());
-        table.hashed_mut().rename(from, to)
+        table.hashed_mut().rename(KeyRef::bare(from), to)
     }
 
     /// One past the last slot, holes included. Once it passes eight, at least
@@ -1735,19 +1840,21 @@ pub unsafe extern "C" fn nvs_array_release(ptr: *mut ArrayHeader) {
 
 /// The entry at `key`, or `None` when the key is absent — the one lookup
 /// every read in this module is built out of, and the only one that tells an
-/// absent key from a stored `null`.
+/// absent key from a stored `null`. `key`'s digest is cached in its header,
+/// so a second lookup with the same string hashes nothing.
 ///
 /// # Safety
 ///
-/// `array` must refer to a live Novis array allocation.
+/// `array` must refer to a live Novis array allocation and `key` to a live
+/// Novis string allocation.
 #[expect(
     unsafe_code,
-    reason = "the pointee's liveness is the caller's obligation to state"
+    reason = "the pointees' liveness is the caller's obligation to state"
 )]
-pub(crate) unsafe fn entry(array: *mut ArrayHeader, key: &[u8]) -> Option<Value> {
-    #[expect(unsafe_code, reason = "the caller guarantees the array is live")]
+pub(crate) unsafe fn entry(array: *mut ArrayHeader, key: *const StrHeader) -> Option<Value> {
+    #[expect(unsafe_code, reason = "the caller guarantees both pointees are live")]
     unsafe {
-        (*array).table.borrow().get(key)
+        (*array).table.borrow().get(KeyRef::of_raw(key))
     }
 }
 
@@ -1797,8 +1904,7 @@ pub unsafe extern "C" fn nvs_array_get(
 ) {
     #[expect(unsafe_code, reason = "the caller guarantees every pointee is live")]
     unsafe {
-        let bytes = NvsStr::bytes_of(key);
-        out.write(entry(array, bytes).unwrap_or_default());
+        out.write(entry(array, key).unwrap_or_default());
     }
 }
 
@@ -1847,8 +1953,7 @@ pub unsafe extern "C" fn nvs_array_get_index(array: *mut ArrayHeader, index: i64
 pub unsafe extern "C" fn nvs_array_has_key(array: *mut ArrayHeader, key: *const StrHeader) -> bool {
     #[expect(unsafe_code, reason = "the caller guarantees both pointees are live")]
     unsafe {
-        let bytes = NvsStr::bytes_of(key);
-        (*array).table.borrow().get(bytes).is_some()
+        entry(array, key).is_some()
     }
 }
 
@@ -2462,6 +2567,66 @@ mod tests {
             list.overwrite(b"3", Value::int(8)).is_err(),
             "the next index is not live"
         );
+    }
+
+    /// How many payloads `f` hashed on this thread.
+    fn digests_taken_by(f: impl FnOnce()) -> usize {
+        let taken = || crate::string::DIGESTS_TAKEN.with(Cell::get);
+        let before = taken();
+        f();
+        taken() - before
+    }
+
+    /// A string caches its digest on the first lookup, so a second lookup
+    /// with it hashes nothing, and a key the array already stores is never
+    /// hashed again: not by a lookup, and not by the index growing.
+    #[test]
+    fn a_second_lookup_with_the_same_string_hashes_nothing() {
+        let mut array = NvsArray::new();
+        let names: Vec<String> = (0..100).map(|n| format!("k{n}")).collect();
+        let inserted = digests_taken_by(|| {
+            for name in &names {
+                array.set(key(name), Value::int(1));
+            }
+        });
+        assert_eq!(
+            inserted,
+            names.len(),
+            "the index re-hashed a key as it grew"
+        );
+
+        let probe = key("k7");
+        let lookup = || array.header().table.borrow().get(KeyRef::of(&probe));
+        assert_eq!(digests_taken_by(|| assert!(lookup().is_some())), 1);
+        assert_eq!(digests_taken_by(|| assert!(lookup().is_some())), 0);
+
+        let stored = array.key_at(3).expect("slot 3 is live");
+        let other = NvsArray::new();
+        let by_stored = digests_taken_by(|| {
+            assert!(
+                array
+                    .header()
+                    .table
+                    .borrow()
+                    .get(KeyRef::of(&stored))
+                    .is_some()
+            );
+            assert!(
+                other
+                    .header()
+                    .table
+                    .borrow()
+                    .get(KeyRef::of(&stored))
+                    .is_none()
+            );
+        });
+        assert_eq!(by_stored, 0, "a stored key was hashed again");
+
+        let bare = digests_taken_by(|| {
+            assert!(array.get(b"k7").is_some());
+            assert!(array.get(b"k7").is_some());
+        });
+        assert_eq!(bare, 2, "bare bytes cache nothing");
     }
 
     /// A list renamed at one position converts to the hash form and keeps
