@@ -164,6 +164,17 @@ pub(crate) struct Args {
     // `rule:testing/tests-run-across-every-core`.
     #[arg(long)]
     show_output: bool,
+    /// Also run each `.nvst` case on one shared worker, after its own
+    /// run has passed.
+    ///
+    /// The worker runs every case's program in turn, in the same process,
+    /// as a server runs requests. A case fails when its output there
+    /// differs from its own run. Then the case read something that an
+    /// earlier case left behind. A case that needs a request, arguments,
+    /// environment variables or other files runs only on its own.
+    // `rule:security/isolate-shares-nothing`.
+    #[arg(long, conflicts_with_all = ["list", "update"])]
+    shared_worker: bool,
     /// How a program's `#[Test]` run is reported.
     ///
     /// The default is the human format, and it is what a `.nvst` tree is
@@ -260,6 +271,7 @@ impl Args {
                     .jobs
                     .map_or_else(default_jobs, std::num::NonZeroUsize::get),
                 show_output: self.show_output,
+                shared_worker: self.shared_worker,
             },
             &crate::coverage::Requested {
                 lcov: self.coverage_lcov,
@@ -488,6 +500,7 @@ pub(crate) fn run(
         list,
         jobs,
         show_output,
+        shared_worker: _,
     } = flags;
     // Answered before the compile below, rather than beside the run: what
     // discovery reads is the checked program's own test table, so a listing
@@ -958,6 +971,9 @@ pub(crate) struct Flags {
     /// `--show-output`: each test writes to the terminal as it runs, and
     /// nothing is captured.
     pub(crate) show_output: bool,
+    /// `--shared-worker`: each `.nvst` case also runs on one shared worker
+    /// ([`crate::shared`]). A program's `#[Test]` run refuses it.
+    pub(crate) shared_worker: bool,
 }
 
 /// `--jobs`'s default: the machine's hardware threads, as `nvs_test` counts
@@ -4131,6 +4147,7 @@ mod tests {
                 list: false,
                 jobs: super::default_jobs(),
                 show_output: false,
+                shared_worker: false,
             },
             &crate::coverage::Requested::default(),
         );
@@ -4152,6 +4169,7 @@ mod tests {
                 list: false,
                 jobs: super::default_jobs(),
                 show_output: false,
+                shared_worker: false,
             },
             &crate::coverage::Requested::default(),
         );
