@@ -235,11 +235,14 @@ live bytes per request grow.
   The user decided how: one pass that lists every failure, never a rerun per failure, and a job that
   finishes inside its budget. Measure with one background run and hand off, never round after round
   inside a session.
-  - [ ] Miri runs under nextest, `cargo +nightly miri nextest run`, in CI and locally. Each test gets its
+  - [x] Miri runs under nextest, `cargo +nightly miri nextest run`, in CI and locally. Each test gets its
     own process, so a test Miri cannot run fails alone and the run goes on. TSAN covers the cross-test
     races this gives up.
-  - [ ] A test that does what Miri can never do gets `#[cfg_attr(miri, ignore = "<the reason>")]` on
-    itself, never a module skip and never a CI skip list. Found so far: a Unix socket
+  - [x] A test that does what Miri can never do gets `#[cfg_attr(miri, ignore = "<the reason>")]` on
+    itself, never a module skip and never a CI skip list. 109 in `nvs-stdlib` and 18 in
+    `nvs-runtime` carry one, from the first pass's log. Beyond the list below, they cover `kill`,
+    `access`, `getrusage`, `getloadavg`, a UDP socket, and three Miri gaps: `mkdir` ignores its
+    mode, `jiff` finds no time zone database, and `powi` gains a rounding error. Found so far: a Unix socket
     (`ctx::output::tests::a_context_sends_both_writers_to_syslog_when_the_target_names_it`), `openat`
     (`beneath`'s tests and the runtime's `capability` tests that reach the file doors), a process
     (`child_watch`), `mmap` with a guard page (the `json` depth tests), `ring`'s C and assembly, and
@@ -249,7 +252,8 @@ live bytes per request grow.
     `http::transport` cases are fixed: the `proxy` helper returns `Tunnels`, which closes and joins
     every tunnel when dropped, and the header-injection case joins its origin.
   - [ ] A test that is only slow under Miri runs a smaller input under `cfg!(miri)`, never a skip
-    (the `uri` budget test and the large-text JSON tests). The first full pass found 119 in
+    (the `uri` budget test and the large-text JSON tests). The `uri` budget test is done: it passes
+    under Miri in 27 s. The first full pass found 119 in
     `nvs-stdlib`, 57 passing over 60 s and 62 stopped at five minutes. By module: regex 12, cache 11,
     compress 10, crypto 10, cli 9, jwe 7, sort 6, xml 6, db 5, html 5, password 4, cldr 3, str 3,
     ast 2, http::transport 2, json 2, multipart 2, path 2, registry 2, request 2, topic 2, and one
@@ -269,9 +273,9 @@ live bytes per request grow.
     `sanitizer` feature for `nvs-runtime`'s run instead, for ASAN's reason, with
     `-Zmiri-ignore-leaks` because the cache keeps its blocks by design. The `miri-units` comment
     says why.
-- [ ] Seeded property tests: a grant on `a/secret1` never grants `a/secret`, and every address in a denied range is denied in each of its spellings.
+- [x] Seeded property tests: a grant on `a/secret1` never grants `a/secret`, and every address in a denied range is denied in each of its spellings.
   - [x] The tests are in `crates/nvs-config/tests/capability.rs`, committed as `ae40a9e58`; `cargo test --test capability` passes.
-  - [ ] Verified green and kept.
+  - [x] Verified green and kept.
 - [ ] A nightly soak serves many requests and fails when live bytes grow with the request count. `crates/nvs-runtime/tests/server_memory.rs:1`
 
 ### 9. a security fix gets an advisory, and a release proves what it ships
@@ -316,30 +320,39 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 7 are done. Stage 8 is next.
+Stages 1 to 7 are done. Stage 8 is under way.
 
-- **The unoptimised twin.** `NOVIS_NO_OPTIMISE` in the environment makes `nvs` call
-  `nvs_codegen::compile_unoptimised` before any command compiles, so every unit of that process is
-  at `opt_level` `none` (`crates/nvs-codegen/src/lib.rs:842`), and `cache::unit_for` reads and writes
-  no artifact (`crates/nvs-cli/src/cache.rs:1562`). A bundled app ignores it. The `.nvst` runner's
-  children inherit it. Locally, all 2,948 conformance cases pass with it set, and `--dump-asm`
-  differs at the two levels.
-- **CI.** The `test` job runs the suite a second time with the variable set, on every leg, and the
-  matrix has a `linux-aarch64` leg on `ubuntu-24.04-arm` (`.github/workflows/ci.yml:131`). The compose
-  images all publish arm64. Neither has run on GitHub yet: stage 10's pushed run is their first.
-- `rule:testing/probes-on-is-a-tested-configuration` now says the opt-level half is on disk; its
-  probes half (a suite run with coverage on) is still not.
+- **Property tests.** Done: three seeded cases in `crates/nvs-config/tests/capability.rs` (`ae40a9e58`).
+- **Miri.** `miri-units` (`.github/workflows/ci.yml:1185`) and nextest's `miri` profile are committed.
+  Every test the first pass saw stop on an operation Miri cannot emulate carries its own
+  `#[cfg_attr(miri, ignore = ...)]`: 109 in `nvs-stdlib`, 18 in `nvs-runtime`. Nothing else in the
+  pass was undefined behaviour under Stacked Borrows: `nvs-runtime` had none once it ran on `System`,
+  and `nvs-stdlib` none in the tests that finished.
+- **`nvs-stdlib` leaks under Miri, and `miri-units` does not ignore them.** With a process per test,
+  Miri reported 4,432 leaks over most of the crate's tests: they build reference-counted values by
+  hand and never release them (`arr::tests::mixed_keys`, `crates/nvs-stdlib/src/arr.rs:6694`, is one).
+  Every `nvs-stdlib` shard fails on its first run until either `-Zmiri-ignore-leaks` is set for it too
+  or the tests release what they build. The user picks which.
+- **Timeouts.** 68 tests still pass five minutes: 62 in `nvs-stdlib`, 6 in `nvs-runtime`. Their names
+  are in `.agent-tmp/miri-timeouts.txt`, and the full logs are `.agent-tmp/miri-nx-<crate>.log`.
+- **Local runs** go from the WSL mirror `/var/tmp/nvs-target-wsl-src/mnt-e-mwl`, brought up to date
+  with `syncMirror` from `tools/nv/accept/mirror.ts`, and `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl`.
+- **Verify.** This session's `looper verify` passed build, fmt, 7,235 tests and the selected cases,
+  and stopped at clippy on two `eprintln!` lines in another session's uncommitted
+  `crates/nvs-stdlib/src/regex.rs:2577`. The five steps after clippy did not run.
 - The nightly the sweep listed is again `1a78b49ef`, the same stale remote `main` as before.
 
 ### Next
 
-Stage 8, on `crates/nvs-cli/src/runner.rs`, `crates/nvs-test/src/run.rs` and `.github/workflows/ci.yml` (`rule:testing/the-deep-lane`):
-- [ ] A runner mode sends many cases through one worker and compares each output with its fresh run. `crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`
-- [ ] The Miri job runs the `nvs-runtime` and `nvs-stdlib` unit tests that need no JIT. `.github/workflows/ci.yml:1104`
-- [ ] Seeded property tests for path grants and the address table. `crates/nvs-runtime/src/capability.rs:552`, `crates/nvs-config/src/capability.rs:262`
+Stage 8, Miri's slow tests, on the files that hold them (`rule:testing/the-deep-lane`):
+- [ ] The 62 `nvs-stdlib` timeouts take a smaller input under `cfg!(miri)`, starting with the JSON depth and large-text tests. `crates/nvs-stdlib/src/json.rs:3943`
+- [ ] The 6 `nvs-runtime` timeouts do the same. `crates/nvs-runtime/src/array.rs:3160`
+- [ ] Lower `nvs-runtime` to 2 shards. `.github/workflows/ci.yml:1185`
+- [ ] Then the runner mode that sends many cases through one worker. `crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`
 
 ### Backlog
 
+- `nvs-runtime`'s pool hands a block back through a pointer narrowed to its last owner's size. Exposing each block's provenance and rebuilding the pointer in `push` and the same-class `realloc` removed the report, but no unit test reproduced it, and the user chose the `sanitizer` feature instead (`crates/nvs-runtime/src/alloc.rs:176`).
 - The `linux-aarch64` leg and the unoptimised suite step have never run on GitHub. Read both on stage 10's first pushed run before anything else on it (`.github/workflows/ci.yml:131`).
 - The suite's probes-on run is still owed: the coverage flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:2394`, `rule:testing/probes-on-is-a-tested-configuration`).
 
