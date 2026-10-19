@@ -130,6 +130,8 @@
 
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { wslBuildLine } from "../accept/legs.ts";
+import { mirrorPath, syncMirror, wslPath } from "../accept/mirror.ts";
 import { lspFrame } from "../lib/lsp.ts";
 import { abs, DISCARD_PROFILE, rel, ROOT } from "../lib/paths.ts";
 import { progress } from "../lib/progress.ts";
@@ -179,7 +181,31 @@ const COMPLEXITY_RE = /(?:\/\/|#)\s*bench:\s*complexity\s+(\S+)/;
 const SIZE_RE = /(?:\/\/|#)\s*bench:\s*(start|max)\s+([0-9_]+)/g;
 /** `==12345== Collected : 987654321`, the instruction total callgrind prints at exit. */
 const COLLECTED_RE = /Collected\s*:\s*(\d+)/;
-export const DEFAULT_WSL_NVS = "/var/tmp/nvs-target-wsl/debug/nvs";
+/** The WSL target directory the WSL leg and `nv garden` build in, which `DEFAULT_WSL_NVS` is in. */
+const WSL_TARGET = "/var/tmp/nvs-target-wsl";
+export const DEFAULT_WSL_NVS = `${WSL_TARGET}/debug/nvs`;
+
+/** The one build of `DEFAULT_WSL_NVS` this process runs, once a ramp first needs callgrind. */
+let wslBuild: Promise<void> | null = null;
+
+/**
+ * On Windows, brings `DEFAULT_WSL_NVS` up to this working tree before callgrind first runs it: the
+ * distro's mirror is synced and `cargo build` runs there, which is seconds when nothing changed. A
+ * binary nothing rebuilt would measure an older tree and record its counts as this one's. A path
+ * `--wsl-nvs` names is the caller's, and runs as given.
+ */
+function currentWslNvs(path: string): Promise<void> {
+  if (process.platform !== "win32" || path !== DEFAULT_WSL_NVS) return Promise.resolve();
+  wslBuild ??= (async () => {
+    const mirror = mirrorPath(WSL_TARGET, wslPath(ROOT));
+    const synced = await syncMirror(mirror);
+    if (synced !== "") throw new PerfError(`the WSL copy of the tree could not be synced: ${synced}`);
+    const build = Bun.spawn(["wsl.exe", "--exec", "bash", "-lc", wslBuildLine(mirror, WSL_TARGET)], { stdout: "pipe", stderr: "pipe" });
+    const [code, err] = await Promise.all([build.exited, new Response(build.stderr).text()]);
+    if (code !== 0) throw new PerfError(`the WSL build of nvs exited ${code}: ${err.trim().split(/\r?\n/).at(-1) ?? ""}`);
+  })();
+  return wslBuild;
+}
 
 /** One batch: its size, its totals, and the fastest plain run in nanoseconds. */
 export interface Batch {
@@ -463,6 +489,7 @@ async function timeRun(nvs: string, copy: string, bench: string, reps: number): 
 
 /** Callgrind's instruction total for one `nvs <command> <file>`. */
 async function instructions(opts: Options, command: string, file: string, bench: string): Promise<number> {
+  await currentWslNvs(opts.wslNvs);
   const argv = ["valgrind", "--tool=callgrind", "--callgrind-out-file=/dev/null", process.platform === "win32" ? opts.wslNvs : opts.nvs, command, file];
   const out = await spawnProof(process.platform === "win32" ? ["wsl.exe", "--", ...argv] : argv, file, TIMEOUT_MS * 4, { unlogged: true });
   const m = COLLECTED_RE.exec(out.stderr);
@@ -704,6 +731,7 @@ async function lspInstructions(opts: Options, printed: string, bench: string): P
   if (script === null) throw new PerfError(`the document ${bench} printed marks no \`${CURSOR}\` cursor`);
   const feed = printed.replace(/\.nvs$/, ".lspin");
   writeFileSync(abs(feed), script.map(lspFrame).join(""));
+  await currentWslNvs(opts.wslNvs);
   const nvs = process.platform === "win32" ? opts.wslNvs : opts.nvs;
   const shell = ["sh", "-c", `valgrind --tool=callgrind --callgrind-out-file=/dev/null '${nvs}' lsp < '${feed}'`];
   const out = await spawnProof(process.platform === "win32" ? ["wsl.exe", "--", ...shell] : shell, printed, TIMEOUT_MS * 4, { unlogged: true });
