@@ -1,9 +1,8 @@
 <?nvs
 // Measures setting a gauge, as a server does after each job to report how many are still waiting.
-// bench: iterations 256
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
-// proof: gap nvs-stdlib/a-metrics-write-allocates-on-every-call
 
 class Bench {
     public static function run(uint $rounds): uint {
@@ -19,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(256), "\n";
+echo Bench::run(2048), "\n";
