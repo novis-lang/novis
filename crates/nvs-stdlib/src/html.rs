@@ -3176,7 +3176,7 @@ mod tests {
     /// so the steps per tag stay under a small multiple of the cap.
     #[test]
     fn every_walk_over_the_stack_of_open_elements_is_bounded_by_the_cap() {
-        const COUNT: usize = if cfg!(miri) { 96 } else { 20_000 };
+        const COUNT: usize = if cfg!(miri) { 48 } else { 20_000 };
         let cases = [
             ("<div>".repeat(COUNT), COUNT),
             ("<span>".repeat(COUNT) + &"</x>".repeat(COUNT), 2 * COUNT),
