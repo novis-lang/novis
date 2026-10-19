@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-stdlib/src/xml.rs, crates/nvs-stdlib/src/http/stream.rs, crates/nvs-stdlib/src/json.rs]
   - id: 7
     title: "a constant is built once, when the unit is compiled"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-codegen/src/emit.rs]
   - id: 8
     title: "Core\\BigInt converts text in sub-quadratic time, or caps its digits"
@@ -223,10 +223,10 @@ calls builds an `NvsArray` for its variadic tail and parses the template again. 
 is the commonest flag left, and a per-placeholder conversion helper would take it and every other flag
 out of the call.
 
-- [ ] A written duration is an immortal constant in the compiled unit (`rule:types/duration`). `crates/nvs-ir/src/lower/expr.rs:2803`
-- [ ] Two identical string literals in one unit share one data object. `crates/nvs-codegen/src/emit.rs:1318`
-- [ ] A literal `Core\Str::format` template with `%0Nd` compiles without a call. `crates/nvs-types/src/expr_table.rs:1416`, `crates/nvs-ir/src/lower/expr.rs:2371`
-- [ ] The two records are deleted. `data/gaps/nvs-ir/a-written-duration-is-built-at.json:1`, `data/gaps/nvs-codegen/two-identical-string-literals-are-two-data-objects.json:1`
+- [x] A written duration is an immortal constant in the compiled unit (`rule:types/duration`). `crates/nvs-ir/src/lower/expr.rs:2803`
+- [x] Two identical string literals in one unit share one data object. `crates/nvs-codegen/src/emit.rs:1318`
+- [x] A literal `Core\Str::format` template with `%0Nd` compiles without a call. `crates/nvs-types/src/expr_table.rs:1416`, `crates/nvs-ir/src/lower/expr.rs:2371`
+- [x] The two records are deleted. `data/gaps/nvs-ir/a-written-duration-is-built-at.json:1`, `data/gaps/nvs-codegen/two-identical-string-literals-are-two-data-objects.json:1`
 
 ### 8. Core\BigInt converts text in sub-quadratic time, or caps its digits
 
@@ -263,53 +263,48 @@ and those hits stay.
 
 ### State
 
-Stages 1, 2, 3, 4, 5, 6, 10 and 11 are done. Stage 6's last slice landed this session:
+Stages 1 to 7, 10 and 11 are done. Stage 7 landed this session in three slices:
 
-- The JSON decoder's issues are `Issue<'a>` (`crates/nvs-stdlib/src/json.rs:2594`): a `Vec` of
-  `Segment::Key(&'a str)` or `Segment::At(usize)`, innermost first and relative to the value that
-  failed, plus the message. A field's own failure has an empty path. `Fields::place` pushes the
-  field's key onto every issue it takes, `Positions::receive` pushes `self.next - 1`, and a scalar
-  position pushes its own `at`. `decode_object` pushes its list `at` and renders each path once.
-  `Fields::prefix`, `Positions::path` and `path_of` are gone, so a `Build` frame went from 152 to
-  128 bytes, and its `const` assertion is now `<= 128`.
-- `benches/members/core/Json/decodeAs.scale.nvs` now ramps the depth (32 to 512) of a class that
-  contains itself. It used to ramp one string's length, which `decode.scale.nvs` already covers. Its
-  growth is flat. The four `Core\Json` figures are re-recorded, and `bun nv proofs --gate` owes
-  nothing.
-- The prefix record is deleted. `json.rs` still has one gap, `a-json-array-decodes-into-a`, which
-  goal `release-hardening` owns.
+- Identical string literals in one unit share one data object. `emit::Literals`
+  (`crates/nvs-codegen/src/emit.rs:113`) holds the name counter and a map from bytes to `DataId`,
+  and `immortal_str_data` looks the bytes up first. The map is compile-time memory, one entry per
+  distinct literal, dropped with the unit builder.
+- A written duration is `InstKind::ConstDuration(i64)` (`crates/nvs-ir/src/ir.rs`), emitted by
+  `emit_const_duration` as an immortal `CoreTimeDuration` in the data section, with its class word
+  relocated and the count in slot 0. Each written site is its own object, so `90m == 1h30m` stays
+  `false` (the conformance case pins it), and a function returning `30s` returns the same object
+  twice. `rule:types/duration` says so. `nvs_types::CORE_DURATION_FROM_NANOS` is gone.
+- A literal `CoreStr::format` placeholder with a flag, a width, a precision or an integer conversion
+  over `int`/`uint` (or `%s` over those or a `string`) is `FormatPiece::Converted`
+  (`crates/nvs-types/src/expr_table.rs:1420`). It lowers to one call of the row-less
+  `nvs_stdlib::format::PIECE_SYMBOL`, which runs the member's own renderer over that one placeholder.
+  `converts_without_throwing` (`crates/nvs-types/src/intrinsics.rs`) admits only placeholders that
+  cannot throw, with numbers of at most four digits. An argument number (`%1$d`) and float
+  conversions still call the member.
+- Both records are deleted. `CoreStr::format` now declares `calls 1` and was re-recorded: 2
+  allocations per op, down from 9. The 19 `CoreTimeDuration` figures were re-recorded and pass.
 
-Six gap records name this goal, so the `owners` check stays red until stage 9.
+Six gap records still name this goal, so the `owners` check stays red until stage 9.
 
 Another session had uncommitted edits in `crates/nvs-cli/src/{cache,serve,testing}.rs` while this
 one ran. They were not touched or staged here.
 
 The callgrind leg of the perf proof runs `/var/tmp/nvs-target-wsl/debug/nvs`, which nothing rebuilds.
-It was 17 hours old this session. `syncMirror` from `tools/nv/accept/mirror.ts` and then
-`wslBuildLine` from `tools/nv/accept/legs.ts` rebuild it in about two minutes.
-
-The nightly run 39306106377 was cancelled because a later dispatch (39307361674) took over its
-concurrency group. Nothing failed in it.
+`syncMirror` from `tools/nv/accept/mirror.ts` and then `wslBuildLine` from
+`tools/nv/accept/legs.ts` rebuild it in about two minutes.
 
 The `looper` on PATH has no `verify`; `bun tools/looper/main.ts verify` runs it.
 
 ### Next
 
-**Stage 7: a constant is built once, when the unit is compiled.** Closes
-`a-written-duration-is-built-at` and `two-identical-string-literals-are-two-data-objects`. Its items
-and anchors are under § *Stages*:
+**Stage 8: `CoreBigInt` converts text in sub-quadratic time, or caps its digits.** Its items and
+anchors are under § *Stages*. Its `**Split:**` line names the `Explore` question to ask first.
 
-- [ ] A written duration is an immortal constant in the compiled unit. `crates/nvs-ir/src/lower/expr.rs:2803`
-- [ ] Two identical string literals in one unit share one data object. `crates/nvs-codegen/src/emit.rs:1318`
-- [ ] A literal `Core\Str::format` template with `%0Nd` compiles without a call. `crates/nvs-types/src/expr_table.rs:1416`, `crates/nvs-ir/src/lower/expr.rs:2371`
-
-Check the anchors first, because they were written before stages 3 and 11 moved `expr.rs`. Stage 8
-(`Core\BigInt`) is a lane of its own and may run first instead. Its `**Split:**` line names the
-`Explore` question to ask before anything else.
-
-A change in `nvs-runtime` that lowers a count is not seen by a bench whose figure is keyed on another
-file. Re-measure every bench that reaches the changed path with `bun nv proofs --record-perf --force
---only <id> ...`. Rebuild the WSL binary first if a bench's counts may fall to 0.
+Before that, one leftover of stage 7: about 25 benches outside `CoreTimeDuration` write a duration
+literal (`CoreJwt`, `CoreNet*`, `CoreRateLimit*`, `CoreCache-Store`, `CoreTime-Instant`
+and others; `grep -rlE "[0-9]+(ms|s|m|h|d|w)" benches/members`). Their figures are keyed on
+other files, so a count that fell is not seen. Re-measure them with `bun nv proofs --record-perf
+--force --group <group>`, and lower any declaration that now over-states.
 
 ### Backlog
 
