@@ -605,6 +605,7 @@ export default defineConfig({
                 { label: 'Property hooks', link: '/syntax/classes/property-hooks/' },
                 { label: 'Working with objects', link: '/syntax/classes/objects/' },
                 { label: 'Anonymous objects and shapes', link: '/syntax/classes/anonymous-objects/' },
+                { label: 'Property names as values', link: '/syntax/classes/property-names/' },
               ],
             },
             {

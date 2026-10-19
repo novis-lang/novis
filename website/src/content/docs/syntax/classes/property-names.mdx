@@ -1,0 +1,27 @@
+---
+title: Property names as values
+covers: ['lang:types/property-keys', 'lang:types/property-paths', 'lang:types/strings-with-holes']
+description: How property<T>, propertyPath<T> and string<K> check the name of a property that your program gets while it runs.
+---
+import FeatureSection from '@components/FeatureSection.astro'
+
+Sometimes the name of a property comes from a web address, a form or a JSON body. These three types
+check that the name is right. A name written in the code is checked when the program compiles.
+
+<FeatureSection examples="lang/types/property-keys" heading="Property keys" id="property-keys" />
+
+<FeatureSection examples="lang/types/property-paths" heading="Property paths" id="property-paths" />
+
+<FeatureSection examples="lang/types/strings-with-holes" heading="Strings with holes" id="strings-with-holes" />
+
+## Use this when a name comes from outside
+
+Use `property<T>` for one property of one class. Use `propertyPath<T>` when the name goes through
+related objects, such as `customer.address.city`. Use `string<K>` for a longer text that contains
+names, such as a query condition.
+
+## Do and don't
+
+- Do convert a name from a request with `as ?property<T>`, and handle `null`.
+- Do write a fixed name in the code, so the compiler checks it.
+- Don't make a property public only so that a key can name it.

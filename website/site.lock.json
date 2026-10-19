@@ -72,6 +72,11 @@
     "PropertyGuard": "763425ca905233c2",
     "PropertyObserver": "80600e979a7d8483"
   },
+  "syntax/classes/property-names.mdx": {
+    "lang:types/property-keys": "381cdbd82efc948e",
+    "lang:types/property-paths": "949780cf665a47e2",
+    "lang:types/strings-with-holes": "23db830717d59d6a"
+  },
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "391e6f137abae931",
     "lang:classes/comparable": "2e6cd7158e386a00",
