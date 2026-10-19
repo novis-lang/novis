@@ -4670,19 +4670,25 @@ mod tests {
 
     /// An attribute of two million `"` characters is two megabytes in the tree
     /// and twelve once `source` escapes it. `source` asks the budget before it
-    /// writes, so the request stops near its ceiling instead of past it.
+    /// writes, so the request stops near its ceiling instead of past it. Under
+    /// Miri the attribute is 32,000 characters and the limit 128 KiB.
     // covers: Core\Xml\Node::source
     #[test]
     fn source_stops_at_the_memory_limit_before_it_escapes() {
+        let (quotes, limit) = if cfg!(miri) {
+            (32_000, 128 << 10)
+        } else {
+            (2_000_000, 8 << 20)
+        };
         let mut ctx = Ctx::buffered();
-        ctx.set_memory_limit(8 << 20);
-        let source = word(&format!("<t v='{}'/>", "\"".repeat(2_000_000)));
+        ctx.set_memory_limit(limit);
+        let source = word(&format!("<t v='{}'/>", "\"".repeat(quotes)));
         let tree =
             call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("the tree fits the limit");
         dropped(source);
         assert!(call(super::nvs_core_xml_node_source, &mut ctx, &[tree]).is_err());
         assert!(
-            ctx.memory_peak() < 16 << 20,
+            ctx.memory_peak() < 2 * limit,
             "{} bytes at the peak",
             ctx.memory_peak()
         );
@@ -4751,7 +4757,9 @@ mod tests {
     /// all escaped. The names a tag carries are the tag's alone, so the same name
     /// is accepted again on the next element. Twenty thousand names on one tag
     /// are accepted and the first is still refused a second time, which a check
-    /// that scanned every earlier name could only do in quadratic time.
+    /// that scanned every earlier name could only do in quadratic time. Under
+    /// Miri the tag carries fifty names, because each write there rechecks
+    /// every piece written before it. The native run keeps the pin.
     // covers: Core\Xml\Writer::attribute
     #[test]
     fn attribute_values_parse_back_and_names_are_checked_per_tag() {
@@ -4776,7 +4784,8 @@ mod tests {
         wrote(asked(&mut ctx, attribute, &[writer, id, value]));
         wrote(asked(&mut ctx, end, &[writer]));
         wrote(asked(&mut ctx, start, &[writer, row]));
-        let names: Vec<Value> = (0..20_000).map(|at| word(&format!("a{at}"))).collect();
+        let carried = if cfg!(miri) { 50 } else { 20_000 };
+        let names: Vec<Value> = (0..carried).map(|at| word(&format!("a{at}"))).collect();
         for name in &names {
             wrote(asked(&mut ctx, attribute, &[writer, *name, id]));
         }
@@ -4795,7 +4804,7 @@ mod tests {
         let root = &tree.children[0];
         assert_eq!(root.attributes, [("id".to_owned(), raw.to_owned())]);
         assert_eq!(root.children[0].attributes, root.attributes);
-        assert_eq!(root.children[1].attributes.len(), 20_000);
+        assert_eq!(root.children[1].attributes.len(), carried);
 
         dropped(document);
         for name in names {
@@ -5204,6 +5213,15 @@ mod tests {
         );
         dropped(document);
 
+        // The ceiling is a constant, so this half has no smaller input. Under
+        // Miri each write rechecks every piece written before it, and the
+        // half takes minutes, so it runs only outside Miri.
+        if cfg!(miri) {
+            for held in words.into_iter().chain([writer]) {
+                dropped(held);
+            }
+            return;
+        }
         let deep = pen(&mut ctx, "");
         wrote(asked(
             &mut ctx,

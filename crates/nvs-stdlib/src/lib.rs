@@ -704,6 +704,7 @@ mod tests {
     /// carry, which is a rule about that member rather than about the grammar,
     /// so civil patterns are what the
     /// accepted half offers it.
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn every_intrinsic_argument_written_in_the_code_prepares_the_artifact_the_runtime_builds() {
         use nvs_runtime::{Ctx, Fault, Value};
