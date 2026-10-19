@@ -1,3 +1,7 @@
+`nvs test main.nvs` runs the tests in `main.nvs` and in the files it loads. `autoload` loads only the
+classes the program uses. A test class that the program never names does not run. `nvs test .`
+runs it.
+
 `nvs test tests/` runs every `.nvs` file in `tests/` and its subfolders as one program. One file
 there requires the entry file of your application, and its name can be anything. The statements
 outside the classes do not run, in any of the files.
