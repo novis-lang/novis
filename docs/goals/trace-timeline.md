@@ -59,7 +59,7 @@ stages:
     context: [docs/reference/tools/10-cli.md, docs/rules/testing/feature-proofs.md, docs/rules/observability/speedscope-timeline-export.md, benches/members/README.md]
     extra:
       context:
-        rules: [testing/feature-proofs, observability/speedscope-timeline-export, testing/userland-benchmarks]
+        rules: [testing/feature-proofs, observability/speedscope-timeline-export, testing/member-perf-ledger]
 checks:
   - id: owners-closes
     stage: 8
@@ -188,7 +188,7 @@ the Novis tests and the attacks; then the benches. The session checks each batch
 
 - [ ] `about.md` and three examples for each new member (`rule:testing/feature-proofs`). `docs/examples/core/Debug/startTrace/about.md:1`
 - [ ] A Novis test and an attack for each: a request that writes a trace or profile without the grant fails (`rule:testing/feature-proofs`). `tests/hostile/core/Debug/startTrace/01-without-the-grant.nvs:1`
-- [ ] A bench for each, with its growth (`rule:testing/userland-benchmarks`). `benches/members/core/Debug/startTrace.nvs:1`
+- [ ] A bench for each, with its growth (`rule:testing/member-perf-ledger`). `benches/members/core/Debug/startTrace.nvs:1`
 - [ ] `bun nv proofs --id 'core/Debug'` prints nothing owed. `tools/nv/proofs/roster.ts:1`
 
 ### 3. a spawned isolate's probe data comes back on its result
@@ -234,7 +234,7 @@ speedscope file, so it runs beside stages 1 to 4.
 `bun nv proofs --id 'tools:cli/profiling'` prints.
 
 - [ ] A `# Profiling` section in the CLI chapter, which states the probe's cost. `docs/reference/tools/10-cli.md:302`
-- [ ] A bench of the probe's cost per call, with its growth (`rule:testing/userland-benchmarks`). `benches/members/tools/cli/profiling.nvs:1`
+- [ ] A bench of the probe's cost per call, with its growth (`rule:testing/member-perf-ledger`). `benches/members/tools/cli/profiling.nvs:1`
 - [ ] `about.md` and three examples (`rule:testing/feature-proofs`). `docs/examples/tools/cli/profiling/about.md:1`
 - [ ] An attack: a request cannot write a profile without the grant (`rule:testing/feature-proofs`). `tests/hostile/tools/cli/profiling/01-a-profile-without-the-grant.nvs:1`
 - [ ] `bun nv proofs --id 'tools:cli/profiling'` prints nothing owed, and `bun nv owners --closes trace-timeline` passes. `tools/nv/proofs/roster.ts:209`

@@ -166,9 +166,8 @@ crates/             the Cargo workspace
 benches/
   abi-probe         architecture invariants + cost baselines  [audited unsafe]
   serve-probe       the load generator of the server's throughput leg
-  userland          the same program in Novis and in PHP, for `bun nv bench`
   members           per-`Core`-member figures, and their calibration
-  serve             the request-path pair the server comparison runs
+  serve             the request-path pair the proxied comparison runs
   proxied           compose files, nginx and PHP configuration for the proxied comparison
 tests/              the case trees: conformance, db, hostile, config, fmt, lsp, docker
 examples/           `.nvs` programs the guard tests and the docs compile

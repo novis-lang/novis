@@ -172,7 +172,7 @@
 //!   you spend*: at most **~2 MB per thread** that has touched every size
 //!   class — 16 classes of 16 bytes up to 256, 512 blocks each — held until
 //!   the process exits and never returned to the platform. That is memory
-//!   footprint spent on a latency gain the userland suite measures, and it is **O(threads), never O(requests served)**: the cache
+//!   footprint spent on a latency gain on every small allocation, and it is **O(threads), never O(requests served)**: the cache
 //!   is not per request, does not grow with traffic, and holds no
 //!   request-owned bytes. A debug build is left on the platform heap so
 //!   valgrind still sees every free, and the `sanitizer` feature extends that

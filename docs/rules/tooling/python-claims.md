@@ -18,8 +18,7 @@ install; that argument parsing, help, completions, colour, prompts and progress 
 that any function may suspend, so there is no `async` split through the library; that shelling out
 through a string (`rule:core-classes/process-is-argv-only`), leaking a secret
 (`rule:security/secret-qualifier`) and interpolating a query (`rule:security/tainted-qualifier`) are
-compile errors; and any **measured** figure from the userland suite
-(`rule:tooling/bench-engine-list-is-data`), quoted with its engine, mode and host.
+compile errors; and any **measured** figure, quoted with its engine, mode and host.
 
 **Forbidden in any document, error message, `--help` text or landing page:** "faster than Python",
 "replaces Python", "Python without the GIL", "a typed Python", or any phrasing implying a Python

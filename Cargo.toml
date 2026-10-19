@@ -1,17 +1,16 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "benches/*"]
-# `benches/userland/` holds the Novis and PHP sources of the userland benchmark
-# pair — `.nvs`/`.php` files a harness runs, not a Rust crate — so the
-# `benches/*` glob above would otherwise look for a `Cargo.toml` that will
-# never exist and fail the whole workspace before a single crate is read.
-# `benches/members/` is the same shape for the per-feature figures its own
-# README describes, `benches/scaling/` for the ladders `bun nv scaling` runs,
-# and `benches/serve/` for the twin pair `bun nv bench
-# --serve-vs-fpm` runs under two servers and the `echo.nvs` case
-# `bun nv bench-load` verifies against. `benches/serve-probe/` next to it is a
-# crate and is not excluded: it is that leg's generator. `benches/proxied/` is compose files,
-# an nginx and a PHP configuration and a Dockerfile, for the same reason.
+# `benches/members/` holds the per-feature figures its own README describes —
+# `.nvs` files a harness runs, not a Rust crate — so the `benches/*` glob above
+# would otherwise look for a `Cargo.toml` that will never exist and fail the
+# whole workspace before a single crate is read. `benches/scaling/` is the same
+# shape for the ladders `bun nv scaling` runs, and `benches/serve/` for the
+# `hello` pair `bun nv bench-proxied` runs under two servers and the `echo.nvs`
+# case `bun nv bench-load` verifies against. `benches/serve-probe/` next to it
+# is a crate and is not excluded: it is that leg's generator. `benches/proxied/`
+# is compose files, an nginx and a PHP configuration and a Dockerfile, for the
+# same reason.
 # `benches/compare/` is the same shape for `bun nv bench-compare`, with a case
 # program per peer beside them.
 # `benches/results/` is JSON: the loop's acceptance sweep writes a `--record` row
@@ -28,7 +27,7 @@ members = ["crates/*", "benches/*"]
 # `extensions/` holds the crates of the components built into every binary. They
 # are compiled for `wasm32-wasip2` by a build script, never for the host as
 # members (`rule:packaging/the-first-party-components-are-built-in`).
-exclude = ["benches/userland", "benches/members", "benches/serve", "benches/proxied",
+exclude = ["benches/members", "benches/serve", "benches/proxied",
            "benches/compare", "benches/results", "benches/scaling", "vendor", "extensions"]
 
 # ---------------------------------------------------------------------------

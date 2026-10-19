@@ -389,7 +389,7 @@ export function perfReport(out: string[]): number {
     "bench program is. `rule:testing/member-perf-ledger` is what the columns mean.",
     "",
     "Every figure is Novis against **itself**: there is no PHP column here and there never will",
-    "be — [`benches/userland/`](../../benches/userland/README.md) owns the cross-engine",
+    "be — [`benches/compare/`](../../benches/compare/README.md) owns the website's",
     "comparison. The **counts** — statements, calls, allocations, bytes, each per operation",
     "with the empty program's share subtracted — are what the program did, and are the same on",
     "every machine for the same commit, so their `Δ` is against the previous record wherever it",

@@ -28,7 +28,7 @@
 // | heavy check | its twin | held besides |
 // |---|---|---|
 // | a release `cargo test` | the same test binaries and filters, with `--include-ignored`, since a release-only test is ignored in debug | `profile:optimized` |
-// | `bun nv bench` on the release CLI | the same bench on the covws `nvs`, one rep, nothing recorded | `profile:optimized` |
+// | `bun nv bench` on the release CLI | the same bench on the covws `nvs`, one rep, no budget | `profile:optimized` |
 // | the database matrix | its SQLite leg (`db-matrix.ts` `sqliteLeg`) | every file of `nvs-db`, whose server drivers only a server leg runs, and `platform:elsewhere` for the socket legs |
 // | fuzz, TSan | none: they build inside WSL | `heavyKeys`, every file of the crates they build, and `platform:elsewhere` |
 //
@@ -364,17 +364,15 @@ export function suiteBinaries(graph: Graph, args: string[]): string[] {
   return out;
 }
 
-/** `bun nv bench` as its twin runs it: on the covws `nvs`, one rep and few requests, with no budget to
- * fail and nothing written. */
+/** `bun nv bench` as its twin runs it: on the covws `nvs` and one rep, with no budget to fail. */
 export function benchTwin(argv: string[]): string[] {
-  const valued = new Set(["--record", "--max-work-ms", "--max-ms", "--nvs", "--reps", "--json", "--requests"]);
+  const valued = new Set(["--max-work-ms", "--max-ms", "--nvs", "--reps"]);
   const out: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     if (valued.has(argv[i]!)) i++;
-    else if (argv[i] !== "--check") out.push(argv[i]!);
+    else out.push(argv[i]!);
   }
   out.push("--nvs", "{nvs}", "--allow-debug", "--reps", "1");
-  if (out.includes("--serve-vs-fpm")) out.push("--requests", "200");
   return out;
 }
 

@@ -6,7 +6,6 @@
     "programs/three-claims",
     "programs/no-compatibility-promise",
     "tooling/no-repl",
-    "tooling/bench-engine-list-is-data",
     "core-classes/process-is-argv-only",
     "security/secret-qualifier",
     "security/tainted-qualifier",

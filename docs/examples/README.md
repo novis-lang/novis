@@ -7,8 +7,8 @@ them: the [website](../../website/README.md) build reads this tree in place and 
 it.
 
 `bun nv proofs --run` is what runs them. This file owns what an example **is**;
-that tool owns how it is checked, the way [`benches/userland/README.md`](../../benches/userland/README.md)
-and `tools/nv/cmd/bench.ts` already split the same way.
+that tool owns how it is checked, the way [`benches/members/README.md`](../../benches/members/README.md)
+and `tools/nv/proofs/perf.ts` already split the same way.
 
 ## Where an example goes
 

@@ -25,7 +25,7 @@ export function dataDir(root: string = ROOT): string {
 /** The JSON Schemas `bun nv render` writes, one per record type. They are under `data/` and are not records. */
 export const SCHEMA_DIR = "data/schema";
 
-/** The perf ledgers, which `bun nv bench`, `bun nv proofs` and `bun nv scaling` write and read in their
+/** The perf ledgers, which `bun nv proofs` and `bun nv scaling` write and read in their
  * own formats. No record type describes them, so they are under `data/` and are not records. */
 export const LEDGER_DIR = "data/perf";
 

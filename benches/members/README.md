@@ -3,7 +3,7 @@
 Every feature Novis ships owes a measured performance record
 ([`rule:testing/feature-proofs`](../../docs/rules/testing.md#testing-feature-proofs)), and this is where the programs
 that produce it live. **Every number here is Novis against itself.** There is no PHP column and
-there never will be — [`benches/userland/`](../userland/README.md) owns the cross-engine comparison,
+there never will be — [`benches/compare/`](../compare/README.md) owns the website's comparison,
 and [`benches/abi-probe/`](../abi-probe/) owns the guards that fail a build. This tree exists to
 answer two questions: *we changed something — what did it cost?*, and *is this member doing more
 than it should?* — the second on the very first run, before there is anything to compare against.
@@ -57,9 +57,8 @@ The rules, of which the chained input and the `int` subscript are the ones that 
   the loop is being measured too.
 - **Chain the inputs.** Iteration N's input must depend on iteration N−1's result — above, the
   subscript is `$total % 4`. A loop whose input never changes is a loop an optimiser may delete, and
-  a bench that measures a deleted loop reads as a triumph. This is `benches/userland/README.md`'s
-  rule for the same reason, and the symptom is the same: a figure indistinguishable from the empty
-  program's. **The chain must also reach every input.** Under `($total + $i) % 3`, an input whose
+  a bench that measures a deleted loop reads as a triumph, and the symptom is a figure
+  indistinguishable from the empty program's. **The chain must also reach every input.** Under `($total + $i) % 3`, an input whose
   result adds a multiple of 3, less one, to `$total` is picked again on every later round, so the
   bench measures that one input alone and nothing reports it. Inputs whose results all add a
   multiple of 3 are visited in turn.

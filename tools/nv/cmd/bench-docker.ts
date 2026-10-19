@@ -119,10 +119,9 @@ export function ohaOnce(stack: string, url: string, requests: number, concurrenc
 }
 
 /**
- * Warms the peer, then takes `reps` passes and keeps the best, as `bun nv bench --serve-vs-fpm` does. The
- * warm pass is discarded for the reason `bun nv bench`'s `measureServer` discards its own: the page cache,
- * opcache's first compile and the JITs' first traces are start-up costs, and a proxied origin that has
- * been up for a while is what these legs are about.
+ * Warms the peer, then takes `reps` passes and keeps the best. The warm pass is discarded because the
+ * page cache, opcache's first compile and the JITs' first traces are start-up costs, and a proxied origin
+ * that has been up for a while is what these legs are about.
  */
 export function ohaArm(
   stack: string,
