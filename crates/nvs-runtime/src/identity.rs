@@ -840,7 +840,7 @@ mod tests {
 
         // Deep enough that a recursive comparison would have overflowed. Under
         // Miri, a shorter tower runs the same heap walk in far less time.
-        let depth = if cfg!(miri) { 1_000 } else { 50_000 };
+        let depth = if cfg!(miri) { 200 } else { 50_000 };
         let left = tower(depth, 1);
         let same = tower(depth, 1);
         let other = tower(depth, 2);
