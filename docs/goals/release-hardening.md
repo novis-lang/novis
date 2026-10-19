@@ -351,18 +351,16 @@ Stages 1 to 7 are done. Stage 8 is under way.
   has a fix on `main`: a smaller input under `cfg!(miri)`, or an ignore with its reason. No shard
   hit undefined behaviour on that run. The rest of that run's failures (the proofs, test and cost
   legs) are in the backlog.
-- **No new nightly yet.** The acceptance sweep's list is still run 39185807455; the push run on
-  `cd1200508` skips Miri, and `main`'s Miri commits since are not pushed. On that run the shards
-  took 14 to 38 minutes of their 45.
-- **This session** cut the CI passes above 230 s that nothing had cut since that run:
-  `identity`'s deep hash takes 50 records (24 s locally), and `crypto`'s `public_keys` roster is
-  the first key of each kind under Miri, 5 keys, which shortens its four scans (SPKI read, key
-  encodings, the JWS key forms, and the one at `crypto.rs:6061`). `csv`'s rows test takes 180
-  wider records, 66 → 49 s on a loaded host. `compress`'s zstd window was already cut by
-  `0b0c0f433`, and `cache`, `request` and `arr`'s slow passes by commits after that run too.
-- **A fixed cost per test:** parsing the WebCrypto vector set (`crates/nvs-stdlib/src/tests/vectors.rs:35`,
-  110 KB of JSON) takes 15 s under Miri, once per test process. Every `crypto`, `jwe` and `jwt`
-  vector test pays it.
+- **No new nightly yet.** The acceptance sweep's list is still run 39185807455. The user pushed
+  `main` up to `c1e313638`, so every Miri cut up to it is on GitHub, but a push run skips Miri.
+  The next nightly or `workflow_dispatch` reads them. On run 39185807455 the shards took 14 to
+  38 minutes of their 45.
+- **That run's other failures:** `test / linux-x86_64` is fixed on `main` by `812560389`. The
+  cost guard is the warm-start budget, and the proofs jobs are proof debt (both in the backlog).
+- **This session** cut the vector set's fixed cost: a test parses only the `section/kind` part
+  it reads, found by its key line (`crates/nvs-stdlib/src/tests/vectors.rs:46`). The ECDH refusal
+  test went from 25.2 s to 15.2 s alone under Miri. A split with `serde_json`'s `RawValue` was
+  slower, 50 s. Every `crypto`, `jwe` and `jwt` vector test gains the same.
 - **`xml`'s `source` test cannot go smaller simply:** at 16,000 quotes and 64 KiB its peak bound
   (`< 2 * limit`) fails natively, because the fixed overhead dominates. It is 47 s locally idle.
 - **CI is up to five times slower than a local run, one test at a time:** the flag test took 54 s
@@ -379,9 +377,9 @@ Stages 1 to 7 are done. Stage 8 is under way.
 ### Next
 
 Stage 8, reading the third nightly's Miri shards (`rule:testing/the-deep-lane`, `.github/workflows/ci.yml:1104`):
-- [ ] Ask the user to push `main`, then read every `miri units` shard of the next nightly. Tick the two Miri checkpoints of stage 8 once every shard ends well inside its 45 minutes, with no test stopped at 300 s. `docs/goals/release-hardening.md:263`
+- [ ] Read every `miri units` shard of the first nightly after `c1e313638`. Ask the user to push `main` first if it is ahead. Tick the two Miri checkpoints of stage 8 once every shard ends well inside its 45 minutes, with no test stopped at 300 s. `docs/goals/release-hardening.md:263`
 - [ ] A test still stopped at 300 s on that run gets a smaller input or a reasoned ignore. Start with the four over 40 s locally (csv, the streamed reply, `xml`'s `source`, `regex`'s flag test). `crates/nvs-stdlib/src/xml.rs:4676`
-- [ ] If shards still run close to their timeout, cut the fixed costs per test: the vector set's 15 s parse (read only the section a test names, or a smaller set under Miri), and the first `Core` instance's class table. Otherwise, use more shards. `crates/nvs-stdlib/src/tests/vectors.rs:35`, `crates/nvs-stdlib/src/instance.rs:735`
+- [ ] If shards still run close to their timeout, cut the other fixed cost per test, the first `Core` instance's class table. Otherwise, use more shards. `crates/nvs-stdlib/src/instance.rs:735`
 
 ### Backlog
 
@@ -393,7 +391,6 @@ Stage 8, reading the third nightly's Miri shards (`rule:testing/the-deep-lane`, 
 - Two more unchecked `string`s: a MySQL column name (`crates/nvs-stdlib/src/db/column.rs:67`, also `db/execute.rs:835`, `db/stream.rs:345`), and a signed cookie's plaintext, opened with empty AAD (`crates/nvs-stdlib/src/signed_cookie.rs:309`).
 - `bun nv verify` stops at `crates/nvs-stdlib/tests/spec_registry_coverage.rs:433`: `3a833d02d` deleted the last milestone record, so `data/plan/milestones/` no longer exists, and two tests refuse an empty directory on purpose. The session that retired the milestones decides what replaces them (`tools/nv/cmd/owners.ts:127`).
 - `Core\IO::within` does not refuse what `rule:errors/path-component-refusals` lists, beyond device names (`crates/nvs-stdlib/src/io.rs:3657`).
-- `test / linux-x86_64` on `f8ad800d3`: `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` found no watcher process beside the child, `[]` (`crates/nvs-cli/tests/run_command.rs:778`, added by `2c74f48ae`).
 - `test / macos-aarch64` on `be3e8a605`: the `nvs-cli` `nvs` test binary died of SIGSEGV with no stack-overflow line, after 116 of 247 tests. The test is not named. It needs a run with `--test-threads=1` on macOS (`.github/workflows/ci.yml:131`).
 - CI's warm-start budget still fails, on Linux too: 6.9 ms on `be3e8a605`. A warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`). The budget stays 6 ms and stays one budget for every platform: cut the work until it fits, measuring where each remaining millisecond goes. Raise it only for a cost the tree cannot remove, and name that cost in `ci.yml`'s comment.
 - CI's `proofs` jobs fail on proof debt: stale perf records (`bun nv benches --owed`) and owed proofs (`bun nv proofs --owed`). Stage 10 owns it (`.github/workflows/ci.yml:1`).
