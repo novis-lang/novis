@@ -1,6 +1,6 @@
 // The kit's copy in a project (decision 0027): sync writes the kit that runs into the project's
 // `tools/looper/`, with a manifest of the kit's version and a hash per file, and a shim for each shell
-// at the root. Lint reads the manifest to refuse a copy edited by hand or one that differs from the kit.
+// in `tools/`. Lint reads the manifest to refuse a copy edited by hand or one that differs from the kit.
 //
 // The copy holds the kit's `main.ts`, its `package.json`, which carries its version, every file of
 // `src/` but the tests, and the templates bundled in one `templates.json`. So the copy reads its own
@@ -11,7 +11,9 @@
 // line endings keeps its hashes. The manifest names the shims too, but not itself.
 //
 // `copyPlan` compares a project with the kit at `kit` and returns one `Change` per file to write or
-// remove, the manifest last. `copyIssues` is the lint rule:
+// remove, the manifest last. An older sync wrote the shims at the project's root. `copyPlan` removes a
+// root `loop` or `loop.cmd` only when its bytes are that old shim's exactly. `leftShims` names each other
+// one, which sync leaves in place, so no work of the project's is lost. `copyIssues` is the lint rule:
 //
 // - A project with no manifest never took the copy, and is not checked.
 // - A file the manifest names that is missing or hashes otherwise, and a file under `tools/looper/`
@@ -31,8 +33,17 @@ export const COPY = "tools/looper";
 /** The copy's manifest, named so no one takes it for the project's own. */
 export const MANIFEST = `${COPY}/looper-manifest.json`;
 
-/** The shims at the project's root, each running the copy with its arguments: Git Bash's, then cmd's. */
+/**
+ * The shims in `tools/`, each running the copy with its arguments: Git Bash's, then cmd's. Each finds
+ * the copy from its own folder, so it runs from any current directory.
+ */
 export const SHIMS: readonly (readonly [string, string])[] = [
+  ["tools/loop", '#!/bin/sh\n# Runs this project\'s copy of looper\'s kit. Sync writes this file.\nexec bun "$(dirname "$0")/looper/main.ts" "$@"\n'],
+  ["tools/loop.cmd", '@echo off\r\nrem Runs this project\'s copy of looper\'s kit. Sync writes this file.\r\nbun "%~dp0looper\\main.ts" %*\r\n'],
+];
+
+/** The shims an older sync wrote at the project's root, each with its exact text. */
+export const ROOT_SHIMS: readonly (readonly [string, string])[] = [
   ["loop", '#!/bin/sh\n# Runs this project\'s copy of looper\'s kit. Sync writes this file.\nexec bun "$(dirname "$0")/tools/looper/main.ts" "$@"\n'],
   ["loop.cmd", '@echo off\r\nrem Runs this project\'s copy of looper\'s kit. Sync writes this file.\r\nbun "%~dp0tools\\looper\\main.ts" %*\r\n'],
 ];
@@ -111,6 +122,28 @@ function readOrUndefined(path: string): string | undefined {
   }
 }
 
+/** The bytes of the file at `path`, or `undefined` when no file is there. */
+function bytesOf(path: string): Buffer | undefined {
+  try {
+    return readFileSync(path);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "EISDIR") return undefined;
+    throw e;
+  }
+}
+
+/**
+ * Each root shim path in the project at `root` that holds a file other than the shim an older sync
+ * wrote. Sync leaves each in place and names it, since its text is not the kit's.
+ */
+export function leftShims(root: string): string[] {
+  return ROOT_SHIMS.filter(([path, text]) => {
+    const bytes = bytesOf(join(root, path));
+    return bytes !== undefined && !bytes.equals(Buffer.from(text));
+  }).map(([path]) => path);
+}
+
 /** The project's manifest at `root`, `undefined` without one. It throws on a manifest it cannot read. */
 export function readManifest(root: string): Manifest | undefined {
   const text = readOrUndefined(join(root, MANIFEST));
@@ -129,7 +162,8 @@ export function readManifest(root: string): Manifest | undefined {
 
 /**
  * Every change that makes the project at `root` hold the copy of the kit at `kit`: each file whose text
- * differs, each file the old manifest names and the kit no longer has, and the manifest last.
+ * differs, each file the old manifest names and the kit no longer has, each root shim that holds an
+ * older sync's text exactly, and the manifest last.
  */
 export function copyPlan(root: string, kit: string): CopyChange[] {
   const files = kitFiles(kit);
@@ -144,11 +178,14 @@ export function copyPlan(root: string, kit: string): CopyChange[] {
   } catch {
     // A manifest that cannot be read names no file to remove, and sync rewrites it.
   }
-  const kept = new Set(files.map(([path]) => path));
+  const own = new Set([...files.map(([path]) => path), ...ROOT_SHIMS.map(([path]) => path)]);
   for (const path of Object.keys(old?.files ?? {}).sort()) {
-    if (kept.has(path)) continue;
+    if (own.has(path)) continue;
     const before = readOrUndefined(join(root, path));
     if (before !== undefined) changes.push({ path, before, after: undefined });
+  }
+  for (const [path, text] of ROOT_SHIMS) {
+    if (bytesOf(join(root, path))?.equals(Buffer.from(text)) === true) changes.push({ path, before: text, after: undefined });
   }
   const after = manifestText(manifestOf(kitVersion(kit), files));
   const before = readOrUndefined(join(root, MANIFEST));

@@ -28,7 +28,7 @@ import { basename, dirname, join } from "node:path";
 import type { Config } from "../goal/config.ts";
 import { writeFile } from "../goal/edit.ts";
 import { lines } from "../goal/model.ts";
-import { COPY, type CopyChange, SHIMS } from "./copy.ts";
+import { COPY, type CopyChange, ROOT_SHIMS, SHIMS } from "./copy.ts";
 import { blocks as parseBlocks, CORE, inclusiveLines, kind, PROFILES, profile, render, type Template, varsFromConfig } from "./template.ts";
 
 /** One managed file whose text differs from the templates. `before` is `undefined` for a missing file. */
@@ -58,7 +58,7 @@ export function apply(root: string, changes: readonly CopyChange[]): void {
 /**
  * A line diff of one change: the lines before and after the part that differs, as `-` and `+` lines
  * under a `--- path` header. The lines both sides share at the start and the end are left out. A file
- * of the kit's copy gets the header alone, since its text is the kit's and not the project's.
+ * of the kit's copy or a shim gets the header alone, since its text is the kit's and not the project's.
  */
 export function diff(c: CopyChange): string {
   const state = c.after === undefined ? "removed" : c.before === undefined ? "new" : undefined;
@@ -69,7 +69,7 @@ export function diff(c: CopyChange): string {
   let tail = 0;
   while (tail < old.length - head && tail < now.length - head && old[old.length - 1 - tail] === now[now.length - 1 - tail]) tail++;
   let out = `--- ${c.path} (${state ?? `line ${head + 1}`})\n`;
-  if (c.path.startsWith(`${COPY}/`) || SHIMS.some(([shim]) => shim === c.path)) return out;
+  if (c.path.startsWith(`${COPY}/`) || [...SHIMS, ...ROOT_SHIMS].some(([shim]) => shim === c.path)) return out;
   for (const l of old.slice(head, old.length - tail)) out += `-${l}\n`;
   for (const l of now.slice(head, now.length - tail)) out += `+${l}\n`;
   return out;

@@ -10,8 +10,8 @@
 // 3. It writes every template of the core and the stacks, filled from `Vars`, and then
 //    `docs/goals/README.md` from an empty chain. Each file is new, so init never overwrites one.
 // 4. It writes the copy of the kit that runs into `tools/looper/`, as sync does, the manifest last.
-// 5. It stages everything, marks the commit hook and the `loop` shim executable in the index, and sets
-//    `core.hooksPath` to `tools/git-hooks`.
+// 5. It stages everything, marks the commit hook and the `tools/loop` shim executable in the index,
+//    and sets `core.hooksPath` to `tools/git-hooks`.
 // 6. It commits `chore: initialize the project with looper`, which runs the new hook.
 // 7. It registers the project as `project add` does. When the service does not answer, that is exit 3
 //    with the project already committed, and `project add` registers it later.
@@ -34,7 +34,7 @@ import { addedDoc, configText, configure, projectText, register } from "./projec
 /** The message of the commit init makes. */
 export const COMMIT = "chore: initialize the project with looper";
 /** The files init marks executable: the hook `core.hooksPath` points at, and Git Bash's shim. */
-const EXECUTABLE = ["tools/git-hooks/commit-msg", "loop"];
+const EXECUTABLE = ["tools/git-hooks/commit-msg", "tools/loop"];
 
 /** Whether `name` may name a new project: every stack's package manager accepts it. */
 export function validName(name: string): boolean {

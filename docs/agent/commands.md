@@ -775,8 +775,8 @@ and body readers), and before a release.
 ## Without looper
 
 Every `looper` command in these files is the project's own. looper's copy in `tools/looper/` runs it
-with Bun alone, so a clone with no `looper` program runs `bun tools/looper/main.ts <command>` or
-`./loop <command>` instead. Each gate a change must pass is still a `bun nv` command, which the copy
+with Bun alone, so a clone with no `looper` program runs `bun tools/looper/main.ts <command>` instead.
+`tools/loop <command>` in bash and `tools\loop <command>` in cmd or PowerShell are the same. Each gate a change must pass is still a `bun nv` command, which the copy
 runs through `looper.toml`'s `[verify]` and `[gates]`. `tools/nv/test/without-looper.test.ts` runs the
 guard, the prose check and the commit hook with no looper on PATH.
 
