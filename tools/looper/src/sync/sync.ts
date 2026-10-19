@@ -13,8 +13,9 @@
 //   the project's own lines win. The text outside the blocks stays as it is.
 // - **Merged**: `.claude/settings.json` loses every `PowerShell(…)` allow entry, and gains each allow
 //   entry and each `env` key it lacks. An entry that runs the guard, `looper guard` or the copy's, takes
-//   the template's matcher, and the template's `PreToolUse` entry is added when none does. A file that
-//   changes is written with sorted keys, as `serde_json` prints it.
+//   the template's matcher, and a `looper guard` command becomes the copy's. The template's `PreToolUse`
+//   entry is added when none runs the guard. A file that changes is written with sorted keys, as
+//   `serde_json` prints it.
 // - **Seed**: never compared.
 //
 // A path the project's `[sync] skip` lists is never compared. A file whose markers do not parse, or a
@@ -202,6 +203,7 @@ function sorted(v: Json): Json {
 /**
  * The project's settings `text` merged with the template's: its `PowerShell(…)` allow entries gone, the
  * template's allow entries and `env` keys added, and the guard hook added or given the template's matcher.
+ * A guard hook that runs `looper guard` is given the template's command, which runs the copy.
  */
 function merged(path: string, text: string, template: string): string {
   let have: Json;
@@ -238,7 +240,14 @@ function merged(path: string, text: string, template: string): string {
   const wantHooks = at(at(want, "hooks"), "PreToolUse");
   if (guarded) {
     const matcher = at(at(wantHooks, 0), "matcher") ?? null;
-    for (const h of hooks) if (isGuard(h) && isObject(h)) h.matcher = structuredClone(matcher);
+    const command = at(at(at(at(wantHooks, 0), "hooks"), 0), "command");
+    for (const h of hooks) {
+      if (!isGuard(h) || !isObject(h)) continue;
+      h.matcher = structuredClone(matcher);
+      const all = at(h, "hooks");
+      if (typeof command !== "string" || !Array.isArray(all)) continue;
+      for (const c of all) if (isObject(c) && typeof c.command === "string" && c.command.trim() === "looper guard") c.command = command;
+    }
   } else {
     hooks.push(...(Array.isArray(wantHooks) ? structuredClone(wantHooks) : []));
   }
