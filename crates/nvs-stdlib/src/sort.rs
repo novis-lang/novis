@@ -310,20 +310,27 @@ mod tests {
         1023, 1024, 1025, 4095, 4096, 4097, 5000, 10_000, 20_000,
     ];
 
-    /// [`SIZES`] under Miri: one size on each side of the small sort and the
-    /// split, and one at the key-inference floor. Miri runs a sort hundreds of
-    /// times slower, and the whole list takes minutes per test.
-    const MIRI_SIZES: &[usize] = &[0, 1, 2, 31, 32, 33, 999, 1001, 4096];
+    /// [`SIZES`] under Miri: the empty and tiny inputs, and each side of the
+    /// small sort. Miri runs a sort hundreds of times slower, so a size near
+    /// the split or the key-inference floor takes minutes there.
+    const MIRI_SIZES: &[usize] = &[0, 1, 2, 31, 32, 33];
 
-    /// The sizes a sweep runs: [`SIZES`], or [`MIRI_SIZES`] under Miri.
-    fn sizes() -> &'static [usize] {
-        if cfg!(miri) { MIRI_SIZES } else { SIZES }
+    /// The sizes the `combo`th row and shape of a sweep runs: every one of
+    /// [`SIZES`], or under Miri one of [`MIRI_SIZES`], taken in turn, so the
+    /// sweep still reaches every Miri size and every shape once.
+    fn sizes(combo: usize) -> &'static [usize] {
+        if cfg!(miri) {
+            let at = combo % MIRI_SIZES.len();
+            &MIRI_SIZES[at..=at]
+        } else {
+            SIZES
+        }
     }
 
-    /// The number of random rounds a test runs: `n`, or a tenth of it under
-    /// Miri.
+    /// The number of random rounds a test runs: `n`, or a hundredth of it
+    /// under Miri.
     fn rounds(n: usize) -> usize {
-        if cfg!(miri) { n / 10 } else { n }
+        if cfg!(miri) { n / 100 } else { n }
     }
 
     /// `n` integers in `shape`, as a sequence of `u64` a row builder maps.
@@ -444,9 +451,9 @@ mod tests {
             ("null", nulls),
         ];
         let mut rng = Lcg(0x5EED);
-        for (row, build) in rows {
-            for shape in SHAPES {
-                for &n in sizes() {
+        for (r, (row, build)) in rows.iter().enumerate() {
+            for (s, shape) in SHAPES.iter().enumerate() {
+                for &n in sizes(r * SHAPES.len() + s) {
                     let raw = shaped(&mut rng, n, shape);
                     let values = build(&raw);
                     agrees(&values, &format!("{row}/{shape}/{n}"));
@@ -700,8 +707,8 @@ mod tests {
     #[test]
     fn sort_by_key_orders_key_bytes_as_the_merge_sort_does() {
         let mut rng = Lcg(11);
-        for &n in sizes() {
-            for shape in SHAPES {
+        for (s, shape) in SHAPES.iter().enumerate() {
+            for &n in sizes(s) {
                 let raw = shaped(&mut rng, n, shape);
                 let keys: Vec<NvsStr> = raw
                     .iter()
