@@ -251,8 +251,8 @@
     "lang:types/truthiness": "de9922a294f233a5"
   },
   "syntax/values/enums.mdx": {
-    "Core\\Arr::Order": "eb75f04c86d36ba5",
-    "Core\\Arr::SetOn": "20c7cc6b7b55d1a5",
+    "Core\\Arr::Order": "5933688e0cc27d92",
+    "Core\\Arr::SetOn": "6f39a54cea93305f",
     "Core\\Audience": "563cd38183dc8ae6",
     "Core\\Charset": "2a993835856562a7",
     "Core\\Cldr::PluralCategory": "ec3ee07e5dc9b804",
@@ -283,7 +283,7 @@
     "Core\\Script\\ExitReport::Reason": "e63043b3805e9273",
     "Core\\Str::NormalForm": "8eae3cf1719255d7",
     "Core\\Time\\DateTime::Weekday": "6c3793ac2f62eab3",
-    "Core\\Unit": "325e36d708bf2e5a",
+    "Core\\Unit": "eb68c4e10f572009",
     "Core\\Xml\\Node::Kind": "f35464494f865164",
     "lang:enums/a-case-is-its-integer": "04f8987f6309f33c",
     "lang:enums/a-union-of-cases-is-a-narrower-type": "054a6546b50bd8b1",
