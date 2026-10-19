@@ -2899,6 +2899,12 @@ pub(crate) mod tests {
         scoped, sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of, wait_of, waited,
     };
 
+    /// Closes this thread's connection to the shared store, so a test's fake store sees the end
+    /// of its input before the test's thread exits.
+    pub(crate) fn close_shared() {
+        drop(super::SHARED.with(|shared| shared.borrow_mut().take()));
+    }
+
     /// Taken by every case that touches the memory tier, first thing — here
     /// and in the other modules that keep state in it.
     ///
