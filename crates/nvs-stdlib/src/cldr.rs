@@ -3956,11 +3956,13 @@ mod tests {
         }
         // Counted rather than read off a line: the six categories are all
         // reachable through this table, which is what registering no second
-        // enum for it rests on.
+        // enum for it rests on. Under Miri the counts stop at 100, which
+        // Welsh alone takes through all six.
+        let last = if cfg!(miri) { 100 } else { 900 };
         let reached: std::collections::BTreeSet<Category> = ORDINALS
             .iter()
             .flat_map(|(_, rules)| {
-                (0..=900u128).map(move |i| rules.select(Operands { i, v: 0, f: 0 }))
+                (0..=last).map(move |i| rules.select(Operands { i, v: 0, f: 0 }))
             })
             .collect();
         assert_eq!(
@@ -4161,10 +4163,18 @@ mod tests {
         // And no arm is another arm's rule under a second name, which is what
         // makes each one a transcription rather than a language's label: the
         // pair that renders identically at every count is one rule, and the
-        // one that renders as the default marks nothing.
+        // one that renders as the default marks nothing. Each rule's answers
+        // are read once. Under Miri the counts are 0 to 120 and 790 to 910,
+        // which still tell every pair apart.
+        let counts: Vec<u128> = if cfg!(miri) {
+            (0..=120).chain(790..=910).collect()
+        } else {
+            (0..=1_000).collect()
+        };
         let answers = |rules: OrdinalSet| {
-            (0..=1_000u128)
-                .map(|count| {
+            counts
+                .iter()
+                .map(|&count| {
                     rules.select(Operands {
                         i: count,
                         v: 0,
@@ -4174,16 +4184,16 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         let unmarked = answers(OrdinalSet::Unmarked);
+        let rendered: Vec<_> = published.iter().map(|(rules, _)| answers(*rules)).collect();
         for (index, (rules, locales)) in published.iter().enumerate() {
             assert_ne!(
-                answers(*rules),
-                unmarked,
+                rendered[index], unmarked,
                 "{rules:?} marks nothing, so {locales:?} belongs off the roster"
             );
-            for (other, named) in &published[index + 1..] {
+            for (offset, (other, named)) in published[index + 1..].iter().enumerate() {
                 assert_ne!(
-                    answers(*rules),
-                    answers(*other),
+                    rendered[index],
+                    rendered[index + 1 + offset],
                     "{rules:?} and {other:?} answer alike, so {locales:?} and {named:?} are one \
                      group"
                 );

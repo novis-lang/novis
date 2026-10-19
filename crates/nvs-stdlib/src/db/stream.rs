@@ -753,7 +753,8 @@ mod tests {
     // covers: Core\Db\Connection::stream
     #[test]
     fn stream_answers_rows_without_holding_the_result_set() {
-        const ROWS: u64 = 1_000;
+        // Under Miri a hundred rows, because a thousand take minutes there.
+        const ROWS: u64 = if cfg!(miri) { 100 } else { 1_000 };
 
         // The fourth slot is the class a `streamAs<T>` would have written, and
         // this walk is `stream`'s: the rows stay `Db\Row`s, which is what makes
