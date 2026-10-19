@@ -348,18 +348,18 @@ is `BLOCKED` and names the call.
 Stages 1 to 7 are done. Stage 8 is under way.
 
 - **Property tests.** Done: three seeded cases in `crates/nvs-config/tests/capability.rs` (`ae40a9e58`).
-- **Miri, run 39206993876** (`workflow_dispatch` on `0b85b2057`, without the class-table cut
-  `e5959514e`): 13 of 14 shards green, each in 8 to 33 minutes of its 45. No test hit the 300 s
-  limit and none hit undefined behaviour. Shard `nvs-stdlib 4/12` failed on one real-time
-  assert: `http::transport`'s retry test needed 64 s for its 5 s deadline. This session gives it a
-  300 s deadline under Miri (8 s locally), so it still runs.
-- **Slowest tests on that run:** html's open-elements walk 284 s, compress's chunk refcount 267 s,
-  p256 agreement 265 s, `csv_rows` 261 s, cldr plurals 247 s, a jwe encrypt 235 s, then nine more
-  from 180 to 205 s. This session cut the first two under Miri (html 48 tags against a cap of 16,
-  compress 100 chunks): 23 s and 14 s locally. The csv test cannot go smaller, because its document
-  must be four read chunks long. p256 is one key agreement.
-- **That run's other jobs:** `test / linux-x86_64` and the cost guard passed. Only the three
-  `proofs` legs failed (proof debt, in the backlog).
+- **No nightly has run since run 39206993876** (`workflow_dispatch` on `0b85b2057`). Local `main` is
+  ahead of `origin/main`, so the acceptance sweep's four failures are that run's: the three
+  `proofs` legs (proof debt, in the backlog) and shard `nvs-stdlib 4/12`, whose retry deadline is
+  already fixed on `main` (`104ab8948`) and not yet pushed.
+- **On that run** 13 of 14 Miri shards were green, each in 8 to 33 minutes of its 45. No test hit the
+  300 s limit and none hit undefined behaviour.
+- **Its five slowest tests are now cut under Miri,** none pushed yet. Local Miri times: html's
+  open-elements walk 23 s (284 s on CI), compress's chunk refcount 14 s (267 s), the p256 agreement
+  30 s (265 s; it now uses RFC 5903's published point, asserted natively against the multiplied one),
+  `csv_rows`' memory bound 26 s (261 s; `READ_CHUNK` is 2 KiB under Miri and the document 48
+  records), cldr's plurals 10 s (247 s; the walk stops at 11). Next on that run: a jwe encrypt
+  235 s, then nine from 180 to 205 s.
 - **Fixed costs cut so far:** the vector set's parse (`crates/nvs-stdlib/src/tests/vectors.rs:46`)
   and the `Core` class table (`crates/nvs-stdlib/src/instance.rs:463`, 13.2 s to 5.6 s under
   Miri). The table cut has not yet run on CI.
@@ -378,13 +378,12 @@ Stages 1 to 7 are done. Stage 8 is under way.
 ### Next
 
 Stage 8, reading the next nightly's Miri shards (`rule:testing/the-deep-lane`, `.github/workflows/ci.yml:1180`):
-- [ ] Read every `miri units` shard of the first nightly that contains this session's commits. Ask the user to push `main` first if it is ahead. Tick the two Miri checkpoints of stage 8 once every shard is green and no test runs past about 200 s. `docs/goals/release-hardening.md:263`
-- [ ] A test still over about 200 s on that run gets a smaller input or a reasoned ignore. Start with the p256 agreement and cldr's plurals. `crates/nvs-stdlib/src/crypto.rs:5122`, `crates/nvs-stdlib/src/cldr.rs:3676`
-- [ ] `csv_rows` (261 s) has no smaller input. If it stays over 200 s, cut `Ctx` or parse fixed cost, or make `READ_CHUNK` smaller under Miri. `crates/nvs-stdlib/src/csv.rs:877`
+- [ ] Ask the user to push `main`, then read every `miri units` shard of the first nightly that contains these commits. Tick the two Miri checkpoints of stage 8 once every shard is green and no test runs past about 200 s. `docs/goals/release-hardening.md:263`
+- [ ] A test still over about 200 s on that run gets a smaller input or a reasoned ignore. Start with the jwe encrypt (235 s on run 39206993876). `crates/nvs-stdlib/src/jwe.rs:1`
+- [ ] With the shards green, start the runner mode that sends many cases through one worker. `crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`
 
 ### Backlog
 
-- Then the runner mode that sends many cases through one worker (`crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`).
 - `nvs-runtime`'s pool hands a block back through a pointer narrowed to its last owner's size. Exposing each block's provenance and rebuilding the pointer in `push` and the same-class `realloc` removed the report, but no unit test reproduced it, and the user chose the `sanitizer` feature instead (`crates/nvs-runtime/src/alloc.rs:176`).
 - `test / linux-aarch64` and every `test` and `cost guards` leg passed on run 39206993876, macOS included. Check the unoptimised suite step's log on that leg before stage 10 relies on it (`.github/workflows/ci.yml:131`).
 - The suite's probes-on run is still owed: the coverage flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:2394`, `rule:testing/probes-on-is-a-tested-configuration`).
