@@ -13488,6 +13488,17 @@
       "How do I log every change to an object's properties?"
     ]
   },
+  "/syntax/classes/property-names/": {
+    "feature": "syntax/classes/property-names.mdx",
+    "hash": "c2b127c11002784b",
+    "questions": [
+      "Sort a list by a column name from the URL",
+      "How do I read a property whose name is in a string?",
+      "Check that a field name from a request exists",
+      "Use a path like customer.address.city as a value",
+      "Check the field names inside a query condition string"
+    ]
+  },
   "/syntax/classes/standard-interfaces/": {
     "feature": "syntax/classes/standard-interfaces.mdx",
     "hash": "e2dcbfd38c13764a",
@@ -13967,7 +13978,6 @@
       "Write text over many lines with a heredoc",
       "Why does reading one character with $word[0] not compile?",
       "Store binary data that is not valid text",
-      "Why is 017 not an octal number?",
       "Write a duration like 1h30m in the code"
     ]
   },
