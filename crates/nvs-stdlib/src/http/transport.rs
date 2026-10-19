@@ -3203,6 +3203,12 @@ pub(crate) mod tests {
         (at, served)
     }
 
+    /// How long a talking peer waits on the client: for each read, and for the
+    /// client's close once the script is over. Under Miri it is a minute,
+    /// because both ends run on one interpreter there, and a long message and
+    /// the close after it take longer than five seconds to arrive.
+    const PEER_WAIT: Duration = Duration::from_secs(if cfg!(miri) { 60 } else { 5 });
+
     /// One conversation: the handshake, then the script, then whatever it takes
     /// to hear the client out.
     ///
@@ -3220,10 +3226,8 @@ pub(crate) mod tests {
         stream
             .set_nonblocking(false)
             .expect("a connection that waits for its handshake");
-        // Under Miri the wait is a minute, because writing a long message
-        // there takes longer than five seconds.
         stream
-            .set_read_timeout(Some(Duration::from_secs(if cfg!(miri) { 60 } else { 5 })))
+            .set_read_timeout(Some(PEER_WAIT))
             .expect("a bound on this origin's own wait");
         answered(&mut stream, chosen);
         let mut peer =
@@ -3260,12 +3264,7 @@ pub(crate) mod tests {
         }
         // The script is over and the case's assertion is about how the client
         // ends things, so this end waits for that rather than hanging up first.
-        listens(
-            &mut peer,
-            Instant::now() + Duration::from_secs(5),
-            None,
-            &mut heard,
-        );
+        listens(&mut peer, Instant::now() + PEER_WAIT, None, &mut heard);
         heard
     }
 
