@@ -528,6 +528,15 @@ entry = "tests/hostile/lang/errors/fatal-errors-limits-no-catch-sees/01-a-progra
 [app.limits]
 memory = "16M"
 
+# `lang:concurrency/a-child-s-failure-is-a-value`'s fourth example shows the
+# error a program meets when it may not start scripts, so its block takes back
+# the root block's `script.spawn`, as `examples/capability.nvs`'s does.
+[[app]]
+entry = "docs/examples/lang/concurrency/a-child-s-failure-is-a-value/04-without-the-grant.nvs"
+
+[app.capabilities.script]
+spawn = false
+
 # `Core\Csv::rows` walks a file `Core\IO` has open, so its five proof programs are
 # the first under `docs/examples/`, `tests/hostile/` and `benches/members/` that
 # open one at all. Each writes its document into `Core\IO::temporaryDir()`'s answer

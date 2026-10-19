@@ -1,0 +1,6 @@
+<?nvs
+// Shows that there is no `Fiber` class, so this program does not compile.
+// Run the work as a task with `Core\Task::all` or `Core\Task::map`.
+// proof: compile-error
+
+var $fiber = new Fiber(fn(): int => 1);

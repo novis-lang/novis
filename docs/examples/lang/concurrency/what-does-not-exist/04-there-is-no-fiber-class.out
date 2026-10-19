@@ -1,0 +1,8 @@
+error[E0303]: `Fiber` is not declared
+  --> 04-there-is-no-fiber-class.nvs:6:18
+  |
+6 | var $fiber = new Fiber(fn(): int => 1);
+  |                  ^^^^^ no matching declaration
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
