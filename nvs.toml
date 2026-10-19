@@ -469,21 +469,9 @@ entry = "tests/hostile/config/debug-keep_temporary/01-hoarding-what-the-sweep-mu
 read = true
 write = true
 
-# `lang:errors/capability-denials-are-catchable`'s second example, and the only
-# one of its three that needs a grant at all: the other two are written around a
-# call nobody allowed, which is what every entry in this file already has by
-# saying nothing. What this one shows is the *pair* — `fs.read` scoped to the one
-# directory holding its data, and `fs.write` never mentioned — so a reader sees
-# that a grant is per capability rather than per program, and the denial it
-# prints is the missing verb rather than a path outside the root.
-[[app]]
-entry = "docs/examples/lang/errors/capability-denials-are-catchable/02-a-grant-in-nvs-toml.nvs"
-
-[app.capabilities.fs]
-read = ["docs/examples/lang/errors/capability-denials-are-catchable/data"]
-
-# The attack written against the same feature, and it needs the same grant for
-# the opposite reason: a program allowed nothing cannot try to escape anything,
+# The attack written against `lang:errors/capability-denials-are-catchable`, whose
+# examples carry their grant in their own `nvs.toml`. It needs a grant because
+# a program allowed nothing cannot try to escape anything,
 # so the `..` climb in its second step would be denied by the capability before
 # the path was ever canonicalized and would prove nothing. Scoped to the one
 # directory it owns, so the file it reaches for in step 3 — this file — is
@@ -494,9 +482,8 @@ entry = "tests/hostile/lang/errors/capability-denials-are-catchable/01-climbing-
 [app.capabilities.fs]
 read = ["tests/hostile/lang/errors/capability-denials-are-catchable/data"]
 
-# `lang:errors/fatal-errors-limits-no-catch-sees`'s three examples and its
-# attack, on one ceiling written four times because a grant is per application
-# entry and never per directory. 16 MiB is the figure
+# `lang:errors/fatal-errors-limits-no-catch-sees`'s attack, on the ceiling its
+# examples' own `nvs.toml` sets for them. 16 MiB is the figure
 # `tests/conformance/error/a-limit-fatal-is-not-catchable.nvst` is already
 # written around, so a reader who meets both sees one number: ordinary execution
 # may hold 15,728,640 bytes of it and `fatal_reserve_memory` keeps the rest for
@@ -505,37 +492,10 @@ read = ["tests/hostile/lang/errors/capability-denials-are-catchable/data"]
 # program written to exceed *that* would allocate a quarter of a gigabyte on
 # every sweep to demonstrate the same ending.
 [[app]]
-entry = "docs/examples/lang/errors/fatal-errors-limits-no-catch-sees/01-no-catch-sees-a-limit.nvs"
-
-[app.limits]
-memory = "16M"
-
-[[app]]
-entry = "docs/examples/lang/errors/fatal-errors-limits-no-catch-sees/02-a-handler-for-the-last-moment.nvs"
-
-[app.limits]
-memory = "16M"
-
-[[app]]
-entry = "docs/examples/lang/errors/fatal-errors-limits-no-catch-sees/03-a-job-that-says-where-it-stopped.nvs"
-
-[app.limits]
-memory = "16M"
-
-[[app]]
 entry = "tests/hostile/lang/errors/fatal-errors-limits-no-catch-sees/01-a-program-that-tries-to-live-through-its-limit.nvs"
 
 [app.limits]
 memory = "16M"
-
-# `lang:concurrency/a-child-s-failure-is-a-value`'s fourth example shows the
-# error a program meets when it may not start scripts, so its block takes back
-# the root block's `script.spawn`, as `examples/capability.nvs`'s does.
-[[app]]
-entry = "docs/examples/lang/concurrency/a-child-s-failure-is-a-value/04-without-the-grant.nvs"
-
-[app.capabilities.script]
-spawn = false
 
 # `Core\Csv::rows` walks a file `Core\IO` has open, so its five proof programs are
 # the first under `docs/examples/`, `tests/hostile/` and `benches/members/` that

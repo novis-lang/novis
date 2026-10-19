@@ -1,0 +1,3 @@
+# Each example in this folder may use at most 16 megabytes of memory.
+[limits]
+memory = "16M"

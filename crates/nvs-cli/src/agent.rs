@@ -182,8 +182,9 @@ const MARKER: &str = "<!-- primer -->";
 /// because an extract is a second artefact that can disagree with the chapter
 /// and the primer exists to be a document that cannot — and because the whole
 /// chapter is what `show` answers a section from. It spends the chapters' own
-/// size, a few hundred KB of the binary's read-only data — once per binary, never
-/// per request — to buy that.
+/// size, about 1 MB of the binary's read-only data — once per binary, never per
+/// request — to buy that. The `lang` chapters are generated from each feature's
+/// texts and examples under `docs/examples/lang/` by `bun nv render`.
 const CHAPTERS: &[&str] = &[
     include_str!("../../../docs/reference/lang/10-programs.md"),
     include_str!("../../../docs/reference/lang/20-types.md"),

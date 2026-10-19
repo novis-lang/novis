@@ -1,0 +1,6 @@
+# Example 02 may read the files in the `data` folder. It may not write any file.
+[[app]]
+entry = "02-a-grant-in-nvs-toml.nvs"
+
+[app.capabilities.fs]
+read = ["data"]

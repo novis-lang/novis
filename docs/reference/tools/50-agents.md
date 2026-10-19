@@ -115,6 +115,9 @@ Each part has a heading. These are the headings, in the order the primer prints 
 # Novis, for a coding agent
 ## nvs agent
 ## A complete program, annotated
+### Example 01: add up what a form sent
+### Example 02: show the best scores first
+### Example 03: answer a form with json
 ## `[capabilities]`
 ## The chapters
 ```
@@ -331,6 +334,6 @@ programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a cla
 
 # `autoload`: find a class by its namespace
 
-`autoload` declares a rule that maps a namespace prefix to a directory, so ordinary code names a
-class and never a file. …
+`autoload` tells Novis which folder your classes are in, so your program uses a class by its name
+and never loads a file. …
 ```

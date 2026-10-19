@@ -110,9 +110,13 @@ Each chapter directory under `lang/` holds `chapter.md`: the front matter of its
 `docs/reference/lang/` (`order`, `title`, `summary`, `keywords`) and one `# ` line per feature, in the
 chapter's order. The heading's slug is the feature's directory name and its roster id, so a heading is
 never reworded. The only other lines are `<!-- primer -->` above a feature and `<!-- generated:
-<table> -->` after one. The format and its checks are `tools/nv/proofs/chapters.ts`. A feature added
-to a chapter is a heading here and in the chapter, and the roster stops on a chapter whose headings
-are not its source's.
+<table> -->` after one. The format and its checks are `tools/nv/proofs/chapters.ts`.
+
+`bun nv render` writes the chapter from this file and each feature's `about.md`, `details.md` and
+examples, one `## Example NN` heading per example (`tools/nv/renderers/lang-chapters.ts`). An
+example's `.out` follows it as the output `bun nv reference` checks, and the feature's `nvs.toml` and
+the files it reads are written beside it. A feature added to a chapter is a heading here and a
+render, and `bun nv render --check` fails on a chapter edited by hand.
 
 ## What an example is
 

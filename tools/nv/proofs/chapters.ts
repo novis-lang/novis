@@ -20,7 +20,8 @@
 // below it for `nvs agent primer`, the same markers `docs/reference/README.md` gives a chapter. Nothing
 // else is allowed: a sentence a chapter needs belongs in a feature's `about.md` or `details.md`.
 //
-// The chapter `docs/reference/lang/<order>-<chapter>.md` is the generated form of this file.
+// The chapter `docs/reference/lang/<order>-<chapter>.md` is the generated form of this file, which
+// `bun nv render` writes (`renderers/lang-chapters.ts`).
 
 import { existsSync } from "node:fs";
 import { abs } from "../lib/paths.ts";

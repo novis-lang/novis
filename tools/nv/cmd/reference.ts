@@ -11,8 +11,9 @@
 // other rendered file. The text is written for a reader who has never seen this repository. Its inputs
 // are `nvs meta --json` from the built binary (every `Core` class, member, card,
 // constant and enum, the exception tree, the global interfaces, the attributes and the `nvs.toml`
-// directives), so the reference cannot describe a member that does not run; one hand-written chapter
-// per topic under `docs/reference/lang/` and `docs/reference/tools/`, in filename order, in the format
+// directives), so the reference cannot describe a member that does not run; one chapter per topic
+// under `docs/reference/lang/` (written by `bun nv render`) and `docs/reference/tools/` (hand-written),
+// in filename order, in the format
 // `docs/reference/README.md` gives; and an optional introduction per class under
 // `docs/reference/core/`, named for the class after `Core\` with `\` written `-`, or for a built-in
 // component's class under `docs/reference/novis/`, named after `Novis\` (`Image-Image.md`).
