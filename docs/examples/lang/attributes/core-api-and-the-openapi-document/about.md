@@ -8,7 +8,7 @@ names the scheme a client must use, `errors:` lists the error responses, and `ex
 answer.
 
 Novis checks each of those against the code while it compiles your program. A class in `errors:` must
-be a class the program declares, and every key in `example:` must be a property of the return type.
+exist, and every key in `example:` must be a property of the return type.
 
 **The examples below** add one tag, then errors and a security scheme, then a small API with
-everything a client generator needs.
+everything a client generator needs. The last one shows an `example:` that does not compile.

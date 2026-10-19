@@ -1,0 +1,9 @@
+error[E0771]: `Order` declares no `price`
+   --> 04-an-example-must-match-the-return-type.nvs:13:33
+   |
+13 |     #[Core\Api(example: {id: 7, price: 4250})]
+   |                                 ^^^^^^^^^^^ no such field
+   = help: `example` is decoded as the return type. Every key must be a property of that class
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,8 +1,7 @@
 <?nvs
 // Shows how to say which errors an operation returns, and which security
 // scheme it needs. Each entry in `errors:` becomes one response in the
-// generated API document. Novis checks that the class you name is a class this
-// program declares.
+// generated API document. Novis checks that the class you name exists.
 
 class NotFound extends RuntimeError {}
 
