@@ -532,6 +532,26 @@ struct WorkerCores {
     /// busy and the bound is spent, which is the state the placement has to wait
     /// somewhere rather than run somewhere free.
     next: usize,
+    /// What each core this set starts runs its whole life inside, for a set a
+    /// caller owns ([`Cores`]). `None` for the process's set, whose cores run
+    /// under the published resolver ([`WorkerCores::start_one`]).
+    around: Option<Around>,
+}
+
+/// The wrapper a [`Cores`] set runs each of its threads inside.
+///
+/// A type of its own for its `Debug`: a Rust closure has none, and what a
+/// reader of a set asks is whether it has one.
+#[derive(Clone)]
+struct Around(Arc<AroundFn>);
+
+/// [`Around`]'s wrapper: called with a core's whole loop, which it runs once.
+type AroundFn = dyn Fn(&mut dyn FnMut()) + Send + Sync;
+
+impl std::fmt::Debug for Around {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Around")
+    }
 }
 
 /// One core in the set: its inbox, and the thread this set started for it.
@@ -559,6 +579,7 @@ impl WorkerCores {
             cores: Vec::new(),
             bound: bound.max(1),
             next: 0,
+            around: None,
         }
     }
 
@@ -702,7 +723,15 @@ impl WorkerCores {
     /// per thread and this thread is this crate's, so the handle goes in where
     /// the reactor and the receptionist do. What that shares is the unit cache
     /// and nothing else, which is the sharing
-    /// `rule:security/isolate-shares-nothing` permits and the only one.
+    /// `rule:security/isolate-shares-nothing` permits and the only one. A core
+    /// of a [`Cores`] set is started inside that set's wrapper instead, and the
+    /// wrapper installs what the set's owner wants there.
+    ///
+    /// The process's set pins its `n`th core to the `n`th CPU. A [`Cores`] set
+    /// does not pin ([`Worker::spawn_unpinned`]). Its cores are started and
+    /// joined once per caller's run, so waiting for each new thread to pin
+    /// itself would be paid by every run. Two such sets in one process would
+    /// also pin their cores to the same first CPUs.
     fn start_one(&mut self) -> bool {
         let Some(cpu) = cpus().get(self.cores.len()).copied() else {
             return false;
@@ -717,10 +746,22 @@ impl WorkerCores {
         // process that published none — a `nvs check`, a test — and that core
         // answers a path entry the way it always has.
         let resolver = nvs_runtime::script::published();
-        let Ok(worker) = Worker::spawn(cpu, move |sched| match resolver {
-            Some(handle) => handle.scoped(|| run_core(&mine, sched)),
-            None => run_core(&mine, sched),
-        }) else {
+        // A set a caller owns runs its cores inside the caller's wrapper
+        // instead, which installs whatever that caller's work reads from the
+        // thread ([`Cores`]).
+        let around = self.around.clone();
+        let owned = around.is_some();
+        let body = move |sched: &mut Scheduler| match (around, resolver) {
+            (Some(Around(around)), _) => around(&mut || run_core(&mine, sched)),
+            (None, Some(handle)) => handle.scoped(|| run_core(&mine, sched)),
+            (None, None) => run_core(&mine, sched),
+        };
+        let started = if owned {
+            Worker::spawn_unpinned(cpu, body)
+        } else {
+            Worker::spawn(cpu, body)
+        };
+        let Ok(worker) = started else {
             return false;
         };
         self.cores.push(Core {
@@ -738,16 +779,18 @@ impl Drop for WorkerCores {
         // neither of those is the TLS destructor whose loader lock made joining
         // a deadlock there. What is joined is a core that has answered every
         // placement it held, because closing the inbox answers the queued ones
-        // and ending the receptionist cancels the running ones.
-        for core in std::mem::take(&mut self.cores) {
+        // and ending the receptionist cancels the running ones. Every inbox is
+        // closed before the first join, so the cores wind down at once rather
+        // than one after another.
+        let cores = std::mem::take(&mut self.cores);
+        for core in &cores {
             core.inbox.close();
-            // A thread this set started is one it may wait for; a registered
-            // core's thread is somebody else's, and the close above is all it is
-            // owed — the receptionist there reads it and returns on its own
-            // scheduler.
-            if let Some(worker) = core.worker {
-                let _ = worker.join();
-            }
+        }
+        // A thread this set started is one it may wait for; a registered core's
+        // thread is somebody else's, and the close above is all it is owed — the
+        // receptionist there reads it and returns on its own scheduler.
+        for worker in cores.into_iter().filter_map(|core| core.worker) {
+            let _ = worker.join();
         }
     }
 }
@@ -843,6 +886,66 @@ where
 pub fn cores_started() -> (usize, usize) {
     let cores = lock(cores());
     (cores.started(), cores.bound)
+}
+
+/// A set of worker cores one caller owns, each running its whole life inside a
+/// wrapper that caller gave.
+///
+/// The process's set is shared by everything in the process, so a thread-local
+/// seam can be on one of its cores only for the core's whole life, as the
+/// published resolver is. A caller whose work needs seams of its own, and whose
+/// work parks, cannot install them per piece of work: a parked task lets every
+/// other task on that core run under the seam it installed, and a guard that
+/// restores the previous value on the way out restores it in the order the
+/// tasks end, which is not the order they started. So such a caller starts its
+/// own cores, and the wrapper installs its seams once per thread, around the
+/// core's whole loop. `nvs test` is that caller: each test reaches the program
+/// under test and the script compiler through two such seams.
+///
+/// Placement is the process set's: the same [`WorkerCores::pick`] order, the
+/// same bound and the same [`Posted`] handle. A placement a task makes on one of
+/// these cores with [`post`] still goes to the process's set. The one
+/// difference is that these cores are not pinned to a CPU
+/// ([`WorkerCores::start_one`] owns why).
+///
+/// **What it spends:** at most `bound` threads, started at the first placement
+/// as the process's cores are, and joined when this is dropped. Dropping it
+/// answers every placement still queued and cancels every one still running, as
+/// the process set's own teardown does.
+#[derive(Debug)]
+pub struct Cores {
+    cores: Mutex<WorkerCores>,
+}
+
+impl Cores {
+    /// An empty set that will start at most `bound` cores, each of them running
+    /// inside `around`.
+    ///
+    /// `around` is called once on each new core's thread, with that core's
+    /// whole loop as its argument, and it must call that argument exactly once.
+    #[must_use]
+    pub fn new(bound: usize, around: impl Fn(&mut dyn FnMut()) + Send + Sync + 'static) -> Self {
+        let mut cores = WorkerCores::new(bound);
+        cores.around = Some(Around(Arc::new(around)));
+        Self {
+            cores: Mutex::new(cores),
+        }
+    }
+
+    /// [`post`], on this set's cores.
+    ///
+    /// # Errors
+    ///
+    /// `f` handed back untouched, for [`post`]'s three states: a caller off a
+    /// core, a reactor that cannot issue a wake, and a set that could start no
+    /// core at all.
+    pub fn post<T, F>(&self, f: F) -> Result<Posted<T>, F>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        post_on(&self.cores, f)
+    }
 }
 
 /// A core this process offered as a placement destination, withdrawn when this
@@ -1719,6 +1822,71 @@ mod tests {
         assert_ne!(
             one, two,
             "both children took one core, which two overlapping placements may not"
+        );
+    }
+
+    thread_local! {
+        /// What a [`Cores`] wrapper installs in the test below.
+        static SEAM: Cell<u32> = const { Cell::new(0) };
+    }
+
+    #[test]
+    fn a_set_a_caller_owns_runs_every_placement_inside_its_wrapper() {
+        // Two sets in one process, as two `nvs test` runs in one test binary
+        // are: each set's cores run inside that set's wrapper, so a placement
+        // reads its own set's value whichever core it lands on. More
+        // placements than cores puts two on one core.
+        let running = Arc::new(AtomicUsize::new(0));
+        let set = |seam: u32| {
+            let running = Arc::clone(&running);
+            Arc::new(Cores::new(2, move |core: &mut dyn FnMut()| {
+                running.fetch_add(1, Ordering::Relaxed);
+                SEAM.with(|slot| slot.set(seam));
+                core();
+                SEAM.with(|slot| slot.set(0));
+                running.fetch_sub(1, Ordering::Relaxed);
+            }))
+        };
+        let (one, two) = (set(1), set(2));
+        let (mut sched, _installed) = core();
+
+        // What each pair of placements read, the first set's then the second's.
+        type Seen = Rc<Cell<Option<Vec<(u32, u32)>>>>;
+        let seen: Seen = Rc::new(Cell::new(None));
+        let collected = Rc::clone(&seen);
+        let (first, second) = (Arc::clone(&one), Arc::clone(&two));
+        sched.spawn(ctx(), TaskRoot::Worker, move |_| {
+            let mut posted = Vec::new();
+            for _ in 0..4 {
+                let (Ok(a), Ok(b)) = (
+                    first.post(|| SEAM.with(Cell::get)),
+                    second.post(|| SEAM.with(Cell::get)),
+                ) else {
+                    panic!("a set refused a placement from a task on a core");
+                };
+                posted.push((a, b));
+            }
+            let answers = posted
+                .into_iter()
+                .map(|(a, b)| match (a.collect(), b.collect()) {
+                    (Answer::Value(a), Answer::Value(b)) => (a, b),
+                    _ => panic!("a placement never answered"),
+                })
+                .collect();
+            collected.set(Some(answers));
+        });
+        run_until_idle(&mut sched).expect("the loop failed");
+
+        assert_eq!(
+            seen.take(),
+            Some(vec![(1, 2); 4]),
+            "a placement read another set's seam, or none"
+        );
+        drop((one, two));
+        assert_eq!(
+            running.load(Ordering::Relaxed),
+            0,
+            "dropping a set left one of its cores running"
         );
     }
 

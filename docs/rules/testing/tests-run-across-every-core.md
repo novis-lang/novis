@@ -2,7 +2,10 @@
 `--jobs` defaults to the machine's hardware threads as it already does for `.nvst` cases. Every test
 already runs in an isolate of its own (`rule:testing/isolate-per-test`), so running them at once is a
 scheduling question and not an isolation one. The runner places each test isolate with the placement a
-program uses (`rule:concurrency/on-worker-runs-the-child-on-another-core`). `--jobs 1` runs every test
+program uses (`rule:concurrency/on-worker-runs-the-child-on-another-core`), on cores the run starts for
+itself: a test parks while its isolate runs, so the program under test and the script compiler are
+installed once per core rather than once per test, where another test on that core would read them.
+`--jobs 1` runs every test
 on the runner's own core, one at a time, and so does a program that loads an extension: the extension
 host belongs to the thread that loaded it.
 
@@ -28,7 +31,8 @@ lines. A test that reads the terminal reads end of input, so no test stops the r
   and as copies, its captured output and its own coverage table when coverage is on, all released when
   it is reported. A failed test's output is held until its report line is printed. That is O(`--jobs`),
   the most tests running at once, plus the results of finished tests waiting for an earlier one, and
-  never the output of a test that passed.
+  never the output of a test that passed. The run's cores are at most one thread per core, started
+  with the first test placed and joined when the run ends.
 
 **Declined:**
 - **A second setting for the number of tests at once.** `--jobs` already says how many `.nvst` cases run
