@@ -3203,6 +3203,7 @@ mod tests {
     }
 
     /// Reading is the inverse of rendering for the patterns a program writes.
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn what_renders_reads_back() {
         let zone = TimeZone::get("Europe/Berlin").unwrap();

@@ -1308,6 +1308,7 @@ mod tests {
     /// The `.nvst` half runs the same statements through a program and is where
     /// the member is reached the way a caller reaches it.
     // covers: Core\Db\Column::name
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_column_label_is_the_alias_a_real_statement_described() {
         let block = nvs_config::tree::Database {
@@ -1381,6 +1382,7 @@ mod tests {
     /// into the slot is what a program matches on, and the member hands that on
     /// without classifying anything a second time.
     // covers: Core\Db\Column::type
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_column_case_is_what_a_real_schema_declared() {
         let block = nvs_config::tree::Database {
@@ -1465,6 +1467,7 @@ mod tests {
     /// one entry per column, so a description losing a column would print an
     /// answer for every entry it kept.
     // covers: Core\Db\Column::nullable
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn every_described_column_may_hold_null_whatever_it_was_declared() {
         let block = nvs_config::tree::Database {

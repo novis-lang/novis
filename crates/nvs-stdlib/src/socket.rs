@@ -1548,6 +1548,10 @@ mod tests {
     /// already parked on its peer, with nothing coming from it, is woken by a
     /// publish on its own core and answers the delivery.
     // covers: Core\Socket::receive
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn a_receive_parked_on_the_peer_wakes_for_a_delivery() {
         let (topic, parks) =
@@ -1573,6 +1577,10 @@ mod tests {
     /// The same wait, woken by a publish from another core: the value crosses
     /// as an envelope, and the envelope's hand-off ends the parked read.
     // covers: Core\Socket::receive
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn a_delivery_from_another_core_wakes_a_parked_receive() {
         let (parking, parked) = std::sync::mpsc::channel();

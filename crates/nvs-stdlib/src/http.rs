@@ -5585,6 +5585,10 @@ mod tests {
     /// The resolver reaches `super::pin` through the per-thread seam
     /// `nvs_runtime::capability::install_resolver` owns, which is the same one
     /// `nvs_host::Worker::spawn` installs the real lookup into.
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn a_slow_lookup_leaves_the_core_free_for_another_task() {
         const HOST: &str = "slow.test";
@@ -6696,6 +6700,10 @@ mod tests {
     /// `Core\Http\TlsInfo` with a reference of the caller's own: reading it twice
     /// and releasing each read leaves the response's own reference standing.
     // covers: Core\Http\Response::tls
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn response_tls_is_null_over_plain_http_and_the_held_session_otherwise() {
         let mut ctx = Ctx::buffered();
@@ -6771,6 +6779,10 @@ mod tests {
     /// string.
     // covers: Core\Http\TlsInfo::version
     // covers: Core\Http\TlsInfo::cipher
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn tls_info_version_and_cipher_read_back_every_suite_under_its_own_version() {
         let mut ctx = Ctx::buffered();
@@ -6834,6 +6846,10 @@ mod tests {
     /// flags answers both. A receiver that is not an object is a fatal, not a
     /// `bool`.
     // covers: Core\Http\TlsInfo::verified
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn tls_info_verified_reads_the_flag_each_session_was_filled_with() {
         let mut ctx = Ctx::buffered();
@@ -6880,6 +6896,10 @@ mod tests {
     // covers: Core\Http\TlsInfo::subject
     // covers: Core\Http\TlsInfo::issuer
     // covers: Core\Http\TlsInfo::expiry
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn tls_info_subject_issuer_and_expiry_read_the_leaf_of_the_chain() {
         fn text_of(read: Value) -> String {
@@ -6962,6 +6982,10 @@ mod tests {
     /// characters, and a session holding no chain answers an empty array. A
     /// receiver that is not an object is a fatal.
     // covers: Core\Http\TlsInfo::peerChain
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn tls_info_peer_chain_writes_each_certificate_as_pem_leaf_first() {
         use base64::Engine as _;
@@ -7270,6 +7294,10 @@ mod tests {
     /// with its issuer after it names the same identity, while the issuer's key
     /// over that chain is thrown as a `LogicError` naming the mismatch.
     // covers: Core\Http\Identity::read
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn identity_read_keeps_the_chain_and_names_the_identity_by_its_leaf() {
         use sha2::Digest as _;
@@ -8013,6 +8041,10 @@ mod tests {
     /// `Core\Time\Instant` names it, so the read is a catchable `RuntimeError`
     /// and never a fatal. `Core\Test::tlsSession` takes an `Instant` and cannot
     /// describe this leaf, so only a Rust test reaches it.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn an_expiry_with_no_end_is_a_runtime_error() {
         let mut ctx = Ctx::buffered();

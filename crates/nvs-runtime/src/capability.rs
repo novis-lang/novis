@@ -2082,6 +2082,10 @@ mod tests {
     /// `rule:errors/path-component-refusals`' device names at the file doors: refused under a grant
     /// that covers everything, with an extension, a trailing dot or a trailing space, on every
     /// platform, and before the filesystem is asked anything.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn a_device_name_is_refused_by_every_file_door_however_wide_the_grant_is() {
         let mut ctx = Ctx::buffered();
@@ -2294,6 +2298,7 @@ mod tests {
     /// the mode, which is the whole reason the root is created by the private create — a root left
     /// at the process umask would make every entry under it enumerable by anyone on the machine,
     /// even though each entry is itself `0o700`.
+    #[cfg_attr(miri, ignore = "Miri's `mkdir` does not apply the mode it is given")]
     #[test]
     fn the_owned_root_is_created_private_on_first_use() {
         // A component below the scratch directory as well, so this also pins that a `temp_root`

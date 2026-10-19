@@ -1791,6 +1791,10 @@ mod tests {
     /// writing several kilobytes on every platform the suite runs on, with nothing to build first.
     // covers: Core\Process::spawn
     // covers: Core\Process\Handle::readStdout
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn a_spawned_childs_reads_suspend_the_coroutine_and_free_the_core() {
         let mut sched = Scheduler::new();
@@ -1853,6 +1857,7 @@ mod tests {
     /// separation an assertion: a member that read both through one pipe would answer the complaint
     /// there.
     // covers: Core\Process\Handle::readStderr
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn a_spawned_childs_error_output_is_read_apart_from_its_output() {
         let mut ctx = Ctx::buffered();
@@ -1948,6 +1953,7 @@ mod tests {
     /// rather than answering as though the child had taken it.
     // covers: Core\Process\Handle::writeStdin
     // covers: Core\Process\Handle::wait
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn two_writes_reach_a_spawned_child_and_wait_closes_its_input() {
         let mut ctx = Ctx::buffered();
@@ -2065,6 +2071,7 @@ mod tests {
     /// chose is the answer elsewhere; what is common to both — and what a caller asks — is that a
     /// child somebody ended is not one that finished its work.
     // covers: Core\Process\Handle::kill
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn killing_a_spawned_child_ends_it_and_wait_answers_its_status() {
         let mut ctx = Ctx::buffered();
@@ -2105,6 +2112,7 @@ mod tests {
     /// assertion about the member rather than about the test's own arithmetic: a member that filed
     /// its event twice — once where the child starts and once where it is joined — prints
     /// plausibly at index zero and fails here.
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn a_spawn_produces_exactly_one_span() {
         let mut ctx = Ctx::buffered();
@@ -2157,6 +2165,7 @@ mod tests {
     /// reaches its end exactly when the child does. A child that survived would leave it open for
     /// the thirty seconds [`a_child_that_runs_until_it_is_killed`] sleeps, which is why the wait
     /// here is bounded rather than a `join` — a failure has to report, not hang.
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn a_spawned_child_is_killed_when_its_task_ends() {
         let mut ctx = Ctx::buffered();
@@ -2225,6 +2234,7 @@ mod tests {
     /// where a request under `nvs serve` ends: a child still running that the program never
     /// waited for or killed is stopped, and the request's log gets one `error` record stamped
     /// with that request's id and naming the program. Nothing is reported twice.
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn a_child_left_running_is_stopped_and_logged_as_an_error_of_its_request() {
         let mut ctx = Ctx::buffered();
@@ -2281,6 +2291,7 @@ mod tests {
     /// The other side of [`a_child_left_running_is_stopped_and_logged_as_an_error_of_its_request`]:
     /// a child the program killed and never waited for, one it waited for, and one that exited by
     /// itself are none of them an error, because the end of the program cut none of them off.
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn a_killed_waited_or_finished_child_is_no_error_at_the_end() {
         let mut ctx = Ctx::buffered();
@@ -2329,6 +2340,7 @@ mod tests {
     /// class. Both halves of the rule: the three kinds are refused **however they are spelled**,
     /// since the extension is lower-cased before it is matched, and the refusal names the kind in
     /// that one spelling regardless of how the target was written.
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn a_windows_batch_or_powershell_target_is_refused() {
         let mut ctx = Ctx::buffered();
@@ -2422,6 +2434,7 @@ mod tests {
     /// first is what says the tight ceiling was crossed by a child that had more to write, and it
     /// is `wait_off_core` under `u64::MAX` — the no-ceiling spelling — that reads it.
     // covers: Core\Process::run
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn a_child_whose_output_exceeds_limits_max_output_is_bounded_rather_than_unbounded() {
         let me = std::env::current_exe().expect("a test binary knows its own path");
@@ -2471,6 +2484,10 @@ mod tests {
     ///
     /// The child is this test binary with a filter that matches nothing: a real process, started
     /// through the real door, on every platform the suite runs on and with nothing to build first.
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn a_process_wait_suspends_its_coroutine_through_the_blocking_pool() {
         let mut sched = Scheduler::new();
@@ -2625,6 +2642,7 @@ mod tests {
     /// `CARGO_PKG_NAME`, which cargo sets for a test run, is the tell for the base set: it is not
     /// in it, so a child with no `env` does not see it.
     // covers: Core\Process::run
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn run_starts_its_child_in_cwd_with_only_the_env_it_was_given() {
         let folder = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
@@ -2735,6 +2753,7 @@ mod tests {
     /// outlives it is stopped and a `TimeoutError` comes back long before the child would have
     /// ended, and a child that ends in time is answered as if no timeout was given.
     // covers: Core\Process::run
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn run_stops_a_child_that_outlives_its_timeout() {
         let started = std::time::Instant::now();
@@ -2775,6 +2794,10 @@ mod tests {
     // covers: Core\Process::spawn
     // covers: Core\Process\Handle::readStdout
     // covers: Core\Process\Handle::wait
+    #[cfg_attr(
+        miri,
+        ignore = "opens a packet socket pair, which Miri does not emulate"
+    )]
     #[test]
     fn spawn_takes_the_same_options_and_its_timeout_stops_a_parked_read() {
         let folder = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");

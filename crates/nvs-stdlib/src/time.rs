@@ -7033,6 +7033,7 @@ mod tests {
     /// whole one, and the two ends of the timestamp range, read at the widest
     /// offsets, are the first and the last day the calendar has.
     // covers: Core\Time\DateTime::date
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_date_is_the_day_in_the_values_own_zone() {
         for (instant, zone, day) in [

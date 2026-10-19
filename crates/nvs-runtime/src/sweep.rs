@@ -454,6 +454,10 @@ mod tests {
     /// one it actually produced, so a name whose shape drifted from the parse
     /// fails here rather than silently answering *skip* forever, which is what
     /// an orphan sweep that never deleted anything would look like.
+    #[cfg_attr(
+        miri,
+        ignore = "asks whether a process is alive with `kill`, which Miri does not emulate"
+    )]
     #[test]
     fn an_entry_this_process_wrote_is_read_as_a_live_owners() {
         let root = scratch("live-owner");
@@ -478,6 +482,10 @@ mod tests {
     /// that is not there yet, and the entry it makes carries this process's
     /// pid, so the walk reads it as a live owner's and a killed run's as an
     /// orphan.
+    #[cfg_attr(
+        miri,
+        ignore = "asks whether a process is alive with `kill`, which Miri does not emulate"
+    )]
     #[test]
     fn a_runner_dir_is_private_and_named_for_the_orphan_sweep() {
         let scratch = scratch("runner-dir");
@@ -512,6 +520,10 @@ mod tests {
     /// *deletion* if the parse is loose — an operator's own directory in the
     /// root, a name with no nonce, a name whose pid field is the Unix process
     /// group — and over-deleting is the one failure `rule:core-classes/temporary-dir-orphan-sweep` does not allow.
+    #[cfg_attr(
+        miri,
+        ignore = "asks whether a process is alive with `kill`, which Miri does not emulate"
+    )]
     #[test]
     fn a_dead_owners_entry_is_swept_and_every_ambiguity_is_skipped() {
         // Above every platform's pid ceiling — Linux's `pid_max` tops out at
@@ -555,6 +567,10 @@ mod tests {
     /// one path cannot show an order. And the entries are still on disk
     /// afterwards, which is the walk's other half: it answers, and the door
     /// deletes.
+    #[cfg_attr(
+        miri,
+        ignore = "asks whether a process is alive with `kill`, which Miri does not emulate"
+    )]
     #[test]
     fn the_walk_answers_every_dead_owners_directory_and_nothing_else() {
         let root = scratch("orphans");

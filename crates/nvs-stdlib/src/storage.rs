@@ -708,6 +708,10 @@ mod tests {
     /// `put` replaces an object by default, and `overwrite: false` claims a
     /// key: the second claim throws and the bytes already there stay.
     // covers: Core\Storage::put
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn put_replaces_by_default_and_a_refused_claim_leaves_the_object_alone() {
         let (root, mut ctx) = disk("put");
@@ -744,6 +748,10 @@ mod tests {
     /// that was, and throws for a key that climbs out of the disk before it
     /// asks the disk anything.
     // covers: Core\Storage::get
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn get_gives_null_for_a_missing_object_and_the_bytes_for_a_saved_one() {
         let (root, mut ctx) = disk("get");

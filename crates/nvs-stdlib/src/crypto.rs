@@ -4044,6 +4044,10 @@ mod tests {
     /// differently is the reference card's own sentence, and it is the half a
     /// caller feels: two signatures that differ are both this key's.
     // covers: Core\Crypto::sign
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_signature_is_the_pairs_own_scheme_and_an_x25519_pair_signs_nothing() {
         fn drew(ctx: &mut nvs_runtime::Ctx, kind: KeyKind) -> Value {
@@ -4163,6 +4167,10 @@ mod tests {
     /// not the one every forgery gets. Both are read as sentences, since the
     /// class a member threw is not on [`nvs_runtime::call`]'s error.
     // covers: Core\Crypto::verify
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn every_forgery_lands_on_one_sentence_and_an_x25519_key_verifies_nothing() {
         fn drew(ctx: &mut nvs_runtime::Ctx, kind: KeyKind) -> Value {
@@ -5263,6 +5271,10 @@ mod tests {
     /// signature that key made over that message — the octets, the key, the
     /// message, the encoding and the algorithm — arrives there as the same
     /// answer, so there is one sentence to say.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn webcrypto_signature_refusals_are_each_refused_with_one_runtime_error() {
         for refusal in webcrypto::refusals("signatures") {
@@ -5296,6 +5308,10 @@ mod tests {
     /// fresh signature verifies under the key's own public half, and two over
     /// one message differ, which is the evidence the randomness reaches the
     /// algorithm rather than being a constant nobody noticed.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn webcrypto_signature_vectors_verify_and_deterministic_ones_resign_byte_for_byte() {
         for vector in webcrypto::vectors("signatures") {
@@ -5345,6 +5361,10 @@ mod tests {
     /// way in and that refusal is one of this module's rules rather than an
     /// obstacle to work around. The payload is carried base64url rather than
     /// written out, because the appendix's own is the one with the `\r\n` in it.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn the_published_tokens_of_rfc_7515_verify_under_their_appendix_jwk() {
         let payload = "eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFt\
@@ -5419,6 +5439,10 @@ mod tests {
     /// [`PrivateKey::read`] takes is [`ED25519_PKCS8_PREFIX`] over it — the file
     /// [`generated_pkcs8`] writes for a drawn key, which is why a key that came
     /// out of a document needs no reader of its own.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn the_ed25519_token_of_rfc_8037_is_verified_and_signed_again_byte_for_byte() {
         let input = "eyJhbGciOiJFZERTQSJ9.RXhhbXBsZSBvZiBFZDI1NTE5IHNpZ25pbmc";
@@ -5468,6 +5492,10 @@ mod tests {
     /// The one pairing that is not a mistake is an RSA key read as either
     /// scheme: that is the single place `rule:security/algorithm-comes-from-the-key`
     /// leaves a choice, and it is made here and nowhere later.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_key_read_as_a_kind_it_is_not_is_refused_at_the_read() {
         let pkcs8 =
@@ -5492,6 +5520,10 @@ mod tests {
     /// reader that carried the four signing kinds and lost X25519 — the shape
     /// the codec had before a `Crypto\KeyPair` needed all five — fails here
     /// while every line it does print still looks right.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn every_kind_of_the_roster_reads_a_private_key_and_derives_its_public_half() {
         let pairs = [
@@ -5583,6 +5615,10 @@ mod tests {
     /// holding the right octets under the wrong kind still answers every
     /// comparison above and fails at the first signature.
     // covers: Core\Crypto\KeyPair::read
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_key_file_reads_into_the_der_and_the_kind_whichever_spelling_carried_it() {
         let slots = |octets: &[u8], kind: KeyKind| -> Option<(Vec<u8>, KeyKind)> {
@@ -5660,6 +5696,10 @@ mod tests {
     /// Written twice, because a member moving the value out of the slot answers
     /// the right octets once and leaves a pair no later member can use.
     // covers: Core\Crypto\KeyPair::write
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_pair_writes_the_octets_in_its_own_slot_and_keeps_them() {
         let pkcs8 = webcrypto::octets(webcrypto::node("/jws/keys/ed-1"), "/pkcs8");
@@ -5728,6 +5768,10 @@ mod tests {
     /// thousand of them: a member handing out one shared instance would answer
     /// every assertion above and leave the survivors reading freed octets.
     // covers: Core\Crypto\KeyPair::publicKey
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn every_pair_answers_the_public_half_the_set_exported_and_a_fresh_one_each_call() {
         let mut derived = 0;
@@ -5946,6 +5990,10 @@ mod tests {
     /// route and wrong on the other still looks right wherever a program uses
     /// one route.
     // covers: Core\Crypto\PublicKey::kind
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_key_answers_its_kind_as_the_registrys_own_case_however_it_was_reached() {
         let asked = |ctx: &mut nvs_runtime::Ctx, key: Value| {
@@ -6369,6 +6417,10 @@ mod tests {
     /// through [`PublicKey::read`] and hands both the same frozen signatures.
     /// A codec that reordered an RSA component or dropped a point's tag would
     /// still round-trip its own encodings and fail every line of this.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_key_the_codec_read_verifies_what_webcrypto_signed() {
         for vector in webcrypto::vectors("signatures") {

@@ -1857,6 +1857,10 @@ mod tests {
     /// file or a folder, and 65 are refused. A name that is only long is not
     /// deep, so a long file name under one folder reads too.
     // covers: Core\Zip::extract
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn an_entry_nesting_more_than_sixty_four_folders_is_refused() {
         let deepest_file = format!("{}f.txt", "d/".repeat(MAX_FOLDERS));
@@ -2230,6 +2234,10 @@ mod tests {
     /// `nvs_config::resolve::Disk` and takes no resolver. So the case does the
     /// real thing where the platform allows it and says why it could not where
     /// it does not — the loop's WSL leg runs it either way.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     #[expect(
         clippy::print_stderr,
@@ -2330,6 +2338,10 @@ mod tests {
     /// the entry that crosses it and leaves the one before it written. A name
     /// already taken refuses rather than being replaced.
     // covers: Core\Zip::extract
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn the_member_extracts_under_one_bound_held_on_both_sides_across_the_archive() {
         let (_dir, root) = temp_root("extract");

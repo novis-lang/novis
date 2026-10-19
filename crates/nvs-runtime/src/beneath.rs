@@ -593,6 +593,10 @@ mod tests {
         (dir, canonical)
     }
 
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn creates_every_missing_folder_and_then_the_file() {
         let (_dir, root) = scratch("create");
@@ -611,6 +615,10 @@ mod tests {
         );
     }
 
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn append_writes_at_the_end_and_read_write_empties_nothing() {
         let (_dir, root) = scratch("modes");
@@ -627,6 +635,10 @@ mod tests {
         drop(file);
     }
 
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn rename_moves_the_name_and_replaces_the_destination() {
         let (_dir, root) = scratch("rename");
@@ -645,6 +657,10 @@ mod tests {
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
     }
 
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn write_mode_empties_nothing_and_same_file_sees_one_file() {
         let (_dir, root) = scratch("same");
@@ -659,6 +675,10 @@ mod tests {
         drop((written, read, other));
     }
 
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn a_file_where_a_folder_is_needed_is_an_error() {
         let (_dir, root) = scratch("file");
@@ -668,6 +688,10 @@ mod tests {
     }
 
     /// A read opens what is there and creates nothing.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn a_read_opens_what_is_there_and_creates_nothing() {
         use std::io::Read;
@@ -703,6 +727,10 @@ mod tests {
     }
 
     /// A link is planted where a folder of the path was.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn a_planted_link_is_never_followed() {
         let (_dir, root) = scratch("link");
