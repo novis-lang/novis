@@ -2807,8 +2807,16 @@ pub fn class_renders(name: &str) -> bool {
 /// second search here would be free to see a member that one did not.
 #[must_use]
 pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
-    class(name)
-        .and_then(|class| class.members().find(|member| member.name == "toString"))
+    class(name).and_then(render_member)
+}
+
+/// [`render_symbol`] for a class already in hand, so a walk over the roster
+/// does not search it again for each class.
+#[must_use]
+pub(crate) fn render_member(class: &CoreClass) -> Option<&'static str> {
+    class
+        .members()
+        .find(|member| member.name == "toString")
         .map(|member| member.symbol)
 }
 
@@ -3339,16 +3347,19 @@ pub fn implements_comparable(class: &str) -> bool {
     CLASSES
         .iter()
         .find(|found| found.name == class)
-        .is_some_and(|found| {
-            found.instance.iter().any(|member| {
-                member.name == nvs_runtime::COMPARE_TO
-                    && matches!(member.params, [CoreTy::Instance(param)] if *param == class)
-                    && matches!(member.return_ty, CoreTy::Int)
-            })
-        })
+        .is_some_and(comparable)
 }
 
-/// The symbol of `name`'s `compareTo` — the implementation half of
+/// [`implements_comparable`] for a class already in hand.
+fn comparable(class: &CoreClass) -> bool {
+    class.instance.iter().any(|member| {
+        member.name == nvs_runtime::COMPARE_TO
+            && matches!(member.params, [CoreTy::Instance(param)] if *param == class.name)
+            && matches!(member.return_ty, CoreTy::Int)
+    })
+}
+
+/// The symbol of `class`'s `compareTo` — the implementation half of
 /// [`implements_comparable`], and `None` for every class that declares no such
 /// member.
 ///
@@ -3357,21 +3368,19 @@ pub fn implements_comparable(class: &str) -> bool {
 /// the class's own descriptor, so a `Core` object ordered through an erased
 /// operand — the `Core\Heap` holding it, which knows no class — compares
 /// through the very implementation this registry told the *checker* it would.
-/// Asked of [`implements_comparable`] rather than of the roster directly, so a
-/// row that answers the interface and a row that is merely spelled like it
-/// cannot part company here.
+/// Asked of [`implements_comparable`]'s own test rather than of the roster
+/// directly, so a row that answers the interface and a row that is merely
+/// spelled like it cannot part company here. It takes the class rather than
+/// its name, so a walk over the roster does not search it again for each class.
 #[must_use]
-pub(crate) fn compare_symbol(name: &str) -> Option<&'static str> {
-    if !implements_comparable(name) {
+pub(crate) fn compare_member(class: &CoreClass) -> Option<&'static str> {
+    if !comparable(class) {
         return None;
     }
-    class(name)
-        .and_then(|class| {
-            class
-                .instance
-                .iter()
-                .find(|member| member.name == nvs_runtime::COMPARE_TO)
-        })
+    class
+        .instance
+        .iter()
+        .find(|member| member.name == nvs_runtime::COMPARE_TO)
         .map(|member| member.symbol)
 }
 
