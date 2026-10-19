@@ -3280,8 +3280,15 @@ pub(crate) mod tests {
     /// And a stale slot never evicts the newer entry under its key.
     #[test]
     fn an_expired_entry_nobody_reads_again_is_swept_by_a_later_write() {
+        // Under Miri, a tenth of the expiring entries, so fewer writes reach
+        // the sweep after them.
+        let (expiring, kept): (u32, u32) = if cfg!(miri) {
+            (100, 256)
+        } else {
+            (1_000, 2048)
+        };
         let mut tier = Entries::default();
-        for step in 0..1_000u32 {
+        for step in 0..expiring {
             let key = format!("session:{step}");
             tier.put(
                 key.as_bytes(),
@@ -3291,15 +3298,16 @@ pub(crate) mod tests {
             );
         }
         std::thread::sleep(Duration::from_millis(5));
-        // The next sweep comes at most 2048 slots after the last one, and the
-        // queue holds at most 1000 of them, so 2048 writes reach it.
-        for step in 0..2048u32 {
+        // The next sweep comes at most twice the queue's length after the last
+        // one, and the queue holds at most `expiring` slots, so `kept` writes
+        // reach it.
+        for step in 0..kept {
             let key = format!("kept:{step}");
             tier.put(key.as_bytes(), b"y", Lifetime::Forever, None);
         }
         assert_eq!(
             tier.entries.len(),
-            2048,
+            kept as usize,
             "expired entries stayed in the tier"
         );
         let live: usize = tier
