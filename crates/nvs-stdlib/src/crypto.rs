@@ -3805,8 +3805,11 @@ mod tests {
                 .expect("the construction's own key length");
             let sealed = seal_under(&mut ctx, &cipher, &[], b"one message", "Core\\Crypto::seal")
                 .expect("a short message seals");
+            // One P-256 key takes about a minute and a half under Miri, so
+            // there the two other kinds stand for it.
             let keys: Vec<Vec<u8>> = [KeyKind::X25519, KeyKind::Ed25519, KeyKind::P256]
                 .into_iter()
+                .filter(|kind| !(cfg!(miri) && *kind == KeyKind::P256))
                 .map(|kind| {
                     generated_pkcs8(&mut ctx, kind, "Core\\Crypto::generateKeyPair")
                         .expect("every kind but the two RSA ones is drawn here")
@@ -3815,18 +3818,25 @@ mod tests {
             (sealed, keys)
         };
 
+        let first = drawn(0x0005_eed1);
         assert_eq!(
-            drawn(0x0005_eed1),
+            first,
             drawn(0x0005_eed1),
             "a seeded context reproduces the nonce and every drawn key, which nothing outside \
              `crate::random::draw` can do"
         );
         assert_ne!(
-            drawn(0x0005_eed1),
+            first,
             drawn(0x0005_eed2),
             "and each of them is drawn rather than derived from the key or the message"
         );
 
+        // The half below reads this module's own source text, and under Miri
+        // it takes minutes. The text is the same on every build, so the other
+        // builds check it.
+        if cfg!(miri) {
+            return;
+        }
         let shipped = |source: &'static str| {
             source
                 .lines()
@@ -3946,12 +3956,17 @@ mod tests {
     // covers: Core\Crypto::generateKeyPair
     #[test]
     fn a_generated_pair_is_a_fresh_private_key_of_the_kind_that_was_named() {
+        // Under Miri the batch is three pairs, and X25519 is the one kind
+        // drawn: a P-256 pair takes about a minute and a half there, and an
+        // Ed25519 pair is read back by `ring`'s C and assembly, which Miri
+        // cannot interpret.
+        let batch = if cfg!(miri) { 3 } else { 8 };
         let drawn = |kind: KeyKind, seed: Option<u64>| {
             let mut ctx = nvs_runtime::Ctx::buffered();
             if let Some(state) = seed {
                 ctx.set_random_state(state);
             }
-            (0..8)
+            (0..batch)
                 .map(|_| {
                     let pair = nvs_runtime::call(
                         nvs_core_crypto_generate_key_pair,
@@ -3983,7 +3998,11 @@ mod tests {
                 .collect::<Vec<_>>()
         };
 
-        for kind in [KeyKind::P256, KeyKind::X25519, KeyKind::Ed25519] {
+        let kinds = [KeyKind::P256, KeyKind::X25519, KeyKind::Ed25519];
+        for kind in kinds
+            .into_iter()
+            .filter(|kind| !cfg!(miri) || *kind == KeyKind::X25519)
+        {
             let pairs = drawn(kind, None);
             let mut distinct = pairs.clone();
             distinct.sort();
@@ -3993,14 +4012,15 @@ mod tests {
                 pairs.len(),
                 "no pair is drawn twice, so no two programs hold one private key by accident"
             );
+            let seeded = drawn(kind, Some(0x000c_0ffe));
             assert_eq!(
-                drawn(kind, Some(0x000c_0ffe)),
+                seeded,
                 drawn(kind, Some(0x000c_0ffe)),
                 "a seeded context reproduces the pairs, which is what says the scalar came \
                  through `crate::random::draw`"
             );
             assert_ne!(
-                drawn(kind, Some(0x000c_0ffe)),
+                seeded,
                 drawn(kind, Some(0x000c_0fff)),
                 "and a second seed draws different ones"
             );
@@ -4679,11 +4699,15 @@ mod tests {
             hex("55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc"),
             "RFC 7914 § 11, one iteration"
         );
-        assert_eq!(
-            pbkdf2_sha256(b"Password", b"NaCl", 80_000).as_slice(),
-            hex("4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56"),
-            "RFC 7914 § 11, eighty thousand"
-        );
+        // Under Miri a thousand iterations take more than a minute, so there
+        // the one-iteration vector above is the PBKDF2 half of this test.
+        if !cfg!(miri) {
+            assert_eq!(
+                pbkdf2_sha256(b"Password", b"NaCl", 80_000).as_slice(),
+                hex("4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56"),
+                "RFC 7914 § 11, eighty thousand"
+            );
+        }
 
         assert_eq!(
             expand_key(
@@ -4738,6 +4762,11 @@ mod tests {
             .is_err(),
             "one octet short of a salt is refused"
         );
+        // A derivation at the floor takes hours under Miri, so there the test
+        // ends with the three refusals, which run no iteration.
+        if cfg!(miri) {
+            return;
+        }
         assert_eq!(
             derive_key(b"correct horse", &salt, u64::from(MIN_ITERATIONS), who)
                 .expect("the floor derives"),
@@ -4778,7 +4807,10 @@ mod tests {
         let vectors = webcrypto::vectors("pbkdf2");
         assert!(!vectors.is_empty(), "the set carries PBKDF2 vectors at all");
 
-        for vector in vectors {
+        // Under Miri a thousand iterations take more than a minute, and every
+        // vector here is at the floor of a hundred thousand or above. There the
+        // PBKDF2 section is not run, and the two below still are.
+        for vector in vectors.iter().filter(|_| !cfg!(miri)) {
             let name = webcrypto::text(vector, "/name");
             assert_eq!(
                 derive_key(
@@ -4978,7 +5010,12 @@ mod tests {
             "RFC 7748 § 6.1, the same secret reached from the other end"
         );
 
-        for vector in webcrypto::vectors("ecdh") {
+        // Under Miri one P-256 multiplication takes about a minute and a half,
+        // so there only the X25519 vectors run.
+        let vectors = webcrypto::vectors("ecdh")
+            .iter()
+            .filter(|vector| !(cfg!(miri) && webcrypto::text(vector, "/curve") == "P-256"));
+        for vector in vectors {
             let name = webcrypto::text(vector, "/name");
             let mine = webcrypto::octets(vector, "/a/scalar");
             let theirs = webcrypto::octets(vector, "/b/scalar");
@@ -5091,6 +5128,11 @@ mod tests {
             published,
             "RFC 5903 § 8.1, the initiator's scalar against the responder's point"
         );
+        // Under Miri each multiplication takes about a minute and a half, so
+        // there the test checks one direction.
+        if cfg!(miri) {
+            return;
+        }
         assert_eq!(
             agree_p256(&responder, &point(&initiator))
                 .expect("the document's two keys are two ends of one agreement")
