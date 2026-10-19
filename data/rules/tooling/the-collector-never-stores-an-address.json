@@ -1,0 +1,12 @@
+{
+  "title": "The collector never stores a sender's address: it limits the rate on a keyed hash held in memory, and its server and proxy write no address to any log",
+  "status": "designed",
+  "seeAlso": [
+    "http-server/a-log-line-can-leave-out-the-client-address",
+    "core-classes/ratelimit-two-members",
+    "tooling/the-telemetry-collector-is-a-novis-program",
+    "tooling/a-telemetry-report-is-checked-against-a-closed-schema"
+  ],
+  "guardedBy": [],
+  "goal": "telemetry-service"
+}

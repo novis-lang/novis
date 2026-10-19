@@ -1,0 +1,14 @@
+{
+  "title": "The telemetry collector is `apps/telemetry/`, a Novis program in this repository, served at `telemetry.novis-lang.org`, and its report endpoint is the default upload URL",
+  "status": "designed",
+  "seeAlso": [
+    "config/telemetry-and-update-endpoints-are-configuration",
+    "tooling/a-telemetry-report-is-checked-against-a-closed-schema",
+    "tooling/the-collector-keeps-weekly-totals-only",
+    "tooling/the-collector-never-stores-an-address",
+    "tooling/telemetry-totals-are-public",
+    "packaging/the-registry-is-a-novis-program"
+  ],
+  "guardedBy": [],
+  "goal": "telemetry-service"
+}
