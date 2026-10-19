@@ -1,7 +1,7 @@
 <?nvs
 // Measures drawing one random float, as a program does to decide whether to log a request.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

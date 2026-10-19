@@ -1,7 +1,7 @@
 <?nvs
 // Checks whether a path is a folder, as a program does before it lists what is inside.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

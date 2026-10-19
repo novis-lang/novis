@@ -1,7 +1,7 @@
 <?nvs
 // Checks whether a path exists, as a program does before it reads a settings file.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

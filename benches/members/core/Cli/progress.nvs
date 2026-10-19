@@ -3,7 +3,7 @@
 // command line tool meets this when it imports a file row by row. The output here
 // is not a terminal, so nothing is drawn and the bar's own cost is what is left.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 3
 // bench: allocations 10
 // bench: complexity constant
 

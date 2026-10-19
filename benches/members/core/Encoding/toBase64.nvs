@@ -2,7 +2,7 @@
 // Measures writing a 32-byte key as text, which a program does before it puts
 // one in a header or a JSON field.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

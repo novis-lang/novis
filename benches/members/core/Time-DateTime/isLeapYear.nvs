@@ -1,7 +1,7 @@
 <?nvs
 // Checks whether a date is in a leap year, as a program does before it splits a yearly price into days.
 // bench: iterations 4096
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

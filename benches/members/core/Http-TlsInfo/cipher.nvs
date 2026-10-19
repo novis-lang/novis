@@ -2,7 +2,7 @@
 // Reads the cipher of a connection, as a program does when it checks a list of approved ciphers.
 // bench: iterations 2048 callgrind
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

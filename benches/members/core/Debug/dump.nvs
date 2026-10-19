@@ -2,7 +2,7 @@
 // Measures one `Core\Debug::dump` of a small value, which is what a program
 // writes while somebody is looking for a fault in it.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

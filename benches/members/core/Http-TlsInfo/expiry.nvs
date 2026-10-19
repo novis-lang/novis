@@ -1,7 +1,7 @@
 <?nvs
 // Reads when a server's certificate expires, as a daily renewal check does.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

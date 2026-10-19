@@ -1,7 +1,7 @@
 <?nvs
 // Measures drawing 16 bytes from a seeded generator, as a test does to build its data.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity linear
 

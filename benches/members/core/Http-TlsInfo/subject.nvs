@@ -1,7 +1,7 @@
 <?nvs
 // Reads the name in a server's certificate, as a program does before it trusts a partner.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

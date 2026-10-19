@@ -98,9 +98,9 @@ names the two answers, the second being a `// proof: gap` marker on the bench.
   between the ramp's two largest batches, so the one set-up allocation of the `$labels` array
   cancels out and an allocation per call does not. It is met to within a hundredth, or to within
   one count across the last batch's added operations, so a buffer that doubles once there passes. A
-  member that returns a scalar declares `allocations 0`; a member bench declares `calls 0`, because
-  a `Core` member is a helper and not a compiled call site, and a bench over a language feature
-  that calls a method declares the calls it makes.
+  member that returns a scalar declares `allocations 0`. A bench declares every call one operation
+  makes: a `Core` member's call is a call site with its own probes (`rule:testing/debug-probes`), so
+  a bench that calls its member once declares `calls 1`, and a callback the member calls counts too.
 - **`// bench: complexity constant`** — how the operation's cost may grow with its input: `constant`,
   `linear`, `nlogn`, or another class `EXPECT` in `tools/nv/cmd/scaling.ts` names, and never
   `quadratic`. Every bench carries one. Its growth is checked by that tool's ramp, which is the

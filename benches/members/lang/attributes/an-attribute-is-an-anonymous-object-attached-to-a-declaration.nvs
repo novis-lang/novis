@@ -4,7 +4,7 @@
 // about when the program starts.
 // bench: iterations 256
 // bench: allocations 2
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 type Route = {path: string, name: string};

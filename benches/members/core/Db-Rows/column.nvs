@@ -2,7 +2,7 @@
 // Measures reading one column of a small result as a list, which a program
 // does to answer a request for names or ids.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

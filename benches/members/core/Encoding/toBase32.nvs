@@ -2,7 +2,7 @@
 // Measures writing a 20-byte two-factor secret as text, which a program does
 // when it makes the link for an authenticator app.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

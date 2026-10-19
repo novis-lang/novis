@@ -2,7 +2,7 @@
 // Reads where the part to write starts, as a program that sends a video does before it reads the file.
 // bench: iterations 2048
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

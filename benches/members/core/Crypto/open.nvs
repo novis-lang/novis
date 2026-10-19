@@ -1,7 +1,7 @@
 <?nvs
 // Measures opening one short field, as a program does when it reads a row back.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

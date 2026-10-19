@@ -2,7 +2,7 @@
 // Measures building one link from the route table, which a page does for every
 // link it renders.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Products {

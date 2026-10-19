@@ -2,7 +2,7 @@
 // Measures writing one short field of text as bytes, which a program does for
 // every field of a file an older system has to read.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

@@ -1,7 +1,7 @@
 <?nvs
 // Measures rolling a die, as a program does when it picks a random number in a range.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 
