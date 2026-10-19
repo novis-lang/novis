@@ -886,9 +886,9 @@ mod tests {
             value
         }
 
-        // Under Miri, 200 records still make an insert that compares against
+        // Under Miri, 50 records still make an insert that compares against
         // every earlier one cost far more comparisons than the bound below.
-        let count = if cfg!(miri) { 200 } else { 2000 };
+        let count = if cfg!(miri) { 50 } else { 2000 };
         let records: Vec<Value> = (0..count).map(record).collect();
         let again = record(7);
         let mut seen = HashSet::new();

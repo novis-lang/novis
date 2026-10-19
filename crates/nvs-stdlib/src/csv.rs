@@ -1672,7 +1672,7 @@ mod tests {
     // covers: Core\Csv::rows
     #[test]
     fn csv_rows_holds_one_record_and_never_the_document() {
-        let (records, pad) = if cfg!(miri) { (360, 90) } else { (4_000, 0) };
+        let (records, pad) = if cfg!(miri) { (180, 190) } else { (4_000, 0) };
 
         let zeros = "0".repeat(pad);
         let mut document = String::from("id,amount\n");

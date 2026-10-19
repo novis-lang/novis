@@ -5902,7 +5902,10 @@ mod tests {
     }
 
     /// Every public key the frozen set carries, as the node holding its
-    /// encodings and the kind its label names.
+    /// encodings and the kind its label names. Under Miri it is the first key
+    /// of each kind, because every scan over the whole set takes close to
+    /// CI's five minutes there, and a second key of a kind reads through the
+    /// same code as the first.
     fn public_keys() -> Vec<(&'static serde_json::Value, KeyKind)> {
         let mut keys = Vec::new();
         for id in ["rsa-1", "rsa-2", "ec-1", "ed-1"] {
@@ -5920,6 +5923,16 @@ mod tests {
             }
         }
 
+        if cfg!(miri) {
+            let mut seen = Vec::new();
+            keys.retain(|(_, kind)| {
+                let first = !seen.contains(kind);
+                if first {
+                    seen.push(*kind);
+                }
+                first
+            });
+        }
         keys
     }
 
