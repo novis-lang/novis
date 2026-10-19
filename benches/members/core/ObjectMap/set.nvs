@@ -1,6 +1,8 @@
 <?nvs
 // Replaces the value stored for an object, as a program does when it counts something per object.
 // bench: iterations 256
+// bench: allocations 0
+// bench: calls 1
 // bench: complexity constant
 
 final class Key {

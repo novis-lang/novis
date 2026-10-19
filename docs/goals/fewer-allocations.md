@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-stdlib/src/arr.rs]
   - id: 10
     title: "an ObjectMap overwrite replaces its value in place"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-stdlib/src/objmap.rs, crates/nvs-stdlib/src/identity_store.rs]
   - id: 11
     title: "a uint subscript takes the integer-key path"
@@ -149,9 +149,9 @@ result of a known entry count, as `arr.rs:NN` and one line each, before the sess
 
 **Does:** closes `an-objectmap-overwrite-allocates-its-chain-key`.
 
-- [ ] `NvsArray` has a replace-in-place that takes a borrowed key, and `Core\ObjectMap::set` over an existing key uses it. `crates/nvs-runtime/src/array.rs:899`, `crates/nvs-stdlib/src/objmap.rs:364`, `crates/nvs-stdlib/src/identity_store.rs:104`
-- [ ] `core/ObjectMap/set.nvs` declares 0 allocations for an overwrite (`rule:testing/member-perf-ledger`). `benches/members/core/ObjectMap/set.nvs:1`
-- [ ] The record is deleted. `data/gaps/nvs-stdlib/an-objectmap-overwrite-allocates-its-chain-key.json:1`
+- [x] `NvsArray` has a replace-in-place that takes a borrowed key, and `Core\ObjectMap::set` over an existing key uses it. `crates/nvs-runtime/src/array.rs:1080`, `crates/nvs-stdlib/src/objmap.rs:364`, `crates/nvs-stdlib/src/identity_store.rs:104`
+- [x] `core/ObjectMap/set.nvs` declares 0 allocations for an overwrite (`rule:testing/member-perf-ledger`). `benches/members/core/ObjectMap/set.nvs:1`
+- [x] The record is deleted.
 
 ### 11. a uint subscript takes the integer-key path
 
@@ -256,7 +256,16 @@ and those hits stay.
 
 ### State
 
-Stages 1 and 2 are done. `NvsArray::with_capacity` reserves a packed vector, and the hash form takes
+Stages 1, 2 and 10 are done. `NvsArray::overwrite` replaces the value of a live entry through a
+borrowed key and gives the value back where the key is absent. `Core\ObjectMap::set` over a key the
+map has uses it with the chain key on the stack, so `core/ObjectMap/set.nvs` counts 0 allocations
+where it counted 1, and every `Core\ObjectMap` record is measured again.
+
+The nightly run 39278827562 failed one case, `tests/conformance/core/ldap-typed-values.nvst`: Samba
+stamped `pwdLastSet` in the second before `whenCreated`, which has whole seconds only. The case now
+allows that one second.
+
+`NvsArray::with_capacity` reserves a packed vector, and the hash form takes
 the room over when the first key is not `"0"`; every `Core\Arr` member that knows its result's entry
 count, or an upper bound no larger than an argument it holds, reserves it. `key_bytes` returns
 `KeyBytes`, a borrowed string or an integer rendered on the stack, so `hasKey` counts 0 allocations
@@ -266,25 +275,22 @@ A filter result with a gap pays a few more bytes, since its index is sized to th
 
 Since `ece7b500f` a `Core` call counts as a call, so every `Core\Arr` bench now declares its member's
 call and its callbacks'. All 53 `Core\Arr` records, and the `Core\Cli` and `Core\Html` records stage 1
-left stale, are measured again. Sixteen gap records name this goal; `bun nv owners --closes
-fewer-allocations` lists them.
+left stale, are measured again. Fifteen gap records name this goal; `bun nv owners --closes
+fewer-allocations` lists them, so the `owners` check stays red until stage 9.
 
-The nightly run 39278568537 was `cancelled` with no job scheduled, in the same GitHub Actions outage
-`release-hardening`'s handoff records; nothing in the tree caused it. The `looper` on PATH has no
-`verify`; `bun tools/looper/main.ts verify` runs it.
+The `looper` on PATH has no `verify`; `bun tools/looper/main.ts verify` runs it.
 
 ### Next
 
-**Stage 10: an ObjectMap overwrite replaces its value in place**, one file set:
-`crates/nvs-runtime/src/array.rs`, `crates/nvs-stdlib/src/objmap.rs`,
-`crates/nvs-stdlib/src/identity_store.rs`. `nvs_core_object_map_set` writes both stores through
-`NvsArray::set` with `NvsStr::new(&chain)` (`objmap.rs:379`, `objmap.rs:393`), so an overwrite heap-copies
-the chain key `identity_store::locate` built (`identity_store.rs:104`). Re-recording `objmap.rs`'s
-benches will need their `calls` declared, as `Core\Arr`'s did.
+**Stage 11: a uint subscript takes the integer-key path**, one file set: `crates/nvs-ir/src/lower/expr.rs`,
+`crates/nvs-ir/src/lower/tests.rs`. `lower_array_key` (`expr.rs:2617`) passes an `int` key through as
+`Ty::Int` and sends a `uint` one to `Helper::UintToString`, so a `uint` subscript builds a string on
+every access. A `uint` at or under `i64::MAX` should take the `int` path, and only a larger one
+renders. `lang/expressions/assignment.nvs` is the bench the record measured.
 
-- [ ] `NvsArray` has a replace-in-place that takes a borrowed key, and `Core\ObjectMap::set` over an existing key uses it. `crates/nvs-runtime/src/array.rs:1023`, `crates/nvs-stdlib/src/objmap.rs:364`, `crates/nvs-stdlib/src/identity_store.rs:104`
-- [ ] `core/ObjectMap/set.nvs` declares 0 allocations for an overwrite (`rule:testing/member-perf-ledger`). `benches/members/core/ObjectMap/set.nvs:1`
-- [ ] The record is deleted. `data/gaps/nvs-stdlib/an-objectmap-overwrite-allocates-its-chain-key.json:1`
+- [ ] `lower_array_key` branches on the value's range for a `uint`. `crates/nvs-ir/src/lower/expr.rs:2617`
+- [ ] The lowering test of a `uint` subscript pins both branches. `crates/nvs-ir/src/lower/tests.rs:1802`
+- [ ] The record is deleted. `data/gaps/nvs-ir/uint-array-subscript-is-rendered-to.json:1`
 
 ### Backlog
 
