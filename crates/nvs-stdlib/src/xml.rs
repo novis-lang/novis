@@ -301,8 +301,8 @@ const NAMESPACE_SLOT: usize = 5;
 /// out, and is the one that can refuse.
 ///
 /// The node family itself, memberless of statics and produced only by a
-/// parse. Beside its class rather than in spec § order for `Core\Html`'s own
-/// reason: this is the value the section's first two rows both answer with.
+/// parse. Beside its class for `Core\Html`'s own
+/// reason: this is the value both parsers answer with.
 // rank: 1060
 pub(crate) const NODE: CoreClass = CoreClass {
     name: NODE_NAME,

@@ -1,9 +1,9 @@
 //! The `Core` signature registry: what the compiler resolves a
 //! `Core\Class::member(...)` call against.
 //!
-//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) is
-//! authoritative for every signature; this is that file in the one form a
-//! compiler can read. A row here is a *promise* — `nvs-types` seeds its own
+//! This file is the one source of every `Core` signature, and `nvs meta --json`
+//! publishes it (`rule:core-api/field-wise-precedence`). A row here is a
+//! *promise* — `nvs-types` seeds its own
 //! signature table from [`CLASSES`], so a `Core` call goes through exactly the
 //! arity check, the assignability check and the `ResolvedCall` recording a
 //! user-declared static call already does, with no second code path.
@@ -21,17 +21,17 @@
 //!
 //! # What the enum covers
 //!
-//! Exactly what a spec §§ 1–12 signature writes, and [`CoreClass`] exactly the
-//! *kind* of member those rows are — [`crate`] § *Every shape a §§ 1–12
-//! signature writes can be stated* is that claim's home. Three things a reader
+//! Exactly what a registered signature writes, and [`CoreClass`] exactly the
+//! *kind* of member those rows are — [`crate`]'s module doc is that claim's
+//! home. Three things a reader
 //! looks for in the enum are elsewhere on purpose: a **variadic** parameter is
 //! [`CoreTy::Variadic`], read through [`CoreMethod::variadic`]; a class
 //! **constant** is [`CoreConst`], a roster on [`CoreClass`] rather than a
 //! [`CoreTy`] variant, since a constant has a value and no signature; and a
 //! `Core`-owned **instance** is [`CoreTy::Instance`] plus
 //! [`CoreClass::instance`] and [`CoreClass::slots`], with [`crate::instance`]
-//! the value behind it. Widening the enum for a §§ 13–20 row is a change to
-//! this file, which is the friction the section above buys.
+//! the value behind it. Widening the enum for a row it cannot state yet is a
+//! change to this file, which is the friction the section above buys.
 //!
 //! # A `Core` enum is declared here too
 //!
@@ -89,10 +89,8 @@
 /// Not to be confused with the qualifier a *value* carries: `tainted` and
 /// `secret` live on `nvs_types::ty::Ty` and describe an argument. This
 /// describes what a member does with one, and on the `tainted` axis there are
-/// exactly four answers
-/// ([the spec's *How to read an entry*](/docs/spec/01-core-library.md)
-/// renders them as the Q column). [`Self::Reveal`] is a fifth variant and not
-/// a fifth Q value: it is the `secret` axis's only mark, and § *How a `secret`
+/// exactly four answers. [`Self::Reveal`] is a fifth variant and not
+/// a fifth answer: it is the `secret` axis's only mark, and § *How a `secret`
 /// parameter is spelled* below is why it lives here rather than in a type.
 ///
 /// **There is no default.** A parameter with no classification is spelled
@@ -608,8 +606,7 @@ pub enum CoreTy {
     /// comes from. [`Self::Var`] is *inferred* from an argument's type, which
     /// only works where some parameter position holds the answer —
     /// `Core\Json::decodeAs`'s `T` appears in no parameter at all, so the call
-    /// site has to say it. `docs/spec/01-core-library.md` § 6 writes exactly
-    /// that, and `rule:attributes/call-site-type-argument` names the
+    /// site has to say it. `rule:attributes/call-site-type-argument` names the
     /// explicit call-site type argument as one of the two things user code
     /// gets from the compiler-owned `<T>` machinery.
     ///
@@ -675,11 +672,11 @@ pub enum CoreTy {
     ///
     /// The same relationship to [`Self::Int`] that [`Self::EnumCase`] has to
     /// [`Self::Enum`], and it exists for the same reason at a different place:
-    /// spec § 12 writes `isIp(string $s, {version?: 4|6})`, and the point of
+    /// `Core\Validate` writes `isIp(string $s, {version?: 4|6})`, and the point of
     /// that spelling is that `{version: 5}` does not compile. `int` would not
     /// say that, and a `Core\IpVersion` enum would say it by adding a name to
-    /// the surface — which is precisely what § 12 removed `isIpV4`/`isIpV6` to
-    /// avoid.
+    /// the surface — which is precisely what leaving out `isIpV4`/`isIpV6`
+    /// avoids.
     ///
     /// Never a whole parameter or a bare option type, for [`Self::EnumCase`]'s
     /// reason: a position admitting exactly one number admits no choice, and
@@ -720,10 +717,9 @@ pub enum CoreTy {
     /// `rule:types/enum-case-type`'s narrowed type, whose only use is inside a [`Self::Union`] that
     /// spells out a closed subset.
     ///
-    /// `Core\Hash::hmac`'s third parameter is the reason it exists.
-    /// [`docs/spec/01-core-library.md`](/docs/spec/01-core-library.md)
-    /// § 11 writes that parameter as `StrongDigest`, "the closed subset that
-    /// the HMAC and signature members declare," so that
+    /// `Core\Hash::hmac`'s third parameter is the reason it exists. That
+    /// parameter is `StrongDigest`, the closed subset that the HMAC and
+    /// signature members declare, so that
     /// `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming the reason.
     /// A *second enum* would not say that: `Core\StrongDigest::Sha256` would
     /// be a different type from `Core\Hash::Digest::Sha256`, and no value could be
@@ -780,9 +776,8 @@ pub enum CoreTy {
     /// **Whatever `foreach` accepts**, over the element type wrapped:
     /// `rule:iteration/foreach-subjects`'s
     /// three shapes at once, interned as the union
-    /// `array<T>|Iterable<T>|Iterator<T>`. `Core\Arr::from`'s
-    /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-    /// § 2 row is the first to write one, and § 9's collections are the next.
+    /// `array<T>|Iterable<T>|Iterator<T>`. `Core\Arr::from`'s row is the first
+    /// to write one, and the `Core\ObjectMap`/`ObjectSet`/`Heap` collections are the next.
     ///
     /// **A plain `array<T>` satisfies it, and the spec row is written that
     /// way.** `rule:iteration/foreach-subjects` fixes the set of things that can be iterated at
@@ -1153,9 +1148,8 @@ pub struct ShapeKeyDoc {
 /// One error a member throws.
 #[derive(Clone, Copy, Debug)]
 pub struct ErrorDoc {
-    /// The thrown class's name as a `catch` writes it —
-    /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-    /// § 10's tree, so `RuntimeError`, `ParseError`, and not a namespaced
+    /// The thrown class's name as a `catch` writes it — the `Core\Error`
+    /// tree's, so `RuntimeError`, `ParseError`, and not a namespaced
     /// spelling the language has no such class under.
     pub error: &'static str,
     /// When it is thrown, in one sentence.
@@ -1168,17 +1162,14 @@ pub struct CoreMethod {
     /// The member's own name, `camelCase` per `rule:core-api/identifier-casing`.
     pub name: &'static str,
     /// The `$name` each positional parameter is callable by — one per entry of
-    /// [`Self::positional`], in the same order, and **the spelling
-    /// [01-core-library.md](/docs/spec/01-core-library.md)'s signature
-    /// column writes**.
+    /// [`Self::positional`], in the same order, and **the spelling the
+    /// published signature writes**.
     ///
     /// `rule:core-api/shape-rules` R2 is the
     /// rule: every `Core` parameter is callable by name under exactly the
     /// rules a user-declared method has, so a name is compatibility surface
-    /// and renaming one is a breaking change to the spec. That is what makes
-    /// the spec's column the source rather than a convenience — the guard test
-    /// `every_registry_rows_names_are_the_specs_signature_column` parses the
-    /// same column and holds the two together.
+    /// and renaming one is a breaking change. This list is the one source of
+    /// those names, and `nvs meta --json` publishes it.
     ///
     /// A trailing options bag has no entry here: its one name is
     /// [`OPTIONS_NAME`], which is why this is aligned to [`Self::positional`]
@@ -2274,8 +2265,8 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
 pub const TRY_PARSE_CLASSES: &[&str] = &[crate::uri::NAME, crate::uuid::NAME];
 
 /// Every `Core` class a program may write `new` on, with the constructor that
-/// builds one — `docs/spec/01-core-library.md` § 9's collections and § 11's
-/// seeded generator.
+/// builds one — the `Core\ObjectMap`/`ObjectSet`/`Heap` collections and
+/// `Core\Random`'s seeded generator.
 ///
 /// A roster rather than a synthetic `constructor` row on [`CoreClass`], for
 /// the reason [`crate::instance`]'s module docs give: a `Core` class has no
@@ -3191,7 +3182,8 @@ pub fn must_use_help(class: &str, method: &str) -> Option<&'static str> {
 }
 
 /// The closed roster of `Core`-owned **generic** classes, each with the type
-/// parameters it declares, in order — spec § 9's three collections.
+/// parameters it declares, in order — the `Core\ObjectMap`/`ObjectSet`/`Heap`
+/// collections first.
 ///
 /// This is the other half of `rule:attributes/call-site-type-argument`'s rule on
 /// type variables: user code gets an explicit type argument only where the
@@ -3218,7 +3210,7 @@ pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
     (r"Core\ObjectSet", &["T"]),
     (r"Core\Heap", &["T"]),
     (r"Core\Task\Channel", &["T"]),
-    // The first row that is not one of spec § 9's collections: § 18's result
+    // The first row that is not one of the three collections: `Core\Db`'s result
     // set is generic in what a row hydrated into, and `Core\Db\Rows<Row>` — the
     // instance `query` answers with, spelled as a [`CoreTy::InstanceAt`] — is
     // the unhydrated case of the same class rather than a second one.
@@ -3281,7 +3273,7 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // what it was opened to build, so the element is the receiver's own
     // variable and `nvs_types::expr::iteration` substitutes the argument in.
     (crate::db::STREAM_NAME, &CoreTy::Var("T")),
-    // Spec § 15's `bodyStream(): Iterable<bytes>`, with the qualifier `body()`
+    // `Core\Request`'s `bodyStream(): Iterable<bytes>`, with the qualifier `body()`
     // puts on the same octets: a chunk of a request body is `tainted` whatever
     // the body held, so this is a concrete element like the two `Core\IO` rows
     // above and never one of a receiver's own variables.
@@ -3336,8 +3328,7 @@ pub fn iterable_element(class: &str) -> Option<&'static CoreTy> {
 /// of this same class and answering `int` is exactly what the interface
 /// requires, and a class carrying that row cannot be un-`Comparable`. A roster
 /// beside it would be a second copy of the same fact, wrong the first time a
-/// domain module adds the member without it — which is how the time types
-/// spent this whole gap (`docs/reference/findings.md` D1).
+/// domain module adds the member without it.
 ///
 /// The `self`-typed parameter is load-bearing rather than decoration: `rule:classes/ordering-lowers-to-compare-to` refuses a comparison across classes, so a `compareTo` taking anything
 /// else answers a different question and is not this interface's member.
@@ -5804,7 +5795,7 @@ mod tests {
         }
     }
 
-    /// `Core\Math`'s eleven constants, spelled out — spec § 3's own list, and
+    /// `Core\Math`'s eleven constants, spelled out, and
     /// the only place `PI` being a `float` and `INT_MAX` an `int` is stated
     /// twice on purpose. A row dropped from the registry fails here rather
     /// than only at `examples/numbers.nvs`.
@@ -5840,7 +5831,7 @@ mod tests {
     }
 
     /// The classes a [`CoreTy::Instance`] may name that [`CLASSES`] does not
-    /// hold — spec § 10's exception tree, which `nvs_hir::errors::TREE`
+    /// hold — the `Core\Error` exception tree, which `nvs_hir::errors::TREE`
     /// declares and `nvs_types::error_lib` seeds into the same class table a
     /// `Core` instance type is interned against.
     ///
@@ -6132,7 +6123,7 @@ mod tests {
     /// `Core\Script\Handle`'s one slot is read by the lowering of `await`, and
     /// its emptiness of members is the whole point of it
     /// ([`crate::script`]). `Core\IO\Lines`'s one slot is read by the
-    /// `iterate()` on [`crate::instance`]'s dispatch roster — spec § 14
+    /// `iterate()` on [`crate::instance`]'s dispatch roster — `Core\IO`
     /// writes `lines(string $path): Iterable<string>` and no member *on* the
     /// thing it answers with, so a `foreach` is the whole of its surface.
     /// `Core\Http\Target`'s two slots are read by the member that connects:
@@ -6154,8 +6145,8 @@ mod tests {
     /// ([`crate::db`]). `Core\Request\BodyStream`'s one slot is written and
     /// read by the `advance()`/`current()` pair on [`crate::instance`]'s dispatch roster
     /// — `Core\IO\Lines`'s entry for `Core\IO\Lines`'s reason,
-    /// spec § 15 writing `bodyStream(): Iterable<bytes>` and no member on the
-    /// thing it answers with. `Core\Db\Stream` is that entry again for § 18's
+    /// `Core\Request` writing `bodyStream(): Iterable<bytes>` and no member on the
+    /// thing it answers with. `Core\Db\Stream` is that entry again for `Core\Db`'s
     /// `stream()`, and its three slots are the connection's key, the block that
     /// opened it and the one row the walk is holding. `Core\Jwe\Key` is the
     /// same shape over a secret: its three slots are read by `Core\Jwe`'s two
@@ -6264,7 +6255,7 @@ mod tests {
     }
 
     /// `Core\Regex\Match`'s four members and two slots, spelled out — the first
-    /// `Core`-owned instance, and the one place spec § 5's own list is stated
+    /// `Core`-owned instance, and the one place its member list is stated
     /// twice on purpose.
     #[test]
     fn the_first_core_owned_instance_declares_the_four_members_the_spec_names() {

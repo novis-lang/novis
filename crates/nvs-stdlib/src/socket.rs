@@ -239,8 +239,8 @@ const CARD: ClassDoc = ClassDoc {
 /// there is exactly one connection per isolate and no second one to tell it
 /// from.
 ///
-/// `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/an-upgrade-is-spawn-shaped`, and no spec § of its own: the spec's roster has no
-/// `Core\Socket` row, so those two rules are the whole specification. Last of the
+/// `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/an-upgrade-is-spawn-shaped`,
+/// which are the whole specification of `Core\Socket`. Last of the
 /// request-facing group because it is where a request stops being one — §
 /// 1 makes the connection a *root* isolate, so the request that upgraded it
 /// ends normally and shares nothing onward. [`crate::socket`] owns why the

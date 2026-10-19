@@ -583,7 +583,7 @@ const CARD: ClassDoc = ClassDoc {
 /// See
 /// [`crate::registry::CLASSES`].
 ///
-/// `rule:testing/assertions-are-typed`'s assertion surface rather than a spec § of its own: testing is a
+/// `rule:testing/assertions-are-typed`'s assertion surface: testing is a
 /// language feature, and `Core\Test` is the same `QName` `#[Test]` names.
 // rank: 460
 pub(crate) const CLASS: CoreClass = CoreClass {

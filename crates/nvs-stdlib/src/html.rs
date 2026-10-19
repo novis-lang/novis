@@ -167,11 +167,10 @@ const MARKUP_CARD: ClassDoc = ClassDoc {
 /// `rule:security/launderers-are-sink-named`'s launderer for the HTML sink, and `rule:core-classes/html-to-source`'s one way back
 /// out of the carrier it answers.
 ///
-/// `rule:security/launderers-are-sink-named`'s own worked example of a launderer, and here rather than in
-/// spec § order because the class beneath it is the one this crate defers to
-/// whenever a `tainted` value has to be written into a document: § 5 makes
-/// HTML the sink that escapes by default, and this is what it escapes with.
-/// No spec § of its own yet — § 20's roster row names the class, and
+/// `rule:security/launderers-are-sink-named`'s own worked example of a launderer, and here
+/// because the class beneath it is the one this crate defers to
+/// whenever a `tainted` value has to be written into a document: HTML is
+/// the sink that escapes by default, and this is what it escapes with.
 /// [`crate::html`] owns why `sanitize` and the WHATWG parser are not here.
 // rank: 1030
 pub(crate) const CLASS: CoreClass = CoreClass {

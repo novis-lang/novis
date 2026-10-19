@@ -154,7 +154,7 @@ const CARD: ClassDoc = ClassDoc {
 /// reason, and this is that rule's list in its order, with the sealed pair
 /// `rule:http-server/a-session-holds-a-secret-only-sealed` adds standing after it.
 ///
-/// Spec § 15's third half of one request: what arrived, what goes back, and
+/// The third half of one request: what arrived, what goes back, and
 /// what is remembered between the two. `rule:core-api/session-roster`'s roster, of which
 /// `start` is the member that talks to the store — [`crate::session`]'s own
 /// module doc owns which of § 2's four operations are on disk, why the local
