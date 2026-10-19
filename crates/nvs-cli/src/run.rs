@@ -77,19 +77,19 @@ pub(crate) struct Args {
     /// doc.
     #[arg(long, value_name = "FILE", conflicts_with = "peer")]
     events: Option<PathBuf>,
-    /// The program's own arguments, which `Core\Command::run()` matches
-    /// against the program's compiled command table.
+    /// The program's own arguments. `Core\Command::run()` matches them
+    /// against the commands the program declares.
     ///
-    /// Everything past the file is the program's and nothing here reads it,
-    /// which is why it is `trailing_var_arg`: a command declaring a
-    /// `--verbose` of its own must not be answered by `nvs run`.
+    /// `nvs run` reads none of them, so a program can have its own
+    /// `--verbose` option.
     ///
-    /// **One word is the exception, and it is the conventional one:** a
-    /// leading `--` is this parser's escape token and is spent here rather
-    /// than passed on, exactly as `cargo run --` spends one. It is spent
-    /// once and only in that position — a `--` anywhere later is an
-    /// ordinary word, and a program that wants one first is started with
-    /// two.
+    /// A `--` right after the file is not passed to the program. To pass
+    /// `--` as the first argument, write it twice.
+    // Everything past the file is the program's, which is why it is
+    // `trailing_var_arg`. A leading `--` is the parser's escape token and is
+    // spent here, as `cargo run --` spends one: once, and only in that
+    // position. A `--` anywhere later is an ordinary word.
+    //
     // `rule:tooling/commands-are-compiled` is the command line this hands
     // over. Both halves of the `--` rule are pinned by
     // `tests/conformance/core/cli-arguments-hands-back-a-word-that-looks-like-syntax-as-the-value-it-is.nvst`,
