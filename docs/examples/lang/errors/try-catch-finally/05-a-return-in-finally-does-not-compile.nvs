@@ -1,0 +1,16 @@
+<?nvs
+// Shows a `return` inside `finally`. It does not compile, because it would
+// replace the value of the `try` and any error that is leaving the block.
+// proof: compile-error
+
+final class Counter {
+    public static function next(int $n): int {
+        try {
+            return $n + 1;
+        } finally {
+            return 0;
+        }
+    }
+}
+
+echo Counter::next(1), "\n";

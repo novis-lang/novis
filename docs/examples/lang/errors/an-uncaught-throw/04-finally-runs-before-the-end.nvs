@@ -1,0 +1,16 @@
+<?nvs
+// Shows that `finally` still runs when nothing catches the error. The clean-up
+// prints, and then the program ends with exit status 1.
+// proof: exit 1
+
+echo "start\n";
+
+try {
+    throw new RuntimeError("the job failed");
+} finally {
+    // This line runs before the program ends.
+    echo "clean-up done\n";
+}
+
+// This line never runs.
+echo "after\n";
