@@ -126,8 +126,9 @@ weakened to go green is worse than no case: it reports that a thing was tried an
     // requires: unimplemented      skip: the feature does not run yet
     // requires: unix               skip on Windows: it opens a Unix-domain socket
     // requires: <service>          it talks to that service of tests/db/compose.yaml, such as
-                                    samba-ad or redis, which the runner brings up first, and it
-                                    fails where that cannot be done or the compose file has no
+                                    samba-ad or redis, which the runner brings up first; skip
+                                    where Docker runs no Linux containers, and fail where the
+                                    service cannot be brought up or the compose file has no
                                     such service
 
 A case runs with nothing on its standard input. A sibling `<name>.in` is sent to it instead, byte
