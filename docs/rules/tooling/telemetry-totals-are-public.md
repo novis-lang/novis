@@ -1,4 +1,4 @@
-`telemetry.novis-lang.org` publishes every total the collector keeps, and the project reads the same
+The collector publishes every total it keeps, and the project reads the same
 pages and files as anyone else. There is no private view and no admin page.
 
 | Path | What it shows |

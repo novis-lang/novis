@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: The telemetry collector is a public Novis service that stores no address and publishes every total
-summary: "apps/telemetry is a Novis web application at telemetry.novis-lang.org that checks a report against the closed schema, adds it to weekly totals and never stores it, limits the rate on a keyed hash held in memory, writes no address to any log through the new [log] client_ip key, publishes every total on script-free pages and as CC0 JSON and CSV, has a deploy guide, and is the default upload URL; every designed rule this goal owns is shipped, and the checks below pass."
+summary: "apps/telemetry is a Novis web application that names no host, checks a report against the closed schema, adds it to weekly totals and never stores it, limits the rate on a keyed hash held in memory, writes no address to any log through the new [log] client_ip key, publishes every total on script-free pages and as CC0 JSON and CSV, and has a deploy guide; the real client uploads to it end to end on one machine, every designed rule this goal owns is shipped, and the checks below pass."
 context: [apps/telemetry/README.md, apps/telemetry/src/App.nvs, apps/notes/src/App.nvs, docs/rules/tooling/the-telemetry-collector-is-a-novis-program.md, docs/rules/tooling/telemetry-counters-are-a-closed-set.md]
 stages:
   - id: 1
@@ -40,12 +40,12 @@ stages:
       context:
         rules: [tooling/the-telemetry-collector-is-a-novis-program, tooling/a-telemetry-report-is-checked-against-a-closed-schema]
   - id: 6
-    title: the collector is the default upload URL, and every rule is shipped
+    title: the real client uploads to the collector end to end on one machine, and every rule is shipped
     status: open
-    context: [crates/nvs-cli/src/endpoints.rs, docs/rules/config/telemetry-and-update-endpoints-are-configuration.md]
+    context: [crates/nvs-cli/tests/telemetry_e2e.rs, crates/nvs-cli/src/telemetry.rs, crates/nvs-cli/src/endpoints.rs, apps/telemetry/README.md]
     extra:
       context:
-        rules: [config/telemetry-and-update-endpoints-are-configuration, tooling/the-telemetry-collector-is-a-novis-program]
+        rules: [tooling/the-telemetry-collector-is-a-novis-program, tooling/a-failed-upload-never-fails-the-command, tooling/telemetry-show-prints-the-payload]
 checks:
   - id: client-ip-proofs
     stage: 1
@@ -55,10 +55,10 @@ checks:
     stage: 2
     name: the collector's tests pass
     run: [cargo, run, -q, --bin, nvs, --, test, apps/telemetry]
-  - id: collector-live
+  - id: end-to-end
     stage: 6
-    name: the deployed collector serves its totals
-    run: [curl, -fsS, --head, "https://telemetry.novis-lang.org/data/totals.json"]
+    name: the real client uploads to a local collector and the totals show it
+    run: [cargo, test, -q, --test, telemetry_e2e]
   - id: owners-closes
     stage: 6
     name: no gap record or designed rule names this goal
@@ -107,6 +107,12 @@ collector ship close together.
 beside each. The schema is created when the first request opens the database, as in `apps/notes/`.
 Why: simplicity; the notes app already shows every piece this needs.
 
+**The report route is public and opts out of CSRF on the route.** It is
+`#[Core\Access(allow: Core\Audience::Public, csrf: false)]`, as
+`docs/examples/types/Audience/03-a-webhook-another-server-calls.nvs:14` shows. The application has no
+cookie and no session, so a forged request has nothing to ride on, and `nvs.toml` names no
+`csrf_key` (`rule:security/csrf-is-on-by-default`). Every other route is `GET`.
+
 **`known.toml` is the collector's copy of the closed lists.** It lists the commands, the `os` values
 and the `arch` values. A Rust test, `crates/nvs-cli/tests/telemetry_known.rs`, reads it and fails
 when the binary's command table names a command it does not list. Why: the collector runs one version
@@ -120,17 +126,32 @@ never SQLite's `now`, and tests set it with `#[Test(at: ...)]` and `Core\Test::a
 a line over weeks and a horizontal bar list. Why: the pages promise no script
 (`rule:tooling/telemetry-totals-are-public`), and two shapes are a small amount of code.
 
+**The domain is configuration, and nothing waits on it.** The program builds every link and endpoint
+from the request's own scheme and host, so it names no host
+(`rule:tooling/the-telemetry-collector-is-a-novis-program`). The domain appears in two places, both
+outside the program: the Caddyfile's site name, written as `telemetry.example.com` in the guide, and
+the client's `NVS_TELEMETRY_URL`. The client's default URL stays empty in this goal
+(`rule:config/telemetry-and-update-endpoints-are-configuration`). Setting it when a collector is
+deployed is one constant in `crates/nvs-cli/src/endpoints.rs`. Why: the whole service is built and
+tested on one machine, and the deployment changes no code.
+
+**The end-to-end test is the real client against the real application.**
+`crates/nvs-cli/tests/telemetry_e2e.rs` starts the `nvs` binary as `nvs serve` on the application with
+a temporary copy of its `nvs.toml` pointing `[db.telemetry]` at a temporary file, on a free loopback
+port. It writes a data folder with consent on and a finished, unsent week, and runs `nvs telemetry
+upload` with `NVS_TELEMETRY_URL` at the server. The test then checks the `204`, the row in
+`/data/totals.json`, the line on `/`, a second upload in the same week refused locally, a malformed
+report dropped on `400`, and that `127.0.0.1` is in no table and no log line the server wrote. Why:
+it is the one test that proves the client's payload and the collector's schema agree.
+
 **The deployment is Caddy in front of `nvs serve`, and the guide is the whole of it.** Caddy holds
-the certificate for `telemetry.novis-lang.org` and proxies to `127.0.0.1:8000`. Its Caddyfile has no
+the certificate for the domain and proxies to `127.0.0.1:8000`. Its Caddyfile has no
 `log` directive, so it writes no access log. The application's `nvs.toml` sets `[mode] production`,
 `[log] client_ip = false` and `[server] trusted_proxies = ["127.0.0.1"]`. The deploy step writes the
 commit to `apps/telemetry/REVISION`, which the footer reads, and the footer says `unknown` when the
 file is missing. `REVISION` is in `.gitignore`. Why: Caddy is one binary with automatic TLS, and a
 guide in the repository makes the deployment as public as the code.
 
-**Deploying is the user's step.** A loop session cannot reach the host. Stage 6's gate is the live
-site answering, and until it answers, a session ends `BLOCKED` with "deploy `apps/telemetry` by its
-README" as the one thing it needs.
 
 **Lanes.** Stage 1 is Rust in `nvs-config` and `nvs-server` and is disjoint from the application, so
 it can run beside stage 2. Stages 2, 3 and 4 share `src/App.nvs` and the schema and run in order.
@@ -141,9 +162,9 @@ test and the CLI reference, and runs after 4. Stage 6 is last.
 `data/rules/http-server/a-log-line-can-leave-out-the-client-address.json` reads `"status": "shipped"`.
 Until then, the session takes stage 3's other items. Stage 5's known-list test and its reference
 section need goal `cli-housekeeping` reached: `docs/goals/cli-housekeeping.md` is gone. Stage 6 needs
-the deployed site: `curl -fsS --head https://telemetry.novis-lang.org/data/totals.json` succeeds. A
-session whose stage is gated takes the earliest open stage whose gate holds, and ends `BLOCKED` naming
-the missing file or the deploy when none does.
+the same, because it runs the real client. The chain puts this goal after `cli-housekeeping`, so the
+gate holds whenever this goal is live. A session whose stage is gated takes the earliest open stage
+whose gate holds, and ends `BLOCKED` naming the missing file when none does.
 
 **Trade-offs.**
 - No language feature changes, and the request path of other programs is untouched.
@@ -209,17 +230,22 @@ and as JSON and CSV.
 **Does:** a person can deploy the collector from its README alone, and a test keeps `known.toml` in
 step with the command table.
 
-- [ ] The deploy guide: Caddy and its Caddyfile with no `log`, `nvs.toml`, `REVISION`, and how to run it as a service (`rule:tooling/the-telemetry-collector-is-a-novis-program`). `apps/telemetry/README.md:1`
+- [ ] The local run: `nvs serve public/index.nvs`, then `NVS_TELEMETRY_URL=http://127.0.0.1:8000/v1/report nvs telemetry upload` from another terminal, and the totals on `http://127.0.0.1:8000/`. `apps/telemetry/README.md:1`
+- [ ] The deploy guide: Caddy and its Caddyfile with no `log` and `telemetry.example.com` as the site, `nvs.toml`, `REVISION`, how to run it as a service, and the one constant to set for the client's default URL (`rule:tooling/the-telemetry-collector-is-a-novis-program`). `apps/telemetry/README.md:1`
 - [ ] `REVISION` in `.gitignore`. `apps/telemetry/.gitignore:1`
 - [ ] The test that every command in the binary's table is in `known.toml` (gated on `cli-housekeeping`). `crates/nvs-cli/tests/telemetry_known.rs:1`, `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] `# nvs telemetry` in the CLI reference names the site, links `/collect`, and lists the answers and what the client does with each (gated on `cli-housekeeping`). `docs/reference/tools/10-cli.md:509`
+- [ ] `# nvs telemetry` in the CLI reference says the collector is `apps/telemetry/` and how to run one, and lists the answers and what the client does with each (gated on `cli-housekeeping`). `docs/reference/tools/10-cli.md:509`
 
-### 6. the collector is the default upload URL, and every rule is shipped
+### 6. the real client uploads to the collector end to end on one machine, and every rule is shipped
 
-**Does:** once the site answers, `NVS_TELEMETRY_URL` defaults to it.
+**Does:** one Rust test runs `nvs serve` on the application and the real `nvs telemetry upload`
+against it, on loopback, as § *Standing decisions* describes.
 
-- [ ] `https://telemetry.novis-lang.org/v1/report` as the default, and `nvs telemetry on` no longer says that nothing is uploaded. `crates/nvs-cli/src/endpoints.rs:1`, `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] The endpoints rule names the default, and its declined bullet about a default before a collector existed is deleted (`rule:config/telemetry-and-update-endpoints-are-configuration`). `docs/rules/config/telemetry-and-update-endpoints-are-configuration.md:1`
+- [ ] The test starts the server on a free port with a temporary database, and stops it at the end. `crates/nvs-cli/tests/telemetry_e2e.rs:1`
+- [ ] The upload of a finished week: `204`, the row in `/data/totals.json`, and the line on `/` (`rule:tooling/the-telemetry-collector-is-a-novis-program`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
+- [ ] A second upload in the same week refused by the client, and a report the collector refuses with `400` dropped (`rule:tooling/a-failed-upload-never-fails-the-command`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
+- [ ] The bytes `nvs telemetry show` printed are the bytes the server received (`rule:tooling/telemetry-show-prints-the-payload`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
+- [ ] `127.0.0.1` is in no table and no log line the server wrote (`rule:tooling/the-collector-never-stores-an-address`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
 - [ ] The five tooling rules `shipped`, each with its tests in `guardedBy`. `data/rules/tooling/the-telemetry-collector-is-a-novis-program.json:3`, `data/rules/tooling/a-telemetry-report-is-checked-against-a-closed-schema.json:3`, `data/rules/tooling/the-collector-keeps-weekly-totals-only.json:3`, `data/rules/tooling/the-collector-never-stores-an-address.json:3`, `data/rules/tooling/telemetry-totals-are-public.json:3`
 - [ ] `bun nv owners --closes telemetry-service` passes.
 
@@ -242,5 +268,8 @@ on either.
 
 ### Backlog
 
+- Deploying the collector and setting the client's default URL to it are not this goal's work. The
+  default is one constant in `crates/nvs-cli/src/endpoints.rs`, set in the same change that updates
+  `rule:config/telemetry-and-update-endpoints-are-configuration`.
 - Download counts from GitHub releases on the public pages would correct the opt-in undercount
   (`rule:tooling/telemetry-is-two-opt-ins`). They need an outbound job, and no goal owns it.
