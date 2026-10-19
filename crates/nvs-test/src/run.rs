@@ -22,7 +22,7 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
-use std::sync::mpsc;
+use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -77,6 +77,28 @@ pub struct Options {
     /// so it is a directory this run owns: `nvs test` passes a fresh one under
     /// the runtime's temporary root.
     pub root: PathBuf,
+    /// Also run each case [`shares_a_worker`] admits on this worker, once its
+    /// fresh run has passed, and fail it when the two outputs differ. `None`
+    /// runs every case fresh only.
+    pub shared: Option<Arc<dyn SharedWorker>>,
+}
+
+/// One worker that runs many cases' programs in turn, for `nvs test
+/// --shared-worker` (`rule:security/isolate-shares-nothing`).
+///
+/// `nvs-test` compiles nothing, so the binary that drives it supplies this.
+/// Each call runs the program at `path` in an isolate of its own, on the same
+/// worker as every case before it. A case whose output there differs from its
+/// fresh run read something an earlier case left behind.
+pub trait SharedWorker: Send + Sync + std::fmt::Debug {
+    /// Runs the program at `path` and returns what it wrote to standard
+    /// output.
+    ///
+    /// # Errors
+    ///
+    /// The message to report when the program did not compile, threw, or the
+    /// worker could not run it.
+    fn run(&self, path: &Path) -> Result<String, String>;
 }
 
 impl Options {
@@ -95,6 +117,7 @@ impl Options {
             only: None,
             record: None,
             root,
+            shared: None,
         })
     }
 }
@@ -336,10 +359,56 @@ fn judge(case: &Case, opts: &Options, workdir: &Path, record: &[(String, String)
         report.push(indented("actual", &stderr));
     }
 
+    if report.is_empty()
+        && let Some(worker) = &opts.shared
+        && shares_a_worker(case)
+    {
+        report = shared_verdict(case, &stdout, worker.run(&workdir.join("case.nvs")));
+    }
+
     if report.is_empty() {
         Outcome::Pass
     } else {
         Outcome::Fail(report)
+    }
+}
+
+/// Whether `case` also runs on [`Options::shared`]: a plain `nvs run` of
+/// `case.nvs`, with nothing else around it.
+///
+/// A worker is one process, with one working directory and one environment,
+/// and the cases run in parallel. So a case that needs a request, arguments,
+/// `--ENV--`, files beside it, a `--SKIPIF--` or a `--CLEAN--` runs fresh only.
+/// So does a case that expects an error, because the worker returns standard
+/// output alone.
+fn shares_a_worker(case: &Case) -> bool {
+    case.run == Subcommand::Run
+        && case.request.is_none()
+        && case.args.is_empty()
+        && case.env.is_empty()
+        && case.aux.is_empty()
+        && case.copies.is_empty()
+        && case.extensions.is_empty()
+        && case.skipif.is_none()
+        && case.clean.is_none()
+        && !case.expects_failure()
+}
+
+/// The report for a case's run on the shared worker, empty when it agrees
+/// with the case: the run succeeded and its output matches `--EXPECT--`. A
+/// mismatch shows the fresh run's output beside the shared one.
+fn shared_verdict(case: &Case, fresh: &str, shared: Result<String, String>) -> Vec<String> {
+    match shared {
+        Err(error) => vec![
+            "on the shared worker, the run failed".to_owned(),
+            indented("error", &error),
+        ],
+        Ok(stdout) if case.expect.as_ref().is_none_or(|e| matches(e, &stdout)) => Vec::new(),
+        Ok(stdout) => vec![
+            "on the shared worker, standard output does not match the fresh run".to_owned(),
+            indented("fresh", fresh),
+            indented("shared", &stdout),
+        ],
     }
 }
 
@@ -858,6 +927,62 @@ mod tests {
             Some(Outcome::Skip("no store".to_owned()))
         );
         assert_eq!(skipif_verdict(&exited(0, "", "")), None);
+    }
+
+    fn parsed(text: &str) -> Case {
+        let path = nvs_repo::path("tests/conformance/shared/a.nvst");
+        crate::case::parse(&path, text).expect("the case parses")
+    }
+
+    #[test]
+    fn only_a_plain_run_with_nothing_around_it_shares_a_worker() {
+        let plain = "--TEST--\nt\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n";
+        assert!(shares_a_worker(&parsed(plain)));
+        for (what, text) in [
+            (
+                "an environment",
+                "--TEST--\nt\n--ENV--\nA=1\n--FILE--\n<?nvs\n--EXPECT--\n",
+            ),
+            (
+                "a file beside it",
+                "--TEST--\nt\n--FILE nvs.toml--\n[app]\n--FILE--\n<?nvs\n--EXPECT--\n",
+            ),
+            (
+                "a skip check",
+                "--TEST--\nt\n--SKIPIF--\n<?nvs\n--FILE--\n<?nvs\n--EXPECT--\n",
+            ),
+            (
+                "an error",
+                "--TEST--\nt\n--FILE--\n<?nvs\n--EXPECTF-ERROR--\n%A\n",
+            ),
+            (
+                "another subcommand",
+                "--TEST--\nt\n--RUN--\ntest\n--FILE--\n<?nvs\n--EXPECT--\n",
+            ),
+        ] {
+            assert!(!shares_a_worker(&parsed(text)), "a case with {what}");
+        }
+    }
+
+    #[test]
+    fn a_shared_run_that_differs_from_the_fresh_one_shows_both() {
+        let case = parsed("--TEST--\nt\n--FILE--\n<?nvs\n--EXPECT--\n1\n");
+        assert!(shared_verdict(&case, "1\n", Ok("1\n".to_owned())).is_empty());
+        assert_eq!(
+            shared_verdict(&case, "1\n", Ok("2\n".to_owned())),
+            [
+                "on the shared worker, standard output does not match the fresh run",
+                "  fresh:\n    1",
+                "  shared:\n    2",
+            ]
+        );
+        assert_eq!(
+            shared_verdict(&case, "1\n", Err("it threw".to_owned())),
+            [
+                "on the shared worker, the run failed",
+                "  error:\n    it threw"
+            ]
+        );
     }
 
     #[test]
