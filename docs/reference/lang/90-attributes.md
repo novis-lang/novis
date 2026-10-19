@@ -539,7 +539,7 @@ For that file `nvs build --openapi main.nvs` prints:
 
 `#[Core\Api(...)]` sits beside a `#[Route]` (away from one it is refused) and may add what the
 declaration cannot say: `tags:` and `security:` as arrays of strings, `errors:` as an array of
-`{status: 404, type: NotFound::class}` entries naming classes the program declares, and `example:`
+`{status: 404, type: NotFound::class}` entries naming classes that exist, and `example:`
 as an anonymous object whose keys are properties of the return type. Each is checked against the
 declaration while compiling and then written into the operation: `tags` and `security` as their own
 members, an `errors` entry as a response of its own described by its class, and `example` beside the
@@ -549,10 +549,12 @@ members, an `errors` entry as a response of its own described by its class, and 
 
 `#[Core\Command(name:, about:)]` on a static method declares a command-line command, and
 `#[Core\Option(short:, long:, about:)]` on a parameter makes that parameter an option. The
-compiler collects every command into one table and checks it. **Nothing dispatches to it in this
-build**: there is no `Core\Command::run`, and no `nvs` subcommand invokes a program's commands. What
-exists is the checked table and the ordinary ways to read it — `Core\Program::implementing<I>()`
-over an interface the command classes implement, and `Core\Attributes::get` on the methods.
+compiler collects every command into one table and checks it. `Core\Command::run()` reads the
+program's own command line, calls the method its first word names and returns the exit status;
+`Core\Command::help` and `Core\Command::completions` are generated from the same table (each has its
+own page). No `nvs` subcommand runs a program's commands. The table can also be read the ordinary
+ways — `Core\Program::implementing<I>()` over an interface the command classes implement, and
+`Core\Attributes::get` on the methods.
 
 ```nvs file=commands/Command.nvs
 <?nvs
@@ -622,9 +624,10 @@ greet: Say hello
   A `bool` option is a flag. `short:` is the one-letter spelling, `long:` the spelling used when
   the parameter's own name is not it; two options of one command with the same spelling are
   refused. `#[Option]` away from a `#[Command]` method is refused.
-- An option or positional parameter must have a type an argument's text converts to — the same
-  list a route capture accepts (`string`, `int`, `uint`, `decimal`, `bool`, an enum, a set of
-  allowed values, a class implementing `Parses`); anything else is refused.
+- An option must have a type an argument's text converts to — the same list a route capture
+  accepts (`string`, `int`, `uint`, `decimal`, `bool`, an enum, a set of allowed values, a class
+  implementing `Parses`); anything else is `E0746`. A positional parameter of another type compiles,
+  and `Core\Command::run` throws `LogicError` when it reaches that command.
 - The method is **`static`** and returns `void` (exit status 0) or `uint` (the exit status). Both
   are refused where they are not met (`E0789`): a command is dispatched by name off the compiled
   table, which holds no instance to call a handler on, and what a handler answers with is the

@@ -1085,9 +1085,35 @@ of the wrong type, such as `"x"` for a `uint`, compiles and builds a link the ro
 (`data/gaps/nvs-types/a-link-value-of-the-wrong.json`). `llms-full.txt` is rendered again. The
 sweep's red jobs are still run 39173391347 on `main` at be3e8a605, not this branch.
 
+`core-api-and-the-openapi-document` and `core-command-and-core-option-the-command-table` are done,
+each fact run on the binary. One claim was wrong in three texts. The chapter, the command feature's
+`about.md` and the syntax page `syntax/attributes/commands-and-discovery.mdx` said nothing runs a
+command and there is no `Core\Command::run`. The binary has it, with `help` and `completions`, each a
+member feature with its own examples; all three now say so (`90-attributes.md:552`). `errors:`
+accepts a built-in class such as `RuntimeError`, so the chapter, `about.md` and example 02 say "a
+class that exists" (`90-attributes.md:542`). The OpenAPI `details.md` has the command's output and
+exit status, ordering, `operationId` with a shared name, the summary and description split, each
+parameter and response schema (any return type but a scalar is `{}`), `E0454`, `E0725`, each `E0771`
+form, `E0303`, and how `errors`, `security` and `example` are written; example 04 is an `example:`
+key the class lacks (`E0771`). The command `details.md` has `E0767`, `E0401`, `E0454`, `E0768`, two
+names on one method, `E0789`, `E0766`, the spellings and `E0745`, `E0746`, and how `run` fills the
+parameters (`--retries 7` and not `--retries=7`, an unwritten flag is `false` even with a `true`
+default, an enum by its exact case name, `--help` a usage error); example 04 is the chapter's `float`
+option block. Probing found five gaps. Owned by `api-document`: a `?T`, array or enum return type
+has the empty schema (`data/gaps/nvs-cli/a-response-schema-for-a-nullable.json`). Owned by
+`release-hardening`: `#[Core\Api]` accepts a non-throwable `errors` class, an `example` on a
+non-class return or with a value of the wrong type, a dropped `200` or repeated status, and a second
+`#[Core\Api]` (`data/gaps/nvs-types/core-api-accepts-what-its-rule.json`); a positional command
+parameter of a type with no conversion (a trailing `array<string>` too, which the rule makes
+variadic) compiles and `run` throws `LogicError`
+(`data/gaps/nvs-types/a-positional-command-parameter-of-a.json`); an empty or spaced command name
+and a `short:` that is not one letter compile (`data/gaps/nvs-types/a-command-name-or-option-spelling.json`);
+and `#[Core\Api]` above a class joined `a-compiler-read-attribute-on-a.json`. `llms-full.txt` is
+rendered again. The sweep's red jobs are run 39173391347 on `main` at be3e8a605, not this branch.
+
 ### Next
 
-`90-attributes` goes on from the OpenAPI document (`90-attributes.md:492`), one of its long features per session;
+`90-attributes` goes on from `Core\Program::implementing<I>()` (`90-attributes.md:647`);
 take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -1106,7 +1132,7 @@ A probe with a limit or a grant runs with `nvs run --config <file>.toml`, which 
 `nvs.toml`; an example needs its own `[[app]]` entry in the root `nvs.toml` instead (`nvs.toml:497`).
 A spawning probe has an `nvs.toml` with `[capabilities.script] spawn = true` beside it, and a probe
 runner gives each run a timeout, since a channel or a task with nothing to wait for never ends.
-- [ ] `90-attributes` from the OpenAPI document (`#[Core\Api]`, `nvs build --openapi`), then the command table and the two `Core\Program` features; the API and command sections are long and may each take a session. A probe runner (a JSON map of name to body, each run with a timeout) does a batch of twenty in one call. Then `bun nv proofs --record-perf --group lang:attributes`, since the chapter changed. `docs/reference/lang/90-attributes.md:492`
+- [ ] `90-attributes`' last two features, `Core\Program::implementing` and `implementingWith`, which share the syntax page `syntax/attributes/commands-and-discovery.mdx`. A probe runner (a JSON map of name to body, each run with a timeout, and a second map of name to argument lists for a command line) does a batch of twenty in one call. Then `bun nv proofs --record-perf --group lang:attributes`, since the chapter changed. `docs/reference/lang/90-attributes.md:647`
 - [ ] `95-testing`, which closes stage 6. `docs/reference/lang/95-testing.md:8`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
