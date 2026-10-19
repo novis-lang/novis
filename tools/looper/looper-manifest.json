@@ -70,7 +70,7 @@
     "tools/looper/src/loop/stand-in.ts": "97e93fedada189e994001727359706e632906c76b6f57eaba07ec82eb12d7e28",
     "tools/looper/src/loop/turn.ts": "3024a4150b6113b1590145e45bd4a524deb2b0aff6c52cd839acdec81c4a3adf",
     "tools/looper/src/loop/wall.ts": "e926143800b56e46c3836535d6665d63565ed864b8f9c8bc9a897008480ed635",
-    "tools/looper/src/loop/worker.ts": "89c3440d93d93440b0b12338cebf833713a41716bb73cbc590ce15feb1511c9b",
+    "tools/looper/src/loop/worker.ts": "ccf330159be68edd8d25ebab39e9f90a114a473f8c7fdf13dfae02a5fa15057c",
     "tools/looper/src/os/index.ts": "de369b4b129fa6381171bf7c63878e81e851395be91599defee79ee0fd3278f1",
     "tools/looper/src/os/windows-desktop.ts": "39a62132c096b928283da9a203b13036c14ed0ffac65319ed8307a8231b165bb",
     "tools/looper/src/os/windows.ts": "7d566f19842bba48fff0d9754f6e41868350546188db89ee3b20d05245f4fea4",
