@@ -9,10 +9,11 @@ bytes $sealed = Core\Crypto::seal(
     Core\Crypto::Cipher::XChaCha20Poly1305
 );
 
-// Somebody replaces the last byte with an `X`.
+// Somebody adds 1 to the last byte. `% 256` keeps it a byte, so 255 becomes 0.
 int $length = Core\Bytes::length($sealed) as int;
+uint $last = Core\Bytes::at($sealed, -1);
 bytes $changed = Core\Bytes::join(
-    [Core\Bytes::slice($sealed, 0, $length - 1), Core\Bytes::fill(1, 88)],
+    [Core\Bytes::slice($sealed, 0, $length - 1), Core\Bytes::fill(1, ($last + 1) % 256)],
     "" as bytes
 );
 
