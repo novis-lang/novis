@@ -161,6 +161,7 @@ mod schema;
 mod script;
 mod serve;
 mod service;
+mod shared;
 mod stop;
 mod stubs;
 #[cfg(test)]
@@ -2342,6 +2343,7 @@ fn run_test(
         update,
         list,
         show_output,
+        shared_worker,
         ..
     } = flags;
     // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
@@ -2369,6 +2371,14 @@ fn run_test(
             // and a program's `#[Test]` methods run in this one process.
             eprintln!(
                 "error: `--cases` and `--record` run `.nvst` cases, not a program's `#[Test]` methods"
+            );
+            return ExitCode::FAILURE;
+        }
+        if shared_worker {
+            // The worker runs a `.nvst` case's whole program, and a program's
+            // `#[Test]` methods are already each an isolate of their own.
+            eprintln!(
+                "error: `--shared-worker` runs `.nvst` cases, not a program's `#[Test]` methods"
             );
             return ExitCode::FAILURE;
         }
@@ -2470,6 +2480,16 @@ fn run_test(
                     "error: could not use {} to record into: {error}",
                     dir.display()
                 );
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    if shared_worker {
+        match shared::Worker::start(init) {
+            Ok(worker) => options.shared = Some(std::sync::Arc::new(worker)),
+            Err(error) => {
+                eprintln!("error: {error}");
                 return ExitCode::FAILURE;
             }
         }
