@@ -8,4 +8,5 @@ and your own fields if you wrote your own error class. Nothing wraps it.
 A cancelled task runs nothing more. Its own `catch` does not run, and neither do the lines after it.
 
 **The examples below** show a group where one task fails, an error class of your own crossing out of a
-task, and a page that loads three things and reports the one that was missing.
+task, a page that loads three things and reports the one that was missing, and two tasks that throw
+before they wait.

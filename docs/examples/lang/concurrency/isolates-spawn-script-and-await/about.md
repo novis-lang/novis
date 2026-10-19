@@ -11,5 +11,6 @@ build while the program runs must be a full path, or `spawn script` throws `Runt
 with `Core\Path::join`. You can also start a static method, written `Class::method(...)`. You need the `script.spawn` capability to start either
 one. One handle can be awaited once. A second `await` of the same handle throws `LogicError`.
 
-**The examples below** show one file started and collected, two files running at the same time, and a
-page written while a report is built next to it.
+**The examples below** show one file started and collected, two files running at the same time, a
+page written while a report is built next to it, a child's output printed at `await`, and values
+given to a child with `args:`.

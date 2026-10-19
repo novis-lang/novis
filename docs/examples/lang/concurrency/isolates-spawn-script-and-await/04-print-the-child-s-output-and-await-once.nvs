@@ -1,0 +1,16 @@
+<?nvs
+// Shows `output: "inherit"`. The child's output is printed when you `await` it.
+// A second `await` of the same handle throws `LogicError`.
+
+var $hello = spawn script "jobs/say-hello.nvs" with(output: "inherit");
+echo "the parent prints first\n";
+
+// The child's line is printed here, at the `await`.
+var $done = await $hello;
+echo "ok: ", $done->ok ? "true" : "false", "\n";
+
+try {
+    var $again = await $hello;
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

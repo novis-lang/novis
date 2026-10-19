@@ -972,13 +972,38 @@ has `E0453`, `E0454`, `limit`'s `uint` type, `deadline`'s `Duration` type, both 
 nested deadlines. `core-task-map`'s `about.md` said "holds", now rewritten. Probing found a gap,
 owned by `release-hardening`: a `Core\Task::all` field function with a parameter compiles and the
 call ends with an internal error (`data/gaps/nvs-types/a-task-group-function-that-takes.json`).
-It also found, for the next slice, that when two tasks throw, the second one's error is printed as
-`uncaught in a cancelled sibling: second`, while the syntax page says the other tasks are stopped
-before they can throw. `llms-full.txt` is rendered again.
+`llms-full.txt` is rendered again.
+
+The next three `80-concurrency` features are done, each fact run on the binary. Three claims were
+wrong. The syntax page `syntax/concurrency/limits-and-errors.mdx` said the other tasks are stopped
+before they can throw; a task that throws before it waits is not, and its error goes to standard
+error as `uncaught in a cancelled sibling: …`, by design (`crates/nvs-host/src/group.rs:481`). The
+chapter and `syntax/concurrency/isolates.mdx` said `output: 'inherit'` interleaves the child's lines
+with the parent's; it appends them at `await`, as `rule:security/isolate-output-is-captured` says,
+and a handle never awaited prints nothing (`80-concurrency.md:241`). The chapter's result table said
+`output` is a `string`; it is `Core\Html\Markup|Core\Cli\Text`, as the syntax page said
+(`80-concurrency.md:261`). `a-child-s-throw`'s `details.md` has that, a stopped task's `finally`
+not running, the same object and class reaching the `catch`, the one-entry `backtrace`, a nested
+group, and a deadline winning; example 04 is two tasks throwing before they wait. The channel's
+`details.md` has the `uint` capacity and the `0` fatal message, `E0442`, `E0401`, `var`, `E0444`, no
+`receive` (`E0405`), the closed-`send` fatal that no `finally` sees, waiting forever with no reader,
+a second loop, shared objects and a channel parameter; no new example, since 01 and 02 show the
+chapter's block. The isolates `details.md` has the handle (`E0405`, `E0401` for `await`), `E0802`,
+`E0101` with the five options, `E0818` for `on:` (a variable too), a computed `output:` and its
+`LogicError`, the output type, `inherit`, an unawaited handle, `value` being `mixed` and `tainted`,
+`exit` giving `ok` true, a returned object failing with the class `Error`, `args:` copied at the
+spawn, a method entry's named `args:` (`E0402`, `E0486`, the run-time `LogicError`s), the
+relative-path message, `limits:`, `grants: []`, and nested spawns. Examples 04 and 05 are the
+chapter's `inherit` and second-`await` block, and its `with(args:…)` skip block made runnable, with
+`jobs/say-hello.nvs` and `jobs/add-up.nvs`. Probing found a safety bug: **an instance method spawned
+as `Class::method(...)` compiles, and `$this->n` reads `1` where the default is `7`**
+(`data/gaps/nvs-types/an-instance-method-spawned-as-an.json`, owned by `release-hardening`). A
+`send` on a full channel or a `foreach` on an open empty one with no other task waits forever, so a
+probe of it needs a timeout. `llms-full.txt` is rendered again.
 
 ### Next
 
-`80-concurrency` goes on from `a-child-s-throw` (`80-concurrency.md:141`), three or four features per session;
+`80-concurrency` goes on from `a-child-shares-nothing` (`80-concurrency.md:310`), three or four features per session;
 take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -995,7 +1020,9 @@ body, and a script under `.agent-tmp/` that writes and runs each; the guard refu
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
 A probe with a limit or a grant runs with `nvs run --config <file>.toml`, which replaces the root
 `nvs.toml`; an example needs its own `[[app]]` entry in the root `nvs.toml` instead (`nvs.toml:497`).
-- [ ] `80-concurrency` from `a-child-s-throw`, then `core-task-channel-t-a-bounded-queue-between-tasks` and `isolates-spawn-script-and-await`. Check the second-throw report against `syntax/concurrency/limits-and-errors.mdx`'s "stopped before they can throw". `docs/reference/lang/80-concurrency.md:141`
+A spawning probe has an `nvs.toml` with `[capabilities.script] spawn = true` beside it, and a probe
+runner gives each run a timeout, since a channel or a task with nothing to wait for never ends.
+- [ ] `80-concurrency` from `a-child-shares-nothing`, then `a-child-s-failure-is-a-value` and `what-does-not-exist`, which close the chapter. A file that does not compile and a missing file are the failure feature's facts. Then `bun nv proofs --record-perf --group lang:concurrency`. `docs/reference/lang/80-concurrency.md:310`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
