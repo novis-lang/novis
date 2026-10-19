@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/array.rs]
   - id: 4
     title: "a call into a callback allocates nothing the callback does not take"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/callable.rs, crates/nvs-stdlib/src/arr.rs]
   - id: 5
     title: "a member on a warm path allocates only its result"
@@ -179,10 +179,10 @@ because std has no stable raw-entry API, so the change is contained to `string.r
 
 **Does:** closes `call-through-a-callable-builds-its` and `walk-builds-its-callbacks-key-argument`.
 
-- [ ] `call_callable` builds its argument slots inline for a small count. `smallvec` is already a workspace dependency. `crates/nvs-runtime/src/callable.rs:184`
-- [ ] A walk reads the callback's arity off `CALLABLE_ARITY_SLOT` before it builds the key, and builds no key for a callback that takes one parameter. `crates/nvs-stdlib/src/arr.rs:4905`
-- [ ] `lang/expressions/calls.nvs` and `core/Arr/find.nvs` declare their new counts (`rule:testing/member-perf-ledger`). `benches/members/lang/expressions/calls.nvs:1`, `benches/members/core/Arr/find.nvs:1`
-- [ ] The two records are deleted. `data/gaps/nvs-runtime/call-through-a-callable-builds-its.json:1`, `data/gaps/nvs-stdlib/walk-builds-its-callbacks-key-argument.json:1`
+- [x] `call_callable` builds its argument slots inline for a small count. `smallvec` is already a workspace dependency. `crates/nvs-runtime/src/callable.rs:184`
+- [x] A walk reads the callback's arity off `CALLABLE_ARITY_SLOT` before it builds the key, and builds no key for a callback that takes one parameter. `crates/nvs-stdlib/src/arr.rs:4905`
+- [x] `lang/expressions/calls.nvs` and `core/Arr/find.nvs` declare their new counts (`rule:testing/member-perf-ledger`). `benches/members/lang/expressions/calls.nvs:1`, `benches/members/core/Arr/find.nvs:1`
+- [x] The two records are deleted. `data/gaps/nvs-runtime/call-through-a-callable-builds-its.json:1`, `data/gaps/nvs-stdlib/walk-builds-its-callbacks-key-argument.json:1`
 
 ### 5. a member on a warm path allocates only its result
 
@@ -256,7 +256,25 @@ and those hits stay.
 
 ### State
 
-Stages 1, 2, 3, 10 and 11 are done. A string's header has a fifth word, the SipHash digest an array
+Stages 1, 2, 3, 4, 10 and 11 are done.
+
+`call_callable_with` builds the receiver and the trimmed arguments in a stack array of
+`INLINE_SLOTS` (8) values, and only a longer call spills to a `Vec`. No dependency was added:
+`smallvec` is only transitive, through `hyper`. It spends 128 bytes of stack per call through a
+callable. `lang/expressions/calls.nvs`, `anonymous-functions.nvs` and
+`types/callable-classes-object-shapes.nvs` now count 0 allocations. `arr.rs`'s `call_with_key` calls a
+callback with `($value)` alone when it declares one parameter, and `find_slot` (`find`, `findKey`,
+`any`, `all`) and `countBy` read the arity once per walk. `core/Arr/find.nvs` went from 10
+allocations to 1, the callable object itself. Lower counts that the change caused were declared again
+in `core/Arr/filter.nvs` (12), `core/Cli/live.nvs` (11) and `core/Cli/progress.nvs` (9).
+`core/Fatal/onLimit.nvs`, `onUncaughtThrow.nvs` and `core/Signal/onShutdown.nvs` had declared
+`calls 0` since `ece7b500f`, and now declare `calls 1`. Both gap records are deleted, and so is
+`arr.rs`'s `Known gaps` block, since no record names that module now.
+
+The nightly run 39306106377 was cancelled because a later dispatch (39307361674) took over its
+concurrency group. Nothing failed in it.
+
+A string's header has a fifth word, the SipHash digest an array
 index files it under, filled on the first lookup by `KeyRef::digest` and reset by every in-place write
 that changes `len`. The keys are one `RandomState` per process (`DIGEST_KEYS`), so a cached word is
 right in every array. The index is a `HashMap<Filed, usize>` whose `PassDigest` hasher passes the word
@@ -302,14 +320,19 @@ The `looper` on PATH has no `verify`; `bun tools/looper/main.ts verify` runs it.
 
 ### Next
 
-**Stage 4: a call into a callback allocates nothing the callback does not take**, one file set:
-`crates/nvs-runtime/src/callable.rs`, `crates/nvs-stdlib/src/arr.rs`. Closes
-`call-through-a-callable-builds-its` and `walk-builds-its-callbacks-key-argument`.
+**Stage 5: a member on a warm path allocates only its result.** The three members share no file, so
+each is its own slice, in any order. Start with `Core\Regex::matches`. Closes
+`regex-matches-allocates-on-every-call`, `a-metrics-write-allocates-on-every-call` and
+`parse-pays-its-whole-setup-on`.
 
-- [ ] `call_callable` builds its argument slots inline for a small count. `smallvec` is already a workspace dependency. `crates/nvs-runtime/src/callable.rs:184`
-- [ ] A walk reads the callback's arity off `CALLABLE_ARITY_SLOT` before it builds the key, and builds no key for a callback that takes one parameter. `crates/nvs-stdlib/src/arr.rs:4905`
-- [ ] `lang/expressions/calls.nvs` and `core/Arr/find.nvs` declare their new counts (`rule:testing/member-perf-ledger`). `benches/members/lang/expressions/calls.nvs:1`, `benches/members/core/Arr/find.nvs:1`
-- [ ] The two records are deleted. `data/gaps/nvs-runtime/call-through-a-callable-builds-its.json:1`, `data/gaps/nvs-stdlib/walk-builds-its-callbacks-key-argument.json:1`
+- [ ] Find where `Core\Regex::matches` allocates on a cached pattern, and remove it. `core/Regex/matches.nvs` declares `allocations 0`. `crates/nvs-stdlib/src/regex.rs:1633`, `benches/members/core/Regex/matches.nvs:1`
+- [ ] A `Core\Metrics` write to an existing series looks it up by a borrowed key, and renders its call site only when it stores it. `core/Metrics/gauge.nvs` declares its count. `crates/nvs-stdlib/src/metrics.rs:356`, `crates/nvs-runtime/src/metrics.rs:762`, `benches/members/core/Metrics/gauge.nvs:1`
+- [ ] `Core\Csv::parse` reuses a reader per dialect, held per thread and reset per call, and its module doc says what the reader spends per thread (`rule:programs/memory-priority`). `core/Csv/parse.nvs` declares its count. `crates/nvs-stdlib/src/csv.rs:702`, `benches/members/core/Csv/parse.nvs:1`
+- [ ] The three records are deleted. `data/gaps/nvs-stdlib/regex-matches-allocates-on-every-call.json:1`, `data/gaps/nvs-stdlib/a-metrics-write-allocates-on-every-call.json:1`, `data/gaps/nvs-stdlib/parse-pays-its-whole-setup-on.json:1`
+
+A change in `nvs-runtime` that lowers a count is not seen by a bench whose figure is keyed on another
+file. Re-measure every bench that reaches the changed path with `bun nv proofs --record-perf --force
+--only <id> ...`.
 
 ### Backlog
 
