@@ -56,6 +56,15 @@ concurrency:
 # for a cold one and still turns a wedged test into a red build inside the hour. They bound the
 # bill; they are not a performance budget. A job that starts timing out is a regression to
 # investigate, never a number to raise here without one.
+#
+# The repository's Actions cache holds 10 GB, and GitHub evicts the least recently used entry past
+# that, so every Rust cache a job saves can push a slower job's cache out. Only a job whose cold
+# run is long saves one: every Windows and macOS leg, both Linux `test` legs, the release-profile
+# Linux jobs, the Miri jobs and the fuzz smoke. A Linux job that builds cold in about 16 minutes
+# or less saves none, with `save-if: false`, or `save-if` on the leg's `os` in a matrix, and so
+# builds cold every run. Those are `database`, `ext-templates` and `extension` on Linux,
+# `extension-host`, `docker`, `lint`, `reference`, `asan` and `tsan`. Each finishes cold well
+# inside the slowest `test` leg's time, so a warm cache would make the run no shorter.
 jobs:
   # ---------------------------------------------------------------------------
   # Which lanes this run needs. Every gated job below reads one boolean from
@@ -457,6 +466,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: database
+          save-if: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -582,6 +592,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: ext-templates-${{ matrix.name }}
+          save-if: ${{ matrix.os != 'ubuntu-latest' }}
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -671,6 +682,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: extension-${{ matrix.name }}
+          save-if: ${{ matrix.os != 'ubuntu-latest' }}
 
       # The binary the suites drive is the one this run built, never one already
       # on the runner: the protocol suite asserts against this tree's `nvs lsp`.
@@ -737,6 +749,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: extension-host
+          save-if: false
       - name: Build nvs
         run: cargo build -p nvs-cli
 
@@ -788,6 +801,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: docker
+          save-if: false
       - name: Build nvs
         run: cargo build -p nvs-cli
 
@@ -825,6 +839,8 @@ jobs:
       - name: Install toolchain
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: false
       - name: rustfmt
         run: cargo fmt --all --check
       # Before clippy, because it decides what clippy enforces. The crates that hold `unsafe`
@@ -944,6 +960,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: reference
+          save-if: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
@@ -1311,6 +1328,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: asan
+          save-if: false
       # `--tests`, and not the default target set, because a doctest cannot be one of them here:
       # `RUSTFLAGS` instruments the crate, but rustdoc links a doctest binary under `RUSTDOCFLAGS`,
       # so that binary pulls in an instrumented rlib and resolves no `__asan_*` symbol against it —
@@ -1391,5 +1409,6 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: tsan
+          save-if: false
       - name: TSAN test (host and runtime)
         run: bash tools/tsan.sh
