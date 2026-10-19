@@ -1180,8 +1180,17 @@ jobs:
   # `nvs-runtime` runs with its `sanitizer` feature, for the reason `counting_alloc`'s module doc
   # gives for ASAN: the size-class cache keeps a freed block instead of freeing it, so a checker
   # cannot see a use-after-free inside one. The cache's own tests still run here, on `Pooled`
-  # directly. Blocks they leave in the cache are never freed, by design, so Miri's leak report is
-  # off for this crate, and its leak guards, which measure the allocator, cover leaks instead.
+  # directly.
+  #
+  # Miri's leak report is off for both crates. In `nvs-runtime`, blocks the cache's own tests leave
+  # in the cache are never freed, by design. In `nvs-stdlib`, most tests build reference-counted
+  # values by hand and never release them, so the report names the test and not the library. The
+  # runtime's leak guards, which measure the allocator, and the valgrind and ASAN lanes, which run
+  # compiled programs, cover leaks instead. Turning the report off also lets a test end while a
+  # thread is still running, so a test that starts a thread joins it (`session`'s `Serving`).
+  #
+  # `-Zmiri-deterministic-floats` stops Miri adding its random error to `sin`, `exp` and the
+  # rest, so a test that asserts an exact float result checks the library and not Miri's noise.
   miri-units:
     name: miri units (${{ matrix.crate }} ${{ matrix.shard }}/${{ matrix.of }})
     needs: changes
@@ -1192,17 +1201,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { crate: nvs-runtime, shard: 1, of: 3, features: --features nvs-runtime/sanitizer, leaks: -Zmiri-ignore-leaks }
-          - { crate: nvs-runtime, shard: 2, of: 3, features: --features nvs-runtime/sanitizer, leaks: -Zmiri-ignore-leaks }
-          - { crate: nvs-runtime, shard: 3, of: 3, features: --features nvs-runtime/sanitizer, leaks: -Zmiri-ignore-leaks }
-          - { crate: nvs-stdlib, shard: 1, of: 8 }
-          - { crate: nvs-stdlib, shard: 2, of: 8 }
-          - { crate: nvs-stdlib, shard: 3, of: 8 }
-          - { crate: nvs-stdlib, shard: 4, of: 8 }
-          - { crate: nvs-stdlib, shard: 5, of: 8 }
-          - { crate: nvs-stdlib, shard: 6, of: 8 }
-          - { crate: nvs-stdlib, shard: 7, of: 8 }
-          - { crate: nvs-stdlib, shard: 8, of: 8 }
+          - { crate: nvs-runtime, shard: 1, of: 2, features: --features nvs-runtime/sanitizer }
+          - { crate: nvs-runtime, shard: 2, of: 2, features: --features nvs-runtime/sanitizer }
+          - { crate: nvs-stdlib, shard: 1, of: 12 }
+          - { crate: nvs-stdlib, shard: 2, of: 12 }
+          - { crate: nvs-stdlib, shard: 3, of: 12 }
+          - { crate: nvs-stdlib, shard: 4, of: 12 }
+          - { crate: nvs-stdlib, shard: 5, of: 12 }
+          - { crate: nvs-stdlib, shard: 6, of: 12 }
+          - { crate: nvs-stdlib, shard: 7, of: 12 }
+          - { crate: nvs-stdlib, shard: 8, of: 12 }
+          - { crate: nvs-stdlib, shard: 9, of: 12 }
+          - { crate: nvs-stdlib, shard: 10, of: 12 }
+          - { crate: nvs-stdlib, shard: 11, of: 12 }
+          - { crate: nvs-stdlib, shard: 12, of: 12 }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
@@ -1217,7 +1229,7 @@ jobs:
         run: cargo install cargo-nextest@0.9.148 --locked
       - name: miri nextest (${{ matrix.crate }})
         env:
-          MIRIFLAGS: -Zmiri-disable-isolation ${{ matrix.leaks }}
+          MIRIFLAGS: -Zmiri-disable-isolation -Zmiri-ignore-leaks -Zmiri-deterministic-floats
           INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
         run: >-
           cargo +nightly miri nextest run --profile miri -p ${{ matrix.crate }} --lib
