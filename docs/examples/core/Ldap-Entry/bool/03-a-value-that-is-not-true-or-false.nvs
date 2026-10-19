@@ -8,7 +8,7 @@ var $person = $corp->read("CN=Carla Diaz,OU=Company,DC=example,DC=test", {select
 if ($person != null) {
     // `department` is the text `Sales`. `bool` throws a `LogicError` that names the attribute.
     try {
-        echo $person->bool("department") ? "true" : "false", "\n";
+        echo ($person->bool("department") ?? false) ? "true" : "false", "\n";
     } catch (LogicError $error) {
         echo $error->message, "\n";
     }
