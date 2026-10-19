@@ -4608,8 +4608,10 @@ pub(crate) mod tests {
         }
 
         // A megabyte of one octet under a four-kilobyte ceiling: the ratio is
-        // wide open, so what refuses it is the absolute half.
-        let bomb = compress_to(Codec::Gzip, &vec![b'A'; 1 << 20]).expect("a frame");
+        // wide open, so what refuses it is the absolute half. Under Miri the
+        // bomb is 64 KiB, which is still sixteen times the ceiling.
+        let bomb_size = if cfg!(miri) { 64 << 10 } else { 1 << 20 };
+        let bomb = compress_to(Codec::Gzip, &vec![b'A'; bomb_size]).expect("a frame");
         let (at, served) = origin_raw(vec![encoded("gzip", &bomb)]);
         let mut bounded = call(at, "test");
         bounded.compress = Bound {
@@ -4666,7 +4668,9 @@ pub(crate) mod tests {
     /// what a buffered decode already does.
     #[test]
     fn a_streamed_reply_is_decoded_as_it_arrives_rather_than_gathered_first() {
-        let payload = noise(1 << 20);
+        // Under Miri the payload is a quarter of the size. That is still more
+        // than one block of every codec's framing.
+        let payload = noise(if cfg!(miri) { 256 << 10 } else { 1 << 20 });
         for (coding, codec) in [
             ("gzip", Codec::Gzip),
             ("br", Codec::Brotli),
