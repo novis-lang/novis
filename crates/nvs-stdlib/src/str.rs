@@ -4919,9 +4919,9 @@ mod tests {
     // covers: Core\Str::split
     #[test]
     fn split_refuses_a_list_past_the_memory_limit_before_building_it() {
-        // Under Miri the subject and the limit are a sixteenth of the size.
+        // Under Miri the subject and the limit are a 256th of the size.
         let (separators, limit) = if cfg!(miri) {
-            (1 << 16, 256 << 10)
+            (1 << 12, 16 << 10)
         } else {
             (1 << 20, 4 << 20)
         };
@@ -5977,9 +5977,10 @@ mod tests {
         assert_eq!(index_of("STRASSE", "stra\u{df}e", 0, true), None);
         assert_eq!(index_of("aabaabaaab", "aaab", 0, true), Some(6));
 
-        // Under Miri the near miss is a sixty-fourth of the size.
+        // Under Miri the haystack is a 512th of the size and the needle a
+        // 128th.
         let (hay, near) = if cfg!(miri) {
-            (1 << 14, 1 << 6)
+            (1 << 11, 1 << 5)
         } else {
             (1 << 20, 1 << 12)
         };
