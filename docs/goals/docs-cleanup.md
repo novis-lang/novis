@@ -34,7 +34,7 @@ stages:
     context: [website/src/lib/feature.ts, tools/nv/cmd/site.ts, website/src/content/docs/syntax/control-flow/break-continue-return.mdx]
   - id: 8
     title: the chapters under docs/reference/lang are generated from about.md and details.md
-    status: open
+    status: done
     context: [tools/nv/proofs/roster.ts, crates/nvs-cli/src/agent.rs, tools/nv/cmd/reference.ts]
 checks:
   - id: rules
@@ -361,12 +361,12 @@ repeats none of their text.
   - [x] the examples that took a grant from the root `nvs.toml` carry their own, so a chapter example runs the way the examples tree runs it
   - [x] `bun nv reference` holds all 664 examples, and `render --check` is current
   - [x] the reference README, the examples README, `chapters.ts` and `reference.ts` say the chapters are generated
-- [ ] `nvs agent primer` and `show`, and `/llms-full.txt`, read the generated chapters, and their tests pass unchanged in shape. `crates/nvs-cli/src/agent.rs:187`
+- [x] `nvs agent primer` and `show`, and `/llms-full.txt`, read the generated chapters, and their tests pass unchanged in shape. `crates/nvs-cli/src/agent.rs:187`
   - [x] the five `agent.rs` tests that quoted the old prose read the generated text, and every syntactic form is still reached through a heading
   - [x] `site.ts`'s `card` is empty for a `lang` feature, and the 63 pages that went stale through it are stamped
   - [x] `website/public/llms-full.txt` rendered again
-  - [ ] every `lang` group's perf recorded after the render
-  - [ ] the full `looper verify` green on the commit
+  - [x] every `lang` group's perf recorded after the render
+  - [x] the full `looper verify` green on the commit
 
 ## Handoff
 
@@ -514,23 +514,23 @@ with the same checks. The agents chapter's transcript and primer heading list fo
 pages stale through that change were stamped. `tools/data/select-mutations.json`'s chapter mutation
 targets the `autoload` section's first line.
 
-**Not done yet: the perf record and the full verify.** The session hit its context budget while
-`--record-perf` waited for a heavy slot, so it was stopped before it started. The commit was made
-after the targeted checks above, `bun nv render --check`, `bun nv site --check stale`, `bun nv rules
---check`, `bun nv links`, `looper lint` and the `lang-chapters`, `chapters`, `site` and
-`select-mutations` bun tests. The full verify was not run. Every `lang` bench is stale through
-`implFile` (the chapter file changed), which `bun nv proofs --id 'lang:enums/declaring-an-enum'`
-shows as `OWED: perf stale`.
+`looper verify` is green on 4ebedd60f, and all 123 `lang` benches are recorded again
+(`data/perf/members.ndjson`, commit 5788ec677). `bun nv proofs --id 'lang:enums/declaring-an-enum'`
+says `complete.` Stages 2 to 8 are done.
+
+The goal-end gates pass: `bun nv verify --doc` finds every link resolving, and `bun nv owners
+--closes docs-cleanup` finds no module-doc gap this goal owns. The one item left is stage 1's
+`docs/design.md`. Looper 0.1.0 (c283fe7c3) still writes the v3 block, and that block still links the
+file (`AGENTS.md:264`).
 
 ### Next
 
-- [ ] `looper verify` (or `bun nv affected --run`) on this commit, and fix whatever it names. `tools/nv/renderers/lang-chapters.ts:1`
-- [ ] `bun nv proofs --record-perf --group lang:programs --group lang:types --group lang:expressions --group lang:statements --group lang:classes --group lang:enums --group lang:iteration --group lang:errors --group lang:concurrency --group lang:attributes --group lang:testing`, run in the background, and commit the ledger. Then tick stage 8's last items and set it `done`. `tools/nv/proofs/roster.ts:56`
+- [ ] Once looper's `agents` template stops linking `docs/design.md`, run `looper` to update the block. Then delete the file, add `design\.md` to `DELETED_DOC_CITE`, tick stage 1's last two items and set it `done`. `tools/nv/cmd/rules.ts:107`
+- [ ] Then the goal is reached: rerun `bun nv verify --doc` and `bun nv owners --closes docs-cleanup`, move each decision that only this file's prose holds into a rule or a module doc, and delete the goal file. `docs/goals/docs-cleanup.md:1`
 
-Then stages 2 to 8 are done, and stage 1 waits on looper's template (Backlog). The goal-end gates are
-next: `bun nv verify --doc` with every broken doc link fixed, and `bun nv owners --closes docs-cleanup`
-with every gap closed or given an owner. Then decide the `try-catch-finally` and `throw` pairs below:
-the generator renders both, so merging them is now only a content choice.
+Until then, the `try-catch-finally` and `throw` pairs (Backlog) stay two features each. That is the
+safe default: the generator renders both, so a merge is now only a content choice. A merge also deletes
+a roster id, so it does not belong to this goal.
 
 A probe on the binary: a file under `.agent-tmp/` written with Write, with an `nvs.toml` beside it
 for a grant, run with `nvs run --config <file>.toml` for a limit. A method goes in a class, an enum
