@@ -37,8 +37,9 @@ all commands into one table and checks them.
 
 <Snippet src="syntax/commands/01-commands.nvs" />
 
-- No `nvs` command calls these commands. Your program
-  reads the table with `Core\Program::implementing` and `Core\Attributes::get`, as above.
+- `Core\Command::run()` reads the command line and calls the command that the first word names.
+  It returns the exit status.
+- You can also read the table with `Core\Program::implementing` and `Core\Attributes::get`, as above.
 - `name:` is required and must be unique. `about:` is a one-line description.
 - A parameter without `#[Core\Option]` is a positional argument. Text from the command line is
   user input, so declare it `tainted string`.
@@ -53,4 +54,4 @@ all commands into one table and checks them.
 - Do use `implementingWith` when you need the attribute of each class. `implementing` gives only
   the objects, without their attributes.
 - Do declare a positional argument `tainted string`, and check it before you use it.
-- Don't expect `nvs` to run a command. The compiler checks commands, and nothing runs them.
+- Do call `Core\Command::run()` once, at the top level of the program, and pass its result to `exit`.

@@ -8,6 +8,7 @@ is a flag. Every option or positional parameter needs a type that text converts 
 `uint`, `decimal`, `bool`, an enum, or a class that implements `Parses`. The method is `static` and
 returns `void` or the exit status as a `uint`.
 
-**Good to know:** nothing runs a command for you in this build. There is no `Core\Command::run` yet.
-What you have is the checked table, which you read with `Core\Attributes::get` and
-`Core\Program::implementing`.
+`Core\Command::run()` reads the program's command line and calls the command that the first word
+names. You can also read the table yourself with `Core\Attributes::get` and
+`Core\Program::implementing`, as the examples below do. The last example shows an option that does
+not compile.
