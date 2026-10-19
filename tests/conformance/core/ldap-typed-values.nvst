@@ -37,13 +37,14 @@ if ($admin == null || $domain == null) {
     }
 
     // `pwdLastSet` is a FILETIME and `whenCreated` is a GeneralizedTime.
-    // The password was set when the account was made.
+    // The password was set when the account was made. `whenCreated` has whole
+    // seconds only, and the directory may stamp the password in the second before.
     var $set = $admin->instant("pwdLastSet");
     var $created = $admin->instant("whenCreated");
     if ($set == null || $created == null) {
         echo "no time", "\n";
     } else {
-        echo "set after created: ", $set->compareTo($created) >= 0 ? "yes" : "no", "\n";
+        echo "set after created: ", $set->compareTo($created->minus(Core\Time\Duration::seconds(1))) >= 0 ? "yes" : "no", "\n";
         echo "set within a minute: ", $set->since($created)->toSeconds() < 60 ? "yes" : "no", "\n";
     }
     // The account never expires, so the FILETIME is "never".
