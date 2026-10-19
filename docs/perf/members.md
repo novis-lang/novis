@@ -291,12 +291,12 @@ marked `~`: it is the machine, not the code.
 | `Core\Heap::peek` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.001 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
 | `Core\Heap::pop` | 5.00 | 0.00 | 0.00 | 0.0 |  | -0.157 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
 | `Core\Heap::push` | 5.00 | 0.00 | 0.02 | 32.0 | +0.009 | -0.857 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
-| `Core\Html::escape` | 3.00 | 0.00 | 4.00 | 128.0 |  | +0.029 | complexity linear, calls 0 | 12bd24661f00 |
-| `Core\Html::join` | 3.00 | 0.00 | 5.00 | 195.0 |  | -0.006 | complexity linear, calls 0 | 12bd24661f00 |
-| `Core\Html::later` | 4.00 | 0.00 | 182.10 | 39856.3 |  | +288.036 | complexity constant | 12bd24661f00 |
-| `Core\Html::parse` | 4.00 | 0.00 | 88.00 | 13387.0 |  | +0.014 | complexity linear | 12bd24661f00 |
-| `Core\Html::sanitize` | 3.00 | 0.00 | 50.00 | 9691.5 |  | -0.180 | complexity linear | 12bd24661f00 |
-| `Core\Html::toSource` | 3.00 | 0.00 | 0.00 | 0.0 |  | -0.002 | complexity constant, calls 0, allocations 0 | 12bd24661f00 |
+| `Core\Html::escape` | 3.00 | 3.00 | 4.00 | 128.0 |  | -0.015 | complexity linear, calls 3 | 6545d2acc171 |
+| `Core\Html::join` | 3.00 | 3.00 | 5.00 | 195.0 |  |  | complexity linear, calls 3 | 6545d2acc171 |
+| `Core\Html::later` | 4.00 | 3.00 | 190.01 | 40980.7 | +7.918 | +1124.361 | complexity constant | 2eea413bff19 |
+| `Core\Html::parse` | 4.00 | 3.00 | 88.00 | 13387.0 |  | -0.015 | complexity linear | 2eea413bff19 |
+| `Core\Html::sanitize` | 3.00 | 3.00 | 49.50 | 9651.5 | -0.500 | -40.000 | complexity linear | 989ec1659807 |
+| `Core\Html::toSource` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2, allocations 0 | 6545d2acc171 |
 | `Core\Http::allowUrl` | 5.00 | 2.00 | 12.00 | 540.0 |  |  | complexity linear | b23b5116fcf3 |
 | `Core\Http::methodName` | 3.00 | 2.00 | 1.00 | 35.0 |  |  | complexity constant | b23b5116fcf3 |
 | `Core\Http\Client::delete` | 5.00 | 2.00 | 13.02 | 736.8 |  |  | complexity linear, calls 2 | c21e52f41dad |
@@ -681,18 +681,18 @@ marked `~`: it is the machine, not the code.
 | `Core\Reflect\PropertyInfo::isPublic` | 5.00 | 1.00 | 0.00 | 0.0 |  | -0.002 | complexity constant, allocations 0 | b23b5116fcf3 |
 | `Core\Reflect\PropertyInfo::name` | 3.00 | 2.00 | 0.00 | 0.0 |  | -0.004 | complexity constant, allocations 0 | b23b5116fcf3 |
 | `Core\Reflect\PropertyInfo::type` | 3.00 | 2.00 | 0.00 | 0.0 |  | +0.006 | complexity constant, allocations 0 | b23b5116fcf3 |
-| `Core\Regex::compile` | 5.00 | 0.00 | 5.00 | 155.5 | +1.000 | +6.985 | complexity linear | 3e04793fdc14 |
-| `Core\Regex::match` | 4.00 | 0.00 | 12.00 | 575.0 | +1.000 | +6.985 | complexity linear | 3e04793fdc14 |
-| `Core\Regex::matchAll` | 4.00 | 0.00 | 22.00 | 1162.0 | +1.000 | +7.000 | complexity linear | 3e04793fdc14 |
-| `Core\Regex::matches` | 5.00 | 0.00 | 3.00 | 49.0 | +1.000 | +6.985 | complexity linear, allocations 0 | 3e04793fdc14 |
-| `Core\Regex::quote` | 4.00 | 0.00 | 2.00 | 45.0 |  |  | complexity linear | 3e04793fdc14 |
-| `Core\Regex::replace` | 4.00 | 0.00 | 9.50 | 455.0 | +1.000 | +6.985 | complexity linear | 3e04793fdc14 |
-| `Core\Regex::replaceWith` | 4.00 | 0.00 | 8.00 | 253.0 | +1.000 | +6.985 | complexity linear | 3e04793fdc14 |
-| `Core\Regex::split` | 4.00 | 0.00 | 7.00 | 301.0 | +1.000 | +7.000 | complexity linear | 3e04793fdc14 |
-| `Core\Regex\Match::group` | 4.00 | 0.00 | 0.00 | 0.0 |  | +0.008 | complexity constant | 3e04793fdc14 |
-| `Core\Regex\Match::groups` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant | 3e04793fdc14 |
-| `Core\Regex\Match::offset` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.006 | complexity constant | 3e04793fdc14 |
-| `Core\Regex\Match::text` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant | 3e04793fdc14 |
+| `Core\Regex::compile` | 5.00 | 1.00 | 5.00 | 155.5 |  |  | complexity linear | 06349f5f026b |
+| `Core\Regex::match` | 4.00 | 2.00 | 12.00 | 575.0 |  |  | complexity linear | 06349f5f026b |
+| `Core\Regex::matchAll` | 4.00 | 2.00 | 22.00 | 1162.0 |  |  | complexity linear | 06349f5f026b |
+| `Core\Regex::matches` | 5.00 | 1.00 | 3.00 | 49.0 |  |  | complexity linear, allocations 0 | 06349f5f026b |
+| `Core\Regex::quote` | 4.00 | 2.00 | 2.00 | 45.0 |  |  | complexity linear | 06349f5f026b |
+| `Core\Regex::replace` | 4.00 | 2.00 | 9.50 | 455.0 |  |  | complexity linear | 06349f5f026b |
+| `Core\Regex::replaceWith` | 4.00 | 2.00 | 8.00 | 253.0 |  |  | complexity linear | 06349f5f026b |
+| `Core\Regex::split` | 4.00 | 2.00 | 7.00 | 301.0 |  |  | complexity linear | 06349f5f026b |
+| `Core\Regex\Match::group` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 06349f5f026b |
+| `Core\Regex\Match::groups` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 06349f5f026b |
+| `Core\Regex\Match::offset` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 06349f5f026b |
+| `Core\Regex\Match::text` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 06349f5f026b |
 | `Core\Request::body` | 6.00 | 1.00 | 5.00 | 179.0 |  |  | complexity linear, allocations 1, calls 0 | b23b5116fcf3 |
 | `Core\Request::bodyStream` | 5.00 | 7.00 | 6.00 | 261.0 |  |  | complexity linear, allocations 2 | b23b5116fcf3 |
 | `Core\Request::bytes` | 4.00 | 2.00 | 5.00 | 193.0 |  |  | complexity linear, allocations 1 | b23b5116fcf3 |
@@ -1219,7 +1219,7 @@ marked `~`: it is the machine, not the code.
 | `lang:expressions/match` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | b23b5116fcf3 |
 | `lang:expressions/precedence-and-associativity` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b23b5116fcf3 |
 | `lang:expressions/string-operators` | 8.00 | 1.00 | 4.00 | 183.0 |  |  | complexity linear | b23b5116fcf3 |
-| `lang:expressions/the-pipeline-operator` | 3.00 | 0.00 | 2.00 | 72.0 |  |  | complexity linear | 5daa62a660d3 |
+| `lang:expressions/the-pipeline-operator` | 3.00 | 3.00 | 2.00 | 72.0 |  |  | complexity linear | 06349f5f026b |
 | `lang:iteration/core-collections-are-iterable` | 36.00 | 36.00 | 11.00 | 992.0 |  |  | complexity nlogn | b23b5116fcf3 |
 | `lang:iteration/generators` | 45.00 | 18.00 | 1.00 | 112.0 |  |  | complexity linear | b23b5116fcf3 |
 | `lang:iteration/materialising-a-sequence-core-arr-from` | 30.00 | 2.00 | 32.00 | 964.0 |  |  | complexity linear | b23b5116fcf3 |
@@ -1378,7 +1378,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Env::all` | Core\Env | recorded as known-gap: declares `complexity linear` and has no benches/members/core/Env/all.scale.nvs to ramp its input |
 | `Core\Hash\Stream::finish` | Core\Hash\Stream | 270.1 units against a `constant` ceiling of 100 |
 | `Core\Heap::pop` | Core\Heap | 240.6 units against a `constant` ceiling of 100 |
-| `Core\Html::later` | Core\Html | 18.8x its group's median of 214.3 units — 4027.8 units against a `constant` ceiling of 100 |
+| `Core\Html::later` | Core\Html | 1303.3 units against a `constant` ceiling of 100 |
 | `Core\Http::methodName` | Core\Http | 30093.6 units against a `constant` ceiling of 100 |
 | `Core\Http\Event::id` | Core\Http\Event | 205.9 units against a `constant` ceiling of 100 |
 | `Core\Http\Part::file` | Core\Http\Part | 5624.6 units against a `constant` ceiling of 100 |
@@ -1539,6 +1539,10 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Random\Seeded::pick` | Core\Random\Seeded | 19934.4 units against a `constant` ceiling of 100 |
 | `Core\RateLimit::shed` | Core\RateLimit | 6198.8 units against a `constant` ceiling of 100 |
 | `Core\Regex::matches` | Core\Regex | recorded as known-gap: declares `allocations 0` per op and did 3.000 |
+| `Core\Regex\Match::group` | Core\Regex\Match | 766.6 units against a `constant` ceiling of 100 |
+| `Core\Regex\Match::groups` | Core\Regex\Match | 1864.7 units against a `constant` ceiling of 100 |
+| `Core\Regex\Match::offset` | Core\Regex\Match | 257.2 units against a `constant` ceiling of 100 |
+| `Core\Regex\Match::text` | Core\Regex\Match | 5829.8 units against a `constant` ceiling of 100 |
 | `Core\Request::body` | Core\Request | recorded as known-gap: declares `allocations 1` per op and did 5.000; declares `calls 0` per op and did 1.000; declares `complexity linear` and has no benches/members/core/Request/body.scale.nvs to ramp its input |
 | `Core\Request::bodyStream` | Core\Request | recorded as known-gap: declares `allocations 2` per op and did 6.000; declares `complexity linear` and has no benches/members/core/Request/bodyStream.scale.nvs to ramp its input |
 | `Core\Request::bytes` | Core\Request | recorded as known-gap: declares `allocations 1` per op and did 5.000; declares `complexity linear` and has no benches/members/core/Request/bytes.scale.nvs to ramp its input |
@@ -2058,12 +2062,12 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Heap::peek` | 0.0 | 151.5 | 0.000 | -100.0% | flat | 12bd24661f00 | d3ca1ddf7615560e143a19cf57e44d79 |
 | `Core\Heap::pop` | 825.7 | 1849.8 | 240.587 | -5.9% ~ | flat | 12bd24661f00 | d3ca1ddf7615560e143a19cf57e44d79 |
 | `Core\Heap::push` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | d3ca1ddf7615560e143a19cf57e44d79 |
-| `Core\Html::escape` | 735.5 | 5974.6 | 214.323 | +374.1% ~ | flat, flat | 12bd24661f00 | 94c5cc13b299a179c803bf8fbfe13fa0 |
-| `Core\Html::join` | 7.0 | 1535.5 | 2.049 | -95.8% ~ | flat, flat | 12bd24661f00 | 94c5cc13b299a179c803bf8fbfe13fa0 |
-| `Core\Html::later` | 13823.1 | 19214.5 | 4027.783 | -29.6% ~ | skipped | 12bd24661f00 | 94c5cc13b299a179c803bf8fbfe13fa0 |
-| `Core\Html::parse` | 617.6 | 1454.7 | 179.950 | -85.1% ~ | flat, flat | 12bd24661f00 | 94c5cc13b299a179c803bf8fbfe13fa0 |
-| `Core\Html::sanitize` | 2007.4 | 5166.8 | 584.922 | -46.2% ~ | flat, flat | 12bd24661f00 | 94c5cc13b299a179c803bf8fbfe13fa0 |
-| `Core\Html::toSource` | 2.7 | 731.3 | 0.797 | -94.8% ~ | flat | 12bd24661f00 | 94c5cc13b299a179c803bf8fbfe13fa0 |
+| `Core\Html::escape` | 12712.1 | 25062.5 | 2845.814 | +1628.3% | flat, flat | 6545d2acc171 | 1cba37510d0802ebda10168948a139c1 |
+| `Core\Html::join` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 6545d2acc171 | 1cba37510d0802ebda10168948a139c1 |
+| `Core\Html::later` | 8845.7 | 20531.3 | 1303.349 | -36.0% ~ | skipped | 2eea413bff19 | 1cba37510d0802ebda10168948a139c1 |
+| `Core\Html::parse` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2eea413bff19 | 1cba37510d0802ebda10168948a139c1 |
+| `Core\Html::sanitize` | 0.0 | 14235.5 | 0.000 | -100.0% | flat, flat | 989ec1659807 | 1cba37510d0802ebda10168948a139c1 |
+| `Core\Html::toSource` | 0.0 | 639.2 | 0.000 | -100.0% | flat | 6545d2acc171 | 1cba37510d0802ebda10168948a139c1 |
 | `Core\Http::allowUrl` | 40986.7 | 83979.7 | 11499.879 |  | flat, flat | b23b5116fcf3 | ec247845dbc2e240c55ae11bcc0b76bd |
 | `Core\Http::methodName` | 107256.6 | 129811.3 | 30093.612 |  | flat | b23b5116fcf3 | ec247845dbc2e240c55ae11bcc0b76bd |
 | `Core\Http\Client::delete` | 6723.8 | 44581.2 | 1965.256 |  | flat, flat | c21e52f41dad | ec247845dbc2e240c55ae11bcc0b76bd |
@@ -2448,18 +2452,18 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Reflect\PropertyInfo::isPublic` | 0.0 | 0.0 | 0.000 |  | flat | b23b5116fcf3 | 3deca934ffdd8941201c52dbc02ec5ed |
 | `Core\Reflect\PropertyInfo::name` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b23b5116fcf3 | 3deca934ffdd8941201c52dbc02ec5ed |
 | `Core\Reflect\PropertyInfo::type` | 0.0 | 0.0 | 0.000 |  | flat | b23b5116fcf3 | 3deca934ffdd8941201c52dbc02ec5ed |
-| `Core\Regex::compile` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3e04793fdc14 | 92892d5fec52844b62a82f1a99f9104e |
-| `Core\Regex::match` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3e04793fdc14 | 92892d5fec52844b62a82f1a99f9104e |
-| `Core\Regex::matchAll` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3e04793fdc14 | 92892d5fec52844b62a82f1a99f9104e |
-| `Core\Regex::matches` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3e04793fdc14 | 92892d5fec52844b62a82f1a99f9104e |
-| `Core\Regex::quote` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3e04793fdc14 | 92892d5fec52844b62a82f1a99f9104e |
-| `Core\Regex::replace` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3e04793fdc14 | 92892d5fec52844b62a82f1a99f9104e |
-| `Core\Regex::replaceWith` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3e04793fdc14 | 92892d5fec52844b62a82f1a99f9104e |
-| `Core\Regex::split` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3e04793fdc14 | 92892d5fec52844b62a82f1a99f9104e |
-| `Core\Regex\Match::group` | 0.0 | 0.0 | 0.000 |  | flat | 3e04793fdc14 | 92892d5fec52844b62a82f1a99f9104e |
-| `Core\Regex\Match::groups` | 0.0 | 0.0 | 0.000 |  | flat | 3e04793fdc14 | 92892d5fec52844b62a82f1a99f9104e |
-| `Core\Regex\Match::offset` | 0.0 | 0.0 | 0.000 |  | flat | 3e04793fdc14 | 92892d5fec52844b62a82f1a99f9104e |
-| `Core\Regex\Match::text` | 0.0 | 0.0 | 0.000 |  | flat | 3e04793fdc14 | 92892d5fec52844b62a82f1a99f9104e |
+| `Core\Regex::compile` | 26505.9 | 53223.0 | 3976.784 |  | flat, flat | 06349f5f026b | 10627b17694a0604b4dbe83b9c60d435 |
+| `Core\Regex::match` | 48236.7 | 78652.0 | 7237.154 |  | flat, flat | 06349f5f026b | 10627b17694a0604b4dbe83b9c60d435 |
+| `Core\Regex::matchAll` | 45670.7 | 59103.1 | 6852.164 |  | flat, flat | 06349f5f026b | 10627b17694a0604b4dbe83b9c60d435 |
+| `Core\Regex::matches` | 62201.2 | 87611.3 | 9332.299 |  | flat, flat | 06349f5f026b | 10627b17694a0604b4dbe83b9c60d435 |
+| `Core\Regex::quote` | 2868.0 | 54946.1 | 430.293 |  | flat, flat | 06349f5f026b | 10627b17694a0604b4dbe83b9c60d435 |
+| `Core\Regex::replace` | 47198.4 | 82808.2 | 7081.377 |  | flat, flat | 06349f5f026b | 10627b17694a0604b4dbe83b9c60d435 |
+| `Core\Regex::replaceWith` | 45338.3 | 75697.3 | 6802.290 |  | flat, flat | 06349f5f026b | 10627b17694a0604b4dbe83b9c60d435 |
+| `Core\Regex::split` | 27428.9 | 59952.3 | 4115.272 |  | flat, flat | 06349f5f026b | 10627b17694a0604b4dbe83b9c60d435 |
+| `Core\Regex\Match::group` | 2203.7 | 2550.4 | 766.623 |  | flat | 06349f5f026b | 10627b17694a0604b4dbe83b9c60d435 |
+| `Core\Regex\Match::groups` | 5360.2 | 13885.5 | 1864.661 |  | flat | 06349f5f026b | 10627b17694a0604b4dbe83b9c60d435 |
+| `Core\Regex\Match::offset` | 739.4 | 1451.0 | 257.228 |  | flat | 06349f5f026b | 10627b17694a0604b4dbe83b9c60d435 |
+| `Core\Regex\Match::text` | 16758.2 | 22769.1 | 5829.751 |  | flat | 06349f5f026b | 10627b17694a0604b4dbe83b9c60d435 |
 | `Core\Request::body` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b23b5116fcf3 | dbe1251c1eecbab8ad11ef04230e7111 |
 | `Core\Request::bodyStream` | 0.0 | 0.0 | 0.000 | -100.0% | skipped | b23b5116fcf3 | dbe1251c1eecbab8ad11ef04230e7111 |
 | `Core\Request::bytes` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b23b5116fcf3 | dbe1251c1eecbab8ad11ef04230e7111 |
@@ -2986,7 +2990,7 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:expressions/match` | 0.0 | 0.0 | 0.000 | -100.0% | skipped | b23b5116fcf3 | 3a4f7a9666306f973dc88a742d658fd2 |
 | `lang:expressions/precedence-and-associativity` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b23b5116fcf3 | 3a4f7a9666306f973dc88a742d658fd2 |
 | `lang:expressions/string-operators` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b23b5116fcf3 | 3a4f7a9666306f973dc88a742d658fd2 |
-| `lang:expressions/the-pipeline-operator` | 31883.2 | 45434.8 | 14055.061 | +791.6% | flat, flat | 5daa62a660d3 | 9f28d9ddf4d6a28425e95fa010e36431 |
+| `lang:expressions/the-pipeline-operator` | 9660.2 | 14255.9 | 2507.080 | -69.7% | flat, flat | 06349f5f026b | 3a4f7a9666306f973dc88a742d658fd2 |
 | `lang:iteration/core-collections-are-iterable` | 0.0 | 807.0 | 0.000 | -100.0% | flat, flat | b23b5116fcf3 | 7d6a9a2161e8974cc0f1912589aa8bcc |
 | `lang:iteration/generators` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b23b5116fcf3 | 7d6a9a2161e8974cc0f1912589aa8bcc |
 | `lang:iteration/materialising-a-sequence-core-arr-from` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b23b5116fcf3 | 7d6a9a2161e8974cc0f1912589aa8bcc |
