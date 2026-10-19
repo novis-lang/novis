@@ -3,7 +3,7 @@
 //! (`rule:security/isolate-shares-nothing`).
 //!
 //! `nvs_test` runs every case fresh, in a process of its own, and then hands
-//! an eligible case's program to [`Worker::run`]. Here the programs share what
+//! an eligible case's program to [`nvs_test::SharedWorker::run`]. Here the programs share what
 //! the requests of one served core share: the thread, its scheduler and
 //! reactor, the unit cache and every process-wide table. A case whose output
 //! differs from its fresh run read something an earlier case left behind on
