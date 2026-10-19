@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, realpathSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
+import { binary } from "../cmd/proofs.ts";
 import { ROOT } from "../lib/paths.ts";
 import { skippedOf } from "../proofs/collect.ts";
 import { commandArgs, matchesOut, spawnProof } from "../proofs/run.ts";
@@ -10,6 +11,12 @@ describe("a `.cmd` example", () => {
   test("its arguments are the words after `nvs`, and a quoted word keeps its spaces", () => {
     expect(commandArgs("a.cmd", "nvs agent init --agent codex\n")).toEqual(["agent", "init", "--agent", "codex"]);
     expect(commandArgs("a.cmd", "nvs run \"two words\" 'and more'\r\n")).toEqual(["run", "two words", "and more"]);
+  });
+
+  test("a relative `--nvs` is made absolute, so it still names the binary from the example's scratch directory", () => {
+    const named = relative(process.cwd(), join(ROOT, "package.json"));
+    expect(binary(named)).toBe(join(ROOT, "package.json"));
+    expect(binary("no/such/nvs")).toBeNull();
   });
 
   test("a file that is not one `nvs` command line is no example", () => {
