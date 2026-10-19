@@ -5373,6 +5373,7 @@ mod tests {
     /// takes the earlier of the two. Every field's last accepted value and
     /// first refused one are asserted together.
     // covers: Core\Time::at
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn at_reads_fields_in_its_zone_and_refuses_a_field_past_its_range() {
         assert_eq!(
@@ -5700,6 +5701,7 @@ mod tests {
     /// `sleep` returns at once for zero and every negative duration, down to
     /// the most negative one, and a positive one is never short.
     // covers: Core\Time::sleep
+    #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn sleep_returns_at_once_at_or_below_zero_and_waits_above_it() {
         let at_once: std::time::Duration = [0, -1, -1_000_000_000, i64::MIN]
