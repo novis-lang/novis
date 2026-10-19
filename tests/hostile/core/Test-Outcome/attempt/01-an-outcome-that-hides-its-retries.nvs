@@ -1,0 +1,29 @@
+<?nvs
+// Attack: a program makes its own `Outcome` whose `attempt()` is always `1`, so
+// a flaky test looks like it passed the first time. Only the test runner creates
+// an `Outcome`, so this should not compile.
+// hostile: expect-refusal
+
+use Core\Test\Outcome;
+
+// 1. A class extends `Outcome` and returns `1` for every run.
+class FirstTry extends Outcome
+{
+    public function attempt(): int
+    {
+        return 1;
+    }
+}
+
+// 2. A class extends `Outcome` and returns numbers no run can have.
+class NoTry extends Outcome
+{
+    public function attempt(): int
+    {
+        return -9223372036854775807 - 1;
+    }
+}
+
+// 3. A new `Outcome` made with `new`, as if the program were the test runner.
+var $forged = new Outcome();
+echo $forged->attempt(), "\n";

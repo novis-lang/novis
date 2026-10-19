@@ -1,0 +1,38 @@
+<?nvs
+// Shows how to remove the namespace from the class name. `class()` returns the
+// name with its namespace, such as `Shop\Tests\OrderTest`.
+
+namespace Shop\Tests;
+
+use Core\Arr;
+use Core\Str;
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class ShortName
+{
+    // The last part after a backslash is the class name alone.
+    public static function of(string $class): string
+    {
+        return Arr::last(Str::split($class, "\\")) ?? $class;
+    }
+}
+
+class OrderTest
+{
+    #[Test]
+    public function itCountsTheItems(): void
+    {
+        Test::assertCount(['tea', 'cake', 'bread'], 3);
+    }
+
+    #[AfterEachTest]
+    public function printResult(Outcome $outcome): void
+    {
+        echo ShortName::of($outcome->class()), ' ', $outcome->name(), "\n";
+    }
+}
+
+// This prints `OrderTest`.
+echo ShortName::of("Shop\\Tests\\OrderTest"), "\n";

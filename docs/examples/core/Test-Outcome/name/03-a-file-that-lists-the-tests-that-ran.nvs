@@ -1,0 +1,50 @@
+<?nvs
+// Shows a hook that adds the name of each test to a file. After the run, the
+// file lists every test that ran, one per line.
+
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class Slug
+{
+    public static function of(string $title): string
+    {
+        return Core\Str::lower(Core\Str::replace($title, ' ', '-'));
+    }
+}
+
+class RunList
+{
+    public static function line(string $class, string $test): string
+    {
+        return $class . ' ' . $test . "\n";
+    }
+}
+
+class SlugTest
+{
+    #[Test]
+    public function itUsesLowerCase(): void
+    {
+        Test::assertSame(Slug::of('Tea'), 'tea');
+    }
+
+    #[Test]
+    public function itReplacesSpaces(): void
+    {
+        Test::assertSame(Slug::of('green tea'), 'green-tea');
+    }
+
+    // `append` adds one line to the end of the file for each test.
+    #[AfterEachTest]
+    public function addToTheList(Outcome $outcome): void
+    {
+        IO::append(Path::fromCwd('tests-that-ran.txt'), RunList::line($outcome->class(), $outcome->name()));
+    }
+}
+
+// This prints `SlugTest itReplacesSpaces`.
+echo RunList::line('SlugTest', 'itReplacesSpaces');

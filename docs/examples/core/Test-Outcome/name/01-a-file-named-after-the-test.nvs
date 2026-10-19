@@ -1,0 +1,47 @@
+<?nvs
+// Shows a hook that keeps the page a failed test produced. The file is named
+// after the test, so you can find the page of each test.
+
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class Page
+{
+    public static function title(string $product): string
+    {
+        return '<h1>' . $product . '</h1>';
+    }
+
+    // Each test gets its own file, such as `pages/itShowsTheTitle.html`.
+    public static function fileFor(string $test): string
+    {
+        return 'pages/' . $test . '.html';
+    }
+}
+
+class ProductPageTest
+{
+    public string $page = '';
+
+    #[Test]
+    public function itShowsTheTitle(): void
+    {
+        $this->page = Page::title('Green tea');
+        Test::assertSame($this->page, '<h1>Green tea</h1>');
+    }
+
+    // `name()` returns the name of the test method, here `itShowsTheTitle`.
+    #[AfterEachTest]
+    public function keepThePage(Outcome $outcome): void
+    {
+        if (!$outcome->passed()) {
+            IO::write(Path::fromCwd(Page::fileFor($outcome->name())), $this->page);
+        }
+    }
+}
+
+// This prints `pages/itShowsTheTitle.html`.
+echo Page::fileFor('itShowsTheTitle'), "\n";
