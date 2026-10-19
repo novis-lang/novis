@@ -5,6 +5,7 @@ import {
   CHANGELOG_HEADER,
   classify,
   dockerTags,
+  fixesIn,
   nextVersion,
   parseLog,
   pinProblems,
@@ -110,6 +111,12 @@ describe("nv release notes", () => {
     const notes = renderNotes("0.1.0", null, feats, "", "2026-01-02", 1);
     expect(notes).toContain("### Features\n\n- first (`a`)\n- …and 1 more, in the full changes below.\n");
     expect(notes).not.toContain("Full changes](");
+  });
+
+  test("--fixes-built holds only the fix commits, a breaking one included", () => {
+    expect(fixesIn(entries).map((e) => e.sha)).toEqual(["b2"]);
+    const more = parseLog("g7\x1ffix(http)!: a framing fix\x1f\x1eh8\x1fperf: faster\x1f\x1e").map(classify);
+    expect(fixesIn(more).map((e) => e.sha)).toEqual(["g7"]);
   });
 
   test("a section is prepended above the newest release, and a first release starts the file", () => {
