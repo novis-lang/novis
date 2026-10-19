@@ -1583,12 +1583,18 @@ pub(crate) fn unit_for(
 /// § 3 in one expression: the artifact under `key`, verified, placed, relocated, protected, bound
 /// and assembled — or [`None`] at the first step that says this is not this process's file.
 fn warm_hit(program: &nvs_ir::Program, cache: &Cache, key: Digest) -> Option<nvs_codegen::Unit> {
-    let verified = cache.load(key)?;
+    let verified = cache.load(key);
+    eprintln!("TEMPDIAG load {}", verified.is_some());
+    let verified = verified?;
     // § 2: the descriptors a warm hit resolves against are built here, out of the IR the front end
     // has just lowered, because a run that skipped codegen allocated none and no payload carries
     // one.
     let descriptors = nvs_codegen::Descriptors::of(program);
-    let loaded = verified.relocate(&this_process(&descriptors)).ok()?;
+    let loaded = verified.relocate(&this_process(&descriptors));
+    if let Err(e) = &loaded {
+        eprintln!("TEMPDIAG relocate {e:?}");
+    }
+    let loaded = loaded.ok()?;
     Some(descriptors.into_unit(Box::new(loaded)))
 }
 

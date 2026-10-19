@@ -173,11 +173,14 @@ async function measureOne(nvs: string, bench: string, reps: number, floor: numbe
   findings.push(...growth.findings);
   // The same operation written another way, timed in the same sweep so the two figures compare. A record
   // only: which form should win is the bench's own claim, and a same-run ratio is honest to a factor.
+  // A twin of a few hundred nanoseconds per operation at a small N does less work than the floor's
+  // spread between runs, so its fastest run can land under the floor's and read 0. That is under this
+  // timing's resolution, not a figure, and the ratio is then null: JSON has no infinity to write.
   const twin = bench.replace(/\.nvs$/, ".twin.nvs");
   if (existsSync(abs(twin))) {
     const [twinTotal] = await timeProgram(nvs, twin, reps);
     const twinNs = Math.max(0, (twinTotal - floor) / iterationsOf(twin));
-    Object.assign(fig, { twin_ns_per_op: round(twinNs, 3), twin_ratio: round(twinNs > 0 ? nsPerOp / twinNs : Infinity, 3) });
+    Object.assign(fig, { twin_ns_per_op: round(twinNs, 3), twin_ratio: twinNs > 0 ? round(nsPerOp / twinNs, 3) : null });
   }
   return [fig, findings];
 }
@@ -188,7 +191,7 @@ const FLOATS = new Set(["ns_per_op", "median_ns_per_op", "statements", "calls", 
 
 /** One ledger line, as Python's `json.dumps` wrote the lines before it. `field` is the record's own key a
  * value sits under, and is empty inside a nested value. */
-function ledgerLine(value: unknown, field = "", top = true): string {
+export function ledgerLine(value: unknown, field = "", top = true): string {
   if (Array.isArray(value)) return `[${value.map((v) => ledgerLine(v, "", false)).join(", ")}]`;
   if (typeof value === "object" && value !== null) {
     return `{${Object.entries(value)
@@ -196,7 +199,8 @@ function ledgerLine(value: unknown, field = "", top = true): string {
       .join(", ")}}`;
   }
   if (typeof value === "number" && FLOATS.has(field) && Number.isInteger(value)) return `${value}.0`;
-  if (typeof value === "number" && !Number.isFinite(value)) return value > 0 ? "Infinity" : "-Infinity";
+  // `JSON.parse` reads no `Infinity`, and the ledger's reader skips a line it cannot parse.
+  if (typeof value === "number" && !Number.isFinite(value)) return "null";
   return JSON.stringify(value).replace(/[\u0080-￿]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 
@@ -308,7 +312,7 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
       `  ${ljust(e.id, 44)} ${n("ns_per_op", 1, 10)} ${rjust(fixed(rec.ratio as number, 3), 9)}  ${n("statements", 2, 7)} ${n("calls", 2, 7)} ${n("allocations", 2, 7)} ${n("bytes", 1, 9)}` +
         ("growth" in fig ? `   growth: ${fig.growth as string}` : "") +
         ("size_growth" in fig ? `, size ${fig.size_growth as string}` : "") +
-        ("twin_ratio" in fig ? `   twin: ${fixed(fig.twin_ratio as number, 2)}x` : "") +
+        ("twin_ratio" in fig ? `   twin: ${fig.twin_ratio === null ? "under the floor" : `${fixed(fig.twin_ratio as number, 2)}x`}` : "") +
         (findings.length ? `   known-gap: ${findings.join("; ")}` : ""),
     );
   }

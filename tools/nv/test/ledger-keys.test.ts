@@ -5,7 +5,8 @@ import { pathToFileURL } from "node:url";
 import { CACHE, ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { ENV, readLog } from "../lib/reads.ts";
-import { LEDGER, LEDGER_WHOLE, ledgerMoved, ledgerSigns, PERF_ANY, perfKey } from "../proofs/ledger.ts";
+import { LEDGER, LEDGER_WHOLE, ledgerMoved, ledgerRows, ledgerSigns, PERF_ANY, perfKey } from "../proofs/ledger.ts";
+import { ledgerLine } from "../proofs/perf.ts";
 import { computeChange, query } from "../select/select.ts";
 import { SelectStore } from "../select/store.ts";
 import { scratch } from "./scratch.ts";
@@ -15,6 +16,14 @@ afterAll(() => rmSync(LOG, { force: true }));
 
 const row = (id: string, ns: number) => JSON.stringify({ id, machine: "m1", impl_hash: "h", ns_per_op: ns });
 const LEDGER_TEXT = [row("Core\\A::run", 1), row("Core\\B::run", 2), row("Core\\A::run", 3)].join("\n") + "\n";
+
+describe("a ledger line", () => {
+  test("a twin ratio under the floor is written as null, so the reader keeps the record", () => {
+    const line = ledgerLine({ id: "lang:a", ns_per_op: 2, twin_ns_per_op: 0, twin_ratio: null, ratio: Infinity });
+    expect(line).toBe('{"id": "lang:a", "ns_per_op": 2.0, "twin_ns_per_op": 0.0, "twin_ratio": null, "ratio": null}');
+    expect(ledgerRows(line).get("lang:a")).toHaveLength(1);
+  });
+});
 
 describe("the perf ledger is keyed by the features whose rows a reader uses", () => {
   test("a change moves only the features whose rows differ", () => {
