@@ -1667,15 +1667,17 @@ mod tests {
     /// record correctly and fail the first weighing, and one that cleared
     /// nothing at the end would pass both and fail the line after them. A
     /// document many reads long, because the number the answer must not depend
-    /// on is the document's size.
+    /// on is the document's size. Under Miri the same bytes are fewer, wider
+    /// records, because each record is a call and Miri pays for every one.
     // covers: Core\Csv::rows
     #[test]
     fn csv_rows_holds_one_record_and_never_the_document() {
-        const RECORDS: usize = 4_000;
+        let (records, pad) = if cfg!(miri) { (360, 90) } else { (4_000, 0) };
 
+        let zeros = "0".repeat(pad);
         let mut document = String::from("id,amount\n");
-        for n in 0..RECORDS {
-            document.push_str(&format!("{n},{}\n", n * 3));
+        for n in 0..records {
+            document.push_str(&format!("{n},{zeros}{}\n", n * 3));
         }
         assert!(
             document.len() > super::READ_CHUNK * 4,
@@ -1724,7 +1726,7 @@ mod tests {
 
         assert_eq!(
             held.len(),
-            RECORDS,
+            records,
             "every record of the document is walked"
         );
         assert!(
