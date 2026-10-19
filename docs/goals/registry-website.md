@@ -7,21 +7,21 @@ stages:
   - id: 1
     title: search matches text, and the reader chooses the sort
     status: open
-    context: [apps/registry/src/Index.nvs, apps/registry/src/Downloads.nvs]
+    context: [apps/registry/src/Index.nvs, apps/registry/src/Releases.nvs, crates/nvs-cli/src/package/build.rs]
     extra:
       context:
         rules: [packaging/search-sorts-by-the-readers-choice]
   - id: 2
     title: a package page shows every fact the registry holds about it
     status: open
-    context: [apps/registry/src/Releases.nvs, crates/nvs-cli/src/package/diff.rs, docs/rules/packaging/an-owner-may-unlist.md, docs/rules/packaging/the-operator-only-withholds.md]
+    context: [apps/registry/src/Releases.nvs, apps/registry/src/Ranking.nvs, crates/nvs-cli/src/package/diff.rs, docs/rules/packaging/an-owner-may-unlist.md, docs/rules/packaging/the-operator-only-withholds.md]
     extra:
       context:
         rules: [packaging/search-sorts-by-the-readers-choice, packaging/only-a-major-may-break-the-api, packaging/an-owner-may-unlist, packaging/the-operator-only-withholds, packaging/a-release-waits-seven-days-unless-an-owner-confirms]
   - id: 3
     title: the account pages and the withhold policy page
     status: open
-    context: [apps/registry/src/Accounts.nvs, apps/registry/src/Push.nvs, apps/registry/src/Tokens.nvs, docs/rules/packaging/the-operator-only-withholds.md]
+    context: [apps/registry/src/Accounts.nvs, apps/registry/src/Push.nvs, apps/registry/src/Tokens.nvs, apps/registry/src/Channels.nvs, apps/registry/src/Activity.nvs, docs/rules/packaging/the-operator-only-withholds.md]
     extra:
       context:
         rules: [packaging/a-registry-account-is-a-passkey, packaging/an-owner-is-notified-without-email, packaging/an-account-stays-active-by-proof-not-by-token, packaging/the-operator-only-withholds]
@@ -67,6 +67,12 @@ age on the registry, months with at least one release, time since the last relea
 version. Git history (first commit date, commit count) is shown as "from the repository, not checked"
 and never ranks.
 
+**Doc-comment coverage is produced by `nvs registry build`.** Its JSON gains `doc_coverage`: the
+public declarations that carry a doc comment, over all public declarations, counted in the same API
+extraction the build already runs for the diff. The service stores it on the release row, and
+`Ranking.nvs` reads it from there. This goal adds the field (stage 1). Why: the registry measures it
+in code it built itself, and one extraction serves the diff and the count.
+
 **The formula is one file in the repository**, `apps/registry/src/Ranking.nvs`, and its doc comment
 states it in words. Every package page shows every fact the formula reads, and links to that file.
 
@@ -84,10 +90,23 @@ advisory.
 
 **The pages are written for an end user** and follow AGENTS.md § *Text an end user reads*.
 
+**Lanes.** Stage 1 (`Search.nvs`, `Ranking.nvs`, `build.rs`), stage 2 (`PackagePage.nvs`) and stage 3
+(`AccountPage.nvs`, `PolicyPage.nvs`) create disjoint files and share only the route wiring in
+`apps/registry/src/App.nvs`, so they can run in any order and merge serially on that file. Stage 2's
+ranking facts read `Ranking.nvs`, so that one item waits for stage 1. Goal `package-audit`'s
+`Advisories.nvs` also wires a route in `App.nvs`, so its merge is serial with this goal's. Stage 4
+writes `docs/reference/tools/35-packages.md`, where every package goal adds a heading.
+
+**Gates.** Every stage needs goal `registry-service` reached: `docs/goals/registry-service.md` is gone.
+Stage 2's advisories need `apps/registry/src/Advisories.nvs` (goal `package-audit`); until it exists,
+the page shows withholds and retractions from `Releases.nvs` and the advisory item stays open. A
+session whose gate does not hold ends `BLOCKED` naming the missing file.
+
 **Trade-offs.** No language feature changes. The pages are server-rendered by the registry's own
 Novis program, so a page costs one request's memory. Search over a few thousand packages runs in SQLite
 with its full-text index; a separate search service is not needed. Readers gain one sort they can
-understand and change.
+understand and change. The `doc_coverage` count costs the build one pass over declarations it already
+holds.
 
 ## Stages
 
@@ -96,6 +115,11 @@ understand and change.
 **Does:** a query returns matching packages in the order the reader picked, and the default order
 follows the published formula.
 
+**Split:** an `Explore` subagent lists the release and download columns the service's schema holds,
+one line each with its anchor. After the session lands `Ranking.nvs`, a writing subagent writes
+`SearchTest.nvs`.
+
+- [ ] `nvs registry build` reports `doc_coverage`, and the service stores it on the release row. `crates/nvs-cli/src/package/build.rs:1`, `apps/registry/src/Publish.nvs:1`
 - [ ] Full-text search over names, summaries and doc comments. `apps/registry/src/Search.nvs:1`
 - [ ] The ranking file and its facts, each computed from the registry's own records (`rule:packaging/search-sorts-by-the-readers-choice`). `apps/registry/src/Ranking.nvs:1`
 - [ ] The five sorts, and a test that git history never changes an order. `apps/registry/src/SearchTest.nvs:1`
@@ -104,36 +128,53 @@ follows the published formula.
 
 **Does:** one page per package, and one per version, show everything the standing decision lists.
 
+**Split:** after the session lands the page and its route, one writing subagent writes the
+capability and API diff sections, then a second writes the test.
+
 - [ ] Versions and their states, the commit, and `supersedes`. `apps/registry/src/PackagePage.nvs:1`
 - [ ] Requested capabilities and their change per version, and the API diff per version from `nvs pkg diff`. `apps/registry/src/PackagePage.nvs:1`, `crates/nvs-cli/src/package/diff.rs:1`
-- [ ] Owners and their history, advisories, and the ranking facts. `apps/registry/src/PackagePage.nvs:1`
+- [ ] Owners and their history, advisories, and the ranking facts with the link to `Ranking.nvs`. `apps/registry/src/PackagePage.nvs:1`
+- [ ] A test: a package with a pending, an unlisted, a retracted and a withheld version shows each state, and every fact `Ranking.nvs` reads is on the page. `apps/registry/src/PackagePageTest.nvs:1`
 
 ### 3. the account pages and the withhold policy page
 
 **Does:** an owner manages everything about their account on its pages, and the policy page exists.
 
+**Split:** after the session lands the route wiring, one writing subagent writes `AccountPage.nvs`
+and its test, then a second writes `PolicyPage.nvs`.
+
 - [ ] Passkeys, tokens, vendors and co-owners, push devices and webhooks with their verification state, the inbox and the days left before publishing stops. `apps/registry/src/AccountPage.nvs:1`
+- [ ] A test: the page needs a passkey sign-in, and shows an unverified channel and the days left under a fixed clock. `apps/registry/src/AccountPageTest.nvs:1`
 - [ ] The withhold policy page (`rule:packaging/the-operator-only-withholds`). `apps/registry/src/PolicyPage.nvs:1`
 
 ### 4. the website has its feature proofs, and its rule is shipped
 
 **Does:** the website is a feature with its proofs, and its rule is `shipped`.
 
-- [ ] The heading `# The registry website` in `docs/reference/tools/35-packages.md`, owing nothing. `docs/reference/tools/35-packages.md:1`
+**Split:** after the session writes the heading, one writing subagent writes `about.md` and the
+examples `bun nv proofs --id 'tools:packages/the-registry-website'` lists, then a second writes the
+attack.
+
+- [ ] The heading `# The registry website` in `docs/reference/tools/35-packages.md`. `docs/reference/tools/35-packages.md:1`
+- [ ] `about.md` and the examples the proofs command lists. `docs/examples/tools/packages/the-registry-website/about.md:1`
 - [ ] The attack: a package tries to rank higher with a backdated git history, and its order does not change. `tests/hostile/tools/packages/the-registry-website/01-a-backdated-history.nvs:1`
-- [ ] The rule is `shipped`, and `bun nv owners --closes registry-website` passes. `data/rules/packaging/search-sorts-by-the-readers-choice.json:1`
+- [ ] The rule is `shipped` with `SearchTest.nvs` in its `guardedBy`, and `bun nv owners --closes registry-website` passes. `data/rules/packaging/search-sorts-by-the-readers-choice.json:1`
 
 ## Handoff
 
 ### State
 
-The goal is new. No stage is started. It needs goal `registry-service` reached.
+The goal is new. No stage is started. Every stage waits for goal `registry-service`, which has not
+started; `apps/registry/` does not exist.
 
 ### Next
 
-Stage 1, search and ranking:
-- full-text search (`rule:packaging/search-sorts-by-the-readers-choice`). `apps/registry/src/Search.nvs:1`
-- the ranking file and its facts. `apps/registry/src/Ranking.nvs:1`
+Stage 1, search and ranking, on `apps/registry/src/Search.nvs`, `Ranking.nvs` and
+`crates/nvs-cli/src/package/build.rs`. Gate: `docs/goals/registry-service.md` is gone.
+- [ ] `doc_coverage` in the build's JSON, stored on the release row. `crates/nvs-cli/src/package/build.rs:1`
+- [ ] Full-text search (`rule:packaging/search-sorts-by-the-readers-choice`). `apps/registry/src/Search.nvs:1`
+- [ ] The ranking file and its facts. `apps/registry/src/Ranking.nvs:1`
+- [ ] The five sorts and the git-history test. `apps/registry/src/SearchTest.nvs:1`
 
 ### Backlog
 

@@ -7,17 +7,17 @@ stages:
   - id: 1
     title: "`package.toml` is read, and a package's name is its namespace"
     status: open
-    context: [crates/nvs-config/src/value.rs, docs/rules/packaging/package-toml-is-a-tool-input.md, docs/rules/packaging/a-package-name-is-vendor-slash-name.md, docs/rules/packaging/a-vendor-resolves-from-one-registry.md]
+    context: [crates/nvs-cli/src/package/manifest.rs, crates/nvs-config/src/package.rs, docs/rules/packaging/package-toml-is-a-tool-input.md, docs/rules/packaging/a-package-name-is-vendor-slash-name.md, docs/rules/packaging/a-vendor-resolves-from-one-registry.md]
     extra:
       context:
         rules: [packaging/package-toml-is-a-tool-input, packaging/a-package-name-is-vendor-slash-name, packaging/a-vendor-resolves-from-one-registry, core-api/reserved-namespace]
   - id: 2
-    title: "`nvs pkg pack` builds a deterministic archive, and a git dependency is fetched and packed"
+    title: "`nvs pkg pack` builds a deterministic archive"
     status: open
-    context: [crates/nvs-config/src/capability.rs, crates/nvs-stdlib/src/http/transport.rs, docs/rules/packaging/a-package-is-its-digest.md, docs/rules/packaging/a-git-dependency-is-root-only.md]
+    context: [crates/nvs-cli/src/package/pack.rs, docs/rules/packaging/a-package-is-its-digest.md]
     extra:
       context:
-        rules: [packaging/a-package-is-its-digest, packaging/a-git-dependency-is-root-only, packaging/the-registry-builds-the-archive-from-git]
+        rules: [packaging/a-package-is-its-digest, packaging/the-registry-builds-the-archive-from-git, packaging/somebody-elses-specification-is-a-crate]
   - id: 3
     title: the index is read, resolution takes the highest minimum, and the lock holds every digest
     status: open
@@ -25,10 +25,17 @@ stages:
     extra:
       context:
         rules: [packaging/resolution-takes-the-highest-minimum, packaging/the-lockfile-holds-every-digest, packaging/a-vendor-resolves-from-one-registry]
+  - id: 7
+    title: "a root git dependency is cloned inside fixed limits and packed, and one below the root is refused"
+    status: open
+    context: [crates/nvs-config/src/capability.rs, crates/nvs-stdlib/src/http/transport.rs, crates/nvs-cli/src/package/resolve.rs, docs/rules/packaging/a-git-dependency-is-root-only.md]
+    extra:
+      context:
+        rules: [packaging/a-git-dependency-is-root-only, packaging/a-package-is-its-digest, security/net-address-policy]
   - id: 4
     title: "`nvs pkg fetch` and `nvs pkg vendor` write the tree, `vendor/packages.nvs` and a grant line per package"
     status: open
-    context: [crates/nvs-hir/src/autoload.rs, docs/rules/packaging/a-fetched-package-is-an-autoload-line.md, docs/rules/packaging/nothing-runs-before-the-program.md, docs/rules/security/package-authority-is-granted-one-line-at-a-time.md, docs/rules/packaging/package-toml-is-a-tool-input.md]
+    context: [crates/nvs-hir/src/autoload.rs, crates/nvs-config/src/grants.rs, docs/rules/packaging/a-fetched-package-is-an-autoload-line.md, docs/rules/packaging/nothing-runs-before-the-program.md, docs/rules/security/package-authority-is-granted-one-line-at-a-time.md, docs/rules/packaging/package-toml-is-a-tool-input.md]
     extra:
       context:
         rules: [packaging/a-fetched-package-is-an-autoload-line, packaging/nothing-runs-before-the-program, security/package-authority-is-granted-one-line-at-a-time, security/grants-are-keyed-on-a-namespace, packaging/package-toml-is-a-tool-input, config/the-extension-set-is-in-every-unit-key]
@@ -40,16 +47,20 @@ stages:
       context:
         rules: [packaging/a-release-waits-seven-days-unless-an-owner-confirms, packaging/resolution-takes-the-highest-minimum, packaging/an-owner-may-unlist, packaging/the-operator-only-withholds, security/package-authority-is-granted-one-line-at-a-time]
   - id: 6
-    title: the client has its feature proofs, and its rules are shipped
+    title: "`package.toml`, `nvs pkg add` and `nvs pkg fetch` have their feature proofs"
+    status: open
+    context: [docs/reference/tools/35-packages.md]
+  - id: 8
+    title: the other client commands have their feature proofs, and the rules are shipped
     status: open
     context: [docs/reference/tools/35-packages.md]
 checks:
   - id: client-proofs
-    stage: 6
+    stage: 8
     name: the client's commands owe no feature proof
     run: [bun, nv, proofs, --gate, --only, "tools:packages/package-toml", "tools:packages/nvs-pkg-add", "tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor", "tools:packages/nvs-pkg-update-and-nvs-pkg-outdated", "tools:packages/package-lock-and-locked", "tools:packages/nvs-pkg-pack"]
   - id: owners-closes
-    stage: 6
+    stage: 8
     name: no gap record or designed rule names this goal
     run: [bun, nv, owners, --closes, package-client]
     reach: true
@@ -63,9 +74,9 @@ checks:
 A program cannot use somebody else's code today except by copying it. This goal builds the client half
 of the package system: the manifest, the lock, resolution, fetching and vendoring, all as `nvs`
 subcommands, and all tested against a registry that is a directory on disk. The registry service
-comes later (goal `registry-service`) and writes the same static index this goal reads. The grant
-table from goal `namespace-grants` is already in place, so every fetched package arrives with a grant
-line, and the compiler refuses what it was not granted.
+comes later (goal `registry-service`) and writes the same static index this goal reads. Goal
+`namespace-grants` builds the grant table, so every fetched package arrives with a grant line, and the
+compiler refuses what it was not granted.
 
 ## Standing decisions
 
@@ -84,18 +95,35 @@ package and one archive per digest, under the registry's URL. Each version carri
 state (pending with the time it becomes selectable, released, unlisted, retracted with reason and
 fixed-in version, or withheld), its dependencies, its requested capabilities, its repository URL and
 commit, and the package's owners. The schema has a version field. Stage 3 writes the schema into
-`rule:packaging/a-package-is-its-digest`'s fragment, and goal `registry-service` writes to it.
+`rule:packaging/a-package-is-its-digest`'s fragment, and goal `registry-service` writes to it. The
+tests' fixture registry is built at test time from package directories through `pack.rs`, so a
+committed digest never goes stale.
 
 **The archive is deterministic.** It is an uncompressed `ustar` tar of the package directory's regular
 files, sorted by path bytes, with every time, owner and mode field fixed, and no link or special file.
-Its BLAKE3 digest is the package's identity. A transport may compress it. Stage 2 states this in
-`rule:packaging/a-package-is-its-digest`, and the registry builds the same bytes from the same commit
-because it runs the same code (`rule:packaging/the-registry-builds-the-archive-from-git`).
+Its BLAKE3 digest (`Cargo.toml:425`) is the package's identity. A transport may compress it. Stage 2
+writes it through the `tar` crate (a new workspace row, default features off), with every header field
+set by the code, because a wire format is a crate's
+(`rule:packaging/somebody-elses-specification-is-a-crate`). It states this in
+`rule:packaging/a-package-is-its-digest`, and
+the registry builds the same bytes from the same commit because it runs the same code
+(`rule:packaging/the-registry-builds-the-archive-from-git`).
 
 **A git clone runs inside fixed limits.** A root git dependency is cloned over HTTPS at an exact
 commit, with a size and a time limit, and its host's address is checked against the outbound table
-(`crates/nvs-config/src/capability.rs:262`), so an internal host is refused. The clone uses `gix`,
-and its connection goes through that check.
+(`crates/nvs-config/src/capability.rs:263`), so an internal host is refused. The clone uses `gix` with
+its default features off and no C transport, recorded in its `Cargo.toml` row with `cargo deny` green.
+Its connection is the one `nvs` resolved and checked: if `gix` takes no pinned connector, stage 7
+implements `gix`'s client transport over the stdlib's HTTP client
+(`crates/nvs-stdlib/src/http/transport.rs`), which already pins and checks. A `file:` URL is accepted
+for a git dependency as it is for a registry, because it reaches only the user's own disk.
+
+**The clone's tests never reach the network.** The address refusal, TLS and the time limit run against
+loopback listeners built from `rcgen` and `rustls`, as `nvs-cli`'s tests already do
+(`crates/nvs-cli/Cargo.toml:131`), with loopback allowed only by the operator exception the test
+writes. The exact commit, the content and the size limit run against a `file:` remote of a repository
+the test builds with `gix`. Why: security first, so the production path has no test-only escape;
+loopback TLS exercises the same pinned connection a real host gets.
 
 **Resolution takes the highest minimum across majors too.** A graph is never unsolvable. A break that
 matters is a compile error naming the package, the member and both versions, because the whole
@@ -106,17 +134,40 @@ package asked for the older one. A `0.0.x` dependency is an ordinary minimum.
 (`rule:packaging/package-toml-is-a-tool-input`). `nvs pkg add` and `nvs pkg fetch` write one line for every
 package in the graph, an empty one included, and a person edits and reviews them. The compiler reads
 that table and nothing else of the file, and only the table folds into every compiled unit's cache key
-(`rule:config/the-extension-set-is-in-every-unit-key`); goal `namespace-grants` built that reader. A
-line a person already edited is never rewritten.
+(`rule:config/the-extension-set-is-in-every-unit-key`). A line a person already edited is never
+rewritten.
+
+**The manifest reader grows goal `api-compat`'s.** That goal creates `crates/nvs-cli/src/package/mod.rs`
+with the `nvs pkg` group and `package/manifest.rs` reading `version` alone. Stage 1 grows the same file
+into the full reader with unknown keys refused, and reads a package's name and its capability split
+through `nvs_config::package` (goal `namespace-grants`), so the compiler and the client read those keys
+with one parser.
 
 **The lock records what the change report compares.** Beside name, version, source and digest, each
 entry records the package's requested capabilities, its repository and commit, and its owners, so
 `nvs pkg update` can print what changed since the lock.
 
+**Gates on other goals.** `api-compat`: `crates/nvs-cli/src/package/mod.rs` exists with `Command::Pkg`
+in `crates/nvs-cli/src/main.rs`; if not, stage 1 creates both as that goal's standing decision says.
+`namespace-grants`: `crates/nvs-config/src/grants.rs` and `crates/nvs-config/src/package.rs` exist and
+`data/rules/security/grants-are-keyed-on-a-namespace.json` says `shipped`. Stage 4 waits on it; until
+it holds, the session takes stages 1, 2, 3 and 7. If only `package.rs` is missing, stage 1 reads the
+name and the capability split itself, and the handoff names the duplicate.
+
 **Trade-offs.** No program changes at run time: a fetched package is ordinary source behind an
 `autoload` line. Nothing runs on the request path. Memory: none per request; the client holds one
 resolved graph while it runs. Security gains a digest on every byte, one registry per vendor and a
 grant line per package. Users gain six subcommands, each one a verb they expect from other languages.
+`gix` is a large dependency, bought because a git dependency needs a clone whose connection `nvs`
+checks.
+
+**Lanes.** Stage 1 comes first. After it, stage 2 (`pack.rs`) and stage 3 (`index.rs`, `resolve.rs`,
+`lock.rs`) touch disjoint files and run in either order. Stage 7 shares `resolve.rs` with stage 3 and
+runs after it. Stage 4 runs after 3 and 7 and behind the `namespace-grants` gate, stage 5 after 4
+(`resolve.rs`), then 6 and 8. The goal is not a side goal. It shares the `Command` enum in
+`crates/nvs-cli/src/main.rs:372` with goals `api-compat` and `registry-log`, the workspace `Cargo.toml`
+(`tar`, `gix`), and `docs/reference/tools/35-packages.md` with goals `namespace-grants` and `api-compat`; those
+merge one after another.
 
 ## Stages
 
@@ -125,26 +176,39 @@ grant line per package. Users gain six subcommands, each one a verb they expect 
 **Does:** the manifest parses with unknown keys refused, and the package's name, version,
 dependencies, registries and requested capabilities are read from it.
 
-- [ ] The reader, found by walking up from the working directory, never by the runtime; the compiler's only part of the file is `[grants]` (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/package/manifest.rs:1`
-- [ ] A two-segment root namespace, the derived name, one name per case-folded namespace, and `Core\`, `Novis\` and built-in names refused (`rule:packaging/a-package-name-is-vendor-slash-name`). `crates/nvs-cli/src/package/manifest.rs:1`
+- [ ] The reader, found by walking up from the working directory, never by the runtime; the compiler's only part of the file is `[grants]` (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/package/manifest.rs:1`, `crates/nvs-config/src/package.rs:1`
+- [ ] A two-segment root namespace, the derived name, one name per case-folded namespace, and `Core\`, `Novis\` and built-in names refused (`rule:packaging/a-package-name-is-vendor-slash-name`, `rule:core-api/reserved-namespace`). `crates/nvs-cli/src/package/manifest.rs:1`
 - [ ] The vendor to registry table and its default (`rule:packaging/a-vendor-resolves-from-one-registry`). `crates/nvs-cli/src/package/manifest.rs:1`
+- [ ] Tests: each refusal and the derived name. `crates/nvs-cli/tests/package_client.rs:1`
 
-### 2. `nvs pkg pack` builds a deterministic archive, and a git dependency is fetched and packed
+### 2. `nvs pkg pack` builds a deterministic archive
 
-**Does:** a package directory or a cloned commit becomes the same archive bytes and digest on every
-platform.
+**Does:** a package directory becomes the same archive bytes and digest on every platform.
 
+- [ ] The `tar` row in the workspace `Cargo.toml`, with `cargo deny` green (`rule:packaging/somebody-elses-specification-is-a-crate`). `Cargo.toml:425`
 - [ ] The archive and its BLAKE3 digest as the standing decision says, with an `nvs.toml` anywhere in it refused (`rule:packaging/a-package-is-its-digest`). `crates/nvs-cli/src/package/pack.rs:1`, `Cargo.toml:425`
-- [ ] The HTTPS clone at an exact commit, inside the size and time limits and behind the outbound address check. `crates/nvs-cli/src/package/git.rs:1`, `crates/nvs-config/src/capability.rs:262`
-- [ ] A git dependency below the root is a hard error naming the package that declared it (`rule:packaging/a-git-dependency-is-root-only`). `crates/nvs-cli/src/package/resolve.rs:1`
+- [ ] `nvs pkg pack` in the group. `crates/nvs-cli/src/package/mod.rs:1`
+- [ ] `rule:packaging/a-package-is-its-digest`'s fragment states the archive format. `docs/rules/packaging/a-package-is-its-digest.md:1`
+- [ ] Tests: a pinned digest for a fixture directory, the same bytes after its files are touched and reordered, and a symlink and an `nvs.toml` refused. `crates/nvs-cli/tests/package_client.rs:1`
 
 ### 3. the index is read, resolution takes the highest minimum, and the lock holds every digest
 
 **Does:** the client reads a fixture registry on disk, resolves the graph and writes `package.lock`.
 
-- [ ] The index reader, its schema written into the rule, and a fixture registry under `crates/nvs-cli/tests/fixtures/registry/`. `crates/nvs-cli/src/package/index.rs:1`
+- [ ] The index reader, its schema written into `rule:packaging/a-package-is-its-digest`'s fragment, and a fixture registry built at test time. `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-cli/tests/fixtures/registry/README.md:1`
 - [ ] Minimal version selection across majors, with the crossing reported (`rule:packaging/resolution-takes-the-highest-minimum`). `crates/nvs-cli/src/package/resolve.rs:1`
 - [ ] The lock, `--locked` that fetches nothing outside it, and a digest mismatch as a hard error naming the package (`rule:packaging/the-lockfile-holds-every-digest`). `crates/nvs-cli/src/package/lock.rs:1`
+- [ ] Tests: a graph across majors, a `--locked` run with a missing entry, and an edited digest. `crates/nvs-cli/tests/package_client.rs:1`
+
+### 7. a root git dependency is cloned inside fixed limits and packed, and one below the root is refused
+
+**Does:** a root git dependency is cloned at its exact commit through a checked connection and packed
+as stage 2 packs a directory, and a git dependency anywhere below the root is refused.
+
+- [ ] `gix` in the workspace `Cargo.toml` with its default features off, and `cargo deny` green. `Cargo.toml:1`
+- [ ] The HTTPS clone at an exact commit, inside the size and time limits and behind the outbound address check, as the standing decision says. `crates/nvs-cli/src/package/git.rs:1`, `crates/nvs-config/src/capability.rs:263`
+- [ ] A git dependency below the root is a hard error naming the package that declared it (`rule:packaging/a-git-dependency-is-root-only`). `crates/nvs-cli/src/package/resolve.rs:1`
+- [ ] Tests, offline as the standing decision says: an internal host refused, a slow listener stopped by the time limit, the exact commit from a `file:` remote, an over-size repository stopped, and a transitive git dependency refused. `crates/nvs-cli/tests/package_git.rs:1`
 
 ### 4. `nvs pkg fetch` and `nvs pkg vendor` write the tree, `vendor/packages.nvs` and a grant line per package
 
@@ -153,7 +217,7 @@ for every package, an empty one included.
 
 - [ ] `vendor/packages.nvs`, generated from the lock and committed (`rule:packaging/a-fetched-package-is-an-autoload-line`). `crates/nvs-cli/src/package/fetch.rs:1`, `crates/nvs-hir/src/autoload.rs:259`
 - [ ] `nvs pkg add` and `nvs pkg fetch` write a line into `[grants]` in the application's `package.toml` for every package in the graph, direct and transitive, with nothing granted until a person writes it and an edited line left as it is (`rule:security/package-authority-is-granted-one-line-at-a-time`, `rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/package/fetch.rs:1`, `crates/nvs-cli/src/package/manifest.rs:1`
-- [ ] A test that a package with an effectful top-level statement produces no effect from `fetch`, `build` or `vendor` (`rule:packaging/nothing-runs-before-the-program`). `crates/nvs-cli/tests/package_client.rs:1`
+- [ ] Tests: a fetched package compiles only with its grant line, an edited line survives a second fetch, and an effectful top-level statement produces no effect from `fetch`, `build` or `vendor` (`rule:packaging/nothing-runs-before-the-program`). `crates/nvs-cli/tests/package_client.rs:1`
 
 ### 5. `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated` select only what is released and print what a change brings
 
@@ -161,31 +225,60 @@ for every package, an empty one included.
 one is handled as its rule says, and every change prints its authority before it lands.
 
 - [ ] A pending version is never selected by `add` or `update`, and `nvs pkg add acme/http@1.4.0` fetches it (`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`). `crates/nvs-cli/src/package/resolve.rs:1`
-- [ ] An unlisted version still resolves and fetches, a withheld one fails naming its advisory, and a retracted one is never newly selected (`rule:packaging/an-owner-may-unlist`, `rule:packaging/the-operator-only-withholds`). `crates/nvs-cli/src/package/resolve.rs:1`
+- [ ] An unlisted version still resolves and fetches, a withheld one fails naming its advisory, and a retracted one is never newly selected (`rule:packaging/an-owner-may-unlist`, `rule:packaging/the-operator-only-withholds`, `rule:packaging/a-known-bad-version-is-retracted-not-deleted`). `crates/nvs-cli/src/package/resolve.rs:1`
 - [ ] The output: every capability requested by the package and its subgraph, capability changes since the lock, the transitive count, owner and repository changes, and the majors crossed with who asked for the older one. `crates/nvs-cli/src/package/report.rs:1`
+- [ ] Tests: one fixture registry entry per version state, and the report of an update that adds a capability. `crates/nvs-cli/tests/package_client.rs:1`
 
-### 6. the client has its feature proofs, and its rules are shipped
+### 6. `package.toml`, `nvs pkg add` and `nvs pkg fetch` have their feature proofs
 
-**Does:** each command is a feature with its proofs, and every rule this goal owns is `shipped`.
+**Does:** the first three features have their chapter headings, about pages, examples and attacks.
 
-- [ ] The headings `# package.toml`, `# nvs pkg add`, `# nvs pkg fetch and nvs pkg vendor`, `# nvs pkg update and nvs pkg outdated`, `# package.lock and --locked` and `# nvs pkg pack` in `docs/reference/tools/35-packages.md`, each owing nothing. `docs/reference/tools/35-packages.md:1`
-- [ ] The attacks: a lock whose digest was edited, a transitive git dependency, and a vendor answered by a second registry. `tests/hostile/tools/packages/nvs-fetch-and-nvs-vendor/01-an-edited-digest.nvs:1`
-- [ ] Every rule this goal owns is `shipped`, and `bun nv owners --closes package-client` passes. `data/rules/packaging/a-package-is-its-digest.json:1`
+**Split:** after the headings land, one writing subagent writes each feature's about page and examples,
+one feature after the other, then a second writes the attacks, each held to § *Text an end user reads*
+in `AGENTS.md`.
+
+- [ ] The headings `# package.toml`, `# nvs pkg add` and `# nvs pkg fetch and nvs pkg vendor` in the chapter. `docs/reference/tools/35-packages.md:1`
+- [ ] The about pages and examples. `docs/examples/tools/packages/package-toml/about.md:1`, `docs/examples/tools/packages/nvs-pkg-add/about.md:1`, `docs/examples/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/about.md:1`
+- [ ] The attacks: a vendor answered by a second registry, and a transitive git dependency. `tests/hostile/tools/packages/package-toml/01-a-vendor-answered-by-a-second-registry.nvs:1`, `tests/hostile/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/01-a-transitive-git-dependency.nvs:1`
+- [ ] `bun nv proofs --id` owes nothing for `tools:packages/package-toml`, `tools:packages/nvs-pkg-add` and `tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor`. `docs/reference/tools/35-packages.md:1`
+
+### 8. the other client commands have their feature proofs, and the rules are shipped
+
+**Does:** the last three features have their proofs, and every rule this goal owns is `shipped`.
+
+**Split:** as stage 6: about pages and examples one feature after the other, then the attack.
+
+- [ ] The headings `# nvs pkg update and nvs pkg outdated`, `# package.lock and --locked` and `# nvs pkg pack`. `docs/reference/tools/35-packages.md:1`
+- [ ] The about pages and examples. `docs/examples/tools/packages/nvs-pkg-update-and-nvs-pkg-outdated/about.md:1`, `docs/examples/tools/packages/package-lock-and-locked/about.md:1`, `docs/examples/tools/packages/nvs-pkg-pack/about.md:1`
+- [ ] The attack: a lock whose digest was edited. `tests/hostile/tools/packages/package-lock-and-locked/01-an-edited-digest.nvs:1`
+- [ ] `bun nv proofs --id` owes nothing for the three. `docs/reference/tools/35-packages.md:1`
+- [ ] `rule:packaging/package-toml-is-a-tool-input` and `rule:packaging/a-package-name-is-vendor-slash-name` are `shipped`. `data/rules/packaging/package-toml-is-a-tool-input.json:3`, `data/rules/packaging/a-package-name-is-vendor-slash-name.json:3`
+- [ ] `rule:packaging/a-vendor-resolves-from-one-registry` and `rule:packaging/a-package-is-its-digest` are `shipped`. `data/rules/packaging/a-vendor-resolves-from-one-registry.json:3`, `data/rules/packaging/a-package-is-its-digest.json:3`
+- [ ] `rule:packaging/resolution-takes-the-highest-minimum` and `rule:packaging/the-lockfile-holds-every-digest` are `shipped`. `data/rules/packaging/resolution-takes-the-highest-minimum.json:3`, `data/rules/packaging/the-lockfile-holds-every-digest.json:3`
+- [ ] `rule:packaging/a-git-dependency-is-root-only`, `rule:packaging/a-fetched-package-is-an-autoload-line` and `rule:packaging/nothing-runs-before-the-program` are `shipped`, and `bun nv owners --closes package-client` passes. `data/rules/packaging/a-git-dependency-is-root-only.json:3`, `data/rules/packaging/a-fetched-package-is-an-autoload-line.json:3`, `data/rules/packaging/nothing-runs-before-the-program.json:3`
 
 ## Handoff
 
 ### State
 
-The goal is new. No stage is started. The tree has no package system: nothing reads `package.toml`
-or `package.lock`, and nothing digests an archive.
+The goal has not started. Nothing reads `package.toml` or `package.lock`, and nothing digests an
+archive. Whether goal `api-compat` has created `crates/nvs-cli/src/package/mod.rs` and whether goal
+`namespace-grants` has shipped the grant table decides the gates in the standing decisions; check both
+before the first slice.
 
 ### Next
 
-Stage 1, on the new `package` module of the CLI:
-- the manifest reader and the derived name (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/package/manifest.rs:1`
-- the subcommand group beside the others. `crates/nvs-cli/src/main.rs:361`
+**Stage 1: the manifest reader**, one file set: `crates/nvs-cli/src/package/manifest.rs`,
+`crates/nvs-cli/src/package/mod.rs`, `crates/nvs-cli/tests/package_client.rs`. Gate:
+`crates/nvs-cli/src/package/mod.rs` exists (goal `api-compat`), else stage 1 creates it.
+
+- [ ] The full reader with unknown keys refused, name and capability split through `nvs_config::package` (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/package/manifest.rs:1`
+- [ ] The derived name and its refusals (`rule:packaging/a-package-name-is-vendor-slash-name`, `rule:core-api/reserved-namespace`). `crates/nvs-cli/src/package/manifest.rs:1`
+- [ ] The vendor to registry table and its default (`rule:packaging/a-vendor-resolves-from-one-registry`). `crates/nvs-cli/src/package/manifest.rs:1`
+- [ ] Tests: each refusal and the derived name. `crates/nvs-cli/tests/package_client.rs:1`
 
 ### Backlog
 
+- Stage 2 (`pack.rs`) and stage 3 (`index.rs`, `resolve.rs`, `lock.rs`) can then run in either order. `crates/nvs-cli/src/package/pack.rs`
 - Verifying each archive's inclusion in the transparency log is goal `registry-log`'s (`docs/goals/registry-log.md`).
 - `nvs pkg audit` and the advisory feed are goal `package-audit`'s (`docs/goals/package-audit.md`).

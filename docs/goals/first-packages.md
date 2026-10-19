@@ -14,10 +14,10 @@ stages:
   - id: 2
     title: a Windows bundle carries the program's own version information and icon
     status: open
-    context: [crates/nvs-cli/src/bundle.rs, crates/nvs-cli/build/winres.rs, data/gaps/nvs-cli/a-bundle-carries-the-hosts-icon-and-version.json, docs/rules/packaging/the-windows-binary-says-what-it-is.md]
+    context: [crates/nvs-cli/src/bundle.rs, crates/nvs-cli/build/winres.rs, crates/nvs-cli/tests/windows_resource.rs, data/gaps/nvs-cli/a-bundle-carries-the-hosts-icon-and-version.json, docs/rules/packaging/the-windows-binary-says-what-it-is.md]
     extra:
       context:
-        rules: [packaging/the-windows-binary-says-what-it-is, packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host, packaging/package-toml-is-a-tool-input]
+        rules: [packaging/the-windows-binary-says-what-it-is, packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host, packaging/package-toml-is-a-tool-input, packaging/a-c-dependency-answers-two-questions]
   - id: 3
     title: "`Novis\\Rest` gives OAuth grants, discovery and DPoP"
     status: open
@@ -28,7 +28,7 @@ stages:
   - id: 4
     title: "`Novis\\Rest` has its tests and its proofs, and passes `nvs pkg publish --dry-run`"
     status: open
-    context: [packages/rest/package.toml, docs/reference/tools/35-packages.md]
+    context: [packages/rest/package.toml, tools/nv/proofs/roster.ts, docs/reference/tools/35-packages.md]
     extra:
       context:
         rules: [packaging/the-registry-builds-the-archive-from-git, packaging/a-package-is-its-digest]
@@ -40,7 +40,7 @@ checks:
   - id: rest-dry-run
     stage: 4
     name: Novis\Rest packs as the registry would build it
-    run: [cargo, run, -q, --bin, nvs, --, publish, --dry-run]
+    run: [cargo, run, -q, --bin, nvs, --, pkg, publish, --dry-run]
     cwd: packages/rest
   - id: owners-closes
     stage: 4
@@ -75,15 +75,38 @@ as today. The resource is rewritten in the copy by an existing crate that edits 
 chosen under `rule:packaging/a-c-dependency-answers-two-questions`. If none passes, the rewrite is
 written here and argued in `rule:packaging/the-windows-binary-says-what-it-is`.
 
+**The PE-resource crate: `editpe` if it passes, else the tree's own layouts.** An `Explore` subagent
+checks `editpe` and any other pure-Rust crate that writes PE resources against `deny.toml` and the two
+questions. The crate must run on every build host, so a crate that calls the Windows
+`UpdateResource` API is out. If none passes, the default is to build the new resource with the layouts
+`crates/nvs-cli/build/winres.rs` already writes by hand, and to rewrite the copy's `.rsrc` section with
+the `object` crate the tree already has (`Cargo.toml:112`). Why: security and simplicity favour no new
+supply chain for four fixed layouts the tree already writes and tests.
+
 **`Novis\Rest` lives in this repository under `packages/rest/`**, so CI tests it with the toolchain it
 targets. It is published by the project account from that directory, which `nvs pkg publish` sends with the
 commit (goal `registry-service`). It is about seven types over OAuth grants (client credentials,
-authorization code with PKCE, refresh), discovery and DPoP. A user's refresh token goes in the session
+authorization code with PKCE, refresh), discovery and DPoP: `Client`, `Token`, `ClientCredentials`,
+`AuthorizationCode`, `Discovery`, `DPoP` and `Session`. A user's refresh token goes in the session
 through `Core\Session::setSecret`, because a cache tier may evict it. Encrypted ID tokens and
 generating a client from an OpenAPI document are out of scope.
 
 **Its proofs are what `bun nv proofs` lists for it.** If the roster has no entry kind for a package's
 class, stage 4 adds one for `packages/`, in the shape of a built-in component's.
+
+**Lanes.** Stage 1 (`openapi.rs`) and stage 2 (`bundle.rs`, `build/winres.rs`) touch disjoint files
+and can run in either order or as side goals. Stage 3 creates `packages/rest/` alone. Stage 4 writes
+`tools/nv/proofs/roster.ts` and `docs/reference/tools/35-packages.md`, where every package goal adds a
+heading, so it merges serially with them. If stage 2 picks a crate, it edits `Cargo.toml`, which any
+goal adding a dependency also edits.
+
+**Gates.** Stage 1 needs `version` read: `crates/nvs-cli/src/package/manifest.rs` exists (goal
+`api-compat` creates it reading `version` alone). Stage 2 also needs the name and the `[bundle]` table:
+goal `package-client`'s stage 1 is `done` in `docs/goals/package-client.md`, or that file is gone; until
+then, it reads `[bundle] icon` itself and the handoff names the duplicate. Stage 3 needs goal `package-client` reached:
+`docs/goals/package-client.md` is gone. Stage 4's dry run needs `crates/nvs-cli/src/package/publish.rs`
+(goal `registry-service` stage 3). A session whose stage is gated takes the earliest open stage whose
+gate holds, and ends `BLOCKED` naming the missing file when none does.
 
 **Trade-offs.** A program gains a real version in its API document and on Windows a bundle that names
 itself. Nothing runs on the request path, and memory is unchanged. `Novis\Rest` costs its users
@@ -96,47 +119,68 @@ for every output that asks.
 
 **Does:** the generated document's `info.version` is the manifest's version.
 
-- [ ] Read the manifest's `version` into the emitter, and close the gap record. `crates/nvs-cli/src/openapi.rs:79`, `data/gaps/nvs-cli/info-version.json:1`
+- [ ] Read the manifest's `version` into the emitter (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/openapi.rs:79`
 - [ ] Tests with and without a manifest. `crates/nvs-cli/tests/openapi.rs:1`
+- [ ] The gap record deleted. `data/gaps/nvs-cli/info-version.json:1`
 
 ### 2. a Windows bundle carries the program's own version information and icon
 
 **Does:** a bundle built from a program with a manifest shows its own name, version and icon in
 Explorer and in a process list.
 
-- [ ] The crate chosen and recorded, and the resource rewritten in the copy. `crates/nvs-cli/src/bundle.rs:332`
-- [ ] A test that reads the bundle's resource back, beside the host's own test, and the gap record closed. `crates/nvs-cli/tests/windows_resource.rs:1`, `data/gaps/nvs-cli/a-bundle-carries-the-hosts-icon-and-version.json:1`
+**Split:** before the session starts, an `Explore` subagent checks the PE-resource crates as the
+standing decision says and returns one line per crate with its verdict.
+
+- [ ] The crate chosen, or the in-tree rewrite argued, in the rule (`rule:packaging/the-windows-binary-says-what-it-is`). `docs/rules/packaging/the-windows-binary-says-what-it-is.md:1`
+- [ ] The resource rewritten in the copy, from the manifest's version, name and `[bundle] icon`. `crates/nvs-cli/src/bundle.rs:615`
+- [ ] A test that reads the bundle's resource back, beside the host's own test, with and without a manifest. `crates/nvs-cli/tests/windows_resource.rs:1`
+- [ ] The gap record deleted. `data/gaps/nvs-cli/a-bundle-carries-the-hosts-icon-and-version.json:1`
 
 ### 3. `Novis\Rest` gives OAuth grants, discovery and DPoP
 
 **Does:** the package's classes request tokens, discover an issuer's endpoints, and sign DPoP proofs.
 
+**Split:** after the session lands the manifest and `Client`, writing subagents write the other six
+types one after another: `Token`, `ClientCredentials`, `AuthorizationCode`, `Discovery`, `DPoP`,
+`Session`. An `Explore` subagent first returns the `Core\Jwt`, HTTP client and `Core\Session` calls the
+package uses, one line each with its anchor.
+
 - [ ] The manifest, with its root namespace `Novis\Rest` and its required capabilities. `packages/rest/package.toml:1`
-- [ ] The grants, discovery and DPoP over `Core\Jwt`, the HTTP client and the cache (`rule:core-api/tier-placement`). `packages/rest/src/Client.nvs:1`, `crates/nvs-stdlib/src/jwt.rs:263`
-- [ ] The refresh token stored with `Core\Session::setSecret`. `packages/rest/src/Session.nvs:1`, `crates/nvs-stdlib/src/session.rs:1`
+- [ ] `Client` and `Token`, over `Core\Jwt`, the HTTP client and the cache (`rule:core-api/tier-placement`). `packages/rest/src/Client.nvs:1`, `crates/nvs-stdlib/src/jwt.rs:263`
+- [ ] The grants: `ClientCredentials`, `AuthorizationCode` with PKCE, and refresh. `packages/rest/src/AuthorizationCode.nvs:1`
+- [ ] `Discovery` and `DPoP` (`rule:security/jws-issued-subset`). `packages/rest/src/DPoP.nvs:1`
+- [ ] The refresh token stored with `Core\Session::setSecret`. `packages/rest/src/Session.nvs:1`, `crates/nvs-stdlib/src/session.rs:251`
 
 ### 4. `Novis\Rest` has its tests and its proofs, and passes `nvs pkg publish --dry-run`
 
 **Does:** the package is tested against a local issuer, has its proofs, and packs as the registry
 would build it.
 
-- [ ] Tests against a local OAuth issuer on a loopback listener. `packages/rest/tests/ClientTest.nvs:1`
-- [ ] Its proofs, adding the roster kind if one is missing. `tools/nv/proofs/roster.ts:84`
+**Split:** after the session lands the roster kind, an `Explore` subagent runs
+`bun nv proofs --id` for each class and returns the paths it owes; writing subagents then write them
+one class after another.
+
+- [ ] Tests against a local OAuth issuer on a loopback listener: each grant, discovery, a DPoP proof's claims, and a refresh. `packages/rest/tests/ClientTest.nvs:1`
+- [ ] The roster kind for a package's class, if one is missing. `tools/nv/proofs/roster.ts:35`
+- [ ] The proofs the roster lists for each class. `packages/rest/src/Client.nvs:1`
 - [ ] `nvs pkg publish --dry-run` prints its digest, and `bun nv owners --closes first-packages` passes. `packages/rest/package.toml:1`
 
 ## Handoff
 
 ### State
 
-The goal is new. No stage is started. It needs goals `package-client` and `registry-service`
-reached; stages 1 and 2 need only the manifest reader.
+The goal is new. No stage is started. `crates/nvs-cli/src/package/manifest.rs` does not exist yet;
+goal `api-compat` creates it, and stage 1 waits for it.
 
 ### Next
 
-Stage 1 and stage 2, on the manifest's two readers outside the package commands:
-- `info.version` from the manifest (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/openapi.rs:79`
-- the bundle's resource from the manifest (`rule:packaging/the-windows-binary-says-what-it-is`). `crates/nvs-cli/src/bundle.rs:332`
+Stage 1, `info.version` from the manifest, on `crates/nvs-cli/src/openapi.rs` and
+`crates/nvs-cli/tests/openapi.rs`. Gate: `crates/nvs-cli/src/package/manifest.rs` exists.
+- [ ] The manifest's `version` in the emitter (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/openapi.rs:79`
+- [ ] Tests with and without a manifest. `crates/nvs-cli/tests/openapi.rs:1`
+- [ ] The gap record deleted. `data/gaps/nvs-cli/info-version.json:1`
 
 ### Backlog
 
+- Stage 2, the bundle's resource, is a lane beside stage 1 (`crates/nvs-cli/src/bundle.rs`).
 - Publishing `Novis\Rest` to the live registry is the project account's step, done by a person once the registry is deployed (`apps/registry/README.md`).

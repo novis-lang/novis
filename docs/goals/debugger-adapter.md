@@ -5,23 +5,30 @@ summary: "nvs dap launches nvs run, nvs test or a development nvs serve over std
 context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/src/serve.rs, crates/nvs-host/src/scheduler.rs, editors/vscode/src/extension.ts]
 stages:
   - id: 1
-    title: "`nvs dap` launches a program over stdio and stops it at a breakpoint"
+    title: "`nvs dap` speaks DAP over stdio and launches a program"
     status: open
-    context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/src/serve.rs, crates/nvs-cli/src/runner.rs, crates/nvs-cli/src/script.rs, crates/nvs-lsp/tests/stdout_policy.rs, docs/rules/ide/the-debug-adapter-does-not-wait-for-an-editor.md]
+    context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/src/lsp.rs, crates/nvs-cli/src/run.rs, crates/nvs-lsp/tests/stdout_policy.rs, docs/rules/ide/the-debug-adapter-does-not-wait-for-an-editor.md, docs/rules/ide/stdout-belongs-to-the-protocol.md]
     extra:
       context:
-        rules: [ide/the-debug-adapter-does-not-wait-for-an-editor, ide/stdout-belongs-to-the-protocol, testing/a-stop-pauses-the-whole-task-tree, testing/a-debugged-program-is-compiled-with-a-debug-switch]
+        rules: [ide/the-debug-adapter-does-not-wait-for-an-editor, ide/stdout-belongs-to-the-protocol]
+  - id: 5
+    title: "`nvs dap` launches tests and a development server, and stops at a breakpoint"
+    status: open
+    context: [crates/nvs-cli/src/dap/mod.rs, crates/nvs-cli/src/runner.rs, crates/nvs-cli/src/serve.rs, crates/nvs-host/src/debug.rs, docs/rules/ide/the-debug-adapter-does-not-wait-for-an-editor.md]
+    extra:
+      context:
+        rules: [ide/the-debug-adapter-does-not-wait-for-an-editor, testing/a-stop-pauses-the-whole-task-tree, testing/a-debugged-program-is-compiled-with-a-debug-switch]
   - id: 2
     title: stepping over, into and out, and the value a step out returned
     status: open
-    context: [crates/nvs-codegen/src/emit.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-runtime/src/ctx/safepoint.rs, docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md]
+    context: [crates/nvs-codegen/src/emit.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-runtime/src/ctx/frames.rs, crates/nvs-host/src/debug.rs, docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md]
     extra:
       context:
         rules: [ide/the-debugger-ui-is-as-deep-as-the-adapter, testing/a-debugged-program-is-compiled-with-a-debug-switch, testing/a-stop-pauses-the-whole-task-tree]
   - id: 3
     title: conditions, hit counts, logpoints and exception filters
     status: open
-    context: [crates/nvs-runtime/src/throwable.rs, crates/nvs-types/src/check.rs, crates/nvs-codegen/src/emit.rs, docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md]
+    context: [crates/nvs-runtime/src/throwable.rs, crates/nvs-types/src/check.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-cli/src/dap/mod.rs, docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md]
     extra:
       context:
         rules: [ide/the-debugger-ui-is-as-deep-as-the-adapter, errors/escalation-ladder, security/redaction-reaches-the-tools-own-renderings]
@@ -31,7 +38,7 @@ stages:
     context: [editors/vscode/package.json, editors/vscode/src/extension.ts, editors/vscode/src/binary.ts, editors/vscode/test/host/surfaces.test.ts, editors/vscode/test/contributions/contributions.test.ts, docs/reference/tools/40-editor.md, docs/rules/ide/the-extension-builds-no-ui-the-editor-already-has.md]
     extra:
       context:
-        rules: [ide/the-debug-adapter-does-not-wait-for-an-editor, ide/the-extension-builds-no-ui-the-editor-already-has, ide/the-debugger-ui-is-as-deep-as-the-adapter, testing/feature-proofs]
+        rules: [ide/the-debug-adapter-does-not-wait-for-an-editor, ide/the-extension-builds-no-ui-the-editor-already-has, ide/the-debugger-ui-is-as-deep-as-the-adapter, ide/every-feature-is-staged-behind-its-dependency, testing/feature-proofs]
 checks:
   - id: owners-closes
     stage: 4
@@ -47,13 +54,20 @@ checks:
 
 `debugger-core` gives the host a Rust controller that stops a request's task tree at a statement and
 reads its frames and variables. Nothing outside a Rust test can use it: there is no `nvs dap` command
-(`crates/nvs-cli/src/main.rs:853` is `nvs lsp`, and no `dap` variant exists), and the VS Code extension
+(`crates/nvs-cli/src/main.rs:395` is `nvs lsp`, and no `dap` variant exists), and the VS Code extension
 contributes no debugger (`editors/vscode/package.json:29`). A developer still debugs with
 `Core\Debug::dump`. This goal puts the Debug Adapter Protocol on top of the controller, adds stepping,
-breakpoint conditions and exception filters, and wires VS Code's own debugger UI to it. The two
-`ide/` rules list every capability the adapter reports, and the editor adds no UI of its own.
+breakpoint conditions and exception filters, and wires VS Code's own debugger UI to it. The `ide/`
+rules list every capability the adapter reports, and the editor adds no UI of its own.
 
 ## Standing decisions
+
+**The gate is `debugger-core` reached.** Stages 5, 2 and 3 need its controller
+(`crates/nvs-host/src/debug.rs`), its slot table and its frame records
+(`crates/nvs-runtime/src/ctx/frames.rs`). The gate holds when `docs/goals/debugger-core.md` is gone and
+both files exist. Stage 1 needs none of it: framing, `initialize`, a `run` launch without breakpoints
+and the `output` events run on today's tree. If the gate does not hold after stage 1, the session ends
+the group and says so in the handoff.
 
 **Launch only, a development `nvs serve` included.** The user decided this. `nvs dap` launches `nvs run`,
 `nvs test` or `nvs serve` in development, over stdio. Under serve, a breakpoint stops whichever request
@@ -66,24 +80,25 @@ the editor to be debugged. Simplicity: no listener, no authentication and no sec
 `debugger-core` builds it (`rule:testing/a-stop-pauses-the-whole-task-tree`). This goal presents it:
 `threads` lists the stopped tree's tasks, and every other request keeps being served.
 
-**The program runs in the adapter's own process.** The planning session's call. The adapter calls the
-controller directly, and the program's stdout and stderr become `output` events. A child process would
-need a second protocol between the adapter and the child. The cost: a bug in the launched program's
-output path could reach the protocol's stdout, so a test reads every byte of stdout in each mode and
-checks that each one belongs to a frame.
+**The program runs in the adapter's own process.** The adapter calls the controller directly, and the
+program's stdout and stderr become `output` events. A child process would need a second protocol
+between the adapter and the child. The cost: a bug in the launched program's output path could reach
+the protocol's stdout, so a test reads every byte of stdout in each mode and checks that each one
+belongs to a frame.
 
-**The adapter is a module of `nvs-cli`, `crates/nvs-cli/src/dap/`.** The planning session's call. It
-launches through the same code `nvs run`, `nvs test` and `nvs serve` use (`crates/nvs-cli/src/main.rs:3096`,
-`crates/nvs-cli/src/runner.rs:322`, `crates/nvs-cli/src/serve.rs:161`). A crate of its own would need a
-launcher interface back into `nvs-cli` for each mode.
+**The adapter is a module of `nvs-cli`, `crates/nvs-cli/src/dap/`.** It launches through the same code
+`nvs run`, `nvs test` and `nvs serve` use (`crates/nvs-cli/src/run.rs:108`,
+`crates/nvs-cli/src/runner.rs:490`, `crates/nvs-cli/src/serve.rs:227`). A crate of its own would need a
+launcher interface back into `nvs-cli` for each mode. `crates/nvs-cli/src/main.rs` moves under every
+session: find its anchors by name (`Lsp(`, `Command::Lsp`, `fn run_run`), never by a line kept here.
 
-**The DAP messages are serde types written here.** The planning session's call. DAP's framing is the
-`Content-Length` header LSP uses, and the adapter answers about twenty requests. A protocol crate would
-add a dependency to read a schema that small, and security is the first priority.
+**The DAP messages are serde types written here,** in `crates/nvs-cli/src/dap/protocol.rs`. DAP's
+framing is the `Content-Length` header LSP uses, and the adapter answers about twenty requests. A
+protocol crate would add a dependency to read a schema that small, and security is the first priority.
 
-**A launched `nvs serve` starts in `development` whatever `[mode] default` says.** The planning
-session's call, written into `rule:ide/the-debug-adapter-does-not-wait-for-an-editor`. The switch slows
-every statement and a stop holds a request, so a debugged server is never a production one.
+**A launched `nvs serve` starts in `development` whatever `[mode] default` says,** written into
+`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`. The switch slows every statement and a stop
+holds a request, so a debugged server is never a production one.
 
 **A condition cannot call a function.** The user decided this, and it is written into
 `rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`. A condition and a logpoint's holes read variables,
@@ -92,10 +107,9 @@ slot table. A call is an error the editor shows on the breakpoint. A call at a b
 throw or `await`, and the program would then behave differently under the debugger. Usability cost:
 `count($items) > 3` is not a valid condition.
 
-**"Uncaught" is decided at the throw.** The planning session's call. Under the switch, each frame record
-keeps the classes its enclosing `try` blocks catch, so the adapter knows at `nvs_raise` whether the
-exception will be caught, while every frame is still there to show. That is one push and one pop per
-`try`, under the switch only.
+**"Uncaught" is decided at the throw.** Under the switch, each frame record keeps the classes its
+enclosing `try` blocks catch, so the adapter knows at `nvs_raise` whether the exception will be caught,
+while every frame is still there to show. That is one push and one pop per `try`, under the switch only.
 
 **Evaluating a watch expression is not built.** The rule does not ask for it, and the adapter does not
 report `supportsEvaluateForHovers` or answer `evaluate` beyond a variable's own name. It is in the
@@ -108,65 +122,108 @@ stopped thread, freed on resume. Usability: VS Code's whole debugger UI, launche
 for scripts, tests and a development server. Simplicity: one new command, no socket, and no UI code in
 the extension.
 
+**Lanes.** Stage 1 runs now. Stage 5 follows it on `crates/nvs-cli/src/dap/`. Stages 2 and 3 both edit
+`crates/nvs-codegen/src/emit.rs` and `crates/nvs-cli/src/dap/mod.rs`, and run in that order after 5.
+Stage 4 touches no Rust (`editors/vscode/`, `docs/reference/tools/40-editor.md`), so once stage 5 lands
+it runs as its own lane beside 2 and 3; only its last item, the rule flips, waits for 2 and 3.
+
 ## Stages
 
-### 1. `nvs dap` launches a program over stdio and stops it at a breakpoint
+### 1. `nvs dap` speaks DAP over stdio and launches a program
 
-**Does:** a DAP client launches `nvs run`, `nvs test` or a development `nvs serve` through `nvs dap`,
-sets a breakpoint, and reads threads, frames and variables when it stops.
+**Does:** a DAP client starts `nvs dap`, initializes, launches a script in `run` mode, receives its
+output as events, and disconnects. No gate.
 
-- [ ] `nvs dap` joins the command list beside `nvs lsp`, reading `Content-Length` frames on stdin and writing them on stdout only (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`, `rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-cli/src/main.rs:853`, `crates/nvs-cli/src/main.rs:2035`
-- [ ] `initialize`, `launch` with `mode` `run`, `test` or `serve`, `configurationDone`, `disconnect` and `terminate`. A launched serve starts in `development`, and the program's stdout and stderr become `output` events. `crates/nvs-cli/src/main.rs:3096`, `crates/nvs-cli/src/runner.rs:322`, `crates/nvs-cli/src/serve.rs:161`
-- [ ] `setBreakpoints`, `threads`, `stackTrace`, `scopes`, `variables`, `continue` and `pause` over `debugger-core`'s controller, each task of the stopped tree a thread (`rule:testing/a-stop-pauses-the-whole-task-tree`). `crates/nvs-host/src/scheduler.rs:306`
-- [ ] Rust tests with a scripted DAP client over a fixture in each mode: a breakpoint stops with the right values, a second request is answered while a served one is stopped, and every byte on stdout belongs to a frame even when the program prints a frame-shaped line.
+- [ ] `nvs dap` joins the command list beside `nvs lsp`, with its help text (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/main.rs:395`, `crates/nvs-cli/src/main.rs:582`
+- [ ] The serde message types and the `Content-Length` frame reader and writer; stdout carries frames only, as `nvs lsp` does (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-cli/src/dap/protocol.rs:1`, `crates/nvs-cli/src/lsp.rs:37`
+- [ ] `initialize` with the capabilities stage 1 has, `launch` with `mode: run` through the `nvs run` path, `configurationDone`, `disconnect` and `terminate`. `crates/nvs-cli/src/dap/mod.rs:1`, `crates/nvs-cli/src/run.rs:108`
+- [ ] The program's stdout and stderr become `output` events, and its exit an `exited` and a `terminated` event (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [ ] A Rust test with a scripted DAP client: a launched script's output arrives as events, and every byte on stdout belongs to a frame even when the program prints a frame-shaped line (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-lsp/tests/stdout_policy.rs:1`, `crates/nvs-cli/src/dap/mod.rs:1`
+
+### 5. `nvs dap` launches tests and a development server, and stops at a breakpoint
+
+**Does:** `launch` takes `test` and `serve`, and a client sets a breakpoint and reads threads, frames
+and variables when it stops.
+
+**Gate:** `debugger-core` reached, as `## Standing decisions` names it.
+
+- [ ] `launch` with `mode: test` and `mode: serve`; a launched serve starts in `development` (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/runner.rs:490`, `crates/nvs-cli/src/serve.rs:227`
+- [ ] Every launch compiles with the debug switch and runs under `debugger-core`'s controller (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`). `crates/nvs-host/src/debug.rs:1`
+- [ ] `setBreakpoints`, `threads`, `stackTrace`, `scopes`, `variables`, `continue` and `pause`, each task of the stopped tree a thread (`rule:testing/a-stop-pauses-the-whole-task-tree`). `crates/nvs-cli/src/dap/mod.rs:1`, `crates/nvs-host/src/scheduler.rs:312`
+- [ ] Rust tests with the scripted client over a fixture in each mode: a breakpoint stops with the right values, a second request is answered while a served one is stopped, and the stdout check of stage 1 holds in `test` and `serve` (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/dap/mod.rs:1`
 
 ### 2. stepping over, into and out, and the value a step out returned
 
 **Does:** `next`, `stepIn` and `stepOut` move one thread by one statement, and the caller's frame shows
 the value the callee returned.
 
-- [ ] A step arms the thread's next stop site in the same frame, in any deeper frame, or in its caller, and only that thread's sites (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-codegen/src/emit.rs:1218-1238`
-- [ ] A step over an `await` stops at the next statement of the same frame when the task resumes, and the task's siblings run while it waits. `crates/nvs-ir/src/lower/expr.rs:3920`
-- [ ] A step into a call through a `callable` lands in the function or closure it names, and a step into a `Core` method steps over it. `crates/nvs-runtime/src/callable.rs:283`
-- [ ] The frame record keeps the value its function returned, and after a step out the caller's first scope shows it. `skipFiles` keeps a step into from stopping in a file it matches.
-- [ ] Tests for each step kind, across an `await`, into a closure passed as a `callable`, and past a skipped file.
+**Gate:** `debugger-core` reached.
+
+**Split:** once the four step mechanisms land, one writing subagent writes the step tests in the last
+item over fixtures. The session reviews them.
+
+- [ ] A step arms the thread's next stop site in the same frame, in any deeper frame, or in its caller, and only that thread's sites (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-codegen/src/emit.rs:1230`, `crates/nvs-host/src/debug.rs:1`
+- [ ] A step over an `await` stops at the next statement of the same frame when the task resumes, and the task's siblings run while it waits (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-ir/src/lower/expr.rs:3972`
+- [ ] A step into a call through a `callable` lands in the function or closure it names, and a step into a `Core` method steps over it (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-runtime/src/callable.rs:184`
+- [ ] The frame record keeps the value its function returned, and after a step out the caller's first scope shows it (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-runtime/src/ctx/frames.rs:1`, `crates/nvs-codegen/src/emit.rs:3806`
+- [ ] `skipFiles` keeps a step into from stopping in a file it matches (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [ ] Rust tests for each step kind, across an `await`, into a closure passed as a `callable`, and past a skipped file. `crates/nvs-cli/src/dap/mod.rs:1`
 
 ### 3. conditions, hit counts, logpoints and exception filters
 
 **Does:** a breakpoint stops only when its condition and hit count say so, a logpoint writes and does not
 stop, and the two exception filters stop at a throw.
 
+**Gate:** `debugger-core` reached, and stage 2 `done`.
+
+**Split:** once the condition compiler and the throw hook land, one writing subagent writes the tests in
+the last item over fixtures. The session reviews them.
+
 - [ ] A condition and a logpoint's `{…}` holes are type-checked against the frame's slot table when the breakpoint is set, through a new entry beside `check_program`, and any call, assignment or `await` in them is an error. Each is compiled by the same compiler as a function whose parameters are the frame's slots. A breakpoint whose condition fails to compile is unverified, with the message (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-types/src/check.rs:84`
-- [ ] The condition runs only where its site is armed. Hit conditions `N`, `>N`, `>=N`, `==N` and `%N` are counted per breakpoint. A logpoint sends an `output` event, with a `secret` value redacted (`rule:security/redaction-reaches-the-tools-own-renderings`), and does not stop.
-- [ ] Under the switch, a `try` pushes the classes it catches onto the frame record and pops them when it ends, and the throw path asks the controller whether to stop for `thrown` or `uncaught` (`rule:errors/escalation-ladder`). `crates/nvs-runtime/src/throwable.rs:1013`, `crates/nvs-runtime/src/throwable.rs:1064`, `crates/nvs-runtime/src/throwable.rs:1140`
-- [ ] A throw caught inside a `skipFiles` file never stops. Tests for each condition form, each hit form, a logpoint, both filters, and a condition that tries to call a method.
+- [ ] The condition runs only where its site is armed, and hit conditions `N`, `>N`, `>=N`, `==N` and `%N` are counted per breakpoint (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [ ] A logpoint sends an `output` event, with a `secret` value redacted, and does not stop (`rule:security/redaction-reaches-the-tools-own-renderings`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [ ] Under the switch, a `try` pushes the classes it catches onto the frame record and pops them when it ends, and the throw path asks the controller whether to stop for `thrown` or `uncaught` (`rule:errors/escalation-ladder`). `crates/nvs-runtime/src/throwable.rs:1011`, `crates/nvs-runtime/src/throwable.rs:1062`, `crates/nvs-runtime/src/throwable.rs:1138`
+- [ ] A throw caught inside a `skipFiles` file never stops (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [ ] Rust tests for each condition form, each hit form, a logpoint, both filters, and a condition that tries to call a method. `crates/nvs-cli/src/dap/mod.rs:1`
 
 ### 4. VS Code launches `nvs dap`, and the adapter has its feature proofs
 
 **Does:** VS Code's own debugger UI reaches `nvs dap` through a descriptor factory and a `launch.json`
 schema, and the feature is documented and proven.
 
-- [ ] A `debuggers` contribution with the `launch.json` schema, its snippets and the `nvs` language for breakpoints. `editors/vscode/package.json:29`
-- [ ] A `DebugAdapterDescriptorFactory` that starts `nvs dap` with the binary `binary.ts` resolves, or the launch configuration's `nvsCommand`, registered in `activate` (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/extension.ts:121`, `editors/vscode/src/binary.ts`
-- [ ] `pathMappings` maps every path in and out of the adapter. A host test sets a breakpoint through VS Code's API on the fixture and reads the right variable values, and the contributions test checks the schema. `editors/vscode/test/host/surfaces.test.ts`, `editors/vscode/test/contributions/contributions.test.ts`
-- [ ] A `# nvs dap` section in `docs/reference/tools/40-editor.md`, the help text, and what `bun nv proofs --id 'tools:editor/nvs-dap'` still owes, its attack the program that prints a protocol frame. `docs/reference/tools/40-editor.md:8`
-- [ ] The three rules `shipped`, and `bun nv owners --closes debugger-adapter` passes.
+**Gate:** stage 5 `done`. The last item also waits for stages 2 and 3.
+
+**Split:** after the section in `40-editor.md` lands, one writing subagent writes `about.md`, the three
+examples and the attack at the paths `bun nv proofs --id 'tools:editor/nvs-dap'` prints, under § *Text
+an end user reads*.
+
+- [ ] A `debuggers` contribution with the `launch.json` schema, its snippets and the `nvs` language for breakpoints (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/package.json:29`
+- [ ] A `DebugAdapterDescriptorFactory` that starts `nvs dap` with the binary `binary.ts` resolves, or the launch configuration's `nvsCommand`, registered in `activate` (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/extension.ts:121`, `editors/vscode/src/binary.ts:49`
+- [ ] `pathMappings` maps every path in and out of the adapter (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`). `crates/nvs-cli/src/dap/mod.rs:1`
+- [ ] A host test sets a breakpoint through VS Code's API on the fixture and reads the right variable values, and the contributions test checks the schema. `editors/vscode/test/host/surfaces.test.ts:72`, `editors/vscode/test/contributions/contributions.test.ts:140`
+- [ ] A `# nvs dap` section after `# nvs lsp-test` in the editor chapter (`rule:testing/feature-proofs`). `docs/reference/tools/40-editor.md:229`
+- [ ] `about.md`, three examples and the attack, a program that prints a protocol frame; `bun nv proofs --id 'tools:editor/nvs-dap'` prints nothing owed (`rule:testing/feature-proofs`). `docs/examples/tools/editor/nvs-dap/about.md:1`, `tests/hostile/tools/editor/nvs-dap/01-a-program-prints-a-protocol-frame.nvs:1`
+- [ ] The four rules this goal owns `shipped`, and `bun nv owners --closes debugger-adapter` passes (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`, `rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`, `rule:ide/the-extension-builds-no-ui-the-editor-already-has`, `rule:ide/every-feature-is-staged-behind-its-dependency`). `data/rules/ide/the-debug-adapter-does-not-wait-for-an-editor.json:3`, `data/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.json:3`, `data/rules/ide/the-extension-builds-no-ui-the-editor-already-has.json:3`, `data/rules/ide/every-feature-is-staged-behind-its-dependency.json:3`
 
 ## Handoff
 
 ### State
 
-The goal is new. No stage is started. The anchors above were checked against the tree when it was
-written. `crates/nvs-cli/src/main.rs` was being edited by another session at the time, so find its
-anchors by name (`Lsp {`, `Command::Lsp`, `fn run_run`) if a line has moved. Every stage needs
-`debugger-core`'s controller, slot table and frame records, which do not exist yet.
+No stage is started. Stage 1 needs nothing from `debugger-core`. Stages 5, 2 and 3 wait until
+`docs/goals/debugger-core.md` is gone and `crates/nvs-host/src/debug.rs` and
+`crates/nvs-runtime/src/ctx/frames.rs` exist. Stage 4 waits on stage 5. Find `main.rs` anchors by
+name (`Lsp(`, `Command::Lsp`, `fn run_run`).
 
 ### Next
 
-Stage 1, `nvs dap` over stdio, on `crates/nvs-cli/src/main.rs` and a new `crates/nvs-cli/src/dap/`:
-- the command and the frame reader and writer (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/main.rs:853`
-- `launch` in each mode through the existing entry points. `crates/nvs-cli/src/main.rs:3096`, `crates/nvs-cli/src/serve.rs:161`
-- breakpoints, threads, frames and variables over the controller. `crates/nvs-host/src/scheduler.rs:306`
+**Stage 1: `nvs dap` over stdio**, file set `crates/nvs-cli/src/main.rs`, a new `crates/nvs-cli/src/dap/`,
+`crates/nvs-cli/src/run.rs`. No gate.
+
+- [ ] The command beside `nvs lsp`, with its help text (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). `crates/nvs-cli/src/main.rs:395`, `crates/nvs-cli/src/main.rs:582`
+- [ ] The message types and the frame reader and writer (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-cli/src/dap/protocol.rs:1`, `crates/nvs-cli/src/lsp.rs:37`
+- [ ] `initialize`, `launch` in `run` mode, `configurationDone`, `disconnect` and `terminate`. `crates/nvs-cli/src/dap/mod.rs:1`, `crates/nvs-cli/src/run.rs:108`
+- [ ] Output, `exited` and `terminated` events. `crates/nvs-cli/src/dap/mod.rs:1`
+- [ ] The scripted-client test, with the every-byte-is-a-frame check (`rule:ide/stdout-belongs-to-the-protocol`). `crates/nvs-cli/src/dap/mod.rs:1`
 
 ### Backlog
 
