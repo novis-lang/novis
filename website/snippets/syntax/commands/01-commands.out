@@ -1,4 +1,0 @@
-greet <name> [--loud]
-migrate [--pretend]
-greet: Say hello
---loud: Shout it

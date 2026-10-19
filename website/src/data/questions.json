@@ -13320,7 +13320,7 @@
   },
   "/syntax/attributes/commands-and-discovery/": {
     "feature": "syntax/attributes/commands-and-discovery.mdx",
-    "hash": "1d0cb717d9f01830",
+    "hash": "199bea8da4bbaf1d",
     "questions": [
       "How do I declare a command-line command with options?",
       "Add a --verbose flag to a command in Novis",
@@ -13331,7 +13331,7 @@
   },
   "/syntax/attributes/json/": {
     "feature": "syntax/attributes/json.mdx",
-    "hash": "7499e191e66a9b2a",
+    "hash": "a1916b84e5fc2218",
     "questions": [
       "How do I let a class be converted to and from JSON?",
       "Use a different JSON key name for one property",
@@ -13342,7 +13342,7 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "dd203a1fc3c781b7",
+    "hash": "833ffe887ee893c5",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
@@ -13354,7 +13354,7 @@
   },
   "/syntax/attributes/writing-and-reading/": {
     "feature": "syntax/attributes/writing-and-reading.mdx",
-    "hash": "b6bfb7969d6390ce",
+    "hash": "2626dce24820c187",
     "questions": [
       "How do I attach extra data to a class or method?",
       "What is the syntax for an attribute in Novis?",
@@ -13501,7 +13501,7 @@
   },
   "/syntax/concurrency/channels/": {
     "feature": "syntax/concurrency/channels.mdx",
-    "hash": "a517fe029c642120",
+    "hash": "8a5d22dc5ef688bd",
     "questions": [
       "How do I send values from one task to another?",
       "Producer and consumer queue between tasks",
@@ -13512,7 +13512,7 @@
   },
   "/syntax/concurrency/isolates/": {
     "feature": "syntax/concurrency/isolates.mdx",
-    "hash": "2ed1c1e92d9f90be",
+    "hash": "973f57062259d950",
     "questions": [
       "How do I run another script as a separate program?",
       "Get the return value of a child script",
@@ -13524,7 +13524,7 @@
   },
   "/syntax/concurrency/limits-and-errors/": {
     "feature": "syntax/concurrency/limits-and-errors.mdx",
-    "hash": "e034926d50783b82",
+    "hash": "46787d245cd2ae76",
     "questions": [
       "How do I limit how many tasks run at once?",
       "Set a timeout for a group of parallel tasks",
@@ -13535,7 +13535,7 @@
   },
   "/syntax/concurrency/tasks/": {
     "feature": "syntax/concurrency/tasks.mdx",
-    "hash": "7b89a58cd5355ccb",
+    "hash": "1ae7fff9cf0ca321",
     "questions": [
       "Does Novis have async and await?",
       "How does concurrency work in Novis?",

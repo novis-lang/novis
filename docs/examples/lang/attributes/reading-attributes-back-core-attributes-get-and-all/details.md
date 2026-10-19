@@ -3,6 +3,9 @@
 The type between `<` and `>` must be a shape, written out as `{label: string}` or as a `type` alias
 for one. `get<int>` is `E0729`, and `get` with no type is `E0442`.
 
+Every class has a constructor, even when you do not write one. So `Users::constructor(...)` always
+names the class.
+
 The first argument must be a method reference written in the call. A variable that contains one is
 `E0730`. A method that is `private` is `E0471` outside its class. A static method is named the same
 way, as `Orders::show(...)`.
