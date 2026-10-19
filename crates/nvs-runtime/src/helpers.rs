@@ -409,7 +409,7 @@ crate::nvs_helper! {
         )]
         let found = unsafe {
             if let Some(key) = args[1].str_ptr() {
-                crate::array::entry(array, NvsStr::bytes_of(key))
+                crate::array::entry(array, key)
             } else if let Some(index) = args[1].as_int() {
                 crate::array::entry_at_index(array, index)
             } else {
@@ -463,7 +463,7 @@ crate::nvs_helper! {
         )]
         let found = unsafe {
             if let Some(key) = args[1].str_ptr() {
-                crate::array::entry(array, NvsStr::bytes_of(key))
+                crate::array::entry(array, key)
             } else if let Some(index) = args[1].as_int() {
                 crate::array::entry_at_index(array, index)
             } else {
@@ -523,7 +523,7 @@ fn value_index(base: Value, key: Value, absent_is_null: bool) -> Result<Value, F
     )]
     let found = unsafe {
         if let Some(key) = key.str_ptr() {
-            crate::array::entry(array, NvsStr::bytes_of(key))
+            crate::array::entry(array, key)
         } else if let Some(index) = key.as_int() {
             crate::array::entry_at_index(array, index)
         } else {
