@@ -59,11 +59,14 @@ function sortedUnique(files: string[]): string[] {
   return [...new Set(files)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
-/** The files git lists at `root` for `pathspecs`, tracked or untracked and not ignored, sorted. An issue says why when git does not run. */
+/**
+ * The files git lists at `root` for `pathspecs`, tracked or untracked and not ignored, sorted. A tracked
+ * file deleted from the disk is not listed. An issue says why when git does not run.
+ */
 export function listed(root: string, pathspecs: string[]): string[] | Issue {
   const files = gitFiles(root, ["ls-files", "-z", "-co", "--exclude-standard", "--", ...pathspecs]);
   if (files === undefined) return { file: ".", line: undefined, message: "`git ls-files` did not run, so the tree was not read" };
-  return sortedUnique(files);
+  return sortedUnique(files.filter((f) => isFile(join(root, f))));
 }
 
 /** The files that differ from `HEAD` or are untracked and not ignored, for `pathspecs`. In a repository with no commit, every listed file. */
