@@ -289,8 +289,9 @@ live bytes per request grow.
     `timeout-minutes`, so the job ends green or red and never cancelled. The user chose shards: job
     `miri-units` in `.github/workflows/ci.yml` runs 2 for `nvs-runtime` and 12 for `nvs-stdlib`.
     On the first nightly, the 8 `nvs-stdlib` shards reached 88 to 99 % of their tests in 45
-    minutes, and 5 were cancelled. Tick it once a nightly run shows every shard well inside its
-    timeout.
+    minutes, and 5 were cancelled. On run 39206993876 every shard ended in 8 to 33 minutes and
+    none was cancelled. Tick it once a nightly run shows every shard well inside its timeout with
+    no test past about 200 s.
   - [x] Miri's default model, Stacked Borrows, stays. The undefined behaviour in the pool allocator
     is a block reused through a pointer that covers only its last owner's size. Tree Borrows accepts
     it, and a fix in the pool costs Miri its precision on every recycled block. The user chose the
@@ -347,30 +348,45 @@ is `BLOCKED` and names the call.
 Stages 1 to 7 are done. Stage 8 is under way.
 
 - **Property tests.** Done: three seeded cases in `crates/nvs-config/tests/capability.rs` (`ae40a9e58`).
-- **Miri.** Every timeout and failure of the second nightly, run 39185807455 on `f8ad800d3`, now
-  has a fix on `main`: a smaller input under `cfg!(miri)`, or an ignore with its reason. No shard
-  hit undefined behaviour on that run. The rest of that run's failures (the proofs, test and cost
-  legs) are in the backlog.
-- **No new nightly yet.** The acceptance sweep's list is still run 39185807455. The user pushed
-  `main` up to `c1e313638`, so every Miri cut up to it is on GitHub, but a push run skips Miri.
-  The next nightly or `workflow_dispatch` reads them. On run 39185807455 the shards took 14 to
-  38 minutes of their 45.
-- **That run's other failures:** `test / linux-x86_64` is fixed on `main` by `812560389`. The
-  cost guard is the warm-start budget, and the proofs jobs are proof debt (both in the backlog).
-- **Fixed costs cut so far:** the vector set's parse (a test reads only its `section/kind`,
-  `crates/nvs-stdlib/src/tests/vectors.rs:46`), and this session the `Core` class table
-  (`crates/nvs-stdlib/src/instance.rs:463`). The table no longer asks every class whether a roster
-  names it, and a lookup by name is a binary search over a sorted index, not a scan of about 250
-  names. Under Miri the build went from 13.2 s to 5.6 s, `receivers` from 4.4 s to 0.9 s, and one
-  lookup is 8 ms. Every test that builds a `Core` instance gains that, and natively each
-  construction does a few string compares instead of up to 250.
+- **No nightly has run since run 39206993876** (`workflow_dispatch` on `0b85b2057`). Local `main` is
+  ahead of `origin/main` (`0b85b2057`), so the acceptance sweep's four failures are still that run's:
+  the three `proofs` legs (proof debt, in the backlog) and shard `nvs-stdlib 4/12`, whose retry
+  deadline is already fixed on `main` (`104ab8948`) and not yet pushed. The Miri items wait for
+  the user to push.
+- **The shared-worker runner mode: `nvs-test`'s half is done.** `Options::shared` takes an
+  `Arc<dyn SharedWorker>` (`crates/nvs-test/src/run.rs:83`, the trait at `:93`), which nobody fills
+  yet, so nothing runs differently. After a case's fresh run passes, `judge` sends an eligible case's
+  absolute `case.nvs` path through it (`:366`); eligibility is `shares_a_worker` (`:384`) and the
+  report `shared_verdict` (`:400`). The trait returns stdout or an error message, so a throw on the
+  worker fails the case.
+- **On that run** 13 of 14 Miri shards were green, each in 8 to 33 minutes of its 45. No test hit the
+  300 s limit and none hit undefined behaviour.
+- **Its five slowest tests are now cut under Miri,** none pushed yet. Local Miri times: html's
+  open-elements walk 23 s (284 s on CI), compress's chunk refcount 14 s (267 s), the p256 agreement
+  30 s (265 s; it now uses RFC 5903's published point, asserted natively against the multiplied one),
+  `csv_rows`' memory bound 26 s (261 s; `READ_CHUNK` is 2 KiB under Miri and the document 48
+  records), cldr's plurals 10 s (247 s; the walk stops at 11).
+- **The three left over 200 s on that run** run locally in about 30 s each, alone, which is the
+  same as the five cut ones. `regex`'s group-reference replace (201 s on CI) is cut to 18 s:
+  Miri spends 13 s building `.+`'s Unicode class, so its memory-limit case uses `a+` and a
+  smaller limit (`crates/nvs-stdlib/src/regex.rs:3042`). `uri`'s round trip (204 s on CI) is cut
+  from 40 s to 28 s locally (24 s now): it dropped a `compareTo` per row that the comparison test
+  already asks. The jwe encrypt (235 s on CI) is cut from 37 s to 25 s locally: timed step by
+  step, its `ECDH-ES` case cost 4.5 s per seal and 2.6 s per open, so under Miri that case seals
+  once, and `dir`'s two seals check the IV, which is drawn after the algorithm's branch
+  (`crates/nvs-stdlib/src/jwe.rs:957`). Its other costs are fixed: about 5 s to parse the `jwe`
+  vectors and about 8 s for the first `built` call, which includes the class table.
+- **There is no trailing 8 s.** Timed with stamps in the body: an empty test's process ends 0.7 s
+  after its body and `uri`'s round trip 1.3 s after. Every test pays about 3.7 s before its body
+  (Miri's start and libtest's walk over about 1,680 tests). That is about 9 minutes of a 140-test
+  shard, and only fewer tests per binary would cut it.
+- **Fixed costs cut so far:** the vector set's parse (`crates/nvs-stdlib/src/tests/vectors.rs:46`)
+  and the `Core` class table (`crates/nvs-stdlib/src/instance.rs:463`, 13.2 s to 5.6 s under
+  Miri). The table cut has not yet run on CI.
 - **`xml`'s `source` test cannot go smaller simply:** at 16,000 quotes and 64 KiB its peak bound
-  (`< 2 * limit`) fails natively, because the fixed overhead dominates. It is now 28 s locally.
-- **CI is up to five times slower than a local run, one test at a time:** the flag test took 54 s
-  locally and 296 s on CI. Local times after the cut: csv 36 s, `xml`'s `source` 28 s (both run
-  side by side). The streamed reply (49 s) and `regex`'s flag test (42 s) were not re-timed.
-- **Push run 39201335766 on `c1e313638`:** its `docs` job failed at `bun nv check`, which is
-  green locally on `main`. Read its log once the run ends, before anything else on it.
+  (`< 2 * limit`) fails natively, because the fixed overhead dominates.
+- **CI is up to five times slower than a local run, one test at a time.** Local Miri times: the
+  streamed reply 38 s (185 s on CI), `regex`'s flag test 32 s.
 - **Shard logs:** `gh run view --job <id> --log`, then `perl -pe 's/\^\[\[[0-9;]*m//g'` (the codes
   are literal `^[[` text), then grep `(TIMEOUT|PASS|FAIL) +\[ *>?([6-9][0-9]|[0-9]{3})\.`.
 - **Local runs** go from the WSL mirror `/var/tmp/nvs-target-wsl-src/mnt-e-mwl`, brought up to date
@@ -381,23 +397,22 @@ Stages 1 to 7 are done. Stage 8 is under way.
 
 ### Next
 
-Stage 8, reading the third nightly's Miri shards (`rule:testing/the-deep-lane`, `.github/workflows/ci.yml:1104`):
-- [ ] Read every `miri units` shard of the first nightly after `c1e313638`. Ask the user to push `main` first if it is ahead. Tick the two Miri checkpoints of stage 8 once every shard ends well inside its 45 minutes, with no test stopped at 300 s. `docs/goals/release-hardening.md:263`
-- [ ] A test still stopped at 300 s on that run gets a smaller input or a reasoned ignore. Start with the two not re-timed, the streamed reply and `regex`'s flag test. `crates/nvs-stdlib/src/regex.rs:2721`
-- [ ] If shards still run close to their timeout, use more shards: the per-test fixed costs left are `ClassTable::define`'s field strings (3 s under Miri) and the first parse. `.github/workflows/ci.yml:1176`
+Stage 8, the shared-worker runner mode over `nvs-test` and `nvs-cli`'s test entry (`rule:security/isolate-shares-nothing`), then the Miri shards once `main` is pushed (`rule:testing/the-deep-lane`):
+- [ ] Slice 2, `nvs_test::SharedWorker` in `nvs-cli` (`crates/nvs-test/src/run.rs:93`). One worker thread holds one parent `Ctx` and one `nvs_host::Scheduler`, and runs every case in turn; the trait's `run` posts the path over a channel and waits for the reply, because `nvs-test` calls it from many threads. Each case is resolved through one shared `script::Compiler` (`Resolver::resolve`), run by `nvs_host::Isolate::new(program, null, Output::Capture)`, and answered with `Completion::output`. `run_suite_in_a_task` is how a scheduler is driven around an isolate. A `--shared-worker` flag on `nvs test` over a `.nvst` tree sets `Options::shared`. `crates/nvs-cli/src/script.rs:1774`, `crates/nvs-cli/src/runner.rs:688`, `crates/nvs-cli/src/runner.rs:885`, `crates/nvs-cli/src/main.rs:2331`
+- [ ] Slice 3: CI runs `nvs test --shared-worker tests/conformance` beside the fresh run, and a Rust test pins that a static one case writes is not seen by the next case on the worker. `.github/workflows/ci.yml:131`
+- [ ] Once the user has pushed `main`: read every `miri units` shard of the first nightly that has these commits. Tick the two Miri checkpoints once every shard is green and no test runs past about 200 s. A test still over that gets a smaller input after a step-by-step timing. `docs/goals/release-hardening.md:263`
 
 ### Backlog
 
-- Then the runner mode that sends many cases through one worker (`crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`).
 - `nvs-runtime`'s pool hands a block back through a pointer narrowed to its last owner's size. Exposing each block's provenance and rebuilding the pointer in `push` and the same-class `realloc` removed the report, but no unit test reproduced it, and the user chose the `sanitizer` feature instead (`crates/nvs-runtime/src/alloc.rs:176`).
-- The `linux-aarch64` leg and the unoptimised suite step have never run on GitHub. Read both on stage 10's first pushed run before anything else on it (`.github/workflows/ci.yml:131`).
+- `test / linux-aarch64` and every `test` and `cost guards` leg passed on run 39206993876, macOS included. Check the unoptimised suite step's log on that leg before stage 10 relies on it (`.github/workflows/ci.yml:131`).
 - The suite's probes-on run is still owed: the coverage flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:2394`, `rule:testing/probes-on-is-a-tested-configuration`).
 - `NvsStr::new` takes any `&[u8]`, so the UTF-8 invariant rests on every caller, and the HTTP Garden bug was one that forgot. A checked constructor for bytes from outside, with `new` kept for payloads already text, closes the class (`crates/nvs-runtime/src/string.rs:462`).
 - Two more unchecked `string`s: a MySQL column name (`crates/nvs-stdlib/src/db/column.rs:67`, also `db/execute.rs:835`, `db/stream.rs:345`), and a signed cookie's plaintext, opened with empty AAD (`crates/nvs-stdlib/src/signed_cookie.rs:309`).
 - `bun nv verify` stops at `crates/nvs-stdlib/tests/spec_registry_coverage.rs:433`: `3a833d02d` deleted the last milestone record, so `data/plan/milestones/` no longer exists, and two tests refuse an empty directory on purpose. The session that retired the milestones decides what replaces them (`tools/nv/cmd/owners.ts:127`).
 - `Core\IO::within` does not refuse what `rule:errors/path-component-refusals` lists, beyond device names (`crates/nvs-stdlib/src/io.rs:3657`).
 - `test / macos-aarch64` on `be3e8a605`: the `nvs-cli` `nvs` test binary died of SIGSEGV with no stack-overflow line, after 116 of 247 tests. The test is not named. It needs a run with `--test-threads=1` on macOS (`.github/workflows/ci.yml:131`).
-- CI's warm-start budget still fails, on Linux too: 6.9 ms on `be3e8a605`. A warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`). The budget stays 6 ms and stays one budget for every platform: cut the work until it fits, measuring where each remaining millisecond goes. Raise it only for a cost the tree cannot remove, and name that cost in `ci.yml`'s comment.
+- CI's warm-start budget passed on Linux on run 39206993876 (`0b85b2057`, after `23d41db5c` read the configuration tree once). Watch the next runs on every platform before closing this item (`tools/nv/cmd/bench.ts:132`). The budget stays 6 ms and stays one budget for every platform: cut the work until it fits, measuring where each remaining millisecond goes. Raise it only for a cost the tree cannot remove, and name that cost in `ci.yml`'s comment.
 - CI's `proofs` jobs fail on proof debt: stale perf records (`bun nv benches --owed`) and owed proofs (`bun nv proofs --owed`). Stage 10 owns it (`.github/workflows/ci.yml:1`).
 - A forged payload can put an enum case with a backing value the enum does not declare into an enum-typed property (`rule:enums/representation`). Whether a typed read of it is safe is not checked (`crates/nvs-runtime/src/object.rs:5629`).
 - `bun nv verify` fails on load: `crates/nvs-stdlib/tests/ldap.rs:277` and `:1485` hit their socket deadline, and `crates/nvs-cli/tests/live_edit.rs:1010` misses its 30 s swap, beside the other binaries. Each passes alone (`tools/nv/cmd/verify.ts`'s module doc).

@@ -872,8 +872,9 @@ fn write_field(out: &mut Vec<u8>, field: &[u8], separator: u8, quote: u8) {
 /// How much of the file one read asks for, and so the most of it a walk holds
 /// at once. A record spanning the end of a chunk costs one more read and
 /// nothing else, so this is a syscall-count choice rather than a limit on what
-/// a document may hold.
-const READ_CHUNK: usize = 8 * 1024;
+/// a document may hold. Under Miri a read is 2 KiB, so a test document several
+/// reads long stays small enough for Miri to walk.
+const READ_CHUNK: usize = if cfg!(miri) { 2 * 1024 } else { 8 * 1024 };
 
 /// The buffer one field is unescaped through. A field longer than this is read
 /// in several turns — `csv-core` answers `OutputFull` and the bytes already
@@ -1666,12 +1667,13 @@ mod tests {
     /// record correctly and fail the first weighing, and one that cleared
     /// nothing at the end would pass both and fail the line after them. A
     /// document many reads long, because the number the answer must not depend
-    /// on is the document's size. Under Miri the same bytes are fewer, wider
-    /// records, because each record is a call and Miri pays for every one.
+    /// on is the document's size. Under Miri the reads are smaller and the
+    /// document is fewer, wider records, because each record is a call and
+    /// each byte is parsed, and Miri pays for every one.
     // covers: Core\Csv::rows
     #[test]
     fn csv_rows_holds_one_record_and_never_the_document() {
-        let (records, pad) = if cfg!(miri) { (180, 190) } else { (4_000, 0) };
+        let (records, pad) = if cfg!(miri) { (48, 190) } else { (4_000, 0) };
 
         let zeros = "0".repeat(pad);
         let mut document = String::from("id,amount\n");

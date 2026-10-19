@@ -4138,6 +4138,11 @@ mod tests {
     /// components it found parses back to an equivalent reference, which is
     /// what makes the seven readers a faithful decomposition rather than seven
     /// plausible substrings.
+    ///
+    /// The text half needs no `compareTo`: a text equal byte for byte parses
+    /// to the same URI, which the comparison test above asks of every row.
+    /// Each parse is about a second under Miri, so the redundant compare was
+    /// most of this test's cost there.
     // covers: Core\Uri::toString
     #[test]
     fn a_parsed_uri_round_trips_through_its_own_text() {
@@ -4146,11 +4151,6 @@ mod tests {
                 &own_text(subject),
                 subject,
                 "`toString` answers the text that was parsed"
-            );
-            assert_eq!(
-                compared(subject, &own_text(subject)),
-                0,
-                "re-parsing {subject:?}'s own text is the same URI"
             );
 
             let reference = super::read(subject, "compareTo").expect("the corpus parses");

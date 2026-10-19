@@ -3044,8 +3044,15 @@ mod tests {
                 Text("$"),
             ]
         );
+        // Under Miri the limit is a sixteenth, the match a quarter and the
+        // copies a quarter, so the result still outgrows the limit four times.
+        let (memory_limit, matched, copies) = if cfg!(miri) {
+            (1 << 16, 1024, 250)
+        } else {
+            (1 << 20, 4096, 1000)
+        };
         let mut ctx = context();
-        ctx.set_memory_limit(1 << 20);
+        ctx.set_memory_limit(memory_limit);
         let mut replace = |subject: &str, pattern: &str, replacement: &str, limit: u64| {
             let args = [
                 Value::str(NvsStr::new(subject.as_bytes())),
@@ -3079,9 +3086,11 @@ mod tests {
         }
         let slow = format!("{}b", "a".repeat(40));
         assert_eq!(replace(&slow, r"^(a|a?)+\1$", "x", u64::MAX), None);
-        // 1000 copies of a 4 KiB match is about 4 MiB, four times the limit.
-        let long = "a".repeat(4096);
-        assert_eq!(replace(&long, ".+", &"$0".repeat(1000), u64::MAX), None);
+        // `copies` copies of the match are about four times the limit. The
+        // pattern is `a+` because Miri spends 13 s building `.+`'s Unicode
+        // class, and the bound under test is the same for either.
+        let long = "a".repeat(matched);
+        assert_eq!(replace(&long, "a+", &"$0".repeat(copies), u64::MAX), None);
     }
 
     /// A one-parameter callable calling `invoke`: the arity and tag slots and

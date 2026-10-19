@@ -4195,14 +4195,17 @@ pub(crate) mod tests {
             "HTTP/1.1 503 Busy\r\nContent-Length: 0\r\n\r\n",
             "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
         ]);
+        // Under Miri the two attempts take about a minute on CI, so the one
+        // deadline is five minutes there. It still covers both attempts.
+        let budget = Duration::from_secs(if cfg!(miri) { 300 } else { 5 });
         let mut retried = call(at, "test");
         retried.attempts = 2;
-        retried.deadline = Instant::now() + Duration::from_secs(5);
+        retried.deadline = Instant::now() + budget;
 
         let started = Instant::now();
         let reply = send(&retried, &mut never).expect("the second attempt's answer");
         assert_eq!(reply.status, 200);
-        assert!(started.elapsed() < Duration::from_secs(5));
+        assert!(started.elapsed() < budget);
         assert_eq!(served.join().expect("the origin thread").asked.len(), 2);
 
         // Full jitter is a draw in `[0, base × 2^n]` and not the bound itself:
