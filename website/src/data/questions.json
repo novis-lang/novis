@@ -5855,7 +5855,7 @@
   },
   "/reference/core/io/size/": {
     "feature": "Core\\IO::size",
-    "hash": "2dec4d1511eac6f6",
+    "hash": "1dd9deba6e3e9cd3",
     "questions": [
       "How do I get the size of a file?",
       "How many bytes is this file?",
@@ -15720,7 +15720,7 @@
   },
   "/reference/types/arr-order/": {
     "feature": "Core\\Arr::Order",
-    "hash": "81447781aab3feb7",
+    "hash": "f89bb1d7ded077d8",
     "questions": [
       "Sort a list from largest to smallest",
       "Sort in descending order",
@@ -15730,7 +15730,7 @@
   },
   "/reference/types/arr-seton/": {
     "feature": "Core\\Arr::SetOn",
-    "hash": "703b51e5d26d3d86",
+    "hash": "ed80d09ac2efda2e",
     "questions": [
       "Compare arrays by keys instead of values",
       "Find entries where key and value both match",
@@ -16723,7 +16723,7 @@
   },
   "/reference/types/unit/": {
     "feature": "Core\\Unit",
-    "hash": "51595efdea7ade82",
+    "hash": "da41baa1ff4abbfa",
     "questions": [
       "How do I add one month to a date?",
       "Get the start of the week or the quarter for a date",
