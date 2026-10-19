@@ -14,9 +14,9 @@ describe("scanItems", () => {
   }, 180_000);
 
   test("every row of the registry's class list names its class when the batch holds the files it points at", () => {
-    const files = ["crates/nvs-stdlib/src/registry.rs", "crates/nvs-stdlib/src/math.rs", "crates/nvs-stdlib/src/str.rs"];
-    const [registry] = scanItems(files);
-    const rows = registry!.items.find((i) => i.id === "CLASSES")!.rows!;
+    const files = ["crates/nvs-stdlib/src/classes.rs", "crates/nvs-stdlib/src/math.rs", "crates/nvs-stdlib/src/str.rs"];
+    const [classes] = scanItems(files);
+    const rows = classes!.items.find((i) => i.id === "CLASSES")!.rows!;
     expect(rows[0]!.classes).toEqual(["Core\\Str"]);
     expect(rows.some((r) => r.classes.includes("Core\\Math"))).toBe(true);
   });
