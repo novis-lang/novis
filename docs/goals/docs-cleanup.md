@@ -30,7 +30,7 @@ stages:
     context: [docs/reference/lang/40-statements.md, docs/examples/lang/statements/break-and-continue/about.md, website/src/content/docs/syntax/control-flow/break-continue-return.mdx, tools/nv/proofs/roster.ts]
   - id: 7
     title: "the syntax pages show each feature's about.md, details and examples"
-    status: open
+    status: done
     context: [website/src/lib/feature.ts, tools/nv/cmd/site.ts, website/src/content/docs/syntax/control-flow/break-continue-return.mdx]
   - id: 8
     title: the chapters under docs/reference/lang are generated from about.md and details.md
@@ -336,14 +336,14 @@ repeats none of their text.
   - [x] `feature.ts` globs `lang`, and `detailsFor` reads a `details.md`
   - [x] `FeatureSection.astro` renders the `details.md` under an `h3` after the examples
   - [x] `bun nv site --check syntax` accepts a `<FeatureSection>` where it needed a `<Snippet>`, with a case in `site.test.ts`
-- [ ] Each syntax page renders its covered features, keeps its own frame, *Use this when* and *Do and don't*, and loses its snippets for those features. `website/src/content/docs/syntax/control-flow/break-continue-return.mdx:1`
+- [x] Each syntax page renders its covered features, keeps its own frame, *Use this when* and *Do and don't*, and loses its snippets for those features. `website/src/content/docs/syntax/control-flow/break-continue-return.mdx:1`
   - [x] `control-flow/break-continue-return.mdx`, stamped
   - [x] the rest of `control-flow/`
   - [x] `errors/`, `functions/`, `operators/` and `basics/`
   - [x] `values/`, `programs/` and `classes/`
   - [x] `concurrency/` and `attributes/`
-  - [ ] `testing/`
-  - [ ] a page for the three `lang:types` features no page covers
+  - [x] `testing/`
+  - [x] a page for the three `lang:types` features no page covers
 - [x] The site lock hashes a `lang` feature's `about.md`, `details.md` and examples. `tools/nv/cmd/site.ts:306`
   - [x] `featureHash` already hashes every file in the feature's directory; a case in `site.test.ts` pins a changed `details.md` and example
 
@@ -364,7 +364,7 @@ hand edit inside the markers. The v3 block still links it. Once looper's `agents
 linking it, delete the file, add `design\.md` to `DELETED_DOC_CITE` (`tools/nv/cmd/rules.ts:107`) and
 tick stage 1's last sub-item.
 
-Stages 2 to 6 are done. Stage 6 gave every `lang` feature whose chapter section added facts a
+Stages 2 to 7 are done. Stage 6 gave every `lang` feature whose chapter section added facts a
 `details.md` beside its `about.md`, each fact run on the binary, and turned each chapter code block no
 example showed into an example. Every disagreement the binary settled is fixed in the chapter, the
 `about.md`, the syntax page and the rule it touched; `git log` on `docs/examples/lang/` names each.
@@ -374,7 +374,7 @@ examples tree accepts `// proof: compile-error`, `// proof: exit N` and `// proo
 holds `details.md` to the prose bounds, with no heading and no code block (`detailsProblems`,
 `tools/nv/proofs/collect.ts`).
 
-Stage 7 has started. `website/src/lib/feature.ts` globs the `lang` area like the others, and
+Stage 7 is done. `website/src/lib/feature.ts` globs the `lang` area like the others, and
 `detailsFor` reads a feature's `details.md` with the same block parser as `about.md`.
 `website/src/components/FeatureSection.astro` renders the `about.md`, the examples and then, under an
 `h3` "Details" with the id `<id>-details`, the `details.md`. `bun nv site --check syntax` now accepts
@@ -428,8 +428,23 @@ keeps the `02-dispatch` snippet with the facts its `about.md` lacks and a link t
 and the `04-api` snippet with the OpenAPI JSON, because no example prints the document. The CSRF
 paragraph stays in its frame: checking it needs `nvs serve`.
 
-`lang:types/property-keys`, `property-paths` and `strings-with-holes` are on no syntax page, which
-`site --check syntax` reports as `uncovered`. They were uncovered before stage 7 too.
+`syntax/testing/` (2 pages) is converted the same way, with both stamps. Every report block the old
+pages had is printed by an example (`a-test-is-a-method-marked-test` 04, `test-options` 04,
+`core-test-testwith-data-rows` 04), so none stays in the frame. `fixtures-and-assertions.mdx` keeps
+its table of assertions and links `/reference/core/test/`, because `assertNull` and the one-line
+summary of each method are on no feature's text. One bullet no feature said was run on the binary
+and moved into `running-tests-nvs-test`'s `details.md`: `nvs test main.nvs` does not run a test class
+the program never names, even when `autoload` could load it, and `nvs test .` runs it.
+
+`syntax/classes/property-names.mdx` is new: "Property names as values", one `<FeatureSection>` each
+for `lang:types/property-keys`, `property-paths` and `strings-with-holes`, a sidebar entry after
+*Anonymous objects and shapes* in `website/astro.config.ts`, and five questions. Its built page has
+19 `method-example`s (16 examples and 3 sections). `site --check syntax` reports no `lang` feature
+as `uncovered` now.
+
+`start-here.mdx`, `guides/why-novis/secret-values.mdx` and `tainted-input.mdx` were reread against
+`what-does-not-exist` and `qualifiers-tainted-and-secret`, agree with them, and are stamped, with
+`start-here`'s questions too.
 
 `throw-and-catch.mdx` shows both `throw` features and both `try-catch-finally` features, each
 under its own heading, and both `about.md` files stay: merging two would delete a roster id and a
@@ -441,13 +456,16 @@ hash is its file. Reread the questions against the new page, then `MSYS_NO_PATHC
 --questions --stamp /syntax/<dir>/<page>/`. Every converted page has both.
 
 `bun nv site --check` fails on findings no page of this goal touched: `structure` (2,
-`/reference/types/`), `questions` (820 broken Core URLs), `syntax` (46 uncovered `Core` enums and
-errors), `apps` (`notes` and `paperwork`, the `Novis\Intl\Icu` extension not loaded on this host)
-and `prose` (5, `run-as-a-service.mdx` and `compare.mdx`). `stale` lists 11 page-feature pairs,
-which are stage 6's content edits on `testing/`, `start-here.mdx` and two `guides/why-novis/`
-pages. Each drops off when its page is converted and stamped. A guide page is
+`/reference/types/`), `questions` (806: the `/reference/core/` pages, and 14 `/guides/` pages whose questions are stale
+and that this goal did not edit), `syntax` (42 uncovered `Core`
+enums and errors), `apps` (`notes` and `paperwork`, the `Novis\Intl\Icu` extension not loaded on this
+host) and `prose` (5, `run-as-a-service.mdx` and `compare.mdx`). `stale` is clean. A guide page is
 not converted: it is stamped with `bun nv site --stamp <key>` once its text is reread against the
 feature.
+
+No chapter under `docs/reference/lang/` changed in stage 7, so no group owes `--record-perf`:
+`bun nv proofs --id 'lang:testing/running-tests-nvs-test'` says `complete.` after its `details.md`
+edit.
 
 `bun nv site --build` failed once right after a `git rm` of snippet folders and passed when run
 again with no change.
@@ -457,21 +475,17 @@ view`), not this branch.
 
 ### Next
 
-Convert the syntax pages one section at a time, as `break-continue-return.mdx` was: one
-`<FeatureSection>` per covered `lang` feature, the page's frame, *Use this when* and *Do and don't*
-kept, every bullet and paragraph the feature's `about.md` or `details.md` already says deleted, the
-page's snippets for those features deleted with `git rm`, then `bun nv site --build`, a look at the
-built page's headings and `method-example` count, and both stamps (see *State*). A bullet the
-page has and neither text has is a fact: check it on the binary and move it into the feature's
-`details.md`. A page that also covers a `Core` id (`LateInit`, `PropertyGuard`) keeps a `<Snippet>`
-or a short table, or links the Reference page for that id. Write a page whole with Write: the guard
-refuses a heredoc script, and `looper verify` piped into `tail`. The lock's page key is the file
-under `src/content/docs/` (`bun nv site --stamp syntax/testing/writing-tests.mdx`), and the
-questions' key is the URL.
-- [ ] `testing/`, 2 pages: their 8 `lang:testing` features are stale until converted and stamped. Both pages have `nvs test` report blocks no example prints; keep each one in the frame. `website/src/content/docs/syntax/testing/writing-tests.mdx:1`
-- [ ] Restamp `syntax/start-here.mdx` and the two `guides/why-novis/` pages once their text is reread against the feature `stale` names. `website/src/content/docs/syntax/start-here.mdx:1`
-- [ ] A `classes/` page for `lang:types/property-keys`, `property-paths` and `strings-with-holes`, which no page covers, with its sidebar entry and its questions. `docs/examples/lang/types/property-keys/about.md:1`
-- [ ] A chapter edited in stage 7 or 8 owes `bun nv proofs --record-perf --group lang:<chapter>` after its last edit, and a bench that calls a `Core` method declares that call in `calls`. `tools/nv/proofs/roster.ts:28`
+Stage 7 is done. Stage 8 generates the chapters under `docs/reference/lang/`. Design it first, in
+one slice, because the roster reads its feature ids from those same chapters: `chapterFeatures`
+(`tools/nv/proofs/roster.ts:340`) parses each `# ` heading, and an entry's `implemented at` is a
+chapter line. A generated chapter needs another source for its front matter (`id`, `title`,
+`summary`, `keywords`), its preamble, and each feature's heading and order. One small file per
+chapter, beside the chapters or under `data/`, is the likely shape. The heading text must stay
+exactly as it is, since each roster id is its slug.
+- [ ] Choose the source of each chapter's front matter, preamble and feature order, and make the roster read it, with no id changed. `tools/nv/proofs/roster.ts:340`
+- [ ] A renderer writes each chapter from that source and its features' `about.md` and `details.md`, and `--check` fails on a hand edit. `bun nv reference`'s run of every chapter code block then needs the examples instead. `tools/nv/cmd/reference.ts:15`
+- [ ] `nvs agent` embeds the generated chapters (`include_str!`), and its tests pass unchanged in shape. `crates/nvs-cli/src/agent.rs:188`
+- [ ] A chapter edited in stage 8 owes `bun nv proofs --record-perf --group lang:<chapter>` after its last edit, and a bench that calls a `Core` method declares that call in `calls`. `tools/nv/proofs/roster.ts:28`
 
 A probe on the binary: a file under `.agent-tmp/` written with Write, with an `nvs.toml` beside it
 for a grant, run with `nvs run --config <file>.toml` for a limit. A method goes in a class, an enum
