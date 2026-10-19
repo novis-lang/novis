@@ -3,32 +3,13 @@ title: Running another file with require
 covers: ['lang:programs/require-run-another-file-in-this-frame']
 description: How require runs another file and gives you the value that file returns.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 `require 'config.nvs'` runs another file at the place where you write it. The value of `require`
-is the value that the file returns with `return`.
+has the type `mixed`. Text converted from a `mixed` value is tainted, so `as array<string>` gives
+an `array<tainted string>`.
 
-This is the file `config.nvs`:
-
-<Snippet src="syntax/require/config.nvs" />
-
-The program below runs it and uses the value:
-
-<Snippet src="syntax/require/01-require.nvs" />
-
-- The path is relative to the folder of the file that has the `require`.
-- With a path in quotes, a missing file is a compile error. With a path built while the program
-  runs, a missing file throws an error.
-- The value of `require` has the type `mixed`. Convert it with `as` to the type the file returns.
-- Text converted from a `mixed` value is tainted. So `as array<string>` gives an
-  `array<tainted string>`, as in the program above.
-- Classes, interfaces, enums and `type` aliases are shared. Each file can use the ones the other
-  declares.
-- Variables are not shared. A `$config` in `config.nvs` is a different variable from the
-  `$config` in the program. Use `return` in the file to give a value to the program.
-- `require` runs the file every time the program reaches it.
-- `include`, `include_once` and `require_once` do not exist. Use `require` to run a file, and
-  `autoload` to load a class.
+<FeatureSection examples="lang/programs/require-run-another-file-in-this-frame" heading="require" id="require" />
 
 ## Do and don't
 

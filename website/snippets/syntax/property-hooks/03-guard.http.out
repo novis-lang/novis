@@ -1,4 +1,0 @@
-check balance []
-error: the balance cannot be negative
-0
-check tags [&quot;0&quot;]

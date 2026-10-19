@@ -401,6 +401,18 @@ feature says stay in the frame: `mixed` to tainted text (`as.mdx`, `is.mdx`), `i
 nowdoc, `?->` on a nullable object and `7 / 2` being `3.5`. Two `numbers` questions moved to
 `strings`, whose page now answers them.
 
+`syntax/programs/` (3 pages) and `syntax/classes/` (8 pages) are converted the same way, with both
+stamps. Their `Core` interfaces (`LateInit`, `PropertyGuard`, `PropertyObserver`, `Stringable`,
+`Comparable`, `Parses`) stay in `covers`. The page shows the `lang` feature that explains each one
+and links its page under `/reference/types/`, which has one more example. One bullet no feature
+said, `$v as Point` throwing `RuntimeError`, was run on the binary and moved into
+`lang:expressions/anonymous-objects`' `details.md`. The facts that stay in a frame are
+`Core\Path::fromCwd` and the `nvs.toml` grant (`file-paths-and-exit.mdx`), `require` giving `mixed`
+and tainted text (`require.mdx`), freeing an object when nothing points to it (`objects.mdx`), and a
+class with no observer running no extra code (`property-hooks.mdx`). The old page's "the error lists
+the folders Novis searched" for a class `autoload` cannot find was dropped: `E0303` names no folder
+(the backlog item below).
+
 `lang:types/property-keys`, `property-paths` and `strings-with-holes` are on no syntax page, which
 `site --check syntax` reports as `uncovered`. They were uncovered before stage 7 too.
 
@@ -416,8 +428,14 @@ hash is its file. Reread the questions against the new page, then `MSYS_NO_PATHC
 `bun nv site --check` fails on findings no page of this goal touched: `structure` (2,
 `/reference/types/`), `questions` (820 broken Core URLs), `syntax` (46 uncovered `Core` enums and
 errors), `apps` (`notes` and `paperwork`, the `Novis\Intl\Icu` extension not loaded on this host)
-and `prose` (5, `run-as-a-service.mdx` and `compare.mdx`). `stale` lists 88 page-feature pairs,
-which are stage 6's content edits; each drops off when its page is converted and stamped.
+and `prose` (5, `run-as-a-service.mdx` and `compare.mdx`). `stale` lists 30 page-feature pairs,
+which are stage 6's content edits on `concurrency/`, `attributes/`, `testing/` and two
+`guides/why-novis/` pages. Each drops off when its page is converted and stamped. A guide page is
+not converted: it is stamped with `bun nv site --stamp <key>` once its text is reread against the
+feature.
+
+`bun nv site --build` failed once right after a `git rm` of snippet folders and passed when run
+again with no change.
 
 The sweep's red jobs are run 39185807455, which ran on `main` at f8ad800d3 (checked with `gh run
 view`), not this branch.
@@ -433,10 +451,10 @@ page has and neither text has is a fact: check it on the binary and move it into
 `details.md`. A page that also covers a `Core` id (`LateInit`, `PropertyGuard`) keeps a `<Snippet>`
 or a short table, or links the Reference page for that id. Write a page whole with Write: the guard
 refuses a heredoc script, and `looper verify` piped into `tail`.
-- [ ] `programs/` and `classes/`. `website/src/content/docs/syntax/classes/objects.mdx:1`
+- [ ] `programs/` and `classes/`. `docs/examples/lang/types/property-keys/about.md:1`
   - [x] `values/`, 10 pages, stamped
-  - [ ] `programs/`, 3 pages. `website/src/content/docs/syntax/programs/namespaces.mdx:1`
-  - [ ] `classes/`, 8 pages. `website/src/content/docs/syntax/classes/objects.mdx:1`
+  - [x] `programs/`, 3 pages, stamped
+  - [x] `classes/`, 8 pages, stamped
   - [ ] a `classes/` page for `lang:types/property-keys`, `property-paths` and `strings-with-holes`, which no page covers, with its sidebar entry and its questions. `docs/examples/lang/types/property-keys/about.md:1`
 - [ ] `concurrency/`, `attributes/` and `testing/`. `website/src/content/docs/syntax/concurrency/tasks.mdx:1`
 - [ ] A chapter edited in stage 7 or 8 owes `bun nv proofs --record-perf --group lang:<chapter>` after its last edit, and a bench that calls a `Core` method declares that call in `calls`. `tools/nv/proofs/roster.ts:28`

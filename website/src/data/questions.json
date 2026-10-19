@@ -13410,7 +13410,7 @@
   },
   "/syntax/classes/anonymous-objects/": {
     "feature": "syntax/classes/anonymous-objects.mdx",
-    "hash": "8ee1d314e7eb7e32",
+    "hash": "3acbed1adc3f09e2",
     "questions": [
       "How do I create an object without writing a class?",
       "Give a name to the type of a small object",
@@ -13421,7 +13421,7 @@
   },
   "/syntax/classes/declaring/": {
     "feature": "syntax/classes/declaring.mdx",
-    "hash": "9f63703f505ff4e3",
+    "hash": "f9110fdf6c5f7802",
     "questions": [
       "How do I write a class with a constructor?",
       "Create a new object of a class",
@@ -13433,7 +13433,7 @@
   },
   "/syntax/classes/interfaces/": {
     "feature": "syntax/classes/interfaces.mdx",
-    "hash": "128e90d409f010f4",
+    "hash": "2a3f5462465cadb5",
     "questions": [
       "How do I write an interface and implement it?",
       "Give an interface a method with a default body",
@@ -13445,7 +13445,7 @@
   },
   "/syntax/classes/methods-and-inheritance/": {
     "feature": "syntax/classes/methods-and-inheritance.mdx",
-    "hash": "ebb6e8f5255a3101",
+    "hash": "371fb240104e79fb",
     "questions": [
       "How do I extend a class and replace a method?",
       "Call the parent version of a method",
@@ -13457,7 +13457,7 @@
   },
   "/syntax/classes/objects/": {
     "feature": "syntax/classes/objects.mdx",
-    "hash": "c7d57883d550eea4",
+    "hash": "a40ab0cda180ad06",
     "questions": [
       "Why does changing one variable change the other object too?",
       "How do I copy an object?",
@@ -13468,7 +13468,7 @@
   },
   "/syntax/classes/properties/": {
     "feature": "syntax/classes/properties.mdx",
-    "hash": "f283534a4fede6bc",
+    "hash": "fb552bc67328e895",
     "questions": [
       "How do I give a property a default value?",
       "Make a property that can only be set once",
@@ -13479,7 +13479,7 @@
   },
   "/syntax/classes/property-hooks/": {
     "feature": "syntax/classes/property-hooks.mdx",
-    "hash": "0aede4b87b43bd20",
+    "hash": "3ca3672548573c04",
     "questions": [
       "How do I run code when a property is read or written?",
       "Check a value before it is stored in a property",
@@ -13490,7 +13490,7 @@
   },
   "/syntax/classes/standard-interfaces/": {
     "feature": "syntax/classes/standard-interfaces.mdx",
-    "hash": "28804159f1ae01d7",
+    "hash": "e2dcbfd38c13764a",
     "questions": [
       "How do I print an object with echo?",
       "Compare two objects with less than and greater than",
@@ -13813,7 +13813,7 @@
   },
   "/syntax/programs/file-paths-and-exit/": {
     "feature": "syntax/programs/file-paths-and-exit.mdx",
-    "hash": "95940442abb32102",
+    "hash": "67c81d8328cd4901",
     "questions": [
       "Where does a relative file path start in Novis?",
       "Why does my program read a different file from another folder?",
@@ -13825,7 +13825,7 @@
   },
   "/syntax/programs/namespaces/": {
     "feature": "syntax/programs/namespaces.mdx",
-    "hash": "96873030ebdf4c23",
+    "hash": "2fd3db3932f7e553",
     "questions": [
       "How do I put a class in a namespace?",
       "How do I import a class from another file?",
@@ -13837,7 +13837,7 @@
   },
   "/syntax/programs/require/": {
     "feature": "syntax/programs/require.mdx",
-    "hash": "76ebf962ed0331b4",
+    "hash": "4e846310f604754e",
     "questions": [
       "How do I run another Novis file from my program?",
       "Load settings from a separate file that returns an array",

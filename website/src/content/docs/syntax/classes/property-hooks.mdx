@@ -3,50 +3,20 @@ title: Property hooks
 covers: ['lang:classes/property-hooks', 'lang:classes/propertyobserver', 'PropertyObserver', 'lang:classes/propertyguard', 'PropertyGuard']
 description: How get and set hooks run code on every read and write of a property, how PropertyGuard checks a write, and how PropertyObserver reports every change.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
-A property can have a `get` hook and a `set` hook. The `get` hook runs on every read of the
-property. The `set` hook runs on every write.
+A property can have a `get` hook and a `set` hook. `PropertyGuard` checks every write of a class's
+properties, and `PropertyObserver` sees every read and write. A class that implements neither
+interface runs no extra code.
 
-<Snippet src="syntax/property-hooks/01-get-set.nvs" />
+<FeatureSection examples="lang/classes/property-hooks" heading="get and set hooks" id="get-and-set-hooks" />
 
-- `get => expression;` returns the value of the expression.
-- `set (int $v) { ... }` gets the new value in `$v`.
-- Inside its own hooks, `$this->celsius` is the stored value. It does not run the hook again.
-- The hooks also run for writes in the constructor, and in child classes.
-- When `set` throws an error, the property keeps its old value.
-- A property with only a `get` hook can be written only inside its own class.
-- You cannot write one array element through a hooked property. Copy the array to a variable,
-  change it, and assign it back.
+<FeatureSection examples="lang/classes/propertyguard" heading="PropertyGuard" id="propertyguard" />
 
-## PropertyGuard
+<FeatureSection examples="lang/classes/propertyobserver" heading="PropertyObserver" id="propertyobserver" />
 
-A class that implements `PropertyGuard` has two methods: `beforePropertySet` and
-`beforePropertyUnset`. Novis calls them before every write of a property of the class.
-
-<Snippet src="syntax/property-hooks/03-guard.nvs" />
-
-- `beforePropertySet` gets the name of the property, the new value and a list of keys.
-- The keys are `[]` for a write of the whole property. For a write to one element, they are the
-  keys of that element, as strings.
-- `beforePropertyUnset` runs before `unset` removes one element of an array property.
-- If the guard throws an error, the property keeps its old value.
-- On a property with a `set` hook, the guard runs first. It gets the value the program wrote.
-
-## PropertyObserver
-
-A class that implements `PropertyObserver` has two methods: `onPropertyGet` and `onPropertySet`.
-Novis calls them after every read and every write of a property of the class.
-
-<Snippet src="syntax/property-hooks/02-observer.nvs" />
-
-- Each method gets the name of the property and its value.
-- A write to one element calls `onPropertySet` once. It gets the whole array.
-- The value has the type `mixed`. Text you build from it with `as string` or `.` is a
-  `tainted string`.
-- The observer cannot change the value. If `onPropertySet` throws an error, the write throws it.
-  The new value is already stored.
-- A class that does not implement `PropertyObserver` does not run any extra code.
+The reference pages of [`PropertyGuard`](/reference/types/propertyguard/) and
+[`PropertyObserver`](/reference/types/propertyobserver/) have one more example each.
 
 ## Do and don't
 

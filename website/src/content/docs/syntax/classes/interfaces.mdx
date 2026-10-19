@@ -3,32 +3,17 @@ title: Interfaces
 covers: ['lang:classes/interfaces']
 description: How to write an interface, give it default methods and constants, implement it, and forward its methods with by.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 An interface is a list of methods. A class that implements the interface must have every method
 in the list. Then you can use the class wherever the interface type is needed.
 
-<Snippet src="syntax/interfaces/01-interface.nvs" />
+<FeatureSection examples="lang/classes/interfaces" heading="Interfaces" id="interfaces" />
 
-- A class can implement many interfaces: `class Person implements Greets, Counts`.
-- A missing method is a compile error. The message names the method and the interface.
-- A method with a body is a default method. The class gets it, and it can replace it.
-- A class that replaces a default method calls the default as `Greets::greet()`.
-- An interface can have `private` helper methods, typed constants and `static` methods.
-- An interface can extend another interface: `interface Titled extends Named`.
-- An interface has no properties. Write a method instead, or a constant if the value is fixed.
+## Use this when you add to a final class
 
-## Forwarding with by
-
-`implements Greets by $voice` writes every `Greets` method for you. Each one calls the same method
-on the object in the property `$voice`.
-
-<Snippet src="syntax/interfaces/02-by.nvs" />
-
-- The property must be declared in the class, and its type must be a class or interface that
-  implements `Greets`. It cannot be nullable.
-- A method you write yourself is used in place of the forwarded one.
-- Use `by` to add to a `final` class. Store an object of that class in a property and forward to it.
+A `final` class cannot be extended. Store an object of that class in a property, and forward to it
+with `implements Greets by $voice`.
 
 ## Do and don't
 
