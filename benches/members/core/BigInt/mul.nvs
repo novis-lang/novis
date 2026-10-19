@@ -3,7 +3,7 @@
 // total in the smallest unit of a currency.
 // bench: iterations 256
 // bench: complexity karatsuba
-// bench: calls 0
+// bench: calls 2
 
 class Bench {
     public static function run(uint $rounds): uint {

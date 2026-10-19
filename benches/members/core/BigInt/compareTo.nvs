@@ -2,7 +2,7 @@
 // Measures putting two large numbers in order, as a program does when it sorts
 // amounts or picks the largest of them.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

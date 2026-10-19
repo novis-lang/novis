@@ -2,7 +2,7 @@
 // Measures flipping the sign of a large number, as a program does when it
 // cancels an entry in a ledger.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

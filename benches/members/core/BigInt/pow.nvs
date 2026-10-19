@@ -2,7 +2,7 @@
 // Measures raising a number to a small power, as a program does to build the
 // scaling factor an amount is stored with.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity karatsuba
 
 class Bench {

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/bigint.rs",
+  "title": "`Core\\BigInt`'s gcd, lcm and modular power grow faster than any class `nv scaling` accepts.",
+  "text": "`gcd` and `lcm` are `num-bigint`'s Stein algorithm, which shifts and subtracts the whole operand once per bit and so is quadratic in its width. `powMod` over an odd modulus is the library's Montgomery multiplication, which is schoolbook and quadratic in the modulus per step, and it takes one step per exponent bit. Their benches declare `complexity quadratic`, which the growth proof refuses, and carry this gap's marker. Nothing but the request's memory ceiling bounds an operand's width, so a program that hands these members text a request sent pays the quadratic cost on that length. Closing it is a half-gcd for `gcd` and `lcm`, and a Montgomery step over the library's Karatsuba multiplication for `powMod`, each then a `.scale.nvs` sibling under the class it reaches. Each is more than a medium slice, so it waits until a measured program hits it. `div`, `mod`, `sqrt`, `parse`, `toString` and `format` are sub-quadratic, and their siblings pin it.",
+  "goal": "fewer-allocations"
+}

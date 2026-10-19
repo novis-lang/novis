@@ -2,9 +2,8 @@
 // Measures reading a number out of text, as a program does for every amount it
 // reads from a file, a database row or a request.
 // bench: iterations 256
-// bench: complexity quadratic
-// proof: gap nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically
-// bench: calls 0
+// bench: complexity karatsuba
+// bench: calls 2
 
 class Bench {
     public static function run(uint $rounds): uint {

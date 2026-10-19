@@ -2,7 +2,7 @@
 // Measures adding a large number to a running total, as a program does when it
 // sums amounts that may outgrow an `int`.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

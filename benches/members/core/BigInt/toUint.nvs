@@ -2,7 +2,7 @@
 // Measures converting a number to a `uint`, as a program does when it turns a
 // large calculation into a count or an identifier.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity constant
 
