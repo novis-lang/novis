@@ -4076,21 +4076,23 @@ mod tests {
     /// the fan-out exists to serve more requests per second than one core can, and
     /// one that does not is a fan-out to delete rather than to keep and explain.
     ///
-    /// **The margin is named here as [`SCALES_BY`] and the assertion is against
-    /// it**, because "faster" with no floor under it passes on noise. Four times is
-    /// the ideal and nothing reaches it: `nvs_host::cpus` enumerates *logical*
-    /// CPUs, so the four cores this asks for are two physical ones on any machine
-    /// that pairs them — and a second thread on a core already saturated with
-    /// arithmetic adds a fraction of a core rather than one — while a box doing
-    /// something else at the time lends less again. The floor is therefore not set
-    /// near the ideal but where it stays true of the *worst* honest machine: four
-    /// hyperthreads on two cores, under load, is what `1.5` leaves room for.
+    /// **The ratio has the two bounds of `rule:testing/perf-two-mechanisms`**,
+    /// because "faster" with no floor under it passes on noise, and one floor set
+    /// from one machine fails on a loaded one. Four times is the ideal and nothing
+    /// reaches it: `nvs_host::cpus` enumerates *logical* CPUs, so the four cores
+    /// this asks for are two physical ones on any machine that pairs them — and a
+    /// second thread on a core already saturated with arithmetic adds a fraction
+    /// of a core rather than one — while a box doing something else at the time
+    /// lends less again. The soft bound, `1.5`, is where four hyperthreads on two
+    /// cores stay on an ordinary machine, and a run under it prints a warning. A
+    /// loaded Windows runner reads as low as `1.31` with nothing wrong in the tree.
     ///
-    /// What it has to separate that from is a fan-out that does not scale at all —
-    /// a lock every request takes, a compile per core, one core accepting for the
-    /// fleet — and every one of those lands at or under `1.0`, which is the gap the
-    /// number sits in. It is a floor and not a target: the tree's own per-request
-    /// cost is what decides how far above it a given run lands, and closing that
+    /// What the hard bound has to separate from that is a fan-out that does not
+    /// scale at all — a lock every request takes, a compile per core, one core
+    /// accepting for the fleet — and every one of those lands at or under `1.0`.
+    /// So the hard bound is `1.1`, and a ratio under it fails after three
+    /// attempts. Both are floors and not targets: the tree's own per-request cost
+    /// is what decides how far above them a given run lands, and closing that
     /// distance is a perf question this test does not answer.
     ///
     /// **What the arms measure** is [`requests_on`]'s doc: every per-request cost
@@ -4122,8 +4124,12 @@ mod tests {
         const CORES: usize = 4;
         const ROUNDS: usize = 10;
         /// Four cores serve at least half again the requests per second one
-        /// serves. The paragraph above is why the floor is here and not at four.
-        const SCALES_BY: f64 = 1.5;
+        /// serves, or the guard warns, and more than one core's, or it fails. The
+        /// paragraphs above are why the bounds are here and not at four.
+        const SCALES_BY: crate::testing::Margin = crate::testing::Margin {
+            soft: 1.5,
+            hard: 1.1,
+        };
 
         let cpus = nvs_host::cpus();
         if cpus.len() < CORES {
@@ -4146,22 +4152,29 @@ mod tests {
 
         let alone = [cpus[0]];
         let fleet = &cpus[..CORES];
-        let mut one_core = Duration::MAX;
-        let mut four_cores = Duration::MAX;
-        for _ in 0..ROUNDS {
-            one_core = one_core.min(requests_on(&alone, &compiler, &path));
-            four_cores = four_cores.min(requests_on(fleet, &compiler, &path));
-        }
-
-        // Requests per second, four cores over one: each side served `PER_CORE` per
-        // core, so the fleet's throughput is `CORES` times its own arm's rate.
-        let scaled = CORES as f64 * one_core.as_secs_f64() / four_cores.as_secs_f64();
-        assert!(
-            scaled >= SCALES_BY,
-            "four cores served {scaled:.2}× one core's requests per second, under the {SCALES_BY}× \
-             this test names: {PER_CORE} requests on one core took {one_core:?}, and {} on four \
-             took {four_cores:?}",
-            CORES * PER_CORE
+        crate::testing::judge_margin(
+            "four cores over one core's requests per second",
+            SCALES_BY,
+            "A fan-out that serves no more than one core is one to delete, not to keep and \
+             explain.",
+            || {
+                let mut one_core = Duration::MAX;
+                let mut four_cores = Duration::MAX;
+                for _ in 0..ROUNDS {
+                    one_core = one_core.min(requests_on(&alone, &compiler, &path));
+                    four_cores = four_cores.min(requests_on(fleet, &compiler, &path));
+                }
+                // Requests per second, four cores over one: each side served
+                // `PER_CORE` per core, so the fleet's throughput is `CORES` times its
+                // own arm's rate.
+                let scaled = CORES as f64 * one_core.as_secs_f64() / four_cores.as_secs_f64();
+                let detail = format!(
+                    " ({PER_CORE} requests on one core took {one_core:?}, and {} on four took \
+                     {four_cores:?})",
+                    CORES * PER_CORE
+                );
+                (scaled, detail)
+            },
         );
     }
 

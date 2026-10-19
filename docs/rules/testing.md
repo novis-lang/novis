@@ -2739,7 +2739,9 @@ attempt sits between two readings of a yardstick, a fixed scalar loop, and is la
 they differ by more than 25% of the faster one and `steady` otherwise; every printed time gives its
 ratio to the yardstick. Neither label nor ratio is judged: they are what a reader of a warning has
 for telling a busy machine from a slower program. Each test binary carries its own `judge`, so a
-change to how a timing is judged is made in `perf_guards.rs` and in the LSP's `latency.rs` both.
+change to how a timing is judged is made in `perf_guards.rs`, in the LSP's `latency.rs` and in
+`nvs-cli`'s `testing.rs`, whose `judge_margin` judges that binary's `…_by_the_margin_this_test_names`
+ratios.
 
 Allocations, emitted calls and executed statements read the same on any machine however loaded, so
 where a guard's question can be asked as a count, the count is the check that fails and a timing
