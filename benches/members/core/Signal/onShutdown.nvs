@@ -2,7 +2,7 @@
 // Measures registering a shutdown function. A server does this once for each request it answers.
 // bench: iterations 2048
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

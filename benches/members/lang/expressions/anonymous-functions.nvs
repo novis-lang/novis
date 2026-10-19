@@ -5,8 +5,8 @@
 // as a block.
 // bench: iterations 256
 // bench: allocations 0
+// bench: calls 3
 // bench: complexity constant
-// proof: gap nvs-runtime/call-through-a-callable-builds-its
 
 class Bench {
     public static function run(int $rounds): int {

@@ -4,7 +4,7 @@
 // is not a terminal, so nothing is drawn and the bar's own cost is what is left.
 // bench: iterations 256
 // bench: calls 3
-// bench: allocations 10
+// bench: allocations 9
 // bench: complexity constant
 
 class Bench {
