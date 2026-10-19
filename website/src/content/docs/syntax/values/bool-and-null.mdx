@@ -3,27 +3,12 @@ title: Bool and null
 covers: ['lang:types/truthiness']
 description: The values true, false and null, and which values count as true in a condition.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 A `bool` is `true` or `false`. `null` means "no value", and only a type that starts with `?` can be
-`null`.
+`null`. The page [Nullable types](/syntax/values/nullable/) explains `?` and `??`.
 
-<Snippet src="syntax/bool-and-null/01-bool-and-null.nvs" />
-
-`int $count = null;` does not compile. Write `?int $count = null;`. The page
-[Nullable types](/syntax/values/nullable/) explains `?` and `??`.
-
-## Use this when a condition tests a value that is not a bool
-
-`if`, `while`, the `?:` operator, `&&`, `||` and `!` accept any value. These values count as false:
-`false`, `0`, `0.0`, `""`, `"0"`, an empty array, empty `bytes` and `null`. Every other value counts as
-true.
-
-<Snippet src="syntax/bool-and-null/02-truthiness.nvs" />
-
-`"0.0"` and `" "` count as true. Every object and every enum case counts as true.
-
-Only conditions do this. A `bool` variable, parameter or return value needs `as bool`.
+<FeatureSection examples="lang/types/truthiness" heading="Truthy and falsy values" id="truthy-and-falsy-values" />
 
 ## Do and don't
 

@@ -1,34 +1,19 @@
 ---
 title: Union types
-covers: ['lang:types/nullable-union-single-value-and-enum-case-types', 'lang:types/type-aliases', 'lang:types/mixed']
+covers: ['lang:types/type-aliases', 'lang:types/mixed']
 description: Types that accept one of several types or one of several exact values, type aliases and mixed.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 `A|B` accepts a value of type `A` or of type `B`. A type can also list exact values, such as
-`"read"|"write"`.
+`"read"|"write"`. The page [Nullable types](/syntax/values/nullable/#nullable-union-and-single-value-types)
+shows both, with examples.
 
-<Snippet src="syntax/union-types/01-union.nvs" />
+Use a type alias when a type is long or used in many places. Use `mixed` when the type is not known.
 
-`$mode = "delete";` does not compile, because `"delete"` is not in the list.
+<FeatureSection examples="lang/types/type-aliases" heading="Type aliases" id="type-aliases" />
 
-## Use this when a type is long or used in many places
-
-`type Name = ...;` gives a type a name. Write it at the top of a file, or inside a class.
-
-<Snippet src="syntax/union-types/02-alias.nvs" />
-
-An alias inside a class is used as `Owner::Name` outside it. `type Bar = Foo;` does not compile when
-`Foo` is a class, because a class already has a name.
-
-## Use this when the type is not known
-
-`mixed` accepts a value of any type. The program checks what the value is when it runs.
-
-<Snippet src="syntax/union-types/03-mixed.nvs" />
-
-You cannot assign a `mixed` value to a typed variable or pass it to a typed parameter. Convert it with `as`, or
-test it with `is`.
+<FeatureSection examples="lang/types/mixed" heading="mixed" id="mixed" />
 
 ## Do and don't
 

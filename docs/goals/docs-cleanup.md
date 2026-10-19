@@ -392,6 +392,18 @@ converted page matches. `iterators.mdx` keeps the `Iterator` method table and `e
 keeps its class table and the `finish` snippet, because they cover `Core` ids. `other-statements.mdx`
 keeps its table of statements Novis does not have.
 
+`syntax/values/` is converted too: 10 pages, each built and checked the same way, with both stamps.
+A feature that two pages covered is shown on one and linked from the other:
+`values-written-in-the-code` is on `strings.mdx`, and `nullable-union-single-value-and-enum-case-types`
+on `nullable.mdx`. `enums.mdx` gained `lang:enums/an-enum-inside-a-class`, which no page covered,
+and dropped its `Core` enum snippet, because `core-enums` shows the same thing. The few facts no
+feature says stay in the frame: `mixed` to tainted text (`as.mdx`, `is.mdx`), `is int` on `"7"`, the
+nowdoc, `?->` on a nullable object and `7 / 2` being `3.5`. Two `numbers` questions moved to
+`strings`, whose page now answers them.
+
+`lang:types/property-keys`, `property-paths` and `strings-with-holes` are on no syntax page, which
+`site --check syntax` reports as `uncovered`. They were uncovered before stage 7 too.
+
 `throw-and-catch.mdx` shows both `throw` features and both `try-catch-finally` features, each
 under its own heading, and both `about.md` files stay: merging two would delete a roster id and a
 chapter heading, which is stage 8's generator to decide if it is still wanted.
@@ -421,7 +433,11 @@ page has and neither text has is a fact: check it on the binary and move it into
 `details.md`. A page that also covers a `Core` id (`LateInit`, `PropertyGuard`) keeps a `<Snippet>`
 or a short table, or links the Reference page for that id. Write a page whole with Write: the guard
 refuses a heredoc script, and `looper verify` piped into `tail`.
-- [ ] `values/`, `programs/` and `classes/`. `website/src/content/docs/syntax/classes/objects.mdx:1`
+- [ ] `programs/` and `classes/`. `website/src/content/docs/syntax/classes/objects.mdx:1`
+  - [x] `values/`, 10 pages, stamped
+  - [ ] `programs/`, 3 pages. `website/src/content/docs/syntax/programs/namespaces.mdx:1`
+  - [ ] `classes/`, 8 pages. `website/src/content/docs/syntax/classes/objects.mdx:1`
+  - [ ] a `classes/` page for `lang:types/property-keys`, `property-paths` and `strings-with-holes`, which no page covers, with its sidebar entry and its questions. `docs/examples/lang/types/property-keys/about.md:1`
 - [ ] `concurrency/`, `attributes/` and `testing/`. `website/src/content/docs/syntax/concurrency/tasks.mdx:1`
 - [ ] A chapter edited in stage 7 or 8 owes `bun nv proofs --record-perf --group lang:<chapter>` after its last edit, and a bench that calls a `Core` method declares that call in `calls`. `tools/nv/proofs/roster.ts:28`
 

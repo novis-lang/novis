@@ -235,19 +235,19 @@
     "lang:testing/test-options": "1205a1b0a3e41c84"
   },
   "syntax/values/arrays.mdx": {
-    "lang:expressions/arrays-in-expressions": "f724608860f5f344",
-    "lang:types/array-t": "7bfb5cead6673df4"
+    "lang:expressions/arrays-in-expressions": "fed911f5e1ad5f30",
+    "lang:types/array-t": "029970fc363284b5"
   },
   "syntax/values/as.mdx": {
-    "lang:types/the-conversion-operator-as": "9484356bedc326a2",
-    "lang:types/widening-without-as": "e75a917435fa86d6"
+    "lang:types/the-conversion-operator-as": "a11035cbd513f5b5",
+    "lang:types/widening-without-as": "1c20885d95078c9f"
   },
   "syntax/values/bool-and-null.mdx": {
-    "lang:types/truthiness": "cde4ed2f260d7d7c"
+    "lang:types/truthiness": "5b85462e3b4adf57"
   },
   "syntax/values/enums.mdx": {
-    "Core\\Arr::Order": "d5be8754a1824a75",
-    "Core\\Arr::SetOn": "2dc1a8b8dd83af18",
+    "Core\\Arr::Order": "5933688e0cc27d92",
+    "Core\\Arr::SetOn": "6f39a54cea93305f",
     "Core\\Audience": "563cd38183dc8ae6",
     "Core\\Charset": "2a993835856562a7",
     "Core\\Cldr::PluralCategory": "ec3ee07e5dc9b804",
@@ -267,49 +267,48 @@
     "Core\\Env::Mode": "342789b2b8aa6074",
     "Core\\Hash::Digest": "0cdb53a7041bbfcb",
     "Core\\Http\\Method": "d25e4847da784935",
-    "Core\\IO::FileMode": "9317556e01bd0b25",
-    "Core\\Log::Level": "f456cd5db9b18ed5",
+    "Core\\IO::FileMode": "5fa3c82a4756cebf",
+    "Core\\Log::Level": "a987e0bc9521a3ac",
     "Core\\Mime::Type": "f91ca2d558add046",
     "Core\\Queue::State": "e5780156bed914ad",
-    "Core\\Reflect::TypeKind": "02abb80409e7f39a",
+    "Core\\Reflect::TypeKind": "f46b1e4f96387560",
     "Core\\Response::Redirect": "21aa4b52c0a23a3b",
     "Core\\Response::SameSite": "844ba22dd654dbfd",
     "Core\\RoundMode": "debc7e6b1729c8c7",
     "Core\\Script\\ExitReport::Reason": "e63043b3805e9273",
     "Core\\Str::NormalForm": "8eae3cf1719255d7",
-    "Core\\Time\\DateTime::Weekday": "b77632265389b080",
-    "Core\\Unit": "325e36d708bf2e5a",
+    "Core\\Time\\DateTime::Weekday": "6c3793ac2f62eab3",
+    "Core\\Unit": "eb68c4e10f572009",
     "Core\\Xml\\Node::Kind": "f35464494f865164",
-    "lang:enums/a-case-is-its-integer": "689ec76a8163f43f",
-    "lang:enums/a-union-of-cases-is-a-narrower-type": "d2b41c4e9db443a2",
-    "lang:enums/an-enum-as-a-type": "713d9f99c9595379",
-    "lang:enums/comparing-cases": "b6bb716b655f4dfe",
-    "lang:enums/core-enums": "343d5748cddffbb9",
-    "lang:enums/declaring-an-enum": "6b0e5dc99c50280d",
-    "lang:enums/from-an-integer-back-to-a-case": "58dacf94f022e093",
-    "lang:enums/match-and-switch-over-an-enum": "3154630c28c6169b",
-    "lang:enums/what-an-enum-does-not-have": "5db640958c9eecb5"
+    "lang:enums/a-case-is-its-integer": "33c2093584d060fa",
+    "lang:enums/a-union-of-cases-is-a-narrower-type": "a5127fb1f467dd76",
+    "lang:enums/an-enum-as-a-type": "b370d17bc83cb9b9",
+    "lang:enums/an-enum-inside-a-class": "f749df4be5e3deaf",
+    "lang:enums/comparing-cases": "4147a3af9f6d1f03",
+    "lang:enums/core-enums": "79a5e93792eae0f8",
+    "lang:enums/declaring-an-enum": "ce43071dfe57e90e",
+    "lang:enums/from-an-integer-back-to-a-case": "e6c679c12083e82c",
+    "lang:enums/match-and-switch-over-an-enum": "16bdec3cb77258a0",
+    "lang:enums/what-an-enum-does-not-have": "b64ab12cd6fbf544"
   },
   "syntax/values/is.mdx": {
-    "lang:types/narrowing": "ef73bd2a55f6926e"
+    "lang:types/narrowing": "ad042dceff98c4f3"
   },
   "syntax/values/nullable.mdx": {
-    "lang:types/nullable-union-single-value-and-enum-case-types": "56bf641e632fee17"
+    "lang:types/nullable-union-single-value-and-enum-case-types": "6f7328b199d201f3"
   },
   "syntax/values/numbers.mdx": {
-    "lang:types/numbers-bool-int-uint-float-decimal": "d6c129f570f1b22b",
-    "lang:types/values-written-in-the-code": "7d32b7973fcd1133"
+    "lang:types/numbers-bool-int-uint-float-decimal": "2a93a62ee965aa7d"
   },
   "syntax/values/strings.mdx": {
-    "lang:types/text-string-and-bytes": "495fc0b471e79523",
-    "lang:types/values-written-in-the-code": "7d32b7973fcd1133"
+    "lang:types/text-string-and-bytes": "10cf830bae14215a",
+    "lang:types/values-written-in-the-code": "47690c5fd9c084a9"
   },
   "syntax/values/tainted-and-secret.mdx": {
-    "lang:types/qualifiers-tainted-and-secret": "a0ba8159d9c102fb"
+    "lang:types/qualifiers-tainted-and-secret": "5850c0bc69003b93"
   },
   "syntax/values/union-types.mdx": {
-    "lang:types/mixed": "ec3d3184189db579",
-    "lang:types/nullable-union-single-value-and-enum-case-types": "56bf641e632fee17",
-    "lang:types/type-aliases": "a74c10267bf5e323"
+    "lang:types/mixed": "bb8f283ef47c510e",
+    "lang:types/type-aliases": "566db410fff3a624"
   }
 }
