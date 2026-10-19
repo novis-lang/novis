@@ -1397,7 +1397,11 @@ fn stack(nodes: &mut [Node], at: usize, work: &mut Vec<usize>) {
 /// current one, and the new element becomes its sibling. Every scope check
 /// the tree builder makes walks that stack, so the cap is what keeps each
 /// token's cost bounded and a parse's time in proportion to its document.
-const OPEN_ELEMENTS_CAP: usize = 512;
+///
+/// Under Miri the cap is 64. The tests that reach the cap parse a document
+/// deeper than it, and at 512 each one takes longer than Miri's test timeout.
+/// The code paths are the same at either depth.
+const OPEN_ELEMENTS_CAP: usize = if cfg!(miri) { 64 } else { 512 };
 
 /// `document`, parsed by the WHATWG algorithm under [`OPEN_ELEMENTS_CAP`].
 ///
@@ -3056,16 +3060,22 @@ mod tests {
         ];
         for (member, name) in members {
             // Made before the context, so the source is not on its balance.
-            let document = Value::str(NvsStr::new("<p>x".repeat(100_000).as_bytes()));
+            // Under Miri the limit and the document are a quarter of the size.
+            let (paragraphs, limit) = if cfg!(miri) {
+                (25_000, 256 << 10)
+            } else {
+                (100_000, 1 << 20)
+            };
+            let document = Value::str(NvsStr::new("<p>x".repeat(paragraphs).as_bytes()));
             let mut ctx = Ctx::new(OutputSink::Sink);
-            ctx.set_memory_limit(1 << 20);
+            ctx.set_memory_limit(limit);
             let answered = call(member, &mut ctx, &[document]);
             let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
             assert!(answered.is_err(), "{name} refuses a tree past the limit");
             let refusal = refusal.expect("a refusal leaves its message in the context");
             assert!(refusal.contains("memory limit"), "{name}: {refusal}");
             assert!(
-                ctx.memory_peak() < 2 << 20,
+                ctx.memory_peak() < 2 * limit,
                 "{name} stopped at the limit rather than after the whole tree: peak {}",
                 ctx.memory_peak()
             );
@@ -3165,7 +3175,7 @@ mod tests {
     /// so the steps per tag stay under a small multiple of the cap.
     #[test]
     fn every_walk_over_the_stack_of_open_elements_is_bounded_by_the_cap() {
-        const COUNT: usize = 20_000;
+        const COUNT: usize = if cfg!(miri) { 1_200 } else { 20_000 };
         let cases = [
             ("<div>".repeat(COUNT), COUNT),
             ("<span>".repeat(COUNT) + &"</x>".repeat(COUNT), 2 * COUNT),
@@ -3236,15 +3246,18 @@ mod tests {
     ///
     /// The duplicate check runs once for each attribute, against the ones
     /// before it on the same tag. A set makes that check constant, so this tag
-    /// parses in time in proportion to its length.
+    /// parses in time in proportion to its length. Under Miri the tag has
+    /// two thousand attributes, which is still far past the count where the
+    /// set is used.
     #[test]
     fn a_tag_with_a_hundred_thousand_attributes_keeps_them_all() {
-        let attributes: String = (0..100_000).map(|i| format!(" a{i}={i}")).collect();
+        let count: usize = if cfg!(miri) { 2_000 } else { 100_000 };
+        let attributes: String = (0..count).map(|i| format!(" a{i}={i}")).collect();
         let tree = parse(&format!("<p{attributes}>x"));
         let paragraph = &tree.children[0].children[1].children[0];
         assert_eq!(paragraph.name, "p");
-        assert_eq!(paragraph.attributes.len(), 100_000);
-        assert_eq!(paragraph.attributes[99_999].1, "99999");
+        assert_eq!(paragraph.attributes.len(), count);
+        assert_eq!(paragraph.attributes[count - 1].1, (count - 1).to_string());
     }
 
     /// A repeated `<html>` or `<body>` tag adds only the attributes the element

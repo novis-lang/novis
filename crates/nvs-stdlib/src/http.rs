@@ -7815,6 +7815,11 @@ mod tests {
     /// core would then share (`rule:security/no-cross-request-state`). Each
     /// file is scanned down to its first `#[cfg(test)]` and with its comments
     /// dropped, so this case's own prose is not what it reads.
+    #[cfg_attr(
+        miri,
+        ignore = "it reads only source text, which has no memory for Miri to check, \
+                  and scanning both files takes minutes under Miri"
+    )]
     #[test]
     fn no_proxy_environment_variable_is_ever_read() {
         let shipped = |source: &'static str| {
