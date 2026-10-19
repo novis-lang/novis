@@ -1758,12 +1758,13 @@ pub enum InstKind {
     /// [`crate::ty::Ty::Int`] for a subscript that was already an `int` and
     /// therefore never rendered — which is the crate docs' *an array key is
     /// a `string`, and an `int` subscript does not spell it*. `rule:types/arrays`'s key normalization is untouched (`$a[8]` is `$a["8"]`);
-    /// the decimal is simply never produced. A `uint` subscript is
-    /// rendered by `crate::lower::Lowering::lower_array_key`, with the
-    /// exact [`Helper::UintToString`] conversion
+    /// the decimal is simply never produced. A `uint` subscript is a
+    /// [`crate::ty::Ty::Tagged`] key: an `int` where its value fits one, and
+    /// above `i64::MAX` the decimal `crate::lower::Lowering::lower_array_key`
+    /// renders with the exact [`Helper::UintToString`] conversion
     /// [`Lowering::concat_operand`](crate::lower::Lowering::concat_operand)
-    /// already gives `.`'s scalar operand rather than a new policy; that
-    /// function's own doc comment says why an `i64` index cannot carry it.
+    /// already gives `.`'s scalar operand; that function's own doc comment
+    /// says why an `i64` index cannot carry every `uint`.
     ///
     /// **What an absent `key` answers is [`AbsentKey`]**, and it decides the
     /// rest of this instruction's shape. Under [`AbsentKey::Throws`] — every
@@ -1792,7 +1793,8 @@ pub enum InstKind {
     ArrayGet {
         /// The array, already lowered.
         array: ValueId,
-        /// The lookup key, already lowered — `Ty::Str` or `Ty::Int`.
+        /// The lookup key, already lowered — `Ty::Str`, `Ty::Int` or a
+        /// `uint` subscript's `Ty::Tagged`.
         key: ValueId,
         /// What this read answers when `key` names no entry.
         absent: AbsentKey,
@@ -1810,8 +1812,9 @@ pub enum InstKind {
     /// that split observable, and modeling a conditional get here would mean
     /// guessing at PHP's own missing-key behavior at the one place — an
     /// *ordinary* new-key insert — where nothing should be missing to begin
-    /// with. `key` is `Ty::Str` or `Ty::Int`, the same representations
-    /// [`InstKind::ArrayGet`]'s own doc comment describes.
+    /// with. `key` is `Ty::Str`, `Ty::Int` or `Ty::Tagged`, the same
+    /// representations [`InstKind::ArrayGet`]'s own doc comment describes;
+    /// `nvs-codegen` branches on a tagged key's tag.
     /// `crate::lower::Lowering::lower_reassignment`'s `Index`-target arm
     /// retains `key`/`value` first when either is
     /// [`crate::ty::Ty::is_refcounted`] and an aliasing read (the same
@@ -1834,7 +1837,8 @@ pub enum InstKind {
     ArraySet {
         /// The array, already lowered.
         array: ValueId,
-        /// The key to write, already lowered — `Ty::Str` or `Ty::Int`.
+        /// The key to write, already lowered — `Ty::Str`, `Ty::Int` or a
+        /// `uint` subscript's `Ty::Tagged`.
         key: ValueId,
         /// The new value, already lowered.
         value: ValueId,

@@ -1799,14 +1799,14 @@ fn reading_an_int_element_through_a_literal_key_carries_the_integer_unrendered()
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `$a[$i]` with a `uint` subscript — a subscript
-/// `Lowering::lower_array_key` renders, because the runtime's index ABI
-/// is an `i64` and a `uint` above `i64::MAX` has no `i64` spelling naming
-/// the same key. So `helper.uint_to_string` is in this output, and the
-/// fresh key it produces is released right after the borrow — the shape
-/// the `int` case above does not have.
+/// `$a[$i]` with a `uint` subscript, which `Lowering::lower_array_key`
+/// branches on: the runtime's index ABI is an `i64`, and a `uint` above
+/// `i64::MAX` has no `i64` spelling naming the same key. So the output has
+/// both arms — a `reinterpret` to `int` tagged without a call where the
+/// value is not negative as an `int`, and `helper.uint_to_string` only on the
+/// other edge — joined by a tagged phi that is released after the borrow.
 #[test]
-fn reading_an_element_through_a_uint_subscript_still_renders_the_decimal() {
+fn reading_an_element_through_a_uint_subscript_renders_only_past_i64_max() {
     let (f, map, file) = lower_first_method(
         "<?nvs\nclass T {\n  function m(array<int> $a, uint $i): int {\n    return $a[$i];\n  }\n}\n",
     );

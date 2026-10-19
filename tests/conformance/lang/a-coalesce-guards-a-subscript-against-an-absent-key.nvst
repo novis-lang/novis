@@ -29,7 +29,7 @@ array<?string> $maybe = ["n" => null, "j" => "here"];
 echo $maybe["n"] ?? "d", "|", $maybe["j"] ?? "d", "|", $maybe["gone"] ?? "d", "\n";
 
 // § 5: an `int` subscript names the same entry as its decimal, guarded or not,
-// and a `uint` one is rendered on the way in.
+// and so does a `uint` one.
 int $zero = 0;
 int $nine = 9;
 uint $u = 0;

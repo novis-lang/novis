@@ -102,8 +102,9 @@
 //! - **Ids are stable, not global.** See [`ids`]'s own module docs.
 //! - **An array key is a `string`, and an `int` subscript does not spell
 //!   it.** [`ir::InstKind::ArrayGet`]'s and [`ir::InstKind::ArraySet`]'s `key`
-//!   operand carries either [`ty::Ty::Str`] or [`ty::Ty::Int`], and codegen
-//!   picks the runtime primitive off the operand's own representation — there
+//!   operand carries [`ty::Ty::Str`] or [`ty::Ty::Int`], or for a `uint`
+//!   subscript [`ty::Ty::Tagged`], and codegen picks the runtime primitive
+//!   off the operand's own representation, or a tagged key's tag — there
 //!   is no second instruction, no key-kind field and no new [`ir::Helper`].
 //!   The alternative shapes are each worse for a reason worth recording: a
 //!   separate `ArrayGetIndex` doubles every array instruction and every match
@@ -116,11 +117,12 @@
 //!   and `$a[8]` is `$a["8"]`. The decimal is never produced at all, which is
 //!   `nvs_runtime::array`'s packed form making it unnecessary. A subscript
 //!   renders where that form cannot take the key:
-//!   a `uint`, because the runtime's index ABI is an `i64` and a `uint` above
-//!   `i64::MAX` has no `i64` spelling naming the same key, and any key
+//!   a `uint` above `i64::MAX`, because the runtime's index ABI is an `i64`
+//!   and such a `uint` has no `i64` spelling naming the same key, and any key
 //!   reaching [`ir::InstKind::ArrayUnset`], which has no index-shaped
-//!   primitive beside it. `lower::Lowering::lower_array_key` and
-//!   `lower_rendered_array_key` own those exceptions.
+//!   primitive beside it. A `uint` subscript therefore branches on its value
+//!   and joins its two arms as a tagged key. `lower::Lowering::lower_array_key`
+//!   and `lower_rendered_array_key` own those exceptions.
 //! - **A nested element write always separates the inner row, and that is
 //!   the price of having no branch.** `$grid[0][1] = v` flattens to its root
 //!   plus one key per level and descends with [`ir::Helper::ArrayRowForWrite`]

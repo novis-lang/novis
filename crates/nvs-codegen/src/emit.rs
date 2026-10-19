@@ -988,6 +988,12 @@ impl Emitter<'_, '_> {
                 );
             }
             InstKind::ArraySet { array, key, value } => {
+                // A tagged key is a `uint` subscript's, and its tag picks.
+                if self.value(*key)?.1 == Ty::Tagged {
+                    let (result, done) = self.emit_tagged_key_array_set(*array, *key, *value)?;
+                    self.define(inst, result)?;
+                    return Ok(done);
+                }
                 // The key operand's own representation picks the primitive,
                 // exactly as in `Self::emit_array_get`.
                 let (symbol, sig) = if self.value(*key)?.1 == Ty::Int {
@@ -3595,6 +3601,60 @@ impl Emitter<'_, '_> {
             None => self.b.ins().call(callee, &[array, slot]),
         };
         Ok(self.b.inst_results(call)[0])
+    }
+
+    /// `$a[$k] = expr;` with a [`Ty::Tagged`] key: `nvs_ir`'s `uint`
+    /// subscript, an `int` where its value fits one and a rendered string
+    /// where it does not. One compare of the tag byte picks
+    /// `nvs_array_set_index` or `nvs_array_set`, and the two calls join at a
+    /// block that takes the array either one yields, which is the block it
+    /// returns beside that array.
+    ///
+    /// The ownership is [`Self::emit_array_write`]'s: an `int` payload owns
+    /// nothing, and the string payload's one reference is the one
+    /// `nvs_array_set` consumes.
+    fn emit_tagged_key_array_set(
+        &mut self,
+        array: ValueId,
+        key: ValueId,
+        value: ValueId,
+    ) -> Result<(Value, Block), CodegenError> {
+        let (array, _) = self.value(array)?;
+        let (key, _) = self.value(key)?;
+        let (tag_word, bits) = self.split_tagged(key);
+        let slot = self.value_slot();
+        let (value, ty) = self.value(value)?;
+        self.store_value(slot, 0, value, ty)?;
+
+        let tag = self.b.ins().band_imm_u(tag_word, 0xff);
+        let is_int = self
+            .b
+            .ins()
+            .icmp_imm_u(IntCC::Equal, tag, i64::from(Tag::Int as u8));
+        let index = self.b.create_block();
+        let keyed = self.b.create_block();
+        let done = self.b.create_block();
+        let written = self.b.append_block_param(done, types::I64);
+        self.b.ins().brif(is_int, index, &[], keyed, &[]);
+
+        self.b.switch_to_block(index);
+        let callee = self.runtime_ref("nvs_array_set_index", RuntimeSig::ArraySetIndex)?;
+        let call = self.b.ins().call(callee, &[array, bits, slot]);
+        let result = self.b.inst_results(call)[0];
+        self.b
+            .ins()
+            .jump(done, &[codegen::ir::BlockArg::Value(result)]);
+
+        self.b.switch_to_block(keyed);
+        let callee = self.runtime_ref("nvs_array_set", RuntimeSig::ArraySet)?;
+        let call = self.b.ins().call(callee, &[array, bits, slot]);
+        let result = self.b.inst_results(call)[0];
+        self.b
+            .ins()
+            .jump(done, &[codegen::ir::BlockArg::Value(result)]);
+
+        self.b.switch_to_block(done);
+        Ok((written, done))
     }
 
     /// `$a[] = expr;`: an array write that can fail, so one emitted as a
