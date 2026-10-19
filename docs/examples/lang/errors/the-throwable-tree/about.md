@@ -11,4 +11,5 @@ A `catch` arm also catches every class under the one it names, so `catch (Throwa
 everything.
 
 **The examples below** show which class each common failure throws, how one arm takes a whole
-branch, and a job that treats a bug and a bad input differently.
+branch, and a job that treats a bug and a bad input differently. The last one shows the error for
+`Exception`.

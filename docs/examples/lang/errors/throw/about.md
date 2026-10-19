@@ -3,8 +3,8 @@
 clause whose class matches takes over, and the lines after the `throw` never run.
 
 `throw` is a statement, and it is also an expression. You can write it where a value is expected:
-after `??` when a value may be missing, in a `match` arm for a subject the program has no answer
-for, and in a ternary arm. In each of those places the program either has a value or throws, so
+after `??` when a value may be missing, in the `default` arm of a `match`, and in a ternary
+arm. In each of those places the program either has a value or throws, so
 every line after it can use the value.
 
 **The examples below** show `throw` after `??` for a missing field, in the `default` arm of a

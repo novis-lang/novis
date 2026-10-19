@@ -1,4 +1,4 @@
-A caught error gives you what it knows as properties, and there are no accessor methods.
+You read a caught error through its properties. There are no accessor methods.
 
 `getMessage()`, `getPrevious()`, `getTrace()`, `getFile()`, `getLine()` and `getCode()` do not
 exist. Write `$e->message` instead.
@@ -12,4 +12,4 @@ one entry per problem the parser found, each with a `path` and a `message`.
 problem it is.
 
 **The examples below** show where a throw came from, the list of problems in a parse error, and one
-log line built out of a caught error.
+log line built out of a caught error. The last one shows the error for `getMessage()`.

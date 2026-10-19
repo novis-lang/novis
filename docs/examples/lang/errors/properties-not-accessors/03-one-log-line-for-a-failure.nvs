@@ -26,8 +26,8 @@ try {
     var $cause = $failed->previous;
     bool $more = true;
     while ($more) {
-        // `previous` is `null` at the end of the chain, so it is read into a
-        // name and checked before anything is asked of it.
+        // `previous` is `null` at the end of the chain. So the code copies it
+        // into a variable and checks it before it reads `message`.
         var $here = $cause;
         if ($here == null) {
             $more = false;
