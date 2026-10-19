@@ -7,7 +7,7 @@
 //     bun nv bench --engines nvs,php      narrow the roster; the default is all four
 //     bun nv bench --php-mode default     PHP as installed, instead of with opcache+JIT
 //     bun nv bench --json data/perf/userland.ndjson   append one record per case
-//     bun nv bench --warm-start --max-work-ms 6       the CLI's own start cost, budgeted
+//     bun nv bench --warm-start --max-work-ms 6       the CLI's own start cost, soft and hard bounds
 //     bun nv bench --serve-vs-fpm --record PATH       requests/sec against PHP, appended to PATH
 //
 // The cases live in `benches/userland/` as twins -- `NN-slug.nvs`, `.php`, `.py` and `.ts` -- and that
@@ -52,13 +52,25 @@
 // compile. A cache directory that is refused makes every rep compile, which is the shape a regression
 // here takes.
 //
-// `--max-work-ms` budgets the total LESS `nvs --version`. Most of a process's wall clock is the
-// operating system creating it, and a budget on the total budgets the machine. `--version` is the same
+// `--max-work-ms` bounds the total LESS `nvs --version`. Most of a process's wall clock is the
+// operating system creating it, and a bound on the total bounds the machine. `--version` is the same
 // binary, loader and page cache doing strictly less, so the difference is config load, compile and run.
-// Load on a machine dilates a process multiplicatively rather than adding a constant, and a uniformly
-// slow box has a tight median, so the level of that floor is the reading that tells a busy box from a
-// quiet one: above `QUIET_FLOOR_MS` the leg prints "not measured" and passes. What this cannot see is a
-// regression in the floor itself, which is why both figures are printed on every run.
+// What this cannot see is a regression in the floor itself, which is why both figures are printed on
+// every run.
+//
+// The figure has the two bounds `rule:testing/perf-two-mechanisms` gives a timing. `--max-work-ms` is
+// the soft one: a figure over it prints a warning, a GitHub Actions annotation and a step-summary line,
+// and fails nothing. A hosted Linux runner reads 5 to 8 ms of work across runs of commits with no
+// start-up change between them, so a single bound at 6 ms failed about every second run, and CI
+// passes 9. The hard
+// bound is `HARD_FACTOR` times the soft one, the rule's order of magnitude: a cache miss cannot be the
+// mark, because the empty program compiles in so little time that a warm run costs 85 to 93% of a cold
+// one. A figure past the hard bound is measured again, up to `HARD_ATTEMPTS` attempts, and only the
+// last is judged, so it fails on a start-up that changed in kind and not on a burst of load.
+//
+// The soft bound is read only on a quiet box. Load on a machine dilates a process multiplicatively, so
+// the level of the start floor is the reading that tells a busy box from a quiet one: above
+// `QUIET_FLOOR_MS` the leg says the soft bound was not read. The hard bound is judged on every box.
 //
 // The configuration is named rather than left to `./nvs.toml`, which in this repository is a fixture the
 // goals keep adding to. `SHIPPED_CONFIG` is what a user's start resolves, so a directive added to the
@@ -128,8 +140,12 @@ const BASELINE = "00-baseline";
 const SHIPPED_CONFIG = join(ROOT, "crates", "nvs-config", "src", "default.toml");
 /** The engine every ratio is taken against, and the one that defines a case. */
 const PRIMARY = "nvs";
-/** `--warm-start` abstains above this start floor; the module doc says why. */
+/** `--warm-start` reads no soft bound above this start floor; the module doc says why. */
 const QUIET_FLOOR_MS = 5.75;
+/** `--warm-start`'s hard bound is this many times `--max-work-ms`, its soft one. */
+const HARD_FACTOR = 10;
+/** How many times `--warm-start` measures a figure past its hard bound before it fails. */
+const HARD_ATTEMPTS = 3;
 const SUITE_REPS = 5;
 const WARM_START_REPS = 25;
 const SERVE_DIR = join(ROOT, "benches", "serve");
@@ -256,7 +272,7 @@ function help(): string {
     "                        `jit` (default) runs PHP with opcache+tracing JIT; `default` runs it as installed",
     "  --allow-debug         permit a debug Novis binary",
     "  --warm-start          measure the CLI's start floor on the baseline case instead of running the suite",
-    "  --max-work-ms MS      with --warm-start: exit non-zero if the total less `nvs --version` exceeds this budget",
+    "  --max-work-ms MS      with --warm-start: warn if the total less `nvs --version` is over MS, and exit non-zero if it is over 10 times MS",
     "  --json PATH           append one NDJSON record per case",
     "  --serve-vs-fpm        measure `nvs serve` requests/sec against PHP with opcache, instead of the suite",
     "  --record PATH         with --serve-vs-fpm: append the run to the JSON array at PATH",
@@ -442,7 +458,39 @@ export function warnIfStale(binary: string): void {
 // The warm-start figure.
 // ---------------------------------------------------------------------------------------------------
 
-/** What a second `nvs run` of the empty program costs, less what starting the binary at all costs. */
+/** One warm-start reading: the start floor, the warm run and the work between them. */
+interface WarmReading {
+  floor: Measured;
+  total: Measured;
+  work: number;
+}
+
+/** Measures the floor and the warm run once each, or prints why one failed and gives null. */
+function warmReading(exe: string, source: string, reps: number): WarmReading | null {
+  const floor = measure([exe, "--version"], reps);
+  const total = measure([exe, "run", "--config", SHIPPED_CONFIG, source], reps);
+  for (const [what, result] of [["nvs --version", floor], ["nvs run", total]] as const) {
+    if (result.failed) {
+      console.log(`warm start FAILED: \`${what}\` exit ${result.code}`);
+      console.error(result.stderr.trimEnd() || result.stdout.trimEnd());
+      return null;
+    }
+  }
+  return { floor, total, work: total.min_ms! - floor.min_ms! };
+}
+
+/** A soft-bound miss: a line in the log, and on GitHub Actions an annotation and a line in the step
+ * summary (`rule:testing/perf-two-mechanisms`). It fails nothing. */
+export function softWarning(text: string): void {
+  console.log(`  warning: ${text}`);
+  if (process.env.GITHUB_ACTIONS !== "true") return;
+  console.log(`::warning title=warm start::${text}`);
+  const summary = process.env.GITHUB_STEP_SUMMARY;
+  if (summary) appendFileSync(summary, `- warm start: ${text}\n`);
+}
+
+/** What a second `nvs run` of the empty program costs, less what starting the binary at all costs.
+ * `maxWorkMs` is the soft bound and `HARD_FACTOR` times it the hard one; the module doc says why. */
 function warmStart(binary: string, reps: number, maxWorkMs: number | null): number {
   const source = join(CASE_DIR, `${BASELINE}.nvs`);
   if (!existsSync(source)) throw new Fail(`no ${source}: the warm-start figure is measured on the baseline case`);
@@ -450,17 +498,16 @@ function warmStart(binary: string, reps: number, maxWorkMs: number | null): numb
 
   const exe = resolve(binary);
   console.log(`nvs  ${shownPath(binary)}  (${version(exe, ["--version"])})`);
-  const floor = measure([exe, "--version"], reps);
-  const total = measure([exe, "run", "--config", SHIPPED_CONFIG, source], reps);
-  for (const [what, result] of [["nvs --version", floor], ["nvs run", total]] as const) {
-    if (result.failed) {
-      console.log(`warm start FAILED: \`${what}\` exit ${result.code}`);
-      console.error(result.stderr.trimEnd() || result.stdout.trimEnd());
-      return 1;
-    }
+  const hardMs = maxWorkMs === null ? null : maxWorkMs * HARD_FACTOR;
+  let reading = warmReading(exe, source, reps);
+  // Past the hard bound, the figure is measured again and only the last attempt is judged.
+  for (let attempt = 1; reading !== null && hardMs !== null && reading.work > hardMs && attempt < HARD_ATTEMPTS; attempt++) {
+    console.log(`  attempt ${attempt} of ${HARD_ATTEMPTS}: ${fmt(reading.work)} ms of work is past the ${fmt(hardMs)} ms hard bound, measuring again`);
+    reading = warmReading(exe, source, reps);
   }
+  if (reading === null) return 1;
+  const { floor, total, work } = reading;
 
-  const work = total.min_ms! - floor.min_ms!;
   const label = relative(ROOT, source).split(sep).join("/");
   const config = relative(ROOT, SHIPPED_CONFIG).split(sep).join("/");
   console.log(`warm start  nvs run ${label}  (${reps} rep(s), one discarded warm-up)`);
@@ -469,17 +516,23 @@ function warmStart(binary: string, reps: number, maxWorkMs: number | null): numb
   console.log(`  novis work  ${fmt(work)} ms   the total less that floor`);
   console.log(`  config      ${config}, so the figure moves with the binary rather than with this tree's own \`nvs.toml\``);
   console.log("  each rep is an `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` warm hit; the discarded warm-up published the artifact");
-  if (maxWorkMs === null) return 0;
+  if (maxWorkMs === null || hardMs === null) return 0;
+  if (work > hardMs) {
+    console.log(`  hard bound ${fmt(hardMs)} ms on the work -- EXCEEDED on all ${HARD_ATTEMPTS} attempts`);
+    return 1;
+  }
+  console.log(`  hard bound ${fmt(hardMs)} ms on the work -- within`);
   if (floor.min_ms! > QUIET_FLOOR_MS) {
     console.log(
-      `  not measured -- \`nvs --version\` alone costs ${fmt(floor.min_ms)} ms here, over the ${fmt(QUIET_FLOOR_MS)} ms ` +
-        `a box this budget can be read on, so the ${fmt(work)} ms difference is a figure about the machine`,
+      `  soft bound not read -- \`nvs --version\` alone costs ${fmt(floor.min_ms)} ms here, over the ${fmt(QUIET_FLOOR_MS)} ms ` +
+        `a box this bound can be read on, so the ${fmt(work)} ms difference is a figure about the machine`,
     );
     return 0;
   }
-  const within = work <= maxWorkMs;
-  console.log(`  budget ${fmt(maxWorkMs)} ms on the work -- ${within ? "within" : "EXCEEDED"}`);
-  return within ? 0 : 1;
+  if (work > maxWorkMs) {
+    softWarning(`${fmt(work)} ms of work is over the ${fmt(maxWorkMs)} ms soft bound; measure the commit before it on this machine`);
+  } else console.log(`  soft bound ${fmt(maxWorkMs)} ms on the work -- within`);
+  return 0;
 }
 
 // ---------------------------------------------------------------------------------------------------

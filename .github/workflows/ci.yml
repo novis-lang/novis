@@ -323,14 +323,13 @@ jobs:
         if: needs.changes.outputs.deep == 'true'
         run: cargo test --release -p nvs-cli --bin nvs -- --ignored live_bytes_stay_flat_while_one_core_serves_thousands_of_requests
 
-      # The warm-start budget is absolute where the margins above are ratios, so it is the one guard a
-      # hosted runner can fail by being slow rather than by the tree having moved. It runs here with the
-      # same `--max-work-ms 6` a development machine is held to, unrelaxed, because the leg abstains on a
-      # busy box by itself: when `nvs --version` alone is over its quiet floor it prints "not measured"
-      # and passes (`tools/nv/cmd/bench.ts` § *The warm-start figure*). A runner under that floor is as
-      # quiet as a development machine, and a figure over budget there is a regression in the tree.
+      # The warm-start figure is absolute where the margins above are ratios, so it has the two bounds
+      # `rule:testing/perf-two-mechanisms` gives a timing (`tools/nv/cmd/bench.ts` § *The warm-start
+      # figure*). `--max-work-ms 9` is the soft one, which only warns: every reading a quiet hosted Linux
+      # runner gave from 2026-10-08 on was 4.9 to 8.1 ms, with no start-up change behind the spread. The
+      # hard one is ten times that, and fails only after three attempts.
       - name: Warm-start budget
-        run: bun nv bench --warm-start --max-work-ms 6
+        run: bun nv bench --warm-start --max-work-ms 9
 
   # ---------------------------------------------------------------------------
   # Every feature's examples and attacks, run once each on the proof binary, after the gate that
