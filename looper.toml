@@ -10,6 +10,7 @@ playbook_dir = "docs/agent/playbook"
 harvest = false           # Novis harvests nothing: a reached goal's decisions are already rules
 carry_to_floor = false    # no check joins the floor when its goal is reached
 scratch = ".agent-tmp"
+design = ""               # no architecture doc: the rules and each crate's module doc hold the design
 
 [budget]                  # the ceilings of AGENTS.md § Session workflow step 2, with no kill
 hard = 200000
