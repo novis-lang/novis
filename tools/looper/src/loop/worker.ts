@@ -36,6 +36,9 @@
 //   loop paused and is recorded as a `warn` control by `looper`. `appendControl` refuses that resume
 //   first, so the worker's check matters only for a line written past it.
 // - When the run ends, the worker writes `idle` with why, and releases the mutex.
+// - While a session runs, `live.json` in the loop's folder holds its stats (`Stats` in `session.ts`),
+//   rewritten with each snapshot, at most once a second. The worker deletes it when the session ends,
+//   and when its run starts, so one left by a worker that died is never read as live.
 //
 // `state.json` in the loop's folder is the worker's alone, a state file rewritten whenever what it holds
 // changes (`WorkerState`). It names the state: `running`, `checking`, `waiting`, `paused`, `landing`, or
@@ -71,7 +74,7 @@
 // - The disk gate records no reason, so the loop shows only `waiting`.
 // - A stop left unread by a worker that died stops the next run at once, unless a `start` follows it.
 
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { goalPath, Refused } from "../goal/model.ts";
 import { freeBytes, GIB, type Mutex, openMutex } from "../os/index.ts";
@@ -84,11 +87,13 @@ import { addNote, Driver, LANDING_PROMPT, type Outcome, type Policy, parseSettin
 import type { Side } from "./catch-up.ts";
 import type { HookEvent } from "./hooks.ts";
 import type { Lander, Step, Waits } from "./landing.ts";
-import { Controls, type Live } from "./session.ts";
+import { Controls, type Live, type Stats } from "./session.ts";
 import { Walls } from "./wall.ts";
 
 /** The worker's state file in the loop's folder. */
 export const STATE_FILE = "state.json";
+/** The running session's stats in the loop's folder, gone while no session runs. */
+export const LIVE_FILE = "live.json";
 /** How often the worker reads new controls, in ms. */
 export const POLL_MS = 250;
 /** How long the disk gate waits before it reads the free space again, in ms. */
@@ -219,6 +224,7 @@ export class Worker {
   private readonly session = new Controls();
   private readonly reader: ControlReader;
   private readonly statePath: string;
+  private readonly livePath: string;
   private st: WorkerState;
   /** Whether the `before_run` hooks have passed in this run. */
   private started = false;
@@ -231,6 +237,7 @@ export class Worker {
   constructor(o: WorkerOptions) {
     this.dir = o.dir;
     this.statePath = join(o.dir, STATE_FILE);
+    this.livePath = join(o.dir, LIVE_FILE);
     this.reader = new ControlReader(o.dir);
     const status = join(o.dir, "status.txt");
     const cfg = loadConfig(o.root);
@@ -251,6 +258,7 @@ export class Worker {
       prompts: { session: SESSION_PROMPT, repair: REPAIR_PROMPT, landing: LANDING_PROMPT },
       policy: o.policy,
       live: o.live,
+      stats: (s) => this.stats(s),
       progress: (run) => this.checking(run),
     });
     this.st = {
@@ -302,6 +310,7 @@ export class Worker {
 
   /** Folds the controls file for the pause that stands, and acts on the controls this run is due. */
   private begin(): void {
+    this.stats(null);
     const last = readState<WorkerState>(this.statePath);
     const all: Read[] = [];
     for (let page = this.reader.read(); page.length > 0; page = this.reader.read()) all.push(...page);
@@ -396,6 +405,17 @@ export class Worker {
   private name(state: WorkerState["state"]): void {
     this.st.state = state;
     this.write();
+  }
+
+  /** Writes the running session's stats to `live.json`, or deletes it once the session has ended. The
+   * file is only a view, so a write that fails is dropped and the next snapshot tries again. */
+  private stats(s: Stats | null): void {
+    try {
+      if (s === null) rmSync(this.livePath, { force: true });
+      else writeState(this.livePath, s);
+    } catch {
+      // The next snapshot, or the next session's start, writes it again.
+    }
   }
 
   /** Names `checking` and keeps `run`: the driver's progress sink. */
