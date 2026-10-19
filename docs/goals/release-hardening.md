@@ -358,8 +358,14 @@ Stages 1 to 7 are done. Stage 8 is under way.
   open-elements walk 23 s (284 s on CI), compress's chunk refcount 14 s (267 s), the p256 agreement
   30 s (265 s; it now uses RFC 5903's published point, asserted natively against the multiplied one),
   `csv_rows`' memory bound 26 s (261 s; `READ_CHUNK` is 2 KiB under Miri and the document 48
-  records), cldr's plurals 10 s (247 s; the walk stops at 11). Next on that run: a jwe encrypt
-  235 s, then nine from 180 to 205 s.
+  records), cldr's plurals 10 s (247 s; the walk stops at 11).
+- **The three left over 200 s on that run** run locally in about 30 s each, alone, which is the
+  same as the five cut ones. `regex`'s group-reference replace (201 s on CI) is cut to 18 s:
+  Miri spends 13 s building `.+`'s Unicode class, so its memory-limit case uses `a+` and a
+  smaller limit (`crates/nvs-stdlib/src/regex.rs:3042`). The jwe encrypt (235 s, local 32 s) and
+  `uri`'s round trip (204 s, local 40 s) are unchanged. The `uri` probe found no hot spot: 8 s on
+  the first call (the class table), 1.7 s per corpus row, and 8 s after the body ends, outside the
+  test. That trailing 8 s may be paid by every test.
 - **Fixed costs cut so far:** the vector set's parse (`crates/nvs-stdlib/src/tests/vectors.rs:46`)
   and the `Core` class table (`crates/nvs-stdlib/src/instance.rs:463`, 13.2 s to 5.6 s under
   Miri). The table cut has not yet run on CI.
@@ -379,7 +385,8 @@ Stages 1 to 7 are done. Stage 8 is under way.
 
 Stage 8, reading the next nightly's Miri shards (`rule:testing/the-deep-lane`, `.github/workflows/ci.yml:1180`):
 - [ ] Ask the user to push `main`, then read every `miri units` shard of the first nightly that contains these commits. Tick the two Miri checkpoints of stage 8 once every shard is green and no test runs past about 200 s. `docs/goals/release-hardening.md:263`
-- [ ] A test still over about 200 s on that run gets a smaller input or a reasoned ignore. Start with the jwe encrypt (235 s on run 39206993876). `crates/nvs-stdlib/src/jwe.rs:1`
+- [ ] A test still over about 200 s on that run gets a smaller input or a reasoned ignore. The jwe encrypt (235 s on run 39206993876) and `uri`'s round trip (204 s) are the likeliest, unless the class-table cut already brings them under. `crates/nvs-stdlib/src/jwe.rs:1559`, `crates/nvs-stdlib/src/uri.rs:4147`
+- [ ] Find what Miri spends the 8 s after a test body ends on, measured on `uri`'s round trip. If every test pays it, cutting it shortens every shard. `crates/nvs-stdlib/src/uri.rs:4147`
 - [ ] With the shards green, start the runner mode that sends many cases through one worker. `crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`
 
 ### Backlog
