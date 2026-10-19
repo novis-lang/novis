@@ -5,8 +5,9 @@ function Core\Program::implementingWith<I, T>(string $member = ""): array<{insta
 `rule:programs/implementing`'s enumeration joined with `rule:attributes/structural-retrieval`'s retrieval
 in one expansion: one row per class the enumeration would instantiate, in its order, each carrying the
 instance and what `Core\Attributes::get<T>` answers for that class's own `$member` — the class itself for
-an empty name, its method for a method name, its property or constructor parameter otherwise, so a
-promoted parameter is read once. `attribute` is the one attached payload object satisfying `T`, or `null`.
+an empty name, its method for a method name, its property otherwise joined with the constructor
+parameter of that name, so a promoted parameter is read once. A constructor parameter that is not
+promoted is no property, and its name is `E0798`. `attribute` is the one attached payload object satisfying `T`, or `null`.
 
 `I` is an interface or a class, selected exactly as `implementing<I>` selects it.
 

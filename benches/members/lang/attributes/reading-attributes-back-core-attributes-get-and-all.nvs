@@ -3,7 +3,7 @@
 // `all`, and one more read off a parameter. A router does this for every method
 // it knows about when the program starts.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: allocations 8
 // bench: complexity constant
 

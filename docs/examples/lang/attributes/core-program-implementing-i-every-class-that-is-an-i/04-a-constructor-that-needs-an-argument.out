@@ -1,0 +1,9 @@
+error[E0744]: `SmtpSender` is a `Sender` and its constructor takes 1 required argument(s)
+   --> 04-a-constructor-that-needs-an-argument.nvs:24:10
+   |
+24 | foreach (Core\Program::implementing<Sender>() as Sender $sender) {
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this enumeration would write `new SmtpSender()`
+   = help: `rule:programs/implementing`: every class the enumeration instantiates needs a no-argument constructor, and dependencies arrive through `Sender`'s own methods instead — give `SmtpSender` a zero-argument `constructor`, or list the classes with `Core\Program::constructors<Sender, callable(...): Sender>()`, which passes the arguments you give it (`rule:programs/constructors`)
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

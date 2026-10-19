@@ -5,7 +5,7 @@
 // bench: iterations 256
 // bench: complexity linear
 // proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
-// bench: calls 1
+// bench: calls 2
 
 type Label = {text: string};
 

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/program.rs",
+  "title": "`Core\\Program::implementing` calls a `private` or `protected` constructor from outside the class.",
+  "text": "A class with `private function constructor()` is in `Core\\Program::implementing<I>()`'s list, and so is one with a `protected` constructor. The call runs the constructor from the top level of the program, where `new A()` is `E0471`, so a class that hides its constructor to control how it is made is created anyway. `implementingWith` does the same. `constructors_of` checks the argument count and not the visibility, and `constructor_fitting`, which `Core\\Program::constructors` uses, does check it. It closes when such a class is a diagnostic at the call, as `new` is, with a conformance case.",
+  "goal": "release-hardening"
+}

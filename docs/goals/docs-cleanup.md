@@ -324,6 +324,8 @@ with each.
       - [x] `a-child-shares-nothing` to `what-does-not-exist`
       - [x] `lang:concurrency`' perf recorded after the chapter's last edit
   - [ ] `90-attributes` and `95-testing`
+    - [x] `90-attributes`, then `lang:attributes`' perf recorded after the chapter's last edit
+    - [ ] `95-testing`, then `lang:testing`' perf recorded after the chapter's last edit
 
 ### 7. the syntax pages show each feature's about.md, details and examples
 
@@ -1109,12 +1111,33 @@ variadic) compiles and `run` throws `LogicError`
 (`data/gaps/nvs-types/a-positional-command-parameter-of-a.json`); an empty or spaced command name
 and a `short:` that is not one letter compile (`data/gaps/nvs-types/a-command-name-or-option-spelling.json`);
 and `#[Core\Api]` above a class joined `a-compiler-read-attribute-on-a.json`. `llms-full.txt` is
-rendered again. The sweep's red jobs are run 39173391347 on `main` at be3e8a605, not this branch.
+rendered again.
+
+`90-attributes` is done: `Core\Program::implementing` and `implementingWith` closed it, each fact
+run on the binary, and `lang:attributes`' perf is recorded. One claim was wrong in three texts. The
+chapter, the syntax page `syntax/attributes/commands-and-discovery.mdx` and
+`rule:programs/implementing-with` said a constructor-parameter name reads that parameter's
+attributes. Only a promoted one does, since it is a property; a plain parameter's name is `E0798`
+(`expand_with`, `crates/nvs-types/src/program.rs:186`). All three now say so (`90-attributes.md:699`).
+`implementing`'s `details.md` has a class `I` and its subclasses, an interface that extends `I`,
+`E0743` (also for `Stringable`, `RuntimeError`, `mixed` and `object`), `E0303`, `E0442`, `E0402`,
+`E0744` and a constructor with defaults, the `array<I>` type, new objects on every call, sorting by
+the full name across namespaces, and `autoload` folders, each probed with files. Example 04 is
+`E0744`. `implementingWith`'s has the default `""`, `E0401` and `E0402`, a non-literal `$member`
+giving `null` rows, which members are found (a `static` or `private` method, `"constructor"`, a
+property without `$`), `E0798`, inherited and overridden methods, `E0728`, `E0729`, and the row type;
+example 04 is `E0798` (written with `var`, since a `foreach` puts a cascading `E0443` above it) and
+05 the chapter's route block. Its `about.md` was in the essay voice, now rewritten, and
+`implementing`'s said "Asking". Probing found a gap, owned by `release-hardening`: **both calls
+create a class whose constructor is `private` or `protected`**, where `new` is `E0471`
+(`data/gaps/nvs-types/core-program-implementing-calls-a-private.json`). Recording the perf failed six
+benches on `calls`, as the last handoff foresaw: a `Core` call counts since `ece7b500f`, so each now
+declares what it makes (`benches/members/lang/attributes/*.nvs`). `llms-full.txt` is rendered again.
+The sweep's red jobs are run 39173391347 on `main` at be3e8a605, not this branch.
 
 ### Next
 
-`90-attributes` goes on from `Core\Program::implementing<I>()` (`90-attributes.md:647`);
-take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
+`95-testing` closes stage 6 (`95-testing.md:8`); take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -1132,8 +1155,8 @@ A probe with a limit or a grant runs with `nvs run --config <file>.toml`, which 
 `nvs.toml`; an example needs its own `[[app]]` entry in the root `nvs.toml` instead (`nvs.toml:497`).
 A spawning probe has an `nvs.toml` with `[capabilities.script] spawn = true` beside it, and a probe
 runner gives each run a timeout, since a channel or a task with nothing to wait for never ends.
-- [ ] `90-attributes`' last two features, `Core\Program::implementing` and `implementingWith`, which share the syntax page `syntax/attributes/commands-and-discovery.mdx`. A probe runner (a JSON map of name to body, each run with a timeout, and a second map of name to argument lists for a command line) does a batch of twenty in one call. Then `bun nv proofs --record-perf --group lang:attributes`, since the chapter changed. `docs/reference/lang/90-attributes.md:647`
-- [ ] `95-testing`, which closes stage 6. `docs/reference/lang/95-testing.md:8`
+- [ ] `95-testing`, which closes stage 6. A probe of `#[Test]` runs with `nvs test <file>`, not `nvs run`, so the probe runner takes the command per case. A probe runner (a JSON map of name to body, each run with a timeout) does a batch of twenty in one call. Once its features are done, tick stage 6's last item and set its status. `docs/reference/lang/95-testing.md:8`
+- [ ] A bench that calls a `Core` method and declares fewer `calls` fails `--record-perf` (as six in `lang:attributes` did). `lang:testing`'s benches are checked the same way when its perf is recorded. `benches/members/lang/attributes/core-route-and-core-access-the-route-table.nvs:5`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
