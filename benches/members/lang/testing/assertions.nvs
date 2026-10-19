@@ -1,8 +1,8 @@
 <?nvs
-// Measures one passing assertion. A large test suite is millions of these, so
-// what `Core\Test::assertSame` costs when it holds is what such a suite costs.
+// Measures one `Core\Test::assertSame` call that passes. A large test suite
+// runs millions of these.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 
