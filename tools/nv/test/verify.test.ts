@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { CLEAN_LINE } from "../cmd/rules.ts";
 import { stepNames, summaries } from "../cmd/verify.ts";
 import { targetFilters } from "../keys/graph.ts";
 import { wayOut, wideWhy } from "../keys/escape.ts";
@@ -72,6 +73,11 @@ describe("summaries", () => {
   test("test sums every suite and counts the binaries not re-run", () => {
     const out = "     Unchanged a lib a\ntest result: ok. 3 passed; 0 failed\n     Running b\ntest result: ok. 2 passed; 1 failed";
     expect(summaries.test!(out)).toBe("5 passed, 1 failed  (2 suites, 1 binaries not re-run)");
+  });
+
+  test("the rules steps read the line a clean `nv rules` run prints", () => {
+    expect(summaries.rules!(`$ bun tools/nv/main.ts rules --check\n${CLEAN_LINE}\n`)).toBe("every rule loads and every `rule:` citation resolves");
+    expect(summaries["rules-render"]!(`${CLEAN_LINE}\n`)).toBe("the rulebook pages match their fragments");
   });
 
   test("fmt names the files it rewrote", () => {
