@@ -1,0 +1,72 @@
+<?nvs
+// Attack: a program tries to turn on a debug probe, such as `trace`, while it runs.
+// A trace records every call, so a request could use it to fill memory.
+// Only the configuration file may turn a probe on, so every change below should fail.
+
+// 1. Set `debug.mode` to each probe name, and to lists of names. Each change should fail.
+array<string> $values = [
+    'coverage',
+    'branch',
+    'trace',
+    'profile',
+    'Trace',
+    'TRACE',
+    ' trace',
+    '["trace"]',
+    '["coverage", "branch", "trace", "profile"]',
+    'coverage,trace',
+    'all',
+    '*',
+    'true',
+    '1',
+];
+uint $accepted = 0;
+foreach ($values as string $value) {
+    if (Core\Config::set('debug.mode', $value)) {
+        $accepted = $accepted + 1;
+    }
+}
+Core\Config::restore('debug.mode');
+echo 'changes accepted: ', $accepted, "\n";
+
+// 2. Set keys that are almost the real key: extra dots, capital letters and other names.
+array<string> $nearby = [
+    'debug.mode.',
+    '.debug.mode',
+    'debug..mode',
+    'debugmode',
+    'debug.modes',
+    'debug.mode.trace',
+    'debug.mode[0]',
+    'DEBUG.MODE',
+    'Debug.Mode',
+    'debug',
+    'mode',
+    'app.debug.mode',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, 'trace');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Use a key with 10,000 parts. A slow key lookup or a stack overflow would show here.
+string $deep = 'debug.mode.' . Core\Str::repeat('probe.', 10000) . 'trace';
+Core\Config::set($deep, 'trace');
+Core\Config::get($deep);
+Core\Config::restore($deep);
+
+// 4. Set a value of 1 MB that names the trace probe 200,000 times.
+Core\Config::set('debug.mode', Core\Str::repeat('trace,', 200000));
+Core\Config::restore('debug.mode');
+
+// 5. Try the same change 50,000 times. Each try should fail and leave nothing behind.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('debug.mode', 'trace');
+    Core\Config::restore('debug.mode');
+    $i = $i + 1;
+}
+
+// 6. The setting should still be the value from the file.
+echo 'debug.mode: ', Core\Config::get('debug.mode') ?? '(nothing)', "\n";
