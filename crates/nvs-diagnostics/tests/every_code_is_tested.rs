@@ -16,9 +16,18 @@ use std::path::Path;
 
 use nvs_diagnostics::code;
 
-/// Every code's number and the name of its constant, read out of the registry's source.
+/// Every code's number and the name of its constant, read out of the area files under
+/// `src/code/`.
 fn declarations() -> Vec<(String, String)> {
-    let source = include_str!("../src/lib.rs");
+    let dir = nvs_repo::path("crates/nvs-diagnostics/src/code");
+    let mut source = String::new();
+    for entry in fs::read_dir(&dir)
+        .expect("the area files are readable")
+        .flatten()
+    {
+        source.push_str(&fs::read_to_string(entry.path()).expect("an area file is text"));
+        source.push('\n');
+    }
     let mut out = Vec::new();
     for line in source.lines() {
         let Some(rest) = line.trim().strip_prefix("pub const ") else {
@@ -82,6 +91,10 @@ fn asserted(text: &str, number: &str, name: &str) -> bool {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "reads every file under `crates/` and `tests/`, which Miri interprets for longer than CI's miri job may run, and a text scan has no undefined behaviour of its own to find"
+)]
 fn every_code_is_asserted_by_its_code_in_a_test() {
     let crates = nvs_repo::path("crates");
     let own = crates.join("nvs-diagnostics").join("src");

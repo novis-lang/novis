@@ -16,7 +16,9 @@ try {
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");
-var $dn = "OU=Cinema,DC=example,DC=test";
+// The name ends in the process id, so two runs at the same time use different entries.
+string $run = Core\Os::pid() as string;
+var $dn = "OU=Cinema-" . $run . ",DC=example,DC=test";
 try {
     $corp->delete($dn);
 } catch (Core\Ldap\LdapError $gone) {
@@ -49,7 +51,7 @@ echo "not deleted: ", $live, "\n";
 connect = ["corp"]
 
 [ldap.corp]
-url = "ldaps://localhost:16636"
+url = "ldaps://127.0.0.1:16636"
 base = "DC=example,DC=test"
 user = "CN=Administrator,CN=Users,DC=example,DC=test"
 password = "Novis-test-1"

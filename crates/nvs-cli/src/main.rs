@@ -125,6 +125,7 @@ use nvs_syntax::{check_declarations, parse_file};
 mod agent;
 mod api_diff;
 mod ast;
+mod build;
 mod bundle;
 mod cache;
 mod check;
@@ -146,17 +147,22 @@ mod ext;
 mod extensions;
 mod fmt;
 mod info;
+mod init;
+mod lsp;
+mod lsp_test;
 mod meta;
 mod openapi;
 mod peer;
 mod queue;
 mod reload;
+mod run;
 mod runner;
 mod schema;
 mod script;
 mod serve;
 mod service;
 mod stop;
+mod stubs;
 #[cfg(test)]
 mod testing;
 mod tmp;
@@ -196,11 +202,18 @@ const VERSION: &str = concat!(
     ")"
 );
 
+/// The variable that compiles every unit of this process with Cranelift's optimiser off. It works
+/// on presence, as `NOVIS_NO_FILE_CACHE` does, and the conformance suite's second CI run sets it
+/// (`rule:testing/probes-on-is-a-tested-configuration`).
+const NO_OPTIMISE: &str = "NOVIS_NO_OPTIMISE";
+
 /// The environment variables `nvs` reads, which `nvs --help` lists below the options.
 const ENVIRONMENT: &str = "\
 Environment:
   NOVIS_NO_INIT        Do not create `nvs.toml` in the data folder, as `--no-init` does.
   NOVIS_NO_FILE_CACHE  Read and write no compiled artifact, so every program is compiled again.
+  NOVIS_NO_OPTIMISE    Compile without optimisations, and read and write no compiled artifact.
+                       The test suite uses it to check that both builds print the same output.
   NVS_FOOTPRINT_LOG    Append each `Core` class looked up, file read, directory listed and path
                        tested to this file, one line each. Used to record what a test run needs.";
 
@@ -287,7 +300,7 @@ fn set_data_folder(flag: Option<&std::path::Path>) {
 /// files there. Every other command only reads what is already there, so an
 /// audit or a status query never creates a folder.
 fn prepares(command: &Command) -> bool {
-    initializes(command) || matches!(command, Command::Lsp { .. })
+    initializes(command) || matches!(command, Command::Lsp(_))
 }
 
 /// Creates the data folder for a command in [`prepares`], or prints the one
@@ -347,1249 +360,45 @@ fn started_by_a_manager() -> bool {
 fn initializes(command: &Command) -> bool {
     matches!(
         command,
-        Command::Run { .. }
-            | Command::Serve { .. }
-            | Command::Test { .. }
-            | Command::Build { .. }
-            | Command::Check { .. }
+        Command::Run(_)
+            | Command::Serve(_)
+            | Command::Test(_)
+            | Command::Build(_)
+            | Command::Check(_)
     )
 }
 
 #[derive(Subcommand)]
 enum Command {
-    /// Parse a Novis file and print its AST.
-    Ast {
-        /// The file to parse.
-        file: PathBuf,
-        /// Print the frozen JSON schema rather than the `Debug` rendering.
-        #[arg(long)]
-        json: bool,
-        /// Print the tree the parser recovered into. The default, and
-        /// spelled out so a caller can pin it.
-        #[arg(long, conflicts_with = "strict")]
-        resilient: bool,
-        /// Print no tree at all once an error is reported.
-        #[arg(long)]
-        strict: bool,
-    },
-    /// Parse, resolve and type-check a Novis file, reporting every diagnostic
-    /// found.
-    Check {
-        /// The file to check.
-        file: PathBuf,
-        /// Print the diagnostics as the frozen JSON document rather than
-        /// rendering them for a terminal.
-        // Refused beside `--autoload-map` rather than one of them winning:
-        // both write to standard output, and a document with a map printed
-        // after it is not a document.
-        #[arg(long, conflicts_with = "autoload_map")]
-        json: bool,
-        /// Print the resolved `autoload` map instead of `no errors`,
-        /// including what a `discover` glob skipped and what was shadowed.
-        #[arg(long)]
-        autoload_map: bool,
-        /// Also report every public member with no `///` doc comment above it.
-        /// Off by default, in every project.
-        #[arg(long)]
-        strict_docs: bool,
-        /// Print one line on stderr with how much work the compiler did:
-        /// tokens, syntax nodes, names, typed expressions.
-        ///
-        /// The numbers are the same on every machine for the same program.
-        /// Compare them for a small and a large program to see how compile
-        /// time grows.
-        #[arg(long)]
-        count: bool,
-        /// Also print every `// TODO:` comment in the program, one per line,
-        /// as `path:line: text`. With `--json`, the document has them in its
-        /// `todos` array.
-        #[arg(long)]
-        todos: bool,
-        /// Exit with an error when the program has this kind of finding in a
-        /// file that is not in a `vendor` directory. The kinds are
-        /// `deprecated` and `todo`. You can give this option more than once.
-        #[arg(long, value_enum)]
-        deny: Vec<Deny>,
-        /// Apply every safe fix the diagnostics suggest, then check the
-        /// program again, until no fix is left. Files in a `vendor` directory
-        /// are not changed.
-        #[arg(long, conflicts_with = "json")]
-        fix: bool,
-    },
-    /// Check a Novis file, then compile and run it.
-    Run {
-        /// The file to run.
-        file: PathBuf,
-        /// Print the lowered IR instead of compiling it.
-        #[arg(long)]
-        dump_ir: bool,
-        /// Print the generated machine code instead of running it.
-        #[arg(long, conflicts_with = "dump_ir")]
-        dump_asm: bool,
-        /// Provoke an engine failure at a named site, for testing containment.
-        ///
-        /// Scoped to `nvs run` and nothing else: a contained engine panic has
-        /// no user-facing trigger by definition, so it needs a hook to be
-        /// testable at all — and that hook must never be reachable from a
-        /// served request, so `nvs serve` has none.
-        // `nvs_runtime::FaultSite` documents each site.
-        #[arg(long, value_name = "SITE")]
-        fault_inject: Option<FaultSiteArg>,
-        /// Count what the program did — statements executed, calls made,
-        /// allocations, bytes — and print the four totals on stderr at exit.
-        /// Before the program starts, it also prints the line that
-        /// `nvs check --count` prints, with the IR instructions added.
-        ///
-        /// The counts are the same on every machine for the same program and
-        /// binary, which is what `bun nv proofs --record-perf` keeps them
-        /// for (`rule:testing/bench-counters`). Stdout is untouched, so a
-        /// program's own output is what it always was. A counted run starts
-        /// no queue worker, even when `[queue] workers` is set, so jobs in
-        /// the queue stay there.
-        #[arg(long, conflicts_with_all = ["dump_ir", "dump_asm"])]
-        count: bool,
-        /// Answer the request this file describes, rather than run as a
-        /// program that is answering none.
-        ///
-        /// A flag and never an environment variable: whether a program is
-        /// answering a request decides what every `Core\Request` member does,
-        /// and a variable would make that a semantic change nothing at the
-        /// call site shows. `nvs-test` writes one of these files per `.nvst`
-        /// case that describes a request and owns the format
-        /// (`nvs_test::request`); written by hand, it is how a request is
-        /// reproduced without standing a listener up in front of it.
-        #[arg(long, value_name = "FILE")]
-        request: Option<PathBuf>,
-        /// Run as a WebSocket connection whose peer sends the frames this
-        /// file lists, and print every frame the program sends.
-        ///
-        /// What makes `Core\Socket::current()` answer outside a server, so a
-        /// connection script can be run, shown and attacked from one file.
-        /// The format is `peer`'s module doc. Given beside `--request`, the
-        /// program is the request and the peer is the client of the
-        /// connection its `Core\Socket::upgrade` opens, which runs once the
-        /// request has ended.
-        #[arg(long, value_name = "FILE")]
-        peer: Option<PathBuf>,
-        /// Run as an event-stream connection, and publish the values this
-        /// file lists to the topics the program subscribes to.
-        ///
-        /// What makes `Core\Sse::current()` and `receive()` answer outside a
-        /// server: the program is the script a `Core\Sse::upgrade` opens, and
-        /// the stream it writes is printed as a client reads it. Beside a
-        /// `--request`, the file feeds the stream that request's
-        /// `Core\Sse::upgrade` opens instead. The format is `events`'s module
-        /// doc.
-        #[arg(long, value_name = "FILE", conflicts_with = "peer")]
-        events: Option<PathBuf>,
-        /// The program's own arguments, which `Core\Command::run()` matches
-        /// against the program's compiled command table.
-        ///
-        /// Everything past the file is the program's and nothing here reads it,
-        /// which is why it is `trailing_var_arg`: a command declaring a
-        /// `--verbose` of its own must not be answered by `nvs run`.
-        ///
-        /// **One word is the exception, and it is the conventional one:** a
-        /// leading `--` is this parser's escape token and is spent here rather
-        /// than passed on, exactly as `cargo run --` spends one. It is spent
-        /// once and only in that position — a `--` anywhere later is an
-        /// ordinary word, and a program that wants one first is started with
-        /// two.
-        // `rule:tooling/commands-are-compiled` is the command line this hands
-        // over. Both halves of the `--` rule are pinned by
-        // `tests/conformance/core/cli-arguments-hands-back-a-word-that-looks-like-syntax-as-the-value-it-is.nvst`,
-        // since `Core\Cli::arguments` is where the difference is observable.
-        #[arg(
-            trailing_var_arg = true,
-            allow_hyphen_values = true,
-            value_name = "ARGS"
-        )]
-        arguments: Vec<String>,
-    },
-    /// Run a Novis application until stopped: HTTP requests on every core, the
-    /// `[[schedule]]` entries on the core that ticks, and that core's `[queue]`
-    /// workers draining jobs beside them.
-    ///
-    /// One process is the whole deployment — one unit to install and one thing
-    /// to supervise — and stopping it drains all three: no request, no fire and
-    /// no claimed job is abandoned, and nothing new is taken. A tree that writes
-    /// no `[[schedule]]` spawns no ticker and one that writes no `[queue]`
-    /// starts no worker, so each costs a read at boot and no task at all.
-    ///
-    /// The development server and the proxied origin are the same command.
-    /// Every file it serves is compiled before the socket is bound, and every
-    /// request runs one of them in an isolate that shares nothing with any
-    /// other request.
-    ///
-    /// `nvs serve app.nvs` serves that one file. `nvs serve` with no file
-    /// serves every file that the `[[server.mount]]` blocks in the
-    /// configuration mount.
-    // `rule:concurrency/one-process-serves-requests-schedules-and-jobs` is why
-    // the first paragraph names three subsystems: what an operator reads off
-    // `--help` is the mental model they form of the process, and one naming the
-    // accept loop alone is what sends them looking for a second thing to
-    // install. `rule:http-server/two-deployments-and-nothing-a-proxy-owns` and
-    // `rule:security/isolate-shares-nothing`. § 4's mount table is the set of
-    // entry points, and `serve`'s module doc owns why the argument is
-    // optional and why one path on the command line is § 2's rule rather than
-    // an exception to it.
-    Serve {
-        /// The file every request runs. It is optional when the configuration
-        /// has `[[server.mount]]` blocks: the server then serves every file
-        /// that those blocks mount.
-        file: Option<PathBuf>,
-        /// The address to listen on, as `host:port` — the last word over
-        /// `[server] listen`.
-        // `rule:http-server/the-server-block-is-boot-class`.
-        #[arg(long, value_name = "ADDR")]
-        listen: Option<String>,
-        /// The port to listen on, keeping the host `[server] listen` chose.
-        ///
-        /// Conflicts with `--listen` rather than being merged into it: two
-        /// spellings of one address are two requests, and guessing which was
-        /// meant is worse than saying so.
-        #[arg(long, conflicts_with = "listen", value_name = "PORT")]
-        port: Option<u16>,
-    },
-    /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
-    /// cases.
-    ///
-    /// The path decides which one runs. A `.nvs` file is a program, and its
-    /// `#[Test]` methods run. A folder with `.nvs` files is one program made of
-    /// every `.nvs` file in it and in its subfolders. Run `nvs test .` in your
-    /// project folder to run every test in the project. The entry file is in
-    /// that folder, so its `autoload` line loads your classes for every test.
-    /// The tests can be under `src/`, or in a `tests/` folder with one
-    /// `bootstrap.nvs` that requires the entry file. A file that another file
-    /// in the folder requires is loaded once, through that file.
-    /// Any other path is a `.nvst` case file or a folder of `.nvst` files. A
-    /// folder with both kinds of file is an error, because the two kinds have
-    /// different reports.
-    ///
-    /// Exits non-zero if any case or any test failed; a skipped one is not a
-    /// failure.
-    // `rule:testing/nvst-is-separate` § 1, and
-    // `rule:testing/a-directory-of-programs-is-one-test-program` for the directory.
-    Test {
-        /// The program or directory of programs to run, or the case files and
-        /// directories.
-        #[arg(required = true)]
-        paths: Vec<PathBuf>,
-        /// Run only the tests whose name contains this text — a `.nvst` case's
-        /// path, or a `#[Test]` method's `Class::method`.
-        #[arg(long, value_name = "TEXT")]
-        filter: Option<String>,
-        /// How many tests or `.nvst` cases run at once.
-        ///
-        /// The default is the number of hardware threads on this machine.
-        /// `--jobs 1` runs one test at a time. A program that loads an
-        /// extension always runs one test at a time.
-        // `rule:testing/tests-run-across-every-core`.
-        #[arg(long, value_name = "N")]
-        jobs: Option<std::num::NonZeroUsize>,
-        /// Print each test's output as it runs.
-        ///
-        /// Without this flag, the output of a test that passes is not shown.
-        /// The output of a test that fails is printed under its failure. With
-        /// this flag, lines from tests that run at the same time may mix.
-        // `rule:testing/tests-run-across-every-core`.
-        #[arg(long)]
-        show_output: bool,
-        /// How a program's `#[Test]` run is reported.
-        ///
-        /// The default is the human format, and it is what a `.nvst` tree is
-        /// always reported in: a conformance run's report is a summary rather
-        /// than a suite of test methods, and the two share nothing — so naming
-        /// a machine format beside a case tree is refused rather than silently
-        /// ignored.
-        // `rule:testing/report-formats`, and § 23 is what keeps the two reports
-        // from sharing a shape.
-        #[arg(long, value_name = "FORMAT", default_value = "human")]
-        format: runner::Format,
-        /// Rewrite each failed `Core\Test::assertMatchesInline` snapshot in
-        /// the source that wrote it.
-        ///
-        /// This is the only spelling under which `nvs test` writes to a source
-        /// file, and what it writes is the `$expected` literal and nothing
-        /// else: a run without it never touches the program, and a run with it
-        /// never touches a passing snapshot. A `.nvst` tree has no snapshot to
-        /// update, so naming it there is refused rather than ignored.
-        // `rule:testing/inline-snapshots`.
-        #[arg(long)]
-        update: bool,
-        /// Write the run's coverage to this file in the lcov format.
-        ///
-        /// Every line a statement starts on is listed with the number of
-        /// times it ran, `0` for a line no test reached. Every branch is
-        /// listed with the number of times its true side and its false side
-        /// ran. Every function is listed with the number of times it was
-        /// called. A `.nvst` tree has
-        /// no coverage to report, so naming it there is an error.
-        // `rule:testing/debug-probes`; `crate::coverage` owns how the counts are taken.
-        #[arg(long, value_name = "FILE", conflicts_with = "list")]
-        coverage_lcov: Option<PathBuf>,
-        /// Write the run's coverage to this file as Clover XML.
-        ///
-        /// The same lines, branches, functions and counts as
-        /// `--coverage-lcov`, in the Clover format that many CI services
-        /// read.
-        #[arg(long, value_name = "FILE", conflicts_with = "list")]
-        coverage_clover: Option<PathBuf>,
-        /// Write the run's coverage to this file as Cobertura XML.
-        ///
-        /// The same lines, branches and counts as `--coverage-lcov`, in the format
-        /// GitLab and Azure DevOps read. One run can write all three files.
-        #[arg(long, value_name = "FILE", conflicts_with = "list")]
-        coverage_cobertura: Option<PathBuf>,
-        /// Report which `#[Test]` methods the program declares, and where each
-        /// one is written, without running any of them.
-        ///
-        /// This is what an editor's Test Explorer populates its tree from, and
-        /// it is answered from the table the compile already built — so a
-        /// program whose tests fail, hang or `exit` lists exactly as a passing
-        /// one does. It excludes `--update`, which rewrites what a run
-        /// produced, and a `.nvst` tree, which is discovered by walking a
-        /// directory rather than by compiling a program.
-        // `rule:testing/report-formats`, and `rule:ide/every-feature-is-staged-behind-its-dependency`
-        // is why the CLI surface lands before the client that reads it.
-        #[arg(long, conflicts_with = "update")]
-        list: bool,
-        /// Run only the `.nvst` case files this file lists, one path per
-        /// line, out of the trees named.
-        ///
-        /// A case is judged and counted exactly as a whole-tree run judges it,
-        /// and the summary counts the listed cases. A listed path that no named
-        /// tree holds is refused before anything runs.
-        #[arg(long, value_name = "FILE")]
-        cases: Option<PathBuf>,
-        /// Record each `.nvst` case into this directory, which is created
-        /// when it is not there.
-        ///
-        /// Every `nvs` process a case starts writes its coverage counters to
-        /// `<name>-<pid>.profraw` when the binary is built with coverage, and
-        /// the classes and files it used to `<name>.log`, and compiles with
-        /// no artifact cache. `<name>` is the case's path with `/` and `\`
-        /// as `~` and every other character that is not a letter, a digit,
-        /// `.`, `_` or `-` as `@` and two hex digits.
-        #[arg(long, value_name = "DIR")]
-        record: Option<PathBuf>,
-    },
-    /// Produce a build artifact from a checked program.
-    ///
-    /// Naming an artifact is required rather than defaulted: `nvs build` with
-    /// nothing named would be a subcommand that succeeds having done nothing,
-    /// and the group is how the next artifact joins without changing what this
-    /// invocation means.
-    // `rule:routing/api-document-is-a-deterministic-build-artifact` spells the
-    // OpenAPI command, and
-    // `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`
-    // the bundle.
-    #[command(group = clap::ArgGroup::new("artifact").required(true).args(["openapi", "compile"]))]
-    Build {
-        /// The entry point of the program to build.
-        file: PathBuf,
-        /// Write the OpenAPI 3.1 document generated from this program's route
-        /// table to standard output.
-        // `rule:routing/api-document-is-generated-from-the-route-table`.
-        #[arg(long)]
-        openapi: bool,
-        /// Write a portable single-file executable: this program's `require`
-        /// graph as source, appended to a copy of the `nvs` host binary.
-        // `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`.
-        #[arg(long)]
-        compile: bool,
-        /// Where to write the executable (default: the entry file's stem).
-        #[arg(short = 'o', long, value_name = "PATH", requires = "compile")]
-        output: Option<PathBuf>,
-    },
-    /// Work with the API document `nvs build --openapi` produces.
-    ///
-    /// A group rather than a flag on `build`, because `diff` reads two finished
-    /// documents and compiles nothing: the old side of a diff is the last
-    /// release's artifact, and there may be no source for it on this machine at
-    /// all.
-    // `rule:routing/api-diff-fails-a-breaking-change`.
-    Api {
-        #[command(subcommand)]
-        command: ApiCommand,
-    },
-    /// Create, build, check and pin a Novis extension.
-    ///
-    /// An extension is a `.nvsx` file: a WebAssembly component with a
-    /// manifest and Novis source inside it. These commands are the tools an
-    /// extension author needs beside the compiler of their own language.
-    // `rule:packaging/nvs-ext-is-the-authoring-tool`; see [`ext`].
-    Ext {
-        #[command(subcommand)]
-        command: ExtCommand,
-    },
-    /// Write the shipped default `nvs.toml` into the working directory, or
-    /// to the one path `--config` names.
-    ///
-    /// The directory the file goes into must already exist. It and the
-    /// directory containing it must both pass the ownership check, because
-    /// this is a file `nvs serve` will read as configuration.
-    ///
-    /// Use this to start a configuration for one project. An existing file is
-    /// never overwritten. If the file cannot be written, the command stops
-    /// with an error.
-    // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
-    // step 2's file, written on request; see [`config::init`]. The implicit
-    // write a project command makes goes to the data folder instead.
-    Init,
-    /// Audit the configuration tree without running anything.
-    ///
-    /// A namespace of its own rather than part of `nvs check`, which checks
-    /// *source*: a configuration tree and a program are audited separately.
-    // `rule:config/check-and-dump-audit-the-tree-offline` separates the two;
-    // see [`config`].
-    Config {
-        #[command(subcommand)]
-        command: ConfigCommand,
-    },
-    /// Build and inspect the durable job queue's own tables.
-    ///
-    /// A namespace of the operator's rather than the program's: the runtime
-    /// holds the queue's schema, and the tables are created by an explicit
-    /// command — never at boot and never from a request.
-    // `rule:core-classes/queue-storage-is-a-table`; see [`queue`].
-    Queue {
-        #[command(subcommand)]
-        command: QueueCommand,
-    },
-    /// Converge a database on a schema value, or read the one it already holds.
-    ///
-    /// The operator's spelling of `Core\Db\Schema`: the difference against the
-    /// live server is computed every time, so there is no migration to order
-    /// and no history to keep.
-    // `rule:core-classes/schema-converges`; see [`schema`].
-    Schema {
-        #[command(subcommand)]
-        command: SchemaCommand,
-    },
-    /// Clear what a hard-killed script left in the temporary root.
-    ///
-    /// The runtime deletes a temporary directory when its script ends and
-    /// reclaims the rest at `nvs serve` boot; this is how a machine that never
-    /// boots a server clears them.
-    // The operator's half of `rule:core-classes/temporary-dir-orphan-sweep`;
-    // see [`tmp`].
-    Tmp {
-        #[command(subcommand)]
-        command: TmpCommand,
-    },
-    /// Installs, starts, stops and removes a Novis program that runs as a
-    /// system service.
-    ///
-    /// A system service runs in the background, with no terminal. It can start
-    /// when the computer starts.
-    // A namespace of its own because every other subcommand acts on files with
-    // no server involved, and these do not.
-    // `rule:packaging/a-service-is-one-stored-argv`; see [`service`], whose
-    // module doc owns how a verb reaches this machine's own service manager.
-    Service {
-        #[command(subcommand)]
-        command: ServiceCommand,
-    },
+    Ast(ast::Args),
+    Check(check::Args),
+    Run(run::Args),
+    Serve(serve::Args),
+    Test(runner::Args),
+    Build(build::Args),
+    Api(api_diff::Args),
+    Ext(ext::Args),
+    Init(init::Args),
+    Config(config::Args),
+    Queue(queue::Args),
+    Schema(schema::Args),
+    Tmp(tmp::Args),
+    Service(service::Args),
     /// Another name for `nvs service install`.
     // The syntax `mysqld --install` and `httpd -k install` made familiar.
     // Hidden: § 1 names it an accepted alias rather than a second way to write
     // the command, and a help listing both would be advertising two.
     #[command(hide = true)]
-    InstallService(ServiceInstall),
-    /// Rewrite Novis files into the one canonical layout.
-    ///
-    /// Takes no configuration and has no style flag: the output is a pure
-    /// function of the input bytes, so two projects run through this tool
-    /// cannot disagree about what formatted means. The flags below are I/O
-    /// modes, and each one decides only where the text goes.
-    ///
-    /// A file whose parse reports an error is refused rather than rewritten,
-    /// named on standard error, and left exactly as it was.
-    // `rule:tooling/fmt-is-one-canonical-style` and
-    // `rule:tooling/fmt-check-writes-nothing`; see [`fmt`].
-    Fmt {
-        /// The files and directories to format. A directory is walked for the
-        /// `.nvs` files under it.
-        #[arg(required_unless_present = "stdin")]
-        paths: Vec<PathBuf>,
-        /// Write nothing and name each file that would change, exiting
-        /// non-zero if any would.
-        #[arg(long, alias = "dry-run", conflicts_with_all = ["diff", "stdin"])]
-        check: bool,
-        /// Write nothing and print a unified diff per file that would change,
-        /// exiting non-zero if any would.
-        // Refused beside `--check` for the reason `Check`'s `--json` is
-        // refused beside `--autoload-map`: both render the same list onto the
-        // same standard output, and one printed after the other is neither.
-        #[arg(long, conflicts_with = "stdin")]
-        diff: bool,
-        /// Format what standard input holds onto standard output, naming no
-        /// file. A refusal writes nothing at all to standard output.
-        #[arg(long, conflicts_with = "paths")]
-        stdin: bool,
-    },
-    /// Speak the Language Server Protocol on standard input and output.
-    ///
-    /// Started by an editor, not by a person: it reads LSP 3.17 frames on
-    /// stdin and writes them on stdout, so a terminal that runs it sees
-    /// nothing and appears to hang. It is the one implementation of Novis's
-    /// language smarts, and every editor client is a shell around it.
-    ///
-    /// Configures nothing. Everything configurable arrives in `initialize`
-    /// and in `workspace/didChangeConfiguration`, because the editor is what
-    /// owns the settings and a flag here would be a second, staler copy.
-    ///
-    /// `--stdio` is the one exception, and it configures nothing either: it is
-    /// the convention a language client appends to say which transport it
-    /// chose, and stdio is the only transport this server has. Clients append
-    /// it without being asked — `vscode-languageclient` does so for any
-    /// `Executable` whose `transport` is set — and a server that rejected it
-    /// would exit before reading a frame, which reaches the user as an editor
-    /// with no language features rather than as an argument error.
-    // `rule:ide/one-server-two-thin-clients`.
-    Lsp {
-        /// Accepted and ignored, so a client that names its transport is not
-        /// refused for it.
-        #[arg(long)]
-        stdio: bool,
-    },
-    /// Run a tree of `.lspt` cases against the language server.
-    ///
-    /// The editor-behaviour suite: each case is a document, a cursor, a request
-    /// and the answer frozen as text. It answers a different question from `nvs
-    /// test` and shares no summary with it — two suites, two counts, because a
-    /// number that meant both would mean neither.
-    ///
-    /// Prints `N passed, M failed` and exits non-zero if any case failed.
-    // `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`.
-    LspTest {
-        /// The case files and directories to run.
-        #[arg(required = true)]
-        paths: Vec<PathBuf>,
-        /// Print the request × construct matrix instead of the summary line.
-        ///
-        /// Coverage is inferred from the node each case's question landed on
-        /// and never declared by the case, so the matrix is a reading of the
-        /// corpus rather than a list anyone maintains.
-        // `rule:ide/lspt-coverage-is-inferred`.
-        #[arg(long)]
-        coverage: bool,
-    },
-    /// Print build, host and third-party licensing information.
-    ///
-    /// One call answers what this binary is and what is compiled into it,
-    /// including the complete third-party attribution Novis's MIT license and
-    /// its dependencies' licenses both require to be distributed with it.
-    // `rule:packaging/nvs-info-is-the-one-call` is why this is one call rather than several.
-    Info {
-        /// Also print every third-party license text in full.
-        #[arg(long)]
-        licenses: bool,
-    },
-    /// Print the `Core` registry — every class and member, with each
-    /// documented member's reference card — and, given an entry point, that
-    /// program's own declarations beside it.
-    ///
-    /// `--json` is required for the reason `build --openapi` is: a `meta`
-    /// with nothing named would succeed having printed nothing, and the flag
-    /// is how a second format joins without changing what this one means.
-    // The shape is `rule:tooling/meta-json`'s and this command owns it; see
-    // [`meta`].
-    Meta {
-        /// Write the registry as JSON to standard output.
-        #[arg(long, required = true)]
-        json: bool,
-        /// A program's entry point, whose own declarations join the registry
-        /// under a `program` key. Omitted, the document is the registry alone.
-        // `rule:tooling/meta-json-takes-a-program`: without an entry the
-        // document is byte-identical to what it was before this argument
-        // existed.
-        entry: Option<PathBuf>,
-    },
-    /// Write this program's declarations as one Markdown page per class.
-    ///
-    /// A renderer over `nvs meta --json`'s document and nothing else, for a
-    /// project that does not have a documentation pipeline of its own.
-    // `rule:tooling/nvs-doc-renders-and-decides-nothing`; see [`doc`].
-    Doc {
-        /// The program's entry point.
-        file: PathBuf,
-        /// The directory the pages are written to, created if it is absent.
-        #[arg(long, default_value = "doc")]
-        out: PathBuf,
-    },
-    /// Answer a coding agent from the registry this binary carries.
-    ///
-    /// A verb of its own rather than an argument to `nvs doc`, which takes a
-    /// path: a symbol is not a path, and a query form under it would be
-    /// ambiguous at the argument parser before it was ambiguous to a reader.
-    // `rule:tooling/an-agent-asks-the-binary`; see [`agent`].
-    Agent {
-        #[command(subcommand)]
-        command: AgentCommand,
-    },
-    /// Answer questions about the Novis project you are in: where a name is
-    /// used, what declares it, and which type a variable has.
-    ///
-    /// The project is the folder of the nearest `nvs.toml` at or above the
-    /// working directory. If there is none, it is the working directory. Every
-    /// `.nvs` file in it is read, and nothing is changed.
-    ///
-    /// Write a name in full, with its namespace, as `'Shop\Cart::addItem'`.
-    /// Put it in single quotes, so that the shell keeps the backslashes. A
-    /// file is a path from the working directory.
-    // `rule:tooling/nvs-code-answers-about-the-project`; see [`code`].
-    Code {
-        #[command(subcommand)]
-        command: CodeCommand,
-    },
-    /// Write one declaration file per `Core` class, enum and attribute.
-    ///
-    /// An editor opens these files when you jump to a `Core` name. Each file
-    /// has the real signatures and the reference cards, and empty bodies. The
-    /// language server writes the same files by itself; this command writes
-    /// them for any other reader.
-    // `rule:ide/the-stub-tree-is-where-core-is-declared`; the generator is
-    // `nvs_lsp::stubs`, and this is its second caller.
-    Stubs {
-        /// The directory the files are written to, created if it is absent.
-        #[arg(long, default_value = "stubs")]
-        out: PathBuf,
-    },
-}
-
-/// `nvs code`'s verbs, each a reader of one workspace index
-/// (`rule:tooling/nvs-code-answers-about-the-project`).
-#[derive(Subcommand, Debug)]
-enum CodeCommand {
-    /// Print where a name is declared, its signature and its doc comment. For
-    /// a `Core` name, print the card that `nvs agent show` prints.
-    Show {
-        /// The name, as `Shop\Cart`, `Shop\Cart::addItem` or
-        /// `Shop\Cart::$total`.
-        symbol: String,
-        /// Print the answer as one JSON document. An unknown name prints an
-        /// `error` and a `nearest` list, and the command fails.
-        #[arg(long)]
-        json: bool,
-    },
-    /// Print every place a name is written. The declaration comes first. Then
-    /// each `use` line and each use follow, in file and line order.
-    ///
-    /// Each line has the position, the kind (`declared`, `import` or `use`)
-    /// and the line of code.
-    Refs {
-        /// The name, as `Shop\Cart::addItem`. A `Core` name lists the places
-        /// where the project uses it.
-        symbol: String,
-        /// Print the answer as one JSON document. An unknown name prints an
-        /// `error` and a `nearest` list, and the command fails.
-        #[arg(long)]
-        json: bool,
-    },
-    /// Print the types that extend or implement a type, or the methods that
-    /// override a method.
-    ///
-    /// These lines say `below`. Lines that say `above` show what the type
-    /// extends or implements, or which method the method overrides.
-    Impls {
-        /// The name of a type or a method, as `Shop\Priced`.
-        symbol: String,
-        /// Print the answer as one JSON document. An unknown name prints an
-        /// `error` and a `nearest` list, and the command fails.
-        #[arg(long)]
-        json: bool,
-    },
-    /// Print what a file declares, one line each. The members of a class are
-    /// indented under it.
-    Outline {
-        /// The file, as `src/Cart.nvs`.
-        file: String,
-        /// Print the answer as one JSON document. An unknown file prints an
-        /// `error` and a `nearest` list, and the command fails.
-        #[arg(long)]
-        json: bool,
-    },
-    /// Print the type of each variable that a file declares with `var`.
-    Types {
-        /// The file, as `src/Cart.nvs`. Add `:10` for line 10 only, or
-        /// `:10-20` for lines 10 to 20.
-        file: String,
-        /// Print the answer as one JSON document. An unknown file prints an
-        /// `error` and a `nearest` list, and the command fails.
-        #[arg(long)]
-        json: bool,
-    },
-}
-
-/// `nvs agent`'s own verbs — the read half of
-/// `rule:tooling/an-agent-asks-the-binary`'s surface.
-///
-/// Each renders `nvs meta --json`'s document and holds nothing, so the binary
-/// that compiles a program is the binary that answers for it.
-#[derive(Subcommand, Debug)]
-enum AgentCommand {
-    /// Print the short document that makes a coding agent productive: the
-    /// lookup protocol, one worked program, the capability model, the refusals
-    /// and the chapter map.
-    ///
-    /// It is generated from the reference chapters this binary embeds, so it
-    /// describes the language this binary compiles and nothing else.
-    // `rule:tooling/a-primer-claim-is-executed`.
-    Primer,
-    /// Print one line per registered member, one per enum, exception and
-    /// attribute beside them, one per chapter of the reference and per heading
-    /// in it, and one per configuration key, command, flag and error code.
-    // `rule:tooling/the-index-is-one-line-per-member`,
-    // `rule:tooling/the-index-names-every-key-command-and-code`.
-    Index {
-        /// Print the lines as one JSON document: an `entries` array with one
-        /// record for each line, which has the line's symbol, its kind and the
-        /// line itself.
-        #[arg(long)]
-        json: bool,
-    },
-    /// Print the index lines whose name matches a query: a class or member
-    /// name, a heading of the reference, which is where a keyword such as
-    /// `autoload` is found, or a configuration key, a command, a flag or an
-    /// error code.
-    ///
-    /// A command rather than an instruction to grep the index, because a
-    /// namespaced name loses its backslash to the shell before `grep` sees it
-    /// and the empty result that follows is indistinguishable from a name the
-    /// language does not have.
-    Find {
-        /// What to match against a name or a heading, without case. A flag
-        /// is written as it is typed, as `--port`.
-        #[arg(allow_hyphen_values = true)]
-        query: String,
-        /// Print the matching lines as the JSON document `index --json`
-        /// prints. No match gives an empty `entries` array.
-        #[arg(long)]
-        json: bool,
-    },
-    /// Print one symbol's card — its signature, its prose, its parameters and
-    /// what it throws — or the section of the reference a line names.
-    Show {
-        /// The symbol an index line opens with, as `Core\IO::read` or
-        /// `programs#autoload-find-a-class-by-its-namespace`, or the name after
-        /// `config: `, `command: `, `flag: ` or `code: `, as `E0621`. A
-        /// chapter's own name, as `programs`, lists its sections.
-        symbol: String,
-        /// Print the card as one JSON object, with each part of the card as a
-        /// field. An unknown symbol gives an `error` and a `nearest` list, on
-        /// standard output, and the command still fails.
-        #[arg(long)]
-        json: bool,
-    },
-    /// Install this surface into the project in the working directory: an
-    /// `AGENTS.md` stanza, and the files the coding agent you run needs beside
-    /// it. Each file names the four commands above, the `nvs code` commands and
-    /// the `nvs check` loop.
-    ///
-    /// The agent is found from the environment it runs commands in. Codex,
-    /// Cursor and OpenCode read `AGENTS.md`, so they need no other file. Claude
-    /// Code gets a skill and GitHub Copilot an instructions file.
-    ///
-    /// Claude Code and Cursor also get a hook in their settings file:
-    /// after each edit of a `.nvs` file, the agent runs `nvs agent hook`,
-    /// which checks the file and shows the agent its errors.
-    ///
-    /// None of the files states a language fact. The four commands give those
-    /// answers, and a copy of one would be wrong after the language changes.
-    ///
-    /// Running it again updates every file it wrote that nobody has edited
-    /// since, whichever agent runs it, and refuses a file somebody has edited.
-    // `rule:tooling/an-adapter-carries-protocol-and-never-language`.
-    Init {
-        /// Install for this agent, and not the one found in the environment.
-        /// Give it more than once for more than one agent.
-        #[arg(
-            long = "agent",
-            value_name = "NAME",
-            value_parser = clap::builder::PossibleValuesParser::new(agent::agent_names()),
-            conflicts_with = "all"
-        )]
-        agents: Vec<String>,
-        /// Install for every agent this command knows.
-        #[arg(long)]
-        all: bool,
-        /// Replace a file somebody edited after `init` wrote it.
-        #[arg(long)]
-        force: bool,
-        /// Write nothing; name each file that is missing, outdated or edited,
-        /// and fail when there is one.
-        #[arg(long, conflicts_with = "force")]
-        check: bool,
-        /// Add no hook, and remove each hook an earlier run added. With
-        /// `--check`, hooks are not checked.
-        #[arg(long)]
-        no_hooks: bool,
-    },
-    /// Check the `.nvs` file a coding agent just edited, and show the agent
-    /// its errors. `nvs agent init` adds this command to Claude Code's and
-    /// Cursor's settings, and the agent runs it after each edit.
-    ///
-    /// The command reads the agent's JSON message on standard input. It
-    /// checks the file the way `nvs check <file>` does, in the directory the
-    /// message names. When the file has errors, it prints the first five as
-    /// JSON for the agent and says how many more there are. Warnings are not
-    /// shown. A file that is not a `.nvs` file, a clean file and a message it
-    /// cannot read print nothing. The command always exits with status 0, so
-    /// it never stops the agent.
-    // `rule:tooling/an-adapter-carries-protocol-and-never-language`.
-    Hook {
-        /// The agent that runs the command, which decides the shape of the
-        /// JSON it prints.
-        #[arg(value_parser = clap::builder::PossibleValuesParser::new(agent::hooked_agent_names()))]
-        agent: String,
-    },
-}
-
-/// `nvs ext`'s own subcommands, one per row of
-/// `rule:packaging/nvs-ext-is-the-authoring-tool`'s table. [`ext`] runs each.
-#[derive(Subcommand)]
-enum ExtCommand {
-    /// Create a new extension project in a directory.
-    ///
-    /// The project builds a component for the `nvs:ext` world. It contains
-    /// the world's WIT files, an `nvsx.toml`, the code of one function and a
-    /// test for it. Its README says how to build it.
-    New {
-        /// The language of the project.
-        #[arg(long, value_enum)]
-        lang: ExtLang,
-        /// The directory to create. It must not exist, or must be empty.
-        dir: PathBuf,
-    },
-    /// Make a `.nvsx` file from the wasm file your toolchain built.
-    ///
-    /// The wasm file may be a core module or a component. The manifest comes
-    /// from the project's `nvsx.toml`. The Novis source files are put inside
-    /// the `.nvsx`. The command then checks that the result loads.
-    Build {
-        /// The project directory (default: the working directory).
-        #[arg(default_value = ".")]
-        project: PathBuf,
-    },
-    /// Print the manifest of a `.nvsx` file and the files and hosts it needs.
-    Inspect {
-        /// The `.nvsx` file.
-        file: PathBuf,
-        /// Print the Novis source files inside the `.nvsx` as well.
-        #[arg(long)]
-        source: bool,
-    },
-    /// Run the project's `.nvs` tests with the built `.nvsx` loaded.
-    ///
-    /// No `nvs.toml` is read, so the extension gets no files and no hosts.
-    /// Use `--config` to name a configuration that gives it some.
-    Test {
-        /// The project directory (default: the working directory).
-        #[arg(default_value = ".")]
-        project: PathBuf,
-    },
-    /// Run every check that loading a `.nvsx` file runs, and report the result.
-    Verify {
-        /// The `.nvsx` file.
-        file: PathBuf,
-    },
-    /// Print the `[[extension]]` entry for a `.nvsx` file, with its `sha256`.
-    ///
-    /// Copy the entry into your `nvs.toml`. It has no `grants`: you add the
-    /// files and hosts you allow yourself.
-    Pin {
-        /// The `.nvsx` file.
-        file: PathBuf,
-    },
-}
-
-/// The languages `nvs ext new` has a template for.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, clap::ValueEnum)]
-enum ExtLang {
-    /// Rust, built with `cargo` for `wasm32-wasip2`.
-    Rust,
-    /// C, built with wasi-sdk and `wit-bindgen`.
-    C,
-}
-
-/// `nvs api`'s own subcommands.
-///
-/// A subcommand group rather than a bare `nvs diff` because what is being
-/// diffed is the *API*, and a bare verb would own a name the next artifact
-/// would want.
-#[derive(Subcommand)]
-enum ApiCommand {
-    /// Classify every change between two OpenAPI documents, exiting non-zero on
-    /// a breaking one.
-    ///
-    /// Run it in CI against the document from the last release and a breaking
-    /// change stops the build.
-    // The gate of `rule:routing/api-diff-fails-a-breaking-change`; see
-    // [`api_diff`] for what each class covers.
-    Diff {
-        /// The document to compare against — the last release's.
-        old: PathBuf,
-        /// The document this build produced.
-        new: PathBuf,
-    },
-}
-
-/// `nvs config`'s own subcommands.
-///
-/// `rule:config/check-and-dump-audit-the-tree-offline` names `check` and `dump`, and this enum
-/// holds both.
-#[derive(Subcommand)]
-enum ConfigCommand {
-    /// Resolve the configuration tree and report what it holds, exiting
-    /// non-zero on any refusal.
-    ///
-    /// Offline: it reads the files and nothing else, so a tree is validated in
-    /// CI before it is deployed.
-    // What the audit deliberately does not assert is [`config`]'s own module
-    // doc.
-    Check {
-        /// The files to read, in order. This is the same list `--config` takes.
-        /// With no file named, `./nvs.toml` is read. If there is none, the data
-        /// folder's `nvs.toml` is read. If there is neither, the default
-        /// settings are used.
-        // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
-        // steps 1 to 4.
-        files: Vec<PathBuf>,
-    },
-    /// Print every key in force, one per line, in dotted-key order.
-    ///
-    /// An include may override the file that pulled it in *on condition* that
-    /// every override is recoverable; this is where it is recovered in full.
-    // `rule:config/later-wins-and-every-override-is-recorded`. What is printed,
-    // and the one thing deliberately absent from it, is [`config::dump`]'s own
-    // doc comment.
-    Dump {
-        /// The root files to read — `check`'s list, read the same way.
-        files: Vec<PathBuf>,
-        /// Also name the file each key was written in, and the file it
-        /// overrode.
-        #[arg(long)]
-        origin: bool,
-        /// Write the resolved configuration as one canonical TOML document
-        /// instead, for diffing two environments.
-        #[arg(long, conflicts_with = "origin")]
-        toml: bool,
-    },
-}
-
-/// `nvs queue`'s own subcommands.
-///
-/// `migrate` is the one `rule:core-classes/queue-storage-is-a-table` names outright. Everything
-/// else an operator might want of a queue — its depth, a job retried by hand —
-/// is a question `Core\Queue::stats` already answers from inside a request, and
-/// a second answer here would need this binary to open a connection for it,
-/// which is the same wall [`queue`]'s own module doc describes.
-#[derive(Subcommand)]
-enum QueueCommand {
-    /// Create the queue's jobs and dead-letter tables in its database.
-    ///
-    /// The schema is the runtime's own, and this command is what makes issuing
-    /// DDL for it an operator's act rather than a request's. It converges: what
-    /// runs is the difference between that schema and the database.
-    // `rule:core-classes/queue-storage-is-a-table`. The schema value is
-    // `nvs_stdlib::queue::schema`, beside the members that read the columns,
-    // and what this can and cannot do today is [`queue`]'s module doc.
-    Migrate {
-        /// The root files to read, in order — `config check`'s list, read the
-        /// same way.
-        files: Vec<PathBuf>,
-        /// Migrate this `[db.<name>]` block instead of the one `[queue]
-        /// connection` names.
-        #[arg(long)]
-        connection: Option<String>,
-        /// Print the statements without running them, and succeed.
-        #[arg(long)]
-        dry_run: bool,
-        /// Run a step that is not `Safe` — a queue table an older Novis built
-        /// can need one, and `schema apply` takes the same flag for the same
-        /// reason.
-        #[arg(long)]
-        including_risky: bool,
-    },
-}
-
-/// `nvs schema`'s own subcommands.
-///
-/// Three, and they are one walk stopped at three points:
-/// `rule:core-classes/schema-introspection`'s read alone is `dump`, the
-/// difference that read feeds is `plan`, and running what the difference says is
-/// `apply`. There is no `status` beside them because `plan` against a converged
-/// database already prints nothing, and no `rollback` because
-/// `rule:core-classes/schema-converges` keeps no history to roll back to.
-#[derive(Subcommand)]
-enum SchemaCommand {
-    /// Print the difference between a schema value and the database, and run
-    /// none of it.
-    ///
-    /// Every step carries its grade, the reason for that grade and its complete
-    /// SQL — including the steps `apply` refuses, which is what makes a plan
-    /// useful against a database this deployment may not write to at all.
-    // `rule:core-classes/schema-plan`.
-    Plan {
-        /// The root files to read, in order — `config check`'s list, read the
-        /// same way.
-        files: Vec<PathBuf>,
-        /// The `[db.<name>]` block to plan against.
-        #[arg(long)]
-        connection: String,
-        /// The JSON file holding the schema value, as `dump` writes one.
-        #[arg(long)]
-        schema: PathBuf,
-    },
-    /// Run the steps of that plan that may run.
-    ///
-    /// Without `--including-risky` this refuses a plan holding a step that is
-    /// not `Safe` and names the first one. A report is never run either way.
-    // `rule:core-classes/schema-apply-capability`'s `applySafe`, on a command
-    // line.
-    Apply {
-        /// The root files to read, in order.
-        files: Vec<PathBuf>,
-        /// The `[db.<name>]` block to converge.
-        #[arg(long)]
-        connection: String,
-        /// The JSON file holding the schema value.
-        #[arg(long)]
-        schema: PathBuf,
-        /// Run the steps that can hold a long lock or fail on existing rows as
-        /// well, saying so here rather than discovering it in production.
-        #[arg(long)]
-        including_risky: bool,
-    },
-    /// Write out the schema value the database already holds, as JSON.
-    Dump {
-        /// The root files to read, in order.
-        files: Vec<PathBuf>,
-        /// The `[db.<name>]` block to read.
-        #[arg(long)]
-        connection: String,
-    },
-}
-
-/// `nvs tmp`'s own subcommands.
-///
-/// One, and there is deliberately no second: `rule:core-classes/temporary-dir-orphan-sweep` gives the sweep one
-/// predicate — the owning process is not alive — and no flag that overrides it,
-/// so there is nothing for an operator to ask beyond "do it" and "tell me what
-/// you would do".
-#[derive(Subcommand)]
-enum TmpCommand {
-    /// Remove every entry in the temporary root whose owning process is gone.
-    ///
-    /// Keyed on liveness and never on age, so a long-running process's
-    /// directories are untouchable however old they are, and there is no force
-    /// flag.
-    // What it can and cannot do, and why there is no force flag, is [`tmp`]'s
-    // module doc.
-    Clean {
-        /// Print what would be removed and remove nothing.
-        #[arg(long)]
-        dry_run: bool,
-    },
-}
-
-/// `nvs service`'s own subcommands, which are
-/// `rule:packaging/a-service-is-one-stored-argv`'s list.
-///
-/// `unit` is the one `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` makes the default on Linux:
-/// generate the unit and **print** it, because the operator's configuration
-/// management already owns the directory it belongs in and a binary that writes
-/// there behind Ansible's back is a worse citizen than one that prints. On
-/// Windows it emits § 5's equivalent `New-Service` invocation, carrying § 3's
-/// encoded `ImagePath` for review rather than execution.
-///
-/// Every § 2 refusal runs in front of both it and `install`, so `unit` is also
-/// how an operator finds out that the argv they were about to install would
-/// have been refused — without an elevated shell, and without having installed
-/// anything. Which manager a verb reaches is `service::at_host`'s answer, and
-/// [`service`]'s module doc owns why `run` is not here yet.
-#[derive(Subcommand)]
-enum ServiceCommand {
-    // Every `///` line below is printed by `nvs service --help`, so it is
-    // written as `AGENTS.md` § *Text an end user reads* asks.
-    /// Installs the command after `--` as a system service. The account that
-    /// the service runs as can then read its configuration file and write to
-    /// its log folder and its cache folder.
-    #[command(after_help = SERVICE_INSTALL_EXAMPLE)]
-    Install(ServiceInstall),
-    /// Removes an installed service. It also deletes everything that `install`
-    /// created, and takes back the access that `install` gave.
-    Uninstall {
-        /// The name of the service, as it was installed.
-        name: String,
-        /// Prints every step, and changes nothing.
-        #[arg(long)]
-        dry_run: bool,
-    },
-    /// Tells the service manager to start an installed service.
-    Start {
-        /// The name of the service.
-        name: String,
-    },
-    /// Stops a running service. A server stops taking new requests. It
-    /// finishes the requests it already has, and then it exits.
-    Stop {
-        /// The name of the service.
-        name: String,
-    },
-    /// Prints the state of the service.
-    Status {
-        /// The name of the service.
-        name: String,
-    },
-    /// Runs the stored command in this terminal. The service manager starts
-    /// the service with the same command.
-    Run {
-        /// The name of the service.
-        name: String,
-    },
-    /// Prints the service definition that `install` would create. It installs
-    /// nothing.
-    Unit {
-        /// The name of the service. The operating system uses this name.
-        name: String,
-        /// The account that the service runs as. The default is the local
-        /// system account, `LocalSystem`. `SYSTEM` is another name for the
-        /// same account.
-        // `rule:packaging/a-service-runs-as-a-virtual-account`.
-        #[arg(long, value_name = "ACCOUNT")]
-        account: Option<String>,
-        /// Not allowed. It gives error `E0633`. Other users on the computer
-        /// can read a command line. The installer prompts you for the password
-        /// instead.
-        #[arg(long, value_name = "PASSWORD")]
-        password: Option<String>,
-        /// The `nvs` command that the service runs, written after `--`.
-        ///
-        /// The `--` is required. Everything before it is an option of the
-        /// installer. Everything after it is stored exactly as you wrote it.
-        /// So the service command can use an option that the installer also
-        /// has, for example `--start`.
-        // `rule:packaging/a-service-is-one-stored-argv`.
-        #[arg(
-            last = true,
-            required = true,
-            allow_hyphen_values = true,
-            value_name = "ARGS"
-        )]
-        argv: Vec<String>,
-    },
-}
-
-/// The text under `nvs service install --help`: one whole command line for each
-/// platform, and the rules a first install meets.
-///
-/// An end user reads this, so it is written as `AGENTS.md` § *Text an end user
-/// reads* asks.
-const SERVICE_INSTALL_EXAMPLE: &str = r#"Examples:
-  Each example is shown on several lines. Type it as one line.
-
-  Windows, in a terminal started as administrator:
-
-    nvs service install shop
-        --description "Shop web server"
-        --start delayed
-        --restart on-failure
-        --depends-on postgresql
-        -- serve D:\srv\shop\public\index.nvs --config D:\srv\shop\nvs.toml
-
-  Linux, as root, with the configuration file in the data folder:
-
-    nvs service install shop
-        --description "Shop web server"
-        --depends-on postgresql.service
-        -- serve /srv/shop/public/index.nvs
-
-  A configuration file with `[[server.mount]]` blocks, and no entry file:
-
-    nvs service install sites
-        -- serve --config /srv/www/nvs.toml
-
-  Everything before `--` is an option of the installer. Everything after `--` is
-  the `nvs` command that the service runs. It must be `serve` or `run`.
-
-  Write every path in full. Paths inside the configuration file must be full too.
-
-  Without `--config`, the service uses `nvs.toml` in its data folder. The data
-  folder is `.nvsdata` next to the `nvs` program. To use another folder, add
-  `--data` and the full path of the folder after `--`. The installer creates the
-  folder and the file if they do not exist. It also lets the service write to
-  the folder.
-
-  The entry file is optional for `serve`. With no entry file, the service serves
-  every file that the `[[server.mount]]` blocks in the configuration file mount.
-  A configuration file with `[[server.mount]]` blocks must set `root` in its
-  `[server]` block. Write the full path of the folder that the blocks search.
-
-  A service has no terminal, so it needs a log file. Set this in the
-  configuration file:
-
-    [log]
-    target = "file:D:/srv/shop/logs/novis.log"
-
-  The installer creates that folder and lets the service write to it.
-
-  Add `--dry-run` to print every step without changing anything. To remove the
-  service, run `nvs service uninstall shop`."#;
-
-/// What `nvs service install` takes, which is also what the hidden
-/// `nvs install-service` takes: one struct, because two spellings of one
-/// command that drifted apart in their options would be two commands.
-#[derive(clap::Args)]
-struct ServiceInstall {
-    /// The name of the service. The operating system uses this name.
-    name: String,
-    /// The account that the service runs as. The default is the local system
-    /// account, `LocalSystem`. `SYSTEM` is another name for the same account.
-    // `rule:packaging/a-service-runs-as-a-virtual-account`.
-    #[arg(long, value_name = "ACCOUNT")]
-    account: Option<String>,
-    /// Not allowed. It gives error `E0633`. Other users on the computer can
-    /// read a command line. The installer prompts you for the password
-    /// instead.
-    #[arg(long, value_name = "PASSWORD")]
-    password: Option<String>,
-    /// When the service starts after the computer starts. The default is
-    /// together with the other automatic services.
-    // `rule:packaging/a-service-answers-its-manager`.
-    #[arg(long, value_enum, value_name = "MODE")]
-    start: Option<service::registration::StartMode>,
-    /// What the service manager does when the service fails. The default
-    /// starts it again.
-    #[arg(long, value_enum, value_name = "POLICY")]
-    restart: Option<service::registration::Restart>,
-    /// A service that must start first, for example a database. Repeat this
-    /// option for each one.
-    #[arg(long, value_name = "SERVICE")]
-    depends_on: Vec<String>,
-    /// A description that administrators see next to the name. The default is
-    /// the name of the service.
-    #[arg(long, value_name = "TEXT")]
-    description: Option<String>,
-    /// Prints every step, and changes nothing.
-    #[arg(long)]
-    dry_run: bool,
-    /// The `nvs` command that the service runs, written after `--`.
-    ///
-    /// The `--` is required. Everything before it is an option of the
-    /// installer. Everything after it is stored exactly as you wrote it. So
-    /// the service command can use an option that the installer also has, for
-    /// example `--start`.
-    // `rule:packaging/a-service-is-one-stored-argv`.
-    #[arg(
-        last = true,
-        required = true,
-        allow_hyphen_values = true,
-        value_name = "ARGS"
-    )]
-    argv: Vec<String>,
+    InstallService(service::Install),
+    Fmt(fmt::Args),
+    Lsp(lsp::Args),
+    LspTest(lsp_test::Args),
+    Info(info::Args),
+    Meta(meta::Args),
+    Doc(doc::Args),
+    Agent(agent::Args),
+    Code(code::Args),
+    Stubs(stubs::Args),
 }
 
 /// `nvs serve`, under the service control manager if it was started by one.
@@ -1652,32 +461,8 @@ fn run_hosted(argv: &[String]) -> ExitCode {
         no_init.as_deref(),
     );
     match cli.command {
-        Some(Command::Serve { file, listen, port }) => {
-            serve::run(file.as_deref(), listen.as_deref(), port, &cli.config, init)
-        }
-        Some(Command::Run {
-            file,
-            dump_ir,
-            dump_asm,
-            fault_inject,
-            count,
-            request,
-            peer,
-            events,
-            arguments,
-        }) => run_run(
-            &file,
-            dump_ir,
-            dump_asm,
-            fault_inject,
-            count,
-            request.as_deref(),
-            peer.as_deref(),
-            events.as_deref(),
-            &cli.config,
-            arguments,
-            init,
-        ),
+        Some(Command::Serve(args)) => args.hosted(&cli.config, init),
+        Some(Command::Run(args)) => args.hosted(&cli.config, init),
         _ => {
             eprintln!("error: only `serve` and `run` may be stored as a service");
             ExitCode::FAILURE
@@ -1711,52 +496,6 @@ fn unaccepted(argv: &[String]) -> Option<String> {
             .collect::<Vec<_>>()
             .join(" "),
     )
-}
-
-/// `nvs service install` and `nvs install-service`, which are one command.
-fn install_service(config: &[PathBuf], args: &ServiceInstall) -> ExitCode {
-    let unaccepted = unaccepted(&args.argv);
-    service::install(
-        config,
-        &args.name,
-        &args.argv,
-        &service::InstallOptions {
-            account: args.account.as_deref(),
-            password: args.password.as_deref(),
-            unaccepted: unaccepted.as_deref(),
-            start: args.start.unwrap_or_default(),
-            restart: args.restart.unwrap_or_default(),
-            depends_on: &args.depends_on,
-            description: args.description.as_deref(),
-            dry_run: args.dry_run,
-        },
-    )
-}
-
-/// The closed set of sites `--fault-inject` accepts, one per
-/// [`nvs_runtime::FaultSite`].
-#[derive(Clone, Copy, Debug, clap::ValueEnum)]
-enum FaultSiteArg {
-    /// The request's second runtime helper call panics.
-    HelperPanic,
-}
-
-impl From<FaultSiteArg> for nvs_runtime::FaultSite {
-    fn from(arg: FaultSiteArg) -> Self {
-        match arg {
-            FaultSiteArg::HelperPanic => Self::HelperPanic,
-        }
-    }
-}
-
-/// The closed set of kinds `nvs check --deny` takes
-/// (`rule:tooling/a-todo-is-a-comment-the-tools-list`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug, clap::ValueEnum)]
-enum Deny {
-    /// A use of deprecated code: a `W1003` warning.
-    Deprecated,
-    /// A `// TODO:` comment.
-    Todo,
 }
 
 fn main() -> ExitCode {
@@ -1795,6 +534,12 @@ fn main() -> ExitCode {
         return bundle::run(payload);
     }
 
+    // After the bundle check, so a bundled application always runs optimised code. Before any
+    // command compiles, so every unit of this process is compiled at the same level.
+    if std::env::var_os(NO_OPTIMISE).is_some() {
+        nvs_codegen::compile_unoptimised();
+    }
+
     let cli = Cli::parse();
 
     // Unreachable: `arg_required_else_help` makes a bare `nvs` print help.
@@ -1804,12 +549,7 @@ fn main() -> ExitCode {
 
     // The data folder, named once before any command reads it. `nvs service run` is the one
     // command that runs another command line, and [`run_hosted`] names it from that one.
-    if !matches!(
-        command,
-        Command::Service {
-            command: ServiceCommand::Run { .. }
-        }
-    ) {
+    if !matches!(&command, Command::Service(args) if args.runs_a_stored_line()) {
         set_data_folder(cli.data.as_deref());
     }
     if prepares(&command) {
@@ -1822,293 +562,30 @@ fn main() -> ExitCode {
     let init = config::init_gate(initializes(&command), cli.no_init, no_init.as_deref());
 
     match command {
-        Command::Ast {
-            file,
-            json,
-            // Selects nothing, because it is the default. It exists so a
-            // caller can write down which half of the pair it wants, and
-            // clap refuses it beside `--strict` rather than picking one.
-            resilient: _,
-            strict,
-        } => ast::run(&file, json, strict),
-        Command::Check {
-            file,
-            json,
-            autoload_map,
-            strict_docs,
-            count,
-            todos,
-            deny,
-            fix,
-        } => run_check(
-            &cli.config,
-            &file,
-            &CheckFlags {
-                json,
-                autoload_map,
-                strict_docs,
-                count,
-                todos,
-                deny,
-                fix,
-            },
-            init,
-        ),
-        Command::Run {
-            file,
-            dump_ir,
-            dump_asm,
-            fault_inject,
-            count,
-            request,
-            peer,
-            events,
-            arguments,
-        } => {
-            if started_by_a_manager() {
-                log_like_a_service();
-            }
-            run_run(
-                &file,
-                dump_ir,
-                dump_asm,
-                fault_inject,
-                count,
-                request.as_deref(),
-                peer.as_deref(),
-                events.as_deref(),
-                &cli.config,
-                arguments,
-                init,
-            )
-        }
-        Command::Serve { file, listen, port } => {
-            serve_command(file, listen, port, cli.config.clone(), init)
-        }
-        Command::Test {
-            paths,
-            filter,
-            jobs,
-            show_output,
-            format,
-            update,
-            coverage_lcov,
-            coverage_clover,
-            coverage_cobertura,
-            list,
-            cases,
-            record,
-        } => run_test(
-            &paths,
-            filter,
-            jobs,
-            format,
-            runner::Flags {
-                update,
-                list,
-                jobs: jobs.map_or_else(runner::default_jobs, std::num::NonZeroUsize::get),
-                show_output,
-            },
-            &coverage::Requested {
-                lcov: coverage_lcov,
-                clover: coverage_clover,
-                cobertura: coverage_cobertura,
-            },
-            cases,
-            record,
-            &cli.config,
-            init,
-        ),
-        Command::Build {
-            file,
-            openapi,
-            compile,
-            output,
-        } => {
-            if compile {
-                bundle::build(&file, output.as_deref(), &cli.config)
-            } else {
-                run_build(&file, openapi)
-            }
-        }
-        Command::Api {
-            command: ApiCommand::Diff { old, new },
-        } => api_diff::run(&old, &new),
-        Command::Ext { command } => ext::run(command, &cli.config),
-        Command::Init => config::init(&cli.config),
-        Command::Config {
-            command: ConfigCommand::Check { files },
-        } => config::check(&cli.config, &files),
-        Command::Config {
-            command:
-                ConfigCommand::Dump {
-                    files,
-                    origin,
-                    toml,
-                },
-        } => config::dump(&cli.config, &files, origin, toml),
-        Command::Queue {
-            command:
-                QueueCommand::Migrate {
-                    files,
-                    connection,
-                    dry_run,
-                    including_risky,
-                },
-        } => queue::migrate(
-            &cli.config,
-            &files,
-            connection.as_deref(),
-            dry_run,
-            including_risky,
-        ),
-        Command::Schema {
-            command:
-                SchemaCommand::Plan {
-                    files,
-                    connection,
-                    schema,
-                },
-        } => schema::plan(&cli.config, &files, &connection, &schema),
-        Command::Schema {
-            command:
-                SchemaCommand::Apply {
-                    files,
-                    connection,
-                    schema,
-                    including_risky,
-                },
-        } => schema::apply(&cli.config, &files, &connection, &schema, including_risky),
-        Command::Schema {
-            command: SchemaCommand::Dump { files, connection },
-        } => schema::dump(&cli.config, &files, &connection),
-        Command::Tmp {
-            command: TmpCommand::Clean { dry_run },
-        } => tmp::clean(&cli.config, dry_run),
-        Command::InstallService(args) => install_service(&cli.config, &args),
-        Command::Service { command } => match command {
-            ServiceCommand::Install(args) => install_service(&cli.config, &args),
-            ServiceCommand::Uninstall { name, dry_run } => {
-                service::uninstall(&cli.config, &name, dry_run)
-            }
-            ServiceCommand::Start { name } => service::start(&name),
-            ServiceCommand::Stop { name } => service::stop(&name),
-            ServiceCommand::Status { name } => service::status(&name),
-            ServiceCommand::Run { name } => match service::stored_argv(&name) {
-                Ok(argv) => run_hosted(&argv),
-                Err(reported) => reported,
-            },
-            ServiceCommand::Unit {
-                name,
-                account,
-                password,
-                argv,
-            } => service::print_unit(
-                &cli.config,
-                &name,
-                &argv,
-                account.as_deref(),
-                password.as_deref(),
-                unaccepted(&argv).as_deref(),
-            ),
-        },
-        // `stdio` names the transport the client chose and there is no other
-        // one to choose, so it selects nothing here.
-        Command::Fmt {
-            paths,
-            check,
-            diff,
-            stdin,
-        } => {
-            if stdin {
-                fmt::stdin()
-            } else if check {
-                fmt::run(&paths, fmt::Mode::Check)
-            } else if diff {
-                fmt::run(&paths, fmt::Mode::Diff)
-            } else {
-                fmt::run(&paths, fmt::Mode::Write)
-            }
-        }
-        Command::Lsp { stdio: _ } => match nvs_lsp::run() {
-            Ok(()) => ExitCode::SUCCESS,
-            // stderr, and never stdout: the writer thread owns stdout and a
-            // line printed there would be read as a protocol frame
-            // (`rule:ide/stdout-belongs-to-the-protocol`). By the time this is
-            // reached the client is usually gone, so this is for the editor's
-            // server log rather than for anyone watching.
-            Err(err) => {
-                eprintln!("error: {err}");
-                ExitCode::FAILURE
-            }
-        },
-        Command::LspTest { paths, coverage } => {
-            // The report is this terminal program's own output, which is where
-            // a `.lspt` summary belongs: `rule:ide/stdout-belongs-to-the-protocol` gives stdout to
-            // the protocol only in the process `nvs lsp` runs, and this is not
-            // that process — `nvs_lsp::suite` writes to the sink it is handed
-            // and names none.
-            let mut out = std::io::stdout().lock();
-            let report = if coverage {
-                nvs_lsp::suite::Report::Coverage
-            } else {
-                nvs_lsp::suite::Report::Summary
-            };
-            let root = match tmp::runner_dir(&cli.config) {
-                Ok(root) => root,
-                Err(code) => return code,
-            };
-            match nvs_lsp::suite::run(&paths, &root, &mut out, report) {
-                Ok(outcome) if outcome.summary.is_success() => ExitCode::SUCCESS,
-                Ok(_) => ExitCode::FAILURE,
-                Err(error) => {
-                    eprintln!("error: {error}");
-                    ExitCode::FAILURE
-                }
-            }
-        }
-        Command::Info { licenses } => info::run(licenses),
-        Command::Meta { json: _, entry } => meta::run(entry.as_deref()),
-        Command::Doc { file, out } => doc::run(&file, &out),
-        Command::Stubs { out } => match nvs_lsp::stubs::write_to(&out) {
-            Ok(written) => {
-                for path in written {
-                    println!("{}", path.display());
-                }
-                ExitCode::SUCCESS
-            }
-            Err(err) => {
-                eprintln!("error: could not write {}: {err}", out.display());
-                ExitCode::FAILURE
-            }
-        },
-        Command::Code { command } => match command {
-            CodeCommand::Show { symbol, json } => code::show(&symbol, json),
-            CodeCommand::Refs { symbol, json } => code::refs(&symbol, json),
-            CodeCommand::Impls { symbol, json } => code::impls(&symbol, json),
-            CodeCommand::Outline { file, json } => code::outline(&file, json),
-            CodeCommand::Types { file, json } => code::types(&file, json),
-        },
-        Command::Agent { command } => match command {
-            AgentCommand::Primer => agent::primer(),
-            AgentCommand::Index { json } => agent::index(json),
-            AgentCommand::Find { query, json } => agent::find(&query, json),
-            AgentCommand::Show { symbol, json } => agent::show(&symbol, json),
-            AgentCommand::Init {
-                agents,
-                all,
-                force,
-                check,
-                no_hooks,
-            } => agent::init(&agent::InitOptions {
-                agents,
-                all,
-                force,
-                check,
-                no_hooks,
-            }),
-            AgentCommand::Hook { agent } => agent::hook(&agent),
-        },
+        Command::Ast(args) => args.run(),
+        Command::Check(args) => args.run(&cli.config, init),
+        Command::Run(args) => args.run(&cli.config, init),
+        Command::Serve(args) => args.run(&cli.config, init),
+        Command::Test(args) => args.run(&cli.config, init),
+        Command::Build(args) => args.run(&cli.config),
+        Command::Api(args) => args.run(),
+        Command::Ext(args) => args.run(&cli.config),
+        Command::Init(args) => args.run(&cli.config),
+        Command::Config(args) => args.run(&cli.config),
+        Command::Queue(args) => args.run(&cli.config),
+        Command::Schema(args) => args.run(&cli.config),
+        Command::Tmp(args) => args.run(&cli.config),
+        Command::InstallService(args) => args.run(&cli.config),
+        Command::Service(args) => args.run(&cli.config),
+        Command::Fmt(args) => args.run(),
+        Command::Lsp(args) => args.run(),
+        Command::LspTest(args) => args.run(&cli.config),
+        Command::Info(args) => args.run(),
+        Command::Meta(args) => args.run(),
+        Command::Doc(args) => args.run(),
+        Command::Stubs(args) => args.run(),
+        Command::Code(args) => args.run(),
+        Command::Agent(args) => args.run(),
     }
 }
 
@@ -2222,8 +699,8 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 }
 
 /// [`front_end`] with the extension set `extensions` loaded, which `nvs run`
-/// reads from its configuration before the program compiles
-/// ([`config::extension_set`]).
+/// and `nvs build --compile` read from their configuration before the program
+/// compiles.
 fn front_end_extended(
     path: &std::path::Path,
     extensions: Vec<nvs_ext::manifest::Manifest>,
@@ -2447,10 +924,12 @@ fn front_end_in(
 
     let core = nvs_stdlib::registry::link_targets();
     let closed = nvs_stdlib::registry::closed_interfaces();
+    let sealed = nvs_stdlib::registry::sealed_classes();
     let imports = nvs_types::core_lib::importable();
     let roster = nvs_hir::CoreRoster::Names {
         links: &core,
         closed: &closed,
+        sealed: &sealed,
         imports: &imports,
     };
     let plain = nvs_hir::lenders::is_plain(map.file(id).text());
@@ -2658,7 +1137,7 @@ fn run_check(
     let sink = Sink::Check {
         json: flags.json,
         list_todos: flags.todos,
-        read_todos: flags.deny.contains(&Deny::Todo),
+        read_todos: flags.deny.contains(&check::Deny::Todo),
     };
     match front_end_granted(
         path,
@@ -2683,8 +1162,8 @@ fn run_check(
             }
             let found = check::take();
             let denied = flags.deny.iter().any(|kind| match kind {
-                Deny::Deprecated => found.deprecated,
-                Deny::Todo => found.todo,
+                check::Deny::Deprecated => found.deprecated,
+                check::Deny::Todo => found.todo,
             });
             if denied {
                 ExitCode::FAILURE
@@ -2707,7 +1186,7 @@ struct CheckFlags {
     strict_docs: bool,
     count: bool,
     todos: bool,
-    deny: Vec<Deny>,
+    deny: Vec<check::Deny>,
     fix: bool,
 }
 
@@ -3091,13 +1570,13 @@ fn inbound_of(text: &str) -> Result<nvs_runtime::Inbound, String> {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "one parameter per `Command::Run` flag, plus the tree the run resolves; a struct here would be a second spelling of that variant"
+    reason = "one parameter per `nvs run` flag, plus the tree the run resolves; a struct here would be a second spelling of `run::Args`"
 )]
 fn run_run(
     path: &std::path::Path,
     dump_ir: bool,
     dump_asm: bool,
-    fault_inject: Option<FaultSiteArg>,
+    fault_inject: Option<run::FaultSiteArg>,
     count: bool,
     request: Option<&std::path::Path>,
     peer: Option<&std::path::Path>,
@@ -3116,9 +1595,26 @@ fn run_run(
     } else {
         path.to_path_buf()
     };
-    let extensions = match config::extension_set(config, &config_entry) {
-        Ok(extensions) => extensions,
-        Err(code) => return code,
+    // The configuration tree is read once for the whole run, here, and every later step reads
+    // this one result: the compile types extension calls against its manifests, the run takes
+    // its snapshot, and the extension host loads its set. A tree that does not resolve compiles
+    // the program against no extension, and the refusal is reported where the snapshot is taken
+    // below, so a program's own diagnostics still come first.
+    let mut config_sources = SourceMap::new();
+    let booted = config::boot_origins(config, Some(&config_entry), &mut config_sources, init);
+    let extensions = match &booted {
+        Ok((snapshot, origins)) => {
+            match extensions::manifests(&snapshot.config, origins, &config_sources) {
+                Ok(manifests) => manifests,
+                Err(diagnostic) => {
+                    let mut diags = Diagnostics::new();
+                    diags.report(diagnostic);
+                    render_diagnostics(&mut diags, &config_sources);
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+        Err(_) => Vec::new(),
     };
     let checked = match front_end_extended(path, extensions) {
         Ok(checked) => checked,
@@ -3166,9 +1662,8 @@ fn run_run(
     // the request exists, and the request then clones it once. A refusal here is
     // a refusal to start — `rule:config/later-wins-and-every-override-is-recorded`'s later-wins and `rule:config/ownership-is-the-trust-boundary`'s boundary are only
     // worth anything if a tree that does not resolve stops the run.
-    let mut config_sources = SourceMap::new();
-    let snapshot = match config::boot_snapshot(config, &config_entry, &mut config_sources, init) {
-        Ok(snapshot) => snapshot,
+    let (snapshot, origins) = match booted {
+        Ok(booted) => booted,
         Err(diagnostic) => {
             let mut diags = Diagnostics::new();
             diags.report(diagnostic);
@@ -3669,16 +2164,29 @@ fn run_run(
         )
     });
     // The loaded extensions, which a compiled call into one reaches through
-    // `nvs_runtime::extension` while the run's tasks run.
-    let calls = match config::extension_calls(config, &config_entry) {
-        Ok(calls) => calls.map(std::rc::Rc::new),
-        Err(code) => return code,
+    // `nvs_runtime::extension` while the run's tasks run. The set is the one the
+    // tree read at the top of the run names, so `E0652` points at that tree's line.
+    let calls = match extensions::loaded(&for_compiler.config, &origins, &config_sources) {
+        Ok(set) => std::rc::Rc::new(extensions::Calls::new(set)),
+        Err(diagnostic) => {
+            let mut diags = Diagnostics::new();
+            diags.report(diagnostic);
+            render_diagnostics(&mut diags, &config_sources);
+            return ExitCode::FAILURE;
+        }
     };
-    let calling = calls.clone().map(|calls| {
-        nvs_runtime::extension::install(
-            calls as std::rc::Rc<dyn nvs_runtime::extension::Extensions>,
-        )
-    });
+    let calling = nvs_runtime::extension::install(
+        std::rc::Rc::clone(&calls) as std::rc::Rc<dyn nvs_runtime::extension::Extensions>
+    );
+    // The last step of the start that reads the configuration, and the tree it read is still
+    // the one read at the top. Every `.nvst` case runs through here, so a debug build that
+    // reads a second tree fails the suite.
+    #[cfg(debug_assertions)]
+    assert_eq!(
+        config::trees_read(),
+        1,
+        "`nvs run` reads its configuration tree once"
+    );
     let watchdog = nvs_host::ThreadClock::current()
         .is_some()
         .then(nvs_host::Watchdog::new);
@@ -3816,7 +2324,7 @@ fn run_run(
 /// tests itself and a release build tests itself, with nothing to configure.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one parameter per `Command::Test` flag; a struct here would be a second spelling of that variant"
+    reason = "one parameter per `nvs test` flag; a struct here would be a second spelling of `runner::Args`"
 )]
 fn run_test(
     paths: &[PathBuf],
@@ -4371,15 +2879,12 @@ fn internal_error(message: impl Into<String>) -> Diagnostics {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Cli, Command, SERVICE_INSTALL_EXAMPLE, ServiceCommand, inbound_of, initializes, prepares,
-        unaccepted,
-    };
+    use super::{Cli, inbound_of, initializes, prepares, unaccepted};
     use clap::{CommandFactory as _, Parser as _};
 
     /// A command line as the words a shell would hand over: split on spaces,
     /// with a double-quoted run kept as one word.
-    fn words(line: &str) -> Vec<String> {
+    pub(crate) fn words(line: &str) -> Vec<String> {
         let mut out = Vec::new();
         let mut word = String::new();
         let mut quoted = false;
@@ -4422,38 +2927,6 @@ mod tests {
             )),
             None
         );
-    }
-
-    /// Every command line the help shows is one the parser takes, and the argv
-    /// it stores is one this binary runs — so the example cannot drift from the
-    /// options it is an example of.
-    #[test]
-    fn every_command_line_in_the_service_install_help_parses_and_stores_an_accepted_argv() {
-        // An example runs from its `nvs service install` line to the next blank
-        // one, and is one command line once those are joined.
-        let lines: Vec<String> = SERVICE_INSTALL_EXAMPLE
-            .split("\n\n")
-            .filter(|block| block.trim_start().starts_with("nvs service install "))
-            .map(|block| block.split_whitespace().collect::<Vec<_>>().join(" "))
-            .collect();
-        assert_eq!(
-            lines.len(),
-            3,
-            "one for each platform, and one that names no entry file"
-        );
-        for line in &lines {
-            let cli =
-                Cli::try_parse_from(words(line)).unwrap_or_else(|error| panic!("{line}: {error}"));
-            let Some(Command::Service {
-                command: ServiceCommand::Install(args),
-            }) = cli.command
-            else {
-                panic!("{line} is not `nvs service install`")
-            };
-            assert!(["shop", "sites"].contains(&args.name.as_str()), "{line}");
-            assert_eq!(args.argv[0], "serve");
-            assert_eq!(unaccepted(&args.argv), None, "{line}");
-        }
     }
 
     /// The half of [`initializes`]'s table that writes no configuration file, read through the

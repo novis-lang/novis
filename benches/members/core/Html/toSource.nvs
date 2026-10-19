@@ -1,7 +1,7 @@
 <?nvs
 // Measures getting the text of an HTML value, as a program does before it stores a rendered piece of a page.
 // bench: iterations 1024
-// bench: calls 0
+// bench: calls 2
 // bench: allocations 0
 // bench: complexity constant
 

@@ -1,7 +1,7 @@
 <?nvs
 // Reads the certificates a server sent, as a program does before it saves or compares them.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

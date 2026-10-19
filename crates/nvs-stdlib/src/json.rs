@@ -305,6 +305,7 @@ use crate::registry::{
 /// wrote in slot 0, and that roster owns why. `Core\Request::jsonAs` is the
 /// same decode over a request body and reaches it through [`check_codec`] and
 /// [`hydrate`] rather than through [`decode_as`].
+// rank: 100
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Json",
     doc: Some(&CARD),
@@ -3936,6 +3937,10 @@ mod tests {
     /// may ask for has to decode on the debug profile, whose frames are the
     /// fattest. The calling thread's stack is far too small for that parse, so
     /// the test also shows the parse runs on the spare stack.
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn a_document_at_the_ceiling_decodes_whatever_stack_the_caller_has() {
         let levels = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize") - 1;
@@ -4103,6 +4108,10 @@ mod tests {
     /// and an integer past `int` each answer `false` without a throw — the
     /// depth asserted on both sides of `DEFAULT_MAX_DEPTH`.
     // covers: Core\Json::isValid
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn is_valid_answers_false_rather_than_throwing_and_holds_the_default_depth() {
         let mut ctx = nvs_runtime::Ctx::buffered();
@@ -4833,6 +4842,11 @@ mod tests {
     /// The depth cap still bounds what the ancestor chain does not: a document
     /// that is acyclic and merely deeper than any encoder should walk is
     /// refused as nesting, and never reported as a cycle.
+    #[cfg_attr(
+        miri,
+        ignore = "the walk checks every open level at each level, which is minutes under Miri \
+                  at the ceiling, and the ceiling is a constant"
+    )]
     #[test]
     fn a_document_deeper_than_the_ceiling_still_reports_depth_and_not_a_cycle() {
         let depth = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize");
@@ -4858,6 +4872,11 @@ mod tests {
     /// the answer is the text, so a walk that ended early fails rather than
     /// merely survives. Every value is built and released inside that thread: a
     /// refcount is a per-thread fact.
+    #[cfg_attr(
+        miri,
+        ignore = "the walk checks every open level at each level, which is minutes under Miri \
+                  at the ceiling, and the ceiling is a constant"
+    )]
     #[test]
     fn json_nesting_is_bounded_by_the_heap_stack_not_the_native_one() {
         // The deepest legal document: the innermost scalar sits at the ceiling,

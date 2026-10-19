@@ -207,6 +207,12 @@ const DECOMPRESSOR_CARD: ClassDoc = ClassDoc {
 };
 
 /// `Core\Compress`'s registry rows — the whole-buffer pair.
+///
+/// The codec class, ranked beside `Core\Html`. Tier 0 for a reason that is
+/// not the other three's: `rule:core-classes/decompression-bound`'s bound is
+/// policy, and a policy a program can decline is not one — see
+/// [`crate::compress`].
+// rank: 1090
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -385,6 +391,13 @@ pub(crate) const COMPRESSOR_NAME: &str = r"Core\Compress\Compressor";
 /// answered. This module's own docs say why the state is the chunks rather than
 /// a coder, why this is a class of its own beside [`DECOMPRESSOR`], and what
 /// either one spends.
+///
+/// § 17's incremental pair, beside the class whose two openers answer them.
+/// Two classes rather than one because an instance carries no qualifier:
+/// `rule:security/tainted-sources` makes the decompressing half's `finish`
+/// answer `tainted bytes` and the compressing half's answer `bytes`, which
+/// one class would have to collapse — [`crate::compress`] is the argument.
+// rank: 1100
 pub(crate) const COMPRESSOR: CoreClass = CoreClass {
     name: COMPRESSOR_NAME,
     doc: Some(&COMPRESSOR_CARD),
@@ -454,6 +467,7 @@ pub(crate) const DECOMPRESSOR_NAME: &str = r"Core\Compress\Decompressor";
 /// [`Bound`] this stream was opened under, already resolved against the
 /// operator's ceiling, so `finish` measures the whole stream against the numbers
 /// the opening fixed and no later configuration read can raise them.
+// rank: 1110
 pub(crate) const DECOMPRESSOR: CoreClass = CoreClass {
     name: DECOMPRESSOR_NAME,
     doc: Some(&DECOMPRESSOR_CARD),
@@ -1418,7 +1432,8 @@ mod tests {
 
         // The ceiling is on the window a frame declares and not on what it
         // decompresses to, so the frames this class writes still round trip.
-        let payload = vec![b'Z'; 64 << 10];
+        // Under Miri the payload is 4 KiB, because that is enough for a frame.
+        let payload = vec![b'Z'; if cfg!(miri) { 4 << 10 } else { 64 << 10 }];
         let frame = compress_to(Codec::Zstd, &payload).expect("compresses");
         assert_eq!(
             decompress_within(Codec::Zstd, &frame, ROOMY, MEMBER)
@@ -1502,10 +1517,12 @@ mod tests {
     ///
     /// The payload is 64 KiB of one byte, which every codec here takes to well
     /// under a hundred octets, so a ratio of 2 is passed by all five and the
-    /// sweep is the assertion.
+    /// sweep is the assertion. Under Miri it is 4 KiB, which every codec still
+    /// takes under a hundred octets, because compressing 64 KiB five times
+    /// there takes minutes.
     #[test]
     fn a_decompression_exceeding_the_ratio_throws_rather_than_truncating() {
-        let bomb = vec![b'A'; 64 << 10];
+        let bomb = vec![b'A'; if cfg!(miri) { 4 << 10 } else { 64 << 10 }];
         let mut refused = 0;
         for codec in EVERY {
             let frame = compress_to(codec, &bomb).expect("compresses");
@@ -1531,10 +1548,11 @@ mod tests {
     }
 
     /// The absolute half refuses on its own, with the ratio wide open — so a
-    /// large input cannot buy a proportionally large output.
+    /// large input cannot buy a proportionally large output. Under Miri the
+    /// payload is 4 KiB rather than 32, still four times the ceiling.
     #[test]
     fn a_decompression_exceeding_the_absolute_ceiling_throws_rather_than_truncating() {
-        let payload = vec![b'B'; 32 << 10];
+        let payload = vec![b'B'; if cfg!(miri) { 4 << 10 } else { 32 << 10 }];
         for codec in EVERY {
             let frame = compress_to(codec, &payload).expect("compresses");
             let bound = Bound {

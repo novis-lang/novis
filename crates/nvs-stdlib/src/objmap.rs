@@ -81,6 +81,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// stored under — and `rule:iteration/two-interfaces` gives a cursor no key binding to carry the
 /// other half in. `values()` is the spelling for the other direction.
 /// [`crate::cursor`] owns the mechanism and what the snapshot spends.
+// rank: 290
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

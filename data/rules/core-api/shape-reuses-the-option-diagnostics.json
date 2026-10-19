@@ -7,7 +7,7 @@
     "types/shape-type"
   ],
   "guardedBy": [
-    "crates/nvs-diagnostics/src/lib.rs",
+    "crates/nvs-diagnostics/src/code/mod.rs",
     "crates/nvs-types/tests/core_members.rs"
   ]
 }

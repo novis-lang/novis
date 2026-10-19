@@ -117,6 +117,12 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `rule:tooling/commands-are-compiled`'s generated help, as a registry row. See
 /// [`crate::registry::CLASSES`].
+///
+/// § 13's other half — `rule:tooling/commands-are-compiled`'s members over the table `#[Command]`
+/// built while compiling. Beside `Core\Cli` because it answers with that
+/// class's carrier; [`crate::command`] owns the page's layout, and
+/// `nvs_runtime::commands` owns why the compiled rows cross into the runtime.
+// rank: 630
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

@@ -189,6 +189,7 @@ docs/
   examples/         worked `Core` examples
 .github/            CI: three platforms, miri, asan, tsan and fuzz legs, and a Bun-only docs job
 .claude/            Claude Code settings, and the pointer file to AGENTS.md
+.config/            cargo-nextest's profiles, among them the one the Miri jobs run under
 ```
 <!-- layout:end -->
 

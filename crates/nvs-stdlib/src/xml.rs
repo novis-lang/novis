@@ -187,6 +187,14 @@ pub(crate) const WRITER_NAME: &str = r"Core\Xml\Writer";
 /// They answer the same family and share no operation, which is
 /// `rule:core-classes/xml-tree-and-stream` and the paragraph in the module doc
 /// above.
+///
+/// § 17's document class, next after `Core\Html` because the two are one
+/// subsystem: `rule:core-classes/html-parsing` makes both parsers produce
+/// the node family below, so which door parsed a document does not change
+/// what a program can do with it. The tree half is what is registered —
+/// [`crate::xml`] owns the split and why the streaming half is not a mode of
+/// this one.
+// rank: 1050
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -291,6 +299,11 @@ const NAMESPACE_SLOT: usize = 5;
 /// text of its own, both of which are answers rather than errors. The exception
 /// is [`nvs_core_xml_node_source`], which walks the subtree and writes it back
 /// out, and is the one that can refuse.
+///
+/// The node family itself, memberless of statics and produced only by a
+/// parse. Beside its class rather than in spec § order for `Core\Html`'s own
+/// reason: this is the value the section's first two rows both answer with.
+// rank: 1060
 pub(crate) const NODE: CoreClass = CoreClass {
     name: NODE_NAME,
     doc: Some(&NODE_CARD),
@@ -533,6 +546,13 @@ const KIND_ENUM_DOC: EnumDoc = EnumDoc {
 /// disjointness is `rule:core-classes/xml-tree-and-stream` — the family is
 /// shared, the operations are not — and it is why this is a second class rather
 /// than a mode on [`CLASS`].
+///
+/// The other door onto that family: § 17's stream half, beside the tree half
+/// rather than in spec order because the two are one subsystem in two
+/// shapes. `rule:core-classes/xml-tree-and-stream` is why it is a class of
+/// its own and not a mode on the row above — the family is shared and no
+/// operation is, so which shape a program uses is settled at the door.
+// rank: 1070
 pub(crate) const READER: CoreClass = CoreClass {
     name: READER_NAME,
     doc: Some(&READER_CARD),
@@ -652,6 +672,13 @@ const SCOPES_SLOT: usize = 6;
 /// — the document and an element — and **the single call where it cannot** — an
 /// attribute, a comment, a CDATA section, a processing instruction and the
 /// document type declaration.
+///
+/// The stream half's other door, beside the reader for the reason the
+/// reader sits beside the tree: reading a document a node at a time and
+/// building one a node at a time are the two halves of one shape, and
+/// `rule:core-classes/xml-tree-and-stream` is what keeps neither of them
+/// reachable through the other.
+// rank: 1080
 pub(crate) const WRITER: CoreClass = CoreClass {
     name: WRITER_NAME,
     doc: Some(&WRITER_CARD),
@@ -3770,18 +3797,23 @@ mod tests {
     /// Fifty thousand names is where a scan over every earlier name stops
     /// finishing inside a test run, so this is the regression for the set as
     /// much as for the answer. The short tag keeps the scan's half asserted.
+    /// Under Miri the tag has five hundred names, still far past the scan.
     // covers: Core\Xml::parse
     #[test]
     fn a_wide_tag_is_read_in_linear_time_and_a_repeated_name_is_still_refused() {
         use std::fmt::Write as _;
 
+        let names = if cfg!(miri) { 500 } else { 50_000 };
         let mut wide = String::from("<item");
-        for i in 0..50_000 {
+        for i in 0..names {
             write!(wide, " a{i}=\"{i}\"").expect("writing to a String cannot fail");
         }
         let document = parse(&format!("{wide}/>")).expect("distinct names are well-formed");
-        assert_eq!(document.children[0].attributes.len(), 50_000);
-        assert_eq!(document.children[0].attributes[49_999].0, "a49999");
+        assert_eq!(document.children[0].attributes.len(), names);
+        assert_eq!(
+            document.children[0].attributes[names - 1].0,
+            format!("a{}", names - 1)
+        );
 
         let err = parse(&format!("{wide} a7=\"again\"/>"))
             .expect_err("a name repeated past the scan is caught by the set");
@@ -4638,19 +4670,25 @@ mod tests {
 
     /// An attribute of two million `"` characters is two megabytes in the tree
     /// and twelve once `source` escapes it. `source` asks the budget before it
-    /// writes, so the request stops near its ceiling instead of past it.
+    /// writes, so the request stops near its ceiling instead of past it. Under
+    /// Miri the attribute is 32,000 characters and the limit 128 KiB.
     // covers: Core\Xml\Node::source
     #[test]
     fn source_stops_at_the_memory_limit_before_it_escapes() {
+        let (quotes, limit) = if cfg!(miri) {
+            (32_000, 128 << 10)
+        } else {
+            (2_000_000, 8 << 20)
+        };
         let mut ctx = Ctx::buffered();
-        ctx.set_memory_limit(8 << 20);
-        let source = word(&format!("<t v='{}'/>", "\"".repeat(2_000_000)));
+        ctx.set_memory_limit(limit);
+        let source = word(&format!("<t v='{}'/>", "\"".repeat(quotes)));
         let tree =
             call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("the tree fits the limit");
         dropped(source);
         assert!(call(super::nvs_core_xml_node_source, &mut ctx, &[tree]).is_err());
         assert!(
-            ctx.memory_peak() < 16 << 20,
+            ctx.memory_peak() < 2 * limit,
             "{} bytes at the peak",
             ctx.memory_peak()
         );
@@ -4660,15 +4698,22 @@ mod tests {
     /// A document of a million empty elements builds a Rust tree some thirty
     /// times its own size. The parse asks the budget as it builds, so the
     /// request stops near its ceiling instead of holding that whole tree first.
+    /// Under Miri the document is a twentieth of that and the ceiling 1 MiB, so
+    /// the tree it would build is still six times the ceiling.
     // covers: Core\Xml::parse
     #[test]
     fn a_parse_stops_at_the_memory_limit_while_it_builds_the_tree() {
+        let (elements, limit) = if cfg!(miri) {
+            (50_000, 1 << 20)
+        } else {
+            (1_000_000, 16 << 20)
+        };
         let mut ctx = Ctx::buffered();
-        ctx.set_memory_limit(16 << 20);
-        let source = word(&format!("<list>{}</list>", "<i/>".repeat(1_000_000)));
+        ctx.set_memory_limit(limit);
+        let source = word(&format!("<list>{}</list>", "<i/>".repeat(elements)));
         assert!(call(super::nvs_core_xml_parse, &mut ctx, &[source]).is_err());
         assert!(
-            ctx.memory_peak() < 48 << 20,
+            ctx.memory_peak() < 3 * limit,
             "{} bytes at the peak",
             ctx.memory_peak()
         );
@@ -4712,7 +4757,9 @@ mod tests {
     /// all escaped. The names a tag carries are the tag's alone, so the same name
     /// is accepted again on the next element. Twenty thousand names on one tag
     /// are accepted and the first is still refused a second time, which a check
-    /// that scanned every earlier name could only do in quadratic time.
+    /// that scanned every earlier name could only do in quadratic time. Under
+    /// Miri the tag carries fifty names, because each write there rechecks
+    /// every piece written before it. The native run keeps the pin.
     // covers: Core\Xml\Writer::attribute
     #[test]
     fn attribute_values_parse_back_and_names_are_checked_per_tag() {
@@ -4737,7 +4784,8 @@ mod tests {
         wrote(asked(&mut ctx, attribute, &[writer, id, value]));
         wrote(asked(&mut ctx, end, &[writer]));
         wrote(asked(&mut ctx, start, &[writer, row]));
-        let names: Vec<Value> = (0..20_000).map(|at| word(&format!("a{at}"))).collect();
+        let carried = if cfg!(miri) { 50 } else { 20_000 };
+        let names: Vec<Value> = (0..carried).map(|at| word(&format!("a{at}"))).collect();
         for name in &names {
             wrote(asked(&mut ctx, attribute, &[writer, *name, id]));
         }
@@ -4756,7 +4804,7 @@ mod tests {
         let root = &tree.children[0];
         assert_eq!(root.attributes, [("id".to_owned(), raw.to_owned())]);
         assert_eq!(root.children[0].attributes, root.attributes);
-        assert_eq!(root.children[1].attributes.len(), 20_000);
+        assert_eq!(root.children[1].attributes.len(), carried);
 
         dropped(document);
         for name in names {
@@ -5165,6 +5213,15 @@ mod tests {
         );
         dropped(document);
 
+        // The ceiling is a constant, so this half has no smaller input. Under
+        // Miri each write rechecks every piece written before it, and the
+        // half takes minutes, so it runs only outside Miri.
+        if cfg!(miri) {
+            for held in words.into_iter().chain([writer]) {
+                dropped(held);
+            }
+            return;
+        }
         let deep = pen(&mut ctx, "");
         wrote(asked(
             &mut ctx,

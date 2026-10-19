@@ -73,7 +73,6 @@ to clear a tripwire, at the end of a session, when the real work was already don
 size of a goal's orientation pack: it is a number to look at when you write a goal, never an exit code,
 and never something to trim prose against mid-run.
 
-
 The one structural rule that *does* still matter is not about length: `bun nv brief` and
 `bun nv pack` may only print text bounded by a **count of entities** — one line per
 rule, per record, per guard test, per module in scope — never by a length of prose.

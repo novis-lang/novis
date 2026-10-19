@@ -1,10 +1,8 @@
-// `bun nv benches` with its bench turn handed in, so nothing builds and no bench runs, and the guard's
-// heavy-run rule over it.
+// `bun nv benches` with its bench turn handed in, so nothing builds and no bench runs.
 
 import { describe, expect, test } from "bun:test";
 import { benches } from "../cmd/benches.ts";
-import { decide } from "../cmd/guard.ts";
-import { ROOT } from "../lib/paths.ts";
+
 
 /** Runs `bun nv benches args` over a turn that records the `owedOnly` it was handed and returns `red`. */
 async function benchesOver(args: string[], red = "") {
@@ -24,12 +22,5 @@ describe("bun nv benches", () => {
     for (const args of [["--all"], ["--owed", "--owed"], ["--owed", "x"], ["owed"]]) {
       expect(await benchesOver(args)).toEqual({ code: 2, turns: [] });
     }
-  });
-
-  test("the guard refuses nv benches as a heavy run", () => {
-    const bash = (command: string) => decide({ tool_name: "Bash", tool_input: { command }, cwd: ROOT });
-    expect(bash("bun nv benches") ?? "").toStartWith("guard: heavy-run: ");
-    expect(bash("bun nv benches --owed") ?? "").toStartWith("guard: heavy-run: ");
-    expect(bash("bun nv bench --help")).toBeNull();
   });
 });

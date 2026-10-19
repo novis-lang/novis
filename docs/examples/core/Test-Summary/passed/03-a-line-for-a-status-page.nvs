@@ -1,0 +1,38 @@
+<?nvs
+// Shows an `#[AfterClass]` method that adds one line to a status page. The line
+// shows how many tests passed out of all tests that ran.
+
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class StatusLine
+{
+    // A flaky test also ran, so it is part of the total.
+    public static function of(string $class, int $passed, int $failed, int $flaky): string
+    {
+        int $ran = $passed + $failed + $flaky;
+        return $class . ': ' . $passed . ' of ' . $ran . " passed\n";
+    }
+}
+
+class CheckoutTest
+{
+    #[Test]
+    public function itNeedsAnAddress(): void
+    {
+        Test::assertTrue(Core\Str::isEmpty(''));
+    }
+
+    #[AfterClass]
+    public static function updateStatusPage(Summary $summary): void
+    {
+        string $line = StatusLine::of($summary->class(), $summary->passed(), $summary->failed(), $summary->flaky());
+        IO::append(Path::fromCwd('status.txt'), $line);
+    }
+}
+
+// This prints `CheckoutTest: 9 of 10 passed`.
+echo StatusLine::of('CheckoutTest', 9, 1, 0);

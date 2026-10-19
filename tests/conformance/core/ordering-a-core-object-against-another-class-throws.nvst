@@ -1,0 +1,30 @@
+--TEST--
+A `Core` object and an object of another class have no natural order: a sort over `array<mixed>` holding both throws, and never calls the `Core` class's `compareTo` with the wrong class — `rule:core-api/core-classes-are-sealed`, `rule:classes/comparable`
+--FILE--
+<?nvs
+final class Score implements Comparable {
+    public int $points;
+
+    public function constructor(int $points) {
+        $this->points = $points;
+    }
+
+    public function compareTo(Score $other): int {
+        return $this->points <=> $other->points;
+    }
+}
+
+array<mixed> $mixed = [Core\BigInt::of(2), new Score(1)];
+try {
+    Core\Arr::sort($mixed);
+    echo "sorted\n";
+} catch (Throwable $e) {
+    echo Core\Str::startsWith($e->message, 'Core\Arr::sort has no natural order') ? "no order\n" : $e->message;
+}
+
+array<mixed> $same = [Core\BigInt::of(2), Core\BigInt::of(1)];
+Core\Arr::sort($same);
+echo "sorted the same class\n";
+--EXPECT--
+no order
+sorted the same class

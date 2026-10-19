@@ -973,6 +973,11 @@ fn a_copy_that_pauses_less_than_settle_is_compiled_once_from_the_finished_tree()
 /// `heavy.nvs` makes the compile slow, and the warning tells this case when
 /// the compile has read every file. `file_cache` is off, so no earlier run can
 /// make the compile fast.
+///
+/// Each of the two waits has [`BOUND`] of its own: the first from the write of
+/// `app.nvs` to its warning, and the second from the write of `lib.nvs` to its
+/// answer. The second wait covers the rest of the compile that is thrown away
+/// and the whole of the next one.
 #[test]
 fn a_file_that_changes_during_a_compile_discards_that_compile() {
     let config = format!("{}file_cache = false\n", checking_every_100ms("100ms"));
@@ -998,6 +1003,7 @@ fn a_file_that_changes_during_a_compile_discards_that_compile() {
         thread::sleep(Duration::from_millis(1));
     }
     server.write("lib.nvs", &printing("two"));
+    let written = Instant::now();
     loop {
         let answer = server.get("/");
         if answer.body == "two second" {
@@ -1008,7 +1014,7 @@ fn a_file_that_changes_during_a_compile_discards_that_compile() {
             "a request got the compile that `lib.nvs` moved under"
         );
         assert!(
-            started.elapsed() <= BOUND,
+            written.elapsed() <= BOUND,
             "the edit was not swapped in within {BOUND:?}; the server wrote: {}",
             server.said()
         );

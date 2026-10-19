@@ -2,7 +2,7 @@
 // Measures working out the public half of a key pair, as a server does when it
 // publishes its key or sends it to a peer.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

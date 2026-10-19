@@ -172,6 +172,14 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// `Core\Storage`'s four rows — `rule:programs/framework-core-half`'s object storage.
+///
+/// `rule:programs/framework-core-half`'s other half of the same row pair, and registered beside
+/// `Core\Mail` because the two are what that section adds to `Core`: an
+/// operator names the endpoint in one and the disk in the other, and neither
+/// takes a host or a path. It is the one class here that declares **no**
+/// capability of its own — [`crate::storage`] owns why `fs.*` answering
+/// twice would be the bug.
+// rank: 890
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -700,6 +708,10 @@ mod tests {
     /// `put` replaces an object by default, and `overwrite: false` claims a
     /// key: the second claim throws and the bytes already there stay.
     // covers: Core\Storage::put
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn put_replaces_by_default_and_a_refused_claim_leaves_the_object_alone() {
         let (root, mut ctx) = disk("put");
@@ -736,6 +748,10 @@ mod tests {
     /// that was, and throws for a key that climbs out of the disk before it
     /// asks the disk anything.
     // covers: Core\Storage::get
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn get_gives_null_for_a_missing_object_and_the_bytes_for_a_saved_one() {
         let (root, mut ctx) = disk("get");

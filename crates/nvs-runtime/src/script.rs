@@ -316,6 +316,9 @@ pub fn install(resolver: &'static dyn Resolver) -> Installed {
 ///
 /// `run`'s own panic unwinds straight through — the guard is a local here, so
 /// the previous resolver is restored on the way past.
+///
+/// **Never inside a task that parks**, for [`crate::inproc::scoped`]'s reason:
+/// every task on the thread reads the slot while the installing task is parked.
 pub fn scoped<R>(resolver: &(dyn Resolver + 'static), run: impl FnOnce() -> R) -> R {
     #[expect(
         unsafe_code,
@@ -328,7 +331,11 @@ pub fn scoped<R>(resolver: &(dyn Resolver + 'static), run: impl FnOnce() -> R) -
                   `is_installed` answers with a `bool`. A nested `install` inside \
                   `run` is sound however its guard is dropped or forgotten, \
                   because putting *this* resolver back is what `installed` does \
-                  regardless"
+                  regardless. That holds while `run` does not park: a task \
+                  parked inside it lets another task on this thread install \
+                  over it and later restore this reference after this call has \
+                  returned, so every caller installs around a thread's whole \
+                  scheduler loop and never inside a task"
     )]
     let widened: &'static dyn Resolver = unsafe { &*std::ptr::from_ref(resolver) };
     let installed = install(widened);

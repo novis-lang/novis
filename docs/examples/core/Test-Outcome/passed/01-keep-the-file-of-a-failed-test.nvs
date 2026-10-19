@@ -1,0 +1,46 @@
+<?nvs
+// Shows a hook that deletes the export file of a passed test and keeps the file
+// of a failed test. You can then open the file and see what went wrong.
+
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class Export
+{
+    public static function csv(array<string> $names): string
+    {
+        return "name\n" . Core\Str::join($names, "\n") . "\n";
+    }
+}
+
+class ExportTest
+{
+    public string $file;
+
+    public function constructor()
+    {
+        $this->file = Path::fromCwd('customers-export.csv');
+    }
+
+    #[Test]
+    public function itWritesOneLinePerCustomer(): void
+    {
+        IO::write($this->file, Export::csv(['Ada', 'Linus']));
+        Test::assertSame(IO::readText($this->file), "name\nAda\nLinus\n");
+    }
+
+    // `passed()` is `true` when the test passed.
+    #[AfterEachTest]
+    public function cleanUp(Outcome $outcome): void
+    {
+        if ($outcome->passed()) {
+            IO::remove($this->file);
+        }
+    }
+}
+
+// This prints the file the test writes.
+echo Export::csv(['Ada', 'Linus']);

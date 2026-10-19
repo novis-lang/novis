@@ -341,6 +341,29 @@ mod tests {
         1023, 1024, 1025, 4095, 4096, 4097, 5000, 10_000, 20_000,
     ];
 
+    /// [`SIZES`] under Miri: the empty and tiny inputs, and each side of the
+    /// small sort. Miri runs a sort hundreds of times slower, so a size near
+    /// the split or the key-inference floor takes minutes there.
+    const MIRI_SIZES: &[usize] = &[0, 1, 2, 31, 32, 33];
+
+    /// The sizes the `combo`th row and shape of a sweep runs: every one of
+    /// [`SIZES`], or under Miri one of [`MIRI_SIZES`], taken in turn, so the
+    /// sweep still reaches every Miri size and every shape once.
+    fn sizes(combo: usize) -> &'static [usize] {
+        if cfg!(miri) {
+            let at = combo % MIRI_SIZES.len();
+            &MIRI_SIZES[at..=at]
+        } else {
+            SIZES
+        }
+    }
+
+    /// The number of random rounds a test runs: `n`, or a hundredth of it
+    /// under Miri.
+    fn rounds(n: usize) -> usize {
+        if cfg!(miri) { n / 100 } else { n }
+    }
+
     /// `n` integers in `shape`, as a sequence of `u64` a row builder maps.
     fn shaped(rng: &mut Lcg, n: usize, shape: &str) -> Vec<u64> {
         let mut out: Vec<u64> = match shape {
@@ -459,9 +482,9 @@ mod tests {
             ("null", nulls),
         ];
         let mut rng = Lcg(0x5EED);
-        for (row, build) in rows {
-            for shape in SHAPES {
-                for &n in SIZES {
+        for (r, (row, build)) in rows.iter().enumerate() {
+            for (s, shape) in SHAPES.iter().enumerate() {
+                for &n in sizes(r * SHAPES.len() + s) {
                     let raw = shaped(&mut rng, n, shape);
                     let values = build(&raw);
                     agrees(&values, &format!("{row}/{shape}/{n}"));
@@ -502,7 +525,8 @@ mod tests {
         ];
         let mut rng = Lcg(42);
         let mut sample: Vec<f64> = corners.to_vec();
-        sample.extend((0..2000).map(|_| f64::from_bits(rng.next() << 11 | rng.below(2048))));
+        sample
+            .extend((0..rounds(2000)).map(|_| f64::from_bits(rng.next() << 11 | rng.below(2048))));
         for &a in &sample {
             for &b in &sample {
                 let expected = ordered(a).total_cmp(&ordered(b));
@@ -549,7 +573,7 @@ mod tests {
             Value::uint(u64::MAX),
         ];
         let mut rng = Lcg(7);
-        for round in 0..500 {
+        for round in 0..rounds(500) {
             let n = 1 + rng.index(80);
             let values: Vec<Value> = (0..n).map(|_| corners[rng.index(corners.len())]).collect();
             agrees(&values, &format!("mix round {round}"));
@@ -566,7 +590,7 @@ mod tests {
             .copied()
             .filter(|v| v.as_uint().is_some())
             .collect();
-        for round in 0..200 {
+        for round in 0..rounds(200) {
             let n = 33 + rng.index(200);
             let ints: Vec<Value> = (0..n)
                 .map(|_| only_ints[rng.index(only_ints.len())])
@@ -596,7 +620,7 @@ mod tests {
         pool.push(text(&long_b));
         pool.push(text(&long_short));
         let mut rng = Lcg(99);
-        for round in 0..500 {
+        for round in 0..rounds(500) {
             let n = 1 + rng.index(120);
             let values: Vec<Value> = (0..n).map(|_| pool[rng.index(pool.len())]).collect();
             agrees(&values, &format!("string round {round}"));
@@ -642,7 +666,7 @@ mod tests {
         // And the same random layouts as the merge sort would throw on: one
         // string among ints, anywhere.
         let mut rng = Lcg(3);
-        for _ in 0..400 {
+        for _ in 0..rounds(400) {
             let n = 2 + rng.index(100);
             let at = rng.index(n);
             let values: Vec<Value> = (0..n)
@@ -714,8 +738,8 @@ mod tests {
     #[test]
     fn sort_by_key_orders_key_bytes_as_the_merge_sort_does() {
         let mut rng = Lcg(11);
-        for &n in SIZES {
-            for shape in SHAPES {
+        for (s, shape) in SHAPES.iter().enumerate() {
+            for &n in sizes(s) {
                 let raw = shaped(&mut rng, n, shape);
                 let keys: Vec<NvsStr> = raw
                     .iter()

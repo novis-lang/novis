@@ -1,0 +1,4 @@
+{
+  "feature": "Core\\Script::finish",
+  "perf": "A script ends once at `finish()`, so nothing can be iterated: a bench here would measure startup, and a loop of child scripts that each finish would measure the spawn, not the ending."
+}

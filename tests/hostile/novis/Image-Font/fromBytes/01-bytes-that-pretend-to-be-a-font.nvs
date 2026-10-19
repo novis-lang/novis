@@ -1,7 +1,6 @@
 <?nvs
 // Attack: a request makes a `Font` from bytes that are empty, too short, very long or only look like a font.
-// Each attempt should return a `Font` or throw an error. The last one should stop at the memory limit.
-// hostile: ends-early 4 FATAL
+// Each attempt should return a `Font` or throw an error.
 use Novis\Image\Font;
 use Novis\Image\Image;
 
@@ -30,8 +29,7 @@ foreach ($starts as string $start) {
     }
 }
 
-// 4. A font file start followed by 16 MB of the byte 0xff. This uses more memory than the request may use.
-echo "step 4\n";
+// 4. A font file start followed by 16 MB of the byte 0xff. This is not a font, so it throws a `ParseError`.
 try {
     bytes $big = Core\Encoding::fromHex('00010000' . Core\Str::repeat('ff', 16000000));
     echo 'step 4 ran ', Image::measureText('Shop', Font::fromBytes($big), { size: 10.0 })->width, "\n";

@@ -2989,7 +2989,7 @@ timeout = "5s"
 # conformance cases that write to the directory carry an `[ldap.corp]` of their own, bound as the
 # administrator.
 [ldap.corp]
-url = "ldaps://localhost:16636"
+url = "ldaps://127.0.0.1:16636"
 base = "DC=example,DC=test"
 user = "CN=Reader,OU=Company,DC=example,DC=test"
 password = "Novis-reader-1"
@@ -3001,7 +3001,7 @@ timeout = "5s"
 # administrator may set another account's password. The grants above give it to those programs
 # alone.
 [ldap.corp-accounts]
-url = "ldaps://localhost:16636"
+url = "ldaps://127.0.0.1:16636"
 base = "DC=example,DC=test"
 user = "CN=Administrator,CN=Users,DC=example,DC=test"
 password = "Novis-test-1"

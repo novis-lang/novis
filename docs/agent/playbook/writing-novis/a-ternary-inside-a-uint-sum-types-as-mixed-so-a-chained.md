@@ -3,4 +3,4 @@
   mixed-signedness and then `E0401` expected `uint`, found `mixed`, because the two branches are
   `int` literals and the ternary never narrows to the `uint` on the left. Write a `uint $step = 1;`
   with an `if` above the sum instead, which is also what keeps the member's own answer in the chain
-  a bench and an attack are built around. See `crates/nvs-diagnostics/src/lib.rs`. `until: gone crates/nvs-diagnostics/src/lib.rs:E0407`
+  a bench and an attack are built around. See `crates/nvs-diagnostics/src/code/types.rs`. `until: gone crates/nvs-diagnostics/src/code/types.rs:E0407`

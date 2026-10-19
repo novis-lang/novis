@@ -1,7 +1,7 @@
 <?nvs
 // Makes sure a folder exists, as a program does each time before it writes a file into it.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

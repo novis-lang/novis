@@ -1,0 +1,40 @@
+<?nvs
+// Shows an `#[AfterClass]` method that prints how many tests of the class passed.
+
+use Core\Str;
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class Username
+{
+    public static function clean(string $name): string
+    {
+        return Str::lower(Str::trim($name));
+    }
+}
+
+class UsernameTest
+{
+    #[Test]
+    public function itRemovesSpaces(): void
+    {
+        Test::assertSame(Username::clean('  ada '), 'ada');
+    }
+
+    #[Test]
+    public function itUsesLowerCase(): void
+    {
+        Test::assertSame(Username::clean('Linus'), 'linus');
+    }
+
+    // `passed()` is `2` here, one for each test.
+    #[AfterClass]
+    public static function printCount(Summary $summary): void
+    {
+        echo $summary->class(), ': ', $summary->passed(), " passed\n";
+    }
+}
+
+// This prints `ada linus`.
+echo Username::clean('  ada '), ' ', Username::clean('Linus'), "\n";

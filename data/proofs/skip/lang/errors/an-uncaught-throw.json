@@ -1,0 +1,4 @@
+{
+  "feature": "lang:errors/an-uncaught-throw",
+  "perf": "A program ends once at an uncaught throw, so there is nothing to iterate; `lang:errors/throw` carries the throw's own figure."
+}

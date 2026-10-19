@@ -2,7 +2,7 @@
 // Measures one `Core\Debug::render` of a short row, which a program builds
 // when it puts a value into a message it is about to print.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

@@ -1,0 +1,5 @@
+{
+  "feature": "directive:debug.mode",
+  "examples": "The probes `[debug] mode` turns on have no output a user can see yet, so no example could print anything that depends on the setting.",
+  "about": "The probes `[debug] mode` turns on have no output a user can see yet, so a page could only describe a setting whose effect nobody can observe. It is written when a probe's output lands."
+}

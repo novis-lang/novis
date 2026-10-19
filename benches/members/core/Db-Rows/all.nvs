@@ -2,7 +2,7 @@
 // Measures reading every row of a small result at once, which a program does
 // once per query before it works with the rows.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

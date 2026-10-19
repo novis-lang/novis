@@ -873,6 +873,30 @@ impl Unit {
     }
 }
 
+/// Whether every unit this process compiles from now on is compiled with
+/// Cranelift's optimiser off. Set only through [`compile_unoptimised`].
+static UNOPTIMISED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Compiles every unit this process builds after the call with Cranelift's
+/// `opt_level` at `none` instead of `speed`, through both backends.
+///
+/// This exists for one check: `rule:testing/probes-on-is-a-tested-configuration`
+/// runs the conformance suite once per optimisation level, and a case whose
+/// output differs between the two is a miscompile in whichever level is wrong.
+/// It is process-wide and one-way because the check is a whole run, and a unit
+/// compiled at the other level partway through would make that run evidence
+/// about neither. A caller that sets it must also keep the artifact cache off,
+/// since an artifact's key does not cover the level.
+pub fn compile_unoptimised() {
+    UNOPTIMISED.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Whether [`compile_unoptimised`] has been called in this process.
+#[must_use]
+pub fn is_unoptimised() -> bool {
+    UNOPTIMISED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Compiles every function in `program` to native code.
 ///
 /// # Errors
@@ -2030,6 +2054,8 @@ struct Signatures {
 /// rather than a tuning choice — `tests/backend_policy.rs` pins those of them
 /// that leave no trace in a compiled unit.
 ///
+/// `opt_level` follows [`is_unoptimised`], for the whole process.
+///
 /// **`is_pic` is the only flag the backends disagree about**, and the
 /// disagreement is forced rather than a preference: a JIT owns the pages it
 /// writes into and resolves every call and every descriptor to an absolute
@@ -2045,7 +2071,9 @@ fn host_isa(is_pic: bool) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> 
         // Novis's costs under.
         ("use_colocated_libcalls", "false"),
         ("is_pic", if is_pic { "true" } else { "false" }),
-        ("opt_level", "speed"),
+        // `none` only under `compile_unoptimised`, the differential check's
+        // second half.
+        ("opt_level", if is_unoptimised() { "none" } else { "speed" }),
         // Cranelift defaults this **off**, and off means a frame larger
         // than the guard page can move the stack pointer past it in one
         // step and write into whatever lies beyond — a stack clash, which

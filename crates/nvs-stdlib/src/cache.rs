@@ -198,6 +198,11 @@ const SECRET_ENTRY_CARD: ClassDoc = ClassDoc {
 };
 
 /// § 1's tiers, as a member per tier that hands one back.
+///
+/// `rule:concurrency/cross-request-state-is-explicit`'s two tiers, as the two members that hand back a store — the
+/// sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request
+/// state, and the one place a value outlives the request that made it.
+// rank: 1330
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -313,6 +318,11 @@ const GET_SECRET_OPTIONS: &[CoreOption] = &[
 /// slot, written by the member that produced it and readable by no program —
 /// asking a store what it is would be the flag § 1 refuses, arriving one call
 /// later.
+///
+/// What those two answer with: one class for both tiers, because a tier is a
+/// destination and not a different operation. [`crate::cache`]'s module doc
+/// is the home of why an entry is a byte payload rather than a live graph.
+// rank: 1340
 pub(crate) const STORE: CoreClass = CoreClass {
     name: STORE_NAME,
     doc: Some(&STORE_CARD),
@@ -689,6 +699,11 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
 /// door onto the value that `getSecret` is the only door onto — which is why
 /// the class is a singular noun with one static and no instance member at all
 /// (R16, R18).
+///
+/// What a `getSecret` fill answers with, and the one shape a lifetime a
+/// fetch learned can reach this store in. [`crate::cache`]'s own class doc
+/// is the home of why it answers nothing back.
+// rank: 1350
 pub(crate) const SECRET_ENTRY: CoreClass = CoreClass {
     name: SECRET_ENTRY_NAME,
     doc: Some(&SECRET_ENTRY_CARD),
@@ -2884,6 +2899,12 @@ pub(crate) mod tests {
         scoped, sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of, wait_of, waited,
     };
 
+    /// Closes this thread's connection to the shared store, so a test's fake store sees the end
+    /// of its input before the test's thread exits.
+    pub(crate) fn close_shared() {
+        drop(super::SHARED.with(|shared| shared.borrow_mut().take()));
+    }
+
     /// Taken by every case that touches the memory tier, first thing — here
     /// and in the other modules that keep state in it.
     ///
@@ -2987,6 +3008,11 @@ pub(crate) mod tests {
             "an entry is the carrier's own bytes, byte for byte"
         );
 
+        // The scan reads this file's text, which has no memory for Miri to
+        // check, and under Miri it takes minutes, so it runs only outside Miri.
+        if cfg!(miri) {
+            return;
+        }
         // The scan stops where `crate::registry`'s own do, at the test module:
         // what a member can reach at run time is the shipped half.
         let shipped: Vec<&str> = include_str!("cache.rs")
@@ -3234,7 +3260,9 @@ pub(crate) mod tests {
     #[test]
     fn a_key_forgotten_and_written_again_forever_keeps_the_queue_bounded() {
         let mut tier = Entries::default();
-        for step in 0..10_000u32 {
+        // Under Miri, a tenth of the writes, still many times `SWEEP_FLOOR`.
+        let writes: u32 = if cfg!(miri) { 1_000 } else { 10_000 };
+        for step in 0..writes {
             tier.put(b"hot!", &step.to_be_bytes(), Lifetime::Forever, None);
             tier.forget(b"hot!");
         }
@@ -3252,8 +3280,15 @@ pub(crate) mod tests {
     /// And a stale slot never evicts the newer entry under its key.
     #[test]
     fn an_expired_entry_nobody_reads_again_is_swept_by_a_later_write() {
+        // Under Miri, a tenth of the expiring entries, so fewer writes reach
+        // the sweep after them.
+        let (expiring, kept): (u32, u32) = if cfg!(miri) {
+            (100, 256)
+        } else {
+            (1_000, 2048)
+        };
         let mut tier = Entries::default();
-        for step in 0..1_000u32 {
+        for step in 0..expiring {
             let key = format!("session:{step}");
             tier.put(
                 key.as_bytes(),
@@ -3263,15 +3298,16 @@ pub(crate) mod tests {
             );
         }
         std::thread::sleep(Duration::from_millis(5));
-        // The next sweep comes at most 2048 slots after the last one, and the
-        // queue holds at most 1000 of them, so 2048 writes reach it.
-        for step in 0..2048u32 {
+        // The next sweep comes at most twice the queue's length after the last
+        // one, and the queue holds at most `expiring` slots, so `kept` writes
+        // reach it.
+        for step in 0..kept {
             let key = format!("kept:{step}");
             tier.put(key.as_bytes(), b"y", Lifetime::Forever, None);
         }
         assert_eq!(
             tier.entries.len(),
-            2048,
+            kept as usize,
             "expired entries stayed in the tier"
         );
         let live: usize = tier
@@ -3364,8 +3400,8 @@ pub(crate) mod tests {
     fn an_update_is_one_step_no_other_core_comes_between() {
         /// How many threads step the counter at once.
         const THREADS: usize = 4;
-        /// How many steps each one takes.
-        const STEPS: usize = 500;
+        /// How many steps each one takes: 500, or 100 under Miri.
+        const STEPS: usize = if cfg!(miri) { 100 } else { 500 };
         const KEY: &[u8] = b"counted-by-every-core";
 
         let _serial = TIER.lock().expect("the tier's cases run one at a time");
@@ -3547,8 +3583,9 @@ pub(crate) mod tests {
         /// The whole tier's cap: three `CHUNK`s to a shard, which is room for two
         /// entries once each one's key and [`ENTRY_OVERHEAD`] are charged too.
         const CAP: usize = SHARDS * 3 * CHUNK;
-        /// How many entries, so that the sweep writes many times the cap.
-        const WRITES: usize = 2048;
+        /// How many entries, so that the sweep writes many times the cap. Under
+        /// Miri it is a quarter as many, which still writes more than twice the cap.
+        const WRITES: usize = if cfg!(miri) { 512 } else { 2048 };
 
         let _serial = TIER.lock().expect("the tier's cases run one at a time");
 
@@ -4457,6 +4494,11 @@ pub(crate) mod tests {
             "and another seed draws another nonce, so the first line is not a constant one"
         );
 
+        // The scan reads this file's text, which has no memory for Miri to
+        // check, and under Miri it takes minutes, so it runs only outside Miri.
+        if cfg!(miri) {
+            return;
+        }
         let shipped: Vec<&str> = include_str!("cache.rs")
             .lines()
             .take_while(|line| line.trim_start() != "#[cfg(test)]")

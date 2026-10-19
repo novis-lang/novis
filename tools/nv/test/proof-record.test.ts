@@ -6,7 +6,7 @@ import { covwsNvs } from "../lib/covws.ts";
 import { abs } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { ENV as READS_ENV, readModules } from "../lib/reads.ts";
-import { comparableRun, divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, type Result, composeServices, requiredServices, servicesFor, spawnProof, timedOut } from "../proofs/run.ts";
+import { comparableRun, divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, type Result, composeServices, noDockerReason, requiredServices, serviceSkipReason, servicesFor, spawnProof, stoppedBy, timedOut } from "../proofs/run.ts";
 import { judgeThenRecord, longestFirst, recordProgram } from "../proofs/select.ts";
 import { proofId } from "../select/atoms.ts";
 import { Recorder } from "../select/record.ts";
@@ -172,6 +172,26 @@ describe("the judged run and the recording run", () => {
     const why = await servicesFor("<?nvs\n// requires: redis\n// requires: no-such-store\necho 1;\n", new Set(["redis", "samba-ad"]));
     expect(why).toContain("`requires: no-such-store`");
     expect(why).toContain("no service in tests/db/compose.yaml");
+  });
+
+  test("a `requires:` service program is skipped where Docker runs no Linux containers, and fails where Docker is down", () => {
+    expect(noDockerReason(null)).toBe("this host has no Docker");
+    expect(noDockerReason({ code: 0, stdout: "windows\n" })).toContain("runs windows containers");
+    expect(noDockerReason({ code: 0, stdout: "linux\n" })).toBeNull();
+    // Installed but not answering: `up` fails and says why, so the program is not skipped.
+    expect(noDockerReason({ code: 1, stdout: "" })).toBeNull();
+  });
+
+  test("a program without a service, or with one the compose file does not declare, is never a service skip", async () => {
+    expect(await serviceSkipReason("<?nvs\necho 1;\n")).toBeNull();
+    expect(await serviceSkipReason("<?nvs\n// requires: no-such-store\necho 1;\n", new Set(["redis"]))).toBeNull();
+  });
+
+  test("what stopped a run is the first line of its standard error that is not a warning", () => {
+    expect(stoppedBy("warning: no queue worker started: x\n{\"level\":\"error\"}\n")).toBe("{\"level\":\"error\"}");
+    expect(stoppedBy("\nwarning[W1023]: this condition\n")).toBe("warning[W1023]: this condition");
+    expect(stoppedBy("warning: only this\n")).toBe("warning: only this");
+    expect(stoppedBy("")).toBe("");
   });
 
   test("an unlogged judged run drops the footprint log it would inherit, and a recorded run keeps its own", async () => {

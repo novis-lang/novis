@@ -2,7 +2,7 @@
 // Measures reading the version of the database a connection is talking to, as
 // a program does before it uses something older databases do not have.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: allocations 1
 // bench: complexity constant
 

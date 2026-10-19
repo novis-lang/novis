@@ -1,0 +1,49 @@
+<?nvs
+// Shows a hook that keeps the log of each failed run. The attempt number is part
+// of the file name, so a retry does not write over the log of the first run.
+
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class RunLog
+{
+    public static function fileName(string $test, int $attempt): string
+    {
+        return $test . '-attempt-' . $attempt . '.log';
+    }
+}
+
+class PaymentTest
+{
+    public string $log;
+
+    public function constructor()
+    {
+        $this->log = Path::fromCwd('payment-test.log');
+    }
+
+    // A payment service on the network can be slow, so this test may run 3 times.
+    #[Test(retries: 2, because: "the payment sandbox is sometimes slow")]
+    public function itChargesTheCard(): void
+    {
+        IO::write($this->log, "charge 1990 cents\n");
+        Test::assertSame(1990, 1990);
+    }
+
+    // `attempt()` is `1` for the first run and `2` for the first retry.
+    #[AfterEachTest]
+    public function keepTheLog(Outcome $outcome): void
+    {
+        if ($outcome->passed()) {
+            IO::remove($this->log);
+        } else {
+            IO::move($this->log, Path::fromCwd(RunLog::fileName($outcome->name(), $outcome->attempt())));
+        }
+    }
+}
+
+// This prints `itChargesTheCard-attempt-2.log`.
+echo RunLog::fileName('itChargesTheCard', 2), "\n";

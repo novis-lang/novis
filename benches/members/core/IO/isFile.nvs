@@ -1,7 +1,7 @@
 <?nvs
 // Checks whether a path is a file, as a program does for each name in a folder it reads.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

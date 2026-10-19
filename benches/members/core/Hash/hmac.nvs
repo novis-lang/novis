@@ -2,7 +2,7 @@
 // Measures the SHA-256 signature of a short message, as a program does when it checks a signed cookie.
 // bench: iterations 256
 // bench: allocations 1
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

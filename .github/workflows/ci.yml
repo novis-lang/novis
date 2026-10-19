@@ -104,9 +104,10 @@ jobs:
   # ---------------------------------------------------------------------------
   # The matrix that matters: Novis generates native code, so "it compiles" is not
   # the same claim on each platform. Windows uses SEH and a different calling
-  # convention; aarch64 is a different backend in Cranelift entirely.
+  # convention; aarch64 is a different backend in Cranelift entirely, and Linux
+  # aarch64 runs it under ELF and the System V convention, which macOS does not.
   #
-  # All three run whenever any code changes, and the lane gate never narrows
+  # All four run whenever any code changes, and the lane gate never narrows
   # them. This is a public repository: which host a contributor pushes from is
   # unknowable, so no platform's coverage may rest on an assumption about who is
   # developing on what. What the gate skips is a run that changed no build input
@@ -130,6 +131,8 @@ jobs:
         include:
           - name: linux-x86_64
             os: ubuntu-latest
+          - name: linux-aarch64
+            os: ubuntu-24.04-arm
           - name: windows-x86_64
             os: windows-latest
           - name: macos-aarch64
@@ -169,8 +172,8 @@ jobs:
           docker compose -f tests/db/compose.yaml cp samba-ad:/certs/ca.crt tests/db/ca.crt
 
       # macOS and Windows runners cannot run the compose file's Linux containers, so each starts a
-      # Redis on the port the compose file publishes, as the `proofs` job does: Homebrew's build on
-      # macOS, and Memurai, a Redis-compatible server, on Windows, which has no Redis build of its own.
+      # Redis on the port the compose file publishes: Homebrew's build on macOS, and Memurai, a
+      # Redis-compatible server, on Windows, which has no Redis build of its own.
       - name: A Redis server (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -219,12 +222,20 @@ jobs:
       # generation is what differs per target.
       - name: Conformance suite
         run: cargo run --quiet -p nvs-cli -- test tests/conformance/
+      # The same suite with Cranelift's optimiser off (`rule:testing/probes-on-is-a-tested-configuration`).
+      # Every case checks its output against the expectation it states, so a case that passes above
+      # and fails here is a difference between the two levels, and either one failing fails the job.
+      # On every leg, because each target is its own Cranelift backend.
+      - name: Conformance suite, unoptimised
+        env:
+          NOVIS_NO_OPTIMISE: '1'
+        run: cargo run --quiet -p nvs-cli -- test tests/conformance/
       - name: Stop the compose servers (Linux)
         if: always() && runner.os == 'Linux'
         run: docker compose -f tests/db/compose.yaml down --volumes
 
   # ---------------------------------------------------------------------------
-  # The release-profile guards, on the same three platforms as `test`. A job of
+  # The release-profile guards, on the three operating systems `test` covers. A job of
   # its own, beside `test` rather than inside it, so the release compile has its
   # own deadline and its own cache: inside `test`, a Windows leg that timed out
   # skipped the cache's save step and started cold on every run after it.
@@ -321,7 +332,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.proofs == 'true'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    # A cold proof build on Windows takes about half an hour, and the whole roster's run comes after
+    # it. A job that hits this limit saves no cache, so the next run starts cold again.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -349,7 +362,11 @@ jobs:
         run: bun install --frozen-lockfile
 
       # The same placeholder the `test` job writes, for the same reason: a program run from the
-      # repository root resolves its `nvs.toml`, which names this file.
+      # repository root resolves its `nvs.toml`, which names this file. No server is started here.
+      # A program marked `requires: <service>` has `bun nv proofs` bring that `tests/db/compose.yaml`
+      # service up, and copy the compose CA over this placeholder, where Docker runs Linux containers.
+      # That is the Linux leg alone: the macOS and Windows legs report those programs as not run, with
+      # the reason (`serviceSkipReason` in `tools/nv/proofs/run.ts`).
       - name: A placeholder for the compose CA
         shell: bash
         env:
@@ -358,26 +375,6 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -nodes -days 1
           -subj "/CN=Novis CI placeholder CA"
           -keyout "$RUNNER_TEMP/ca.key" -out tests/db/ca.crt
-
-      # The `Core\Session` proofs keep their data in the Redis server `tests/db/compose.yaml`
-      # publishes on 127.0.0.1:16379, plain and with no password. A hosted runner has no compose
-      # stack, so each leg starts a server on that port itself: the compose file's image on Linux,
-      # Homebrew's build on macOS, and on Windows, which has no Redis build of its own, Memurai, a
-      # Redis-compatible server. The proof build below takes minutes, so each is up before it is dialled.
-      - name: A Redis server for the session proofs (Linux)
-        if: runner.os == 'Linux'
-        run: docker run -d --name redis -p 127.0.0.1:16379:6379 redis:8.10.2
-      - name: A Redis server for the session proofs (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install redis
-          redis-server --port 16379 --daemonize yes
-      - name: A Redis server for the session proofs (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          choco install memurai-developer -y --no-progress
-          Start-Process "C:\Program Files\Memurai\memurai.exe" -ArgumentList '--port', '16379'
 
       - run: cargo build --profile proof --bin nvs
 
@@ -843,11 +840,16 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Install toolchain
-        run: rustup toolchain install --no-self-update
+      # The action runs in its own container, so the runner's toolchain is not
+      # there. `rust-version` installs the channel `rust-toolchain.toml` pins
+      # inside it, which the file's override then selects.
+      - name: Read the pinned channel
+        id: toolchain
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
         with:
           command: check
+          rust-version: ${{ steps.toolchain.outputs.channel }}
 
   # ---------------------------------------------------------------------------
   # The other half of `supply-chain`. `cargo deny` decides what Novis may link;
@@ -930,7 +932,9 @@ jobs:
   # ---------------------------------------------------------------------------
   # The docs have linters of their own. Every command here needs Bun and no
   # Rust toolchain, and they run quickly together, which is why they are one job
-  # rather than steps bolted onto a build.
+  # rather than steps bolted onto a build. `bun nv verify` runs every one of them
+  # locally too, each only when a file it reads changed (`DOC_CHECKS` in
+  # tools/nv/cmd/verify.ts), so a red here is one a session's verify did not reach.
   #
   # Each of these gates on *structure* and never on a length: a stale index row,
   # a table row that does not parse, a layout row naming a crate that is not on
@@ -974,9 +978,8 @@ jobs:
       - name: CONTRIBUTING.md's layout listing still describes the tree
         run: bun nv layout --check
       # The workspace version, the `[workspace.dependencies]` pins that restate it and the newest
-      # release tag all agree, and a released version has a changelog section. It runs here
-      # because no `nv verify` step runs it: verify runs the steps whose footprint in the
-      # selection store a change reaches, and this check is not one of its steps.
+      # release tag all agree, and a released version has a changelog section. `nv verify` runs
+      # it as well, but selects it on the files it reads, and a new tag is no file of the tree.
       - name: The version is consistent across the manifest, the tags and the changelog
         run: bun nv release --check
 
@@ -1146,6 +1149,73 @@ jobs:
           sample -p nvs-ir --lib -- --exact \
             lower::tests::a_generator_lowers_to_a_factory_a_state_class_and_a_resumption_switch \
             lower::tests::an_anon_fn_lowers_to_a_captured_environment_object_and_an_invoke_method
+
+  # The `nvs-runtime` and `nvs-stdlib` unit tests under Miri, through nextest's `miri` profile
+  # (`.config/nextest.toml`). Each test is a process of its own, so a test Miri cannot run fails
+  # alone and the run still lists every other result. A test Miri can never run carries
+  # `#[cfg_attr(miri, ignore = "<the reason>")]` on itself, and this job keeps no skip list.
+  #
+  # Each crate runs as `--partition` shards, so every shard ends inside `timeout-minutes` and the
+  # job is green or red, never cancelled. When a crate's tests outgrow its shards, raise `of` for
+  # that crate here.
+  #
+  # `nvs-runtime` runs with its `sanitizer` feature, for the reason `counting_alloc`'s module doc
+  # gives for ASAN: the size-class cache keeps a freed block instead of freeing it, so a checker
+  # cannot see a use-after-free inside one. The cache's own tests still run here, on `Pooled`
+  # directly.
+  #
+  # Miri's leak report is off for both crates. In `nvs-runtime`, blocks the cache's own tests leave
+  # in the cache are never freed, by design. In `nvs-stdlib`, most tests build reference-counted
+  # values by hand and never release them, so the report names the test and not the library. The
+  # runtime's leak guards, which measure the allocator, and the valgrind and ASAN lanes, which run
+  # compiled programs, cover leaks instead. Turning the report off also lets a test end while a
+  # thread is still running, so a test that starts a thread joins it (`session`'s `Serving`).
+  #
+  # `-Zmiri-deterministic-floats` stops Miri adding its random error to `sin`, `exp` and the
+  # rest, so a test that asserts an exact float result checks the library and not Miri's noise.
+  miri-units:
+    name: miri units (${{ matrix.crate }} ${{ matrix.shard }}/${{ matrix.of }})
+    needs: changes
+    if: needs.changes.outputs.deep == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { crate: nvs-runtime, shard: 1, of: 2, features: --features nvs-runtime/sanitizer }
+          - { crate: nvs-runtime, shard: 2, of: 2, features: --features nvs-runtime/sanitizer }
+          - { crate: nvs-stdlib, shard: 1, of: 12 }
+          - { crate: nvs-stdlib, shard: 2, of: 12 }
+          - { crate: nvs-stdlib, shard: 3, of: 12 }
+          - { crate: nvs-stdlib, shard: 4, of: 12 }
+          - { crate: nvs-stdlib, shard: 5, of: 12 }
+          - { crate: nvs-stdlib, shard: 6, of: 12 }
+          - { crate: nvs-stdlib, shard: 7, of: 12 }
+          - { crate: nvs-stdlib, shard: 8, of: 12 }
+          - { crate: nvs-stdlib, shard: 9, of: 12 }
+          - { crate: nvs-stdlib, shard: 10, of: 12 }
+          - { crate: nvs-stdlib, shard: 11, of: 12 }
+          - { crate: nvs-stdlib, shard: 12, of: 12 }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
+        with:
+          components: miri
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: miri-units-${{ matrix.crate }}
+      # Built from crates.io at a pinned version with its own lock file, and kept by the cache
+      # above, so a warm run installs nothing.
+      - name: install cargo-nextest
+        run: cargo install cargo-nextest@0.9.148 --locked
+      - name: miri nextest (${{ matrix.crate }})
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation -Zmiri-ignore-leaks -Zmiri-deterministic-floats
+          INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
+        run: >-
+          cargo +nightly miri nextest run --profile miri -p ${{ matrix.crate }} --lib
+          ${{ matrix.features }} --partition hash:${{ matrix.shard }}/${{ matrix.of }}
 
   # ---------------------------------------------------------------------------
   # The half Miri cannot reach: the crates that execute generated machine code,

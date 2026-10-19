@@ -1,0 +1,4 @@
+{
+  "feature": "tools:agents/nvs-agent-init",
+  "hostile": "`nvs agent init` reads no program, so no program can attack it; what can is an `AGENTS.md` or an adapter it did not write, and those files are pinned by `crates/nvs-cli/tests/agent.rs`."
+}

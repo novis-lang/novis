@@ -9160,7 +9160,7 @@ pub(crate) mod tests {
         // Ambiguous in the head, and refused there: one framing spelled twice
         // and disagreeing with itself, or a spelling only one of two parsers
         // would see at all.
-        let refused: [(&str, &[u8]); 13] = [
+        let refused: [(&str, &[u8]); 14] = [
             (
                 "two lengths that agree",
                 b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
@@ -9176,6 +9176,13 @@ pub(crate) mod tests {
             (
                 "a bare LF ending a header line",
                 b"POST /outer HTTP/1.1\r\nHost: localhost\nContent-Length: 0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                // HTTP Garden's: a reader that skips an empty line before the
+                // request line accepts this, and one that does not sees no
+                // request at all.
+                "a bare LF before the request line",
+                b"\nPOST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
             ),
             (
                 "two lengths that disagree",

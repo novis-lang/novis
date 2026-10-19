@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a program makes its own `Outcome` with a test name it chose. A hook
+// that builds a file name from `name()` would then write where the program
+// wants. Only the test runner creates an `Outcome`, so this should not compile.
+// hostile: expect-refusal
+
+use Core\Test\Outcome;
+
+// 1. A class implements `Outcome` as if it were an interface.
+class PathName implements Outcome
+{
+    public function name(): string
+    {
+        return '../../etc/passwd';
+    }
+}
+
+// 2. An interface extends `Outcome`, and a class implements that interface.
+interface NamedOutcome extends Outcome
+{
+}
+
+class LongName implements NamedOutcome
+{
+    public function name(): string
+    {
+        return Core\Str::repeat('itRunsForever', 100000);
+    }
+}
+
+// 3. A class extends `Outcome` and returns a name with a line break.
+class TwoLines extends Outcome
+{
+    public function name(): string
+    {
+        return "itPasses\nfailed: itCharges";
+    }
+}
+
+echo (new PathName())->name(), "\n";

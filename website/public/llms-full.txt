@@ -7664,15 +7664,13 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 conditions and returns `true` or `false`. The result is always a `bool`.
 
 Every value counts as true except these: `false`, `null`, zero, an empty string, the string `"0"`
-and an empty array. A `bytes` value is false only when it is empty, so a single `0` byte counts as
-true. An object, a callable and an enum case are always true.
+and an empty array. A `bytes` value is false only when it is empty. An object, a callable and an
+enum case are always true.
 
-`&&` and `||` stop when the result is known. The right side runs only when the left side did not
-decide the result. In `$count != 0 && $total / $count > 10.0`, the division runs only when `$count`
-is not zero.
+`&&` and `||` stop when the result is known. In `$count != 0 && $total / $count > 10.0`, the
+division runs only when `$count` is not zero.
 
-**Good to know:** `and`, `or` and `xor` are not part of the language. No logical operator returns
-one of its operands.
+**Good to know:** `and`, `or` and `xor` are not part of the language.
 
 A value that can be `null`, such as an `?int`, is false for `null` and also for `0`. The compiler
 gives warning `W1023` when you test such a value directly. Write `!= null` to check whether there is

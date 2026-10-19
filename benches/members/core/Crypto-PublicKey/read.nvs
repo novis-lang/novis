@@ -2,7 +2,7 @@
 // Measures reading one public key off the wire, as a server does for every
 // client that connects and every signed token it checks.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

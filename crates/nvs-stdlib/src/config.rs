@@ -41,6 +41,12 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// The registry row. See [`crate::registry::CLASSES`].
+///
+/// `rule:config/ini-set-is-core-config-set`, and no spec § of its own: `ini_get`'s family are free
+/// functions in PHP, so what replaces them is decided by that rule rather
+/// than by the library spec. [`crate::config`] owns why
+/// every member of it is four lines long.
+// rank: 640
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

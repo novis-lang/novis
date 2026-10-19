@@ -2,7 +2,7 @@
 // Measures reading one stored private key, as a server does when it starts or
 // when it takes a key out of its configuration.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

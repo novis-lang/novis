@@ -939,6 +939,7 @@ mod tests {
 
     /// A child that exits while `nvs` runs is dropped from the watcher's set,
     /// so the end of `nvs` sends it nothing.
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn a_child_that_exits_is_no_longer_tracked() {
         let (ours, mut watch) = watched();
@@ -953,6 +954,7 @@ mod tests {
 
     /// When the socket from `nvs` closes, the watch ends, and a child it still
     /// tracks is killed.
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn a_closed_socket_ends_the_watch_and_kills_a_running_child() {
         let (ours, mut watch) = watched();
@@ -976,6 +978,7 @@ mod tests {
     }
 
     /// The watcher is only started by a binary whose `main` asked for it.
+    #[cfg_attr(miri, ignore = "starts a process, which Miri cannot do")]
     #[test]
     fn a_binary_that_did_not_ask_starts_no_watcher() {
         let mut child = until_closed();

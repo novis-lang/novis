@@ -316,6 +316,10 @@ samba-ad` for the directory, `// requires: redis` for the shared store a session
 `Core\Cache::shared()` uses, and `// requires: postgres` for a database feature SQLite does not
 have, such as a column that carries its own time zone. A program needing two services carries two lines. Before the first
 program in a run that names a service, the runner brings it up with `docker compose up -d --wait
-<service>`, once, and leaves it running. Where that fails, as on a host with no Docker, every program
-naming it fails with the reason. A name the compose file does not declare fails the program too. A
-program without such a line never touches Docker. The same line works in an attack and a bench.
+<service>`, once, and leaves it running. It then copies the CA the compose stack issued to
+`tests/db/ca.crt`, the anchor the repository's `nvs.toml` names, when the file there differs. Where
+that fails, every program naming the service fails with the reason. On a host whose Docker runs no
+Linux containers, or that has no Docker at all, such a program is skipped with the reason instead.
+That is one rule on every platform, and on CI it means these programs run on the Linux leg alone. A
+name the compose file does not declare fails the program everywhere. A program without such a line
+never touches Docker. The same line works in an attack and a bench.

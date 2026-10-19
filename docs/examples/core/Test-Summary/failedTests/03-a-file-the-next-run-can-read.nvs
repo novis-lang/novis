@@ -1,0 +1,49 @@
+<?nvs
+// Shows an `#[AfterClass]` method that writes the failed tests to a file, one
+// name per line. After a fix, you can read the file and check these tests first.
+
+use Core\IO;
+use Core\Path;
+use Core\Str;
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+use Core\Test\TestWith;
+
+class Rerun
+{
+    public static function fileText(array<string> $tests): string
+    {
+        return Str::join($tests, "\n") . "\n";
+    }
+}
+
+class PackingFee
+{
+    // The fee is 50 cents for each item.
+    public static function of(int $items): int
+    {
+        return $items * 50;
+    }
+}
+
+class PackingFeeTest
+{
+    // A failed row has its row number in the name, such as `itChargesPerItem#1`.
+    #[TestWith(items: 3, fee: 150)]
+    #[TestWith(items: 0, fee: 0)]
+    #[Test]
+    public function itChargesPerItem(int $items, int $fee): void
+    {
+        Test::assertSame(PackingFee::of($items), $fee);
+    }
+
+    #[AfterClass]
+    public static function writeRerunFile(Summary $summary): void
+    {
+        IO::write(Path::fromCwd('failed-tests.txt'), Rerun::fileText($summary->failedTests()));
+    }
+}
+
+// This prints the file for two failed tests.
+echo Rerun::fileText(['itChargesPerItem#1', 'itIsFreeForEmptyOrders']);

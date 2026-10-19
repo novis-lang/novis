@@ -41,14 +41,14 @@ stages:
         rules: [types/conversion, http-server/engine-depth-is-bounded-per-decoder]
   - id: 6
     title: "every parser that reads outside bytes has a fuzz target, and the smuggling payloads are tests"
-    status: open
+    status: done
     context: [fuzz/Cargo.toml, .github/workflows/ci.yml, crates/nvs-server/src/serve.rs, docs/rules/testing/the-deep-lane.md]
     extra:
       context:
         rules: [testing/the-deep-lane]
   - id: 7
     title: "compiled code is checked against its unoptimised twin, and aarch64 Linux runs the tests"
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/lib.rs, .github/workflows/ci.yml]
     extra:
       context:
@@ -87,6 +87,12 @@ bugs. Each stage below closes one hole or adds one kind of test, in priority ord
 
 **The user decided every item on this page.** Each stage names the choice it implements.
 
+**A session decides and goes on. It does not ask the user.** The user takes the session's
+recommendation, so a choice this goal meets is the session's to make. It picks the option that fits
+Novis best by the priority ordering, writes the choice and its reason where the change lives (the
+rule, the test, the CI comment or the commit message), and carries on. `BLOCKED` is only for a call
+the loop's permissions refuse.
+
 **Memory safety first.** `Core\Serialize::decode` builds values without checking them, which is a
 memory-safety hole, so it is stage 1. It is the same family as the wider-shape-view gap that
 `completeness-holes` holds open.
@@ -101,7 +107,7 @@ template escaping stays declined (`docs/rules/core-classes/html-template.md`).
 the rule already names. The upgrade's `Origin` check reuses the per-route `csrf: false` escape.
 
 **Property tests need no new crate.** A seeded loop over generated inputs is enough for path grants
-and the address table. If a session finds it needs `proptest`, it asks first.
+and the address table. A session that finds it needs `proptest` adds it and says why in the commit.
 
 **Trade-offs.**
 - Stage 1 adds one tag test per field on a decode: latency on that path only, no memory.
@@ -202,16 +208,20 @@ in the nightly fuzz job. The published request-smuggling payloads are fixed serv
   - [x] An empty inbound `Transfer-Encoding` beside a `Content-Length` is a refused row.
   - [x] The chunk-line payloads are rows of the broken-body table.
   - [x] The 0.CL and Expect shapes are a table of their own, counting final responses.
-- [ ] HTTP Garden runs once against `nvs serve`, and each finding becomes a test. The handoff records the run.
+- [x] HTTP Garden runs once against `nvs serve`, and each finding becomes a test. The handoff records the run.
+  - [x] An `nvs` origin echoing the Garden's JSON, built from the WSL mirror.
+  - [x] A mutation sweep against hyper and Node, keeping what `nvs` reads differently from both.
+  - [x] The UTF-8 finding fixed with tests, and the bare-LF prefix a refused row.
+  - [x] The run is a command, `bun nv garden`, and its recheck of 5,000 rounds against hyper and Node found no panic and only the kept `501` for a method outside the eight. `tools/nv/cmd/garden.ts:1`
 
 ### 7. compiled code is checked against its unoptimised twin, and aarch64 Linux runs the tests
 
 **Does:** the conformance suite runs with Cranelift's optimiser on and off, and the outputs must
 match. A Linux aarch64 leg runs the test job.
 
-- [ ] A way to compile with `opt_level` `none`, used only by this check. `crates/nvs-codegen/src/lib.rs:1973`
-- [ ] A CI job runs the conformance suite both ways and fails on any difference. `.github/workflows/ci.yml:115`
-- [ ] The test matrix gains a Linux aarch64 leg. `.github/workflows/ci.yml:129`
+- [x] A way to compile with `opt_level` `none`, used only by this check. `crates/nvs-codegen/src/lib.rs:1973`
+- [x] A CI job runs the conformance suite both ways and fails on any difference. `.github/workflows/ci.yml:115`
+- [x] The test matrix gains a Linux aarch64 leg. `.github/workflows/ci.yml:129`
 
 ### 8. requests that share a worker share nothing, and memory stays flat
 
@@ -221,8 +231,75 @@ Seeded property tests cover path grants and the address table. A nightly serve s
 live bytes per request grow.
 
 - [ ] A runner mode sends many cases through one worker and compares each output with its fresh run. `crates/nvs-cli/src/runner.rs:1`
-- [ ] The Miri job runs the `nvs-runtime` and `nvs-stdlib` unit tests that need no JIT. `.github/workflows/ci.yml:1082`
-- [ ] Seeded property tests: a grant on `a/secret1` never grants `a/secret`, and every address in a denied range is denied in each of its spellings.
+- [ ] The Miri job runs the `nvs-runtime` and `nvs-stdlib` unit tests that need no JIT. `.github/workflows/ci.yml:1104`
+  The user decided how: one pass that lists every failure, never a rerun per failure, and a job that
+  finishes inside its budget. Measure with one background run and hand off, never round after round
+  inside a session.
+  - [x] Miri runs under nextest, `cargo +nightly miri nextest run`, in CI and locally. Each test gets its
+    own process, so a test Miri cannot run fails alone and the run goes on. TSAN covers the cross-test
+    races this gives up.
+  - [x] A test that does what Miri can never do gets `#[cfg_attr(miri, ignore = "<the reason>")]` on
+    itself, never a module skip and never a CI skip list. 109 in `nvs-stdlib` and 18 in
+    `nvs-runtime` carry one, from the first pass's log. Beyond the list below, they cover `kill`,
+    `access`, `getrusage`, `getloadavg`, a UDP socket, and three Miri gaps: `mkdir` ignores its
+    mode, `jiff` finds no time zone database, and `powi` gains a rounding error. Found so far: a Unix socket
+    (`ctx::output::tests::a_context_sends_both_writers_to_syslog_when_the_target_names_it`), `openat`
+    (`beneath`'s tests and the runtime's `capability` tests that reach the file doors), a process
+    (`child_watch`), `mmap` with a guard page (the `json` depth tests), `ring`'s C and assembly, and
+    SQLite's C (`sqlite3_threadsafe`, the `db` tests). The rest of `beneath` and `capability` is
+    what Miri is for, so it keeps running. The first nightly found 27 more that only fail under
+    Miri, and each carries its reason: 19 `time` tests (`jiff` reads no zone database under Miri,
+    `jiff`'s `tz/db/mod.rs`), 4 coalescing-window tests in `floor` and `log`, 3 real-time deadlines
+    in `http`, and `instance`'s dispatch-row test, which compares function addresses.
+  - [x] A test that ends with its threads still running joins them, never an ignore. The eight
+    `http::transport` cases are fixed: the `proxy` helper returns `Tunnels`, which closes and joins
+    every tunnel when dropped, and the header-injection case joins its origin. The six `session`
+    cases hold a `Serving` store, which closes the thread's cache connection and joins every
+    thread when dropped.
+  - [x] Leaks and float noise. The session decided both on the standing decision that it picks:
+    `-Zmiri-ignore-leaks` is set for `nvs-stdlib` too, because its 193 reports are values its tests
+    build by hand, and `-Zmiri-deterministic-floats` stops the exact-float `math` asserts failing on
+    Miri's added error. The `miri-units` comment says why.
+  - [ ] A test that is only slow under Miri runs a smaller input under `cfg!(miri)`, never a skip
+    (the `uri` budget test and the large-text JSON tests). The `uri` budget test is done: it passes
+    under Miri in 27 s. The first full pass found 119 in
+    `nvs-stdlib`, 57 passing over 60 s and 62 stopped at five minutes. By module: regex 12, cache 11,
+    compress 10, crypto 10, cli 9, jwe 7, sort 6, xml 6, db 5, html 5, password 4, cldr 3, str 3,
+    ast 2, http::transport 2, json 2, multipart 2, path 2, registry 2, request 2, topic 2, and one
+    each in arr, bigint, bus, command, csv, hash, http, random, test, totp, uri and zip. The six
+    deep-structure tests in `nvs-runtime` (`array`, `ctx::output`, `floor`, `identity`, `object`)
+    are done. The first nightly timed out 71 in `nvs-stdlib`, 3 of them since ignored. The names
+    come from the pass's log:
+    `grep -E '^\s+(TIMEOUT|PASS) \[\s*>?([6-9][0-9]|[0-9]{3})' .agent-tmp/miri-nx-nvs-stdlib.log`.
+    The regex, crypto and jwe tests are done: all 59 that run pass under Miri locally, the longest
+    in 106 s. Two tests whose only work is PBKDF2 at the iteration floor carry an ignore, because
+    a thousand iterations take 76 s under Miri and the floor is a hundred thousand: there is no
+    smaller input. That is the same reason as an operation Miri lacks. The password, cache, str
+    and html tests take a smaller input too. Three carry an ignore for that same reason: the two
+    Argon2 tests at the module's own 19 MiB parameters, and `http`'s scan of its own source text.
+    Two `cache` tests skip only their source-text scan under Miri. The `sort`, html, `str`,
+    `http::socket`, streamed-reply, compress, cli, cldr, xml and db tests take a smaller input as
+    well, each checked natively at its Miri size. The bcrypt verify runs one verify under Miri,
+    because cost 4 is bcrypt's floor. The two `json` tests at the depth ceiling carry an ignore,
+    because the ceiling is a constant. The bigint, csv, zip, multipart, request, random, test, arr,
+    env and hash tests take a smaller input too. `multipart`'s part-count cap is a constant and
+    carries an ignore for the json reason, and `registry`'s two card scans carry the source-scan
+    ignore.
+  - [ ] `nvs-runtime` and `nvs-stdlib` run as separate jobs or `--partition` shards, each well under its
+    `timeout-minutes`, so the job ends green or red and never cancelled. The user chose shards: job
+    `miri-units` in `.github/workflows/ci.yml` runs 2 for `nvs-runtime` and 12 for `nvs-stdlib`.
+    On the first nightly, the 8 `nvs-stdlib` shards reached 88 to 99 % of their tests in 45
+    minutes, and 5 were cancelled. Tick it once a nightly run shows every shard well inside its
+    timeout.
+  - [x] Miri's default model, Stacked Borrows, stays. The undefined behaviour in the pool allocator
+    is a block reused through a pointer that covers only its last owner's size. Tree Borrows accepts
+    it, and a fix in the pool costs Miri its precision on every recycled block. The user chose the
+    `sanitizer` feature for `nvs-runtime`'s run instead, for ASAN's reason, with
+    `-Zmiri-ignore-leaks` because the cache keeps its blocks by design. The `miri-units` comment
+    says why.
+- [x] Seeded property tests: a grant on `a/secret1` never grants `a/secret`, and every address in a denied range is denied in each of its spellings.
+  - [x] The tests are in `crates/nvs-config/tests/capability.rs`, committed as `ae40a9e58`; `cargo test --test capability` passes.
+  - [x] Verified green and kept.
 - [ ] A nightly soak serves many requests and fails when live bytes grow with the request count. `crates/nvs-runtime/tests/server_memory.rs:1`
 
 ### 9. a security fix gets an advisory, and a release proves what it ships
@@ -249,7 +326,9 @@ asked for this loop, and it repeats until CI is green:
    log comes from `gh api repos/novis-lang/novis/actions/jobs/<id>/logs`, because
    `gh run view --log-failed` is empty while the run is going.
 4. On the first failure, cancel the run, fix the cause, verify locally, commit, and go back to 1.
-   A fix repairs the cause: no loosened bound, skipped test or deny `ignore` entry without the user.
+   A fix repairs the cause. A loosened bound, a skipped test or a deny `ignore` entry is a choice
+   the session makes only when it judges that the right fix for Novis, with its reason in the
+   commit message and beside the change.
    A timing guard that fails with no code change behind it is noise, and is run again rather
    than fixed.
 5. Stop when one run is green on every job.
@@ -265,34 +344,66 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 5 are done. Stage 6 is live, and only HTTP Garden is left in it.
+Stages 1 to 7 are done. Stage 8 is under way.
 
-- Every parser the stage names has a target. `request_head` (`fuzz/fuzz_targets/request_head.rs`)
-  feeds `nvs_server::heads::Scanner` whole, split in two and a byte at a time, and asserts the same
-  verdicts. Where `httparse` reads a complete first head with a bare LF or two lengths, it asserts
-  that head is refused. Its CRLF tokens are a dictionary, `fuzz/dicts/request_head.dict`, which the
-  `fuzz-smoke` step now passes to any target that has one. It ran 180 s clean in WSL from the
-  accept mirror, reaching complete heads, lengths and chunked bodies.
-- `hyper` refuses an empty inbound `Transfer-Encoding`, and any comma in a request's
-  `Content-Length` (`from_digits`). The scanner now sees a comma past the 64 bytes it keeps
-  (`crates/nvs-server/src/heads.rs:262`), so it refuses that row without relying on `hyper`.
-- The smuggling suite has the funky-chunks rows, the 0.CL row and two Expect rows
-  (`crates/nvs-server/src/serve.rs:9153`). All passed on the first run, so none found a bug.
-- The nightly failures the sweep listed are still the `e110c9c0b` run the last handoff triaged.
+- **Property tests.** Done: three seeded cases in `crates/nvs-config/tests/capability.rs` (`ae40a9e58`).
+- **Miri.** Every timeout and failure of the second nightly, run 39185807455 on `f8ad800d3`, now
+  has a fix on `main`: a smaller input under `cfg!(miri)`, or an ignore with its reason. No shard
+  hit undefined behaviour on that run. The rest of that run's failures (the proofs, test and cost
+  legs) are in the backlog.
+- **No new nightly yet.** The acceptance sweep's list is still run 39185807455. The user pushed
+  `main` up to `c1e313638`, so every Miri cut up to it is on GitHub, but a push run skips Miri.
+  The next nightly or `workflow_dispatch` reads them. On run 39185807455 the shards took 14 to
+  38 minutes of their 45.
+- **That run's other failures:** `test / linux-x86_64` is fixed on `main` by `812560389`. The
+  cost guard is the warm-start budget, and the proofs jobs are proof debt (both in the backlog).
+- **Fixed costs cut so far:** the vector set's parse (a test reads only its `section/kind`,
+  `crates/nvs-stdlib/src/tests/vectors.rs:46`), and this session the `Core` class table
+  (`crates/nvs-stdlib/src/instance.rs:463`). The table no longer asks every class whether a roster
+  names it, and a lookup by name is a binary search over a sorted index, not a scan of about 250
+  names. Under Miri the build went from 13.2 s to 5.6 s, `receivers` from 4.4 s to 0.9 s, and one
+  lookup is 8 ms. Every test that builds a `Core` instance gains that, and natively each
+  construction does a few string compares instead of up to 250.
+- **`xml`'s `source` test cannot go smaller simply:** at 16,000 quotes and 64 KiB its peak bound
+  (`< 2 * limit`) fails natively, because the fixed overhead dominates. It is now 28 s locally.
+- **CI is up to five times slower than a local run, one test at a time:** the flag test took 54 s
+  locally and 296 s on CI. Local times after the cut: csv 36 s, `xml`'s `source` 28 s (both run
+  side by side). The streamed reply (49 s) and `regex`'s flag test (42 s) were not re-timed.
+- **Push run 39201335766 on `c1e313638`:** its `docs` job failed at `bun nv check`, which is
+  green locally on `main`. Read its log once the run ends, before anything else on it.
+- **Shard logs:** `gh run view --job <id> --log`, then `perl -pe 's/\^\[\[[0-9;]*m//g'` (the codes
+  are literal `^[[` text), then grep `(TIMEOUT|PASS|FAIL) +\[ *>?([6-9][0-9]|[0-9]{3})\.`.
+- **Local runs** go from the WSL mirror `/var/tmp/nvs-target-wsl-src/mnt-e-mwl`, brought up to date
+  with `syncMirror` from `tools/nv/accept/mirror.ts`, and `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl`.
+  The run is `cargo +nightly miri nextest run --profile miri -p <crate> --lib -E '<filter>'` with
+  CI's `MIRIFLAGS`. Add `--features nvs-runtime/sanitizer` for `nvs-runtime`. Check a smaller input
+  natively first by forcing the Miri branch.
 
 ### Next
 
-Stage 6's last item, then stage 7, on `crates/nvs-server/` and `crates/nvs-codegen/` (`rule:testing/the-deep-lane`, `rule:errors/http-message-defects`):
-- [ ] HTTP Garden once against `nvs serve`, in WSL with Docker, each finding a test in the smuggling suite, and the run recorded here. `crates/nvs-server/src/serve.rs:9153`
-- [ ] A way to compile with `opt_level` `none`, used only by the differential check. `crates/nvs-codegen/src/lib.rs:1973`
+Stage 8, reading the third nightly's Miri shards (`rule:testing/the-deep-lane`, `.github/workflows/ci.yml:1104`):
+- [ ] Read every `miri units` shard of the first nightly after `c1e313638`. Ask the user to push `main` first if it is ahead. Tick the two Miri checkpoints of stage 8 once every shard ends well inside its 45 minutes, with no test stopped at 300 s. `docs/goals/release-hardening.md:263`
+- [ ] A test still stopped at 300 s on that run gets a smaller input or a reasoned ignore. Start with the two not re-timed, the streamed reply and `regex`'s flag test. `crates/nvs-stdlib/src/regex.rs:2721`
+- [ ] If shards still run close to their timeout, use more shards: the per-test fixed costs left are `ClassTable::define`'s field strings (3 s under Miri) and the first parse. `.github/workflows/ci.yml:1176`
 
 ### Backlog
 
+- Then the runner mode that sends many cases through one worker (`crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`).
+- `nvs-runtime`'s pool hands a block back through a pointer narrowed to its last owner's size. Exposing each block's provenance and rebuilding the pointer in `push` and the same-class `realloc` removed the report, but no unit test reproduced it, and the user chose the `sanitizer` feature instead (`crates/nvs-runtime/src/alloc.rs:176`).
+- The `linux-aarch64` leg and the unoptimised suite step have never run on GitHub. Read both on stage 10's first pushed run before anything else on it (`.github/workflows/ci.yml:131`).
+- The suite's probes-on run is still owed: the coverage flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:2394`, `rule:testing/probes-on-is-a-tested-configuration`).
+- `NvsStr::new` takes any `&[u8]`, so the UTF-8 invariant rests on every caller, and the HTTP Garden bug was one that forgot. A checked constructor for bytes from outside, with `new` kept for payloads already text, closes the class (`crates/nvs-runtime/src/string.rs:462`).
+- Two more unchecked `string`s: a MySQL column name (`crates/nvs-stdlib/src/db/column.rs:67`, also `db/execute.rs:835`, `db/stream.rs:345`), and a signed cookie's plaintext, opened with empty AAD (`crates/nvs-stdlib/src/signed_cookie.rs:309`).
 - `bun nv verify` stops at `crates/nvs-stdlib/tests/spec_registry_coverage.rs:433`: `3a833d02d` deleted the last milestone record, so `data/plan/milestones/` no longer exists, and two tests refuse an empty directory on purpose. The session that retired the milestones decides what replaces them (`tools/nv/cmd/owners.ts:127`).
 - `Core\IO::within` does not refuse what `rule:errors/path-component-refusals` lists, beyond device names (`crates/nvs-stdlib/src/io.rs:3657`).
-- The Font attack waits on the user's edit or permission: drop `// hostile: ends-early 4 FATAL`, the `echo "step 4\n"` line and the memory sentence (`tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs:3`).
-- CI's Windows warm-start budget still fails: a warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`).
+- `test / macos-aarch64` on `be3e8a605`: the `nvs-cli` `nvs` test binary died of SIGSEGV with no stack-overflow line, after 116 of 247 tests. The test is not named. It needs a run with `--test-threads=1` on macOS (`.github/workflows/ci.yml:131`).
+- CI's warm-start budget still fails, on Linux too: 6.9 ms on `be3e8a605`. A warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`). The budget stays 6 ms and stays one budget for every platform: cut the work until it fits, measuring where each remaining millisecond goes. Raise it only for a cost the tree cannot remove, and name that cost in `ci.yml`'s comment.
 - CI's `proofs` jobs fail on proof debt: stale perf records (`bun nv benches --owed`) and owed proofs (`bun nv proofs --owed`). Stage 10 owns it (`.github/workflows/ci.yml:1`).
 - A forged payload can put an enum case with a backing value the enum does not declare into an enum-typed property (`rule:enums/representation`). Whether a typed read of it is safe is not checked (`crates/nvs-runtime/src/object.rs:5629`).
 - `bun nv verify` fails on load: `crates/nvs-stdlib/tests/ldap.rs:277` and `:1485` hit their socket deadline, and `crates/nvs-cli/tests/live_edit.rs:1010` misses its 30 s swap, beside the other binaries. Each passes alone (`tools/nv/cmd/verify.ts`'s module doc).
 - The nightly tests GitHub's `main`, so its `supply chain` failure says nothing about the current lock until the user pushes (`.github/workflows/ci.yml:838`).
+- CI's Windows cost guard missed `serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names` at 1.38× of 1.5× on `1a78b49ef`. Watch for a repeat before changing the margin (`crates/nvs-cli/src/serve.rs:4093`).
+- `bun nv verify` does not run `nv render --website --check`, so the website data goes stale unseen until CI (`tools/nv/cmd/verify.ts:153`).
+- `test_request_dispatches_in_process_through_the_compiled_route_table` was red once, also alone, because `Core\Env::context()` was not `Request`, and red again on CI's Windows leg on `be3e8a605` with 200 for 201 (`crates/nvs-cli/src/runner.rs:3410`).
+- `Core\Ldap::connect` dials each address of a host in turn, so a `localhost` block pays 2 s on Windows (`crates/nvs-stdlib/src/ldap/mod.rs:489`, `crates/nvs-host/src/net.rs:438`).
+- `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed (`tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`).

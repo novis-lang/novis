@@ -1,7 +1,7 @@
 <?nvs
 // Measures choosing one of eight products with a seeded generator, as a test does for each test order.
 // bench: iterations 512
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

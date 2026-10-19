@@ -163,6 +163,13 @@ const OPTIONS: &[CoreOption] = &[
 ];
 
 /// `Core\Mail`'s one row — `rule:programs/framework-core-half`'s transport half.
+///
+/// § 16's SMTP row, and `rule:programs/framework-core-half`'s transport half. Registered on its own
+/// rather than beside `Core\Http` because it shares nothing with it: the
+/// endpoint is an operator-named block and not a program-supplied URL, so
+/// `rule:http-server/allow-url-pins-the-address`'s launderer is not in the path at all. [`crate::mail`] owns why
+/// `mail()`'s fourth argument has no successor here.
+// rank: 880
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

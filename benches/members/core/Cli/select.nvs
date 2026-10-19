@@ -3,7 +3,7 @@
 // few of these before it changes anything, and a job with no terminal takes the
 // default every time.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 2
 // bench: complexity linear
 

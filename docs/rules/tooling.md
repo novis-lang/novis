@@ -2154,8 +2154,7 @@ other dependency is a new decision. Two parts are Rust, each a crate outside the
 `bun nv` builds and runs. `tools/nv-scan` is what the check selection and the perf ledger read Rust
 source with, because only a parser reads Rust exactly; its dependencies are `syn`, `proc-macro2`,
 `quote` and `sha2` at the versions the workspace already locks. `tools/covwrap` is the compiler wrapper
-of the `covws` build, and it has no dependencies. `bun nv audit python` fails on a tracked Python file it does not
-name as allowed, and on a document that tells a reader to run a Python tool.
+of the `covws` build, and it has no dependencies.
 
 This is the repository's tooling, not the language's: nothing here reaches the `nvs` binary, a Novis
 program or a request. What it costs is that every developer and every CI job needs Bun, which is one
@@ -2283,7 +2282,8 @@ verdict judged and not yet recorded is kept the same way, so a run that is kille
 still running. The run that moves the recorded tree clears the stamps it covers. An atom that is new,
 last red, owed or diverged runs too, and so does every atom when a global file changes. Nothing else
 starts. A bench is judged on the release build, so `bun nv affected --run` judges only the benches the
-change itself reaches, and the loop's hook after each session pays the owed and red ones as floor debt.
+change itself reaches, and `bun nv benches --owed` pays the owed ones before a release, where the
+`proofs` job is red on a stale perf record.
 `tools/nv/select/` is the one engine all four ask, `select.ts` there holds the rule and
 `keys.ts` the keys, and `bun nv select --explain <atom>` says why one atom was chosen or not.
 
@@ -2330,20 +2330,23 @@ A heavy check keyed on every file of every crate it builds would be reached by a
 so a goal that names them would pay for all of them after nearly every session; the twin is what keeps a
 change that reaches none of its code from running it. A twin is paid only when its heavy check runs.
 
-**An owed Linux leg runs over every fixture and suite of the goal** in the loop's hook after each session
-(`tools/nv/cmd/sweep.ts`, through `bun nv legs`'s `legsOver`). A leg records no footprint of its own
-and is selected through its fixtures' atoms. The hook runs no other heavy check. Looper's sweep runs
+**An owed Linux leg runs over every fixture and suite of the goal** when `bun nv debt` pays the floor
+debt (`tools/nv/cmd/debt.ts`, through `bun nv legs`'s `legsOver`). A leg records no footprint of its own
+and is selected through its fixtures' atoms. The debt run runs no other heavy check. Looper's sweep runs
 the heavy checks the live goal names, and a push to CI runs each one its diff reaches
 ([`testing/ci-lanes`](testing.md#testing-ci-lanes)).
 
-**The hook pays the floor debt, and nightly CI is the safety net.** An atom a change reached that a run
-did not start is owed, and it stays selected until a run of it is green. After each session `bun nv
-sweep` runs the red benches first and then the owed atoms, oldest first: benches, proof programs,
-cases, test binaries, tools tests, plan checks and the Linux legs. No atom starts once the hook's
-`DEBT_BUDGET_MS` is spent, and what the hook did not reach stays owed for the next session. Nothing in the
-loop runs every atom whatever changed, so a selection miss shows up in CI's nightly deep lane, which
-runs every job whatever changed. The hook reads the newest nightly run back and writes each failed job
-beside looper's own reds in `.loop/last-sweep.md`.
+**The floor debt is paid once per goal, and nightly CI is the safety net.** An atom a change reached
+that a run did not start is owed, and it stays selected until a run of it is green. `bun nv debt` is
+the floor check `floor-debt` in `docs/goals/README.md`, with `reach: true`, so looper judges it last
+and only once every stage is done and every other check is green. It runs the owed atoms, oldest
+first: proof programs, cases, test binaries, tools tests, plan checks and the Linux legs, and the red
+proof programs and legs, which `nv verify` never runs again. It pays all of them, and is red while any stays red. It leaves the benches to a release, because a goal's owed
+benches alone took over an hour to pay. No session pays debt,
+and nothing pays it between two sessions, so a red in an owed atom can stay unseen for up to one goal.
+Nothing in the loop runs every atom whatever changed, so a selection miss shows up in CI's nightly deep
+lane, which runs every job whatever changed. The hook after each session, `bun nv sweep`, reads the
+newest nightly run back and writes each failed job beside looper's own reds in `.loop/last-sweep.md`.
 
 `bun nv select --full` runs and records every atom that is not heavy, whatever changed, when a person
 runs it. An atom red there that the selection since the store's tree did not pick is a selection miss:

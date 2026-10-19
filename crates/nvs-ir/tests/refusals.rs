@@ -87,7 +87,7 @@ const HOLES_READS: &[&str] = &[
     "package.json",
     "tools/nv",
     "docs/goals",
-    "crates/nvs-diagnostics/src/lib.rs",
+    "crates/nvs-diagnostics/src/code",
     "crates/nvs-ir/src",
     "crates/nvs-codegen/src",
 ];

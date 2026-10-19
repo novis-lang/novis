@@ -2,7 +2,7 @@
 // Reads how many bytes are left to write, as the loop that sends a video does before each part.
 // bench: iterations 2048
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

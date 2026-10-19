@@ -111,15 +111,16 @@ file and says so once you have reached into the same one repeatedly.
 
 **The 400-line floor is enforced on both sides.** `bun nv peek` refuses a bare `path` over
 `--max-lines` — 400, AGENTS.md's "read a big file in the region you need".
-The harness's own tools have no such floor, so `bun nv guard` is a `PreToolUse` hook, wired in
-`.claude/settings.json` for `Read` and `Bash`. It denies a raw command where a tool or a rule in this
-file covers it: a whole `Read`, `cat` or `sed -n` of a tracked file over that same 400 lines, and the
-other habits `tools/nv/cmd/guard.ts`'s `RULES` list. Each denial starts `guard: <rule>:` and names the
-call to make instead, and anything the guard cannot read is allowed. `looper guard` is the second
-`PreToolUse` hook, on `Bash`, `Read`, `Edit`, `Write` and `NotebookEdit`: it refuses `sleep` and poll
-loops, a write through a shell, and an edit or a `git add` of a file another session claims
-(§ *Other sessions' edits*). Claude Code is the only harness that reads `.claude/`; every other one gets
-the floor from `bun nv peek` alone.
+The harness's own tools have no such floor, so `bun nv guard` runs as a `PreToolUse` hook. Its `RULES`
+in `tools/nv/cmd/guard.ts` refuse a whole `Read`, `cat` or `sed -n` of a tracked file over
+that same 400 lines, `sleep`, a kill by process name, a write through a shell, a build or test cut with
+`head` or `tail`, and the other habits listed there, each with the call to make instead. Where looper
+is installed, the settings' `looper guard` hook checks what needs a loop, an edit or a `git add` of a
+file another session claims (§ *Other sessions' edits*), and then runs `bun nv guard --gate` through
+`looper.toml`'s `[gates] guard`. Where it is not, that hook fails and the call goes through, and the
+settings' second hook runs `bun nv guard` for `Read` and `Bash`. `bun nv guard --check` says whether
+that hook is wired. Claude Code is the only harness that reads `.claude/`; every other one gets the floor from
+`bun nv peek` alone.
 
 ## What the guards refuse, and the call to make instead
 
@@ -205,6 +206,24 @@ A file has one editor at a time. A session's first edit of a file claims it unti
 | `looper claims [--json]` | Every claim in the project's trees, with its session, loop, goal, file and age |
 | `looper claims release <session>` | Frees the session's claims, and records who asked. An agent may free only a dead session's. |
 
+## A conflict in a generated file
+
+A generated file is committed and never merged by hand. `.gitattributes` marks each one
+`linguist-generated` and names the command that writes it. When a merge or a rebase stops on one,
+take either side, then render it again from the merged sources and stage what the command wrote:
+
+```sh
+git checkout --theirs <file>              # or --ours: either side, since the render replaces it
+bun nv render                             # data/schema/, data/spec/, classes.rs, the website's grammar and data
+bun nv render --website                   # website/src/data/core.json and reference.json, with a built binary
+bun nv rules --render                     # docs/rules/*.md and docs/ground-rules.md
+bun nv reference                          # docs/novis.md, with a built binary
+```
+
+Run only the command that writes the conflicted file. A side loop's catch-up does this itself for
+the files `looper.toml`'s `[merge]` table names. The perf ledger `docs/perf/members.ndjson`
+never conflicts: it is append-only, and `merge=union` keeps the lines of both sides.
+
 ## A debug cargo command never takes `-p`
 
 `cargo build`, `cargo test` and `cargo clippy --all-targets -- -D warnings` — bare, at the root — are
@@ -262,13 +281,13 @@ test binary and case whose footprint holds a key the change moved, or that is ne
 the path each came from. Its acceptance half is each plan check one of whose atoms is selected. A heavy
 check — the release profile, fuzz, TSan, the database matrix — is named and left to looper's sweep when
 the live goal names it, and to CI's nightly deep lane whatever changed; the Linux legs are owed, and
-`bun nv sweep` pays them. A check reached only because its atoms were owed or red before the change is left out, since
+`bun nv debt` pays them at the goal's end. A check reached only because its atoms were owed or red before the change is left out, since
 it stays red until the goal is reached. `--run` runs the rest: `nv verify` first,
 then the sweep over exactly the checks it named, and a binary or case verify ran green is not started
 twice.
 
 **`nv guard` refuses the commands that run more than a change reaches**: `cargo test` with no target
-and no filter, `bun nv benches`, `bun nv select --full`, `bun nv sweep`, `bun nv proofs --verify` or
+and no filter, `looper check` with no `--name`, `bun nv benches`, `bun nv debt`, `bun nv select --full`, `bun nv sweep`, `bun nv proofs --verify` or
 `--run` over every feature, and `bun nv verify --no-cache`. A person runs them by hand; looper's sweep
 and its hooks are not tool calls, so the guard never sees them. To look into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
 
@@ -381,10 +400,12 @@ afterwards. The edits are reverted in a `finally`, and a batch fails when `git s
 the test binaries a change reaches and every `.nvst` case, and looper's sweep after each session runs
 the live goal's acceptance checks, each as often as its `every` says. Nothing is dropped: an atom the
 change reached that a run did not start is `owed` in the store, and stays selected until a run of it is
-green. What no check covers is floor debt, and `bun nv sweep` pays it, which looper runs after each
-session as its `after_session` hook (`tools/nv/cmd/sweep.ts`). Each run pays the red benches first, then
-the owed atoms oldest first, for at most its `DEBT_BUDGET_MS`, and leaves the rest owed. It also reads
-the newest nightly CI run back, and writes each job it failed into `.loop/last-sweep.md`.
+green. What no check covers is floor debt, and `bun nv debt` pays all of it once per goal, as the floor
+check `floor-debt` that looper judges last (`tools/nv/cmd/debt.ts`): every owed atom but the benches,
+and every red proof program and leg, oldest first. The benches wait for a release, where `bun nv benches --owed` pays them, because the
+release gate's `proofs` job is red on a stale perf record. Between two sessions only `bun nv sweep` runs, looper's `after_session` hook
+(`tools/nv/cmd/sweep.ts`): it sweeps the disk, the build only when the disk is low, and reads the newest
+nightly CI run back, writing each job it failed into `.loop/last-sweep.md`.
 
 **CI's billing and runners are the user's.** A session that finds CI blocked by billing says so and
 stops: whether the repository gets a self-hosted runner is not its call. A hosted-runner failure that
@@ -600,29 +621,27 @@ every width for one run, `NVS_VALGRIND_JOBS` and `NVS_TRY_JOBS` one caller's; no
 Its callers are the valgrind sweep and `bun nv try`, which runs its snippets this wide and prints the
 blocks back in the order you asked for them.
 
-## The loop's hooks, one command each
+## The loop's hooks, and the commands beside them
 
 ```sh
-bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]   # judge one suite as an nvs-suite check
+bun nv sweep [--keep-runs <n>]                        # sweeps the disk, reads nightly CI: looper's after_session hook
+bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
+bun nv debt [--goal <slug>]                           # pays the floor debt: the floor check `floor-debt`
+
 bun nv legs [--goal <slug>] [--full]                  # the WSL leg and the valgrind sweep over a goal's fixtures
 bun nv services --up [--goal <slug>]                  # Docker preflight, then the goal's services up and healthy
-bun nv sweep [--goal <slug>] [--keep-runs <n>]        # pays the floor debt, reads nightly CI: looper's after_session hook
+bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]   # judge one case tree, with a pass floor
 bun nv benches [--owed]                               # the bench turn by hand
-bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
 bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or complete a side worktree by hand
-bun nv allow --learn <events.jsonl>                   # record a session's shell calls, add the owed allow rules
-
-bun nv pack [--goal <slug>] [--stage <n>]             # the pack sections only Novis has
 ```
 
-Each is a piece of the old loop driver that a person or a hook can run alone. Each exits 0 green, 1
-red and 2 on a usage error, except `bun nv sweep`, which always exits 0 and writes what was red into
-`.loop/last-sweep.md`, below the lines looper's own sweep wrote there. `--goal` and `--stage` win over
-`LOOPER_GOAL` and `LOOPER_STAGE`, which win over the live goal and its handoff's next stage.
-`looper.toml` wires three of them: `bun nv verify` as `[verify] run`, `bun nv side --prepare --hook` as
-`[hooks] before_run`, and `bun nv sweep` as `[hooks] after_session`, whose comments there say why each
-timeout and `on_fail` are what they are. looper runs
-none of the others on its own. Each command's `--help` and module doc own its flags.
+Each exits 0 green, 1 red and 2 on a usage error, except `bun nv sweep`, which always exits 0 and writes
+what was red into `.loop/last-sweep.md`, below the lines looper's own sweep wrote there. `--goal` and
+`--stage` win over `LOOPER_GOAL` and `LOOPER_STAGE`, which win over the live goal and its handoff's next
+stage. looper runs the first three on its own: `looper.toml` wires `bun nv side --prepare --hook` as
+`[hooks] before_run` and `bun nv sweep` as `[hooks] after_session`, whose comments there say why each
+timeout and `on_fail` are what they are, and `docs/goals/README.md`'s floor runs `bun nv debt` as
+`floor-debt`. A person runs the rest. Each command's `--help` and module doc own its flags.
 
 **A side goal is a goal file off the chain**, run as a side loop with `looper loop add --side <slug>`.
 looper makes its lane, the worktree `.agent-tmp/worktrees/lane-<n>` on branch `side/<slug>`, and
@@ -740,12 +759,28 @@ and a report that names `__tsan_func_entry` is a broken annotation rather than a
 it. Its target directory is under `/var/tmp` and its own, because `RUSTFLAGS` is part of a fingerprint
 and sharing one with the leak sweep would rebuild the tree on every alternation.
 
+## HTTP Garden: `bun nv garden`
+
+`bun nv garden [--rounds N] [--seed N] [--refs hyper,node_stdlib]` sends mutated requests to `nvs serve`
+and to the Garden's hyper and Node origins, and lists what `nvs` reads differently from both. It runs
+the same way on Windows with Docker Desktop and on Linux. The Garden's harness reaches each origin by
+container IP, which only a container on the Garden's network can reach under Docker Desktop, so the
+harness runs in one, with its files copied into the image rather than mounted. [`tools/nv/cmd/garden.ts`](../../tools/nv/cmd/garden.ts)'s head
+comment owns how, and `tests/garden/` holds the files it builds from. The first run compiles hyper from
+source in Docker, and later runs reuse that image. Node is the official release image. A panic in the `nvs` log fails the run;
+a reading is for a person to sort into a bug, a new refused row, or strictness that stays. It is not a
+CI job: each finding becomes a test in the smuggling suite, which CI runs. Run it again by hand after a
+change to how a request head is read (`crates/nvs-server/src/io.rs`, `serve.rs`, `Core\Request`'s header
+and body readers), and before a release.
+
 ## Without looper
 
 Nothing an agent needs to do its work depends on looper being installed. looper is absent when
 `command -v looper` fails. The agent then runs no `looper` command and does what this table says. Its
-handoff names the checks it could not run, and the next session with looper runs them. The rules of
-every file still bind, and every `bun nv` command works as it does with looper.
+handoff names the loop-only checks it could not run. Every gate a change must pass has a `bun nv`
+command, and `tools/nv/test/without-looper.test.ts` runs the guard, the prose check and the commit hook
+with no looper on PATH. What has no `nv` command is loop coordination: goal lint, the goals README,
+claims, `looper exec` and the loop itself.
 
 | looper command | Without looper |
 |---|---|
@@ -753,16 +788,33 @@ every file still bind, and every `bun nv` command works as it does with looper.
 | `looper verify` | Run `bun nv verify`, the `[verify] run` of `looper.toml`, or `bun nv affected --run` interactively. § *Verifying* names the narrow forms. |
 | `looper affected` | `bun nv affected`. |
 | `looper check [--name <text>]` | Run the `run` of each check in the live goal's front matter. Judge its matchers by reading the output. |
-| `looper lint`, `looper links`, `looper layout --check`, `looper prose` | Run `bun nv links` and `bun nv layout --check`. The other two have no equivalent: follow the rules they check by hand, and name each in the handoff as not run. |
+| `looper links`, `looper layout` | `bun nv links` and `bun nv layout --check`, which looper runs through `looper.toml`'s `[gates]`. |
+| `looper prose [--all]` | `bun nv prose [--all]`, which `looper prose` runs through `looper.toml`'s `[gates] prose`. |
+| `looper lint` | Loop-only: it checks the goal files. Keep a goal's front matter in the shape the goal format gives, and name lint in the handoff as not run. |
 | `looper goal …` | Edit the goal's front matter by hand, in the shape the goal format gives. |
 | `looper render` | Leave the body of `docs/goals/README.md` as it is. The next `looper render` rewrites it. |
 | `looper wrap` | Overwrite `## Handoff`, tick what is done, and commit each slice with `git commit -F <file>`. |
 | `looper log`, `looper playbook retire` | No equivalent. |
 | `looper sync`, `looper doctor`, `looper clean` | Not needed. Never edit the text between looper's markers by hand. |
-| `looper guard` | The settings run it by itself. Without looper, the call goes through, `bun nv guard` still runs on Read and Bash, and the shell rules still bind. |
+| `looper guard` | Nothing to run. With no looper on PATH, the settings' second hook runs `bun nv guard`, which holds every rule. With looper, `looper guard` runs it through `[gates] guard`. Without looper, nothing checks another session's claims. |
 | `looper exec list`, `looper exec log`, `looper exec wait`, `looper exec kill` | No equivalent. Ask the user before stopping a process another session started. |
 | `looper claims`, `looper claims release` | No equivalent. There are no claims, so stage only your own files by name. |
 | `looper loop start` | No equivalent. The unattended loop needs looper. |
 
-`tools/git-hooks/commit-msg` is this repository's own hook. It rejects a trailer with or without looper,
-and adds looper's shape check where looper is installed.
+`tools/git-hooks/commit-msg` is this repository's own hook, and needs no looper. It rejects a trailer
+and a subject out of the shape `looper.toml`'s `[commits]` sets.
+
+**Why it is shaped this way.** The user decided that the project runs and is developed the same way with
+and without looper, so each check is written once, in `bun nv`, and `looper.toml`'s `[gates]` names it.
+- `bun nv links` and `bun nv layout --check` check more than looper's own: source-file links and their
+  form, crate and bench-package rows, and the `[audited unsafe]` marker.
+- A check's configuration lives with the check unless looper still reads it. `[commits]` stays in
+  `looper.toml` because `looper wrap` reads it, and the hook reads it there with awk. `[prose] scope` stays
+  because AGENTS.md's managed block renders it. `docs/agent/prose.md` and `testing.md` are on `[sync] skip`, so they name the `bun nv` command.
+- The settings keep an entry whose command is exactly `looper guard`, because `looper doctor` and
+  `looper sync` want it. The second entry starts `bun nv guard` only where looper is absent, so the
+  rules run once either way. The cost is a `bun` start per guarded tool call, where looper's guard was
+  one native binary.
+- The commit hook stays in sh and awk, so a commit starts no new process.
+- Joining another session's verify run is loop coordination, so a session without looper runs
+  `bun nv verify` with `run_in_background` and joins nothing.

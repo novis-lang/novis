@@ -2,7 +2,7 @@
 // Measures reading one two-factor secret back from base32, which a server does
 // each time it checks a code a user typed.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

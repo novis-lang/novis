@@ -110,6 +110,7 @@ const CARD: ClassDoc = ClassDoc {
 /// Five members, all of them instance members: a heap is reached through a
 /// value, and the only static entry point is the constructor, which is not a
 /// member at all ([`crate::registry::CONSTRUCTORS`]).
+// rank: 310
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

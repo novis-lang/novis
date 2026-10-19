@@ -2,7 +2,7 @@
 // Measures reading an id out of a row. A program does this when it lists orders
 // and needs the id of each one to build a link to it.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

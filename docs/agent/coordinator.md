@@ -84,8 +84,7 @@ the tree run unasked, a call that matches `.claude/settings.json`'s allowlist ru
 call is reviewed by the harness's classifier, which denies the risky ones. A denied call does not stop
 the session; it comes back to it as an error. The allowlist is therefore the set of commands a session
 runs routinely. Broad rules — `Bash(*)`, an interpreter, `Agent` — are dropped by the harness in this
-mode, so a command added there is added narrowly or not at all. `bun nv allow --learn` proposes the rules
-a session's shell calls owed. The tree must be trusted ([setup.md](../setup.md), *Machine-local harness
+mode, so a command added there is added narrowly or not at all. The tree must be trusted ([setup.md](../setup.md), *Machine-local harness
 settings*), or the allowlist is ignored and every such call waits on the classifier.
 
 ### The loop's own machinery is a person's to change

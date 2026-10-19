@@ -2,7 +2,7 @@
 // Measures making terminal text out of a short label. A tool meets this once
 // for every value it prints that came from outside the program.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 5
 // bench: complexity linear
 

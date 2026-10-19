@@ -42,7 +42,8 @@ export const summary = "run every example of /llms-full.txt's chapters: nv refer
 
 const SOURCES = join(ROOT, "docs", "reference");
 /** The whole diagnostic registry: a code declared anywhere else does not exist. */
-const DIAGNOSTICS = join(ROOT, "crates", "nvs-diagnostics", "src", "lib.rs");
+/** The diagnostic registry's area files, one per range of codes. */
+const DIAGNOSTICS = join(ROOT, "crates", "nvs-diagnostics", "src", "code");
 const TMP = join(ROOT, ".agent-tmp", "reference-examples");
 /** Where `--primer` parks what `nvs agent primer` printed, so a failure's `file:line` names a file still on disk. */
 const PRIMER = join(ROOT, ".agent-tmp", "primer", "primer.md");
@@ -606,7 +607,11 @@ async function checkExamples(only: string | undefined, keep: boolean): Promise<n
  * is the code, and a code that cannot be raised is the one lie a generated document can still tell.
  */
 function undeclaredCodes(text: string): [number, string[]] {
-  const declared = new Set([...readText(DIAGNOSTICS).matchAll(CODE_DECL_RE)].map((m) => m[1]!));
+  const declared = new Set(
+    readdirSync(DIAGNOSTICS)
+      .filter((f) => f.endsWith(".rs"))
+      .flatMap((f) => [...readText(join(DIAGNOSTICS, f)).matchAll(CODE_DECL_RE)].map((m) => m[1]!)),
+  );
   const firstLine = new Map<string, number>();
   for (const m of text.matchAll(CODE_CITED_RE)) {
     if (!firstLine.has(m[0])) firstLine.set(m[0], lineAt(text, m.index!));

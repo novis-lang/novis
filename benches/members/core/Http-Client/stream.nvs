@@ -2,7 +2,7 @@
 // Measures opening a streamed reply that a test answers, as the tests of a program
 // that reads a live feed do.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

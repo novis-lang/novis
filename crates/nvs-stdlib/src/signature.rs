@@ -209,6 +209,17 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// `rule:security/protocol-roster`'s fifth and final roster entry, as two rows.
+///
+/// The roster's detached entry, and the one that is not `Core\Crypto`: a
+/// signature is an HMAC over a canonical
+/// document, because its payload is meant to be *read* by whoever holds the
+/// token where a seal's is meant to be hidden
+/// (`rule:core-api/each-door-takes-a-different-thing`). It shares the key
+/// ring with `Core\SignedCookie` and nothing else. [`crate::signature`]'s own
+/// module doc is the home of the wire format, of the domain byte that stops
+/// one ring being replayed across three doors, and of why a verified
+/// payload value is text.
+// rank: 1020
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

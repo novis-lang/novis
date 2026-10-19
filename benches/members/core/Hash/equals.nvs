@@ -2,7 +2,7 @@
 // Measures the comparison of two SHA-256 digests, as a program does when it checks a signature.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

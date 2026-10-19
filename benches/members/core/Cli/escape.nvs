@@ -2,7 +2,7 @@
 // Measures making a short label safe to print, as a program does with every
 // piece of text a person typed.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: allocations 1
 // bench: complexity linear
 

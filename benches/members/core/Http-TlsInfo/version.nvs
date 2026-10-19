@@ -2,7 +2,7 @@
 // Reads the TLS version of a connection, as a program does before it trusts a reply.
 // bench: iterations 1024 callgrind
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

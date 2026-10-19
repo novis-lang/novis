@@ -1,7 +1,7 @@
 <?nvs
 // Checks whether a path can be written, as a program does before it writes a log or a report.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

@@ -16,7 +16,7 @@
 
 use std::path::Path;
 
-use crate::ExtLang;
+use super::Lang;
 
 /// The files every project has, whatever its language, as `(path, text)`.
 const COMMON: &[(&str, &str)] = &[
@@ -63,7 +63,7 @@ const C: &[(&str, &str)] = &[
 ];
 
 /// `nvs ext new --lang <lang> <dir>`: the project written into `dir`, which is made if missing.
-pub(super) fn new(lang: ExtLang, dir: &Path) -> Result<(), String> {
+pub(super) fn new(lang: Lang, dir: &Path) -> Result<(), String> {
     if let Ok(mut entries) = std::fs::read_dir(dir)
         && entries.next().is_some()
     {
@@ -76,8 +76,8 @@ pub(super) fn new(lang: ExtLang, dir: &Path) -> Result<(), String> {
         return Err(format!("{}: this is a file, not a folder.", dir.display()));
     }
     let own = match lang {
-        ExtLang::Rust => RUST,
-        ExtLang::C => C,
+        Lang::Rust => RUST,
+        Lang::C => C,
     };
     let world = nvs_ext::pack::world_wit().map(|(path, text)| (format!("wit/{path}"), text));
     let files = COMMON

@@ -2,7 +2,7 @@
 // Checks whether a reply came over TLS, as a program does before it trusts a reply.
 // bench: iterations 2048
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

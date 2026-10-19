@@ -325,6 +325,12 @@ const ENUM_VALUES_SLOT: usize = 2;
 const ENUM_UNSIGNED_SLOT: usize = 3;
 
 /// `Core\Reflect` — the door onto a description, and nothing that acts.
+///
+/// `rule:tooling/reflection-and-source-parsing-are-core-features`'s read-only introspection, whose members are the door onto a
+/// description and nothing else — a program can reach a member it may not
+/// call only through the description, and § 2 makes that reach face the
+/// ordinary check.
+// rank: 1390
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -538,6 +544,12 @@ const TYPE_KIND_DOC: EnumDoc = EnumDoc {
 };
 
 /// `Core\Reflect\ClassInfo` — what [`CLASS`]'s member answers with.
+///
+/// What `forObject` answers with: the described class, as the questions that
+/// need no argument and the acting members that take the value back. Readers
+/// rather than properties, for the reason [`CoreTy::Instance`](crate::registry::CoreTy::Instance) states — a
+/// `Core` instance has no property a program can reach.
+// rank: 1400
 pub(crate) const CLASS_INFO: CoreClass = CoreClass {
     name: CLASS_INFO_NAME,
     doc: Some(&CLASS_INFO_CARD),
@@ -1057,6 +1069,12 @@ const CONSTRUCT_DOC: MethodDoc = MethodDoc {
 /// [`nvs_core_reflect_class_info_call`] and
 /// [`nvs_core_reflect_class_info_construct`], and each is where the visibility
 /// check is made.
+///
+/// One row of that description's method roster. A class of its own rather
+/// than a `{name, public}` shape, because a shape has no member to hang the
+/// next question off and `rule:core-classes/reflect`'s roster is a family of
+/// descriptions, not of records.
+// rank: 1410
 pub(crate) const METHOD_INFO: CoreClass = CoreClass {
     name: METHOD_INFO_NAME,
     doc: Some(&METHOD_INFO_CARD),
@@ -1164,6 +1182,11 @@ const METHOD_PARAMETERS_DOC: MethodDoc = MethodDoc {
 /// [`nvs_runtime::MethodRow::param_types`] — so it is a member here rather than
 /// a second roster beside this one, which is the same pair
 /// [`PROPERTY_INFO`] answers for a declared property.
+///
+/// One row of a method row's own roster, hanging off `MethodInfo` rather
+/// than off the description: a parameter belongs to the member that declares
+/// it, and a class-wide list would have nothing to align to.
+// rank: 1430
 pub(crate) const PARAMETER_INFO: CoreClass = CoreClass {
     name: PARAMETER_INFO_NAME,
     doc: Some(&PARAMETER_INFO_CARD),
@@ -1237,6 +1260,13 @@ const PARAMETER_TYPE_DOC: MethodDoc = MethodDoc {
 /// member here is a reader over a slot the description was built with, there is
 /// no `get`, no `call` and no `construct` for [`CLASS_INFO`]'s acting half to
 /// be the twin of, and nothing it carries reaches back into the program.
+///
+/// `rule:enums/reflection`'s description of the one type that has no
+/// descriptor: an enum case at run time is its backing integer under an
+/// enum tag that names no enum, so there is no value to describe and no
+/// `forObject` twin — the name is the only door, and what it opens onto is
+/// the shape the compiler carried down.
+// rank: 1460
 pub(crate) const ENUM_INFO: CoreClass = CoreClass {
     name: ENUM_INFO_NAME,
     doc: Some(&ENUM_INFO_CARD),
@@ -1370,6 +1400,13 @@ const ENUM_IS_UNSIGNED_DOC: MethodDoc = MethodDoc {
 /// acts, and the row exists for a `private` property as much as for a `public`
 /// one. Reading the property is [`nvs_core_reflect_class_info_get`]'s, which is
 /// where the visibility check is made.
+///
+/// The same row one member over, for the description's other roster. Its
+/// own class for [`crate::reflect::METHOD_INFO`]'s reason, and the two are
+/// separate classes rather than one `MemberInfo` because what a row carries
+/// past its name and its bit differs: a parameter count on one side, a
+/// declared type on the other.
+// rank: 1420
 pub(crate) const PROPERTY_INFO: CoreClass = CoreClass {
     name: PROPERTY_INFO_NAME,
     doc: Some(&PROPERTY_INFO_CARD),
@@ -1471,6 +1508,11 @@ const CONSTANT_INFO_CARD: ClassDoc = ClassDoc {
 /// call site faces. A row built by [`describe`] has no site to be judged
 /// against, so the value is [`nvs_core_reflect_class_info_constant`]'s to hand
 /// back — the same split `properties` and `get` already make.
+///
+/// The description's third roster, and its own class for the reason
+/// [`METHOD_INFO`] and [`PROPERTY_INFO`] are: what a row carries past its name and its bit is a fact no other
+/// row has — whether the declaration folded to a value at all.
+// rank: 1440
 pub(crate) const CONSTANT_INFO: CoreClass = CoreClass {
     name: CONSTANT_INFO_NAME,
     doc: Some(&CONSTANT_INFO_CARD),
@@ -1555,6 +1597,7 @@ const CONSTANT_HAS_VALUE_DOC: MethodDoc = MethodDoc {
 /// is the acting door onto the value — the same split `constants` and
 /// `constant` already make, minus the visibility check, which a payload has
 /// nothing to be judged by.
+// rank: 1450
 pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
     name: ATTRIBUTE_INFO_NAME,
     doc: Some(&ATTRIBUTE_CARD),

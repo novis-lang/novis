@@ -1,0 +1,42 @@
+<?nvs
+// Shows a hook that writes the result of each test to a log file. Each test
+// class has its own file, so a build server can show one file per class.
+
+namespace Shop\Tests;
+
+use Core\IO;
+use Core\Path;
+use Core\Str;
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class TestLog
+{
+    // A backslash is not allowed in a file name on every system, so it becomes `-`.
+    public static function fileFor(string $class): string
+    {
+        return 'logs/' . Str::replace($class, "\\", '-') . '.log';
+    }
+}
+
+class InvoiceTest
+{
+    #[Test]
+    public function itAddsTheTax(): void
+    {
+        // The prices are in cents. The tax is 20%.
+        Test::assertSame(1000 + 200, 1200);
+    }
+
+    // `class()` returns `Shop\Tests\InvoiceTest` here.
+    #[AfterEachTest]
+    public function writeLog(Outcome $outcome): void
+    {
+        string $line = $outcome->name() . ' ' . ($outcome->passed() ? 'passed' : 'failed') . "\n";
+        IO::append(Path::fromCwd(TestLog::fileFor($outcome->class())), $line);
+    }
+}
+
+// This prints `logs/Shop-Tests-InvoiceTest.log`.
+echo TestLog::fileFor("Shop\\Tests\\InvoiceTest"), "\n";

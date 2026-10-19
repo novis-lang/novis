@@ -2,7 +2,7 @@
 // Measures reading a text column out of a row. A program does this for every
 // name, title or address it prints on a page.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

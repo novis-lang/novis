@@ -213,6 +213,13 @@ impl Drop for Open {
 /// connection's `receive` has. `close` makes every later `receive` answer
 /// `null` too, because a program that closed the socket asking for another
 /// message is asking a question with one honest answer.
+///
+/// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`'s
+/// answer, and the one value on this class that outlives the call that made
+/// it: a conversation the program holds until its own task ends. What it
+/// answers with is `Core\Socket\Message`, because one RFC 6455 frame
+/// gets one shape whichever end of the wire it arrived at.
+// rank: 1200
 pub(crate) const SOCKET: CoreClass = CoreClass {
     name: SOCKET_NAME,
     doc: Some(&SOCKET_CARD),
@@ -1529,14 +1536,16 @@ mod tests {
     /// The peer is what reads the wire here, so a text sent as binary, a
     /// message split in two or two messages swapped all fail on what arrived
     /// rather than on what this end believes it wrote. The text is larger than
-    /// one read so a message written in pieces would show.
+    /// one read so a message written in pieces would show. Under Miri it is a
+    /// tenth of that: both ends run on one interpreter there, and masking
+    /// 200 kB takes longer than the peer waits.
     // covers: Core\Http\Socket::send
     // covers: Core\Http\Socket::sendBytes
     #[test]
     fn a_send_writes_one_whole_message_of_its_kind_and_nothing_past_the_lifetime() {
         let (at, served) = talking_origin(None, Vec::new());
         let mut open = opened(at, Duration::from_secs(5), Duration::from_secs(30), 1 << 20);
-        let long = "w".repeat(200_000);
+        let long = "w".repeat(if cfg!(miri) { 20_000 } else { 200_000 });
 
         super::written(
             &mut open,
@@ -1608,6 +1617,7 @@ mod tests {
     /// ended the conversation before the peer said anything. The script talks
     /// for twelve seconds, longer than the lifetime, and the idle bound is
     /// longer still, so the lifetime is what ends it.
+    #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn socket_max_duration_ends_an_endless_conversation() {
         let script = (0..600)

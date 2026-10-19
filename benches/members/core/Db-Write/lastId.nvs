@@ -2,7 +2,7 @@
 // Measures reading the key of a row that was just inserted. A program reads it
 // before it writes the rows that belong to the new one.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

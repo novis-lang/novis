@@ -2,7 +2,7 @@
 // Measures opening a WebSocket that a test answers and reading one message,
 // as the tests of a program with a live feed do.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 5
 // bench: complexity linear
 
 class Bench {

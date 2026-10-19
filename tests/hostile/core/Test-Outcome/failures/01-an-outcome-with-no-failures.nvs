@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a program makes its own `Outcome` whose `failures()` is empty or very
+// large, to hide a failure or fill the report. Only the test runner creates an
+// `Outcome`, so this should not compile.
+// hostile: expect-refusal
+
+use Core\Test\Outcome;
+
+// 1. A class extends `Outcome` and returns no failures.
+class NoFailures extends Outcome
+{
+    public function failures(): array<string>
+    {
+        return [];
+    }
+}
+
+// 2. A class extends `Outcome` and returns one million failure messages.
+class ManyFailures extends Outcome
+{
+    public function failures(): array<string>
+    {
+        return Core\Arr::fill(1000000,"Core\\Test::assertSame failed");
+    }
+}
+
+// 3. An interface extends `Outcome`, so a class of the program could stand where one is expected.
+interface QuietOutcome extends Outcome
+{
+    public function failures(): array<string>;
+}
+
+echo Core\Arr::count((new ManyFailures())->failures()), "\n";

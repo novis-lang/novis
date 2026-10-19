@@ -2928,10 +2928,10 @@ pub(crate) mod tests {
     use rustls::pki_types::CertificateDer;
     use std::cell::RefCell;
     use std::io::{ErrorKind, Read, Write};
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
+    use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpListener};
     use std::rc::Rc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::{Arc, Mutex, mpsc};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex, PoisonError, mpsc};
     use std::time::{Duration, Instant};
 
     /// What an origin thread reports once it has served every reply it was
@@ -3220,8 +3220,10 @@ pub(crate) mod tests {
         stream
             .set_nonblocking(false)
             .expect("a connection that waits for its handshake");
+        // Under Miri the wait is a minute, because writing a long message
+        // there takes longer than five seconds.
         stream
-            .set_read_timeout(Some(Duration::from_secs(5)))
+            .set_read_timeout(Some(Duration::from_secs(if cfg!(miri) { 60 } else { 5 })))
             .expect("a bound on this origin's own wait");
         answered(&mut stream, chosen);
         let mut peer =
@@ -3401,41 +3403,139 @@ pub(crate) mod tests {
     /// than one a test stood in for.
     ///
     /// It answers `refusal`'s status line instead, where a case gives one, and
-    /// opens nothing. The counter is live and the handle carries every `CONNECT`
-    /// head in arrival order: a case asserting that nothing was retried reads
-    /// the counter without joining, for [`tls_origin`]'s reason.
+    /// opens nothing. The counter is live: a case asserting that nothing was
+    /// retried reads it without joining, for [`tls_origin`]'s reason. The
+    /// [`Tunnels`] carry every `CONNECT` head in arrival order, and a case keeps
+    /// them bound until it is done with the proxy, because dropping them closes
+    /// it.
     fn proxy(
         expects: usize,
         refusal: Option<&'static str>,
-    ) -> (
-        SocketAddr,
-        Arc<AtomicUsize>,
-        std::thread::JoinHandle<Vec<String>>,
-    ) {
+    ) -> (SocketAddr, Arc<AtomicUsize>, Tunnels) {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
         let at = listener.local_addr().expect("its own address");
         listener
             .set_nonblocking(true)
             .expect("an accept that does not outlive the count");
-        let asked = Arc::new(Mutex::new(Vec::new()));
+        let shared = Arc::new(Proxied::default());
         let opened = Arc::new(AtomicUsize::new(0));
-        let (mine, counting) = (Arc::clone(&asked), Arc::clone(&opened));
-        let thread = std::thread::spawn(move || {
+        let (proxied, counting) = (Arc::clone(&shared), Arc::clone(&opened));
+        let accepting = std::thread::spawn(move || {
             let ends = Instant::now() + Duration::from_secs(20);
-            while asked.lock().expect("the proxy's record").len() < expects && Instant::now() < ends
+            while !proxied.done.load(Ordering::SeqCst)
+                && proxied.asked.lock().expect("the proxy's record").len() < expects
+                && Instant::now() < ends
             {
                 let Ok((stream, _)) = listener.accept() else {
                     std::thread::sleep(Duration::from_millis(1));
                     continue;
                 };
                 counting.fetch_add(1, Ordering::Relaxed);
-                let recording = Arc::clone(&asked);
-                std::thread::spawn(move || tunnelled(stream, refusal, &recording));
+                proxied.keep(&stream);
+                let tunnel = Arc::clone(&proxied);
+                proxied.spawn(move || tunnelled(stream, refusal, &tunnel));
             }
-            let held = mine.lock().expect("the proxy's record");
-            held.clone()
         });
-        (at, opened, thread)
+        let tunnels = Tunnels {
+            shared,
+            accepting: Some(accepting),
+        };
+        (at, opened, tunnels)
+    }
+
+    /// What a [`proxy`]'s threads share: the `CONNECT` heads in arrival order,
+    /// a copy of every socket a tunnel uses, the threads to join, and whether
+    /// the case is done with the proxy.
+    #[derive(Default)]
+    struct Proxied {
+        asked: Mutex<Vec<String>>,
+        open: Mutex<Vec<std::net::TcpStream>>,
+        threads: Mutex<Vec<std::thread::JoinHandle<()>>>,
+        done: AtomicBool,
+    }
+
+    impl Proxied {
+        /// Keeps a copy of `socket`, so dropping the [`Tunnels`] can close it.
+        /// A socket kept after that close is closed here instead.
+        fn keep(&self, socket: &std::net::TcpStream) {
+            if let Ok(copy) = socket.try_clone() {
+                self.open
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push(copy);
+            }
+            if self.done.load(Ordering::SeqCst) {
+                drop(socket.shutdown(Shutdown::Both));
+            }
+        }
+
+        /// Starts `work` on a thread that dropping the [`Tunnels`] joins.
+        fn spawn(&self, work: impl FnOnce() + Send + 'static) {
+            let thread = std::thread::spawn(work);
+            self.threads
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(thread);
+        }
+    }
+
+    /// A [`proxy`]'s threads. [`Tunnels::join`] waits for the `CONNECT`s the
+    /// case expects and returns their heads. Dropping the value closes every
+    /// tunnel and joins every thread, so none of them outlives the case.
+    struct Tunnels {
+        shared: Arc<Proxied>,
+        accepting: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl Tunnels {
+        /// Waits until the proxy has the `CONNECT`s it expects, or for its
+        /// twenty seconds, and returns their heads in arrival order.
+        fn join(mut self) -> std::thread::Result<Vec<String>> {
+            if let Some(accepting) = self.accepting.take() {
+                accepting.join()?;
+            }
+            Ok(self
+                .shared
+                .asked
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone())
+        }
+    }
+
+    impl Drop for Tunnels {
+        fn drop(&mut self) {
+            self.shared.done.store(true, Ordering::SeqCst);
+            if let Some(accepting) = self.accepting.take() {
+                drop(accepting.join());
+            }
+            for socket in self
+                .shared
+                .open
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .iter()
+            {
+                drop(socket.shutdown(Shutdown::Both));
+            }
+            // A tunnel's thread starts its second copy before it ends, so the
+            // list is taken again until a pass finds it empty.
+            loop {
+                let threads = std::mem::take(
+                    &mut *self
+                        .shared
+                        .threads
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner),
+                );
+                if threads.is_empty() {
+                    break;
+                }
+                for thread in threads {
+                    drop(thread.join());
+                }
+            }
+        }
     }
 
     /// One connection's `CONNECT` and whatever the tunnel behind it carries.
@@ -3449,11 +3549,7 @@ pub(crate) mod tests {
     /// [`answer_tls`]'s reason: a client that walks away from a refused tunnel
     /// is what two of these cases are written to see, and each claim they make
     /// is made on the client's side.
-    fn tunnelled(
-        mut stream: std::net::TcpStream,
-        refusal: Option<&'static str>,
-        state: &Mutex<Vec<String>>,
-    ) {
+    fn tunnelled(mut stream: std::net::TcpStream, refusal: Option<&'static str>, state: &Proxied) {
         drop(stream.set_nonblocking(false));
         drop(stream.set_read_timeout(Some(Duration::from_secs(5))));
         let mut head = Vec::new();
@@ -3469,7 +3565,7 @@ pub(crate) mod tests {
         }
         let asked = String::from_utf8_lossy(&head).into_owned();
         let target = asked.split(' ').nth(1).unwrap_or_default().to_owned();
-        state.lock().expect("the proxy's record").push(asked);
+        state.asked.lock().expect("the proxy's record").push(asked);
         if let Some(refusal) = refusal {
             drop(stream.write_all(refusal.as_bytes()));
             drop(stream.flush());
@@ -3480,6 +3576,7 @@ pub(crate) mod tests {
             drop(stream.flush());
             return;
         };
+        state.keep(&origin);
         if stream
             .write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
             .is_err()
@@ -3489,7 +3586,7 @@ pub(crate) mod tests {
         drop(stream.flush());
         let mut from_client = stream.try_clone().expect("the client's half");
         let mut to_origin = origin.try_clone().expect("the origin's half");
-        std::thread::spawn(move || drop(std::io::copy(&mut from_client, &mut to_origin)));
+        state.spawn(move || drop(std::io::copy(&mut from_client, &mut to_origin)));
         let (mut from_origin, mut to_client) = (origin, stream);
         drop(std::io::copy(&mut from_origin, &mut to_client));
     }
@@ -3504,6 +3601,10 @@ pub(crate) mod tests {
     /// for, and the handshake completing at all is what says the client verified
     /// a certificate issued for `localhost` — a client that had sent the pinned
     /// address as its server name would have been refused by its own anchors.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn connect_tunnel_is_opened_to_the_pinned_address_and_tls_names_the_host() {
         let (cert, key) = trusted();
@@ -3630,7 +3731,7 @@ pub(crate) mod tests {
     #[test]
     fn a_bypassed_host_connects_directly_under_the_full_policy() {
         let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
-        let (proxying, opened, _) = proxy(1, None);
+        let (proxying, opened, _tunnels) = proxy(1, None);
 
         let mut through = through(proxying);
         through.by_name = true;
@@ -3763,11 +3864,11 @@ pub(crate) mod tests {
     #[test]
     fn a_proxy_refusing_connect_is_an_io_error_and_407_names_authentication() {
         let nowhere: SocketAddr = "192.0.2.1:443".parse().expect("a literal address");
-        let (forbidding, _, _) = proxy(
+        let (forbidding, _, _forbidding_tunnels) = proxy(
             1,
             Some("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n"),
         );
-        let (challenging, _, _) = proxy(
+        let (challenging, _, _challenging_tunnels) = proxy(
             1,
             Some("HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n"),
         );
@@ -3870,10 +3971,11 @@ pub(crate) mod tests {
     ///
     /// The pause is what makes the count final: a retry would be out on the wire
     /// inside this call's millisecond of backoff.
+    #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn a_refused_connect_is_not_retried_as_an_answer() {
         let nowhere: SocketAddr = "192.0.2.1:443".parse().expect("a literal address");
-        let (refusing, opened, _) = proxy(
+        let (refusing, opened, _tunnels) = proxy(
             4,
             Some("HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n"),
         );
@@ -3901,11 +4003,12 @@ pub(crate) mod tests {
     /// The origin's count is what says it: a key short of the proxy would have
     /// handed the second call the connection the first left, and the proxy would
     /// have been reached no times at all.
+    #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn a_tunnelled_connection_is_pooled_apart_from_a_direct_one() {
         let ok = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
         let (at, served) = origin(vec![ok, ok]);
-        let (proxying, opened, _) = proxy(1, None);
+        let (proxying, opened, _tunnels) = proxy(1, None);
 
         send(&call(at, "test"), &mut never).expect("the direct answer");
         let mut tunnelled = call(at, "test");
@@ -4115,6 +4218,7 @@ pub(crate) mod tests {
     /// The deadline is not extended
     /// (`rule:http-server/one-deadline-covers-the-whole-call`). A backoff that would end past it
     /// throws immediately rather than sleeping through the budget first.
+    #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn a_backoff_past_the_deadline_throws_rather_than_sleeping() {
         let (at, served) = origin(vec!["HTTP/1.1 503 Busy\r\nContent-Length: 0\r\n\r\n"]);
@@ -4414,10 +4518,22 @@ pub(crate) mod tests {
             "{refused:?}"
         );
 
-        // Nothing was sent, so the origin is still waiting: connect to it
-        // ourselves to let the thread finish.
-        let _ = std::net::TcpStream::connect(at);
-        drop(served);
+        // Nothing was sent, so the origin is still waiting. One request of the
+        // case's own lets its thread finish, and the join shows it is the only
+        // request the origin saw.
+        let mut own = std::net::TcpStream::connect(at).expect("the origin");
+        own.write_all(b"GET /ok HTTP/1.1\r\nHost: origin\r\n\r\n")
+            .expect("a request");
+        let mut reply = [0_u8; 64];
+        drop(own.read(&mut reply));
+        drop(own);
+        let behind = served.join().expect("the origin thread");
+        assert_eq!(behind.asked.len(), 1, "{:?}", behind.asked);
+        assert!(
+            !behind.asked[0].contains("/admin"),
+            "the injected line never reached the origin: {:?}",
+            behind.asked
+        );
     }
 
     /// A chunk header that is not a length is a statement about the other end,
@@ -4496,8 +4612,10 @@ pub(crate) mod tests {
         }
 
         // A megabyte of one octet under a four-kilobyte ceiling: the ratio is
-        // wide open, so what refuses it is the absolute half.
-        let bomb = compress_to(Codec::Gzip, &vec![b'A'; 1 << 20]).expect("a frame");
+        // wide open, so what refuses it is the absolute half. Under Miri the
+        // bomb is 64 KiB, which is still sixteen times the ceiling.
+        let bomb_size = if cfg!(miri) { 64 << 10 } else { 1 << 20 };
+        let bomb = compress_to(Codec::Gzip, &vec![b'A'; bomb_size]).expect("a frame");
         let (at, served) = origin_raw(vec![encoded("gzip", &bomb)]);
         let mut bounded = call(at, "test");
         bounded.compress = Bound {
@@ -4554,13 +4672,28 @@ pub(crate) mod tests {
     /// what a buffered decode already does.
     #[test]
     fn a_streamed_reply_is_decoded_as_it_arrives_rather_than_gathered_first() {
-        let payload = noise(1 << 20);
+        // Under Miri the payload is 32 KiB, and the `gzip` and `zstd` frames
+        // are written uncompressed, because compressing noise there takes
+        // minutes and this case is about the decoder. The `zstd` decoder
+        // gives out nothing until it holds more than its window, so that
+        // frame declares an 8 KiB window, which [`raw_zstd`] writes.
+        let payload = noise(if cfg!(miri) { 32 << 10 } else { 1 << 20 });
         for (coding, codec) in [
             ("gzip", Codec::Gzip),
             ("br", Codec::Brotli),
             ("zstd", Codec::Zstd),
         ] {
-            let frame = compress_to(codec, &payload).expect("a frame this case wrote");
+            let frame = match codec {
+                Codec::Gzip if cfg!(miri) => {
+                    let mut frame = Vec::new();
+                    flate2::read::GzEncoder::new(payload.as_slice(), flate2::Compression::none())
+                        .read_to_end(&mut frame)
+                        .expect("a stored frame");
+                    frame
+                }
+                Codec::Zstd if cfg!(miri) => raw_zstd(&payload),
+                _ => compress_to(codec, &payload).expect("a frame this case wrote"),
+            };
             // Three quarters, so that every backend has whole blocks of its own
             // framing to work from before the tail arrives.
             let cut = frame.len() / 4 * 3;
@@ -4586,10 +4719,9 @@ pub(crate) mod tests {
             );
 
             assert!(
-                reply
-                    .body
-                    .pull()
-                    .expect("what has already arrived, decoded"),
+                reply.body.pull().unwrap_or_else(|thrown| panic!(
+                    "a `{coding}` stream decodes what has already arrived: {thrown:?}"
+                )),
                 "a `{coding}` stream answers its first pull from the octets it has"
             );
             let early = reply.body.held().len();
@@ -4616,17 +4748,40 @@ pub(crate) mod tests {
 
     /// A frame this case can split without it compressing away: a linear
     /// congruential sequence, which is the shortest thing here that no codec
-    /// finds a pattern in.
+    /// finds a pattern in. Each step gives the four high octets of the state,
+    /// which are the ones a step mixes well.
     fn noise(octets: usize) -> Vec<u8> {
         let mut state = 0x2545_F491_4F6C_DD1D_u64;
-        (0..octets)
-            .map(|_| {
-                state = state
-                    .wrapping_mul(6_364_136_223_846_793_005)
-                    .wrapping_add(1_442_695_040_888_963_407);
-                u8::try_from((state >> 33) & 0xFF).unwrap_or_default()
-            })
-            .collect()
+        let mut out = Vec::with_capacity(octets + 4);
+        while out.len() < octets {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            out.extend_from_slice(&state.to_be_bytes()[..4]);
+        }
+        out.truncate(octets);
+        out
+    }
+
+    /// A `zstd` frame of raw blocks that declares an 8 KiB window, written by
+    /// hand: no encoder offers a window that small, and the decoder holds a
+    /// window's worth, and gives out only whole blocks past it.
+    ///
+    /// The header is the magic, a descriptor naming no content size, no
+    /// checksum and no dictionary, and a window descriptor of exponent 3. Each
+    /// block is 8 KiB, the window's size, with a three-octet header naming it
+    /// raw and saying whether it is the last. Of 32 KiB, the three quarters
+    /// before the cut hold two whole blocks, so 8 KiB can be read early.
+    fn raw_zstd(payload: &[u8]) -> Vec<u8> {
+        let mut frame = vec![0x28, 0xB5, 0x2F, 0xFD, 0x00, 3 << 3];
+        let blocks: Vec<&[u8]> = payload.chunks(8 << 10).collect();
+        for (index, block) in blocks.iter().enumerate() {
+            let last = u32::from(index + 1 == blocks.len());
+            let size = u32::try_from(block.len()).expect("an 8 KiB block");
+            frame.extend_from_slice(&((size << 3) | last).to_le_bytes()[..3]);
+            frame.extend_from_slice(block);
+        }
+        frame
     }
 
     /// A listener answering `head` and `first`, and then `rest` once the sender
@@ -4675,6 +4830,10 @@ pub(crate) mod tests {
     /// the reactor at all. Past the origin's signal the task has written
     /// everything it is going to write and the reply cannot be complete, so
     /// parked has only the one meaning left.
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn a_socket_read_runs_on_the_reactor_and_parks_its_coroutine() {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
@@ -5044,6 +5203,7 @@ pub(crate) mod tests {
     /// clock: the set's first address answers nothing, and the call is served
     /// by the next one inside the same `connectTimeout` rather than spending
     /// the whole of it on the first.
+    #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn a_dead_first_address_falls_back_to_the_next_within_connect_timeout() {
         let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
@@ -5271,6 +5431,10 @@ pub(crate) mod tests {
     /// nothing until a `CertificateRequest` arrives — and a call that named no
     /// identity is configured to answer one with nothing at all, which
     /// `nvs_host::tls`'s own case asserts on the shipped configuration.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn client_identity_is_presented_when_asked_and_is_part_of_the_pool_key() {
         let (mine, theirs) = (client_identity("one"), client_identity("two"));
@@ -5461,6 +5625,10 @@ pub(crate) mod tests {
     /// once it has one. What neither covers is that the two are wired together:
     /// the anchors this transport verifies against are the ones the process was
     /// configured with.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn https_call_through_the_client_reaches_a_loopback_origin_under_a_roots_file() {
         let (cert, key) = trusted();
@@ -5495,6 +5663,10 @@ pub(crate) mod tests {
     /// the slot's whole purpose. The chain is asserted against the certificate
     /// this origin was stood up with rather than against a length, so a client
     /// reporting *a* chain rather than this peer's fails here too.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn tls_info_reports_version_cipher_and_the_peer_chain() {
         let (cert, key) = trusted();
@@ -5546,6 +5718,10 @@ pub(crate) mod tests {
     /// relaxation here is load-bearing: the same call under the default policy is
     /// the refusal the case above asserts. That is what stops this passing on a
     /// client that reported `false` for every session it ever negotiated.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn tls_info_is_unverified_after_a_pinned_or_relaxed_call() {
         use base64::Engine as _;
@@ -5617,6 +5793,10 @@ pub(crate) mod tests {
     /// failed, and the connection count is the far end's own record that it was
     /// reached once. The pause is what makes the count final: a retry would be
     /// out on the wire within this call's millisecond of backoff.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn https_call_to_an_origin_no_root_vouches_for_throws_and_is_not_retried() {
         // The anchors, installed before anything else: what makes this origin's
@@ -5702,6 +5882,10 @@ pub(crate) mod tests {
     /// The refusal has to land before the plaintext socket, which is what the
     /// accept below asserts — a client that checked afterwards would have sent
     /// the request in the clear and then complained about it.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn https_to_http_redirect_is_refused_without_the_downgrade_grant() {
         let plain = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
@@ -5728,6 +5912,10 @@ pub(crate) mod tests {
     /// The same rule's call half: the deployment named this host, and the call
     /// never said it expected to leave TLS behind. Following a redirect is
     /// already opt-in, and this is the one hop opting in does not include.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn https_to_http_redirect_is_refused_under_the_grant_without_the_option() {
         let plain = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
@@ -5754,6 +5942,10 @@ pub(crate) mod tests {
     /// Both halves written, and the hop is taken: the body that comes back is
     /// the plaintext origin's, so the two refusals above are about the two keys
     /// rather than about a hop this client cannot follow at all.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn https_to_http_redirect_is_followed_under_the_grant_and_the_option() {
         let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nplain"]);
@@ -5776,6 +5968,10 @@ pub(crate) mod tests {
     /// under somebody else's credential. Asserted by the connection still being
     /// in the store afterwards, which says it was never drawn — a fresh one
     /// answering says only that one was opened.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_call_without_an_identity_never_reuses_a_connection_that_presented_one() {
         let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
@@ -6207,6 +6403,10 @@ pub(crate) mod tests {
     /// call whose own anchors vouch for a different one, never reaches a `101`.
     /// The refusal is read as the TLS one rather than as any error, since a
     /// socket that failed to connect at all would satisfy a bare `is_err`.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn wss_socket_completes_over_the_tls_client_under_the_calls_policy() {
         let (cert, key) = trusted();
@@ -6312,7 +6512,7 @@ pub(crate) mod tests {
         );
 
         let (at, served) = socket_origin(Some("chat.v1"));
-        let (proxying, reached, _) = proxy(1, None);
+        let (proxying, reached, _tunnels) = proxy(1, None);
         let mut direct = call(at, "Core\\Http\\Client::openSocket");
         direct.url = format!("ws://{at}/chat");
         let mut past = through(proxying);

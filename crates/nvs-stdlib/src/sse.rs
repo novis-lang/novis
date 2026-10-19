@@ -137,6 +137,13 @@ const CARD: ClassDoc = ClassDoc {
 /// event stream's whole state is the body it writes into and that lives on
 /// [`nvs_runtime::Ctx`] — so the handle is a handle, and two of them are not
 /// identical and have nothing to tell apart.
+///
+/// `rule:concurrency/two-doors-one-isolate`, and beside `Core\Socket` because the two are one model with
+/// two doors: the same root isolate, reached through the cell the hand-over
+/// needs. [`crate::sse`] owns why that is a second cell rather than a second
+/// use of the first, and why this member is offered to every request a
+/// server answers where its sibling is offered only to an upgradable one.
+// rank: 820
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -482,6 +489,13 @@ const MESSAGE_CARD: ClassDoc = ClassDoc {
 /// on this side of the wire and crossed by `rule:classes/graph-copy`'s copy, so
 /// it arrives with whatever qualifiers it already had, exactly as the sibling's
 /// does.
+///
+/// `rule:concurrency/a-connection-is-a-loop`'s message on the door with no
+/// peer, immediately after the class whose `receive` is the only thing that
+/// produces one — the sibling pair two rows up, read against a hand-over
+/// that took no socket. [`crate::sse`]'s own doc owns why it is two readers
+/// rather than the four beside it and why it is a class of its own.
+// rank: 830
 pub(crate) const MESSAGE: CoreClass = CoreClass {
     name: MESSAGE_NAME,
     doc: Some(&MESSAGE_CARD),

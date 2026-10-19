@@ -1008,8 +1008,9 @@ mod tests {
 
         // Two thousand arrays, one inside the next. The reader stops at
         // `DEPTH_LIMIT` and says so, rather than following the nesting down.
+        // Under Miri there are a hundred, still far past the limit.
         let mut deep = Value::array(NvsArray::new());
-        for _ in 0..2000 {
+        for _ in 0..if cfg!(miri) { 100 } else { 2000 } {
             let mut wrap = NvsArray::new();
             wrap.set(NvsStr::new(b"tables"), deep);
             deep = Value::array(wrap);

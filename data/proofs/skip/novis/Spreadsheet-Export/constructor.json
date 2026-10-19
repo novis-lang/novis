@@ -1,0 +1,6 @@
+{
+  "feature": "Novis\\Spreadsheet\\Export::constructor",
+  "examples": "`new Export` stores its function and options and calls nothing; a program meets an `Export` from `Workbook::fromRows` or `Template::fill`, and the examples of `save`, `to`, `bytes` and `download` show it, one of them through `new Export`.",
+  "perf": "`new Export` stores three values and calls nothing; `Workbook::fromRows` builds one on every call, so the benches of `download`, `save`, `to` and `bytes` include this one.",
+  "hostile": "`new Export` stores three typed read-only values and calls nothing, so a wrong value does not compile; the function it stores runs only in the four write methods, whose attacks give it a function that throws and one that adds no sheet."
+}

@@ -1,0 +1,51 @@
+--TEST--
+A program's error class extends any global error class, and a `catch` of that parent still matches it, while no class under `Core` may be a parent — `rule:core-api/core-classes-are-sealed`
+--FILE--
+<?nvs
+class Missing extends RuntimeError {
+}
+
+class Broken extends LogicError {
+}
+
+class Unreadable extends IOError {
+}
+
+class Slow extends TimeoutError {
+}
+
+class Anything extends Throwable {
+}
+
+class Raise {
+    public static function each(): void {
+        array<Throwable> $errors = [
+            new Missing("missing"),
+            new Broken("broken"),
+            new Unreadable("unreadable"),
+            new Slow("slow"),
+            new Anything("anything"),
+        ];
+        foreach ($errors as var $error) {
+            try {
+                throw $error;
+            } catch (Throwable $caught) {
+                echo $caught::class, ": ", $caught->message, "\n";
+            }
+        }
+    }
+}
+
+Raise::each();
+try {
+    throw new Unreadable("as a runtime error");
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+Missing: missing
+Broken: broken
+Unreadable: unreadable
+Slow: slow
+Anything: anything
+as a runtime error

@@ -2,20 +2,18 @@
 32 lower-case hexadecimal characters, such as `4bf92f3577b34da6a3ce929d0e0e4736`. Every request has
 one, and the server writes the same id into its log lines.
 
-The server also sends the id back in the `traceresponse` header of every response. The header has
-this form: `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00`. The second part is the id.
-A proxy in front of your server can write this header into its own log. The server ignores an
-`X-Request-ID` header that a client sends.
+The server also sends the id back in the `traceresponse` header of every response, in the form
+`00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00`. The second part is the id. The server
+ignores an `X-Request-ID` header that a client sends.
 
-A request can arrive with a `traceparent` header. This header comes from a service that called
-yours, and it names a trace (a record of one task across several services). The id is then the one
-in that header, so your logs and the caller's logs use the same id. Without the header, the server
-creates a new random id for the request.
+A request can arrive with a `traceparent` header from a service that called yours. The id is then
+the one in that header, so your logs and the caller's logs use the same id. Without the header, the
+server creates a new random id.
 
 A command-line program answers no request, so `traceId` throws a `LogicError` there.
 
-**Good to know:** show the id on an error page or put it in an error report. Then a person who
-reports a problem can give you the id, and you can find the request in the logs.
+**Good to know:** show the id on an error page. A person who reports a problem can then give you
+the id, and you can find the request in the logs.
 
 **The examples below** print the id, show it on an error page, and catch the `LogicError` in a
 command-line program.

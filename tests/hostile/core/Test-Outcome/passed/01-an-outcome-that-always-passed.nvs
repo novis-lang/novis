@@ -1,0 +1,37 @@
+<?nvs
+// Attack: a program makes its own `Outcome` whose `passed()` is always `true`, so
+// a hook deletes the files of a failed test. Only the test runner creates an
+// `Outcome`, so this should not compile.
+// hostile: expect-refusal
+
+use Core\Test\Outcome;
+
+// 1. A class extends `Outcome` and changes `passed()`.
+class AlwaysPassed extends Outcome
+{
+    public function passed(): bool
+    {
+        return true;
+    }
+}
+
+// 2. A class implements `Outcome` and changes `passed()`.
+class PretendPassed implements Outcome
+{
+    public function passed(): bool
+    {
+        return true;
+    }
+}
+
+// 3. A new `Outcome` made with `new`, then given to code that expects one from the runner.
+class Cleanup
+{
+    public static function run(Outcome $outcome): string
+    {
+        return $outcome->passed() ? 'deleted the logs' : 'kept the logs';
+    }
+}
+
+echo Cleanup::run(new Outcome()), "\n";
+echo Cleanup::run(new AlwaysPassed()), "\n";

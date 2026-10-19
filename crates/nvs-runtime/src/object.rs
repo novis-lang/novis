@@ -6464,12 +6464,14 @@ mod tests {
     fn a_deep_chain_is_freed_without_recursing() {
         // 200_000 links: deep enough that a recursive release would overflow
         // the stack on every platform CI runs on. Passing is the whole claim.
+        // Under Miri, 1_000 links run the same release loop in far less time.
+        let links = if cfg!(miri) { 1_000 } else { 200_000 };
         let mut table = ClassTable::new();
         let link = table.define("Link", &["next"], &[]);
         #[expect(unsafe_code, reason = "the table outlives every object below")]
         unsafe {
             let mut head = NvsObj::new(table.desc(link));
-            for _ in 1..200_000 {
+            for _ in 1..links {
                 let next = NvsObj::new(table.desc(link));
                 next.set_field(0, Value::object(head));
                 head = next;

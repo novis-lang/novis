@@ -173,6 +173,7 @@ const CARD: ClassDoc = ClassDoc {
 /// Declared beside the implementations rather than in one flat table, so
 /// adding a member touches this file and nothing else — see
 /// [`crate::registry::CLASSES`], which grows one line per *class*.
+// rank: 120
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

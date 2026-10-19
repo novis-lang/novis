@@ -8,11 +8,13 @@
 //! skip when nothing listens on its LDAPS port unless `NVS_LDAP_SAMBA` is set,
 //! as `crates/nvs-ldap/tests/samba.rs` does.
 
+use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::io::{Read as _, Write as _};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+use std::ops::Deref;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -26,17 +28,91 @@ const BASE: &str = "DC=example,DC=test";
 const ADMIN: &str = "CN=Administrator,CN=Users,DC=example,DC=test";
 const PASSWORD: &str = "Novis-test-1";
 const LDAPS_PORT: u16 = 16636;
+/// The test server's LDAPS URL. Docker publishes the port on `127.0.0.1`
+/// alone, and `localhost` resolves to `::1` first, which Windows takes two
+/// seconds to report as refused before the dial moves on.
+const SAMBA_URL: &str = "ldaps://127.0.0.1:16636";
 
-/// The anchor, when the server is up and the anchor is on disk.
+/// `name` with this process's id after it. Every test run in every worktree
+/// writes to the one `samba-ad` directory, so each entry a case adds under
+/// `BASE` carries a name that no other process running at the same time uses.
+fn own(name: &str) -> String {
+    format!("{name}-{}", std::process::id())
+}
+
+/// How many Samba cases this process runs at once. Samba serves every
+/// connection with four worker processes, its `prefork children` default, and a
+/// request past the fourth waits inside Samba while its deadline runs. When
+/// every core is busy, each request through Docker's published port is about
+/// ten times slower, so every case of this binary at once queues past the
+/// deadline `block_at` sets, and four at once do not.
+const SAMBA_AT_ONCE: usize = 4;
+
+/// The Samba cases running now, and the signal a waiting case wakes on.
+static RUNNING: (Mutex<usize>, Condvar) = (Mutex::new(0), Condvar::new());
+
+thread_local! {
+    /// The turns this test's thread holds, so a case that asks twice takes one.
+    static HELD: Cell<usize> = const { Cell::new(0) };
+}
+
+/// The anchor of the test server, with one of the [`SAMBA_AT_ONCE`] turns
+/// held until the case drops it.
+struct Samba {
+    ca: PathBuf,
+}
+
+impl Samba {
+    fn take(ca: PathBuf) -> Self {
+        if HELD.get() == 0 {
+            let (running, freed) = &RUNNING;
+            let mut now = running
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            while *now >= SAMBA_AT_ONCE {
+                now = freed
+                    .wait(now)
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+            }
+            *now += 1;
+        }
+        HELD.set(HELD.get() + 1);
+        Self { ca }
+    }
+}
+
+impl Deref for Samba {
+    type Target = PathBuf;
+
+    fn deref(&self) -> &PathBuf {
+        &self.ca
+    }
+}
+
+impl Drop for Samba {
+    fn drop(&mut self) {
+        HELD.set(HELD.get() - 1);
+        if HELD.get() == 0 {
+            let (running, freed) = &RUNNING;
+            *running
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) -= 1;
+            freed.notify_one();
+        }
+    }
+}
+
+/// The anchor, when the server is up and the anchor is on disk, and this
+/// case's turn at the server.
 #[allow(
     clippy::print_stderr,
     reason = "a green line for a test that reached no server has to say so"
 )]
-fn samba() -> Option<PathBuf> {
+fn samba() -> Option<Samba> {
     let ca = nvs_repo::path("tests/db/ca.crt");
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, LDAPS_PORT));
     if ca.is_file() && TcpStream::connect_timeout(&address, Duration::from_millis(500)).is_ok() {
-        return Some(ca);
+        return Some(Samba::take(ca));
     }
     assert!(
         std::env::var_os("NVS_LDAP_SAMBA").is_none(),
@@ -213,9 +289,8 @@ fn open_needs_the_ldap_open_grant_and_passes_the_address_policy() {
 
 /// A configuration with one `[ldap.corp]` block at the test server, granted by name.
 fn corp(ca: &PathBuf) -> Arc<nvs_config::Snapshot> {
-    let url = format!("ldaps://localhost:{LDAPS_PORT}");
     snapshot(
-        vec![("corp", block_at(&url, Some(ca)))],
+        vec![("corp", block_at(SAMBA_URL, Some(ca)))],
         CapLdap {
             connect: list(&["corp"]),
             ..CapLdap::default()
@@ -1232,11 +1307,10 @@ fn a_ranged_member_list_is_merged_to_its_end() {
 #[test]
 fn the_schema_is_read_once_per_pool() {
     let Some(ca) = samba() else { return };
-    let url = format!("ldaps://localhost:{LDAPS_PORT}");
     let config = snapshot(
         vec![
-            ("corp", block_at(&url, Some(&ca))),
-            ("staff", block_at(&url, Some(&ca))),
+            ("corp", block_at(SAMBA_URL, Some(&ca))),
+            ("staff", block_at(SAMBA_URL, Some(&ca))),
         ],
         CapLdap {
             connect: list(&["corp", "staff"]),
@@ -1318,7 +1392,7 @@ fn modify_applies_its_changes_in_one_request() {
             .map(|value| value.as_bytes().to_vec())
             .collect(),
     };
-    let dn = "OU=Framework,DC=example,DC=test";
+    let dn = &format!("OU={},{BASE}", own("Framework"));
     let changes = [
         change(ChangeKind::Add, "description", &["two"]),
         change(ChangeKind::Remove, "description", &["one"]),
@@ -1433,7 +1507,7 @@ fn typed_values_round_trip_through_a_write() {
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let dn = "OU=Example,DC=example,DC=test";
+    let dn = &format!("OU={},{BASE}", own("Example"));
     ldap::delete(&mut ctx, key, dn).ok();
     ldap::add(
         &mut ctx,
@@ -1466,10 +1540,12 @@ fn typed_values_round_trip_through_a_write() {
     ldap::delete(&mut ctx, key, dn).expect("the entry is deleted");
 }
 
-/// A new, disabled user account `CN=<cn>,OU=<cn>` in an OU of its own, after
-/// deleting both where a run that stopped half-way left them behind. Not
-/// `CN=Users`, because other cases count the entries there.
+/// A new, disabled user account `CN=<cn>,OU=<cn>` in an OU of its own, both
+/// named by [`own`], after deleting both where a run of this process's id that
+/// stopped half-way left them behind. Not `CN=Users`, because other cases
+/// count the entries there.
 fn user(ctx: &mut nvs_runtime::Ctx, key: u64, cn: &str) -> String {
+    let cn = &own(cn);
     let dn = format!("CN={cn},OU={cn},{BASE}");
     ldap::delete(ctx, key, &dn).ok();
     ldap::delete(ctx, key, &format!("OU={cn},{BASE}")).ok();
@@ -1504,13 +1580,14 @@ fn user(ctx: &mut nvs_runtime::Ctx, key: u64, cn: &str) -> String {
 
 /// Deletes what [`user`] added.
 fn delete_user(ctx: &mut nvs_runtime::Ctx, key: u64, cn: &str) {
+    let cn = &own(cn);
     ldap::delete(ctx, key, &format!("CN={cn},OU={cn},{BASE}")).expect("the user is deleted");
     ldap::delete(ctx, key, &format!("OU={cn},{BASE}")).expect("the OU is deleted");
 }
 
 /// Whether a bind as `dn` with `password` succeeds over LDAPS.
 fn binds(ca: &PathBuf, dn: &str, password: &str) -> Result<(), String> {
-    let mut block = block_at(&format!("ldaps://localhost:{LDAPS_PORT}"), Some(ca));
+    let mut block = block_at(SAMBA_URL, Some(ca));
     block.user = Some(dn.to_owned());
     block.password = Some(password.to_owned());
     let snapshot = snapshot(
@@ -1674,7 +1751,7 @@ fn compare_returns_a_bool_and_throws_on_error() {
 
     // `compareTrue` (6) and `compareFalse` (5) are answers, and any other
     // result is an error.
-    let dn = "OU=Catalog,DC=example,DC=test";
+    let dn = &format!("OU={},{BASE}", own("Catalog"));
     let (port, read) = scripted(vec![
         written(1, 0x6f, 6),
         written(2, 0x6f, 5),
@@ -2029,7 +2106,7 @@ fn sort_and_a_vlv_window_return_the_requested_slice() {
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let base = format!("OU=Archive,{BASE}");
+    let base = format!("OU={},{BASE}", own("Archive"));
     let names = ["Delta", "Alpha", "Echo", "Charlie", "Bravo"];
     for name in names {
         ldap::delete(&mut ctx, key, &format!("OU={name},{base}")).ok();
@@ -2125,7 +2202,7 @@ fn show_deleted_finds_a_deleted_entry() {
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let dn = format!("OU=Museum,{BASE}");
+    let dn = format!("OU={},{BASE}", own("Museum"));
     ldap::delete(&mut ctx, key, &dn).ok();
     ldap::add(
         &mut ctx,
@@ -2176,7 +2253,10 @@ fn rename_moves_an_entry_under_a_new_parent_and_refuses_text_that_is_not_a_dn() 
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let (first, second) = (format!("OU=Atlas,{BASE}"), format!("OU=Harbor,{BASE}"));
+    let (first, second) = (
+        format!("OU={},{BASE}", own("Atlas")),
+        format!("OU={},{BASE}", own("Harbor")),
+    );
     let (from, to) = (format!("OU=Desk,{first}"), format!("OU=Counter,{second}"));
     for dn in [&from, &to, &first, &second] {
         ldap::delete(&mut ctx, key, dn).ok();
@@ -2210,7 +2290,7 @@ fn delete_removes_a_leaf_and_refuses_an_entry_with_one_below_it() {
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let parent = format!("OU=Quay,{BASE}");
+    let parent = format!("OU={},{BASE}", own("Quay"));
     let child = format!("OU=Shed,{parent}");
     for dn in [&child, &parent] {
         ldap::delete(&mut ctx, key, dn).ok();
@@ -2267,7 +2347,7 @@ fn dirsync_returns_only_what_changed_since_its_cookie() {
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let dn = format!("OU=Lantern,{BASE}");
+    let dn = format!("OU={},{BASE}", own("Lantern"));
     let unchanged = format!("OU=Domain Controllers,{BASE}");
     ldap::delete(&mut ctx, key, &dn).ok();
 

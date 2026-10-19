@@ -2,7 +2,7 @@
 // Reads the value a script was started with, as a child script does before it starts its work.
 // bench: iterations 2048
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

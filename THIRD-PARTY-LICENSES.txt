@@ -298,7 +298,7 @@ platform Novis builds for, so one may appear that a given build omits.
   imgref                                     1.12.3                         Apache-2.0                      (CC0-1.0 OR Apache-2.0)
   indexmap                                   2.14.2                         MIT                             (Apache-2.0 OR MIT)
   inout                                      0.2.2                          MIT                             (MIT OR Apache-2.0)
-  inout                                      0.2.3                          MIT                             (MIT OR Apache-2.0)
+  inout                                      0.2.4                          MIT                             (MIT OR Apache-2.0)
   is_terminal_polyfill                       1.70.2                         MIT                             (MIT OR Apache-2.0)
   itertools                                  0.14.0                         MIT                             (MIT OR Apache-2.0)
   itoa                                       1.0.18                         MIT                             (MIT OR Apache-2.0)
@@ -535,7 +535,7 @@ platform Novis builds for, so one may appear that a given build omits.
   syn                                        3.0.9                          MIT                             (MIT OR Apache-2.0)
   synstructure                               0.13.2                         MIT
   synstructure                               0.14.0                         MIT
-  taffy                                      0.14.0                         MIT
+  taffy                                      0.15.0                         MIT
   target-lexicon                             0.13.5                         Apache-2.0 WITH LLVM-exception
   tempfile                                   3.27.0                         MIT                             (MIT OR Apache-2.0)
   tendril                                    0.5.1                          MIT                             (MIT OR Apache-2.0)
@@ -710,7 +710,7 @@ Applies to:
   rcgen 0.14.10
   rsqlite-vfs 0.1.1
   simd_helpers 0.1.0
-  taffy 0.14.0
+  taffy 0.15.0
   winapi-i686-pc-windows-gnu 0.4.0
   winapi-x86_64-pc-windows-gnu 0.4.0
 
@@ -5060,7 +5060,7 @@ DEALINGS IN THE SOFTWARE.
 
 Applies to:
   inout 0.2.2
-  inout 0.2.3
+  inout 0.2.4
 
 ------------------------------------------------------------------------------
 

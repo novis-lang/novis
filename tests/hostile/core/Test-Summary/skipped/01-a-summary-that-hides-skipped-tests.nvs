@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program makes its own `Summary` whose `skipped()` is `0` or very
+// large, so a release check misses the skipped tests. Only the test runner
+// creates a `Summary`, so the program should not compile.
+// hostile: expect-refusal
+
+use Core\Test\Summary;
+
+// 1. A class extends `Summary` by its full name and returns `0` skipped tests.
+class NothingSkipped extends Core\Test\Summary
+{
+    public function skipped(): int
+    {
+        return 0;
+    }
+}
+
+// 2. A class extends `Summary` and returns a count that overflows when added to the others.
+class HugeSkipped extends Summary
+{
+    public function skipped(): int
+    {
+        return 9223372036854775807;
+    }
+}
+
+// 3. A class implements `Summary` and has no `skipped()` at all.
+class EmptySummary implements Summary
+{
+}
+
+echo (new HugeSkipped())->skipped(), "\n";

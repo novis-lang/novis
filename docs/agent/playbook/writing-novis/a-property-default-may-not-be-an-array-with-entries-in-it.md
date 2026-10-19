@@ -2,4 +2,4 @@
   => "x"];` is `E0472` (*"a property default must be a `array<string>` literal"*, which reads as if
   the literal were mistyped), and `[]` is the only array a declaration may carry. Fill a pre-filled
   array property with element writes after the `new` or in `constructor`; a `public static` one has
-  no constructor, so its writes are top-level statements. See `crates/nvs-diagnostics/src/lib.rs`. `until: gone crates/nvs-diagnostics/src/lib.rs:E0472`
+  no constructor, so its writes are top-level statements. See `crates/nvs-diagnostics/src/code/types.rs`. `until: gone crates/nvs-diagnostics/src/code/types.rs:E0472`

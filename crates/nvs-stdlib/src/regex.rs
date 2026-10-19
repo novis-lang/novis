@@ -116,6 +116,7 @@ pub const NAME: &str = r"Core\Regex";
 /// `Core\Regex`'s registry rows, all eight of them.
 ///
 /// The four members of a `Match` are [`MATCH`]'s own roster, not this one.
+// rank: 70
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -485,6 +486,7 @@ const PATTERN_NAME: &str = r"Core\Regex\Pattern";
 /// **What it spends:** one object, two slots and one `string` copy of the
 /// pattern per `compile` call, charged to the request. The compiled program it
 /// stands for is the cache's, shared by every call that names the same pair.
+// rank: 90
 pub const PATTERN: CoreClass = CoreClass {
     name: PATTERN_NAME,
     doc: Some(&PATTERN_CARD),
@@ -597,6 +599,7 @@ const MATCH_NAME: &str = r"Core\Regex\Match";
 /// spends:** one array plus one `string` per participating group (two for a
 /// named one, which is stored under both its name and its number, exactly as
 /// `preg_match` returns it), per match, charged to the request.
+// rank: 80
 pub const MATCH: CoreClass = CoreClass {
     name: MATCH_NAME,
     doc: Some(&MATCH_CARD),
@@ -863,7 +866,10 @@ fn step_budget(ctx: &Ctx) -> usize {
 
 /// How many compiled patterns one core holds before a miss evicts one — this
 /// module's own docs own the reasoning and what it spends.
-const CACHE_CAPACITY: usize = 256;
+///
+/// Under Miri it is 8, because the eviction test compiles twice the capacity
+/// and one compile there takes about a second.
+const CACHE_CAPACITY: usize = if cfg!(miri) { 8 } else { 256 };
 
 /// One compiled pattern, in whichever tier `rule:core-classes/regex-two-tiers` placed it.
 ///
@@ -1184,12 +1190,32 @@ fn search_cost(built: &Compiled, spelled: &str) -> usize {
 /// The budget is fixed when the program is built and cannot be moved per
 /// match, which is why [`CACHE`] keys on it.
 ///
+/// A subroutine call (`\g<1>`, `\g0`, `(?P>name)`) is refused here, before the
+/// engine sees it, as `rule:core-classes/regex-syntax` requires. `fancy-regex`
+/// parses one and compiles it by copying the group it calls into the program,
+/// down to a recursion depth of 19, so a pattern that calls itself twice is
+/// 2^19 copies of itself: gigabytes from a hundred bytes of text, before any
+/// step budget applies. Past that depth the call fails to match, which is the
+/// approximation that rule forbids.
+///
+/// **What it spends:** the pattern parsed a second time, once per pattern per
+/// core on a cache miss, and only for a pattern the linear engine refused.
+///
 /// # Errors
 ///
 /// The sentence [`build`] answers with for a pattern neither engine compiles;
 /// it quotes `pattern` as the program wrote it rather than [`effective`]'s
 /// flag-wrapped form.
 fn backtracking(pattern: &str, spelled: &str, budget: usize) -> Result<Compiled, String> {
+    // A text that does not parse falls through, so the builder below names
+    // its own parse error.
+    if fancy_regex::Expr::parse_tree(spelled).is_ok_and(|tree| tree.contains_subroutines) {
+        return Err(format!(
+            "`{pattern}` is not a pattern either engine can compile: it uses a subroutine \
+             call, such as `\\g<1>` or `(?P>name)`. Subroutine calls and recursion are not \
+             supported."
+        ));
+    }
     Ok(Compiled::Backtracking(
         fancy_regex::RegexBuilder::new(spelled)
             .backtrack_limit(budget)
@@ -2266,7 +2292,7 @@ mod tests {
     /// on.
     #[test]
     fn a_match_carries_every_declared_group_named_and_numbered() {
-        let compiled = built(r"(?<word>[a-z]+)(\d+)?", NO_FLAGS, "match").expect("compiles");
+        let compiled = built(r"(?<word>[a-z]+)([0-9]+)?", NO_FLAGS, "match").expect("compiles");
         let names = names_of(&compiled);
         let Compiled::Linear(re) = &*compiled else {
             panic!("a plain pattern lands in the linear tier")
@@ -2311,7 +2337,7 @@ mod tests {
     fn the_four_match_members_read_one_match_by_grapheme_and_by_group() {
         let mut ctx = Ctx::buffered();
         let subject = Value::str(NvsStr::new("é abc".as_bytes()));
-        let pattern = Value::str(NvsStr::new(br"(?<word>[a-z]+)(\d+)?"));
+        let pattern = Value::str(NvsStr::new(br"(?<word>[a-z]+)([0-9]+)?"));
         let found = nvs_runtime::call(
             nvs_core_regex_match,
             &mut ctx,
@@ -2415,18 +2441,27 @@ mod tests {
             r"foo(?!bar)",
             r"(?<=foo)bar",
             r"(?<!foo)bar",
-            r"^(\w+)\s+\1$",
-            r"(?<word>\w+)\s+\k<word>",
+            r"^([a-z]+) +\1$",
+            r"(?<word>[a-z]+) +\k<word>",
         ];
 
         // Under every combination of the four flags: `effective` wraps the
         // pattern in a balanced group, so no flag can turn a pattern the
         // linear engine expresses into one it does not.
+        //
+        // Under Miri, a Unicode class or a case-folded one takes minutes to
+        // compile. There the table shrinks to the rows that use neither, under
+        // no flags, and the size refusal at the end is not built.
         let every_flag = FLAG_CASE_INSENSITIVE | FLAG_MULTILINE | FLAG_DOT_ALL | FLAG_UNGREEDY;
-        for flags in NO_FLAGS..=every_flag {
+        let last_flags = if cfg!(miri) { NO_FLAGS } else { every_flag };
+        let unicode = |pattern: &&str| {
+            pattern.contains('\\') || pattern.contains('.') || pattern.contains("(?i)")
+        };
+        for flags in NO_FLAGS..=last_flags {
             let strayed: Vec<&str> = LINEAR
                 .iter()
                 .copied()
+                .filter(|pattern| !(cfg!(miri) && unicode(pattern)))
                 .filter(|pattern| {
                     !matches!(
                         tiered(pattern, flags, None).expect("a linear pattern compiles"),
@@ -2461,6 +2496,9 @@ mod tests {
         // Re-tiering there would make a pattern's exposure to backtracking a
         // function of how large its automaton happens to be, which nothing in
         // the source says and no reader could predict.
+        if cfg!(miri) {
+            return;
+        }
         let too_big = r"\p{L}".repeat(5_000);
         let refused = tiered(&too_big, NO_FLAGS, None)
             .expect_err("5,000 unicode classes is past the size limit");
@@ -2489,7 +2527,7 @@ mod tests {
         // A lookbehind told what it is goes straight to the engine that
         // expresses it, landing where the untold path lands.
         assert!(matches!(
-            tiered(r"(?<=USD )\d+", NO_FLAGS, Some(Tier::Backtracking))
+            tiered(r"(?<=USD )[0-9]+", NO_FLAGS, Some(Tier::Backtracking))
                 .expect("the second tier compiles a lookbehind"),
             Compiled::Backtracking(_)
         ));
@@ -2513,6 +2551,42 @@ mod tests {
             .expect_err("an unclosed group is not a pattern");
         assert!(format!("{err:?}").contains("(unclosed"), "{err:?}");
     }
+
+    /// A subroutine call is refused before `fancy-regex` builds it, in every
+    /// syntax that engine reads as one. Built, `a|b\g0\g0` is 2^19 copies of
+    /// itself and `a|b\g0\g0\g0` 3^19: the second ran the `regex` fuzz target
+    /// out of memory, in the shape of [`FUZZ_SUBROUTINE_BLOWUP`].
+    #[test]
+    fn a_subroutine_call_is_refused_before_it_is_built() {
+        for pattern in [
+            FUZZ_SUBROUTINE_BLOWUP,
+            r"a|b\g0\g0",
+            r"a|b\g0\g0\g0",
+            r"(a)\g1",
+            r"(a)\g<1>",
+            r"(a)\g'1'",
+            r"(?<w>a)\g<w>",
+            r"(?P<w>a)(?P>w)",
+            r"(a)\g<-1>",
+        ] {
+            let refused = validate(pattern).expect_err(pattern);
+            assert!(refused.contains("subroutine call"), "{pattern}: {refused}");
+            // The runtime path reaches the same refusal, whatever tier a
+            // literal was prepared for.
+            for prepared in [None, Some(Tier::Backtracking)] {
+                let refused = tiered(pattern, NO_FLAGS, prepared).expect_err(pattern);
+                assert!(refused.contains("subroutine call"), "{pattern}: {refused}");
+            }
+        }
+        // A backreference is not a subroutine call and stays on the second tier.
+        assert_eq!(validate(r"(a)\1"), Ok(Tier::Backtracking));
+    }
+
+    /// The input the `regex` fuzz target ran out of memory on, byte for byte:
+    /// two `\g0` calls of the whole pattern under a top-level alternation.
+    const FUZZ_SUBROUTINE_BLOWUP: &str = "{|C{tion6%\x0b\0]G{?\n{|C{C|\x01\n\x0b\x03\x0b\\g0\x03\0\0\
+        \\n\x16\n?3\n?+]C|\x01\n\x0b\x03\x03Punctuation6%\x0b\0]G{?\n{|C{C|\x01\n\x0b\x03\x0b\
+        \\g0\x03\0\0\\n\x16\n?3\n?+]\x04\x01%Script?\n?,'";
 
     /// The catastrophic pair every backtracking-budget assertion below runs
     /// against: a backreference puts the pattern on the second tier and stops
@@ -2542,13 +2616,12 @@ mod tests {
 
         // The budget the program was built with is the one the throw names,
         // so a message can never quote a bound that is not the enforced one.
-        let Fault::Thrown(class, message) =
-            budget_exhausted("matches", CATASTROPHIC, BACKTRACK_BUDGET, &err)
+        let Fault::Thrown(class, message) = budget_exhausted("matches", CATASTROPHIC, STEPS, &err)
         else {
             panic!("§ 2 is an ordinary catchable throw, not a resource-limit fatal")
         };
         assert!(matches!(class, nvs_runtime::ThrownClass::Runtime));
-        assert!(message.contains(&BACKTRACK_BUDGET.to_string()), "{message}");
+        assert!(message.contains(&STEPS.to_string()), "{message}");
         assert!(message.contains(CATASTROPHIC), "{message}");
     }
 
@@ -2580,8 +2653,8 @@ mod tests {
     /// once — this module's own docs own what that spends.
     #[test]
     fn one_pattern_is_compiled_once_per_core() {
-        let first = built(r"^cached-\w+$", NO_FLAGS, "matches").expect("compiles");
-        let again = built(r"^cached-\w+$", NO_FLAGS, "matches").expect("compiles");
+        let first = built(r"^cached-[a-z]+$", NO_FLAGS, "matches").expect("compiles");
+        let again = built(r"^cached-[a-z]+$", NO_FLAGS, "matches").expect("compiles");
         assert!(Rc::ptr_eq(&first, &again));
     }
 
@@ -2589,25 +2662,34 @@ mod tests {
     /// a few groups cost kilobytes, five thousand cost more than a gigabyte,
     /// and a request under a 64 MiB ceiling is refused the second pattern
     /// with nothing cached and without the gigabyte ever being held.
+    ///
+    /// Under Miri, compiling five thousand groups takes longer than a test
+    /// may run. There the wide pattern has fifty groups, the ceiling is
+    /// 8 KiB, and the table is still more than sixteen times the ceiling.
     // covers: Core\Regex::match
     #[test]
     fn a_search_whose_capture_table_the_request_cannot_afford_is_refused_first() {
-        let few = tiered(r"(\d+)-(\d+)", NO_FLAGS, None).expect("compiles");
-        assert!(search_cost(&few, r"(\d+)-(\d+)") < 64 * 1024);
-        let many = "(a)".repeat(5000);
+        let (groups, ceiling) = if cfg!(miri) {
+            (50, 8 << 10)
+        } else {
+            (5000, 64 << 20)
+        };
+        let few = tiered(r"([0-9]+)-([0-9]+)", NO_FLAGS, None).expect("compiles");
+        assert!(search_cost(&few, r"([0-9]+)-([0-9]+)") < 64 * 1024);
+        let many = "(a)".repeat(groups);
         let wide = tiered(&many, NO_FLAGS, None).expect("compiles");
-        assert!(search_cost(&wide, &many) > 1 << 30);
+        assert!(search_cost(&wide, &many) > 16 * ceiling);
         let backtracking = tiered(r"(a)\1", NO_FLAGS, None).expect("compiles");
         assert_eq!(search_cost(&backtracking, r"(a)\1"), 0);
 
         let mut ctx = Ctx::buffered();
-        ctx.set_memory_limit(64 << 20);
-        let subject = Value::str(NvsStr::new("a".repeat(5000).as_bytes()));
+        ctx.set_memory_limit(ceiling);
+        let subject = Value::str(NvsStr::new("a".repeat(groups).as_bytes()));
         let pattern = Value::str(NvsStr::new(many.as_bytes()));
         let args = [subject, pattern, Value::int(0)];
         assert!(nvs_runtime::call(nvs_core_regex_match, &mut ctx, &args).is_err());
         assert!(
-            ctx.memory_used() < 64 << 20,
+            ctx.memory_used() < ceiling,
             "{} bytes held",
             ctx.memory_used()
         );
@@ -2663,10 +2745,14 @@ mod tests {
             }
         };
         assert_eq!(run("^b", FLAG_MULTILINE, "a\nbc"), Some("b".to_owned()));
-        assert_eq!(run("^b", NO_FLAGS, "a\nbc"), None);
         assert_eq!(run("a.c", FLAG_DOT_ALL, "a\nc"), Some("a\nc".to_owned()));
         assert_eq!(run("<.+>", FLAG_UNGREEDY, "<a><b>"), Some("<a>".to_owned()));
-        assert_eq!(run("<.+>", NO_FLAGS, "<a><b>"), Some("<a><b>".to_owned()));
+        // The same patterns with no flag. Under Miri these two are skipped,
+        // because each compile there takes seconds and the test is near its limit.
+        if !cfg!(miri) {
+            assert_eq!(run("^b", NO_FLAGS, "a\nbc"), None);
+            assert_eq!(run("<.+>", NO_FLAGS, "<a><b>"), Some("<a><b>".to_owned()));
+        }
         // A flag group applies to every alternative, which is why it is a
         // group rather than a leading `(?i)` directive.
         assert_eq!(
@@ -2698,14 +2784,23 @@ mod tests {
     /// A hit asks the request's memory ceiling for the capture table exactly
     /// as the miss that built the entry did, so a request the table does not
     /// fit is refused on a warm core too.
+    ///
+    /// Under Miri, the pattern has fifty groups and the ceiling is 16 KiB,
+    /// still under half its table, because two hundred groups take longer to
+    /// compile than a test may run.
     #[test]
     fn a_cache_hit_asks_the_memory_ceiling_as_a_miss_does() {
-        let wide = "(a)".repeat(200);
+        let (groups, ceiling) = if cfg!(miri) {
+            (50, 16 << 10)
+        } else {
+            (200, 1 << 20)
+        };
+        let wide = "(a)".repeat(groups);
         let warm = built(&wide, NO_FLAGS, "match").expect("compiles");
-        assert!(search_cost(&warm, &wide) > 2 << 20);
+        assert!(search_cost(&warm, &wide) > 2 * ceiling);
 
         let mut ctx = Ctx::buffered();
-        ctx.set_memory_limit(1 << 20);
+        ctx.set_memory_limit(ceiling);
         let subject = Value::str(NvsStr::new(b"aaa"));
         let pattern = Value::str(NvsStr::new(wide.as_bytes()));
         let args = [subject, pattern, Value::int(0)];
@@ -2723,26 +2818,21 @@ mod tests {
     #[test]
     fn a_forced_tier_is_part_of_the_cache_key() {
         let forced = compiled_prepared(
-            r"^\d+$",
+            r"^[0-9]+$",
             NO_FLAGS,
             "match",
             Some(Tier::Backtracking),
-            BACKTRACK_BUDGET,
+            STEPS,
         )
         .expect("compiles");
         assert!(matches!(*forced, Compiled::Backtracking(_)));
-        let plain = built(r"^\d+$", NO_FLAGS, "match").expect("compiles");
+        let plain = built(r"^[0-9]+$", NO_FLAGS, "match").expect("compiles");
         assert!(matches!(*plain, Compiled::Linear(_)));
 
         let routed = built(r"(a)\1", NO_FLAGS, "match").expect("compiles");
-        let reused = compiled_prepared(
-            r"(a)\1",
-            NO_FLAGS,
-            "match",
-            Some(Tier::Backtracking),
-            BACKTRACK_BUDGET,
-        )
-        .expect("compiles");
+        let reused =
+            compiled_prepared(r"(a)\1", NO_FLAGS, "match", Some(Tier::Backtracking), STEPS)
+                .expect("compiles");
         assert!(Rc::ptr_eq(&routed, &reused));
     }
 
@@ -2757,16 +2847,16 @@ mod tests {
     fn compile_builds_eagerly_and_answers_the_written_text_beside_its_flags() {
         let mut ctx = Ctx::buffered();
         let (on, off) = (Value::bool(true), Value::bool(false));
-        let written = Value::str(NvsStr::new(br"^order-\d+$"));
+        let written = Value::str(NvsStr::new(br"^order-[0-9]+$"));
         let args = [Value::int(PREPARED_NONE), written, on, off, on, off];
         let pattern = nvs_runtime::call(nvs_core_regex_compile, &mut ctx, &args).expect("compiles");
 
         let given = pattern_of(&pattern, "match").expect("a `Pattern` is a pattern");
-        assert_eq!(given.text.as_str_bytes(), Some(&br"^order-\d+$"[..]));
+        assert_eq!(given.text.as_str_bytes(), Some(&br"^order-[0-9]+$"[..]));
         assert_eq!(given.flags, FLAG_CASE_INSENSITIVE | FLAG_DOT_ALL);
         let held = CACHE.with_borrow(|cache| {
             cache.entries.iter().any(|entry| {
-                entry.pattern == r"^order-\d+$"
+                entry.pattern == r"^order-[0-9]+$"
                     && entry.flags == given.flags
                     && entry.budget == BACKTRACK_BUDGET
             })
@@ -2800,7 +2890,7 @@ mod tests {
     fn match_searches_from_a_grapheme_index_and_answers_null_past_the_last_match() {
         let mut ctx = Ctx::buffered();
         let subject = Value::str(NvsStr::new("é1 é22".as_bytes()));
-        let digits = Value::str(NvsStr::new(br"\d+"));
+        let digits = Value::str(NvsStr::new(b"[0-9]+"));
         let mut found = Vec::new();
         for from in [0, 2, -2, 5, 6, 100] {
             let args = [subject, digits, Value::int(from)];
@@ -2848,7 +2938,7 @@ mod tests {
     // covers: Core\Regex::matches
     #[test]
     fn matches_is_unanchored_on_both_engines_and_throws_when_the_budget_runs_out() {
-        let mut ctx = Ctx::buffered();
+        let mut ctx = context();
         let mut ask = |subject: &str, pattern: &str| {
             let subject = Value::str(NvsStr::new(subject.as_bytes()));
             let pattern = Value::str(NvsStr::new(pattern.as_bytes()));
@@ -2860,18 +2950,18 @@ mod tests {
             }
             answer.ok().map(|found| found.as_bool().expect("a bool"))
         };
-        assert_eq!(ask("AB-1234 extra", r"[A-Z]{2}-\d{4}"), Some(true));
-        assert_eq!(ask("AB-1234 extra", r"^[A-Z]{2}-\d{4}$"), Some(false));
-        assert_eq!(ask("x 11 y", r"(\d)\1"), Some(true));
-        assert_eq!(ask("x 12 y", r"^(\d)\1$"), Some(false));
+        assert_eq!(ask("AB-1234 extra", r"[A-Z]{2}-[0-9]{4}"), Some(true));
+        assert_eq!(ask("AB-1234 extra", r"^[A-Z]{2}-[0-9]{4}$"), Some(false));
+        assert_eq!(ask("x 11 y", r"([0-9])\1"), Some(true));
+        assert_eq!(ask("x 12 y", r"^([0-9])\1$"), Some(false));
         let slow = format!("{}b", "a".repeat(40));
         assert_eq!(ask(&slow, r"^(a|a?)+\1$"), None);
     }
 
     /// `Core\Regex::matchAll` answers every match in subject order, with the
     /// grapheme offsets its one [`Cursor`] converts, and the two engines agree:
-    /// `(\d)\1*` needs a backreference, so it runs on the backtracking engine
-    /// and must report the same runs at the same offsets as the linear `\d+`
+    /// `([0-9])\1*` needs a backreference, so it runs on the backtracking engine
+    /// and must report the same runs at the same offsets as the linear `[0-9]+`
     /// over a subject whose runs are each one repeated digit. A pattern that
     /// matches nowhere answers an empty array rather than `null`.
     // covers: Core\Regex::matchAll
@@ -2880,7 +2970,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let subject = Value::str(NvsStr::new("é1 é22 x é333".as_bytes()));
         let mut answers = Vec::new();
-        for pattern in [r"\d+", r"(\d)\1*", "z"] {
+        for pattern in [r"[0-9]+", r"([0-9])\1*", "z"] {
             let pattern = Value::str(NvsStr::new(pattern.as_bytes()));
             let args = [subject, pattern];
             let answer =
@@ -2926,7 +3016,7 @@ mod tests {
     /// `Core\Regex::replace` reads its replacement the way `preg_replace`
     /// does on both engines: a bare `$` takes at most two digits, so `$1st` is
     /// group 1 and then `st` rather than a group named `1st`, and a `$` that
-    /// starts no reference is inserted as itself. `(\d)(?!\1)` needs a
+    /// starts no reference is inserted as itself. `([0-9])(?!\1)` needs a
     /// backreference, so the second pattern runs on the backtracking engine
     /// and must expand the template exactly as the linear one does. A result
     /// larger than the request's memory limit stops before it is built.
@@ -2954,7 +3044,7 @@ mod tests {
                 Text("$"),
             ]
         );
-        let mut ctx = Ctx::buffered();
+        let mut ctx = context();
         ctx.set_memory_limit(1 << 20);
         let mut replace = |subject: &str, pattern: &str, replacement: &str, limit: u64| {
             let args = [
@@ -2981,7 +3071,7 @@ mod tests {
             }
             answer
         };
-        for pattern in [r"(\d)", r"(\d)(?!\1)"] {
+        for pattern in [r"([0-9])", r"([0-9])(?!\1)"] {
             let got = replace("1 2", pattern, "[$1st] $a $", u64::MAX);
             assert_eq!(got.as_deref(), Some("[1st] $a $ [2st] $a $"), "{pattern}");
             let got = replace("1 2", pattern, "<$0>", 1);
@@ -3122,8 +3212,8 @@ mod tests {
                 }
                 answer
             };
-        // `(\d)\1*` needs a backreference, so it runs on the backtracking engine.
-        for pattern in [r"\d+", r"(\d)\1*"] {
+        // `([0-9])\1*` needs a backreference, so it runs on the backtracking engine.
+        for pattern in [r"[0-9]+", r"([0-9])\1*"] {
             let got = replace_with("a1b22c", pattern, bracketed, u64::MAX);
             assert_eq!(got.as_deref(), Some("a[1]b[22]c"), "{pattern}");
             let got = replace_with("a1b22c", pattern, bracketed, 1);
@@ -3131,9 +3221,9 @@ mod tests {
             let got = replace_with("a1b22c", pattern, bracketed, 0);
             assert_eq!(got.as_deref(), Some("a1b22c"), "{pattern}");
         }
-        let got = replace_with("x$1y", r"\$\d", bracketed, u64::MAX);
+        let got = replace_with("x$1y", r"\$[0-9]", bracketed, u64::MAX);
         assert_eq!(got.as_deref(), Some("x[$1]y"));
-        assert_eq!(replace_with("a1", r"\d", answers_an_int, u64::MAX), None);
+        assert_eq!(replace_with("a1", "[0-9]", answers_an_int, u64::MAX), None);
         // 100 answers of 64 KiB are about 6 MiB, six times the limit.
         let many = "a".repeat(100);
         assert_eq!(replace_with(&many, "a", answers_64_kib, u64::MAX), None);
@@ -3147,22 +3237,29 @@ mod tests {
     // covers: Core\Regex::split
     #[test]
     fn split_stops_at_the_memory_limit_rather_than_after_the_array() {
+        // Under Miri the subject and the limit are each about a tenth, so the
+        // array still outgrows the limit by the same factor.
+        let (separators, limit) = if cfg!(miri) {
+            (20_000, 1 << 17)
+        } else {
+            (200_000, 1 << 20)
+        };
         // Made before the context, so the subject is not on its balance.
         let args = [
-            Value::str(NvsStr::new(",".repeat(200_000).as_bytes())),
+            Value::str(NvsStr::new(",".repeat(separators).as_bytes())),
             Value::str(NvsStr::new(b",")),
             Value::int(i64::MAX),
             Value::bool(true),
         ];
         let mut ctx = Ctx::buffered();
-        ctx.set_memory_limit(1 << 20);
+        ctx.set_memory_limit(limit);
         let answered = nvs_runtime::call(nvs_core_regex_split, &mut ctx, &args);
         let refusal = ctx.take_pending().map(Cow::into_owned);
         assert!(answered.is_err(), "split refuses an array past the limit");
         let refusal = refusal.expect("a refusal leaves its message in the context");
         assert!(refusal.contains("memory limit"), "{refusal}");
         assert!(
-            ctx.memory_peak() < 2 << 20,
+            ctx.memory_peak() < 2 * limit,
             "split stopped at the limit: peak {}",
             ctx.memory_peak()
         );
@@ -3182,7 +3279,7 @@ mod tests {
     // covers: Core\Regex::split
     #[test]
     fn split_reads_limit_by_the_three_sign_rule_on_both_engines() {
-        let mut ctx = Ctx::buffered();
+        let mut ctx = context();
         let mut split = |subject: &str, pattern: &str, limit: i64, keep_empty: bool| {
             let args = [
                 Value::str(NvsStr::new(subject.as_bytes())),
@@ -3214,8 +3311,8 @@ mod tests {
             }
             answer
         };
-        // `(\d)\1*` needs a backreference, so it runs on the backtracking engine.
-        for pattern in [r"\d+", r"(\d)\1*"] {
+        // `([0-9])\1*` needs a backreference, so it runs on the backtracking engine.
+        for pattern in [r"[0-9]+", r"([0-9])\1*"] {
             let all = split("a1b22c3", pattern, i64::MAX, true);
             assert_eq!(
                 all.as_deref(),
@@ -3281,17 +3378,36 @@ mod tests {
         }
     }
 
-    /// [`compiled`] at the shipped budget, which is what every case above
-    /// wants: none of them is about a configured one, and threading the
-    /// constant through each call would say so once per line.
+    /// The step budget the cases above build their patterns under. It is the
+    /// shipped [`BACKTRACK_BUDGET`], except under Miri. There, a thousand
+    /// steps take about four seconds, so the cases exhaust a thousand.
+    /// [`CATASTROPHIC`] over forty `a`s still needs far more than either.
+    const STEPS: usize = if cfg!(miri) { 1_000 } else { BACKTRACK_BUDGET };
+
+    /// [`compiled`] at [`STEPS`], which is what every case above wants: none
+    /// of them is about a configured budget, and threading the constant
+    /// through each call would say so once per line.
     fn built(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Fault> {
-        compiled(pattern, flags, member, BACKTRACK_BUDGET)
+        compiled(pattern, flags, member, STEPS)
     }
 
     /// [`build`] at the same budget, for the cases that ask which tier a
     /// pattern lands on — a question no budget changes.
     fn tiered(pattern: &str, flags: u8, prepared: Option<Tier>) -> Result<Compiled, String> {
-        build(pattern, flags, prepared, BACKTRACK_BUDGET)
+        build(pattern, flags, prepared, STEPS)
+    }
+
+    /// A buffered context whose requests run their backtracking patterns
+    /// under [`STEPS`], for the cases that call a member and so read the
+    /// budget out of the configuration.
+    fn context() -> Ctx {
+        let mut ctx = Ctx::buffered();
+        if cfg!(miri) {
+            ctx.set_config(crate::tests::granting(&format!(
+                "[limits]\nmax_regex_steps = {STEPS}\n"
+            )));
+        }
+        ctx
     }
 
     /// The budget is `[limits] max_regex_steps` and an unconfigured request

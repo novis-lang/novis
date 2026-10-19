@@ -3,5 +3,5 @@
   `Core\Queue::purge("email", Core\Queue\State::Dead)` reads as an `E0401` about the shape's type,
   and the answer is `an options argument must be written out as {...} at the call site` — the
   options are flattened one per argument, so there is nothing for a value to be checked against.
-  Write the case, run `target/debug/nvs.exe test <file>`, and paste back the line it printed. See `crates/nvs-diagnostics/src/lib.rs`.
-  `until: gone crates/nvs-diagnostics/src/lib.rs:E0453`
+  Write the case, run `target/debug/nvs.exe test <file>`, and paste back the line it printed. See `crates/nvs-diagnostics/src/code/types.rs`.
+  `until: gone crates/nvs-diagnostics/src/code/types.rs:E0453`

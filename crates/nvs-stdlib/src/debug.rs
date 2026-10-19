@@ -114,6 +114,7 @@ const CARD: ClassDoc = ClassDoc {
 ///
 /// The coverage, trace and profile members are not here: they are
 /// `rule:testing/debug-surface`'s, which goal `trace-timeline` builds.
+// rank: 450
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

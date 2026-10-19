@@ -1,9 +1,8 @@
-// `bun nv guard`: the one `PreToolUse` hook, wired in `.claude/settings.json` for `Read` and `Bash`.
-// It reads the harness's event from standard input and denies a call that does by hand
-// what an `nv` command or an AGENTS.md rule already covers. A denial's reason starts `guard: <rule>:`
-// and names the call to make instead. A hook's denial holds in every permission mode, including
-// the `auto` mode the loop runs its sessions in and the allowlist they match, so this is where a habit is
-// stopped rather than a prompt.
+// `bun nv guard`: the `PreToolUse` hook that holds this repository's rules. It reads the harness's event
+// from standard input and denies a call that does by hand what an `nv` command or an AGENTS.md rule
+// already covers. A denial's reason starts `guard: <rule>:` and names the call to make instead. A
+// hook's denial holds in every permission mode, including the `auto` mode the loop runs its sessions
+// in and the allowlist they match, so this is where a habit is stopped rather than a prompt.
 //
 // Each rule in `RULES` denies one raw pattern, and each is narrow: a rule that denies a legitimate
 // command costs every session a round trip. The guard fails open. A payload it cannot read, a tool it
@@ -15,9 +14,16 @@
 // words with its quotes removed. This is not a shell: it is enough to find a command's name, its flags
 // and its file arguments, and a heredoc's body is skipped so its text is never read as commands.
 //
-// `bun nv guard --check` says whether the hook is wired for both tools, and whether every `nv`
-// command a rule names is registered. It exits 0 when both hold and 1 when one does not. The hook
-// itself always exits 0.
+// Where looper is installed, `.claude/settings.json`'s `looper guard` entry runs it: looper checks its
+// edit claims and records the entries `looper exec` reads, then runs `bun nv guard --gate`, which
+// `looper.toml`'s `[gates] guard` names. `--gate` answers in looper's protocol: a denial is its reason
+// on standard error and exit 2, and an allowed call is exit 0. Where looper is not installed, the
+// settings' `HOOK` entry runs `bun nv guard` for `Read` and `Bash`, which prints the harness's deny
+// decision and always exits 0. Either way the rules run once per call, in one `bun` process, and with
+// looper that includes every `Edit` and `Write`, which its entry also matches and these rules allow.
+//
+// `bun nv guard --check` says whether `HOOK` is wired for both tools, and whether every `nv` command a
+// rule names is registered. It exits 0 when both hold and 1 when one does not.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
@@ -25,12 +31,12 @@ import { rel as relOf, ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { DEFAULT_MAX_LINES } from "./peek.ts";
 
-export const summary = "the PreToolUse hook that denies a raw command an nv command replaces: nv guard [--check]";
+export const summary = "the PreToolUse hook's rules, which deny a raw command an nv command replaces: nv guard [--check]";
 
 export type Tool = "Read" | "Bash";
 export const TOOLS: Tool[] = ["Read", "Bash"];
-/** The hook command `.claude/settings.json` runs. */
-export const HOOK = "bun nv guard";
+/** The hook command `.claude/settings.json` runs for a session with no looper on PATH. */
+export const HOOK = "command -v looper >/dev/null 2>&1 || bun nv guard";
 
 export interface Call {
   tool: Tool;
@@ -203,12 +209,14 @@ function plain(seg: Segment): string[] {
   return out;
 }
 
-/** The targets of a segment's standard-output redirects, `>` and `>>`. */
+/** The targets of a segment's output redirects, `>`, `>>`, `2>` and `&>`, without the null device. */
 function redirectTargets(seg: Segment): string[] {
   const out: string[] = [];
   for (let j = 0; j + 1 < seg.words.length; j++) {
     const w = seg.words[j]!;
-    if (w.op && /^1?>>?$/.test(w.text) && !seg.words[j + 1]!.op) out.push(seg.words[j + 1]!.text);
+    if (!w.op || !/^[12&]?>>?$/.test(w.text) || seg.words[j + 1]!.op) continue;
+    const target = seg.words[j + 1]!.text;
+    if (!/^(?:\/dev\/null|nul)$/i.test(target)) out.push(target);
   }
   return out;
 }
@@ -333,17 +341,23 @@ export const RULES: Rule[] = [
     },
   },
   {
-    name: "inline-write",
+    name: "shell-write",
     tools: ["Bash"],
     commands: ["splice"],
     deny(call, parsed) {
       for (const seg of parsed!.segments) {
         const words = plain(seg);
         const cmd = base(words[0]);
-        const targets: string[] = [];
-        if (seg.words.some((w) => w.op && /^\d*<<-?$/.test(w.text))) {
-          targets.push(...redirectTargets(seg));
-          if (cmd === "tee") targets.push(...words.slice(1).filter((w) => !w.startsWith("-")));
+        const targets: string[] = [...redirectTargets(seg)];
+        if (cmd === "tee") targets.push(...words.slice(1).filter((w) => !w.startsWith("-")));
+        if (cmd === "sed" && words.some((w) => /^-[a-zA-Z]*i/.test(w) || w.startsWith("--in-place"))) {
+          const e = words.findIndex((w) => w === "-e");
+          const rest = words.slice(1).filter((w, j) => !w.startsWith("-") && (e < 0 || j + 1 !== e + 1));
+          targets.push(...(e >= 0 ? rest : rest.slice(1)));
+        }
+        if ((cmd === "set-content" || cmd === "add-content" || cmd === "out-file") && words[1]) {
+          const at = words.findIndex((w) => /^-(?:path|filepath|literalpath)$/i.test(w));
+          targets.push(at >= 0 ? (words[at + 1] ?? "") : words[1]);
         }
         const flag = cmd.startsWith("python") || cmd === "py" ? ["-c"] : cmd === "bun" || cmd === "node" ? ["-e", "--eval"] : [];
         const at = words.findIndex((w, j) => j > 0 && flag.includes(w));
@@ -355,7 +369,8 @@ export const RULES: Rule[] = [
           const r = t ? intoTree(resolvePath(t, call.cwd)) : null;
           if (r === null) continue;
           return (
-            `this writes ${r} from text inside the command, and the shell parses that text first (commands.md § *A shell never carries file content into the tree*).` +
+            `this writes ${r} through the shell, which parses the command's text first ` +
+            `(commands.md § *A shell never carries file content into the tree*). ` +
             `Write it with the Write or Edit tool, with \`bun nv splice --patch <file>\`, or with a script ` +
             `under \`.agent-tmp/\`.`
           );
@@ -370,7 +385,7 @@ export const RULES: Rule[] = [
     commands: ["verify"],
     deny(_call, parsed) {
       for (const seg of parsed!.segments) {
-        const words = plain(seg);
+        const words = unwrapped(plain(seg));
         if (base(words[0]) !== "cargo") continue;
         const sub = words.slice(1).find((w) => !w.startsWith("-") && !w.startsWith("+"));
         if (sub !== "build" && sub !== "test" && sub !== "clippy") continue;
@@ -380,6 +395,44 @@ export const RULES: Rule[] = [
           `\`cargo ${sub} -p\` resolves features over one package and writes a second copy of every workspace crate ` +
           `(docs/agent/commands.md). Leave out \`-p\` and narrow what runs with \`--test <name>\` or \`--lib\`, or run ` +
           `\`bun nv verify -p <crate>\`.`
+        );
+      }
+      return null;
+    },
+  },
+  {
+    name: "sleep",
+    tools: ["Bash"],
+    commands: [],
+    deny(_call, parsed) {
+      for (const seg of parsed!.segments) {
+        const cmd = base(unwrapped(plain(seg))[0]);
+        if (cmd !== "sleep" && cmd !== "start-sleep") continue;
+        return (
+          "this waits on the clock. Start a long command with `run_in_background`, whose end starts your next " +
+          "turn, or wait for a condition with a command that exits when it holds."
+        );
+      }
+      return null;
+    },
+  },
+  {
+    name: "kill-by-name",
+    tools: ["Bash"],
+    commands: [],
+    deny(_call, parsed) {
+      for (const seg of parsed!.segments) {
+        const words = unwrapped(plain(seg));
+        const cmd = base(words[0]);
+        const byName =
+          cmd === "pkill" ||
+          cmd === "killall" ||
+          (cmd === "taskkill" && words.some((w) => /^[/-]im$/i.test(w))) ||
+          (cmd === "stop-process" && words.some((w) => /^-name$/i.test(w)));
+        if (!byName) continue;
+        return (
+          "this stops every process with that name, and another session's build or verify may be one of them. " +
+          "Stop the process you started by its id."
         );
       }
       return null;
@@ -396,13 +449,44 @@ export const RULES: Rule[] = [
         return (
           `${why}. \`bun nv affected\` names what your change reaches, and \`bun nv affected --run\` runs exactly ` +
           `that; \`--since <rev>\` names a committed change. To look into one test, name it: \`cargo test --test <name>\` ` +
-          `or \`cargo test --lib <filter>\`. The owed floor is paid by the loop, and at a push by the person pushing.`
+          `or \`cargo test --lib <filter>\`. The owed floor is paid at each goal's end by \`bun nv debt\`, and at a push by the person pushing.`
         );
       }
       return null;
     },
   },
+  {
+    name: "trimmed-build",
+    tools: ["Bash"],
+    commands: [],
+    deny(_call, parsed) {
+      const segs = parsed!.segments;
+      for (let j = 0; j < segs.length; j++) {
+        if (!segs[j]!.piped || !buildOrTest(unwrapped(plain(segs[j]!)))) continue;
+        for (let k = j + 1; k < segs.length; k++) {
+          const cmd = base(plain(segs[k]!)[0]);
+          if (cmd === "head" || cmd === "tail") {
+            return (
+              `this cuts a build or test's output with \`${cmd}\`, which hides the lines it drops, and \`head\` can stop the run early. ` +
+              "The harness keeps the whole output, so run it untrimmed, or pipe it into `grep` for the lines you need."
+            );
+          }
+          if (!segs[k]!.piped) break;
+        }
+      }
+      return null;
+    },
+  },
 ];
+
+/** Whether a segment's words build or test: `cargo build`, `test`, `clippy` or `check`, `bun test`, or
+ * `bun nv verify` or `affected`. */
+function buildOrTest(words: string[]): boolean {
+  const cmd = base(words[0]);
+  if (cmd === "cargo") return ["build", "test", "clippy", "check"].includes(words.slice(1).find((w) => !w.startsWith("-") && !w.startsWith("+")) ?? "");
+  if (cmd === "bun" && words[1] === "test") return true;
+  return ["verify", "affected"].includes(nvArgs(words)?.[0] ?? "");
+}
 
 /** The words after `bun nv` when a segment runs an `nv` command, else null. */
 function nvArgs(words: string[]): string[] | null {
@@ -424,7 +508,7 @@ function narrowCargoTest(args: string[]): boolean {
   for (let j = 0; j < args.length; j++) {
     const w = args[j]!;
     if (w === "--") return args.slice(j + 1).some((a) => !a.startsWith("-"));
-    if (CARGO_TARGETS.test(w)) return true;
+    if (CARGO_TARGETS.test(w) || /^(?:-p|--package)(?:=|$)|^-p\S/.test(w)) return true;
     if (CARGO_VALUED.test(w)) j++;
     else if (!w.startsWith("-")) return true;
   }
@@ -432,13 +516,13 @@ function narrowCargoTest(args: string[]): boolean {
 }
 
 /** A segment's words without the commands that only wrap the next one: `timeout 100`, `time`, `nice`,
- * `nohup`, `env` and a leading `NAME=value`. */
+ * `nohup`, `env`, a leading `NAME=value`, and the shell's `do`, `then`, `else`, `{` and `!`. */
 function unwrapped(words: string[]): string[] {
   let j = 0;
   while (j < words.length) {
     const w = base(words[j]);
     if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[j]!)) j++;
-    else if (w === "time" || w === "nice" || w === "nohup" || w === "env") j++;
+    else if (["time", "nice", "nohup", "env", "do", "then", "else", "{", "!"].includes(w)) j++;
     else if (w === "timeout") {
       j++;
       while (j < words.length && words[j]!.startsWith("-")) j++;
@@ -454,8 +538,9 @@ function heavyRun(all: string[], cwd: string): string | null {
   const nv = nvArgs(words);
   if (nv !== null) {
     const [cmd, ...rest] = nv;
-    if (cmd === "sweep" && !rest.some((w) => w === "--help" || w === "-h")) return "`bun nv sweep` is the hook looper runs after each session: it pays owed and red atoms for a fixed time, whatever your change reaches";
-    if (cmd === "benches") return "`bun nv benches` judges every bench the selection picks on the release build, whatever your change reaches; the loop's hook after each session pays owed and red benches";
+    if (cmd === "sweep" && !rest.some((w) => w === "--help" || w === "-h")) return "`bun nv sweep` is the hook looper runs after each session: it sweeps the disk, which can break a build another session is running";
+    if (cmd === "debt" && !rest.some((w) => w === "--help" || w === "-h")) return "`bun nv debt` pays every owed atom but the benches, whatever your change reaches; looper runs it once at each goal's end";
+    if (cmd === "benches") return "`bun nv benches` judges every bench the selection picks on the release build, whatever your change reaches; the person releasing runs `bun nv benches --owed` before a release";
     if (cmd === "proofs" && rest.some((w) => w === "--verify" || w === "--run") && !rest.some((w) => /^--(?:id|only|group)(?:=|$)/.test(w))) {
       return "`bun nv proofs` over every feature runs each one's examples and attacks, whatever your change reaches";
     }
@@ -501,7 +586,7 @@ export function decide(event: unknown): string | null {
   }
 }
 
-/** The tools `.claude/settings.json` runs the guard for. */
+/** The tools `.claude/settings.json` runs the hook script for. */
 export function wiredTools(settings: unknown): Tool[] {
   const entries = (settings as { hooks?: { PreToolUse?: unknown } })?.hooks?.PreToolUse;
   if (!Array.isArray(entries)) return [];
@@ -536,6 +621,7 @@ async function check(): Promise<number> {
     ok = false;
     console.log(`guard: \`${HOOK}\` is not wired in ${relOf(settingsPath)} for ${missing.join(", ")}`);
   }
+
   const help = await runProc([process.execPath, join(ROOT, "tools", "nv", "main.ts"), "help"], { timeoutMs: 60_000 });
   const registered = new Set([...help.stdout.matchAll(/^ {2}(\S+) {2}/gm)].map((m) => m[1]!));
   let named = true;
@@ -555,8 +641,9 @@ async function check(): Promise<number> {
 
 export async function run(args: string[]): Promise<number> {
   if (args[0] === "--check" && args.length === 1) return check();
-  if (args.length) {
-    console.error("usage: bun nv guard [--check]   (the hook reads its event from standard input)");
+  const gate = args[0] === "--gate" && args.length === 1;
+  if (args.length && !gate) {
+    console.error("usage: bun nv guard [--check | --gate]   (the hook reads its event from standard input)");
     return 2;
   }
   let event: unknown;
@@ -566,6 +653,10 @@ export async function run(args: string[]): Promise<number> {
     return 0;
   }
   const reason = decide(event);
+  if (reason && gate) {
+    console.error(reason);
+    return 2;
+  }
   if (reason) {
     const out = { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: reason } };
     console.log(JSON.stringify(out));

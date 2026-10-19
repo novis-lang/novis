@@ -1,0 +1,4 @@
+{
+  "feature": "tools:cli/nvs-info",
+  "hostile": "`nvs info` reads no program and takes one flag, so no program can attack it; the argument spellings that must not reach it are pinned by `crates/nvs-cli/tests/info.rs`."
+}

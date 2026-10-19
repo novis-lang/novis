@@ -39,6 +39,73 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap};
 
 use crate::render_diagnostics;
 
+/// Audit the configuration tree without running anything.
+///
+/// A namespace of its own rather than part of `nvs check`, which checks
+/// *source*: a configuration tree and a program are audited separately.
+// `rule:config/check-and-dump-audit-the-tree-offline` separates the two.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
+
+/// `nvs config`'s own subcommands.
+///
+/// `rule:config/check-and-dump-audit-the-tree-offline` names `check` and `dump`, and this enum
+/// holds both.
+#[derive(clap::Subcommand)]
+enum Command {
+    /// Resolve the configuration tree and report what it holds, exiting
+    /// non-zero on any refusal.
+    ///
+    /// Offline: it reads the files and nothing else, so a tree is validated in
+    /// CI before it is deployed.
+    // What the audit deliberately does not assert is this module's doc.
+    Check {
+        /// The files to read, in order. This is the same list `--config` takes.
+        /// With no file named, `./nvs.toml` is read. If there is none, the data
+        /// folder's `nvs.toml` is read. If there is neither, the default
+        /// settings are used.
+        // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
+        // steps 1 to 4.
+        files: Vec<PathBuf>,
+    },
+    /// Print every key in force, one per line, in dotted-key order.
+    ///
+    /// An include may override the file that pulled it in *on condition* that
+    /// every override is recoverable; this is where it is recovered in full.
+    // `rule:config/later-wins-and-every-override-is-recorded`. What is printed,
+    // and the one thing deliberately absent from it, is [`dump`]'s own doc
+    // comment.
+    Dump {
+        /// The root files to read — `check`'s list, read the same way.
+        files: Vec<PathBuf>,
+        /// Also name the file each key was written in, and the file it
+        /// overrode.
+        #[arg(long)]
+        origin: bool,
+        /// Write the resolved configuration as one canonical TOML document
+        /// instead, for diffing two environments.
+        #[arg(long, conflicts_with = "origin")]
+        toml: bool,
+    },
+}
+
+impl Args {
+    /// Runs the `nvs config` subcommand clap parsed, over the run's `--config` list.
+    pub(crate) fn run(self, config: &[PathBuf]) -> ExitCode {
+        match self.command {
+            Command::Check { files } => check(config, &files),
+            Command::Dump {
+                files,
+                origin,
+                toml,
+            } => dump(config, &files, origin, toml),
+        }
+    }
+}
+
 /// The reader this binary resolves the configuration tree through: the real
 /// filesystem, with `rule:config/ownership-is-the-trust-boundary`'s **ownership check not applied**.
 ///
@@ -319,22 +386,13 @@ pub(crate) fn init(config: &[PathBuf]) -> ExitCode {
 /// `sources` is the caller's so that a refusal can be rendered with the line it
 /// came from: a `nvs.toml` diagnostic carries a span into a file this map is
 /// the only holder of.
-pub(crate) fn boot_snapshot(
-    config: &[PathBuf],
-    entry: &Path,
-    sources: &mut SourceMap,
-    init: Init,
-) -> Result<Arc<nvs_config::Snapshot>, Diagnostic> {
-    boot_origins(config, Some(entry), sources, init).map(|(snapshot, _)| snapshot)
-}
-
-/// [`boot_snapshot`], keeping the map of **where each key was written**.
 ///
-/// A snapshot is the effective tree and holds no spans, so a boot pass that has
-/// to refuse a value — `nvs_config::server::waits_for`, `listen_on`, and
+/// Beside the snapshot is the map of **where each key was written**. A snapshot
+/// is the effective tree and holds no spans, so a boot pass that has to refuse a
+/// value — `nvs_config::server::waits_for`, `listen_on`, and
 /// `nvs_config::mount::expand`, which resolves a relative `[server] root`
-/// against the file that wrote it — needs this beside it. Callers that only
-/// read values take [`boot_snapshot`] and never see it.
+/// against the file that wrote it — needs this beside it, and so does an
+/// `[[extension]]` entry that does not load.
 ///
 /// `entry` is `None` for `nvs serve` started with no file named, and the
 /// snapshot is then [`nvs_config::Snapshot::host`]'s: the global tree with no
@@ -591,6 +649,18 @@ impl Root {
     }
 }
 
+/// How many trees [`resolved_in`] has read in this process. A debug build counts them so that
+/// `nvs run` can assert it reads its tree once (`crate::run_run`): reading one parses every file
+/// in it, comments included, and is among the largest fixed costs of a warm start.
+#[cfg(debug_assertions)]
+static TREES_READ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many trees this process has read through [`boot_origins`], [`boot_set`] and their callers.
+#[cfg(debug_assertions)]
+pub(crate) fn trees_read() -> usize {
+    TREES_READ.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// The tree [`boot_in`] and [`boot_set`] build their snapshots from, in `cwd`, with `data` as the
 /// data folder's `nvs.toml`, and the [`Root`] it was read from.
 fn resolved_in(
@@ -600,6 +670,8 @@ fn resolved_in(
     sources: &mut SourceMap,
     init: Init,
 ) -> Result<(nvs_config::resolve::Resolved, Root), Diagnostic> {
+    #[cfg(debug_assertions)]
+    TREES_READ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let files = LocalFiles;
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: every `--config` in
     // the order given, else `./nvs.toml`, else the data folder's `nvs.toml`, else the shipped
@@ -667,7 +739,7 @@ fn resolved_in(
 /// matching no `db.open` grant a check-time diagnostic rather than only a
 /// refusal at the door.
 ///
-/// The tree is resolved exactly as [`boot_snapshot`] resolves it for a run: `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s
+/// The tree is resolved exactly as [`boot_origins`] resolves it for a run: `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s
 /// roots in the same order, `rule:config/later-wins-and-every-override-is-recorded`'s later-wins, and `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` blocks
 /// folded for this entry file — so the answer `nvs check` gives is the one this
 /// deployment would give the same program. A tree that does not resolve is
@@ -737,8 +809,7 @@ pub(crate) fn grants(
 }
 
 /// The manifests of the extension set the tree resolves to for `entry`, for a
-/// compile that asks the tree nothing else — `nvs run`'s, which reads the
-/// tree for itself once the program has compiled.
+/// compile that asks the tree nothing else, as `nvs build --compile` does.
 ///
 /// A tree that does not resolve is no set here, and the run's own read of the
 /// tree reports it.
@@ -762,34 +833,6 @@ pub(crate) fn extension_set(
         render_diagnostics(&mut diags, &sources);
         ExitCode::FAILURE
     })
-}
-
-/// The extension set of the tree `config` and `entry` resolve, loaded, as the host a compiled
-/// call into one reaches (`crate::extensions::Calls`). A tree with no `[[extension]]` is an empty
-/// set, which still reaches the built-in components. `None` for a tree that does not resolve,
-/// which the boot that follows reports.
-///
-/// # Errors
-///
-/// The exit code after `E0652` is printed for the first entry that does not load.
-pub(crate) fn extension_calls(
-    config: &[PathBuf],
-    entry: &Path,
-) -> Result<Option<crate::extensions::Calls>, ExitCode> {
-    let mut sources = SourceMap::new();
-    let Ok((snapshot, origins)) = boot_origins(config, Some(entry), &mut sources, Init::Never)
-    else {
-        return Ok(None);
-    };
-    match crate::extensions::loaded(&snapshot.config, &origins, &sources) {
-        Ok(set) => Ok(Some(crate::extensions::Calls::new(set))),
-        Err(diagnostic) => {
-            let mut diags = Diagnostics::new();
-            diags.report(diagnostic);
-            render_diagnostics(&mut diags, &sources);
-            Err(ExitCode::FAILURE)
-        }
-    }
 }
 
 /// A resolved tree folded for one entry: the snapshot, where each key was written, and the files

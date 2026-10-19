@@ -2,7 +2,7 @@
 // Measures reaching a shared secret with a peer over X25519. A server does this
 // once per client, at the start of a connection.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity constant
 

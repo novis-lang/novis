@@ -400,6 +400,7 @@ pub const NAME: &str = r"Core\Uri";
 /// read the seven components [`read`] found. [`crate::regex`] splits its
 /// instance out into `Core\Regex\Match` for the opposite reason — a match is
 /// not a regex — and nothing here is a second thing.
+// rank: 370
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -3578,17 +3579,25 @@ mod tests {
     /// kilobytes can ask for a text a hundred times its size. The text is
     /// refused before it is built: the request's peak stays near its ceiling
     /// instead of reaching the tens of megabytes the whole text would take.
+    ///
+    /// Under Miri every number is a tenth or half of its size, which keeps the
+    /// text more than twice the limit.
     // covers: Core\Uri::buildQuery
     #[test]
     fn build_query_asks_the_budget_before_a_text_larger_than_its_input_grows() {
+        let (leaf_count, depth, limit) = if cfg!(miri) {
+            (2_000, 100, 256 << 10)
+        } else {
+            (20_000, 200, 4 << 20)
+        };
         let mut ctx = Ctx::buffered();
-        ctx.set_memory_limit(4 << 20);
+        ctx.set_memory_limit(limit);
         let mut leaves = nvs_runtime::NvsArray::new();
-        for _ in 0..20_000 {
+        for _ in 0..leaf_count {
             leaves.append(Value::int(1));
         }
         let mut parameters = Value::array(leaves);
-        for _ in 0..200 {
+        for _ in 0..depth {
             let mut level = nvs_runtime::NvsArray::new();
             level.set(nvs_runtime::NvsStr::new(b"k"), parameters);
             parameters = Value::array(level);
@@ -3596,7 +3605,7 @@ mod tests {
 
         assert!(call(super::nvs_core_uri_build_query, &mut ctx, &[parameters]).is_err());
         assert!(
-            ctx.memory_peak() < 8 << 20,
+            ctx.memory_peak() < 2 * limit,
             "{} bytes at the peak",
             ctx.memory_peak()
         );

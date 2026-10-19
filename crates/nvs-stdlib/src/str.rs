@@ -201,6 +201,7 @@ const CARD: ClassDoc = ClassDoc {
 /// * **Sink** on `format`'s template, which is one of `rule:core-api/shape-rules` R11's four
 ///   grammars — § 1's corollary makes every one of the four a sink, and the
 ///   variadic arguments it renders stay data.
+// rank: 10
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Str",
     doc: Some(&CARD),
@@ -4544,7 +4545,13 @@ mod tests {
     #[test]
     fn normalize_grows_its_buffer_to_the_whole_result_and_refuses_one_past_the_limit() {
         use unicode_normalization::UnicodeNormalization as _;
-        let subject = "\u{fdfa}".repeat(1000);
+        // Under Miri the texts and the limit are a tenth of the size or less.
+        let (small, large, limit) = if cfg!(miri) {
+            (100, 10_000, 64 << 10)
+        } else {
+            (1000, 100_000, 1 << 20)
+        };
+        let subject = "\u{fdfa}".repeat(small);
         assert_eq!(
             taken(
                 run(super::nvs_core_str_normalize, &[s(&subject), Value::int(3)],)
@@ -4554,14 +4561,17 @@ mod tests {
         );
 
         let mut ctx = Ctx::new(OutputSink::Sink);
-        ctx.set_memory_limit(1 << 20);
-        let large = s(&"\u{fdfa}".repeat(100_000));
+        ctx.set_memory_limit(limit);
+        let large = s(&"\u{fdfa}".repeat(large));
         let result = call(
             super::nvs_core_str_normalize,
             &mut ctx,
             &[large, Value::int(3)],
         );
-        assert!(result.is_err(), "3.3 MB of result fit under 1 MiB");
+        assert!(
+            result.is_err(),
+            "a result 33 times the subject fit under the limit"
+        );
         drop(ctx);
         #[expect(
             unsafe_code,
@@ -4913,14 +4923,19 @@ mod tests {
     // covers: Core\Str::split
     #[test]
     fn split_refuses_a_list_past_the_memory_limit_before_building_it() {
-        const LIMIT: usize = 4 << 20;
+        // Under Miri the subject and the limit are a 256th of the size.
+        let (separators, limit) = if cfg!(miri) {
+            (1 << 12, 16 << 10)
+        } else {
+            (1 << 20, 4 << 20)
+        };
         let mut ctx = Ctx::new(OutputSink::Sink);
-        ctx.set_memory_limit(LIMIT);
-        let args = [s(&",".repeat(1 << 20)), s(","), Value::int(i64::MAX)];
+        ctx.set_memory_limit(limit);
+        let args = [s(&",".repeat(separators)), s(","), Value::int(i64::MAX)];
         let result = call(super::nvs_core_str_split, &mut ctx, &args);
-        assert!(result.is_err(), "16 MiB of entries fit under 4 MiB");
+        assert!(result.is_err(), "entries four times the limit fit under it");
         assert!(
-            ctx.memory_peak() < LIMIT,
+            ctx.memory_peak() < limit,
             "the list was built past the limit before the refusal: {} bytes",
             ctx.memory_peak()
         );
@@ -5966,12 +5981,19 @@ mod tests {
         assert_eq!(index_of("STRASSE", "stra\u{df}e", 0, true), None);
         assert_eq!(index_of("aabaabaaab", "aaab", 0, true), Some(6));
 
-        let haystack = "a".repeat(1 << 20);
-        let needle = format!("{}b", "a".repeat(1 << 12));
+        // Under Miri the haystack is a 512th of the size and the needle a
+        // 128th.
+        let (hay, near) = if cfg!(miri) {
+            (1 << 11, 1 << 5)
+        } else {
+            (1 << 20, 1 << 12)
+        };
+        let haystack = "a".repeat(hay);
+        let needle = format!("{}b", "a".repeat(near));
         assert_eq!(index_of(&haystack, &needle, 0, true), None);
         assert_eq!(
             index_of(&format!("{haystack}b"), &needle, 0, true),
-            Some((1 << 20) - (1 << 12))
+            Some(u64::try_from(hay - near).expect("the position fits a u64"))
         );
     }
 

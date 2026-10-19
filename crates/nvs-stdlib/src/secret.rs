@@ -44,6 +44,13 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// `rule:core-classes/secret-reveal`'s escape hatch, one row per qualifiable base.
+///
+/// `rule:core-classes/secret-reveal`, and no spec § of its own: what this class is for is decided
+/// by that rule, because a member that removes `secret` is a rung
+/// of that mechanism rather than a library facility. The only class that may
+/// write [`Qual::Reveal`](crate::registry::Qual::Reveal) — see that variant's own docs — and
+/// [`crate::secret`] owns why the `bytes` half is a second name.
+// rank: 870
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Secret",
     doc: Some(&CARD),

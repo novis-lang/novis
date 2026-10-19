@@ -1,0 +1,37 @@
+--TEST--
+No clause may name a `Core` class: not a class's `extends` or `implements`, not an interface's `extends`, and not an exception class under `Core` — `rule:core-api/core-classes-are-sealed`
+--FILE--
+<?nvs
+// A `Core` method reads its receiver's data by position, so a subclass
+// written here would give it data it never wrote.
+class Forged extends Core\Test\Response {
+    public string $note = "x";
+}
+
+class Pretend implements Core\Http\Response {
+}
+
+interface Wider extends Core\Test\Outcome {
+}
+
+// The exception classes under `Core` are thrown by `Core` alone.
+class MyDbError extends Core\Db\DbError {
+}
+
+// An imported name is the same class.
+use Core\Time\Date;
+class Birthday extends Date {
+}
+--EXPECTF-ERROR--
+error[E0329]: `Core\Test\Response` is a `Core` class, and your code cannot extend it
+%a
+error[E0329]: `Core\Http\Response` is a `Core` class, and your code cannot implement it
+%a
+error[E0329]: `Core\Test\Outcome` is a `Core` class, and your code cannot extend it
+%a
+error[E0329]: `Core\Db\DbError` is a `Core` class, and your code cannot extend it
+%a
+error[E0329]: `Core\Time\Date` is a `Core` class, and your code cannot extend it
+%a
+error: aborting due to 5 errors
+%a

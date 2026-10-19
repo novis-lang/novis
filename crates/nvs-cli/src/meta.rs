@@ -124,7 +124,7 @@
 //! this crate already carries for `rule:routing/api-document-is-generated-from-the-route-table`'s document; the workspace manifest
 //! owns why this crate and not another.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap, Span};
@@ -140,6 +140,35 @@ use nvs_syntax::ast::{
 };
 use rustc_hash::FxHashMap;
 use serde_json::{Map, Value, json};
+
+/// Print the `Core` registry — every class and member, with each
+/// documented member's reference card — and, given an entry point, that
+/// program's own declarations beside it.
+///
+/// `--json` is required for the reason `build --openapi` is: a `meta`
+/// with nothing named would succeed having printed nothing, and the flag
+/// is how a second format joins without changing what this one means.
+// The shape is `rule:tooling/meta-json`'s and this command owns it.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    /// Write the registry as JSON to standard output.
+    // Required and then read by nothing: JSON is the only format there is.
+    #[arg(long, required = true)]
+    json: bool,
+    /// A program's entry point, whose own declarations join the registry
+    /// under a `program` key. Omitted, the document is the registry alone.
+    // `rule:tooling/meta-json-takes-a-program`: without an entry the
+    // document is byte-identical to what it was before this argument
+    // existed.
+    entry: Option<PathBuf>,
+}
+
+impl Args {
+    /// Runs `nvs meta` with the arguments clap parsed.
+    pub(crate) fn run(self) -> ExitCode {
+        run(self.entry.as_deref())
+    }
+}
 
 /// Prints the registry — and, with an entry point, the program's declarations
 /// beside it — and returns success.

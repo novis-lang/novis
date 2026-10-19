@@ -173,6 +173,7 @@ pub(crate) const NAME: &str = r"Core\Validate";
 
 /// `Core\Validate`'s registry rows, the format half. The gates that hold this
 /// class are `examples/collect.nvs` and `conformance_coverage.rs`.
+// rank: 430
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

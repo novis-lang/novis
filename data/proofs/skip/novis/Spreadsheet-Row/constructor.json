@@ -1,0 +1,6 @@
+{
+  "feature": "Novis\\Spreadsheet\\Row::constructor",
+  "examples": "`new Row` stores two values and calls nothing; a program meets a `Row` from `Reader::rows`, whose examples read both of them.",
+  "perf": "`new Row` stores two values and calls nothing; `Reader::rows` builds one for each row it reads, so its figure includes this one.",
+  "hostile": "`new Row` stores two typed read-only values and calls nothing, so a wrong value does not compile; the values of a hostile file are read by `Reader::rows`, whose attack sends them."
+}

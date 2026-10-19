@@ -50,6 +50,13 @@ use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodD
 pub(crate) const NAME: &str = "Core\\Os";
 
 /// `Core\Os`'s registry rows: the five members, in the module doc's order.
+///
+/// What the host itself is, as five facts about the process asking rather
+/// than about anything it can reach. It is the one class in this stretch with
+/// no row in [`CAPABILITIES`](crate::registry::CAPABILITIES), and
+/// [`crate::os`]'s module doc is the home of why declaring `None` five times
+/// would have been the wrong claim rather than a cautious one.
+// rank: 1320
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -317,6 +324,7 @@ mod tests {
     /// member wired to the wrong primitive, which shows up as a zero, an empty
     /// string or a throw rather than as a wrong-looking number.
     // covers: Core\Os::hostname, Core\Os::pid, Core\Os::residentBytes
+    #[cfg_attr(miri, ignore = "calls `getrusage`, which Miri does not emulate")]
     #[test]
     fn pid_hostname_cpu_count_resident_bytes_and_load_average_all_answer() {
         assert!(
@@ -376,6 +384,7 @@ mod tests {
     /// because the claim is a *difference* between the platforms and a test
     /// compiled on one of them states only half of it.
     // covers: Core\Os::loadAverage
+    #[cfg_attr(miri, ignore = "calls `getloadavg`, which Miri does not emulate")]
     #[test]
     fn load_average_throws_on_windows_with_a_message_naming_the_platform() {
         // Bound rather than written into the assertions, because `assert!(cfg!(…))`

@@ -1256,15 +1256,17 @@ mod tests {
     /// The count is the pin. A set that compared against every row declared
     /// before it takes minutes here in a debug build, and the hostile case
     /// `tests/hostile/core/Response/setHeader/` is the same attack from a
-    /// program.
+    /// program. Under Miri the counts are smaller: Miri checks the index's
+    /// memory accesses, and the native run keeps the pin.
     #[test]
     fn many_distinct_names_are_declared_without_comparing_each_to_every_other() {
-        const NAMES: usize = 200_000;
+        const NAMES: usize = if cfg!(miri) { 200 } else { 200_000 };
+        const REPEATS: usize = if cfg!(miri) { 20 } else { 1_000 };
         let mut ctx = Ctx::buffered();
         for n in 0..NAMES {
             ctx.declare_header(&format!("X-Header-{n}"), "v");
         }
-        for _ in 0..1_000 {
+        for _ in 0..REPEATS {
             ctx.append_header("Set-Cookie", "a=1");
             ctx.declare_header("set-cookie", "b=2");
         }
@@ -1451,6 +1453,7 @@ mod tests {
     /// A context reads `syslog` to the same transport the writer does, so
     /// both of § 6's writers send a record there and neither keeps its own
     /// channel.
+    #[cfg_attr(miri, ignore = "opens a Unix socket, which Miri does not emulate")]
     #[test]
     fn a_context_sends_both_writers_to_syslog_when_the_target_names_it() {
         let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));

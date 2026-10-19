@@ -73,6 +73,55 @@ pub(crate) enum Mode {
     Diff,
 }
 
+/// Rewrite Novis files into the one canonical layout.
+///
+/// Takes no configuration and has no style flag: the output is a pure
+/// function of the input bytes, so two projects run through this tool
+/// cannot disagree about what formatted means. The flags below are I/O
+/// modes, and each one decides only where the text goes.
+///
+/// A file whose parse reports an error is refused rather than rewritten,
+/// named on standard error, and left exactly as it was.
+// `rule:tooling/fmt-is-one-canonical-style` and
+// `rule:tooling/fmt-check-writes-nothing`.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    /// The files and directories to format. A directory is walked for the
+    /// `.nvs` files under it.
+    #[arg(required_unless_present = "stdin")]
+    paths: Vec<PathBuf>,
+    /// Write nothing and name each file that would change, exiting
+    /// non-zero if any would.
+    #[arg(long, alias = "dry-run", conflicts_with_all = ["diff", "stdin"])]
+    check: bool,
+    /// Write nothing and print a unified diff per file that would change,
+    /// exiting non-zero if any would.
+    // Refused beside `--check` for the reason `nvs check`'s `--json` is
+    // refused beside `--autoload-map`: both render the same list onto the
+    // same standard output, and one printed after the other is neither.
+    #[arg(long, conflicts_with = "stdin")]
+    diff: bool,
+    /// Format what standard input holds onto standard output, naming no
+    /// file. A refusal writes nothing at all to standard output.
+    #[arg(long, conflicts_with = "paths")]
+    stdin: bool,
+}
+
+impl Args {
+    /// Runs `nvs fmt` with the arguments clap parsed.
+    pub(crate) fn run(self) -> ExitCode {
+        if self.stdin {
+            stdin()
+        } else if self.check {
+            run(&self.paths, Mode::Check)
+        } else if self.diff {
+            run(&self.paths, Mode::Diff)
+        } else {
+            run(&self.paths, Mode::Write)
+        }
+    }
+}
+
 /// Formats every file `paths` names, and answers the process's exit code.
 ///
 /// Non-zero once any file was refused, and — in a mode that writes nothing —

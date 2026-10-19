@@ -2,7 +2,7 @@
 // Measures reading one column without naming its type. A program does this
 // wherever it works on a table it was not written for.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 
