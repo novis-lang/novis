@@ -111,7 +111,7 @@ jobs:
   # them. This is a public repository: which host a contributor pushes from is
   # unknowable, so no platform's coverage may rest on an assumption about who is
   # developing on what. What the gate skips is a run that changed no build input
-  # at all — a goal's handoff, a plan status block, a playbook bullet. `rule:testing/lane-table`.
+  # at all — a goal's handoff, a playbook bullet. `rule:testing/lane-table`.
   # ---------------------------------------------------------------------------
   test:
     name: test / ${{ matrix.name }}
@@ -773,8 +773,8 @@ jobs:
             bash tests/docker/smoke.sh "novis-smoke:$variant"
           done
 
-  # There is deliberately no doc-size job. Length guidance for a status field, a
-  # milestone heading or a rule fragment is in docs/agent/doc-style.md, addressed
+  # There is deliberately no doc-size job. Length guidance for a goal's handoff,
+  # a playbook bullet or a rule fragment is in docs/agent/doc-style.md, addressed
   # to the author — never a CI gate. A tripwire here would buy nothing and would
   # cost sessions spent trimming bytes to clear it.
 
