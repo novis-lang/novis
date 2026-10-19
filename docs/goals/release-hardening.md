@@ -357,15 +357,20 @@ Stages 1 to 7 are done. Stage 8 is under way.
   38 minutes of their 45.
 - **That run's other failures:** `test / linux-x86_64` is fixed on `main` by `812560389`. The
   cost guard is the warm-start budget, and the proofs jobs are proof debt (both in the backlog).
-- **This session** cut the vector set's fixed cost: a test parses only the `section/kind` part
-  it reads, found by its key line (`crates/nvs-stdlib/src/tests/vectors.rs:46`). The ECDH refusal
-  test went from 25.2 s to 15.2 s alone under Miri. A split with `serde_json`'s `RawValue` was
-  slower, 50 s. Every `crypto`, `jwe` and `jwt` vector test gains the same.
+- **Fixed costs cut so far:** the vector set's parse (a test reads only its `section/kind`,
+  `crates/nvs-stdlib/src/tests/vectors.rs:46`), and this session the `Core` class table
+  (`crates/nvs-stdlib/src/instance.rs:463`). The table no longer asks every class whether a roster
+  names it, and a lookup by name is a binary search over a sorted index, not a scan of about 250
+  names. Under Miri the build went from 13.2 s to 5.6 s, `receivers` from 4.4 s to 0.9 s, and one
+  lookup is 8 ms. Every test that builds a `Core` instance gains that, and natively each
+  construction does a few string compares instead of up to 250.
 - **`xml`'s `source` test cannot go smaller simply:** at 16,000 quotes and 64 KiB its peak bound
-  (`< 2 * limit`) fails natively, because the fixed overhead dominates. It is 47 s locally idle.
+  (`< 2 * limit`) fails natively, because the fixed overhead dominates. It is now 28 s locally.
 - **CI is up to five times slower than a local run, one test at a time:** the flag test took 54 s
-  locally and 296 s on CI. Local times still above 40 s: csv 49 s (loaded), the streamed reply
-  49 s, `xml`'s `source` 47 s, `regex`'s flag test 42 s.
+  locally and 296 s on CI. Local times after the cut: csv 36 s, `xml`'s `source` 28 s (both run
+  side by side). The streamed reply (49 s) and `regex`'s flag test (42 s) were not re-timed.
+- **Push run 39201335766 on `c1e313638`:** its `docs` job failed at `bun nv check`, which is
+  green locally on `main`. Read its log once the run ends, before anything else on it.
 - **Shard logs:** `gh run view --job <id> --log`, then `perl -pe 's/\^\[\[[0-9;]*m//g'` (the codes
   are literal `^[[` text), then grep `(TIMEOUT|PASS|FAIL) +\[ *>?([6-9][0-9]|[0-9]{3})\.`.
 - **Local runs** go from the WSL mirror `/var/tmp/nvs-target-wsl-src/mnt-e-mwl`, brought up to date
@@ -378,8 +383,8 @@ Stages 1 to 7 are done. Stage 8 is under way.
 
 Stage 8, reading the third nightly's Miri shards (`rule:testing/the-deep-lane`, `.github/workflows/ci.yml:1104`):
 - [ ] Read every `miri units` shard of the first nightly after `c1e313638`. Ask the user to push `main` first if it is ahead. Tick the two Miri checkpoints of stage 8 once every shard ends well inside its 45 minutes, with no test stopped at 300 s. `docs/goals/release-hardening.md:263`
-- [ ] A test still stopped at 300 s on that run gets a smaller input or a reasoned ignore. Start with the four over 40 s locally (csv, the streamed reply, `xml`'s `source`, `regex`'s flag test). `crates/nvs-stdlib/src/xml.rs:4676`
-- [ ] If shards still run close to their timeout, cut the other fixed cost per test, the first `Core` instance's class table. Otherwise, use more shards. `crates/nvs-stdlib/src/instance.rs:735`
+- [ ] A test still stopped at 300 s on that run gets a smaller input or a reasoned ignore. Start with the two not re-timed, the streamed reply and `regex`'s flag test. `crates/nvs-stdlib/src/regex.rs:2721`
+- [ ] If shards still run close to their timeout, use more shards: the per-test fixed costs left are `ClassTable::define`'s field strings (3 s under Miri) and the first parse. `.github/workflows/ci.yml:1176`
 
 ### Backlog
 
