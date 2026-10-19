@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { defineRecord, s } from "../lib/schema.ts";
-import { idAt, load, pathOf, remove, serialize, write } from "../lib/store.ts";
+import { idAt, LEDGER_DIR, load, pathOf, recordFiles, remove, SCHEMA_DIR, serialize, write } from "../lib/store.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 const rule = defineRecord({
@@ -69,5 +69,14 @@ describe("store", () => {
     write(rule, "a/b", { title: "T", status: "live", seeAlso: [], env: {} }, tmp.root);
     expect(remove(rule, "a/b", tmp.root)).toBe(true);
     expect(remove(rule, "a/b", tmp.root)).toBe(false);
+  });
+
+  test("the record walk lists no schema and no perf ledger, which are under data/ and are not records", () => {
+    tmp = scratch();
+    write(rule, "a/b", { title: "T", status: "live", seeAlso: [], env: {} }, tmp.root);
+    tmp.put(`${SCHEMA_DIR}/rule.schema.json`, "{}\n");
+    tmp.put(`${LEDGER_DIR}/bench-budget.json`, '{ "total": 0, "benches": {} }\n');
+    tmp.put("data/nobody/x.json", "{}\n");
+    expect(recordFiles(tmp.root)).toEqual(["data/nobody/x.json", "data/rules/a/b.json"]);
   });
 });
