@@ -349,9 +349,12 @@ Stages 1 to 7 are done. Stage 8 is under way.
 
 - **Property tests.** Done: three seeded cases in `crates/nvs-config/tests/capability.rs` (`ae40a9e58`).
 - **No nightly has run since run 39206993876** (`workflow_dispatch` on `0b85b2057`). Local `main` is
-  ahead of `origin/main`, so the acceptance sweep's four failures are that run's: the three
-  `proofs` legs (proof debt, in the backlog) and shard `nvs-stdlib 4/12`, whose retry deadline is
-  already fixed on `main` (`104ab8948`) and not yet pushed.
+  12 commits ahead of `origin/main`, so the acceptance sweep's four failures are still that run's:
+  the three `proofs` legs (proof debt, in the backlog) and shard `nvs-stdlib 4/12`, whose retry
+  deadline is already fixed on `main` (`104ab8948`) and not yet pushed. The Miri items wait for
+  the user to push.
+- **The shared-worker runner mode is designed, not started.** The design is the first item under
+  *Next*. It needs no new crate and changes no program's behaviour.
 - **On that run** 13 of 14 Miri shards were green, each in 8 to 33 minutes of its 45. No test hit the
   300 s limit and none hit undefined behaviour.
 - **Its five slowest tests are now cut under Miri,** none pushed yet. Local Miri times: html's
@@ -390,10 +393,11 @@ Stages 1 to 7 are done. Stage 8 is under way.
 
 ### Next
 
-Stage 8, reading the next nightly's Miri shards (`rule:testing/the-deep-lane`, `.github/workflows/ci.yml:1180`):
-- [ ] Ask the user to push `main`, then read every `miri units` shard of the first nightly that contains these commits. Tick the two Miri checkpoints of stage 8 once every shard is green and no test runs past about 200 s. `docs/goals/release-hardening.md:263`
-- [ ] A test still over about 200 s on that run gets a smaller input or a reasoned ignore. Time it step by step under Miri first, with stamps printed from its body. `crates/nvs-stdlib/src/jwe.rs:1559`
-- [ ] With the shards green, start the runner mode that sends many cases through one worker. `crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`
+Stage 8, the shared-worker runner mode over `nvs-test` and `nvs-cli`'s test entry (`rule:security/isolate-shares-nothing`), then the Miri shards once `main` is pushed (`rule:testing/the-deep-lane`):
+- [ ] The shared-worker mode, slice 1. `nvs-test`'s `Options` gets an optional hook that `nvs-cli` fills, because `nvs-test` cannot compile. After a case's fresh run passes, `judge` sends an eligible case's `case.nvs` path through the hook and matches the returned stdout against the case's `--EXPECT--`. An eligible case is `--RUN-- run`, with no request, args, env, `--FILE`, `--COPY`, `--EXTENSION`, `--SKIPIF`, `--CLEAN` or error expectation: a process has one working directory, and the cases run in parallel. A mismatch fails the case with both outputs. `crates/nvs-test/src/run.rs:55`, `crates/nvs-test/src/run.rs:271`
+- [ ] Slice 2, the hook in `nvs-cli`. One worker thread holds one parent `Ctx` and one `nvs_host::Scheduler`, and runs every case in turn. Each case is resolved through one shared `script::Compiler` (`Resolver::resolve`), run by `nvs_host::Isolate::new(program, null, Output::Capture)`, and answered with `Completion::output`. `run_suite_in_a_task` is how a scheduler is driven around an isolate. A `--shared-worker` flag on `nvs test` over a `.nvst` tree turns it on. `crates/nvs-cli/src/script.rs:1774`, `crates/nvs-cli/src/runner.rs:688`, `crates/nvs-cli/src/runner.rs:885`, `crates/nvs-cli/src/main.rs:2331`
+- [ ] Slice 3: CI runs `nvs test --shared-worker tests/conformance` beside the fresh run, and a Rust test pins that a static one case writes is not seen by the next case on the worker. `.github/workflows/ci.yml:131`
+- [ ] Once the user has pushed `main`: read every `miri units` shard of the first nightly that has these commits. Tick the two Miri checkpoints once every shard is green and no test runs past about 200 s. A test still over that gets a smaller input after a step-by-step timing. `docs/goals/release-hardening.md:263`
 
 ### Backlog
 
