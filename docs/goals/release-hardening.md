@@ -347,40 +347,35 @@ is `BLOCKED` and names the call.
 Stages 1 to 7 are done. Stage 8 is under way.
 
 - **Property tests.** Done: three seeded cases in `crates/nvs-config/tests/capability.rs` (`ae40a9e58`).
-- **Miri.** The second nightly, run 39185807455 on `f8ad800d3`, ran every shard to its end inside
-  the 45-minute timeout, none cancelled: the longest job took 38 minutes and its test step 30, much
-  of it tests stopped at 300 s. No undefined behaviour. It predates the 17 local commits from
-  `6cf210fd9` on, which fix most of its 57 timeouts. To tell a new failure from a fixed one,
-  compare each test's body at the run's `headSha` and at `HEAD` for a `cfg!(miri)` or an ignore.
-- **This session:** the run's four failures take the stage's existing ignores (`time`'s `at` for
-  the zone database, `sleep` and `transport`'s refused connect and backoff for a real-time
-  deadline), and `totp`, `cache`'s expired sweep, `topic`'s charge and `math`'s `log` take a
-  smaller input. Those four pass under Miri locally in 12 to 27 s.
-- **Still slow on that run with nothing done for them:** 5 in `nvs-stdlib` (listed in Next) and 3
-  in `nvs-runtime` whose Miri branch was already in that run, so their input is still too big.
-- **Local Miri times** (CI is about 5 to 7 times slower, so a test needs under about 40 s locally
-  to fit CI's 300 s): csv 53 s and the streamed reply 49 s are the two above that, from the last
-  group.
-- **The nightly's cheapest tests took 60 to 150 s on CI**, so each Miri test pays a large fixed
-  cost there. That cost, not the slow tests, decides whether the shards fit their timeouts.
+- **Miri.** Every timeout and failure of the second nightly, run 39185807455 on `f8ad800d3`, now
+  has a fix on `main`: a smaller input under `cfg!(miri)`, or an ignore with its reason. No shard
+  hit undefined behaviour on that run. The rest of that run's failures (the proofs, test and cost
+  legs) are in the backlog.
+- **This session:** the last eight. Local Miri times, run one at a time:
+  - `nvs-runtime`: the header index 8 s, the log windows 10 s, the identity tower 25 s.
+  - `nvs-stdlib`:
+    - `ast`'s seed test runs only the seeds under 200 bytes (23 s). Both verdicts are still there.
+    - `lib.rs`'s intrinsic test needs the zone database, so it carries `time`'s ignore.
+    - `xml`'s attribute test writes 50 names (31 s), and the ceiling test skips its deep half (29 s).
+    - `xml`'s `source` test runs 32,000 characters under a 128 KiB limit (47 s). Most of that is a
+      fixed cost in the first parse, and the limit cannot go lower because of a fixed 100 KB.
+  - The playbook's new Miri bullet says why the writer tests are slow.
+- **Local Miri times** above 40 s, the most that fits CI's 300 s: csv 53 s, the streamed reply
+  49 s, and `xml`'s `source` 47 s.
 - **Shard logs:** `gh run view --job <id> --log`, then `perl -pe 's/\^\[\[[0-9;]*m//g'` (the codes
-  are literal `^[[` text, so `sed` with `\x1b` strips nothing), then grep
-  `(TIMEOUT|PASS|FAIL) +\[ *>?([6-9][0-9]|[0-9]{3})\.`.
+  are literal `^[[` text), then grep `(TIMEOUT|PASS|FAIL) +\[ *>?([6-9][0-9]|[0-9]{3})\.`.
 - **Local runs** go from the WSL mirror `/var/tmp/nvs-target-wsl-src/mnt-e-mwl`, brought up to date
   with `syncMirror` from `tools/nv/accept/mirror.ts`, and `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl`.
-  The run is `cargo +nightly miri nextest run --profile miri -p nvs-stdlib --lib -E '<filter>'`
-  with CI's `MIRIFLAGS`. Check a smaller input natively first by forcing the Miri branch. To find
-  where a slow test spends its time, `eprintln!` an `Instant` per phase and pass `--no-capture`.
-- **The rest of that nightly**: proofs is the backlog's proof debt; `docs/novis.md` was the stale
-  `core.json` that `b23b5116f` fixed; `fuzz smoke / regex` is the subroutine blow-up that
-  `crates/nvs-stdlib/src/regex.rs:1207` now refuses; the test and cost legs are in the backlog.
+  The run is `cargo +nightly miri nextest run --profile miri -p <crate> --lib -E '<filter>'` with
+  CI's `MIRIFLAGS`. Add `--features nvs-runtime/sanitizer` for `nvs-runtime`. Check a smaller input
+  natively first by forcing the Miri branch.
 
 ### Next
 
-Stage 8, the last Miri timeouts of run 39185807455, in `nvs-stdlib` and `nvs-runtime` tests (`rule:testing/the-deep-lane`):
-- [ ] A smaller input or a reasoned ignore for the five `nvs-stdlib` tests nothing has touched: `crates/nvs-stdlib/src/lib.rs:708`, `crates/nvs-stdlib/src/ast.rs:1488`, `crates/nvs-stdlib/src/xml.rs:4676`, `crates/nvs-stdlib/src/xml.rs:4757`, `crates/nvs-stdlib/src/xml.rs:5159`.
-- [ ] A smaller Miri input for the three `nvs-runtime` tests whose branch is still too slow on CI: `crates/nvs-runtime/src/floor.rs:1098`, `crates/nvs-runtime/src/identity.rs:830`, `crates/nvs-runtime/src/ctx/output.rs:1262`. Each under 40 s locally (`-p nvs-runtime --features nvs-runtime/sanitizer`).
-- [ ] Then ask the user to push `main`, read the next nightly's shards, and tick the two Miri checkpoints of stage 8 once every shard ends well inside its timeout. `docs/goals/release-hardening.md:263`
+Stage 8, reading the third nightly's Miri shards (`rule:testing/the-deep-lane`, `.github/workflows/ci.yml:1104`):
+- [ ] Ask the user to push `main`, then read every `miri units` shard of the next nightly. Tick the two Miri checkpoints of stage 8 once every shard ends well inside its 45 minutes, with no test stopped at 300 s. `docs/goals/release-hardening.md:263`
+- [ ] A test still stopped at 300 s on that run gets a smaller input or a reasoned ignore. Start with the three over 40 s locally: csv, the streamed reply, and `xml`'s `source`. `crates/nvs-stdlib/src/xml.rs:4676`
+- [ ] If shards still run close to their timeout, cut the fixed cost per test: the first `Core` instance builds its class table. Otherwise, use more shards. `crates/nvs-stdlib/src/instance.rs:735`
 
 ### Backlog
 
