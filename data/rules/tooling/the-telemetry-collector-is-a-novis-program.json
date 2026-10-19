@@ -1,5 +1,5 @@
 {
-  "title": "The telemetry collector is `apps/telemetry/`, a Novis program in this repository, served at `telemetry.novis-lang.org`, and its report endpoint is the default upload URL",
+  "title": "The telemetry collector is `apps/telemetry/`, a Novis program in this repository that names no host, and it runs and is tested end to end on one machine",
   "status": "designed",
   "seeAlso": [
     "config/telemetry-and-update-endpoints-are-configuration",
