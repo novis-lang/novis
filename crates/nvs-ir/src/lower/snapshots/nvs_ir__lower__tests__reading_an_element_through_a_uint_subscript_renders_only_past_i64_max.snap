@@ -1,0 +1,39 @@
+---
+source: crates/nvs-ir/src/lower/tests.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, array, uint) -> int {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; array
+    v2 = param 2  ; uint
+    ; stmt s0 @4:5-4:19
+    v3 = reinterpret v2  ; int
+    v4 = const.int 0  ; int
+    v5 = ge v3, v4  ; bool
+    branch v5 -> bb1 (e0), bb2 (e1)
+  bb1:
+    v6 = tag v3  ; tagged
+    jump bb3
+  bb2:
+    v7 = helper.uint_to_string v2 ! bb4  ; string
+    v8 = tag v7  ; tagged
+    jump bb3
+  bb3:
+    v9 = phi [bb1: v6, bb2: v8]  ; tagged
+    v10 = array.get v1, v9 ! bb5  ; int
+    release v9
+    release v1
+    release v0
+    return v10
+  bb4:
+    release v1
+    release v0
+    propagate "m() at t.nvs:4"
+  bb5:
+    release v9
+    release v1
+    release v0
+    propagate "m() at t.nvs:4"
+}

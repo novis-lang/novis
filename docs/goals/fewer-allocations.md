@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-stdlib/src/objmap.rs, crates/nvs-stdlib/src/identity_store.rs]
   - id: 11
     title: "a uint subscript takes the integer-key path"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/expr.rs]
   - id: 3
     title: "a string carries its hash"
@@ -158,9 +158,9 @@ result of a known entry count, as `arr.rs:NN` and one line each, before the sess
 **Does:** closes `uint-array-subscript-is-rendered-to`. A `uint` at or under `i64::MAX` takes the path
 an `int` takes, and only a larger one renders (`rule:types/arrays`).
 
-- [ ] `lower_array_key` branches on the value's range for a `uint`. `crates/nvs-ir/src/lower/expr.rs:2617`
-- [ ] The lowering test of a `uint` subscript pins both branches. `crates/nvs-ir/src/lower/tests.rs:1802`
-- [ ] The record is deleted. `data/gaps/nvs-ir/uint-array-subscript-is-rendered-to.json:1`
+- [x] `lower_array_key` branches on the value's range for a `uint`. `crates/nvs-ir/src/lower/expr.rs:2617`
+- [x] The lowering test of a `uint` subscript pins both branches. `crates/nvs-ir/src/lower/tests.rs:1802`
+- [x] The record is deleted. `data/gaps/nvs-ir/uint-array-subscript-is-rendered-to.json:1`
 
 ### 3. a string carries its hash
 
@@ -256,14 +256,21 @@ and those hits stay.
 
 ### State
 
-Stages 1, 2 and 10 are done. `NvsArray::overwrite` replaces the value of a live entry through a
-borrowed key and gives the value back where the key is absent. `Core\ObjectMap::set` over a key the
-map has uses it with the chain key on the stack, so `core/ObjectMap/set.nvs` counts 0 allocations
-where it counted 1, and every `Core\ObjectMap` record is measured again.
+Stages 1, 2, 10 and 11 are done. A `uint` subscript branches on its value in
+`Lowering::lower_uint_array_key`: at or under `i64::MAX` it is the same word reinterpreted as an `int`,
+and above it `Helper::UintToString` renders it. The two arms join as a `Ty::Tagged` key. Every runtime
+read already tells a key's tag apart, and `nvs-codegen`'s `emit_tagged_key_array_set` branches on the
+tag for an `ArraySet`. `unset` still renders through `lower_rendered_array_key`. The crate doc § *an
+array key is a `string`* says so. `lang/expressions/assignment.nvs` now indexes with the `uint`
+itself and counts 0 allocations, where a `uint` index counted 4 for a compound write.
+`a-uint-subscript-names-the-entry-its-decimal-names-on-both-sides-of-i64-max.nvst` pins every key
+position at 3, `i64::MAX` and `u64::MAX`, and the leak check over the same shapes is clean. The
+playbook trap about a `uint` bench index is deleted.
 
-The nightly run 39278827562 failed one case, `tests/conformance/core/ldap-typed-values.nvst`: Samba
-stamped `pwdLastSet` in the second before `whenCreated`, which has whole seconds only. The case now
-allows that one second.
+`NvsArray::overwrite` replaces the value of a live entry through a borrowed key, so
+`core/ObjectMap/set.nvs` counts 0 allocations. The nightly run 39278827562 failed
+`tests/conformance/core/ldap-typed-values.nvst` on a one-second `pwdLastSet` stamp, which `23b0e6611`
+fixed.
 
 `NvsArray::with_capacity` reserves a packed vector, and the hash form takes
 the room over when the first key is not `"0"`; every `Core\Arr` member that knows its result's entry
@@ -275,22 +282,23 @@ A filter result with a gap pays a few more bytes, since its index is sized to th
 
 Since `ece7b500f` a `Core` call counts as a call, so every `Core\Arr` bench now declares its member's
 call and its callbacks'. All 53 `Core\Arr` records, and the `Core\Cli` and `Core\Html` records stage 1
-left stale, are measured again. Fifteen gap records name this goal; `bun nv owners --closes
+left stale, are measured again. Fourteen gap records name this goal; `bun nv owners --closes
 fewer-allocations` lists them, so the `owners` check stays red until stage 9.
 
 The `looper` on PATH has no `verify`; `bun tools/looper/main.ts verify` runs it.
 
 ### Next
 
-**Stage 11: a uint subscript takes the integer-key path**, one file set: `crates/nvs-ir/src/lower/expr.rs`,
-`crates/nvs-ir/src/lower/tests.rs`. `lower_array_key` (`expr.rs:2617`) passes an `int` key through as
-`Ty::Int` and sends a `uint` one to `Helper::UintToString`, so a `uint` subscript builds a string on
-every access. A `uint` at or under `i64::MAX` should take the `int` path, and only a larger one
-renders. `lang/expressions/assignment.nvs` is the bench the record measured.
+**Stage 3: a string carries its hash**, one file set: `crates/nvs-runtime/src/string.rs`,
+`crates/nvs-runtime/src/array.rs`. The array's index is a `HashMap<NvsStr, usize>` keyed through
+`Borrow<[u8]>`, so every lookup hashes the key bytes again. SipHash stays. It is a new field in
+`StrHeader`, so it is a layout change: if codegen reads a fixed `StrHeader` offset, stop and state the
+bound in stage 9 instead (§ *Standing decisions*, small and medium work only).
 
-- [ ] `lower_array_key` branches on the value's range for a `uint`. `crates/nvs-ir/src/lower/expr.rs:2617`
-- [ ] The lowering test of a `uint` subscript pins both branches. `crates/nvs-ir/src/lower/tests.rs:1802`
-- [ ] The record is deleted. `data/gaps/nvs-ir/uint-array-subscript-is-rendered-to.json:1`
+- [ ] `StrHeader` caches the digest of its bytes. `crates/nvs-runtime/src/string.rs:169`
+- [ ] The array's index keys on a type whose `Hash` writes the cached word, and a lookup from bare bytes computes it the same way. `crates/nvs-runtime/src/array.rs:26`
+- [ ] A guard test shows a second lookup with the same string hashes nothing. `crates/nvs-runtime/src/array.rs:946`
+- [ ] `string.rs`'s module doc says what the cached word spends per string (`rule:programs/memory-priority`). `crates/nvs-runtime/src/string.rs:1`
 
 ### Backlog
 

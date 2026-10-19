@@ -1,0 +1,48 @@
+--TEST--
+A `uint` subscript names the entry its decimal names in every position a key is written, at `0`, at `i64::MAX` and above it — `rule:types/arrays`
+--FILE--
+<?nvs
+// covers: lang:expressions/arrays-in-expressions
+// A `uint` key at or under `i64::MAX` takes the integer-key path and one above
+// it is rendered, so each position is asked at both values and at the edge.
+uint $small = 3;
+uint $edge = 9223372036854775807;
+uint $big = 18446744073709551615;
+
+// A literal's key, read back through the decimal.
+array<string> $a = [$small => "s", $edge => "e", $big => "b"];
+echo $a["3"], "|", $a["9223372036854775807"], "|", $a["18446744073709551615"], "\n";
+
+// A read, and the same read under `??`.
+echo $a[$small], "|", $a[$edge], "|", $a[$big], "\n";
+uint $absent = 18446744073709551614;
+echo $a[$absent] ?? "none", "|", $a[$big] ?? "none", "\n";
+
+// A write, a compound write and `isset`.
+$a[$small] = "S";
+$a[$big] = "B";
+$a[$big] .= "!";
+echo $a["3"], "|", $a["18446744073709551615"], "|", isset($a[$big]) ? "set" : "unset", "\n";
+
+// A nested write, keyed by a `uint` at both levels.
+array<array<int>> $grid = [];
+$grid[$big][$small] = 7;
+$grid[$small][$big] = 8;
+echo $grid["18446744073709551615"]["3"], "|", $grid["3"]["18446744073709551615"], "\n";
+
+// `unset` removes the one entry the decimal names.
+unset($a[$big]);
+unset($a[$small]);
+echo Core\Arr::count($a), "|", isset($a["18446744073709551615"]) ? "set" : "unset", "\n";
+
+// A key past `i64::MAX` is not the negative `int` with the same bits.
+array<string> $signed = [-1 => "minus one"];
+echo $signed[$big] ?? "none", "\n";
+--EXPECT--
+s|e|b
+s|e|b
+none|b
+S|B!|set
+7|8
+1|unset
+none

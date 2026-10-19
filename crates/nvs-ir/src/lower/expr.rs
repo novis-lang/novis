@@ -2579,15 +2579,18 @@ impl<'a> Lowering<'a> {
     /// the case that builds one anyway (`nvs_runtime::array`'s module
     /// doc, *the ABI was the part that expired*).
     ///
-    /// A [`Ty::Uint`] subscript still renders, deliberately: that ABI's
-    /// index is an `i64`, and a `uint` above `i64::MAX` has no `i64`
+    /// A [`Ty::Uint`] subscript takes that path where its value fits: that
+    /// ABI's index is an `i64`, and a `uint` above `i64::MAX` has no `i64`
     /// spelling naming the same key, so passing one would silently read a
-    /// different element. Correctness before latency, AGENTS.md's priority
-    /// ordering. The conversion is the exact [`Helper::UintToString`]
-    /// [`Self::concat_operand`] already gives `.`'s scalar operand — reused
-    /// verbatim rather than a new policy. [`Self::lower_rendered_array_key`]
-    /// is this function for the one caller that still needs a `Ty::Str`
-    /// whatever the subscript was.
+    /// different element. So the key branches on its value
+    /// ([`Self::lower_uint_array_key`]): at or under `i64::MAX` it is the
+    /// same machine word relabelled as an `int`, and only above it is it
+    /// rendered by the exact [`Helper::UintToString`] [`Self::concat_operand`]
+    /// gives `.`'s scalar operand. The two arms join as a [`Ty::Tagged`]
+    /// key, whose tag every runtime read already tells apart and whose tag
+    /// `nvs-codegen` branches on for an [`ir::InstKind::ArraySet`].
+    /// [`Self::lower_rendered_array_key`] is this function for the one caller
+    /// that still needs a `Ty::Str` whatever the subscript was.
     ///
     /// Also used, identically, for an array literal's explicit `key =>`
     /// element (see [`ir::InstKind::ArrayNew`]'s own doc comment). A
@@ -2606,9 +2609,10 @@ impl<'a> Lowering<'a> {
     /// That is the same deferral [`Self::lower_erased_method_call`] makes for
     /// a receiver, one slot along.
     ///
-    /// Returns the key value, **the representation it is in** — `Ty::Str` or
-    /// `Ty::Int`, which is what every caller's refcount decision turns
-    /// on, since an `int` owns nothing to retain or release — and whether it
+    /// Returns the key value, **the representation it is in** — `Ty::Str`,
+    /// `Ty::Int` or, for a `uint`, `Ty::Tagged`, which is what every caller's
+    /// refcount decision turns on, since an `int` owns nothing to retain or
+    /// release and a tagged key owns what its tag says — and whether it
     /// [`is_aliasing_read`]s storage a durable slot still owns, exactly the
     /// same second half [`Self::concat_operand`] returns and for the same
     /// reason: a plain `string` subscript passed through unchanged may still
@@ -2620,10 +2624,27 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty, bool) {
+        self.lower_array_key_as(expr, false, env, cur)
+    }
+
+    /// [`Self::lower_array_key`], with a `uint` key rendered whatever its
+    /// value where `render_uint` is set.
+    fn lower_array_key_as(
+        &mut self,
+        expr: &Expr,
+        render_uint: bool,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty, bool) {
         let (v, ty) = self.lower_expr(expr, None, env, cur);
         match ty {
             Ty::Str => (v, Ty::Str, self.aliasing_read(expr)),
             Ty::Int => (v, Ty::Int, false),
+            Ty::Uint if !render_uint => (
+                self.lower_uint_array_key(v, expr.span, env, cur),
+                Ty::Tagged,
+                false,
+            ),
             Ty::Uint => {
                 let (sv, _) = self.emit_fallible(
                     *cur,
@@ -2656,6 +2677,78 @@ impl<'a> Lowering<'a> {
         }
     }
 
+    /// A `uint` key `v` as the [`Ty::Tagged`] key [`Self::lower_array_key`]
+    /// returns for it: an `int`-tagged word where `v` is at or under
+    /// `i64::MAX`, and a fresh rendered `string` above it.
+    ///
+    /// The `int` arm costs a compare and a branch and allocates nothing; the
+    /// other arm costs what every `uint` key cost before. The joined key owns
+    /// exactly what its arm made: nothing, or the one reference to the
+    /// rendered string, so it is a fresh value either way.
+    fn lower_uint_array_key(
+        &mut self,
+        v: ValueId,
+        span: nvs_diagnostics::Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        // A `uint` at or under `i64::MAX` is the same word read as an `int`
+        // that is not negative.
+        let (word, _) = self.emit(*cur, Ty::Int, InstKind::Reinterpret { operand: v });
+        let (zero, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
+        let (fits, _) = self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::BinOp {
+                op: BinOp::GtEq,
+                lhs: word,
+                rhs: zero,
+            },
+        );
+        let index_block = self.new_block();
+        let render_block = self.new_block();
+        let merge_block = self.new_block();
+        let index_edge = self.ids.next_edge(span);
+        let render_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: fits,
+                then_block: index_block,
+                then_edge: index_edge,
+                else_block: render_block,
+                else_edge: render_edge,
+            },
+        );
+
+        let (index_key, _) = self.emit(index_block, Ty::Tagged, InstKind::Tag { operand: word });
+        self.seal(index_block, Terminator::Jump(merge_block));
+
+        let render_end = render_block;
+        let (rendered, _) = self.emit_fallible(
+            render_end,
+            Ty::Str,
+            InstKind::HelperCall {
+                helper: Helper::UintToString,
+                args: vec![v],
+            },
+            env,
+        );
+        let (render_key, _) =
+            self.emit(render_end, Ty::Tagged, InstKind::Tag { operand: rendered });
+        self.seal(render_end, Terminator::Jump(merge_block));
+
+        let (key, _) = self.emit(
+            merge_block,
+            Ty::Tagged,
+            InstKind::Phi {
+                incoming: vec![(index_block, index_key), (render_end, render_key)],
+            },
+        );
+        *cur = merge_block;
+        key
+    }
+
     /// [`Self::lower_array_key`], forced all the way to a [`Ty::Str`] key.
     ///
     /// [`ir::InstKind::ArrayUnset`] is the one key-taking array instruction
@@ -2671,7 +2764,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, bool) {
-        let (v, ty, aliasing) = self.lower_array_key(expr, env, cur);
+        let (v, ty, aliasing) = self.lower_array_key_as(expr, true, env, cur);
         if ty != Ty::Int {
             return (v, aliasing);
         }
