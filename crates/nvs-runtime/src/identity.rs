@@ -838,10 +838,12 @@ mod tests {
             value
         }
 
-        // Deep enough that a recursive comparison would have overflowed.
-        let left = tower(50_000, 1);
-        let same = tower(50_000, 1);
-        let other = tower(50_000, 2);
+        // Deep enough that a recursive comparison would have overflowed. Under
+        // Miri, a shorter tower runs the same heap walk in far less time.
+        let depth = if cfg!(miri) { 1_000 } else { 50_000 };
+        let left = tower(depth, 1);
+        let same = tower(depth, 1);
+        let other = tower(depth, 2);
         assert!(value_identical(left, same));
         assert!(!value_identical(left, other));
         // The hash walks the whole tower on the heap as well, and tells
@@ -884,7 +886,10 @@ mod tests {
             value
         }
 
-        let records: Vec<Value> = (0..2000).map(record).collect();
+        // Under Miri, 200 records still make an insert that compares against
+        // every earlier one cost far more comparisons than the bound below.
+        let count = if cfg!(miri) { 200 } else { 2000 };
+        let records: Vec<Value> = (0..count).map(record).collect();
         let again = record(7);
         let mut seen = HashSet::new();
         for &value in &records {
@@ -892,11 +897,12 @@ mod tests {
         }
         assert!(!seen.insert(Counted(again)));
         // A hash that stopped above the leaf would compare each insert with
-        // every earlier one, about two million times here.
+        // every earlier one, about `count * count / 2` times.
         assert!(
             COMPARED.with(Cell::get) < records.len(),
-            "{} comparisons for 2001 inserts",
-            COMPARED.with(Cell::get)
+            "{} comparisons for {} inserts",
+            COMPARED.with(Cell::get),
+            records.len() + 1
         );
         drop(seen);
         release_all(&records);
