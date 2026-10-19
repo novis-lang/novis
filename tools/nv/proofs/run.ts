@@ -24,7 +24,7 @@
 // which is how `select/checks.ts` knows which proof programs a `bun nv proofs --group <group>` or
 // `--only <feature>...` check is made of.
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { digest } from "../keys/scan.ts";
 import { abs, DISCARD_PROFILE, ROOT } from "../lib/paths.ts";
@@ -105,21 +105,95 @@ export function requiredServices(source: string): string[] {
   return [...new Set(names)];
 }
 
+/** Why this host runs none of the compose file's containers, read from `docker info --format
+ * {{.OSType}}`: null when it runs them. `info` is null when no `docker` program could be started. A
+ * Docker that is installed but not answering is not a reason here: `up` then fails and says why, so a
+ * developer who forgot to start Docker sees a failure and not a skip. */
+export function noDockerReason(info: { code: number; stdout: string } | null): string | null {
+  if (info === null) return "this host has no Docker";
+  const os = info.stdout.trim();
+  if (info.code !== 0 || os === "" || os === "linux") return null;
+  return `this host's Docker runs ${os} containers, and ${COMPOSE} has Linux ones`;
+}
+
+/** `noDockerReason` for this host, probed once per process by the first program that names a service. */
+let dockerProbe: Promise<string | null> | null = null;
+function dockerAbsent(): Promise<string | null> {
+  dockerProbe ??= runProc(["docker", "info", "--format", "{{.OSType}}"], { cwd: ROOT, timeoutMs: 60_000 }).then(
+    (r) => noDockerReason(r),
+    () => noDockerReason(null),
+  );
+  return dockerProbe;
+}
+
+/**
+ * Why a program is not run on this host because of the services it names, or null when it is run.
+ * **One rule on every platform:** a program marked `requires: <service>` runs where Docker runs the
+ * compose file's Linux containers, and is skipped with the reason everywhere else. A hosted macOS
+ * runner has no Docker and a hosted Windows one runs Windows containers, so those programs run on the
+ * Linux leg alone. A name the compose file does not declare is never a skip: `servicesFor` fails it.
+ */
+export async function serviceSkipReason(source: string, services: Set<string> = composeServices()): Promise<string | null> {
+  const wanted = requiredServices(source);
+  if (wanted.length === 0 || wanted.some((s) => !services.has(s))) return null;
+  const absent = await dockerAbsent();
+  return absent ? `marked \`requires: ${wanted[0]}\`, and ${absent}` : null;
+}
+
+/** The CA the compose file's `certs` service issued, at the path the repository's `nvs.toml` names. */
+export const COMPOSE_CA = "tests/db/ca.crt";
+/** `syncComposeCa`, run once per process, after the first service that came up. */
+let caSynced: Promise<string | null> | null = null;
+
+/**
+ * Copies the CA out of the compose stack's `certs` volume to `COMPOSE_CA`, so a program that talks to
+ * a compose service verifies it against the anchor that signed it. Every service mounts that volume, so
+ * the first one up is where it is read. Null when the file now holds that CA, and the failure otherwise.
+ * The file is replaced in one rename and only when it differs, because programs that read it may be
+ * running beside this one.
+ */
+function syncComposeCa(service: string): Promise<string | null> {
+  caSynced ??= (async () => {
+    const tmp = `.agent-tmp/compose-ca-${process.pid}.crt`;
+    mkdirSync(abs(".agent-tmp"), { recursive: true });
+    const argv = ["docker", "compose", "-f", COMPOSE, "cp", `${service}:/certs/ca.crt`, tmp];
+    try {
+      const r = await runProc(argv, { cwd: ROOT, timeoutMs: 60_000 });
+      if (r.code !== 0) return `\`${argv.join(" ")}\` failed (exit ${r.code}): ${r.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`;
+      const fresh = readFileSync(abs(tmp));
+      const dest = abs(COMPOSE_CA);
+      if (!existsSync(dest) || !readFileSync(dest).equals(fresh)) renameSync(abs(tmp), dest);
+      return null;
+    } finally {
+      rmSync(abs(tmp), { force: true });
+    }
+  })();
+  return caSynced;
+}
+
 /** Brings up each `tests/db/compose.yaml` service `source` names in a `requires:` line, and says why it
  * could not; null when it needs none or every one it needs is up. A name the compose file does not
  * declare is a failure, never a line read past. A program without a `requires:` service line never
- * touches Docker. `services` is what the compose file declares. */
+ * touches Docker. Once a service is up, `COMPOSE_CA` holds the CA that signed its certificate
+ * (`syncComposeCa`). `services` is what the compose file declares. */
 export async function servicesFor(source: string, services: Set<string> = composeServices()): Promise<string | null> {
   const wanted = requiredServices(source);
   const unknown = wanted.filter((s) => !services.has(s));
   if (unknown.length > 0) return `is marked \`requires: ${unknown[0]}\`, which is no service in ${COMPOSE} (it declares ${[...services].sort().join(", ")})`;
+  if (wanted.length === 0) return null;
+  const absent = await dockerAbsent();
+  if (absent) return `needs \`${wanted[0]}\`, and ${absent}`;
   for (const service of wanted) {
     let up = servicesUp.get(service);
     if (!up) {
       progress(`proofs: bringing up \`${service}\` (a cold first boot can take half a minute)`);
       const argv = ["docker", "compose", "-f", COMPOSE, "up", "-d", "--wait", service];
       up = runProc(argv, { cwd: ROOT, timeoutMs: SERVICE_UP_TIMEOUT_MS }).then(
-        (r) => (r.code === 0 ? null : `needs \`${service}\`, and \`${argv.join(" ")}\` failed (exit ${r.code}): ${r.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`),
+        async (r) => {
+          if (r.code !== 0) return `needs \`${service}\`, and \`${argv.join(" ")}\` failed (exit ${r.code}): ${r.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`;
+          const ca = await syncComposeCa(service);
+          return ca ? `needs \`${service}\`, and its CA could not be copied to ${COMPOSE_CA}: ${ca}` : null;
+        },
         (e) => `needs \`${service}\`, and Docker could not be started: ${e instanceof Error ? e.message : String(e)}`,
       );
       servicesUp.set(service, up);
@@ -413,10 +487,18 @@ function declaredExit(source: string): number {
  * does not have. */
 type Judged = [Verdict, string, Ran?];
 
+/** The line of a failed run's standard error that says what stopped it: the first that is not a
+ * `warning:`, since a warning such as the queue worker's names something the run went on past. The
+ * first line when every line is a warning. */
+export function stoppedBy(stderr: string): string {
+  const lines = stderr.split(/\r?\n/).filter((l) => l.trim());
+  return (lines.find((l) => !l.startsWith("warning:")) ?? lines[0] ?? "").trim();
+}
+
 /** An example passes when it ends with the status it declares and prints exactly its `.out`. */
 async function runExample(nvs: string, path: string, unlogged = false): Promise<Judged> {
   const source = read(path);
-  const skip = skipReason(source);
+  const skip = skipReason(source) ?? (await serviceSkipReason(source));
   if (skip) return ["skip", skip];
   let out: Ran;
   try {
@@ -427,7 +509,7 @@ async function runExample(nvs: string, path: string, unlogged = false): Promise<
   if (out.timedOut) return ["fail", `timed out after ${EXAMPLE_TIMEOUT_MS / 1000}s`, out];
   const want = declaredExit(source);
   if (out.code !== want) {
-    const first = out.stderr.trim().split(/\r?\n/)[0] ?? "";
+    const first = stoppedBy(out.stderr);
     return ["fail", want ? `exit ${out.code} where it declares \`proof: exit ${want}\`` : `exit ${out.code}: ${first}`, out];
   }
   const expected = sibling(path, ".out");
@@ -570,7 +652,7 @@ function stepAt(source: string, line: number): number | null {
  */
 async function runHostile(nvs: string, path: string, valgrind: boolean, unlogged = false): Promise<Judged> {
   const source = read(path);
-  const skip = skipReason(source);
+  const skip = skipReason(source) ?? (await serviceSkipReason(source));
   if (skip) return ["skip", skip];
   let limit = hostileLimitMs(source);
   let argv = [nvs, "run", path];
@@ -609,7 +691,7 @@ export function judgeHostile(path: string, source: string, out: Ran, limit: numb
   // A negative status is a signal; anything past 255 on Windows is a structured exception.
   if (out.code < 0 || out.code > 255) return ["fail", `crash-shaped exit status ${out.code}`];
   if (out.code !== 0 && !declared) {
-    const first = out.stderr.split(/\r?\n/).find((l) => l.trim()) ?? "";
+    const first = stoppedBy(out.stderr);
     return [
       "fail",
       `ended before its last line (exit ${out.code}), so the steps behind that point never ran -- catch what ` +
