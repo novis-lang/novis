@@ -357,10 +357,17 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 9 are done. Stage 10 waits on full run 39276660114.
+Stages 1 to 9 are done. Stage 10 waits on the full run dispatched on the commit that wrote this
+handoff. `gh run list --workflow ci.yml --event workflow_dispatch --limit 1` names it.
 
-- **`main` is pushed at `94ff16d2f`, and full run 39276660114 is dispatched on it.** Its push run
-  39276646244 is cancelled. The user gave the push-and-watch loop to this loop alone.
+- **The Windows Redis step no longer uses Chocolatey or Memurai.** On run 39276660114 (`94ff16d2f`)
+  the feed answered 503 again, and `choco` printed "installed 0/0 packages" but exited 0, so the
+  retry loop never retried. At the user's request, the step now downloads Redis 8.10.2, the version
+  `tests/db/compose.yaml` pins, from the redis-windows/redis-windows GitHub release. It checks a
+  pinned SHA256, unzips it and starts `redis-server` on 16379 (`.github/workflows/ci.yml:187`).
+  A retry loop that checked for `memurai.exe` was pushed first as `3d8e54c48`, and the commit
+  after it replaces that loop. Runs 39276660114, 39278545350 and 39278568537 are cancelled.
+- The user gave the push-and-watch loop to this loop alone.
 - **Run 39272328614 (`067fae174`) failed two jobs in its first 15 minutes. It was cancelled, and
   both are fixed:**
   - `asan`: a stack-buffer-overflow in `nvs-stdlib`'s `html_later`, right after ASan warned it was
@@ -371,8 +378,7 @@ Stages 1 to 9 are done. Stage 10 waits on full run 39276660114.
     `crates/nvs-host/Cargo.toml:31`, `.github/workflows/ci.yml:1290`). Under WSL, nine `html_later`
     runs and the whole step had no ASan report. Its four failures there check file modes and Unix
     sockets, which `/mnt/e` lacks.
-  - `test / windows-x86_64`: the Chocolatey feed answered 503 for `memurai-developer`. The step
-    now checks `choco`'s exit code and tries four times (`94ff16d2f`, `.github/workflows/ci.yml:187`).
+  - `test / windows-x86_64`: its Redis step failed. The step is replaced, as the first bullet says.
   - So that run checked neither the Windows `test` leg's time nor the zip attack.
 - **Run 39258294723 (`f115f6791`) was green on every job but two, and both are fixed:**
   - `proofs / windows-x86_64`: the `Core\Zip::extract` attack printed its last line and was still
@@ -414,7 +420,8 @@ Stage 10's push-and-watch loop over `.github/workflows/ci.yml`:
 - [x] Run 39258294723: every failure is fixed at its cause and committed (`b99670cc9`, `067fae174`), and stage 8 is done. `docs/goals/release-hardening.md:263`
 - [x] `main` is pushed at `067fae174`, and full run 39272328614 is dispatched. `docs/goals/release-hardening.md:332`
 - [x] Run 39272328614: the `asan` and Windows Redis failures are fixed at their causes and committed (`2ad211bb6`, `94ff16d2f`), and `main` is pushed with full run 39276660114 dispatched. `.github/workflows/ci.yml:1290`
-- [ ] Watch run 39276660114 at step level with the watch script the State describes, under Monitor. On a failure, fix it, then push and dispatch again. `docs/goals/release-hardening.md:336`
+- [x] Run 39276660114: the Windows Redis step is replaced by a pinned GitHub release download, and `main` is pushed with a new full run dispatched. `.github/workflows/ci.yml:187`
+- [ ] Watch the newest full run at step level with the watch script the State describes, under Monitor. Check that `A Redis server (Windows)` passes. On a failure, fix it, then push and dispatch again. `docs/goals/release-hardening.md:336`
 - [ ] Check `test / windows-x86_64`'s total time against its new 120 minutes, and the zip attack on `proofs / windows-x86_64`. `.github/workflows/ci.yml:127`
 - [ ] When one run is green on every job, tick stage 10's two open items with its id, set stage 10 done, run the goal-end gates (`bun nv verify --doc`, `bun nv owners --closes release-hardening`), and write `DONE`. `docs/goals/release-hardening.md:351`
 
