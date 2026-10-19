@@ -271,6 +271,10 @@ live bytes per request grow.
     are done. The first nightly timed out 71 in `nvs-stdlib`, 3 of them since ignored. The names
     come from the pass's log:
     `grep -E '^\s+(TIMEOUT|PASS) \[\s*>?([6-9][0-9]|[0-9]{3})' .agent-tmp/miri-nx-nvs-stdlib.log`.
+    The regex, crypto and jwe tests are done: all 59 that run pass under Miri locally, the longest
+    in 106 s. Two tests whose only work is PBKDF2 at the iteration floor carry an ignore, because
+    a thousand iterations take 76 s under Miri and the floor is a hundred thousand: there is no
+    smaller input. That is the same reason as an operation Miri lacks.
   - [ ] `nvs-runtime` and `nvs-stdlib` run as separate jobs or `--partition` shards, each well under its
     `timeout-minutes`, so the job ends green or red and never cancelled. The user chose shards: job
     `miri-units` in `.github/workflows/ci.yml` runs 2 for `nvs-runtime` and 12 for `nvs-stdlib`.
@@ -339,21 +343,25 @@ Stages 1 to 7 are done. Stage 8 is under way.
   deterministic floats for both crates, 2 shards for `nvs-runtime` and 12 for `nvs-stdlib`
   (`.github/workflows/ci.yml:1185`), the 6 `session` tests join their store's threads, 27 more
   Miri-only failures carry an ignore, and the 6 `nvs-runtime` timeouts take a smaller input.
-- **Timeouts still open:** 68 in `nvs-stdlib` on that nightly. By module: regex 12, crypto 7,
-  jwe 7, http 5, html 5, password 4, cache 3, sort 3, str 3, then one or two each. Passing tests
-  of 150 to 290 s also fill the shards (`sort`, `compress`, `request`, `regex`, `hash`).
+- **Timeouts still open:** 42 in `nvs-stdlib` on that nightly, after regex, crypto and jwe. By
+  module: http 5, html 5, password 4, cache 3, sort 3, str 3, then one or two each. Passing tests
+  of 150 to 290 s also fill the shards (`sort`, `compress`, `request`, `hash`). The list of that
+  nightly, timeouts and passes over 60 s, comes from the 8 stdlib shard jobs' logs: strip the
+  literal `^[[..m` colour codes, then grep `(TIMEOUT|PASS) \[ *([6-9][0-9]|[0-9]{3})\.`.
+- **What costs time under Miri**, measured locally where CI is about 5 times slower: compiling
+  `\w` 85 s, `\d` 8.5 s, `[a-z]` 0.7 s; a P-256 multiplication 18 s; X25519 1.2 s; PBKDF2 76 s
+  per thousand iterations; about 4 s per thousand backtracking steps. Each test also pays about
+  5 s to start, and four times that when eight run at once.
 - **Local runs** go from the WSL mirror `/var/tmp/nvs-target-wsl-src/mnt-e-mwl`, brought up to date
   with `syncMirror` from `tools/nv/accept/mirror.ts`, and `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl`.
 - **The rest of that nightly**: proofs is the backlog's proof debt; `docs/novis.md` was the stale
-  `core.json` that `b23b5116f` fixed; `fuzz smoke / regex` is the subroutine blow-up that another
-  session's uncommitted `crates/nvs-stdlib/src/regex.rs:1185` refuses; the test and cost legs are
-  in the backlog.
+  `core.json` that `b23b5116f` fixed; `fuzz smoke / regex` is the subroutine blow-up that
+  `crates/nvs-stdlib/src/regex.rs:1207` now refuses; the test and cost legs are in the backlog.
 
 ### Next
 
 Stage 8, Miri's slow `nvs-stdlib` tests, on the files that hold them (`rule:testing/the-deep-lane`):
-- [ ] The regex, crypto and jwe timeouts take a smaller input under `cfg!(miri)`; list them with `gh run view --job <id> --log` on run 39173391347's stdlib shards. `crates/nvs-stdlib/src/regex.rs:1`, `crates/nvs-stdlib/src/jwe.rs:1`
-- [ ] The http, html, password, cache, sort and str timeouts do the same. `crates/nvs-stdlib/src/html.rs:1`
+- [ ] The http, html, password, cache, sort and str timeouts take a smaller input under `cfg!(miri)`, measured with one local Miri run of those modules, as regex, crypto and jwe were. `crates/nvs-stdlib/src/html.rs:1`, `crates/nvs-stdlib/src/password.rs:1`
 - [ ] The JSON depth and large-text tests. `crates/nvs-stdlib/src/json.rs:3943`
 - [ ] Then the runner mode that sends many cases through one worker. `crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`
 
