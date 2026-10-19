@@ -74,7 +74,7 @@
 //! implementation of every ordering in the library.
 //!
 //! **Derived from the registry, never written down here.** [`descriptors`]
-//! asks `registry::render_symbol` and `registry::compare_symbol`, which are the
+//! asks `registry::render_member` and `registry::compare_member`, which are the
 //! same rosters `registry::class_renders` and `registry::implements_comparable`
 //! answer the *compiler* from. A hand-written table beside them would be free
 //! to miss a class the checker had already let a program `echo` or order, which
@@ -413,28 +413,70 @@ fn dispatch_table(class: &str) -> Vec<nvs_runtime::MethodRow> {
         .unwrap_or_default()
 }
 
+/// The process's descriptors and their index by name.
+struct Descriptors {
+    table: ClassTable,
+    /// Every descriptor's class name and id, sorted by name. Equal names keep
+    /// the order they were defined in, so [`Descriptors::id_of`] finds the
+    /// first, as [`ClassTable::id_of`] does.
+    ///
+    /// **What it spends:** one name and one id per `Core` descriptor, for the
+    /// process. It buys every lookup by name a binary search, where
+    /// [`ClassTable::id_of`] scans the whole table, and every construction of
+    /// a `Core` instance makes one.
+    by_name: Vec<(&'static str, nvs_runtime::ClassId)>,
+}
+
+impl Descriptors {
+    /// Every id defined under `name`, in definition order.
+    fn ids_named<'a>(&'a self, name: &'a str) -> impl Iterator<Item = nvs_runtime::ClassId> + 'a {
+        let start = self.by_name.partition_point(|(own, _)| *own < name);
+        self.by_name[start..]
+            .iter()
+            .take_while(move |(own, _)| *own == name)
+            .map(|(_, id)| *id)
+    }
+
+    /// The first id defined under `name`, or `None` if no descriptor has it.
+    fn id_of(&self, name: &str) -> Option<nvs_runtime::ClassId> {
+        self.ids_named(name).next()
+    }
+
+    /// `name`'s descriptor, or `None` if no descriptor has it.
+    fn find(&self, name: &str) -> Option<*const ClassDesc> {
+        Some(self.table.desc(self.id_of(name)?))
+    }
+}
+
 /// The process's descriptors, built on first use and never dropped — see this
 /// module's docs. A `OnceLock<&'static _>` rather than a `RwLock<ClassTable>`:
 /// the table is written once and read from every construction on every core, so
 /// what a reader needs is the address it was published at and nothing else.
-static DESCRIPTORS: OnceLock<&'static ClassTable> = OnceLock::new();
+static DESCRIPTORS: OnceLock<&'static Descriptors> = OnceLock::new();
 
 /// The table, building and leaking it if this is the first call.
-fn descriptors() -> &'static ClassTable {
+///
+/// Each roster beside the registry is walked once, and each of its names is
+/// found in the sorted index. Asking every class whether a roster names it
+/// costs a string compare per class and roster entry, and under Miri that
+/// was seconds for each test that builds a `Core` instance.
+fn descriptors() -> &'static Descriptors {
     DESCRIPTORS.get_or_init(|| {
         // Built from the whole registry for every program alike, so the lookups below are no
         // program's use of a class.
         let _quiet = nvs_footprint::Quiet::new();
         let mut table = ClassTable::new();
-        for class in registry::CLASSES
+        let mut by_name = Vec::new();
+        for (class, registered) in registry::CLASSES
             .iter()
-            .chain(INTERNAL_CLASSES.iter().copied())
+            .map(|class| (class, true))
+            .chain(INTERNAL_CLASSES.iter().map(|class| (*class, false)))
             // `rule:core-classes/ast-is-inert`'s typed roster, which is the
             // other family of row-less classes and a slice rather than lines
             // above because it is one class per production of the grammar —
             // `crate::ast`'s own second decision owns why none of them is
             // registry surface.
-            .chain(crate::ast::PRODUCTIONS.iter())
+            .chain(crate::ast::PRODUCTIONS.iter().map(|class| (class, false)))
         {
             // A **namespace** class is what is skipped here, and
             // [`has_instances`] is the one question that tells one apart.
@@ -444,16 +486,11 @@ fn descriptors() -> &'static ClassTable {
             // No parents: a `Core` class is not part of any hierarchy, so
             // `is` on one answers only for itself.
             let id = table.define(class.name, class.slots, &[]);
-            table.set_methods(id, dispatch_table(class.name));
-            // `rule:security/isolate-values-cross-by-copy`'s third refusal,
-            // written at the one place that can know it: the walk at a copy
-            // boundary sees a descriptor and nothing else, and [`HOST_HANDLE_CLASSES`]
-            // is this crate's answer to which of them may not cross.
-            if HOST_HANDLE_CLASSES
-                .iter()
-                .any(|held| held.name == class.name)
-            {
-                table.set_host_handle(id);
+            by_name.push((class.name, id));
+            // The two members below are read off a registry row, so a class
+            // with no row has neither.
+            if !registered {
+                continue;
             }
             // `rule:classes/stringable`'s one rendering member, which is *not* a
             // `DISPATCH_ROSTER` row: it has its own descriptor field because
@@ -462,7 +499,7 @@ fn descriptors() -> &'static ClassTable {
             // written down here so that it cannot name a member
             // `registry::class_renders` — the check the compiler makes at
             // `echo $uri` — did not see.
-            if let Some(symbol) = registry::render_symbol(class.name) {
+            if let Some(symbol) = registry::render_member(class) {
                 table.set_render(id, crate::address_of(symbol));
             }
             // `rule:classes/comparable`'s one ordering member, on its own
@@ -471,11 +508,30 @@ fn descriptors() -> &'static ClassTable {
             // — the check the compiler makes at `$a < $b` — and this are one
             // question asked once, so a class the checker will let a program
             // order cannot be a class a `Core\Heap` finds no ordering for.
-            if let Some(symbol) = registry::compare_symbol(class.name) {
+            if let Some(symbol) = registry::compare_member(class) {
                 table.set_compare(id, crate::address_of(symbol));
             }
         }
-        Box::leak(Box::new(table))
+        // A stable sort, so equal names keep their definition order.
+        by_name.sort_by_key(|(name, _)| *name);
+        let mut found = Descriptors { table, by_name };
+        for (name, _) in DISPATCH_ROSTER {
+            let ids: Vec<_> = found.ids_named(name).collect();
+            for id in ids {
+                found.table.set_methods(id, dispatch_table(name));
+            }
+        }
+        // `rule:security/isolate-values-cross-by-copy`'s third refusal,
+        // written at the one place that can know it: the walk at a copy
+        // boundary sees a descriptor and nothing else, and [`HOST_HANDLE_CLASSES`]
+        // is this crate's answer to which of them may not cross.
+        for held in HOST_HANDLE_CLASSES {
+            let ids: Vec<_> = found.ids_named(held.name).collect();
+            for id in ids {
+                found.table.set_host_handle(id);
+            }
+        }
+        Box::leak(Box::new(found))
     })
 }
 
@@ -518,11 +574,9 @@ pub fn class_has_instances(name: &str) -> bool {
 /// Panics naming the class if it declares no slots — a namespace class has no
 /// instances, and asking for one is a build-time oversight in this crate.
 fn descriptor(class: &CoreClass) -> *const ClassDesc {
-    let table = descriptors();
-    let id = table
-        .id_of(class.name)
-        .unwrap_or_else(|| panic!("{} is not a `Core` class with instances", class.name));
-    table.desc(id)
+    descriptors()
+        .find(class.name)
+        .unwrap_or_else(|| panic!("{} is not a `Core` class with instances", class.name))
 }
 
 /// Every `Core` descriptor a compiled unit may relocate against, as
@@ -571,8 +625,7 @@ pub fn class_descriptors() -> Vec<(&'static str, *const ClassDesc)> {
 pub fn core_class_desc(name: &str) -> Option<*const ClassDesc> {
     // A lookup by name at run time, so it is the program's use of that class.
     nvs_footprint::class(name);
-    let table = descriptors();
-    Some(table.desc(table.id_of(name)?))
+    descriptors().find(name)
 }
 
 /// Whether `value` is an instance of `class`, asked by descriptor address.
@@ -734,7 +787,7 @@ static RECEIVERS: OnceLock<Vec<(usize, &'static str)>> = OnceLock::new();
 /// process, bounded by the same rosters [`descriptors`] is.
 fn receivers() -> &'static [(usize, &'static str)] {
     RECEIVERS.get_or_init(|| {
-        let table = descriptors();
+        let found = descriptors();
         let mut rows: Vec<(usize, &'static str)> = registry::CLASSES
             .iter()
             .chain(INTERNAL_CLASSES.iter().copied())
@@ -745,8 +798,7 @@ fn receivers() -> &'static [(usize, &'static str)] {
                     .iter()
                     .map(|production| (production.name, crate::ast::NODE_NAME)),
             )
-            .filter_map(|(own, receives)| Some((table.id_of(own)?, receives)))
-            .map(|(id, receives)| (table.desc(id).addr(), receives))
+            .filter_map(|(own, receives)| Some((found.find(own)?.addr(), receives)))
             .collect();
         rows.sort_unstable_by_key(|(address, _)| *address);
         rows
@@ -1107,13 +1159,13 @@ mod tests {
             // to ask, and asking for one panics.
             if class.slots.is_empty() && class.instance.is_empty() {
                 assert!(
-                    registry::compare_symbol(class.name).is_none(),
+                    registry::compare_member(class).is_none(),
                     "{} declares a comparison but has no instances to order",
                     class.name
                 );
                 continue;
             }
-            let Some(symbol) = registry::compare_symbol(class.name) else {
+            let Some(symbol) = registry::compare_member(class) else {
                 assert!(
                     comparer_of(class).is_none(),
                     "{} orders at run time but declares no `{}`",

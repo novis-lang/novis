@@ -2606,7 +2606,7 @@ mod tests {
             Some("nvs_core_bigint_to_string")
         );
         assert_eq!(
-            crate::registry::compare_symbol(NAME),
+            crate::registry::class(NAME).and_then(crate::registry::compare_member),
             Some("nvs_core_bigint_compare_to")
         );
         assert!(address("nvs_core_bigint_to_string").is_some());
