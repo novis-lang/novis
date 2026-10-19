@@ -956,6 +956,26 @@ pub(crate) fn append_to_text_slot(receiver: *mut ObjHeader, index: usize, suffix
     set_slot(receiver, index, Value::str(grown));
 }
 
+/// Appends `bytes` to the string in slot `index` of `receiver` —
+/// [`append_to_text_slot`] for bytes a member has in hand, so the suffix is
+/// never a string of its own.
+///
+/// An append that fits the string's room allocates nothing, and the room
+/// doubles, so a loop of these is linear in the bytes appended.
+pub(crate) fn append_bytes_to_text_slot(receiver: *mut ObjHeader, index: usize, bytes: &[u8]) {
+    let held = take_slot(receiver, index);
+    let Some(target) = held.str_ptr() else {
+        unreachable!("a text slot holds a string, which its caller checked");
+    };
+    #[expect(
+        unsafe_code,
+        reason = "`target`'s reference was taken out of the slot, so this handle \
+                  owns it, and the append's result goes back into that slot"
+    )]
+    let owned = unsafe { nvs_runtime::NvsStr::from_raw(target) };
+    set_slot(receiver, index, Value::str(owned.append(bytes)));
+}
+
 /// Whether `receiver` has exactly one owner — the one test that lets a
 /// carrier's composition write into its left operand.
 ///

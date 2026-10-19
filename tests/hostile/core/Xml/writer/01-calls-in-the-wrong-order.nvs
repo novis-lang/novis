@@ -2,7 +2,6 @@
 // Attack: a program calls the writer in the wrong order, with bad names and text, and nests very deep.
 // Each wrong call should throw a `LogicError`, and the writer should never write a broken document.
 // hostile: timeout-ms 20000
-// proof: gap nvs-stdlib/an-xml-writer-holds-a-string-per-piece
 
 class Try
 {
