@@ -1,7 +1,8 @@
 // The roster: every feature Novis ships, read from four live sources and never from a list. A `Core`
 // class member, exception, enum, interface and configuration directive come from the binary's own
-// `nvs meta --json`. A language feature is a `#` heading in a chapter under `docs/reference/lang/`, and
-// a tool feature is one under `docs/reference/tools/`. Each feature has one path, `core/Str/length`,
+// `nvs meta --json`. A language feature is a `#` heading in a chapter's source,
+// `docs/examples/lang/<chapter>/chapter.md` (`chapters.ts`), and a tool feature is a `#` heading in a
+// chapter under `docs/reference/tools/`. Each feature has one path, `core/Str/length`,
 // that the example, attack and bench trees share; a member of a built-in component's `Novis\` class
 // has one under `novis/`, `novis/Image-Image/open`. `rule:testing/feature-proofs` is what each one owes.
 // A class or enum `nvs meta --json` calls `internal` — a component's engine, and an enum only its
@@ -19,6 +20,7 @@ import { abs } from "../lib/paths.ts";
 import { comparePaths } from "../lib/py.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { progress } from "../lib/progress.ts";
+import { chapterFile, chapterSources, LANG_CHAPTERS as LANG, LANG_EXAMPLES } from "./chapters.ts";
 
 export const EXAMPLES = "docs/examples";
 export const HOSTILE = "tests/hostile";
@@ -28,7 +30,6 @@ export const ABOUT = "about.md";
 /** A language feature's exact rules and edge cases, beside its `about.md`. It is optional, and it never
  * counts as an example either. */
 export const DETAILS = "details.md";
-const LANG = "docs/reference/lang";
 const TOOLCHAPTERS = "docs/reference/tools";
 
 export type Kind = "member" | "lang" | "exception" | "enum" | "interface" | "tool" | "directive";
@@ -337,6 +338,40 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
     });
   }
 
-  out.push(...chapterFeatures(LANG, "lang"), ...chapterFeatures(TOOLCHAPTERS, "tools"));
+  out.push(...langFeatures(), ...chapterFeatures(TOOLCHAPTERS, "tools"));
+  return out;
+}
+
+/**
+ * The language features, in the order each chapter's source gives them (`chapters.ts`). An entry's
+ * anchor and help proof come from the generated chapter's section, which is what `nvs agent show`
+ * prints and what the perf ledger and the site lock hash. A source with a problem, or a chapter whose
+ * headings are not its source's, ends the command, because every id would be wrong.
+ */
+function langFeatures(): Entry[] {
+  const sources = chapterSources();
+  const problems = sources.flatMap((s) => s.problems);
+  const sections = new Map(chapterFeatures(LANG, "lang").map((e) => [e.id, e]));
+  const out: Entry[] = [];
+  for (const source of sources) {
+    const file = chapterFile(source);
+    for (const f of source.features) {
+      const id = `lang:${source.id}/${f.slug}`;
+      const section = sections.get(id);
+      sections.delete(id);
+      if (!section) problems.push(`${source.path}:${f.line}: \`# ${f.heading}\` is not a heading in ${file}`);
+      out.push({
+        id,
+        kind: "lang",
+        group: `lang:${source.id}`,
+        path: `lang/${source.id}/${f.slug}`,
+        anchor: section?.anchor ?? "",
+        summary: f.heading,
+        help: section?.help ?? "",
+      });
+    }
+  }
+  for (const e of sections.values()) problems.push(`${e.anchor}: \`# ${e.summary}\` is in no chapter source under ${LANG_EXAMPLES}`);
+  if (problems.length) throw new RosterError(`the language chapters disagree with their sources:\n  ${problems.join("\n  ")}`);
   return out;
 }

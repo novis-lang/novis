@@ -57,6 +57,10 @@ searcher might type, naming no PHP function, class or setting
 (`rule:programs/no-compatibility-promise`). Files are concatenated in filename order — number them
 `10-`, `20-`, … so a chapter can be inserted between two.
 
+A `lang/` chapter's front matter and its `#` headings are also in its source,
+`../examples/lang/<id>/chapter.md` ([the examples README](../examples/README.md) § *A chapter's
+features*), which the roster reads its feature ids from. The two must agree.
+
 A chapter may place one of the generated tables where its prose wants it, on a line of its own:
 
 ```
