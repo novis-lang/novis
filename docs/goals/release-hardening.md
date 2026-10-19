@@ -230,7 +230,7 @@ runs. Miri runs the unit tests of the runtime and standard library that run no c
 Seeded property tests cover path grants and the address table. A nightly serve soak fails when
 live bytes per request grow.
 
-- [ ] A runner mode sends many cases through one worker and compares each output with its fresh run. `crates/nvs-cli/src/runner.rs:1`
+- [x] A runner mode sends many cases through one worker and compares each output with its fresh run. `crates/nvs-cli/src/shared.rs:1`
 - [ ] The Miri job runs the `nvs-runtime` and `nvs-stdlib` unit tests that need no JIT. `.github/workflows/ci.yml:1104`
   The user decided how: one pass that lists every failure, never a rerun per failure, and a job that
   finishes inside its budget. Measure with one background run and hand off, never round after round
@@ -347,18 +347,20 @@ is `BLOCKED` and names the call.
 
 Stages 1 to 7 are done. Stage 8 is under way.
 
-- **Property tests.** Done: three seeded cases in `crates/nvs-config/tests/capability.rs` (`ae40a9e58`).
-- **No nightly has run since run 39206993876** (`workflow_dispatch` on `0b85b2057`). Local `main` is
-  ahead of `origin/main` (`0b85b2057`), so the acceptance sweep's four failures are still that run's:
-  the three `proofs` legs (proof debt, in the backlog) and shard `nvs-stdlib 4/12`, whose retry
-  deadline is already fixed on `main` (`104ab8948`) and not yet pushed. The Miri items wait for
-  the user to push.
-- **The shared-worker runner mode: `nvs-test`'s half is done.** `Options::shared` takes an
-  `Arc<dyn SharedWorker>` (`crates/nvs-test/src/run.rs:83`, the trait at `:93`), which nobody fills
-  yet, so nothing runs differently. After a case's fresh run passes, `judge` sends an eligible case's
-  absolute `case.nvs` path through it (`:366`); eligibility is `shares_a_worker` (`:384`) and the
-  report `shared_verdict` (`:400`). The trait returns stdout or an error message, so a throw on the
-  worker fails the case.
+- **Property tests and the shared-worker mode are done.** `nvs test --shared-worker` runs each
+  eligible case again on one worker thread (`crates/nvs-cli/src/shared.rs`): one scheduler, reactor,
+  extension set and `script::Compiler` for the run, and a fresh parent `Ctx` per case, built after
+  the compile so the unit cache is not charged to the case's memory limit. `nvs-test` keeps a case
+  fresh only when its program names `TOP_LEVEL_ONLY` (`crates/nvs-test/src/run.rs`), and rewrites
+  the program's absolute path to `case.nvs` before comparing. Locally all 2,952 cases pass. CI's
+  optimised conformance step now passes the flag (`.github/workflows/ci.yml:223`); not yet run there.
+- **One run of the full tree on the worker hit a Cranelift panic** (`vcode.rs:1901`, index 63 of
+  32 in the constant pool) while compiling a `core/math-*` case, and the worker thread died. The
+  next three full runs and a `core`-only run did not repeat it. It is in the backlog.
+- **The acceptance sweep's four failures are still run 39206993876's** (`0b85b2057`, which is
+  `origin/main`). Nightly 39222242630 on the same commit was running. The `proofs` legs are proof
+  debt (backlog), and shard `nvs-stdlib 4/12`'s retry deadline is fixed on local `main`
+  (`104ab8948`). The Miri items wait for the user to push.
 - **On that run** 13 of 14 Miri shards were green, each in 8 to 33 minutes of its 45. No test hit the
   300 s limit and none hit undefined behaviour.
 - **Its five slowest tests are now cut under Miri,** none pushed yet. Local Miri times: html's
@@ -397,10 +399,9 @@ Stages 1 to 7 are done. Stage 8 is under way.
 
 ### Next
 
-Stage 8, the shared-worker runner mode over `nvs-test` and `nvs-cli`'s test entry (`rule:security/isolate-shares-nothing`), then the Miri shards once `main` is pushed (`rule:testing/the-deep-lane`):
-- [ ] Slice 2, `nvs_test::SharedWorker` in `nvs-cli` (`crates/nvs-test/src/run.rs:93`). One worker thread holds one parent `Ctx` and one `nvs_host::Scheduler`, and runs every case in turn; the trait's `run` posts the path over a channel and waits for the reply, because `nvs-test` calls it from many threads. Each case is resolved through one shared `script::Compiler` (`Resolver::resolve`), run by `nvs_host::Isolate::new(program, null, Output::Capture)`, and answered with `Completion::output`. `run_suite_in_a_task` is how a scheduler is driven around an isolate. A `--shared-worker` flag on `nvs test` over a `.nvst` tree sets `Options::shared`. `crates/nvs-cli/src/script.rs:1774`, `crates/nvs-cli/src/runner.rs:688`, `crates/nvs-cli/src/runner.rs:885`, `crates/nvs-cli/src/main.rs:2331`
-- [ ] Slice 3: CI runs `nvs test --shared-worker tests/conformance` beside the fresh run, and a Rust test pins that a static one case writes is not seen by the next case on the worker. `.github/workflows/ci.yml:131`
-- [ ] Once the user has pushed `main`: read every `miri units` shard of the first nightly that has these commits. Tick the two Miri checkpoints once every shard is green and no test runs past about 200 s. A test still over that gets a smaller input after a step-by-step timing. `docs/goals/release-hardening.md:263`
+Stage 8, the serve soak over `nvs-runtime`'s budget gauges and `nvs serve` (`rule:programs/memory-priority`'s O(in-flight) bound), then the Miri shards once `main` is pushed (`rule:testing/the-deep-lane`):
+- [ ] The soak: a test that serves many requests in one process and fails when live bytes grow with the request count, measured at two request counts after a warm-up. It runs in the nightly lane only. `crates/nvs-runtime/tests/server_memory.rs:1`, `crates/nvs-cli/src/serve.rs:4093`, `.github/workflows/ci.yml:1104`
+- [ ] Once the user has pushed `main`: read the `test` legs' `Conformance suite` step for the shared-worker run, and every `miri units` shard of the first nightly that has these commits. Tick the two Miri checkpoints once every shard is green and no test runs past about 200 s. `docs/goals/release-hardening.md:263`
 
 ### Backlog
 
@@ -421,4 +422,5 @@ Stage 8, the shared-worker runner mode over `nvs-test` and `nvs-cli`'s test entr
 - `bun nv verify` does not run `nv render --website --check`, so the website data goes stale unseen until CI (`tools/nv/cmd/verify.ts:153`).
 - `test_request_dispatches_in_process_through_the_compiled_route_table` was red once, also alone, because `Core\Env::context()` was not `Request`, and red again on CI's Windows leg on `be3e8a605` with 200 for 201 (`crates/nvs-cli/src/runner.rs:3410`).
 - `Core\Ldap::connect` dials each address of a host in turn, so a `localhost` block pays 2 s on Windows (`crates/nvs-stdlib/src/ldap/mod.rs:489`, `crates/nvs-host/src/net.rs:438`).
+- The Cranelift panic on the shared worker (`cranelift-codegen` 0.136.3 `machinst/vcode.rs:1901`) has not repeated. Rerun `RUST_BACKTRACE=1 target/debug/nvs test --shared-worker tests/conformance` and read the backtrace if it does: one thread compiling many units, after other cases ran on it, is where it happened (`crates/nvs-cli/src/shared.rs:171`).
 - `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed (`tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`).
