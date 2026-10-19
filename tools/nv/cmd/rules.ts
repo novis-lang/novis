@@ -112,7 +112,7 @@ export const DELETED_DOC_CITE =
   /\bdocs\/(?:plan\/|spec\/|perf\/|design\.md|implementation-plan\.md|future-ideas\.md|docker\.md|why-tainted-and-secret\.md|novis\.md\b)|\]\((?:\.\.\/)*(?:plan\/[\w.-]+\.md|spec\/[\w.-]+\.md|perf\/[\w.-]+\.md|design\.md|implementation-plan\.md|future-ideas\.md|docker\.md|why-tainted-and-secret\.md|novis\.md\b)|\b[Ss]pec §|\bfindings\.md\b/;
 /** The same forms, wider, for `git grep` to pick the files `DELETED_DOC_CITE` then reads. */
 const DELETED_DOC_GREP =
-  "docs/(plan/|spec/|perf/|implementation-plan[.]md|future-ideas[.]md)|(plan|spec|perf)/[a-z0-9-]+[.]md|implementation-plan[.]md|future-ideas[.]md|docker[.]md|why-tainted-and-secret[.]md|[Ss]pec §|findings[.]md|novis[.]md";
+  "docs/(plan/|spec/|perf/|design[.]md|implementation-plan[.]md|future-ideas[.]md)|(plan|spec|perf)/[a-z0-9-]+[.]md|[(](../)*design[.]md|implementation-plan[.]md|future-ideas[.]md|docker[.]md|why-tainted-and-secret[.]md|[Ss]pec §|findings[.]md|novis[.]md";
 
 /** What `--check` says about citations of a deleted doc: a finding for each citing line. */
 export function deletedDocFindings(files: Iterable<[string, string]>): Finding[] {
