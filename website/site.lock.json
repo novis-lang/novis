@@ -8,7 +8,7 @@
   "syntax/attributes/commands-and-discovery.mdx": {
     "lang:attributes/core-command-and-core-option-the-command-table": "c261a283869e05c2",
     "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "97a082f94ea9def0",
-    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "43eb9082096f88ea"
+    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "1162999e15a831b1"
   },
   "syntax/attributes/json.mdx": {
     "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "8314ec449faea2ef"
@@ -16,7 +16,7 @@
   "syntax/attributes/routes.mdx": {
     "Core\\Router::dispatch": "7be54fafddfab7ed",
     "lang:attributes/core-api-and-the-openapi-document": "2e4f7c61e1540361",
-    "lang:attributes/core-route-and-core-access-the-route-table": "6ed1a64ddf1f5de0"
+    "lang:attributes/core-route-and-core-access-the-route-table": "3eec894eda7abb0a"
   },
   "syntax/attributes/writing-and-reading.mdx": {
     "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "16660869aa600ce5",
@@ -28,7 +28,7 @@
     "lang:programs/doc-comments": "961c75d9ab2f2c38"
   },
   "syntax/basics/constants.mdx": {
-    "lang:classes/constants-and-class": "2866ef68b2a377dd"
+    "lang:classes/constants-and-class": "587efa59c2432e9c"
   },
   "syntax/basics/files-and-statements.mdx": {
     "lang:programs/a-program-is-a-file-of-top-level-statements": "b65244c6d8e65a10",
@@ -49,19 +49,19 @@
   },
   "syntax/classes/methods-and-inheritance.mdx": {
     "lang:classes/inheritance": "d373b61ef07e71f4",
-    "lang:classes/methods-self-static-and-parent": "1c61e5812554b18f"
+    "lang:classes/methods-self-static-and-parent": "29fe0990aa85b135"
   },
   "syntax/classes/objects.mdx": {
     "lang:classes/nullable-objects-and": "f9ae914d52ac7a3e",
     "lang:classes/object-the-top-of-every-class-type": "d4a7a1564849e39e",
     "lang:classes/objects-are-handles": "c51efd16ad9ef05f",
     "lang:classes/what-a-class-cannot-declare": "4384fe7427038d9e",
-    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "6857ba5ef8342a64",
+    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "8daabf2408a3ca60",
     "lang:types/callable-classes-object-shapes": "1c5f52d22fd7124e"
   },
   "syntax/classes/properties.mdx": {
     "lang:classes/lateinit": "1d7877bafebe6771",
-    "lang:classes/properties": "85dacf7c90ba5b22",
+    "lang:classes/properties": "9a08161c4c821fc5",
     "lang:types/properties-and-constants": "1da42ad2c3c6d547",
     "LateInit": "573915c0c25ce2a0"
   },
@@ -73,8 +73,8 @@
     "PropertyObserver": "80600e979a7d8483"
   },
   "syntax/classes/property-names.mdx": {
-    "lang:types/property-keys": "aef85cefa8d0cd04",
-    "lang:types/property-paths": "5019305c9a774f50",
+    "lang:types/property-keys": "7fe395fe2d7cc9f0",
+    "lang:types/property-paths": "2850a50e6227dc56",
     "lang:types/strings-with-holes": "5a299e0fa16ea838"
   },
   "syntax/classes/standard-interfaces.mdx": {
@@ -114,7 +114,7 @@
     "lang:statements/foreach": "22dc7665e8295303"
   },
   "syntax/control-flow/if.mdx": {
-    "lang:statements/expression-statements-blocks-and-declarations": "95e287005c2c259c",
+    "lang:statements/expression-statements-blocks-and-declarations": "3e8e239daa712934",
     "lang:statements/if-elseif-else": "f8dbcb2c8566679c"
   },
   "syntax/control-flow/iterators.mdx": {
@@ -125,7 +125,7 @@
     "lang:iteration/what-does-not-exist": "8d6ee969bf0d3fc6"
   },
   "syntax/control-flow/loops.mdx": {
-    "lang:statements/for": "a1dbad805b157de4",
+    "lang:statements/for": "4a7d1d2ac564331b",
     "lang:statements/while-and-do-while": "7e75b2f5e47fac94"
   },
   "syntax/control-flow/match.mdx": {
@@ -179,7 +179,7 @@
     "lang:statements/try-catch-finally": "d274c6864a561e7b"
   },
   "syntax/functions/anonymous-functions.mdx": {
-    "lang:expressions/anonymous-functions": "c136ea3e576dff01"
+    "lang:expressions/anonymous-functions": "4e889cf6fff1b528"
   },
   "syntax/functions/calls.mdx": {
     "lang:expressions/calls": "eaa1621516f33d84"
@@ -192,21 +192,21 @@
   },
   "syntax/operators/arithmetic.mdx": {
     "lang:expressions/arithmetic": "a880f19b388604f1",
-    "lang:expressions/assignment": "b2b19a0bc580d055"
+    "lang:expressions/assignment": "fe616c8c1233f94d"
   },
   "syntax/operators/comparison.mdx": {
     "lang:expressions/comparison-and-equality": "d16e53e2bbb81ebe",
     "lang:expressions/logical-operators-and-truth": "c967a863da3946a1"
   },
   "syntax/operators/null-coalescing.mdx": {
-    "lang:expressions/and-the-ternary": "e25895702ee83066"
+    "lang:expressions/and-the-ternary": "818317979e881b92"
   },
   "syntax/operators/pipeline.mdx": {
     "lang:expressions/the-pipeline-operator": "ac0b0202a18bcccd"
   },
   "syntax/operators/precedence.mdx": {
     "lang:expressions/operators-that-do-not-parse": "c25253f4116baecf",
-    "lang:expressions/precedence-and-associativity": "841a6aa52e780581",
+    "lang:expressions/precedence-and-associativity": "78b51b32619b3a90",
     "lang:expressions/refused-in-expression-position": "5eae8259dffc6103"
   },
   "syntax/operators/string-operators.mdx": {
@@ -240,11 +240,11 @@
     "lang:testing/test-options": "f4471759e8c51eec"
   },
   "syntax/values/arrays.mdx": {
-    "lang:expressions/arrays-in-expressions": "d03ed5ee81fe4092",
+    "lang:expressions/arrays-in-expressions": "a6a1a70929c22ad7",
     "lang:types/array-t": "c22e6b4921484d16"
   },
   "syntax/values/as.mdx": {
-    "lang:types/the-conversion-operator-as": "7288423a22ca0d7d",
+    "lang:types/the-conversion-operator-as": "b0bca81e6a879d6d",
     "lang:types/widening-without-as": "bb526cbe50ca94d0"
   },
   "syntax/values/bool-and-null.mdx": {
@@ -297,7 +297,7 @@
     "lang:enums/what-an-enum-does-not-have": "5057c794e207f2dd"
   },
   "syntax/values/is.mdx": {
-    "lang:types/narrowing": "600b6cefb2935075"
+    "lang:types/narrowing": "bb9355a14436f2e0"
   },
   "syntax/values/nullable.mdx": {
     "lang:types/nullable-union-single-value-and-enum-case-types": "091dbb9c70e45efb"
@@ -313,7 +313,7 @@
     "lang:types/qualifiers-tainted-and-secret": "d3d6e01742783999"
   },
   "syntax/values/union-types.mdx": {
-    "lang:types/mixed": "f1d90a4345318eb5",
+    "lang:types/mixed": "f0166b554154806a",
     "lang:types/type-aliases": "999337f25c447189"
   }
 }
