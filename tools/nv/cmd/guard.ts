@@ -256,7 +256,7 @@ function wholeFile(path: string, advice = ""): string | null {
     if (r === null) return null;
     return (
       `${r} is ${lines.toLocaleString("en-US")} lines (${bytes.length.toLocaleString("en-US")} bytes), and this reads all of it ` +
-      `into the context. Read the region you need (AGENTS.md rule 3): \`bun nv peek ${r}:120-160\`, \`${r}:@symbol\` or ` +
+      `into the context. Read the region you need (commands.md § *A shell never carries file content into the tree*): \`bun nv peek ${r}:120-160\`, \`${r}:@symbol\` or ` +
       `\`${r}:re:pattern\`, as many targets as you have questions in one call, or \`bun nv peek --outline ${r}\` for its seams.` +
       advice
     );
@@ -355,7 +355,7 @@ export const RULES: Rule[] = [
           const r = t ? intoTree(resolvePath(t, call.cwd)) : null;
           if (r === null) continue;
           return (
-            `this writes ${r} from text inside the command, and the shell parses that text first (AGENTS.md rule 1). ` +
+            `this writes ${r} from text inside the command, and the shell parses that text first (commands.md § *A shell never carries file content into the tree*).` +
             `Write it with the Write or Edit tool, with \`bun nv splice --patch <file>\`, or with a script ` +
             `under \`.agent-tmp/\`.`
           );

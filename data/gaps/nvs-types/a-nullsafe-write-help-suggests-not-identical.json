@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/expr/assign.rs",
+  "title": "`E0479`'s help for a write through `?->` suggests `if ($x !== null)`, an operator Novis does not have.",
+  "text": "The lexer rejects `!==` and names `!=` instead (`crates/nvs-syntax/src/lexer.rs`), so the code the help suggests does not compile. `lang:expressions/and-the-ternary`'s example 05 prints the help, so its `.out` changes with the fix. It closes when the help suggests `!=`, with the example blessed again.",
+  "goal": "release-hardening"
+}

@@ -244,7 +244,8 @@ then. A program's `.out` has no such line.
 
 ## A grant the examples need — `nvs.toml`
 
-An example runs from the repository root under its `nvs.toml`, which grants no capability. A
+An example runs from the repository root under its `nvs.toml`, whose `[[app]] root = "."` block
+grants `script.spawn` and nothing else. A
 feature that cannot be reached without one — a socket bound on `127.0.0.1` — puts the smallest
 configuration that grants it in the feature's own directory, and `--bless` and the sweep then run
 every example there with `--config` naming that file alone. It is the one other file a feature
