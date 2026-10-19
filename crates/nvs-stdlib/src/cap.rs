@@ -84,7 +84,7 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `rule:security/optional-capability-degrades`'s one member, and there is deliberately no second.
 ///
-/// § 15's other class that needs no request, and beside `Core\Env` because
+/// The other class that needs no request, and beside `Core\Env` because
 /// the two ask the same operator the same kind of question: what was this
 /// process started with, and what was it allowed to do. `rule:security/optional-capability-degrades` is what
 /// specifies it — the member exists so that a package which declared a

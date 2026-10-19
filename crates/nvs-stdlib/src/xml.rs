@@ -188,7 +188,7 @@ pub(crate) const WRITER_NAME: &str = r"Core\Xml\Writer";
 /// `rule:core-classes/xml-tree-and-stream` and the paragraph in the module doc
 /// above.
 ///
-/// § 17's document class, next after `Core\Html` because the two are one
+/// The XML document class, next after `Core\Html` because the two are one
 /// subsystem: `rule:core-classes/html-parsing` makes both parsers produce
 /// the node family below, so which door parsed a document does not change
 /// what a program can do with it. The tree half is what is registered —
@@ -547,8 +547,8 @@ const KIND_ENUM_DOC: EnumDoc = EnumDoc {
 /// shared, the operations are not — and it is why this is a second class rather
 /// than a mode on [`CLASS`].
 ///
-/// The other door onto that family: § 17's stream half, beside the tree half
-/// rather than in spec order because the two are one subsystem in two
+/// The other door onto that family: the stream half, beside the tree half
+/// because the two are one subsystem in two
 /// shapes. `rule:core-classes/xml-tree-and-stream` is why it is a class of
 /// its own and not a mode on the row above — the family is shared and no
 /// operation is, so which shape a program uses is settled at the door.

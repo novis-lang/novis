@@ -206,7 +206,7 @@ const CARD: ClassDoc = ClassDoc {
 /// `rule:core-classes/net-one-api-three-transports`'s five entry points, each
 /// saying in its name what it opens.
 ///
-/// § 16's socket half, beside the HTTP client because the two are the same
+/// The socket half, beside the HTTP client because the two are the same
 /// door at two heights: `rule:core-classes/net-one-api-three-transports`
 /// replaces `socket_*`, `stream_socket_*` and `fsockopen` with one class over
 /// three transports, and `rule:security/net-listen-is-a-separate-grant-from-net-connect`

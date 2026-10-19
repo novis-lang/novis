@@ -143,8 +143,8 @@ const CARD: ClassDoc = ClassDoc {
 /// `Core\Zip`'s registry rows — the listing and the read, both of them through
 /// the one reader that judges an entry before a program sees it.
 ///
-/// § 17's archive class, beside the codec class whose bound it applies and
-/// the detection class it sits between in that section. Tier 0 for the
+/// The archive class, beside the codec class whose bound it applies and
+/// the detection class. Tier 0 for the
 /// reason both of those are: a `../` entry, an absolute-path entry, a
 /// symlink entry and a bomb are what an archive is *allowed* to contain,
 /// which is policy — and [`crate::zip`] owns why the refusals live in the

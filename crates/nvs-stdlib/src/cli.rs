@@ -176,10 +176,10 @@ const CARD: ClassDoc = ClassDoc {
 /// because `rule:tooling/in-place-output-is-a-scoped-live-region` follows the prompts, and they are one region with
 /// two ways of writing a frame rather than two surfaces.
 ///
-/// § 13's terminal profile — `rule:tooling/the-terminal-profile-resolves-once`'s four members, which reach the
+/// The terminal profile — `rule:tooling/the-terminal-profile-resolves-once`'s four members, which reach the
 /// operating system and need no capability for it: [`crate::cli`]'s module
 /// docs own why a question about a stream the process already holds grants
-/// nothing, and why the rest of § 13 is not here yet.
+/// nothing, and why the rest of `Core\Cli` is not here yet.
 // rank: 570
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: CLASS_NAME,
@@ -790,7 +790,7 @@ const LIVE_CARD: ClassDoc = ClassDoc {
 /// member for ending one early would be the free-form cursor control that
 /// section refuses.
 ///
-/// § 13's in-place output — `rule:tooling/in-place-output-is-a-scoped-live-region`'s two handles, which exist because
+/// `Core\Cli`'s in-place output — `rule:tooling/in-place-output-is-a-scoped-live-region`'s two handles, which exist because
 /// a region has to have an end for § 8's restoration to be enforceable.
 // rank: 610
 pub(crate) const LIVE: CoreClass = CoreClass {
@@ -1985,7 +1985,7 @@ const TEXT_CARD: ClassDoc = ClassDoc {
 /// `nvs_runtime::value_to_string` renders a carrier as, and the [`TEXT_RUNS`]
 /// every other stream is rendered from.
 ///
-/// § 13, and here only because § 12's `Core\Out::capture` answers with it —
+/// Here only because `Core\Out::capture` answers with it —
 /// `rule:security/capture-answers-the-carrier`.
 // rank: 580
 pub(crate) const TEXT: CoreClass = CoreClass {
@@ -2423,7 +2423,7 @@ const COLOR_CARD: ClassDoc = ClassDoc {
 /// terminal's own theme and a triple is not — and [`sgr_ink`] degrades between
 /// them, which a single encoded number would make an arithmetic puzzle.
 ///
-/// § 13's styling half — `rule:tooling/styling-is-a-value-not-a-grammar`'s two value types, which exist so that
+/// `Core\Cli`'s styling half — `rule:tooling/styling-is-a-value-not-a-grammar`'s two value types, which exist so that
 /// the `Core\Cli\Text` carrier has something to wear that is not a grammar.
 // rank: 590
 pub(crate) const COLOR: CoreClass = CoreClass {

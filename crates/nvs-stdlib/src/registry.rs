@@ -35,8 +35,8 @@
 //!
 //! # A `Core` enum is declared here too
 //!
-//! The spec's own tables name enums as well as members — `Core\Arr::Order` at
-//! § 2's *Ordering* is the first — so [`ENUMS`] is a second roster beside
+//! `Core` names enums as well as members — `Core\Arr::Order` is the first —
+//! so [`ENUMS`] is a second roster beside
 //! [`CLASSES`], and [`CoreTy::Enum`] refers to one by name. Its own doc
 //! comment owns why the two are separate; what belongs here is that
 //! `nvs_types::enums` seeds them into the *same* table a declared `enum` goes
@@ -74,7 +74,7 @@
 //!   `ExprKind::AnonObject` has no lowering of its own at all.
 //!
 //! A **required, positional** fixed-key shape parameter — `Core\Db::open`'s
-//! `Db\Settings`, the first the spec writes — generalises all four, and is
+//! `Db\Settings`, the first one written — generalises all four, and is
 //! `rule:core-api/shape-parameter`'s
 //! `CoreTy::Shape`: a list of *arms*, flattened by the same rule, one arm for
 //! the ordinary case and two or more for a discriminated union. The bag keeps
@@ -125,7 +125,7 @@
 /// says so; this is that decision, and it is recorded here rather than in a
 /// rule because what it decides is how a *row* is written.
 ///
-/// * **Not a [`CoreTy`].** That type is documented as what the spec wrote and
+/// * **Not a [`CoreTy`].** That type is documented as what a signature writes and
 ///   not what the checker interns — `nvs_types::core_lib` lowers
 ///   [`CoreTy::Text`] to a plain interned `string` and carries the mark beside
 ///   it as `MethodSig::param_quals`, so every qualifier question a row asks is
@@ -184,7 +184,7 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Qual {
     /// A qualified argument yields a qualified result — the overwhelming
-    /// majority, and the blank cell in the spec's Q column.
+    /// majority.
     Contagious,
     /// This parameter's content becomes an instruction something executes, so
     /// it **refuses** a qualified argument. `rule:security/sink-predicate` is the predicate.
@@ -230,7 +230,7 @@ impl Qual {
 /// One type in a `Core` member's signature.
 ///
 /// Deliberately smaller than `nvs_types::ty::Ty`: this describes what the
-/// *spec* wrote, not what the checker interns. `nvs-types` lowers each of
+/// *signature* writes, not what the checker interns. `nvs-types` lowers each of
 /// these into its own interner, which is where qualifiers, unions and class
 /// identity live.
 // No `PartialEq`/`Eq`: [`Self::Options`] carries [`CoreOption`]s, which carry
@@ -249,7 +249,7 @@ pub enum CoreTy {
     /// `float`
     Float,
     /// `decimal` — `rule:types/decimal`'s
-    /// scalar, which the spec writes wherever a member is exact over money:
+    /// scalar, which a signature writes wherever a member is exact over money:
     /// the `int|float|decimal` unions of `Core\Math` and the subject of
     /// `Core\Arr::sum`/`product`/`average`.
     ///
@@ -315,7 +315,7 @@ pub enum CoreTy {
     /// `rule:security/isolate-shares-nothing`'s
     /// operand, written as a parameter.
     ///
-    /// The spec's column is `string` and a path is what the member reads. What
+    /// The published signature says `string` and a path is what the member reads. What
     /// this adds to [`Self::Text`] is the *other* accepted spelling: a static
     /// method written `Chat::run(...)`, which is a `callable`-typed expression
     /// and would be an ordinary mismatch at a `string` parameter. The two are
@@ -573,8 +573,8 @@ pub enum CoreTy {
     CallableSig(&'static [CoreTy], &'static CoreTy),
     /// A type *variable*, named — `T` in `count(array<T> $a): uint`.
     ///
-    /// The spec's `Core\Arr` section states the rule this exists for: "`T` is
-    /// a type variable — the stdlib is parametric where user code is not." A
+    /// The rule this exists for: `T` is a type variable, and the stdlib is
+    /// parametric where user code is not. A
     /// variable is bound by unifying the declared parameter types against the
     /// call's actual argument types and then substituted through the whole
     /// signature; `nvs_types` owns both halves. Nothing user-written can
@@ -684,12 +684,12 @@ pub enum CoreTy {
     /// `a_single_value_type_only_appears_inside_a_union` holds that.
     SingleValueInt(i64),
     /// `?T` — `rule:expressions/nullable-conversion`'s
-    /// nullable, which the spec's own tables write at every member that
+    /// nullable, which the registry writes at every member that
     /// answers "absent" (`Core\Arr::first`, `Str::indexOf`, `Path::extension`
     /// — `rule:core-api/shape-rules` R5 makes it the *only* absence spelling).
     ///
     /// A variant of its own rather than a [`Self::Union`] with a `Null`
-    /// member, because that is what the spec writes and because there is no
+    /// member, because that is what a signature writes and because there is no
     /// other position a bare `null` type would be legal in. It interns as
     /// exactly `Union([Null, T])` all the same — the checker has no separate
     /// nullable type — so it inherits everything the union arm above says,
@@ -703,7 +703,7 @@ pub enum CoreTy {
     /// in `sort(array<T> $a, {order?: Order, ...})`.
     ///
     /// The name is resolved against [`ENUMS`], not against the compiled
-    /// program: an enum the spec's own tables name is part of `Core`'s
+    /// program: an enum a `Core` signature names is part of `Core`'s
     /// surface exactly as a member is, so it is declared here and seeded into
     /// the checker's enum table alongside the user's own — see
     /// [`ENUMS`] for why that is one table rather than two.
@@ -779,7 +779,7 @@ pub enum CoreTy {
     /// `array<T>|Iterable<T>|Iterator<T>`. `Core\Arr::from`'s row is the first
     /// to write one, and the `Core\ObjectMap`/`ObjectSet`/`Heap` collections are the next.
     ///
-    /// **A plain `array<T>` satisfies it, and the spec row is written that
+    /// **A plain `array<T>` satisfies it, and the registry row is written that
     /// way.** `rule:iteration/foreach-subjects` fixes the set of things that can be iterated at
     /// exactly three, so a member asking for "a sequence" that accepted only
     /// two of them would refuse `Core\Arr::from($array)` — the commonest
@@ -801,12 +801,12 @@ pub enum CoreTy {
     /// `foreach` over the same value performs. Materialising the sequence into
     /// an array in the IR before the call was the rejected alternative: it
     /// allocates a second copy of every array argument, and it would drain an
-    /// unbounded generator before `Core\Arr::from`'s `{limit: n}` — the spec's
+    /// unbounded generator before `Core\Arr::from`'s `{limit: n}` — the
     /// only guard against exactly that — could stop it.
     ///
     /// **Parameter position only.** A member *returning* a sequence would be
     /// answering with a union whose object half a program can only consume by
-    /// `foreach`, and no spec row does: every row that produces a collection
+    /// `foreach`, and no registry row does: every row that produces a collection
     /// produces an `array<T>` or a named [`Self::Instance`].
     Iterated(&'static CoreTy),
     /// `...$rest` — a **variadic** tail, wrapping the type *each* trailing
@@ -850,7 +850,7 @@ pub enum CoreTy {
     Options(&'static [CoreOption]),
     /// `rule:core-api/shape-parameter`'s
     /// fixed-key shape parameter — `Core\Db::open`'s `Db\Settings`, the first
-    /// one the spec writes. The outer slice is the **arms** and is never
+    /// one written. The outer slice is the **arms** and is never
     /// empty: one arm is a plain fixed-key shape, two or more a discriminated
     /// union whose separator falls out of the arms being pairwise disjoint
     /// (`a_shapes_arms_are_pairwise_disjoint`) rather than out of a field
@@ -956,10 +956,10 @@ pub struct CoreField {
 ///
 /// The registry's counterpart of `nvs_types::defaults::ConstArg`, kept
 /// separate for the reason [`CoreTy`] is kept separate from
-/// `nvs_types::ty::Ty`: this states what the *spec* wrote, and `nvs-types`
+/// `nvs_types::ty::Ty`: this states what the *signature* writes, and `nvs-types`
 /// translates it into the one representation the checker and `nvs-ir` share.
 /// Only the shapes that enum can already emit are expressible — a member whose
-/// spec signature defaults to `null` cannot be registered until
+/// signature defaults to a value it cannot state cannot be registered until
 /// `nvs_types::defaults` grows that variant, which is exactly the friction
 /// this crate wants around a signature the whole language resolves against.
 #[derive(Clone, Copy, Debug)]
@@ -967,7 +967,7 @@ pub struct CoreField {
 pub enum Const {
     /// `null` — an option that was **not given**.
     ///
-    /// `rule:core-api/shape-rules` R2 makes every option optional, but the spec writes several
+    /// `rule:core-api/shape-rules` R2 makes every option optional, but the registry writes several
     /// whose type has no "absent" value in it: `Core\Arr::sort`'s
     /// `{by?: callable, comparator?: callable}` are the first two — a
     /// `callable` cannot be a "no callback" callable, and inventing a
@@ -1033,8 +1033,8 @@ pub enum Const {
     /// The **empty array**, `[]` — the only array a default is ever written
     /// as.
     ///
-    /// A variant of its own rather than a general array constant, because the
-    /// spec never writes a populated one: `Core\Arr::replaceRange`'s
+    /// A variant of its own rather than a general array constant, because no
+    /// signature writes a populated one: `Core\Arr::replaceRange`'s
     /// `$replacement = []` is the row that wanted this, and "nothing to
     /// splice in" is the only array default a member has a use for. A
     /// populated one would also have to state its keys, which is a second
@@ -1090,7 +1090,7 @@ pub enum Const {
 /// sentences; long-form prose stays in the website's pages, and that rule's
 /// *Declined* list says why. **An empty string or an empty slice means
 /// "not written yet"**, never "there is nothing to say": `nvs meta --json`
-/// omits such a field, and a consumer falls back to the spec for it
+/// omits such a field, and a consumer shows it as missing
 /// (`rule:core-api/field-wise-precedence`).
 ///
 /// Spends memory per process, never per request — static strings in
@@ -1103,7 +1103,7 @@ pub struct MethodDoc {
     /// One entry per positional parameter, in [`CoreMethod::params`]'s
     /// order, and then **one per option** of a trailing bag under the
     /// option's own name — a consumer looks a description up by the name the
-    /// spec's signature gives the row, and a bag has no name of its own.
+    /// published signature gives the row, and a bag has no name of its own.
     /// [`ParamDoc::shape`] is for a shape-typed parameter with fixed keys,
     /// which an options bag is not ([`CoreTy::Options`] owns why).
     pub params: &'static [ParamDoc],
@@ -1123,7 +1123,7 @@ pub struct MethodDoc {
 /// parameter and no rule about which a caller writes.
 #[derive(Clone, Copy, Debug)]
 pub struct ParamDoc {
-    /// The name as the spec writes it, without the `$` — `s`, `pattern`,
+    /// The name as the signature writes it, without the `$` — `s`, `pattern`,
     /// `options`.
     pub name: &'static str,
     /// What the parameter is, in one sentence.
@@ -1139,7 +1139,7 @@ pub struct ShapeKeyDoc {
     /// The key's own name — what a call site writes on the left of the
     /// `:` in `{pretty: true}`.
     pub key: &'static str,
-    /// Its type, spelled as the spec spells it — `bool`, `int`, `?string`.
+    /// Its type, spelled as the published signature spells it — `bool`, `int`, `?string`.
     pub ty: &'static str,
     /// What the key does, in one sentence.
     pub desc: &'static str,
@@ -1298,7 +1298,7 @@ impl CoreTy {
         }
     }
 
-    /// This type in the spelling a program writes it — the spec's column, so
+    /// This type in the spelling a program writes it — the published signature's, so
     /// `Text(Sink)` is `string` and `Iterated(T)` is the shapes `foreach`
     /// accepts.
     ///
@@ -1322,7 +1322,7 @@ impl CoreTy {
             Self::Uint => "uint".into(),
             Self::Float => "float".into(),
             Self::Decimal => "decimal".into(),
-            // `rule:security/isolate-shares-nothing`'s entry is a `string` in the spec's column: the method form
+            // `rule:security/isolate-shares-nothing`'s entry is a `string` in the published signature: the method form
             // it also accepts is a *written shape* rather than a second type, so
             // spelling it as a union here would document a `callable` variable as
             // accepted where `nvs_types::expr::isolate` refuses one.
@@ -1647,10 +1647,10 @@ pub struct CoreClass {
     /// The fully-qualified name, backslash-separated exactly as written in
     /// source (`Core\Arr`).
     pub name: &'static str,
-    /// Its **static** members, in the spec's own order — `Core\Arr::count`,
+    /// Its **static** members — `Core\Arr::count`,
     /// reached through the class name and nothing else.
     pub methods: &'static [CoreMethod],
-    /// Its **instance** members, in the spec's own order — `$match->text()`,
+    /// Its **instance** members — `$match->text()`,
     /// reached through a value and nothing else.
     ///
     /// A separate roster rather than a flag on [`CoreMethod`] because the two
@@ -1668,8 +1668,7 @@ pub struct CoreClass {
     /// class; nothing outside this crate reads it, since a `Core` instance has
     /// no property a program can reach ([`CoreTy::Instance`]).
     pub slots: &'static [&'static str],
-    /// Its constants, in the spec's own order — empty for a class the spec
-    /// gives none, which is most of them.
+    /// Its constants — empty for a class that has none, which is most of them.
     pub constants: &'static [CoreConst],
     /// Its own card, or `None` for a class that landed before classes carried
     /// one — the same seam [`CoreMethod::doc`] is. A completion list shows
@@ -2272,12 +2271,12 @@ pub const TRY_PARSE_CLASSES: &[&str] = &[crate::uri::NAME, crate::uuid::NAME];
 /// the reason [`crate::instance`]'s module docs give: a `Core` class has no
 /// member a program resolves here, and `nvs-ir` reads this to lower `new` on
 /// one to an ordinary helper call. A name here **must** be in [`CLASSES`] —
-/// unlike [`GENERIC_CLASSES`], whose arity is a property of the spec's table
-/// rather than of anything on disk — because the helper builds an instance
+/// unlike [`GENERIC_CLASSES`], whose arity is a property of that roster
+/// rather than of anything registered — because the helper builds an instance
 /// against that class's declared [`CoreClass::slots`].
 ///
 /// The second half is a whole [`CoreMethod`] rather than a bare symbol so that
-/// **a constructor can take arguments**: § 9's `Core\Heap` is ordered by a
+/// **a constructor can take arguments**: `Core\Heap` is ordered by a
 /// comparator given at construction, and one written `params`/`defaults` pair
 /// is what lets `nvs_types::core_lib` seed it as an ordinary `constructor`
 /// signature — the same shape every other `Core` row is checked through,
@@ -2412,7 +2411,7 @@ pub struct CaseDoc {
 /// through — the same "seed a table rather than special-case `Core`" rule
 /// `nvs_types::core_lib` states for members.
 ///
-/// The spec's § 4 names `Month { January … December }` and it is deliberately
+/// A `Core\Time` `Month { January … December }` enum is deliberately
 /// absent: no member takes or answers with it yet, and an entry here is
 /// reachable from source the moment it exists — a case a program can write and
 /// pass nowhere is surface with no meaning behind it. That is the test every
@@ -2457,8 +2456,8 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::mime::TYPE,
     // What `Core\Xml\Node::kind` answers with, and the one roster both parsers
     // build against — closed at five, so a walk over a document is exhaustive.
-    // Beside `Core\Mime`'s because both are § 17's, and for the reason that
-    // section's classes sit together in [`CLASSES`].
+    // Beside `Core\Mime`'s because both are document formats, and for the
+    // reason the format classes sit together in [`CLASSES`].
     crate::xml::KIND,
     crate::log::LEVEL,
     crate::env::MODE,
@@ -2769,7 +2768,7 @@ pub fn contract(name: &str) -> Option<&'static CoreContract> {
 /// `nvs_types` to prove against, and its members are the rows above rather
 /// than entries in a class graph.
 ///
-/// **Two rows answer yes, and they are two different rules.** A class the spec
+/// **Two rows answer yes, and they are two different rules.** A class the registry
 /// gives a `toString` renders through that member, which is `rule:classes/stringable`
 /// exactly. A **sink carrier** renders through
 /// `rule:security/capture-answers-the-carrier`
@@ -3202,8 +3201,8 @@ pub fn must_use_help(class: &str, method: &str) -> Option<&'static str> {
 /// A roster rather than a field on [`CoreClass`], for the reason
 /// [`WRITTEN_CLASS_MEMBERS`] gives: it is three entries against every class
 /// in [`CLASSES`], and a field would be empty on all the rest. An entry here
-/// **need not be registered yet** — the arity is a property of the spec's
-/// table, so the grammar and the checker can agree on it before the class's
+/// **need not be registered yet** — the arity is a property of this
+/// roster, so the grammar and the checker can agree on it before the class's
 /// own members land.
 pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
     (r"Core\ObjectMap", &["K", "V"]),
@@ -3265,10 +3264,10 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // `rule:core-classes/db-statement-members`' `Db\Rows` under `foreach ($rows as Row
     // $row)`: a result set walks what it is already holding, which is its own `T` — a `Core\Db\Row` for `query`
     // and the hydrated class for `queryAs<T>`. Back to one of the receiver's
-    // own variables, like the three collections above, because § 18's `Rows`
+    // own variables, like the three collections above, because `Core\Db`'s `Rows`
     // and `Rows<T>` are one generic class and not two.
     (crate::db::ROWS_NAME, &CoreTy::Var("T")),
-    // § 18's `stream(): Iterable<Db\Row>` and `streamAs<T>(): Iterable<T>`,
+    // `Core\Db`'s `stream(): Iterable<Db\Row>` and `streamAs<T>(): Iterable<T>`,
     // which are one class at two arguments as the row above is: a walk yields
     // what it was opened to build, so the element is the receiver's own
     // variable and `nvs_types::expr::iteration` substitutes the argument in.
@@ -3297,7 +3296,7 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
         crate::request::FILES_NAME,
         &CoreTy::Instance(crate::request::PART_NAME),
     ),
-    // § 12's `rows(): Core\Csv\Rows`. A concrete element like the `Core\IO`
+    // `Core\Csv`'s `rows(): Core\Csv\Rows`. A concrete element like the `Core\IO`
     // rows above and for the same reason: a CSV record is an `array<string>`
     // whatever the document held, keyed by the header's names or by column
     // index, and neither keying is a type the receiver could be at.
@@ -3653,7 +3652,7 @@ mod tests {
         }
     }
 
-    /// Every registered name is one the spec's own naming rules allow: a
+    /// Every registered name is one the naming rules allow: a
     /// class under `Core`, a `camelCase` member (`rule:core-api/identifier-casing`), and no leading
     /// underscore anywhere (`rule:classes/no-leading-underscore-identifiers`). Cheap, and it catches a paste error in
     /// a table that will grow to several hundred rows.
@@ -4956,9 +4955,7 @@ mod tests {
     /// to a slot by its *index* here: `nvs_types::core_lib` reads
     /// [`CoreMethod::names`] the way it reads [`CoreMethod::positional`], and
     /// the two lists disagreeing would bind an argument to the wrong
-    /// parameter rather than reject it. The spec column is
-    /// `every_registry_rows_names_are_the_specs_signature_column`'s subject;
-    /// this is the half that holds for the rows §§ 1-12 do not write.
+    /// parameter rather than reject it.
     #[test]
     fn every_registry_row_names_one_parameter_per_positional_slot() {
         for class in CLASSES {
@@ -6116,9 +6113,9 @@ mod tests {
     /// — either is a half-written class rather than a design.
     ///
     /// The one exception is a **handle**: a class whose slots something other
-    /// than its own members read, and which the spec writes no member *on*.
+    /// than its own members read, and which no signature writes a member *on*.
     /// Its state is reachable, just not through itself, so it is listed here
-    /// by name rather than given a member the spec does not write.
+    /// by name rather than given a member no signature writes.
     /// `Core\Regex\Pattern` is read by `Core\Regex`'s members.
     /// `Core\Script\Handle`'s one slot is read by the lowering of `await`, and
     /// its emptiness of members is the whole point of it
@@ -6167,7 +6164,7 @@ mod tests {
     /// this list, each the same way: `Core\Db\Connection` when `query` landed
     /// on it, `Core\Db\Rows` when its readers did, and `Core\Cli\Text` when
     /// `text()` did — its runs are still rendered by `value_to_string`, but a
-    /// class the spec writes a member on is no longer a handle.
+    /// class with a member written on it is not a handle.
     ///
     /// The other exception is the mirror image: a class with members and **no
     /// slots**, because its receiver's whole state is the *context*'s rather

@@ -935,10 +935,10 @@ pub(crate) const RESPONSE_NAME: &str = r"Core\Test\Response";
 /// grouped by name in [`HEADERS_SLOT`], beside the body the response already
 /// held. Test-only: no served request builds one.
 ///
-/// § 18's in-process request, as the thing one answers with — a class beside
+/// The in-process request, as the thing one answers with — a class beside
 /// `Core\Test` for the reason `Core\Script\ExitReport` sits beside
 /// `Core\Script`, and [`crate::test`]'s own doc on it owns why it is a
-/// `Core`-owned instance rather than the shape § 18's example writes.
+/// `Core`-owned instance rather than a shape.
 // rank: 470
 pub(crate) const RESPONSE: CoreClass = CoreClass {
     name: RESPONSE_NAME,

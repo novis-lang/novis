@@ -114,7 +114,7 @@ const MAKER: CoreTy = CoreTy::Shape(&[&[
 
 /// The registry row. See [`crate::registry::CLASSES`].
 ///
-/// § 13, and the second row after `Core\Attributes` whose members never
+/// The second row after `Core\Attributes` whose members never
 /// run: `rule:programs/implementing` expands `implementing<T>()` while checking, so
 /// [`crate::program`] registers a signature and an aborting body.
 // rank: 560
