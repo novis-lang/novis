@@ -7497,8 +7497,9 @@ mod tests {
     // covers: Core\Test::assertTrue, Core\Test::expectFailure, Core\Test::scriptAnswers
     #[test]
     fn assert_true_expect_failure_and_script_answers_write_the_ledger_and_the_queue() {
-        /// How many failures [`fails_and_catches`] records.
-        const CAUGHT: usize = 20_000;
+        /// How many failures [`fails_and_catches`] records. Two hundred under
+        /// Miri, because each failure is a call and Miri pays for every one.
+        const CAUGHT: usize = if cfg!(miri) { 200 } else { 20_000 };
 
         fn asserted(ctx: &mut Ctx, actual: bool, message: Option<&str>) -> Result<(), String> {
             let message = message.map_or(Value::null(), |given| {

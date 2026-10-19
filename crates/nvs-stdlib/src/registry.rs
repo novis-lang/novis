@@ -5196,6 +5196,11 @@ mod tests {
     /// The rule is therefore on the card itself rather than on any renderer —
     /// say *what is true*, and leave the reason to the Rust doc comment
     /// directly above the card, which is where a contributor looks.
+    #[cfg_attr(
+        miri,
+        ignore = "it reads only the cards' static text, which has no memory for Miri to check, \
+                  and scanning every card takes minutes under Miri"
+    )]
     #[test]
     fn no_registry_card_cites_a_rule() {
         /// A rule citation, which is its token in backticks. The bare words
@@ -5258,6 +5263,11 @@ mod tests {
     /// PHP is named only where the member reads or writes something PHP
     /// itself produced, which is interop rather than translation; those
     /// members are listed in `INTEROP` by their full name.
+    #[cfg_attr(
+        miri,
+        ignore = "it reads only the cards' static text, which has no memory for Miri to check, \
+                  and scanning every card takes minutes under Miri"
+    )]
     #[test]
     fn no_member_text_says_what_it_replaces_in_php() {
         // A bcrypt hash PHP wrote is one `verify` reads.
