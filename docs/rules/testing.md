@@ -999,7 +999,8 @@ what every CI system already ingests. All three render the same case list and a 
 **once**, so the plaintext mark, the JSON string and the XML element cannot disagree about how a
 test came out.
 
-Under a machine format the program's own output goes to **stderr**: the redirect that produces the
+Under a machine format the program's own output goes to **stderr**, a failed test's always and a
+passing test's under `--show-output`: the redirect that produces the
 document makes stdout the document, and a test's `echo` interleaved into it would produce something
 no parser accepts. It is not quoted back into the document either — a whole suite's output is a cost
 every run would pay for the few being debugged. A machine format also names a `#[Test]` run, so
