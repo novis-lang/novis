@@ -1,7 +1,7 @@
 <?nvs
 // Keeps the quantities in a small basket above a limit, as a shop does before it writes an order.
 // bench: iterations 256
-// bench: allocations 16
+// bench: allocations 12
 // bench: calls 6
 // bench: complexity linear
 

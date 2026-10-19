@@ -51,8 +51,9 @@
 //!
 //! # A callback that does not want a key is never handed one
 //!
-//! [`nvs_core_arr_map`], [`nvs_core_arr_filter`] and [`nvs_core_arr_reduce`]
-//! each call back into Novis code per entry, and `Core\Arr`'s rule that every
+//! [`nvs_core_arr_map`], [`nvs_core_arr_filter`], [`nvs_core_arr_reduce`],
+//! [`nvs_core_arr_count_by`] and the four predicate members [`find_slot`]
+//! serves each call back into Novis code per entry, and `Core\Arr`'s rule that every
 //! callback receives `($value, $key)` and may declare fewer parameters means the key is
 //! frequently built and then dropped by the trimming in
 //! `nvs_runtime::call_callable`. On a list that is a rendered decimal and an
@@ -88,10 +89,6 @@
 //! A map over several arrays at once, and a zip, have no member: each is a
 //! `foreach` over `Arr::keys`. A zip's element type would be `array<T|U>`,
 //! which gives up the element typing every other member here is checked by.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/arr.rs` lists them.
 
 use nvs_runtime::{Ctx, Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
 
@@ -4238,6 +4235,10 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         let by = optional_callback(&args[1], "countBy", "by")?;
+        let by_wants_key = match by {
+            Some(by) => nvs_runtime::callable_arity(by)? >= 2,
+            None => false,
+        };
         let subject = Held::new(args[0], borrowed(array));
 
         // Room for every entry, the most buckets the entries can name.
@@ -4257,22 +4258,11 @@ nvs_runtime::nvs_helper! {
                     &plain
                 }
                 Some(callback) => {
-                    let key = subject
-                        .key_at(slot)
-                        .expect("next_slot only names live entries");
-                    // One reference for the duration of the call, released
-                    // right after: `call_callable` takes its own.
-                    let key_arg = Value::str(key);
-                    let named = nvs_runtime::call_callable(ctx, callback, &[value, key_arg]);
-                    #[expect(
-                        unsafe_code,
-                        reason = "this frame owns exactly the reference `key_at` \
-                                  just handed back"
-                    )]
-                    unsafe {
-                        key_arg.release();
-                    }
-                    let named = named?;
+                    let named = call_with_key(ctx, callback, by_wants_key, value, || {
+                        subject
+                            .key_at(slot)
+                            .expect("next_slot only names live entries")
+                    })?;
                     // Copied out before the release below — [`key_bytes`]
                     // borrows.
                     let bucket = key_bytes(&named, "countBy").map(|key| key.to_vec());
@@ -4945,6 +4935,36 @@ fn owned_key_at(subject: &NvsArray, slot: usize) -> Value {
     )
 }
 
+/// `callback($value, $key)`, where `key` builds the key only when `wants_key`
+/// is set. A callback that declares one parameter gets `($value)` alone, and no
+/// key is built for it.
+///
+/// `wants_key` is read once per walk off `nvs_runtime::callable_arity`, as
+/// this module's doc says.
+fn call_with_key(
+    ctx: &mut nvs_runtime::Ctx,
+    callback: Value,
+    wants_key: bool,
+    value: Value,
+    key: impl FnOnce() -> NvsStr,
+) -> Result<Value, Fault> {
+    if !wants_key {
+        return nvs_runtime::call_callable(ctx, callback, &[value]);
+    }
+    // One reference for the duration of the call, released right after:
+    // `call_callable` takes its own.
+    let key_arg = Value::str(key());
+    let answer = nvs_runtime::call_callable(ctx, callback, &[value, key_arg]);
+    #[expect(
+        unsafe_code,
+        reason = "this frame owns exactly the reference `key` just built"
+    )]
+    unsafe {
+        key_arg.release();
+    }
+    answer
+}
+
 /// The first slot `predicate` answers truthily for, or `None`.
 ///
 /// Shared by all four predicate members below — `find` and `findKey` read a
@@ -4963,26 +4983,18 @@ fn find_slot(
     predicate: Value,
     negate: bool,
 ) -> Result<Option<usize>, Fault> {
+    let wants_key = nvs_runtime::callable_arity(predicate)? >= 2;
     let mut from = 0usize;
     while let Some(slot) = subject.next_slot(from) {
         from = slot + 1;
         let value = subject
             .value_at(slot)
             .expect("next_slot only names live entries");
-        let key = Value::str(
+        let verdict = call_with_key(ctx, predicate, wants_key, value, || {
             subject
                 .key_at(slot)
-                .expect("next_slot only names live entries"),
-        );
-        let verdict = nvs_runtime::call_callable(ctx, predicate, &[value, key]);
-        #[expect(
-            unsafe_code,
-            reason = "this frame owns exactly the reference `key_at` cloned"
-        )]
-        unsafe {
-            key.release();
-        }
-        let verdict = verdict?;
+                .expect("next_slot only names live entries")
+        })?;
         let truthy = nvs_runtime::value_truthy(verdict);
         #[expect(
             unsafe_code,
