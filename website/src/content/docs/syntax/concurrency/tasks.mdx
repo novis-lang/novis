@@ -3,45 +3,22 @@ title: Running tasks at the same time
 covers: ['lang:concurrency/no-colouring-i-o-just-waits', 'lang:concurrency/core-task-all-a-fixed-set-of-tasks', 'lang:concurrency/core-task-map-one-task-per-element', 'lang:concurrency/what-does-not-exist']
 description: How Core\Task::all and Core\Task::map run several functions at the same time, with no async and no await.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 A task is a function that runs at the same time as other tasks. While one task waits for a file,
 the network or a timer, the other tasks keep working. You write ordinary code. A call that waits,
 like `Core\Time::sleep`, returns when it is done.
 
-## A fixed set of tasks
+<FeatureSection examples="lang/concurrency/no-colouring-i-o-just-waits" heading="A function that waits" id="a-function-that-waits" />
 
-`Core\Task::all` takes an anonymous object. Each field is a function with no parameters.
+<FeatureSection examples="lang/concurrency/core-task-all-a-fixed-set-of-tasks" heading="A fixed set of tasks" id="a-fixed-set-of-tasks" />
 
-<Snippet src="syntax/tasks/01-all.nvs" />
+<FeatureSection examples="lang/concurrency/core-task-map-one-task-per-element" heading="One task for each element" id="one-task-for-each-element" />
 
-- Every function starts at once. `Core\Task::all` returns when all of them are done.
-- The result has the same field names. Each field has the return type of its function, so you
-  need no `as`.
-- A variable of type `callable`, with no signature, gives a field of type `mixed`. Text
-  converted from that field with `as string` is a `tainted string`.
-- The functions can be anonymous functions, variables or method references like `Loader::load(...)`.
-- An array of functions does not compile. Use an anonymous object with named fields.
+<FeatureSection examples="lang/concurrency/what-does-not-exist" heading="What Novis does not have" id="what-novis-does-not-have" />
 
-## One task for each element
-
-`Core\Task::map` calls a function once for each element of an array. Each call is its own task.
-
-<Snippet src="syntax/tasks/02-map.nvs" />
-
-- The result has the same keys as the array, in the same order. The order the tasks finish in
-  does not matter.
-- The function gets the value, and the key as an optional second parameter.
-
-## What Novis does not have
-
-- A task is a function you give to `Core\Task`. Novis has no `async` keyword and no promises.
-- Novis has no threads. To run code fully separate from your program, use
-  [spawn script](/syntax/concurrency/isolates/).
-- Every task ends before the call that started it returns. `Core\Task::all` and `Core\Task::map` return
-  only after every task has ended.
-- Nothing is shared between two web requests. Each request has its own variables and static
-  properties.
+Nothing is shared between two web requests. Each request has its own variables and static
+properties.
 
 ## Do and don't
 
