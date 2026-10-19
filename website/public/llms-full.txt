@@ -6280,8 +6280,9 @@ users orders
 `Core\Task::all` takes a shape whose every field is a zero-argument callable, runs them all
 concurrently, and answers a shape with the same field names, each typed by that field's declared
 return type — no cast at the use site. Where the callable was made does not matter: an anonymous
-function, a method reference and a variable are equally good, and a field whose callable declares no return
-type answers `mixed` for that field alone. What is refused is a subject that is not a shape of
+function, a method reference and a variable are equally good. An expression-bodied `fn` with no
+return type answers its expression's type, and only a field holding a plain `callable`, with no
+signature, answers `mixed` for that field alone. What is refused is a subject that is not a shape of
 callables.
 
 ```nvs
