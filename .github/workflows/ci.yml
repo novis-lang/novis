@@ -58,13 +58,24 @@ concurrency:
 # investigate, never a number to raise here without one.
 #
 # The repository's Actions cache holds 10 GB, and GitHub evicts the least recently used entry past
-# that, so every Rust cache a job saves can push a slower job's cache out. Only a job whose cold
-# run is long saves one: every Windows and macOS leg, both Linux `test` legs, the release-profile
-# Linux jobs, the Miri jobs and the fuzz smoke. A Linux job that builds cold in about 16 minutes
-# or less saves none, with `save-if: false`, or `save-if` on the leg's `os` in a matrix, and so
-# builds cold every run. Those are `database`, `ext-templates` and `extension` on Linux,
-# `extension-host`, `docker`, `lint`, `reference`, `asan` and `tsan`. Each finishes cold well
-# inside the slowest `test` leg's time, so a warm cache would make the run no shorter.
+# that, so every Rust cache a job saves can push a slower job's cache out. A few heavy jobs save
+# one, and a job that builds what a heavy job already built reads that job's entry through the
+# same `shared-key` and saves nothing (`save-if: false`). The readers restore the entry the last
+# run on `main` saved, so no job waits for another inside a run.
+#
+# - `<os>-test`, saved by each `test` leg: debug builds. `ext-templates` and `extension` read it
+#   on every OS, and `database`, `extension-host`, `reference` and `lint` read the Linux one.
+#   `cargo build -p nvs-cli` finds 475 of its 485 dependency builds there. `lint` finds a third
+#   of its own, because clippy builds dependencies as metadata only.
+# - `cost-guards-<os>-cost-guards`, saved by each `cost-guards` leg: release builds.
+#   `extension-sandbox` reads the Linux one and finds 508 of its 515 dependency builds there.
+# - A key of its own for `proofs` (its own profile), `unsafe-audit`, `miri`, `miri-units` and
+#   `fuzz-smoke`, whose builds no other job makes.
+#
+# `docker`, `asan` and `tsan` save nothing and read nothing that exists, so they build cold. Each
+# takes under six minutes. `docker` runs on Ubuntu 22.04, so it must not read an entry built on a
+# newer image, whose build scripts need a newer glibc than 22.04 has. `asan` and `tsan` build
+# with nightly and sanitizer flags, and no other job builds that way.
 jobs:
   # ---------------------------------------------------------------------------
   # Which lanes this run needs. Every gated job below reads one boolean from
@@ -167,7 +178,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: ${{ matrix.name }}
+          shared-key: ${{ matrix.name }}-test
           save-if: ${{ matrix.part != 'conformance' }}
 
       # Some Rust tests check the tree through `bun nv` (`nvs-ir`'s refusal roster reads
@@ -304,7 +315,7 @@ jobs:
       # A key of its own: these are release artifacts, and `test` caches debug ones.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: cost-guards-${{ matrix.name }}
+          shared-key: cost-guards-${{ matrix.name }}-cost-guards
 
       # The warm-start budget runs through `bun nv`, so this job needs Bun and the tools' dependencies.
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -465,7 +476,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: database
+          shared-key: linux-x86_64-test
           save-if: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -546,7 +557,8 @@ jobs:
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: wasm-probe
+          shared-key: cost-guards-linux-x86_64-cost-guards
+          save-if: false
       - name: Sandbox containment and boundary costs
         run: cargo test --release -p nvs-abi-probe --features wasm-probe
       - name: Lint with the feature enabled
@@ -591,8 +603,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: ext-templates-${{ matrix.name }}
-          save-if: ${{ matrix.os != 'ubuntu-latest' }}
+          shared-key: ${{ matrix.name }}-test
+          save-if: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -676,13 +688,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install toolchain
         run: rustup toolchain install --no-self-update
-      # Its own cache key rather than `test`'s: this leg builds one package, and
-      # resolving features over `nvs-cli` alone into the workspace build's target
-      # directory would leave a second copy of every crate beside the first.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: extension-${{ matrix.name }}
-          save-if: ${{ matrix.os != 'ubuntu-latest' }}
+          shared-key: ${{ matrix.name }}-test
+          save-if: false
 
       # The binary the suites drive is the one this run built, never one already
       # on the runner: the protocol suite asserts against this tree's `nvs lsp`.
@@ -748,7 +757,7 @@ jobs:
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: extension-host
+          shared-key: linux-x86_64-test
           save-if: false
       - name: Build nvs
         run: cargo build -p nvs-cli
@@ -840,6 +849,7 @@ jobs:
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
+          shared-key: linux-x86_64-test
           save-if: false
       - name: rustfmt
         run: cargo fmt --all --check
@@ -959,7 +969,7 @@ jobs:
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: reference
+          shared-key: linux-x86_64-test
           save-if: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
