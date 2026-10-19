@@ -42,7 +42,7 @@ stages:
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-codegen/src/emit.rs]
   - id: 8
     title: "Core\\BigInt converts text in sub-quadratic time, or caps its digits"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/bigint.rs]
   - id: 9
     title: "what waits for a measured wall is a stated bound, and the cross-engine suite is gone"
@@ -230,18 +230,27 @@ out of the call.
 
 ### 8. Core\BigInt converts text in sub-quadratic time, or caps its digits
 
-**Does:** closes `bigint-division-and-decimal-text-grow-quadratically` for the members that read or
-write decimal text. `parse` often reads text a request sent, so a quadratic `parse` is a
+**Does:** takes the members that read or write decimal text, and every division member the library
+already makes sub-quadratic, out of the BigInt growth record. `parse` often reads text a request sent, so a quadratic `parse` is a
 denial-of-service question first and a speed question second.
 
 **Split:** at stage start, an `Explore` subagent reads the installed `num-bigint` 0.5 source
 (`Cargo.toml:452`) and says whether `from_str_radix` and `to_str_radix` for base 10 are already
 sub-quadratic, as `file:line` and one line each.
 
-- [ ] `parse`, `toString` and `format` convert by divide and conquer, so their cost is sub-quadratic in the number's length. `crates/nvs-stdlib/src/bigint.rs:957`, `crates/nvs-stdlib/src/bigint.rs:1222`, `crates/nvs-stdlib/src/bigint.rs:1232`
-- [ ] Only if no sub-quadratic conversion fits a medium slice: the digit cap of § *Standing decisions*, as a rule fragment with its own conformance case and a message that follows AGENTS.md § *Text an end user reads*. `docs/rules/core-classes/bigint-digit-cap.md:1`
-- [ ] `parse`, `toString` and `format` each get a `.scale.nvs` sibling that declares the class it reaches. `benches/members/core/BigInt/parse.scale.nvs:1`, `benches/members/core/BigInt/toString.scale.nvs:1`, `benches/members/core/BigInt/format.scale.nvs:1`
-- [ ] `div`, `mod`, `gcd`, `lcm`, `sqrt` and `powMod` get a sub-quadratic algorithm only where the same slice reaches it. The rest is a stated bound in the module doc, and the record is deleted. `crates/nvs-stdlib/src/bigint.rs:1`, `data/gaps/nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically.json:1`
+- [x] `parse`, `toString` and `format` convert by divide and conquer, so their cost is sub-quadratic in the number's length. `crates/nvs-stdlib/src/bigint.rs:957`, `crates/nvs-stdlib/src/bigint.rs:1222`, `crates/nvs-stdlib/src/bigint.rs:1232`
+  - [x] The library's `to_str_radix` is already divide and conquer from 32 limbs, and its `from_str_radix` is quadratic.
+  - [x] `parsed` reads text past `2 * LEAF_DIGITS` by halves, and a test pins it to the library's reading.
+- [x] Only if no sub-quadratic conversion fits a medium slice: the digit cap of § *Standing decisions*, as a rule fragment with its own conformance case and a message that follows AGENTS.md § *Text an end user reads*. `docs/rules/core-classes/bigint-digit-cap.md:1`
+  - [x] Not needed: `parse` is sub-quadratic, so no cap was written.
+- [x] `parse`, `toString` and `format` each get a `.scale.nvs` sibling that declares the class it reaches. `benches/members/core/BigInt/parse.scale.nvs:1`, `benches/members/core/BigInt/toString.scale.nvs:1`, `benches/members/core/BigInt/format.scale.nvs:1`
+  - [x] Each bench declares `complexity karatsuba` and its sibling ramps 32k to 512k digits.
+  - [x] The three figures are re-recorded under callgrind.
+- [x] `div`, `mod`, `gcd`, `lcm`, `sqrt` and `powMod` get a sub-quadratic algorithm only where the same slice reaches it. The rest is a stated bound in the module doc, and the record is deleted. `crates/nvs-stdlib/src/bigint.rs:1`, `data/gaps/nvs-stdlib/bigint-gcd-and-modular-power-grow-quadratically.json:1`
+  - [x] `div` and `mod` are the library's Burnikel-Ziegler, and declare `karatsuba` with a sibling each.
+  - [x] `sqrt` is `root`, which halves the width and corrects by Newton steps, since the library's full-width Newton measured a slope of 1.76. It declares `karatsuba` with a sibling.
+  - [x] The module doc's § *What it costs* states each member's algorithm and that `MAX_BITS` bounds only `pow` and `shl`.
+  - [x] `gcd`, `lcm` and an odd-modulus `powMod` need a half-gcd and a faster Montgomery step, which is big work. The record is narrowed to them and renamed, and stage 9 states it as a bound.
 
 ### 9. what waits for a measured wall is a stated bound, and the cross-engine suite is gone
 
@@ -254,7 +263,7 @@ bench-compare` over `benches/compare/`, is a separate suite and stays.
 `data/perf/`, and returns any hit missing from the last item. "userland" alone also means user code,
 and those hits stay.
 
-- [ ] `virtual-dispatch-resolves-by-name-not`, `nothing-inlines` and `a-switch-terminator-lowers-to-a-compare-chain` are stated bounds in their module docs, each naming its cost and what closes it, and their records are deleted. So is any record an earlier stage stopped on. `data/gaps/nvs-ir/virtual-dispatch-resolves-by-name-not.json:1`, `data/gaps/nvs-runtime/nothing-inlines.json:1`, `data/gaps/nvs-codegen/a-switch-terminator-lowers-to-a-compare-chain.json:1`
+- [ ] `virtual-dispatch-resolves-by-name-not`, `nothing-inlines` and `a-switch-terminator-lowers-to-a-compare-chain` are stated bounds in their module docs, each naming its cost and what closes it, and their records are deleted. So is any record an earlier stage stopped on: stage 8 stopped on `bigint-gcd-and-modular-power-grow-quadratically`. Its three benches declare `complexity quadratic`, which `nv scaling` accepts only under a gap marker, so a stated bound for them needs a way for a bench to declare a bounded quadratic cost, or the record keeps another owner. `data/gaps/nvs-ir/virtual-dispatch-resolves-by-name-not.json:1`, `data/gaps/nvs-runtime/nothing-inlines.json:1`, `data/gaps/nvs-codegen/a-switch-terminator-lowers-to-a-compare-chain.json:1`
 - [ ] `benches/userland/` and `data/perf/userland.ndjson` are deleted. `bun nv bench` keeps `--warm-start` alone, which CI runs (`.github/workflows/ci.yml:333`). `--serve-vs-fpm` and `benches/serve/hello.php` go with the suite, and `benches/serve/echo.nvs` stays for `bun nv bench-load`. `tools/nv/cmd/bench.ts:1`
 - [ ] `rule:testing/userland-benchmarks` and `rule:tooling/bench-engine-list-is-data` are retired, and nothing cites them. `docs/rules/testing/userland-benchmarks.md:1`, `docs/rules/tooling/bench-engine-list-is-data.md:1`, `docs/rules/tooling/python-claims.md:21`, `docs/rules/testing/member-perf-ledger.md:68`, `docs/goals/mutation-testing.md:27`
 - [ ] Every other mention is rewritten or removed: `Cargo.toml:4`, `Cargo.toml:31`, `CONTRIBUTING.md:169`, `tools/nv/proofs/perf.ts:392`, `tools/nv/test/rules.test.ts:57`, `docs/setup.md:31`, `docs/setup.md:33`, `docs/agent/commands.md:522`, `docs/examples/README.md:10`, `benches/members/README.md:6`, `benches/members/README.md:60`, `benches/serve/hello.nvs:6`, `crates/nvs-codegen/src/emit.rs:3385`, `crates/nvs-runtime/src/lib.rs:175`, `tests/conformance/core/arr-sort-key-sort-and-comparator-sort-agree-on-every-row-shape-and-size.nvst:13`. A comment that cited a cross-engine figure as its evidence cites its guard test instead.
@@ -263,53 +272,60 @@ and those hits stay.
 
 ### State
 
-Stages 1 to 7, 10 and 11 are done. Stage 7 landed this session in three slices:
+Stages 1 to 8, 10 and 11 are done. Stage 8 landed this session:
 
-- Identical string literals in one unit share one data object. `emit::Literals`
-  (`crates/nvs-codegen/src/emit.rs:113`) holds the name counter and a map from bytes to `DataId`,
-  and `immortal_str_data` looks the bytes up first. The map is compile-time memory, one entry per
-  distinct literal, dropped with the unit builder.
-- A written duration is `InstKind::ConstDuration(i64)` (`crates/nvs-ir/src/ir.rs`), emitted by
-  `emit_const_duration` as an immortal `CoreTimeDuration` in the data section, with its class word
-  relocated and the count in slot 0. Each written site is its own object, so `90m == 1h30m` stays
-  `false` (the conformance case pins it), and a function returning `30s` returns the same object
-  twice. `rule:types/duration` says so. `nvs_types::CORE_DURATION_FROM_NANOS` is gone.
-- A literal `CoreStr::format` placeholder with a flag, a width, a precision or an integer conversion
-  over `int`/`uint` (or `%s` over those or a `string`) is `FormatPiece::Converted`
-  (`crates/nvs-types/src/expr_table.rs:1420`). It lowers to one call of the row-less
-  `nvs_stdlib::format::PIECE_SYMBOL`, which runs the member's own renderer over that one placeholder.
-  `converts_without_throwing` (`crates/nvs-types/src/intrinsics.rs`) admits only placeholders that
-  cannot throw, with numbers of at most four digits. An argument number (`%1$d`) and float
-  conversions still call the member.
-- Both records are deleted. `CoreStr::format` now declares `calls 1` and was re-recorded: 2
-  allocations per op, down from 9. The 19 `CoreTimeDuration` figures were re-recorded and pass.
+- `Core\BigInt::parse` reads text past `2 * LEAF_DIGITS` (2048 digits) in a radix that is not a
+  power of two by halves: `parsed` and `from_digits` (`crates/nvs-stdlib/src/bigint.rs:944`,
+  `:974`). The library's `from_str_radix` is quadratic, and its `to_str_radix` is already divide and
+  conquer from 32 limbs, so `toString` and `format` needed no code. No digit cap was written.
+- `sqrt` is `root` (`crates/nvs-stdlib/src/bigint.rs:1191`): the root of the top half of the bits,
+  shifted back, then Newton steps from above. The library's full-width Newton measured a slope of 1.76
+  under callgrind, past `karatsuba`'s 1.7.
+- `parse`, `toString`, `format`, `div`, `mod` and `sqrt` declare `complexity karatsuba`, each with a
+  `.scale.nvs` sibling. The module doc's § *What it costs* names every member's algorithm, and says
+  `MAX_BITS` bounds only `pow` and `shl`.
+- The record is narrowed to `gcd`, `lcm` and an odd-modulus `powMod`, and renamed
+  `data/gaps/nvs-stdlib/bigint-gcd-and-modular-power-grow-quadratically.json`. Each needs big work
+  (half-gcd, a Montgomery step over Karatsuba), so stage 9's first item now owns it.
+- Every BigInt bench declared `calls 0`, which `75fd145bc`'s call probes made wrong. Its figures
+  were not stale then, so nobody saw it. Each now declares what it measures: 1 or 2.
+- `nv scaling`'s callgrind leg now syncs and builds `/var/tmp/nvs-target-wsl/debug/nvs` once per
+  process before its first run (`currentWslNvs`, `tools/nv/cmd/scaling.ts:197`). A stale binary
+  measured an older tree before.
+- `Core\Str::format`'s piece helper declares its type check unreachable from source
+  (`crates/nvs-stdlib/src/format.rs:141`). `conformance_coverage` failed on it.
+
+The nightly run 39322549769's six red jobs were already fixed by `e14320e8f`, `4e3488608` and
+`7b17a387c`, which landed after its commit. The miri stdlib leg was cancelled beside them.
 
 Six gap records still name this goal, so the `owners` check stays red until stage 9.
-
-Another session had uncommitted edits in `crates/nvs-cli/src/{cache,serve,testing}.rs` while this
-one ran. They were not touched or staged here.
-
-The callgrind leg of the perf proof runs `/var/tmp/nvs-target-wsl/debug/nvs`, which nothing rebuilds.
-`syncMirror` from `tools/nv/accept/mirror.ts` and then `wslBuildLine` from
-`tools/nv/accept/legs.ts` rebuild it in about two minutes.
 
 The `looper` on PATH has no `verify`; `bun tools/looper/main.ts verify` runs it.
 
 ### Next
 
-**Stage 8: `CoreBigInt` converts text in sub-quadratic time, or caps its digits.** Its items and
-anchors are under § *Stages*. Its `**Split:**` line names the `Explore` question to ask first.
+**Stage 9: what waits for a measured wall is a stated bound, and the cross-engine suite is gone.**
+Its items and anchors are under § *Stages*, and its `**Split:**` line names the `Explore` search.
+Its first item now includes the BigInt record. Its three benches declare `complexity quadratic`, which
+`nv scaling` accepts only under a gap marker (`growthOf`, `tools/nv/cmd/scaling.ts`). A stated bound
+for them needs either a way for a bench to declare a bounded quadratic cost, or another goal to own
+the record.
 
 Before that, one leftover of stage 7: about 25 benches outside `CoreTimeDuration` write a duration
 literal (`CoreJwt`, `CoreNet*`, `CoreRateLimit*`, `CoreCache-Store`, `CoreTime-Instant`
-and others; `grep -rlE "[0-9]+(ms|s|m|h|d|w)" benches/members`). Their figures are keyed on
+and others; `grep -rlE "[0-9]+(ms|s|m|h|d|w)" benches/members`). Their figures are keyed on
 other files, so a count that fell is not seen. Re-measure them with `bun nv proofs --record-perf
---force --group <group>`, and lower any declaration that now over-states.
+--force --group <group>`, and lower any declaration that now over-states. Expect some to fail on a
+`calls` line, as the BigInt group did.
 
 ### Backlog
 
 - A string literal used as an array key hashes on every lookup, because its header is in the unit's
   read-only data. It is a stated bound in `crates/nvs-runtime/src/string.rs` § *The cached digest*.
   Closing it needs a writable digest word per literal, which is a codegen layout change.
+
+- `Core\BigInt::parse`'s `ParseError` message repeats the whole text, so a long bad text gives a
+  message as long. `nvs_runtime::helpers` bounds a failed conversion's operand to a head, and this
+  message could do the same. It is a message change, so it is outside this goal.
 
 - `nvs lsp` grows close to quadratically with the open document's size. It is tooling, not the request path, and goal `editor-fixes` owns its record. `data/gaps/nvs-lsp/open-document-analysis-grows-quadratically.json`
