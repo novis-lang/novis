@@ -4000,6 +4000,7 @@ pub(crate) mod tests {
     /// The origin's count is what says it: a key short of the proxy would have
     /// handed the second call the connection the first left, and the proxy would
     /// have been reached no times at all.
+    #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn a_tunnelled_connection_is_pooled_apart_from_a_direct_one() {
         let ok = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
@@ -5159,6 +5160,7 @@ pub(crate) mod tests {
     /// clock: the set's first address answers nothing, and the call is served
     /// by the next one inside the same `connectTimeout` rather than spending
     /// the whole of it on the first.
+    #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn a_dead_first_address_falls_back_to_the_next_within_connect_timeout() {
         let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);

@@ -5623,6 +5623,7 @@ mod tests {
     /// throws the sentence `at` uses, and a field wider than an `i64` is out
     /// of range rather than an overflow.
     // covers: Core\Time::parse
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn parse_reads_in_its_zone_and_refuses_past_the_range_plainly() {
         assert_eq!(
@@ -6319,6 +6320,7 @@ mod tests {
     /// first and last instants read in the widest fixed zones land on the
     /// first and last civil days, so no reading of an `Instant` is out of range.
     // covers: Core\Time\Instant::in
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn instant_in_reads_the_same_instant_on_the_zones_clock() {
         let read = |at: Timestamp, zone: &str| {
@@ -7080,6 +7082,7 @@ mod tests {
     /// `dayOfYear` is one-based and runs to `365` or `366`, counts in the
     /// value's own zone, and holds at both ends of the timestamp range.
     // covers: Core\Time\DateTime::dayOfYear
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_day_of_year_is_one_based_and_read_in_the_values_own_zone() {
         for (instant, zone, ordinal) in [
@@ -7133,6 +7136,7 @@ mod tests {
     /// counts months and quarters across the whole calendar, and throws only
     /// for a nanosecond count past `int`, in its own sentence.
     // covers: Core\Time\DateTime::difference
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_difference_counts_whole_units_in_the_receivers_zone_across_the_whole_calendar() {
         const DAY: i64 = 6;
@@ -7217,6 +7221,7 @@ mod tests {
     /// clocks skipped, and both ends of the timestamp range at the widest
     /// offsets.
     // covers: Core\Time\DateTime::toInstant
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_to_instant_is_the_timestamp_the_value_was_built_from() {
         let skipped = civil::date(2024, 3, 31)
@@ -7290,6 +7295,7 @@ mod tests {
     /// half-hour zone, a skipped hour read forward, and the last and first
     /// civil seconds the timestamp range reaches.
     // covers: Core\Time\DateTime::timeOfDay
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_time_of_day_is_the_wall_clock_in_the_values_own_zone() {
         let clocks = zone_view_samples().map(|at| {
@@ -7317,6 +7323,7 @@ mod tests {
     /// to the second, and `format("VV")` renders that same id rather than
     /// `UTC` for a zone with no IANA name.
     // covers: Core\Time\DateTime::zone
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_zone_is_the_id_it_reads_in_and_the_one_vv_renders() {
         let vv = crate::cldr::compile("VV").expect("`VV` is a pattern");
@@ -7345,6 +7352,7 @@ mod tests {
     /// Monday in Kolkata and a Sunday in Honolulu, and the calendar's last day
     /// is a Friday and its first a Monday.
     // covers: Core\Time\DateTime::weekday
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_weekday_is_monday_zero_in_the_values_own_zone() {
         let monday_morning = "2024-07-01T02:00:00Z"
@@ -7375,6 +7383,7 @@ mod tests {
     /// is not a leap year unless it divides by 400, and one instant is in
     /// 2024 in Tokyo and still in 2023 in New York.
     // covers: Core\Time\DateTime::isLeapYear
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_is_leap_year_is_the_gregorian_rule_in_the_values_own_zone() {
         let new_year = "2023-12-31T20:00:00Z"
@@ -7446,6 +7455,7 @@ mod tests {
     /// it, and a computed pattern that does not compile throws a sentence
     /// naming the member and the letter.
     // covers: Core\Time\DateTime::format
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_format_renders_the_values_own_wall_clock_prepared_or_not() {
         let pattern = "uuuu-MM-dd HH:mm:ss VV";
@@ -7540,6 +7550,7 @@ mod tests {
     /// is 23 hours, the zone is kept, and a count no span can hold and a step
     /// past the last second both throw a sentence naming the member.
     // covers: Core\Time\DateTime::plus
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_plus_steps_the_calendar_in_the_values_own_zone() {
         let berlin = TimeZone::get("Europe/Berlin").expect("a known zone");
@@ -7582,6 +7593,7 @@ mod tests {
     /// the smallest `int`, which has no negation, throws a sentence naming
     /// `minus` rather than wrapping round.
     // covers: Core\Time\DateTime::minus
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_minus_agrees_with_plus_negated_and_refuses_what_cannot_be_negated() {
         let berlin = TimeZone::get("Europe/Berlin").expect("a known zone");
@@ -7630,6 +7642,7 @@ mod tests {
     /// the time of day and the zone are kept, and a day past either end of
     /// the range throws a sentence naming the member.
     // covers: Core\Time\DateTime::next, Core\Time\DateTime::previous
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_next_and_previous_are_strictly_one_to_seven_days_away() {
         let paris = TimeZone::get("Europe/Paris").expect("a known zone");
@@ -7682,6 +7695,7 @@ mod tests {
     /// resolves forward past the gap, and a day the month does not have or a
     /// number no field can hold throws a sentence naming the member.
     // covers: Core\Time\DateTime::with
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_with_replaces_only_the_given_fields_in_the_same_zone() {
         let berlin = TimeZone::get("Europe/Berlin").expect("a known zone");
@@ -7740,6 +7754,7 @@ mod tests {
     /// zone, resolves a skipped wall clock forward the way `with` does, and
     /// reaches the last nanosecond of the last second there is.
     // covers: Core\Time\DateTime::withTime
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_with_time_replaces_the_whole_clock_and_keeps_the_date() {
         let [kolkata, berlin, last, _] = zone_view_samples();
@@ -7778,6 +7793,7 @@ mod tests {
     /// next unit, a week starts on Monday, and Berlin's short spring day
     /// starts at `+01:00` and ends at `+02:00`.
     // covers: Core\Time\DateTime::startOf, Core\Time\DateTime::endOf
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_start_of_and_end_of_bracket_the_value_in_every_unit() {
         let berlin = TimeZone::get("Europe/Berlin").expect("a known zone");
@@ -7843,6 +7859,7 @@ mod tests {
     /// from, and the week throws because it ends in year 10000. At the first
     /// instant, `startOf` is the value itself in every unit.
     // covers: Core\Time\DateTime::startOf, Core\Time\DateTime::endOf
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_end_of_reaches_the_last_nanosecond_at_the_end_of_the_range() {
         let [_, _, last, first] = zone_view_samples();
@@ -8191,6 +8208,7 @@ mod tests {
     /// January and two in July. A name the database does not have is refused by
     /// name, and so is a `±HH:MM` spelling, which is `fixed`'s and not `of`'s.
     // covers: Core\Time\Zone::of
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn zone_of_keeps_the_identifier_as_the_id_and_refuses_a_name_it_does_not_have() {
         let of = |id: &str| {
@@ -8268,6 +8286,7 @@ mod tests {
     /// it, a fixed zone reads its one offset everywhere, and both ends of the
     /// timestamp range answer an offset in whole seconds rather than failing.
     // covers: Core\Time\Zone::offsetAt
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn zone_offset_at_steps_at_the_transition_and_answers_at_both_ends_of_time() {
         let offset_at = |id: &str, at: Timestamp| {
