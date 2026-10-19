@@ -1,68 +1,37 @@
 ---
 title: Enums
-covers: ['lang:enums/declaring-an-enum', 'lang:enums/a-case-is-its-integer', 'lang:enums/from-an-integer-back-to-a-case', 'lang:enums/comparing-cases', 'lang:enums/match-and-switch-over-an-enum', 'lang:enums/an-enum-as-a-type', 'lang:enums/a-union-of-cases-is-a-narrower-type', 'lang:enums/what-an-enum-does-not-have', 'lang:enums/core-enums', 'Core\Arr::Order', 'Core\Arr::SetOn', 'Core\Str::NormalForm', 'Core\RoundMode', 'Core\Charset', 'Core\Unit', 'Core\Time\DateTime::Weekday', 'Core\Hash::Digest', 'Core\Compress::Codec', 'Core\Crypto::Cipher', 'Core\Crypto\KeyKind', 'Core\Crypto\PublicKey::Format', 'Core\Mime::Type', 'Core\Xml\Node::Kind', 'Core\Log::Level', 'Core\Env::Mode', 'Core\Http\Method', 'Core\Audience', 'Core\Response::Redirect', 'Core\Response::SameSite', 'Core\Cli::Stream', 'Core\Cli::ColorDepth', 'Core\Command::Shell', 'Core\Reflect::TypeKind', 'Core\IO::FileMode', 'Core\Cldr::PluralCategory', 'Core\Script\ExitReport::Reason', 'Core\Db\Driver', 'Core\Db::Tls', 'Core\Db\Isolation', 'Core\Db\Column::Type', 'Core\Db\DbError::Kind', 'Core\Db\Plan\Step::Grade', 'Core\Queue::State']
+covers: ['lang:enums/declaring-an-enum', 'lang:enums/an-enum-inside-a-class', 'lang:enums/a-case-is-its-integer', 'lang:enums/from-an-integer-back-to-a-case', 'lang:enums/comparing-cases', 'lang:enums/match-and-switch-over-an-enum', 'lang:enums/an-enum-as-a-type', 'lang:enums/a-union-of-cases-is-a-narrower-type', 'lang:enums/what-an-enum-does-not-have', 'lang:enums/core-enums', 'Core\Arr::Order', 'Core\Arr::SetOn', 'Core\Str::NormalForm', 'Core\RoundMode', 'Core\Charset', 'Core\Unit', 'Core\Time\DateTime::Weekday', 'Core\Hash::Digest', 'Core\Compress::Codec', 'Core\Crypto::Cipher', 'Core\Crypto\KeyKind', 'Core\Crypto\PublicKey::Format', 'Core\Mime::Type', 'Core\Xml\Node::Kind', 'Core\Log::Level', 'Core\Env::Mode', 'Core\Http\Method', 'Core\Audience', 'Core\Response::Redirect', 'Core\Response::SameSite', 'Core\Cli::Stream', 'Core\Cli::ColorDepth', 'Core\Command::Shell', 'Core\Reflect::TypeKind', 'Core\IO::FileMode', 'Core\Cldr::PluralCategory', 'Core\Script\ExitReport::Reason', 'Core\Db\Driver', 'Core\Db::Tls', 'Core\Db\Isolation', 'Core\Db\Column::Type', 'Core\Db\DbError::Kind', 'Core\Db\Plan\Step::Grade', 'Core\Queue::State']
 description: How to declare an enum, convert a case to and from a number, and use enums from Core.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 An enum is a type with a fixed list of named cases. Each case is a whole number.
 
-<Snippet src="syntax/enums/01-declare.nvs" />
+<FeatureSection examples="lang/enums/declaring-an-enum" heading="Declaring an enum" id="declaring-an-enum" />
 
-- The cases are separated by commas. Case names start with a capital letter.
-- `enum Size: uint { ... }` makes every case a `uint`. Without `: uint`, every case is an `int`.
-- Two cases can have the same number.
-- An enum contains only cases. It has no methods and no constants.
+When only one class uses an enum, declare the enum inside that class. When several classes use it,
+declare it at the top level of the file.
 
-## Declare an enum in the class that uses it
+<FeatureSection examples="lang/enums/an-enum-inside-a-class" heading="An enum inside a class" id="an-enum-inside-a-class" />
 
-When only one class uses an enum, declare the enum inside that class.
+<FeatureSection examples="lang/enums/a-case-is-its-integer" heading="From a case to its number" id="from-a-case-to-its-number" />
 
-<Snippet src="syntax/enums/06-in-a-class.nvs" />
+<FeatureSection examples="lang/enums/from-an-integer-back-to-a-case" heading="From a number to a case" id="from-a-number-to-a-case" />
 
-- Inside `Order`, the enum is `Status`. Outside `Order`, it is `Order::Status`.
-- A case outside the class is `Order::Status::Paid`.
-- An interface can declare an enum in the same way.
-- An enum in a class has no `public` or `private`. A class that extends `Order` does not get
-  `Status`.
-- When several classes use an enum, declare it at the top level of the file.
+<FeatureSection examples="lang/enums/comparing-cases" heading="Comparing cases" id="comparing-cases" />
 
-## Convert between a case and a number
+<FeatureSection examples="lang/enums/match-and-switch-over-an-enum" heading="match and switch over an enum" id="match-and-switch" />
 
-`as int` gives the number of a case. `as Status` gives the case for a number.
+<FeatureSection examples="lang/enums/an-enum-as-a-type" heading="An enum as a type" id="an-enum-as-a-type" />
 
-<Snippet src="syntax/enums/02-from-a-number.nvs" />
+<FeatureSection examples="lang/enums/a-union-of-cases-is-a-narrower-type" heading="Only some cases" id="only-some-cases" />
 
-- `echo Status::Draft;` and `Status::Draft as string` do not compile. Write
-  `(Status::Draft as int) as string`.
-- `==` and `!=` compare two cases of the same enum. To sort cases, compare their numbers.
-- `Status::Draft == 0` does not compile. A case is not a plain number.
-
-## Use this when you need a name or a list of cases
-
-A case has no `->name` and an enum has no `cases()` method. Write a class with a `match` for the
-names and a method that returns the list.
-
-<Snippet src="syntax/enums/03-names-and-lists.nvs" />
-
-A `match` with no arm for the value and no `default` throws an error. A `switch` over an enum works
-too.
-
-## Use this when only some cases are allowed
-
-A type can list some cases of an enum: `Mode::Read|Mode::Write`.
-
-<Snippet src="syntax/enums/04-some-cases.nvs" />
-
-Passing `Files::Mode::Delete` to `Files::open` does not compile. `as Files::Mode::Read|Files::Mode::Write`
-throws an error when the value is a different case.
-
-## Enums from Core
+<FeatureSection examples="lang/enums/what-an-enum-does-not-have" heading="Names and lists of cases" id="names-and-lists-of-cases" />
 
 Many `Core` methods take an enum from `Core`, such as `Core\Arr::Order`, `Core\RoundMode` or
 `Core\Time\DateTime::Weekday`. They work like your own enums. [Reference](/reference/core/) lists every one.
 
-<Snippet src="syntax/enums/05-core-enum.nvs" />
+<FeatureSection examples="lang/enums/core-enums" heading="Enums from Core" id="enums-from-core" />
 
 ## Do and don't
 

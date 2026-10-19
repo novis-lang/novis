@@ -3,17 +3,12 @@ title: Converting with as
 covers: ['lang:types/the-conversion-operator-as', 'lang:types/widening-without-as']
 description: How to convert a value to another type with as, and which conversions happen by themselves.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 `value as T` converts a value to the type `T`. If the conversion is not possible, it throws an error.
+`as ?T` gives `null` instead. To test the class of an object, use [`is`](/syntax/values/is/).
 
-<Snippet src="syntax/as/01-as.nvs" />
-
-- A number that does not fit throws an `ArithmeticError`. `3.9 as int` throws, and `-1 as uint`
-  throws.
-- Any other failed conversion throws a `RuntimeError`, such as `"abc" as int`.
-- The whole string must be a number. `" 42"`, `""` and `"12.0" as int` throw.
-- `as` comes before every other operator. `7 / 2 as int` is `7 / (2 as int)`.
+<FeatureSection examples="lang/types/the-conversion-operator-as" heading="The as operator" id="the-as-operator" />
 
 ## Converting a mixed value to text
 
@@ -26,26 +21,7 @@ out of it is tainted (text that the program must not trust yet).
 
 [Tainted input](/guides/how-to-use/tainted-input/) shows how to use tainted text safely.
 
-## Use this when the conversion may fail
-
-`as ?T` gives `null` when the conversion is not possible.
-
-<Snippet src="syntax/as/02-as-nullable.nvs" />
-
-`$count as ?int` does not compile when `$count` is already an `int`, because that conversion cannot
-fail. To test the class of an object, use [`is`](/syntax/values/is/).
-
-## Conversions without as
-
-These conversions happen when you assign a value, pass it or return it:
-
-- an `int` or a `uint` into a `float`
-- a value of type `T` into `?T`, into a union that contains `T`, or into `mixed`
-- an object into a parent class or an interface the class implements
-- an exact value into its type, such as `"read"` into `string`
-
-Every other conversion needs `as`. That includes `int` into `uint`, a number into a `string` and
-`?int` into `int`.
+<FeatureSection examples="lang/types/widening-without-as" heading="Conversions without as" id="conversions-without-as" />
 
 ## Do and don't
 

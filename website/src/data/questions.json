@@ -13880,7 +13880,7 @@
   },
   "/syntax/values/arrays/": {
     "feature": "syntax/values/arrays.mdx",
-    "hash": "dcf94f2e4d4263e1",
+    "hash": "21a0464aeb4eff8e",
     "questions": [
       "How do I create an array and add items to it?",
       "Does assigning an array to another variable copy it?",
@@ -13892,7 +13892,7 @@
   },
   "/syntax/values/as/": {
     "feature": "syntax/values/as.mdx",
-    "hash": "3146b6db8847bfdd",
+    "hash": "33a0ebffc0a47fd6",
     "questions": [
       "How do I convert a string to a number?",
       "Why is there no type casting like (int) in Novis?",
@@ -13904,7 +13904,7 @@
   },
   "/syntax/values/bool-and-null/": {
     "feature": "syntax/values/bool-and-null.mdx",
-    "hash": "4d21f2522b4ca81d",
+    "hash": "d204e1d24baccef0",
     "questions": [
       "Which values count as false in an if condition?",
       "Is the string \"0\" true or false?",
@@ -13915,7 +13915,7 @@
   },
   "/syntax/values/enums/": {
     "feature": "syntax/values/enums.mdx",
-    "hash": "797ee970d0bd5abd",
+    "hash": "a066408e6c790db5",
     "questions": [
       "How do I declare an enum in Novis?",
       "Convert an enum case to its number and back",
@@ -13927,7 +13927,7 @@
   },
   "/syntax/values/is/": {
     "feature": "syntax/values/is.mdx",
-    "hash": "727bed1ba2f75165",
+    "hash": "dda778260549c94c",
     "questions": [
       "How do I check the type of a value?",
       "Test if an object is an instance of a class",
@@ -13938,7 +13938,7 @@
   },
   "/syntax/values/nullable/": {
     "feature": "syntax/values/nullable.mdx",
-    "hash": "d9cc6c50ed38f3eb",
+    "hash": "bb70adf7b410ee72",
     "questions": [
       "How do I declare a variable that can be null?",
       "Why can I not read a property of a possibly null object?",
@@ -13948,30 +13948,32 @@
   },
   "/syntax/values/numbers/": {
     "feature": "syntax/values/numbers.mdx",
-    "hash": "4d303e4f5a6608a4",
+    "hash": "c71ef4b84f82daf4",
     "questions": [
       "Which number types does Novis have?",
       "Why does 7 / 2 give 3.5?",
       "Which number type should I use for money?",
       "What happens when an integer is too big?",
-      "Why is 017 not an octal number?",
-      "Write a duration like 1h30m in the code"
+      "Can I add an int and a uint in one sum?",
+      "Why can I not add a decimal and a float?"
     ]
   },
   "/syntax/values/strings/": {
     "feature": "syntax/values/strings.mdx",
-    "hash": "221326a967df5722",
+    "hash": "6801423c08eee017",
     "questions": [
       "How do I put a variable inside a string?",
       "What is the difference between single and double quotes?",
       "Write text over many lines with a heredoc",
       "Why does reading one character with $word[0] not compile?",
-      "Store binary data that is not valid text"
+      "Store binary data that is not valid text",
+      "Why is 017 not an octal number?",
+      "Write a duration like 1h30m in the code"
     ]
   },
   "/syntax/values/tainted-and-secret/": {
     "feature": "syntax/values/tainted-and-secret.mdx",
-    "hash": "f2177266ef8d7014",
+    "hash": "8f9ef9000001f467",
     "questions": [
       "How does Novis track text that comes from users?",
       "Store a token in a type that cannot be printed",
@@ -13981,7 +13983,7 @@
   },
   "/syntax/values/union-types/": {
     "feature": "syntax/values/union-types.mdx",
-    "hash": "a8cdf7ab676b96da",
+    "hash": "18f70cf6bd24cd68",
     "questions": [
       "How do I accept a value of two different types?",
       "Allow only a few fixed strings as a value",
