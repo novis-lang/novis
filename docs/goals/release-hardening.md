@@ -360,36 +360,36 @@ is `BLOCKED` and names the call.
 Stages 1 to 7 and 9 are done. Stage 8 waits only on CI: its two Miri checkpoints need the deep-lane
 run below to finish.
 
-- **`main` is pushed at `f7eaecd7e`, and full run 39229718066 was dispatched on it.** The older
-  dispatch 39222242630 and the push's subset run 39229707633 were cancelled.
-- **Run 39229718066 so far:** all three `proofs` legs failed at `Feature proofs`, and
-  `cost guards / linux-x86_64` failed its `Warm-start budget` step at 7.1 ms of work against 6
-  (floor 3.7 ms). Run 39206993876 passed that budget on `0b85b2057`. No other step had failed.
-- **The `proofs` legs owed two things, both fixed locally and not pushed.** First, the website
-  stale guard (`bun nv site --check`): `6f547a15c` (`builtUrls` lacked `/reference/types/`, four
-  stale stamps, five prose bounds) and `205d08347` (788 pages' search questions written and
-  stamped, 23 entries for pages the site no longer builds removed). Second, `Feature proofs`:
-  18 `lang` `about.md` over 200 words (`e23c61102`, trimmed to about 160 and rendered), and 77
-  perf records gone stale through the rendered chapters (`265d2b3d4`). The three `Core\Csv`
-  benches now declare the Core calls `ece7b500f` made countable.
+- **`main` is pushed at `f115f6791`, and full run 39258294723 was dispatched on it** by the other
+  session, which drives the push-and-watch loop. Its push run 39258278261 and the older
+  dispatches 39251586245 (`6d62cb9a0`) and 39244170718 (`58df55643`) are cancelled.
+- **Run 39251586245's failures are all fixed in `f115f6791`:** the warm-start budget at 6.9 ms
+  against the old 6 ms bound (`8e364c834`'s soft bound was not pushed then), Miri shard
+  `nvs-stdlib 1/12`'s socket send test, where the peer gave up on the close (`9eb8ce90b`), two
+  `Core\Ldap\Connection` examples printed in the server's order on Linux, and
+  `Core\Crypto::open`'s tampering example on Windows (all three in `f115f6791`). The Crypto one was the example,
+  not the cipher: replacing the last byte with `X` left the bytes unchanged for one key in 256.
+- **On that run, before it was cancelled:** `cost guards / linux-x86_64`'s `Serve soak` passed in
+  1.7 s. The Miri shards `nvs-runtime` 1 and 2 and `nvs-stdlib` 3, 4 and 6 to 11 were green. No
+  `test` leg finished.
+- **This session ran clippy and rustdoc on `f115f6791`.** `cargo clippy --workspace --all-targets
+  -- -D warnings` passes. `cargo doc --no-deps --workspace` passes with CI's `RUSTDOCFLAGS`
+  (`-A rustdoc::private_intra_doc_links -D warnings`, `.github/workflows/ci.yml:836`). Without the
+  `-A` flag it lists many private links. CI allows that on purpose.
 - **No feature owes a proof locally** (`bun nv proofs --owed` is empty). The pipeline benches ran
   256 iterations, about 0.1 ms of work, which is under the start floor's spread, so the twin read
   0 ns. Both now run 100,000 and the twin reads 1.22×. A twin under the floor writes a `null`
   ratio (`tools/nv/proofs/perf.ts:183`), and the ledger's four `Infinity` lines are `null`.
-- **Run 39229718066 was cancelled** after its only failures: the `proofs` legs (all paid locally)
-  and the warm-start budget. No `test`, `miri units` or `Serve soak` step finished.
 - **The warm start did not regress.** Built in WSL, `0b85b2057` and this tree each run the warm
   baseline in 30.59 M instructions and 4.04 ms of work. `8e364c834` (the other session) gave the
   figure a soft and a hard bound. Where the instructions go is in the backlog.
 - **The local `docs` and `lint` checks pass** on this tree: `bun nv check`, `render --check`,
   `render --website --check`, `rules --check`, `rules --render --check`, `links`,
   `layout --check`, `release --check`, `lints --check`, `site --check structure stale questions
-  prose` and `cargo fmt --all --check`. Clippy and `cargo doc` were not run.
-- **Another interactive session works on this goal in the same checkout.** When this session
-  ended it had uncommitted edits to `tools/nv/cmd/site.ts`, `tools/nv/proofs/run.ts`,
-  `tools/nv/test/site.test.ts`, `tools/nv/test/proof-record.test.ts` and
-  `docs/examples/README.md`: snippets served under the root `nvs.toml` are skipped where Docker
-  runs no Linux containers. Leave those files to it.
+  prose` and `cargo fmt --all --check`, and clippy and `cargo doc` as above.
+- **Another interactive session works on this goal in the same checkout,** and it pushes and
+  dispatches. Before you push, check `gh run list --workflow ci.yml -L 3`, and never start a
+  second full run beside its run.
 - **`looper verify` failed on load only:** `nvs-ext` `spreadsheet_read`, `nvs-cli` `live_edit`
   and `init`, and `nvs-stdlib` `ldap` each failed beside the other binaries and passed alone.
   `init`'s failing case is `the_icacls_steps_turn_a_folder_every_account_may_change_into_one_nvs_init_writes_into`.
@@ -458,7 +458,8 @@ Stage 10's push-and-watch loop, which also gives stage 8 its deep-lane run (a `w
 - [x] The pipeline twin: both benches run 100,000 iterations, a ratio under the floor is `null`, and `bun nv proofs --owed` is empty. `tools/nv/proofs/perf.ts:177`
 - [x] The warm-start budget has the two bounds `rule:testing/perf-two-mechanisms` gives a timing: CI's soft bound is 9 ms and only warns, and the hard one is 90 ms after three attempts (the user's call). Hosted Linux read 4.9 to 9.3 ms of work from 2026-10-08 on, before `e3e0f316a` as after it. The 6 ms bound only began to fail when the start floor fell under `QUIET_FLOOR_MS` on 2026-10-17 and the leg stopped abstaining. A cache miss is no hard bound: on the baseline a warm run costs 85 to 93% of a cold one. `tools/nv/cmd/bench.ts:46`
 - [x] Read run 39229718066's other results. It was cancelled: its only failures were the `proofs` legs and the warm-start budget, both now paid. `.github/workflows/ci.yml:1`
-- [ ] Stage 10 again from step 1: `cargo clippy --workspace --all-targets -- -D warnings` and `cargo doc --no-deps --workspace` locally (the other `docs` and `lint` steps passed this session), then push `main`, cancel the push's subset run, and dispatch `gh workflow run ci.yml --ref main`. `docs/goals/release-hardening.md:332`
+- [x] Stage 10 again from step 1: clippy and `cargo doc` pass locally, `main` is pushed at `f115f6791`, and full run 39258294723 is dispatched. `docs/goals/release-hardening.md:332`
+- [ ] Watch run 39258294723 at step level, and on its first failure go back to step 1. A failure already fixed locally needs only the push. `docs/goals/release-hardening.md:336`
 - [ ] On that run: the `cost guards` legs' `Serve soak` step, and the `test` legs' `Conformance suite` step for the shared-worker run. `.github/workflows/ci.yml:322`, `.github/workflows/ci.yml:228`
 - [ ] On that run: every `miri units` shard. Tick stage 8's two Miri checkpoints once every shard is green and no test runs past about 200 s, then set stage 8 done. `docs/goals/release-hardening.md:263`
 
