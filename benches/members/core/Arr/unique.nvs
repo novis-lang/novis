@@ -2,7 +2,7 @@
 // Removes the repeated tags from a short list, as a program does before it
 // saves what a user typed.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

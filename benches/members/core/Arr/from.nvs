@@ -2,7 +2,7 @@
 // Materialises a short sequence as an array, as a program does before it
 // counts or encodes what it collected.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

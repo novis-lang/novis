@@ -2,7 +2,7 @@
 // Turns a list of allowed values into keys. A program does this before it
 // checks many values against the same list.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

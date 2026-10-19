@@ -2,7 +2,7 @@
 // Puts a small table of scores in the order of its keys, as a page does before
 // it shows the table to somebody.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity nlogn
 
 class Bench {

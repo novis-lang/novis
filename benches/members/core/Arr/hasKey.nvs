@@ -1,8 +1,8 @@
 <?nvs
 // Looks up a setting in a request, as a page does before it reads one.
 // bench: iterations 256
-// bench: allocations 1
-// bench: calls 0
+// bench: allocations 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

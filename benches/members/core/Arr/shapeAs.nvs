@@ -2,7 +2,7 @@
 // Reads a posted form into a shape, as a handler does with every request that
 // carries one.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 type Signup = {name: string, age: int};

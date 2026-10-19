@@ -2,7 +2,7 @@
 // Reads the first value of a short list, as a page does when it shows the
 // newest entry of a feed.
 // bench: iterations 1024
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

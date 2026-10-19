@@ -6523,8 +6523,14 @@ mod tests {
         let lowest = Value::int(i64::MIN);
         let highest = Value::uint(u64::MAX);
         let text = Value::str(NvsStr::new(b"name"));
-        assert_eq!(&*super::key_bytes(&lowest, "test").unwrap(), b"-9223372036854775808");
-        assert_eq!(&*super::key_bytes(&highest, "test").unwrap(), b"18446744073709551615");
+        assert_eq!(
+            &*super::key_bytes(&lowest, "test").unwrap(),
+            b"-9223372036854775808"
+        );
+        assert_eq!(
+            &*super::key_bytes(&highest, "test").unwrap(),
+            b"18446744073709551615"
+        );
         assert_eq!(&*super::key_bytes(&text, "test").unwrap(), b"name");
         assert!(super::key_bytes(&Value::bool(true), "test").is_err());
 

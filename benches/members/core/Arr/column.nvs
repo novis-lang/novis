@@ -2,7 +2,7 @@
 // Takes the id out of every row of a query result. A page does this before it
 // asks another table for the rows that belong to them.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

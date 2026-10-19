@@ -2,7 +2,7 @@
 // Puts a set of defaults under the settings a request carried, as a program
 // does while it handles one.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

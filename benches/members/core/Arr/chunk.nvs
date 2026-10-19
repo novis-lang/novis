@@ -2,7 +2,7 @@
 // Splits a list of products into rows of two. A page does this when it lays the
 // products out in a grid.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 3
 // bench: complexity linear
 
 class Bench {

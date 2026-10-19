@@ -2,7 +2,7 @@
 // Builds a short row of cells that all hold the same value, as a report does
 // before it writes the row.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

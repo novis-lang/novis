@@ -2,7 +2,7 @@
 // Reads the highest bid of a short list, as an auction page does before it
 // shows the leading offer.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

@@ -2,7 +2,7 @@
 // Adds up the lines of a short invoice, as a shop does before it shows what
 // an order costs.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

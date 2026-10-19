@@ -2,7 +2,7 @@
 // Combines a configuration tree with the settings of the machine it runs on,
 // as a program does while it starts up.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

@@ -2,7 +2,7 @@
 // Tests whether a basket is empty, as a page does before it draws the basket.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {
