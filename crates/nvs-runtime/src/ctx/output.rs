@@ -1256,15 +1256,17 @@ mod tests {
     /// The count is the pin. A set that compared against every row declared
     /// before it takes minutes here in a debug build, and the hostile case
     /// `tests/hostile/core/Response/setHeader/` is the same attack from a
-    /// program.
+    /// program. Under Miri the counts are smaller: Miri checks the index's
+    /// memory accesses, and the native run keeps the pin.
     #[test]
     fn many_distinct_names_are_declared_without_comparing_each_to_every_other() {
-        const NAMES: usize = 200_000;
+        const NAMES: usize = if cfg!(miri) { 2_000 } else { 200_000 };
+        const REPEATS: usize = if cfg!(miri) { 100 } else { 1_000 };
         let mut ctx = Ctx::buffered();
         for n in 0..NAMES {
             ctx.declare_header(&format!("X-Header-{n}"), "v");
         }
-        for _ in 0..1_000 {
+        for _ in 0..REPEATS {
             ctx.append_header("Set-Cookie", "a=1");
             ctx.declare_header("set-cookie", "b=2");
         }
