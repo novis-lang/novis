@@ -1,0 +1,4 @@
+{
+  "feature": "Core\\Test\\Summary::class",
+  "perf": "A bench runs under `nvs run`, where no test runs and no `#[AfterClass]` hook is called, so there is no `Summary` to read: only the test runner creates one."
+}

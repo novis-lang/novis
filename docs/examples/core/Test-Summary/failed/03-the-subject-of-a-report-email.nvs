@@ -1,0 +1,40 @@
+<?nvs
+// Shows an `#[AfterClass]` method that builds the subject line of a report email.
+// The subject starts with `FAILED` when a test failed, so it is easy to spot.
+
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class Subject
+{
+    public static function of(string $class, int $passed, int $failed): string
+    {
+        if ($failed > 0) {
+            return 'FAILED: ' . $failed . ' of ' . ($passed + $failed) . ' tests in ' . $class;
+        }
+        return 'OK: ' . $passed . ' tests in ' . $class;
+    }
+}
+
+class NewsletterTest
+{
+    #[Test]
+    public function itHasAnUnsubscribeLink(): void
+    {
+        Test::assertTrue(Core\Str::contains("<a href=\"/unsubscribe\">", 'unsubscribe'));
+    }
+
+    // A mail job can send the file later.
+    #[AfterClass]
+    public static function writeSubject(Summary $summary): void
+    {
+        string $subject = Subject::of($summary->class(), $summary->passed(), $summary->failed());
+        IO::write(Path::fromCwd('report-subject.txt'), $subject);
+    }
+}
+
+// This prints `FAILED: 1 of 4 tests in NewsletterTest`.
+echo Subject::of('NewsletterTest', 3, 1), "\n";

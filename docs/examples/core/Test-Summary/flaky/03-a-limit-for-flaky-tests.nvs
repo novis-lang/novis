@@ -1,0 +1,41 @@
+<?nvs
+// Shows an `#[AfterClass]` method that allows at most 2 flaky tests per class.
+// Above the limit, it throws an error, and the test run fails.
+
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class FlakyLimit
+{
+    public const int MAX = 2;
+
+    public static function message(string $class, int $flaky): ?string
+    {
+        if ($flaky <= FlakyLimit::MAX) {
+            return null;
+        }
+        return $class . ' has ' . $flaky . ' flaky tests, the limit is ' . FlakyLimit::MAX;
+    }
+}
+
+class UploadTest
+{
+    #[Test(retries: 2, because: "the test storage is shared")]
+    public function itStoresThePicture(): void
+    {
+        Test::assertSame(Core\Str::endsWith('cat.jpg', '.jpg'), true);
+    }
+
+    #[AfterClass]
+    public static function checkTheLimit(Summary $summary): void
+    {
+        ?string $message = FlakyLimit::message($summary->class(), $summary->flaky());
+        if ($message != null) {
+            throw new RuntimeError($message);
+        }
+    }
+}
+
+// This prints `UploadTest has 3 flaky tests, the limit is 2`.
+echo FlakyLimit::message('UploadTest', 3) ?? '', "\n";

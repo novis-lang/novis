@@ -1,0 +1,49 @@
+<?nvs
+// Shows an `#[AfterClass]` method that prints every count and the total number of
+// tests in the class. The four counts together are all tests.
+
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class Totals
+{
+    public static function line(int $passed, int $failed, int $flaky, int $skipped): string
+    {
+        int $total = $passed + $failed + $flaky + $skipped;
+        return $total
+            . ' tests: '
+            . $passed
+            . ' passed, '
+            . $failed
+            . ' failed, '
+            . $flaky
+            . ' flaky, '
+            . $skipped
+            . ' skipped';
+    }
+}
+
+class SignupTest
+{
+    #[Test]
+    public function itNeedsAnEmail(): void
+    {
+        Test::assertTrue(Core\Str::contains('ada@example.com', '@'));
+    }
+
+    #[Test(skip: "the captcha service has no test mode")]
+    public function itChecksTheCaptcha(): void
+    {
+        Test::assertTrue(false);
+    }
+
+    #[AfterClass]
+    public static function printTotals(Summary $summary): void
+    {
+        echo Totals::line($summary->passed(), $summary->failed(), $summary->flaky(), $summary->skipped()), "\n";
+    }
+}
+
+// This prints `10 tests: 7 passed, 1 failed, 0 flaky, 2 skipped`.
+echo Totals::line(7, 1, 0, 2), "\n";

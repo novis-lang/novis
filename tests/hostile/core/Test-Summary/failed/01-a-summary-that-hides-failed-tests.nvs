@@ -1,0 +1,29 @@
+<?nvs
+// Attack: a program makes its own `Summary` whose `failed()` is always `0`, so a
+// build light shows green after a failed run. Only the test runner creates a
+// `Summary`, so the program should not compile.
+// hostile: expect-refusal
+
+use Core\Test\Summary;
+
+// 1. A class extends `Summary` and returns `0` failed tests.
+class AlwaysGreen extends Summary
+{
+    public function failed(): int
+    {
+        return 0;
+    }
+}
+
+// 2. A class extends `Summary` and returns a negative count.
+class NegativeFailed extends Summary
+{
+    public function failed(): int
+    {
+        return -1;
+    }
+}
+
+// 3. A new `Summary` made with `new`, then read like one from the runner.
+var $forged = new Summary();
+echo $forged->failed() > 0 ? "red\n" : "green\n";

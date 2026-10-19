@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program makes its own `Summary` whose `failedTests()` is empty or
+// has names it chose, such as a path. Only the test runner creates a `Summary`,
+// so the program should not compile.
+// hostile: expect-refusal
+
+use Core\Test\Summary;
+
+// 1. A class extends `Summary` and returns no failed tests.
+class NoFailedTests extends Summary
+{
+    public function failedTests(): array<string>
+    {
+        return [];
+    }
+}
+
+// 2. A class extends `Summary` and returns names that are paths and very long lines.
+class PathNames extends Summary
+{
+    public function failedTests(): array<string>
+    {
+        return ['../../etc/passwd', Core\Str::repeat('itFails', 100000), "line one\nline two"];
+    }
+}
+
+// 3. A class extends `Summary` and returns one million names.
+class ManyNames extends Summary
+{
+    public function failedTests(): array<string>
+    {
+        return Core\Arr::fill(1000000, 'itFails');
+    }
+}
+
+echo Core\Arr::count((new ManyNames())->failedTests()), "\n";

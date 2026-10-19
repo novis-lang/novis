@@ -1,0 +1,41 @@
+<?nvs
+// Shows an `#[AfterClass]` method that joins the failed tests into one line. A
+// team can post this line in a chat after a test run at night.
+
+use Core\Arr;
+use Core\Str;
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class ChatLine
+{
+    public static function of(string $class, array<string> $tests): ?string
+    {
+        if (Arr::isEmpty($tests)) {
+            return null;
+        }
+        return $class . ' failed: ' . Str::join($tests, ', ');
+    }
+}
+
+class OrderTest
+{
+    #[Test]
+    public function itAddsTheShipping(): void
+    {
+        Test::assertSame(1250 + 490, 1740);
+    }
+
+    #[AfterClass]
+    public static function prepareTheMessage(Summary $summary): void
+    {
+        ?string $line = ChatLine::of($summary->class(), $summary->failedTests());
+        if ($line != null) {
+            echo $line, "\n";
+        }
+    }
+}
+
+// This prints `OrderTest failed: itAddsTheShipping, itAddsTheTax`.
+echo ChatLine::of('OrderTest', ['itAddsTheShipping', 'itAddsTheTax']) ?? '', "\n";

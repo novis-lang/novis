@@ -1,0 +1,39 @@
+<?nvs
+// Shows an `#[AfterClass]` method that prints a warning when a test of the class
+// was flaky. The run still passes, so without a warning nobody would notice.
+
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class FlakyWarning
+{
+    public static function of(string $class, int $flaky): ?string
+    {
+        if ($flaky == 0) {
+            return null;
+        }
+        return $class . ': ' . $flaky . ' test(s) passed only on a retry. Please fix them.';
+    }
+}
+
+class CacheTest
+{
+    #[Test(retries: 1, because: "the cache entry may not be written yet")]
+    public function itReturnsTheStoredValue(): void
+    {
+        Test::assertSame('cart:42', 'cart:42');
+    }
+
+    #[AfterClass]
+    public static function warn(Summary $summary): void
+    {
+        ?string $warning = FlakyWarning::of($summary->class(), $summary->flaky());
+        if ($warning != null) {
+            echo $warning, "\n";
+        }
+    }
+}
+
+// This prints `CacheTest: 1 test(s) passed only on a retry. Please fix them.`.
+echo FlakyWarning::of('CacheTest', 1) ?? '', "\n";

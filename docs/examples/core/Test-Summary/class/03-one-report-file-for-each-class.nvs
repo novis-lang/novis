@@ -1,0 +1,45 @@
+<?nvs
+// Shows an `#[AfterClass]` method that writes a small report file for its class.
+// A build server can keep these files and show them next to the build.
+
+namespace Shop\Tests;
+
+use Core\IO;
+use Core\Path;
+use Core\Str;
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class Report
+{
+    // A backslash is not allowed in a file name on every system, so it becomes `-`.
+    public static function fileFor(string $class): string
+    {
+        return 'reports/' . Str::replace($class, "\\", '-') . '.txt';
+    }
+
+    public static function text(int $passed, int $failed, int $skipped): string
+    {
+        return 'passed: ' . $passed . "\nfailed: " . $failed . "\nskipped: " . $skipped . "\n";
+    }
+}
+
+class RefundTest
+{
+    #[Test]
+    public function itRefundsTheFullPrice(): void
+    {
+        Test::assertSame(2490 - 2490, 0);
+    }
+
+    #[AfterClass]
+    public static function writeReport(Summary $summary): void
+    {
+        string $text = Report::text($summary->passed(), $summary->failed(), $summary->skipped());
+        IO::write(Path::fromCwd(Report::fileFor($summary->class())), $text);
+    }
+}
+
+// This prints `reports/Shop-Tests-RefundTest.txt`.
+echo Report::fileFor("Shop\\Tests\\RefundTest"), "\n";

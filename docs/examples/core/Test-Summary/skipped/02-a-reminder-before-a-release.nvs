@@ -1,0 +1,45 @@
+<?nvs
+// Shows an `#[AfterClass]` method that reminds you of skipped tests. A skipped
+// test checks nothing, so it is worth looking at before a release.
+
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class Reminder
+{
+    public static function of(string $class, int $skipped): ?string
+    {
+        if ($skipped == 0) {
+            return null;
+        }
+        return 'Before the release, check the ' . $skipped . ' skipped test(s) in ' . $class . '.';
+    }
+}
+
+class ExportTest
+{
+    #[Test(skip: "the PDF library is not installed on the build server")]
+    public function itExportsAPdf(): void
+    {
+        Test::assertTrue(false);
+    }
+
+    #[Test]
+    public function itExportsACsvHeader(): void
+    {
+        Test::assertSame(Core\Str::join(['id', 'total'], ','), 'id,total');
+    }
+
+    #[AfterClass]
+    public static function remind(Summary $summary): void
+    {
+        ?string $reminder = Reminder::of($summary->class(), $summary->skipped());
+        if ($reminder != null) {
+            echo $reminder, "\n";
+        }
+    }
+}
+
+// This prints `Before the release, check the 1 skipped test(s) in ExportTest.`.
+echo Reminder::of('ExportTest', 1) ?? '', "\n";
