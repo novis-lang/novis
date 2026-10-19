@@ -3096,12 +3096,16 @@ mod tests {
     /// box was idle with a warm arm that waited on a disk something else was writing. Neither arm
     /// can be measured faster than the work it did, so the best pair is still a lower bound on the
     /// ratio; what it buys is that one stalled sample decides nothing, which is what a guard that
-    /// shares its machine with a release build needs. The named margin is written well under the
-    /// ratio a development machine actually prints, and a slow *disk* moves it the safe way: the
-    /// `fsync` is in the cold arm. What is asserted
-    /// is "codegen dominates place and relocate", not a benchmark's own number; a change that
-    /// brought the two within this factor of each other would mean the loader had grown expensive
-    /// enough to reopen the decision, which is exactly what § *Revisiting* asks this test to detect.
+    /// shares its machine with a release build needs. A slow *disk* moves the ratio the safe way:
+    /// the `fsync` is in the cold arm.
+    ///
+    /// **The ratio has the two bounds of `rule:testing/perf-two-mechanisms`.** What is asserted is
+    /// "codegen dominates place and relocate", not a benchmark's own number. The soft bound, `4`,
+    /// is written well under the ratio a development machine prints, and a run under it prints a
+    /// warning: the loader may have grown expensive enough to reopen the decision, which is what
+    /// § *Revisiting* asks this test to detect. The hard bound, `1.5`, is just over a warm start
+    /// that costs what a cold one does, a cache no longer worth having, and a ratio under it fails
+    /// after three attempts.
     ///
     /// **Skipped in the debug profile**, for the reason `benches/abi-probe`'s guards are: a cost
     /// margin holds only on an idle machine, and `nv verify` runs this binary beside every
@@ -3120,8 +3124,12 @@ mod tests {
 
         let _alone = crate::testing::measuring_alone();
 
-        /// The factor a warm start must clear. Under it, § *Revisiting* is owed a look.
-        const MARGIN: u32 = 4;
+        /// The factors a warm start must clear: under `soft`, § *Revisiting* is owed a look, and
+        /// under `hard` the cache is not worth having.
+        const MARGIN: crate::testing::Margin = crate::testing::Margin {
+            soft: 4.0,
+            hard: 1.5,
+        };
         /// Sample pairs. The best of nine clears the margin with room to spare on an idle
         /// machine, and nine pairs stall together only on a machine nothing can measure.
         const RUNS: u32 = 9;
@@ -3145,67 +3153,78 @@ mod tests {
         fs::write(&source, &text).expect("a scratch directory of this test's own is writable");
         let (program, digest) = lowered(&source);
 
-        let mut best: Option<(Duration, Duration)> = None;
-        for run in 0..RUNS {
-            // A cache of this sample's own, so every cold arm is a genuinely empty one and the
-            // directory it publishes into is not one another sample already filled.
-            let cache = Cache::new(dir.join(format!("cache-{run}")), env())
-                .expect("a directory of this test's own");
+        let mut attempt = 0;
+        crate::testing::judge_margin(
+            "a cold start over a warm one",
+            MARGIN,
+            "A warm start that costs what a cold one does is a cache that is not worth having, \
+             and § Revisiting is owed its decision.",
+            || {
+                attempt += 1;
+                let mut best: Option<(Duration, Duration)> = None;
+                for run in 0..RUNS {
+                    // A cache of this sample's own, so every cold arm is a genuinely empty one and the
+                    // directory it publishes into is not one another sample, or another attempt, already
+                    // filled.
+                    let cache = Cache::new(dir.join(format!("cache-{attempt}-{run}")), env())
+                        .expect("a directory of this test's own");
 
-            let at = Instant::now();
-            let (built, provenance) =
-                unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
-            let cold = at.elapsed();
-            assert_eq!(
-                provenance,
-                Provenance::Compiled,
-                "an empty cache holds nothing under this key"
-            );
+                    let at = Instant::now();
+                    let (built, provenance) =
+                        unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
+                    let cold = at.elapsed();
+                    assert_eq!(
+                        provenance,
+                        Provenance::Compiled,
+                        "an empty cache holds nothing under this key"
+                    );
 
-            // The first open of a file written a moment ago is the host's to price, not the
-            // loader's: an on-access scanner reads it whole, once per file, so a real warm start
-            // opening an artifact an earlier run published never meets it.
-            drop(
-                File::open(cache.path(artifact_key(digest, cache.env())))
-                    .expect("the cold arm published this artifact"),
-            );
+                    // The first open of a file written a moment ago is the host's to price, not the
+                    // loader's: an on-access scanner reads it whole, once per file, so a real warm start
+                    // opening an artifact an earlier run published never meets it.
+                    drop(
+                        File::open(cache.path(artifact_key(digest, cache.env())))
+                            .expect("the cold arm published this artifact"),
+                    );
 
-            let at = Instant::now();
-            let (loaded, provenance) =
-                unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
-            let warm = at.elapsed();
-            assert_eq!(
-                provenance,
-                Provenance::Loaded,
-                "the artifact the cold arm published is under the same key"
-            );
+                    let at = Instant::now();
+                    let (loaded, provenance) =
+                        unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
+                    let warm = at.elapsed();
+                    assert_eq!(
+                        provenance,
+                        Provenance::Loaded,
+                        "the artifact the cold arm published is under the same key"
+                    );
 
-            // A cross-product rather than a division, so a warm arm that lands on zero
-            // nanoseconds is still a pair this loop can rank.
-            let better = match best {
-                Some((held_cold, held_warm)) => {
-                    cold.as_nanos() * held_warm.as_nanos() > held_cold.as_nanos() * warm.as_nanos()
+                    // A cross-product rather than a division, so a warm arm that lands on zero
+                    // nanoseconds is still a pair this loop can rank.
+                    let better = match best {
+                        Some((held_cold, held_warm)) => {
+                            cold.as_nanos() * held_warm.as_nanos()
+                                > held_cold.as_nanos() * warm.as_nanos()
+                        }
+                        None => true,
+                    };
+                    if better {
+                        best = Some((cold, warm));
+                    }
+
+                    // Once, and only for the work's sake: a margin over two arms that ran different
+                    // programs — or no program — would measure nothing.
+                    if attempt == 1 && run == 0 {
+                        assert_eq!(ran(&built), "47");
+                        assert_eq!(ran(&loaded), "47", "and the warm arm is the same program");
+                    }
                 }
-                None => true,
-            };
-            if better {
-                best = Some((cold, warm));
-            }
 
-            // Once, and only for the work's sake: a margin over two arms that ran different
-            // programs — or no program — would measure nothing.
-            if run == 0 {
-                assert_eq!(ran(&built), "47");
-                assert_eq!(ran(&loaded), "47", "and the warm arm is the same program");
-            }
-        }
-
-        let (cold, warm) = best.expect("one pair per run, and there is at least one run");
-        println!("cold {cold:?}, warm {warm:?} (the best of {RUNS} pairs)");
-        assert!(
-            warm * MARGIN <= cold,
-            "§ Verification's margin: a warm start must be at least {MARGIN}x a cold one, and this \
-             machine measured warm {warm:?} against cold {cold:?}"
+                let (cold, warm) = best.expect("one pair per run, and there is at least one run");
+                // A warm arm of zero nanoseconds is an infinite ratio, which clears both bounds.
+                (
+                    cold.as_secs_f64() / warm.as_secs_f64(),
+                    format!(" (cold {cold:?}, warm {warm:?}, the best of {RUNS} pairs)"),
+                )
+            },
         );
 
         drop(fs::remove_dir_all(&dir));

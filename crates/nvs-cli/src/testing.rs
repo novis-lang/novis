@@ -84,3 +84,153 @@ pub(crate) fn measuring_alone() -> std::sync::MutexGuard<'static, ()> {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
+
+/// How many times a margin guard measures before its hard bound fails it. A ratio under the hard
+/// bound is measured again, and only the last attempt is judged: a burst of load that lands on one
+/// attempt passes on the next, and a change of kind is under the bound on every attempt.
+const ATTEMPTS: usize = 3;
+
+/// How far the two [`yardstick`] readings around one attempt may differ, as a fraction of the
+/// faster one, before that attempt is labelled noisy.
+const LOAD_TOLERANCE: f64 = 0.25;
+
+/// The two bounds a `…_by_the_margin_this_test_names` ratio is judged against, as
+/// `rule:testing/perf-two-mechanisms` sets them. Under `soft` the guard warns and passes. Under
+/// `hard` it fails, and `hard` sits just over the ratio the change of kind the guard exists for
+/// reaches.
+#[derive(Clone, Copy)]
+pub(crate) struct Margin {
+    pub(crate) soft: f64,
+    pub(crate) hard: f64,
+}
+
+/// Measures a margin guard's ratio and judges it against `margin`, the way
+/// `benches/abi-probe/tests/perf_guards.rs`'s `judge` judges a timing: up to [`ATTEMPTS`]
+/// attempts, each between two readings of a fixed loop, and only the last one can fail.
+///
+/// `measure` is one attempt, and returns the ratio and the words printed after it. `why` is the
+/// sentence a failure adds after the figure: what the change of kind means. Returns the judged
+/// ratio.
+#[expect(
+    clippy::print_stdout,
+    reason = "the measured ratio is the guard's output: a CI log that shows only a pass says \
+              nothing about how far over its bounds the ratio was"
+)]
+pub(crate) fn judge_margin(
+    what: &str,
+    margin: Margin,
+    why: &str,
+    mut measure: impl FnMut() -> (f64, String),
+) -> f64 {
+    let Margin { soft, hard } = margin;
+    let mut attempt = 1;
+    loop {
+        let before = yardstick();
+        let (ratio, detail) = measure();
+        let after = yardstick();
+        let drift = before.max(after) / before.min(after) - 1.0;
+        let load = if drift > LOAD_TOLERANCE {
+            "noisy"
+        } else {
+            "steady"
+        };
+        println!(
+            "{what}: {ratio:.2}x{detail} [soft {soft}x, hard {hard}x; attempt {attempt} of \
+             {ATTEMPTS}, {load}: yardstick {before:.0} ns then {after:.0} ns]"
+        );
+        // Written as `>` so that a NaN is under the hard bound and fails.
+        if ratio > hard {
+            if ratio < soft {
+                warn(
+                    what,
+                    &format!(
+                        "{ratio:.2}x is under the soft bound of {soft}x on a {load} run. The \
+                         hard bound of {hard}x holds, so the test passes."
+                    ),
+                );
+            }
+            return ratio;
+        }
+        assert!(
+            attempt < ATTEMPTS,
+            "{what}: {ratio:.2}x{detail} on the last of {ATTEMPTS} attempts, a {load} run, is \
+             under the hard bound of {hard}x. {why}"
+        );
+        attempt += 1;
+    }
+}
+
+/// A fixed scalar loop, timed before and after every attempt, in nanoseconds per run of the loop.
+/// It does the same work every time, so its two readings differ only when the machine does:
+/// another process on the core, or a clock that dropped under heat. The fastest of five batches.
+fn yardstick() -> f64 {
+    use std::hint::black_box;
+    use std::time::{Duration, Instant};
+
+    const STEPS: u32 = 256;
+    const RUNS: u32 = 2_000;
+    let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+    let mut best = Duration::MAX;
+    for _ in 0..5 {
+        let at = Instant::now();
+        for _ in 0..RUNS {
+            for _ in 0..STEPS {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                state = black_box(state);
+            }
+        }
+        best = best.min(at.elapsed());
+    }
+    best.as_secs_f64() * 1e9 / f64::from(RUNS)
+}
+
+/// Reports a soft-bound miss where a reader of the run sees it, although the test passes.
+///
+/// libtest holds back what a passing test prints through `println!`, but not what is written to
+/// the standard output handle directly, which reaches the console and the CI log. On GitHub
+/// Actions the line is a `::warning` workflow command, which lists it among the run's
+/// annotations, and a line is appended to the step summary too. Elsewhere it is a plain line.
+fn warn(what: &str, message: &str) {
+    use std::io::Write as _;
+
+    let line = if std::env::var_os("GITHUB_ACTIONS").is_some() {
+        let title = format!("perf guard: {what}");
+        format!(
+            "::warning title={}::{}",
+            workflow_escape(&title, true),
+            workflow_escape(message, false)
+        )
+    } else {
+        format!("warning: perf guard: {what}: {message}")
+    };
+    // Its own line: libtest may have printed a test's name without a newline. A warning that
+    // cannot be written must not fail a guard that passed.
+    let mut out = std::io::stdout().lock();
+    let _ = writeln!(out, "\n{line}").and_then(|()| out.flush());
+    if let Some(summary) = std::env::var_os("GITHUB_STEP_SUMMARY") {
+        let _ = std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(summary)
+            .and_then(|mut file| writeln!(file, "- **perf guard: {what}**: {message}"));
+    }
+}
+
+/// `text` escaped for a GitHub Actions workflow command: its message, or one of its `key=value`
+/// properties, which also escape `:` and `,`.
+fn workflow_escape(text: &str, property: bool) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '%' => escaped.push_str("%25"),
+            '\r' => escaped.push_str("%0D"),
+            '\n' => escaped.push_str("%0A"),
+            ':' if property => escaped.push_str("%3A"),
+            ',' if property => escaped.push_str("%2C"),
+            _ => escaped.push(c),
+        }
+    }
+    escaped
+}
