@@ -315,14 +315,14 @@ describe("nv site --check in-depth", () => {
     ]);
   });
 
-  test("the built URLs are each page, the Core pages and the Configuration and CLI pages", () => {
+  test("the built URLs are each page, the Core pages and the Configuration, CLI and Types pages", () => {
     s = scratch();
     const root = s.root;
     s.put(`${DOCS}/in-depth/index.mdx`, page);
     s.put(`${DOCS}/in-depth/roadmap.mdx`, page);
     s.put("website/src/data/core.json", JSON.stringify({ classes: [{ members: [{ url: "/reference/core/str/length/" }] }] }));
     s.put("website/src/data/reference.json", JSON.stringify({ pages: [{ url: "/reference/config/app/" }] }));
-    expect([...builtUrls(root)].sort()).toEqual(["/", "/in-depth/", "/in-depth/roadmap/", "/reference/cli/", "/reference/config/", "/reference/config/app/", "/reference/core/str/", "/reference/core/str/length/"]);
+    expect([...builtUrls(root)].sort()).toEqual(["/", "/in-depth/", "/in-depth/roadmap/", "/reference/cli/", "/reference/config/", "/reference/config/app/", "/reference/core/str/", "/reference/core/str/length/", "/reference/types/"]);
   });
 });
 

@@ -30,7 +30,9 @@ answer gets no number.
 ## Speed and memory
 
 The absolute numbers depend on the machine. A faster machine gives bigger numbers for all four. The
-result is the relation between the four servers. Each server has two bars in each test. The first
+result is the relation between the four servers.
+
+Each server has two bars in each test. The first
 bar is requests per second, and the fastest server has the full bar. The second bar is peak memory,
 and the server that used the most memory has the full bar. The coloured bars are the best results:
 the most requests and the least memory.
@@ -118,9 +120,9 @@ template, and the values in it are still escaped. To print raw HTML, the program
 
 ### Outside data
 
-Outside data is every value that comes from outside the program: the request, the session,
-environment variables, command line arguments, a reply from another server and values read from a
-database. Novis calls these values tainted. A tainted value in an SQL string is a compile error, so
+Outside data is every value that comes from outside the program. Examples are the request, the
+session, environment variables and command line arguments. A reply from another server and values
+read from a database are outside data too. Novis calls these values tainted. A tainted value in an SQL string is a compile error, so
 the program never runs with it.
 
 ### Runaway requests
@@ -140,17 +142,21 @@ sets `pm.max_children` high enough for 1000 requests at the same time.
 
 Novis checks for edited source files while it runs. No setting turns this check off. PHP checks for
 edited files by default, with `opcache.validate_timestamps`. The speed tests above turn this check
-off, because PHP is faster without it. This test uses PHP's default. Bun shows an edit only when it
+off, because PHP is faster without it. This test uses PHP's default.
+
+Bun shows an edit only when it
 runs with `bun --hot`. Go compiles the program, so you must build and start it again.
 
 ### Deploying a new version
 
 The deploy test copies a new version of 200 source files into a running server. Requests arrive
 the whole time. A failed request is a request that gets an error instead of the page. A mixed reply
-is a page built partly from old files and partly from new files. By default, Bun needs a restart to
-use the new files, and Go needs a new build and a restart. In this test, both failed requests during
-the restart. PHP checks for changed files by default, so this test runs no reload for PHP. PHP had
-no failed request, but some of its pages mixed old and new files. Novis uses the new files with no reload and no restart, and every request got a complete
+is a page built partly from old files and partly from new files.
+
+By default, Bun needs a restart to use the new files, and Go needs a new build and a restart. In
+this test, both failed requests during the restart. PHP checks for changed files by default, so this
+test runs no reload for PHP. PHP had no failed request, but some of its pages mixed old and new
+files. Novis uses the new files with no reload and no restart, and every request got a complete
 page.
 
 ## Run it yourself
