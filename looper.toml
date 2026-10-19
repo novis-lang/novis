@@ -93,7 +93,7 @@ scope = "Text an end user reads"
 
 # Each gate is the project's own command, which runs the same without looper: `looper links`, `layout`
 # and `prose` run it in place of looper's check. `looper guard` runs `guard` after its claims, in place of
-# its built-in rules, and `tools/nv/cmd/guard.ts` says how the settings run it where looper is not installed.
+# its built-in rules, and `tools/nv/cmd/guard.ts` says how the settings' one hook reaches it.
 [gates]
 links = ["bun", "nv", "links"]
 layout = ["bun", "nv", "layout", "--check"]

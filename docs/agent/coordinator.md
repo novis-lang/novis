@@ -42,9 +42,9 @@ Four things follow, and they are the whole design:
 | [loop-authoring.md](loop-authoring.md) | How a *new* goal is written: measure first, **scope the context**, what makes one drivable, what to pre-authorize, the stage order. |
 | [playbook.md](playbook.md) | The traps a session paid for once, one file per bullet under `docs/agent/playbook/`. |
 | [conventions.md](conventions.md) | The shape of everything the repo writes, so no session re-derives it from an existing example. |
-| `.loop/status.txt` | One line written by each session: `CONTINUE …`, `DONE …` or `BLOCKED …`. |
+| `.looper/loops/<loop>/` | A loop's runs, kept by looper's copy in `tools/looper/`: its state, its sessions' logs, its check logs, and `status.txt`, the one line each session writes: `CONTINUE …`, `DONE …` or `BLOCKED …`. |
 
-`.loop/` is gitignored in full.
+`.looper/` and `.loop/`, where the `bun nv` tools keep their caches, are gitignored in full.
 
 ## The acceptance test
 
