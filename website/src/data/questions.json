@@ -3526,7 +3526,7 @@
   },
   "/reference/core/crypto/open/": {
     "feature": "Core\\Crypto::open",
-    "hash": "a84f1e8f77021361",
+    "hash": "fca17eab7528bb09",
     "questions": [
       "How do I decrypt a message encrypted with a key?",
       "Decrypt data and check nobody changed it",
@@ -6876,7 +6876,7 @@
   },
   "/reference/core/ldap-connection/changes/": {
     "feature": "Core\\Ldap\\Connection::changes",
-    "hash": "0f6db977e19f833c",
+    "hash": "2155101efab5eb98",
     "questions": [
       "How do I sync only the changed entries from Active Directory?",
       "Keep a local copy of the directory up to date",
@@ -6936,7 +6936,7 @@
   },
   "/reference/core/ldap-connection/search/": {
     "feature": "Core\\Ldap\\Connection::search",
-    "hash": "22254f4830bc02e5",
+    "hash": "8f0abac225683795",
     "questions": [
       "How do I search an LDAP directory?",
       "Find a user by account name in Active Directory",

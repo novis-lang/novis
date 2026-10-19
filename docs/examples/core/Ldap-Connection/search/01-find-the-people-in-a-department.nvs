@@ -11,7 +11,8 @@ var $sales = Core\Ldap\Filter::all(
 );
 
 // `base` is where the search starts, and `select` names the attributes each entry has.
-var $people = $corp->search($sales, {base: "OU=Company,DC=example,DC=test", select: ["cn", "mail"]});
+// The server returns entries in no fixed order. `sort` sorts them by `cn`.
+var $people = $corp->search($sales, {base: "OU=Company,DC=example,DC=test", select: ["cn", "mail"], sort: "cn"});
 
 // The `foreach` loop reads one entry at a time. This prints Anna Berg and Carla Diaz.
 foreach ($people as Core\Ldap\Entry $person) {

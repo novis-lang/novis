@@ -11,9 +11,16 @@ var $people = Core\Ldap\Filter::all(
 // Without a `cookie`, the result has every entry that matches the filter.
 var $changes = $corp->changes($people, {select: ["department"]});
 
-// This prints the DNs of Anna Berg and Carla Diaz.
+// A DN comes from the server, so its text is tainted.
+array<tainted string> $names = [];
 foreach ($changes as Core\Ldap\Entry $person) {
-    echo $person->dn()->toString(), "\n";
+    $names[] = $person->dn()->toString();
+}
+
+// The server returns the changes in no fixed order, so the program sorts the DNs.
+// This prints the DNs of Anna Berg and Carla Diaz.
+foreach (Core\Arr::sort($names) as tainted string $name) {
+    echo $name, "\n";
 }
 
 // After the loop, `cookie()` returns the cookie for the next call.
