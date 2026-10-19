@@ -2363,9 +2363,12 @@ impl<'a> Lowering<'a> {
     ///
     /// The template is a constant, so it is not evaluated. Each argument is
     /// lowered in written order and converted by [`Self::concat_operand`], as
-    /// an interpolated string converts its holes. The result is one
-    /// [`InstKind::Concat`]: one allocation for the whole call, where the
-    /// member allocates an argument list and the result.
+    /// an interpolated string converts its holes. A
+    /// [`nvs_types::expr_table::FormatPiece::Converted`] argument is rendered
+    /// by one call to `nvs_stdlib::format`'s per-placeholder helper instead.
+    /// The result is one [`InstKind::Concat`]: one allocation for the whole
+    /// call and one per converted placeholder, where the member allocates an
+    /// argument list and the result.
     pub(crate) fn lower_format_pieces(
         &mut self,
         pieces: &[nvs_types::expr_table::FormatPiece],
@@ -2392,6 +2395,19 @@ impl<'a> Lowering<'a> {
                     });
                     self.concat_operand(&arg.value, env, cur)
                 }
+                nvs_types::expr_table::FormatPiece::Converted { argument, spec } => {
+                    let arg = args.get(*argument).unwrap_or_else(|| {
+                        panic!(
+                            "nvs-ir: a `Core\\Str::format` piece reads argument {argument}, and \
+                             the call has {} — nvs_types records an index into the written list",
+                            args.len()
+                        )
+                    });
+                    (
+                        self.lower_format_placeholder(spec, &arg.value, env, cur),
+                        false,
+                    )
+                }
             };
             if !piece.1 {
                 if lowered.is_empty() {
@@ -2403,6 +2419,39 @@ impl<'a> Lowering<'a> {
         }
         self.join_pieces(&lowered, mark, leading, *cur)
     }
+
+    /// One converted placeholder of a literal `Core\Str::format` template: the
+    /// argument, rendered as `spec` by `nvs_types::CORE_STR_FORMAT_PIECE`.
+    ///
+    /// The helper borrows both of its arguments, so a fresh `string` argument
+    /// is staged and released once the helper returns. The result is fresh.
+    fn lower_format_placeholder(
+        &mut self,
+        spec: &str,
+        value: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        let inner = self.temporaries_mark();
+        let (v, ty) = self.lower_expr(value, None, env, cur);
+        if ty == Ty::Str && !self.aliasing_read(value) {
+            self.own_temporary(v);
+        }
+        let (spec, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(spec.to_owned()));
+        self.own_temporary(spec);
+        let (rendered, _) = self.emit_fallible(
+            *cur,
+            Ty::Str,
+            InstKind::CoreCall {
+                symbol: nvs_types::CORE_STR_FORMAT_PIECE,
+                args: vec![spec, v],
+            },
+            env,
+        );
+        self.release_temporaries_since(inner, *cur);
+        rendered
+    }
+
     /// Lowers `ExprKind::HtmlTemplate`'s parts into the one `Core\Html\Markup` they
     /// denote — `rule:core-classes/html-template`'s **value** position, which is
     /// the literal assigned, returned or put in an array rather than written

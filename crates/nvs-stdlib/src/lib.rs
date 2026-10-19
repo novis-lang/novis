@@ -354,6 +354,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             cli::TEXT_CONCAT_SYMBOL,
             cli::TEXT_APPEND_SYMBOL,
         ])
+        // One placeholder of a literal `Core\Str::format` template, which the
+        // call's own lowering reaches — `format::PIECE_SYMBOL` owns why it has
+        // no row.
+        .chain([format::PIECE_SYMBOL])
         .map(|symbol| (symbol, address_of(symbol)))
         .collect()
 }
@@ -389,6 +393,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| encoding::address(symbol))
         .or_else(|| env::address(symbol))
         .or_else(|| fatal::address(symbol))
+        .or_else(|| format::address(symbol))
         .or_else(|| io::address(symbol))
         .or_else(|| hash::address(symbol))
         .or_else(|| heap::address(symbol))
@@ -558,6 +563,9 @@ mod tests {
                 // call, so none of them has a row either — see `script`'s,
                 // `html`'s and `cli`'s module docs.
                 + 10
+                // One placeholder of a literal `Core\Str::format` template —
+                // see `format::PIECE_SYMBOL`.
+                + 1
         );
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
     }

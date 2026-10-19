@@ -589,6 +589,10 @@ pub(crate) fn check_call(
                             FormatPiece::Argument(index) => {
                                 FormatPiece::Argument(row.at + 1 + index)
                             }
+                            FormatPiece::Converted { argument, spec } => FormatPiece::Converted {
+                                argument: row.at + 1 + argument,
+                                spec,
+                            },
                             text @ FormatPiece::Text(_) => text,
                         })
                         .collect(),
@@ -883,11 +887,13 @@ fn check_template(
 /// A checked template as text and argument pieces, or `None` when the
 /// member's own rendering could differ from a concatenation.
 ///
-/// Every placeholder must be plain and read the next argument, so each
-/// argument is read once, in written order. `%d` needs an `int`, because a
-/// `uint` past `int`'s range prints negative there. `%s` needs an `int` or a
-/// non-secret `string`, the two types interpolation converts to the same text.
-/// Between two placeholders the only `%` left is a `%%`.
+/// Every placeholder must read the next argument, with no argument number, so
+/// each argument is read once, in written order. A plain `%d` over an `int`
+/// and a plain `%s` over an `int` or a non-secret `string` are an
+/// [`FormatPiece::Argument`], the types interpolation converts to the same
+/// text. Any other placeholder is a [`FormatPiece::Converted`] when
+/// [`converts_without_throwing`] says so. Between two placeholders the only
+/// `%` left is a `%%`.
 fn format_pieces(
     text: &str,
     placeholders: &[nvs_stdlib::format::Placeholder],
@@ -897,24 +903,57 @@ fn format_pieces(
     let mut pieces = Vec::with_capacity(placeholders.len() * 2 + 1);
     let mut from = 0;
     for (position, placeholder) in placeholders.iter().enumerate() {
+        let ty = env.interner.get(values[position]);
         let fits = matches!(
-            (placeholder.conversion, env.interner.get(values[position])),
+            (placeholder.conversion, ty),
             ('d' | 's', Ty::Int) | ('s', Ty::String | Ty::TaintedString)
         );
-        if !placeholder.plain || placeholder.index != position || !fits {
+        let spec = &text[placeholder.written.at..placeholder.written.at + placeholder.written.len];
+        let piece = if placeholder.plain && fits {
+            FormatPiece::Argument(position)
+        } else if !spec.contains('$') && converts_without_throwing(spec, placeholder.conversion, ty)
+        {
+            FormatPiece::Converted {
+                argument: position,
+                spec: spec.to_owned(),
+            }
+        } else {
+            return None;
+        };
+        if placeholder.index != position {
             return None;
         }
         let between = &text[from..placeholder.written.at];
         if !between.is_empty() {
             pieces.push(FormatPiece::Text(between.replace("%%", "%")));
         }
-        pieces.push(FormatPiece::Argument(position));
+        pieces.push(piece);
         from = placeholder.written.at + placeholder.written.len;
     }
     if from < text.len() {
         pieces.push(FormatPiece::Text(text[from..].replace("%%", "%")));
     }
     (!pieces.is_empty()).then_some(pieces)
+}
+
+/// Whether `nvs_stdlib::format` renders the placeholder `spec` over a value of
+/// `ty` without throwing.
+///
+/// An integer conversion reads every `int` and `uint`, and `%s` reads those
+/// and every `string`. A width or precision of at most four digits keeps the
+/// padding far below any memory limit a request can reach.
+fn converts_without_throwing(spec: &str, conversion: char, ty: &Ty) -> bool {
+    let reads = match conversion {
+        'd' | 'u' | 'x' | 'X' | 'o' | 'b' => matches!(ty, Ty::Int | Ty::Uint),
+        's' => matches!(ty, Ty::Int | Ty::Uint | Ty::String | Ty::TaintedString),
+        _ => false,
+    };
+    let longest_number = spec
+        .split(|c: char| !c.is_ascii_digit())
+        .map(str::len)
+        .max()
+        .unwrap_or(0);
+    reads && longest_number <= 4
 }
 
 /// Whether a conversion needs a number rather than anything renderable — every

@@ -1411,18 +1411,29 @@ pub enum PreparedFact {
 /// concatenation instead of a call.
 ///
 /// The checker records a list of these only when the result cannot differ
-/// from the member's: the template is a constant, every placeholder is a
-/// plain `%d` over an `int` or a plain `%s` over an `int` or a `string`, and
-/// the placeholders read the arguments once each, in written order. So the
-/// arguments are evaluated in the order the call evaluates them, and each
+/// from the member's: the template is a constant, the placeholders read the
+/// arguments once each, in written order, and no placeholder can throw. So
+/// the arguments are evaluated in the order the call evaluates them, and each
 /// one converts to the same text `nvs_stdlib::format` writes for it.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum FormatPiece {
     /// Template text, with each `%%` already replaced by `%`.
     Text(String),
     /// The argument at this index of the call's argument list, converted to a
-    /// `string` the way interpolation converts it.
+    /// `string` the way interpolation converts it. A plain `%d` over an `int`
+    /// or a plain `%s` over an `int` or a `string`.
     Argument(usize),
+    /// The argument at this index, rendered by `nvs_stdlib::format`'s own code
+    /// for the one placeholder `spec`, such as `%05d`. An integer conversion
+    /// over an `int` or a `uint`, or `%s` over either or a `string`, with any
+    /// flag and a width or precision of at most four digits. None of those
+    /// can throw, so rendering it between two arguments is not observable.
+    Converted {
+        /// The index in the call's argument list.
+        argument: usize,
+        /// The placeholder as written, with no argument number.
+        spec: String,
+    },
 }
 
 /// Every [`ExprInfo`] [`crate::check::check_program`] recorded this run,
