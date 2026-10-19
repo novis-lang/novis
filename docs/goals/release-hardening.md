@@ -62,7 +62,7 @@ stages:
         rules: [testing/the-deep-lane, security/path-scope-canonicalise-then-prefix, security/net-address-policy]
   - id: 9
     title: "a security fix gets an advisory, and a release proves what it ships"
-    status: open
+    status: done
     context: [SECURITY.md, .github/workflows/release.yml]
   - id: 10
     title: "the pushed `main` has a green CI run"
@@ -313,9 +313,16 @@ live bytes per request grow.
 affecting another is a security bug. A release runs the full matrix, checks that its tag holds
 the fixes it claims, and builds with `cargo auditable`.
 
-- [ ] `SECURITY.md` states the advisory rule and that a cross-request effect is a security bug. `SECURITY.md:1`
-- [ ] The release workflow checks that the tag contains each commit its notes name as a fix. `.github/workflows/release.yml:181`
-- [ ] Release binaries are built with `cargo auditable`. `.github/workflows/release.yml:292`
+- [x] `SECURITY.md` states the advisory rule and that a cross-request effect is a security bug. `SECURITY.md:1`
+- [x] The release workflow checks that the tag contains each commit its notes name as a fix. `.github/workflows/release.yml:181`
+  - [x] The tag is cut from the tip the notes were rendered from, so it holds every fix they list.
+    The gap was the binaries: they are `github.sha`'s, and the tip can move while they build.
+  - [x] `bun nv release --fixes-built <sha>` names each `fix` commit since the last tag that the
+    built commit lacks, and fails (`tools/nv/cmd/release.ts`). `publish` runs it on `github.sha`
+    before it writes anything.
+- [x] Release binaries are built with `cargo auditable`. `.github/workflows/release.yml:292`
+  - [x] `cargo-auditable` 0.7.7 is installed pinned and `--locked`. A local probe built with the
+    release step's exact flags (`--release --locked --offline -p --target`) carries `.dep-v0`.
 
 ### 10. the pushed `main` has a green CI run
 
@@ -349,8 +356,15 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 7 are done. Stage 8 waits only on CI: its two Miri checkpoints need a nightly with
-these commits.
+Stages 1 to 7 and 9 are done. Stage 8 waits only on CI: its two Miri checkpoints need a deep-lane
+run with these commits, and `origin/main` is still `0b85b2057`, 20 commits behind.
+
+- **Stage 9 is done.** `SECURITY.md` says every security fix gets an advisory and that one request
+  affecting another is a security bug. `publish` runs `bun nv release --fixes-built "$BUILT"` on
+  `github.sha` before it writes (`.github/workflows/release.yml:396`), and `build` uses
+  `cargo auditable build` (`.github/workflows/release.yml:299`). Neither step has run on a runner:
+  `release.yml` runs only on a dispatch.
+- **Nightly 39222242630** (`0b85b2057`) was still running; its `proofs` legs had failed as before.
 
 - **The serve soak is done, and has not run on CI yet.**
   `live_bytes_stay_flat_while_one_core_serves_thousands_of_requests`
@@ -410,11 +424,11 @@ these commits.
 
 ### Next
 
-Stage 8's CI checks once `main` is pushed (`rule:testing/the-deep-lane`), then stage 9, the advisory and release gates over `.github/workflows/release.yml` and `SECURITY.md`:
-- [ ] Read the `cost guards` legs' `Serve soak` step on the first nightly with these commits. If a platform drifts, its readings are in the failure message. `.github/workflows/ci.yml:322`
-- [ ] Once the user has pushed `main`: read the `test` legs' `Conformance suite` step for the shared-worker run, and every `miri units` shard of the first nightly that has these commits. Tick the two Miri checkpoints once every shard is green and no test runs past about 200 s. `docs/goals/release-hardening.md:263`
-- [ ] Stage 9 while CI waits: `SECURITY.md` states that every security fix gets a GitHub advisory and that one request affecting another is a security bug (`rule:security/isolate-shares-nothing`). `SECURITY.md:1`
-- [ ] Stage 9: release binaries are built with `cargo auditable`, and the release checks that its tag holds each fix its notes name. `.github/workflows/release.yml:181`, `.github/workflows/release.yml:292`
+Stage 10's push-and-watch loop, which also gives stage 8 its deep-lane run (a `workflow_dispatch` is the deep lane, `rule:testing/the-deep-lane`), over `.github/workflows/ci.yml`:
+- [ ] Stage 10 steps 1 and 2: `cargo fmt --all --check` and the `docs` and `lint` jobs' steps locally, push `main`, and dispatch `gh workflow run ci.yml --ref main`. A push the loop's permissions refuse is `BLOCKED`. `docs/goals/release-hardening.md:332`
+- [ ] On that run: the `cost guards` legs' `Serve soak` step, and the `test` legs' `Conformance suite` step for the shared-worker run. `.github/workflows/ci.yml:322`, `.github/workflows/ci.yml:228`
+- [ ] On that run: every `miri units` shard. Tick stage 8's two Miri checkpoints once every shard is green and no test runs past about 200 s, then set stage 8 done. `docs/goals/release-hardening.md:263`
+- [ ] Each failure the run shows is fixed at its cause, as stage 10 step 4 says; the `proofs` legs' proof debt is in the backlog. `.github/workflows/ci.yml:1`
 
 ### Backlog
 

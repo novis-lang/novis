@@ -21,6 +21,15 @@
 // version pin and the newest tag agree, and `CHANGELOG.md` has a section for a released version.
 // `--docker-tags` prints the registry tags one image variant claims.
 //
+// **`--fixes-built SHA` is the gate between the notes and the binaries.** The binaries are built from
+// the commit the release was dispatched at, and `publish` renders the notes and cuts the tag from the
+// tip of `main`, which an unattended loop may have moved since. A `fix` commit that landed in between
+// is listed in the notes, and is in the tag, but is not in the binaries. An advisory that says "fixed
+// in this version" would then be false for the archive a user downloads. So `--fixes-built` names every
+// `fix` commit the notes cover that `SHA` does not contain, and fails if there is one. The operator
+// dispatches the release again. Only fixes are held to it, because a fix is what an advisory cites: a
+// feature that missed the build is a smaller claim, and would fail most releases while the loop runs.
+//
 // **The version scheme is not plain SemVer, and this is not the place that decides it.**
 // `rule:packaging/below-1-0-the-breaking-slot-moves-left` owns it: one number for the whole workspace,
 // and before 1.0 the breaking slot moves left by one, so `--plan major` on 0.0.1 gives 0.1.0 and below
@@ -56,11 +65,11 @@ import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyInt } from "../lib/py.ts";
 
-export const summary = "the release cycle: nv release --plan|--preview|--notes|--apply|--package|--check|--docker-tags";
+export const summary = "the release cycle: nv release --plan|--preview|--notes|--apply|--package|--check|--docker-tags|--fixes-built";
 
 const USAGE =
   "usage: nv release [-h] (--plan {patch,minor,major} | --preview {patch,minor,major} | --notes VERSION | " +
-  "--apply VERSION | --package | --check | --docker-tags VERSION) [options]";
+  "--apply VERSION | --package | --check | --docker-tags VERSION | --fixes-built SHA) [options]";
 
 class Fatal extends Error {}
 
@@ -599,6 +608,18 @@ async function notesFor(version: string, previousTag: string | null, cap: number
   return renderNotes(version, previousTag, parseLog(raw).map(classify), repoUrl(), today, cap);
 }
 
+/** The `fix` commits among `entries`: the ones `--fixes-built` holds a build to. */
+export function fixesIn(entries: Entry[]): Entry[] {
+  return entries.filter((e) => e.type === "fix");
+}
+
+/** Every `fix` commit since `previousTag` that `HEAD` has and `built` does not, oldest first. */
+async function fixesMissingFrom(built: string, previousTag: string | null): Promise<Entry[]> {
+  const range = [`${built}..HEAD`, ...(previousTag ? [`^${previousTag}`] : [])];
+  const raw = await git(["log", "--reverse", "--no-merges", "--format=%H%x1f%s%x1f%b%x1e", ...range]);
+  return fixesIn(parseLog(raw).map(classify));
+}
+
 /** (current, next, previous tag): every guard a release clears before it writes. */
 async function resolveNext(bump: string, exact: string, allowContract: boolean): Promise<[string, string, string | null]> {
   const current = workspaceVersion(manifest());
@@ -705,6 +726,7 @@ function help(): string {
     "  --package                      archive a built binary",
     "  --check                        the manifests, the tags and the changelog agree",
     "  --docker-tags VERSION          the registry tags one image variant claims",
+    "  --fixes-built SHA              fail if a fix the notes cover is not in SHA, the commit that was built",
     "",
     "options:",
     "  -h, --help             show this help message and exit",
@@ -725,7 +747,7 @@ function help(): string {
   ].join("\n");
 }
 
-const MODES = ["--plan", "--preview", "--notes", "--apply", "--package", "--check", "--docker-tags"];
+const MODES = ["--plan", "--preview", "--notes", "--apply", "--package", "--check", "--docker-tags", "--fixes-built"];
 
 function usageError(message: string): number {
   console.error(`${USAGE}\nnv release: error: ${message}`);
@@ -739,7 +761,7 @@ export async function run(args: string[]): Promise<number> {
     ({ flags, values } = parseArgs(args, {
       flags: ["--package", "--check", "--allow-contract", "--manifests-only", "--github-output", "--floating"],
       valued: [
-        "--plan", "--preview", "--notes", "--apply", "--docker-tags", "--version", "--out", "--notes-file", "--since",
+        "--plan", "--preview", "--notes", "--apply", "--docker-tags", "--fixes-built", "--version", "--out", "--notes-file", "--since",
         "--target", "--name", "--archive", "--image", "--variant", "--max-per-section",
       ],
     }));
@@ -816,6 +838,19 @@ export async function run(args: string[]): Promise<number> {
           writeFileSync(out, rendered);
           console.log(`nv release: wrote ${out}`);
         } else console.log(rendered);
+        return 0;
+      }
+
+      case "--fixes-built": {
+        const built = values.get("--fixes-built")!.trim();
+        const previous = values.get("--since") || ((await tags())[0]?.name ?? null);
+        const missing = await fixesMissingFrom(built, previous);
+        for (const fix of missing) console.error(`nv release: in the notes, not in the binaries: ${fix.sha.slice(0, 8)} ${fix.subject}`);
+        if (missing.length > 0) {
+          console.error(`nv release: ${missing.length} fix(es) landed on main after ${built.slice(0, 8)} was built. Dispatch the release again.`);
+          return 1;
+        }
+        console.log(`nv release: every fix the notes cover is in ${built.slice(0, 8)}, the commit that was built.`);
         return 0;
       }
 

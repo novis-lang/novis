@@ -277,6 +277,13 @@ jobs:
       - name: Fetch dependencies against the committed lock
         run: cargo fetch --locked
 
+      # `cargo auditable` puts the dependency list, from `Cargo.lock`, into the binary as a
+      # compressed `.dep-v0` section of a few kilobytes. `cargo audit bin` and other scanners read
+      # it from a downloaded `nvs`, so a RUSTSEC advisory can be matched to a release without its
+      # sources. Pinned and `--locked`, like every tool CI installs.
+      - name: Install cargo-auditable
+        run: cargo install cargo-auditable --version 0.7.7 --locked
+
       # In this working copy only. Nothing is committed here — see the header.
       - name: Set the version being released
         shell: bash
@@ -289,7 +296,7 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
           CC_x86_64_unknown_linux_musl: musl-gcc
-        run: cargo build --release --locked --offline -p nvs-cli --target "$TARGET"
+        run: cargo auditable build --release --locked --offline -p nvs-cli --target "$TARGET"
 
       - name: Package
         shell: bash
@@ -381,6 +388,15 @@ jobs:
         env:
           VERSION: ${{ needs.plan.outputs.version }}
         run: bun nv release --notes "$VERSION" --out "$RUNNER_TEMP/notes.md"
+
+      # The binaries are `github.sha`'s, and the notes and the tag are the tip's. A fix that landed
+      # in between would be claimed by the notes, and by any advisory that cites this version, while
+      # the archives lack it. This stops the release before anything is written, and the operator
+      # dispatches it again. `tools/nv/cmd/release.ts` § `--fixes-built` says why only fixes.
+      - name: Every fix in the notes is in the binaries
+        env:
+          BUILT: ${{ github.sha }}
+        run: bun nv release --fixes-built "$BUILT"
 
       - name: Bump the manifests and prepend the changelog
         env:
