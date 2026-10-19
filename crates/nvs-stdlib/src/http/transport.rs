@@ -3971,6 +3971,7 @@ pub(crate) mod tests {
     ///
     /// The pause is what makes the count final: a retry would be out on the wire
     /// inside this call's millisecond of backoff.
+    #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn a_refused_connect_is_not_retried_as_an_answer() {
         let nowhere: SocketAddr = "192.0.2.1:443".parse().expect("a literal address");
@@ -4217,6 +4218,7 @@ pub(crate) mod tests {
     /// The deadline is not extended
     /// (`rule:http-server/one-deadline-covers-the-whole-call`). A backoff that would end past it
     /// throws immediately rather than sleeping through the budget first.
+    #[cfg_attr(miri, ignore = "a real-time deadline, which Miri is too slow to meet")]
     #[test]
     fn a_backoff_past_the_deadline_throws_rather_than_sleeping() {
         let (at, served) = origin(vec!["HTTP/1.1 503 Busy\r\nContent-Length: 0\r\n\r\n"]);
