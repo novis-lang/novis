@@ -174,12 +174,11 @@ jobs:
           docker compose -f tests/db/compose.yaml cp samba-ad:/certs/ca.crt tests/db/ca.crt
 
       # macOS and Windows runners cannot run the compose file's Linux containers, so each starts a
-      # Redis on the port the compose file publishes: Homebrew's build on macOS, and Memurai, a
-      # Redis-compatible server, on Windows, which has no Redis build of its own. The Chocolatey
-      # feed sometimes answers 503 for a minute or more, so the install is tried five times over
-      # about five minutes. When the feed answers 503, `choco` prints "installed 0/0 packages" and
-      # still exits 0, so its exit code proves nothing: the loop checks that `memurai.exe` is on
-      # disk, and a last failure names the install and `choco`'s exit code.
+      # Redis on the port the compose file publishes: Homebrew's build on macOS, and on Windows,
+      # which has no Redis build of its own, the redis-windows project's MSYS2 build of the version
+      # the compose file pins. It is a GitHub release asset, so the download depends on no package
+      # feed, and its SHA256 is pinned here: a replaced asset fails the step before it runs. Raising
+      # the compose file's `redis` image raises the version, the URL and the hash here with it.
       - name: A Redis server (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -189,14 +188,13 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $memurai = "C:\Program Files\Memurai\memurai.exe"
-          for ($try = 1; ; $try++) {
-            choco install memurai-developer -y --no-progress
-            if (Test-Path $memurai) { break }
-            if ($try -eq 5) { throw "choco install memurai-developer left no memurai.exe after 5 tries, last exit code $LASTEXITCODE" }
-            Start-Sleep -Seconds (30 * $try)
-          }
-          Start-Process $memurai -ArgumentList '--port', '16379'
+          $name = "Redis-8.10.2-Windows-x64-msys2"
+          $zip = "$env:RUNNER_TEMP\$name.zip"
+          Invoke-WebRequest "https://github.com/redis-windows/redis-windows/releases/download/8.10.2/$name.zip" -OutFile $zip -MaximumRetryCount 4 -RetryIntervalSec 10
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash
+          if ($sha -ne '7C8CEBD50347EAA1D9E784DA842ED47A4F33394637835531D6614777B950EE85') { throw "$name.zip has SHA256 $sha, not the pinned one" }
+          Expand-Archive $zip $env:RUNNER_TEMP
+          Start-Process "$env:RUNNER_TEMP\$name\redis-server.exe" -ArgumentList '--port', '16379' -WorkingDirectory "$env:RUNNER_TEMP\$name"
 
       # The repository's `nvs.toml` names `tests/db/ca.crt` in its server-backed `[db]` blocks, and a
       # resolve refuses a `tls_ca_file` that is not there (`E0605`), so without one every run from the
