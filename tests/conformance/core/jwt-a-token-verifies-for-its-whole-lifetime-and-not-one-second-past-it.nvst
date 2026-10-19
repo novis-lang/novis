@@ -31,9 +31,16 @@ if ($exp - $iat == 1) {
 // while the clock is still inside `iat` verifies. A member that expired the
 // token early fails here while still refusing it in the next second, which is
 // the half a single check after signing cannot see.
+//
+// `verify` reads the clock itself, after the loop's own reading, and the
+// second can turn between the two. So a refusal counts as early only when the
+// clock still reads inside `iat` after `verify` returned: then the reading
+// `verify` took was inside it too. A refusal after the second turned decides
+// nothing either way, and is counted apart.
 int $checks = 0;
 int $verified = 0;
 int $refusedEarly = 0;
+int $refusedAsItTurned = 0;
 string $earlySays = "";
 while (Core\Time::now()->toEpochSeconds() < $exp) {
     $checks = $checks + 1;
@@ -41,12 +48,16 @@ while (Core\Time::now()->toEpochSeconds() < $exp) {
         array<tainted string> $still = Core\Jwt::verify($token, $key);
         $verified = $verified + 1;
     } catch (RuntimeError $early) {
-        $refusedEarly = $refusedEarly + 1;
-        $earlySays = $early->message;
+        if (Core\Time::now()->toEpochSeconds() < $exp) {
+            $refusedEarly = $refusedEarly + 1;
+            $earlySays = $early->message;
+        } else {
+            $refusedAsItTurned = $refusedAsItTurned + 1;
+        }
     }
     Core\Time::sleep(50ms);
 }
-if ($checks == $verified && $refusedEarly == 0 && $checks > 0) {
+if ($checks == $verified + $refusedAsItTurned && $refusedEarly == 0 && $verified > 0) {
     echo "it verifies at every moment of the second it was issued in", "\n";
 } else {
     echo "it stopped verifying inside its own lifetime: ", $earlySays, "\n";
