@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/openapi.rs",
+  "title": "A response schema for a nullable, array or enum return type is empty.",
+  "text": "`schema` maps only `bool`, `int`, `uint`, `float`, `decimal`, `string` and `Core\\Uuid`, so a route returning `?int`, `array<int>` or an enum writes `\"schema\": {}` for its `200` response. `rule:routing/api-document-is-generated-from-the-route-table` says nullability comes from `?T` and an enumeration from an enum's cases, and a capture of an enum type already lists its cases. The class case is `response-body-that-is-an-object.json`'s. It closes when a `?T` return renders `T`'s schema with `null` allowed, an `array<T>` renders `type: array` with `T` as `items`, and an enum return lists its cases, with a test in `crates/nvs-cli/tests/openapi.rs` for each.",
+  "goal": "api-document"
+}

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/routes.rs",
+  "title": "`#[Core\\Api]` accepts what its rule says it may not contradict.",
+  "text": "`rule:attributes/api-adds-and-cannot-contradict` makes each contradiction `E0771`, and five pass `nvs check` and `nvs build --openapi`. An `errors` entry whose `type` is a class that is not `Throwable` compiles, and the document names it as an error response. An `example` on a route whose return type is not a class, such as `string`, compiles with any keys. An `example` value of the wrong type, such as `{id: \"seven\"}` for a `uint $id`, compiles, and so does an unknown key inside a nested object (`{inner: {zzz: 1}}`). An `errors` entry with status `200`, or a second entry with a status already listed, compiles and is dropped from the document. A second `#[Core\\Api]` on one method compiles and is ignored, where `#[Core\\Access]` twice is `E0763`. It closes when each is a checker error with a conformance case.",
+  "goal": "release-hardening"
+}
