@@ -9,14 +9,15 @@
 // - With `--check` it writes nothing and exits 1 when anything differs.
 // - A file whose markers do not parse refuses the whole sync before anything is written.
 // - Every project takes the copy, looper's own checkout too.
+// - A root `loop` or `loop.cmd` that is not the shim an older sync wrote is left in place and named.
 //
-// Its `--json` document is `{"check", "drifted", "changed"}`: each drift is `{"path", "new", "diff"}`,
-// and `changed` lists each file written or removed.
+// Its `--json` document is `{"check", "drifted", "changed", "left"}`: each drift is `{"path", "new",
+// "diff"}`, `changed` lists each file written or removed, and `left` each root shim left in place.
 
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { type Config, loadConfig } from "../goal/config.ts";
-import { type CopyChange, copyPlan } from "../sync/copy.ts";
+import { type CopyChange, copyPlan, leftShims } from "../sync/copy.ts";
 import { apply, diff, plan } from "../sync/sync.ts";
 import { KIT_DIR } from "../sync/template.ts";
 import { type Command, Exit, Refusal, type Report, usage } from "./cli.ts";
@@ -35,12 +36,16 @@ export function syncReport(root: string, cfg: Config, kit: string, check: boolea
   if (!check) apply(root, changes);
   const drifted = changes.map((c) => ({ path: c.path, new: c.before === undefined, diff: diff(c) }));
   const changed = check ? [] : changes.map((c) => c.path);
+  const left = leftShims(root);
   let text = drifted.map((d) => d.diff).join("");
   const n = drifted.length;
   if (n === 0) text = "sync: every managed file is current\n";
   else if (check) text += `sync --check: ${n} managed file(s) differ from the templates. Run sync.\n`;
   else text += `sync: ${n} managed file(s) rewritten\n`;
-  return { code: check && n > 0 ? Exit.refused : Exit.ok, doc: { check, drifted, changed }, text };
+  for (const path of left) {
+    text += `sync: ${path} is left in place, since it is not the shim an older sync wrote. The shim is tools/${path} now.\n`;
+  }
+  return { code: check && n > 0 ? Exit.refused : Exit.ok, doc: { check, drifted, changed, left }, text };
 }
 
 /** Runs the sync of the kit at `kit` in the current directory, its output the terminal's. */
