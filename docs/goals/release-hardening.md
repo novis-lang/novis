@@ -55,7 +55,7 @@ stages:
         rules: [testing/the-deep-lane]
   - id: 8
     title: "requests that share a worker share nothing, and memory stays flat"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, crates/nvs-runtime/tests/server_memory.rs, .github/workflows/ci.yml]
     extra:
       context:
@@ -231,7 +231,7 @@ Seeded property tests cover path grants and the address table. A nightly serve s
 live bytes per request grow.
 
 - [x] A runner mode sends many cases through one worker and compares each output with its fresh run. `crates/nvs-cli/src/shared.rs:1`
-- [ ] The Miri job runs the `nvs-runtime` and `nvs-stdlib` unit tests that need no JIT. `.github/workflows/ci.yml:1104`
+- [x] The Miri job runs the `nvs-runtime` and `nvs-stdlib` unit tests that need no JIT. `.github/workflows/ci.yml:1104`
   The user decided how: one pass that lists every failure, never a rerun per failure, and a job that
   finishes inside its budget. Measure with one background run and hand off, never round after round
   inside a session.
@@ -260,7 +260,7 @@ live bytes per request grow.
     `-Zmiri-ignore-leaks` is set for `nvs-stdlib` too, because its 193 reports are values its tests
     build by hand, and `-Zmiri-deterministic-floats` stops the exact-float `math` asserts failing on
     Miri's added error. The `miri-units` comment says why.
-  - [ ] A test that is only slow under Miri runs a smaller input under `cfg!(miri)`, never a skip
+  - [x] A test that is only slow under Miri runs a smaller input under `cfg!(miri)`, never a skip
     (the `uri` budget test and the large-text JSON tests). The `uri` budget test is done: it passes
     under Miri in 27 s. The first full pass found 119 in
     `nvs-stdlib`, 57 passing over 60 s and 62 stopped at five minutes. By module: regex 12, cache 11,
@@ -285,13 +285,13 @@ live bytes per request grow.
     env and hash tests take a smaller input too. `multipart`'s part-count cap is a constant and
     carries an ignore for the json reason, and `registry`'s two card scans carry the source-scan
     ignore.
-  - [ ] `nvs-runtime` and `nvs-stdlib` run as separate jobs or `--partition` shards, each well under its
+  - [x] `nvs-runtime` and `nvs-stdlib` run as separate jobs or `--partition` shards, each well under its
     `timeout-minutes`, so the job ends green or red and never cancelled. The user chose shards: job
     `miri-units` in `.github/workflows/ci.yml` runs 2 for `nvs-runtime` and 12 for `nvs-stdlib`.
     On the first nightly, the 8 `nvs-stdlib` shards reached 88 to 99 % of their tests in 45
     minutes, and 5 were cancelled. On run 39206993876 every shard ended in 8 to 33 minutes and
-    none was cancelled. Tick it once a nightly run shows every shard well inside its timeout with
-    no test past about 200 s.
+    none was cancelled. On run 39258294723 all 14 shards were green in 9 to 21 minutes of 45, and
+    the slowest test took 218 s of its 300 s.
   - [x] Miri's default model, Stacked Borrows, stays. The undefined behaviour in the pool allocator
     is a block reused through a pointer that covers only its last owner's size. Tree Borrows accepts
     it, and a fix in the pool costs Miri its precision on every recycled block. The user chose the
@@ -357,126 +357,51 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 7 and 9 are done. Stage 8 waits only on CI: its two Miri checkpoints need the deep-lane
-run below to finish.
+Stages 1 to 9 are done. Stage 10 waits on full run 39272328614.
 
-- **`main` is pushed at `f115f6791`, and full run 39258294723 was dispatched on it.** Its push run
-  39258278261 and the older dispatches 39251586245 (`6d62cb9a0`) and 39244170718 (`58df55643`) are
-  cancelled. The interactive session that pushed and dispatched them has stopped, and the user
-  gave the push-and-watch loop to this loop alone: watch 39258294723 from here.
-- **Run 39251586245's failures are all fixed in `f115f6791`:** the warm-start budget at 6.9 ms
-  against the old 6 ms bound (`8e364c834`'s soft bound was not pushed then), Miri shard
-  `nvs-stdlib 1/12`'s socket send test, where the peer gave up on the close (`9eb8ce90b`), two
-  `Core\Ldap\Connection` examples printed in the server's order on Linux, and
-  `Core\Crypto::open`'s tampering example on Windows (all three in `f115f6791`). The Crypto one was the example,
-  not the cipher: replacing the last byte with `X` left the bytes unchanged for one key in 256.
-- **On that run, before it was cancelled:** `cost guards / linux-x86_64`'s `Serve soak` passed in
-  1.7 s. The Miri shards `nvs-runtime` 1 and 2 and `nvs-stdlib` 3, 4 and 6 to 11 were green. No
-  `test` leg finished.
-- **This session ran clippy and rustdoc on `f115f6791`.** `cargo clippy --workspace --all-targets
-  -- -D warnings` passes. `cargo doc --no-deps --workspace` passes with CI's `RUSTDOCFLAGS`
-  (`-A rustdoc::private_intra_doc_links -D warnings`, `.github/workflows/ci.yml:836`). Without the
-  `-A` flag it lists many private links. CI allows that on purpose.
-- **No feature owes a proof locally** (`bun nv proofs --owed` is empty). The pipeline benches ran
-  256 iterations, about 0.1 ms of work, which is under the start floor's spread, so the twin read
-  0 ns. Both now run 100,000 and the twin reads 1.22×. A twin under the floor writes a `null`
-  ratio (`tools/nv/proofs/perf.ts:183`), and the ledger's four `Infinity` lines are `null`.
-- **The warm start did not regress.** Built in WSL, `0b85b2057` and this tree each run the warm
-  baseline in 30.59 M instructions and 4.04 ms of work. `8e364c834` (the other session) gave the
-  figure a soft and a hard bound. Where the instructions go is in the backlog.
-- **The local `docs` and `lint` checks pass** on this tree: `bun nv check`, `render --check`,
-  `render --website --check`, `rules --check`, `rules --render --check`, `links`,
-  `layout --check`, `release --check`, `lints --check`, `site --check structure stale questions
-  prose` and `cargo fmt --all --check`, and clippy and `cargo doc` as above.
-- **No other session works on CI now.** Before you push, still check `gh run list --workflow ci.yml
-  -L 3`, and never start a second full run beside one that runs.
-- **What that session found, beyond its commits:**
-  - The `proofs` legs reach the examples on all three runners now. Windows' Docker answers and runs
-    Windows containers, so every `requires:` program is skipped with that reason. Windows and macOS
-    skip the website snippets served under the root `nvs.toml` the same way (`1a5a7fea8`). A Docker
-    that does not answer `docker info` is a skip too (`ee6e1d426`), and has not yet come up on CI.
-  - A `stdout differs` failure names the first line that differs, with both lines (`4a7b71639`).
-    That line showed the two LDAP failures were the server's order.
-  - Four more LDAP examples print several entries in the server's order and pass on CI only by
-    that order: `Ldap-Entry/dn/01`, `Ldap-Changes/cookie/01`, `Ldap-Entries/references/02` and
-    `types/Ldap-Connection-Scope/01`. Each filters on `department` alone. The two that failed
-    joined it with `objectClass` in `Filter::all`. The user has not decided whether to sort them.
-  - The four stale stamps `6e4ea2cc9` fixed were written with an `nvs` built before the stdlib
-    docs merge reached the crates. Stamp with a binary built from the tree being stamped.
-  - On `58df55643`, `cost guards / linux-x86_64` missed core scaling once, at 1.33× of 1.5×. The
-    next run passed it.
-- **`looper verify` failed on load only:** `nvs-ext` `spreadsheet_read`, `nvs-cli` `live_edit`
-  and `init`, and `nvs-stdlib` `ldap` each failed beside the other binaries and passed alone.
-  `init`'s failing case is `the_icacls_steps_turn_a_folder_every_account_may_change_into_one_nvs_init_writes_into`.
-- **Stage 9 is done.** `SECURITY.md` says every security fix gets an advisory and that one request
-  affecting another is a security bug. `publish` runs `bun nv release --fixes-built "$BUILT"` on
-  `github.sha` before it writes (`.github/workflows/release.yml:396`), and `build` uses
-  `cargo auditable build` (`.github/workflows/release.yml:299`). Neither step has run on a runner:
-  `release.yml` runs only on a dispatch.
-- **The serve soak is done, and has not run on CI yet.**
-  `live_bytes_stay_flat_while_one_core_serves_thousands_of_requests`
-  (`crates/nvs-cli/src/serve.rs:4198`) drives `serve_on_this_core` with the real handler shape and
-  reads the serving thread's `live_bytes` at two request counts. Locally the readings are equal to
-  the byte. It is `#[ignore]`d, and `cost-guards`' `Serve soak` step (`.github/workflows/ci.yml:322`)
-  runs it under `--release` in the nightly on all three platforms.
-- **Property tests and the shared-worker mode are done.** `nvs test --shared-worker` runs each
-  eligible case again on one worker thread (`crates/nvs-cli/src/shared.rs`): one scheduler, reactor,
-  extension set and `script::Compiler` for the run, and a fresh parent `Ctx` per case, built after
-  the compile so the unit cache is not charged to the case's memory limit. `nvs-test` keeps a case
-  fresh only when its program names `TOP_LEVEL_ONLY` (`crates/nvs-test/src/run.rs`), and rewrites
-  the program's absolute path to `case.nvs` before comparing. Locally all 2,952 cases pass. CI's
-  optimised conformance step now passes the flag (`.github/workflows/ci.yml:223`); not yet run there.
-- **One run of the full tree on the worker hit a Cranelift panic** (`vcode.rs:1901`, index 63 of
-  32 in the constant pool) while compiling a `core/math-*` case, and the worker thread died. The
-  next three full runs and a `core`-only run did not repeat it. It is in the backlog.
-- **The acceptance sweep's four failures are run 39206993876's** (`0b85b2057`). Shard
-  `nvs-stdlib 4/12`'s retry deadline fix (`104ab8948`) is in the pushed `main`.
-- **On run 39206993876** 13 of 14 Miri shards were green, each in 8 to 33 minutes of its 45. No test hit the
-  300 s limit and none hit undefined behaviour.
-- **Its five slowest tests are now cut under Miri,** none pushed yet. Local Miri times: html's
-  open-elements walk 23 s (284 s on CI), compress's chunk refcount 14 s (267 s), the p256 agreement
-  30 s (265 s; it now uses RFC 5903's published point, asserted natively against the multiplied one),
-  `csv_rows`' memory bound 26 s (261 s; `READ_CHUNK` is 2 KiB under Miri and the document 48
-  records), cldr's plurals 10 s (247 s; the walk stops at 11).
-- **The three left over 200 s on that run** run locally in about 30 s each, alone, which is the
-  same as the five cut ones. `regex`'s group-reference replace (201 s on CI) is cut to 18 s:
-  Miri spends 13 s building `.+`'s Unicode class, so its memory-limit case uses `a+` and a
-  smaller limit (`crates/nvs-stdlib/src/regex.rs:3042`). `uri`'s round trip (204 s on CI) is cut
-  from 40 s to 28 s locally (24 s now): it dropped a `compareTo` per row that the comparison test
-  already asks. The jwe encrypt (235 s on CI) is cut from 37 s to 25 s locally: timed step by
-  step, its `ECDH-ES` case cost 4.5 s per seal and 2.6 s per open, so under Miri that case seals
-  once, and `dir`'s two seals check the IV, which is drawn after the algorithm's branch
-  (`crates/nvs-stdlib/src/jwe.rs:957`). Its other costs are fixed: about 5 s to parse the `jwe`
-  vectors and about 8 s for the first `built` call, which includes the class table.
-- **There is no trailing 8 s.** Timed with stamps in the body: an empty test's process ends 0.7 s
-  after its body and `uri`'s round trip 1.3 s after. Every test pays about 3.7 s before its body
-  (Miri's start and libtest's walk over about 1,680 tests). That is about 9 minutes of a 140-test
-  shard, and only fewer tests per binary would cut it.
-- **Fixed costs cut so far:** the vector set's parse (`crates/nvs-stdlib/src/tests/vectors.rs:46`)
-  and the `Core` class table (`crates/nvs-stdlib/src/instance.rs:463`, 13.2 s to 5.6 s under
-  Miri). The table cut has not yet run on CI.
-- **`xml`'s `source` test cannot go smaller simply:** at 16,000 quotes and 64 KiB its peak bound
-  (`< 2 * limit`) fails natively, because the fixed overhead dominates.
-- **CI is up to five times slower than a local run, one test at a time.** Local Miri times: the
-  streamed reply 38 s (185 s on CI), `regex`'s flag test 32 s.
-- **Shard logs:** `gh run view --job <id> --log`, then `perl -pe 's/\^\[\[[0-9;]*m//g'` (the codes
-  are literal `^[[` text), then grep `(TIMEOUT|PASS|FAIL) +\[ *>?([6-9][0-9]|[0-9]{3})\.`.
-- **Local runs** go from the WSL mirror `/var/tmp/nvs-target-wsl-src/mnt-e-mwl`, brought up to date
-  with `syncMirror` from `tools/nv/accept/mirror.ts`, and `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl`.
-  The run is `cargo +nightly miri nextest run --profile miri -p <crate> --lib -E '<filter>'` with
-  CI's `MIRIFLAGS`. Add `--features nvs-runtime/sanitizer` for `nvs-runtime`. Check a smaller input
-  natively first by forcing the Miri branch.
+- **`main` is pushed at `067fae174`, and full run 39272328614 is dispatched on it.** Its push run
+  39272322471 is cancelled. The user gave the push-and-watch loop to this loop alone.
+- **Run 39258294723 (`f115f6791`) was green on every job but two, and both are fixed:**
+  - `proofs / windows-x86_64`: the `Core\Zip::extract` attack printed its last line and was still
+    running at its 30 s limit. Step 6c created 19,200 folders (300 files, 64 deep), 6.7 s of the
+    program's 8.7 s locally, all of it the file system. It now writes 100 files and runs in 3.5 s
+    (`b99670cc9`). The exit sweep of its folders costs about 0.6 s.
+  - `test / windows-x86_64` was cut off at 90 minutes in its last step: a cold 37-minute build, 31
+    minutes of tests and 17 of the shared-worker conformance suite. macOS took 78. The `test` legs
+    now have 120 minutes, with the reason beside the number (`067fae174`, `.github/workflows/ci.yml:127`).
+- **Stage 8 is done on that run.** All 14 `miri units` shards were green in 9 to 21 minutes of 45.
+  The slowest tests were `regex`'s flag test (218 s), `every_registered_member_has_an_implementation_address`
+  (213 s) and the transport's compressed replies (203 s), each under the 300 s limit. The `Serve
+  soak` step passed on all three `cost guards` legs, and the shared-worker `Conformance suite`
+  step passed on all four `test` legs.
+- **Its run ran to the end on purpose.** The proofs failure came early. Cancelling then would have
+  lost the Miri, soak and shared-worker results stage 8 waited on, so the session fixed it while
+  the run went on.
+- **The installed `looper` has no `verify` command.** `bun tools/looper/main.ts verify` runs it.
+- **What earlier sessions found that still holds:**
+  - The `proofs` legs reach the examples on all three runners. Windows' Docker runs Windows
+    containers, so every `requires:` program is skipped there with that reason.
+  - Four LDAP examples print several entries in the server's order and pass on CI only by that
+    order: `Ldap-Entry/dn/01`, `Ldap-Changes/cookie/01`, `Ldap-Entries/references/02` and
+    `types/Ldap-Connection-Scope/01`. The user has not decided whether to sort them.
+  - Stamp an example with an `nvs` built from the tree being stamped.
+  - `cost guards` missed core scaling once on Linux (1.33× of 1.5×) and once on Windows. Each
+    passed on the next run. A timing guard that fails with no change behind it is run again.
+  - `bun nv verify` fails on load only in `nvs-ext` `spreadsheet_read`, `nvs-cli` `live_edit` and
+    `init`, and `nvs-stdlib` `ldap`. Each passes alone.
+- **Shard logs:** `gh api --allow-escape-sequences repos/novis-lang/novis/actions/jobs/<id>/logs`,
+  strip `\x1b\[[0-9;]*m` with `perl -pe`, then grep `(TIMEOUT|PASS|FAIL) +\[ *>?([0-9]{3})\.`.
+- **A watch script** that prints each failed job and step once, and the run's end, is a few lines
+  of `gh api .../runs/<id>/jobs --jq` in a loop. Run it under Monitor and re-arm on expiry.
 
 ### Next
 
-Stage 10's push-and-watch loop, which also gives stage 8 its deep-lane run (a `workflow_dispatch` is the deep lane, `rule:testing/the-deep-lane`), over `.github/workflows/ci.yml`:
-- [x] The pipeline twin: both benches run 100,000 iterations, a ratio under the floor is `null`, and `bun nv proofs --owed` is empty. `tools/nv/proofs/perf.ts:177`
-- [x] The warm-start budget has the two bounds `rule:testing/perf-two-mechanisms` gives a timing: CI's soft bound is 9 ms and only warns, and the hard one is 90 ms after three attempts (the user's call). Hosted Linux read 4.9 to 9.3 ms of work from 2026-10-08 on, before `e3e0f316a` as after it. The 6 ms bound only began to fail when the start floor fell under `QUIET_FLOOR_MS` on 2026-10-17 and the leg stopped abstaining. A cache miss is no hard bound: on the baseline a warm run costs 85 to 93% of a cold one. `tools/nv/cmd/bench.ts:46`
-- [x] Read run 39229718066's other results. It was cancelled: its only failures were the `proofs` legs and the warm-start budget, both now paid. `.github/workflows/ci.yml:1`
-- [x] Stage 10 again from step 1: clippy and `cargo doc` pass locally, `main` is pushed at `f115f6791`, and full run 39258294723 is dispatched. `docs/goals/release-hardening.md:332`
-- [ ] Watch run 39258294723 at step level, and on its first failure go back to step 1. A failure already fixed locally needs only the push. `docs/goals/release-hardening.md:336`
-- [ ] On that run: the `cost guards` legs' `Serve soak` step, and the `test` legs' `Conformance suite` step for the shared-worker run. `.github/workflows/ci.yml:322`, `.github/workflows/ci.yml:228`
-- [ ] On that run: every `miri units` shard. Tick stage 8's two Miri checkpoints once every shard is green and no test runs past about 200 s, then set stage 8 done. `docs/goals/release-hardening.md:263`
+Stage 10's push-and-watch loop over `.github/workflows/ci.yml`:
+- [x] Run 39258294723: every failure is fixed at its cause and committed (`b99670cc9`, `067fae174`), and stage 8 is done. `docs/goals/release-hardening.md:263`
+- [x] `main` is pushed at `067fae174`, and full run 39272328614 is dispatched. `docs/goals/release-hardening.md:332`
+- [ ] Watch run 39272328614 at step level. On a failure, fix it while the run goes on, then push and dispatch again once it ends. `docs/goals/release-hardening.md:336`
+- [ ] Check `test / windows-x86_64`'s total time against its new 120 minutes, and the zip attack on `proofs / windows-x86_64`. `.github/workflows/ci.yml:127`
+- [ ] When one run is green on every job, tick stage 10's two open items with its id, set stage 10 done, run the goal-end gates (`bun nv verify --doc`, `bun nv owners --closes release-hardening`), and write `DONE`. `docs/goals/release-hardening.md:351`
 
 ### Backlog
 
@@ -502,3 +427,5 @@ Stage 10's push-and-watch loop, which also gives stage 8 its deep-lane run (a `w
 - `Core\Ldap::connect` dials each address of a host in turn, so a `localhost` block pays 2 s on Windows (`crates/nvs-stdlib/src/ldap/mod.rs:489`, `crates/nvs-host/src/net.rs:438`).
 - The Cranelift panic on the shared worker (`cranelift-codegen` 0.136.3 `machinst/vcode.rs:1901`) has not repeated. Rerun `RUST_BACKTRACE=1 target/debug/nvs test --shared-worker tests/conformance` and read the backtrace if it does: one thread compiling many units, after other cases ran on it, is where it happened (`crates/nvs-cli/src/shared.rs:171`).
 - `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed (`tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`).
+- Three Miri tests ran 203 to 218 s on run 39258294723, against a 300 s limit: `regex`'s flag test (32 s locally), `every_registered_member_has_an_implementation_address` and the transport's compressed replies. A slower runner day could reach the limit (`crates/nvs-stdlib/src/regex.rs`, `crates/nvs-stdlib/src/lib.rs`).
+- The shared-worker run added about 6 minutes to each `test` leg's conformance step (11 to 17 minutes on Windows). It runs every eligible case a second time (`crates/nvs-cli/src/shared.rs`).
