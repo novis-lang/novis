@@ -301,7 +301,11 @@ live bytes per request grow.
 - [x] Seeded property tests: a grant on `a/secret1` never grants `a/secret`, and every address in a denied range is denied in each of its spellings.
   - [x] The tests are in `crates/nvs-config/tests/capability.rs`, committed as `ae40a9e58`; `cargo test --test capability` passes.
   - [x] Verified green and kept.
-- [ ] A nightly soak serves many requests and fails when live bytes grow with the request count. `crates/nvs-runtime/tests/server_memory.rs:1`
+- [x] A nightly soak serves many requests and fails when live bytes grow with the request count. `crates/nvs-cli/src/serve.rs:4198`
+  - [x] The test serves 4,550 requests over 91 loopback connections on one core and reads the
+    serving thread's `live_bytes` 525 and 4,475 requests in; it allows 4 KiB of growth.
+  - [x] Locally the readings are equal to the byte, and a planted 32-byte leak per request fails it.
+  - [x] `cost-guards`' `Serve soak` step runs it under `--release` in the nightly only.
 
 ### 9. a security fix gets an advisory, and a release proves what it ships
 
@@ -345,8 +349,15 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 7 are done. Stage 8 is under way.
+Stages 1 to 7 are done. Stage 8 waits only on CI: its two Miri checkpoints need a nightly with
+these commits.
 
+- **The serve soak is done, and has not run on CI yet.**
+  `live_bytes_stay_flat_while_one_core_serves_thousands_of_requests`
+  (`crates/nvs-cli/src/serve.rs:4198`) drives `serve_on_this_core` with the real handler shape and
+  reads the serving thread's `live_bytes` at two request counts. Locally the readings are equal to
+  the byte. It is `#[ignore]`d, and `cost-guards`' `Serve soak` step (`.github/workflows/ci.yml:322`)
+  runs it under `--release` in the nightly on all three platforms.
 - **Property tests and the shared-worker mode are done.** `nvs test --shared-worker` runs each
   eligible case again on one worker thread (`crates/nvs-cli/src/shared.rs`): one scheduler, reactor,
   extension set and `script::Compiler` for the run, and a fresh parent `Ctx` per case, built after
@@ -399,9 +410,11 @@ Stages 1 to 7 are done. Stage 8 is under way.
 
 ### Next
 
-Stage 8, the serve soak over `nvs-runtime`'s budget gauges and `nvs serve` (`rule:programs/memory-priority`'s O(in-flight) bound), then the Miri shards once `main` is pushed (`rule:testing/the-deep-lane`):
-- [ ] The soak: a test that serves many requests in one process and fails when live bytes grow with the request count, measured at two request counts after a warm-up. It runs in the nightly lane only. `crates/nvs-runtime/tests/server_memory.rs:1`, `crates/nvs-cli/src/serve.rs:4093`, `.github/workflows/ci.yml:1104`
+Stage 8's CI checks once `main` is pushed (`rule:testing/the-deep-lane`), then stage 9, the advisory and release gates over `.github/workflows/release.yml` and `SECURITY.md`:
+- [ ] Read the `cost guards` legs' `Serve soak` step on the first nightly with these commits. If a platform drifts, its readings are in the failure message. `.github/workflows/ci.yml:322`
 - [ ] Once the user has pushed `main`: read the `test` legs' `Conformance suite` step for the shared-worker run, and every `miri units` shard of the first nightly that has these commits. Tick the two Miri checkpoints once every shard is green and no test runs past about 200 s. `docs/goals/release-hardening.md:263`
+- [ ] Stage 9 while CI waits: `SECURITY.md` states that every security fix gets a GitHub advisory and that one request affecting another is a security bug (`rule:security/isolate-shares-nothing`). `SECURITY.md:1`
+- [ ] Stage 9: release binaries are built with `cargo auditable`, and the release checks that its tag holds each fix its notes name. `.github/workflows/release.yml:181`, `.github/workflows/release.yml:292`
 
 ### Backlog
 
