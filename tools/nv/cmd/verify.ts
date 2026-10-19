@@ -959,10 +959,10 @@ export const summaries: Record<string, (out: string) => string> = {
     return m[2] === "0" && m[3] === "0" ? `${m[1]} rendered file(s) current` : `${m[2]} stale and ${m[3]} to delete -- run \`bun nv render\``;
   },
   rules(out) {
-    return out.includes("no decision record and no citation of one") ? "every rule loads and every `rule:` citation resolves" : NO_SUMMARY;
+    return out.includes("no decision record, no citation of one") ? "every rule loads and every `rule:` citation resolves" : NO_SUMMARY;
   },
   "rules-render"(out) {
-    return out.includes("no decision record and no citation of one") ? "the rulebook pages match their fragments" : NO_SUMMARY;
+    return out.includes("no decision record, no citation of one") ? "the rulebook pages match their fragments" : NO_SUMMARY;
   },
   links(out) {
     const m = /every link in (\d+) file\(s\) resolves/.exec(out);
