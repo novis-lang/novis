@@ -2760,22 +2760,20 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 ### `mixed`
 
 `mixed` is the one type Novis does not check. A `mixed` variable can contain a value of any type.
-What an operation on it does is decided while the program runs, from the value it contains.
 
-Input from outside the program has the type `mixed`: a query string, a form post, the fields of
-decoded JSON. Nothing has checked these values yet. Convert each one to the type you need with `as`.
-If the value cannot be converted, `as` throws an error. `is` tests what the value is and does not
-convert it.
+Input from outside the program has the type `mixed`: a query string, a form post, decoded JSON.
+Convert each value to the type you need with `as`. If that is not possible, `as` throws an error.
+`is` tests what the value is and does not convert it.
 
 A `mixed` value is never converted to a narrower type for you. Passing one to a `string` parameter
-does not compile until you convert it with `as string`.
+does not compile until you write `as string`.
 
-**Good to know:** an operation on a `mixed` value is slower than the same operation on a declared
-type. Convert the value once, close to where it arrives, and use the typed value after that.
+**Good to know:** an operation on a `mixed` value is slower than on a declared type. Convert the
+value once, close to where it arrives.
 
 **The examples below** read a page number from a query string, describe each field of a decoded
-payload, and convert an order line from outside. The last two use a `mixed` value directly, and show
-a `mixed` argument to a `string` parameter as a compile error.
+payload, and convert an order line. The last two use a `mixed` value directly and show the compile
+error.
 
 You can use a `mixed` value in arithmetic, as a condition, with `[]`, with `->`, with `.` and with
 `is` or `as`. Each operation checks the value while the program runs. If the value has the wrong
@@ -4095,10 +4093,8 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 Changing a value into another type is written one way in Novis: `as`, followed by the type you want.
 
-A conversion gives you a value of that type, or it throws an error where it was written. It never
-rounds, never drops a fraction, and never uses a zero or an empty string because the value does not
-fit. Text becomes a number only when the whole text is a number. Write a question mark in front of
-the type, as in `as ?int`, and the result is `null` where the plain form would throw. Add `??` to
+A conversion gives a value of that type, or it throws an error. It never rounds, never drops a
+fraction, and never uses a zero or an empty string instead. With `as ?int`, the result is `null` where the plain form would throw. Add `??` to
 use a default value instead.
 
 `as` also checks an object against a shape, such as `as Point`, and turns a class name into a class
@@ -4107,9 +4103,8 @@ reference with `as class<T>`.
 **Good to know:** `as` converts only the value directly before it, so `$a + $b as float` converts
 `$b` alone.
 
-**The examples below** read numbers out of text that came from outside the program, then give a
-default or list the answers that are not numbers. Then they add up an order total and skip a row
-that throws an error. The next examples show which error each conversion throws, and choose a class
+**The examples below** read numbers out of text from outside the program, add up an order total, and
+skip a row that throws an error. Then they show which error each conversion throws and choose a class
 by its name. The last two do not compile.
 
 `as` can be written more than once: `$m as int as string` converts to `int` and then to `string`.
@@ -4468,19 +4463,18 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 A property key is a value that names one public property of a class.
 
-You use a key when the name of a property is known only while the program runs. A sort column in a
-web address and a field in a form are two examples. The type `property<User>` contains the names of
-the public properties of `User`, and of the public properties it inherits. `as` converts a string to
-a key. If the string does not name a public property, `as` throws an error. `as ?property<User>`
-gives `null` instead. With a key, `$user->$key` reads or writes the property it names.
+You use a key when the name of a property is known only while the program runs, such as a sort
+column in a web address. The type `property<User>` contains the names of the public properties of
+`User`, and inherited ones. `as` converts a string to a key, and throws an error if the string
+does not name a public property. `as ?property<User>` gives `null` instead. `$user->$key` reads or
+writes the named property.
 
-**Good to know:** the name of a `private` or `protected` property never converts to a key. A write
-through a key does not compile when the class has a public `readonly` property.
+**Good to know:** a `private` or `protected` property never converts to a key. A write through a key
+does not compile when the class has a public `readonly` property.
 
-**The examples below** sort a table by a column from the web address, show a function that accepts a
-key or any string, update the fields that a list of changes names, and update an object from a JSON
-request body. Then they show a write of the wrong type, a key of a parent class used on a child
-class, and a class with a public `readonly` property.
+**The examples below** sort a table by a column from the web address and update the fields a list of
+changes names. Then they show a write of the wrong
+type and a key of a parent class used on a child class.
 
 In `property<T>`, `T` must be a class with at least one public property. An interface, an enum or a
 type such as `int` is the error `E0799`.
@@ -4810,20 +4804,16 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 A property path is a value that names a field across related objects, such as `customer.address.city`.
 
 The type `propertyPath<Order>` contains paths that start at the class `Order`. Each name in a path is a
-public property. The first name is a property of `Order`. Each name after it is a property of the
-class that the name before it reaches. That property can be an object, a nullable object or an array
-of objects. A string written in a call to a `propertyPath<Order>` parameter is checked when the
-program compiles. A wrong name does not compile, and the error points at that name. `as` checks any
-other string while the program runs. If a name is wrong, `as` throws an error.
-`as ?propertyPath<Order>` gives `null` instead.
+public property of the class that the name before it reaches. That property can be an object, a
+nullable object or an array of objects. A string written in a call to a `propertyPath<Order>`
+parameter is checked when the program compiles. `as` checks any other string while the program runs,
+and throws an error if a name is wrong. `as ?propertyPath<Order>` gives `null` instead.
 
 **Good to know:** a `private` or `protected` property is never part of a path. A path can come back to
-the same class, such as `parent.parent.name`, and has no length limit. `$path as string` gives the
-text of the path.
+the same class, such as `parent.parent.name`.
 
-**The examples below** go from an order to its customer, address and lines, sort a list by a field
-from the web address, and use `propertyPath<static>` in a parent class. Then they show the errors for
-a wrong path in a string and in the code.
+**The examples below** go from an order to its customer, address and lines, and sort a list by a
+field from the web address. Then they show the errors for a wrong path.
 
 Every name in a path but the last must be a property whose type is a class `C`, a `?C` or an
 `array<C>`. The next name is a property of `C`. The last name can be any public property.
@@ -5283,17 +5273,16 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 A test that proves what a value is lets you use it as that thing, in the code the test guards.
 
 The shortest form is one expression: `$user != null ? $user->name : "guest"`. The right side of `&&`
-runs only when the left side is true, so `$user != null && $user->active` works too. `||` works the
-same way when its left side is false. An `if` block or a `match (true)` arm does the same for more
-code. You can test for `null`, test the kind of object with `is`, or compare with a fixed word. When
-you are sure what a value is, `as` converts it and throws an error if you are wrong.
+runs only when the left side is true, so `$user != null && $user->active` works too. An `if` block
+or a `match (true)` arm does the same for more code. You can test for `null`, test the kind of
+object with `is`, or compare with a fixed word.
 
 **Good to know:** a test works only for a variable or a `readonly` property, and only until you
 write to the variable. Copy any other property, such as `$job->mode`, to a variable first.
 
-**The examples below** use a value that might be `null` in one expression and then in an `if`
-block. Then they check the kind of an object, with `as` as the strict form, and act on a job's
-settings. The last two check two values in one test, and show a method call that does not compile.
+**The examples below** use a value that might be `null`, check the kind of an object, and act on a
+job's settings. The last two check two values in one test, and show a method call that does not
+compile.
 
 Four tests narrow a variable:
 
@@ -6781,16 +6770,14 @@ the same strength meet.
 Novis uses the order most languages use: `*` and `/` before `+` and `-`, then the comparisons, then
 `&&`, then `||`, and the assignment last. `**` runs before a minus sign in front of it, and a chain
 of them is read from the right. So `-2 ** 2` is `-4` and `2 ** 3 ** 2` is `512`. A conversion with
-`as` binds tighter than every operator around it. The `.` that joins two strings binds looser than
-`+`, `-`, `*` and the shifts. A ternary inside another one groups to the right.
+`as` binds tighter than every operator around it.
 
-**Good to know:** parentheses cost nothing when the program runs. The compiler gives warning `W1022`
+**Good to know:** the compiler gives warning `W1022`
 for two mixes that are easy to misread. In `$n ?? 0 + 10`, the `+` runs first, so the default is
-`10`. In `"n=" . $ok ? "x" : "y"`, the whole `"n=" . $ok` is the condition.
+`10`.
 
-**The examples below** show the arithmetic order, then `**` with a minus sign, then `as` and `.` in a
-line of text built from a form field. The last one shows `!` with `is`, the pipeline `|>` and a
-method call on `new`.
+**The examples below** show the arithmetic order, `**` with a minus sign, and `as` and `.` in a line
+of text. The last one shows `!` with `is`, the pipeline `|>` and a method call on `new`.
 
 The full order, from the operators that run first to the ones that run last:
 
@@ -8049,19 +8036,16 @@ Thank you.
 Five short operators for values that may be missing, and for choosing between two values.
 
 `$a ?? $b` gives `$a`, or `$b` when `$a` is `null` or the array key is not there. `$a ??= $b` writes
-`$b` into `$a` only when `$a` is `null` or missing, and a missing key may be at any level.
-`$a ?: $b` gives `$a` when it counts as something and `$b` when it counts as nothing, so an empty
-string or a zero picks `$b`. `$o?->name` gives `null` when `$o` is `null`. `$c ? $a : $b` gives `$a`
-when `$c` is true and `$b` when it is not.
+`$b` into `$a` only when `$a` is `null` or missing. `$a ?: $b` gives `$b` when `$a` counts as
+nothing, such as an empty string or a zero. `$o?->name` gives `null` when `$o` is `null`.
+`$c ? $a : $b` gives `$a` when `$c` is true and `$b` when it is not.
 
-**Good to know:** only the side you end up with is run, so a method call on the other side never
-runs. In `$o != null ? $o->name : "none"`, the first side runs only when `$o` is not `null`, so you
-may write `$o->name` there. `&&` works the same way.
+**Good to know:** only the side you end up with is run. In `$o != null ? $o->name : "none"`, the
+first side runs only when `$o` is not `null`. `&&` works the same way.
 
-**The examples below** show a value that may be missing, then a choice between two values, then a
-settings file with its gaps filled in: the short `?->` and `??` first, then the test written out.
-The last two show `??-=` and `??.=` with a ternary inside a ternary, and the error for a write
-through `?->`.
+**The examples below** show a missing value, a choice between two values and a settings
+file with its gaps filled in. The last two show `??-=` and `??.=`, and the error for a write through
+`?->`.
 
 `??` runs its right side only when the left side is `null` or a missing key. The right side may be
 `throw`: `$id ?? throw new LogicError("no id")`. A missing key at any level gives the right side, so
@@ -8295,20 +8279,17 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 ### Assignment
 
 `=` writes a value into a local variable, a property, a static property or an array element. It is
-an expression as well as a statement: its value is what was just written, so `$a = $b = 3` sets both
-and `($a = 5) + 1` gives 6.
+also an expression. Its value is what was just written, so `$a = $b = 3` sets both.
 
-Every compound form, such as `+=`, `-=`, `*=` or `.=`, is a short way to write `$x = $x op e`. The
-target is worked out a single time, so `$totals[next()] += 1` runs `next()` once. A compound form
-cannot change the type of what it writes into, so `$n /= 2` on an `int` does not compile.
+Every compound form, such as `+=` or `.=`, is a short way to write `$x = $x op e`. The target is
+worked out once, so `$totals[next()] += 1` runs `next()` once. A compound form cannot change the
+type of its target, so `$n /= 2` on an `int` does not compile.
 
 `??+=`, `??-=` and `??.=` update a value that may not exist yet. `$count["paid"] ??+= 1` starts
-from `0` when the key is missing or the value is `null`. A string starts from `""`. Use the plain
-form when the target always has a value.
+from `0` when the key is missing or the value is `null`. A string starts from `""`.
 
-**The examples below** take these in turn: writing and updating a value, updating what is inside an
-array and an object, and tallying a report with `??+=` first and the same update written out after.
-The last two show every compound operator, and the error for `/=` on an `int`.
+**The examples below** write and update values, update arrays and objects, and tally a report with
+`??+=`. The last two show every compound operator, and the error for `/=` on an `int`.
 
 The compound forms are `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `.=`, `<<=`, `>>=`, `&=`, `|=` and `^=`.
 There is no `<=>=` and no `|>=`.
@@ -8790,20 +8771,18 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 Eight small expressions that test a value, build one, copy one or stop the program.
 
-`$x is T` is true when the value in `$x` is a `T` now. In the branch where the test is true, `$x`
-has the type `T`, so you can use it as a `T` there. When the class is only known while the program
-runs, `$x is $cls` tests against a `class<T>` variable. `new C(...)` builds an object.
+`$x is T` is true when the value in `$x` is a `T`. Where the test is true, `$x` has the type
+`T`. `$x is $cls` tests against a `class<T>` variable. `new C(...)` builds an object.
 
-`clone $o` makes a shallow copy. Numbers, text and arrays are copied. An object in a property is
-shared with the original. `isset($x)` is true when `$x` is there and its value is not `null`.
-`empty($x)` is true when `$x` is false by the truth table. Both work on a variable, a property or an
-array element, and a key that is not there gives `false`.
+`clone $o` makes a shallow copy. An object in a property is
+shared with the original. `isset($x)` is true when `$x` is there and is not `null`. `empty($x)` is
+true when `$x` is false by the truth table. Both work on a variable, a property or an array element.
 
-**Good to know:** `throw`, `print` and `exit` are expressions too, so each one can be the right side
-of `??`. `print` writes one value and gives `1`, and `exit` ends the program.
+**Good to know:** `throw`, `print` and `exit` are expressions too, so each can be the right side of
+`??`. `print` writes one value and gives `1`.
 
 **The examples below** show a type test, an object and its copy, and settings that may be missing.
-The last two show all of these in one program, and a `string` after `is`, which does not compile.
+The last two show all of these, and a `string` after `is`, which does not compile.
 
 `is` works with every type a value can have: a class, an interface, `int`, `?int`, `null`, a union
 such as `int|string` and an array type such as `array<int>`. When the declared type of the variable
@@ -9586,21 +9565,17 @@ An anonymous function is a small function you write where you need it. You can k
 variable, pass it to another call or store it in a list.
 
 `fn` is the only way to write one. After the arrow comes one expression, whose value the function
-returns, or a block in braces. Every parameter has a type. A block always declares its return type.
-An anonymous function captures each outside variable it uses. This means it copies the value when
-the function is written. Changing that variable later does not change what the function sees.
-Inside a method, the object is captured too.
+returns, or a block in braces. Every parameter has a type. A block declares its return type.
+The function copies each outside variable it uses when the function is written.
 
-`$fn->bindTo($obj)` and `$fn->bind($obj)` return a copy of the function that uses `$obj` as `$this`.
-`$fn->call($obj, ...)` makes that copy and calls it with the other arguments. The object must be of
-the class the function was written in, or of a subclass. Any other object, or `null`, throws a
-`LogicError`.
+`$fn->bindTo($obj)` and `$fn->bind($obj)` return a copy that uses `$obj` as `$this`.
+`$fn->call($obj, ...)` makes that copy and calls it. The object must be of the class the function
+was written in, or a subclass. Any other object, or `null`, throws a `LogicError`.
 
-**Good to know:** there is no `use (...)` list. A call through a `callable` returns `mixed`, so use
-`as` to say which type you read.
+**Good to know:** there is no `use (...)` list. A call through a `callable` returns `mixed`.
 
-**The examples below** write small functions, show what a function captures and check a form. Example
-04 reads `$this`, example 05 calls itself, and example 06 does not compile.
+**The examples below** write functions, show captures and check a form.
+Example 04 reads `$this`, 05 calls itself, and 06 does not compile.
 
 These forms do not compile:
 
@@ -9887,22 +9862,20 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 ### Arrays in expressions
 
-An array holds a list of values, or a table where every value has a name. This is the syntax for
-building one, reading it and changing it.
+An array is a list of values, or a table where every value has a name.
 
 You write an array as `[10, 20]` or `["city" => "Graz"]`. `var $prices = [10, 20]` takes the type
 from the values, so `$prices` is an `array<int>`. An empty array, or one whose values have different
-types, needs the type written: `array<int> $prices = []` or `array<int|string> $row = [1, "a"]`.
-`$prices[] = 30` adds a value at the end. Every key is text, so `$prices[8]` and `$prices["8"]` are
-one entry. Reading a key that is not there throws a `RuntimeError`, so write `$prices["milk"] ?? 0`
-where a missing key is normal, and `isset($prices["milk"])` to test for one.
+types, needs the type written: `array<int> $prices = []`. `$prices[] = 30` adds a value at the end.
+Every key is text, so `$prices[8]` and `$prices["8"]` are one entry. Reading a key that is not there
+throws a `RuntimeError`. Write `$prices["milk"] ?? 0` where a missing key is normal.
 
-**Good to know:** an array is a value. Assigning it, passing it to a function and returning it each
-give a copy, so a change on one side is never seen on the other.
+**Good to know:** an array is a value. Assigning, passing or returning it gives a copy, so a change
+on one side is never seen on the other.
 
-**The examples below** build a list and a price table with `var` first and a written type after,
-then read keys that may be missing, then group rows for a small report. Example 04 shows keys,
-spread and nested arrays, and example 05 shows destructuring. Example 06 does not compile.
+**The examples below** build a list and a price table, read missing keys and group rows.
+Example 04 shows keys, spread and nested arrays, 05 destructuring, and 06 does
+not compile.
 
 `var $a = [];` is the error `E0414`, because an empty array has no values to take a type from.
 `var $a = [1, "x"];` is `E0414` too. Its help names the type to write: `array<int|string>`.
@@ -10567,20 +10540,19 @@ Keywords: statement, block, scope, definite assignment, if, elseif, else if, els
 ### Expression statements, blocks and declarations
 
 A statement is one step of a program. Most statements are an expression followed by `;`: a call, an
-assignment, an `echo`. The value of such a statement is thrown away, and the work still happens. A
-`;` on its own is an empty statement.
+assignment, an `echo`. The value is thrown away, and the work still happens. A `;` on its own is an
+empty statement.
 
-A declaration is a statement too. Write the type, or write `var` and the type comes from the value on
-the right. A variable belongs to the whole function, so each name is declared once per function.
+A declaration is a statement too. Write the type, or write `var` and the type comes from the value.
+A variable belongs to the whole function, so each name is declared once.
 
-Braces `{ … }` group statements into a block. A block does not open a new scope, so a variable
-declared inside one can still be read after the closing brace. What the position does change is
-where you may read the variable: only where every path has given it a value. A variable first
-assigned in one branch of an `if` is readable after the `if` when every branch assigns it.
+Braces `{ … }` group statements into a block. A block does not open a new scope. You may read a
+variable only where every path has given it a value. A variable assigned in one branch of an `if`
+is readable after the `if` when every branch assigns it.
 
-**The examples below** show the statements a program is made of, how to declare a variable before
-its value is known, and these forms together in a program that prices an order. The last one reads a
-variable that only one branch declares, and does not compile.
+**The examples below** show the statements, a variable declared before its value is
+known, and a program that prices an order. The last one reads a variable that only one branch
+declares, and does not compile.
 
 A variable is declared once in a function. A second declaration of the same name does not compile: it
 is the error `E0406`. This is also true inside a block, and for the variable of a second `for` loop.
@@ -11041,20 +11013,18 @@ sent on attempt 3
 
 A `for` loop counts. Its header has three parts, separated by semicolons: where the counter starts,
 how long the loop runs, and how the counter changes after every round. `for (var $i = 0; $i < 10;
-$i++)` starts at 0, runs the body while `$i` is below 10, and adds one to `$i` after each round.
+$i++)` runs the body while `$i` is below 10.
 
-The first part is either one new variable, or assignments to variables declared above the loop.
-`var $i = 0` makes an `int`, or you write the type, as in `uint $i = 0`. The second and third parts
-may each be a list separated by commas, so one loop can move two counters. Any part may be empty,
-and `for (;;)` runs until a `break`.
+The first part is either one new variable, or assignments to variables declared above the loop. The
+second and third parts may each be a list separated by commas. Any part may be empty, and `for (;;)`
+runs until a `break`.
 
-The counter belongs to the function, not to the loop. You can read it after the loop, where it holds
-the value that ended it. A second loop in the same function needs a different name. `continue` runs
-the third part before the next test.
+The counter belongs to the function, not to the loop. After the loop, it has the value that ended
+it. A second loop in the same function needs a different name. `continue` runs the third part before
+the next test.
 
-**The examples below** show a `var` counter that numbers a list, two counters that meet in the
-middle, `uint` counters that send rows in batches, a `for (;;)` loop, and a header that does not
-compile.
+**The examples below** show a `var` counter, two counters that meet in the middle, `uint` counters,
+a `for (;;)` loop, and a header that does not compile.
 
 The first part of the header declares one variable at most. `for (int $a = 0, int $b = 0; …)` is
 the error `E0125`. Declare the second variable above the loop.
@@ -13264,20 +13234,17 @@ echo $c->n, "\n";
 A property is a named value that each object of a class has.
 
 Every property declares its type and its visibility. A property without a default value must be
-assigned in the constructor, on every path out of it. The compiler checks that, so every object has a
-value for every property from the moment it is created. A default value must be a constant the
-compiler already knows: a number, a string, a `bool`, an enum case, a class constant, `[]` or `null`.
+assigned in the constructor, on every path out of it. A default value must
+be a constant: a number, a string, a `bool`, an enum case, a class constant, `[]` or `null`.
 
 Three keywords change when a property gets its value. `readonly` means the constructor sets it once
 and no later code can change it. `lateinit` means another part of the program sets it after `new`
-returns. Reading a `lateinit` property before that first write throws an error. `static` means there
-is one value for the whole class instead of one per object, and it starts every request at the value
-you declared.
+returns. Reading it before that first write throws an error. `static` means there is one value for
+the whole class, and it starts every request at the value you declared.
 
-**The examples below** show the three shapes in that order: defaults and a constructor, then
-`readonly`, then a `static` counter with a `lateinit` property beside it. The next ones show a
-constructor that does not compile, each kind of default, a `lateinit` read that throws, `isinit`,
-a `readonly` write and `static::` on a property.
+**The examples below** show defaults, a constructor, `readonly`, `static` and `lateinit`. Others
+show a constructor that does not compile, a `lateinit` read that throws, `isinit`, a `readonly`
+write and `static::` on a property.
 
 Only a plain `=` assigns a property in the constructor. `$this->n += 1;` reads the property first, so
 a constructor with only that line is the error `E0409`. A `?T` property with no default and no
@@ -13615,19 +13582,16 @@ A method is a function that belongs to a class.
 An instance method runs on one object, and `$this` is that object. A `static` method belongs to the
 class itself. It has no `$this`, and you call it as `Class::method()`.
 
-Inside a class, three names reach a method without writing the class name again. `self` is the class
-the code is written in. `static` is the class the call was made on, which may be a class that extends
-it. `parent` is the class this one extends, so `parent::format()` calls the version the parent wrote
-and `parent::constructor(...)` runs its constructor.
-
-**In plain words:** `self` is where the code was written. `static` is who called it.
+Three keywords call a method without writing the class name. `self` is the
+class the code is written in. `static` is the class the call was made on, which may be a subclass.
+`parent` is the class this one extends, so `parent::format()` calls the parent's version.
 
 **Good to know:** a method that says it returns `static` must return the object it was called on, or
-a new object of the same class. That is what makes it safe to call from a subclass.
+a new object of the same class.
 
-**The examples below** show the two kinds of method, then `self` beside `static` in a subclass, then
-a subclass that calls the version its parent wrote. The last two show a chain of calls with an
-anonymous function that keeps `$this`, and a method with the return type `static` that does not compile.
+**The examples below** show the two kinds of method, `self` beside `static` in a subclass, and a
+subclass that calls its parent's version. The last two show a chain of calls with an anonymous
+function that keeps `$this`, and a return type `static` that does not compile.
 
 An anonymous function written inside a method keeps that method's `$this`. It may read the class's
 `private` properties and call its `private` methods.
@@ -13841,24 +13805,21 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 A class can hold named values that never change, and every class knows its own name.
 
-A constant is written `public const int MAX = 3;` inside the class, with its type. Code inside the
-class reads it as `self::MAX`, and code anywhere else as `Limits::MAX`. Both put the value in place
-where you read it, so they cost nothing at run time. That is also why the value has to be written
-directly in the code, as one value or a list of values.
+A constant is written `public const int MAX = 3;`, with its type. Code inside the
+class reads it as `self::MAX`, and code anywhere else as `Limits::MAX`. The value must be written
+directly in the code, as one value or a list.
 
 A subclass can give a constant a new value. In a method, `static::MAX` reads the value of the class
-the call was made on, and `self::MAX` reads the value of the class the code is written in.
-`static::` works only for a single value, such as a number or a string, and not inside an anonymous
-function.
+the call was made on. `self::MAX` reads the value of the class the code is written in. `static::`
+works only for a single value, not inside an anonymous function.
 
 `Limits::class` gives the name of a class as a string. `$order::class` gives the class a value
-really is, and `static::class` gives the class the call was made on.
+really is.
 
-**Good to know:** a constant that holds a list gives you a new list on every read. If you change
-the list you got, the next read is unchanged.
+A constant list gives you a new list on every read.
 
-**The examples below** show constants with `self::` and `static::`, the name of a class as text, and
-a constant list of allowed values. The last one shows `static::` with a list, which does not compile.
+**The examples below** show `self::` and `static::`, class names as text, a constant list, and
+`static::` with a list, which does not compile.
 
 A constant name is SCREAMING_SNAKE_CASE, so `const int max` is the error `E0113`. `static` on a
 constant is the error `E0106`. An unknown constant is `E0309`. A constant cannot be assigned:
@@ -25599,25 +25560,23 @@ tags.1: expected string, found a number
 
 ### `#[Core\Route]` and `#[Core\Access]`: the route table
 
-`#[Core\Route]` on a method gives it a path and an HTTP method. `#[Core\Access]` on the same method
-says who may use it. A route needs both attributes.
+`#[Core\Route]` on a method gives it a path and an HTTP method. `#[Core\Access]` says who may
+use it. A route needs both.
 
 A path has fixed segments and captures. `{id}` matches one segment. `{id?}` matches one segment or
-none, and must come last. `{path...}` matches all remaining segments. Each capture gives its value
-to the parameter with the same name, converted to the type of that parameter.
+none, and must come last. `{path...}` matches all remaining segments. Each capture goes to
+the parameter with the same name, converted to its type.
 
-Novis collects every route into one table when the program is compiled. `Core\Router::url` builds a
-link from the name of a route, and the link is checked at the same time. An unknown route name or a
-missing capture is a compile error.
+Novis collects every route into one table at compile time. `Core\Router::url` builds a
+link from the name of a route. An unknown route name or a missing capture is a compile error.
 
-**Good to know:** the server matches each request to a route before your program runs. Your entry
-file calls `Core\Router::dispatch`, which calls the method of that route. A gate class of your own
-checks each request first and writes the error pages. A program can also read the match with
-`Core\Request::route()` and call the method itself.
+The server matches each request to a route before your program runs. Your entry file calls
+`Core\Router::dispatch`, which calls that route's method. A program can also read the match with
+`Core\Request::route()`.
 
-**The examples below** show one route and its link, the three kinds of capture, and the links for a
-product list page. Then they show routes in another file, a program that calls the route method
-itself, and a route with no `#[Core\Access]`, which does not compile.
+**The examples below** show a route and its link, the three captures, product list links, routes in
+another file, calling a route method yourself, and a route with no `#[Core\Access]`, which does not
+compile.
 
 A path must start with `/`, or it is `E0750`. A `{name?}` or `{name...}` capture that is not the last
 segment is `E0750` too. A route with no `method:` is `E0747`, and a `method:` that is not a case of
@@ -26725,21 +26684,17 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 that implements the interface `I`, with one of that class's attributes beside it.
 
 Each row has two fields. `instance` is the object, and `attribute` is the one attribute on that
-class's `$member` whose fields match the shape `T`. A class that carries no such attribute has `null`
-there. `$member` is the name of a method or a property, or an empty string for the attributes written
-on the class itself. The rows are sorted by the full class name, so the order is the same on every
-machine.
+class's `$member` whose fields match the shape `T`. Without such an attribute, it is `null`. `$member` is the name of a method or a property, or an empty string for the attributes written
+on the class itself. Rows are sorted by full class name.
 
 Novis finds the classes and their attributes while it compiles your program. A framework uses this
-to read the settings of the classes it found. In a loop over `Core\Program::implementing`, the
-variable has the type of the interface. `Core\Attributes::get` needs a class name, so it cannot read
-the attributes there. `implementingWith` reads them for each class.
+to read the settings of the classes it found.
 
 **Good to know:** two attributes on one class that both match `T` are an error. Use a narrower
 shape, or read that class with `Core\Attributes::all<T>`.
 
-The examples show a report label, the attributes on a class itself, an admin menu, a class without
-the member, which does not compile, and the path of each page's route.
+The examples show a report label, class attributes, an admin menu, each page's route path, and a
+missing member, which does not compile.
 
 `I` follows the same rules as for `Core\Program::implementing`. The list has the same classes in
 the same order, and `E0743`, `E0744` and `E0442` are given for the same mistakes. The call takes two
