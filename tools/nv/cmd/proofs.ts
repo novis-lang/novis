@@ -78,9 +78,10 @@ const USAGE = [
 ].join("\n");
 
 /** What the binary is: the one named, or the first built of the release binary, the proof binary and
- * the pipeline's debug build. */
-function binary(explicit: string | undefined): string | null {
-  if (explicit !== undefined) return existsSync(explicit) ? explicit : null;
+ * the pipeline's debug build. A named path is made absolute, because a `.cmd` example runs in a
+ * scratch directory of its own, where a relative path names nothing. */
+export function binary(explicit: string | undefined): string | null {
+  if (explicit !== undefined) return existsSync(explicit) ? resolve(explicit) : null;
   const exe = process.platform === "win32" ? "nvs.exe" : "nvs";
   const covws = `${COVWS_TARGET}/${hostTriple()}`;
   for (const p of [`target/release/${exe}`, PROOF_BINARY, `${covws}/debug/${exe}`].map((x) => abs(x))) {
