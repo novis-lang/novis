@@ -718,27 +718,127 @@ pub(crate) fn shape<const N: usize>(name: &str, slots: [Value; N]) -> Value {
     Value::object(object)
 }
 
-/// The receiver of an instance member: argument slot 0, as a raw object
-/// pointer live for the length of the call.
+/// Every `Core` descriptor's address, sorted, beside the registry class whose
+/// instance members take an instance of it as their receiver — see
+/// [`receivers`].
+static RECEIVERS: OnceLock<Vec<(usize, &'static str)>> = OnceLock::new();
+
+/// [`RECEIVERS`], built from [`descriptors`] on the first call.
+///
+/// A class's own descriptor receives its own members. The one exception is
+/// `rule:core-classes/ast-is-inert`'s family: a node is an instance of its
+/// production's class, and `Core\Ast\Node`'s members read every one of them,
+/// so each production's descriptor receives `Core\Ast\Node`'s members.
+///
+/// **What it spends:** one address and one name per `Core` descriptor, for the
+/// process, bounded by the same rosters [`descriptors`] is.
+fn receivers() -> &'static [(usize, &'static str)] {
+    RECEIVERS.get_or_init(|| {
+        let table = descriptors();
+        let mut rows: Vec<(usize, &'static str)> = registry::CLASSES
+            .iter()
+            .chain(INTERNAL_CLASSES.iter().copied())
+            .filter(|class| has_instances(class))
+            .map(|class| (class.name, class.name))
+            .chain(
+                crate::ast::PRODUCTIONS
+                    .iter()
+                    .map(|production| (production.name, crate::ast::NODE_NAME)),
+            )
+            .filter_map(|(own, receives)| Some((table.id_of(own)?, receives)))
+            .map(|(id, receives)| (table.desc(id).addr(), receives))
+            .collect();
+        rows.sort_unstable_by_key(|(address, _)| *address);
+        rows
+    })
+}
+
+/// Whether `left` and `right` are objects of two different classes, at least
+/// one of them a `Core` class.
+///
+/// `crate::ordering`'s object row asks it before it calls a `compareTo`. A
+/// `Core` class's comparer reads its argument through [`receiver`], so it
+/// cannot order an instance of another class, and the pair gets the ordinary
+/// "no natural order" throw rather than [`receiver`]'s fatal error. Two
+/// objects of a program's own classes are not asked about here: one may
+/// extend the other, and their `compareTo` decides.
+pub(crate) fn is_mixed_core_pair(left: Value, right: Value) -> bool {
+    let (Some(left), Some(right)) = (left.obj_ptr(), right.obj_ptr()) else {
+        return false;
+    };
+    #[expect(
+        unsafe_code,
+        reason = "both value arguments own a reference to a live allocation, so \
+                  each is live for the length of this call"
+    )]
+    let (left, right) = unsafe { (NvsObj::class_of(left), NvsObj::class_of(right)) };
+    if std::ptr::eq(left, right) {
+        return false;
+    }
+    let rows = receivers();
+    [left, right].iter().any(|found| {
+        rows.binary_search_by_key(&found.addr(), |(address, _)| *address)
+            .is_ok()
+    })
+}
+
+/// The receiver of an instance member, as a raw object pointer live for the
+/// length of the call.
+///
+/// **It checks the receiver's class**, which is
+/// `rule:core-api/core-classes-are-sealed`'s second half. The member reads its
+/// slots by index against `class`'s layout, so an object of any other class
+/// would have them read as something they are not: a string's pointer as an
+/// integer, or a slot past the end of the object. The link pass already
+/// refuses a program's class that extends or implements a `Core` class; this
+/// check holds whatever path the checker did not see.
+///
+/// **What it costs:** a binary search of [`receivers`] by the descriptor's
+/// address and one name comparison, on every call to a `Core` instance member.
+/// No memory per call.
 ///
 /// # Errors
 ///
-/// A `Fault::fatal` if the slot does not hold an object — the same treatment
-/// every other mistyped argument slot gets, since compiled code wrote the tag
-/// and `nvs_types` already checked the receiver's declared type.
+/// A `Fault::fatal` if the slot does not hold an object, or holds an object
+/// whose class is not `class`. Compiled code wrote the tag and `nvs_types`
+/// checked the receiver's declared type, so neither is a program's mistake.
 pub(crate) fn receiver(
     value: Value,
     class: &CoreClass,
     member: &str,
 ) -> Result<*mut ObjHeader, Fault> {
-    value.obj_ptr().ok_or_else(|| {
-        Fault::fatal(format!(
+    let Some(object) = value.obj_ptr() else {
+        return Err(Fault::fatal(format!(
             "{}::{member} expected {:?} for its receiver, got tag {}",
             class.name,
             Tag::Object,
             value.tag_byte()
-        ))
-    })
+        )));
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the value argument owns a reference to a live allocation, so \
+                  it is live for the length of this call"
+    )]
+    let found = unsafe { NvsObj::class_of(object) };
+    let rows = receivers();
+    let receives = rows
+        .binary_search_by_key(&found.addr(), |(address, _)| *address)
+        .ok()
+        .map(|at| rows[at].1);
+    if receives == Some(class.name) {
+        return Ok(object);
+    }
+    #[expect(
+        unsafe_code,
+        reason = "every object's class word points at a descriptor that outlives it"
+    )]
+    // SAFETY: the object is live for this call, so its descriptor is.
+    let named = unsafe { (*found).name() };
+    Err(Fault::fatal(format!(
+        "{}::{member} expected a `{}` receiver, got an instance of `{named}`",
+        class.name, class.name
+    )))
 }
 
 /// Overwrites slot `index` of `receiver`, **releasing** what it held and
@@ -790,8 +890,8 @@ pub(crate) fn slot(receiver: *mut ObjHeader, index: usize) -> Value {
 ///
 /// # Errors
 ///
-/// The [`receiver`] fault a wrongly-tagged receiver is, which compiled code
-/// cannot produce.
+/// The [`receiver`] fault for a receiver that is not an object of `class`,
+/// which compiled code cannot produce.
 pub(crate) fn read_slot(
     args: &[Value],
     class: &CoreClass,
@@ -1090,6 +1190,78 @@ mod tests {
         assert!(desc.method(sequence::ADVANCE).is_some());
         assert!(desc.method(sequence::CURRENT).is_some());
         assert!(desc.method("nothing").is_none());
+    }
+
+    /// `rule:core-api/core-classes-are-sealed`'s runtime half, with the link
+    /// pass out of the way: `Core\Test\Response::status` is called directly,
+    /// the way compiled code calls it, on objects the checker would never let
+    /// reach it. A program's class with a string in slot 0 and an instance of
+    /// another `Core` class are both refused, before any slot is read. The
+    /// member's own class still reads, and so does an `Core\Ast` production
+    /// through `Core\Ast\Node`'s members.
+    #[test]
+    fn a_receiver_of_another_class_is_refused_before_a_slot_is_read() {
+        use crate::test::{RESPONSE, nvs_core_test_response_status};
+
+        let table: &'static mut ClassTable = Box::leak(Box::new(ClassTable::new()));
+        let forged_id = table.define(r"Forged", &["note"], &[]);
+        #[expect(
+            unsafe_code,
+            reason = "the table is leaked, so the descriptor outlives every \
+                      instance made from it, which is `NvsObj::new`'s obligation"
+        )]
+        let forged = unsafe { NvsObj::new(table.desc(forged_id)) };
+        forged.set_field(0, Value::str(nvs_runtime::NvsStr::new(b"x")));
+        let forged = Value::object(forged);
+        let other = build(&crate::regex::MATCH, [Value::null(), Value::int(7)]);
+        let genuine = build(
+            &RESPONSE,
+            [
+                Value::int(201),
+                Value::str(nvs_runtime::NvsStr::new(b"")),
+                Value::array(nvs_runtime::NvsArray::new()),
+            ],
+        );
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        for wrong in [forged, other] {
+            assert!(
+                nvs_runtime::call(nvs_core_test_response_status, &mut ctx, &[wrong]).is_err(),
+                "a receiver of another class is refused"
+            );
+            let err = receiver(wrong, &RESPONSE, "status").expect_err("refused");
+            assert!(
+                format!("{err:?}").contains("Response::status expected"),
+                "{err:?}"
+            );
+        }
+        let status = nvs_runtime::call(nvs_core_test_response_status, &mut ctx, &[genuine])
+            .expect("the member's own class is its receiver");
+        assert_eq!(status.as_int(), Some(201));
+
+        let node = build(
+            &crate::ast::PRODUCTIONS[0],
+            [
+                Value::null(),
+                Value::array(nvs_runtime::NvsArray::new()),
+                Value::int(1),
+                Value::int(1),
+                Value::int(0),
+            ],
+        );
+        assert!(receiver(node, &crate::ast::NODE, "kind").is_ok());
+        assert!(receiver(genuine, &crate::ast::NODE, "kind").is_err());
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the one reference each `build` and \
+                      `Value::object` produced, and releases each once"
+        )]
+        unsafe {
+            for value in [forged, other, genuine, node] {
+                value.release();
+            }
+        }
     }
 
     /// A built instance holds exactly what it was given, and one reference —
