@@ -357,9 +357,15 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 9 are done. Stage 10 waits on the full run dispatched on the commit that wrote this
-handoff. `gh run list --workflow ci.yml --event workflow_dispatch --limit 1` names it.
+Stages 1 to 9 are done. Stage 10 waits on full run 39278827562 on `2dfe330c6`, the first run
+with the redis-windows step, and on a GitHub Actions outage.
 
+- **GitHub Actions is down, and this goal waits behind `fewer-allocations`.** githubstatus.com
+  opened "Degraded availability for GitHub Actions, GitHub Pages and Webhooks" at 15:49 UTC on
+  2026-10-19. At 16:08 the run had jobs in progress and most queued. Its `A Redis server
+  (Windows)` step had passed, and `test / windows-x86_64` was building. Push run 39278545350 shows
+  `in_progress`, but every job in it is already cancelled. The user said to cancel and dispatch
+  nothing more during the outage, and moved this goal behind `fewer-allocations`.
 - **The Windows Redis step no longer uses Chocolatey or Memurai.** On run 39276660114 (`94ff16d2f`)
   the feed answered 503 again, and `choco` printed "installed 0/0 packages" but exited 0, so the
   retry loop never retried. At the user's request, the step now downloads Redis 8.10.2, the version
@@ -421,7 +427,8 @@ Stage 10's push-and-watch loop over `.github/workflows/ci.yml`:
 - [x] `main` is pushed at `067fae174`, and full run 39272328614 is dispatched. `docs/goals/release-hardening.md:332`
 - [x] Run 39272328614: the `asan` and Windows Redis failures are fixed at their causes and committed (`2ad211bb6`, `94ff16d2f`), and `main` is pushed with full run 39276660114 dispatched. `.github/workflows/ci.yml:1290`
 - [x] Run 39276660114: the Windows Redis step is replaced by a pinned GitHub release download, and `main` is pushed with a new full run dispatched. `.github/workflows/ci.yml:187`
-- [ ] Watch the newest full run at step level with the watch script the State describes, under Monitor. Check that `A Redis server (Windows)` passes. On a failure, fix it, then push and dispatch again. `docs/goals/release-hardening.md:336`
+- [x] Run 39278827562 on `2dfe330c6`: `A Redis server (Windows)` passed. `.github/workflows/ci.yml:187`
+- [ ] When this goal is live again, check run 39278827562 at step level. If it is gone, cancelled by the outage or red, fix any failure at its cause, push `main` and dispatch a new full run, and watch it with the watch script the State describes, under Monitor. `docs/goals/release-hardening.md:336`
 - [ ] Check `test / windows-x86_64`'s total time against its new 120 minutes, and the zip attack on `proofs / windows-x86_64`. `.github/workflows/ci.yml:127`
 - [ ] When one run is green on every job, tick stage 10's two open items with its id, set stage 10 done, run the goal-end gates (`bun nv verify --doc`, `bun nv owners --closes release-hardening`), and write `DONE`. `docs/goals/release-hardening.md:351`
 
