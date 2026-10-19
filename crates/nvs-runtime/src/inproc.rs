@@ -150,6 +150,12 @@ pub fn install(unit: &'static dyn Answering) -> Installed {
 /// [`crate::script::scoped`]'s reason: an implementor holds an `Rc`-shared
 /// compiled unit, so it is `!Sync` and cannot live in a `static`, and leaking
 /// one per process is a definite loss a valgrind sweep then reports.
+///
+/// **Never inside a task that parks.** Every task on the thread reads the slot,
+/// so a unit installed by one task is the unit of every task that runs while it
+/// is parked. A runner whose tasks need different units runs them on threads of
+/// their own and installs each around the thread's whole loop
+/// (`nvs_host::worker::Cores`).
 pub fn scoped<R>(unit: &(dyn Answering + 'static), run: impl FnOnce() -> R) -> R {
     #[expect(
         unsafe_code,
@@ -161,7 +167,11 @@ pub fn scoped<R>(unit: &(dyn Answering + 'static), run: impl FnOnce() -> R) -> R
                   owns its bytes and borrows nothing. A nested `install` inside \
                   `run` is sound however its guard is dropped or forgotten, \
                   because putting *this* one back is what `installed` does \
-                  regardless"
+                  regardless. That holds while `run` does not park: a task \
+                  parked inside it lets another task on this thread install \
+                  over it and later restore this reference after this call has \
+                  returned, so every caller installs around a thread's whole \
+                  scheduler loop and never inside a task"
     )]
     // SAFETY: as the reason above states.
     let widened: &'static dyn Answering = unsafe { &*std::ptr::from_ref(unit) };

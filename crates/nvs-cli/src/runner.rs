@@ -697,8 +697,8 @@ fn run_suite_in_a_task(
     // `rule:testing/in-process-request`'s unit under test, built before
     // `checked` is moved into the task below. A `Core\Test` member reaches it
     // the way a `spawn script` reaches the resolver, so the two guards nest
-    // rather than either one being a special case; each test's [`Job`] installs
-    // the same two on the core it runs on.
+    // rather than either one being a special case; each of the run's cores
+    // installs the same two for its whole life ([`Seams`]).
     let under_test = Arc::new(UnderTest::new(unit, &checked));
     // A test's own isolate is built by this crate directly, but a `spawn script`
     // *inside* a test goes through the seam and needs the same resolver
@@ -710,24 +710,37 @@ fn run_suite_in_a_task(
     // not in. Nothing edits a file mid-suite, so the revalidation policy in it
     // chooses nothing.
     let compiler = Arc::new(crate::script::Compiler::new(config));
+    // The cores the tests run on, started at the first test posted and joined
+    // when the last owner below drops them. Each runs inside the same two
+    // seams as this thread, so a test reads this run's unit and compiler on
+    // whichever core it lands.
+    let cores = {
+        let (under_test, compiler) = (Arc::clone(&under_test), Arc::clone(&compiler));
+        Arc::new(nvs_host::worker::Cores::new(
+            nvs_host::worker::bound(),
+            move |core: &mut dyn FnMut()| {
+                nvs_runtime::script::scoped(&*compiler, || {
+                    nvs_runtime::inproc::scoped(&*under_test, core);
+                });
+            },
+        ))
+    };
     let filed: Rc<RefCell<Option<Suite>>> = Rc::new(RefCell::new(None));
     let collected = Rc::clone(&filed);
     let suite_unit = Arc::clone(unit);
-    let seams = (Arc::clone(&under_test), Arc::clone(&compiler));
+    let seams = Seams {
+        shape,
+        cores: Arc::clone(&cores),
+    };
     // Owned for the same reason `checked` is: the body outlives this call as
     // far as the scheduler's signature is concerned.
     let filter = filter.map(ToOwned::to_owned);
     let root = sched.spawn(ctx, nvs_runtime::TaskRoot::Request, move |ctx| {
-        let (under_test, compiler) = seams;
         *collected.borrow_mut() = Some(run_suite(
             &suite_unit,
             ctx,
             &checked,
-            Seams {
-                shape,
-                under_test,
-                compiler,
-            },
+            seams,
             filter.as_deref(),
         ));
     });
@@ -742,6 +755,9 @@ fn run_suite_in_a_task(
         nvs_runtime::inproc::scoped(&*under_test, || nvs_host::run_until_idle(&mut sched))
     });
     drop(installed);
+    // Joins the run's cores. Every test has been reported unless the scheduler
+    // stopped, and a test still running on a core is cancelled first.
+    drop(cores);
     ran.map_err(|error| format!("the scheduler stopped: {error}"))?;
 
     let Some(finished) = sched
@@ -959,13 +975,16 @@ struct Shape {
     show_output: bool,
 }
 
-/// What [`run_suite`] hands every test it posts, beside [`Shape`]: the two
-/// seams `run_suite_in_a_task` installs on the suite's thread, which each
-/// [`Job`] installs again on the core it runs on.
+/// What [`run_suite`] needs beside [`Shape`]: the cores it posts each test to.
+///
+/// They are this run's own ([`nvs_host::worker::Cores`]), and each runs its
+/// whole life under the two seams `run_suite_in_a_task` installs on the suite's
+/// thread. A test parks while its isolate runs, so a seam installed per test
+/// would be read by every other test on that core, including another run's in
+/// the same process.
 struct Seams {
     shape: Shape,
-    under_test: Arc<UnderTest>,
-    compiler: Arc<crate::script::Compiler>,
+    cores: Arc<nvs_host::worker::Cores>,
 }
 
 /// A whole run's verdict, before any of `rule:testing/report-formats`'s renderings has been chosen —
@@ -1010,11 +1029,7 @@ fn run_suite(
     seams: Seams,
     filter: Option<&str>,
 ) -> Suite {
-    let Seams {
-        shape,
-        under_test,
-        compiler,
-    } = seams;
+    let Seams { shape, cores } = seams;
     // The run's coverage table, or `None` when no coverage flag was given. A
     // test counts into a table of its own, sized from this one, and the queue
     // adds it here when the test is reported. A fixture is built before its
@@ -1031,12 +1046,10 @@ fn run_suite(
         coverage: hits
             .as_ref()
             .map(|hits| (hits.counts().len(), hits.edge_counts().len())),
-        under_test,
-        compiler,
         format: shape.format,
         show_output: shape.show_output,
     });
-    let mut queue = Queue::new(unit, ctx, shape.format, hits);
+    let mut queue = Queue::new(unit, ctx, shape.format, hits, cores);
     for class in checked.exprs.test_classes() {
         let tests = checked.exprs.tests(class).unwrap_or_default();
         // The selection is made **before** the class is announced or its
@@ -1154,8 +1167,6 @@ struct Shared {
     /// The sizes of the run's coverage table, statements then edges, or `None`
     /// for a run with no coverage flag.
     coverage: Option<(usize, usize)>,
-    under_test: Arc<UnderTest>,
-    compiler: Arc<crate::script::Compiler>,
     format: Format,
     show_output: bool,
 }
@@ -1256,9 +1267,13 @@ impl Job {
     /// Runs the test on this thread, under a parent context built for it.
     ///
     /// The context is what the suite's would have been for this one test: the
-    /// unit installed, the suite's configuration, a coverage table of its own,
-    /// and the two seams. Its sink is a buffer, so what the child isolate
-    /// prints through `Output::Inherit` is the test's captured output.
+    /// unit installed, the suite's configuration and a coverage table of its
+    /// own. Its sink is a buffer, so what the child isolate prints through
+    /// `Output::Inherit` is the test's captured output.
+    ///
+    /// The two seams are the thread's, not this call's: one of the run's own
+    /// cores, or the suite's thread under `--jobs 1`, installs them for its
+    /// whole life ([`Seams`]).
     fn run(self) -> Ran {
         let began = Instant::now();
         let Self {
@@ -1292,19 +1307,15 @@ impl Job {
         let receiving = ctx.class_table();
         let (outcome, snapshots) =
             match nvs_runtime::CrossedFixtures::decode(&fixtures, receiving.as_ref()) {
-                Ok(crossed) => nvs_runtime::script::scoped(&*shared.compiler, || {
-                    nvs_runtime::inproc::scoped(&*shared.under_test, || {
-                        run_in_isolate(
-                            &unit,
-                            &mut ctx,
-                            &test,
-                            &case,
-                            row.as_deref(),
-                            crossed,
-                            &shared.routes,
-                        )
-                    })
-                }),
+                Ok(crossed) => run_in_isolate(
+                    &unit,
+                    &mut ctx,
+                    &test,
+                    &case,
+                    row.as_deref(),
+                    crossed,
+                    &shared.routes,
+                ),
                 // Not reachable for bytes encoded against the same unit's
                 // table, and reported rather than unwrapped: nothing has run.
                 Err(refused) => (
@@ -1390,6 +1401,8 @@ struct Queue<'a> {
     failed_tests: Vec<String>,
     exited: Option<i64>,
     class_failures: Vec<(String, String)>,
+    /// The run's own cores, which [`Self::start`] posts each test to.
+    cores: Arc<nvs_host::worker::Cores>,
 }
 
 impl<'a> Queue<'a> {
@@ -1398,12 +1411,14 @@ impl<'a> Queue<'a> {
         ctx: &'a mut nvs_runtime::Ctx,
         format: Format,
         hits: Option<Arc<nvs_runtime::StmtHits>>,
+        cores: Arc<nvs_host::worker::Cores>,
     ) -> Self {
         Self {
             unit,
             ctx,
             format,
             hits,
+            cores,
             entries: VecDeque::new(),
             running: 0,
             cases: Vec::new(),
@@ -1425,8 +1440,9 @@ impl<'a> Queue<'a> {
         self.exited.is_some()
     }
 
-    /// Starts `job`: posted to another core once fewer than `jobs` tests are
-    /// running, or run here under `--jobs 1` and when no core can be had.
+    /// Starts `job`: posted to one of the run's cores once fewer than `jobs`
+    /// tests are running, or run here under `--jobs 1` and when no core can be
+    /// had.
     fn start(&mut self, job: Job, jobs: usize) -> State {
         if jobs <= 1 {
             return State::Ran(job.run());
@@ -1434,7 +1450,7 @@ impl<'a> Queue<'a> {
         while self.running >= jobs && !self.ended() {
             self.report_front();
         }
-        match nvs_host::worker::post(move || job.run()) {
+        match self.cores.post(move || job.run()) {
             Ok(posted) => State::Running(posted),
             Err(job) => State::Ran(job()),
         }
