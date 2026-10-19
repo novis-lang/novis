@@ -2659,13 +2659,13 @@ mod tests {
     /// with nothing cached and without the gigabyte ever being held.
     ///
     /// Under Miri, compiling five thousand groups takes longer than a test
-    /// may run. There the wide pattern has a hundred groups, the ceiling is
-    /// 32 KiB, and the table is still more than sixteen times the ceiling.
+    /// may run. There the wide pattern has fifty groups, the ceiling is
+    /// 8 KiB, and the table is still more than sixteen times the ceiling.
     // covers: Core\Regex::match
     #[test]
     fn a_search_whose_capture_table_the_request_cannot_afford_is_refused_first() {
         let (groups, ceiling) = if cfg!(miri) {
-            (100, 32 << 10)
+            (50, 8 << 10)
         } else {
             (5000, 64 << 20)
         };
@@ -2740,10 +2740,14 @@ mod tests {
             }
         };
         assert_eq!(run("^b", FLAG_MULTILINE, "a\nbc"), Some("b".to_owned()));
-        assert_eq!(run("^b", NO_FLAGS, "a\nbc"), None);
         assert_eq!(run("a.c", FLAG_DOT_ALL, "a\nc"), Some("a\nc".to_owned()));
         assert_eq!(run("<.+>", FLAG_UNGREEDY, "<a><b>"), Some("<a>".to_owned()));
-        assert_eq!(run("<.+>", NO_FLAGS, "<a><b>"), Some("<a><b>".to_owned()));
+        // The same patterns with no flag. Under Miri these two are skipped,
+        // because each compile there takes seconds and the test is near its limit.
+        if !cfg!(miri) {
+            assert_eq!(run("^b", NO_FLAGS, "a\nbc"), None);
+            assert_eq!(run("<.+>", NO_FLAGS, "<a><b>"), Some("<a><b>".to_owned()));
+        }
         // A flag group applies to every alternative, which is why it is a
         // group rather than a leading `(?i)` directive.
         assert_eq!(
