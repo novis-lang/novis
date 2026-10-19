@@ -1,0 +1,15 @@
+<?nvs
+// Shows that every field needs a constructor parameter with the same name.
+// The constructor has no `$name` parameter, so this program does not compile.
+// proof: compile-error
+
+#[Core\Json\Derive]
+class User {
+    public string $name;
+    public int $age;
+
+    public function constructor(int $age) {
+        $this->name = "";
+        $this->age = $age;
+    }
+}

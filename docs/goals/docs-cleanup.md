@@ -1047,9 +1047,27 @@ means nothing (`#[Core\Command]` above a class) compiles and does nothing, and
 `#[Core\Json\Derive()]` with a list compiles and adds no codec
 (`data/gaps/nvs-types/a-compiler-read-attribute-on-a.json`).
 
+`core-json-derive-and-core-json-field-a-class-with-a-json-codec` is done, each fact run on the
+binary. Two claims were wrong. The chapter and the syntax page `syntax/attributes/json.mdx` said
+`Core\Json::decodeAs` on a class without the attribute throws `LogicError`; it is `E0821` while
+compiling, and only `encode` throws (`90-attributes.md:173`). Both also said a decode of an array or
+enum field is a fatal error; it works, an enum reading the number of a case and an array element's
+path ending with its index (`tags.1`). Both now say so (`90-attributes.md:225`), and the page's "Don't"
+bullet is gone. Its `details.md` has which properties are fields (any visibility, promoted, not
+`static`, not inherited), `E0758`, the field types and `E0756`, `E0462`, `E0463`, `E0460`, `E0461`,
+`E0464`, `E0820` for a constructor parameter that is not a field (with a default too), `E0821`, a `?T`
+key being required, no conversion on decode, the paths, the two empty-path issues, and a
+constructor's throw passing through. Examples 04 to 06 are the chapter's `Row` block, its `E0460`
+block, and an enum and array decode. Probing found three gaps, owned by `release-hardening`: a
+deriving class with no written constructor compiles and gets no codec
+(`data/gaps/nvs-types/a-json-derive-class-with-no.json`), two fields with one wire key compile and
+encode a duplicate key (`data/gaps/nvs-types/two-json-derive-fields-with-the.json`), and a JSON list
+decodes into a class as an object, so a field named `"0"` is filled from `["paris"]`
+(`data/gaps/nvs-stdlib/a-json-array-decodes-into-a.json`). `llms-full.txt` is rendered again.
+
 ### Next
 
-`90-attributes` goes on from `core-json-derive-and-core-json-field` (`90-attributes.md:171`), one or two of its long features per session;
+`90-attributes` goes on from the route table (`90-attributes.md:286`), one of its long features per session;
 take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -1068,7 +1086,7 @@ A probe with a limit or a grant runs with `nvs run --config <file>.toml`, which 
 `nvs.toml`; an example needs its own `[[app]]` entry in the root `nvs.toml` instead (`nvs.toml:497`).
 A spawning probe has an `nvs.toml` with `[capabilities.script] spawn = true` beside it, and a probe
 runner gives each run a timeout, since a channel or a task with nothing to wait for never ends.
-- [ ] `90-attributes` from `core-json-derive-and-core-json-field-a-class-with-a-json-codec`, then the route table, the OpenAPI document, the command table and the two `Core\Program` features; the JSON, route, API and command sections are long and may each take a session. Then `bun nv proofs --record-perf --group lang:attributes` if the chapter changed. `docs/reference/lang/90-attributes.md:171`
+- [ ] `90-attributes` from the route table (`#[Core\Route]` and `#[Core\Access]`, about 200 lines with `#[Core\Query]` and `Core\Router::url`), then the OpenAPI document, the command table and the two `Core\Program` features; the route, API and command sections are long and may each take a session. A route probe that reads `urlAbsolute` needs an `nvs.toml` with `origin`. Then `bun nv proofs --record-perf --group lang:attributes`, since the chapter changed. `docs/reference/lang/90-attributes.md:286`
 - [ ] `95-testing`, which closes stage 6. `docs/reference/lang/95-testing.md:8`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 

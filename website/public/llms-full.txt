@@ -6853,8 +6853,8 @@ The rest are below.
 ### `#[Core\Json\Derive]` and `#[Core\Json\Field]`: a class with a JSON codec
 
 `#[Core\Json\Derive]` on a class gives it an encoder and a decoder, so `Core\Json::encode` accepts
-its instances and `Core\Json::decodeAs<T>` builds them. Without the attribute both refuse the class
-with a `LogicError`. An object is never encoded automatically.
+its instances and `Core\Json::decodeAs<T>` builds them. Without the attribute, `decodeAs<T>` is a
+compile error (`E0821`) and `encode` throws a `LogicError`. An object is never encoded automatically.
 
 ```nvs
 <?nvs
@@ -6904,11 +6904,10 @@ echo Json::encode(new User("ada", 36, true, new Address("london"), null)), "\n";
   property out of the document entirely. There is no class-wide naming policy.
 - A `?T` field always appears in the document, as `null` when it is null; nothing is omitted for
   being null.
-- Encoding reaches into nested deriving classes, arrays and enums (an enum encodes as its backing
-  value). **Decoding, in this build, handles fields of `string`, `int`, `uint`, `float`, `bool`,
-  another deriving class and `?T` of those**; `decodeAs<T>` over a class with an array or enum
-  field is a fatal error at run time. A nested field's issues carry the path that reaches them —
-  `address.city`, or `1.address.city` inside a list.
+- Encoding and decoding both reach into nested deriving classes, arrays, inline shapes and enums
+  (an enum encodes as its backing value, and decodes only from the value of a declared case). A
+  nested field's issues carry the path that reaches them — `address.city`, `tags.1` for an array
+  element, or `1.address.city` inside a list.
 
 A decode checks the whole document before it constructs anything, and one failure carries every
 bad field:

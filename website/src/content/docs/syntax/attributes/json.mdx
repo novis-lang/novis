@@ -7,7 +7,8 @@ import Snippet from '@components/Snippet.astro'
 
 `#[Core\Json\Derive]` in front of a class lets you convert its objects to and from JSON.
 `Core\Json::encode` writes an object as JSON text. `Core\Json::decodeAs<T>` builds an object of
-the class `T` from JSON text. Without the attribute, both throw a `LogicError`.
+the class `T` from JSON text. Without the attribute, `decodeAs` does not compile and `encode`
+throws a `LogicError`.
 
 <Snippet src="syntax/json-derive/01-encode.nvs" />
 
@@ -32,9 +33,8 @@ parameter with the same name and the same type. A property with `skip: true` is 
 - The `path` is the JSON key. Inside another object it is `address.city`. Inside a list it is
   `1.address.city`.
 - Text that is not valid JSON gives one issue with an empty `path`.
-- `decodeAs` builds properties of type `string`, `int`, `uint`, `float`, `bool`, another class with
-  `#[Core\Json\Derive]`, and `?T` of these. A property that is an array or an enum stops the
-  program when you decode.
+- `decodeAs` builds arrays and enums too. An enum is read from the number of one of its cases.
+  The path of an array element ends with its index, as `tags.1`.
 - A `secret` or `lateinit` property is not allowed on a class with `#[Core\Json\Derive]`.
 
 ## Do and don't
@@ -42,4 +42,3 @@ parameter with the same name and the same type. A property with `skip: true` is 
 - Do write a constructor that takes every property, with the same names and types.
 - Do catch `ParseError` around `decodeAs` when the text comes from a user.
 - Do use `#[Core\Json\Field(skip: true)]` for a value that is only a cache.
-- Don't decode into a class with an array or enum property. Encoding such a class works.
