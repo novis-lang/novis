@@ -6,7 +6,7 @@ import { covwsNvs } from "../lib/covws.ts";
 import { abs } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { ENV as READS_ENV, readModules } from "../lib/reads.ts";
-import { divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, type Result, composeServices, requiredServices, servicesFor, spawnProof, timedOut } from "../proofs/run.ts";
+import { comparableRun, divergence, HANG_FACTOR, hostileLimitMs, PROOF_BINARY, PROOF_BUILD, RECORD_ENV, type Ran, proofRecording, recordingLimitMs, recordName, type Result, composeServices, requiredServices, servicesFor, spawnProof, timedOut } from "../proofs/run.ts";
 import { judgeThenRecord, longestFirst, recordProgram } from "../proofs/select.ts";
 import { proofId } from "../select/atoms.ts";
 import { Recorder } from "../select/record.ts";
@@ -208,6 +208,15 @@ describe("the judged run and the recording run", () => {
     expect(divergence(ran(0, "a\nb\n"), ran(0, "a\nc\n"))).toBe("stdout differs from the judged run's at line 2");
     expect(divergence(ran(0, "a\n"), ran(1, "", true))).toBe("the recording run was still running after 1s");
     expect(divergence(ran(1, "", true), ran(0, "x"))).toBeNull();
+  });
+
+  test("a `proof: test` example's two reports are compared without their timings, and any other program's whole", () => {
+    const flaky = "docs/examples/lang/testing/test-options/04-a-test-reported-as-flaky.nvs";
+    const report = (ms: number) => `  T\n    ✓ a ${ms} ms\n\n  0 failed, 1 passed, 0 skipped, 0 flaky in ${ms} ms\n`;
+    const judged = comparableRun("examples", flaky, ran(0, report(3)));
+    expect(judged.stdout).toBe("  T\n    ✓ a\n\n  0 failed, 1 passed, 0 skipped, 0 flaky\n");
+    expect(divergence(judged, comparableRun("examples", flaky, ran(0, report(41))))).toBeNull();
+    expect(comparableRun("examples", SQRT, ran(0, report(3))).stdout).toBe(report(3));
   });
 
   test("with an elided `.out`, a recording run agrees when it matches the `.out`, whatever the judged run printed", () => {
