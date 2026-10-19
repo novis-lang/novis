@@ -278,9 +278,10 @@ live bytes per request grow.
     and html tests take a smaller input too. Three carry an ignore for that same reason: the two
     Argon2 tests at the module's own 19 MiB parameters, and `http`'s scan of its own source text.
     Two `cache` tests skip only their source-text scan under Miri. The `sort`, html, `str`,
-    `http::socket` and streamed-reply tests take a smaller input as well, each checked natively at
-    its Miri size. The two `json` tests at the depth ceiling carry an ignore, because the ceiling
-    is a constant.
+    `http::socket`, streamed-reply, compress, cli, cldr, xml and db tests take a smaller input as
+    well, each checked natively at its Miri size. The bcrypt verify runs one verify under Miri,
+    because cost 4 is bcrypt's floor. The two `json` tests at the depth ceiling carry an ignore,
+    because the ceiling is a constant.
   - [ ] `nvs-runtime` and `nvs-stdlib` run as separate jobs or `--partition` shards, each well under its
     `timeout-minutes`, so the job ends green or red and never cancelled. The user chose shards: job
     `miri-units` in `.github/workflows/ci.yml` runs 2 for `nvs-runtime` and 12 for `nvs-stdlib`.
@@ -347,33 +348,37 @@ Stages 1 to 7 are done. Stage 8 is under way.
   No shard found undefined behaviour. Every failure was a leak report, an operation Miri lacks, an
   assert that fails only under Miri, or a timeout. Fixed since: leaks and floats, the shards
   (`.github/workflows/ci.yml:1185`), the `session` threads, 27 Miri-only failures, the 6
-  `nvs-runtime` timeouts, and the regex, crypto, jwe, password, cache, str, html, sort, json and
-  `http::socket` timeouts. The acceptance sweep's list for this session is that same run.
-- **This session's local Miri runs** (CI is about 5 times slower, so a test needs about 60 s
-  locally to fit CI's 300 s): every `sort`, html, `str` and socket test touched passes, the
-  longest html's walk test at 60 s. The socket test failed on its peer's wait, and passes with a
-  20 kB message under Miri. The streamed reply passes but takes 229 s, even with `zstd`'s frame
-  written as raw blocks: something other than compressing `zstd` is the cost. Still over 60 s
-  from the earlier run: the bcrypt verify, 64 s.
-- **Nightly timeouts left** outside these modules: compress, cli, xml, db, cldr and one or two in
-  others. The list is in the 8 stdlib shard logs of run 39173391347 (`gh run view --job <id> --log`):
-  strip the literal `^[[..m` codes, then grep `(TIMEOUT|PASS) \[ *([6-9][0-9]|[0-9]{3})\.`.
-  Many `http` and `html` tests pass at 130 to 150 s on CI with almost no work, so a test's start
-  costs that much there.
+  `nvs-runtime` timeouts, and the regex, crypto, jwe, password, cache, str, html, sort, json,
+  `http::socket`, streamed-reply, compress, cli, cldr, xml and db timeouts. The acceptance sweep's
+  list for this session is that same run.
+- **This session's local Miri runs** (CI is about 5 to 7 times slower, so a test needs under about
+  40 s locally to fit CI's 300 s): every compress test passes, the longest 35 s run alone; the cli,
+  cldr, db, password and `gzip_brotli_and_zstd_replies` tests pass in 16 to 31 s; the two xml tests
+  in 30 and 41 s. The streamed reply was 223 s: 73 s compressing `gzip` noise, 40 s making noise,
+  60 s decoding 384 KiB of `zstd`. Under Miri it now writes stored `gzip` and a hand-written `zstd`
+  frame over 32 KiB, and passes in 49 s beside a running verify. It is the slowest of these, so
+  read its time first on the next nightly.
+- **Remaining nightly timeouts**, from the 8 stdlib shard logs of run 39173391347
+  (`gh run view --job <id> --log`; strip the literal `^[[..m` codes, then grep
+  `(TIMEOUT|PASS) \[ *([6-9][0-9]|[0-9]{3})\.`): bigint 2, csv, http 2, multipart 2, random,
+  registry 2, request 2, test, zip, and over 200 s arr, env and hash. None of those files has a
+  `cfg!(miri)` yet.
 - **Local runs** go from the WSL mirror `/var/tmp/nvs-target-wsl-src/mnt-e-mwl`, brought up to date
   with `syncMirror` from `tools/nv/accept/mirror.ts`, and `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl`.
   The run is `cargo +nightly miri nextest run --profile miri -p nvs-stdlib --lib -E '<filter>'`
-  with CI's `MIRIFLAGS`. Check a smaller input natively first by forcing the Miri branch.
+  with CI's `MIRIFLAGS`. Check a smaller input natively first by forcing the Miri branch. To find
+  where a slow test spends its time, `eprintln!` an `Instant` per phase and pass `--no-capture`.
 - **The rest of that nightly**: proofs is the backlog's proof debt; `docs/novis.md` was the stale
   `core.json` that `b23b5116f` fixed; `fuzz smoke / regex` is the subroutine blow-up that
   `crates/nvs-stdlib/src/regex.rs:1207` now refuses; the test and cost legs are in the backlog.
 
 ### Next
 
-Stage 8, the last local Miri timeouts, then the nightly's in compress (`rule:testing/the-deep-lane`):
-- [ ] The streamed reply at 229 s: time each codec alone under Miri, and cut whatever is not the `zstd` encode. `crates/nvs-stdlib/src/http/transport.rs:4672`
-- [ ] The `compress` tests the nightly timed out, from the shard logs, each with a smaller input under `cfg!(miri)`. `crates/nvs-stdlib/src/compress.rs:794`
-- [ ] Then `cli`, `xml` and `db` the same way, and the bcrypt verify at 64 s. `crates/nvs-stdlib/src/password.rs:63`
+Stage 8, the nightly's last Miri timeouts, each with a smaller input under `cfg!(miri)` (`rule:testing/the-deep-lane`):
+- [ ] `bigint`'s `pow` and `shl` tests, `csv`'s rows test and `zip`'s directory test. `crates/nvs-stdlib/src/bigint.rs:2142`, `crates/nvs-stdlib/src/csv.rs:1673`, `crates/nvs-stdlib/src/zip.rs:1421`
+- [ ] `multipart`'s two bound tests and `request`'s form bound and temp-path tests. `crates/nvs-stdlib/src/multipart.rs:1064`, `crates/nvs-stdlib/src/request.rs:6685`
+- [ ] `random`'s sample, `test`'s ledger test, `http`'s two and `registry`'s two text scans (a scan of source text takes an ignore, as `http`'s did). `crates/nvs-stdlib/src/random.rs:1687`, `crates/nvs-stdlib/src/test.rs:7499`, `crates/nvs-stdlib/src/http.rs:7824`, `crates/nvs-stdlib/src/registry.rs:5262`
+- [ ] Then `arr`, `env` and `hash`, which passed at 204 to 264 s. After that, ask the user to push and read the next nightly's shards. `crates/nvs-stdlib/src/arr.rs:7439`
 
 ### Backlog
 
