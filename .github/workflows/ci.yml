@@ -219,9 +219,13 @@ jobs:
 
       # The `.nvst` conformance suite, on every platform for the reason the
       # `cost-guards` job is: each case runs generated machine code, and code
-      # generation is what differs per target.
+      # generation is what differs per target. `--shared-worker` also runs each case that needs no
+      # request, arguments or files on one worker in this process, after its own run has passed,
+      # and fails it when the output differs (`rule:security/isolate-shares-nothing`). That is the
+      # leak a served process would have between requests, and it costs one more in-process run of
+      # those cases, not a second pass of the suite.
       - name: Conformance suite
-        run: cargo run --quiet -p nvs-cli -- test tests/conformance/
+        run: cargo run --quiet -p nvs-cli -- test --shared-worker tests/conformance/
       # The same suite with Cranelift's optimiser off (`rule:testing/probes-on-is-a-tested-configuration`).
       # Every case checks its output against the expectation it states, so a case that passes above
       # and fails here is a difference between the two levels, and either one failing fails the job.
