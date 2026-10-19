@@ -185,6 +185,12 @@ pub fn call_callable(ctx: &mut Ctx, callable: Value, args: &[Value]) -> Result<V
     call_callable_with(ctx, callable, args, TagCheck::Required)
 }
 
+/// How many slots, the receiver included, [`call_callable_with`] builds in its
+/// own frame. Every `Core` callback passes at most three arguments, and eight
+/// covers almost every `$fn(...)` too. **What it spends:** 128 bytes of stack
+/// per call through a callable, and no heap.
+const INLINE_SLOTS: usize = 8;
+
 /// [`call_callable`], plus which of [`TagCheck`]'s two kinds of call site this
 /// is — the one function both spellings run through, so a caller that skips the
 /// per-argument check still gets the arity trim, the retains and the error edge
@@ -212,9 +218,21 @@ fn call_callable_with(
     )]
     let target: NvsFn = unsafe { std::mem::transmute::<*const u8, NvsFn>(target) };
 
-    let mut slots = Vec::with_capacity(args.len() + 1);
-    slots.push(callable);
-    slots.extend_from_slice(args);
+    // The slots are the receiver and the trimmed arguments. Up to
+    // `INLINE_SLOTS` of them sit in this frame, so a callback costs no
+    // allocation, and only a longer list takes a heap vector.
+    let mut inline = [Value::null(); INLINE_SLOTS];
+    let mut spilled;
+    let slots: &mut [Value] = if let Some(room) = inline.get_mut(..=args.len()) {
+        room[0] = callable;
+        room[1..].copy_from_slice(args);
+        room
+    } else {
+        spilled = Vec::with_capacity(args.len() + 1);
+        spilled.push(callable);
+        spilled.extend_from_slice(args);
+        &mut spilled
+    };
     // Over this frame's own copy rather than the caller's slice, because the
     // check both refuses and *converts*: a widened `int` must reach the callee
     // as a `float` while the caller keeps owning the `int` it passed. Neither
@@ -234,7 +252,7 @@ fn call_callable_with(
                   to, so each payload is live for the length of this call"
     )]
     unsafe {
-        for slot in &slots {
+        for slot in slots.iter() {
             slot.retain();
         }
     }
@@ -244,7 +262,7 @@ fn call_callable_with(
     // this function too. The label is the name the callable's body is
     // compiled under.
     ctx.enter_runtime_call(|| invoke_label(callable));
-    let result = crate::abi::call(target, ctx, &slots);
+    let result = crate::abi::call(target, ctx, slots);
     ctx.exit_runtime_call(
         || invoke_label(callable),
         result.as_ref().map_or_else(|status| *status, |_| OK),
