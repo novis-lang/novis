@@ -1,5 +1,4 @@
-// Which Bash calls take a heavy-job slot, judged from the command's text alone, as
-// `crates/looper-sh/src/heavy.rs` judges them.
+// Which Bash calls take a heavy-job slot, judged from the command's text alone.
 //
 // - The command splits into simple commands at `;`, `&`, `|`, `(`, `)`, `{`, `}` and newlines, and
 //   each loses its leading `NAME=value` words. Quotes are not parsed, so a separator inside one splits
@@ -7,8 +6,9 @@
 // - A pattern is a command's first words, such as `cargo test`. It matches a simple command whose
 //   words start with its words.
 // - A call with a simple command of `OWN_SLOTS` takes none, because their units take their own.
-//   Otherwise a call that matches `EXCLUSIVE` or one of `[jobs] exclusive` takes every slot, and one
-//   that matches `BUILT_IN` or `[jobs] heavy` takes one.
+//   Otherwise a call that matches `BUILT_IN` or `[jobs] heavy` takes one.
+// - A call never takes more than one slot (decision 0029). A wait for every slot never ends while a
+//   job of another project holds one.
 // - looper's own commands count in both forms: `looper <command>`, and the kit's
 //   `bun tools/looper/main.ts <command>`.
 
@@ -23,14 +23,11 @@ const KIT = "bun tools/looper/main.ts";
 /** The commands whose units take slots of their own. */
 const OWN_SLOTS = ["looper verify", "looper check", `${KIT} verify`, `${KIT} check`];
 
-/** The commands that take every slot in every project. */
-const EXCLUSIVE = ["looper exec --exclusive", `${KIT} exec --exclusive`];
-
-/** The slots a call takes. */
-export type Take = "none" | "one" | "all";
+/** The slots a call takes: none, or one. */
+export type Take = "none" | "one";
 
 /** The slots `command` takes, with the project's `[jobs]`. */
-export function take(command: string, jobs: Pick<Jobs, "heavy" | "exclusive">): Take {
+export function take(command: string, jobs: Pick<Jobs, "heavy">): Take {
   const commands = command.split(/[;&|(){}\n]/).map((simple) => {
     const words = simple.split(/\s+/).filter((w) => w !== "");
     let at = 0;
@@ -38,7 +35,6 @@ export function take(command: string, jobs: Pick<Jobs, "heavy" | "exclusive">): 
     return words.slice(at);
   });
   if (matches(commands, OWN_SLOTS)) return "none";
-  if (matches(commands, [...EXCLUSIVE, ...jobs.exclusive])) return "all";
   if (matches(commands, [...BUILT_IN, ...jobs.heavy])) return "one";
   return "none";
 }

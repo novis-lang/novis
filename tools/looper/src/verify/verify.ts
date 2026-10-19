@@ -9,6 +9,9 @@
 //   `cargo metadata` is read, and both parse into a `Build` (`cargo.ts`). Each test binary is a unit,
 //   `cargo:<package>/<kind>/<target>`, run by its path from its package's directory with the arguments
 //   after `--`. Every reached binary runs, those red last time first, and the step is red when any is.
+// - A `cargo test` step with `inputs` is also gated by its own unit, `step:<name>`, resting on them.
+//   When nothing they cover changed since the step last ran whole and green, the step neither builds
+//   nor runs, and keeps every binary. Its `inputs` must cover every file its binaries read.
 // - The run writes its progress items through `items.ts`: one per step and per test binary, kept or
 //   run. A step's command is a child job, whose own items nest under the step's item.
 // - Every command is a `verify` job of the project's job store (`../jobs/spawn.ts`), so a timeout
@@ -201,6 +204,11 @@ export function stepUnit(root: string, step: Step): UnitDef {
   return unitDef(stepId(step.name), `${JSON.stringify(step.run)}\n${JSON.stringify(step.inputs)}\n${root}`);
 }
 
+/** The unit that gates a `cargo test` step with `inputs`, or none for a step without them. */
+export function gateOf(root: string, step: Step): UnitDef[] {
+  return step.inputs.length > 0 ? [stepUnit(root, step)] : [];
+}
+
 /** The definition each unit of a `cargo test` step shares. */
 export function cargoDefinition(step: Step): string {
   return JSON.stringify(step.run);
@@ -351,7 +359,7 @@ class Pass {
     const tree = Tree.list(ctx.root);
     for (let k = 0; k < upto; k++) {
       const step = list[k] as Step;
-      const units = isCargoTest(step.run) ? (this.known[k] ?? []) : [stepUnit(ctx.root, step)];
+      const units = isCargoTest(step.run) ? [...(this.known[k] ?? []), ...gateOf(ctx.root, step)] : [stepUnit(ctx.root, step)];
       const reached: Reached = [];
       for (const [id, why] of peek(ctx.store, tree, units).run) {
         if (why.kind === "red" || why.kind === "owed") continue;
@@ -467,10 +475,39 @@ function slashed(path: string): string {
 }
 
 /**
+ * Runs a `cargo test` step, unless its gate holds: it has `inputs`, nothing they cover changed since its
+ * last whole green run, and `all` is off. A run records the gate's result, and with `all` a red run the
+ * gate did not reach is a selection miss.
+ */
+async function cargoStep(ctx: Ctx, step: Step, known: UnitDef[][], i: number): Promise<Stepped> {
+  const gate = gateOf(ctx.root, step)[0];
+  if (gate === undefined) return cargoRun(ctx, step, known, i);
+  const tree = Tree.list(ctx.root);
+  const reached = reasonOf(compare(ctx.store, tree, [gate]), gate.id) !== undefined;
+  if (!reached && !ctx.all) {
+    ctx.out.line(`· ${step.name}: kept, nothing it reads changed`);
+    ctx.items.kept(ctx.store, gate.id, null, step.name, STEP);
+    ctx.items.planned();
+    const ran = newStep(step, "kept", "");
+    ran.units.push(keptUnit(gate.id));
+    return { done: ran };
+  }
+  const footprint = declared(tree, step.inputs);
+  primed(tree, footprint);
+  const stepped = await cargoRun(ctx, step, known, i);
+  if ("done" in stepped) {
+    const green = stepped.done.result !== "red";
+    ctx.store.record(tree, gate, green ? "green" : "red", footprint);
+    if (!green && !reached) miss(ctx, gate.id);
+  }
+  return stepped;
+}
+
+/**
  * Builds a `cargo test` step once and runs each reached test binary by its path, or with `all` every
  * one. The step is red when the build or any binary it ran is. Its binaries become `known[i]`.
  */
-async function cargoStep(ctx: Ctx, step: Step, known: UnitDef[][], i: number): Promise<Stepped> {
+async function cargoRun(ctx: Ctx, step: Step, known: UnitDef[][], i: number): Promise<Stepped> {
   const t0 = Date.now();
   let seen = ctx.watch.requests();
   const tree = Tree.list(ctx.root);

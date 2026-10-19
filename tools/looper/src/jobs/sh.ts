@@ -6,8 +6,8 @@
 // A Bash call (`bashCall`) made in a project, the nearest directory at or above the cwd that holds a
 // `looper.toml`, runs as a recorded job of kind `bash` in the project's store (`spawn.ts`):
 //
-// 1. A call that `heavy.ts` names heavy first asks looper's service for one slot, and an exclusive one
-//    for every slot (`slots.ts`). A wait prints the service's waiting line on stderr. A service that
+// 1. A call that `heavy.ts` names heavy first asks looper's service for one slot (`slots.ts`). No
+//    call asks for more. A wait prints the service's waiting line on stderr. A service that
 //    is absent costs nothing, and one that fails prints `looper sh: no heavy slot: <why>`. Either way
 //    the call runs without a slot. A call that finds `SLOT_VAR` set takes none.
 // 2. It takes the guard's pending entry for its session and command (`pending.ts`), and starts bash in
