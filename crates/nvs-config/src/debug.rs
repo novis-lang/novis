@@ -103,6 +103,7 @@ mod tests {
         toml::from_str(text).expect("the fixture parses")
     }
 
+    // covers: directive:debug.mode
     #[test]
     fn every_probe_name_is_accepted_and_any_other_is_refused() {
         let origins = BTreeMap::new();
@@ -113,6 +114,7 @@ mod tests {
         assert!(refused.message.contains("`tracing`"), "{}", refused.message);
     }
 
+    // covers: directive:debug.mode
     #[test]
     fn a_server_refuses_any_probe_and_accepts_none() {
         let origins = BTreeMap::new();
