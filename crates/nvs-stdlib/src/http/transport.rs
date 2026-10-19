@@ -4670,26 +4670,27 @@ pub(crate) mod tests {
     /// what a buffered decode already does.
     #[test]
     fn a_streamed_reply_is_decoded_as_it_arrives_rather_than_gathered_first() {
-        // Under Miri each payload is smaller: 64 KiB for `gzip` and `br`, and
-        // 384 KiB for `zstd`. The `zstd` decoder gives out nothing until it
-        // holds more than its window, so the three quarters before the cut
-        // must be more than two of its 128 KiB blocks. A native run passes
-        // at these sizes, and fails with `zstd` at 256 KiB. Under Miri the
-        // `zstd` frame is also written as raw blocks, because compressing
-        // 384 KiB there takes minutes, and this case is about the decoder.
-        for (coding, codec, small) in [
-            ("gzip", Codec::Gzip, 64 << 10),
-            ("br", Codec::Brotli, 64 << 10),
-            ("zstd", Codec::Zstd, 384 << 10),
+        // Under Miri the payload is 32 KiB, and the `gzip` and `zstd` frames
+        // are written uncompressed, because compressing noise there takes
+        // minutes and this case is about the decoder. The `zstd` decoder
+        // gives out nothing until it holds more than its window, so that
+        // frame declares an 8 KiB window, which [`raw_zstd`] writes.
+        let payload = noise(if cfg!(miri) { 32 << 10 } else { 1 << 20 });
+        for (coding, codec) in [
+            ("gzip", Codec::Gzip),
+            ("br", Codec::Brotli),
+            ("zstd", Codec::Zstd),
         ] {
-            let payload = noise(if cfg!(miri) { small } else { 1 << 20 });
-            let frame = if cfg!(miri) && matches!(codec, Codec::Zstd) {
-                ruzstd::encoding::compress_to_vec(
-                    payload.as_slice(),
-                    ruzstd::encoding::CompressionLevel::Uncompressed,
-                )
-            } else {
-                compress_to(codec, &payload).expect("a frame this case wrote")
+            let frame = match codec {
+                Codec::Gzip if cfg!(miri) => {
+                    let mut frame = Vec::new();
+                    flate2::read::GzEncoder::new(payload.as_slice(), flate2::Compression::none())
+                        .read_to_end(&mut frame)
+                        .expect("a stored frame");
+                    frame
+                }
+                Codec::Zstd if cfg!(miri) => raw_zstd(&payload),
+                _ => compress_to(codec, &payload).expect("a frame this case wrote"),
             };
             // Three quarters, so that every backend has whole blocks of its own
             // framing to work from before the tail arrives.
@@ -4745,17 +4746,40 @@ pub(crate) mod tests {
 
     /// A frame this case can split without it compressing away: a linear
     /// congruential sequence, which is the shortest thing here that no codec
-    /// finds a pattern in.
+    /// finds a pattern in. Each step gives the four high octets of the state,
+    /// which are the ones a step mixes well.
     fn noise(octets: usize) -> Vec<u8> {
         let mut state = 0x2545_F491_4F6C_DD1D_u64;
-        (0..octets)
-            .map(|_| {
-                state = state
-                    .wrapping_mul(6_364_136_223_846_793_005)
-                    .wrapping_add(1_442_695_040_888_963_407);
-                u8::try_from((state >> 33) & 0xFF).unwrap_or_default()
-            })
-            .collect()
+        let mut out = Vec::with_capacity(octets + 4);
+        while out.len() < octets {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            out.extend_from_slice(&state.to_be_bytes()[..4]);
+        }
+        out.truncate(octets);
+        out
+    }
+
+    /// A `zstd` frame of raw blocks that declares an 8 KiB window, written by
+    /// hand: no encoder offers a window that small, and the decoder holds a
+    /// window's worth, and gives out only whole blocks past it.
+    ///
+    /// The header is the magic, a descriptor naming no content size, no
+    /// checksum and no dictionary, and a window descriptor of exponent 3. Each
+    /// block is 8 KiB, the window's size, with a three-octet header naming it
+    /// raw and saying whether it is the last. Of 32 KiB, the three quarters
+    /// before the cut hold two whole blocks, so 8 KiB can be read early.
+    fn raw_zstd(payload: &[u8]) -> Vec<u8> {
+        let mut frame = vec![0x28, 0xB5, 0x2F, 0xFD, 0x00, 3 << 3];
+        let blocks: Vec<&[u8]> = payload.chunks(8 << 10).collect();
+        for (index, block) in blocks.iter().enumerate() {
+            let last = u32::from(index + 1 == blocks.len());
+            let size = u32::try_from(block.len()).expect("an 8 KiB block");
+            frame.extend_from_slice(&((size << 3) | last).to_le_bytes()[..3]);
+            frame.extend_from_slice(block);
+        }
+        frame
     }
 
     /// A listener answering `head` and `first`, and then `rest` once the sender
