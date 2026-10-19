@@ -583,12 +583,13 @@ fn descriptor(class: &CoreClass) -> *const ClassDesc {
 /// `(class name, descriptor address)` — one pair per registered class with
 /// instances ([`has_instances`]).
 ///
-/// Two sites write one of these addresses into a unit. A hole-free `` html`…` ``
-/// folds to a `Core\Html\Markup` constant in the unit's constant pool
-/// (`rule:core-classes/html-template`), and the class word of that constant is
-/// one of them; and `$v is Core\Time\Date` tests against the class's own
-/// address, which is the identity comparison [`is_instance`] makes from this
-/// side. Both are written once while compiling and read by every core
+/// Three sites write one of these addresses into a unit. A hole-free
+/// `` html`…` `` folds to a `Core\Html\Markup` constant in the unit's constant
+/// pool (`rule:core-classes/html-template`), and a written duration to a
+/// `Core\Time\Duration` one (`rule:types/duration`), and the class word of each
+/// constant is one of them; and `$v is Core\Time\Date` tests against the
+/// class's own address, which is the identity comparison [`is_instance`] makes
+/// from this side. All are written once while compiling and read by every core
 /// afterwards — the half of this module's § *Decision: the descriptors are one
 /// leaked table for the process* that a per-core table would fail.
 ///

@@ -171,13 +171,13 @@ use crate::registry::{
 /// `rule:types/duration`'s "the suffix *is* the type" one fact rather than two spellings.
 pub const DURATION_NAME: &str = r"Core\Time\Duration";
 
-/// The symbol behind `Core\Time\Duration::nanoseconds`, which is also how a
-/// duration written in the source, such as `30s`, reaches a value —
-/// `nvs_ir::lower` emits one `InstKind::CoreCall` to it with the folded
-/// nanosecond count.
+/// The symbol behind `Core\Time\Duration::nanoseconds`.
 ///
-/// Named here rather than spelled in `nvs-ir` so that the registry row and the
-/// written duration cannot come to mean different things.
+/// A duration written in the source, such as `30s`, does not call it:
+/// `nvs_codegen` writes the finished instance into the unit, with the folded
+/// count in slot 0. That is the slot [`built`] fills, and
+/// `nvs-codegen`'s `a_written_duration_is_a_constant_and_reads_back_its_count`
+/// holds the two to one layout.
 pub const FROM_NANOS_SYMBOL: &str = "nvs_core_time_duration_nanoseconds";
 
 /// `Core\Time\Duration` — an exact count of nanoseconds, and the

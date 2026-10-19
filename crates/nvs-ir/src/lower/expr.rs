@@ -189,7 +189,7 @@ impl<'a> Lowering<'a> {
             ExprKind::Null => self.emit(*cur, Ty::Null, InstKind::ConstNull),
             ExprKind::Int(span) => self.lower_int_literal(*span, expr, expected, cur),
             ExprKind::Float(span) => self.lower_float_literal(*span, expr, expected, cur),
-            ExprKind::Duration(span) => self.lower_duration(*span, env, cur),
+            ExprKind::Duration(span) => self.lower_duration(*span, cur),
             // A fresh `Ty::Str` value with exactly one natural owner — see
             // `Self::bind_local`'s doc comment for why a value produced here
             // never needs a retain of its own, only whatever consumes it.
@@ -2882,18 +2882,11 @@ impl<'a> Lowering<'a> {
     }
 
     /// `rule:types/duration`: the grammar is resolved while compiling, so what
-    /// reaches the IR is one folded nanosecond count. The value it
-    /// becomes is built by the *same* `Core` member a written
-    /// `Duration::nanoseconds($n)` calls — `nvs_stdlib::time`'s
-    /// `FROM_NANOS_SYMBOL`, named there rather than spelled here — so a
-    /// literal and a computed count cannot come to mean different
-    /// things.
-    ///
-    /// § 3 also wants no allocation at all: a constant-pool entry with
-    /// an immortal header. This arm emits one call on a constant, and the
-    /// record `data/gaps/nvs-ir/a-written-duration-is-built-at.json` owns
-    /// the constant-pool half.
-    fn lower_duration(&mut self, span: Span, env: &mut Env, cur: &mut BlockId) -> (ValueId, Ty) {
+    /// reaches the IR is one folded nanosecond count, as one
+    /// [`InstKind::ConstDuration`]. Its slot is the count
+    /// `Duration::nanoseconds($n)` stores, so a literal and a computed count
+    /// mean the same thing, and the literal allocates nothing.
+    fn lower_duration(&mut self, span: Span, cur: &mut BlockId) -> (ValueId, Ty) {
         let text = span_text(self.src, span);
         let nanos = nvs_syntax::duration::parse(text).unwrap_or_else(|err| {
             panic!(
@@ -2903,16 +2896,7 @@ impl<'a> Lowering<'a> {
                 err.message()
             )
         });
-        let (count, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(nanos));
-        self.emit_fallible(
-            *cur,
-            Ty::Object,
-            InstKind::CoreCall {
-                symbol: nvs_types::CORE_DURATION_FROM_NANOS,
-                args: vec![count],
-            },
-            env,
-        )
+        self.emit(*cur, Ty::Object, InstKind::ConstDuration(nanos))
     }
 
     /// `.` concatenation is not `InstKind::BinOp` — it allocates a

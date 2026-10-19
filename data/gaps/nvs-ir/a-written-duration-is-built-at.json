@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-ir/src/lib.rs",
-  "title": "A written duration is built at run time, not stored as a constant.",
-  "text": "`rule:types/duration` folds `30s` to one nanosecond count while compiling, and `lower::Lowering::lower_duration` then emits an `InstKind::CoreCall` to `nvs_types::CORE_DURATION_FROM_NANOS` on that count, so every evaluation builds a fresh `Core\\Time\\Duration` object. The remaining half is emitting the value into the compiled unit's constant pool as an immortal object, so `{timeout: 30s}` allocates nothing at run time. That is a latency question on the request path, not a semantic one: the value is identical either way.",
-  "goal": "fewer-allocations"
-}

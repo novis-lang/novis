@@ -743,6 +743,17 @@ pub enum InstKind {
     /// it runs, so it stays the join and the lift
     /// [`crate::lower::Lowering::lower_html_template`] emits.
     ConstMarkup(String),
+    /// A written duration's folded nanosecond count, as the whole
+    /// `Core\Time\Duration` it denotes (`rule:types/duration`): one immortal
+    /// instance in the unit's own data section, its class word a relocation
+    /// and its one `int` slot the count itself. So the literal costs nothing
+    /// per execution, where the `Duration::nanoseconds` call it replaces
+    /// costs an object per evaluation.
+    ///
+    /// [`Ty::Object`], and a fresh value on [`InstKind::ConstMarkup`]'s terms
+    /// exactly. Each written duration is its own instance, so `90m == 1h30m`
+    /// stays `false` (`rule:expressions/object-identity-equality`).
+    ConstDuration(i64),
     /// Reads the function's own parameter at this positional index.
     Param(u32),
     /// A binary arithmetic or comparison operator over two already-lowered

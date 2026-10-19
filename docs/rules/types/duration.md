@@ -16,8 +16,10 @@ unit     := ns | us | ms | s | m | h | d | w
 The type is `Core\Time\Duration`, always — the suffix *is* the type, with nothing
 untyped-until-placed about it (`rule:types/numeric-literal-placement`). A duration written this way is
 folded at compile time to a single nanosecond count, so the grammar is never read at run time, and a
-duration beyond `Duration`'s range is a compile error, not a wrap. At run time it is one
-`Duration::nanoseconds` call on that count.
+duration beyond `Duration`'s range is a compile error, not a wrap. The compiled program carries each
+written duration as one finished `Duration` object, the value `Duration::nanoseconds` builds from that
+count. Each written duration is its own object, so `90m == 1h30m` is `false`
+(`rule:expressions/object-identity-equality`).
 
 `1h + 30m` does not compile — there is no operator overloading; write `1h30m` or `$a->plus($b)`. So
 does `1h30m as int`; write `->toSeconds()`. `$n s` is not a duration; a computed count is
@@ -42,8 +44,9 @@ never has to decide whether the `-` in `$a -7d` is binary or part of a duration.
 `nvs fmt` (`rule:tooling/fmt-is-one-canonical-style`) never rewrites a duration: `90m` and `1h30m` are
 the same value, and choosing between them is the author's, as `0x10` against `16` is.
 
-**Memory:** each evaluation of a written duration builds one `Duration` object from the folded count,
-the same as a computed `Duration::nanoseconds($n)`.
+**Memory:** a written duration allocates nothing when it runs. Its object is in the compiled program,
+one per written duration, and is freed with the program. A computed `Duration::nanoseconds($n)`
+allocates one object per call.
 
 **Declined:**
 - **`Duration::seconds(30)` alone, with no literal.** The verbosity is paid in every program, and it is
