@@ -4165,6 +4165,223 @@ mod tests {
         );
     }
 
+    /// `rule:programs/memory-priority`'s O(in-flight) bound on the served path:
+    /// one core serves thousands of requests over the loopback, and the bytes
+    /// its thread holds between two of them do not grow with the count.
+    ///
+    /// The path is [`a_runaway_then_an_answer`]'s, which is
+    /// [`super::serve_on_worker`]'s: the accept loop, `hyper`, a unit off the
+    /// shared compiler and an isolate per request under the watchdog's
+    /// registration. The entry builds an array of strings and echoes it, so
+    /// every request allocates and frees on the heap the reading counts.
+    ///
+    /// **The reading is [`nvs_runtime::budget::live_bytes`] on the serving
+    /// thread**, taken by the handler as a request arrives, which is exact
+    /// where `held_by_cores` moves a whole step at a time. Only the request
+    /// halfway down each connection is read, so every reading has the same one
+    /// connection open at the same point in it, and none is taken while a
+    /// closed connection may still be being torn down. A connection is
+    /// [`SOAK_PER_CONNECTION`] requests and ends with `Connection: close`, so
+    /// a cost per connection is counted as well as a cost per request.
+    ///
+    /// The two readings are [`SOAK_WARM`] requests in, once every cache a
+    /// first request fills is full, and [`SOAK_SPAN`] requests after that.
+    /// A server that leaks nothing gives the same reading at both counts, to
+    /// the byte. [`SOAK_DRIFT`] is what a leak of about one byte per request
+    /// reaches over the span.
+    ///
+    /// **Ignored outside the nightly**, which runs it under `--release` in
+    /// `ci.yml`'s `Serve soak` step: thousands of requests are a soak, and the
+    /// debug suite does not pay for one.
+    #[test]
+    #[ignore = "a soak of the nightly lane: ci.yml's `Serve soak` step runs it under --release"]
+    fn live_bytes_stay_flat_while_one_core_serves_thousands_of_requests() {
+        let dir = nvs_repo::scratch("serve-soak");
+        let entry = dir.join("entry.nvs");
+        std::fs::write(
+            &entry,
+            "<?nvs\narray<string> $rows = [];\nint $i = 0;\n\
+             while ($i < 64) { $rows[] = \"row \" . $i; $i = $i + 1; }\n\
+             string $body = \"\";\n\
+             foreach ($rows as string $row) { $body = $body . $row . \"\\n\"; }\n\
+             echo $body;\n",
+        )
+        .expect("the entry is writable");
+        let path = entry.to_string_lossy().into_owned();
+
+        let mut listener =
+            nvs_host::NvsListener::bind(a_free_address()).expect("the loopback refused a listener");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener knows its own address");
+        let draining = nvs_server::Draining::detached();
+
+        let connections = (SOAK_WARM + SOAK_SPAN).div_ceil(SOAK_PER_CONNECTION) + 1;
+        let drained = draining.clone();
+        let client = std::thread::spawn(move || {
+            let _ends = EndsTheServer(drained);
+            for _ in 0..connections {
+                let mut socket =
+                    std::net::TcpStream::connect(addr).expect("the loopback refused a socket");
+                socket
+                    .set_read_timeout(Some(CLIENT_PATIENCE))
+                    .expect("the socket refused a read timeout");
+                for asked in 1..=SOAK_PER_CONNECTION {
+                    let closing = if asked == SOAK_PER_CONNECTION {
+                        "Connection: close\r\n"
+                    } else {
+                        ""
+                    };
+                    socket
+                        .write_all(
+                            format!("GET / HTTP/1.1\r\nHost: localhost\r\n{closing}\r\n")
+                                .as_bytes(),
+                        )
+                        .expect("a request could not be written");
+                    let head = head_from(&mut socket);
+                    assert!(
+                        head.starts_with("HTTP/1.1 200 "),
+                        "a request failed: {head}"
+                    );
+                    let length = head
+                        .lines()
+                        .find_map(|line| {
+                            let (name, value) = line.split_once(':')?;
+                            name.eq_ignore_ascii_case("content-length")
+                                .then(|| value.trim().parse::<usize>().ok())?
+                        })
+                        .unwrap_or_else(|| panic!("a response had no length: {head}"));
+                    let mut body = vec![0; length];
+                    socket
+                        .read_exact(&mut body)
+                        .expect("a response's body could not be read");
+                }
+                let mut rest = Vec::new();
+                socket
+                    .read_to_end(&mut rest)
+                    .expect("a closed connection could not be read to its end");
+            }
+        });
+
+        let compiler = Arc::new(Compiler::default());
+        let serving = nvs_server::Serving::new(
+            Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
+                &nvs_config::server::Capacity {
+                    configured: u64::MAX,
+                    per_request: None,
+                    budget: None,
+                },
+            ))),
+            Arc::new(nvs_server::Secure::of(None)),
+            Arc::new(nvs_server::Trusted::of(&[]).0),
+            Arc::new(nvs_server::Cors::of(None)),
+            Arc::default(),
+        );
+        let watchdog = nvs_host::Watchdog::with(
+            Duration::from_secs(3600),
+            Duration::from_millis(5),
+            |_stall| {},
+        );
+        let mut sched = nvs_host::Scheduler::new();
+        let installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        let watched = Rc::new(
+            nvs_host::cpus()
+                .first()
+                .copied()
+                .zip(nvs_host::reactor::with_current(|reactor| {
+                    reactor.deadline_view()
+                }))
+                .map_or_else(
+                    || watchdog.register_requests(),
+                    |(cpu, view)| watchdog.register(cpu, view),
+                ),
+        );
+        let served = Rc::new(Cell::new(0_usize));
+        // Sized for every reading up front, so its own growth is not counted.
+        let readings = Rc::new(std::cell::RefCell::new(
+            Vec::<(usize, isize)>::with_capacity(connections + 1),
+        ));
+        let handler = Rc::new({
+            let compiler = Arc::clone(&compiler);
+            let served = Rc::clone(&served);
+            let readings = Rc::clone(&readings);
+            move |request: nvs_server::Request<nvs_server::Incoming>,
+                  _origin: nvs_server::Origin| {
+                let count = served.get();
+                served.set(count + 1);
+                if count % SOAK_PER_CONNECTION == SOAK_PER_CONNECTION / 2 {
+                    readings
+                        .borrow_mut()
+                        .push((count, nvs_runtime::budget::live_bytes()));
+                }
+                let (program, _routes) = compiler.compiled(&path).expect("the entry compiles");
+                let inbound = Inbound::new(request.method().as_str(), request.uri().path(), "");
+                nvs_server::Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture)
+                        .answering(inbound)
+                        .watched_by(Rc::clone(&watched)),
+                    None,
+                    None,
+                )
+            }
+        });
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let draining = draining.clone();
+            move |_ctx| {
+                nvs_server::serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    nvs_config::server::Waits::default(),
+                    &serving,
+                    &draining,
+                    |_note| {},
+                    || ControlFlow::Continue(()),
+                )
+                .expect("the accept loop failed");
+            }
+        });
+        loop {
+            match nvs_host::run_until_idle(&mut sched) {
+                Ok(report) if report.parked > 0 => {}
+                Ok(_) => break,
+                Err(error) => panic!("the scheduler stopped: {error}"),
+            }
+        }
+        drop(installed);
+        client.join().expect("the client thread panicked");
+
+        let readings = readings.borrow();
+        let reading_at = |count: usize| {
+            readings
+                .iter()
+                .find(|(at, _)| *at >= count)
+                .copied()
+                .unwrap_or_else(|| panic!("no reading at or after request {count}: {readings:?}"))
+        };
+        let (first_at, first) = reading_at(SOAK_WARM);
+        let (second_at, second) = reading_at(SOAK_WARM + SOAK_SPAN - SOAK_PER_CONNECTION);
+        let grew = second - first;
+        assert!(
+            grew <= SOAK_DRIFT,
+            "the serving thread held {grew} bytes more after request {second_at} than after \
+             request {first_at}, over the {SOAK_DRIFT} a flat server stays under: {readings:?}"
+        );
+    }
+
+    /// How many requests [`live_bytes_stay_flat_while_one_core_serves_thousands_of_requests`]
+    /// serves before its first reading.
+    const SOAK_WARM: usize = 500;
+
+    /// How many requests it serves between its two readings.
+    const SOAK_SPAN: usize = 4_000;
+
+    /// How many requests it sends down one connection before closing it.
+    const SOAK_PER_CONNECTION: usize = 50;
+
+    /// How many bytes the serving thread may gain over [`SOAK_SPAN`] requests.
+    const SOAK_DRIFT: isize = 4 * 1024;
+
     /// An address on the loopback nothing is listening on, taken from the
     /// platform and given straight back so the boot under test is what binds it.
     fn a_free_address() -> SocketAddr {

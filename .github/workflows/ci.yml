@@ -315,6 +315,14 @@ jobs:
           cargo build --release -p nvs-cli
           cargo test --release -p nvs-cli --bin nvs -- by_the_margin_this_test_names
 
+      # The serve soak, nightly only: one core serves thousands of requests over the loopback, and the
+      # test fails when the bytes its thread holds grow with the count (`rule:programs/memory-priority`'s
+      # O(in-flight) bound). It is `#[ignore]`d so the push suite does not pay for a soak, and it rides
+      # this job's release build. On every platform, because each has its own socket and allocator path.
+      - name: Serve soak
+        if: needs.changes.outputs.deep == 'true'
+        run: cargo test --release -p nvs-cli --bin nvs -- --ignored live_bytes_stay_flat_while_one_core_serves_thousands_of_requests
+
       # The warm-start budget is absolute where the margins above are ratios, so it is the one guard a
       # hosted runner can fail by being slow rather than by the tree having moved. It runs here with the
       # same `--max-work-ms 6` a development machine is held to, unrelaxed, because the leg abstains on a
