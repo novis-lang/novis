@@ -3,6 +3,8 @@
 
 # The HTTP server
 
+*1 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
 ## The server is a development server or a proxied production origin, and nothing a proxy does earlier is in it
@@ -625,6 +627,42 @@ It renders through the one diagnostic record — text in development, JSON in pr
 The door writes the line where it counts the request for the request series, so every answer it writes has one — a refusal at the valve and a mount table's `404` included. `access` is read off the snapshot the request ran under, so an `[[app]]` block's own value and a reload reach the next request; a program's `Core\Config::set` of it changes nothing, because the line is written after the request's own view has gone. An answer the door wrote before a request carrier existed has no trace id on its line.
 
 <sub>See also [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/renderings`](errors.md#errors-renderings), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures).</sub>
+
+<a id="http-server-a-log-line-can-leave-out-the-client-address"></a>
+
+## `[log] client_ip = false` keeps the client address out of every record the server writes, and `Core\Request::clientIp()` still returns it  *(designed — owned by goal telemetry-service)*
+
+`rule:http-server/a-log-line-can-leave-out-the-client-address`
+
+`[log] client_ip` is `true` by default, and `false` keeps the client address out of every record the
+server writes: the access line, the `5xx` line that is written whatever `access` says, and every
+diagnostic about a forwarded header. The field `clientIp` is left out of those lines, not written as
+`null`, so a reader cannot mistake a removed address for a request that had none. Spans and metrics
+carry no client address in either setting. `Core\Request::clientIp()` returns the address as before,
+because a program that limits a rate or checks an allow-list needs it in memory, and what it writes
+to its own log is its own code.
+
+It is a `System` directive, applied at reload. A request that could turn it back on would undo the
+promise an operator made to the people whose addresses these are, so only the file sets it.
+
+Why it exists: an operator who promises that no address is stored needs a setting that holds for every
+line, including the `5xx` line [`http-server/the-access-log-is-a-mode-default`](http-server.md#http-server-the-access-log-is-a-mode-default) writes
+unconditionally. Turning the access log off is not enough. The telemetry collector is the first program
+that makes this promise ([`tooling/the-collector-never-stores-an-address`](tooling.md#tooling-the-collector-never-stores-an-address)).
+
+- **Memory:** none. The setting removes one field from a record that is written anyway.
+
+**Not on disk.** `[log]` has no `client_ip` key, and `crates/nvs-server/src/trace.rs` always writes
+`clientIp`.
+
+**Declined:**
+- **A masked address, such as the first three bytes of an IPv4 address.** It is a second format to
+  get right for IPv6 and for every proxy shape, and a masked address is still personal data in many
+  places. An operator who wants the address keeps it whole, and one who does not leaves it out.
+- **Leaving the address out of `Core\Request::clientIp()` too.** The program then cannot limit a rate
+  per address at all, and the setting is about what is written, not what is known for one request.
+
+<sub>See also [`http-server/the-access-log-is-a-mode-default`](http-server.md#http-server-the-access-log-is-a-mode-default), [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`errors/log-fields`](errors.md#errors-log-fields), [`tooling/the-collector-never-stores-an-address`](tooling.md#tooling-the-collector-never-stores-an-address).</sub>
 
 <a id="http-server-secure-headers-with-nothing-written"></a>
 

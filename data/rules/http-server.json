@@ -30,6 +30,7 @@
     "http-server/static-serving-is-one-policy",
     "http-server/health-path-is-off-and-checks-nothing",
     "http-server/the-access-log-is-a-mode-default",
+    "http-server/a-log-line-can-leave-out-the-client-address",
     "http-server/secure-headers-with-nothing-written",
     "http-server/hsts-follows-the-effective-scheme",
     "http-server/cors-is-closed-until-origins-are-named",

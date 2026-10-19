@@ -5,9 +5,10 @@ promised: a reader can compare the printed payload against the closed counter sc
 
 The client side is published when this ships. The reference's tools chapter documents both consents,
 the complete counter list and both endpoints' contracts, and that chapter is the user-facing statement
-of what is collected. No collector exists, so telemetry has no default upload URL
-(`rule:config/telemetry-and-update-endpoints-are-configuration`). The service side's contract is
-published with the collector: aggregates only, no IP retention, and the aggregated data itself public,
-so anyone can see exactly what the project sees.
+of what is collected. The service side is `apps/telemetry/`
+(`rule:tooling/the-telemetry-collector-is-a-novis-program`): it keeps weekly totals only
+(`rule:tooling/the-collector-keeps-weekly-totals-only`), stores no address
+(`rule:tooling/the-collector-never-stores-an-address`), and publishes every total
+(`rule:tooling/telemetry-totals-are-public`), so anyone can see exactly what the project sees.
 
 **Not on disk.** There is no `nvs telemetry show`.

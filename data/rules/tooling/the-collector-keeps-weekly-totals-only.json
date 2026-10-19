@@ -1,0 +1,11 @@
+{
+  "title": "The collector adds each report to weekly totals per version, os and arch in one transaction, and never stores the report itself",
+  "status": "designed",
+  "seeAlso": [
+    "tooling/a-telemetry-report-is-checked-against-a-closed-schema",
+    "tooling/telemetry-totals-are-public",
+    "tooling/telemetry-counters-are-a-closed-set"
+  ],
+  "guardedBy": [],
+  "goal": "telemetry-service"
+}
