@@ -139,6 +139,8 @@ nvs_runtime::nvs_helper! {
     /// One allocation, the result. The placeholder is parsed again on every
     /// call, which is a few bytes of a constant.
     fn nvs_core_str_format_piece(_ctx, args: [2]) {
+        // Unreachable from source: no row names this symbol, and the one
+        // lowering that calls it passes the placeholder as a string literal.
         let spec = args[0].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Str::format expected a placeholder, got tag {}",
