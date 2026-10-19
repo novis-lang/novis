@@ -340,8 +340,10 @@ repeats none of their text.
   - [x] `control-flow/break-continue-return.mdx`, stamped
   - [x] the rest of `control-flow/`
   - [x] `errors/`, `functions/`, `operators/` and `basics/`
-  - [ ] `values/`, `programs/` and `classes/`
-  - [ ] `concurrency/`, `attributes/` and `testing/`
+  - [x] `values/`, `programs/` and `classes/`
+  - [x] `concurrency/` and `attributes/`
+  - [ ] `testing/`
+  - [ ] a page for the three `lang:types` features no page covers
 - [x] The site lock hashes a `lang` feature's `about.md`, `details.md` and examples. `tools/nv/cmd/site.ts:306`
   - [x] `featureHash` already hashes every file in the feature's directory; a case in `site.test.ts` pins a changed `details.md` and example
 
@@ -413,6 +415,19 @@ class with no observer running no extra code (`property-hooks.mdx`). The old pag
 the folders Novis searched" for a class `autoload` cannot find was dropped: `E0303` names no folder
 (the backlog item below).
 
+`syntax/concurrency/` (4 pages) and `syntax/attributes/` (4 pages) are converted the same way, with
+both stamps. Every concurrency bullet was in a feature's text. The one frame fact left is that each
+web request has its own static properties (`tasks.mdx`), and `isolates.mdx` keeps three `with(...)`
+options the texts do not explain (`limits:`/`grants:` never above the parent, `on:`, the two `output`
+classes), kept as the old page had them and not run on the binary. Nine attributes bullets no feature said were run on the binary and moved into
+`details.md`: a `null` `?T` field encoded as `null`, an unknown JSON key ignored, `issues` with
+`path` and `message`, an attribute with no name, several attributes in one bracket, every class
+having a constructor, a fixed route segment tried before a capture, a `null` query value left out,
+and the capture types (which include `bool`). `routes.mdx` covers `Core\Router::dispatch`, so it
+keeps the `02-dispatch` snippet with the facts its `about.md` lacks and a link to its reference page,
+and the `04-api` snippet with the OpenAPI JSON, because no example prints the document. The CSRF
+paragraph stays in its frame: checking it needs `nvs serve`.
+
 `lang:types/property-keys`, `property-paths` and `strings-with-holes` are on no syntax page, which
 `site --check syntax` reports as `uncovered`. They were uncovered before stage 7 too.
 
@@ -428,9 +443,9 @@ hash is its file. Reread the questions against the new page, then `MSYS_NO_PATHC
 `bun nv site --check` fails on findings no page of this goal touched: `structure` (2,
 `/reference/types/`), `questions` (820 broken Core URLs), `syntax` (46 uncovered `Core` enums and
 errors), `apps` (`notes` and `paperwork`, the `Novis\Intl\Icu` extension not loaded on this host)
-and `prose` (5, `run-as-a-service.mdx` and `compare.mdx`). `stale` lists 30 page-feature pairs,
-which are stage 6's content edits on `concurrency/`, `attributes/`, `testing/` and two
-`guides/why-novis/` pages. Each drops off when its page is converted and stamped. A guide page is
+and `prose` (5, `run-as-a-service.mdx` and `compare.mdx`). `stale` lists 11 page-feature pairs,
+which are stage 6's content edits on `testing/`, `start-here.mdx` and two `guides/why-novis/`
+pages. Each drops off when its page is converted and stamped. A guide page is
 not converted: it is stamped with `bun nv site --stamp <key>` once its text is reread against the
 feature.
 
@@ -450,13 +465,12 @@ built page's headings and `method-example` count, and both stamps (see *State*).
 page has and neither text has is a fact: check it on the binary and move it into the feature's
 `details.md`. A page that also covers a `Core` id (`LateInit`, `PropertyGuard`) keeps a `<Snippet>`
 or a short table, or links the Reference page for that id. Write a page whole with Write: the guard
-refuses a heredoc script, and `looper verify` piped into `tail`.
-- [ ] `programs/` and `classes/`. `docs/examples/lang/types/property-keys/about.md:1`
-  - [x] `values/`, 10 pages, stamped
-  - [x] `programs/`, 3 pages, stamped
-  - [x] `classes/`, 8 pages, stamped
-  - [ ] a `classes/` page for `lang:types/property-keys`, `property-paths` and `strings-with-holes`, which no page covers, with its sidebar entry and its questions. `docs/examples/lang/types/property-keys/about.md:1`
-- [ ] `concurrency/`, `attributes/` and `testing/`. `website/src/content/docs/syntax/concurrency/tasks.mdx:1`
+refuses a heredoc script, and `looper verify` piped into `tail`. The lock's page key is the file
+under `src/content/docs/` (`bun nv site --stamp syntax/testing/writing-tests.mdx`), and the
+questions' key is the URL.
+- [ ] `testing/`, 2 pages: their 8 `lang:testing` features are stale until converted and stamped. Both pages have `nvs test` report blocks no example prints; keep each one in the frame. `website/src/content/docs/syntax/testing/writing-tests.mdx:1`
+- [ ] Restamp `syntax/start-here.mdx` and the two `guides/why-novis/` pages once their text is reread against the feature `stale` names. `website/src/content/docs/syntax/start-here.mdx:1`
+- [ ] A `classes/` page for `lang:types/property-keys`, `property-paths` and `strings-with-holes`, which no page covers, with its sidebar entry and its questions. `docs/examples/lang/types/property-keys/about.md:1`
 - [ ] A chapter edited in stage 7 or 8 owes `bun nv proofs --record-perf --group lang:<chapter>` after its last edit, and a bench that calls a `Core` method declares that call in `calls`. `tools/nv/proofs/roster.ts:28`
 
 A probe on the binary: a file under `.agent-tmp/` written with Write, with an `nvs.toml` beside it
@@ -475,6 +489,8 @@ is `enum Suit { Hearts, Spades }`, and two caught error types need two variable 
   the variables around it", but `spawn worker` does not exist. Product text, same owner question. `crates/nvs-types/src/expr/isolate.rs:540`
 - `E0479`'s help for a write through `?->` suggests `if ($x !== null)`, an operator Novis does not
   have; `and-the-ternary`'s example 05 prints it. Product text, same owner question. `crates/nvs-types/src/expr/assign.rs:1115`
+- `E0752`'s help lists the types a capture or a `#[Query]` takes and leaves out `bool`, which
+  compiles. Product text, same owner question. `crates/nvs-types/src/routes.rs:2154`
 - Many compiler diagnostics print a `rule:` id or the word "refused" in their help text, such as `E0234`, `E0413`, `E0448` and `E0230`. That text is held to § *Text an end user reads* when it is changed; this goal changes no product text, so it needs its own owner. `crates/nvs-types/src/expr/members.rs:2345`
 - About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
 - The guard messages and `peek.ts`/`splice.ts` comments cite "AGENTS.md rule 1" and "rule 3" by the block's numbers, which a template change can move; citing `commands.md` sections would not. `tools/nv/cmd/guard.ts:259`

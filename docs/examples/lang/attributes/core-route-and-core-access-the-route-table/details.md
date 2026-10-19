@@ -8,6 +8,9 @@ classes, and when their captures only have different names, such as `/users/{id}
 `/users/{key}`. Two routes with one name are `E0749`. One method with several `#[Core\Route]` lines
 may give them all the same name when they all have the same path.
 
+A capture parameter may be a `string`, `int`, `uint`, `decimal`, `bool` or an enum. It may also be a
+set of allowed values such as `"en"|"de"`, or a class that implements `Parses`.
+
 A capture with no parameter of the same name is `E0751`. A `float` parameter is `E0752`, and so is a
 `{name...}` parameter that is not a `string`. A `{name?}` parameter with no default value is `E0753`.
 A `#[Core\Query]` parameter takes the same types as a capture, so a `?string` one is `E0752`.
@@ -18,6 +21,9 @@ Two `#[Core\Access]` lines on one method are `E0763`, and one with no `allow:` i
 `allow:` value must be an enum case or a class constant. A number is `E0761`. `csrf: false` on a
 method whose routes are all `Head` or `Options` is `E0764`. It is allowed on `Get`, because a
 WebSocket upgrade arrives as a `Get`.
+
+A fixed segment is tried before a capture, so `/users/new` matches the route `/users/new` and not
+`/users/{id}`. The order of the two routes in the code does not matter.
 
 A fixed segment is compared exactly, so `/U` does not match `/u`. A path with an extra `/` at the
 end, such as `/u/`, does not match the route `/u`. An `int` capture matches `-4`, `+4` and `04`. It
@@ -51,7 +57,8 @@ such as `"cup-01"`. An object throws a `RuntimeError`.
 A capture value is encoded for one segment, so `x/y?z#` becomes `x%2Fy%3Fz%23`. An empty string gives
 an empty segment. A space is `%20` in the path and `+` in the query string, and `&` in a query value is
 `%26`. A `{name?}` key that you leave out drops its segment, so the link is `/u`. A `null` value for it
-gives `/u/`, and the route matches that link too.
+gives `/u/`, and the route matches that link too. A `null` value for a `#[Core\Query]` key leaves
+that key out of the query string.
 
 `Core\Router::urlAbsolute` with no `origin` setting throws a `RuntimeError`. An `origin` that ends in
 `/` does not give two `/` characters in the link.

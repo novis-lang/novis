@@ -6,22 +6,22 @@
     "lang:types/qualifiers-tainted-and-secret": "a0ba8159d9c102fb"
   },
   "syntax/attributes/commands-and-discovery.mdx": {
-    "lang:attributes/core-command-and-core-option-the-command-table": "737daa080cfa7939",
-    "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "475d2cb7b303b63f",
-    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "6754f5782543b883"
+    "lang:attributes/core-command-and-core-option-the-command-table": "c69d8173e15aa955",
+    "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "93eafd149f05a67f",
+    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "f36c352b294ab2c1"
   },
   "syntax/attributes/json.mdx": {
-    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "5a35edb0eed8ccc7"
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "332c0aa9f30a7b14"
   },
   "syntax/attributes/routes.mdx": {
     "Core\\Router::dispatch": "7be54fafddfab7ed",
-    "lang:attributes/core-api-and-the-openapi-document": "8c75e2694eee0d72",
-    "lang:attributes/core-route-and-core-access-the-route-table": "3e577df57cd61398"
+    "lang:attributes/core-api-and-the-openapi-document": "3fedfb94cd49732d",
+    "lang:attributes/core-route-and-core-access-the-route-table": "70ed32f514beec7d"
   },
   "syntax/attributes/writing-and-reading.mdx": {
-    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "b3d77df2e31a1a39",
-    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "35a626022762a6ba",
-    "lang:attributes/the-names-the-compiler-acts-on": "655b2f6d62b9effb"
+    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "49eea87dfd735421",
+    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "6767270578a1cae0",
+    "lang:attributes/the-names-the-compiler-acts-on": "ef6d5da1431bc074"
   },
   "syntax/basics/comments.mdx": {
     "lang:programs/comments": "9acb13a1eb668099",
@@ -81,22 +81,22 @@
     "Stringable": "2a07d08fab1b1475"
   },
   "syntax/concurrency/channels.mdx": {
-    "lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks": "4a3423d1981915d1"
+    "lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks": "cbd130e269bf917e"
   },
   "syntax/concurrency/isolates.mdx": {
-    "lang:concurrency/a-child-s-failure-is-a-value": "930f1cbe639c8e6e",
-    "lang:concurrency/a-child-shares-nothing": "b67a4975e6cbc216",
-    "lang:concurrency/isolates-spawn-script-and-await": "2c6b6ad3eddf9f3e"
+    "lang:concurrency/a-child-s-failure-is-a-value": "ca2f52d60573551b",
+    "lang:concurrency/a-child-shares-nothing": "ed42ef95826779cb",
+    "lang:concurrency/isolates-spawn-script-and-await": "f05cf5b1b6191500"
   },
   "syntax/concurrency/limits-and-errors.mdx": {
-    "lang:concurrency/a-child-s-throw": "436f3216f2ebdc63",
-    "lang:concurrency/limit-and-deadline": "9d94f1ba5ec99b94"
+    "lang:concurrency/a-child-s-throw": "b5a179cfabce60dd",
+    "lang:concurrency/limit-and-deadline": "336a0ae8078515fe"
   },
   "syntax/concurrency/tasks.mdx": {
-    "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "82fbb8e7aa0b738f",
-    "lang:concurrency/core-task-map-one-task-per-element": "416509f4b453e81c",
-    "lang:concurrency/no-colouring-i-o-just-waits": "44d588895d04b48c",
-    "lang:concurrency/what-does-not-exist": "0eac691553f11c94"
+    "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "da174191c8d581dc",
+    "lang:concurrency/core-task-map-one-task-per-element": "cff1faa84b6309e8",
+    "lang:concurrency/no-colouring-i-o-just-waits": "44e39c4ccbc5f3aa",
+    "lang:concurrency/what-does-not-exist": "3ef37d7e1a418afc"
   },
   "syntax/control-flow/break-continue-return.mdx": {
     "lang:statements/break-and-continue": "1e0e93d51246745b",

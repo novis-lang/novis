@@ -18,8 +18,13 @@ true even when the parameter has a default value. `Core\Json::decodeAs` on a cla
 attribute does not compile, and is `E0821`. `Core\Json::encode` of such an object throws a
 `LogicError` when it runs.
 
-A `?T` field is always required in the document. A missing key is the issue `required field
-missing`, as for any other field. Only its value may be `null`.
+A `?T` field that is `null` is written as `null`. It is never left out of the document. A `?T` field
+is always required in a decode too. A missing key is the issue `required field missing`, as for any
+other field. Only its value may be `null`.
+
+A key in the document that the class does not have is ignored.
+
+The `ParseError` has every problem in its `issues`. Each issue has a `path` and a `message`.
 
 A decode checks each value's type and does not convert it. `1.5` and `2.0` in an `int` field are
 issues, and so is `-1` in a `uint` field. A number in a `string` or `bool` field is an issue, and

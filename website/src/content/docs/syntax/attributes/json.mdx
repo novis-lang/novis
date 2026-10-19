@@ -3,39 +3,13 @@ title: Objects as JSON
 covers: ['lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec']
 description: How #[Core\Json\Derive] lets Core\Json::encode write an object as JSON and Core\Json::decodeAs build one from JSON.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 `#[Core\Json\Derive]` in front of a class lets you convert its objects to and from JSON.
 `Core\Json::encode` writes an object as JSON text. `Core\Json::decodeAs<T>` builds an object of
-the class `T` from JSON text. Without the attribute, `decodeAs` does not compile and `encode`
-throws a `LogicError`.
+the class `T` from JSON text.
 
-<Snippet src="syntax/json-derive/01-encode.nvs" />
-
-- The JSON keys are the properties of the class, in the order they are declared.
-- `#[Core\Json\Field(name: "is_admin")]` sets a different key for one property.
-- `#[Core\Json\Field(skip: true)]` leaves one property out of the JSON text.
-- A `?int` property that is `null` is written as `null`. It is never left out.
-- An object inside an object works when its class also has `#[Core\Json\Derive]`. Arrays and
-  enums work too. An enum is written as its backing value.
-
-## Building an object from JSON
-
-`Core\Json::decodeAs<T>` calls the constructor of `T`. So every property needs a constructor
-parameter with the same name and the same type. A property with `skip: true` is the exception.
-
-<Snippet src="syntax/json-derive/02-decode.nvs" />
-
-- A key that the class does not have is ignored.
-- A missing key, a value of the wrong type and `null` for a property that is not `?T` are errors.
-- The whole text is checked before the object is built. The `ParseError` lists every problem in
-  its `issues`. Each issue has a `path` and a `message`.
-- The `path` is the JSON key. Inside another object it is `address.city`. Inside a list it is
-  `1.address.city`.
-- Text that is not valid JSON gives one issue with an empty `path`.
-- `decodeAs` builds arrays and enums too. An enum is read from the number of one of its cases.
-  The path of an array element ends with its index, as `tags.1`.
-- A `secret` or `lateinit` property is not allowed on a class with `#[Core\Json\Derive]`.
+<FeatureSection examples="lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec" heading="Core\Json\Derive and Core\Json\Field" id="core-json-derive" />
 
 ## Do and don't
 
