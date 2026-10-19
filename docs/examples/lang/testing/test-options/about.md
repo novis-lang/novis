@@ -7,8 +7,8 @@ moves that fixed clock forward. `seed:` fixes the numbers `Core\Random` draws, s
 same sequence on every run. `retries:` allows more attempts after a failure, and needs `because:`
 beside it to state why. A test that fails and then passes is reported as flaky, never as passed.
 
-**Good to know:** an option name the compiler does not know does not compile, so a mistyped option is
-found while you build.
+**Good to know:** an option with a wrong name does not compile, so a typo is found before the tests
+run.
 
 **The examples below** show a skipped test, a fixed clock, and a test class that uses several options
 together.

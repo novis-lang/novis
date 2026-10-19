@@ -1,5 +1,5 @@
 <?nvs
-// Shows how one value reaches every test. `#[Fixture]` marks a `public static`
+// Shows how every test gets one value. `#[Fixture]` goes above a `public static`
 // method, and the type that method returns is what it supplies.
 
 use Core\Test;

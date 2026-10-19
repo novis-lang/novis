@@ -1,6 +1,6 @@
 <?nvs
-// Shows how to write a test. `#[Test]` above a method marks that method as a
-// test. `nvs test` on this file runs every marked method it finds.
+// Shows how to write a test. `#[Test]` above a method makes that method a
+// test. `nvs test` on this file runs every `#[Test]` method it finds.
 
 use Core\Test;
 

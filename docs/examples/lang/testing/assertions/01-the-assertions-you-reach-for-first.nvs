@@ -1,7 +1,7 @@
 <?nvs
-// Shows the four assertions you reach for first. Each one takes the value your
-// code produced, and then the value you expect. `nvs test` on this file runs
-// the marked methods.
+// Shows the four assertions most tests use. Each one takes the value your code
+// produced, and then the value you expect. `nvs test` on this file runs the
+// `#[Test]` methods.
 
 use Core\Test;
 

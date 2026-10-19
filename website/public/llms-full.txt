@@ -7545,7 +7545,8 @@ Every option is optional, and an unknown or mistyped one is a compile error:
 | `seed:` | `int` | Seeds `Core\Random` and `Core\Uuid::v7` for this test, so two tests with one seed draw one sequence. Without it they draw from the CSPRNG. |
 | `retries:` | `int` | Attempts allowed after a failure. Needs `because:` beside it — `retries:` alone is refused. A test that fails and then passes is reported **flaky**, never green, with the failed attempt's message; one that fails every attempt is a plain failure carrying the last attempt's message. |
 | `because:` | `string` | The written reason for `retries:`. Allowed on its own. |
-| `db:`, `server:` | `string`, `bool` | Accepted by the checker; nothing reads them in this build. |
+| `db:` | `string` | Opens a transaction on the connection `[db.<name>]` before the test and rolls it back after it. The test fails when no such block is configured. |
+| `server:` | `bool` | Starts a real HTTP server for the test on a loopback port. `Core\Test::serverUrl()` returns its address, and `null` in a test without it. |
 
 ```nvs test
 <?nvs
@@ -7694,8 +7695,8 @@ final class SlugTest {
   1 failed, 2 passed, 0 skipped, 0 flaky in
 ```
 
-- A row value is a constant of the parameter's declared type (`int`, `uint`, `float`, `bool`,
-  `string`); a field naming no parameter, a mistyped one, one given twice, and a row that omits a
+- A row value is a literal of the parameter's declared type (`int`, `uint`, `float`, `bool`,
+  `string`), and a class constant is not one; a field naming no parameter, a mistyped one, one given twice, and a row that omits a
   parameter another row fills are compile errors.
 - Rows and fixtures mix in one method: a parameter no row names is filled by type from the class's
   fixtures; where both could answer, the row wins.
@@ -7762,8 +7763,9 @@ drop the table, 2 passed
 - If `#[BeforeClass]` throws an error, no test runs. Each test is reported as failed with that error.
 - If `#[AfterClass]` throws an error, the run fails, and the error is reported under the class.
 - If `#[AfterEachTest]` throws an error, that attempt of the test fails.
-- A class has at most one hook of each kind. A hook that writes a `static` property does not compile.
-  Each test runs in its own isolate, so the test would not see the value.
+- A class has at most one hook of each kind. A `#[BeforeClass]` or `#[AfterClass]` hook that writes a
+  `static` property does not compile. Each test runs in its own isolate, so the test would not see
+  the value. `#[AfterEachTest]` runs in the test's isolate, and may write one.
 - A subclass inherits the hooks, the fixtures and the tests of its parent class. It runs them under its
   own name. A method that overrides a hook must repeat the hook's attribute.
 - Tests run at the same time on every core. The hooks of one class always run in the order above.
@@ -7866,8 +7868,9 @@ A directory holding both kinds is refused, and the two kinds never run in one in
   the sorted lines that test reached in any attempt. `--format junit` writes JUnit
   XML: one `<testsuite>` per class, a `<testcase>` per test, `<skipped>`, `<failure>` with the
   first message as its attribute and all of them as its body, and `<flakyFailure>` for a flaky
-  one. Under either machine format what the tests themselves `echo` goes to standard error, so
-  standard output is the document alone.
+  one. Under either machine format the output of a failed test goes to standard error, so
+  standard output is the document alone. In every format, a passing test's output is shown only
+  with `--show-output`.
 - `--list` answers which tests the program declares and where each is written, without running one:
   a line per test under the human format, and under `--format json` a `schemaVersion: 2` document
   whose `listed` array holds one `{class, method, file, line, column}` per test. It carries no

@@ -1,0 +1,13 @@
+<?nvs
+// Shows that a test method cannot be `static`. The runner calls each test on a
+// new object of its class.
+// proof: compile-error
+
+use Core\Test;
+
+final class ShapeTest {
+    #[Test]
+    public static function aTestIsNotStatic(): void {
+        Test::assertTrue(true);
+    }
+}

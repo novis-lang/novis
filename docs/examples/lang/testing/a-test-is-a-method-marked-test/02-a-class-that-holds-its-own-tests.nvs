@@ -1,5 +1,5 @@
 <?nvs
-// Shows that any class may hold tests. There is no base class to extend and no
+// Shows that any class may have tests. There is no base class to extend and no
 // name a test class must have, so a small class can keep its tests inside it.
 
 use Core\Test;
