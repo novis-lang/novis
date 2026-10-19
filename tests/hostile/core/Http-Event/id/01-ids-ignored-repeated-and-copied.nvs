@@ -1,11 +1,10 @@
 <?nvs
 // Attack: a server sends ids that must be ignored, very many ids without events, and
 // one very long id that every later event gets. Each `id()` call must return the id
-// the stream should have. The last step stops the program at its memory limit.
-// hostile: ends-early 3 FATAL
+// the stream should have. The long id must not use more memory for each event.
 // hostile: timeout-ms 30000
 
-// A lower memory limit, so the last step reaches the limit quickly.
+// A low memory limit. A copy of the long id for each event in step 3 would pass it.
 Core\Config::set('memory', '64M');
 
 // Every reply comes from a table, so nothing is sent over a network.
@@ -44,12 +43,14 @@ foreach ($many->events() as Core\Http\Event $event) {
 echo 'step 2: ', $events, "\n";
 
 // 3. One id of 65000 characters, then 100000 small events that all get this id. The
-//    events are kept in a list. This step ends the program at its memory limit.
-echo "step 3\n";
+//    events are kept in a list. All of them share one id, so this prints `step 3: 100000`.
 Core\Test::answerHttp('https://feed.example.com/long-id', 200, { body: 'id: ' . Core\Str::repeat('i', 65000) . "\n" . Core\Str::repeat("data: x\n\n", 100000) });
 var $copied = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/long-id');
 array<Core\Http\Event> $kept = [];
 foreach ($copied->events() as Core\Http\Event $event) {
+    if (Core\Str::length($event->id() ?? '') != 65000) {
+        throw new LogicError('an event does not have the long id');
+    }
     $kept[] = $event;
 }
 echo 'step 3: ', Core\Arr::count($kept), "\n";

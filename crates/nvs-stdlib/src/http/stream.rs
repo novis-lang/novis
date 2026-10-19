@@ -63,9 +63,9 @@
 //! connection under the reader is given back at the end of the body, or with
 //! the request where a program abandons the walk.
 //!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/http/stream.rs` lists them.
+//! An `id` line is copied once, into a string the walk keeps in force. Every
+//! event whose block sets no `id` shares that string, so one long id costs its
+//! length once and not once per event.
 
 use super::*;
 
@@ -627,14 +627,12 @@ fn step(ctx: &mut Ctx, value: Value, class: &CoreClass, framing: Framing) -> Res
         // this is the state a finished walk is left in, not a slot to refuse.
         return Ok(Value::bool(false));
     };
-    // Copied rather than borrowed from the slot, because the parse below runs
-    // while the reader is borrowed out of `ctx` and the `set_slot` in the same
-    // arm releases the reference the slot is lending.
+    // Borrowed from the slot. Nothing writes the slot until a dispatch, and a
+    // dispatch writes it only with an id its own block set, after which the
+    // scan never reads the borrow again.
     let carried = match framing {
-        Framing::Events => crate::instance::slot(receiver, READER_LAST_ID_AT)
-            .as_text()
-            .map(|id| id.as_bytes().to_vec()),
-        Framing::Lines | Framing::Chunks => None,
+        Framing::Events => crate::instance::slot(receiver, READER_LAST_ID_AT),
+        Framing::Lines | Framing::Chunks => Value::null(),
     };
     // Both scans resume where the previous pull left them. Nothing is consumed
     // until an element is framed, and a pull only appends, so what they have
@@ -647,11 +645,9 @@ fn step(ctx: &mut Ctx, value: Value, class: &CoreClass, framing: Framing) -> Res
         let held = reader.held();
         let framed = match framing {
             Framing::Events => scan.next(held, ended)?.map(|(event, used, id)| {
-                crate::instance::set_slot(
-                    receiver,
-                    READER_LAST_ID_AT,
-                    optional_text(id.as_deref()),
-                );
+                if let Some(id) = id {
+                    crate::instance::set_slot(receiver, READER_LAST_ID_AT, id);
+                }
                 (event, used)
             }),
             Framing::Lines => line_from(held, &mut searched, ended, false, "lines")?
@@ -820,8 +816,19 @@ fn capped(length: usize, member: &str) -> Result<(), Fault> {
 }
 
 /// What one dispatched event is: the `Core\Http\Event` itself, how many octets
-/// the parse took, and the id left in force after it.
-type Dispatched = (Value, usize, Option<Vec<u8>>);
+/// the parse took, and the id its block set, with a reference for the walk's
+/// slot. `None` where the block set no id, so the one in force stays.
+type Dispatched = (Value, usize, Option<Value>);
+
+/// The id in force while one block is scanned.
+enum Id {
+    /// The walk's own `lastId`, a `string` or `null`, borrowed from its slot.
+    /// An event whose block sets no id shares this string, so an id is copied
+    /// once, when its line is read, and not once per event after it.
+    Carried(Value),
+    /// What the last `id` line of this block set.
+    Set(Vec<u8>),
+}
 
 /// A parse of the next event off the front of the reader, as the WHATWG
 /// EventSource format defines one: the event, the octets it took, and the id
@@ -861,19 +868,20 @@ struct EventScan {
     data: Vec<u8>,
     written: bool,
     name: Option<Vec<u8>>,
-    id: Option<Vec<u8>>,
+    id: Id,
 }
 
 impl EventScan {
-    /// A scan positioned at the front of a block, with `carried` in force.
-    fn new(carried: Option<Vec<u8>>) -> Self {
+    /// A scan positioned at the front of a block, with `carried` in force: a
+    /// `string` or `null` that stays live while the scan runs.
+    fn new(carried: Value) -> Self {
         Self {
             at: 0,
             searched: 0,
             data: Vec::new(),
             written: false,
             name: None,
-            id: carried,
+            id: Id::Carried(carried),
         }
     }
 
@@ -898,22 +906,40 @@ impl EventScan {
                     // All three are checked before any is allocated, so a
                     // refusal leaves nothing to release.
                     checked(&self.data, "events")?;
-                    for field in [&self.name, &self.id].into_iter().flatten() {
-                        checked(field, "events")?;
+                    if let Some(name) = &self.name {
+                        checked(name, "events")?;
                     }
-                    let id = self.id.take();
-                    return Ok(Some((
-                        crate::instance::build(
-                            &EVENT,
-                            [
-                                Value::str(NvsStr::new(&self.data)),
-                                optional_text(self.name.as_deref()),
-                                optional_text(id.as_deref()),
-                            ],
-                        ),
-                        self.at,
-                        id,
-                    )));
+                    if let Id::Set(id) = &self.id {
+                        checked(id, "events")?;
+                    }
+                    let (id, set) =
+                        match std::mem::replace(&mut self.id, Id::Carried(Value::null())) {
+                            Id::Carried(id) => (id, None),
+                            Id::Set(octets) => {
+                                let id = Value::str(NvsStr::new(&octets));
+                                (id, Some(id))
+                            }
+                        };
+                    // A reference for the event. A carried id is borrowed, so
+                    // this is its only one. A new id was built with one, which
+                    // goes to the walk's slot, so both name the one string.
+                    #[expect(
+                        unsafe_code,
+                        reason = "`id` is either the walk's slot value, live while \
+                                  the scan runs, or the string built above"
+                    )]
+                    unsafe {
+                        id.retain();
+                    }
+                    let event = crate::instance::build(
+                        &EVENT,
+                        [
+                            Value::str(NvsStr::new(&self.data)),
+                            optional_text(self.name.as_deref()),
+                            id,
+                        ],
+                    );
+                    return Ok(Some((event, self.at, set)));
                 }
                 self.name = None;
                 continue;
@@ -958,7 +984,7 @@ impl EventScan {
             b"event" => self.name = Some(value.to_vec()),
             // A NUL in an id is the one value the format says to ignore, and
             // ignoring it leaves the previous one standing.
-            b"id" if !value.contains(&0) => self.id = Some(value.to_vec()),
+            b"id" if !value.contains(&0) => self.id = Id::Set(value.to_vec()),
             _ => {}
         }
         Ok(())
@@ -1309,13 +1335,15 @@ mod tests {
         line_from(octets, &mut 0, ended, ends_at_cr, member)
     }
 
-    /// The next event off the front of `octets`, by a scan of its own.
-    fn event_at(
-        octets: &[u8],
-        ended: bool,
-        carried: Option<&[u8]>,
-    ) -> Result<Option<Dispatched>, Fault> {
-        EventScan::new(carried.map(<[u8]>::to_vec)).next(octets, ended)
+    /// The next event off the front of `octets`, by a scan of its own, with
+    /// `carried` in force: a `string` or `null`.
+    fn event_at(octets: &[u8], ended: bool, carried: Value) -> Result<Option<Dispatched>, Fault> {
+        EventScan::new(carried).next(octets, ended)
+    }
+
+    /// The text of the id a block set, or `None` where it set none.
+    fn set_id(id: Option<Value>) -> Option<String> {
+        id.and_then(|id| id.as_text().map(str::to_owned))
     }
 
     /// An event that arrives one octet at a time is parsed by one scan that
@@ -1342,10 +1370,10 @@ mod tests {
             })
             .collect()
         };
-        let (whole, used, id) = event_at(body, false, None)
+        let (whole, used, id) = event_at(body, false, Value::null())
             .expect("no cap is reached")
             .expect("the block ends with a blank line");
-        let mut scan = EventScan::new(None);
+        let mut scan = EventScan::new(Value::null());
         let mut pieces = None;
         for end in 1..=body.len() {
             if let Some(found) = scan.next(&body[..end], false).expect("no cap is reached") {
@@ -1358,7 +1386,7 @@ mod tests {
             }
         }
         let (piece, piece_used, piece_id) = pieces.expect("the pieces finish one event");
-        assert_eq!((piece_used, piece_id.as_deref()), (used, id.as_deref()));
+        assert_eq!((piece_used, set_id(piece_id)), (used, set_id(id)));
         let whole = fields(whole);
         assert_eq!(fields(piece), whole);
         assert_eq!(
@@ -1420,11 +1448,11 @@ mod tests {
             "event: tick\r\ndata: one\r\nid: 7\r\n\r\n",
             "event: tick\rdata: one\rid: 7\r\r",
         ] {
-            let (_, next, id) = event_at(body.as_bytes(), true, None)
+            let (_, next, id) = event_at(body.as_bytes(), true, Value::null())
                 .expect("no cap is reached")
                 .expect("the block ends with a blank line");
             assert_eq!(next, body.len(), "{body:?} was not read to its end");
-            assert_eq!(id.as_deref(), Some(&b"7"[..]));
+            assert_eq!(set_id(id).as_deref(), Some("7"));
         }
     }
 
@@ -1450,10 +1478,10 @@ mod tests {
     #[test]
     fn a_block_carrying_no_data_dispatches_nothing_and_keeps_its_id() {
         let body = b": a comment\nid: 7\nretry: 500\n\ndata: one\n\n";
-        let (_, _, id) = event_at(body, true, None)
+        let (_, _, id) = event_at(body, true, Value::null())
             .expect("no cap is reached")
             .expect("the second block carries data");
-        assert_eq!(id.as_deref(), Some(&b"7"[..]));
+        assert_eq!(set_id(id).as_deref(), Some("7"));
     }
 
     /// A body that stops inside a block is a block the origin did not finish,
@@ -1462,12 +1490,12 @@ mod tests {
     #[test]
     fn a_block_the_body_stopped_inside_is_not_an_event() {
         assert!(
-            event_at(b"data: half", true, None)
+            event_at(b"data: half", true, Value::null())
                 .expect("no cap is reached")
                 .is_none()
         );
         assert!(
-            event_at(b"data: half\n\n", true, None)
+            event_at(b"data: half\n\n", true, Value::null())
                 .expect("no cap is reached")
                 .is_some()
         );
@@ -1514,11 +1542,11 @@ mod tests {
     #[test]
     fn a_block_that_is_still_arriving_dispatches_nothing() {
         assert!(
-            event_at(b"data: one\n", false, None)
+            event_at(b"data: one\n", false, Value::null())
                 .expect("no cap is reached")
                 .is_none()
         );
-        let (_, used, _) = event_at(b"data: one\n\n", false, None)
+        let (_, used, _) = event_at(b"data: one\n\n", false, Value::null())
             .expect("no cap is reached")
             .expect("the blank line dispatched it");
         assert_eq!(used, 11, "the block is taken to the end of its blank line");
@@ -1535,10 +1563,11 @@ mod tests {
     #[test]
     fn each_reader_answers_its_own_field_of_the_framed_event() {
         let body = b"event: tick\nid: 7\ndata: one\ndata: two\n\ndata: three\nid: x\0y\n\n";
-        let (first, used, id) = event_at(body, true, None)
+        let (first, used, id) = event_at(body, true, Value::null())
             .expect("no cap is reached")
             .expect("the first block ends with a blank line");
-        let (second, _, _) = event_at(&body[used..], true, id.as_deref())
+        let carried = id.expect("the first block sets an id");
+        let (second, _, _) = event_at(&body[used..], true, carried)
             .expect("no cap is reached")
             .expect("the second block ends with a blank line");
         let mut ctx = Ctx::buffered();
@@ -1565,6 +1594,28 @@ mod tests {
             read(second, "id").as_text(),
             Some("7"),
             "the id stays in force, and one with a NUL in it is ignored"
+        );
+    }
+
+    /// An event whose block sets no id holds the walk's own id string, not a
+    /// copy of it, and leaves the walk's slot alone. A copy per event would make
+    /// one long id cost its whole length again on every short event after it.
+    #[test]
+    fn an_event_with_no_id_of_its_own_shares_the_one_in_force() {
+        let carried = Value::str(nvs_runtime::NvsStr::new(&[b'7'; 4096]));
+        let (event, _, set) = event_at(b"data: one\n\n", true, carried)
+            .expect("no cap is reached")
+            .expect("the block ends with a blank line");
+        assert!(
+            set.is_none(),
+            "a block with no id leaves the walk's id alone"
+        );
+        let receiver = crate::instance::receiver(event, &super::EVENT, "id").expect("an event");
+        let held = crate::instance::slot(receiver, super::EVENT_ID_AT);
+        assert_eq!(
+            held.str_ptr(),
+            carried.str_ptr(),
+            "the event shares the string"
         );
     }
 
