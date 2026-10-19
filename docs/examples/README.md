@@ -319,7 +319,9 @@ program in a run that names a service, the runner brings it up with `docker comp
 <service>`, once, and leaves it running. It then copies the CA the compose stack issued to
 `tests/db/ca.crt`, the anchor the repository's `nvs.toml` names, when the file there differs. Where
 that fails, every program naming the service fails with the reason. On a host whose Docker runs no
-Linux containers, or that has no Docker at all, such a program is skipped with the reason instead.
-That is one rule on every platform, and on CI it means these programs run on the Linux leg alone. A
+Linux containers, whose Docker does not answer `docker info`, or that has no Docker at all, such a
+program is skipped with the reason instead. That is one rule on every platform, and on CI it means
+these programs run on the Linux leg alone. The website's snippets that `nvs serve` runs under the
+repository's `nvs.toml` follow the same rule, because that file needs `postgres`. A
 name the compose file does not declare fails the program everywhere. A program without such a line
 never touches Docker. The same line works in an attack and a bench.

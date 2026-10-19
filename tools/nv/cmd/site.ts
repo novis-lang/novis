@@ -47,7 +47,10 @@
 //   block every path runs the snippet. Status and headers are not compared, because the body is what a
 //   reader compares with the code. The root `nvs.toml` arms a queue on `tests/db/compose.yaml`'s
 //   `postgres`, so before the first snippet served under it that service is brought up and
-//   `nvs queue migrate` is run, once per process.
+//   `nvs queue migrate` is run, once per process. Where Docker runs no Linux containers, does not
+//   answer or is not there, that server is not started, and the proofs' one rule on every platform
+//   (`dockerAbsent`) makes it a skip with the reason: a web snippet is skipped whole, and a
+//   command-line snippet keeps its `.out` check and skips its `.http.out`.
 //
 // Which output files a snippet that compiles has is the divergence rule, `snippetOutputs`. A snippet
 // with a `.nvsr` is a web snippet: it has a `.http.out`, and a `.out` too only when `nvs run` exits 0
@@ -172,7 +175,7 @@ import { parseReplay, recordReplay } from "../lib/replay.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
 import { commentProblems } from "../proofs/collect.ts";
-import { servicesFor } from "../proofs/run.ts";
+import { dockerAbsent, servicesFor } from "../proofs/run.ts";
 import { ABOUT, EXAMPLES, examplesDir, metaJson, roster, RosterError, type Entry, type Meta } from "../proofs/roster.ts";
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
@@ -871,12 +874,14 @@ export interface Ran {
 }
 
 /** What `nvs serve` sent: its status and body, or `failure`, why it sent nothing. `started` is whether
- * the server accepted connections at all. */
+ * the server accepted connections at all. `skipped` is why this host does not start it, a skip and
+ * not a failure. */
 export interface Served {
   status: number;
   body: string;
   failure: string | null;
   started: boolean;
+  skipped?: string;
 }
 
 const same = (a: string, b: string) => a.replace(/\r\n?/g, "\n").trimEnd() === b.replace(/\r\n?/g, "\n").trimEnd();
@@ -893,12 +898,22 @@ const firstLine = (s: string) => s.trim().split("\n")[0] ?? "";
  * exit 0. Its `.http.out` is the body for `PLAIN_GET`, only when the server starts, the status is 2xx
  * and the body is something else; a server that started and then sent nothing is a problem. Two equal
  * outputs are one file, so a page never shows the same text twice.
+ *
+ * A server this host does not start is `skipped`, with `owed` null: a web snippet is not checked, and
+ * a command-line snippet's `.out` is checked and its `.http.out` is left as it is.
  */
-export function snippetOutputs(p: string, web: boolean, cli: Ran, served: Served | null, files: { out: string | null; http: string | null }): { owed: { out: string | null; http: string | null } | null; problems: string[] } {
+export function snippetOutputs(p: string, web: boolean, cli: Ran, served: Served | null, files: { out: string | null; http: string | null }): { owed: { out: string | null; http: string | null } | null; problems: string[]; skipped?: string } {
   let out: string | null = null;
   let http: string | null = null;
   let noOut = "";
   let noHttp = "";
+  const skipped = served?.skipped;
+  if (skipped !== undefined) {
+    if (web) return { owed: null, problems: [], skipped };
+    if (cli.code !== 0) return { owed: null, problems: [`${p}: exit ${cli.code}: ${firstLine(cli.stderr)}`], skipped };
+    if (files.out === null) return { owed: null, problems: [`${p}: no .out beside it`], skipped };
+    return { owed: null, problems: same(cli.stdout, files.out) ? [] : [`${p}: prints something other than its .out`], skipped };
+  }
   if (web) {
     if (served === null || served.failure !== null) return { owed: null, problems: [`${p}: \`nvs serve\` sent no response: ${served?.failure ?? "it was not started"}`] };
     if (served.status >= 500) return { owed: null, problems: [`${p}: \`nvs serve\` answered ${served.status}: ${firstLine(served.body)}`] };
@@ -1022,17 +1037,20 @@ function send(port: number, request: SnippetRequest, timeoutMs: number): Promise
  * database holds the queue's tables. A snippet with its own `nvs.toml` never touches Docker. */
 const ROOT_CONFIG_SERVICES = "// requires: postgres";
 /** `rootConfigReady`, started once per process by the first snippet served under the root `nvs.toml`. */
-let rootConfigUp: Promise<string | null> | null = null;
+let rootConfigUp: Promise<{ why: string; skip: boolean } | null> | null = null;
 
 /** Brings up what the root `nvs.toml` serves on, and runs `nvs queue migrate` over it: the compose
  * service keeps no data volume, so each new container starts without the queue's tables. Null when
- * the root config can serve, and the failure otherwise. */
-async function rootConfigReady(nvs: string): Promise<string | null> {
+ * the root config can serve. Otherwise `why` it cannot, and `skip` when the reason is that this host
+ * runs no compose containers (`dockerAbsent`), the one rule the proofs follow too. */
+async function rootConfigReady(nvs: string): Promise<{ why: string; skip: boolean } | null> {
+  const absent = await dockerAbsent();
+  if (absent) return { why: `the root \`nvs.toml\` needs \`postgres\`, and ${absent}`, skip: true };
   const down = await servicesFor(ROOT_CONFIG_SERVICES);
-  if (down) return `the root \`nvs.toml\` ${down}`;
+  if (down) return { why: `the root \`nvs.toml\` ${down}`, skip: false };
   const migrated = await runProc([nvs, "queue", "migrate"], { cwd: ROOT, timeoutMs: SNIPPET_MS, env: { NOVIS_NO_INIT: "1" } });
   if (migrated.code === 0) return null;
-  return `the root \`nvs.toml\` needs the queue's tables, and \`nvs queue migrate\` failed (exit ${migrated.code}): ${migrated.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`;
+  return { why: `the root \`nvs.toml\` needs the queue's tables, and \`nvs queue migrate\` failed (exit ${migrated.code}): ${migrated.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`, skip: false };
 }
 
 /**
@@ -1047,7 +1065,8 @@ async function serveSnippet(p: string, request: SnippetRequest, nvs: string): Pr
   if (!argv.includes("--config")) {
     rootConfigUp ??= rootConfigReady(nvs);
     const down = await rootConfigUp;
-    if (down) return { status: 0, body: "", failure: down, started: false };
+    if (down?.skip) return { status: 0, body: "", failure: null, started: false, skipped: down.why };
+    if (down) return { status: 0, body: "", failure: down.why, started: false };
   }
   const stop = new AbortController();
   let bound: (port: number) => void = () => {};
@@ -1148,8 +1167,11 @@ async function inParallel<T, R>(items: T[], width: number, job: (item: T) => Pro
  * run follow each other. */
 const SNIPPET_WIDTH = Math.max(1, Math.min(8, availableParallelism() >> 1));
 
+/** Every snippet's problems. A snippet whose server this host does not start prints a `skip` line
+ * with the reason, the way the proofs print one. */
 async function snippetProblems(nvs: string): Promise<string[]> {
   const { problems, snippets } = snippetShape();
+  const skips: string[] = [];
   const perSnippet = await inParallel(snippets, SNIPPET_WIDTH, async (p): Promise<string[]> => {
     const found = commentProblems(p).map((c) => `${p}:${c}`);
     const taint = await snippetTaint(p, nvs);
@@ -1165,8 +1187,11 @@ async function snippetProblems(nvs: string): Promise<string[]> {
     }
     const ran = await bothContexts(p, nvs);
     if (typeof ran === "string") return [...found, ran];
-    return [...found, ...snippetOutputs(p, ran.web, ran.cli, ran.served, outputFiles(p)).problems];
+    const verdict = snippetOutputs(p, ran.web, ran.cli, ran.served, outputFiles(p));
+    if (verdict.skipped !== undefined) skips.push(`${p}: ${ran.web ? "not checked" : "its .http.out is not checked"}, because ${verdict.skipped}`);
+    return [...found, ...verdict.problems];
   });
+  for (const skip of skips.sort()) console.log(`  skip  ${skip}`);
   return [...problems, ...perSnippet.flat()];
 }
 
@@ -1223,7 +1248,11 @@ async function blessSnippets(nvs: string, paths: string[]): Promise<number> {
       fail(ran);
       continue;
     }
-    const { owed, problems } = snippetOutputs(p, ran.web, ran.cli, ran.served, { out: null, http: null });
+    const { owed, problems, skipped } = snippetOutputs(p, ran.web, ran.cli, ran.served, { out: null, http: null });
+    if (skipped !== undefined) {
+      fail(`${p}: not blessed, because ${skipped}`);
+      continue;
+    }
     if (owed === null) {
       fail(problems[0]!);
       continue;
