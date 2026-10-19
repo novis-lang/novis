@@ -25,7 +25,8 @@ attribute on its method `render` that matches the shape `T`.
 <Snippet src="syntax/implementing/02-implementing-with.nvs" />
 
 - Each row has `instance`, the object, and `attribute`, the attribute or `null`.
-- The argument is a method name, a property name or a parameter name. `""` means the class itself.
+- The argument is a method name or a property name. `""` means the class itself.
+- A promoted constructor parameter is a property. A constructor parameter that is not promoted is not found.
 - When a class does not have that method or property, the program does not compile.
 - When two attributes on one class match `T`, the program does not compile. Use a narrower shape.
 

@@ -1,0 +1,9 @@
+error[E0798]: `Core\Program::implementingWith` names `rows`, which `Archive` does not declare
+   --> 04-a-class-without-the-member.nvs:20:59
+   |
+20 | var $rows = Core\Program::implementingWith<Report, Label>("rows");
+   |                                                           ^^^^^^ no method, parameter or property of that name
+   = help: `rule:programs/implementing-with`: the member is read on every class listed for `Report`, so it is checked against each one's real declarations — name a member `Report` declares, or the empty string for the class's own attributes
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

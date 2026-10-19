@@ -696,9 +696,10 @@ the attributes of the classes it discovered: inside a loop over `implementing<I>
 typed as `I`, so there is no class name to write into a retrieval, and the compiler does the join
 instead.
 
-- `$member` is a method name, a property or constructor-parameter name, or the empty string for the
-  attributes on the class itself. A name some implementor does not declare is an error naming that
-  class.
+- `$member` is a method name, a property name, or the empty string for the attributes on the class
+  itself. A promoted constructor parameter is a property, and its name reads the parameter's
+  attributes; a constructor parameter that is not promoted is not found. A name some implementor
+  does not declare is an error naming that class.
 - Two matching attributes on one class are an error naming that class; narrow the shape, or read that
   class with `Core\Attributes::all<T>`.
 - `T` is a shape, inline or a `type` alias, exactly as for `Core\Attributes::get<T>`.
