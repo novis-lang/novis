@@ -272,6 +272,7 @@ fn test(dir: &Path, config: &[PathBuf]) -> Result<ExitCode, String> {
             list: false,
             jobs: 1,
             show_output: false,
+            shared_worker: false,
         },
         &crate::coverage::Requested::default(),
     ))

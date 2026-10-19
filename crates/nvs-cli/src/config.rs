@@ -513,7 +513,7 @@ pub(crate) fn policy_of(snapshot: &nvs_config::Snapshot) -> nvs_host::tls::Clien
 /// `data`, and step 4's write creates `data` — and a process has exactly one of each, which is a
 /// fact about the process and not about the tree being resolved. `data` is the data folder's
 /// `nvs.toml`, and `None` when there is no usable data folder.
-fn boot_in(
+pub(crate) fn boot_in(
     cwd: &Path,
     data: Option<&Path>,
     config: &[PathBuf],
