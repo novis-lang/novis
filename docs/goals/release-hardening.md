@@ -281,7 +281,10 @@ live bytes per request grow.
     `http::socket`, streamed-reply, compress, cli, cldr, xml and db tests take a smaller input as
     well, each checked natively at its Miri size. The bcrypt verify runs one verify under Miri,
     because cost 4 is bcrypt's floor. The two `json` tests at the depth ceiling carry an ignore,
-    because the ceiling is a constant.
+    because the ceiling is a constant. The bigint, csv, zip, multipart, request, random, test, arr,
+    env and hash tests take a smaller input too. `multipart`'s part-count cap is a constant and
+    carries an ignore for the json reason, and `registry`'s two card scans carry the source-scan
+    ignore.
   - [ ] `nvs-runtime` and `nvs-stdlib` run as separate jobs or `--partition` shards, each well under its
     `timeout-minutes`, so the job ends green or red and never cancelled. The user chose shards: job
     `miri-units` in `.github/workflows/ci.yml` runs 2 for `nvs-runtime` and 12 for `nvs-stdlib`.
@@ -346,23 +349,23 @@ Stages 1 to 7 are done. Stage 8 is under way.
 - **Property tests.** Done: three seeded cases in `crates/nvs-config/tests/capability.rs` (`ae40a9e58`).
 - **Miri.** The nightly on `be3e8a605` (run 39173391347) was the first `miri-units` run on GitHub.
   No shard found undefined behaviour. Every failure was a leak report, an operation Miri lacks, an
-  assert that fails only under Miri, or a timeout. Fixed since: leaks and floats, the shards
-  (`.github/workflows/ci.yml:1185`), the `session` threads, 27 Miri-only failures, the 6
-  `nvs-runtime` timeouts, and the regex, crypto, jwe, password, cache, str, html, sort, json,
-  `http::socket`, streamed-reply, compress, cli, cldr, xml and db timeouts. The acceptance sweep's
-  list for this session is that same run.
-- **This session's local Miri runs** (CI is about 5 to 7 times slower, so a test needs under about
-  40 s locally to fit CI's 300 s): every compress test passes, the longest 35 s run alone; the cli,
-  cldr, db, password and `gzip_brotli_and_zstd_replies` tests pass in 16 to 31 s; the two xml tests
-  in 30 and 41 s. The streamed reply was 223 s: 73 s compressing `gzip` noise, 40 s making noise,
-  60 s decoding 384 KiB of `zstd`. Under Miri it now writes stored `gzip` and a hand-written `zstd`
-  frame over 32 KiB, and passes in 49 s beside a running verify. It is the slowest of these, so
-  read its time first on the next nightly.
-- **Remaining nightly timeouts**, from the 8 stdlib shard logs of run 39173391347
-  (`gh run view --job <id> --log`; strip the literal `^[[..m` codes, then grep
-  `(TIMEOUT|PASS) \[ *([6-9][0-9]|[0-9]{3})\.`): bigint 2, csv, http 2, multipart 2, random,
-  registry 2, request 2, test, zip, and over 200 s arr, env and hash. None of those files has a
-  `cfg!(miri)` yet.
+  assert that fails only under Miri, or a timeout. Every timeout that run listed now has a smaller
+  input under `cfg!(miri)` or a reasoned ignore, the last of them this session: bigint `pow` and
+  `shl`, csv rows, zip directory, multipart field bound, request form bound and temp path, random
+  sample, the test ledger, and arr, env and hash. `multipart`'s part-count cap is a constant and
+  takes an ignore, as do `registry`'s two card scans. `http`'s two were already ignored. The
+  acceptance sweep's list for this session was that same run, so nothing in it is new.
+- **Local Miri times of this group** (CI is about 5 to 7 times slower, so a test needs under about
+  40 s locally to fit CI's 300 s, and these ran beside a verify): csv 53 s, hash 29 s, zip 12 s,
+  bigint 38 and 39 s, `test`'s ledger 33 s, env 29 s, random and arr 25 s, the urlencoded form
+  24 s, multipart 16 s, temp path 10 s. csv spends about 43 ms per record walked and as much again
+  before the walk opens, so it is the first time to read on the next nightly, then the streamed
+  reply (49 s).
+- **The nightly's cheapest tests took 60 to 150 s on CI**, so each Miri test pays a large fixed
+  cost there. That cost, not the slow tests, decides whether the shards fit their timeouts.
+- **Shard logs:** `gh run view --job <id> --log`, then `perl -pe 's/\^\[\[[0-9;]*m//g'` (the codes
+  are literal `^[[` text, so `sed` with `\x1b` strips nothing), then grep
+  `(TIMEOUT|PASS|FAIL) +\[ *>?([6-9][0-9]|[0-9]{3})\.`.
 - **Local runs** go from the WSL mirror `/var/tmp/nvs-target-wsl-src/mnt-e-mwl`, brought up to date
   with `syncMirror` from `tools/nv/accept/mirror.ts`, and `CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl`.
   The run is `cargo +nightly miri nextest run --profile miri -p nvs-stdlib --lib -E '<filter>'`
@@ -374,11 +377,11 @@ Stages 1 to 7 are done. Stage 8 is under way.
 
 ### Next
 
-Stage 8, the nightly's last Miri timeouts, each with a smaller input under `cfg!(miri)` (`rule:testing/the-deep-lane`):
-- [ ] `bigint`'s `pow` and `shl` tests, `csv`'s rows test and `zip`'s directory test. `crates/nvs-stdlib/src/bigint.rs:2142`, `crates/nvs-stdlib/src/csv.rs:1673`, `crates/nvs-stdlib/src/zip.rs:1421`
-- [ ] `multipart`'s two bound tests and `request`'s form bound and temp-path tests. `crates/nvs-stdlib/src/multipart.rs:1064`, `crates/nvs-stdlib/src/request.rs:6685`
-- [ ] `random`'s sample, `test`'s ledger test, `http`'s two and `registry`'s two text scans (a scan of source text takes an ignore, as `http`'s did). `crates/nvs-stdlib/src/random.rs:1687`, `crates/nvs-stdlib/src/test.rs:7499`, `crates/nvs-stdlib/src/http.rs:7824`, `crates/nvs-stdlib/src/registry.rs:5262`
-- [ ] Then `arr`, `env` and `hash`, which passed at 204 to 264 s. After that, ask the user to push and read the next nightly's shards. `crates/nvs-stdlib/src/arr.rs:7439`
+Stage 8, the Miri job read on a new nightly (`rule:testing/the-deep-lane`):
+- [ ] Ask the user to push `main` and let the nightly run. The status line says so. `.github/workflows/ci.yml:1185`
+- [ ] Read every `miri-units` shard of that run: each timeout or failure gets a smaller input or a reasoned ignore, csv's rows test first. `crates/nvs-stdlib/src/csv.rs:1674`
+- [ ] If a shard still ends cancelled, weigh the fixed cost per test against the shard count before shrinking more tests. `.github/workflows/ci.yml:1185`
+- [ ] Once every shard ends well inside its timeout, tick the two Miri checkpoints of stage 8. `docs/goals/release-hardening.md:263`
 
 ### Backlog
 

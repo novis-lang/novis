@@ -1441,7 +1441,8 @@ mod tests {
 
     /// However the input is cut — one chunk, one octet at a time, empty chunks
     /// between, the same buffer twice — the stream answers what `of` answers
-    /// over the whole, under every algorithm.
+    /// over the whole, under every algorithm. Under Miri only the buffer fed
+    /// twice runs, because every digest is slow there.
     // covers: Core\Hash\Stream::update
     #[test]
     fn updates_agree_with_one_digest_over_the_concatenation() {
@@ -1453,9 +1454,10 @@ mod tests {
             &[&text[..1], &text[1..2], &text[2..3], &text[3..]],
             &[&text[..0], text],
         ];
+        let cuts = if cfg!(miri) { &cuts[..0] } else { &cuts[..] };
         for ordinal in 0..=14 {
             let kind = kind_of(Some(ordinal)).expect("0..=14 are the fifteen cases");
-            for chunks in cuts {
+            for &chunks in cuts {
                 let stream = opened(&mut ctx, ordinal);
                 for chunk in chunks {
                     let data = Value::bytes(NvsStr::new(chunk));
