@@ -105,10 +105,10 @@ fn the_primer_carries_the_lookup_protocol_the_worked_program_and_the_chapter_map
 fn the_worked_program_shows_a_typed_local_a_foreach_binding_and_an_options_bag() {
     let primer = primer();
     for wanted in [
-        "array<string> $amounts = [\"3\", \"11\", \"7\"];",
-        "Core\\Arr::sort($amounts, {order: Core\\Arr::Order::Asc})",
-        "foreach ($ordered as string $each) {",
-        "($each as int)",
+        "array<string> $quantities = [\"3\", \"11\", \"7\"];",
+        "Core\\Arr::sort($scores, {order: Core\\Arr::Order::Desc})",
+        "foreach ($quantities as string $quantity) {",
+        "($quantity as int)",
         "```output",
     ] {
         assert!(
@@ -556,25 +556,26 @@ fn find_html_reaches_the_html_template_and_the_markup_class() {
     let (card, _, ok) = agent(&["show", symbol_of(section)]);
     assert!(ok, "the section's symbol resolves");
     assert!(
-        card.contains("begin with a variable") && card.contains("<?= expr ?>"),
+        card.contains("`{$name}` is a hole for a variable")
+            && card.contains("`<?= ... ?>` is a hole for any expression"),
         "both hole grammars are stated at the html template: {card}"
     );
 }
 
-/// A chapter cites this repository's rules in parentheses, and the agent that
-/// reads a section through the binary has no way to resolve one, so the shown
-/// section carries no such citation.
+/// A diagnostic's help in a chapter's example output cites this repository's
+/// rules in parentheses, and the agent that reads a section through the binary
+/// has no way to resolve one, so the shown section carries no such citation.
 #[test]
 fn a_shown_section_carries_no_rule_citation() {
-    let (card, _, ok) = agent(&["show", "expressions#refused-in-expression-position"]);
+    let (card, _, ok) = agent(&["show", "enums#declaring-an-enum"]);
     assert!(ok, "the section resolves");
     assert!(
         !card.contains("(`rule:"),
         "no parenthesised citation survives: {card}"
     );
     assert!(
-        card.contains("never a command line — and the character itself"),
-        "the sentence reads on across where the citation was: {card}"
+        card.contains("with no `case` keyword and no `;`\n"),
+        "the line ends where the citation was: {card}"
     );
 }
 

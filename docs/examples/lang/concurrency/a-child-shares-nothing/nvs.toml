@@ -1,0 +1,3 @@
+# The examples may start the scripts in this folder.
+[capabilities.script]
+spawn = true

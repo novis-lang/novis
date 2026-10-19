@@ -1,0 +1,4 @@
+# `Core\Router::urlAbsolute` puts this origin in front of a path.
+[[app]]
+root = "."
+origin = "https://example.test"

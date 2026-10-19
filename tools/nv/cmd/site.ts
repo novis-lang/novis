@@ -122,7 +122,8 @@
 //
 // **The lock**, `website/site.lock.json`, records per page a hash of each feature it covers: the
 // feature's card in `nvs meta --json` or its section in its reference chapter, its `about.md`, and every
-// file in its example directory. A covered id the roster no longer has is **broken**. A covered feature
+// file in its example directory. A language feature has no card: `bun nv render` writes its chapter
+// section from the files in its directory. A covered id the roster no longer has is **broken**. A covered feature
 // whose hash differs from the page's stamp, or that the page never stamped, makes the page **stale**.
 // A language or type feature no page under `syntax/` covers is **uncovered**. `--stamp` is what clears
 // a stale page, and it is run by whoever reread the page, never to quiet the check.
@@ -276,7 +277,8 @@ function section(root: string, anchor: string): string {
 const named = (items: unknown[] | undefined, key: string, name: string) =>
   (items ?? []).find((x) => (typeof x === "object" && x !== null ? String((x as Record<string, unknown>)[key]) : String(x)) === name);
 
-/** What the binary's help says of a feature: its card in `nvs meta --json`, or its chapter section. */
+/** What the binary's help says of a feature: its card in `nvs meta --json`, or its chapter section.
+ * A language feature's is empty, because `bun nv render` writes its section from its own files. */
 export function card(root: string, entry: Entry, meta: Meta): string {
   let found: unknown;
   switch (entry.kind) {
@@ -297,6 +299,9 @@ export function card(root: string, entry: Entry, meta: Meta): string {
     case "directive":
       found = named(meta.directives, "key", entry.id.slice("directive:".length));
       break;
+    case "lang":
+      // Its chapter section is generated from the files `featureHash` already hashes.
+      return "";
     default:
       return entry.anchor ? section(root, entry.anchor) : "";
   }

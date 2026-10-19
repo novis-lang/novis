@@ -58,13 +58,13 @@ describe("nv site --stale", () => {
     expect(staleness(world(), root).stale).toContain("syntax/match.mdx: lang:statements/match (changed since its stamp)");
   });
 
-  test("a changed card or chapter section makes its page stale", () => {
+  test("a changed card makes its page stale, and a language feature's generated chapter section does not", () => {
     const root = site().root;
     stamp(world(), ["reference/strings.mdx", "syntax/match.mdx"], root);
     s.put("docs/reference/lang/statements.md", "# match\n\nA match, changed.\n\n# while\n\nA loop.\n");
     const changed = world();
     changed.meta.classes![0]!.members![0]!.doc = { short: "Counts graphemes." };
-    expect(staleness(changed, root).stale).toEqual(["reference/strings.mdx: Core\\Str::length (changed since its stamp)", "syntax/match.mdx: lang:statements/match (changed since its stamp)"]);
+    expect(staleness(changed, root).stale).toEqual(["reference/strings.mdx: Core\\Str::length (changed since its stamp)"]);
   });
 
   test("a renamed id is broken, and the page cannot be stamped", () => {

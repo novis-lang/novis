@@ -6,6 +6,7 @@
 // `nv render --website --check`.
 
 import type { Renderer } from "../lib/render.ts";
+import { langChapters } from "./lang-chapters.ts";
 import { recordSchemas } from "./record-schemas.ts";
 import { websiteCompare } from "./website-compare.ts";
 import { websiteCore } from "./website-core.ts";
@@ -13,6 +14,6 @@ import { websiteGrammar } from "./website-grammar.ts";
 import { websiteLlms } from "./website-llms.ts";
 import { websiteNumbers } from "./website-numbers.ts";
 
-export const RENDERERS: Renderer[] = [websiteGrammar, websiteCompare, websiteNumbers, recordSchemas];
+export const RENDERERS: Renderer[] = [websiteGrammar, websiteCompare, websiteNumbers, recordSchemas, langChapters];
 
 export const WEBSITE_RENDERERS: Renderer[] = [websiteGrammar, websiteCompare, websiteNumbers, websiteCore, websiteLlms];

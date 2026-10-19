@@ -82,9 +82,9 @@
     [
       {
         "file": "docs/reference/lang/10-programs.md",
-        "find": "autoload 'App' from './src';                       // one prefix, one root",
-        "replace": "autoload 'App' from 'src';                         // one prefix, one root",
-        "note": "an include_str! target in shipped code: the chapter `nvs agent show` prints a section from loses the `./` (nvs-cli tests/agent.rs keyword section test)"
+        "find": "`autoload` tells Novis which folder your classes are in, so your program uses a class by its name",
+        "replace": "`autoload` tells Novis which directory your classes are in, so your program uses a class by its name",
+        "note": "an include_str! target in shipped code: the chapter `nvs agent show` prints a section from says another word (nvs-cli tests/agent.rs worked session test)"
       },
       {
         "file": "crates/nvs-stdlib/src/process.rs",

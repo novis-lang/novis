@@ -9,7 +9,7 @@ runs every example in it against the binary. `bun nv verify` runs the examples a
 | Input | Owner | What it contributes |
 |---|---|---|
 | `nvs meta --json` (the built binary) | the `Core` registry in `crates/nvs-stdlib` | every class, member signature, reference card, constant and enum; the exception tree; the global interfaces; the compiler-recognized attributes; the `nvs.toml` directives — **all of Part B**, and the generated tables inside chapters |
-| `lang/*.md` | hand-written, this directory | Part A — one chapter per language topic, in filename order |
+| `lang/*.md` | `bun nv render`, from `../examples/lang/` | Part A — one chapter per language topic, in filename order |
 | `tools/*.md` | hand-written, this directory | Part C — one chapter per tool |
 | `core/<Class>.md` | hand-written, this directory | the introduction and one worked example at the top of a class's Part B section. Optional: a class without one gets its member cards alone |
 | `novis/<Class>.md` | hand-written, this directory | the same, for a built-in component's `Novis\` class |
@@ -57,9 +57,11 @@ searcher might type, naming no PHP function, class or setting
 (`rule:programs/no-compatibility-promise`). Files are concatenated in filename order — number them
 `10-`, `20-`, … so a chapter can be inserted between two.
 
-A `lang/` chapter's front matter and its `#` headings are also in its source,
+A `lang/` chapter is not written here. `bun nv render` writes it from its source,
 `../examples/lang/<id>/chapter.md` ([the examples README](../examples/README.md) § *A chapter's
-features*), which the roster reads its feature ids from. The two must agree.
+features*), and from each feature's `about.md`, `details.md` and examples
+(`tools/nv/renderers/lang-chapters.ts`), and `bun nv render --check` fails on a hand edit. This file's
+format is then the `tools/` chapters' and the class introductions'.
 
 A chapter may place one of the generated tables where its prose wants it, on a line of its own:
 
