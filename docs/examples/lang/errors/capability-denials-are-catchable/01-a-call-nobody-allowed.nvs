@@ -9,6 +9,8 @@ try {
     // The message names the method, the capability and the full path of the file.
     // This prints the part before the path.
     echo Core\Str::before($denied->message, " for "), "\n";
+    // The second line of the message says where to add the permission.
+    echo Core\Str::after($denied->message, "\n"), "\n";
 }
 
 echo "still running\n";

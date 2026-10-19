@@ -3,7 +3,7 @@
 // error one frame down, and the caller catches it. A program meets this shape
 // wherever it reads a field that may be missing.
 // bench: iterations 256
-// bench: calls 2
+// bench: calls 3
 // bench: complexity constant
 
 class Bench {

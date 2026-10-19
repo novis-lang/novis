@@ -285,7 +285,7 @@ with each.
       - [x] `qualifiers-tainted-and-secret`
       - [x] `what-does-not-exist`
       - [x] `lang:types`' perf recorded after the chapter's last edit
-  - [ ] `30-expressions`, `50-classes` and `55-enums`
+  - [x] `30-expressions`, `50-classes` and `55-enums`
     - [x] `precedence-and-associativity`, `operators-that-do-not-parse`, `arithmetic` and `comparison-and-equality`
       - [x] `precedence-and-associativity`
       - [x] `operators-that-do-not-parse`
@@ -313,7 +313,11 @@ with each.
     - [x] `60-iteration`: its chapter did not change, so `lang:iteration`'s perf is current
       - [x] `what-foreach-walks` and `the-two-interfaces`
       - [x] `generators` to `what-does-not-exist`
-    - [ ] `70-errors`, then `lang:errors`' perf recorded after the chapter's last edit
+    - [x] `70-errors`, then `lang:errors`' perf recorded after the chapter's last edit
+      - [x] `the-throwable-tree` to `throw`
+      - [x] `try-catch-finally` to `recursion-depth`
+      - [x] `fatal-errors-limits-no-catch-sees` to `inspecting-a-value`
+      - [x] `lang:errors`' perf recorded after the chapter's last edit
     - [ ] `80-concurrency`, then `lang:concurrency`' perf recorded after the chapter's last edit
   - [ ] `90-attributes` and `95-testing`
 
@@ -930,9 +934,30 @@ which `rule:statements/no-return-leaves-a-finally` calls impossible
 `E0401`, since the comparison narrows `$n` to `100` and arithmetic on that is `mixed`
 (`data/gaps/nvs-types/an-int-compared-with-a-literal.json`). `llms-full.txt` is rendered again.
 
+`70-errors` is done: its last four features closed it, each fact run on the binary, and
+`lang:errors`' perf is recorded after the chapter's last edit. Two claims were wrong. The chapter,
+`inspecting-a-value`'s `about.md` and the syntax page `syntax/errors/assert-and-dump.mdx` said
+`Core\Debug::render` returns text or a string; it returns a `Core\Cli\Text`, and `->text()` gives the
+`string` (`70-errors.md:523`). The chapter said a path that does not exist is refused, but a missing
+file inside a granted root throws `IOError` with the OS message; only one outside the roots is a
+denial (`70-errors.md:471`). `fatal-errors-limits-no-catch-sees`' `details.md` has the `FATAL:` line,
+the 1 megabyte reserve of a `16M` limit, the four `limit` values (each probed), the handler with no
+parameter and `E0401`, a throw from the handler being dropped, the handler's `echo` after
+`max_output`, and the two channel fatals, which do not run the handler. `capability-denials-are-catchable`'s
+has the two-line message, `Core\IO::exists` needing `fs.read`, `..` and the missing file, and
+`script.spawn`; example 01 now prints the `help:` line, as the chapter's block does. `assertion-failures`'
+has `is`, `new Core\Test\Failure` and the uncaught report. `inspecting-a-value`'s has each type's
+rendering (an enum case is its number), the 100-entry, 1024-byte and eight-level caps, `[cycle -> #1]`,
+`dump()` with no value, `Core\Out::capture`, `E0724` and the request log. No chapter block needed a new
+example. A run-time path given to `Core\IO::read` must be absolute; only a literal starts at the
+file's folder, which a probe meets first. Recording the perf failed `lang:errors/throw`'s bench: it
+declared `calls 2`, but since `ece7b500f` (merged from `main`) a `Core` call is counted too, so the
+bench now declares `calls 3` (`benches/members/lang/errors/throw.nvs:6`). `main` still says 2. Any
+other bench that calls a `Core` method fails the same way when its chapter is next recorded.
+
 ### Next
 
-`70-errors` goes on at `fatal-errors-limits-no-catch-sees` (`70-errors.md:402`), three or four features per session;
+`80-concurrency` starts at its top (`80-concurrency.md:8`), three or four features per session;
 take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -947,7 +972,9 @@ An enum is `enum Suit { Hearts, Spades }`, with no `case`. An array with string 
 `array<int>`: `array<string, int>` is `E0101`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `70-errors` from `fatal-errors-limits-no-catch-sees`, then `capability-denials-are-catchable`, `assertion-failures` and `inspecting-a-value`. `docs/reference/lang/70-errors.md:402`
+A probe with a limit or a grant runs with `nvs run --config <file>.toml`, which replaces the root
+`nvs.toml`; an example needs its own `[[app]]` entry in the root `nvs.toml` instead (`nvs.toml:497`).
+- [ ] `80-concurrency` from `no-colouring-i-o-just-waits`, then `core-task-all-a-fixed-set-of-tasks`, `core-task-map-one-task-per-element` and `limit-and-deadline`. `docs/reference/lang/80-concurrency.md:8`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
