@@ -812,9 +812,16 @@ export function recordingLimitMs(what: What, path: string, judged?: Ran): number
 }
 
 /** The recording run of one program on `nvs`, the covws debug build, recorded into `dir` with `env`
- * beside it. It has a hang limit and no verdict. */
+ * beside it. It has a hang limit and no verdict. An example runs with the command its judged run used. */
 export function recordingRun(nvs: string, what: What, path: string, dir: string, env: Record<string, string> = {}, judged?: Ran): Promise<Ran> {
-  return spawnProof([nvs, "run", path], path, recordingLimitMs(what, path, judged), { dir, env });
+  const argv = what === "examples" ? exampleArgv(nvs, path, read(path)) : [nvs, "run", path];
+  return spawnProof(argv, path, recordingLimitMs(what, path, judged), { dir, env });
+}
+
+/** `ran` the way two runs of `path` are compared: a `proof: test` example's report loses its timings
+ * (`testReport`), which differ on every run, and any other program's run is unchanged. */
+export function comparableRun(what: What, path: string, ran: Ran): Ran {
+  return what === "examples" && EXAMPLE_TEST_RE.test(read(path)) ? { ...ran, stdout: testReport(ran.stdout) } : ran;
 }
 
 /**
