@@ -4390,6 +4390,10 @@ mod tests {
     /// would throw four sentences. That both halves hold is this member's own
     /// doc written as a test, since telling a forger which half landed is the
     /// leak the one sentence exists to prevent.
+    ///
+    /// Under Miri, the changed octet and the cut take every seventh position
+    /// and the last one, because a few hundred opens take longer than a test
+    /// may run there.
     // covers: Core\Crypto::open
     #[test]
     fn open_answers_the_plaintext_and_every_forgery_lands_on_one_sentence() {
@@ -4414,6 +4418,10 @@ mod tests {
                     .to_string()),
             }
         };
+        let sampled = |len: usize| -> Vec<usize> {
+            let stride = if cfg!(miri) { 7 } else { 1 };
+            (0..len).step_by(stride).chain([len - 1]).collect()
+        };
 
         for cipher in [0, 1] {
             let sealed = called(nvs_core_crypto_seal, message, &key, cipher)
@@ -4426,7 +4434,7 @@ mod tests {
             );
 
             let mut sentences = std::collections::BTreeSet::new();
-            for at in 0..sealed.len() {
+            for at in sampled(sealed.len()) {
                 let mut forged = sealed.clone();
                 forged[at] ^= 1;
                 sentences.insert(
@@ -4434,7 +4442,7 @@ mod tests {
                         .expect_err("an octet changed at any position, the tag included"),
                 );
             }
-            for cut in 0..sealed.len() {
+            for cut in sampled(sealed.len()) {
                 sentences.insert(
                     called(nvs_core_crypto_open, &sealed[..cut], &key, cipher)
                         .expect_err("a message cut short, the empty one included"),
