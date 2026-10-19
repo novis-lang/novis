@@ -122,6 +122,39 @@ fn render(template: &str, arguments: &[Value], out: &mut StrWriter<'_>) -> Resul
     Ok(())
 }
 
+/// The symbol one placeholder of a literal `Core\Str::format` template lowers
+/// to, where the checker could not fold the placeholder into plain text
+/// (`nvs_types::expr_table::FormatPiece::Converted`).
+///
+/// Row-less for `crate::html::MARKUP_SYMBOL`'s reason: the call's own
+/// lowering is the only thing that reaches it, and a row would make it
+/// callable by name.
+pub const PIECE_SYMBOL: &str = "nvs_core_str_format_piece";
+
+nvs_runtime::nvs_helper! {
+    /// One placeholder of a literal template, rendered by [`format`] exactly
+    /// as `Core\Str::format` renders it. Argument 0 is the placeholder as it
+    /// was written, such as `%05d`, and argument 1 is the value it reads.
+    ///
+    /// One allocation, the result. The placeholder is parsed again on every
+    /// call, which is a few bytes of a constant.
+    fn nvs_core_str_format_piece(_ctx, args: [2]) {
+        let spec = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Str::format expected a placeholder, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        format(spec, &args[1..]).map(Value::str)
+    }
+}
+
+/// The address of this module's one symbol, or `None` for a symbol that
+/// belongs to another domain. See [`crate::symbols`].
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    (symbol == PIECE_SYMBOL).then(|| (nvs_core_str_format_piece as *const ()).cast())
+}
+
 /// Which arguments a placeholder has read: one bit per argument, and a list
 /// only for a call with more than 64 of them.
 struct Read {

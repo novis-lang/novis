@@ -111,9 +111,11 @@ fn format_calls(source: &str) -> usize {
         .count()
 }
 
-/// A literal template whose placeholders are all plain `%d` over an `int` or
-/// `%s` over an `int` or a `string` lowers to a concatenation. Any other
-/// template, and a template that is not a constant, stays a call.
+/// A literal template whose placeholders read the arguments in order lowers
+/// to a concatenation, when no placeholder can throw. A width, a flag and an
+/// integer conversion over an `int` or a `uint` lower too. An argument number,
+/// a conversion that can throw, a width past four digits and a template that
+/// is not a constant stay a call.
 #[test]
 fn a_literal_format_template_lowers_to_a_concatenation() {
     let lowered = "<?nvs
@@ -124,12 +126,19 @@ echo Core\\Str::format(\"%d-%s-%s 100%%\", $n, $s, $n);
     assert_eq!(format_calls(lowered), 0, "a plain template stayed a call");
 
     for (kept, why) in [
-        ("Core\\Str::format(\"%05d\", $n)", "a width"),
+        ("Core\\Str::format(\"%05d\", $n)", "nothing: a width lowers"),
         ("Core\\Str::format('%1$d', $n)", "an argument number"),
-        ("Core\\Str::format(\"%d\", $u)", "a `uint` under `%d`"),
+        ("Core\\Str::format(\"%d\", $u)", "nothing: a `uint` lowers"),
+        ("Core\\Str::format(\"%x\", $n)", "nothing: `%x` lowers"),
         (
-            "Core\\Str::format(\"%x\", $n)",
-            "a conversion other than `%d` and `%s`",
+            "Core\\Str::format(\"%-6.2s|\", $s)",
+            "nothing: a precision lowers",
+        ),
+        ("Core\\Str::format(\"%.2f\", $f)", "a float conversion"),
+        ("Core\\Str::format(\"%d\", $f)", "a `float` under `%d`"),
+        (
+            "Core\\Str::format(\"%10000d\", $n)",
+            "a width of five digits",
         ),
         (
             "Core\\Str::format(\"%s %s\", $s, $s)",
@@ -144,6 +153,7 @@ echo Core\\Str::format(\"%d-%s-%s 100%%\", $n, $s, $n);
             "<?nvs
 int $n = 3;
 uint $u = 3;
+float $f = 1.5;
 string $s = \"x\";
 string $t = Core\\Str::repeat(\"%d\", 1);
 echo {kept};
@@ -180,6 +190,81 @@ foreach ($ints as int $a) {
 echo Core\\Str::format(\"a%db%sc%%d%s!\", -12, \"x\", 5);
 ";
     assert_eq!(output_of(source), "a-12bxc%d5!");
+}
+
+/// A placeholder with a flag, a width or a precision prints what the member
+/// prints, for the same values. The member is reached through a parameter,
+/// which is not a constant.
+#[test]
+fn a_lowered_placeholder_with_flags_prints_what_the_member_prints() {
+    let source = "<?nvs
+class Dynamic {
+    public static function ints(string $template, int $a, uint $b): string {
+        return Core\\Str::format($template, $a, $a, $a, $a, $b, $b);
+    }
+    public static function text(string $template, string $a, int $b): string {
+        return Core\\Str::format($template, $a, $b, $b);
+    }
+}
+array<int> $ints = [0, -1, 7, 255, 9223372036854775807, -9223372036854775807 - 1];
+array<uint> $uints = [0, 7, 18446744073709551615];
+array<string> $texts = [\"\", \"ab\", \"é & <b>\", \"%d\"];
+int $checked = 0;
+foreach ($ints as int $a) {
+    foreach ($uints as uint $b) {
+        string $lowered = Core\\Str::format(\"[%05d|%+d|%o %b|%'*8u|%X]\", $a, $a, $a, $a, $b, $b);
+        string $called = Dynamic::ints(\"[%05d|%+d|%o %b|%'*8u|%X]\", $a, $b);
+        $checked = $checked + 1;
+        if ($lowered != $called) {
+            echo \"differs: \", $lowered, \" | \", $called, \"\\n\";
+        }
+    }
+}
+foreach ($texts as string $t) {
+    foreach ($ints as int $n) {
+        string $padded = Core\\Str::format(\"<%-6.2s|%5s|%08d>\", $t, $n, $n);
+        string $member = Dynamic::text(\"<%-6.2s|%5s|%08d>\", $t, $n);
+        $checked = $checked + 1;
+        if ($padded != $member) {
+            echo \"differs: \", $padded, \" | \", $member, \"\\n\";
+        }
+    }
+}
+echo $checked, \" \", Core\\Str::format(\"%05d|%x|%-3s|\", 42, 255, \"a\");
+";
+    assert_eq!(output_of(source), "42 00042|ff|a  |");
+}
+
+/// A converted placeholder frees a `string` argument it was given fresh. The
+/// balance after a run does not grow with the loop's length, so nothing is
+/// left behind per call.
+#[test]
+fn a_lowered_placeholder_frees_a_fresh_argument() {
+    let balance = |count: usize| {
+        let source = format!(
+            "<?nvs
+string $kept = \"\";
+for (int $i = 0; $i < {count}; $i++) {{
+    $kept = Core\\Str::format(\"%5s|%-4s\", Core\\Str::repeat(\"ab\", 2), $kept);
+    $kept = Core\\Str::format(\"%.1s\", $kept);
+}}
+"
+        );
+        let unit = compile(&source).expect("the fixture compiles");
+        let mut ctx = Ctx::buffered();
+        unit.install_in(&mut ctx);
+        let entry = unit.script().expect("the script frame was compiled");
+        let before = nvs_runtime::budget::live_bytes();
+        entry.call(&mut ctx).expect("the script ran to completion");
+        nvs_runtime::budget::live_bytes() - before
+    };
+    assert_eq!(
+        format_calls(
+            "<?nvs\nstring $s = \"a\";\necho Core\\Str::format(\"%5s|%-4s\", Core\\Str::repeat(\"ab\", 2), $s);\n"
+        ),
+        0
+    );
+    assert_eq!(balance(10), balance(1000));
 }
 
 /// How many allocation requests the second run of `source` makes. The first
