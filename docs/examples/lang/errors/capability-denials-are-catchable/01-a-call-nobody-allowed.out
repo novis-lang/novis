@@ -1,2 +1,3 @@
 Core\IO::read needs the capability `fs.read`
+help: grant it in nvs.toml under `[capabilities.fs]`
 still running

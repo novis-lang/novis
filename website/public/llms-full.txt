@@ -6159,7 +6159,8 @@ still running
 
 A grant is a list of directory roots under `[capabilities.fs]`; `read` and `write` are separate
 capabilities. The path is checked in its canonical spelling, so a symlink or a `..` that leaves
-the roots is refused, and so is a path that does not exist.
+the roots is refused, and so is a path outside the roots that does not exist. A missing file inside
+a root is not a denial: the call throws `IOError` with the operating system's message.
 
 ```toml file=nvs.toml
 [capabilities.fs]
@@ -6211,7 +6212,8 @@ flag should be set: Core\Test::assertTrue failed: `$actual` is false
 
 `Core\Debug::dump` writes one rendering per argument to standard error. It never writes to standard
 output or into a captured buffer. `Core\Debug::render`
-returns the same rendering as text, so it can be echoed or embedded. Control bytes are made
+returns the same rendering as a `Core\Cli\Text`, so it can be echoed or embedded, and its `text()`
+gives the `string`. Control bytes are made
 visible, a deep or long structure is elided, a cycle is marked, and a `secret` property is redacted.
 
 ```nvs

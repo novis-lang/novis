@@ -1,6 +1,6 @@
 Two members show you what a value really is while you are working on a program. `Core\Debug::dump`
 writes one rendering per argument to standard error. `Core\Debug::render` builds the same rendering
-and returns it as text, so you can print it, put it in a log line, or compare it.
+and returns it as a `Core\Cli\Text` value. You can print it or put it in a log line.
 
 A rendering names the type of every value, the length of every string and the class of every object.
 Control bytes such as a tab are made visible, a structure that is very deep or very long is cut
