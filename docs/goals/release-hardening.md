@@ -351,17 +351,18 @@ Stages 1 to 7 are done. Stage 8 is under way.
   has a fix on `main`: a smaller input under `cfg!(miri)`, or an ignore with its reason. No shard
   hit undefined behaviour on that run. The rest of that run's failures (the proofs, test and cost
   legs) are in the backlog.
-- **This session:** the last eight. Local Miri times, run one at a time:
-  - `nvs-runtime`: the header index 8 s, the log windows 10 s, the identity tower 25 s.
-  - `nvs-stdlib`:
-    - `ast`'s seed test runs only the seeds under 200 bytes (23 s). Both verdicts are still there.
-    - `lib.rs`'s intrinsic test needs the zone database, so it carries `time`'s ignore.
-    - `xml`'s attribute test writes 50 names (31 s), and the ceiling test skips its deep half (29 s).
-    - `xml`'s `source` test runs 32,000 characters under a 128 KiB limit (47 s). Most of that is a
-      fixed cost in the first parse, and the limit cannot go lower because of a fixed 100 KB.
-  - The playbook's new Miri bullet says why the writer tests are slow.
-- **Local Miri times** above 40 s, the most that fits CI's 300 s: csv 53 s, the streamed reply
-  49 s, and `xml`'s `source` 47 s.
+- **No new nightly yet.** The push run on `cd1200508` skips Miri, and `main`'s last two Miri
+  commits are not pushed. On run 39185807455 the shards took 14 to 38 minutes of their 45.
+- **This session:** the three tests that passed that run closest to 300 s, all fixed before it,
+  take a smaller input under Miri. Local times before and after: `crypto`'s forgery test 51 → 14 s
+  (every seventh position), `regex`'s capture-table test 68 → 28 s (50 groups, 8 KiB), `regex`'s
+  flag test 54 → 42 s (its two no-flag controls run natively only).
+- **CI is up to five times slower than a local run, one test at a time:** the flag test took 54 s
+  locally and 296 s on CI. So a local time near 55 s is at CI's edge, not 40 s. Local times now
+  above 40 s: csv 53 s, the streamed reply 49 s, `xml`'s `source` 47 s, `regex`'s flag test 42 s.
+- **CI passes above 230 s on that run, not changed since:** `identity`'s deep hash 264 s,
+  `compress`'s zstd window 258 s, `crypto`'s SPKI read 240 s and key encodings 234 s, and
+  `every_registered_member_has_an_implementation_address` 224 s.
 - **Shard logs:** `gh run view --job <id> --log`, then `perl -pe 's/\^\[\[[0-9;]*m//g'` (the codes
   are literal `^[[` text), then grep `(TIMEOUT|PASS|FAIL) +\[ *>?([6-9][0-9]|[0-9]{3})\.`.
 - **Local runs** go from the WSL mirror `/var/tmp/nvs-target-wsl-src/mnt-e-mwl`, brought up to date
@@ -374,7 +375,7 @@ Stages 1 to 7 are done. Stage 8 is under way.
 
 Stage 8, reading the third nightly's Miri shards (`rule:testing/the-deep-lane`, `.github/workflows/ci.yml:1104`):
 - [ ] Ask the user to push `main`, then read every `miri units` shard of the next nightly. Tick the two Miri checkpoints of stage 8 once every shard ends well inside its 45 minutes, with no test stopped at 300 s. `docs/goals/release-hardening.md:263`
-- [ ] A test still stopped at 300 s on that run gets a smaller input or a reasoned ignore. Start with the three over 40 s locally: csv, the streamed reply, and `xml`'s `source`. `crates/nvs-stdlib/src/xml.rs:4676`
+- [ ] A test still stopped at 300 s on that run gets a smaller input or a reasoned ignore. Start with the four over 40 s locally (csv, the streamed reply, `xml`'s `source`, `regex`'s flag test), then the CI passes above 230 s named in the state. `crates/nvs-stdlib/src/xml.rs:4676`
 - [ ] If shards still run close to their timeout, cut the fixed cost per test: the first `Core` instance builds its class table. Otherwise, use more shards. `crates/nvs-stdlib/src/instance.rs:735`
 
 ### Backlog
