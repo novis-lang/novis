@@ -1451,6 +1451,7 @@ mod tests {
     /// A context reads `syslog` to the same transport the writer does, so
     /// both of § 6's writers send a record there and neither keeps its own
     /// channel.
+    #[cfg_attr(miri, ignore = "opens a Unix socket, which Miri does not emulate")]
     #[test]
     fn a_context_sends_both_writers_to_syslog_when_the_target_names_it() {
         let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));

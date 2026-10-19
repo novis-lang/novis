@@ -7615,6 +7615,7 @@ mod tests {
     ///
     /// Over a real SQLite database, shared in memory with a connection this case keeps open so
     /// the row can be read back after the push's own connection is gone.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_pushed_job_stores_an_absolute_script_path() {
         const URI: &str = "file:queue-stores-an-absolute-script?mode=memory&cache=shared";

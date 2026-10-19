@@ -2526,6 +2526,10 @@ mod tests {
     }
 
     /// A precision moves the tie, in both directions.
+    #[cfg_attr(
+        miri,
+        ignore = "Miri adds a rounding error to `powi`, and this test checks the exact result"
+    )]
     #[test]
     fn a_precision_rounds_at_that_place() {
         let half_up = [Value::int(2), Value::int(0)];

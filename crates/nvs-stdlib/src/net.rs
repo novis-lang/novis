@@ -2126,6 +2126,7 @@ mod tests {
     /// `tainted` one, since a qualified answer could not be handed to `send`'s
     /// sink at all.
     // covers: Core\Net::bindDatagram, Core\Net\Datagram::send, Core\Net\Datagram::receive, Core\Net\Datagram::port, Core\Net\Datagram::close, Core\Net\Datagram\Message::payload, Core\Net\Datagram\Message::host, Core\Net\Datagram\Message::port
+    #[cfg_attr(miri, ignore = "opens a UDP socket, which Miri does not emulate")]
     #[test]
     fn a_udp_socket_sends_and_receives_over_the_runtimes_own_reactor() {
         let mut ctx = Ctx::buffered();
@@ -2455,6 +2456,7 @@ mod tests {
     /// it; where this build has no Unix-domain transport, both members answer
     /// with that fact, which they can only give once the grant has held.
     // covers: Core\Net::connectLocal, Core\Net::listenLocal
+    #[cfg_attr(miri, ignore = "opens a Unix socket, which Miri does not emulate")]
     #[test]
     fn a_granted_socket_path_reaches_the_transport_at_both_ends() {
         let (_dir, path) = nvs_repo::socket("local.sock");

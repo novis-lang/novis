@@ -6296,6 +6296,10 @@ mod tests {
     /// all is
     /// [`files_is_a_lazy_iterator_and_the_only_way_to_receive_an_upload`]'s
     /// closing assertion and is not restated here.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn a_part_is_consumed_by_read_all_by_iteration_or_by_save_to() {
         let (mut consumers, mut declarations) = (Vec::new(), Vec::new());
@@ -6433,6 +6437,10 @@ mod tests {
     /// No case can reach this: a `.nvst` program answers no request, so it
     /// holds no part to write.
     // covers: Core\Request\Part::saveTo
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn save_to_writes_the_part_whole_and_defaults_to_not_replacing() {
         let mut arriving = saving(Chunks::of(UPLOAD));
@@ -6475,6 +6483,10 @@ mod tests {
     ///
     /// No case can reach this: a `.nvst` program answers no request, so it
     /// holds no part to keep past its walk.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn save_to_refuses_a_part_the_walk_has_moved_past_and_creates_nothing() {
         let mut arriving = saving(Chunks::of(UPLOAD));

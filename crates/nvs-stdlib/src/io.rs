@@ -3782,6 +3782,10 @@ mod tests {
     }
 
     // covers: Core\IO::writeStream
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn write_stream_defaults_to_no_overwrite() {
         // `rule:core-classes/io-write-stream`'s first rule, in both places it has to hold. The row's
@@ -3832,6 +3836,10 @@ mod tests {
     }
 
     // covers: Core\IO::writeStream
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn a_write_stream_that_fails_midway_removes_the_partial_file() {
         // `rule:core-classes/io-write-stream`'s second rule. `max` is the failure the case reaches
@@ -3918,6 +3926,10 @@ mod tests {
     /// `string`, whole and line by line, because a `string` is well-formed
     /// UTF-8 by `NvsStr`'s own invariant. The same file with its one bad byte
     /// removed reads, so the refusal is about the octets and not the file.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_read_and_lines_refuse_a_file_that_is_not_utf8() {
         let (_dir, path) = scratch("not-utf8.txt");
@@ -3950,6 +3962,10 @@ mod tests {
     /// passes the refusing half alone. Then the signature: both members refuse out of
     /// `Ctx::intake_breach`, so their two messages differ in the member they name and in nothing
     /// else, and a member that grew a message of its own fails here while still refusing.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_read_is_bounded_by_the_same_directive_and_the_same_signature() {
         let (_dir, path) = scratch("bounded-by-max-output.txt");
@@ -4039,6 +4055,10 @@ mod tests {
     /// file. A path under a missing folder and a folder itself throw naming the member, and a
     /// context granting `fs.read` alone throws naming `fs.write` and creates nothing.
     // covers: Core\IO::write
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_write_replaces_the_whole_file_and_a_refusal_creates_nothing() {
         let (_dir, root) = scratch("write");
@@ -4082,6 +4102,10 @@ mod tests {
     /// time, and an empty append adds nothing. A context that grants `fs.read` and not
     /// `fs.write` is refused before the file is created, and the message names the grant.
     // covers: Core\IO::append
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_append_adds_to_the_end_and_a_refusal_creates_nothing() {
         let (_dir, path) = scratch("append.log");
@@ -4115,6 +4139,10 @@ mod tests {
     /// standard library's copy truncates the destination first and would empty the file. A
     /// context with `fs.read` and no `fs.write` is refused before the destination is created.
     // covers: Core\IO::copy
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_copy_duplicates_refuses_itself_and_needs_fs_write() {
         let (_dir, from) = scratch("copy-source.txt");
@@ -4289,6 +4317,7 @@ mod tests {
     /// name with nothing at it. A context with no `fs.read` throws, so `false` never means *not
     /// allowed*.
     // covers: Core\IO::isReadable
+    #[cfg_attr(miri, ignore = "calls `access`, which Miri does not emulate")]
     #[test]
     fn core_io_is_readable_answers_for_both_kinds_and_a_refusal_throws() {
         assert_eq!(
@@ -4309,6 +4338,7 @@ mod tests {
     /// name with nothing at it, under a context granting `fs.write` alone. A context granting
     /// `fs.read` and not `fs.write` throws: the question is about writing.
     // covers: Core\IO::isWritable
+    #[cfg_attr(miri, ignore = "calls `access`, which Miri does not emulate")]
     #[test]
     fn core_io_is_writable_needs_fs_write_and_answers_false_for_a_missing_name() {
         assert_eq!(
@@ -4597,6 +4627,10 @@ mod tests {
     /// replacing a file already there. A missing source throws with a message naming both ends,
     /// and a context granting `fs.read` alone throws and leaves the source where it was.
     // covers: Core\IO::move
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_move_replaces_the_destination_and_names_both_ends_when_it_fails() {
         let (_dir, from) = scratch("move-from.txt");
@@ -4638,6 +4672,10 @@ mod tests {
     /// folder that is already there succeeds. A path under a file throws, and a context granting
     /// `fs.read` alone throws and creates nothing.
     // covers: Core\IO::makeDir
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_make_dir_creates_the_parents_and_accepts_a_folder_already_there() {
         let (_dir, root) = scratch("make-dir");
@@ -5029,6 +5067,10 @@ mod tests {
     /// lines, a missing file throws naming the member, and a context granting `fs.write` alone
     /// throws naming `fs.read`.
     // covers: Core\IO::lines
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_lines_splits_on_all_three_terminators_and_refuses_without_fs_read() {
         let (_dir, path) = scratch("lines.txt");
@@ -5064,6 +5106,10 @@ mod tests {
     /// the empty string. A missing file and a directory throw naming the member, and a context
     /// granting `fs.write` alone throws naming `fs.read`.
     // covers: Core\IO::read
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_read_returns_the_file_unchanged_and_refuses_without_fs_read() {
         let (_dir, path) = scratch("read.txt");
@@ -5107,6 +5153,10 @@ mod tests {
     /// `Utf16Le` reads two octets per character. A missing file throws naming the member, and a
     /// context granting `fs.write` alone throws naming `fs.read` before any byte is decoded.
     // covers: Core\IO::readText
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_read_text_decodes_under_the_charset_given_and_refuses_without_fs_read() {
         const UTF8: i64 = 0;
@@ -5213,6 +5263,10 @@ mod tests {
     /// and keep what it has. Each mode asks for its own capability before the file is touched,
     /// so a refused `Write` creates nothing, and `ReadWrite` needs both.
     // covers: Core\IO::open
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_open_does_one_thing_per_mode_and_asks_for_each_modes_capability() {
         const READ: i64 = 0;
@@ -5395,6 +5449,10 @@ mod tests {
     /// and every later use of the handle throws naming the member and the path, a second
     /// `close` included.
     // covers: Core\IO\File::close
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_file_close_releases_the_handle_and_a_second_close_throws() {
         let (_dir, path) = scratch("file-close.txt");
@@ -5429,6 +5487,10 @@ mod tests {
     /// flush and the same bytes are there after two of them. A closed handle throws naming
     /// the member.
     // covers: Core\IO\File::flush
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_file_flush_changes_nothing_a_reader_sees_and_a_closed_handle_throws() {
         let (_dir, path) = scratch("file-flush.txt");
@@ -5463,6 +5525,10 @@ mod tests {
     /// refused at once while the first holds it, and takes it once the first closes. A lock on
     /// another file is not affected, and a closed handle throws naming the member.
     // covers: Core\IO\File::lock
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_file_lock_refuses_a_second_holder_until_the_first_closes() {
         let (_dir, path) = scratch("file-lock.txt");
@@ -5530,6 +5596,10 @@ mod tests {
     /// read larger than the request can afford is refused by the member itself, before its
     /// buffer holds the file.
     // covers: Core\IO\File::read
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_file_read_never_cuts_a_character_and_a_refused_read_does_not_move() {
         let (_dir, path) = scratch("file-read.txt");
@@ -5619,6 +5689,10 @@ mod tests {
     /// than the request can afford is refused by the member itself, before its buffer holds
     /// the file.
     // covers: Core\IO\File::readLine
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_file_read_line_crosses_a_chunk_and_a_refused_line_does_not_move() {
         let (_dir, path) = scratch("file-read-line.txt");
@@ -5698,6 +5772,10 @@ mod tests {
     /// write returns 0 and moves nothing. A handle opened only for reading throws and leaves
     /// the file as it was, and a closed handle throws.
     // covers: Core\IO\File::write
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_file_write_counts_bytes_and_refuses_a_handle_that_cannot_write() {
         let (_dir, path) = scratch("file-write.txt");
@@ -5754,6 +5832,10 @@ mod tests {
     /// there returns the empty string, and a write there leaves zeroes in the gap. A closed
     /// handle throws.
     // covers: Core\IO\File::seek
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_file_seek_counts_from_the_start_and_may_pass_the_end() {
         let (_dir, path) = scratch("file-seek.txt");
@@ -5790,6 +5872,10 @@ mod tests {
     /// byte count of what `read` and `write` touched after them, and exactly what `seek` set,
     /// past the end included. A closed handle throws.
     // covers: Core\IO\File::tell
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_file_tell_counts_bytes_from_the_start_and_agrees_with_seek() {
         let (_dir, path) = scratch("file-tell.txt");
@@ -5821,6 +5907,10 @@ mod tests {
     /// new end is before it. A handle opened only for reading throws and leaves the file as
     /// it was, and a closed handle throws.
     // covers: Core\IO\File::truncate
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn core_io_file_truncate_sets_a_length_and_leaves_the_position() {
         let (_dir, path) = scratch("file-truncate.txt");

@@ -3938,6 +3938,10 @@ mod tests {
     /// may ask for has to decode on the debug profile, whose frames are the
     /// fattest. The calling thread's stack is far too small for that parse, so
     /// the test also shows the parse runs on the spare stack.
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn a_document_at_the_ceiling_decodes_whatever_stack_the_caller_has() {
         let levels = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize") - 1;
@@ -4105,6 +4109,10 @@ mod tests {
     /// and an integer past `int` each answer `false` without a throw — the
     /// depth asserted on both sides of `DEFAULT_MAX_DEPTH`.
     // covers: Core\Json::isValid
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn is_valid_answers_false_rather_than_throwing_and_holds_the_default_depth() {
         let mut ctx = nvs_runtime::Ctx::buffered();

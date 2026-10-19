@@ -3599,6 +3599,10 @@ pub(crate) mod tests {
     /// for, and the handshake completing at all is what says the client verified
     /// a certificate issued for `localhost` — a client that had sent the pinned
     /// address as its server name would have been refused by its own anchors.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn connect_tunnel_is_opened_to_the_pinned_address_and_tls_names_the_host() {
         let (cert, key) = trusted();
@@ -4782,6 +4786,10 @@ pub(crate) mod tests {
     /// the reactor at all. Past the origin's signal the task has written
     /// everything it is going to write and the reply cannot be complete, so
     /// parked has only the one meaning left.
+    #[cfg_attr(
+        miri,
+        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn a_socket_read_runs_on_the_reactor_and_parks_its_coroutine() {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
@@ -5378,6 +5386,10 @@ pub(crate) mod tests {
     /// nothing until a `CertificateRequest` arrives — and a call that named no
     /// identity is configured to answer one with nothing at all, which
     /// `nvs_host::tls`'s own case asserts on the shipped configuration.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn client_identity_is_presented_when_asked_and_is_part_of_the_pool_key() {
         let (mine, theirs) = (client_identity("one"), client_identity("two"));
@@ -5568,6 +5580,10 @@ pub(crate) mod tests {
     /// once it has one. What neither covers is that the two are wired together:
     /// the anchors this transport verifies against are the ones the process was
     /// configured with.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn https_call_through_the_client_reaches_a_loopback_origin_under_a_roots_file() {
         let (cert, key) = trusted();
@@ -5602,6 +5618,10 @@ pub(crate) mod tests {
     /// the slot's whole purpose. The chain is asserted against the certificate
     /// this origin was stood up with rather than against a length, so a client
     /// reporting *a* chain rather than this peer's fails here too.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn tls_info_reports_version_cipher_and_the_peer_chain() {
         let (cert, key) = trusted();
@@ -5653,6 +5673,10 @@ pub(crate) mod tests {
     /// relaxation here is load-bearing: the same call under the default policy is
     /// the refusal the case above asserts. That is what stops this passing on a
     /// client that reported `false` for every session it ever negotiated.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn tls_info_is_unverified_after_a_pinned_or_relaxed_call() {
         use base64::Engine as _;
@@ -5724,6 +5748,10 @@ pub(crate) mod tests {
     /// failed, and the connection count is the far end's own record that it was
     /// reached once. The pause is what makes the count final: a retry would be
     /// out on the wire within this call's millisecond of backoff.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn https_call_to_an_origin_no_root_vouches_for_throws_and_is_not_retried() {
         // The anchors, installed before anything else: what makes this origin's
@@ -5809,6 +5837,10 @@ pub(crate) mod tests {
     /// The refusal has to land before the plaintext socket, which is what the
     /// accept below asserts — a client that checked afterwards would have sent
     /// the request in the clear and then complained about it.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn https_to_http_redirect_is_refused_without_the_downgrade_grant() {
         let plain = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
@@ -5835,6 +5867,10 @@ pub(crate) mod tests {
     /// The same rule's call half: the deployment named this host, and the call
     /// never said it expected to leave TLS behind. Following a redirect is
     /// already opt-in, and this is the one hop opting in does not include.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn https_to_http_redirect_is_refused_under_the_grant_without_the_option() {
         let plain = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
@@ -5861,6 +5897,10 @@ pub(crate) mod tests {
     /// Both halves written, and the hop is taken: the body that comes back is
     /// the plaintext origin's, so the two refusals above are about the two keys
     /// rather than about a hop this client cannot follow at all.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn https_to_http_redirect_is_followed_under_the_grant_and_the_option() {
         let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nplain"]);
@@ -5883,6 +5923,10 @@ pub(crate) mod tests {
     /// under somebody else's credential. Asserted by the connection still being
     /// in the store afterwards, which says it was never drawn — a fresh one
     /// answering says only that one was opened.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_call_without_an_identity_never_reuses_a_connection_that_presented_one() {
         let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
@@ -6314,6 +6358,10 @@ pub(crate) mod tests {
     /// call whose own anchors vouch for a different one, never reaches a `101`.
     /// The refusal is read as the TLS one rather than as any error, since a
     /// socket that failed to connect at all would satisfy a bare `is_err`.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn wss_socket_completes_over_the_tls_client_under_the_calls_policy() {
         let (cert, key) = trusted();

@@ -3109,6 +3109,7 @@ mod tests {
     /// missing file and a file outside the grant each answer an error, and a
     /// name left over from one would be sent by the finish path anyway.
     // covers: Core\Response::sendFile
+    #[cfg_attr(miri, ignore = "calls `access`, which Miri does not emulate")]
     #[test]
     fn send_file_leaves_a_name_on_a_request_and_writes_the_bytes_off_one() {
         let base = nvs_repo::scratch("response-send-file");

@@ -1739,6 +1739,7 @@ mod tests {
     /// The `.nvst` half runs the same read through a program, where `count`
     /// and the walk are reached the way a caller reaches them.
     // covers: Core\Db\Connection::query
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_read_holds_every_row_before_it_returns_and_frees_the_connection() {
         let block = nvs_config::tree::Database {
@@ -1813,6 +1814,7 @@ mod tests {
     /// then ends with the limit's `FATAL`, and its own peak stays near the
     /// ceiling because the rows never crossed back.
     // covers: Core\Db\Connection::query
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_buffered_read_stops_at_the_memory_ceiling_before_its_last_row() {
         let block = nvs_config::tree::Database {
@@ -1884,6 +1886,7 @@ mod tests {
     /// The `.nvst` half runs the same statements through a program, where the
     /// `?uint` is unwrapped the way a caller unwraps it.
     // covers: Core\Db\Write::changed
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_sqlite_write_reports_a_count_for_every_statement_kind() {
         let block = nvs_config::tree::Database {
@@ -1959,6 +1962,7 @@ mod tests {
     /// The `.nvst` half runs the same statements through a program, where the
     /// `?uint` is unwrapped the way a caller unwraps it.
     // covers: Core\Db\Write::lastId
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_sqlite_write_carries_the_key_of_the_row_it_inserted() {
         let block = nvs_config::tree::Database {
