@@ -389,8 +389,19 @@ nvs_runtime::nvs_helper! {
                 value.retain();
             }
             // Releases what this key held, which is what makes a re-`set`
-            // replace rather than leak — `NvsArray::set`'s own contract.
-            values.set(NvsStr::new(&chain), value);
+            // replace rather than leak. An existing entry is overwritten
+            // through the chain key on the stack, so a re-`set` allocates
+            // nothing; the two stores share a key set, so `present` means the
+            // value store has the key too.
+            if present {
+                let unplaced = values.overwrite(&chain, value);
+                debug_assert!(unplaced.is_ok(), "the two stores share one key set");
+                if let Err(value) = unplaced {
+                    values.set(NvsStr::new(&chain), value);
+                }
+            } else {
+                values.set(NvsStr::new(&chain), value);
+            }
         })?;
         Ok(Value::null())
     }

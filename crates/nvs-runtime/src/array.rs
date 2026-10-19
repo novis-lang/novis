@@ -446,6 +446,22 @@ impl Table {
         self.hashed_mut().set(key, value)
     }
 
+    /// [`Table::set`] for a key that is already live, borrowed rather than
+    /// owned: the entry keeps its key and its position, so nothing is built.
+    /// Hands `value` back where `key` is absent. The append counter needs no
+    /// note, since it saw `key` when the entry was inserted.
+    fn overwrite(&mut self, key: &[u8], value: Value) -> Result<Value, Value> {
+        match &mut self.shape {
+            Shape::Packed(values) => {
+                match packed_index(key).and_then(|slot| values.get_mut(slot)) {
+                    Some(held) => Ok(std::mem::replace(held, value)),
+                    None => Err(value),
+                }
+            }
+            Shape::Hashed(hashed) => hashed.overwrite(key, value),
+        }
+    }
+
     /// [`Table::get`] reached by the integer the subscript already was, with
     /// **no decimal rendered and nothing allocated** while the shape is packed
     /// — `$a[$i]`'s whole point.
@@ -728,6 +744,18 @@ impl Hashed {
         self.entries.push(Some(Entry { key, value }));
         self.live += 1;
         None
+    }
+
+    /// Replaces the value of the live entry at `key`, handing back the one it
+    /// displaced, or hands `value` back where `key` is absent.
+    fn overwrite(&mut self, key: &[u8], value: Value) -> Result<Value, Value> {
+        let Some(&slot) = self.index.get(key) else {
+            return Err(value);
+        };
+        let entry = self.entries[slot]
+            .as_mut()
+            .expect("an indexed slot is always live");
+        Ok(std::mem::replace(&mut entry.value, value))
     }
 
     /// Room for `additional` more entries in both of the vectors an insertion
@@ -1041,6 +1069,28 @@ impl NvsArray {
             }
         }
         was_there
+    }
+
+    /// Replaces the value at `key`, which is borrowed, where `key` is already
+    /// there, taking over `value`'s reference and separating first if this
+    /// handle is not the only owner. Where `key` is absent the array is
+    /// unchanged and `value` is handed back with its reference.
+    ///
+    /// The overwrite [`set`](Self::set) would make, minus the key: a caller
+    /// that holds its key on the stack writes an existing entry with no
+    /// allocation at all.
+    pub fn overwrite(&mut self, key: &[u8], value: Value) -> Result<(), Value> {
+        self.make_unique();
+        let old = self.header().table.borrow_mut().overwrite(key, value)?;
+        #[expect(
+            unsafe_code,
+            reason = "the table owned exactly one reference to the value \
+                      this write displaced, and no longer holds it"
+        )]
+        unsafe {
+            crate::release::release_value(old);
+        }
+        Ok(())
     }
 
     /// The value stored at the integer key `index`, borrowed rather than
@@ -2375,6 +2425,43 @@ mod tests {
         assert!(!array.rename(b"missing", key("y")), "an absent key");
         assert!(!array.rename(b"a", key("c")), "a key that is taken");
         assert_eq!(keys_of(&array), vec!["a", "z", "c"]);
+    }
+
+    /// An overwrite through a borrowed key replaces the value where it is and
+    /// allocates nothing, an absent key gives the value back and changes
+    /// nothing, and a copy that shared the storage keeps the old value.
+    #[test]
+    fn an_overwrite_by_a_borrowed_key_allocates_nothing() {
+        let mut array = NvsArray::new();
+        for (name, value) in [("a", 1), ("b", 2), ("c", 3)] {
+            array.set(key(name), Value::int(value));
+        }
+        let before = allocated_bytes();
+        assert!(array.overwrite(b"b", Value::int(20)).is_ok());
+        assert_eq!(allocated_bytes() - before, 0, "an overwrite built a key");
+        let shared = array.clone();
+        assert!(array.overwrite(b"a", Value::int(10)).is_ok());
+        assert_eq!(
+            readout(&array),
+            vec![
+                ("a".to_owned(), Some(10)),
+                ("b".to_owned(), Some(20)),
+                ("c".to_owned(), Some(3)),
+            ]
+        );
+        assert_eq!(shared.get(b"a").and_then(Value::as_int), Some(1));
+        let refused = array.overwrite(b"missing", Value::int(4));
+        assert_eq!(refused.err().and_then(Value::as_int), Some(4));
+        assert_eq!(keys_of(&array), vec!["a", "b", "c"]);
+
+        let mut list = list_of(3);
+        assert!(list.overwrite(b"1", Value::int(7)).is_ok());
+        assert!(list.is_packed(), "a packed overwrite stays packed");
+        assert_eq!(list.get_index(1).and_then(Value::as_int), Some(7));
+        assert!(
+            list.overwrite(b"3", Value::int(8)).is_err(),
+            "the next index is not live"
+        );
     }
 
     /// A list renamed at one position converts to the hash form and keeps
