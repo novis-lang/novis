@@ -212,6 +212,11 @@ otherwise costs a session a second orientation.
 are resolving them from context you already hold; a session without them spends ten `grep`s rediscovering
 what you knew for free. This is also how the `context` gets written: the union of the anchors is the list.
 
+**Then plan who does each piece.** Split a stage too big for one session, name its `**Split:**` and the
+goal's lanes, gate each dependency on another goal, and settle every choice. The shape is
+[conventions.md](conventions.md) § *A goal*. A goal that leaves these to its sessions pays for them
+in every session.
+
 ## 8. What never goes in a loop
 
 - **Doc trimming.** Nothing measures doc size ([doc-style.md](doc-style.md) § *Length targets*), and

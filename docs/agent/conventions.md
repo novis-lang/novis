@@ -575,17 +575,45 @@ What does **not** go in: the session's narrative (which stage, which check, what
 in a handoff — fix the line instead. Grep `docs/agent/playbook/` for the path before writing, to find
 the traps already filed against it.
 
+## A goal
+
+Every session that runs a goal reads it, so its author plans once what each session would otherwise
+work out again. How a goal is written in full is [loop-authoring.md](loop-authoring.md).
+
+- **Every stage fits one session.** A stage that needs more than the 120k slice budget is split into two
+  stages before the run starts.
+- **Every piece of a stage's work is an item.** The tests, feature proofs, rule flips and deleted gap
+  records a stage owes are items too, each with its rule and its `path:line` anchor. A file the stage
+  creates is anchored at `path:1`.
+- **A set is listed, never described.** "The eleven `about.md` files" is written out in the goal, or its
+  item says that an `Explore` subagent lists it first.
+- **A stage names its split.** A `**Split:**` paragraph after the `**Does:**` one says what goes to
+  subagents: the searches, and the batches of similar files (pages, examples, attacks, `.lspt` cases,
+  fixtures) that writing subagents produce one after another. A stage with nothing to hand off has no
+  such paragraph.
+- **The goal names its lanes.** `## Standing decisions` says which stages touch disjoint files and can run
+  as side goals, and which share a file and run in order.
+- **A dependency is a gate.** A stage that needs another goal's work names the file or command that
+  proves it landed. `### Next` starts only work whose gate holds.
+- **Every choice is made before the run.** A standing decision states the choice and its safe default.
+  That covers a new dependency, a port, a command's shape and where a test's fixtures come from. A goal
+  never says "goes to the user": the session decides by the priority ordering and records why.
+- **Tests run once per group.** No item asks for a test run of its own. The stage's checks run in the
+  group's one verify.
+
 ## A handoff
 
 The live goal's `## Handoff` in `docs/goals/<slug>.md`, overwritten whole every session and never
 appended to, because every later session reads it whole. It aims at about 60 lines, and no session is
 spent trimming it.
 
-- **`### State`**: a few lines on what is on disk and what is blocked.
-- **`### Next`**: the next group, two to four slices under one line naming the stage and the file set
-  they share. Each item names the rule that specifies it and its anchors repo-rooted
-  (`crates/nvs-runtime/src/ctx/isolate.rs:116`), because the item is where `looper orient` reads the
-  code it inlines into the next pack.
+- **`### State`**: a few lines on what is on disk and what is blocked. A settled fact leaves it for a
+  rule, a module doc or a commit message.
+- **`### Next`**: the next group, under one line naming the stage, the file set its slices share and
+  the gate it waits on. It lists every open item of the group, its tests and rule flips included, so
+  finishing `### Next` finishes the group. Each item names the rule that specifies it and its anchors
+  repo-rooted (`crates/nvs-runtime/src/ctx/isolate.rs:116`), because the item is where `looper orient`
+  reads the code it inlines into the next pack.
 - **`### Backlog`**: up to six one-line items, each with its owning doc.
 
 The handoff is state. A fact that will still be true in ten sessions goes to the playbook, a rule's
