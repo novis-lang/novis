@@ -268,6 +268,18 @@ The runner then requires `nvs run`'s compile-error status, `1`, and a compile di
 the example's path shortened to its file name so it is the same on every host. `--bless` writes it
 the same way. Keep such an example to one error, so the `.out` shows the one rule it is about.
 
+## `// proof: test`
+
+A testing feature is about what `nvs test` reports: which test passed, which failed and why, a skip
+and its reason. Its example declares that:
+
+    // proof: test
+
+The runner then runs it with `nvs test` instead of `nvs run`. The `.out` beside it is the report,
+with each test's duration and the summary's ` in N ms` removed, since they differ on every run.
+`--bless` writes it the same way. An example whose tests fail also declares `// proof: exit 1`,
+the status `nvs test` ends with when a test failed.
+
 ## `// requires: unimplemented`
 
 An example for a feature that does not run yet carries that line and is skipped rather than failed.
