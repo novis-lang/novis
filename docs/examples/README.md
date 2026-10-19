@@ -104,6 +104,16 @@ needs to use the feature, and `details.md` says everything else that is true of 
   `bun nv proofs --comments` and the `comments` proof count its sentences and dashes the way they
   count a comment's.
 
+## A chapter's features — `chapter.md`
+
+Each chapter directory under `lang/` holds `chapter.md`: the front matter of its chapter under
+`docs/reference/lang/` (`order`, `title`, `summary`, `keywords`) and one `# ` line per feature, in the
+chapter's order. The heading's slug is the feature's directory name and its roster id, so a heading is
+never reworded. The only other lines are `<!-- primer -->` above a feature and `<!-- generated:
+<table> -->` after one. The format and its checks are `tools/nv/proofs/chapters.ts`. A feature added
+to a chapter is a heading here and in the chapter, and the roster stops on a chapter whose headings
+are not its source's.
+
 ## What an example is
 
 **A reader who has never seen this repository is the audience.** Not a test, not a specification —
