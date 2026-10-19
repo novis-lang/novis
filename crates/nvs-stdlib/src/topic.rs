@@ -228,6 +228,14 @@ pub(crate) const NAME: &str = r"Core\Topic";
 /// thing `Core\Socket::current()` answers for. A handle here would be a second
 /// name for the same connection, and the first thing it could get wrong is
 /// being used from a different one.
+///
+/// `rule:core-classes/topic`, and ranked beside `Core\Socket`, whose `receive` is the only thing a
+/// topic delivery arrives through: the bus is the *second* of § 3's two
+/// sources, so it is not a facility of its own but the far end of a member
+/// `Core\Socket` already registers. [`crate::topic`] owns why the subscriber table
+/// is per core and holds a weak reference, and why `publish` — § 4's third
+/// row — is not here yet.
+// rank: 810
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -907,8 +915,9 @@ mod tests {
     /// decision is why the prune beside it is deliberately outside the bracket.
     #[test]
     fn a_subscription_is_charged_to_the_process_and_not_to_the_connection() {
-        /// How many names, each as long as a name may be.
-        const NAMES: usize = 512;
+        /// How many names, each as long as a name may be: 512, or 64 under
+        /// Miri, where each call is slow. Every bound below is per name.
+        const NAMES: usize = if cfg!(miri) { 64 } else { 512 };
         const TOTAL: usize = NAMES * super::NAME_CAP;
 
         let names: Vec<String> = (0..NAMES)

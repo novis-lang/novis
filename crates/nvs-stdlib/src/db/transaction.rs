@@ -1301,6 +1301,7 @@ mod tests {
     /// count moved, inside the transaction and after it, under the lock that keeps another case
     /// from ringing it meanwhile.
     // covers: Core\Queue::push
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_push_rings_after_the_commit_and_a_rollback_rings_nothing() {
         let _alone = crate::queue::bell::tests::process_bell_alone();

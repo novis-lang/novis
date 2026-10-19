@@ -27,7 +27,7 @@
 // A bench is recorded the same way under its own atom, `bench:<path>` (`recordBench`), in one run at its
 // smallest batch, and its verdict is its perf proof's growth. `runBenches` runs the benches a change
 // selects. `bun nv affected --run` asks it, after `nv verify`, for the ones the change itself reached;
-// `bun nv sweep`, looper's hook after every session, asks it for the owed and red ones, under a deadline.
+// `bun nv debt`, the floor check at each goal's end, asks it for the owed and red ones.
 //
 // The selection engine, the crate graph and the recorder are loaded by `engine`, through
 // `loadUnrecorded`: they decide which programs run and what the store remembers, and none of them

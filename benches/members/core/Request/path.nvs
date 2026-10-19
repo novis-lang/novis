@@ -3,7 +3,7 @@
 // bench: iterations 256
 // bench: complexity constant
 // bench: allocations 1
-// bench: calls 0
+// bench: calls 2
 
 class Bench {
     public static function run(uint $rounds): uint {

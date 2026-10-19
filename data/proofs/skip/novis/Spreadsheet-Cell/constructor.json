@@ -1,0 +1,6 @@
+{
+  "feature": "Novis\\Spreadsheet\\Cell::constructor",
+  "examples": "`new Cell` stores two values and calls nothing; `Cell::of` makes the same cell, and its examples show every way a cell is used.",
+  "perf": "`new Cell` stores two values and calls nothing; `Cell::of` builds one on every call, so its figure includes this one.",
+  "hostile": "`new Cell` stores two typed read-only values and calls nothing, so a wrong style does not compile; a hostile value is checked when the row is written, and the attack of `Cell::of` sends one."
+}

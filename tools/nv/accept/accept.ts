@@ -25,7 +25,7 @@
 // the store's last green runs. A suite below its `minPassing` is `short`, reported and never green.
 //
 // The WSL leg and the valgrind sweep are `accept/legs.ts`'s. `bun nv legs` runs them, and so does
-// `bun nv sweep` (`cmd/sweep.ts`), looper's hook after every session, when a leg is owed.
+// `bun nv debt` (`cmd/debt.ts`), the floor check at each goal's end, when a leg is owed.
 
 import { dirname } from "node:path";
 

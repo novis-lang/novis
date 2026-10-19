@@ -6,9 +6,9 @@
 //
 // The kinds a gap's owner falls into, and what `--check` does with each:
 //
-//   live       the goal `docs/goals/README.md`'s chain names live, or the side goal this process runs. Accepted,
-//              because the sweep's owner gate (`--closes`) will not let that goal walk while the gap
-//              names it, so the gap cannot outlive its owner.
+//   live       the goal `docs/goals/README.md`'s chain names live, or the side goal this process runs.
+//              Accepted, because that goal's acceptance runs `--closes`, which is red while a gap names
+//              it, so the goal is not reached and the gap cannot outlive its owner.
 //   goal       a goal further down the chain. Accepted for the same reason: it becomes live before it
 //              is reached, and its `--closes` gate holds the gap then. Deleting its file makes the
 //              owner `broken`, which this gate refuses.

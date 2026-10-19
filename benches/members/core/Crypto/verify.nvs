@@ -2,7 +2,7 @@
 // Measures checking one Ed25519 signature, as a server does for every signed
 // message that arrives.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

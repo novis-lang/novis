@@ -17,17 +17,20 @@ try {
 <?nvs
 // covers: Core\Ldap\Connection::changes
 var $corp = Core\Ldap::connect("corp");
-var $dn = "OU=Garden,DC=example,DC=test";
+// The process id in the name keeps two runs at the same time apart. The word after it
+// keeps process 12 from also finding the entry of process 123.
+string $unit = "OU=Garden " . (Core\Os::pid() as string) . " Bed";
+var $dn = $unit . ",DC=example,DC=test";
 try {
     $corp->delete($dn);
 } catch (Core\Ldap\LdapError $gone) {
 }
 
 class Seen {
-    public static function garden(Core\Ldap\Changes $changes): string {
+    public static function garden(Core\Ldap\Changes $changes, string $unit): string {
         string $found = "no";
         foreach ($changes as Core\Ldap\Entry $entry) {
-            if (Core\Str::startsWith($entry->dn()->toString(), "OU=Garden")) {
+            if (Core\Str::startsWith($entry->dn()->toString(), $unit)) {
                 $found = $entry->isDeleted() ? "deleted" : "live";
             }
         }
@@ -52,17 +55,17 @@ echo "first sync, Domain Controllers: ", Seen::controllers($first), "\n";
 
 $corp->add($dn, ["objectClass" => "organizationalUnit"]);
 var $added = $corp->changes($units, {select: ["ou"], cookie: $first->cookie()});
-echo "after add, Garden: ", Seen::garden($added), "\n";
+echo "after add, Garden: ", Seen::garden($added, $unit), "\n";
 
 var $again = $corp->changes($units, {select: ["ou"], cookie: $added->cookie()});
 echo "same cookie again, Domain Controllers: ", Seen::controllers($again), "\n";
 
 $corp->delete($dn);
 var $removed = $corp->changes($units, {select: ["ou"], cookie: $again->cookie()});
-echo "after delete, Garden: ", Seen::garden($removed), "\n";
+echo "after delete, Garden: ", Seen::garden($removed, $unit), "\n";
 
 var $last = $corp->changes($units, {select: ["ou"], cookie: $removed->cookie()});
-echo "newest cookie, Garden: ", Seen::garden($last), "\n";
+echo "newest cookie, Garden: ", Seen::garden($last, $unit), "\n";
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--
@@ -70,7 +73,7 @@ echo "newest cookie, Garden: ", Seen::garden($last), "\n";
 connect = ["corp"]
 
 [ldap.corp]
-url = "ldaps://localhost:16636"
+url = "ldaps://127.0.0.1:16636"
 base = "DC=example,DC=test"
 user = "CN=Administrator,CN=Users,DC=example,DC=test"
 password = "Novis-test-1"

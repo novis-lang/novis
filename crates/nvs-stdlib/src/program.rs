@@ -113,6 +113,11 @@ const MAKER: CoreTy = CoreTy::Shape(&[&[
 ]]);
 
 /// The registry row. See [`crate::registry::CLASSES`].
+///
+/// § 13, and the second row after `Core\Attributes` whose members never
+/// run: `rule:programs/implementing` expands `implementing<T>()` while checking, so
+/// [`crate::program`] registers a signature and an aborting body.
+// rank: 560
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&PROGRAM_CARD),

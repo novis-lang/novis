@@ -1223,3 +1223,231 @@ fn every_spelling_of_a_device_name_is_one() {
         assert!(!is_reserved_device(name), "`{name}` is a name");
     }
 }
+
+/// A xorshift sequence from a fixed seed, so a property case generates the same inputs on every
+/// run and a failure names an input that reproduces.
+struct Seeded(u32);
+
+impl Seeded {
+    fn next(&mut self) -> u32 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 17;
+        self.0 ^= self.0 << 5;
+        self.0
+    }
+
+    /// A value below `bound`, which is never zero.
+    fn below(&mut self, bound: u32) -> u32 {
+        self.next() % bound
+    }
+
+    /// An index below `len`, which is never zero. Every length here is far below `u32::MAX`, so
+    /// this is the value `below` gives for it.
+    fn index(&mut self, len: usize) -> usize {
+        self.next() as usize % len
+    }
+
+    /// The low 16 bits of the next value.
+    fn low16(&mut self) -> u16 {
+        let [low, high, ..] = self.next().to_le_bytes();
+        u16::from_le_bytes([low, high])
+    }
+
+    /// A path component of one to nine bytes. It starts with `d`, so it is never `.`, `..` or a
+    /// device name, and the rest is drawn from bytes a grant root is commonly written with.
+    fn component(&mut self) -> String {
+        const BYTES: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789-_.";
+        let len = 1 + self.below(8);
+        let mut out = String::from("d");
+        for _ in 0..len {
+            out.push(char::from(BYTES[self.index(BYTES.len())]));
+        }
+        out
+    }
+}
+
+/// `rule:security/capability-question-is-grant-and-scope`'s path grant is a prefix of whole
+/// components: a grant on `a/secret1` never reaches `a/secret`, and a grant on `a/secret` never
+/// reaches `a/secret1`, over generated names that share every byte but the tail.
+///
+/// Each round also asks a path inside the grant, so every refusal is the boundary and not a harness
+/// that refuses everything, and a `..` that climbs from one sibling into the other.
+// covers: tools:config/capabilities
+#[test]
+fn a_path_grant_never_reaches_a_sibling_that_shares_its_prefix() {
+    let mut seeded = Seeded(0x2545_f491);
+    for _ in 0..300 {
+        let short = seeded.component();
+        let long = format!("{short}{}", seeded.component().trim_start_matches('d'));
+        let long = if long == short {
+            format!("{short}1")
+        } else {
+            long
+        };
+        let roots = [format!("/srv/{short}"), format!("/srv/{long}")];
+        let disk = Disk::of(&["/srv", roots[0].as_str(), roots[1].as_str()]);
+
+        for (granted, other) in [(&roots[0], &roots[1]), (&roots[1], &roots[0])] {
+            let caps = granting(&format!("[fs]\nread = [\"{granted}\"]\n"), &disk);
+            let inside = p(&format!("{granted}/note.txt"));
+            assert!(
+                caps.allows(Cap::FsRead, Scope::Path(inside.as_path()), &disk),
+                "a grant on `{granted}` refused {}",
+                inside.display(),
+            );
+            let other_name = other.trim_start_matches("/srv/");
+            for outside in [
+                p(other),
+                p(&format!("{other}/note.txt")),
+                raw(&format!("{granted}/../{other_name}/note.txt")),
+            ] {
+                assert!(
+                    !caps.allows(Cap::FsRead, Scope::Path(outside.as_path()), &disk),
+                    "a grant on `{granted}` reached {}",
+                    outside.display(),
+                );
+            }
+        }
+    }
+}
+
+/// The IPv4 ranges `rule:security/net-address-policy`'s table denies, as a base address and a
+/// prefix length, with the answer the table gives for each.
+const DENIED_V4: &[([u8; 4], u32, &str)] = &[
+    ([127, 0, 0, 0], 8, "loopback (127.0.0.0/8)"),
+    ([0, 0, 0, 0], 8, "unspecified (0.0.0.0/8)"),
+    ([169, 254, 0, 0], 16, "link-local (169.254.0.0/16)"),
+    ([10, 0, 0, 0], 8, "private (10/8, 172.16/12, 192.168/16)"),
+    ([172, 16, 0, 0], 12, "private (10/8, 172.16/12, 192.168/16)"),
+    (
+        [192, 168, 0, 0],
+        16,
+        "private (10/8, 172.16/12, 192.168/16)",
+    ),
+    ([100, 64, 0, 0], 10, "shared address space (100.64.0.0/10)"),
+    ([192, 0, 0, 0], 24, "protocol assignments (192.0.0.0/24)"),
+    ([198, 18, 0, 0], 15, "benchmarking (198.18.0.0/15)"),
+    ([224, 0, 0, 0], 4, "multicast (224.0.0.0/4)"),
+    ([240, 0, 0, 0], 4, "reserved (240.0.0.0/4)"),
+];
+
+/// Every spelling of `v4` that routes to it: mapped, IPv4-compatible, NAT64, 6to4 and Teredo, with
+/// every bit that does not carry the address drawn from `seeded`.
+fn spellings(v4: std::net::Ipv4Addr, seeded: &mut Seeded) -> [std::net::Ipv6Addr; 5] {
+    use std::net::Ipv6Addr;
+
+    let [a, b, c, d] = v4.octets();
+    let high = u16::from_be_bytes([a, b]);
+    let low = u16::from_be_bytes([c, d]);
+    let mut noise = || seeded.low16();
+    [
+        v4.to_ipv6_mapped(),
+        v4.to_ipv6_compatible(),
+        Ipv6Addr::new(0x64, 0xff9b, 0, 0, 0, 0, high, low),
+        Ipv6Addr::new(
+            0x2002,
+            high,
+            low,
+            noise(),
+            noise(),
+            noise(),
+            noise(),
+            noise(),
+        ),
+        Ipv6Addr::new(0x2001, 0, noise(), noise(), noise(), noise(), !high, !low),
+    ]
+}
+
+/// `rule:security/net-address-policy`'s table denies every address in each of its ranges, in
+/// every spelling that routes to it, over generated addresses spread through each range.
+///
+/// The IPv4-compatible spellings of `0.0.0.0` and `0.0.0.1` are `::` and `::1`, which are addresses
+/// of their own and keep their own answers, so for those two the property is that they are denied.
+// covers: tools:config/network-grants-the-addresses-and-endpoints-they-reach
+#[test]
+fn every_address_in_a_denied_range_is_denied_in_each_of_its_spellings() {
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+    let mut seeded = Seeded(0x6c07_8965);
+    for &(base, prefix, range) in DENIED_V4 {
+        let host = u32::MAX >> prefix;
+        let mut addresses = vec![u32::from_be_bytes(base), u32::from_be_bytes(base) | host];
+        for _ in 0..500 {
+            addresses.push(u32::from_be_bytes(base) | (seeded.next() & host));
+        }
+        for bits in addresses {
+            let v4 = Ipv4Addr::from(bits);
+            let want = if v4.is_broadcast() {
+                "broadcast (255.255.255.255)"
+            } else {
+                range
+            };
+            assert_eq!(
+                nvs_config::capability::denied_by_default(IpAddr::V4(v4)),
+                Some(want),
+                "{v4} is in {range}",
+            );
+            for spelled in spellings(v4, &mut seeded) {
+                let got = nvs_config::capability::denied_by_default(IpAddr::V6(spelled));
+                if spelled.is_loopback() || spelled.is_unspecified() {
+                    assert!(got.is_some(), "{spelled} is denied");
+                } else {
+                    assert_eq!(got, Some(want), "{spelled} carries {v4}");
+                }
+            }
+        }
+    }
+
+    for (base, prefix, range) in [
+        (0xfe80_u16, 10_u32, "link-local (fe80::/10)"),
+        (0xfc00, 7, "private (fc00::/7)"),
+        (0xff00, 8, "multicast (ff00::/8)"),
+    ] {
+        for _ in 0..500 {
+            let mut segments = [0_u16; 8];
+            for segment in &mut segments {
+                *segment = seeded.low16();
+            }
+            segments[0] = base | (segments[0] & (u16::MAX >> prefix));
+            let v6 = Ipv6Addr::from(segments);
+            assert_eq!(
+                nvs_config::capability::denied_by_default(IpAddr::V6(v6)),
+                Some(range),
+                "{v6} is in {range}",
+            );
+        }
+    }
+}
+
+/// `rule:security/net-address-policy`'s operator exception excepts the generated address it names
+/// in its two usual spellings, and none of the wider spellings the table reads.
+// covers: tools:config/network-grants-the-addresses-and-endpoints-they-reach
+#[test]
+fn an_exception_for_a_generated_address_excepts_two_spellings_and_no_wider_one() {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    let disk = Disk::of(&["/srv"]);
+    let mut seeded = Seeded(0x1b87_3593);
+    for _ in 0..200 {
+        let (base, prefix, _) = DENIED_V4[seeded.index(DENIED_V4.len())];
+        let v4 = Ipv4Addr::from(u32::from_be_bytes(base) | (seeded.next() & (u32::MAX >> prefix)));
+        let caps = granting(&format!("[net]\ninternal = [\"{v4}\"]\n"), &disk);
+        let [mapped, wider @ ..] = spellings(v4, &mut seeded);
+        assert_eq!(
+            caps.address_refused(IpAddr::V4(v4)),
+            None,
+            "{v4} is excepted"
+        );
+        assert_eq!(
+            caps.address_refused(IpAddr::V6(mapped)),
+            None,
+            "{mapped} is excepted"
+        );
+        for spelled in wider {
+            assert!(
+                caps.address_refused(IpAddr::V6(spelled)).is_some(),
+                "`internal = [\"{v4}\"]` excepted {spelled}",
+            );
+        }
+    }
+}

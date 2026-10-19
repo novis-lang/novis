@@ -1,0 +1,17 @@
+{
+  "title": "No class under `Core` can be extended or implemented, and a `Core` instance member checks its receiver's class",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/reserved-namespace",
+    "errors/throwable-hierarchy",
+    "core-classes/db-transactions"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-core-class-cannot-be-extended-or-implemented.nvst",
+    "tests/conformance/error/an-error-class-still-extends-every-global-error-class.nvst",
+    "tests/conformance/core/html-later-splices-only-a-markup-its-callable-returned.nvst",
+    "tests/conformance/core/ordering-a-core-object-against-another-class-throws.nvst",
+    "crates/nvs-hir/src/hierarchy.rs",
+    "crates/nvs-stdlib/src/instance.rs"
+  ]
+}

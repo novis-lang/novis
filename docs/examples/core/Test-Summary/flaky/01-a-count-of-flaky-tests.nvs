@@ -1,0 +1,34 @@
+<?nvs
+// Shows an `#[AfterClass]` method that prints how many tests passed only on a
+// retry. The test below may run up to 3 times.
+
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class Counts
+{
+    public static function line(string $class, int $passed, int $flaky): string
+    {
+        return $class . ': ' . $passed . ' passed, ' . $flaky . ' flaky';
+    }
+}
+
+class WeatherTest
+{
+    #[Test(retries: 2, because: "the weather service is sometimes slow")]
+    public function itReadsTheTemperature(): void
+    {
+        Test::assertSame(Core\Str::trim(' 21 '), '21');
+    }
+
+    // `flaky()` counts a test that failed first and passed on a retry.
+    #[AfterClass]
+    public static function printCounts(Summary $summary): void
+    {
+        echo Counts::line($summary->class(), $summary->passed(), $summary->flaky()), "\n";
+    }
+}
+
+// This prints `WeatherTest: 4 passed, 1 flaky`.
+echo Counts::line('WeatherTest', 4, 1), "\n";

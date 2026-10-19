@@ -2,7 +2,7 @@
 // Measures sending a `POST` request with a small JSON body that a test answers.
 // A program's own tests do this for every request that sends data to another service.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

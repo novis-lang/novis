@@ -51,6 +51,49 @@ use nvs_diagnostics::{Diagnostics, SourceMap};
 use crate::config::{LocalFiles, working_directory};
 use crate::render_diagnostics;
 
+/// Clear what a hard-killed script left in the temporary root.
+///
+/// The runtime deletes a temporary directory when its script ends and
+/// reclaims the rest at `nvs serve` boot; this is how a machine that never
+/// boots a server clears them.
+// The operator's half of `rule:core-classes/temporary-dir-orphan-sweep`.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
+
+/// `nvs tmp`'s own subcommands.
+///
+/// One, and there is deliberately no second: `rule:core-classes/temporary-dir-orphan-sweep` gives the sweep one
+/// predicate — the owning process is not alive — and no flag that overrides it,
+/// so there is nothing for an operator to ask beyond "do it" and "tell me what
+/// you would do".
+#[derive(clap::Subcommand)]
+enum Command {
+    /// Remove every entry in the temporary root whose owning process is gone.
+    ///
+    /// Keyed on liveness and never on age, so a long-running process's
+    /// directories are untouchable however old they are, and there is no force
+    /// flag.
+    // What it can and cannot do, and why there is no force flag, is this
+    // module's doc.
+    Clean {
+        /// Print what would be removed and remove nothing.
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+
+impl Args {
+    /// Runs the `nvs tmp` subcommand clap parsed, over the run's `--config` list.
+    pub(crate) fn run(self, config: &[PathBuf]) -> ExitCode {
+        match self.command {
+            Command::Clean { dry_run } => clean(config, dry_run),
+        }
+    }
+}
+
 /// `nvs tmp clean [--dry-run]` — resolve the tree, walk the owned root, and
 /// report every entry whose owner is gone.
 pub(crate) fn clean(config: &[PathBuf], dry_run: bool) -> ExitCode {

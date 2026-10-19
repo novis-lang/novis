@@ -49,7 +49,7 @@ stages:
   - id: 7
     title: the viewer has its feature proofs, and its rules are shipped
     status: open
-    context: [docs/reference/tools/10-cli.md, data/proofs/policy.json, docs/rules/testing/feature-proofs.md]
+    context: [docs/reference/tools/10-cli.md, data/proofs/skip/tools/cli/nvs-info.json, docs/rules/testing/feature-proofs.md]
     extra:
       context:
         rules: [testing/feature-proofs, testing/hostile-case-contract, testing/examples-live-in-the-repository]
@@ -226,7 +226,7 @@ heatmap over source.
 - [ ] A `# The debug viewer` section in the CLI chapter, so the feature is `tools:cli/the-debug-viewer` and its help is in the binary. `docs/reference/tools/10-cli.md:655`
 - [ ] `about.md` and three examples under `docs/examples/tools/cli/the-debug-viewer/`: a route that dumps a value, a handler whose queries repeat, and a handler that throws.
 - [ ] The attack under `tests/hostile/tools/cli/the-debug-viewer/`: a program whose requests dump, log and throw values with markup, script URLs, control and bidi characters and very long strings, and a browser test that no script runs and no element is made from them.
-- [ ] A Rust test that the newest page reads the same number of SQLite steps at two index sizes, and a `perf` skip in the proofs policy that names it. `data/proofs/policy.json:117`
+- [ ] A Rust test that the newest page reads the same number of SQLite steps at two index sizes, and a `perf` skip in `data/proofs/skip/tools/cli/the-debug-viewer.json` that names it. `data/proofs/skip/tools/cli/nvs-info.json:1`
 - [ ] `bun nv proofs --id 'tools:cli/the-debug-viewer'` passes, the five rules this goal owns are `shipped`, and `bun nv owners --closes debug-viewer` passes.
 
 ## Handoff

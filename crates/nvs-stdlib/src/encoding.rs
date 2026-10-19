@@ -342,6 +342,7 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Encoding`'s registry rows — the text trio, the hex pair, the base64
 /// family and the base32 pair.
+// rank: 110
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

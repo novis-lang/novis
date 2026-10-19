@@ -172,6 +172,11 @@ const CONNECTION_CARD: ClassDoc = ClassDoc {
 };
 
 /// `Core\Ldap`: `connect` and `open`.
+///
+/// `Core\Ldap`, the directory client, beside the database classes because it is
+/// opened the same two ways: a named block under `ldap.connect`, or a
+/// program's settings under `ldap.open`.
+// rank: 1610
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -396,6 +401,7 @@ const READ_OPTIONS: &[CoreOption] = &[CoreOption {
 ///
 /// Its one slot is the key the connection is held under in the request's own
 /// table, which [`super::held`] reads back.
+// rank: 1620
 pub(crate) const CONNECTION: CoreClass = CoreClass {
     name: CONNECTION_NAME,
     doc: Some(&CONNECTION_CARD),
@@ -964,6 +970,7 @@ const CHANGE_ERRORS: &[ErrorDoc] = &[ErrorDoc {
 
 /// `Ldap\Change`: one change of a `modify`, its value kept
 /// unencoded until `modify` sends it. `super::write`'s module doc says why.
+// rank: 1670
 pub(crate) const CHANGE: CoreClass = CoreClass {
     name: CHANGE_NAME,
     doc: Some(&CHANGE_CARD),
@@ -1055,6 +1062,7 @@ const ENTRIES_CARD: ClassDoc = ClassDoc {
 /// `ITERABLES` in [`crate::registry`] declares its element, and
 /// [`crate::instance`]'s dispatch roster gives it the three names a `foreach`
 /// calls. `super::search`'s module doc says what each slot is.
+// rank: 1630
 pub(crate) const ENTRIES: CoreClass = CoreClass {
     name: ENTRIES_NAME,
     doc: Some(&ENTRIES_CARD),
@@ -1092,6 +1100,7 @@ const CHANGES_CARD: ClassDoc = ClassDoc {
 /// `Ldap\Changes`: what `changes` returns, and its own
 /// iterator, as [`ENTRIES`] is. `super::search`'s module doc says what each
 /// slot is.
+// rank: 1640
 pub(crate) const CHANGES_SET: CoreClass = CoreClass {
     name: CHANGES_NAME,
     doc: Some(&CHANGES_CARD),
@@ -1158,6 +1167,7 @@ const ATTRIBUTE_NAME_PARAM: ParamDoc = ParamDoc {
 /// `Ldap\Entry`: the DN, the readers for text and bytes, and the typed
 /// readers of `rule:core-classes/ldap-value-types`. `super::search`'s module doc says what each slot is,
 /// and `super::value`'s what each typed reader accepts.
+// rank: 1650
 pub(crate) const ENTRY: CoreClass = CoreClass {
     name: ENTRY_NAME,
     doc: Some(&ENTRY_CARD),
@@ -1558,6 +1568,7 @@ const fn filter_compare(
 
 /// `Ldap\Filter`, `rule:core-classes/ldap-filter-is-a-value`. `super::search`'s module doc says what its
 /// slot is.
+// rank: 1660
 pub(crate) const FILTER: CoreClass = CoreClass {
     name: FILTER_NAME,
     doc: Some(&FILTER_CARD),
@@ -1886,6 +1897,7 @@ const DN_PART_ERRORS: &[ErrorDoc] = &[ErrorDoc {
 /// `of` and `child` launder their `value` for the DN sink and nothing else:
 /// they return a `Dn`, which only a DN parameter takes, and every text a `Dn`
 /// gives back is `tainted`.
+// rank: 1680
 pub(crate) const DN: CoreClass = CoreClass {
     name: DN_NAME,
     doc: Some(&DN_CARD),
@@ -2064,6 +2076,7 @@ const SID_CARD: ClassDoc = ClassDoc {
 
 /// `Ldap\Sid`: one value, its binary form in one slot. The
 /// bodies are `super::sid`'s.
+// rank: 1690
 pub(crate) const SID: CoreClass = CoreClass {
     name: SID_NAME,
     doc: Some(&SID_CARD),
@@ -2190,6 +2203,7 @@ const AD_BITS: &[CoreTy] = &[CoreTy::Text(Qual::Sink), CoreTy::Int];
 
 /// `Ldap\Ad`: AD's matching rules, as `Ldap\Filter` values.
 /// The bodies are `super::search`'s, beside the other filter constructors.
+// rank: 1700
 pub(crate) const AD: CoreClass = CoreClass {
     name: AD_NAME,
     doc: Some(&AD_CARD),
@@ -2350,6 +2364,7 @@ const ACCOUNT_FLAGS_CARD: ClassDoc = ClassDoc {
 /// `Ldap\Ad\AccountFlags` (`rule:core-classes/ldap-value-types`): one reader per flag
 /// `nvs_ldap::value::ACCOUNT_FLAGS` names, in its order. `super::flags`' module
 /// doc says what its slots are.
+// rank: 1710
 pub(crate) const ACCOUNT_FLAGS: CoreClass = CoreClass {
     name: ACCOUNT_FLAGS_NAME,
     doc: Some(&ACCOUNT_FLAGS_CARD),
@@ -2646,6 +2661,7 @@ const GROUP_TYPE_CARD: ClassDoc = ClassDoc {
 
 /// `Ldap\Ad\GroupType` (`rule:core-classes/ldap-value-types`): one reader per flag
 /// `nvs_ldap::value::GROUP_TYPE_FLAGS` names, in its order.
+// rank: 1720
 pub(crate) const GROUP_TYPE: CoreClass = CoreClass {
     name: GROUP_TYPE_NAME,
     doc: Some(&GROUP_TYPE_CARD),

@@ -1,9 +1,9 @@
 //! The `Core` signature registry: what the compiler resolves a
 //! `Core\Class::member(...)` call against.
 //!
-//! This file is the one source of every `Core` signature, and `nvs meta --json`
-//! publishes it (`rule:core-api/field-wise-precedence`). A row here is a
-//! *promise* — `nvs-types` seeds its own
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) is
+//! authoritative for every signature; this is that file in the one form a
+//! compiler can read. A row here is a *promise* — `nvs-types` seeds its own
 //! signature table from [`CLASSES`], so a `Core` call goes through exactly the
 //! arity check, the assignability check and the `ResolvedCall` recording a
 //! user-declared static call already does, with no second code path.
@@ -21,22 +21,22 @@
 //!
 //! # What the enum covers
 //!
-//! Exactly what a registered signature writes, and [`CoreClass`] exactly the
-//! *kind* of member those rows are — [`crate`]'s module doc is that claim's
-//! home. Three things a reader
+//! Exactly what a spec §§ 1–12 signature writes, and [`CoreClass`] exactly the
+//! *kind* of member those rows are — [`crate`] § *Every shape a §§ 1–12
+//! signature writes can be stated* is that claim's home. Three things a reader
 //! looks for in the enum are elsewhere on purpose: a **variadic** parameter is
 //! [`CoreTy::Variadic`], read through [`CoreMethod::variadic`]; a class
 //! **constant** is [`CoreConst`], a roster on [`CoreClass`] rather than a
 //! [`CoreTy`] variant, since a constant has a value and no signature; and a
 //! `Core`-owned **instance** is [`CoreTy::Instance`] plus
 //! [`CoreClass::instance`] and [`CoreClass::slots`], with [`crate::instance`]
-//! the value behind it. Widening the enum for a row it cannot state yet is a
-//! change to this file, which is the friction the section above buys.
+//! the value behind it. Widening the enum for a §§ 13–20 row is a change to
+//! this file, which is the friction the section above buys.
 //!
 //! # A `Core` enum is declared here too
 //!
-//! `Core` names enums as well as members — `Core\Arr::Order` is the first —
-//! so [`ENUMS`] is a second roster beside
+//! The spec's own tables name enums as well as members — `Core\Arr::Order` at
+//! § 2's *Ordering* is the first — so [`ENUMS`] is a second roster beside
 //! [`CLASSES`], and [`CoreTy::Enum`] refers to one by name. Its own doc
 //! comment owns why the two are separate; what belongs here is that
 //! `nvs_types::enums` seeds them into the *same* table a declared `enum` goes
@@ -74,7 +74,7 @@
 //!   `ExprKind::AnonObject` has no lowering of its own at all.
 //!
 //! A **required, positional** fixed-key shape parameter — `Core\Db::open`'s
-//! `Db\Settings`, the first one written — generalises all four, and is
+//! `Db\Settings`, the first the spec writes — generalises all four, and is
 //! `rule:core-api/shape-parameter`'s
 //! `CoreTy::Shape`: a list of *arms*, flattened by the same rule, one arm for
 //! the ordinary case and two or more for a discriminated union. The bag keeps
@@ -89,8 +89,10 @@
 /// Not to be confused with the qualifier a *value* carries: `tainted` and
 /// `secret` live on `nvs_types::ty::Ty` and describe an argument. This
 /// describes what a member does with one, and on the `tainted` axis there are
-/// exactly four answers. [`Self::Reveal`] is a fifth variant and not
-/// a fifth answer: it is the `secret` axis's only mark, and § *How a `secret`
+/// exactly four answers
+/// ([the spec's *How to read an entry*](/docs/spec/01-core-library.md)
+/// renders them as the Q column). [`Self::Reveal`] is a fifth variant and not
+/// a fifth Q value: it is the `secret` axis's only mark, and § *How a `secret`
 /// parameter is spelled* below is why it lives here rather than in a type.
 ///
 /// **There is no default.** A parameter with no classification is spelled
@@ -125,7 +127,7 @@
 /// says so; this is that decision, and it is recorded here rather than in a
 /// rule because what it decides is how a *row* is written.
 ///
-/// * **Not a [`CoreTy`].** That type is documented as what a signature writes and
+/// * **Not a [`CoreTy`].** That type is documented as what the spec wrote and
 ///   not what the checker interns — `nvs_types::core_lib` lowers
 ///   [`CoreTy::Text`] to a plain interned `string` and carries the mark beside
 ///   it as `MethodSig::param_quals`, so every qualifier question a row asks is
@@ -184,7 +186,7 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Qual {
     /// A qualified argument yields a qualified result — the overwhelming
-    /// majority.
+    /// majority, and the blank cell in the spec's Q column.
     Contagious,
     /// This parameter's content becomes an instruction something executes, so
     /// it **refuses** a qualified argument. `rule:security/sink-predicate` is the predicate.
@@ -230,7 +232,7 @@ impl Qual {
 /// One type in a `Core` member's signature.
 ///
 /// Deliberately smaller than `nvs_types::ty::Ty`: this describes what the
-/// *signature* writes, not what the checker interns. `nvs-types` lowers each of
+/// *spec* wrote, not what the checker interns. `nvs-types` lowers each of
 /// these into its own interner, which is where qualifiers, unions and class
 /// identity live.
 // No `PartialEq`/`Eq`: [`Self::Options`] carries [`CoreOption`]s, which carry
@@ -249,7 +251,7 @@ pub enum CoreTy {
     /// `float`
     Float,
     /// `decimal` — `rule:types/decimal`'s
-    /// scalar, which a signature writes wherever a member is exact over money:
+    /// scalar, which the spec writes wherever a member is exact over money:
     /// the `int|float|decimal` unions of `Core\Math` and the subject of
     /// `Core\Arr::sum`/`product`/`average`.
     ///
@@ -315,7 +317,7 @@ pub enum CoreTy {
     /// `rule:security/isolate-shares-nothing`'s
     /// operand, written as a parameter.
     ///
-    /// The published signature says `string` and a path is what the member reads. What
+    /// The spec's column is `string` and a path is what the member reads. What
     /// this adds to [`Self::Text`] is the *other* accepted spelling: a static
     /// method written `Chat::run(...)`, which is a `callable`-typed expression
     /// and would be an ordinary mismatch at a `string` parameter. The two are
@@ -573,8 +575,8 @@ pub enum CoreTy {
     CallableSig(&'static [CoreTy], &'static CoreTy),
     /// A type *variable*, named — `T` in `count(array<T> $a): uint`.
     ///
-    /// The rule this exists for: `T` is a type variable, and the stdlib is
-    /// parametric where user code is not. A
+    /// The spec's `Core\Arr` section states the rule this exists for: "`T` is
+    /// a type variable — the stdlib is parametric where user code is not." A
     /// variable is bound by unifying the declared parameter types against the
     /// call's actual argument types and then substituted through the whole
     /// signature; `nvs_types` owns both halves. Nothing user-written can
@@ -606,7 +608,8 @@ pub enum CoreTy {
     /// comes from. [`Self::Var`] is *inferred* from an argument's type, which
     /// only works where some parameter position holds the answer —
     /// `Core\Json::decodeAs`'s `T` appears in no parameter at all, so the call
-    /// site has to say it. `rule:attributes/call-site-type-argument` names the
+    /// site has to say it. `docs/spec/01-core-library.md` § 6 writes exactly
+    /// that, and `rule:attributes/call-site-type-argument` names the
     /// explicit call-site type argument as one of the two things user code
     /// gets from the compiler-owned `<T>` machinery.
     ///
@@ -672,11 +675,11 @@ pub enum CoreTy {
     ///
     /// The same relationship to [`Self::Int`] that [`Self::EnumCase`] has to
     /// [`Self::Enum`], and it exists for the same reason at a different place:
-    /// `Core\Validate` writes `isIp(string $s, {version?: 4|6})`, and the point of
+    /// spec § 12 writes `isIp(string $s, {version?: 4|6})`, and the point of
     /// that spelling is that `{version: 5}` does not compile. `int` would not
     /// say that, and a `Core\IpVersion` enum would say it by adding a name to
-    /// the surface — which is precisely what leaving out `isIpV4`/`isIpV6`
-    /// avoids.
+    /// the surface — which is precisely what § 12 removed `isIpV4`/`isIpV6` to
+    /// avoid.
     ///
     /// Never a whole parameter or a bare option type, for [`Self::EnumCase`]'s
     /// reason: a position admitting exactly one number admits no choice, and
@@ -684,12 +687,12 @@ pub enum CoreTy {
     /// `a_single_value_type_only_appears_inside_a_union` holds that.
     SingleValueInt(i64),
     /// `?T` — `rule:expressions/nullable-conversion`'s
-    /// nullable, which the registry writes at every member that
+    /// nullable, which the spec's own tables write at every member that
     /// answers "absent" (`Core\Arr::first`, `Str::indexOf`, `Path::extension`
     /// — `rule:core-api/shape-rules` R5 makes it the *only* absence spelling).
     ///
     /// A variant of its own rather than a [`Self::Union`] with a `Null`
-    /// member, because that is what a signature writes and because there is no
+    /// member, because that is what the spec writes and because there is no
     /// other position a bare `null` type would be legal in. It interns as
     /// exactly `Union([Null, T])` all the same — the checker has no separate
     /// nullable type — so it inherits everything the union arm above says,
@@ -703,7 +706,7 @@ pub enum CoreTy {
     /// in `sort(array<T> $a, {order?: Order, ...})`.
     ///
     /// The name is resolved against [`ENUMS`], not against the compiled
-    /// program: an enum a `Core` signature names is part of `Core`'s
+    /// program: an enum the spec's own tables name is part of `Core`'s
     /// surface exactly as a member is, so it is declared here and seeded into
     /// the checker's enum table alongside the user's own — see
     /// [`ENUMS`] for why that is one table rather than two.
@@ -717,9 +720,10 @@ pub enum CoreTy {
     /// `rule:types/enum-case-type`'s narrowed type, whose only use is inside a [`Self::Union`] that
     /// spells out a closed subset.
     ///
-    /// `Core\Hash::hmac`'s third parameter is the reason it exists. That
-    /// parameter is `StrongDigest`, the closed subset that the HMAC and
-    /// signature members declare, so that
+    /// `Core\Hash::hmac`'s third parameter is the reason it exists.
+    /// [`docs/spec/01-core-library.md`](/docs/spec/01-core-library.md)
+    /// § 11 writes that parameter as `StrongDigest`, "the closed subset that
+    /// the HMAC and signature members declare," so that
     /// `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming the reason.
     /// A *second enum* would not say that: `Core\StrongDigest::Sha256` would
     /// be a different type from `Core\Hash::Digest::Sha256`, and no value could be
@@ -776,10 +780,11 @@ pub enum CoreTy {
     /// **Whatever `foreach` accepts**, over the element type wrapped:
     /// `rule:iteration/foreach-subjects`'s
     /// three shapes at once, interned as the union
-    /// `array<T>|Iterable<T>|Iterator<T>`. `Core\Arr::from`'s row is the first
-    /// to write one, and the `Core\ObjectMap`/`ObjectSet`/`Heap` collections are the next.
+    /// `array<T>|Iterable<T>|Iterator<T>`. `Core\Arr::from`'s
+    /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
+    /// § 2 row is the first to write one, and § 9's collections are the next.
     ///
-    /// **A plain `array<T>` satisfies it, and the registry row is written that
+    /// **A plain `array<T>` satisfies it, and the spec row is written that
     /// way.** `rule:iteration/foreach-subjects` fixes the set of things that can be iterated at
     /// exactly three, so a member asking for "a sequence" that accepted only
     /// two of them would refuse `Core\Arr::from($array)` — the commonest
@@ -801,12 +806,12 @@ pub enum CoreTy {
     /// `foreach` over the same value performs. Materialising the sequence into
     /// an array in the IR before the call was the rejected alternative: it
     /// allocates a second copy of every array argument, and it would drain an
-    /// unbounded generator before `Core\Arr::from`'s `{limit: n}` — the
+    /// unbounded generator before `Core\Arr::from`'s `{limit: n}` — the spec's
     /// only guard against exactly that — could stop it.
     ///
     /// **Parameter position only.** A member *returning* a sequence would be
     /// answering with a union whose object half a program can only consume by
-    /// `foreach`, and no registry row does: every row that produces a collection
+    /// `foreach`, and no spec row does: every row that produces a collection
     /// produces an `array<T>` or a named [`Self::Instance`].
     Iterated(&'static CoreTy),
     /// `...$rest` — a **variadic** tail, wrapping the type *each* trailing
@@ -850,7 +855,7 @@ pub enum CoreTy {
     Options(&'static [CoreOption]),
     /// `rule:core-api/shape-parameter`'s
     /// fixed-key shape parameter — `Core\Db::open`'s `Db\Settings`, the first
-    /// one written. The outer slice is the **arms** and is never
+    /// one the spec writes. The outer slice is the **arms** and is never
     /// empty: one arm is a plain fixed-key shape, two or more a discriminated
     /// union whose separator falls out of the arms being pairwise disjoint
     /// (`a_shapes_arms_are_pairwise_disjoint`) rather than out of a field
@@ -956,10 +961,10 @@ pub struct CoreField {
 ///
 /// The registry's counterpart of `nvs_types::defaults::ConstArg`, kept
 /// separate for the reason [`CoreTy`] is kept separate from
-/// `nvs_types::ty::Ty`: this states what the *signature* writes, and `nvs-types`
+/// `nvs_types::ty::Ty`: this states what the *spec* wrote, and `nvs-types`
 /// translates it into the one representation the checker and `nvs-ir` share.
 /// Only the shapes that enum can already emit are expressible — a member whose
-/// signature defaults to a value it cannot state cannot be registered until
+/// spec signature defaults to `null` cannot be registered until
 /// `nvs_types::defaults` grows that variant, which is exactly the friction
 /// this crate wants around a signature the whole language resolves against.
 #[derive(Clone, Copy, Debug)]
@@ -967,7 +972,7 @@ pub struct CoreField {
 pub enum Const {
     /// `null` — an option that was **not given**.
     ///
-    /// `rule:core-api/shape-rules` R2 makes every option optional, but the registry writes several
+    /// `rule:core-api/shape-rules` R2 makes every option optional, but the spec writes several
     /// whose type has no "absent" value in it: `Core\Arr::sort`'s
     /// `{by?: callable, comparator?: callable}` are the first two — a
     /// `callable` cannot be a "no callback" callable, and inventing a
@@ -1033,8 +1038,8 @@ pub enum Const {
     /// The **empty array**, `[]` — the only array a default is ever written
     /// as.
     ///
-    /// A variant of its own rather than a general array constant, because no
-    /// signature writes a populated one: `Core\Arr::replaceRange`'s
+    /// A variant of its own rather than a general array constant, because the
+    /// spec never writes a populated one: `Core\Arr::replaceRange`'s
     /// `$replacement = []` is the row that wanted this, and "nothing to
     /// splice in" is the only array default a member has a use for. A
     /// populated one would also have to state its keys, which is a second
@@ -1090,7 +1095,7 @@ pub enum Const {
 /// sentences; long-form prose stays in the website's pages, and that rule's
 /// *Declined* list says why. **An empty string or an empty slice means
 /// "not written yet"**, never "there is nothing to say": `nvs meta --json`
-/// omits such a field, and a consumer shows it as missing
+/// omits such a field, and a consumer falls back to the spec for it
 /// (`rule:core-api/field-wise-precedence`).
 ///
 /// Spends memory per process, never per request — static strings in
@@ -1103,7 +1108,7 @@ pub struct MethodDoc {
     /// One entry per positional parameter, in [`CoreMethod::params`]'s
     /// order, and then **one per option** of a trailing bag under the
     /// option's own name — a consumer looks a description up by the name the
-    /// published signature gives the row, and a bag has no name of its own.
+    /// spec's signature gives the row, and a bag has no name of its own.
     /// [`ParamDoc::shape`] is for a shape-typed parameter with fixed keys,
     /// which an options bag is not ([`CoreTy::Options`] owns why).
     pub params: &'static [ParamDoc],
@@ -1123,7 +1128,7 @@ pub struct MethodDoc {
 /// parameter and no rule about which a caller writes.
 #[derive(Clone, Copy, Debug)]
 pub struct ParamDoc {
-    /// The name as the signature writes it, without the `$` — `s`, `pattern`,
+    /// The name as the spec writes it, without the `$` — `s`, `pattern`,
     /// `options`.
     pub name: &'static str,
     /// What the parameter is, in one sentence.
@@ -1139,7 +1144,7 @@ pub struct ShapeKeyDoc {
     /// The key's own name — what a call site writes on the left of the
     /// `:` in `{pretty: true}`.
     pub key: &'static str,
-    /// Its type, spelled as the published signature spells it — `bool`, `int`, `?string`.
+    /// Its type, spelled as the spec spells it — `bool`, `int`, `?string`.
     pub ty: &'static str,
     /// What the key does, in one sentence.
     pub desc: &'static str,
@@ -1148,8 +1153,9 @@ pub struct ShapeKeyDoc {
 /// One error a member throws.
 #[derive(Clone, Copy, Debug)]
 pub struct ErrorDoc {
-    /// The thrown class's name as a `catch` writes it — the `Core\Error`
-    /// tree's, so `RuntimeError`, `ParseError`, and not a namespaced
+    /// The thrown class's name as a `catch` writes it —
+    /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
+    /// § 10's tree, so `RuntimeError`, `ParseError`, and not a namespaced
     /// spelling the language has no such class under.
     pub error: &'static str,
     /// When it is thrown, in one sentence.
@@ -1162,14 +1168,17 @@ pub struct CoreMethod {
     /// The member's own name, `camelCase` per `rule:core-api/identifier-casing`.
     pub name: &'static str,
     /// The `$name` each positional parameter is callable by — one per entry of
-    /// [`Self::positional`], in the same order, and **the spelling the
-    /// published signature writes**.
+    /// [`Self::positional`], in the same order, and **the spelling
+    /// [01-core-library.md](/docs/spec/01-core-library.md)'s signature
+    /// column writes**.
     ///
     /// `rule:core-api/shape-rules` R2 is the
     /// rule: every `Core` parameter is callable by name under exactly the
     /// rules a user-declared method has, so a name is compatibility surface
-    /// and renaming one is a breaking change. This list is the one source of
-    /// those names, and `nvs meta --json` publishes it.
+    /// and renaming one is a breaking change to the spec. That is what makes
+    /// the spec's column the source rather than a convenience — the guard test
+    /// `every_registry_rows_names_are_the_specs_signature_column` parses the
+    /// same column and holds the two together.
     ///
     /// A trailing options bag has no entry here: its one name is
     /// [`OPTIONS_NAME`], which is why this is aligned to [`Self::positional`]
@@ -1298,7 +1307,7 @@ impl CoreTy {
         }
     }
 
-    /// This type in the spelling a program writes it — the published signature's, so
+    /// This type in the spelling a program writes it — the spec's column, so
     /// `Text(Sink)` is `string` and `Iterated(T)` is the shapes `foreach`
     /// accepts.
     ///
@@ -1322,7 +1331,7 @@ impl CoreTy {
             Self::Uint => "uint".into(),
             Self::Float => "float".into(),
             Self::Decimal => "decimal".into(),
-            // `rule:security/isolate-shares-nothing`'s entry is a `string` in the published signature: the method form
+            // `rule:security/isolate-shares-nothing`'s entry is a `string` in the spec's column: the method form
             // it also accepts is a *written shape* rather than a second type, so
             // spelling it as a union here would document a `callable` variable as
             // accepted where `nvs_types::expr::isolate` refuses one.
@@ -1647,10 +1656,10 @@ pub struct CoreClass {
     /// The fully-qualified name, backslash-separated exactly as written in
     /// source (`Core\Arr`).
     pub name: &'static str,
-    /// Its **static** members — `Core\Arr::count`,
+    /// Its **static** members, in the spec's own order — `Core\Arr::count`,
     /// reached through the class name and nothing else.
     pub methods: &'static [CoreMethod],
-    /// Its **instance** members — `$match->text()`,
+    /// Its **instance** members, in the spec's own order — `$match->text()`,
     /// reached through a value and nothing else.
     ///
     /// A separate roster rather than a flag on [`CoreMethod`] because the two
@@ -1668,7 +1677,8 @@ pub struct CoreClass {
     /// class; nothing outside this crate reads it, since a `Core` instance has
     /// no property a program can reach ([`CoreTy::Instance`]).
     pub slots: &'static [&'static str],
-    /// Its constants — empty for a class that has none, which is most of them.
+    /// Its constants, in the spec's own order — empty for a class the spec
+    /// gives none, which is most of them.
     pub constants: &'static [CoreConst],
     /// Its own card, or `None` for a class that landed before classes carried
     /// one — the same seam [`CoreMethod::doc`] is. A completion list shows
@@ -1750,741 +1760,9 @@ impl CoreClass {
     }
 }
 
-/// Every `Core` class the compiler knows.
-///
-/// The single home for "does `Core\X::y` exist": a class not listed here is
-/// not a class the compiler resolves.
-///
-/// **One line per class, never one per member.** Each domain module declares
-/// its own `CLASS` const beside the implementations it registers, so adding a
-/// member touches exactly that module, and adding a *class* adds one line here
-/// plus one in [`crate::symbols`]. That is what lets two sessions add two
-/// different domains without touching the same lines; the flat table this
-/// replaced made every such pair conflict. Related classes sit together, and
-/// the comment above a row says why it sits where it does.
-pub const CLASSES: &[CoreClass] = &[
-    crate::str::CLASS,
-    crate::arr::CLASS,
-    // `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s structural retrieval. Registered like any other class
-    // and implemented by nothing — see [`crate::attributes`].
-    crate::attributes::CLASS,
-    crate::math::CLASS,
-    // Beside `Core\Math` because it is the other half of one question: `Core\Math`'s
-    // rounding is over `float`, and `rule:types/arithmetic`'s two named-rounding members
-    // are the same decision made exactly. That rule specifies the non-operator
-    // members of the `decimal` scalar.
-    crate::decimal::CLASS,
-    // And the other half of `rule:types/decimal`: the exact scalar above is the
-    // human-magnitude answer, and this is the arbitrary one. The two are named
-    // together, and `crate::bigint`'s module doc owns why
-    // neither subsumes the other.
-    crate::bigint::CLASS,
-    crate::regex::CLASS,
-    crate::regex::MATCH,
-    crate::regex::PATTERN,
-    crate::json::CLASS,
-    crate::encoding::CLASS,
-    crate::bytes::CLASS,
-    crate::path::CLASS,
-    // Here beside `Core\Path` because that is where a
-    // reader looks for it: `Core\Path` splits a path lexically and this one
-    // reaches the filesystem behind it. What it needs to do that is
-    // [`CAPABILITIES`], and `rule:security/capability-check-at-the-door`'s doors are what make it need one.
-    crate::io::CLASS,
-    // What `Core\IO::lines` answers with, and the whole of its
-    // `Iterable<string>` — a name for the walk, with no member on it. Its own
-    // docs say why it holds the lines rather than streaming them.
-    crate::io::LINES,
-    // What `Core\IO::walk` answers with — the same shape as `LINES` above and
-    // the other of `Core\IO`'s two `Iterable<string>`s. Its own docs say why a
-    // tree is a different question from `list`'s directory rather than a second
-    // spelling of it.
-    crate::io::WALK,
-    // `Core\IO`'s `File` — R14's "an open file is an object and never a
-    // `resource`". Its slot holds a key into the request's own table of open
-    // descriptors, which its own docs argue for; `Core\Script\Handle` is the
-    // same shape and landed first.
-    crate::io::FILE,
-    // What `Core\IO::stat` answers with — every metadata question as one
-    // value, so a program asking more than one question about a path pays for
-    // one syscall. Its own docs argue why it is an instance rather than a
-    // shape (`rule:types/shape-type`), and why the questions it answers are also members of
-    // `Core\IO` without that being `rule:core-api/shape-rules` R17's two spellings.
-    crate::io::METADATA,
-    // `rule:core-classes/process-is-argv-only`'s one way to run another program, and the result it answers
-    // with. Beside `Core\IO` because it is the other class that reaches the
-    // operating system through a door of its own; its capability row is in
-    // [`CAPABILITIES`] alongside that class's.
-    crate::process::CLASS,
-    crate::process::RESULT,
-    crate::process::HANDLE,
-    crate::time::TIME,
-    crate::time::INSTANT,
-    crate::time::DATETIME,
-    crate::time::DATE,
-    crate::time::TIME_OF_DAY,
-    crate::time::DURATION,
-    crate::time::ZONE,
-    crate::objmap::CLASS,
-    crate::objset::CLASS,
-    crate::heap::CLASS,
-    crate::random::CLASS,
-    // `Core\Random`'s reproducible generator, which is a *type* rather than a mode
-    // the class above can be put into — `crate::random`'s own docs argue the
-    // separation, and [`CONSTRUCTORS`] is what makes `new` on it resolve.
-    crate::random::SEEDED,
-    crate::uuid::CLASS,
-    crate::hash::CLASS,
-    crate::hash::STREAM,
-    crate::uri::CLASS,
-    // The link half only — `rule:routing/link-name-and-params-are-checked`'s `url`/`urlAbsolute`. `match` and
-    // `methodsFor` answer a request and land with the server; [`crate::router`]
-    // owns why, and owns the enum the `method` parameter takes.
-    crate::router::CLASS,
-    // `rule:routing/matched-once-before-the-handler`'s match, which is a `Core\Router` name and so lives in that
-    // module — but is produced by `Core\Request::route()` rather than by
-    // anything on the class above, because § 1 puts the match on the *request*.
-    crate::router::MATCH,
-    crate::csv::CLASS,
-    // What `Core\Csv::rows` answers with: the streaming read, as a name a
-    // return type can write. Its own docs say why it carries the iteration trio
-    // itself where `Core\IO\Lines` hands back a cursor — a record that has not
-    // been read yet cannot be in a snapshot.
-    crate::csv::ROWS,
-    // `rule:classes/graph-copy`'s externalizing carrier. The walk it reaches is
-    // `nvs_runtime::graph`'s, shared with the `spawn` boundary.
-    crate::serialize::CLASS,
-    crate::validate::CLASS,
-    crate::out::CLASS,
-    // `rule:errors/debug-dump`'s `dump` and `render` only. The coverage, trace and profile members
-    // are `rule:testing/debug-surface`'s, which goal `trace-timeline` builds.
-    crate::debug::CLASS,
-    // `rule:testing/assertions-are-typed`'s assertion surface: testing is a
-    // language feature, and `Core\Test` is the same `QName` `#[Test]` names.
-    crate::test::CLASS,
-    // The in-process request, as the thing one answers with — a class beside
-    // `Core\Test` for the reason `Core\Script\ExitReport` sits beside
-    // `Core\Script`, and [`crate::test`]'s own doc on it owns why it is a
-    // `Core`-owned instance rather than a shape.
-    crate::test::RESPONSE,
-    // `rule:testing/an-outbound-call-is-answered-from-a-table`'s record of one
-    // outbound call, beside `Core\Test` for the reason the response above is:
-    // what a test asserts on is a `Core`-owned instance, and this one is
-    // readonly because the call it describes has already been made.
-    crate::test::SENT_REQUEST,
-    // `rule:testing/after-each-test` and `rule:testing/class-hooks`: what the
-    // runner passes to a test hook, beside `Core\Test` for the reason the
-    // response above is.
-    crate::test::hooks::OUTCOME,
-    crate::test::hooks::SUMMARY,
-    // `rule:concurrency/all-answers-a-typed-shape`'s `Core\Task`: structured
-    // concurrency is a language surface over the `nvs-host` scheduler. The
-    // signature is here and the body is a placeholder — [`crate::task`] owns
-    // why, and it is the one row of the three that is not compile-time folded.
-    crate::task::CLASS,
-    // Goal `concurrency`'s item 11. `rule:concurrency/one-scheduler`'s scope
-    // line leaves this type's spelling undecided, so [`crate::channel`]'s
-    // module doc is the one home for the surface and for why the queue lives
-    // in the instance's own slots rather than in the host.
-    crate::channel::CLASS,
-    // `rule:security/isolate-shares-nothing`'s isolate handle. The concurrency
-    // *language* surface, `spawn script`'s grammar included, belongs to
-    // `docs/reference/lang/80-concurrency.md`. The one class here
-    // with no members at all; [`crate::script`] owns why that is the point.
-    crate::script::HANDLE,
-    // `rule:core-classes/script-args`'s `Core\Script::args()`, which replaced `rule:security/isolate-shares-nothing`'s `$_ARGS`
-    // — the read half of `spawn script`'s `args:` option, and a class beside
-    // the handle for the same reason `Core\Time` sits beside `Core\Time\Instant`.
-    crate::script::CLASS,
-    crate::script::EXIT_REPORT,
-    // The second row after `Core\Attributes` whose members never
-    // run: `rule:programs/implementing` expands `implementing<T>()` while checking, so
-    // [`crate::program`] registers a signature and an aborting body.
-    crate::program::CLASS,
-    // The terminal profile — `rule:tooling/the-terminal-profile-resolves-once`'s four members, which reach the
-    // operating system and need no capability for it: [`crate::cli`]'s module
-    // docs own why a question about a stream the process already holds grants
-    // nothing, and why the rest of `Core\Cli` is not here yet.
-    crate::cli::CLASS,
-    // Here only because `Core\Out::capture` answers with it —
-    // `rule:security/capture-answers-the-carrier`.
-    crate::cli::TEXT,
-    // `Core\Cli`'s styling half — `rule:tooling/styling-is-a-value-not-a-grammar`'s two value types, which exist so that
-    // the carrier above has something to wear that is not a grammar.
-    crate::cli::COLOR,
-    crate::cli::STYLE,
-    // `Core\Cli`'s in-place output — `rule:tooling/in-place-output-is-a-scoped-live-region`'s two handles, which exist because
-    // a region has to have an end for § 8's restoration to be enforceable.
-    crate::cli::LIVE,
-    crate::cli::PROGRESS,
-    // `Core\Cli`'s other half — `rule:tooling/commands-are-compiled`'s members over the table `#[Command]`
-    // built while compiling. Beside `Core\Cli` because it answers with that
-    // class's carrier; [`crate::command`] owns the page's layout, and
-    // `nvs_runtime::commands` owns why the compiled rows cross into the runtime.
-    crate::command::CLASS,
-    // `rule:config/ini-set-is-core-config-set`: `ini_get`'s family are free
-    // functions in PHP, so that rule decides what replaces them. [`crate::config`]
-    // owns why every member of it is four lines long.
-    crate::config::CLASS,
-    // The environment half — `rule:statements/no-host-populated-variables`'s replacement for `$_ENV` and
-    // `getenv`, and beside `Core\Config` because the two are the same operator's
-    // two answers to "what was this process started with". The one class here
-    // that reaches the operating system and is deliberately *not* in the
-    // capability table below: [`crate::env`]'s module doc owns why a
-    // process-wide fact the operator chose is not a door, and why every value
-    // it hands back is `tainted` instead.
-    crate::env::CLASS,
-    // The other class that needs no request, and beside `Core\Env` because
-    // the two ask the same operator the same kind of question: what was this
-    // process started with, and what was it allowed to do. `rule:security/optional-capability-degrades` is what
-    // specifies it — the member exists so that a package which declared a
-    // capability *optional* has a branch to take — and [`crate::cap`]'s module
-    // doc owns why reporting a grant is not widening one.
-    crate::cap::CLASS,
-    // The third class that needs no request — so far. What is registered is
-    // `rule:http-server/the-server-block-is-boot-class`'s `isDraining`, which asks the same kind of question those
-    // two do about the *process* rather than about a request; the rest of
-    // `Core\Server` is the request's own environment and waits on a served
-    // request carrying it. [`crate::server`]'s module doc owns that gap, and
-    // why the bit it reads lives in `nvs-runtime`.
-    crate::server::CLASS,
-    // The other end of that same process fact: `Core\Signal`, which is
-    // what a program runs when the shutdown `isDraining` reports has begun.
-    // `rule:core-api/tier-roster` keeps the class to graceful shutdown alone —
-    // no `kill`, no `alarm` and no signal number — so it registers one member,
-    // and [`crate::signal`]'s module doc is the home of why it holds no reading
-    // of the drain of its own.
-    crate::signal::CLASS,
-    // The other class that needs no request in hand, and the last of this
-    // run of them: `Core\Budget`, which answers what *this* request holds
-    // rather than what the process does. `rule:observability/memory-is-three-numbers-on-core-budget` is the roster —
-    // three readings, no `$real_usage` boolean — and [`crate::budget`]'s module
-    // doc owns why the peak is recorded by the allocator rather than sampled
-    // here, and why the process's own memory stays on `Core\Os`.
-    crate::budget::CLASS,
-    // The second request-facing class, and the one every value that came
-    // from outside the process arrives through: `rule:statements/no-host-populated-variables`'s replacement for
-    // `$_GET`, `$_POST`, `$_COOKIE` and `$_FILES`, of which the request line —
-    // `method`, `path`, `query` — is registered. Beside `Core\Server` for the
-    // reason that class sits beside `Core\Response`: the two are one request
-    // read from two ends. [`crate::request`]'s module doc owns why a program
-    // that is answering no request gets a throw rather than an empty answer,
-    // and why a verb becomes a `Core\Http\Method` case here and nowhere else.
-    crate::request::CLASS,
-    // What `Core\Request::mount` answers with: `rule:routing/a-request-reads-its-mount`'s two facts about
-    // which mount is serving this request, as a pair rather than as the shape
-    // that section spells — [`crate::request`]'s `MOUNT` docs own why a shape
-    // has no return-position spelling and why the captures carry the mark.
-    crate::request::MOUNT,
-    // What `Core\Request::bodyStream` answers with, and the whole of its
-    // `Iterable<bytes>` — a name for the walk, with no member on it, exactly as
-    // `Core\IO\Lines` is. It is the one `Iterable` in `Core` that is its own
-    // iterator rather than a snapshot, and its own docs say why: the next chunk
-    // of a request body does not exist yet when the walk is named.
-    crate::request::BODY_STREAM,
-    // What `Core\Request::files` answers with, and `rule:http-server/an-upload-is-received-only-through-files`'s whole
-    // `Iterable<Part>` — a name for the walk, with every member on the part
-    // rather than on it, exactly as the body walk above carries none.
-    crate::request::FILES,
-    // And what that walk yields: `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s file part, which is a part iff
-    // it declared a `filename`. Three readers of what one upload said about
-    // itself, all of them `tainted`, and no `size` — [`crate::request`]'s `PART`
-    // docs own why all three are `tainted` and why there is no
-    // fourth reader.
-    crate::request::PART,
-    // And what the part's own `content()` answers: `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s walk over one
-    // upload's bytes. The body walk above with an identity — `crate::request`'s
-    // `PART_CONTENT` docs own why a walk over a *part* needs one where a walk
-    // over a body does not.
-    crate::request::PART_CONTENT,
-    // The fourth request-facing class, and the first one that *writes*: the
-    // typed body members of `rule:security/response-body-is-one-typed-member`. Beside
-    // `Core\Server` because the two are the same request's two halves, and
-    // [`crate::response`]'s module doc owns what a written body is — the bytes
-    // are `echo`'s output and the member adds the `Content-Type`.
-    crate::response::CLASS,
-    // `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
-    // request-scoped half, immediately after the class whose `stream` is the
-    // only thing that produces one. [`crate::response`] owns why the handle has
-    // no slots and why there is no member that closes it.
-    crate::response::STREAM,
-    // The third half of one request: what arrived, what goes back, and
-    // what is remembered between the two. `rule:core-api/session-roster`'s roster, of which
-    // `start` is the member that talks to the store — [`crate::session`]'s own
-    // module doc owns which of § 2's four operations are on disk, why the local
-    // tier is unreachable from there rather than merely unselected, and why a
-    // presented identifier this store cannot have issued is *absent* rather
-    // than a second question about validity.
-    crate::session::CLASS,
-    // `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/an-upgrade-is-spawn-shaped`,
-    // which are the whole specification of `Core\Socket`. Last of the
-    // request-facing group because it is where a request stops being one — §
-    // 1 makes the connection a *root* isolate, so the request that upgraded it
-    // ends normally and shares nothing onward. [`crate::socket`] owns why the
-    // member answers `void` and which options it accepts.
-    crate::socket::CLASS,
-    // `rule:concurrency/a-connection-is-a-loop`'s message, immediately after the class whose `receive`
-    // is the only thing that produces one.
-    crate::socket::MESSAGE,
-    // `rule:core-classes/topic`, and beside the class whose `receive` is the only thing a
-    // topic delivery arrives through: the bus is the *second* of § 3's two
-    // sources, so it is not a facility of its own but the far end of a member
-    // already registered above. [`crate::topic`] owns why the subscriber table
-    // is per core and holds a weak reference, and why `publish` — § 4's third
-    // row — is not here yet.
-    crate::topic::CLASS,
-    // `rule:concurrency/two-doors-one-isolate`, and beside `Core\Socket` because the two are one model with
-    // two doors: the same root isolate, reached through the cell the hand-over
-    // needs. [`crate::sse`] owns why that is a second cell rather than a second
-    // use of the first, and why this member is offered to every request a
-    // server answers where its sibling is offered only to an upgradable one.
-    crate::sse::CLASS,
-    // `rule:concurrency/a-connection-is-a-loop`'s message on the door with no
-    // peer, immediately after the class whose `receive` is the only thing that
-    // produces one — the sibling pair two rows up, read against a hand-over
-    // that took no socket. [`crate::sse`]'s own doc owns why it is two readers
-    // rather than the four beside it and why it is a class of its own.
-    crate::sse::MESSAGE,
-    // `rule:errors/on-limit`: that rule is where this
-    // member is specified, because what it registers is a rung of the
-    // escalation ladder rather than a library facility. [`crate::fatal`] owns why the
-    // callable is held by the request's context and not by the module.
-    crate::fatal::CLASS,
-    // `rule:errors/log-write`, and beside `Core\Fatal` because the two are one ladder:
-    // the rung above every `catch` and the reporting half every rung of it
-    // ends at. [`crate::log`] owns why the level enum's integers are syslog
-    // severities and why a record reaches the output stream rather than the
-    // diagnostic one.
-    crate::log::CLASS,
-    // `rule:security/launderers-are-sink-named`, for the reason `Core\Secret` below
-    // is its rule's: a member that removes `tainted` is a rung of the qualifier's own
-    // mechanism rather than a library facility. Registered immediately before
-    // its twin because the two are one shape on two axes — one narrow, named,
-    // reasoned call each — and [`Qual`]'s doc comment is the home of why this
-    // one writes [`Qual::Launder`] and names no single sink.
-    crate::taint::CLASS,
-    // `rule:core-classes/secret-reveal`: what this class is for is decided
-    // by that rule, because a member that removes `secret` is a rung
-    // of that mechanism rather than a library facility. The only class that may
-    // write [`Qual::Reveal`] — see that variant's own docs — and
-    // [`crate::secret`] owns why the `bytes` half is a second name.
-    crate::secret::CLASS,
-    // The SMTP class, and `rule:programs/framework-core-half`'s transport half. Registered on its own
-    // rather than beside `Core\Http` because it shares nothing with it: the
-    // endpoint is an operator-named block and not a program-supplied URL, so
-    // `rule:http-server/allow-url-pins-the-address`'s launderer is not in the path at all. [`crate::mail`] owns why
-    // `mail()`'s fourth argument has no successor here.
-    crate::mail::CLASS,
-    // `rule:programs/framework-core-half`'s other half of the same row pair, and registered beside
-    // `Core\Mail` because the two are what that section adds to `Core`: an
-    // operator names the endpoint in one and the disk in the other, and neither
-    // takes a host or a path. It is the one class here that declares **no**
-    // capability of its own — [`crate::storage`] owns why `fs.*` answering
-    // twice would be the bug.
-    crate::storage::CLASS,
-    // `rule:programs/framework-core-half`'s last row, and the third of the three this stage adds to
-    // `Core`. Beside the two above because it completes them and not because
-    // it shares anything else: it is the one entry in that table placed by
-    // test 4 — data the language already had to carry — rather than by an
-    // outside world it waits on. [`crate::cldr`] owns why the rules are a
-    // closed roster and why a language outside it is refused.
-    crate::cldr::CLASS,
-    // Beside `Core\Secret` rather than with the other crypto classes because the
-    // two are one mechanism: `rule:core-classes/secret-reveal` has exactly two operations that take
-    // a `secret` and answer something that is not one, and these are the rows
-    // of the second. [`crate::password`] owns the parameters and why there is
-    // no argument for them.
-    crate::password::CLASS,
-    // `rule:core-api/tier-roster`'s "AEAD only", and beside the two above for their reason:
-    // this is the class whose `secret bytes` key crosses the same boundary
-    // without any member removing the mark, which is what keeps the roster
-    // above closed at two. [`crate::crypto`] owns the construction and why
-    // there is no cipher argument.
-    crate::crypto::CLASS,
-    // The public half of an asymmetric key, as the object `rule:core-api/shape-rules` R14 asks
-    // for: a key has a lifetime — it is read once, checked once, and then used
-    // — so it is a class and not a `bytes` every later member would have to
-    // re-validate. Its own doc owns why its slots are a canonical SPKI and a
-    // kind rather than the octets the program was handed.
-    crate::crypto::PUBLIC_KEY,
-    // The private half, and a class for the same R14 reason with a second one
-    // beside it: a pair is the only thing in the language a `secret bytes`
-    // leaves rather than enters, and an object is what makes `write` the one
-    // door it leaves through. Its own doc owns why its slots are the PKCS#8 and
-    // the kind, and why there is no cache of parsed keys behind them.
-    crate::crypto::KEY_PAIR,
-    // `rule:security/protocol-roster`'s first roster entry, and beside `Core\Crypto` because it
-    // *is* `Core\Crypto` — [`crate::signed_cookie`] keys the same construction
-    // through the same three helpers, with a key ring over it and a
-    // cookie-safe spelling around it, so there is one AEAD in this crate and
-    // not two. Its own module doc owns which end of the ring is the newest key
-    // and why its `open` is the one verification in the language that removes
-    // `tainted`.
-    crate::signed_cookie::CLASS,
-    // `rule:security/protocol-roster`'s second roster entry, and the third caller of the one
-    // construction above — [`crate::csrf`] seals a domain tag and a session
-    // identifier where the cookie seals a payload, so this crate still holds
-    // one AEAD and not three. Its own module doc owns why the session arrives
-    // as an argument, why there is no key ring here, and why a class whose
-    // whole point is a missing accessor is not `rule:core-api/shape-rules` R17's "reachable two
-    // ways" against the cookie above.
-    crate::csrf::CLASS,
-    // `rule:security/protocol-roster`'s third roster entry, and the one class in this crate that
-    // is *not* on the near side of the AEAD above: a one-time code is HMAC by
-    // RFC 6238, and [`crate::totp`]'s own module doc is the home of why the
-    // algorithm is SHA-1 when nothing else here is, why the window has no
-    // widening argument, and why "no replay" is a counter the caller stores
-    // rather than state this class keeps.
-    crate::totp::CLASS,
-    // `rule:security/protocol-roster`'s fourth roster entry, and the only one
-    // of the five whose wire format was designed elsewhere, so [`crate::jwt`]
-    // is the one class here that reads a field an attacker wrote. Its own
-    // module doc is the home of why `alg` is only ever compared, why the
-    // expiry is a positional `Duration` rather than a claim, and why a claim
-    // comes back as `tainted string` when the cookie above launders.
-    crate::jwt::CLASS,
-    // The keys the class above verifies another party's token against, beside
-    // it for `crate::jwe::KEY`'s reason: it is the value that member takes and
-    // nothing else produces one. Every rule about which keys a document may
-    // publish is applied at its one member, so a verification is a lookup by
-    // `kid` and a signature check — `rule:security/algorithm-comes-from-the-key`
-    // is why that is a lookup and never a try, and [`crate::jwt`]'s own module
-    // doc is the home of why a key this roster has no use for is skipped where
-    // a document that is wrong is refused whole.
-    crate::jwt::KEY_SET,
-    // The roster's encryption entry, beside `Core\Jwt` because the two read one
-    // wire format from opposite ends: a JWS proves who wrote a payload and this
-    // hides one. `rule:security/jwe-compact-subset` is the subset — compact
-    // serialization, `A256GCM` and nothing else — and [`crate::jwe`]'s own
-    // module doc is the home of why the key arrives as a named constructor,
-    // what the protected header is allowed to carry, and why a ring holding a
-    // password holds exactly one key.
-    crate::jwe::CLASS,
-    // That constructor itself: four statics, no accessor and no way back out,
-    // which is what makes the key-management algorithm a name the caller wrote
-    // rather than an inference off a value's type
-    // (`rule:security/algorithm-comes-from-the-key`). Registered beside its own
-    // class for `Core\Crypto\PublicKey`'s reason — it is the value the class
-    // above takes and nothing else produces one.
-    crate::jwe::KEY,
-    // The roster's detached entry, and the one that is not `Core\Crypto`: a
-    // signature is an HMAC over a canonical
-    // document, because its payload is meant to be *read* by whoever holds the
-    // token where a seal's is meant to be hidden
-    // (`rule:core-api/each-door-takes-a-different-thing`). It shares the key
-    // ring with the cookie above and nothing else. [`crate::signature`]'s own
-    // module doc is the home of the wire format, of the domain byte that stops
-    // one ring being replayed across three doors, and of why a verified
-    // payload value is text.
-    crate::signature::CLASS,
-    // `rule:security/launderers-are-sink-named`'s own worked example of a launderer, and here
-    // because the class beneath it is the one this crate defers to
-    // whenever a `tainted` value has to be written into a document: HTML is
-    // the sink that escapes by default, and this is what it escapes with.
-    // [`crate::html`] owns why `sanitize` and the WHATWG parser are not here.
-    crate::html::CLASS,
-    // `rule:core-classes/html-auto-escape`'s carrier for that same sink, memberless: `nvs_runtime`
-    // already renders it and `nvs_types` already refuses a `tainted` or
-    // computed conversion to it, so what this row adds is the registered
-    // layout the slot lives in. [`crate::html`] owns why it has no
-    // constructor.
-    crate::html::MARKUP,
-    // The XML document class, next after `Core\Html` because the two are one
-    // subsystem: `rule:core-classes/html-parsing` makes both parsers produce
-    // the node family below, so which door parsed a document does not change
-    // what a program can do with it. The tree half is what is registered —
-    // [`crate::xml`] owns the split and why the streaming half is not a mode of
-    // this one.
-    crate::xml::CLASS,
-    // The node family itself, memberless of statics and produced only by a
-    // parse. Beside its class for `Core\Html`'s own
-    // reason: this is the value both parsers answer with.
-    crate::xml::NODE,
-    // The other door onto that family: the stream half, beside the tree half
-    // because the two are one subsystem in two
-    // shapes. `rule:core-classes/xml-tree-and-stream` is why it is a class of
-    // its own and not a mode on the row above — the family is shared and no
-    // operation is, so which shape a program uses is settled at the door.
-    crate::xml::READER,
-    // The stream half's other door, beside the reader for the reason the
-    // reader sits beside the tree: reading a document a node at a time and
-    // building one a node at a time are the two halves of one shape, and
-    // `rule:core-classes/xml-tree-and-stream` is what keeps neither of them
-    // reachable through the other.
-    crate::xml::WRITER,
-    // The codec class, beside `Core\Html` because both are document and format
-    // classes. Tier 0 for a reason that is not the other three's:
-    // `rule:core-classes/decompression-bound`'s bound is policy, and a policy
-    // a program can decline is not one — see [`crate::compress`].
-    crate::compress::CLASS,
-    // The incremental pair, beside the class whose two openers answer them.
-    // Two classes rather than one because an instance carries no qualifier:
-    // `rule:security/tainted-sources` makes the decompressing half's `finish`
-    // answer `tainted bytes` and the compressing half's answer `bytes`, which
-    // one class would have to collapse — [`crate::compress`] is the argument.
-    crate::compress::COMPRESSOR,
-    crate::compress::DECOMPRESSOR,
-    // The detection class, beside the codec class for the reason both are
-    // Tier 0: what a program is allowed to conclude about untrusted octets is
-    // policy. Its whole knowledge is a compiled-in table of literal
-    // signatures — [`crate::mime`] owns why that is not libmagic's rule
-    // language, and why nothing here reads a file name.
-    crate::mime::CLASS,
-    // The archive class, beside the codec class whose bound it applies and
-    // the detection class. Tier 0 for the
-    // reason both of those are: a `../` entry, an absolute-path entry, a
-    // symlink entry and a bomb are what an archive is *allowed* to contain,
-    // which is policy — and [`crate::zip`] owns why the refusals live in the
-    // reader rather than in an extraction a caller can decline to use.
-    crate::zip::CLASS,
-    // `rule:http-server/allow-url-pins-the-address`'s launderer, which is where every outbound URL in the
-    // language has to pass through — and the first `rule:security/tainted-qualifier` launderer whose
-    // answer is a value rather than a plain string. [`crate::http`]'s own
-    // module doc is the home of why that is the whole design, and of which
-    // half of the policy lives in the capability instead.
-    crate::http::CLASS,
-    // The value that launderer answers with. No members at all: a program
-    // names it and hands it to the member that connects, and reading the
-    // approved address back out is the one operation that would make pinning
-    // decorative.
-    crate::http::TARGET,
-    // Who *this* end is, where the target above is who the other end must be:
-    // the certificate chain a call presents when a server asks for one, over
-    // goal `webcrypto`'s key pair. One static and no members, since reading the
-    // key back out is not what an identity is for.
-    crate::http::IDENTITY,
-    // `rule:http-server/no-spelling-for-an-unbounded-wait`'s request members, whose URL parameter is the sink `rule:security/outbound-url-is-a-sink`
-    // makes it and whose one trailing shape has no spelling for an
-    // unbounded wait. Five rows over one bag: the verb is the member's own
-    // name, which is what lets § 7 answer "is this retry idempotent" while
-    // compiling.
-    crate::http::CLIENT,
-    // What those five answer with: the status, one body slot read three ways,
-    // the header pair, and the session the reply arrived over.
-    crate::http::RESPONSE,
-    // Which that last member answers with, and the one `Core\Http` reader whose
-    // answer is `null` for an ordinary reply: a plain `http` exchange had no
-    // session to report. `rule:http-server/a-reply-reports-its-tls-session` is
-    // why `verified` is on it at all — a deployment that relaxed trust at one
-    // host has no other way to assert that every other call did not.
-    crate::http::TLS_INFO,
-    // `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`'s
-    // answer, which is the reply that is read as it arrives: the same head
-    // members over the same map, and four framings of a body that is taken by
-    // the first of them to name it rather than read by all four.
-    // `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`'s
-    // answer, and the one value on this class that outlives the call that made
-    // it: a conversation the program holds until its own task ends. What it
-    // answers with is `Core\Socket\Message` above, because one RFC 6455 frame
-    // gets one shape whichever end of the wire it arrived at.
-    crate::http::socket::SOCKET,
-    crate::http::stream::STREAM,
-    // One server-sent event, which is what the first of those four frames.
-    crate::http::stream::EVENT,
-    // The three walks those framings answer with. Three classes rather than one
-    // because `CoreTy::Iterated` is parameter position only, so an
-    // `Iterable<T>` return is a named class and [`ITERABLES`] is where its `T`
-    // is declared — an event, a line and a chunk are three `T`s over one
-    // implementation.
-    crate::http::stream::EVENTS,
-    crate::http::stream::LINES,
-    crate::http::stream::CHUNKS,
-    // `rule:http-server/an-outbound-request-carries-one-body`'s part, which is
-    // the arm of `body` and of a `multipart` field that names a file instead of
-    // holding one. Two constructors and no member, for the reason
-    // [`crate::http::PART`] states.
-    crate::http::PART,
-    // The socket half, beside the HTTP client because the two are the same
-    // door at two heights: `rule:core-classes/net-one-api-three-transports`
-    // replaces `socket_*`, `stream_socket_*` and `fsockopen` with one class over
-    // three transports, and `rule:security/net-listen-is-a-separate-grant-from-net-connect`
-    // is why reaching outward and binding are two grants rather than one
-    // widened. Three of the five entry points so far; [`crate::net`]'s module
-    // doc is the home of what each one asks.
-    crate::net::CLASS,
-    // The connected transport those entry points answer with — a `Read` and a
-    // `Write` shaped like every other stream in the language, whose one slot
-    // holds a key into the request's own table of open sockets. `Core\IO\File`
-    // is the same shape over a descriptor and landed first.
-    crate::net::STREAM,
-    // The accepting half, and the reason `Core\Net` has five entry points
-    // rather than six: taking the next connection off a socket the program
-    // already holds is a member on that socket, not another way to open one.
-    crate::net::LISTENER,
-    // The third transport, which answers neither `Read` nor `Write` because a
-    // datagram socket has no stream to read. It is the one handle class here
-    // whose members do not all reach what its bind already granted:
-    // `rule:security/net-address-policy` asks the outbound grant at the send,
-    // because that is where a datagram's address is named at all.
-    crate::net::DATAGRAM,
-    // And what a receive answers with — the octets and the endpoint they came
-    // from, as one object because Novis has neither out-parameters nor tuples
-    // and `stream_socket_recvfrom`'s row has to be answered by something.
-    crate::net::MESSAGE,
-    // The network classes' other half: what the host itself is, as five facts about the
-    // process asking rather than about anything it can reach. It is the one
-    // class in this stretch with no row in [`CAPABILITIES`], and
-    // [`crate::os`]'s module doc is the home of why declaring `None` five times
-    // would have been the wrong claim rather than a cautious one.
-    crate::os::CLASS,
-    // `rule:concurrency/cross-request-state-is-explicit`'s two tiers, as the two members that hand back a store — the
-    // sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request
-    // state, and the one place a value outlives the request that made it.
-    crate::cache::CLASS,
-    // What those two answer with: one class for both tiers, because a tier is a
-    // destination and not a different operation. [`crate::cache`]'s module doc
-    // is the home of why an entry is a byte payload rather than a live graph.
-    crate::cache::STORE,
-    // What a `getSecret` fill answers with, and the one shape a lifetime a
-    // fetch learned can reach this store in. [`crate::cache`]'s own class doc
-    // is the home of why it answers nothing back.
-    crate::cache::SECRET_ENTRY,
-    // `rule:core-classes/ratelimit-two-members`'s limiter for what only the application knows — per account, per
-    // tenant — with edge and flood limiting left to the proxy that owns them.
-    // Its state is the same shared store `Core\Cache::shared` names, because a
-    // deployment has one.
-    crate::ratelimit::CLASS,
-    // § 3's decision: what was decided, what against, and the exact wait when it
-    // was refused. Four readers rather than four readonly properties, for the
-    // reason [`CoreTy::Instance`] states — a `Core` instance has no property a
-    // program can reach.
-    crate::ratelimit::DECISION,
-    // `rule:observability/metrics-three-members`'s three verbs, beside the
-    // limiter because they are the two halves of one question a deployment
-    // asks: how much a caller may have, and how much everything is doing. Its
-    // registry is `nvs_runtime::metrics`' and not this crate's, for the reason
-    // that module's own doc gives.
-    crate::metrics::CLASS,
-    // `rule:tooling/reflection-and-source-parsing-are-core-features`'s read-only introspection, whose members are the door onto a
-    // description and nothing else — a program can reach a member it may not
-    // call only through the description, and § 2 makes that reach face the
-    // ordinary check.
-    crate::reflect::CLASS,
-    // What `forObject` answers with: the described class, as the questions that
-    // need no argument and the acting members that take the value back. Readers
-    // rather than properties, for the reason [`CoreTy::Instance`] states — a
-    // `Core` instance has no property a program can reach.
-    crate::reflect::CLASS_INFO,
-    // One row of that description's method roster. A class of its own rather
-    // than a `{name, public}` shape, because a shape has no member to hang the
-    // next question off and `rule:core-classes/reflect`'s roster is a family of
-    // descriptions, not of records.
-    crate::reflect::METHOD_INFO,
-    // The same row one member over, for the description's other roster. Its
-    // own class for [`crate::reflect::METHOD_INFO`]'s reason, and the two are
-    // separate classes rather than one `MemberInfo` because what a row carries
-    // past its name and its bit differs: a parameter count on one side, a
-    // declared type on the other.
-    crate::reflect::PROPERTY_INFO,
-    // One row of a method row's own roster, hanging off `MethodInfo` rather
-    // than off the description: a parameter belongs to the member that declares
-    // it, and a class-wide list would have nothing to align to.
-    crate::reflect::PARAMETER_INFO,
-    // The description's third roster, and its own class for the two above's
-    // reason: what a row carries past its name and its bit is a fact no other
-    // row has — whether the declaration folded to a value at all.
-    crate::reflect::CONSTANT_INFO,
-    crate::reflect::ATTRIBUTE_INFO,
-    // `rule:enums/reflection`'s description of the one type that has no
-    // descriptor: an enum case at run time is its backing integer under an
-    // enum tag that names no enum, so there is no value to describe and no
-    // `forObject` twin — the name is the only door, and what it opens onto is
-    // the shape the compiler carried down.
-    crate::reflect::ENUM_INFO,
-    // The other half of `rule:tooling/reflection-and-source-parsing-are-core-features`:
-    // the compiler's own parser, reached at run time. One member, because
-    // parsing is one question.
-    crate::ast::CLASS,
-    // The tree `parse` answers with — a kind and the nodes under it, and
-    // nothing that reaches back into execution, which is what makes § 3's
-    // inertness structural rather than promised.
-    crate::ast::NODE,
-    // `Core\Db`, and `rule:core-classes/db-one-api` for every semantic behind it. `open` is the one entry
-    // point still missing, and [`crate::db`]'s known gaps own why: what it
-    // needs is a `CoreTy` for a shape parameter, not a body.
-    crate::db::CLASS,
-    // What `connect` answers with, and `Core\Db\Queryable`'s own home: `rule:classes/no-traits`
-    // has `Transaction` delegate the interface to its connection, so the seven
-    // members are declared here once. `query`, `execute`, `executeMany` and
-    // `transaction` are the four that have landed.
-    crate::db::CONNECTION,
-    // What `rule:core-classes/db-transactions`'s callable is handed. It carries the same four rows
-    // under the same symbols — which is what the delegation above is at
-    // runtime — plus `rollBack`, the one member of the pair that is a
-    // transaction's alone.
-    crate::db::TRANSACTION,
-    // What `query` answers with — `rule:core-classes/db-statement-members`'s buffered result set, and all
-    // six of its readers over it. Five read the rows it holds and
-    // `columns()` reads the description beside them, which is why it is
-    // readable before a row is.
-    crate::db::ROWS,
-    // What `stream` answers with — its `Iterable<Db\Row>`, a name for the
-    // walk with no member on it exactly as `Core\IO\Lines` is. It is the second
-    // `Iterable` in `Core` that is its own iterator rather than a snapshot, and
-    // [`crate::db::stream`] says why: a row of a streamed result set does not
-    // exist until the walk asks the server for it.
-    crate::db::STREAM,
-    // One row of that set: the associative reading plus the eleven typed
-    // readers `rule:core-classes/db-column-types` puts in place of PHP's three fetch modes. Four of
-    // the eleven answer only their refusal until § 9's structured columns land.
-    crate::db::ROW,
-    // What `execute` answers with: § 4's two counts and the id a `RETURNING`
-    // clause handed back, as three readers — for the reason
-    // [`CoreTy::Instance`] states, that a `Core` instance has no property a
-    // program can reach.
-    crate::db::WRITE,
-    // One column of what a statement described — three readers in place
-    // of `getColumnMeta`'s per-driver array, reached through `Rows::columns`
-    // and produced nowhere else. Its `type()` is what gives `crate::db`'s
-    // `COLUMN_TYPE` a member that answers one.
-    crate::db::COLUMN,
-    // What `inList` answers with: `rule:core-classes/db-parameters`'s explicit expansion marker,
-    // memberless because `Core\Db` accepts it nowhere but a bound
-    // parameter. [`crate::db`] owns why the expansion itself stays in `nvs-db`.
-    crate::db::IN_LIST,
-    // `rule:core-classes/schema-is-a-value`'s schema value, beside the connection classes because that is
-    // what it is asked about: a schema is compared against a live database and
-    // applied to one. It needs no connection to exist, which is why its two
-    // members here are the array form alone — § 9's three are the ones that take
-    // a `Core\Db\Connection`.
-    crate::db::SCHEMA,
-    // `rule:core-classes/schema-plan`'s plan and its steps, immediately after the schema whose
-    // `planAgainst` answers one: a plan is the value that carries the answer,
-    // and neither class is reachable except through that member.
-    crate::db::PLAN,
-    crate::db::STEP,
-    // `Core\Ldap`, the directory client, beside the database classes because it is
-    // opened the same two ways: a named block under `ldap.connect`, or a
-    // program's settings under `ldap.open`.
-    crate::ldap::CLASS,
-    crate::ldap::CONNECTION,
-    crate::ldap::ENTRIES,
-    crate::ldap::CHANGES_SET,
-    crate::ldap::ENTRY,
-    crate::ldap::FILTER,
-    crate::ldap::CHANGE,
-    crate::ldap::DN,
-    crate::ldap::SID,
-    crate::ldap::AD,
-    crate::ldap::ACCOUNT_FLAGS,
-    crate::ldap::GROUP_TYPE,
-    // `rule:concurrency/queue-four-members`'s durable background job, immediately after the database classes
-    // because that is what it is made of: a job is a row in one of these connections,
-    // which is the whole of why § 3's enqueue can commit with the write that caused
-    // it. All four of § 1's members are landed, and [`crate::queue`]'s known gaps say
-    // what that surface still owes around them.
-    crate::queue::CLASS,
-    // What `push` answers with — the row it wrote and the queue it is in, memberless
-    // because the two members that take one are asked *about* it rather than through
-    // it. [`CoreTy::Instance`]'s own rule about a `Core` instance's properties is why
-    // it is a class and not a shape.
-    crate::queue::ID,
-    // What `stats` answers with, and the same rule read the other way round: counters
-    // a program has to reach are members here, precisely because that rule leaves a
-    // `Core` instance's properties unreachable. [`crate::queue::STATS`] owns which
-    // counters they are and why the two that sum attempts are disjoint.
-    crate::queue::STATS,
-];
+/// Every `Core` class the compiler knows. `crate::classes` is rendered from the
+/// `// rank: N` line above each class's `CoreClass` const.
+pub use crate::classes::CLASSES;
 
 /// Every member of a capability-bearing class, and which capability it needs —
 /// `rule:security/capability-declaration-is-one-table`
@@ -2996,19 +2274,19 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
 pub const TRY_PARSE_CLASSES: &[&str] = &[crate::uri::NAME, crate::uuid::NAME];
 
 /// Every `Core` class a program may write `new` on, with the constructor that
-/// builds one — the `Core\ObjectMap`/`ObjectSet`/`Heap` collections and
-/// `Core\Random`'s seeded generator.
+/// builds one — `docs/spec/01-core-library.md` § 9's collections and § 11's
+/// seeded generator.
 ///
 /// A roster rather than a synthetic `constructor` row on [`CoreClass`], for
 /// the reason [`crate::instance`]'s module docs give: a `Core` class has no
 /// member a program resolves here, and `nvs-ir` reads this to lower `new` on
 /// one to an ordinary helper call. A name here **must** be in [`CLASSES`] —
-/// unlike [`GENERIC_CLASSES`], whose arity is a property of that roster
-/// rather than of anything registered — because the helper builds an instance
+/// unlike [`GENERIC_CLASSES`], whose arity is a property of the spec's table
+/// rather than of anything on disk — because the helper builds an instance
 /// against that class's declared [`CoreClass::slots`].
 ///
 /// The second half is a whole [`CoreMethod`] rather than a bare symbol so that
-/// **a constructor can take arguments**: `Core\Heap` is ordered by a
+/// **a constructor can take arguments**: § 9's `Core\Heap` is ordered by a
 /// comparator given at construction, and one written `params`/`defaults` pair
 /// is what lets `nvs_types::core_lib` seed it as an ordinary `constructor`
 /// signature — the same shape every other `Core` row is checked through,
@@ -3143,7 +2421,7 @@ pub struct CaseDoc {
 /// through — the same "seed a table rather than special-case `Core`" rule
 /// `nvs_types::core_lib` states for members.
 ///
-/// A `Core\Time` `Month { January … December }` enum is deliberately
+/// The spec's § 4 names `Month { January … December }` and it is deliberately
 /// absent: no member takes or answers with it yet, and an entry here is
 /// reachable from source the moment it exists — a case a program can write and
 /// pass nowhere is surface with no meaning behind it. That is the test every
@@ -3188,8 +2466,8 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::mime::TYPE,
     // What `Core\Xml\Node::kind` answers with, and the one roster both parsers
     // build against — closed at five, so a walk over a document is exhaustive.
-    // Beside `Core\Mime`'s because both are document formats, and for the
-    // reason the format classes sit together in [`CLASSES`].
+    // Beside `Core\Mime`'s because both are § 17's, and for the reason that
+    // section's classes sit together in [`CLASSES`].
     crate::xml::KIND,
     crate::log::LEVEL,
     crate::env::MODE,
@@ -3311,8 +2589,10 @@ pub fn signature_classes(name: &str) -> Vec<&'static str> {
 /// neither is a [`CoreClass`] row, since a program calls no member on them.
 pub const DERIVE_INTERFACES: &[&str] = &[r"Core\Json\Codec", r"Core\Db\Codec"];
 
-/// Every `Core` name a class may write in an `extends`/`implements` clause:
-/// the classes above, [`DERIVE_INTERFACES`] and [`CONTRACTS`].
+/// Every `Core` name an `extends`/`implements` clause resolves: the classes
+/// above, [`DERIVE_INTERFACES`] and [`CONTRACTS`]. A clause may name only the
+/// last two, because every class is also in [`sealed_classes`], and the link
+/// pass refuses those first.
 ///
 /// This is what a front end hands `nvs_hir::CoreRoster::Names`, which is the
 /// only authority on the question — `Core` is compiler-owned, so no source
@@ -3329,6 +2609,20 @@ pub fn link_targets() -> Vec<&'static str> {
         .chain(DERIVE_INTERFACES.iter().copied())
         .chain(CONTRACTS.iter().map(|contract| contract.name))
         .collect()
+}
+
+/// Every `Core` class, which no `extends` or `implements` clause may name
+/// (`rule:core-api/core-classes-are-sealed`).
+///
+/// A front end hands it to `nvs_hir::CoreRoster::Names` as `sealed`. The names
+/// stay in [`link_targets`] too, so a fix for an undeclared `Request` can
+/// still offer `use Core\Request;`. A [`CoreInterface`], a
+/// [`DERIVE_INTERFACES`] entry and a [`CoreContract`] are not classes and are
+/// not here: the first is refused as closed, and the other two are what a
+/// program's class implements.
+#[must_use]
+pub fn sealed_classes() -> Vec<&'static str> {
+    CLASSES.iter().map(|class| class.name).collect()
 }
 
 /// Every `Core` type a program may name where a class, an interface or an
@@ -3484,7 +2778,7 @@ pub fn contract(name: &str) -> Option<&'static CoreContract> {
 /// `nvs_types` to prove against, and its members are the rows above rather
 /// than entries in a class graph.
 ///
-/// **Two rows answer yes, and they are two different rules.** A class the registry
+/// **Two rows answer yes, and they are two different rules.** A class the spec
 /// gives a `toString` renders through that member, which is `rule:classes/stringable`
 /// exactly. A **sink carrier** renders through
 /// `rule:security/capture-answers-the-carrier`
@@ -3513,8 +2807,16 @@ pub fn class_renders(name: &str) -> bool {
 /// second search here would be free to see a member that one did not.
 #[must_use]
 pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
-    class(name)
-        .and_then(|class| class.members().find(|member| member.name == "toString"))
+    class(name).and_then(render_member)
+}
+
+/// [`render_symbol`] for a class already in hand, so a walk over the roster
+/// does not search it again for each class.
+#[must_use]
+pub(crate) fn render_member(class: &CoreClass) -> Option<&'static str> {
+    class
+        .members()
+        .find(|member| member.name == "toString")
         .map(|member| member.symbol)
 }
 
@@ -3889,8 +3191,7 @@ pub fn must_use_help(class: &str, method: &str) -> Option<&'static str> {
 }
 
 /// The closed roster of `Core`-owned **generic** classes, each with the type
-/// parameters it declares, in order — the `Core\ObjectMap`/`ObjectSet`/`Heap`
-/// collections first.
+/// parameters it declares, in order — spec § 9's three collections.
 ///
 /// This is the other half of `rule:attributes/call-site-type-argument`'s rule on
 /// type variables: user code gets an explicit type argument only where the
@@ -3909,15 +3210,15 @@ pub fn must_use_help(class: &str, method: &str) -> Option<&'static str> {
 /// A roster rather than a field on [`CoreClass`], for the reason
 /// [`WRITTEN_CLASS_MEMBERS`] gives: it is three entries against every class
 /// in [`CLASSES`], and a field would be empty on all the rest. An entry here
-/// **need not be registered yet** — the arity is a property of this
-/// roster, so the grammar and the checker can agree on it before the class's
+/// **need not be registered yet** — the arity is a property of the spec's
+/// table, so the grammar and the checker can agree on it before the class's
 /// own members land.
 pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
     (r"Core\ObjectMap", &["K", "V"]),
     (r"Core\ObjectSet", &["T"]),
     (r"Core\Heap", &["T"]),
     (r"Core\Task\Channel", &["T"]),
-    // The first row that is not one of the three collections: `Core\Db`'s result
+    // The first row that is not one of spec § 9's collections: § 18's result
     // set is generic in what a row hydrated into, and `Core\Db\Rows<Row>` — the
     // instance `query` answers with, spelled as a [`CoreTy::InstanceAt`] — is
     // the unhydrated case of the same class rather than a second one.
@@ -3972,15 +3273,15 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // `rule:core-classes/db-statement-members`' `Db\Rows` under `foreach ($rows as Row
     // $row)`: a result set walks what it is already holding, which is its own `T` — a `Core\Db\Row` for `query`
     // and the hydrated class for `queryAs<T>`. Back to one of the receiver's
-    // own variables, like the three collections above, because `Core\Db`'s `Rows`
+    // own variables, like the three collections above, because § 18's `Rows`
     // and `Rows<T>` are one generic class and not two.
     (crate::db::ROWS_NAME, &CoreTy::Var("T")),
-    // `Core\Db`'s `stream(): Iterable<Db\Row>` and `streamAs<T>(): Iterable<T>`,
+    // § 18's `stream(): Iterable<Db\Row>` and `streamAs<T>(): Iterable<T>`,
     // which are one class at two arguments as the row above is: a walk yields
     // what it was opened to build, so the element is the receiver's own
     // variable and `nvs_types::expr::iteration` substitutes the argument in.
     (crate::db::STREAM_NAME, &CoreTy::Var("T")),
-    // `Core\Request`'s `bodyStream(): Iterable<bytes>`, with the qualifier `body()`
+    // Spec § 15's `bodyStream(): Iterable<bytes>`, with the qualifier `body()`
     // puts on the same octets: a chunk of a request body is `tainted` whatever
     // the body held, so this is a concrete element like the two `Core\IO` rows
     // above and never one of a receiver's own variables.
@@ -4004,7 +3305,7 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
         crate::request::FILES_NAME,
         &CoreTy::Instance(crate::request::PART_NAME),
     ),
-    // `Core\Csv`'s `rows(): Core\Csv\Rows`. A concrete element like the `Core\IO`
+    // § 12's `rows(): Core\Csv\Rows`. A concrete element like the `Core\IO`
     // rows above and for the same reason: a CSV record is an `array<string>`
     // whatever the document held, keyed by the header's names or by column
     // index, and neither keying is a type the receiver could be at.
@@ -4035,7 +3336,8 @@ pub fn iterable_element(class: &str) -> Option<&'static CoreTy> {
 /// of this same class and answering `int` is exactly what the interface
 /// requires, and a class carrying that row cannot be un-`Comparable`. A roster
 /// beside it would be a second copy of the same fact, wrong the first time a
-/// domain module adds the member without it.
+/// domain module adds the member without it — which is how the time types
+/// spent this whole gap (`docs/reference/findings.md` D1).
 ///
 /// The `self`-typed parameter is load-bearing rather than decoration: `rule:classes/ordering-lowers-to-compare-to` refuses a comparison across classes, so a `compareTo` taking anything
 /// else answers a different question and is not this interface's member.
@@ -4045,16 +3347,19 @@ pub fn implements_comparable(class: &str) -> bool {
     CLASSES
         .iter()
         .find(|found| found.name == class)
-        .is_some_and(|found| {
-            found.instance.iter().any(|member| {
-                member.name == nvs_runtime::COMPARE_TO
-                    && matches!(member.params, [CoreTy::Instance(param)] if *param == class)
-                    && matches!(member.return_ty, CoreTy::Int)
-            })
-        })
+        .is_some_and(comparable)
 }
 
-/// The symbol of `name`'s `compareTo` — the implementation half of
+/// [`implements_comparable`] for a class already in hand.
+fn comparable(class: &CoreClass) -> bool {
+    class.instance.iter().any(|member| {
+        member.name == nvs_runtime::COMPARE_TO
+            && matches!(member.params, [CoreTy::Instance(param)] if *param == class.name)
+            && matches!(member.return_ty, CoreTy::Int)
+    })
+}
+
+/// The symbol of `class`'s `compareTo` — the implementation half of
 /// [`implements_comparable`], and `None` for every class that declares no such
 /// member.
 ///
@@ -4063,21 +3368,19 @@ pub fn implements_comparable(class: &str) -> bool {
 /// the class's own descriptor, so a `Core` object ordered through an erased
 /// operand — the `Core\Heap` holding it, which knows no class — compares
 /// through the very implementation this registry told the *checker* it would.
-/// Asked of [`implements_comparable`] rather than of the roster directly, so a
-/// row that answers the interface and a row that is merely spelled like it
-/// cannot part company here.
+/// Asked of [`implements_comparable`]'s own test rather than of the roster
+/// directly, so a row that answers the interface and a row that is merely
+/// spelled like it cannot part company here. It takes the class rather than
+/// its name, so a walk over the roster does not search it again for each class.
 #[must_use]
-pub(crate) fn compare_symbol(name: &str) -> Option<&'static str> {
-    if !implements_comparable(name) {
+pub(crate) fn compare_member(class: &CoreClass) -> Option<&'static str> {
+    if !comparable(class) {
         return None;
     }
-    class(name)
-        .and_then(|class| {
-            class
-                .instance
-                .iter()
-                .find(|member| member.name == nvs_runtime::COMPARE_TO)
-        })
+    class
+        .instance
+        .iter()
+        .find(|member| member.name == nvs_runtime::COMPARE_TO)
         .map(|member| member.symbol)
 }
 
@@ -4359,7 +3662,7 @@ mod tests {
         }
     }
 
-    /// Every registered name is one the naming rules allow: a
+    /// Every registered name is one the spec's own naming rules allow: a
     /// class under `Core`, a `camelCase` member (`rule:core-api/identifier-casing`), and no leading
     /// underscore anywhere (`rule:classes/no-leading-underscore-identifiers`). Cheap, and it catches a paste error in
     /// a table that will grow to several hundred rows.
@@ -5662,7 +4965,9 @@ mod tests {
     /// to a slot by its *index* here: `nvs_types::core_lib` reads
     /// [`CoreMethod::names`] the way it reads [`CoreMethod::positional`], and
     /// the two lists disagreeing would bind an argument to the wrong
-    /// parameter rather than reject it.
+    /// parameter rather than reject it. The spec column is
+    /// `every_registry_rows_names_are_the_specs_signature_column`'s subject;
+    /// this is the half that holds for the rows §§ 1-12 do not write.
     #[test]
     fn every_registry_row_names_one_parameter_per_positional_slot() {
         for class in CLASSES {
@@ -5916,6 +5221,11 @@ mod tests {
     /// The rule is therefore on the card itself rather than on any renderer —
     /// say *what is true*, and leave the reason to the Rust doc comment
     /// directly above the card, which is where a contributor looks.
+    #[cfg_attr(
+        miri,
+        ignore = "it reads only the cards' static text, which has no memory for Miri to check, \
+                  and scanning every card takes minutes under Miri"
+    )]
     #[test]
     fn no_registry_card_cites_a_rule() {
         /// A rule citation, which is its token in backticks. The bare words
@@ -5978,6 +5288,11 @@ mod tests {
     /// PHP is named only where the member reads or writes something PHP
     /// itself produced, which is interop rather than translation; those
     /// members are listed in `INTEROP` by their full name.
+    #[cfg_attr(
+        miri,
+        ignore = "it reads only the cards' static text, which has no memory for Miri to check, \
+                  and scanning every card takes minutes under Miri"
+    )]
     #[test]
     fn no_member_text_says_what_it_replaces_in_php() {
         // A bcrypt hash PHP wrote is one `verify` reads.
@@ -6489,7 +5804,7 @@ mod tests {
         }
     }
 
-    /// `Core\Math`'s eleven constants, spelled out, and
+    /// `Core\Math`'s eleven constants, spelled out — spec § 3's own list, and
     /// the only place `PI` being a `float` and `INT_MAX` an `int` is stated
     /// twice on purpose. A row dropped from the registry fails here rather
     /// than only at `examples/numbers.nvs`.
@@ -6525,7 +5840,7 @@ mod tests {
     }
 
     /// The classes a [`CoreTy::Instance`] may name that [`CLASSES`] does not
-    /// hold — the `Core\Error` exception tree, which `nvs_hir::errors::TREE`
+    /// hold — spec § 10's exception tree, which `nvs_hir::errors::TREE`
     /// declares and `nvs_types::error_lib` seeds into the same class table a
     /// `Core` instance type is interned against.
     ///
@@ -6623,6 +5938,26 @@ mod tests {
                     check(param, &what);
                 }
             }
+        }
+    }
+
+    /// `rule:core-api/core-classes-are-sealed`: every class is sealed, and no
+    /// interface a program's class implements is, so the link pass refuses
+    /// the first and resolves the second.
+    #[test]
+    fn the_sealed_classes_are_the_classes_and_no_implementable_interface() {
+        let sealed = sealed_classes();
+        assert_eq!(sealed.len(), CLASSES.len());
+        let implementable = DERIVE_INTERFACES
+            .iter()
+            .copied()
+            .chain(CONTRACTS.iter().map(|contract| contract.name));
+        for name in implementable {
+            assert!(
+                !sealed.contains(&name),
+                "{name} is implementable and sealed"
+            );
+            assert!(link_targets().contains(&name), "{name} does not resolve");
         }
     }
 
@@ -6790,14 +6125,14 @@ mod tests {
     /// — either is a half-written class rather than a design.
     ///
     /// The one exception is a **handle**: a class whose slots something other
-    /// than its own members read, and which no signature writes a member *on*.
+    /// than its own members read, and which the spec writes no member *on*.
     /// Its state is reachable, just not through itself, so it is listed here
-    /// by name rather than given a member no signature writes.
+    /// by name rather than given a member the spec does not write.
     /// `Core\Regex\Pattern` is read by `Core\Regex`'s members.
     /// `Core\Script\Handle`'s one slot is read by the lowering of `await`, and
     /// its emptiness of members is the whole point of it
     /// ([`crate::script`]). `Core\IO\Lines`'s one slot is read by the
-    /// `iterate()` on [`crate::instance`]'s dispatch roster — `Core\IO`
+    /// `iterate()` on [`crate::instance`]'s dispatch roster — spec § 14
     /// writes `lines(string $path): Iterable<string>` and no member *on* the
     /// thing it answers with, so a `foreach` is the whole of its surface.
     /// `Core\Http\Target`'s two slots are read by the member that connects:
@@ -6819,8 +6154,8 @@ mod tests {
     /// ([`crate::db`]). `Core\Request\BodyStream`'s one slot is written and
     /// read by the `advance()`/`current()` pair on [`crate::instance`]'s dispatch roster
     /// — `Core\IO\Lines`'s entry for `Core\IO\Lines`'s reason,
-    /// `Core\Request` writing `bodyStream(): Iterable<bytes>` and no member on the
-    /// thing it answers with. `Core\Db\Stream` is that entry again for `Core\Db`'s
+    /// spec § 15 writing `bodyStream(): Iterable<bytes>` and no member on the
+    /// thing it answers with. `Core\Db\Stream` is that entry again for § 18's
     /// `stream()`, and its three slots are the connection's key, the block that
     /// opened it and the one row the walk is holding. `Core\Jwe\Key` is the
     /// same shape over a secret: its three slots are read by `Core\Jwe`'s two
@@ -6841,7 +6176,7 @@ mod tests {
     /// this list, each the same way: `Core\Db\Connection` when `query` landed
     /// on it, `Core\Db\Rows` when its readers did, and `Core\Cli\Text` when
     /// `text()` did — its runs are still rendered by `value_to_string`, but a
-    /// class with a member written on it is not a handle.
+    /// class the spec writes a member on is no longer a handle.
     ///
     /// The other exception is the mirror image: a class with members and **no
     /// slots**, because its receiver's whole state is the *context*'s rather
@@ -6929,7 +6264,7 @@ mod tests {
     }
 
     /// `Core\Regex\Match`'s four members and two slots, spelled out — the first
-    /// `Core`-owned instance, and the one place its member list is stated
+    /// `Core`-owned instance, and the one place spec § 5's own list is stated
     /// twice on purpose.
     #[test]
     fn the_first_core_owned_instance_declares_the_four_members_the_spec_names() {

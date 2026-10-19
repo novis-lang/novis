@@ -1,6 +1,6 @@
 #!/bin/sh
-# Reject a commit message carrying an attribution trailer, and, where looper is installed, one whose
-# shape looper's check refuses.
+# Reject a commit message carrying an attribution trailer, and one whose subject is not in the shape
+# `looper.toml`'s `[commits]` sets. Neither check needs looper.
 #
 # A commit message in this repository documents the work and stops -- docs/agent/conventions.md
 # § *A commit message* is the home of that rule. `Co-Authored-By`, `Signed-off-by`,
@@ -79,17 +79,76 @@ if [ -n "$offenders" ]; then
     exit 1
 fi
 
-# The shape of the message -- `type(scope): subject`, its type list and its length, as `looper.toml`'s
-# `[commits]` sets them -- is looper's check. A contributor to this public repository may not have
-# looper, so without it on PATH the trailer check above is the whole hook. Four subjects are not
-# checked for shape. A merge and git's own `fixup!`, `squash!` and `amend!` are written by git, and
-# a rebase rewrites the last three away. Looper's sweep commit, `wip(loop): the unfinished slice of
-# session NNNN`, is written by looper when a loop session ends with its own files uncommitted, and
-# `wip` is not a type this repository allows. A refused sweep ends the loop's run.
-command -v looper >/dev/null 2>&1 || exit 0
+# The shape of the message: a subject `type(scope): what is now true`, with a type from `looper.toml`'s
+# `[commits] types` and at most `[commits] subject_max` characters, then a blank second line. The
+# hook reads those two keys itself, so it gives the same verdict with looper and without it, and
+# `looper wrap` reads the same keys. A `types` that is not one line of quoted names, or a missing
+# key, refuses every commit, because a gate must fail closed.
+#
+# Four subjects are not checked for shape. A merge and git's own `fixup!`, `squash!` and `amend!` are
+# written by git, and a rebase rewrites the last three away. Looper's sweep commit, `wip(loop): the
+# unfinished slice of session NNNN`, is written by looper when a loop session ends with its own files
+# uncommitted, and `wip` is not a type this repository allows. A refused sweep ends the loop's run.
 [ -f "$(git rev-parse --git-path MERGE_HEAD)" ] && exit 0
 case "$(head -n 1 "$msg")" in
     'fixup! '* | 'squash! '* | 'amend! '*) exit 0 ;;
     'wip(loop): the unfinished slice of session '[0-9][0-9][0-9][0-9]*) exit 0 ;;
 esac
-exec looper hook commit-msg "$msg"
+
+config="$(git rev-parse --show-toplevel)/looper.toml"
+problems=$(awk -v config="$config" '
+    BEGIN {
+        while ((getline line < config) > 0) {
+            sub(/\r$/, "", line)
+            if (line ~ /^[ \t]*[[]/) { inside = (line ~ /^[ \t]*[[]commits[]][ \t]*(#.*)?$/); continue }
+            if (!inside) continue
+            if (line ~ /^[ \t]*subject_max[ \t]*=/) {
+                sub(/^[^=]*=[ \t]*/, "", line)
+                sub(/[ \t]*(#.*)?$/, "", line)
+                if (line ~ /^[0-9]+$/) max = line + 0
+            }
+            if (line ~ /^[ \t]*types[ \t]*=[ \t]*[[].*[]]/) {
+                sub(/^[^[]*[[]/, "", line)
+                sub(/[]].*$/, "", line)
+                gsub(/["\047 \t]/, "", line)
+                n = split(line, names, ",")
+                for (i = 1; i <= n; i++) if (names[i] != "") {
+                    types = types (types == "" ? "" : "|") names[i]
+                    listed = listed (listed == "" ? "" : ", ") names[i]
+                }
+            }
+        }
+        close(config)
+        if (max <= 0 || types == "") broken = 1
+    }
+    /^[ \t]*#/ { next }
+    {
+        line = $0
+        sub(/[ \t\r]+$/, "", line)
+        if (!seen) { seen = 1; subject = line; next }
+        if (seen == 1) { seen = 2; if (line != "") print "  the second line is not blank" }
+    }
+    END {
+        if (broken) { print "  " config " has no [commits] subject_max and one-line types to check against"; exit }
+        if (!seen) { print "  the message is empty"; exit }
+        if (subject !~ ("^(" types ")([(][a-z0-9-]+[)])?: [^ \t]"))
+            print "  the subject `" subject "` is not `type(scope): what is now true`, with a type of " listed
+        if (length(subject) > max)
+            print "  the subject is " length(subject) " characters, and may be at most " max
+    }
+' "$msg")
+status=$?
+
+if [ "$status" -ne 0 ]; then
+    echo "commit-msg: the shape check did not run (awk exited $status); refusing." >&2
+    echo "Fix tools/git-hooks/commit-msg rather than passing --no-verify." >&2
+    exit 1
+fi
+
+if [ -n "$problems" ]; then
+    echo "commit-msg: the message breaks the shape of docs/agent/conventions.md § A commit message:" >&2
+    echo "$problems" >&2
+    echo "Fix the message and commit again. Never pass --no-verify." >&2
+    exit 1
+fi
+exit 0

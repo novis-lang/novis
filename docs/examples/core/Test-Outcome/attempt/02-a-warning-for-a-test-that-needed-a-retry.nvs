@@ -1,0 +1,40 @@
+<?nvs
+// Shows a hook that prints a warning when a test passed only after a retry. Such
+// a test is called flaky, and it is worth fixing before it fails.
+
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class Warning
+{
+    // A passed run with an attempt number above `1` needed a retry.
+    public static function forRun(string $test, int $attempt, bool $passed): ?string
+    {
+        if ($passed && $attempt > 1) {
+            return $test . ' passed on attempt ' . $attempt;
+        }
+        return null;
+    }
+}
+
+class MailTest
+{
+    #[Test(retries: 1, because: "the local mail server starts slowly")]
+    public function itSendsTheReceipt(): void
+    {
+        Test::assertSame('receipt sent', 'receipt sent');
+    }
+
+    #[AfterEachTest]
+    public function warnAboutRetries(Outcome $outcome): void
+    {
+        ?string $warning = Warning::forRun($outcome->name(), $outcome->attempt(), $outcome->passed());
+        if ($warning != null) {
+            echo 'warning: ', $warning, "\n";
+        }
+    }
+}
+
+// This prints `itSendsTheReceipt passed on attempt 2`.
+echo Warning::forRun('itSendsTheReceipt', 2, true) ?? 'no warning', "\n";

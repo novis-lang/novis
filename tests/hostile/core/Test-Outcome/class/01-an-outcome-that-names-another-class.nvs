@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a program makes its own `Outcome` whose `class()` names another test
+// class, to hide which class failed. Only the test runner creates an `Outcome`,
+// so the program should not compile.
+// hostile: expect-refusal
+
+use Core\Test\Outcome;
+
+// 1. A class extends `Outcome` by its full name and changes `class()`.
+class OtherClass extends Core\Test\Outcome
+{
+    public function class(): string
+    {
+        return "Shop\\Tests\\SomebodyElsesTest";
+    }
+}
+
+// 2. A class extends `Outcome` by the short name from the `use` line.
+class EmptyClass extends Outcome
+{
+    public function class(): string
+    {
+        return '';
+    }
+}
+
+// 3. A class extends `Outcome` and adds a property after the values the runner reads.
+class LongerOutcome extends Outcome
+{
+    public string $padding = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+}
+
+echo (new OtherClass())->class(), "\n";

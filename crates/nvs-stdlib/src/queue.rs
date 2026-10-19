@@ -2034,6 +2034,13 @@ const PURGE_LIMIT_ARG: usize = 4;
 const DEFAULT_PURGE_LIMIT: u64 = 1_000;
 
 /// `rule:concurrency/queue-four-members`'s `Core\Queue` — all four of `push`, `status`, `cancel` and `stats`.
+///
+/// `rule:concurrency/queue-four-members`'s durable background job, immediately after the database classes
+/// because that is what it is made of: a job is a row in one of these connections,
+/// which is the whole of why § 3's enqueue can commit with the write that caused
+/// it. All four of § 1's members are landed, and [`crate::queue`]'s known gaps say
+/// what that surface still owes around them.
+// rank: 1730
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&QUEUE_CARD),
@@ -2651,6 +2658,12 @@ const STATS_NON_TRANSACTIONAL_DOC: MethodDoc = MethodDoc {
 /// carry it beside.
 /// It has no members of its own; it is a name for a pair, which is what `rule:core-api/shape-rules` gives an opaque
 /// handle.
+///
+/// What `push` answers with — the row it wrote and the queue it is in, memberless
+/// because the two members that take one are asked *about* it rather than through
+/// it. [`CoreTy::Instance`](crate::registry::CoreTy::Instance)'s own rule about a `Core` instance's properties is why
+/// it is a class and not a shape.
+// rank: 1740
 pub(crate) const ID: CoreClass = CoreClass {
     name: ID_NAME,
     doc: Some(&ID_CARD),
@@ -2686,6 +2699,12 @@ const ID_CARD: ClassDoc = ClassDoc {
 ///
 /// The slots are filled once, by [`nvs_core_queue_stats`], out of a single row — which is the
 /// whole reason a member answers a record instead of answering a number five times.
+///
+/// What `stats` answers with, and the same rule read the other way round: counters
+/// a program has to reach are members here, precisely because that rule leaves a
+/// `Core` instance's properties unreachable. [`crate::queue::STATS`] owns which
+/// counters they are and why the two that sum attempts are disjoint.
+// rank: 1750
 pub(crate) const STATS: CoreClass = CoreClass {
     name: STATS_NAME,
     doc: Some(&STATS_CARD),
@@ -7596,6 +7615,7 @@ mod tests {
     ///
     /// Over a real SQLite database, shared in memory with a connection this case keeps open so
     /// the row can be read back after the push's own connection is gone.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_pushed_job_stores_an_absolute_script_path() {
         const URI: &str = "file:queue-stores-an-absolute-script?mode=memory&cache=shared";

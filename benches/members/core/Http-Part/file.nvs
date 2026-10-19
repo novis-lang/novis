@@ -2,7 +2,7 @@
 // Measures creating an upload part for a file on disk, as a program does before
 // every file upload it sends.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

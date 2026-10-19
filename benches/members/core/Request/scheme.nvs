@@ -2,7 +2,7 @@
 // Reads the scheme of a request, as a program does before it builds a full address or sets a cookie.
 // bench: iterations 256
 // bench: allocations 1
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

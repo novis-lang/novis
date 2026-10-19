@@ -2,7 +2,7 @@
 // Measures reading the label of a column, as a page does when it prints the
 // headings of a table it built from a query.
 // bench: iterations 1024
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

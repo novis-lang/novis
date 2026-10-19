@@ -98,9 +98,9 @@ names the two answers, the second being a `// proof: gap` marker on the bench.
   between the ramp's two largest batches, so the one set-up allocation of the `$labels` array
   cancels out and an allocation per call does not. It is met to within a hundredth, or to within
   one count across the last batch's added operations, so a buffer that doubles once there passes. A
-  member that returns a scalar declares `allocations 0`; a member bench declares `calls 0`, because
-  a `Core` member is a helper and not a compiled call site, and a bench over a language feature
-  that calls a method declares the calls it makes.
+  member that returns a scalar declares `allocations 0`. A bench declares every call one operation
+  makes: a `Core` member's call is a call site with its own probes (`rule:testing/debug-probes`), so
+  a bench that calls its member once declares `calls 1`, and a callback the member calls counts too.
 - **`// bench: complexity constant`** — how the operation's cost may grow with its input: `constant`,
   `linear`, `nlogn`, or another class `EXPECT` in `tools/nv/cmd/scaling.ts` names, and never
   `quadratic`. Every bench carries one. Its growth is checked by that tool's ramp, which is the
@@ -122,7 +122,7 @@ names the two answers, the second being a `// proof: gap` marker on the bench.
   compare, never a finding: what the ratio should be is the bench's own claim.
 - **`// requires: unix`** — the bench opens a Unix-domain socket, which this build has only on
   Unix, so `--record-perf` leaves it out on Windows. The ledger is measured on Windows, so such a
-  member's perf proof is a `skip` entry in `data/proofs/policy.json` naming that reason, and the
+  member's perf proof is a `perf` skip in its file under `data/proofs/skip/` naming that reason, and the
   bench on disk is what a Unix sweep measures.
 - **`// requires: <service>`** — the bench talks to that service of `tests/db/compose.yaml`, such
   as `samba-ad` or `redis`, and the runner brings it up before the bench runs, as it does for an

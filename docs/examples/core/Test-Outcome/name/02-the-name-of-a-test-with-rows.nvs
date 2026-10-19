@@ -1,0 +1,46 @@
+<?nvs
+// Shows the name of a test with `#[TestWith]` rows. Each row runs once, and its
+// name ends with `#` and the row number, such as `itCountsTheCents#1`.
+
+use Core\Str;
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+use Core\Test\TestWith;
+
+class TestName
+{
+    // This removes the row number, so all rows of one test have the same name.
+    public static function withoutRow(string $name): string
+    {
+        return Str::before($name, '#') ?? $name;
+    }
+}
+
+class Price
+{
+    public static function inCents(int $euros, int $cents): int
+    {
+        return $euros * 100 + $cents;
+    }
+}
+
+class PriceTest
+{
+    #[TestWith(euros: 2, cents: 50, want: 250)]
+    #[TestWith(euros: 0, cents: 99, want: 99)]
+    #[Test]
+    public function itCountsTheCents(int $euros, int $cents, int $want): void
+    {
+        Test::assertSame(Price::inCents($euros, $cents), $want);
+    }
+
+    #[AfterEachTest]
+    public function printTheTest(Outcome $outcome): void
+    {
+        echo TestName::withoutRow($outcome->name()), ' ', $outcome->passed() ? 'passed' : 'failed', "\n";
+    }
+}
+
+// This prints `itCountsTheCents`.
+echo TestName::withoutRow('itCountsTheCents#1'), "\n";

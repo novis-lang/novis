@@ -1,7 +1,7 @@
 <?nvs
 // Adds one short line to the end of a file, as a program does when it writes to its own log.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

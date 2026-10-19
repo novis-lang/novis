@@ -1,0 +1,4 @@
+{
+  "feature": "lang:expressions/operators-that-do-not-parse",
+  "perf": "Every operator here is a compile error, so there is no program to iterate; the replacements carry their own figures."
+}

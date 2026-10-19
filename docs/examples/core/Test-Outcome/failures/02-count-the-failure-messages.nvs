@@ -1,0 +1,35 @@
+<?nvs
+// Shows a hook that prints how many failure messages a run has. A passed run has
+// none, so the hook prints `0` for it.
+
+use Core\Arr;
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class Count
+{
+    public static function line(string $test, array<string> $failures): string
+    {
+        return $test . ': ' . Arr::count($failures) . ' failure(s)';
+    }
+}
+
+class TaxTest
+{
+    #[Test]
+    public function itUsesTheReducedRateForBooks(): void
+    {
+        var $rates = ['book' => 10, 'tea' => 20];
+        Test::assertSame($rates['book'], 10);
+    }
+
+    #[AfterEachTest]
+    public function printCount(Outcome $outcome): void
+    {
+        echo Count::line($outcome->name(), $outcome->failures()), "\n";
+    }
+}
+
+// This prints `itUsesTheReducedRateForBooks: 0 failure(s)`.
+echo Count::line('itUsesTheReducedRateForBooks', []), "\n";

@@ -217,15 +217,47 @@ impl<T: Send + 'static> Worker<T> {
     where
         F: FnOnce(&mut Scheduler) -> T + Send + 'static,
     {
+        Self::start(cpu, true, body)
+    }
+
+    /// Starts a worker that the OS may run on any CPU, and runs `body` with
+    /// that core's scheduler.
+    ///
+    /// [`Self::spawn`] without the pin, and so without the handshake: this
+    /// returns as soon as the OS has created the thread, and
+    /// [`Worker::pinned`] is `false`. `cpu` names the thread and nothing else.
+    /// For a core a caller starts and joins per piece of work rather than per
+    /// process, where waiting for each new thread to be scheduled is a cost the
+    /// work pays every time ([`worker::Cores`]).
+    ///
+    /// # Errors
+    ///
+    /// Whatever `std::thread::Builder::spawn` reports.
+    pub fn spawn_unpinned<F>(cpu: CpuId, body: F) -> std::io::Result<Self>
+    where
+        F: FnOnce(&mut Scheduler) -> T + Send + 'static,
+    {
+        Self::start(cpu, false, body)
+    }
+
+    /// [`Self::spawn`]'s body, pinning and waiting for the pin only when `pin`
+    /// is set.
+    fn start<F>(cpu: CpuId, pin: bool, body: F) -> std::io::Result<Self>
+    where
+        F: FnOnce(&mut Scheduler) -> T + Send + 'static,
+    {
         let (tx, rx) = std::sync::mpsc::sync_channel::<bool>(1);
         let handle = std::thread::Builder::new()
             .name(format!("nvs-worker-{}", cpu.raw()))
             .spawn(move || {
-                let pinned = pin_current_thread(cpu);
-                // A send failure means the spawning thread is already gone,
-                // which cannot happen while it is blocked on `recv` below; if
-                // it somehow did, running the body anyway is still correct.
-                let _ = tx.send(pinned);
+                if pin {
+                    let pinned = pin_current_thread(cpu);
+                    // A send failure means the spawning thread is already
+                    // gone, which cannot happen while it is blocked on `recv`
+                    // below; if it somehow did, running the body anyway is
+                    // still correct.
+                    let _ = tx.send(pinned);
+                }
                 // `rule:http-server/a-core-is-never-blocked-on-a-syscall`: the
                 // capability door's name lookup is the one call `nvs-runtime`
                 // cannot wait on, and this crate is the half that owns a pool to
@@ -246,7 +278,7 @@ impl<T: Send + 'static> Worker<T> {
         // A closed channel means the thread died before it reported, which
         // `join` will surface properly; treat it as unpinned rather than
         // failing here for a reason that is not the caller's.
-        let pinned = rx.recv().unwrap_or(false);
+        let pinned = pin && rx.recv().unwrap_or(false);
         Ok(Self {
             cpu,
             pinned,

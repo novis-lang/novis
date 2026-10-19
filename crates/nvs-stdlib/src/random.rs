@@ -122,6 +122,7 @@ const RANDOM_CARD: ClassDoc = ClassDoc {
 };
 
 /// `Core\Random`'s registry rows, all seven members.
+// rank: 320
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&RANDOM_CARD),
@@ -362,6 +363,11 @@ const SEEDED_CARD: ClassDoc = ClassDoc {
 /// state is one word — the module docs' reason for writing that generator here
 /// is also the reason this class is an ordinary object rather than a handle
 /// into a table of native ones.
+///
+/// Spec § 11's reproducible generator, which is a *type* rather than a mode
+/// the class above can be put into — `crate::random`'s own docs argue the
+/// separation, and [`CONSTRUCTORS`](crate::registry::CONSTRUCTORS) is what makes `new` on it resolve.
+// rank: 330
 pub(crate) const SEEDED: CoreClass = CoreClass {
     name: SEEDED_NAME,
     doc: Some(&SEEDED_CARD),
@@ -1671,7 +1677,8 @@ mod tests {
 
     /// A small sample draws slots directly, so over an array with holes it
     /// must still answer only live entries, never one twice, and reach every
-    /// live entry across enough draws.
+    /// live entry across enough draws. Fifty draws under Miri, where each
+    /// draw is slow: an entry missed by all fifty has odds below one in 10^10.
     // covers: Core\Random::sample
     #[test]
     fn a_small_sample_over_holes_draws_only_live_entries() {
@@ -1684,7 +1691,8 @@ mod tests {
         }
         let subject = Value::array(array);
         let mut seen = std::collections::HashSet::new();
-        for _ in 0..400 {
+        let draws = if cfg!(miri) { 50 } else { 400 };
+        for _ in 0..draws {
             let sample = taken_ints(
                 run(super::nvs_core_random_sample, &[subject, Value::uint(5)])
                     .expect("5 of 12 is drawable"),

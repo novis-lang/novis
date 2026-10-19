@@ -1,0 +1,42 @@
+<?nvs
+// Answers every request with the request itself, in the JSON shape HTTP Garden reads: each field
+// base64, and the headers as a list of name and value pairs. `Core\Request` has no raw query
+// string and no HTTP version, so `uri` is the path alone and `version` is always 1.1.
+
+class Echo
+{
+    public static function b64(tainted string $text): string
+    {
+        tainted bytes $raw = Core\Encoding::encodeText($text, Core\Charset::Utf8);
+        return Core\Taint::assertTrusted(Core\Encoding::toBase64($raw), reason: 'base64 text');
+    }
+
+    public static function verb(Core\Http\Method $method): string
+    {
+        return match ($method) {
+            Core\Http\Method::Get => 'GET',
+            Core\Http\Method::Head => 'HEAD',
+            Core\Http\Method::Post => 'POST',
+            Core\Http\Method::Put => 'PUT',
+            Core\Http\Method::Delete => 'DELETE',
+            Core\Http\Method::Patch => 'PATCH',
+            Core\Http\Method::Options => 'OPTIONS',
+            Core\Http\Method::Trace => 'TRACE',
+        };
+    }
+}
+
+array<array<string>> $headers = [];
+foreach (Core\Request::headers() as tainted string $name => array<tainted string> $values) {
+    foreach ($values as tainted string $value) {
+        $headers[] = [Echo::b64($name), Echo::b64($value)];
+    }
+}
+
+Core\Response::json({
+    headers: $headers,
+    body: Core\Taint::assertTrusted(Core\Encoding::toBase64(Core\Request::bytes()), reason: 'base64 text'),
+    uri: Echo::b64(Core\Request::path()),
+    method: Echo::b64(Echo::verb(Core\Request::method())),
+    version: Echo::b64('1.1'),
+});

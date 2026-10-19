@@ -1,6 +1,6 @@
 // The two Linux legs: the WSL leg and the valgrind sweep. `linuxLegs` runs both and returns the ledger's
 // line, or "" when both are green, skipped or not reached by the change. `cmd/legs.ts` `legsOver` is what
-// starts it, for `bun nv legs` and for `bun nv sweep` (`cmd/sweep.ts`), which pays an owed leg.
+// starts it, for `bun nv legs` and for `bun nv debt` (`cmd/debt.ts`), which pays an owed leg.
 //
 // **The WSL leg** is Windows only. It builds the CLI inside the default WSL distro, into the goal's
 // `env.wsl.targetDir`, and runs every fixture the sweep reached and every `nvs-suite` check against that
@@ -103,7 +103,7 @@ export interface LegsOptions {
 /**
  * The legs' options over `checks`, the checks a sweep reached of `goal`: its fixtures and suites, every
  * `setup` check of the whole goal, its fixture list, `env.valgrind.skip` and `env.wsl.targetDir`.
- * `bun nv legs` and `bun nv sweep` build them here, through `cmd/legs.ts` `legsOver`.
+ * `bun nv legs` and `bun nv debt` build them here, through `cmd/legs.ts` `legsOver`.
  */
 export function legsOptions(goal: Pick<Goal, "checks" | "files" | "env">, checks: Check[], o: Omit<LegsOptions, "programs" | "suites" | "setups" | "files" | "valgrindSkip" | "wslTarget">): LegsOptions {
   return {

@@ -11,6 +11,7 @@
   "guardedBy": [
     "tools/nv/cmd/proofs.ts",
     "data/proofs/policy.json",
+    "data/proofs/skip",
     "data/proofs/help-backlog.json",
     "tools/nv/test/proof-growth.test.ts"
   ]

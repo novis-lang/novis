@@ -2,7 +2,7 @@
 // Measures asking a key pair for its stored form. A program does this every
 // time it saves its key.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

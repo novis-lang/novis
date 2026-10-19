@@ -1,0 +1,16 @@
+--TEST--
+`Core\Html::later` splices the text of a `Core\Html\Markup` its callable returned, and nothing from an object of any other class, whatever that object's first property contains — `rule:core-api/core-classes-are-sealed`
+--FILE--
+<?nvs
+final class Fake {
+    public string $text = "<script>x</script>";
+}
+
+var $markup = Core\Html::later(fn(): mixed => Core\Html::escape("<b>"));
+echo $markup, "\n";
+
+var $fake = Core\Html::later(fn(): mixed => new Fake());
+echo "[", $fake, "]\n";
+--EXPECT--
+&lt;b&gt;
+[]

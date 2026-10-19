@@ -153,6 +153,15 @@ const CARD: ClassDoc = ClassDoc {
 /// there is nothing for a handle to be and nothing to hand back. Every member is static for that
 /// reason, and this is that rule's list in its order, with the sealed pair
 /// `rule:http-server/a-session-holds-a-secret-only-sealed` adds standing after it.
+///
+/// Spec § 15's third half of one request: what arrived, what goes back, and
+/// what is remembered between the two. `rule:core-api/session-roster`'s roster, of which
+/// `start` is the member that talks to the store — [`crate::session`]'s own
+/// module doc owns which of § 2's four operations are on disk, why the local
+/// tier is unreachable from there rather than merely unselected, and why a
+/// presented identifier this store cannot have issued is *absent* rather
+/// than a second question about validity.
+// rank: 780
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -1468,6 +1477,7 @@ mod tests {
     use std::collections::HashMap;
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::Duration;
@@ -1521,13 +1531,62 @@ mod tests {
     /// dropped — the second half of what makes this a two-core test rather than a wire test: both
     /// cores talk to *one* map, which is what a shared tier is.
     ///
+    /// Dropping it stops the accept loop and joins every thread it started, so a test ends with
+    /// no thread of its own still running. It closes this thread's `crate::cache` connection
+    /// first, which otherwise stays open until the thread exits. A test declares it before its
+    /// own connections, so those close first too.
+    struct Serving {
+        address: SocketAddr,
+        stop: Arc<AtomicBool>,
+        accepting: Option<thread::JoinHandle<()>>,
+    }
+
+    impl Serving {
+        fn start(listener: TcpListener, held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>) -> Self {
+            let address = listener.local_addr().expect("the port it took");
+            let stop = Arc::new(AtomicBool::new(false));
+            let stopping = Arc::clone(&stop);
+            let accepting = thread::spawn(move || serving(&listener, &held, &stopping));
+            Self {
+                address,
+                stop,
+                accepting: Some(accepting),
+            }
+        }
+    }
+
+    impl Drop for Serving {
+        fn drop(&mut self) {
+            crate::cache::tests::close_shared();
+            self.stop.store(true, Ordering::SeqCst);
+            // The accept loop is blocked in `accept`, so one connection wakes it to see `stop`.
+            drop(TcpStream::connect(self.address));
+            if let Some(accepting) = self.accepting.take() {
+                let joined = accepting.join();
+                if !thread::panicking() {
+                    joined.expect("the store's threads do not panic");
+                }
+            }
+        }
+    }
+
+    /// [`Serving`]'s accept loop, which joins each connection's thread once `stop` is set.
+    ///
     /// `SET … PX`, `GET` and `DEL` only, because those are the three commands [`save`], [`load`]
     /// and [`destroy`] send; anything else is a panic rather than a silent `+OK`, so a fourth
     /// command added upstream fails here instead of passing untested.
-    fn serving(listener: TcpListener, held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>) {
+    fn serving(
+        listener: &TcpListener,
+        held: &Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>,
+        stop: &AtomicBool,
+    ) {
+        let mut connections = Vec::new();
         while let Ok((stream, _)) = listener.accept() {
-            let held = Arc::clone(&held);
-            thread::spawn(move || {
+            if stop.load(Ordering::SeqCst) {
+                break;
+            }
+            let held = Arc::clone(held);
+            let handler = thread::spawn(move || {
                 let mut writing = stream.try_clone().expect("the write half");
                 let mut reading = BufReader::new(stream);
                 while let Some(parts) = command(&mut reading) {
@@ -1563,6 +1622,12 @@ mod tests {
                     writing.write_all(&reply).expect("the reply");
                 }
             });
+            connections.push(handler);
+        }
+        for handler in connections {
+            handler
+                .join()
+                .expect("a connection's thread does not panic");
         }
     }
 
@@ -1585,7 +1650,7 @@ mod tests {
         let (listener, address) = listening();
         let held = Arc::new(Mutex::new(HashMap::new()));
         let store = Arc::clone(&held);
-        thread::spawn(move || serving(listener, store));
+        let _serving = Serving::start(listener, store);
 
         let mut open = Connection::new(
             Dial::configured(Target::Tcp(address), None, None),
@@ -1617,7 +1682,7 @@ mod tests {
     fn a_session_survives_a_request_landing_on_another_core() {
         let (listener, address) = listening();
         let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
-        thread::spawn(move || serving(listener, held));
+        let _serving = Serving::start(listener, held);
 
         let wrote = thread::spawn(move || {
             let mut open = Connection::new(
@@ -1839,7 +1904,7 @@ mod tests {
     fn a_destroyed_record_is_gone_and_forgetting_it_twice_is_not_a_failure() {
         let (listener, address) = listening();
         let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
-        thread::spawn(move || serving(listener, held));
+        let _serving = Serving::start(listener, held);
 
         let answered = thread::spawn(move || {
             let mut open = Connection::new(
@@ -1900,7 +1965,7 @@ mod tests {
             .expect("the store")
             .insert(key_of(ID), RECORD.to_vec());
         let store = Arc::clone(&held);
-        thread::spawn(move || serving(listener, store));
+        let _serving = Serving::start(listener, store);
         ctx.set_config(crate::tests::granting(&format!(
             "[capabilities.cache]\nshared = true\n[cache.shared]\nurl = \"redis://{address}\"\n"
         )));
@@ -1960,7 +2025,7 @@ mod tests {
             .expect("the store")
             .insert(key_of(ID), RECORD.to_vec());
         let store = Arc::clone(&held);
-        thread::spawn(move || serving(listener, store));
+        let _serving = Serving::start(listener, store);
         ctx.set_config(crate::tests::granting(&format!(
             "[capabilities.cache]\nshared = true\n[cache.shared]\nurl = \"redis://{address}\"\n"
         )));
@@ -2027,7 +2092,7 @@ mod tests {
             .expect("the store")
             .insert(key_of(HELD), RECORD.to_vec());
         let store = Arc::clone(&held);
-        thread::spawn(move || serving(listener, store));
+        let _serving = Serving::start(listener, store);
         let config = crate::tests::granting(&format!(
             "[capabilities.cache]\nshared = true\n[session]\nbackend = \"shared\"\n\
              [cache.shared]\nurl = \"redis://{address}\"\n"

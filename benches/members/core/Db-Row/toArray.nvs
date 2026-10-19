@@ -2,7 +2,7 @@
 // Measures reading a whole row as an array, which a program does once per row
 // before it sends a result set on as JSON.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity linear
 

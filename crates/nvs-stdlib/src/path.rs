@@ -100,6 +100,7 @@ use crate::registry::{
 
 /// `Core\Path`'s registry rows: every member, plus the `SEPARATOR` constant on
 /// [`CONSTANTS`].
+// rank: 130
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Path",
     doc: Some(&CARD),

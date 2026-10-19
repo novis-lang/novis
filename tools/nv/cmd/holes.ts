@@ -21,8 +21,8 @@
 //
 // A `guarded_by!` site is the other close a refusal can take: the shape never arrives, because the
 // diagnostic it names refuses it where it is written. `--guarded` lists each with the code the
-// registry in `crates/nvs-diagnostics/src/lib.rs` gives its constant, and `no-such-constant` for one it
-// does not declare. `crates/nvs-ir/tests/refusals.rs` holds each code to a conformance case.
+// registry's area files under `crates/nvs-diagnostics/src/code/` give its constant, and `no-such-constant`
+// for one they do not declare. `crates/nvs-ir/tests/refusals.rs` holds each code to a conformance case.
 //
 // The items are the live goal's numbered items in its goal file, `docs/goals/<slug>.md`. A site belongs to the item
 // that names its enclosing function in backticks, or else to the item with the nearest `crates/…:NN`
@@ -37,7 +37,8 @@ import { ROOT } from "../lib/paths.ts";
 
 export const summary = "the shapes the language still refuses: nv holes [--item N | --unattributed | --cases | --sites | --guarded | --json]";
 
-const REGISTRY = "crates/nvs-diagnostics/src/lib.rs";
+/** The registry's area files, one per range of codes. */
+const REGISTRY = "crates/nvs-diagnostics/src/code";
 /** Where a refusal can live. Both crates lower; nothing else does. */
 const SOURCES = ["crates/nvs-ir/src", "crates/nvs-codegen/src"];
 
@@ -215,7 +216,10 @@ function sites(files: [string, string][]): Site[] {
 function registry(): Map<string, string> {
   const out = new Map<string, string>();
   if (!existsSync(join(ROOT, REGISTRY))) return out;
-  for (const m of read(REGISTRY).matchAll(DECLARES_CODE)) out.set(m[1]!, m[2]!);
+  for (const file of readdirSync(join(ROOT, REGISTRY))) {
+    if (!file.endsWith(".rs")) continue;
+    for (const m of read(`${REGISTRY}/${file}`).matchAll(DECLARES_CODE)) out.set(m[1]!, m[2]!);
+  }
   return out;
 }
 

@@ -39,7 +39,10 @@ use nvs_runtime::{Ctx, Decimal, Fault, Tag, Value};
 ///   implement `Comparable` falls through to the throw below, which is the
 ///   same answer the operators give it. Both sides must be objects: a
 ///   `compareTo` declares its parameter at the class that wrote it, so handing
-///   it a scalar is a call the checker never saw.
+///   it a scalar is a call the checker never saw. Two objects of different
+///   classes where one is a `Core` class throw below instead
+///   ([`crate::instance::is_mixed_core_pair`]), because a `Core` comparer
+///   reads only its own class.
 ///
 /// Anything else — an array, a `bytes`, an object whose class has no
 /// `compareTo`, or two different rows above — is `THROWN`, naming both tags
@@ -94,6 +97,7 @@ pub(crate) fn compare_values(
     // itself and this one is a call out of it.
     if left.obj_ptr().is_some()
         && right.obj_ptr().is_some()
+        && !crate::instance::is_mixed_core_pair(*left, *right)
         && let Some(verdict) = nvs_runtime::call_compare_to(ctx, *left, *right, member)?
     {
         return sign_of(verdict, member);

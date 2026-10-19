@@ -119,6 +119,11 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// `Core\Ast` — one member, because parsing is one question.
+///
+/// The other half of `rule:tooling/reflection-and-source-parsing-are-core-features`:
+/// the compiler's own parser, reached at run time. One member, because
+/// parsing is one question.
+// rank: 1470
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -175,6 +180,11 @@ const NODE_CARD: ClassDoc = ClassDoc {
 /// No instance carries *this* class: a node's runtime class is its
 /// production's ([`PRODUCTIONS`]), which the module doc's second decision
 /// owns.
+///
+/// The tree `parse` answers with — a kind and the nodes under it, and
+/// nothing that reaches back into execution, which is what makes § 3's
+/// inertness structural rather than promised.
+// rank: 1480
 pub(crate) const NODE: CoreClass = CoreClass {
     name: NODE_NAME,
     doc: Some(&NODE_CARD),
@@ -1482,6 +1492,11 @@ mod tests {
                 panic!("the seed corpus at {} is committed: {why}", dir.display())
             })
             .map(|entry| entry.expect("a readable seed").path())
+            // Under Miri, only the seeds under 200 bytes. They still hold both
+            // verdicts, which the counts below require.
+            .filter(|path| {
+                !cfg!(miri) || std::fs::metadata(path).map_or(true, |meta| meta.len() < 200)
+            })
             .collect();
         seeds.sort();
         let mut parsed = 0usize;

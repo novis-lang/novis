@@ -1,0 +1,26 @@
+<?nvs
+// Attack: a program makes its own `Summary` whose `class()` names another test
+// class, so a report blames the wrong class. Only the test runner creates a
+// `Summary`, so the program should not compile.
+// hostile: expect-refusal
+
+use Core\Test\Summary;
+
+// 1. A class extends `Summary` by its full name and changes `class()`.
+class OtherClass extends Core\Test\Summary
+{
+    public function class(): string
+    {
+        return "Shop\\Tests\\SomebodyElsesTest";
+    }
+}
+
+// 2. A class extends `Summary` by the short name and adds a property of its own.
+class LongerSummary extends Summary
+{
+    public string $note = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+}
+
+// 3. A new `Summary` made with `new`, as if the program were the test runner.
+var $forged = new Summary();
+echo $forged->class(), "\n";

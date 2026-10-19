@@ -1,0 +1,4 @@
+{
+  "feature": "Core\\Test::assertCompletes",
+  "perf": "A bench runs under `nvs run`, where no `#[Test(at: ...)]` fixes a clock, so every iteration would measure the `LogicError` thrown before the body runs rather than the check."
+}

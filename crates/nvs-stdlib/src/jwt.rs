@@ -421,6 +421,14 @@ const VERIFY_ISSUED_OPTIONS: &[CoreOption] = &[
 /// `rule:security/protocol-roster`'s fourth roster entry: the two ways of
 /// signing a token, and the one way of reading back a token this program
 /// signed under a shared key.
+///
+/// `rule:security/protocol-roster`'s fourth roster entry, and the only one
+/// of the five whose wire format was designed elsewhere, so [`crate::jwt`]
+/// is the one class here that reads a field an attacker wrote. Its own
+/// module doc is the home of why `alg` is only ever compared, why the
+/// expiry is a positional `Duration` rather than a claim, and why a claim
+/// comes back as `tainted string` when `Core\SignedCookie` launders.
+// rank: 980
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -783,6 +791,16 @@ const READ_OPTIONS: &[CoreOption] = &[CoreOption {
 }];
 
 /// The set a token is verified against, as one row.
+///
+/// The keys the class above verifies another party's token against, beside
+/// it for `crate::jwe::KEY`'s reason: it is the value that member takes and
+/// nothing else produces one. Every rule about which keys a document may
+/// publish is applied at its one member, so a verification is a lookup by
+/// `kid` and a signature check — `rule:security/algorithm-comes-from-the-key`
+/// is why that is a lookup and never a try, and [`crate::jwt`]'s own module
+/// doc is the home of why a key this roster has no use for is skipped where
+/// a document that is wrong is refused whole.
+// rank: 990
 pub(crate) const KEY_SET: CoreClass = CoreClass {
     name: KEY_SET_NAME,
     doc: Some(&KEY_SET_CARD),
@@ -2779,6 +2797,10 @@ mod tests {
     /// the day it passes. The tokens are WebCrypto's own output and the claims
     /// are what an independent reading of the same rules admitted from them, so
     /// the file is the proof and there is no table here.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn webcrypto_jws_vectors_verify_to_their_claims() {
         let cases = webcrypto::vectors("jws");
@@ -2813,6 +2835,10 @@ mod tests {
     /// than with [`claim_refused`]: a token with no `exp` is
     /// `rule:security/jwt-expiry-is-mandatory` rather than a claim the issuer
     /// and this program disagree about.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn webcrypto_jws_refusals_are_each_refused_with_their_recorded_kind() {
         let cases = webcrypto::refusals("jws");
@@ -2956,6 +2982,10 @@ mod tests {
     /// different bytes and asserts nothing about these. The set's structured
     /// case is the one this cannot reach — its claims are a Novis object, which
     /// only a program builds — and it is skipped out loud.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn webcrypto_jws_signs_reproduce_every_deterministic_token_byte_for_byte() {
         let cases = webcrypto::signs("jws");
@@ -3014,6 +3044,10 @@ mod tests {
     /// here is this case's whole point — `embedKey` writing the pair's public
     /// half as RFC 7638's minimal JWK — so an embedded key that drifted from
     /// the one that signs is a failure of the first assertion.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn webcrypto_jws_signs_reproduce_the_randomized_token_as_far_as_it_is_fixed() {
         let mut checked = 0;
@@ -3231,6 +3265,10 @@ mod tests {
     /// pair's public half. A claims object naming `iat` and an `X25519` pair,
     /// which signs nothing, are each refused.
     // covers: Core\Jwt::signObject
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn sign_object_writes_the_encoders_object_then_the_clock_and_signs_under_the_pairs_algorithm() {
         const NOW: i64 = 1_700_000_000;
@@ -3522,6 +3560,10 @@ mod tests {
     /// signature, a wrong `iss`, a wrong `aud` and a clock past `exp` each say
     /// what is wrong; and an `array<…>` type is refused before the token is read.
     // covers: Core\Jwt::verifyIssued
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn verify_issued_decodes_the_issuers_claims_and_refuses_every_forgery_with_one_sentence() {
         const NOW: i64 = 1_700_000_000;
@@ -3644,6 +3686,10 @@ mod tests {
     /// no `keys` array, one naming two keys alike and one of 17 keys are each
     /// refused whole, with a sentence saying which.
     // covers: Core\Jwt\KeySet::read
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn key_set_read_admits_the_issuers_key_skips_an_encryption_key_and_refuses_a_wrong_document() {
         const NOW: i64 = 1_700_000_000;

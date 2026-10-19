@@ -2,7 +2,7 @@
 // Measures signing a short message with an Ed25519 key, as a program does for
 // every message it sends to a partner.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

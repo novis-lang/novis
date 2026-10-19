@@ -2,7 +2,7 @@
 // Measures reading a count that is never negative out of a row. A program does
 // this for every file size, page count and version number it reads off a table.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

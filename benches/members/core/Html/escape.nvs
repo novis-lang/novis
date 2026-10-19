@@ -1,7 +1,7 @@
 <?nvs
 // Measures escaping a short name, as a page does before it shows a name that a visitor typed.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 3
 // bench: complexity linear
 
 class Bench {

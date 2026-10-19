@@ -1,0 +1,4 @@
+{
+  "feature": "Core\\Test\\Outcome::failures",
+  "perf": "A bench runs under `nvs run`, where no test runs and no `#[AfterEachTest]` hook is called, so there is no `Outcome` to read: only the test runner creates one."
+}

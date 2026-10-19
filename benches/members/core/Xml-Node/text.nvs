@@ -2,7 +2,7 @@
 // Reads the text of a node, as a program does when it takes a value out of an XML document.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

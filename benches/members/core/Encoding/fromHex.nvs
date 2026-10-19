@@ -2,7 +2,7 @@
 // Measures reading a 64-digit checksum back to bytes, which a program does
 // before it compares one against a file it already has.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

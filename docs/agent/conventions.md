@@ -275,6 +275,10 @@ All five in the module that owns the class; `bun nv peek --locate <symbol>` reso
 to a file and line. Worked example: `crates/nvs-stdlib/src/json.rs`, which is small enough to
 read whole.
 
+A new *class* is a `CoreClass` const whose line above, past any attributes, is `// rank: N`: the
+place it takes in `registry::CLASSES`, which `bun nv render` writes into `classes.rs`. Pick a rank
+between its neighbours' — they are spaced by ten.
+
 **1. The row**, in that module's `pub const CLASS: CoreClass`:
 
 ```rust
@@ -497,12 +501,25 @@ reorder is cheap: moving an entry changes no content, and `--render` rewrites th
 
 ## A diagnostic
 
-Next free code per band: `bun nv pack`, under *The next free diagnostic code*. Bands are by compiler phase and the legend is
-`crates/nvs-diagnostics/src/lib.rs`'s own table. Declare it there as a `Code::new` constant next to its
-siblings — that file is the whole registry, so a code declared anywhere else does not exist.
+Each area of the compiler has its own range and its own file under `crates/nvs-diagnostics/src/code/`,
+and that module's head comment is the table of both. Declare a code in its area's file as a `Code::new`
+constant with its card, and take the highest number in that file plus one: never a retired number in
+a hole. A test fails on a code outside its file's range and on a number declared twice. A full range
+continues in a new range and a new file, which the table names.
 
-Never reuse a retired number; the next free one is the band's highest plus one, deliberately not the
-lowest hole.
+## An `nvs` command
+
+A command is its own module under `crates/nvs-cli/src/`, and that module owns the command's arguments
+and how they are run. It declares a `#[derive(clap::Args)] pub(crate) struct Args` whose doc comment is
+the command's help line, and an `Args::run(self, ...)` that takes only what the command reads from the
+global flags. `main.rs` then gets two lines: the variant `Name(name::Args)` in `Command`, with no doc
+comment, and the arm `Command::Name(args) => args.run(...)`. A command with subcommands gives its
+`Args` one `#[command(subcommand)]` field holding a private `#[derive(clap::Subcommand)] enum Command`,
+which `Args::run` matches; `crates/nvs-cli/src/schema.rs` is that shape. A hidden alias is the one
+variant that keeps a doc comment, beside its `#[command(hide = true)]`. `crates/nvs-cli/src/ast.rs`'s
+`Args` is the shape.
+Moving a command keeps every help page byte for byte the same, so compare `nvs <command> --help` and
+`-h` before and after.
 
 ## An edit the Edit tool cannot express, or a run of three or more edits
 

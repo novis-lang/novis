@@ -38,7 +38,7 @@ foreach ($logins as string $login) {
 connect = ["corp"]
 
 [ldap.corp]
-url = "ldaps://localhost:16636"
+url = "ldaps://127.0.0.1:16636"
 base = "OU=Company,DC=example,DC=test"
 user = "CN=Reader,OU=Company,DC=example,DC=test"
 password = "Novis-reader-1"

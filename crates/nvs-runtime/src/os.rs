@@ -211,6 +211,7 @@ mod tests {
     /// resident set are all different on every run: what could go wrong here is
     /// a call whose arguments are wrong, and that shows up as a `None` or a
     /// zero rather than as a wrong-looking number.
+    #[cfg_attr(miri, ignore = "calls `getrusage`, which Miri does not emulate")]
     #[test]
     fn the_host_answers_every_fact_this_platform_keeps() {
         assert!(super::pid() > 0, "a process has a pid");

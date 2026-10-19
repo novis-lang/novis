@@ -56,6 +56,6 @@ Attack::attempt(5, $root
 Attack::attempt(6, '');
 Attack::attempt(6, $root . '<rsm:Exch');
 
-// 7. 20 MB of text in one element. The render runs out of memory, so this is the last step.
+// 7. 60 MB of text in one element. The render runs out of memory, so this is the last step.
 echo "step 7\n";
-Attack::attempt(7, $root . Core\Str::repeat('x', 20000000) . '</rsm:CrossIndustryInvoice>');
+Attack::attempt(7, $root . Core\Str::repeat('x', 60000000) . '</rsm:CrossIndustryInvoice>');

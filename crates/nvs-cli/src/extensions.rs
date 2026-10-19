@@ -139,7 +139,13 @@ pub(crate) fn with_built_in(manifests: Vec<Manifest>) -> Vec<Manifest> {
 /// The built-in component declaring `class`, compiled on the first call into it. `config` places
 /// the compiled form in the artifact cache, when the first call has one. `None` when no built-in
 /// component declares `class`.
+///
+/// The first call is made inside a request, and what it compiles is the process's for as long as
+/// it runs, so the compile runs inside a [`Detached`](nvs_runtime::budget::Detached) bracket. A
+/// fresh compile allocates on the engine's worker threads and frees on this one, so without the
+/// bracket the request's balance fell by those frees, and its ceiling bought it the difference.
 fn built_in(class: &str, config: Option<&Config>) -> Option<Result<&'static Loaded, String>> {
+    let _process = nvs_runtime::budget::Detached::begin();
     let built_in = BUILT_IN.get_or_init(|| {
         let loader = loader()?.clone();
         let loader = match config.and_then(Modules::placed) {

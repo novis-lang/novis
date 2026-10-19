@@ -1,0 +1,4 @@
+{
+  "feature": "Core\\RateLimit::consume",
+  "perf": "The member runs its step in a store the sweep does not run: unconfigured, every iteration measures the refusal, and configured, it measures another server and the network between them rather than Novis; `Core\\RateLimit::shed` runs the same arithmetic in this process and carries the figure."
+}

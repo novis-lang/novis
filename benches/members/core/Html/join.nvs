@@ -1,7 +1,7 @@
 <?nvs
 // Measures joining three short HTML pieces, as a page does when it puts a row of links together.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 3
 // bench: complexity linear
 
 class Bench {

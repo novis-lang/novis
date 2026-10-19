@@ -1,0 +1,52 @@
+<?nvs
+// Shows a hook that writes the failure messages of each failed test to a log
+// file. Each line has the test name and one message.
+
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class FailureLog
+{
+    public static function lines(string $test, array<string> $failures): string
+    {
+        string $text = '';
+        foreach ($failures as string $failure) {
+            $text = $text . $test . ': ' . $failure . "\n";
+        }
+        return $text;
+    }
+}
+
+class Shipping
+{
+    // The prices are in cents. An order of 50 euros or more ships for free.
+    public static function cost(int $order): int
+    {
+        return $order >= 5000 ? 0 : 490;
+    }
+}
+
+class ShippingTest
+{
+    #[Test]
+    public function itIsFreeAboveFiftyEuros(): void
+    {
+        Test::assertSame(Shipping::cost(5000), 0);
+    }
+
+    // `failures()` is empty for a passed test, so nothing is written.
+    #[AfterEachTest]
+    public function writeFailures(Outcome $outcome): void
+    {
+        string $text = FailureLog::lines($outcome->name(), $outcome->failures());
+        if ($text != '') {
+            IO::append(Path::fromCwd('failures.log'), $text);
+        }
+    }
+}
+
+// This prints `itIsFreeAboveFiftyEuros: shipping is 490`.
+echo FailureLog::lines('itIsFreeAboveFiftyEuros', ['shipping is 490']);

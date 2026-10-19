@@ -1,0 +1,27 @@
+# Laid over the Garden's own `docker-compose.yml` by `bun nv garden`, in the project `http-garden`,
+# so both services join `http-garden_default` beside the reference origins.
+#
+# Compose resolves a relative path in this file against the Garden's checkout, so each build
+# context is the absolute directory `bun nv garden` staged and names in `NV_GARDEN_STAGE`.
+
+services:
+  # `nvs serve` running `echo.nvs`, from the Linux binary the command staged.
+  nvs:
+    build:
+      context: ${NV_GARDEN_STAGE:?bun nv garden sets this}/origin
+
+  # The Garden's Node origin, built from the official Node image instead of from source.
+  # `node.Dockerfile` says why.
+  node_stdlib:
+    build:
+      context: ${NV_GARDEN_STAGE:?bun nv garden sets this}/node
+
+  # The Garden's harness and `sweep.py`. It runs with `docker compose run`, which gives it the label
+  # `com.docker.compose.service=runner` that `targets.py` reads from every container on the network.
+  # The Docker socket is how `targets.py` finds each origin's address.
+  runner:
+    build:
+      context: ${NV_GARDEN_STAGE:?bun nv garden sets this}/runner
+    profiles: ["run"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

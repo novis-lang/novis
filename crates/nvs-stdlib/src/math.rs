@@ -73,6 +73,7 @@ const CARD: ClassDoc = ClassDoc {
 ///
 /// Declared beside the implementations rather than in one flat table, for the
 /// reason [`crate::arr::CLASS`] states.
+// rank: 40
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Math",
     doc: Some(&CARD),
@@ -2531,6 +2532,10 @@ mod tests {
     }
 
     /// A precision moves the tie, in both directions.
+    #[cfg_attr(
+        miri,
+        ignore = "Miri adds a rounding error to `powi`, and this test checks the exact result"
+    )]
     #[test]
     fn a_precision_rounds_at_that_place() {
         let half_up = [Value::int(2), Value::int(0)];
@@ -3353,7 +3358,14 @@ mod tests {
             let n = 10.0_f64.powi(power);
             assert_eq!(log(n, 10.0), Ok(f64::from(power)), "log({n}, 10)");
         }
-        for power in -1022..=1023 {
+        // Under Miri, only the ends of the range and the powers around zero
+        // and the mantissa's width, because each call builds a context.
+        let powers_of_two: Vec<i32> = if cfg!(miri) {
+            vec![-1022, -1021, -53, -1, 0, 1, 52, 53, 1022, 1023]
+        } else {
+            (-1022..=1023).collect()
+        };
+        for power in powers_of_two {
             let n = 2.0_f64.powi(power);
             assert_eq!(log(n, 2.0), Ok(f64::from(power)), "log({n}, 2)");
         }

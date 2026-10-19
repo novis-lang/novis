@@ -14,8 +14,8 @@
 //! [`nvs_db::SqliteColumn::column_type`] folds every `TIMESTAMP` spelling into
 //! [`nvs_db::ColumnType::DateTime`], which this member refuses by class. Every
 //! proof program in this repository connects to an in-memory SQLite block, so
-//! that member's example, attack and bench are skip entries in
-//! `data/proofs/policy.json` and its tests are not.
+//! that member's example, attack and bench are skipped in its file under
+//! `data/proofs/skip/` and its tests are not.
 
 use super::*;
 
@@ -1308,6 +1308,7 @@ mod tests {
     /// The `.nvst` half runs the same statements through a program and is where
     /// the member is reached the way a caller reaches it.
     // covers: Core\Db\Column::name
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_column_label_is_the_alias_a_real_statement_described() {
         let block = nvs_config::tree::Database {
@@ -1381,6 +1382,7 @@ mod tests {
     /// into the slot is what a program matches on, and the member hands that on
     /// without classifying anything a second time.
     // covers: Core\Db\Column::type
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_column_case_is_what_a_real_schema_declared() {
         let block = nvs_config::tree::Database {
@@ -1465,6 +1467,7 @@ mod tests {
     /// one entry per column, so a description losing a column would print an
     /// answer for every entry it kept.
     // covers: Core\Db\Column::nullable
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn every_described_column_may_hold_null_whatever_it_was_declared() {
         let block = nvs_config::tree::Database {
@@ -1964,8 +1967,8 @@ mod tests {
     ///
     /// This is the one place the answer is reached at all. SQLite folds every
     /// `TIMESTAMP` spelling into `ColumnType::DateTime`, so this member's
-    /// example, attack and bench are skip entries in
-    /// `data/proofs/policy.json` and the `.nvst` case beside them can
+    /// example, attack and bench are skipped in its file under
+    /// `data/proofs/skip/` and the `.nvst` case beside them can
     /// pin the refusals and nothing else. A row built here holds whatever it is
     /// given, so the `TIMESTAMPTZ` column the member is written for is one
     /// [`NvsArray::set`] away.

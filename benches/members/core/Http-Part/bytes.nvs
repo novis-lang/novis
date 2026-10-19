@@ -1,7 +1,7 @@
 <?nvs
 // Measures creating an upload from data in memory, as a program does before it sends a report or a picture.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

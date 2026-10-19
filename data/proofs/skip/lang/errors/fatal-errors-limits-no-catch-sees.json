@@ -1,0 +1,4 @@
+{
+  "feature": "lang:errors/fatal-errors-limits-no-catch-sees",
+  "perf": "A `FATAL` stops the program where it stands, so there is nothing to iterate; the allocation accounting that reaches the ceiling is measured by every allocating member's own figure."
+}

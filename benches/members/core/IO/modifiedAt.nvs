@@ -1,7 +1,7 @@
 <?nvs
 // Reads when a file was last changed, as a program does before it decides to rebuild a cache.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

@@ -47,6 +47,50 @@ use std::process::ExitCode;
 
 use serde_json::Value;
 
+/// Work with the API document `nvs build --openapi` produces.
+///
+/// A group rather than a flag on `build`, because `diff` reads two finished
+/// documents and compiles nothing: the old side of a diff is the last
+/// release's artifact, and there may be no source for it on this machine at
+/// all.
+// `rule:routing/api-diff-fails-a-breaking-change`.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
+
+/// `nvs api`'s own subcommands.
+///
+/// A subcommand group rather than a bare `nvs diff` because what is being
+/// diffed is the *API*, and a bare verb would own a name the next artifact
+/// would want.
+#[derive(clap::Subcommand)]
+enum Command {
+    /// Classify every change between two OpenAPI documents, exiting non-zero on
+    /// a breaking one.
+    ///
+    /// Run it in CI against the document from the last release and a breaking
+    /// change stops the build.
+    // The gate of `rule:routing/api-diff-fails-a-breaking-change`; [`run`]
+    // says what each class covers.
+    Diff {
+        /// The document to compare against — the last release's.
+        old: std::path::PathBuf,
+        /// The document this build produced.
+        new: std::path::PathBuf,
+    },
+}
+
+impl Args {
+    /// Runs the `nvs api` subcommand clap parsed.
+    pub(crate) fn run(self) -> ExitCode {
+        match self.command {
+            Command::Diff { old, new } => run(&old, &new),
+        }
+    }
+}
+
 /// How a single change is classified. Ordered worst-first, which is the order
 /// the report prints in.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]

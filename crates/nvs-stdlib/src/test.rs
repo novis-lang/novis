@@ -582,6 +582,10 @@ const CARD: ClassDoc = ClassDoc {
 /// predicate ones its example writes beside them, and `rule:testing/failure-ledger`'s `expectFailure`.
 /// See
 /// [`crate::registry::CLASSES`].
+///
+/// `rule:testing/assertions-are-typed`'s assertion surface rather than a spec § of its own: testing is a
+/// language feature, and `Core\Test` is the same `QName` `#[Test]` names.
+// rank: 460
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -930,6 +934,12 @@ pub(crate) const RESPONSE_NAME: &str = r"Core\Test\Response";
 /// **What it spends:** one copy of the answer's header lines per test request,
 /// grouped by name in [`HEADERS_SLOT`], beside the body the response already
 /// held. Test-only: no served request builds one.
+///
+/// § 18's in-process request, as the thing one answers with — a class beside
+/// `Core\Test` for the reason `Core\Script\ExitReport` sits beside
+/// `Core\Script`, and [`crate::test`]'s own doc on it owns why it is a
+/// `Core`-owned instance rather than the shape § 18's example writes.
+// rank: 470
 pub(crate) const RESPONSE: CoreClass = CoreClass {
     name: RESPONSE_NAME,
     doc: Some(&RESPONSE_CARD),
@@ -1042,6 +1052,12 @@ pub(crate) const SENT_REQUEST_NAME: &str = r"Core\Test\SentRequest";
 /// A `Core`-owned instance for [`RESPONSE`]'s reason, and readonly for a second
 /// one: a record of what was sent is a fact about a call that has already been
 /// made, so there is nothing on it a program could sensibly write.
+///
+/// `rule:testing/an-outbound-call-is-answered-from-a-table`'s record of one
+/// outbound call, beside `Core\Test` for the reason the response above is:
+/// what a test asserts on is a `Core`-owned instance, and this one is
+/// readonly because the call it describes has already been made.
+// rank: 480
 pub(crate) const SENT_REQUEST: CoreClass = CoreClass {
     name: SENT_REQUEST_NAME,
     doc: Some(&SENT_REQUEST_CARD),
@@ -7481,8 +7497,9 @@ mod tests {
     // covers: Core\Test::assertTrue, Core\Test::expectFailure, Core\Test::scriptAnswers
     #[test]
     fn assert_true_expect_failure_and_script_answers_write_the_ledger_and_the_queue() {
-        /// How many failures [`fails_and_catches`] records.
-        const CAUGHT: usize = 20_000;
+        /// How many failures [`fails_and_catches`] records. Two hundred under
+        /// Miri, because each failure is a call and Miri pays for every one.
+        const CAUGHT: usize = if cfg!(miri) { 200 } else { 20_000 };
 
         fn asserted(ctx: &mut Ctx, actual: bool, message: Option<&str>) -> Result<(), String> {
             let message = message.map_or(Value::null(), |given| {

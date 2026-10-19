@@ -671,6 +671,14 @@ const KEY_PAIR_CARD: ClassDoc = ClassDoc {
 };
 
 /// `rule:core-api/tier-roster`'s AEAD-only surface, as registry rows.
+///
+/// `rule:core-api/tier-roster`'s "AEAD only", and ranked beside `Core\Secret` and
+/// `Core\Password` for their reason: this is the class whose `secret bytes` key
+/// crosses the same boundary without any member removing the mark, which is
+/// what keeps `rule:core-classes/secret-reveal`'s roster closed at two.
+/// [`crate::crypto`] owns the construction and why
+/// there is no cipher argument.
+// rank: 920
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -1127,6 +1135,13 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
 /// every curve — plus one DER parse per member call. No member here is on a
 /// request's hot path: a program reads a peer's key and then verifies or agrees
 /// with it, and those are the calls that matter.
+///
+/// The public half of an asymmetric key, as the object `rule:core-api/shape-rules` R14 asks
+/// for: a key has a lifetime — it is read once, checked once, and then used
+/// — so it is a class and not a `bytes` every later member would have to
+/// re-validate. Its own doc owns why its slots are a canonical SPKI and a
+/// kind rather than the octets the program was handed.
+// rank: 930
 pub(crate) const PUBLIC_KEY: CoreClass = CoreClass {
     name: PUBLIC_KEY_NAME,
     doc: Some(&PUBLIC_KEY_CARD),
@@ -1275,6 +1290,13 @@ const PUBLIC_KEY_KIND_DOC: MethodDoc = MethodDoc {
 /// little over a kilobyte for RSA at [`MAX_RSA_BITS`] and under a hundred
 /// octets on every curve — plus one PKCS#8 parse per member call that needs the
 /// key. `write` needs none: it answers the slot.
+///
+/// The private half, and a class for the same R14 reason with a second one
+/// beside it: a pair is the only thing in the language a `secret bytes`
+/// leaves rather than enters, and an object is what makes `write` the one
+/// door it leaves through. Its own doc owns why its slots are the PKCS#8 and
+/// the kind, and why there is no cache of parsed keys behind them.
+// rank: 940
 pub(crate) const KEY_PAIR: CoreClass = CoreClass {
     name: KEY_PAIR_NAME,
     doc: Some(&KEY_PAIR_CARD),
@@ -3783,8 +3805,11 @@ mod tests {
                 .expect("the construction's own key length");
             let sealed = seal_under(&mut ctx, &cipher, &[], b"one message", "Core\\Crypto::seal")
                 .expect("a short message seals");
+            // One P-256 key takes about a minute and a half under Miri, so
+            // there the two other kinds stand for it.
             let keys: Vec<Vec<u8>> = [KeyKind::X25519, KeyKind::Ed25519, KeyKind::P256]
                 .into_iter()
+                .filter(|kind| !(cfg!(miri) && *kind == KeyKind::P256))
                 .map(|kind| {
                     generated_pkcs8(&mut ctx, kind, "Core\\Crypto::generateKeyPair")
                         .expect("every kind but the two RSA ones is drawn here")
@@ -3793,18 +3818,25 @@ mod tests {
             (sealed, keys)
         };
 
+        let first = drawn(0x0005_eed1);
         assert_eq!(
-            drawn(0x0005_eed1),
+            first,
             drawn(0x0005_eed1),
             "a seeded context reproduces the nonce and every drawn key, which nothing outside \
              `crate::random::draw` can do"
         );
         assert_ne!(
-            drawn(0x0005_eed1),
+            first,
             drawn(0x0005_eed2),
             "and each of them is drawn rather than derived from the key or the message"
         );
 
+        // The half below reads this module's own source text, and under Miri
+        // it takes minutes. The text is the same on every build, so the other
+        // builds check it.
+        if cfg!(miri) {
+            return;
+        }
         let shipped = |source: &'static str| {
             source
                 .lines()
@@ -3924,12 +3956,17 @@ mod tests {
     // covers: Core\Crypto::generateKeyPair
     #[test]
     fn a_generated_pair_is_a_fresh_private_key_of_the_kind_that_was_named() {
+        // Under Miri the batch is three pairs, and X25519 is the one kind
+        // drawn: a P-256 pair takes about a minute and a half there, and an
+        // Ed25519 pair is read back by `ring`'s C and assembly, which Miri
+        // cannot interpret.
+        let batch = if cfg!(miri) { 3 } else { 8 };
         let drawn = |kind: KeyKind, seed: Option<u64>| {
             let mut ctx = nvs_runtime::Ctx::buffered();
             if let Some(state) = seed {
                 ctx.set_random_state(state);
             }
-            (0..8)
+            (0..batch)
                 .map(|_| {
                     let pair = nvs_runtime::call(
                         nvs_core_crypto_generate_key_pair,
@@ -3961,7 +3998,11 @@ mod tests {
                 .collect::<Vec<_>>()
         };
 
-        for kind in [KeyKind::P256, KeyKind::X25519, KeyKind::Ed25519] {
+        let kinds = [KeyKind::P256, KeyKind::X25519, KeyKind::Ed25519];
+        for kind in kinds
+            .into_iter()
+            .filter(|kind| !cfg!(miri) || *kind == KeyKind::X25519)
+        {
             let pairs = drawn(kind, None);
             let mut distinct = pairs.clone();
             distinct.sort();
@@ -3971,14 +4012,15 @@ mod tests {
                 pairs.len(),
                 "no pair is drawn twice, so no two programs hold one private key by accident"
             );
+            let seeded = drawn(kind, Some(0x000c_0ffe));
             assert_eq!(
-                drawn(kind, Some(0x000c_0ffe)),
+                seeded,
                 drawn(kind, Some(0x000c_0ffe)),
                 "a seeded context reproduces the pairs, which is what says the scalar came \
                  through `crate::random::draw`"
             );
             assert_ne!(
-                drawn(kind, Some(0x000c_0ffe)),
+                seeded,
                 drawn(kind, Some(0x000c_0fff)),
                 "and a second seed draws different ones"
             );
@@ -4022,6 +4064,10 @@ mod tests {
     /// differently is the reference card's own sentence, and it is the half a
     /// caller feels: two signatures that differ are both this key's.
     // covers: Core\Crypto::sign
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_signature_is_the_pairs_own_scheme_and_an_x25519_pair_signs_nothing() {
         fn drew(ctx: &mut nvs_runtime::Ctx, kind: KeyKind) -> Value {
@@ -4141,6 +4187,10 @@ mod tests {
     /// not the one every forgery gets. Both are read as sentences, since the
     /// class a member threw is not on [`nvs_runtime::call`]'s error.
     // covers: Core\Crypto::verify
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn every_forgery_lands_on_one_sentence_and_an_x25519_key_verifies_nothing() {
         fn drew(ctx: &mut nvs_runtime::Ctx, kind: KeyKind) -> Value {
@@ -4340,6 +4390,10 @@ mod tests {
     /// would throw four sentences. That both halves hold is this member's own
     /// doc written as a test, since telling a forger which half landed is the
     /// leak the one sentence exists to prevent.
+    ///
+    /// Under Miri, the changed octet and the cut take every seventh position
+    /// and the last one, because a few hundred opens take longer than a test
+    /// may run there.
     // covers: Core\Crypto::open
     #[test]
     fn open_answers_the_plaintext_and_every_forgery_lands_on_one_sentence() {
@@ -4364,6 +4418,10 @@ mod tests {
                     .to_string()),
             }
         };
+        let sampled = |len: usize| -> Vec<usize> {
+            let stride = if cfg!(miri) { 7 } else { 1 };
+            (0..len).step_by(stride).chain([len - 1]).collect()
+        };
 
         for cipher in [0, 1] {
             let sealed = called(nvs_core_crypto_seal, message, &key, cipher)
@@ -4376,7 +4434,7 @@ mod tests {
             );
 
             let mut sentences = std::collections::BTreeSet::new();
-            for at in 0..sealed.len() {
+            for at in sampled(sealed.len()) {
                 let mut forged = sealed.clone();
                 forged[at] ^= 1;
                 sentences.insert(
@@ -4384,7 +4442,7 @@ mod tests {
                         .expect_err("an octet changed at any position, the tag included"),
                 );
             }
-            for cut in 0..sealed.len() {
+            for cut in sampled(sealed.len()) {
                 sentences.insert(
                     called(nvs_core_crypto_open, &sealed[..cut], &key, cipher)
                         .expect_err("a message cut short, the empty one included"),
@@ -4649,11 +4707,15 @@ mod tests {
             hex("55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc"),
             "RFC 7914 § 11, one iteration"
         );
-        assert_eq!(
-            pbkdf2_sha256(b"Password", b"NaCl", 80_000).as_slice(),
-            hex("4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56"),
-            "RFC 7914 § 11, eighty thousand"
-        );
+        // Under Miri a thousand iterations take more than a minute, so there
+        // the one-iteration vector above is the PBKDF2 half of this test.
+        if !cfg!(miri) {
+            assert_eq!(
+                pbkdf2_sha256(b"Password", b"NaCl", 80_000).as_slice(),
+                hex("4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56"),
+                "RFC 7914 § 11, eighty thousand"
+            );
+        }
 
         assert_eq!(
             expand_key(
@@ -4708,6 +4770,11 @@ mod tests {
             .is_err(),
             "one octet short of a salt is refused"
         );
+        // A derivation at the floor takes hours under Miri, so there the test
+        // ends with the three refusals, which run no iteration.
+        if cfg!(miri) {
+            return;
+        }
         assert_eq!(
             derive_key(b"correct horse", &salt, u64::from(MIN_ITERATIONS), who)
                 .expect("the floor derives"),
@@ -4748,7 +4815,10 @@ mod tests {
         let vectors = webcrypto::vectors("pbkdf2");
         assert!(!vectors.is_empty(), "the set carries PBKDF2 vectors at all");
 
-        for vector in vectors {
+        // Under Miri a thousand iterations take more than a minute, and every
+        // vector here is at the floor of a hundred thousand or above. There the
+        // PBKDF2 section is not run, and the two below still are.
+        for vector in vectors.iter().filter(|_| !cfg!(miri)) {
             let name = webcrypto::text(vector, "/name");
             assert_eq!(
                 derive_key(
@@ -4948,7 +5018,12 @@ mod tests {
             "RFC 7748 § 6.1, the same secret reached from the other end"
         );
 
-        for vector in webcrypto::vectors("ecdh") {
+        // Under Miri one P-256 multiplication takes about a minute and a half,
+        // so there only the X25519 vectors run.
+        let vectors = webcrypto::vectors("ecdh")
+            .iter()
+            .filter(|vector| !(cfg!(miri) && webcrypto::text(vector, "/curve") == "P-256"));
+        for vector in vectors {
             let name = webcrypto::text(vector, "/name");
             let mine = webcrypto::octets(vector, "/a/scalar");
             let theirs = webcrypto::octets(vector, "/b/scalar");
@@ -5061,6 +5136,11 @@ mod tests {
             published,
             "RFC 5903 § 8.1, the initiator's scalar against the responder's point"
         );
+        // Under Miri each multiplication takes about a minute and a half, so
+        // there the test checks one direction.
+        if cfg!(miri) {
+            return;
+        }
         assert_eq!(
             agree_p256(&responder, &point(&initiator))
                 .expect("the document's two keys are two ends of one agreement")
@@ -5241,6 +5321,10 @@ mod tests {
     /// signature that key made over that message — the octets, the key, the
     /// message, the encoding and the algorithm — arrives there as the same
     /// answer, so there is one sentence to say.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn webcrypto_signature_refusals_are_each_refused_with_one_runtime_error() {
         for refusal in webcrypto::refusals("signatures") {
@@ -5274,6 +5358,10 @@ mod tests {
     /// fresh signature verifies under the key's own public half, and two over
     /// one message differ, which is the evidence the randomness reaches the
     /// algorithm rather than being a constant nobody noticed.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn webcrypto_signature_vectors_verify_and_deterministic_ones_resign_byte_for_byte() {
         for vector in webcrypto::vectors("signatures") {
@@ -5323,6 +5411,10 @@ mod tests {
     /// way in and that refusal is one of this module's rules rather than an
     /// obstacle to work around. The payload is carried base64url rather than
     /// written out, because the appendix's own is the one with the `\r\n` in it.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn the_published_tokens_of_rfc_7515_verify_under_their_appendix_jwk() {
         let payload = "eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFt\
@@ -5397,6 +5489,10 @@ mod tests {
     /// [`PrivateKey::read`] takes is [`ED25519_PKCS8_PREFIX`] over it — the file
     /// [`generated_pkcs8`] writes for a drawn key, which is why a key that came
     /// out of a document needs no reader of its own.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn the_ed25519_token_of_rfc_8037_is_verified_and_signed_again_byte_for_byte() {
         let input = "eyJhbGciOiJFZERTQSJ9.RXhhbXBsZSBvZiBFZDI1NTE5IHNpZ25pbmc";
@@ -5446,6 +5542,10 @@ mod tests {
     /// The one pairing that is not a mistake is an RSA key read as either
     /// scheme: that is the single place `rule:security/algorithm-comes-from-the-key`
     /// leaves a choice, and it is made here and nowhere later.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_key_read_as_a_kind_it_is_not_is_refused_at_the_read() {
         let pkcs8 =
@@ -5470,6 +5570,10 @@ mod tests {
     /// reader that carried the four signing kinds and lost X25519 — the shape
     /// the codec had before a `Crypto\KeyPair` needed all five — fails here
     /// while every line it does print still looks right.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn every_kind_of_the_roster_reads_a_private_key_and_derives_its_public_half() {
         let pairs = [
@@ -5561,6 +5665,10 @@ mod tests {
     /// holding the right octets under the wrong kind still answers every
     /// comparison above and fails at the first signature.
     // covers: Core\Crypto\KeyPair::read
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_key_file_reads_into_the_der_and_the_kind_whichever_spelling_carried_it() {
         let slots = |octets: &[u8], kind: KeyKind| -> Option<(Vec<u8>, KeyKind)> {
@@ -5638,6 +5746,10 @@ mod tests {
     /// Written twice, because a member moving the value out of the slot answers
     /// the right octets once and leaves a pair no later member can use.
     // covers: Core\Crypto\KeyPair::write
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_pair_writes_the_octets_in_its_own_slot_and_keeps_them() {
         let pkcs8 = webcrypto::octets(webcrypto::node("/jws/keys/ed-1"), "/pkcs8");
@@ -5706,6 +5818,10 @@ mod tests {
     /// thousand of them: a member handing out one shared instance would answer
     /// every assertion above and leave the survivors reading freed octets.
     // covers: Core\Crypto\KeyPair::publicKey
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn every_pair_answers_the_public_half_the_set_exported_and_a_fresh_one_each_call() {
         let mut derived = 0;
@@ -5786,7 +5902,10 @@ mod tests {
     }
 
     /// Every public key the frozen set carries, as the node holding its
-    /// encodings and the kind its label names.
+    /// encodings and the kind its label names. Under Miri it is the first key
+    /// of each kind, because every scan over the whole set takes close to
+    /// CI's five minutes there, and a second key of a kind reads through the
+    /// same code as the first.
     fn public_keys() -> Vec<(&'static serde_json::Value, KeyKind)> {
         let mut keys = Vec::new();
         for id in ["rsa-1", "rsa-2", "ec-1", "ed-1"] {
@@ -5804,6 +5923,16 @@ mod tests {
             }
         }
 
+        if cfg!(miri) {
+            let mut seen = Vec::new();
+            keys.retain(|(_, kind)| {
+                let first = !seen.contains(kind);
+                if first {
+                    seen.push(*kind);
+                }
+                first
+            });
+        }
         keys
     }
 
@@ -5924,6 +6053,10 @@ mod tests {
     /// route and wrong on the other still looks right wherever a program uses
     /// one route.
     // covers: Core\Crypto\PublicKey::kind
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_key_answers_its_kind_as_the_registrys_own_case_however_it_was_reached() {
         let asked = |ctx: &mut nvs_runtime::Ctx, key: Value| {
@@ -6347,6 +6480,10 @@ mod tests {
     /// through [`PublicKey::read`] and hands both the same frozen signatures.
     /// A codec that reordered an RSA component or dropped a point's tag would
     /// still round-trip its own encodings and fail every line of this.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_key_the_codec_read_verifies_what_webcrypto_signed() {
         for vector in webcrypto::vectors("signatures") {

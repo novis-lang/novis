@@ -1,7 +1,7 @@
 <?nvs
 // Measures drawing one float from a seeded generator, as a simulation does for each event.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

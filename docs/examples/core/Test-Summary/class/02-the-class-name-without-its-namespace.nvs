@@ -1,0 +1,39 @@
+<?nvs
+// Shows how to remove the namespace from the class name of a `Summary`. The
+// short name is easier to read in a narrow terminal.
+
+namespace Shop\Tests;
+
+use Core\Arr;
+use Core\Str;
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class ShortName
+{
+    // The last part after a backslash is the class name alone.
+    public static function of(string $class): string
+    {
+        return Arr::last(Str::split($class, "\\")) ?? $class;
+    }
+}
+
+class CouponTest
+{
+    #[Test]
+    public function itAcceptsUpperCase(): void
+    {
+        Test::assertSame(Str::upper('summer10'), 'SUMMER10');
+    }
+
+    // `class()` returns `Shop\Tests\CouponTest` here.
+    #[AfterClass]
+    public static function printResult(Summary $summary): void
+    {
+        echo ShortName::of($summary->class()), ': ', $summary->failed(), " failed\n";
+    }
+}
+
+// This prints `CouponTest`.
+echo ShortName::of("Shop\\Tests\\CouponTest"), "\n";

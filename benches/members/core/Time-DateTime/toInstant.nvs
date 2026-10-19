@@ -1,7 +1,7 @@
 <?nvs
 // Turns a local date and time into an exact moment, as a program does before it stores a time or compares two.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

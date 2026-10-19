@@ -151,6 +151,13 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `rule:observability/metrics-three-members`'s three members, and nothing else
 /// — there is no reader.
+///
+/// `rule:observability/metrics-three-members`'s three verbs, beside the
+/// limiter because they are the two halves of one question a deployment
+/// asks: how much a caller may have, and how much everything is doing. Its
+/// registry is `nvs_runtime::metrics`' and not this crate's, for the reason
+/// that module's own doc gives.
+// rank: 1380
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

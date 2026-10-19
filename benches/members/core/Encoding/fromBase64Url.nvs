@@ -2,7 +2,7 @@
 // Measures reading the claims out of a JSON Web Token, which a server does on
 // every request that carries one.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

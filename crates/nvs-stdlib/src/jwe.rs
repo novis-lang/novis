@@ -170,6 +170,15 @@ const P2C: u32 = crypto::MIN_ITERATIONS;
 const KEY_TY: CoreTy = CoreTy::Instance(KEY_NAME);
 
 /// `rule:security/jwe-compact-subset`'s two members.
+///
+/// The roster's encryption entry, beside `Core\Jwt` because the two read one
+/// wire format from opposite ends: a JWS proves who wrote a payload and this
+/// hides one. `rule:security/jwe-compact-subset` is the subset — compact
+/// serialization, `A256GCM` and nothing else — and [`crate::jwe`]'s own
+/// module doc is the home of why the key arrives as a named constructor,
+/// what the protected header is allowed to carry, and why a ring holding a
+/// password holds exactly one key.
+// rank: 1000
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -290,6 +299,14 @@ const DECRYPT_DOC: MethodDoc = MethodDoc {
 
 /// `rule:security/jwe-compact-subset`'s named constructors — one per
 /// key-management algorithm, and nothing to read a key back out with.
+///
+/// That constructor itself: four statics, no accessor and no way back out,
+/// which is what makes the key-management algorithm a name the caller wrote
+/// rather than an inference off a value's type
+/// (`rule:security/algorithm-comes-from-the-key`). Registered beside its own
+/// class for `Core\Crypto\PublicKey`'s reason — it is the value the class
+/// above takes and nothing else produces one.
+// rank: 1010
 pub(crate) const KEY: CoreClass = CoreClass {
     name: KEY_NAME,
     doc: Some(&KEY_CARD),
@@ -1236,6 +1253,28 @@ mod tests {
         }
     }
 
+    /// Whether `vector` is left out under Miri. There, PBKDF2 at the iteration
+    /// floor takes hours and one P-256 multiplication about a minute and a
+    /// half, so a `password` key and a P-256 pair are left to the other
+    /// builds. The `dir` and X25519 vectors still run every path.
+    fn too_slow_for_miri(vector: &serde_json::Value) -> bool {
+        cfg!(miri)
+            && (webcrypto::text(vector, "/key/kind") == "password"
+                || vector
+                    .pointer("/key/curve")
+                    .and_then(serde_json::Value::as_str)
+                    == Some("P-256"))
+    }
+
+    /// The key kinds `ECDH-ES` agrees over that a test draws: both, or under
+    /// Miri X25519 alone, for [`too_slow_for_miri`]'s reason.
+    fn agreeing_kinds() -> Vec<KeyKind> {
+        [KeyKind::P256, KeyKind::X25519]
+            .into_iter()
+            .filter(|kind| !(cfg!(miri) && *kind == KeyKind::P256))
+            .collect()
+    }
+
     /// A token's protected header as the text it was encoded from, which is
     /// the form [`sealed`] takes and the form a header is canonical in.
     fn protected_of(token: &str) -> String {
@@ -1284,7 +1323,10 @@ mod tests {
     /// the wrong content key answers nothing rather than something else.
     #[test]
     fn webcrypto_jwe_vectors_decrypt_to_their_payloads() {
-        for vector in webcrypto::vectors("jwe") {
+        for vector in webcrypto::vectors("jwe")
+            .iter()
+            .filter(|vector| !too_slow_for_miri(vector))
+        {
             let name = webcrypto::text(vector, "/name");
             let (picked, material, kind) = ring_of(vector);
             let opened = plaintext(
@@ -1369,6 +1411,11 @@ mod tests {
     /// asserted against [`P2C`] first, because this class writes the floor and
     /// a vector taken at any other count would reproduce nothing here however
     /// right the derivation was.
+    #[cfg_attr(
+        miri,
+        ignore = "PBKDF2 at the iteration floor takes hours under Miri, and the token is \
+                  written at no other count"
+    )]
     #[test]
     fn webcrypto_jwe_vectors_reencrypt_to_the_same_token_from_the_same_randomness_under_pbes2() {
         let vector = webcrypto::vectors("jwe")
@@ -1422,7 +1469,7 @@ mod tests {
     fn webcrypto_jwe_vectors_reencrypt_to_the_same_token_from_the_same_randomness_under_ecdh_es() {
         let mut written = 0;
         for vector in webcrypto::vectors("jwe") {
-            if webcrypto::text(vector, "/key/kind") != "keyPair" {
+            if webcrypto::text(vector, "/key/kind") != "keyPair" || too_slow_for_miri(vector) {
                 continue;
             }
             let name = webcrypto::text(vector, "/name");
@@ -1512,7 +1559,9 @@ mod tests {
     fn encrypt_seals_under_the_algorithm_its_key_names_and_draws_a_fresh_iv_per_call() {
         let pair = webcrypto::vectors("jwe")
             .iter()
-            .find(|vector| webcrypto::text(vector, "/key/kind") == "keyPair")
+            .find(|vector| {
+                webcrypto::text(vector, "/key/kind") == "keyPair" && !too_slow_for_miri(vector)
+            })
             .expect("the set seals a token under a key pair");
         let kind = curve(webcrypto::text(pair, "/key/curve"));
         let cases = [
@@ -1529,7 +1578,12 @@ mod tests {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let text = "id=42; role=admin";
         let payload = Value::str(NvsStr::new(text.as_bytes()));
-        for (picked, material, kind, alg) in &cases {
+        // Under Miri the `PBES2` case is left out, for `too_slow_for_miri`'s
+        // reason.
+        let cases = cases
+            .iter()
+            .filter(|(picked, ..)| !(cfg!(miri) && *picked == USE_PASSWORD));
+        for (picked, material, kind, alg) in cases {
             let key = built(*picked, material, kind.map_or(NO_KIND, KeyKind::tag));
             let first = encrypted(&mut ctx, payload, key);
             let second = encrypted(&mut ctx, payload, key);
@@ -1785,6 +1839,11 @@ mod tests {
     /// included: the key it builds seals a `PBES2` token that the same text
     /// opens, and a text one character away does not.
     // covers: Core\Jwe\Key::password
+    #[cfg_attr(
+        miri,
+        ignore = "PBKDF2 at the iteration floor takes hours under Miri, and every seal and \
+                  open here runs it"
+    )]
     #[test]
     fn password_builds_a_pbes2_key_from_any_text_and_only_that_text_opens_it() {
         let mut ctx = nvs_runtime::Ctx::buffered();
@@ -1851,7 +1910,7 @@ mod tests {
     fn recipient_seals_to_one_public_key_and_refuses_a_key_that_only_signs() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let payload = Value::str(NvsStr::new(b"card=4111"));
-        for kind in [KeyKind::P256, KeyKind::X25519] {
+        for kind in agreeing_kinds() {
             let (mine, der) = pair(&mut ctx, kind);
             let (theirs, other) = pair(&mut ctx, kind);
             let public = public_of(&mut ctx, mine);
@@ -1886,6 +1945,11 @@ mod tests {
             payload.release();
         }
 
+        // `ring` derives an Ed25519 public key in C and assembly, which Miri
+        // cannot interpret, so there the test ends before the refusal.
+        if cfg!(miri) {
+            return;
+        }
         let (signing, _) = pair(&mut ctx, KeyKind::Ed25519);
         let public = public_of(&mut ctx, signing);
         #[expect(unsafe_code, reason = "this frame holds the only reference")]
@@ -1910,7 +1974,7 @@ mod tests {
     fn own_opens_what_was_sealed_to_its_pair_and_refuses_a_pair_that_only_signs() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let payload = Value::str(NvsStr::new(b"order=1042"));
-        for kind in [KeyKind::P256, KeyKind::X25519] {
+        for kind in agreeing_kinds() {
             let (mine, der) = pair(&mut ctx, kind);
             let (theirs, other) = pair(&mut ctx, kind);
             let public = public_of(&mut ctx, mine);

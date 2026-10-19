@@ -1,0 +1,36 @@
+<?nvs
+// Shows a hook that adds one CSV row for each run of each test. A spreadsheet of
+// these rows shows which tests need retries most often.
+
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+
+class RunRow
+{
+    public static function csv(string $class, string $test, int $attempt, bool $passed): string
+    {
+        return $class . ',' . $test . ',' . $attempt . ',' . ($passed ? 'passed' : 'failed') . "\n";
+    }
+}
+
+class StockTest
+{
+    #[Test(retries: 2, because: "the warehouse service is shared with other teams")]
+    public function itReservesTheItems(): void
+    {
+        Test::assertSame(12 - 3, 9);
+    }
+
+    #[AfterEachTest]
+    public function addRow(Outcome $outcome): void
+    {
+        string $row = RunRow::csv($outcome->class(), $outcome->name(), $outcome->attempt(), $outcome->passed());
+        IO::append(Path::fromCwd('test-runs.csv'), $row);
+    }
+}
+
+// This prints `StockTest,itReservesTheItems,2,passed`.
+echo RunRow::csv('StockTest', 'itReservesTheItems', 2, true);

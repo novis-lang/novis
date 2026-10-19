@@ -142,6 +142,14 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Zip`'s registry rows — the listing and the read, both of them through
 /// the one reader that judges an entry before a program sees it.
+///
+/// § 17's archive class, beside the codec class whose bound it applies and
+/// the detection class it sits between in that section. Tier 0 for the
+/// reason both of those are: a `../` entry, an absolute-path entry, a
+/// symlink entry and a bomb are what an archive is *allowed* to contain,
+/// which is policy — and [`crate::zip`] owns why the refusals live in the
+/// reader rather than in an extraction a caller can decline to use.
+// rank: 1130
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -1407,7 +1415,9 @@ mod tests {
     /// The member answers the central directory's order, which is not sorted
     /// order, lists as many entries as a narrow end record can count without a
     /// scan per entry, and answers nothing at all for an archive with one
-    /// hostile entry in it — never the entries around it.
+    /// hostile entry in it — never the entries around it. Under Miri the long
+    /// directory has a hundred entries, because the scan it guards against is
+    /// a speed question and Miri checks memory.
     // covers: Core\Zip::entries
     #[test]
     fn the_member_lists_the_directory_in_order_or_throws_for_the_whole_archive() {
@@ -1432,11 +1442,15 @@ mod tests {
         // counts — `0xFFFF` there says the count is in a zip64 record. A
         // repeated-name check that scanned the entries before each one would
         // make this case the slow one in the binary.
-        let names: Vec<String> = (0..WIDE_U16 - 1).map(|at| format!("{at:04x}")).collect();
+        let count = if cfg!(miri) { 100 } else { WIDE_U16 - 1 };
+        let names: Vec<String> = (0..count).map(|at| format!("{at:04x}")).collect();
         let many: Vec<Written<'_>> = names.iter().map(|name| Written::plain(name, "")).collect();
         let answer = listed(&mut ctx, &many).expect("distinct names list");
-        assert_eq!(answer.len(), usize::from(WIDE_U16 - 1));
-        assert_eq!(answer.last().map(String::as_str), Some("fffd"));
+        assert_eq!(answer.len(), usize::from(count));
+        assert_eq!(
+            answer.last().map(String::as_str),
+            Some(format!("{:04x}", count - 1).as_str())
+        );
 
         for hostile in [
             Written::plain("../escape", "x"),
@@ -1849,6 +1863,10 @@ mod tests {
     /// file or a folder, and 65 are refused. A name that is only long is not
     /// deep, so a long file name under one folder reads too.
     // covers: Core\Zip::extract
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn an_entry_nesting_more_than_sixty_four_folders_is_refused() {
         let deepest_file = format!("{}f.txt", "d/".repeat(MAX_FOLDERS));
@@ -2222,6 +2240,10 @@ mod tests {
     /// `nvs_config::resolve::Disk` and takes no resolver. So the case does the
     /// real thing where the platform allows it and says why it could not where
     /// it does not — the loop's WSL leg runs it either way.
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     #[expect(
         clippy::print_stderr,
@@ -2322,6 +2344,10 @@ mod tests {
     /// the entry that crosses it and leaves the one before it written. A name
     /// already taken refuses rather than being replaced.
     // covers: Core\Zip::extract
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
     #[test]
     fn the_member_extracts_under_one_bound_held_on_both_sides_across_the_archive() {
         let (_dir, root) = temp_root("extract");

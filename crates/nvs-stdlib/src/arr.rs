@@ -117,6 +117,7 @@ const CARD: ClassDoc = ClassDoc {
 /// adding a member touches this file and nothing else. [`crate::registry`]'s
 /// `CLASSES` lists this const; that list grows one line per *class*, never one
 /// per member.
+// rank: 20
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Arr",
     doc: Some(&CARD),
@@ -7430,11 +7431,13 @@ mod tests {
     /// an odd tail, a power of two, and one either side — against the same
     /// answer computed by Rust's own sort. This is the check a hand-written
     /// merge actually owes: the `copy_from_slice` that pairs two runs of
-    /// unequal length is where it went wrong the first time.
+    /// unequal length is where it went wrong the first time. Under Miri the
+    /// lengths stop at 17, which still has a power of two and one either side.
     // covers: Core\Arr::sort
     #[test]
     fn every_run_length_merges_to_the_same_answer_a_reference_sort_gives() {
-        for len in 0..40i64 {
+        let longest = if cfg!(miri) { 18 } else { 40i64 };
+        for len in 0..longest {
             // A shape with duplicates, a descending prefix and an ascending
             // tail, so no length is accidentally already sorted.
             let values: Vec<i64> = (0..len).map(|i| (len - i) % 7).collect();

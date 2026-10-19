@@ -60,6 +60,14 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Budget`'s registry rows — the three numbers, and the module docs above
 /// own why there is no fourth and no `$real_usage` boolean beside any of them.
+///
+/// § 16's other class that needs no request in hand, and the last of this
+/// run of them: `Core\Budget`, which answers what *this* request holds
+/// rather than what the process does. `rule:observability/memory-is-three-numbers-on-core-budget` is the roster —
+/// three readings, no `$real_usage` boolean — and [`crate::budget`]'s module
+/// doc owns why the peak is recorded by the allocator rather than sampled
+/// here, and why the process's own memory stays on `Core\Os`.
+// rank: 690
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

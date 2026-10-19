@@ -2,7 +2,7 @@
 // Reads the current time as seconds, as a program does when it stamps a log line or a database row.
 // bench: iterations 256
 // bench: allocations 1
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

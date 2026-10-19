@@ -1,0 +1,40 @@
+<?nvs
+// Shows an `#[AfterClass]` method that prints a warning when a test of the class
+// failed. When every test passed, it prints nothing.
+
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class Warning
+{
+    public static function forClass(string $class, int $failed): ?string
+    {
+        if ($failed == 0) {
+            return null;
+        }
+        return 'warning: ' . $failed . ' test(s) failed in ' . $class;
+    }
+}
+
+class OpeningHoursTest
+{
+    #[Test]
+    public function itIsOpenAtNoon(): void
+    {
+        int $hour = 12;
+        Test::assertTrue($hour >= 9 && $hour < 18);
+    }
+
+    #[AfterClass]
+    public static function warn(Summary $summary): void
+    {
+        ?string $warning = Warning::forClass($summary->class(), $summary->failed());
+        if ($warning != null) {
+            echo $warning, "\n";
+        }
+    }
+}
+
+// This prints `warning: 2 test(s) failed in OpeningHoursTest`.
+echo Warning::forClass('OpeningHoursTest', 2) ?? '', "\n";

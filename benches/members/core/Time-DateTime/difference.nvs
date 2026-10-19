@@ -1,7 +1,7 @@
 <?nvs
 // Counts whole days between two dates, as a program does when it shows how many days an invoice is overdue.
 // bench: iterations 512
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

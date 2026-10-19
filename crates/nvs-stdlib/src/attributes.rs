@@ -57,6 +57,10 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// The registry row. See [`crate::registry::CLASSES`].
+///
+/// `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s structural retrieval. Registered like any other class
+/// and implemented by nothing — see [`crate::attributes`].
+// rank: 30
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

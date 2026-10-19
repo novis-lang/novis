@@ -7,6 +7,7 @@
     "core-api/five-placements",
     "core-api/tier-roster",
     "core-api/reserved-namespace",
+    "core-api/core-classes-are-sealed",
     "core-api/a-domain-class-is-a-singular-noun",
     "core-api/shape-rules",
     "core-api/subject-first",

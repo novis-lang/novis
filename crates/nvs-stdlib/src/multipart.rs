@@ -906,8 +906,13 @@ mod tests {
 
     /// Every file part of `wire`, read whole, at the given piece size.
     fn walk(wire: &[u8], piece: usize) -> Result<Walked, Box<str>> {
+        walk_under(wire, piece, REQUEST_BODY)
+    }
+
+    /// [`walk`], with `bound` as the `[limits] request_body` the parse is given.
+    fn walk_under(wire: &[u8], piece: usize, bound: usize) -> Result<Walked, Box<str>> {
         let mut supplier = Wire::new(wire, piece);
-        let mut parse = Multipart::new(b"bnd", REQUEST_BODY);
+        let mut parse = Multipart::new(b"bnd", bound);
         let mut read = Vec::new();
         while let Some(head) = parse.next_part(&mut supplier)? {
             let mut content = Vec::new();
@@ -1050,6 +1055,11 @@ mod tests {
 
     /// `rule:errors/multipart-part-count`'s part count, asserted on both sides: the cap is a cap only
     /// if the last accepted body and the first refused one are one part apart.
+    #[cfg_attr(
+        miri,
+        ignore = "the cap is a constant thousand parts, and parsing that many takes minutes \
+                  under Miri, so there is no smaller input"
+    )]
     #[test]
     fn the_part_count_cap_is_asserted_at_the_last_accepted_and_the_first_refused() {
         for (parts, accepted) in [(MAX_PARTS, true), (MAX_PARTS + 1, false)] {
@@ -1067,18 +1077,26 @@ mod tests {
     /// Buffered form fields are bytes parsed into memory, so they are charged
     /// against the same number `Core\Request::body` is — and the check is made
     /// before the copy, which is what makes it a bound rather than a report.
+    /// Under Miri the bound is 16 KiB, because the parse is given its bound
+    /// and a megabyte takes minutes there.
     #[test]
     fn a_field_part_is_buffered_against_the_in_memory_bound() {
-        let held = "x".repeat(REQUEST_BODY);
+        let (bound, piece) = if cfg!(miri) {
+            (16 * 1024, 4 * 1024)
+        } else {
+            (REQUEST_BODY, 64 * 1024)
+        };
+        let held = "x".repeat(bound);
         let wire = body(&[("note", None, &held)]);
-        let (read, parse) = walk(&wire, 64 * 1024).expect("a field at the bound is buffered");
+        let (read, parse) =
+            walk_under(&wire, piece, bound).expect("a field at the bound is buffered");
         assert!(read.is_empty());
-        assert_eq!(parse.fields()[0].1.len(), REQUEST_BODY);
+        assert_eq!(parse.fields()[0].1.len(), bound);
 
-        let over = "x".repeat(REQUEST_BODY + 1);
+        let over = "x".repeat(bound + 1);
         let wire = body(&[("note", None, &over)]);
         assert!(
-            walk(&wire, 64 * 1024).is_err(),
+            walk_under(&wire, piece, bound).is_err(),
             "one byte past the bound is refused"
         );
     }

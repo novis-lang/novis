@@ -1,8 +1,7 @@
-<!-- looper:begin prose v2 -->
 # Prose
 
 All prose is English: docs, agent docs, comments, commit bodies, and the text of the UI and the CLI.
-`looper prose` checks the shape of the files a change touched, and never their meaning.
+`bun nv prose` checks the shape of the files a change touched, and never their meaning.
 The rules below bind text an end user reads only.
 
 - **A sentence has at most 25 words, and one idea.** Split a longer one where its second idea starts.
@@ -14,4 +13,6 @@ The rules below bind text an end user reads only.
 - **Text an end user reads names no internals:** no decision numbers and no goal slugs.
 - **No filler.** Cut "simply", "just", "basically", "note that" and "in order to".
 
-`looper.toml`'s `[prose] banned` adds this project's own words to the ones `looper prose` flags.
+`bun nv prose` flags each quoted word on the *No filler* line above. `looper prose` runs the same
+command through `looper.toml`'s `[gates] prose`. AGENTS.md § *Text an end user reads* is the whole rule
+for this project's wording.

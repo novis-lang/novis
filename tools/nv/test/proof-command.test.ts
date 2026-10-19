@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, realpathSync } from "node:fs";
 import { join, relative } from "node:path";
+import { binary } from "../cmd/proofs.ts";
 import { ROOT } from "../lib/paths.ts";
 import { detailsProblems, skippedOf } from "../proofs/collect.ts";
 import { commandArgs, exampleOutput, matchesOut, spawnProof, testReport } from "../proofs/run.ts";
@@ -10,6 +11,12 @@ describe("a `.cmd` example", () => {
   test("its arguments are the words after `nvs`, and a quoted word keeps its spaces", () => {
     expect(commandArgs("a.cmd", "nvs agent init --agent codex\n")).toEqual(["agent", "init", "--agent", "codex"]);
     expect(commandArgs("a.cmd", "nvs run \"two words\" 'and more'\r\n")).toEqual(["run", "two words", "and more"]);
+  });
+
+  test("a relative `--nvs` is made absolute, so it still names the binary from the example's scratch directory", () => {
+    const named = relative(process.cwd(), join(ROOT, "package.json"));
+    expect(binary(named)).toBe(join(ROOT, "package.json"));
+    expect(binary("no/such/nvs")).toBeNull();
   });
 
   test("a file that is not one `nvs` command line is no example", () => {
@@ -113,7 +120,7 @@ describe("a feature's `details.md`", () => {
 describe("`nv proofs --gate --no-skip PROOF`", () => {
   test("a feature the policy skips for PROOF owes it, and a skip of another proof is still a skip", () => {
     const skips = new Map([["tools:cli/x", { examples: "why", hostile: "why" }]]);
-    expect(skippedOf("tools:cli/x", skips, ["examples"])).toEqual({ examples: "skipped in data/proofs/policy.json" });
+    expect(skippedOf("tools:cli/x", skips, ["examples"])).toEqual({ examples: "skipped in data/proofs/skip/" });
     expect(skippedOf("tools:cli/x", skips, [])).toEqual({});
     expect(skippedOf("tools:cli/y", skips, ["examples"])).toEqual({});
   });
@@ -123,7 +130,7 @@ describe("`nv proofs --gate --no-skip PROOF`", () => {
     const run = (...args: string[]) => Bun.spawnSync(["bun", "tools/nv/main.ts", "proofs", "--gate", ...args, "--only", "tools:cli/nvs-info"], { cwd: ROOT });
     const failed = run("--no-skip", "hostile");
     expect(failed.exitCode).toBe(1);
-    expect(failed.stdout.toString()).toContain("hostile: skipped in data/proofs/policy.json");
+    expect(failed.stdout.toString()).toContain("hostile: skipped in data/proofs/skip/");
     expect(run("--no-skip", "nonsense").exitCode).toBe(2);
   });
 });

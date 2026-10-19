@@ -1,0 +1,4 @@
+{
+  "feature": "lang:attributes/core-api-and-the-openapi-document",
+  "perf": "`#[Api]` is read while the program compiles and has no runtime surface to iterate; a loop here would measure the annotated method call instead."
+}

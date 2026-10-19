@@ -1,0 +1,35 @@
+<?nvs
+// Shows an `#[AfterClass]` method that checks whether every test of the class
+// passed. A class where no test ran is not counted as a success.
+
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\Summary;
+
+class AllPassed
+{
+    // At least one test must pass, and no test may fail or pass only on a retry.
+    public static function check(int $passed, int $failed, int $flaky): bool
+    {
+        return $passed > 0 && $failed == 0 && $flaky == 0;
+    }
+}
+
+class PostcodeTest
+{
+    #[Test]
+    public function itAcceptsFiveDigits(): void
+    {
+        Test::assertSame(Core\Str::length('10115'), 5);
+    }
+
+    #[AfterClass]
+    public static function printVerdict(Summary $summary): void
+    {
+        bool $ok = AllPassed::check($summary->passed(), $summary->failed(), $summary->flaky());
+        echo $summary->class(), $ok ? ": all passed\n" : ": not all passed\n";
+    }
+}
+
+// This prints `false`, because no test passed.
+echo AllPassed::check(0, 0, 0) ? 'true' : 'false', "\n";

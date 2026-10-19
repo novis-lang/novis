@@ -944,6 +944,10 @@ mod tests {
     /// `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`'s "a single
     /// slot coalesces none of that": application code interleaves its records,
     /// and each run of repeats has to be bounded on its own.
+    #[cfg_attr(
+        miri,
+        ignore = "the window is one real second, and Miri takes longer than that between writes"
+    )]
     #[test]
     fn two_interleaved_repeats_each_coalesce_rather_than_evicting_one_another() {
         let store = written("the store said no", 12);
@@ -969,6 +973,10 @@ mod tests {
     /// `rule:http-server/the-floor-cannot-fill-the-disk`'s "the next occurrence
     /// after the window carries how many it stands for", asked of the log
     /// target's table rather than of the floor's slot.
+    #[cfg_attr(
+        miri,
+        ignore = "the window is one real second, and Miri takes longer than that between writes"
+    )]
     #[test]
     fn the_next_record_after_a_window_closes_carries_how_many_it_stands_for() {
         let record = written("the store said no", 12);
@@ -993,6 +1001,10 @@ mod tests {
 
     /// The two sinks are two windows: the floor keeps the single slot its own
     /// traffic needs, and neither table can suppress a write the other made.
+    #[cfg_attr(
+        miri,
+        ignore = "the window is one real second, and Miri takes longer than that between writes"
+    )]
     #[test]
     fn the_floor_keeps_its_single_slot_and_its_own_window() {
         let store = written("the store said no", 12);
@@ -1084,7 +1096,9 @@ mod tests {
     /// writes cannot grow it.
     #[test]
     fn the_windows_footprint_does_not_grow_with_the_number_of_records_written() {
-        for line in 1..=10_000 {
+        // Under Miri, 100 records still overfill the table six times over.
+        let lines = if cfg!(miri) { 100 } else { 10_000 };
+        for line in 1..=lines {
             assert_eq!(
                 write(&written("the store said no", line)),
                 Some(1),
@@ -1095,7 +1109,7 @@ mod tests {
         let open = LOG_WINDOWS.with(|windows| windows.borrow().iter().flatten().count());
         assert_eq!(
             open, LOG_WINDOW_SLOTS,
-            "ten thousand records leave the table full, not ten thousand windows deep"
+            "{lines} records leave the table full, not {lines} windows deep"
         );
         assert_eq!(
             size_of::<[Option<Window>; LOG_WINDOW_SLOTS]>(),

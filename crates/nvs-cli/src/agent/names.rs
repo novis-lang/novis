@@ -217,17 +217,14 @@ mod tests {
     /// Every configuration key, command, flag and diagnostic code is an index
     /// entry that `show` reaches by name
     /// (`rule:tooling/the-index-names-every-key-command-and-code`). Each table
-    /// is read here without the renderer: the codes out of the diagnostics
-    /// crate's own source, the keys from the shipped file's lines, the commands
-    /// and flags from the parser.
+    /// is read here without the renderer: the codes from the diagnostics
+    /// crate's list, the keys from the shipped file's lines, the commands and
+    /// flags from the parser.
     #[test]
     fn every_key_command_flag_and_code_is_an_index_entry() {
-        let source = include_str!("../../../nvs-diagnostics/src/lib.rs");
-        let codes: Vec<String> = source
-            .split("Code::new(\"")
-            .skip(1)
-            .filter_map(|rest| rest.split_once('"').map(|(code, _)| code.to_owned()))
-            .filter(|code| code.len() == 5)
+        let codes: Vec<String> = nvs_diagnostics::code::ALL
+            .iter()
+            .map(|code| code.as_str().to_owned())
             .collect();
         corresponds("code: ", &codes);
 

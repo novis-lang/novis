@@ -150,6 +150,72 @@ use crate::service::{Notify, State};
 mod exporters;
 pub(crate) mod mounts;
 
+/// Run a Novis application until stopped: HTTP requests on every core, the
+/// `[[schedule]]` entries on the core that ticks, and that core's `[queue]`
+/// workers draining jobs beside them.
+///
+/// One process is the whole deployment — one unit to install and one thing
+/// to supervise — and stopping it drains all three: no request, no fire and
+/// no claimed job is abandoned, and nothing new is taken. A tree that writes
+/// no `[[schedule]]` spawns no ticker and one that writes no `[queue]`
+/// starts no worker, so each costs a read at boot and no task at all.
+///
+/// The development server and the proxied origin are the same command.
+/// Every file it serves is compiled before the socket is bound, and every
+/// request runs one of them in an isolate that shares nothing with any
+/// other request.
+///
+/// `nvs serve app.nvs` serves that one file. `nvs serve` with no file
+/// serves every file that the `[[server.mount]]` blocks in the
+/// configuration mount.
+// `rule:concurrency/one-process-serves-requests-schedules-and-jobs` is why
+// the first paragraph names three subsystems: what an operator reads off
+// `--help` is the mental model they form of the process, and one naming the
+// accept loop alone is what sends them looking for a second thing to
+// install. `rule:http-server/two-deployments-and-nothing-a-proxy-owns` and
+// `rule:security/isolate-shares-nothing`. § 4's mount table is the set of
+// entry points, and this module's doc owns why the argument is optional and
+// why one path on the command line is § 2's rule rather than an exception
+// to it.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    /// The file every request runs. It is optional when the configuration
+    /// has `[[server.mount]]` blocks: the server then serves every file
+    /// that those blocks mount.
+    file: Option<PathBuf>,
+    /// The address to listen on, as `host:port` — the last word over
+    /// `[server] listen`.
+    // `rule:http-server/the-server-block-is-boot-class`.
+    #[arg(long, value_name = "ADDR")]
+    listen: Option<String>,
+    /// The port to listen on, keeping the host `[server] listen` chose.
+    ///
+    /// Conflicts with `--listen` rather than being merged into it: two
+    /// spellings of one address are two requests, and guessing which was
+    /// meant is worse than saying so.
+    #[arg(long, conflicts_with = "listen", value_name = "PORT")]
+    port: Option<u16>,
+}
+
+impl Args {
+    /// Runs `nvs serve` from a command line, under the service control
+    /// manager when one started this process.
+    pub(crate) fn run(self, config: &[PathBuf], init: crate::config::Init) -> ExitCode {
+        crate::serve_command(self.file, self.listen, self.port, config.to_vec(), init)
+    }
+
+    /// Runs `nvs serve` as `nvs service run` does: inline, on this terminal.
+    pub(crate) fn hosted(self, config: &[PathBuf], init: crate::config::Init) -> ExitCode {
+        run(
+            self.file.as_deref(),
+            self.listen.as_deref(),
+            self.port,
+            config,
+            init,
+        )
+    }
+}
+
 /// `nvs serve [<file>]` — resolve the tree, build § 4's mount table, compile every
 /// entry in it, bind the socket and run the accept loop until this process is
 /// stopped.
@@ -4054,7 +4120,7 @@ mod tests {
     fn serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names() {
         let _alone = crate::testing::measuring_alone();
         const CORES: usize = 4;
-        const ROUNDS: usize = 3;
+        const ROUNDS: usize = 10;
         /// Four cores serve at least half again the requests per second one
         /// serves. The paragraph above is why the floor is here and not at four.
         const SCALES_BY: f64 = 1.5;
@@ -4405,9 +4471,9 @@ mod tests {
         std::fs::write(&entry, "fn main(): void {}\n")
             .expect("an entry file for the tree to be about");
         let mut sources = nvs_diagnostics::SourceMap::new();
-        let snapshot = crate::config::boot_snapshot(
+        let (snapshot, _) = crate::config::boot_origins(
             std::slice::from_ref(&root),
-            &entry,
+            Some(&entry),
             &mut sources,
             crate::config::Init::Never,
         )

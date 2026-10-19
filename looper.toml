@@ -27,6 +27,23 @@ sweep = "every"
 [verify]
 run = [["bun", "nv", "verify"]]
 
+# The generated files `.gitattributes` marks that the two commands below write without a built binary. A
+# catch-up merge takes main's side of each, then renders them again from the merged sources.
+# `website/src/data/core.json`, `reference.json` and `docs/novis.md` need the binary, so a conflict in
+# one is a landing session.
+[merge]
+generated = [
+  "data/schema/*.schema.json",
+  "data/spec/core-members.json",
+  "crates/nvs-stdlib/src/classes.rs",
+  "website/config/novis.tmLanguage.json",
+  "website/src/data/compare.json",
+  "website/src/data/numbers.json",
+  "docs/rules/*.md",
+  "docs/ground-rules.md",
+]
+render = [["bun", "nv", "render"], ["bun", "nv", "rules", "--render"]]
+
 # The Bash calls that take machine-wide heavy-job slots beside looper's built-in cargo and `bun test`. A
 # pattern matches a command's first words, so a flag counts only where it comes first. The measuring
 # commands take every slot, so no build runs beside them and skews what they record.
@@ -43,6 +60,7 @@ heavy = [
 exclusive = [
   "bun nv bench",
   "bun nv benches",
+  "bun nv debt",
   "bun nv bench-load",
   "bun nv bench-proxied",
   "bun nv bench-compare",
@@ -56,37 +74,41 @@ timeout = 1800           # the acceptance runner's own
 # the `(pass)` lines, so every check runs with it empty.
 env = { CLAUDECODE = "" }
 
-# `tools/nv/cmd/sweep.ts`: it pays owed and red atoms for its DEBT_BUDGET_MS, sweeps the disk and reads the
-# nightly CI run back. No atom starts once the budget is spent, so the timeout covers the budget, one atom
-# that started just before the end and runs on, the warm release and covws builds the benches and the
-# owed atoms need, and the disk sweep. The command exits 0 whatever it finds, so only a timeout or a crash
-# fails it, and that pauses the loop. It is attached, so the next session starts once it has ended.
+# `tools/nv/cmd/sweep.ts`: it sweeps the disk, the build only when the disk is low, and reads the nightly
+# CI run back. It runs no check and pays no floor debt, which the floor check `floor-debt` pays once per
+# goal. The timeout covers the cargo queries a low disk's sweep asks for the live set. The command exits 0
+# whatever it finds, so only a timeout or a crash fails it, and that pauses the loop. It is attached, so
+# the next session starts once it has ended.
 [hooks]
-after_session = [{ run = ["bun", "nv", "sweep"], timeout = 3600, on_fail = "pause" }]
+after_session = [{ run = ["bun", "nv", "sweep"], timeout = 900, on_fail = "pause" }]
 # `tools/nv/cmd/side.ts`: in a side loop's lane, it installs the tools' packages, copies in the git-ignored
 # files and seeds the selection store, each only when it is missing; in any other loop it does nothing.
 # The timeout covers its own 600-second cap on `bun install` and the copies.
 before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 900, on_fail = "pause" }]
 
+# `scope` is the words looper writes into `docs/agent/prose.md`. The files the prose check reads and its
+# rules are `tools/nv/cmd/prose.ts`'s.
 [prose]
 scope = "Text an end user reads"
-paths = [
-  "website/**/*.mdx",
-  "website/**/*.md",
-  "**/about.md",
-  "docs/examples/**/*.nvs",
-  "tests/hostile/**/*.nvs",
-  "benches/members/**/*.nvs",
-  "website/snippets/**/*.nvs",
-]
+
+# Each gate is the project's own command, which runs the same without looper: `looper links`, `layout`
+# and `prose` run it in place of looper's check. `looper guard` runs `guard` after its claims, in place of
+# its built-in rules, and `tools/nv/cmd/guard.ts` says how the settings run it where looper is not installed.
+[gates]
+links = ["bun", "nv", "links"]
+layout = ["bun", "nv", "layout", "--check"]
+prose = ["bun", "nv", "prose"]
+guard = ["bun", "tools/nv/main.ts", "guard", "--gate"]  # not `bun nv`, whose script line would open every reason
 
 [sync]
 skip = [
-  "docs/decisions/README.md",
+  "docs/decisions/README.md",    # the template writes it, and `bun nv rules --check` fails on a decision record directory
   "docs/agent/commands.md",
   "docs/agent/conventions.md",
   "docs/agent/doc-style.md",
   "docs/agent/playbook.md",      # `looper lint` reads the template block's own list as bullets and refuses them
+  "docs/agent/prose.md",         # names `bun nv prose`, the command `[gates] prose` runs
+  "docs/agent/testing.md",       # names `bun nv affected`, which a session without looper runs
   "tools/git-hooks/commit-msg",  # Novis's hook passes a merge and git's `fixup!` subjects, which the template refuses
 ]
 

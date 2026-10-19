@@ -2,7 +2,7 @@
 // Measures sending a `PUT` request with a JSON body that a test answers. A program's own
 // tests do this for every request that saves a record on another service.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

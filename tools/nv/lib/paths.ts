@@ -7,9 +7,8 @@ import { join, relative, resolve, sep } from "node:path";
 export const ROOT = resolve(import.meta.dir, "..", "..", "..");
 
 /**
- * The word the feature proofs were once named by. `nv audit` finds it where it is still said, and
- * `nv disk clean` deletes the memo file named by it. It is built in halves so that no tool's own text
- * says it.
+ * The word the feature proofs were once named by. `nv disk clean` deletes the memo file named by it.
+ * It is built in halves so that no tool's own text says it.
  */
 export const OLD = ["doss", "ier"].join("");
 

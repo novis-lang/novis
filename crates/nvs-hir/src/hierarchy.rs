@@ -90,6 +90,12 @@ pub enum CoreRoster<'a> {
         /// "no such class" a name in neither list gets.
         /// `nvs_stdlib::registry::closed_interfaces` builds it.
         closed: &'a [&'a str],
+        /// The `Core` classes. Each is also in `links`, because a fix may
+        /// offer to import one, but a link naming one gets
+        /// [`code::E_CORE_CLASS_NOT_EXTENDABLE`]
+        /// (`rule:core-api/core-classes-are-sealed`).
+        /// `nvs_stdlib::registry::sealed_classes` builds it.
+        sealed: &'a [&'a str],
         /// Every name a `use` may import from `Core`: each class, interface
         /// and enum, each `Core` exception and each compiler attribute. A
         /// `use` naming one of them, or a namespace one of them is under,
@@ -126,6 +132,25 @@ impl CoreRoster<'_> {
                     .any(|name| name.eq_ignore_ascii_case(&written))
             }
         }
+    }
+
+    /// Whether `qname` is a `Core` class no link may name
+    /// (`rule:core-api/core-classes-are-sealed`): one of [`Self::Names`]'s
+    /// `sealed` classes, or an entry of [`crate::errors::TREE`] under `Core`.
+    /// The second half is asked of every roster, [`Self::Trusted`] included,
+    /// because the tree is data this crate carries. Matched the way
+    /// [`Self::holds`] matches.
+    #[must_use]
+    pub fn seals(&self, qname: &QName) -> bool {
+        let written = qname.to_string();
+        let sealed: &[&str] = match self {
+            Self::Trusted => &[],
+            Self::Names { sealed, .. } => sealed,
+        };
+        sealed
+            .iter()
+            .chain(crate::errors::TREE.iter().map(|(name, _)| name))
+            .any(|name| QName::parse(name).is_core() && name.eq_ignore_ascii_case(&written))
     }
 
     /// Whether this roster says `qname` exists. Matched without regard to
@@ -407,18 +432,28 @@ impl<'a> HierarchyResolver<'a> {
 
             let extends_kinds = [pending.own_kind];
             for raw in &pending.extends {
-                if let Some(qname) =
-                    resolve_supertype(raw, pending, symbols, self.core, &extends_kinds, diags)
-                {
+                if let Some(qname) = resolve_supertype(
+                    raw,
+                    pending,
+                    symbols,
+                    self.core,
+                    ("extend", &extends_kinds),
+                    diags,
+                ) {
                     links.extends.push(qname);
                 }
             }
 
             let implements_kinds = [SymbolKind::Interface];
             for raw in &pending.implements {
-                if let Some(qname) =
-                    resolve_supertype(raw, pending, symbols, self.core, &implements_kinds, diags)
-                {
+                if let Some(qname) = resolve_supertype(
+                    raw,
+                    pending,
+                    symbols,
+                    self.core,
+                    ("implement", &implements_kinds),
+                    diags,
+                ) {
                     links.implements.push(qname);
                 }
             }
@@ -672,7 +707,7 @@ fn resolve_supertype(
     pending: &PendingLinks,
     symbols: &SymbolTable,
     core: CoreRoster<'_>,
-    expected: &[SymbolKind],
+    (verb, expected): (&str, &[SymbolKind]),
     diags: &mut Diagnostics,
 ) -> Option<QName> {
     let qname = resolve_ref(&raw.text, &pending.namespace, &pending.imports);
@@ -681,6 +716,17 @@ fn resolve_supertype(
     // `crate::interfaces::RESERVED` and `crate::errors::TREE` are data this
     // crate already carries, so nothing has to be handed in for them.
     if qname.is_core() {
+        // Asked before `holds`, which also lists every sealed class.
+        if core.seals(&qname) {
+            diags.report(
+                Diagnostic::error(
+                    code::E_CORE_CLASS_NOT_EXTENDABLE,
+                    format!("`{qname}` is a `Core` class, and your code cannot {verb} it"),
+                )
+                .with_primary(raw.span, "a `Core` class"),
+            );
+            return None;
+        }
         if core.holds(&qname) {
             return Some(qname);
         }
@@ -943,6 +989,7 @@ mod tests {
         const ROSTER: CoreRoster<'static> = CoreRoster::Names {
             links: &[r"Core\Arr"],
             closed: &[],
+            sealed: &[],
             imports: &[r"Core\Arr"],
         };
         let listed = "<?nvs\nclass Listish implements Core\\Arr {}\n";
@@ -991,6 +1038,7 @@ mod tests {
         const ROSTER: CoreRoster<'static> = CoreRoster::Names {
             links: &[],
             closed: &[],
+            sealed: &[],
             imports: &[r"Core\Db\Connection"],
         };
         for written in [r"Core\Db\Connection", r"core\db\connection", r"Core\Db"] {
@@ -1025,6 +1073,7 @@ mod tests {
         let roster = CoreRoster::Names {
             links: &[r"Core\Arr"],
             closed: &[r"Core\Db\Queryable"],
+            sealed: &[],
             imports: &[r"Core\Arr", r"Core\Db\Queryable"],
         };
         let source = "<?nvs\nclass Fake implements Core\\Db\\Queryable {}\n";
@@ -1050,6 +1099,66 @@ mod tests {
                 .is_empty(),
             "a refused link is left out of the graph"
         );
+    }
+
+    /// `rule:core-api/core-classes-are-sealed`: a `Core` class on the roster's
+    /// `sealed` list is `E_CORE_CLASS_NOT_EXTENDABLE` in an `extends` clause,
+    /// in an `implements` clause and in an interface's `extends`, although the
+    /// same name is also in `links`. An exception class under `Core` is
+    /// refused the same way under every roster, `Trusted` included, while a
+    /// global exception class stays a parent a program may name.
+    #[test]
+    fn a_core_class_is_refused_in_every_link_clause() {
+        let roster = CoreRoster::Names {
+            links: &[r"Core\Test\Response", r"Core\Router\Gate"],
+            closed: &[],
+            sealed: &[r"Core\Test\Response"],
+            imports: &[r"Core\Test\Response", r"Core\Router\Gate"],
+        };
+        for source in [
+            "<?nvs\nclass Forged extends Core\\Test\\Response {}\n",
+            "<?nvs\nclass Forged implements Core\\Test\\Response {}\n",
+            "<?nvs\ninterface Wider extends core\\test\\response {}\n",
+        ] {
+            let (_graph, diags) = links(roster, source);
+            assert!(
+                diags
+                    .iter()
+                    .any(|d| d.code == Some(code::E_CORE_CLASS_NOT_EXTENDABLE)),
+                "a sealed class is refused in `{source}`: {diags:?}"
+            );
+            assert_eq!(
+                diags.error_count(),
+                1,
+                "one error and no cascade: {diags:?}"
+            );
+        }
+
+        let gate = "<?nvs\nclass Shop implements Core\\Router\\Gate {}\n";
+        let (_graph, diags) = links(roster, gate);
+        assert!(
+            !diags.has_errors(),
+            "a contract stays implementable: {diags:?}"
+        );
+
+        for roster in [roster, CoreRoster::Trusted] {
+            let (_graph, diags) = links(roster, "<?nvs\nclass Mine extends Core\\Db\\DbError {}\n");
+            assert!(
+                diags
+                    .iter()
+                    .any(|d| d.code == Some(code::E_CORE_CLASS_NOT_EXTENDABLE)),
+                "an exception under `Core` is sealed: {diags:?}"
+            );
+            let (graph, diags) = links(roster, "<?nvs\nclass Mine extends RuntimeError {}\n");
+            assert!(
+                !diags.has_errors(),
+                "a global exception is a parent: {diags:?}"
+            );
+            assert_eq!(
+                graph.get(&QName::parse("Mine")).expect("links").extends,
+                vec![QName::parse("RuntimeError")]
+            );
+        }
     }
 
     /// `rule:statements/a-qualified-name-is-absolute`, as the cases the rule has and nothing between

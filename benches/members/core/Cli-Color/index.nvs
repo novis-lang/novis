@@ -2,7 +2,7 @@
 // Measures picking a colour out of the terminal's 256-entry palette. A tool
 // meets this once for every line it writes in a colour of its own.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity constant
 

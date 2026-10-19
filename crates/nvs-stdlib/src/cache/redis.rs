@@ -1170,6 +1170,10 @@ mod tests {
     /// client per process and this case would otherwise build it — that
     /// function's own doc is why, and it is the same client
     /// `crate::http::transport`'s cases run against.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_rediss_url_hands_the_socket_to_the_one_outbound_tls_client() {
         crate::tests::outbound_client();
@@ -1229,6 +1233,7 @@ mod tests {
     /// no `Target::Socket` to dial, so what stands in its place is the fact
     /// that makes the exchange unreachable: the door refuses the spelling, and
     /// the wire is never handed a target it could not have dialled.
+    #[cfg_attr(miri, ignore = "opens a Unix socket, which Miri does not emulate")]
     #[test]
     fn a_record_written_through_a_socket_is_read_back_through_it() {
         #[cfg(unix)]

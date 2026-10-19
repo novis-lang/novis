@@ -21,16 +21,19 @@
 //! arm per class, so the "one file per domain" rule still holds.
 //!
 //! [`registry`] holds the *shapes* those rows are written in ([`registry::CoreTy`],
-//! [`registry::CoreMethod`], …) plus one list naming each domain's `CLASS`. The
-//! compiler (`nvs-types`) seeds its signature table from that list, so
+//! [`registry::CoreMethod`], …) plus [`registry::CLASSES`], the list of every
+//! domain's `CLASS`. `bun nv render` writes that list into `classes.rs` from the
+//! `// rank: N` line above each `CoreClass` const. The compiler (`nvs-types`)
+//! seeds its signature table from that list, so
 //! `Core\Arr::count($a)` resolves through exactly the machinery a user-declared
 //! static call already does.
 //!
 //! The point of the split is collision surface, not file size. With one flat
 //! table and one flat match, every new member would edit the same two places,
 //! so two sessions adding two different domains would always conflict. Here
-//! **adding a member touches one file**, and adding a *class* adds one line to
-//! [`registry::CLASSES`] and one to [`symbols`].
+//! **adding a member touches one file**, and adding a *class* adds its const
+//! with a rank, a rendered line in [`registry::CLASSES`], and one `.or_else`
+//! in [`symbols`].
 //!
 //! Keeping metadata and implementation in one crate is what makes a member
 //! impossible to half-add: a registry row naming a symbol nothing defines fails
@@ -129,6 +132,7 @@ mod cache;
 // copy of either. `cldr` is `pub` for the same reason one grammar over.
 pub mod cap;
 mod channel;
+mod classes;
 pub mod cldr;
 pub mod cli;
 mod command;
@@ -302,8 +306,8 @@ use registry::CoreClass;
 ///
 /// **One `.or_else` per class, never one arm per member.** Each domain owns
 /// its own `address` function beside its implementations, so adding a member
-/// touches that module alone. Adding a class adds one line here and one in
-/// [`registry::CLASSES`].
+/// touches that module alone. Adding a class adds one line here, and
+/// `bun nv render` adds its line to [`registry::CLASSES`].
 ///
 /// # Panics
 ///
@@ -682,6 +686,7 @@ mod tests {
     /// carry, which is a rule about that member rather than about the grammar,
     /// so civil patterns are what the
     /// accepted half offers it.
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn every_intrinsic_argument_written_in_the_code_prepares_the_artifact_the_runtime_builds() {
         use nvs_runtime::{Ctx, Fault, Value};

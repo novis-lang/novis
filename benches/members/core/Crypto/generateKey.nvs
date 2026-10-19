@@ -1,7 +1,7 @@
 <?nvs
 // Measures drawing one key, as a program does before it seals a new record.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity constant
 

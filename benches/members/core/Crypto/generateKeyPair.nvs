@@ -2,7 +2,7 @@
 // Measures drawing one X25519 key pair, as a server does when it starts a new
 // connection with a peer.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

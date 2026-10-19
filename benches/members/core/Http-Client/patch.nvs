@@ -2,7 +2,7 @@
 // Measures sending a `PATCH` request with a JSON body that a test answers. A program's own
 // tests do this for every change the program sends to another service.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

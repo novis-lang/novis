@@ -2,7 +2,7 @@
 // Reads one parameter of the query string, as a search or list page does for its page number or filter.
 // bench: iterations 2048
 // bench: complexity constant
-// bench: calls 0
+// bench: calls 2
 
 class Bench {
     public static function run(uint $rounds): uint {
