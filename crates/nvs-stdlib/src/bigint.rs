@@ -2136,7 +2136,9 @@ mod tests {
     /// sides — the widest answer one call may produce is built and the power
     /// one step past it is refused — because a member that stops one step early
     /// is right about every row above. This module's § *Decision: one call may
-    /// not explode* is the bound.
+    /// not explode* is the bound. Under Miri the widest answer is not built,
+    /// because the bound is a constant and squaring up to it takes minutes
+    /// there; the refusal one step past it is judged before any work and runs.
     // covers: Core\BigInt::pow
     #[test]
     fn pow_is_repeated_multiplication_and_refuses_one_step_past_its_width() {
@@ -2177,15 +2179,17 @@ mod tests {
         assert_eq!(agreed, SWEEP.len());
 
         // A receiver of two bits, so the bound is reached at half its value.
-        let widest = read(
-            call(
-                nvs_core_bigint_pow,
-                &mut ctx,
-                &[of(2), Value::uint(MAX_BITS / 2)],
-            )
-            .expect("the widest answer one call may produce"),
-        );
-        assert_eq!(widest.bits(), MAX_BITS / 2 + 1);
+        if !cfg!(miri) {
+            let widest = read(
+                call(
+                    nvs_core_bigint_pow,
+                    &mut ctx,
+                    &[of(2), Value::uint(MAX_BITS / 2)],
+                )
+                .expect("the widest answer one call may produce"),
+            );
+            assert_eq!(widest.bits(), MAX_BITS / 2 + 1);
+        }
         call(
             nvs_core_bigint_pow,
             &mut ctx,
@@ -2320,7 +2324,8 @@ mod tests {
     /// built and one bit past it is refused — because the receiver's own width
     /// counts toward the bound, and a member weighing the distance alone is
     /// right about every row of the one-bit receiver. This module's
-    /// § *Decision: one call may not explode* is the bound.
+    /// § *Decision: one call may not explode* is the bound. Under Miri the
+    /// widest answers are not built, for `pow`'s reason, and both refusals run.
     // covers: Core\BigInt::shl
     #[test]
     fn shl_doubles_its_receiver_and_the_receivers_own_width_counts_toward_the_bound() {
@@ -2361,15 +2366,17 @@ mod tests {
         // A receiver of one bit and one of two bits, so the widest distance
         // each accepts differs by one.
         for (value, width) in [(1i64, 1u64), (-3, 2)] {
-            let widest = read(
-                call(
-                    nvs_core_bigint_shl,
-                    &mut ctx,
-                    &[of(value), Value::uint(MAX_BITS - width)],
-                )
-                .expect("the widest answer this receiver may produce"),
-            );
-            assert_eq!(widest.bits(), MAX_BITS);
+            if !cfg!(miri) {
+                let widest = read(
+                    call(
+                        nvs_core_bigint_shl,
+                        &mut ctx,
+                        &[of(value), Value::uint(MAX_BITS - width)],
+                    )
+                    .expect("the widest answer this receiver may produce"),
+                );
+                assert_eq!(widest.bits(), MAX_BITS);
+            }
             call(
                 nvs_core_bigint_shl,
                 &mut ctx,
