@@ -1,7 +1,8 @@
-# looper:begin gitignore v1
-# Scratch for every agent and tool, and looper's run directory.
+# looper:begin gitignore v2
+# Scratch for every agent and tool, looper's run directory, and the data folder of the kit's copy.
 /.agent-tmp/
 /.loop/
+/.looper/
 
 # Build output and dependencies of each stack.
 /target/
