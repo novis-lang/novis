@@ -28,7 +28,7 @@
     "tools/looper/src/cli/verify.ts": "07b820554c0271b566a39666a0e3701ee5d19a7a1475534b407585d53662d509",
     "tools/looper/src/cli/wrap.ts": "3a0ee45b2156fb5d2bc72ada52fa45fc0fa1e964d4188e9063e300bb1542580a",
     "tools/looper/src/gates/commit-msg.ts": "8382d31002596b618351335e74c7d3f30170f8bdb034979fd1c4838108cd255c",
-    "tools/looper/src/gates/gates.ts": "7dbf5c3b6dfeb4f97a3e1b812b539d74b8f265557ccf99a98937d1c92f382a08",
+    "tools/looper/src/gates/gates.ts": "252425d2cb0486310c012c557a91f4c6c7b5f4bae30d9379092e5594c8ec7b46",
     "tools/looper/src/goal/config.ts": "6c427fd33d29e9163130b9bf69e571df62f3e078306b0718f68422bb80f7b27d",
     "tools/looper/src/goal/edit.ts": "6d8a106111788aedc08f1662f76af7bcb5e0ff0d58ebd3a9f60c0455af22de0a",
     "tools/looper/src/goal/glob.ts": "d0e3c0e1400f23dd9bc60eb19fff2aa3fcb2f10c89642f4c243ca187a69816ed",
