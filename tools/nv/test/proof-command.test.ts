@@ -3,7 +3,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { detailsProblems, skippedOf } from "../proofs/collect.ts";
-import { commandArgs, exampleOutput, matchesOut, spawnProof } from "../proofs/run.ts";
+import { commandArgs, exampleOutput, matchesOut, spawnProof, testReport } from "../proofs/run.ts";
 import { scratch } from "./scratch.ts";
 
 describe("a `.cmd` example", () => {
@@ -61,6 +61,20 @@ describe("a `proof: compile-error` example", () => {
 
   test("an example without the line freezes its standard output alone", () => {
     expect(exampleOutput("a.nvs", "<?nvs\necho 1;\n", { stdout: "1", stderr: "noise" })).toBe("1");
+  });
+});
+
+describe("a `proof: test` example", () => {
+  test("its `.out` is the `nvs test` report without a duration", () => {
+    const report = "  SumTest\n    ✓ itAdds                           0.3 ms\n    ✗ itFails                          12.0 ms\n      Core\\Test::assertSame failed: `$actual` is 4, `$expected` is 5\n    - itWaits                          0.0 ms\n      skipped: not yet\n\n  1 failed, 1 passed, 1 skipped, 0 flaky in 14 ms\n";
+    const source = "<?nvs\n// proof: test\n";
+    expect(exampleOutput("a.nvs", source, { stdout: report, stderr: "" })).toBe(
+      "  SumTest\n    ✓ itAdds\n    ✗ itFails\n      Core\\Test::assertSame failed: `$actual` is 4, `$expected` is 5\n    - itWaits\n      skipped: not yet\n\n  1 failed, 1 passed, 1 skipped, 0 flaky\n",
+    );
+  });
+
+  test("a line the tests print keeps its text", () => {
+    expect(testReport("  T\ncreate 2 ms\n    ✓ a  1.5 ms\n")).toBe("  T\ncreate 2 ms\n    ✓ a\n");
   });
 });
 

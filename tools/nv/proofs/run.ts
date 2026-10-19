@@ -1,5 +1,6 @@
 // Running the proofs on disk. An example runs and its standard output is compared with the `.out` frozen
-// beside it, or its diagnostic when it declares `proof: compile-error` (`exampleOutput`). An attack runs and passes when the runtime survived it, whatever the program's own fate.
+// beside it, or its diagnostic when it declares `proof: compile-error`, or its `nvs test` report when it
+// declares `proof: test` (`exampleOutput`). An attack runs and passes when the runtime survived it, whatever the program's own fate.
 // `bun nv proofs --run` and `--verify` call this, over any number of groups in one pass: the files of
 // every group go into one pool, and each group's verdict lines are counted from its own files. A program
 // that runs out of time in the pool runs once more alone before its verdict stands (`timedOut`).
@@ -151,6 +152,9 @@ const EXAMPLE_EXIT_RE = /(?:\/\/|#)\s*proof:\s*exit\s+([0-9]+)/;
 /** `// proof: compile-error` in an example: it shows code that does not compile, so the run must end
  * with `nvs`'s compile-error status and a diagnostic, and its `.out` is that diagnostic. */
 const EXAMPLE_COMPILE_ERROR_RE = /(?:\/\/|#)\s*proof:\s*compile-error\b/;
+/** `// proof: test` in an example: it shows the report `nvs test` prints for it, so it runs under
+ * `nvs test`, and its `.out` is that report with every duration removed (`testReport`). */
+const EXAMPLE_TEST_RE = /(?:\/\/|#)\s*proof:\s*test\b/;
 /** The status `nvs run` ends with when the program does not compile. */
 const COMPILE_ERROR_EXIT = 1;
 /** A compile diagnostic. An uncaught throw is a log line and does not look like this. */
@@ -421,9 +425,23 @@ function declaredExit(source: string): number {
  * form, so the `.out` reads the same on every host and on the website.
  */
 export function exampleOutput(path: string, source: string, out: Pick<Ran, "stdout" | "stderr">): string {
+  if (EXAMPLE_TEST_RE.test(source)) return testReport(out.stdout);
   if (!EXAMPLE_COMPILE_ERROR_RE.test(source)) return out.stdout;
   const name = basename(path);
   return out.stderr.replaceAll(path.replaceAll("\\", "/"), name).replaceAll(path.replaceAll("/", "\\"), name);
+}
+
+/** `nvs test`'s human report without its timings: the duration that ends each test's line and the
+ * summary's ` in N ms`, which differ on every run. */
+export function testReport(stdout: string): string {
+  return stdout
+    .replace(/^(\s+[✓✗!-] .*?) +[0-9]+(?:\.[0-9]+)? ms(\r?)$/gmu, "$1$2")
+    .replace(/^(\s+[0-9]+ failed, .* flaky) in [0-9]+ ms(\r?)$/gm, "$1$2");
+}
+
+/** The command line an example runs with: `nvs test` for a `proof: test` example, `nvs run` otherwise. */
+function exampleArgv(nvs: string, path: string, source: string): string[] {
+  return [nvs, EXAMPLE_TEST_RE.test(source) ? "test" : "run", path];
 }
 
 /** One judged run: the verdict, why, and what the program did, which a program skipped on this host
@@ -437,7 +455,7 @@ async function runExample(nvs: string, path: string, unlogged = false): Promise<
   if (skip) return ["skip", skip];
   let out: Ran;
   try {
-    out = await spawnProof([nvs, "run", path], path, EXAMPLE_TIMEOUT_MS, unlogged ? { unlogged } : undefined);
+    out = await spawnProof(exampleArgv(nvs, path, source), path, EXAMPLE_TIMEOUT_MS, unlogged ? { unlogged } : undefined);
   } catch (e) {
     return ["fail", `could not run: ${e instanceof Error ? e.message : String(e)}`];
   }
@@ -481,8 +499,8 @@ export async function bless(nvs: string, paths: string[]): Promise<{ lines: stri
       failed = true;
       continue;
     }
-    const out = await spawnProof([nvs, "run", path], path, 120_000);
     const source = read(path);
+    const out = await spawnProof(exampleArgv(nvs, path, source), path, 120_000);
     if (out.code !== declaredExit(source) || (EXAMPLE_COMPILE_ERROR_RE.test(source) && !REFUSED_RE.test(out.stderr))) {
       lines.push(`  FAIL  ${path} exited ${out.code}:`, "        " + out.stderr.trim().replace(/\r?\n/g, "\n        "));
       failed = true;
