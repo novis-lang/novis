@@ -21,9 +21,9 @@ mkdirSync(SCRATCH, { recursive: true });
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
 
 /** Runs `argv` from the root with the stripped PATH, and returns its exit code and what it printed. */
-async function bare(argv: string[], input?: string): Promise<{ code: number; out: string }> {
+async function bare(argv: string[], input?: string, env: Record<string, string> = ENV): Promise<{ code: number; out: string }> {
   const exe = Bun.which(argv[0]!, { PATH }) ?? argv[0]!;
-  const child = Bun.spawn([exe, ...argv.slice(1)], { cwd: ROOT, env: ENV, stdin: input === undefined ? "ignore" : new Blob([input]), stdout: "pipe", stderr: "pipe" });
+  const child = Bun.spawn([exe, ...argv.slice(1)], { cwd: ROOT, env, stdin: input === undefined ? "ignore" : new Blob([input]), stdout: "pipe", stderr: "pipe" });
   const [stdout, stderr, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
   return { code, out: stdout + stderr };
 }
@@ -65,7 +65,14 @@ describe("with no looper on PATH", () => {
 
   describe("`tools/git-hooks/commit-msg`", () => {
     // `git hook run` starts the hook with git's own sh, as a commit does, so the test needs no `sh` on PATH.
-    const hook = (text: string) => bare(["git", "-c", "core.hooksPath=tools/git-hooks", "hook", "run", "commit-msg", "--", scratch("msg.txt", text)]);
+    // The hook passes every message while a merge is in progress, and this tree is mid-merge whenever a
+    // merge is verified before its commit. So git runs it over this work tree with a fresh, empty git
+    // directory, which has no MERGE_HEAD, and the hook still reads this tree's `looper.toml`.
+    const gitDir = join(SCRATCH, "git");
+    Bun.spawnSync(["git", "init", "--quiet", "--bare", gitDir], { env: ENV });
+    const env = { ...ENV, GIT_DIR: gitDir, GIT_WORK_TREE: ROOT };
+    const hook = (text: string) =>
+      bare(["git", "-c", "core.bare=false", "-c", "core.hooksPath=tools/git-hooks", "hook", "run", "commit-msg", "--", scratch("msg.txt", text)], undefined, env);
 
     test("passes a message in shape, and git's own subjects", async () => {
       expect((await hook("feat(nv): `bun nv prose` checks the end-user Markdown\n\nThe body.\n")).code).toBe(0);
