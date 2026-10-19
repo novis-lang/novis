@@ -90,11 +90,10 @@ const CARD: ClassDoc = ClassDoc {
 /// instead of `**`, and the four cuts `rule:types/conversion` sends a
 /// narrowing to.
 ///
-/// Beside `Core\Math` because it is the other half of one question: § 3's
+/// Beside `Core\Math` because it is the other half of one question: `Core\Math`'s
 /// rounding is over `float`, and `rule:types/arithmetic`'s two named-rounding members
-/// are the same decision made exactly. No spec § of its own — the spec's
-/// own roster table points at that rule for the non-operator members of the
-/// `decimal` scalar.
+/// are the same decision made exactly. That rule specifies the non-operator
+/// members of the `decimal` scalar.
 // rank: 50
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Decimal",

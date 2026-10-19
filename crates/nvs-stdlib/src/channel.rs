@@ -124,7 +124,7 @@ const CARD: ClassDoc = ClassDoc {
 /// is to have suspended in between. `examples/channel.nvs` is written around
 /// that deliberately.
 ///
-/// Goal `concurrency`'s item 11, and no spec § of its own either — `rule:concurrency/one-scheduler`'s scope
+/// Goal `concurrency`'s item 11. `rule:concurrency/one-scheduler`'s scope
 /// line leaves this type's spelling undecided, so [`crate::channel`]'s
 /// module doc is the one home for the surface and for why the queue lives
 /// in the instance's own slots rather than in the host.

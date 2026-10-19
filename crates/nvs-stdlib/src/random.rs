@@ -364,7 +364,7 @@ const SEEDED_CARD: ClassDoc = ClassDoc {
 /// is also the reason this class is an ordinary object rather than a handle
 /// into a table of native ones.
 ///
-/// Spec § 11's reproducible generator, which is a *type* rather than a mode
+/// `Core\Random`'s reproducible generator, which is a *type* rather than a mode
 /// the class above can be put into — `crate::random`'s own docs argue the
 /// separation, and [`CONSTRUCTORS`](crate::registry::CONSTRUCTORS) is what makes `new` on it resolve.
 // rank: 330

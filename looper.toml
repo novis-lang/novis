@@ -29,7 +29,7 @@ run = [["bun", "nv", "verify"]]
 
 # The generated files `.gitattributes` marks that the two commands below write without a built binary. A
 # catch-up merge takes main's side of each, then renders them again from the merged sources.
-# `website/src/data/core.json`, `reference.json` and `docs/novis.md` need the binary, so a conflict in
+# `website/src/data/core.json`, `reference.json` and `website/public/llms-full.txt` need the binary, so a conflict in
 # one is a landing session.
 [merge]
 generated = [

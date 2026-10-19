@@ -86,8 +86,8 @@ const CARD: ClassDoc = ClassDoc {
 
 /// The registry row. See [`crate::registry::CLASSES`].
 ///
-/// No spec § of its own, and here beside `Core\Path` because that is where a
-/// reader looks for it: § 8's class splits a path lexically and this one
+/// Here beside `Core\Path` because that is where a
+/// reader looks for it: `Core\Path` splits a path lexically and this one
 /// reaches the filesystem behind it. What it needs to do that is
 /// [`CAPABILITIES`](crate::registry::CAPABILITIES), and `rule:security/capability-check-at-the-door`'s doors are what make it need one.
 // rank: 140
@@ -1356,7 +1356,7 @@ const FILE_CARD: ClassDoc = ClassDoc {
 /// than a handle — and that member's doc comment is the home of why the writing
 /// half does not exist and why the reading half is not one of these.
 ///
-/// Spec § 14's `File` — R14's "an open file is an object and never a
+/// `Core\IO`'s `File` — R14's "an open file is an object and never a
 /// `resource`". Its slot holds a key into the request's own table of open
 /// descriptors, which its own docs argue for; `Core\Script\Handle` is the
 /// same shape and landed first.
@@ -1723,7 +1723,7 @@ const LINES_CARD: ClassDoc = ClassDoc {
 /// names, beside `Core\Script\Handle`: its slot is read, just not through a
 /// member of its own.
 ///
-/// What `Core\IO::lines` answers with, and the whole of spec § 14's
+/// What `Core\IO::lines` answers with, and the whole of its
 /// `Iterable<string>` — a name for the walk, with no member on it. Its own
 /// docs say why it holds the lines rather than streaming them.
 // rank: 150
@@ -1809,7 +1809,7 @@ const WALK_CARD: ClassDoc = ClassDoc {
 /// `iterate()`, dispatched by name through [`crate::instance`]'s roster.
 ///
 /// What `Core\IO::walk` answers with — the same shape as `LINES` above and
-/// the other of spec § 14's two `Iterable<string>`s. Its own docs say why a
+/// the other of `Core\IO`'s two `Iterable<string>`s. Its own docs say why a
 /// tree is a different question from `list`'s directory rather than a second
 /// spelling of it.
 // rank: 160

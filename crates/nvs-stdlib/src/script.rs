@@ -119,9 +119,9 @@ pub const HANDLE_NAME: &str = r"Core\Script\Handle";
 
 /// The registry row. See [`crate::registry::CLASSES`].
 ///
-/// `rule:security/isolate-shares-nothing`'s isolate handle, and no spec § of its own either — the
-/// concurrency *language* surface belongs to `docs/spec/00-overview.md` § 2,
-/// which is where `spawn script`'s grammar already is. The one class here
+/// `rule:security/isolate-shares-nothing`'s isolate handle. The concurrency
+/// *language* surface, `spawn script`'s grammar included, belongs to
+/// `docs/reference/lang/80-concurrency.md`. The one class here
 /// with no members at all; [`crate::script`] owns why that is the point.
 // rank: 530
 pub(crate) const HANDLE: CoreClass = CoreClass {

@@ -48,14 +48,13 @@ website/src/data/numbers.json             linguist-generated
 # Written by `bun nv render --website`, which reads a built binary.
 website/src/data/core.json                linguist-generated
 website/src/data/reference.json           linguist-generated
+website/public/llms-full.txt              linguist-generated
 # Written by `bun nv rules --render` from `data/rules/` and the fragments under `docs/rules/<topic>/`.
 docs/rules/*.md                           linguist-generated
 docs/ground-rules.md                      linguist-generated
-# Written by `bun nv reference` from a built binary and `docs/reference/`.
-docs/novis.md                             linguist-generated
 
 # The perf ledger is append-only, so a merge keeps the lines of both sides.
-docs/perf/members.ndjson                  merge=union
+data/perf/members.ndjson                  merge=union
 
 # Binary
 *.png     binary

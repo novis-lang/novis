@@ -137,7 +137,7 @@ const CARD: ClassDoc = ClassDoc {
 
 /// The registry row. See [`crate::registry::CLASSES`].
 ///
-/// `rule:concurrency/all-answers-a-typed-shape`'s `Core\Task`, and no spec § of its own either: structured
+/// `rule:concurrency/all-answers-a-typed-shape`'s `Core\Task`: structured
 /// concurrency is a language surface over the `nvs-host` scheduler. The
 /// signature is here and the body is a placeholder — [`crate::task`] owns
 /// why, and it is the one row of the three that is not compile-time folded.

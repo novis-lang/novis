@@ -215,13 +215,12 @@ take either side, then render it again from the merged sources and stage what th
 ```sh
 git checkout --theirs <file>              # or --ours: either side, since the render replaces it
 bun nv render                             # data/schema/, data/spec/, classes.rs, the website's grammar and data
-bun nv render --website                   # website/src/data/core.json and reference.json, with a built binary
+bun nv render --website                   # website/src/data/core.json, reference.json and website/public/llms-full.txt, with a built binary
 bun nv rules --render                     # docs/rules/*.md and docs/ground-rules.md
-bun nv reference                          # docs/novis.md, with a built binary
 ```
 
 Run only the command that writes the conflicted file. A side loop's catch-up does this itself for
-the files `looper.toml`'s `[merge]` table names. The perf ledger `docs/perf/members.ndjson`
+the files `looper.toml`'s `[merge]` table names. The perf ledger `data/perf/members.ndjson`
 never conflicts: it is append-only, and `merge=union` keeps the lines of both sides.
 
 ## A debug cargo command never takes `-p`
