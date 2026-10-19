@@ -1096,8 +1096,8 @@ mod tests {
     /// writes cannot grow it.
     #[test]
     fn the_windows_footprint_does_not_grow_with_the_number_of_records_written() {
-        // Under Miri, 1_000 records still overfill the table many times over.
-        let lines = if cfg!(miri) { 1_000 } else { 10_000 };
+        // Under Miri, 100 records still overfill the table six times over.
+        let lines = if cfg!(miri) { 100 } else { 10_000 };
         for line in 1..=lines {
             assert_eq!(
                 write(&written("the store said no", line)),

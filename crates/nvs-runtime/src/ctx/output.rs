@@ -1260,8 +1260,8 @@ mod tests {
     /// memory accesses, and the native run keeps the pin.
     #[test]
     fn many_distinct_names_are_declared_without_comparing_each_to_every_other() {
-        const NAMES: usize = if cfg!(miri) { 2_000 } else { 200_000 };
-        const REPEATS: usize = if cfg!(miri) { 100 } else { 1_000 };
+        const NAMES: usize = if cfg!(miri) { 200 } else { 200_000 };
+        const REPEATS: usize = if cfg!(miri) { 20 } else { 1_000 };
         let mut ctx = Ctx::buffered();
         for n in 0..NAMES {
             ctx.declare_header(&format!("X-Header-{n}"), "v");
