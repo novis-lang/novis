@@ -4843,6 +4843,11 @@ mod tests {
     /// The depth cap still bounds what the ancestor chain does not: a document
     /// that is acyclic and merely deeper than any encoder should walk is
     /// refused as nesting, and never reported as a cycle.
+    #[cfg_attr(
+        miri,
+        ignore = "the walk checks every open level at each level, which is minutes under Miri \
+                  at the ceiling, and the ceiling is a constant"
+    )]
     #[test]
     fn a_document_deeper_than_the_ceiling_still_reports_depth_and_not_a_cycle() {
         let depth = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize");
@@ -4868,6 +4873,11 @@ mod tests {
     /// the answer is the text, so a walk that ended early fails rather than
     /// merely survives. Every value is built and released inside that thread: a
     /// refcount is a per-thread fact.
+    #[cfg_attr(
+        miri,
+        ignore = "the walk checks every open level at each level, which is minutes under Miri \
+                  at the ceiling, and the ceiling is a constant"
+    )]
     #[test]
     fn json_nesting_is_bounded_by_the_heap_stack_not_the_native_one() {
         // The deepest legal document: the innermost scalar sits at the ceiling,
