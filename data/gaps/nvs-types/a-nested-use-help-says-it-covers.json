@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/locals.rs",
+  "title": "`E0233`'s help for a nested `use` says it applies to the whole file, but a `use` covers only the code below it.",
+  "text": "The help for a `use` written below file scope tells the reader the import applies to the whole file. The binary resolves a `use` only for the code after it, so a name used above the `use` is still unresolved. The help is product text, so its rewrite is held to AGENTS.md § *Text an end user reads*. It closes when the help says what the binary does, with a case that pins the new text.",
+  "goal": "release-hardening"
+}

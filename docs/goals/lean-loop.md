@@ -69,8 +69,6 @@ conflicted. The last stage waits for looper's goal `landing-fixes`. This goal co
   paying them at the goal end turns out to take hours, the owed benches move to the release gate,
   and the session says so in the handoff.
 - **Generated files stay committed** and are rendered again on a merge, never merged by hand.
-- **Side goal `docs-cleanup` carries what was this goal's stage 3 and the plan's deletion**, with the
-  decisions about AGENTS.md and the playbook. The whole plan goes, its milestone machinery too.
 - **Looper gets two fixes now**: a landing pauses only the loops in the root checkout, and a
   catch-up renders the generated files it would conflict on. Both are looper's goal
   `landing-fixes`. A chain planned as a graph, with lanes opened for it automatically, waits until

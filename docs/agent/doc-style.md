@@ -7,6 +7,9 @@ The docs are optimised for an agent that reads one file and starts working. Keep
   brief --where <keyword>` names the one that owns a topic; link to it from everywhere else,
   as the token `rule:<topic>/<rule>`. Summarising a rule into another document creates a second copy
   that will silently go stale.
+- **The website is the home of everything public.** `docs/` holds only what developers of Novis need
+  for the project's own work. Public content goes on the website, written to AGENTS.md § *Text an end
+  user reads*, and a doc never repeats a website page.
 - **Never quote a measured number outside the file that owns it.** Numbers live with their guard test.
 - **No date, anywhere under `docs/`.** When something was decided, accepted, retired, measured or changed
   is `git log`'s to answer, and it answers exactly; a date written into prose can be checked against

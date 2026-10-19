@@ -1,6 +1,6 @@
 // `bun nv splice`: replaces exact blocks of text, across as many files as one edit touches, in one call.
 // The blocks come from a file written with the Write tool, never from the command line, because a shell
-// parses a block's quotes and backslashes before it runs anything (AGENTS.md rule 1).
+// parses a block's quotes and backslashes before it runs anything (commands.md § *A shell never carries file content into the tree*).
 //
 // Every block in every file is matched exactly once before a single byte is written, so a stale anchor
 // in the last file leaves the first one untouched. A failed match says where the anchor stopped

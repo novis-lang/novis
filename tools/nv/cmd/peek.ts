@@ -41,7 +41,7 @@ export const TARGET_FORMS = `Target forms, all of them \`path\` followed by \`:\
 /** Source text here tokenizes at about this many bytes per token. It prices a call; it refuses none. */
 const BYTES_PER_TOKEN = 2.5;
 const DEFAULT_WINDOW = 12;
-/** AGENTS.md rule 3's "whole file under ~400 lines". */
+/** commands.md's "whole file when it is small (roughly under 400 lines)". */
 export const DEFAULT_MAX_LINES = 400;
 
 /**

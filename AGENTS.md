@@ -102,7 +102,7 @@ Each is here because not knowing it exists is the entire cost. The file named af
 
 **This section is the whole rule, and it is here because nothing checks the wording: it is followed at
 the first write, not repaired afterwards.** It covers **everything a user sees**: every page of the
-website, every `about.md`, every `Core` reference card (`rule:core-api/reference-card`), every comment
+website, every `about.md` and `details.md`, every `Core` reference card (`rule:core-api/reference-card`), every comment
 in a `.nvs` file the website publishes — under `docs/examples/`, `tests/hostile/`, `benches/members/`
 and `website/snippets/` — the help text `nvs` prints for a command or a flag, and the message of every
 diagnostic. Help text and diagnostics are held to it when they are written or changed. The docs only
