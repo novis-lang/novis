@@ -58,24 +58,31 @@ concurrency:
 # investigate, never a number to raise here without one.
 #
 # The repository's Actions cache holds 10 GB, and GitHub evicts the least recently used entry past
-# that, so every Rust cache a job saves can push a slower job's cache out. A few heavy jobs save
-# one, and a job that builds what a heavy job already built reads that job's entry through the
-# same `shared-key` and saves nothing (`save-if: false`). The readers restore the entry the last
-# run on `main` saved, so no job waits for another inside a run.
+# that, so every Rust cache a job saves can push a slower job's cache out. The entries below are
+# the ones that fit, about 9.4 GB together, and each is one a cold build would make the run longer
+# without. A job that builds what one of them holds reads it through the same `shared-key` and
+# saves nothing (`save-if: false`). The readers restore the entry the last run on `main` saved,
+# so no job waits for another inside a run.
 #
-# - `<os>-test`, saved by each `test` leg: debug builds. `ext-templates` and `extension` read it
-#   on every OS, and `database`, `extension-host`, `reference` and `lint` read the Linux one.
-#   `cargo build -p nvs-cli` finds 475 of its 485 dependency builds there. `lint` finds a third
-#   of its own, because clippy builds dependencies as metadata only.
-# - `cost-guards-<os>-cost-guards`, saved by each `cost-guards` leg: release builds.
-#   `extension-sandbox` reads the Linux one and finds 508 of its 515 dependency builds there.
-# - A key of its own for `proofs` (its own profile), `unsafe-audit`, `miri`, `miri-units` and
-#   `fuzz-smoke`, whose builds no other job makes.
+# - `<os>-test`, saved by each `test` leg's `tests` part: debug builds. `ext-templates` and
+#   `extension` read it on every OS, and `database`, `extension-host`, `reference` and `lint`
+#   read the Linux one. `cargo build -p nvs-cli` finds 475 of its 485 dependency builds there.
+#   `lint` finds a third of its own, because clippy builds dependencies as metadata only.
+# - `cost-guards-<os>-cost-guards`, saved by the Windows and macOS `cost-guards` legs: release
+#   builds, which took 25 to 50 minutes there.
+# - `proofs-<os>`, saved by the Windows and macOS `proofs` legs, in the profile only they use.
+# - `miri`, `miri-units-<crate>` and `fuzz`, whose nightly builds no other job makes.
 #
-# `docker`, `asan` and `tsan` save nothing and read nothing that exists, so they build cold. Each
-# takes under six minutes. `docker` runs on Ubuntu 22.04, so it must not read an entry built on a
-# newer image, whose build scripts need a newer glibc than 22.04 has. `asan` and `tsan` build
-# with nightly and sanitizer flags, and no other job builds that way.
+# Every other job builds cold, because it finishes cold inside the slowest `test` leg's time:
+# the Linux `cost-guards` and `proofs` legs, `extension-sandbox` and `unsafe-audit` in 19 to 35
+# minutes, and `docker`, `asan` and `tsan` in under six. `docker` runs on Ubuntu 22.04, so it must
+# not read an entry built on a newer image, whose build scripts need a newer glibc than 22.04 has.
+#
+# The run has 20 concurrent job slots, and it has more jobs than that. `unsafe-audit`,
+# `fuzz-smoke`, `miri` and `miri-units` take 19 slots for 20 to 37 minutes each, and none of them
+# sets the run's length, so they start once `lint` has finished, about ten minutes in. That leaves
+# the slots at the start to the `test`, `cost-guards` and `proofs` legs, which do set it. Each
+# one's `if` starts with `!cancelled()`, so a red `lint` does not skip them.
 jobs:
   # ---------------------------------------------------------------------------
   # Which lanes this run needs. Every gated job below reads one boolean from
@@ -144,11 +151,13 @@ jobs:
     # a job cut off by its limit skips rust-cache's post step and saves nothing, so a limit only a
     # warm cache fits keeps the leg cold and red on every later run.
     #
-    # Windows is two legs, because one leg was the whole run's wall clock: a cold one took 110
-    # minutes, a 43-minute build, 35 of tests and 28 of the two conformance runs. The `tests` leg
-    # builds the workspace and runs `cargo test`, the `conformance` leg runs the two suites, and the
-    # two run side by side. They share one cache entry, which the `tests` leg alone saves: its
-    # workspace build covers everything the `conformance` leg compiles.
+    # Linux x86_64, Windows and macOS are two legs each, because one leg set the whole run's length.
+    # A cold Windows leg took 110 minutes: a 43-minute build, 35 of tests and 28 of the two
+    # conformance runs. Linux x86_64 took 74 minutes cold and macOS 53. The `tests` leg builds the
+    # workspace and runs `cargo test`, the `conformance` leg runs the two suites, and the two run
+    # side by side. They share one cache entry, which the `tests` leg alone saves: its workspace
+    # build covers everything the `conformance` leg compiles. Linux aarch64 stays one leg, because
+    # it took 40 minutes, inside the time of the slowest split leg.
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -156,6 +165,10 @@ jobs:
         include:
           - name: linux-x86_64
             os: ubuntu-latest
+            part: tests
+          - name: linux-x86_64
+            os: ubuntu-latest
+            part: conformance
           - name: linux-aarch64
             os: ubuntu-24.04-arm
           - name: windows-x86_64
@@ -166,6 +179,10 @@ jobs:
             part: conformance
           - name: macos-aarch64
             os: macos-latest
+            part: tests
+          - name: macos-aarch64
+            os: macos-latest
+            part: conformance
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -316,6 +333,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: cost-guards-${{ matrix.name }}-cost-guards
+          save-if: ${{ matrix.os != 'ubuntu-latest' }}
 
       # The warm-start budget runs through `bun nv`, so this job needs Bun and the tools' dependencies.
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -408,6 +426,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: proofs-${{ matrix.name }}
+          save-if: ${{ matrix.os != 'ubuntu-latest' }}
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -557,7 +576,7 @@ jobs:
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          shared-key: cost-guards-linux-x86_64-cost-guards
+          key: wasm-probe
           save-if: false
       - name: Sandbox containment and boundary costs
         run: cargo test --release -p nvs-abi-probe --features wasm-probe
@@ -1049,8 +1068,8 @@ jobs:
   # again on the day it becomes a hard gate. `rule:testing/the-deep-lane`.
   unsafe-audit:
     name: unsafe audit
-    needs: changes
-    if: needs.changes.outputs.deep == 'true'
+    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
+    if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
     runs-on: ubuntu-latest
     # Geiger builds every member under its own feature set, so the scan grows with the workspace.
     timeout-minutes: 60
@@ -1059,6 +1078,8 @@ jobs:
       - name: Install toolchain
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: false
       - name: Install cargo-geiger
         run: cargo install cargo-geiger --version 0.14.0 --locked
       # One `cargo geiger` per workspace member, because geiger will not run against the root
@@ -1094,8 +1115,8 @@ jobs:
   # ---------------------------------------------------------------------------
   fuzz-smoke:
     name: fuzz smoke / ${{ join(matrix.targets, ', ') }}
-    needs: changes
-    if: needs.changes.outputs.deep == 'true'
+    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
+    if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -1168,8 +1189,8 @@ jobs:
   # ---------------------------------------------------------------------------
   miri:
     name: miri
-    needs: changes
-    if: needs.changes.outputs.deep == 'true'
+    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
+    if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
     runs-on: ubuntu-latest
     # Generous: Miri interprets rather than executes, and the fixture trees below now really touch
     # the filesystem, so this job grows with the front end's test count rather than its code size.
@@ -1258,8 +1279,8 @@ jobs:
   # rest, so a test that asserts an exact float result checks the library and not Miri's noise.
   miri-units:
     name: miri units (${{ matrix.crate }} ${{ matrix.shard }}/${{ matrix.of }})
-    needs: changes
-    if: needs.changes.outputs.deep == 'true'
+    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
+    if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
