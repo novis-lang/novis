@@ -96,7 +96,7 @@
 //! it is `Arr::filter($a, fn($v) => Regex::matches($v, $p))`.
 
 use std::borrow::Cow;
-use std::cell::RefCell;
+use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
 
 use nvs_runtime::{Ctx, Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
@@ -864,6 +864,37 @@ fn step_budget(ctx: &Ctx) -> usize {
     }
 }
 
+/// [`step_budget`], read the first time a call needs it.
+///
+/// Only the backtracking tier is built with a budget, so a call that finds a
+/// linear program in [`CACHE`] never reads it. That is what keeps such a call
+/// free of allocations: a request's setting is rendered as an owned `String`
+/// on every read.
+struct Budget<'a> {
+    /// The request whose `[limits]` the budget is read from, or `None` for a
+    /// budget fixed when it was made.
+    ctx: Option<&'a Ctx>,
+    /// The budget, once read.
+    steps: OnceCell<usize>,
+}
+
+impl<'a> Budget<'a> {
+    /// The budget `ctx`'s request runs under, not read yet.
+    fn of(ctx: &'a Ctx) -> Self {
+        Self {
+            ctx: Some(ctx),
+            steps: OnceCell::new(),
+        }
+    }
+
+    /// The number of steps, read on the first call.
+    fn steps(&self) -> usize {
+        *self
+            .steps
+            .get_or_init(|| self.ctx.map_or(BACKTRACK_BUDGET, step_budget))
+    }
+}
+
 /// How many compiled patterns one core holds before a miss evicts one — this
 /// module's own docs own the reasoning and what it spends.
 ///
@@ -894,7 +925,8 @@ struct Cached {
     pattern: String,
     /// The [`PATTERN`] flags it was compiled under.
     flags: u8,
-    /// The step budget the backtracking tier was built with.
+    /// The step budget the backtracking tier was built with. A linear program
+    /// ignores it.
     budget: usize,
     /// Whether the compiler's prepared tier forced the backtracking engine,
     /// which [`compiled_prepared`] says when a hit may ignore.
@@ -926,6 +958,10 @@ thread_local! {
     /// [`step_budget`] is baked into the backtracking engine when it is built
     /// rather than read per match, so one key would hand the second call the
     /// first one's answer and the second request the first one's ceiling.
+    ///
+    /// The budget keys a backtracking program only. A linear one runs the same
+    /// under every budget, so a hit on one never reads the request's setting
+    /// ([`Budget`]).
     ///
     /// The budget is part of the key rather than checked on a hit because the
     /// alternative is a compiled program whose ceiling is whichever request
@@ -999,7 +1035,12 @@ fn effective(pattern: &str, flags: u8) -> Cow<'_, str> {
 /// The other refusal is a pattern the linear engine *does* express and cannot
 /// fit under its own size limit; [`build`]'s routing rule says why that is a
 /// throw rather than a quiet move to the second tier.
-fn compiled(pattern: &str, flags: u8, member: &str, budget: usize) -> Result<Rc<Compiled>, Fault> {
+fn compiled(
+    pattern: &str,
+    flags: u8,
+    member: &str,
+    budget: &Budget<'_>,
+) -> Result<Rc<Compiled>, Fault> {
     compiled_prepared(pattern, flags, member, None, budget)
 }
 
@@ -1028,7 +1069,7 @@ fn compiled_prepared(
     flags: u8,
     member: &str,
     prepared: Option<Tier>,
-    budget: usize,
+    budget: &Budget<'_>,
 ) -> Result<Rc<Compiled>, Fault> {
     let forced = prepared == Some(Tier::Backtracking);
     if let Some((cost, hit)) = CACHE.with_borrow_mut(|cache| {
@@ -1037,7 +1078,8 @@ fn compiled_prepared(
         let entry = cache.entries.iter_mut().find(|entry| {
             entry.pattern == pattern
                 && entry.flags == flags
-                && entry.budget == budget
+                && (matches!(*entry.compiled, Compiled::Linear(_))
+                    || entry.budget == budget.steps())
                 && (entry.forced == forced
                     || (forced && matches!(*entry.compiled, Compiled::Backtracking(_))))
         })?;
@@ -1048,6 +1090,7 @@ fn compiled_prepared(
         return Ok(hit);
     }
 
+    let budget = budget.steps();
     let built = build(pattern, flags, prepared, budget)
         .map_err(|why| Fault::thrown(format!("Core\\Regex::{member}(): {why}")))?;
     let cost = search_cost(&built, &effective(pattern, flags));
@@ -1613,7 +1656,7 @@ nvs_runtime::nvs_helper! {
                 flags |= flag;
             }
         }
-        compiled_prepared(pattern, flags, "compile", prepared, step_budget(ctx))?;
+        compiled_prepared(pattern, flags, "compile", prepared, &Budget::of(ctx))?;
         Ok(crate::instance::build(
             &PATTERN,
             [
@@ -1634,12 +1677,12 @@ nvs_runtime::nvs_helper! {
         let subject = text(&args[0], "matches", "the subject")?;
         let given = pattern_of(&args[1], "matches")?;
         let pattern = text(&given.text, "matches", "the pattern")?;
-        let budget = step_budget(ctx);
-        let found = match &*compiled(pattern, given.flags, "matches", budget)? {
+        let budget = Budget::of(ctx);
+        let found = match &*compiled(pattern, given.flags, "matches", &budget)? {
             Compiled::Linear(re) => re.is_match(subject),
             Compiled::Backtracking(re) => re
                 .is_match(subject)
-                .map_err(|err| budget_exhausted("matches", pattern, budget, &err))?,
+                .map_err(|err| budget_exhausted("matches", pattern, budget.steps(), &err))?,
         };
         Ok(Value::bool(found))
     }
@@ -1778,8 +1821,8 @@ nvs_runtime::nvs_helper! {
         let from = integer(&args[2], "match", "the `from` option")?;
         let start = start_byte(&args[0], subject, from);
 
-        let budget = step_budget(ctx);
-        let compiled = compiled(pattern, given.flags, "match", budget)?;
+        let budget = Budget::of(ctx);
+        let compiled = compiled(pattern, given.flags, "match", &budget)?;
         let names = names_of(&compiled);
         let found = match &*compiled {
             Compiled::Linear(re) => re
@@ -1787,7 +1830,7 @@ nvs_runtime::nvs_helper! {
                 .map(|caps| linear_groups(&caps)),
             Compiled::Backtracking(re) => re
                 .captures_from_pos(subject, start)
-                .map_err(|err| budget_exhausted("match", pattern, budget, &err))?
+                .map_err(|err| budget_exhausted("match", pattern, budget.steps(), &err))?
                 .map(|caps| backtracking_groups(&caps)),
         };
         Ok(found.map_or_else(Value::null, |captured| {
@@ -1815,8 +1858,8 @@ nvs_runtime::nvs_helper! {
         let given = pattern_of(&args[1], "matchAll")?;
         let pattern = text(&given.text, "matchAll", "the pattern")?;
 
-        let budget = step_budget(ctx);
-        let compiled = compiled(pattern, given.flags, "matchAll", budget)?;
+        let budget = Budget::of(ctx);
+        let compiled = compiled(pattern, given.flags, "matchAll", &budget)?;
         let names = names_of(&compiled);
         let mut offsets = DEFAULT.cursor(subject);
         let mut out = NvsArray::new();
@@ -1829,7 +1872,7 @@ nvs_runtime::nvs_helper! {
             Compiled::Backtracking(re) => {
                 for caps in re.captures_iter(subject) {
                     let caps =
-                        caps.map_err(|err| budget_exhausted("matchAll", pattern, budget, &err))?;
+                        caps.map_err(|err| budget_exhausted("matchAll", pattern, budget.steps(), &err))?;
                     out.append(built_match(&mut offsets, &names, &backtracking_groups(&caps)));
                 }
             }
@@ -1967,8 +2010,8 @@ nvs_runtime::nvs_helper! {
         }
         let count = usize::try_from(limit).unwrap_or(usize::MAX);
 
-        let budget = step_budget(ctx);
-        let compiled = compiled(pattern, given.flags, "replace", budget)?;
+        let budget = Budget::of(ctx);
+        let compiled = compiled(pattern, given.flags, "replace", &budget)?;
         let pieces = template(replacement, &names_of(&compiled));
         let reads_groups = pieces
             .iter()
@@ -1998,7 +2041,7 @@ nvs_runtime::nvs_helper! {
             Compiled::Backtracking(re) => {
                 for caps in re.captures_iter(subject).take(count) {
                     let caps =
-                        caps.map_err(|err| budget_exhausted("replace", pattern, budget, &err))?;
+                        caps.map_err(|err| budget_exhausted("replace", pattern, budget.steps(), &err))?;
                     let Some(whole) = caps.get(0) else { continue };
                     let gap = &subject[cursor..whole.start()];
                     expand(&mut out, gap, &pieces, |number| {
@@ -2087,8 +2130,8 @@ nvs_runtime::nvs_helper! {
         }
         let count = usize::try_from(limit).unwrap_or(usize::MAX);
 
-        let budget = step_budget(ctx);
-        let compiled = compiled(pattern, given.flags, "replaceWith", budget)?;
+        let budget = Budget::of(ctx);
+        let compiled = compiled(pattern, given.flags, "replaceWith", &budget)?;
         let names = names_of(&compiled);
         let mut found: Vec<Captured<'_>> = Vec::new();
         match &*compiled {
@@ -2100,7 +2143,7 @@ nvs_runtime::nvs_helper! {
             Compiled::Backtracking(re) => {
                 for caps in re.captures_iter(subject).take(count) {
                     let caps =
-                        caps.map_err(|err| budget_exhausted("replaceWith", pattern, budget, &err))?;
+                        caps.map_err(|err| budget_exhausted("replaceWith", pattern, budget.steps(), &err))?;
                     found.push(backtracking_groups(&caps));
                 }
             }
@@ -2142,7 +2185,7 @@ fn each_piece<'a>(
     subject: &'a str,
     pieces: Option<usize>,
     pattern: &str,
-    budget: usize,
+    budget: &Budget<'_>,
     mut each: impl FnMut(&'a str) -> bool,
 ) -> Result<(), Fault> {
     let pieces = pieces.unwrap_or(usize::MAX);
@@ -2156,7 +2199,10 @@ fn each_piece<'a>(
         }
         Compiled::Backtracking(re) => {
             for piece in re.splitn(subject, pieces) {
-                if !each(piece.map_err(|err| budget_exhausted("split", pattern, budget, &err))?) {
+                if !each(
+                    piece
+                        .map_err(|err| budget_exhausted("split", pattern, budget.steps(), &err))?,
+                ) {
                     break;
                 }
             }
@@ -2197,8 +2243,8 @@ nvs_runtime::nvs_helper! {
         let limit = integer(&args[2], "split", "the `limit` option")?;
         let keep_empty = boolean(&args[3], "split", "the `keepEmpty` option")?;
 
-        let budget = step_budget(ctx);
-        let compiled = compiled(pattern, given.flags, "split", budget)?;
+        let budget = Budget::of(ctx);
+        let compiled = compiled(pattern, given.flags, "split", &budget)?;
         // A limit of `0` means one piece, not none — see the docs above.
         let (wanted, kept) = if limit >= 0 {
             (Some(usize::try_from(limit).unwrap_or(usize::MAX).max(1)), usize::MAX)
@@ -2206,7 +2252,7 @@ nvs_runtime::nvs_helper! {
             // A negative limit needs the count before the first piece is kept,
             // so the split runs twice: once counting, once building.
             let mut all = 0_usize;
-            each_piece(&compiled, subject, None, pattern, budget, |_| {
+            each_piece(&compiled, subject, None, pattern, &budget, |_| {
                 all += 1;
                 true
             })?;
@@ -2221,7 +2267,7 @@ nvs_runtime::nvs_helper! {
         let mut out = NvsArray::new();
         let mut seen = 0_usize;
         let mut afforded = true;
-        each_piece(&compiled, subject, wanted, pattern, budget, |piece| {
+        each_piece(&compiled, subject, wanted, pattern, &budget, |piece| {
             seen += 1;
             if seen <= kept && (keep_empty || !piece.is_empty()) {
                 if !out.affords_write() {
@@ -2276,6 +2322,14 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A budget of `steps`, whatever any request configured.
+    fn fixed(steps: usize) -> Budget<'static> {
+        Budget {
+            ctx: None,
+            steps: OnceCell::from(steps),
+        }
+    }
 
     /// The two slot constants every member below indexes with are the slots
     /// [`MATCH`] declares — the one place the fast path and the registered
@@ -2761,6 +2815,26 @@ mod tests {
         );
     }
 
+    /// A linear program is one cache entry under every step budget, and a hit
+    /// on it never reads the budget. A backtracking program is keyed by the
+    /// budget it was built with.
+    #[test]
+    fn a_linear_hit_reads_no_budget_and_a_backtracking_one_is_keyed_by_it() {
+        let linear =
+            compiled(r"^budget-[0-9]+$", NO_FLAGS, "matches", &fixed(10)).expect("compiles");
+        let unread = Budget {
+            ctx: None,
+            steps: OnceCell::new(),
+        };
+        let again = compiled(r"^budget-[0-9]+$", NO_FLAGS, "matches", &unread).expect("compiles");
+        assert!(Rc::ptr_eq(&linear, &again));
+        assert!(unread.steps.get().is_none(), "a linear hit read the budget");
+
+        let narrow = compiled(r"(budget)\1", NO_FLAGS, "matches", &fixed(10)).expect("compiles");
+        let wide = compiled(r"(budget)\1", NO_FLAGS, "matches", &fixed(20)).expect("compiles");
+        assert!(!Rc::ptr_eq(&narrow, &wide));
+    }
+
     /// The cache is bounded, and a miss on a full cache evicts the entry used
     /// least recently: a pattern used between every two misses outlives twice
     /// the capacity of one-off patterns, and the cache is full, never cleared.
@@ -2822,7 +2896,7 @@ mod tests {
             NO_FLAGS,
             "match",
             Some(Tier::Backtracking),
-            STEPS,
+            &fixed(STEPS),
         )
         .expect("compiles");
         assert!(matches!(*forced, Compiled::Backtracking(_)));
@@ -2830,9 +2904,14 @@ mod tests {
         assert!(matches!(*plain, Compiled::Linear(_)));
 
         let routed = built(r"(a)\1", NO_FLAGS, "match").expect("compiles");
-        let reused =
-            compiled_prepared(r"(a)\1", NO_FLAGS, "match", Some(Tier::Backtracking), STEPS)
-                .expect("compiles");
+        let reused = compiled_prepared(
+            r"(a)\1",
+            NO_FLAGS,
+            "match",
+            Some(Tier::Backtracking),
+            &fixed(STEPS),
+        )
+        .expect("compiles");
         assert!(Rc::ptr_eq(&routed, &reused));
     }
 
@@ -3397,7 +3476,7 @@ mod tests {
     /// of them is about a configured budget, and threading the constant
     /// through each call would say so once per line.
     fn built(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Fault> {
-        compiled(pattern, flags, member, STEPS)
+        compiled(pattern, flags, member, &fixed(STEPS))
     }
 
     /// [`build`] at the same budget, for the cases that ask which tier a
@@ -3449,7 +3528,7 @@ mod tests {
             "`false` is not a spelling for a tier that may backtrack forever"
         );
 
-        let narrow = compiled(CATASTROPHIC, NO_FLAGS, "matches", 64).expect("compiles");
+        let narrow = compiled(CATASTROPHIC, NO_FLAGS, "matches", &fixed(64)).expect("compiles");
         let Compiled::Backtracking(re) = &*narrow else {
             panic!("a backreference is not a pattern the linear engine expresses")
         };
