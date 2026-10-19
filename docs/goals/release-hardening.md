@@ -363,11 +363,16 @@ Stages 1 to 7 are done. Stage 8 is under way.
   same as the five cut ones. `regex`'s group-reference replace (201 s on CI) is cut to 18 s:
   Miri spends 13 s building `.+`'s Unicode class, so its memory-limit case uses `a+` and a
   smaller limit (`crates/nvs-stdlib/src/regex.rs:3042`). `uri`'s round trip (204 s on CI) is cut
-  from 40 s to 28 s locally: it dropped a `compareTo` per row that the comparison test already
-  asks. The jwe encrypt (235 s, local 31 s) is unchanged: opening one token of two under Miri
-  saved only 1 s, so that cut was reverted. Its cost is elsewhere, not yet measured. The `uri` probe found 8 s on
-  the first call (the class table), 1.7 s per corpus row, and 8 s after the body ends, outside the
-  test. That trailing 8 s may be paid by every test.
+  from 40 s to 28 s locally (24 s now): it dropped a `compareTo` per row that the comparison test
+  already asks. The jwe encrypt (235 s on CI) is cut from 37 s to 25 s locally: timed step by
+  step, its `ECDH-ES` case cost 4.5 s per seal and 2.6 s per open, so under Miri that case seals
+  once, and `dir`'s two seals check the IV, which is drawn after the algorithm's branch
+  (`crates/nvs-stdlib/src/jwe.rs:957`). Its other costs are fixed: about 5 s to parse the `jwe`
+  vectors and about 8 s for the first `built` call, which includes the class table.
+- **There is no trailing 8 s.** Timed with stamps in the body: an empty test's process ends 0.7 s
+  after its body and `uri`'s round trip 1.3 s after. Every test pays about 3.7 s before its body
+  (Miri's start and libtest's walk over about 1,680 tests). That is about 9 minutes of a 140-test
+  shard, and only fewer tests per binary would cut it.
 - **Fixed costs cut so far:** the vector set's parse (`crates/nvs-stdlib/src/tests/vectors.rs:46`)
   and the `Core` class table (`crates/nvs-stdlib/src/instance.rs:463`, 13.2 s to 5.6 s under
   Miri). The table cut has not yet run on CI.
@@ -387,8 +392,7 @@ Stages 1 to 7 are done. Stage 8 is under way.
 
 Stage 8, reading the next nightly's Miri shards (`rule:testing/the-deep-lane`, `.github/workflows/ci.yml:1180`):
 - [ ] Ask the user to push `main`, then read every `miri units` shard of the first nightly that contains these commits. Tick the two Miri checkpoints of stage 8 once every shard is green and no test runs past about 200 s. `docs/goals/release-hardening.md:263`
-- [ ] A test still over about 200 s on that run gets a smaller input or a reasoned ignore. The jwe encrypt (235 s on run 39206993876) is the likeliest, unless the class-table cut already brings it under. If it does not, time its three cases apart under Miri first. `crates/nvs-stdlib/src/jwe.rs:1559`
-- [ ] Find what Miri spends the 8 s after a test body ends on, measured on `uri`'s round trip. If every test pays it, cutting it shortens every shard. `crates/nvs-stdlib/src/uri.rs:4147`
+- [ ] A test still over about 200 s on that run gets a smaller input or a reasoned ignore. Time it step by step under Miri first, with stamps printed from its body. `crates/nvs-stdlib/src/jwe.rs:1559`
 - [ ] With the shards green, start the runner mode that sends many cases through one worker. `crates/nvs-cli/src/runner.rs:1`, `crates/nvs-test/src/run.rs:488`
 
 ### Backlog
