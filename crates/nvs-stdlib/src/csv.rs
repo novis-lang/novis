@@ -163,8 +163,11 @@
 //!
 //! `parse` holds one output buffer the size of its input for the whole call,
 //! plus the answer: one array per record, and one [`NvsStr`] per cell. Both
-//! are freed with the request that produced them, and nothing is retained
-//! between calls. `csv-core`'s DFA is a single forward pass with no
+//! are freed with the request that produced them. Between calls a thread keeps
+//! one `csv_core::Reader`, for the last dialect it parsed ([`READER`]): about
+//! 1 KB per thread, never per request, and it holds no text. A call in the same
+//! dialect resets that reader, so it skips building the reader's DFA, which
+//! costs more than parsing a short document. `csv-core`'s DFA is a single forward pass with no
 //! backtracking, so a hostile document costs O(n) in time and O(n) in memory
 //! and cannot be made to cost more — there is no input that makes the reader
 //! re-scan. Unescaping only ever removes bytes, so the one buffer is sized
@@ -182,11 +185,8 @@
 //! of the file; a field or a record longer than a buffer costs another pass
 //! and not another buffer. **The document is never held**, which is the whole
 //! difference from composing `Core\IO::read` with `parse`.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/csv.rs` lists them.
 
+use std::cell::RefCell;
 use std::io::Read;
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
@@ -691,19 +691,22 @@ nvs_runtime::nvs_helper! {
         let quote = dialect_byte(&args[2], "parse", "quote")?;
         let escape = optional_dialect_byte(&args[3], "parse", "escape")?;
         let header = boolean(&args[4], "parse", "the `header` option")?;
-        distinct(
-            &[Some(separator), Some(quote), escape]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>(),
-            "parse",
-        )?;
+        let dialect = Dialect {
+            separator,
+            quote,
+            escape,
+        };
+        let mut given = [separator, quote, 0];
+        let named = match escape {
+            Some(escape) => {
+                given[2] = escape;
+                3
+            }
+            None => 2,
+        };
+        distinct(&given[..named], "parse")?;
 
-        let mut reader = csv_core::ReaderBuilder::new()
-            .delimiter(separator)
-            .quote(quote)
-            .escape(escape)
-            .build();
+        let mut reader = reader_for(dialect);
 
         // Unescaping only ever removes bytes, so one buffer the size of the
         // whole document holds any single field this reader can produce and
@@ -742,8 +745,47 @@ nvs_runtime::nvs_helper! {
             }
         }
 
+        READER.with_borrow_mut(|kept| *kept = Some((dialect, reader)));
         Ok(Value::array(rows))
     }
+}
+
+/// The three bytes a `parse` reader is built from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Dialect {
+    separator: u8,
+    quote: u8,
+    escape: Option<u8>,
+}
+
+thread_local! {
+    /// The reader the last `parse` on this thread used, with its dialect.
+    ///
+    /// One reader and not one per dialect: a program parses most documents in
+    /// one dialect, and a second dialect costs one build, as every call did
+    /// without the cache. A reader holds no document text, and
+    /// `csv_core::Reader::reset` returns it to its start state, so no call can
+    /// see what an earlier one read.
+    static READER: RefCell<Option<(Dialect, csv_core::Reader)>> = const { RefCell::new(None) };
+}
+
+/// A reader for `dialect` at the start of a document: this thread's kept one,
+/// reset, when its dialect matches, and a new one otherwise.
+///
+/// The kept reader is taken out of [`READER`] for the length of the call, so a
+/// call that throws leaves the cell empty and the next call builds again.
+fn reader_for(dialect: Dialect) -> csv_core::Reader {
+    if let Some((kept, mut reader)) = READER.with_borrow_mut(Option::take)
+        && kept == dialect
+    {
+        reader.reset();
+        return reader;
+    }
+    csv_core::ReaderBuilder::new()
+        .delimiter(dialect.separator)
+        .quote(dialect.quote)
+        .escape(dialect.escape)
+        .build()
 }
 
 /// One parsed record as an array, keyed by `names` where it has them.
@@ -1291,6 +1333,38 @@ mod tests {
             answer.release();
         }
         out
+    }
+
+    /// A reader kept from a call that stopped inside a quoted field starts the
+    /// next document at its first record, and a call in another dialect builds
+    /// its own reader.
+    #[test]
+    fn a_kept_reader_starts_each_document_at_its_start() {
+        let first = parse("a,\"open\n", false);
+        assert_eq!(first.len(), 1);
+        assert_eq!(parse("x,y\n", false), parse_fresh("x,y\n"));
+
+        let semicolons = run(
+            super::nvs_core_csv_parse,
+            &[s("x;y\n"), s(";"), s("\""), s(""), Value::bool(false)],
+        )
+        .expect("a semicolon dialect parses");
+        assert_eq!(read(&semicolons), parse_fresh("x,y\n"));
+        #[expect(
+            unsafe_code,
+            reason = "a returned heap value carries one fresh reference, which \
+                      the caller owns"
+        )]
+        unsafe {
+            semicolons.release();
+        }
+        assert_eq!(parse("x,y\n", false), parse_fresh("x,y\n"));
+    }
+
+    /// `parse` over the default dialect with no reader kept on this thread.
+    fn parse_fresh(text: &str) -> Vec<Vec<(String, String)>> {
+        super::READER.with_borrow_mut(|kept| *kept = None);
+        parse(text, false)
     }
 
     /// One record's key/value pairs, in slot order — the shape both members

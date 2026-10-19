@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-runtime/src/callable.rs, crates/nvs-stdlib/src/arr.rs]
   - id: 5
     title: "a member on a warm path allocates only its result"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/regex.rs, crates/nvs-stdlib/src/metrics.rs, crates/nvs-runtime/src/metrics.rs, crates/nvs-stdlib/src/csv.rs]
   - id: 6
     title: "a member's working memory is the size of its input"
@@ -191,10 +191,10 @@ because std has no stable raw-entry API, so the change is contained to `string.r
 
 **Split:** the three members share no file, so each is its own slice, in any order.
 
-- [ ] Find where `Core\Regex::matches` allocates on a cached pattern, and remove it. `core/Regex/matches.nvs` declares `allocations 0`. `crates/nvs-stdlib/src/regex.rs:1633`, `benches/members/core/Regex/matches.nvs:1`
-- [ ] A `Core\Metrics` write to an existing series looks it up by a borrowed key, and renders its call site only when it stores it. `core/Metrics/gauge.nvs` declares its count. `crates/nvs-stdlib/src/metrics.rs:356`, `crates/nvs-runtime/src/metrics.rs:762`, `benches/members/core/Metrics/gauge.nvs:1`
-- [ ] `Core\Csv::parse` reuses a reader per dialect, held per thread and reset per call, and its module doc says what the reader spends per thread (`rule:programs/memory-priority`). `core/Csv/parse.nvs` declares its count. `crates/nvs-stdlib/src/csv.rs:702`, `benches/members/core/Csv/parse.nvs:1`
-- [ ] The three records are deleted. `data/gaps/nvs-stdlib/regex-matches-allocates-on-every-call.json:1`, `data/gaps/nvs-stdlib/a-metrics-write-allocates-on-every-call.json:1`, `data/gaps/nvs-stdlib/parse-pays-its-whole-setup-on.json:1`
+- [x] Find where `Core\Regex::matches` allocates on a cached pattern, and remove it. `core/Regex/matches.nvs` declares `allocations 0`. `crates/nvs-stdlib/src/regex.rs:1633`, `benches/members/core/Regex/matches.nvs:1`
+- [x] A `Core\Metrics` write to an existing series looks it up by a borrowed key, and renders its call site only when it stores it. `core/Metrics/gauge.nvs` declares its count. `crates/nvs-stdlib/src/metrics.rs:356`, `crates/nvs-runtime/src/metrics.rs:762`, `benches/members/core/Metrics/gauge.nvs:1`
+- [x] `Core\Csv::parse` reuses a reader per dialect, held per thread and reset per call, and its module doc says what the reader spends per thread (`rule:programs/memory-priority`). `core/Csv/parse.nvs` declares its count. `crates/nvs-stdlib/src/csv.rs:702`, `benches/members/core/Csv/parse.nvs:1`
+- [x] The three records are deleted. `data/gaps/nvs-stdlib/regex-matches-allocates-on-every-call.json:1`, `data/gaps/nvs-stdlib/a-metrics-write-allocates-on-every-call.json:1`, `data/gaps/nvs-stdlib/parse-pays-its-whole-setup-on.json:1`
 
 ### 6. a member's working memory is the size of its input
 
@@ -256,83 +256,54 @@ and those hits stay.
 
 ### State
 
-Stages 1, 2, 3, 4, 10 and 11 are done.
+Stages 1, 2, 3, 4, 5, 10 and 11 are done.
 
-`call_callable_with` builds the receiver and the trimmed arguments in a stack array of
-`INLINE_SLOTS` (8) values, and only a longer call spills to a `Vec`. No dependency was added:
-`smallvec` is only transitive, through `hyper`. It spends 128 bytes of stack per call through a
-callable. `lang/expressions/calls.nvs`, `anonymous-functions.nvs` and
-`types/callable-classes-object-shapes.nvs` now count 0 allocations. `arr.rs`'s `call_with_key` calls a
-callback with `($value)` alone when it declares one parameter, and `find_slot` (`find`, `findKey`,
-`any`, `all`) and `countBy` read the arity once per walk. `core/Arr/find.nvs` went from 10
-allocations to 1, the callable object itself. Lower counts that the change caused were declared again
-in `core/Arr/filter.nvs` (12), `core/Cli/live.nvs` (11) and `core/Cli/progress.nvs` (9).
-`core/Fatal/onLimit.nvs`, `onUncaughtThrow.nvs` and `core/Signal/onShutdown.nvs` had declared
-`calls 0` since `ece7b500f`, and now declare `calls 1`. Both gap records are deleted, and so is
-`arr.rs`'s `Known gaps` block, since no record names that module now.
+Stage 5, three slices:
+
+- `Core\Regex`: a call reads its step budget through `Budget`, which reads the request's
+  `[limits]` only when a backtracking program needs it. A cache entry for a linear program matches
+  under every budget. `Request::get` renders a setting as an owned `String`, and that was both of
+  the allocations. `core/Regex/matches.nvs` counts 0, and every other `Core\Regex` member is 2 lower
+  and re-measured.
+- `Core\Metrics`: `Registry::rewrite` writes an existing series through a borrowed key. `SeriesKey`
+  is a `Borrow` target that orders like `Series`, and labels already sorted are not copied.
+  `Registry::request` passes its labels sorted. The free `record` takes the call site as a closure,
+  called only by a write that creates a series or throws. `gauge`, `increment` and `observe` count 0
+  allocations. Their benches went to `iterations 2048`: at 256 a 0-allocation op leaves the ramp to
+  callgrind, whose run-to-run jitter at batch 32 to 128 read as growth.
+- `Core\Csv::parse`: a thread keeps one `csv_core::Reader` for the last dialect it parsed (`READER`),
+  about 1 KB per thread, reset per call. `parse` went from about 21,900 ns/op to under 3,300, and from
+  22 allocations to 21, since `distinct` reads a stack array now. `core/Csv/parse.nvs` declares
+  `allocations 21`.
+
+The three records are deleted, and so are the `Known gaps` blocks of `nvs-stdlib`'s `metrics.rs` and
+`csv.rs`. Nine gap records name this goal, so the `owners` check stays red until stage 9.
+
+The callgrind leg of the perf proof runs `/var/tmp/nvs-target-wsl/debug/nvs`, which nothing rebuilds.
+It was 17 hours old this session. `syncMirror` from `tools/nv/accept/mirror.ts` and then
+`wslBuildLine` from `tools/nv/accept/legs.ts` rebuild it in about two minutes.
 
 The nightly run 39306106377 was cancelled because a later dispatch (39307361674) took over its
 concurrency group. Nothing failed in it.
-
-A string's header has a fifth word, the SipHash digest an array
-index files it under, filled on the first lookup by `KeyRef::digest` and reset by every in-place write
-that changes `len`. The keys are one `RandomState` per process (`DIGEST_KEYS`), so a cached word is
-right in every array. The index is a `HashMap<Filed, usize>` whose `PassDigest` hasher passes the word
-through, and it is looked up as `dyn Lookup`, so a stored key and a `KeyRef` share one map. Growing an
-index re-files its keys without hashing them. `NvsStr`'s `Hash` and `Borrow<[u8]>` are gone. The
-compiled-code reads (`array::entry`, `nvs_array_has_key`) pass the key's header, and the `&[u8]`
-methods of `NvsArray` hash bare bytes on every call. A string literal is immortal and its data is not
-writable, so `$a["name"]` still hashes on every lookup: `string.rs` § *The cached digest* states it.
-Every string allocation is 8 bytes larger. Codegen reads only the published offsets, so no codegen
-change was needed.
-
-The nightly run 39278827562 tested `2dfe330c6`, which is older than the ldap fix `23b0e6611`, so its
-failure needed no change.
-
-A `uint` subscript branches on its value in
-`Lowering::lower_uint_array_key`: at or under `i64::MAX` it is the same word reinterpreted as an `int`,
-and above it `Helper::UintToString` renders it. The two arms join as a `Ty::Tagged` key. Every runtime
-read already tells a key's tag apart, and `nvs-codegen`'s `emit_tagged_key_array_set` branches on the
-tag for an `ArraySet`. `unset` still renders through `lower_rendered_array_key`. The crate doc § *an
-array key is a `string`* says so. `lang/expressions/assignment.nvs` now indexes with the `uint`
-itself and counts 0 allocations, where a `uint` index counted 4 for a compound write.
-`a-uint-subscript-names-the-entry-its-decimal-names-on-both-sides-of-i64-max.nvst` pins every key
-position at 3, `i64::MAX` and `u64::MAX`, and the leak check over the same shapes is clean. The
-playbook trap about a `uint` bench index is deleted.
-
-`NvsArray::overwrite` replaces the value of a live entry through a borrowed key, so
-`core/ObjectMap/set.nvs` counts 0 allocations.
-
-`NvsArray::with_capacity` reserves a packed vector, and the hash form takes
-the room over when the first key is not `"0"`; every `Core\Arr` member that knows its result's entry
-count, or an upper bound no larger than an argument it holds, reserves it. `key_bytes` returns
-`KeyBytes`, a borrowed string or an integer rendered on the stack, so `hasKey` counts 0 allocations
-where it counted 1. `mapKeys`, `groupBy` and `countBy` copy a callback's key out before they release
-it. `keys` stays at 2 and `filter` at 16: their benches are too small to grow past the first reserve.
-A filter result with a gap pays a few more bytes, since its index is sized to the subject.
-
-Since `ece7b500f` a `Core` call counts as a call, so every `Core\Arr` bench now declares its member's
-call and its callbacks'. All 53 `Core\Arr` records, and the `Core\Cli` and `Core\Html` records stage 1
-left stale, are measured again. Fourteen gap records name this goal; `bun nv owners --closes
-fewer-allocations` lists them, so the `owners` check stays red until stage 9.
 
 The `looper` on PATH has no `verify`; `bun tools/looper/main.ts verify` runs it.
 
 ### Next
 
-**Stage 5: a member on a warm path allocates only its result.** The three members share no file, so
-each is its own slice, in any order. Start with `Core\Regex::matches`. Closes
-`regex-matches-allocates-on-every-call`, `a-metrics-write-allocates-on-every-call` and
-`parse-pays-its-whole-setup-on`.
+**Stage 6: a member's working memory is the size of its input.** Closes
+`an-xml-writer-holds-a-string-per-piece`, `id-in-force-is-copied-into` and
+`a-decoded-objects-issue-prefixes-grow-with-depth-squared`. The three share no file. The `lastId`
+slice adds a refcount edge, so it takes the leak check.
 
-- [ ] Find where `Core\Regex::matches` allocates on a cached pattern, and remove it. `core/Regex/matches.nvs` declares `allocations 0`. `crates/nvs-stdlib/src/regex.rs:1633`, `benches/members/core/Regex/matches.nvs:1`
-- [ ] A `Core\Metrics` write to an existing series looks it up by a borrowed key, and renders its call site only when it stores it. `core/Metrics/gauge.nvs` declares its count. `crates/nvs-stdlib/src/metrics.rs:356`, `crates/nvs-runtime/src/metrics.rs:762`, `benches/members/core/Metrics/gauge.nvs:1`
-- [ ] `Core\Csv::parse` reuses a reader per dialect, held per thread and reset per call, and its module doc says what the reader spends per thread (`rule:programs/memory-priority`). `core/Csv/parse.nvs` declares its count. `crates/nvs-stdlib/src/csv.rs:702`, `benches/members/core/Csv/parse.nvs:1`
-- [ ] The three records are deleted. `data/gaps/nvs-stdlib/regex-matches-allocates-on-every-call.json:1`, `data/gaps/nvs-stdlib/a-metrics-write-allocates-on-every-call.json:1`, `data/gaps/nvs-stdlib/parse-pays-its-whole-setup-on.json:1`
+- [ ] `Core\Xml\Writer` appends to one string it alone references. `core/Xml/writer.nvs` declares its count. `crates/nvs-stdlib/src/xml.rs:2993`, `benches/members/core/Xml/writer.nvs:1`
+- [ ] An event with no `id` of its own shares the walk's `lastId` string. `crates/nvs-stdlib/src/http/stream.rs:623`, `crates/nvs-stdlib/src/http/stream.rs:1313`
+- [ ] The leak check covers the shared `lastId` edge, over a fixture whose events carry no `id`. `tools/leak-check.sh:1`
+- [ ] The JSON decoder builds an issue's path from the open frames' keys when it makes the issue. `crates/nvs-stdlib/src/json.rs:3759`
+- [ ] The three records are deleted. `data/gaps/nvs-stdlib/an-xml-writer-holds-a-string-per-piece.json:1`, `data/gaps/nvs-stdlib/id-in-force-is-copied-into.json:1`, `data/gaps/nvs-stdlib/a-decoded-objects-issue-prefixes-grow-with-depth-squared.json:1`
 
 A change in `nvs-runtime` that lowers a count is not seen by a bench whose figure is keyed on another
 file. Re-measure every bench that reaches the changed path with `bun nv proofs --record-perf --force
---only <id> ...`.
+--only <id> ...`. Rebuild the WSL binary first if a bench's counts may fall to 0.
 
 ### Backlog
 

@@ -3,6 +3,7 @@
 // accepts.
 // bench: iterations 256
 // bench: calls 2
+// bench: allocations 21
 // bench: complexity linear
 
 class Bench {
