@@ -3,55 +3,19 @@ title: Properties and constants
 covers: ['lang:classes/properties', 'lang:types/properties-and-constants', 'lang:classes/lateinit', 'LateInit']
 description: How to declare a property with a type and a default, the readonly, lateinit and static properties, LateInit, and class constants.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 A property is written as `visibility type $name`, with an optional default:
 `public int $size = 8;`. A class constant is written as `visibility const type NAME = value;`.
+Inside the class you read it as `self::NAME`, and outside it as `Config::NAME`.
 
-<Snippet src="syntax/class-properties/01-defaults.nvs" />
+<FeatureSection examples="lang/types/properties-and-constants" heading="Properties and constants" id="properties-and-constants" />
 
-- A default must be a value the compiler knows: a value written directly in the code, `[]`, an enum case or a class constant.
-- `null` is a valid default only when the type allows it, for example `?string`.
-- A property without a default must be set by the constructor, on every path. If one path does
-  not set it, the class does not compile.
-- A class constant is read as `self::NAME` inside the class and `Config::NAME` outside it.
-- `Config::class` is the class name as a string: `"Config"`.
+<FeatureSection examples="lang/classes/properties" heading="readonly, lateinit and static" id="readonly-lateinit-and-static" />
 
-## readonly and lateinit
+<FeatureSection examples="lang/classes/lateinit" heading="LateInit" id="lateinit" />
 
-<Snippet src="syntax/class-properties/02-readonly-lateinit.nvs" />
-
-- A `readonly` property is set once, in the constructor. Any other write does not compile.
-- A `readonly` property has no default. A value that is known when you write the class is a `const`.
-- `lateinit` is for a property that is set after the constructor runs. It can have any type.
-- Reading a `lateinit` property before it is set throws an error.
-- `isinit($post->tags)` returns `true` when the property is set. It does not read the property,
-  so it never throws an error.
-
-## LateInit
-
-A class that implements `LateInit` sets a `lateinit` property the first time a program reads it.
-
-<Snippet src="syntax/class-properties/04-late-init.nvs" />
-
-- The class has one method, `initProperty`. It gets the name of the property that has no value.
-- After `initProperty` returns, the read runs again. A later read does not call `initProperty`.
-- If the property still has no value after `initProperty`, the read throws a `LogicError`.
-- If `initProperty` throws an error, the next read calls it again.
-- The first write inside `initProperty` does not run a `set` hook, `PropertyGuard` or
-  `PropertyObserver`.
-
-## static properties
-
-A `static` property belongs to the class, not to one object. You read it with `self::$name`
-inside the class and `Registry::$name` outside it.
-
-<Snippet src="syntax/class-properties/03-static.nvs" />
-
-- A `static` property needs a default, or a type that allows `null`. Then it starts as `null`.
-- Each request has its own copy of every `static` property. One request never sees the value
-  another request set.
-- `static::$name` does not compile. Write `self::$name`.
+The reference page of [`LateInit`](/reference/types/lateinit/) has one more example.
 
 ## Do and don't
 

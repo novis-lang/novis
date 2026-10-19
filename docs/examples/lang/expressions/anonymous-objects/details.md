@@ -17,6 +17,7 @@ there.
 
 An object of a class fits a shape when it has public properties with those names and types.
 `$v is Point` checks every field and its type when the program runs.
+`$v as Point` runs the same check. If the check fails, it throws a `RuntimeError`.
 
 `clone $p` gives a new object with the same fields, so `$p == clone $p` is `false`.
 `Core\Json::encode($p)` writes the fields sorted by name. `echo $p` compiles, and throws a

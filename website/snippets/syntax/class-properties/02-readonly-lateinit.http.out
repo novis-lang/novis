@@ -1,3 +1,0 @@
-1
-error: `Widget`&#39;s property `$logger` is read before it is initialized
-log
