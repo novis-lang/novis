@@ -2,7 +2,7 @@
 // Measures reading a small CSV file a record at a time, as an import job does
 // for every file it is given.
 // bench: iterations 256
-// bench: calls 6
+// bench: calls 9
 // bench: complexity linear
 
 class Bench {
