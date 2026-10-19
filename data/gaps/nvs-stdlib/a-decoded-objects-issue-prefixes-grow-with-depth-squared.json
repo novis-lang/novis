@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/json.rs",
-  "title": "A decoded document's open objects hold issue-path prefixes whose total grows with key length times depth squared.",
-  "text": "Each `Build` frame the decoder's object walk keeps open holds the issue-path prefix its own issues are reported under, and a prefix is as long as every key above it. So a body nested to `maxDepth: 1024` with long keys holds prefixes whose total is the key length times the square of the depth. Not checked: the measured figure. By arithmetic, a body of about 1 MB, 1024 levels deep with 1000-byte keys, holds about 500 MB of prefixes for the length of the call. It is bounded by the request body limit and freed with the call, so it is a per-request cost and not a leak, but it is far above the body's own size. Closing it is building the path from the open frames' keys when an issue is made, so the walk holds each key once, and then a bench whose body ramps the depth with long keys.",
-  "goal": "fewer-allocations"
-}

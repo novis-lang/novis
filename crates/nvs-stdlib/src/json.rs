@@ -120,11 +120,12 @@
 //!
 //! A `decodeAs<array<C>>` reports `2.name`, a nested class's field
 //! `address.city` and a list field's bad element `tags.3` — `rule:core-classes/derive-reports-every-field`'s own spelling,
-//! and `rule:core-classes/derive-reports-every-field`'s dotted path, built by
-//! [`path_of`] out of a prefix each nesting extends by one segment.
-//! [`decode_nested`] runs the nested class's own field list under an `address.`
-//! prefix and its issues join the enclosing object's rather than throwing where
-//! they were found; [`decode_list`] does the same under `tags.3.`. An enum
+//! and `rule:core-classes/derive-reports-every-field`'s dotted path. An
+//! [`Issue`] carries its path as segments relative to the value that failed,
+//! and each frame it passes on the way up pushes the key or position it was
+//! reached through. [`decode_nested`]'s issues join the enclosing object's
+//! under `address` rather than throwing where they were found, and
+//! [`decode_list`]'s under `tags` and then `3`. An enum
 //! costs no nesting at all: a case is its backing integer, so [`scalar`]
 //! answers it as a membership test against the roster
 //! [`nvs_runtime::CodecField::cases`] carries.
@@ -256,11 +257,13 @@
 //! `fromJson`.
 //!
 //! **What it spends:** one `Vec` per object the call site names, one frame per
-//! level, and a frame is 152 bytes — the `const` assertion beside [`Build`]
-//! keeps it at most 160. So about 160 KB at [`DEPTH_CEILING`], freed with the
-//! call. Each open object also holds its argument vector and its issue-path
-//! prefix, as it did on the native stack. A prefix is as long as the keys
-//! above it, so their total grows with the square of the depth.
+//! level, and a frame is 128 bytes — the `const` assertion beside [`Build`]
+//! keeps it at most that. So about 128 KB at [`DEPTH_CEILING`], freed with the
+//! call. Each open object also holds its argument vector, as it did on the
+//! native stack. No frame holds an issue path: an issue's path is a list of
+//! segments that borrow the contract's keys, one push per level it rises
+//! through, rendered once at the root. So a document's paths cost the issues'
+//! own depth and never the square of the document's.
 //!
 //! # What a list decode costs
 //!
@@ -270,9 +273,8 @@
 //! elements throws with n issues, each path the field's own plus one position.
 //! That is work in proportion to what the sender wrote, which the decode
 //! already does by reading it, and the request body's cap bounds both. A
-//! position's path is formatted only where it is needed — an issue, or the
-//! prefix a nested class, shape or list reports its own issues under — so a
-//! list of scalars that decodes cleanly formats none. A whole document that is
+//! path is formatted only for an issue, once, so a list that decodes cleanly
+//! formats none. A whole document that is
 //! a list, [`decode_each`], stops at the first bad element instead: which of the
 //! two a list field should do is not a cost question, and it stays as written.
 //!
@@ -2496,10 +2498,6 @@ unsafe fn decode_object(
         )]
         return unsafe { hand_written(ctx, contract, document, member) };
     }
-    let prefix = match at {
-        None => String::new(),
-        Some(index) => format!("{index}."),
-    };
     let Some(ptr) = document.array_ptr() else {
         let message = match at {
             None => format!(
@@ -2512,7 +2510,8 @@ unsafe fn decode_object(
                 contract.name()
             ),
         };
-        let issues = crate::issue::list([(path_of(&prefix, None).as_str(), message.as_str())]);
+        let path = at.map(|index| index.to_string()).unwrap_or_default();
+        let issues = crate::issue::list([(path.as_str(), message.as_str())]);
         return Err(Fault::thrown_with_issues(
             ThrownClass::Parse,
             message,
@@ -2525,22 +2524,36 @@ unsafe fn decode_object(
         unsafe_code,
         reason = "the same live descriptor, and a borrow of the document's own object"
     )]
-    match unsafe { decode_fields(ctx, contract, source, prefix) } {
+    match unsafe { decode_fields(ctx, contract, source) } {
         Ok(value) => Ok(value),
         Err(DecodeFailure::Fault(fault)) => Err(fault),
-        Err(DecodeFailure::Issues(issues)) => Err(Fault::thrown_with_issues(
-            ThrownClass::Parse,
-            format!(
-                "{member}(): {} field(s) of `{}` did not match",
-                issues.len(),
-                contract.name()
-            ),
-            crate::issue::list(
-                issues
-                    .iter()
-                    .map(|(path, message)| (path.as_str(), message.as_str())),
-            ),
-        )),
+        Err(DecodeFailure::Issues(issues)) => {
+            let count = issues.len();
+            // Each path is rendered once, here, with the list position this
+            // object came from as its outermost segment.
+            let rendered: Vec<(String, String)> = issues
+                .into_iter()
+                .map(|issue| {
+                    let issue = match at {
+                        Some(index) => issue.under(Segment::At(index)),
+                        None => issue,
+                    };
+                    (issue.render(), issue.message)
+                })
+                .collect();
+            Err(Fault::thrown_with_issues(
+                ThrownClass::Parse,
+                format!(
+                    "{member}(): {count} field(s) of `{}` did not match",
+                    contract.name()
+                ),
+                crate::issue::list(
+                    rendered
+                        .iter()
+                        .map(|(path, message)| (path.as_str(), message.as_str())),
+                ),
+            ))
+        }
     }
 }
 
@@ -2551,12 +2564,75 @@ unsafe fn decode_object(
 /// up and join the enclosing object's list rather than throwing where they were
 /// found — while a [`Fault`] is the decoder admitting a gap of its own and ends
 /// the decode wherever it happens.
-enum DecodeFailure {
-    /// `rule:core-classes/derive-reports-every-field` issues, each an already-rooted path and its message.
-    Issues(Vec<(String, String)>),
+enum DecodeFailure<'a> {
+    /// `rule:core-classes/derive-reports-every-field` issues, each with its
+    /// path relative to the value that failed.
+    Issues(Vec<Issue<'a>>),
     /// A fault that ends the whole decode — an engine gap, never the
     /// document's doing.
     Fault(Fault),
+}
+
+/// One step of an issue's path: a field's wire key, or a list position.
+#[derive(Clone, Copy)]
+enum Segment<'a> {
+    /// A field's key, borrowed from the contract the frame reads against.
+    Key(&'a str),
+    /// A position in a list.
+    At(usize),
+}
+
+/// One `rule:core-classes/derive-reports-every-field` issue on its way up the
+/// walk.
+///
+/// `path` is innermost first and relative to the value whose outcome carries
+/// the issue: a field's own failure has an empty path, and each frame it passes
+/// on the way up pushes the segment that frame reached it through
+/// ([`Fields::place`], [`Positions::receive`]). So an issue at depth d costs d
+/// pushes, every key is borrowed from the contract rather than copied, and no
+/// frame holds a path of its own. [`decode_object`] renders each path once.
+struct Issue<'a> {
+    /// The segments, innermost first.
+    path: Vec<Segment<'a>>,
+    /// What failed.
+    message: String,
+}
+
+impl<'a> Issue<'a> {
+    /// An issue about the value itself, with an empty path.
+    const fn here(message: String) -> Self {
+        Self {
+            path: Vec::new(),
+            message,
+        }
+    }
+
+    /// The same issue, one segment further out.
+    fn under(mut self, segment: Segment<'a>) -> Self {
+        self.path.push(segment);
+        self
+    }
+
+    /// The dotted path `rule:core-classes/derive-reports-every-field` names:
+    /// `name` at the top, `2.name` inside a list's third element and
+    /// `2.address.city` inside that element's nested `address`. An issue about
+    /// the root itself renders as `""`.
+    fn render(&self) -> String {
+        use std::fmt::Write as _;
+        let mut path = String::new();
+        for (step, segment) in self.path.iter().rev().enumerate() {
+            if step > 0 {
+                path.push('.');
+            }
+            match segment {
+                Segment::Key(key) => path.push_str(key),
+                Segment::At(index) => {
+                    let _ = write!(path, "{index}");
+                }
+            }
+        }
+        path
+    }
 }
 
 /// One object's fields decoded into the positions that fill them, and the
@@ -2569,10 +2645,7 @@ enum DecodeFailure {
 /// accumulation is one vector either way, and only the last statement knows
 /// which door it goes out of.
 ///
-/// `prefix` is what `rule:core-classes/derive-reports-every-field`'s issue paths are rooted at: `""` at the top, `2.`
-/// inside a list's third element, `2.address.` inside that element's nested
-/// `address`. It is a string rather than an index because nesting is
-/// unbounded and a list position is only its first level.
+/// Each issue's path is relative to this object, as [`Issue`] says.
 ///
 /// The objects and lists nested under this one are built by [`walk`], on
 /// frames it keeps on the heap, so this call takes the same native stack
@@ -2586,18 +2659,17 @@ enum DecodeFailure {
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
 )]
-unsafe fn decode_fields(
+unsafe fn decode_fields<'a>(
     ctx: &mut nvs_runtime::Ctx,
-    contract: Contract<'_>,
+    contract: Contract<'a>,
     source: std::mem::ManuallyDrop<NvsArray>,
-    prefix: String,
-) -> Result<Value, DecodeFailure> {
+) -> Result<Value, DecodeFailure<'a>> {
     #[expect(
         unsafe_code,
         reason = "the caller's descriptor, and a borrow the caller keeps alive"
     )]
     unsafe {
-        walk(ctx, Build::Fields(Fields::new(contract, source, prefix)))
+        walk(ctx, Build::Fields(Fields::new(contract, source)))
     }
 }
 
@@ -2607,7 +2679,7 @@ enum Step<'a> {
     /// A nested object or list, whose value the frame that pushed it waits for.
     Enter(Build<'a>),
     /// The value, or how it failed.
-    Done(Result<Value, DecodeFailure>),
+    Done(Result<Value, DecodeFailure<'a>>),
 }
 
 /// One frame of [`walk`]: an object or a list the document nests, part read.
@@ -2620,7 +2692,7 @@ enum Build<'a> {
 
 // What § *The walk carries its own stack* says one level of the build walk
 // costs, kept true.
-const _: () = assert!(std::mem::size_of::<Build<'static>>() <= 160);
+const _: () = assert!(std::mem::size_of::<Build<'static>>() <= 128);
 
 /// The build walk: [`decode_fields`]'s object and every object and list nested
 /// under it, built on a `Vec` of frames rather than on native ones — the
@@ -2644,7 +2716,10 @@ const _: () = assert!(std::mem::size_of::<Build<'static>>() <= 160);
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
 )]
-unsafe fn walk<'a>(ctx: &mut nvs_runtime::Ctx, root: Build<'a>) -> Result<Value, DecodeFailure> {
+unsafe fn walk<'a>(
+    ctx: &mut nvs_runtime::Ctx,
+    root: Build<'a>,
+) -> Result<Value, DecodeFailure<'a>> {
     // The innermost frame is held apart from its ancestors, so the root
     // finishing is the one way out of the loop.
     let mut ancestors: Vec<Build<'a>> = Vec::new();
@@ -2686,16 +2761,15 @@ struct Fields<'a> {
     /// The document's object. It is borrowed, because [`hydrate`]'s caller
     /// keeps the whole document alive across the walk.
     source: std::mem::ManuallyDrop<NvsArray>,
-    /// [`decode_fields`]'s `prefix`.
-    prefix: String,
     /// The index of the next field to read.
     next: usize,
     /// One owned reference per position filled, and `null` in the others.
     args: Vec<Value>,
     /// Which positions a field has filled.
     filled: Vec<bool>,
-    /// `rule:core-classes/derive-reports-every-field`'s accumulation.
-    issues: Vec<(String, String)>,
+    /// `rule:core-classes/derive-reports-every-field`'s accumulation, each
+    /// path relative to this object.
+    issues: Vec<Issue<'a>>,
 }
 
 impl Drop for Fields<'_> {
@@ -2708,16 +2782,11 @@ impl Drop for Fields<'_> {
 
 impl<'a> Fields<'a> {
     /// A frame for `source`, with no field read yet.
-    fn new(
-        contract: Contract<'a>,
-        source: std::mem::ManuallyDrop<NvsArray>,
-        prefix: String,
-    ) -> Self {
+    fn new(contract: Contract<'a>, source: std::mem::ManuallyDrop<NvsArray>) -> Self {
         let arity = contract.arity();
         Self {
             contract,
             source,
-            prefix,
             next: 0,
             args: vec![Value::null(); arity],
             filled: vec![false; arity],
@@ -2738,7 +2807,7 @@ impl<'a> Fields<'a> {
     unsafe fn resume(
         &mut self,
         ctx: &mut nvs_runtime::Ctx,
-        finished: Option<Result<Value, DecodeFailure>>,
+        finished: Option<Result<Value, DecodeFailure<'a>>>,
     ) -> Step<'a> {
         if let Some(outcome) = finished {
             // The child is the field read last. Its presence was answered
@@ -2756,8 +2825,7 @@ impl<'a> Fields<'a> {
                 reason = "the descriptor is the caller's, and a nested field's is one \
                           `nvs-codegen` resolved out of the same class table"
             )]
-            let step =
-                unsafe { decode_field(ctx, self.contract, index, &self.source, &self.prefix) };
+            let step = unsafe { decode_field(ctx, self.contract, index, &self.source) };
             match step {
                 Step::Enter(frame) => return Step::Enter(frame),
                 Step::Done(outcome) => {
@@ -2777,8 +2845,8 @@ impl<'a> Fields<'a> {
     fn place(
         &mut self,
         index: usize,
-        outcome: Result<Value, DecodeFailure>,
-    ) -> Result<(), DecodeFailure> {
+        outcome: Result<Value, DecodeFailure<'a>>,
+    ) -> Result<(), DecodeFailure<'a>> {
         let contract = self.contract;
         let field = &contract.fields()[index];
         match outcome {
@@ -2812,11 +2880,14 @@ impl<'a> Fields<'a> {
                     ))))
                 }
             },
-            // `rule:core-classes/derive-reports-every-field`'s accumulation, and the one place a nested object's issues
-            // join the enclosing object's: they already carry their own rooted
-            // paths, so this is an append rather than a re-rooting.
-            Err(DecodeFailure::Issues(mut nested)) => {
-                self.issues.append(&mut nested);
+            // `rule:core-classes/derive-reports-every-field`'s accumulation, and
+            // the one place a field's issues join this object's: each path is
+            // relative to the field's value, so the field's key is its next
+            // segment out.
+            Err(DecodeFailure::Issues(nested)) => {
+                let key = Segment::Key(field.key.as_str());
+                self.issues
+                    .extend(nested.into_iter().map(|issue| issue.under(key)));
                 Ok(())
             }
             Err(fault @ DecodeFailure::Fault(_)) => Err(fault),
@@ -2832,7 +2903,7 @@ impl<'a> Fields<'a> {
         unsafe_code,
         reason = "the caller owes the liveness of a descriptor no signature can express"
     )]
-    unsafe fn finish(&mut self, ctx: &mut nvs_runtime::Ctx) -> Result<Value, DecodeFailure> {
+    unsafe fn finish(&mut self, ctx: &mut nvs_runtime::Ctx) -> Result<Value, DecodeFailure<'a>> {
         if !self.issues.is_empty() {
             return Err(DecodeFailure::Issues(std::mem::take(&mut self.issues)));
         }
@@ -2898,14 +2969,13 @@ struct Positions<'a> {
     found: Value,
     /// The same array, borrowed as [`Fields::source`] is.
     source: std::mem::ManuallyDrop<NvsArray>,
-    /// The array's own issue path.
-    path: String,
     /// The next position to read.
     next: usize,
     /// The values built so far. Dropping it releases every one.
     decoded: NvsArray,
-    /// Every bad position's issues, as [`Fields::issues`] are.
-    issues: Vec<(String, String)>,
+    /// Every bad position's issues, as [`Fields::issues`] are, each path
+    /// relative to this array.
+    issues: Vec<Issue<'a>>,
 }
 
 impl<'a> Positions<'a> {
@@ -2922,7 +2992,7 @@ impl<'a> Positions<'a> {
     unsafe fn resume(
         &mut self,
         ctx: &mut nvs_runtime::Ctx,
-        finished: Option<Result<Value, DecodeFailure>>,
+        finished: Option<Result<Value, DecodeFailure<'a>>>,
     ) -> Step<'a> {
         if let Some(outcome) = finished
             && let Err(fault) = self.receive(outcome)
@@ -2941,17 +3011,16 @@ impl<'a> Positions<'a> {
                 .ok()
                 .and_then(|position| self.source.get_index(position))
             else {
-                return Step::Done(Err(DecodeFailure::Issues(vec![(
-                    self.path.clone(),
-                    format!("expected an array, found {}", describe(self.found)),
-                )])));
+                return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
+                    "expected an array, found {}",
+                    describe(self.found)
+                ))])));
             };
             // A nested object at a position, whichever of the two kinds it is: a
             // declared class and an inline shape are one walk over two tables, and
-            // [`decode_element`] reads both out of the field's own index. A nested
-            // element is handed its path as the prefix of its own issues; a scalar
-            // builds its path only when it fails, so a list that decodes cleanly
-            // formats none.
+            // [`decode_element`] reads both out of the field's own index. Its
+            // issues come back relative to the element, and [`Self::receive`]
+            // adds the position.
             let nested = match self.element.ty {
                 CodecTy::Class | CodecTy::Shape =>
                 {
@@ -2960,24 +3029,10 @@ impl<'a> Positions<'a> {
                         reason = "the element descriptor `nvs-codegen` resolved out of the \
                                   owner's own class table"
                     )]
-                    Some(unsafe {
-                        decode_element(
-                            ctx,
-                            contract,
-                            self.index,
-                            item,
-                            format!("{}.{at}", self.path),
-                        )
-                    })
+                    Some(unsafe { decode_element(ctx, contract, self.index, item) })
                 }
                 CodecTy::List => Some(match self.element.element.as_deref() {
-                    Some(inner) => decode_positions(
-                        contract,
-                        self.index,
-                        inner,
-                        item,
-                        format!("{}.{at}", self.path),
-                    ),
+                    Some(inner) => decode_positions(contract, self.index, inner, item),
                     // Unreachable from source, as [`decode_list`]'s own missing
                     // element is: `nvs_types::derive` writes a `List` and the link
                     // under it in one expression.
@@ -3008,14 +3063,14 @@ impl<'a> Positions<'a> {
                     // the constructor runs.
                     match converted {
                         Some(value) => self.decoded.append(value),
-                        None => self.issues.push((
-                            format!("{}.{at}", self.path),
-                            format!(
+                        None => self.issues.push(
+                            Issue::here(format!(
                                 "expected {}, found {}",
                                 wanted(self.element.ty),
                                 describe(item)
-                            ),
-                        )),
+                            ))
+                            .under(Segment::At(at)),
+                        ),
                     }
                 }
             }
@@ -3030,11 +3085,19 @@ impl<'a> Positions<'a> {
     }
 
     /// A nested position's value appended, or its issues added to this
-    /// array's. The error is a [`DecodeFailure::Fault`], which ends the walk.
-    fn receive(&mut self, outcome: Result<Value, DecodeFailure>) -> Result<(), DecodeFailure> {
+    /// array's under that position. The nested position is the one read last.
+    /// The error is a [`DecodeFailure::Fault`], which ends the walk.
+    fn receive(
+        &mut self,
+        outcome: Result<Value, DecodeFailure<'a>>,
+    ) -> Result<(), DecodeFailure<'a>> {
         match outcome {
             Ok(value) => self.decoded.append(value),
-            Err(DecodeFailure::Issues(mut nested)) => self.issues.append(&mut nested),
+            Err(DecodeFailure::Issues(nested)) => {
+                let at = Segment::At(self.next.saturating_sub(1));
+                self.issues
+                    .extend(nested.into_iter().map(|issue| issue.under(at)));
+            }
             Err(fault @ DecodeFailure::Fault(_)) => return Err(fault),
         }
         Ok(())
@@ -3061,10 +3124,10 @@ impl<'a> Positions<'a> {
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
 )]
-unsafe fn build_shape(
-    contract: Contract<'_>,
+unsafe fn build_shape<'a>(
+    contract: Contract<'a>,
     mut values: Vec<Value>,
-) -> Result<Value, DecodeFailure> {
+) -> Result<Value, DecodeFailure<'a>> {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     let object = unsafe { NvsObj::new(contract.class()) };
     for field in contract.fields() {
@@ -3141,15 +3204,9 @@ unsafe fn decode_field<'a>(
     contract: Contract<'a>,
     index: usize,
     source: &NvsArray,
-    prefix: &str,
 ) -> Step<'a> {
     let field = &contract.fields()[index];
-    let issue = |why: String| {
-        Step::Done(Err(DecodeFailure::Issues(vec![(
-            path_of(prefix, Some(&field.key)),
-            why,
-        )])))
-    };
+    let issue = |why: String| Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(why)])));
     let Some(found) = source.get(field.key.as_bytes()) else {
         // `nvs_runtime::CodecField::required` is what tells the two absences
         // apart, and this is the presence column alone: a required field fails
@@ -3182,7 +3239,7 @@ unsafe fn decode_field<'a>(
         reason = "the contract's descriptor is the caller's, and a nested field's \
                   is one `nvs-codegen` resolved out of the same class table"
     )]
-    let converted = unsafe { convert_field(ctx, contract, index, found, prefix) };
+    let converted = unsafe { convert_field(ctx, contract, index, found) };
     match converted {
         Step::Done(outcome) => Step::Done(nullable(contract, index, outcome)),
         // A nested object or list: [`Fields::resume`] applies [`nullable`] to
@@ -3196,11 +3253,11 @@ unsafe fn decode_field<'a>(
 /// what failed is the whole conversion and `as ?T` has one answer for that. A
 /// `Fault` is the decoder admitting a gap of its own and is never a
 /// conversion's answer, so it passes through untouched.
-fn nullable(
+fn nullable<'a>(
     contract: Contract<'_>,
     index: usize,
-    outcome: Result<Value, DecodeFailure>,
-) -> Result<Value, DecodeFailure> {
+    outcome: Result<Value, DecodeFailure<'a>>,
+) -> Result<Value, DecodeFailure<'a>> {
     match outcome {
         Err(DecodeFailure::Issues(_))
             if contract.is_shape() && contract.fields()[index].nullable =>
@@ -3231,15 +3288,9 @@ unsafe fn convert_field<'a>(
     contract: Contract<'a>,
     index: usize,
     found: Value,
-    prefix: &str,
 ) -> Step<'a> {
     let field = &contract.fields()[index];
-    let issue = |why: String| {
-        Step::Done(Err(DecodeFailure::Issues(vec![(
-            path_of(prefix, Some(&field.key)),
-            why,
-        )])))
-    };
+    let issue = |why: String| Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(why)])));
     if found.tag() == Some(Tag::Null) {
         if field.nullable {
             return Step::Done(Ok(Value::null()));
@@ -3257,11 +3308,11 @@ unsafe fn convert_field<'a>(
                 reason = "`nvs-codegen` resolved this out of the same class table \
                           the contract came from, so it lives exactly as long"
             )]
-            return unsafe { decode_nested(ctx, contract, index, found, prefix) };
+            return unsafe { decode_nested(ctx, contract, index, found) };
         }
         // `rule:core-classes/derive-field-list`'s list field, decoded one element at a time under a
         // path this key extends — the second nesting `rule:core-classes/derive-reports-every-field`'s dotted path covers.
-        CodecTy::List => return decode_list(contract, index, found, prefix),
+        CodecTy::List => return decode_list(contract, index, found),
         CodecTy::Mixed
         | CodecTy::Bool
         | CodecTy::Int
@@ -3350,7 +3401,6 @@ unsafe fn decode_nested<'a>(
     contract: Contract<'a>,
     index: usize,
     found: Value,
-    prefix: &str,
 ) -> Step<'a> {
     let field = &contract.fields()[index];
     let Some(class) = contract.class_at(index) else {
@@ -3397,19 +3447,15 @@ unsafe fn decode_nested<'a>(
         )))));
     }
     let Some(ptr) = found.array_ptr() else {
-        return Step::Done(Err(DecodeFailure::Issues(vec![(
-            path_of(prefix, Some(&field.key)),
-            format!(
-                "expected an object for `{}`, found {}",
-                nested.name(),
-                describe(found)
-            ),
-        )])));
+        return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
+            "expected an object for `{}`, found {}",
+            nested.name(),
+            describe(found)
+        ))])));
     };
     Step::Enter(Build::Fields(Fields::new(
         nested,
         crate::arr::borrowed(ptr),
-        format!("{prefix}{}.", field.key),
     )))
 }
 
@@ -3572,7 +3618,7 @@ unsafe fn scalar(
 fn cases_of<'a>(
     contract: Contract<'_>,
     field: &'a nvs_runtime::CodecField,
-) -> Result<&'a EnumCases, DecodeFailure> {
+) -> Result<&'a EnumCases, DecodeFailure<'a>> {
     // Unreachable from source, as the doc comment above says: the roster is
     // written beside the `CodecTy::Enum` in one expression.
     field.cases.as_ref().ok_or_else(|| {
@@ -3593,9 +3639,8 @@ fn cases_of<'a>(
 /// — `tags.3`, which is `rule:core-classes/derive-reports-every-field`'s own example — and an element that is a class, a
 /// shape or a list of either nests once further, `authors.1.name` and
 /// `grid.2.0`.
-fn decode_list<'a>(contract: Contract<'a>, index: usize, found: Value, prefix: &str) -> Step<'a> {
+fn decode_list<'a>(contract: Contract<'a>, index: usize, found: Value) -> Step<'a> {
     let field = &contract.fields()[index];
-    let path = path_of(prefix, Some(&field.key));
     let Some(element) = field.element.as_ref() else {
         // Unreachable from source: `nvs_types::derive` writes the element
         // beside the `List` in one expression, so a list with no element is
@@ -3606,7 +3651,7 @@ fn decode_list<'a>(contract: Contract<'a>, index: usize, found: Value, prefix: &
             field.key
         )))));
     };
-    decode_positions(contract, index, element, found, path)
+    decode_positions(contract, index, element, found)
 }
 
 /// The frame for one array's positions, read against `element` —
@@ -3624,14 +3669,13 @@ fn decode_positions<'a>(
     index: usize,
     element: &'a nvs_runtime::CodecElement,
     found: Value,
-    path: String,
 ) -> Step<'a> {
     let field = &contract.fields()[index];
     let Some(ptr) = found.array_ptr() else {
-        return Step::Done(Err(DecodeFailure::Issues(vec![(
-            path,
-            format!("expected an array, found {}", describe(found)),
-        )])));
+        return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
+            "expected an array, found {}",
+            describe(found)
+        ))])));
     };
     // Resolved once rather than per position: an element's roster is the
     // field's own, as its class label is.
@@ -3650,7 +3694,6 @@ fn decode_positions<'a>(
         cases,
         found,
         source: crate::arr::borrowed(ptr),
-        path,
         next: 0,
         decoded: NvsArray::new(),
         issues: Vec::new(),
@@ -3658,7 +3701,7 @@ fn decode_positions<'a>(
 }
 
 /// One element of a list whose element type is another derived class or an
-/// inline shape, decoded under `path` — [`decode_nested`] for a position
+/// inline shape, decoded — [`decode_nested`] for a position
 /// rather than a key.
 ///
 /// Both pointers are read at the *field's* index, because a list field carries
@@ -3681,7 +3724,6 @@ unsafe fn decode_element<'a>(
     contract: Contract<'a>,
     index: usize,
     item: Value,
-    path: String,
 ) -> Step<'a> {
     let field = &contract.fields()[index];
     let Some(class) = contract.class_at(index) else {
@@ -3729,38 +3771,16 @@ unsafe fn decode_element<'a>(
         )))));
     }
     let Some(ptr) = item.array_ptr() else {
-        return Step::Done(Err(DecodeFailure::Issues(vec![(
-            path,
-            format!(
-                "expected an object for `{}`, found {}",
-                element.name(),
-                describe(item)
-            ),
-        )])));
+        return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
+            "expected an object for `{}`, found {}",
+            element.name(),
+            describe(item)
+        ))])));
     };
     Step::Enter(Build::Fields(Fields::new(
         element,
         crate::arr::borrowed(ptr),
-        format!("{path}."),
     )))
-}
-
-/// `rule:core-classes/derive-reports-every-field`'s issue path for a field, rooted at whatever encloses it:
-/// `name` alone at the top, `2.name` inside a list's third element,
-/// `2.address.city` inside that element's nested `address`.
-///
-/// `prefix` is that rooting, dot-terminated where it is not empty, so a field
-/// path is one concatenation. With no field it names the enclosing object
-/// itself, which is the prefix with its trailing dot dropped.
-///
-/// The dotted spelling is the one the `rule:core-classes/derive-reports-every-field` example already uses for a nested
-/// field, so a caller walking a list's issues reads the same path grammar it
-/// reads for `address.city`.
-fn path_of(prefix: &str, field: Option<&str>) -> String {
-    match field {
-        Some(key) => format!("{prefix}{key}"),
-        None => prefix.strip_suffix('.').unwrap_or(prefix).to_owned(),
-    }
 }
 
 /// What a [`CodecTy`] is called in an issue message — the Novis type name, since
@@ -3906,6 +3926,24 @@ mod tests {
         unsafe {
             value.release();
         }
+    }
+
+    /// An issue's segments are pushed innermost first and render outermost
+    /// first, joined with dots, and an issue about the root renders empty.
+    #[test]
+    fn an_issue_path_renders_its_segments_outermost_first() {
+        let issue = Issue::here("expected int, found string".to_owned())
+            .under(Segment::Key("city"))
+            .under(Segment::Key("address"))
+            .under(Segment::At(2));
+        assert_eq!(issue.render(), "2.address.city");
+        assert_eq!(issue.message, "expected int, found string");
+        let grid = Issue::here(String::new())
+            .under(Segment::At(0))
+            .under(Segment::At(2))
+            .under(Segment::Key("grid"));
+        assert_eq!(grid.render(), "grid.2.0");
+        assert_eq!(Issue::here(String::new()).render(), "");
     }
 
     /// `levels` arrays in JSON text, the innermost holding `1`.

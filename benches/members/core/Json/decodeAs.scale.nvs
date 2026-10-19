@@ -1,20 +1,18 @@
 <?nvs
-// Measures `Core\Json::decodeAs` on one JSON object, at growing lengths of one of its strings.
-// bench: start 1024
-// bench: max 16384
+// Measures `Core\Json::decodeAs` on a class that contains itself, at growing nesting depths.
+// bench: start 32
+// bench: max 512
 
 #[Core\Json\Derive]
-class Item
+class Node
 {
-    public string $sku;
-    public int $count;
-    public bool $gift;
+    public string $name;
+    public ?Node $child;
 
-    public function constructor(string $sku, int $count, bool $gift)
+    public function constructor(string $name, ?Node $child)
     {
-        $this->sku = $sku;
-        $this->count = $count;
-        $this->gift = $gift;
+        $this->name = $name;
+        $this->child = $child;
     }
 }
 
@@ -22,16 +20,17 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        string $body = "{\"sku\":\"" . Core\Str::repeat('a', $size) . "\",\"count\":2,\"gift\":false}";
+        string $body = Core\Str::repeat("{\"name\":\"a\",\"child\":", $size) . "null"
+            . Core\Str::repeat('}', $size);
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            var $item = Core\Json::decodeAs<Item>($body);
-            $total = $total + ($item->count as uint);
+            var $node = Core\Json::decodeAs<Node>($body);
+            $total = $total + Core\Str::length($node->name);
             $i = $i + 1;
         }
         return $total;
     }
 }
 
-echo Bench::run(1024), "\n";
+echo Bench::run(32), "\n";
