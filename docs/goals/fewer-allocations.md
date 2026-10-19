@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-stdlib/src/regex.rs, crates/nvs-stdlib/src/metrics.rs, crates/nvs-runtime/src/metrics.rs, crates/nvs-stdlib/src/csv.rs]
   - id: 6
     title: "a member's working memory is the size of its input"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/xml.rs, crates/nvs-stdlib/src/http/stream.rs, crates/nvs-stdlib/src/json.rs]
   - id: 7
     title: "a constant is built once, when the unit is compiled"
@@ -204,15 +204,15 @@ because std has no stable raw-entry API, so the change is contained to `string.r
 - [x] `Core\Xml\Writer` appends to one string it alone references. `core/Xml/writer.nvs` declares its count. `crates/nvs-stdlib/src/xml.rs:2993`, `benches/members/core/Xml/writer.nvs:1`
 - [x] An event with no `id` of its own shares the walk's `lastId` string. `crates/nvs-stdlib/src/http/stream.rs:623`, `crates/nvs-stdlib/src/http/stream.rs:1313`
 - [x] The leak check covers the shared `lastId` edge, over a fixture whose events carry no `id`. `tools/leak-check.sh:1`
-- [ ] The JSON decoder builds an issue's path from the open frames' keys when it makes the issue. `crates/nvs-stdlib/src/json.rs:3759`
-  - [ ] An issue carries its path as segments borrowed from the contract, innermost first.
-  - [ ] A frame pushes its child's segment onto each issue the child hands up.
-  - [ ] The root renders each path once, and `Fields::prefix` and `Positions::path` are gone.
-  - [ ] A bench ramps the depth of a nested class, and the record is deleted.
-- [ ] The three records are deleted. `data/gaps/nvs-stdlib/an-xml-writer-holds-a-string-per-piece.json:1`, `data/gaps/nvs-stdlib/id-in-force-is-copied-into.json:1`, `data/gaps/nvs-stdlib/a-decoded-objects-issue-prefixes-grow-with-depth-squared.json:1`
+- [x] The JSON decoder builds an issue's path from the open frames' keys when it makes the issue. `crates/nvs-stdlib/src/json.rs:2594`
+  - [x] An issue carries its path as segments borrowed from the contract, innermost first.
+  - [x] A frame pushes its child's segment onto each issue the child hands up.
+  - [x] The root renders each path once, and `Fields::prefix` and `Positions::path` are gone.
+  - [x] A bench ramps the depth of a nested class, and the record is deleted.
+- [x] The three records are deleted. `data/gaps/nvs-stdlib/an-xml-writer-holds-a-string-per-piece.json:1`, `data/gaps/nvs-stdlib/id-in-force-is-copied-into.json:1`, `data/gaps/nvs-stdlib/a-decoded-objects-issue-prefixes-grow-with-depth-squared.json:1`
   - [x] The XML writer's record is deleted.
   - [x] The `lastId` record is deleted.
-  - [ ] The JSON prefix record is deleted.
+  - [x] The JSON prefix record is deleted.
 
 ### 7. a constant is built once, when the unit is compiled
 
@@ -263,31 +263,26 @@ and those hits stay.
 
 ### State
 
-Stages 1, 2, 3, 4, 5, 10 and 11 are done. Stage 6 has two of its three slices:
+Stages 1, 2, 3, 4, 5, 6, 10 and 11 are done. Stage 6's last slice landed this session:
 
-- `Core\Xml\Writer`: `WRITTEN_SLOT` is one string, and `Pen::emit` appends to it in place through
-  `instance::append_bytes_to_text_slot`, which calls the new `NvsStr::append` (bytes in hand, no
-  suffix string). `nvs_str_append` and `NvsStr::append` share `append_onto` in `string.rs`.
-  `endDocument` moves the string out of the slot, so it copies nothing. A document holds at most
-  twice its size until then. Step 7 of `tests/hostile/core/Xml/writer/01-calls-in-the-wrong-order.nvs`
-  (one million elements) passes, so its `proof: gap` marker is gone. `core/Xml/writer.nvs` declares
-  `allocations 23`: its id is `$i % 10` and its three names escape to one length, so every document
-  doubles the same number of times. `core/Xml-Writer/content.nvs` went to `iterations 2048`: one
-  writer's doubling growth read as per-op growth at batches 32 to 128.
-- `Core\Http\Stream::events`: `EventScan` carries `Id::Carried`, the walk's `lastId` slot value
-  borrowed, or `Id::Set`, the bytes of this block's `id` line. An event with no `id` of its own
-  retains the carried string. A new id is one string, with one reference for the event and one for
-  the slot. Step 3 of `tests/hostile/core/Http-Event/id/01-ids-ignored-repeated-and-copied.nvs`
-  (one 65000-byte id, 100000 events kept, 64M limit) used to stop at the memory limit, and now it
-  finishes and checks every event's id. Its `ends-early` directive is gone.
-- `tools/leak-check.sh` was clean over a fixture of events with and without their own id and over
-  the XML hostile case.
+- The JSON decoder's issues are `Issue<'a>` (`crates/nvs-stdlib/src/json.rs:2594`): a `Vec` of
+  `Segment::Key(&'a str)` or `Segment::At(usize)`, innermost first and relative to the value that
+  failed, plus the message. A field's own failure has an empty path. `Fields::place` pushes the
+  field's key onto every issue it takes, `Positions::receive` pushes `self.next - 1`, and a scalar
+  position pushes its own `at`. `decode_object` pushes its list `at` and renders each path once.
+  `Fields::prefix`, `Positions::path` and `path_of` are gone, so a `Build` frame went from 152 to
+  128 bytes, and its `const` assertion is now `<= 128`.
+- `benches/members/core/Json/decodeAs.scale.nvs` now ramps the depth (32 to 512) of a class that
+  contains itself. It used to ramp one string's length, which `decode.scale.nvs` already covers. Its
+  growth is flat. The four `Core\Json` figures are re-recorded, and `bun nv proofs --gate` owes
+  nothing.
+- The prefix record is deleted. `json.rs` still has one gap, `a-json-array-decodes-into-a`, which
+  goal `release-hardening` owns.
 
-Two of the stage's three records are deleted, and so is `stream.rs`'s `Known gaps` block. Seven gap
-records name this goal, so the `owners` check stays red until stage 9.
+Six gap records name this goal, so the `owners` check stays red until stage 9.
 
-On the user's request, this session also re-recorded the twelve stale `Core\Regex` figures, which
-CI's `Feature proofs` step failed on, in a commit of their own.
+Another session had uncommitted edits in `crates/nvs-cli/src/{cache,serve,testing}.rs` while this
+one ran. They were not touched or staged here.
 
 The callgrind leg of the perf proof runs `/var/tmp/nvs-target-wsl/debug/nvs`, which nothing rebuilds.
 It was 17 hours old this session. `syncMirror` from `tools/nv/accept/mirror.ts` and then
@@ -300,24 +295,17 @@ The `looper` on PATH has no `verify`; `bun tools/looper/main.ts verify` runs it.
 
 ### Next
 
-**Stage 6, its last slice: the JSON decoder's issue paths.** Closes
-`a-decoded-objects-issue-prefixes-grow-with-depth-squared`. Then stage 6 is done.
+**Stage 7: a constant is built once, when the unit is compiled.** Closes
+`a-written-duration-is-built-at` and `two-identical-string-literals-are-two-data-objects`. Its items
+and anchors are under § *Stages*:
 
-- [ ] The JSON decoder builds an issue's path from the open frames' keys when it makes the issue. `crates/nvs-stdlib/src/json.rs:3759`
-- [ ] The JSON prefix record is deleted. `data/gaps/nvs-stdlib/a-decoded-objects-issue-prefixes-grow-with-depth-squared.json:1`
+- [ ] A written duration is an immortal constant in the compiled unit. `crates/nvs-ir/src/lower/expr.rs:2803`
+- [ ] Two identical string literals in one unit share one data object. `crates/nvs-codegen/src/emit.rs:1318`
+- [ ] A literal `Core\Str::format` template with `%0Nd` compiles without a call. `crates/nvs-types/src/expr_table.rs:1416`, `crates/nvs-ir/src/lower/expr.rs:2371`
 
-The design this session settled on, unbuilt. A path segment is a key or a position: the key borrows
-`field.key` from the frame's `Contract<'a>`, so a frame holds no string. An issue in flight carries
-its segments innermost first, relative to the frame whose `issues` holds it. `decode_field` and
-`decode_list` give issues that already start at their own field. An issue a child frame hands up,
-through `Fields::resume`'s `finished` arm and `Positions::receive`, gets the child's segment pushed:
-`self.next - 1`'s key in `Fields`, its position in `Positions`. `decode_object` and `decode_each` push
-their `at` and render each path once, reversed and joined with dots. That makes a path O(depth) to
-build and holds each key once. Prepending to a `String` at each level would be quadratic in time.
-The call sites: `Fields::prefix` (`json.rs:2690`), `Positions::path` (`json.rs:2902`), `path_of`
-(`json.rs:3759`), `decode_nested` (`json.rs:3412`), `decode_list` (`json.rs:3596`) and
-`decode_object` (`json.rs:2499`). Module docs § *What it spends* (`json.rs:258`) states the prefix
-cost, and it changes with the slice. The bench ramps the depth of a class that nests itself.
+Check the anchors first, because they were written before stages 3 and 11 moved `expr.rs`. Stage 8
+(`Core\BigInt`) is a lane of its own and may run first instead. Its `**Split:**` line names the
+`Explore` question to ask before anything else.
 
 A change in `nvs-runtime` that lowers a count is not seen by a bench whose figure is keyed on another
 file. Re-measure every bench that reaches the changed path with `bun nv proofs --record-perf --force
