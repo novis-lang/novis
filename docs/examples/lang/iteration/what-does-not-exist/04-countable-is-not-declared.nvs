@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `Countable` is not declared, so this class does not compile.
+// Remove `implements Countable` and keep the method.
+// proof: compile-error
+
+class Bag implements Countable {
+    public function count(): int {
+        return 1;
+    }
+}

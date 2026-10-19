@@ -1,0 +1,49 @@
+<?nvs
+// Shows that each call gives a new cursor, that `return;` ends the values early,
+// and that a cursor is walked once.
+
+class Numbers {
+    public static function count(int $n): Iterator<int> {
+        int $i = 0;
+        while ($i < $n) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+
+    public static function early(bool $stop): Iterator<int> {
+        yield 1;
+        if ($stop) {
+            return;
+        }
+        yield 2;
+    }
+}
+
+// Two calls give two cursors. Each one keeps its own place, so this prints 10.
+Iterator<int> $a = Numbers::count(3);
+Iterator<int> $b = Numbers::count(3);
+$a->advance();
+$a->advance();
+$b->advance();
+echo $a->current(), $b->current(), "\n";
+
+// `return;` stops the values. This prints 1, then 12.
+foreach (Numbers::early(true) as int $v) {
+    echo $v;
+}
+echo "\n";
+foreach (Numbers::early(false) as int $v) {
+    echo $v;
+}
+echo "\n";
+
+// The second loop over the same cursor gets no values. This prints 01 once.
+Iterator<int> $once = Numbers::count(2);
+foreach ($once as int $v) {
+    echo $v;
+}
+foreach ($once as int $v) {
+    echo $v;
+}
+echo "\n";

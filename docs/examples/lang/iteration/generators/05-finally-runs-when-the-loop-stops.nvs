@@ -1,0 +1,32 @@
+<?nvs
+// Shows that a `finally` block in a generator runs when the body ends, and also
+// when the loop stops early with `break`.
+
+class Rows {
+    public static function read(int $n): Iterator<int> {
+        try {
+            int $i = 0;
+            while ($i < $n) {
+                yield $i;
+                $i = $i + 1;
+            }
+        } finally {
+            echo "[closed]";
+        }
+    }
+}
+
+// The body reaches its end, so this prints 012[closed].
+foreach (Rows::read(3) as int $v) {
+    echo $v;
+}
+echo "\n";
+
+// `break` stops the loop after 1. The `finally` block still runs, so this prints 01[closed].
+foreach (Rows::read(5) as int $v) {
+    echo $v;
+    if ($v == 1) {
+        break;
+    }
+}
+echo "\n";
