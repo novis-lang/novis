@@ -1,6 +1,6 @@
 <?nvs
 // Shows a test class written the way you would write one at work. Every rule
-// gets its own marked method, and the name of the method says what the rule
+// gets its own `#[Test]` method, and the name of the method says what the rule
 // is. A method without `#[Test]` is an ordinary method.
 
 use Core\Test;

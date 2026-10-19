@@ -1,0 +1,9 @@
+error[E0733]: the `#[Test]` method `aTestIsNotStatic` is `static`
+   --> 05-a-static-test-does-not-compile.nvs:10:28
+   |
+10 |     public static function aTestIsNotStatic(): void {
+   |                            ^^^^^^^^^^^^^^^^ is `static`
+   = help: a test is run against a fresh instance, so drop the `static`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

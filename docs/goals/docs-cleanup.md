@@ -1135,9 +1135,32 @@ benches on `calls`, as the last handoff foresaw: a `Core` call counts since `ece
 declares what it makes (`benches/members/lang/attributes/*.nvs`). `llms-full.txt` is rendered again.
 The sweep's red jobs are run 39173391347 on `main` at be3e8a605, not this branch.
 
+`95-testing`'s eight features have their `details.md`, each fact run on the binary. `lang:testing`'s perf
+is not recorded, and `--run --only` was not run per feature: the session hit its context budget. The examples tree gained
+`// proof: test` (`EXAMPLE_TEST_RE`, `testReport`, `tools/nv/proofs/run.ts`): such an example runs
+under `nvs test`, and its `.out` is the report without durations; `docs/examples/README.md`
+documents it, and `proof-command.test.ts` tests it. Four claims were wrong. The chapter said `db:`
+and `server:` are read by nothing; `db:` opens a rolled-back transaction on `[db.<name>]` and
+`server:` starts a listener `Core\Test::serverUrl()` returns (`95-testing.md:123`). It said every
+hook that writes a `static` is refused; only the class hooks are (`E0863`), `#[AfterEachTest]` may
+(`95-testing.md:341`). It, `rule:testing/report-formats` and `syntax/testing/writing-tests.mdx` said
+a test's `echo` goes to standard error under a machine format; only a failed test's does, and a
+passing test's output is shown only with `--show-output` (`95-testing.md:447`). A row value is a
+literal, not a constant: a class constant is `E0738` (`95-testing.md:272`). New examples: the
+report of a run and a `static` test (`E0733`), a flaky test and `retries:` alone (`E0734`), a failing
+row, the hook order, and an assertion of your own. `about.md` and example comments that said
+"marks", "holds", "reach for" and "a clean desk" are rewritten. Probing found three gaps, owned by
+`release-hardening`: a `null` row compiles and fails with an internal error
+(`data/gaps/nvs-types/a-null-data-row-compiles-and.json`), `assertThrows` with a non-`Throwable`
+class compiles (`data/gaps/nvs-stdlib/assert-throws-with-a-class-that.json`), and `skip: ""` and
+`retries: -1` compile (`data/gaps/nvs-types/an-empty-skip-reason-and-a.json`). Many testing
+diagnostics print a `rule:` id or a `§ 8`/`§ 9` mark in their help, such as `E0734`, `E0736` and the
+constructor-parameter failure; that is the backlog's product-text item. `llms-full.txt` is rendered
+again. The sweep's red jobs are run 39185807455 on `main` at f8ad800d3, not this branch.
+
 ### Next
 
-`95-testing` closes stage 6 (`95-testing.md:8`); take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
+`95-testing`'s content is committed; what closes stage 6 is its checks. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -1155,7 +1178,7 @@ A probe with a limit or a grant runs with `nvs run --config <file>.toml`, which 
 `nvs.toml`; an example needs its own `[[app]]` entry in the root `nvs.toml` instead (`nvs.toml:497`).
 A spawning probe has an `nvs.toml` with `[capabilities.script] spawn = true` beside it, and a probe
 runner gives each run a timeout, since a channel or a task with nothing to wait for never ends.
-- [ ] `95-testing`, which closes stage 6. A probe of `#[Test]` runs with `nvs test <file>`, not `nvs run`, so the probe runner takes the command per case. A probe runner (a JSON map of name to body, each run with a timeout) does a batch of twenty in one call. Once its features are done, tick stage 6's last item and set its status. `docs/reference/lang/95-testing.md:8`
+- [ ] `95-testing`'s checks, which close stage 6: `bun nv proofs --run --only <id>` for each of the eight `lang:testing/…` ids, and `looper verify` (this session's was not run). Then tick stage 6's last item and set its status. `docs/reference/lang/95-testing.md:8`
 - [ ] A bench that calls a `Core` method and declares fewer `calls` fails `--record-perf` (as six in `lang:attributes` did). `lang:testing`'s benches are checked the same way when its perf is recorded. `benches/members/lang/attributes/core-route-and-core-access-the-route-table.nvs:5`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 

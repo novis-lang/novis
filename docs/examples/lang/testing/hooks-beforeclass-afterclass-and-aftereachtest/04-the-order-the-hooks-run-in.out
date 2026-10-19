@@ -1,0 +1,7 @@
+  HookTest
+create the table
+    ✓ first
+    ✓ second
+drop the table, 2 passed
+
+  0 failed, 2 passed, 0 skipped, 0 flaky

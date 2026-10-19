@@ -1,0 +1,7 @@
+  SlugTest
+    ✓ itSlugs#0
+    ✓ itSlugs#1
+    ✗ itSlugs#2
+      Core\Test::assertSame failed: `$actual` is "mixed-case", `$expected` is "mixed case"
+
+  1 failed, 2 passed, 0 skipped, 0 flaky

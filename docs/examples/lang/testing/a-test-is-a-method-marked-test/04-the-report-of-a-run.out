@@ -1,0 +1,8 @@
+  ArithmeticTest
+    ✓ additionCommutes
+    - divisionRounds
+      skipped: division is not written yet
+    ✗ thisOneFails
+      Core\Test::assertSame failed: `$actual` is 4, `$expected` is 5
+
+  1 failed, 1 passed, 1 skipped, 0 flaky

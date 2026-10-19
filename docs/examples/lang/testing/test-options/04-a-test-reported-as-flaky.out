@@ -1,0 +1,8 @@
+  DeterminismTest
+    ✓ theClockIsFixedAndMovable
+    ✓ aSeedIsRepeatable
+    ! itPassesOnTheSecondAttempt
+      flaky: it passed on attempt 2, having failed with:
+      Core\Test::assertSame failed: `$actual` is 1, `$expected` is 2
+
+  0 failed, 2 passed, 0 skipped, 1 flaky

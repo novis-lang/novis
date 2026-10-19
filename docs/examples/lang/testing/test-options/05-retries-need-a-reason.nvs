@@ -1,0 +1,13 @@
+<?nvs
+// Shows that `retries:` needs `because:` beside it. Without a reason, the test
+// does not compile.
+// proof: compile-error
+
+use Core\Test;
+
+final class NetworkTest {
+    #[Test(retries: 2)]
+    public function itReachesTheServer(): void {
+        Test::assertTrue(true);
+    }
+}

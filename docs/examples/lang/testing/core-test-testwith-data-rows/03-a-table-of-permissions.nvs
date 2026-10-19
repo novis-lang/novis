@@ -1,6 +1,6 @@
 <?nvs
-// Shows the table a rule of two answers needs. One row for each combination of
-// the inputs, and each row says what the answer should be.
+// Shows the rows for a check that returns `true` or `false`. There is one row
+// for each combination of the inputs, and each row gives the expected result.
 
 use Core\Test;
 use Core\Test\TestWith;
