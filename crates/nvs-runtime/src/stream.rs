@@ -900,8 +900,13 @@ mod tests {
     #[test]
     fn a_reader_that_takes_nothing_closes_the_stream_at_the_send_timeout() {
         // The consumer holds no drain, so the chunk in flight is never taken
-        // and the wait for it ends only at the deadline.
-        let (mut emit, _drain) = open(Duration::from_millis(5), ROOMY);
+        // and the wait for it ends only at the deadline. The timeout is long
+        // enough that the second send reaches its first park before it runs
+        // out, under Miri too, which reads the host's clock and interprets
+        // every step. A timeout already spent before the first park ends the
+        // send without one, and 5ms ran out that way on a loaded runner. The
+        // fake host's park sleeps until the deadline, so the test takes 250ms.
+        let (mut emit, _drain) = open(Duration::from_millis(250), ROOMY);
         let host = Consumer::holding(None);
         let _installed = install(host);
 
