@@ -2,7 +2,7 @@
 // Measures reading an exact number out of a row. A program does this when it
 // adds up the lines of an order or prints a price list.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

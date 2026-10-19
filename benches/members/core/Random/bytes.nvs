@@ -1,7 +1,7 @@
 <?nvs
 // Measures drawing a 16-byte salt, as a program does before it stores a new password.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity linear
 

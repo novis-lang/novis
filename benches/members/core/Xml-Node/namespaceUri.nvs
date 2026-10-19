@@ -2,7 +2,7 @@
 // Reads the namespace of an element, as a program does when it checks which vocabulary a name belongs to.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

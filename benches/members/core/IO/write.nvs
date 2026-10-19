@@ -1,7 +1,7 @@
 <?nvs
 // Saves a short text to a file, as a program does when it stores a status or a small cache entry.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

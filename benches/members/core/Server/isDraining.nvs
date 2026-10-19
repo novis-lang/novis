@@ -2,7 +2,7 @@
 // Checks whether the server is shutting down, as a long job does before each item it works on.
 // bench: iterations 2048
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

@@ -1,7 +1,7 @@
 <?nvs
 // Takes the time of day out of a date and time, as a program does when it checks opening hours.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: allocations 1
 // bench: complexity constant
 

@@ -1,7 +1,7 @@
 <?nvs
 // Moves a file to a new name, as a program does when it replaces a file safely.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

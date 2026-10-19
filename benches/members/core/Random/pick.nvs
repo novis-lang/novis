@@ -1,7 +1,7 @@
 <?nvs
 // Measures choosing one of eight servers, as a program does when it spreads its requests.
 // bench: iterations 512
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

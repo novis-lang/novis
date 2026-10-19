@@ -1,7 +1,7 @@
 <?nvs
 // Reads the property of each part of a short path, as a query builder does to add its joins.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Customer {

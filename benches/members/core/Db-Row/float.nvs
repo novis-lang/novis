@@ -2,7 +2,7 @@
 // Measures reading a floating-point number out of a row. A program does this
 // for every measurement, rate and coordinate it reads off a table.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

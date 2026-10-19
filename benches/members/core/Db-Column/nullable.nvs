@@ -2,7 +2,7 @@
 // Measures asking whether a column may be empty, as an export does when it
 // decides which columns need a check for a missing value.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

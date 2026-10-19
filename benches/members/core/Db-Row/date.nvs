@@ -2,7 +2,7 @@
 // Measures reading a calendar day out of a row. A program does this when it
 // shows a list of tasks with the day each one is due.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

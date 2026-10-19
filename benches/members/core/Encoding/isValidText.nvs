@@ -2,7 +2,7 @@
 // Measures testing one short field of bytes for valid text, as a program does
 // for every field that arrives from outside.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

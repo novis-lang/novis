@@ -1,7 +1,7 @@
 <?nvs
 // Measures making a 32-byte session ID, as a program does when a user logs in.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity linear
 

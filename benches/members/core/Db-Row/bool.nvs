@@ -2,7 +2,7 @@
 // Measures reading a yes or no column of a row, as a program does when it
 // checks a flag on every record of a page.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

@@ -2,7 +2,7 @@
 // Measures how many terminal columns a short label needs, as a program does
 // before it pads a table column.
 // bench: iterations 4096
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity linear
 

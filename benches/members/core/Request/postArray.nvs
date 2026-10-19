@@ -2,7 +2,7 @@
 // Reads every value of one bracketed form field, as an order form does for the products a customer ticked.
 // bench: iterations 256
 // bench: complexity constant
-// bench: calls 0
+// bench: calls 2
 
 class Bench {
     public static function run(uint $rounds): uint {

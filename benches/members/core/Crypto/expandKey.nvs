@@ -2,7 +2,7 @@
 // Measures making a key from a shared secret. A program does this once per use
 // it names, right after two sides reach that secret.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity linear
 

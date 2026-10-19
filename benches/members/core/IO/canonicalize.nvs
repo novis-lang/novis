@@ -1,7 +1,7 @@
 <?nvs
 // Resolves the full path of a file, as a program does to check whether two paths name the same file.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

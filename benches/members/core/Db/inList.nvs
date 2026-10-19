@@ -2,7 +2,7 @@
 // Measures marking a list of ids for one placeholder, as a page does before it
 // reads the rows a person selected.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity constant
 

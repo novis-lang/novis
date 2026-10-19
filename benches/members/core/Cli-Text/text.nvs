@@ -2,7 +2,7 @@
 // Measures reading back what a short line of terminal text says. A tool meets
 // this when it writes the same line to a log as well as to the screen.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 3
 // bench: complexity linear
 

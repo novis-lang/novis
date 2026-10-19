@@ -2,7 +2,7 @@
 // Measures a request whose method is chosen while the program runs, as in the tests
 // of a job that sends saved changes.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

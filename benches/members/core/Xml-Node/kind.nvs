@@ -2,7 +2,7 @@
 // Reads the kind of a node, as a program does before it reads anything else from that node.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

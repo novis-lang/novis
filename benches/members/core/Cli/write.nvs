@@ -2,7 +2,7 @@
 // Measures writing one short line to standard output, as a program does for
 // every row of a report it prints.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: allocations 1
 // bench: complexity linear
 

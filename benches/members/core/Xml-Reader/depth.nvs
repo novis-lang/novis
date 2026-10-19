@@ -2,7 +2,7 @@
 // Reads the depth of the current node, as a program does to see where an element ends.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

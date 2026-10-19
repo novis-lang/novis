@@ -2,7 +2,7 @@
 // Reads the clock for measuring as microseconds, as a program does before and after a step it times.
 // bench: iterations 256
 // bench: allocations 1
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

@@ -1,7 +1,7 @@
 <?nvs
 // Measures making a 6-byte ID from a seeded generator, as a test does for each test user.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity linear
 

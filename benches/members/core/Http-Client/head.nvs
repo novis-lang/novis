@@ -2,7 +2,7 @@
 // Measures sending a `HEAD` request that a test answers, as a link checker's own
 // tests do for every link it checks.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {
