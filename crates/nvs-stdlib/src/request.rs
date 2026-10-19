@@ -5803,7 +5803,8 @@ mod tests {
     /// PHP's name could come back is as some class's member, and `CLASSES` is
     /// where the members are. The second `Core` roster,
     /// `nvs_hir::errors::TREE`, is exception classes with no members at all,
-    /// so a name cannot hide there.
+    /// so a name cannot hide there. Under Miri that sweep is skipped, because
+    /// it reads only static tables and walking every class takes minutes there.
     #[test]
     fn there_is_no_temp_path_and_no_move_uploaded_file() {
         /// The spellings a host-stored upload arrives under: PHP's own
@@ -5874,6 +5875,9 @@ mod tests {
              names its own destination through"
         );
 
+        if cfg!(miri) {
+            return;
+        }
         let moving = crate::registry::CLASSES
             .iter()
             .flat_map(|class| {
@@ -6681,25 +6685,47 @@ mod tests {
     /// asserts the multipart half at the parse. This is the half that has no
     /// parse in front of it, and the one where the member could have grown a
     /// cap of its own.
+    ///
+    /// Under Miri the context sets `request_body = "64K"`, because a form of
+    /// the shipped 8 MiB takes minutes there.
     #[test]
     fn a_urlencoded_form_is_bounded_by_the_directive_a_body_is() {
+        let cap = if cfg!(miri) {
+            64 * 1024
+        } else {
+            request_body()
+        };
+        let posting = |form: &str| {
+            let mut ctx = uploading(
+                "application/x-www-form-urlencoded",
+                Some(Chunks::of(&[form.as_bytes()])),
+            );
+            if cfg!(miri) {
+                let table: toml::Table = "[limits]\nrequest_body = \"64K\""
+                    .parse()
+                    .expect("the fixture is valid TOML");
+                let config = toml::Value::Table(table.clone())
+                    .try_into()
+                    .expect("the fixture deserializes into the tree it is written for");
+                ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+                    config,
+                    table,
+                    ..nvs_config::Snapshot::default()
+                }));
+            }
+            ctx
+        };
         let written = "title=".len();
-        let last = format!("title={}", "x".repeat(request_body() - written));
-        let mut inside = uploading(
-            "application/x-www-form-urlencoded",
-            Some(Chunks::of(&[last.as_bytes()])),
-        );
+        let last = format!("title={}", "x".repeat(cap - written));
+        let mut inside = posting(&last);
         assert_eq!(
             field(&mut inside, "title").map(|value| value.len()),
-            Some(request_body() - written),
+            Some(cap - written),
             "a form of exactly the cap is read, so the bound is not one byte early"
         );
 
         let over = format!("{last}x");
-        let mut outside = uploading(
-            "application/x-www-form-urlencoded",
-            Some(Chunks::of(&[over.as_bytes()])),
-        );
+        let mut outside = posting(&over);
         assert!(
             posted(&mut outside, "title").is_err(),
             "and one byte past it is refused before the copy, so the bound is not one byte late"
