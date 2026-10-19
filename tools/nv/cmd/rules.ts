@@ -23,8 +23,9 @@
 // goal's front matter is a check's expectation of a rule the goal will write, and is not resolved.
 //
 // There are no decision records: a rule holds its reasons and its Declined list. Every run fails while
-// a record directory exists, and on each line of a tracked text file outside `vendor/` that cites a
-// record by its name, its number, its path or a bare section mark; a clean run says so in one line.
+// a record directory exists, and on each line of a tracked text file that cites a record by its name,
+// its number, its path or a bare section mark; a clean run says so in one line. `vendor/` and looper's
+// copy in `tools/looper/` are not read, because this repository does not write them.
 // A test named for a record's number is a citation too. A run fails the same way on a line that cites
 // one of the deleted plan docs, the Core spec or the perf notes, outside the goal files that delete
 // them. A file that shows
@@ -128,9 +129,15 @@ export function deletedDocFindings(files: Iterable<[string, string]>): Finding[]
   return out;
 }
 
-/** The tracked text files outside `vendor/` and `exclude` that `pattern` matches, read. */
+/**
+ * The trees this repository does not write, so no citation in them is its own: the vendored code, and
+ * looper's copy, which `looper sync` writes from looper's kit and which cites looper's own docs.
+ */
+const FOREIGN = ["vendor", "tools/looper"];
+
+/** The tracked text files outside `FOREIGN` and `exclude` that `pattern` matches, read. */
 async function grepFiles(pattern: string, exclude: string[] = []): Promise<[string, string][]> {
-  const spec = ["--", ".", ":!vendor", ...exclude.map((p) => `:!${p}`)];
+  const spec = ["--", ".", ...[...FOREIGN, ...exclude].map((p) => `:!${p}`)];
   const grep = await runProgram(["git", "grep", "-l", "-z", "-I", "-E", pattern, ...spec], { cwd: ROOT });
   if (grep.code > 1) throw new Error(failLine(grep.stderr, grep.code, "git grep"));
   const paths = grep.stdout.split("\0").filter((p) => p !== "");
