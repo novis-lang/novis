@@ -345,7 +345,8 @@ asked for this loop, and it repeats until CI is green:
    than fixed.
 5. Stop when one run is green on every job.
 
-- [ ] `main` is pushed and a full CI run is started on it.
+- [x] `main` is pushed and a full CI run is started on it. `f7eaecd7e` was pushed, and run
+  39229718066 dispatched on it.
 - [ ] Every failure the runs showed is fixed at its cause and committed.
 - [ ] One full CI run on the pushed `main` is green on every job, and the handoff names its id.
 
@@ -356,16 +357,39 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 7 and 9 are done. Stage 8 waits only on CI: its two Miri checkpoints need a deep-lane
-run with these commits, and `origin/main` is still `0b85b2057`, 20 commits behind.
+Stages 1 to 7 and 9 are done. Stage 8 waits only on CI: its two Miri checkpoints need the deep-lane
+run below to finish.
 
+- **`main` is pushed at `f7eaecd7e`, and full run 39229718066 was dispatched on it.** The older
+  dispatch 39222242630 and the push's subset run 39229707633 were cancelled. When the session
+  ended, most of its jobs were still queued for runners and none had failed.
+- **Run 39229718066 so far:** all three `proofs` legs failed at `Feature proofs`, and
+  `cost guards / linux-x86_64` failed its `Warm-start budget` step at 7.1 ms of work against 6
+  (floor 3.7 ms). Run 39206993876 passed that budget on `0b85b2057`. No other step had failed.
+- **The `proofs` legs owed two things, both fixed locally and not pushed.** First, the website
+  stale guard (`bun nv site --check`): `6f547a15c` (`builtUrls` lacked `/reference/types/`, four
+  stale stamps, five prose bounds) and `205d08347` (788 pages' search questions written and
+  stamped, 23 entries for pages the site no longer builds removed). Second, `Feature proofs`:
+  18 `lang` `about.md` over 200 words (`e23c61102`, trimmed to about 160 and rendered), and 77
+  perf records gone stale through the rendered chapters (`265d2b3d4`). The three `Core\Csv`
+  benches now declare the Core calls `ece7b500f` made countable.
+- **One feature still owes perf:** `lang:expressions/the-pipeline-operator`. Its twin bench timed
+  0 ns, so `twin_ratio` is written as bare `Infinity` (`tools/nv/proofs/perf.ts:180`, `:199`),
+  and `ledgerRows` skips the line as not JSON (`tools/nv/proofs/ledger.ts:23`). Two such lines
+  are in `data/perf/members.ndjson`. `bun nv proofs --owed` names only this feature locally.
+- **Another interactive session works on this goal in the same checkout.** When this session
+  ended it had uncommitted edits to `tools/nv/cmd/site.ts`, `tools/nv/proofs/run.ts`,
+  `tools/nv/test/site.test.ts`, `tools/nv/test/proof-record.test.ts` and
+  `docs/examples/README.md`: snippets served under the root `nvs.toml` are skipped where Docker
+  runs no Linux containers. Leave those files to it.
+- **`looper verify` failed on load only:** `nvs-ext` `spreadsheet_read`, `nvs-cli` `live_edit`
+  and `init`, and `nvs-stdlib` `ldap` each failed beside the other binaries and passed alone.
+  `init`'s failing case is `the_icacls_steps_turn_a_folder_every_account_may_change_into_one_nvs_init_writes_into`.
 - **Stage 9 is done.** `SECURITY.md` says every security fix gets an advisory and that one request
   affecting another is a security bug. `publish` runs `bun nv release --fixes-built "$BUILT"` on
   `github.sha` before it writes (`.github/workflows/release.yml:396`), and `build` uses
   `cargo auditable build` (`.github/workflows/release.yml:299`). Neither step has run on a runner:
   `release.yml` runs only on a dispatch.
-- **Nightly 39222242630** (`0b85b2057`) was still running; its `proofs` legs had failed as before.
-
 - **The serve soak is done, and has not run on CI yet.**
   `live_bytes_stay_flat_while_one_core_serves_thousands_of_requests`
   (`crates/nvs-cli/src/serve.rs:4198`) drives `serve_on_this_core` with the real handler shape and
@@ -382,11 +406,9 @@ run with these commits, and `origin/main` is still `0b85b2057`, 20 commits behin
 - **One run of the full tree on the worker hit a Cranelift panic** (`vcode.rs:1901`, index 63 of
   32 in the constant pool) while compiling a `core/math-*` case, and the worker thread died. The
   next three full runs and a `core`-only run did not repeat it. It is in the backlog.
-- **The acceptance sweep's four failures are still run 39206993876's** (`0b85b2057`, which is
-  `origin/main`). Nightly 39222242630 on the same commit was running. The `proofs` legs are proof
-  debt (backlog), and shard `nvs-stdlib 4/12`'s retry deadline is fixed on local `main`
-  (`104ab8948`). The Miri items wait for the user to push.
-- **On that run** 13 of 14 Miri shards were green, each in 8 to 33 minutes of its 45. No test hit the
+- **The acceptance sweep's four failures are run 39206993876's** (`0b85b2057`). Shard
+  `nvs-stdlib 4/12`'s retry deadline fix (`104ab8948`) is in the pushed `main`.
+- **On run 39206993876** 13 of 14 Miri shards were green, each in 8 to 33 minutes of its 45. No test hit the
   300 s limit and none hit undefined behaviour.
 - **Its five slowest tests are now cut under Miri,** none pushed yet. Local Miri times: html's
   open-elements walk 23 s (284 s on CI), compress's chunk refcount 14 s (267 s), the p256 agreement
@@ -425,10 +447,12 @@ run with these commits, and `origin/main` is still `0b85b2057`, 20 commits behin
 ### Next
 
 Stage 10's push-and-watch loop, which also gives stage 8 its deep-lane run (a `workflow_dispatch` is the deep lane, `rule:testing/the-deep-lane`), over `.github/workflows/ci.yml`:
-- [ ] Stage 10 steps 1 and 2: `cargo fmt --all --check` and the `docs` and `lint` jobs' steps locally, push `main`, and dispatch `gh workflow run ci.yml --ref main`. A push the loop's permissions refuse is `BLOCKED`. `docs/goals/release-hardening.md:332`
+- [ ] The pipeline twin: find why `the-pipeline-operator.twin.nvs` times 0 ns over the floor, fix the cause, and write a ratio the reader can parse (null, not `Infinity`) when it is 0. Then `bun nv proofs --record-perf --only lang:expressions/the-pipeline-operator` and `bun nv proofs --owed` empty. `tools/nv/proofs/perf.ts:177`
+- [ ] The warm-start budget: measure where the 7.1 ms of work goes on Linux, against `0b85b2057`, which passed. `e3e0f316a` grew the embedded language chapters from 300 KB to 908 KB, so check first whether startup reads them. Cut the work. The budget stays 6 ms. `tools/nv/cmd/bench.ts:132`
+- [ ] Read run 39229718066's other results: `gh run view 39229718066 --json jobs`. Fix each failure at its cause. `.github/workflows/ci.yml:1`
 - [ ] On that run: the `cost guards` legs' `Serve soak` step, and the `test` legs' `Conformance suite` step for the shared-worker run. `.github/workflows/ci.yml:322`, `.github/workflows/ci.yml:228`
 - [ ] On that run: every `miri units` shard. Tick stage 8's two Miri checkpoints once every shard is green and no test runs past about 200 s, then set stage 8 done. `docs/goals/release-hardening.md:263`
-- [ ] Each failure the run shows is fixed at its cause, as stage 10 step 4 says; the `proofs` legs' proof debt is in the backlog. `.github/workflows/ci.yml:1`
+- [ ] Then stage 10 again from step 1: the local `docs` and `lint` steps, push `main`, cancel the push's subset run, and dispatch `gh workflow run ci.yml --ref main`. `docs/goals/release-hardening.md:332`
 
 ### Backlog
 
@@ -440,13 +464,13 @@ Stage 10's push-and-watch loop, which also gives stage 8 its deep-lane run (a `w
 - `bun nv verify` stops at `crates/nvs-stdlib/tests/spec_registry_coverage.rs:433`: `3a833d02d` deleted the last milestone record, so `data/plan/milestones/` no longer exists, and two tests refuse an empty directory on purpose. The session that retired the milestones decides what replaces them (`tools/nv/cmd/owners.ts:127`).
 - `Core\IO::within` does not refuse what `rule:errors/path-component-refusals` lists, beyond device names (`crates/nvs-stdlib/src/io.rs:3657`).
 - `test / macos-aarch64` on `be3e8a605`: the `nvs-cli` `nvs` test binary died of SIGSEGV with no stack-overflow line, after 116 of 247 tests. The test is not named. It needs a run with `--test-threads=1` on macOS (`.github/workflows/ci.yml:131`).
-- CI's warm-start budget passed on Linux on run 39206993876 (`0b85b2057`, after `23d41db5c` read the configuration tree once). Watch the next runs on every platform before closing this item (`tools/nv/cmd/bench.ts:132`). The budget stays 6 ms and stays one budget for every platform: cut the work until it fits, measuring where each remaining millisecond goes. Raise it only for a cost the tree cannot remove, and name that cost in `ci.yml`'s comment.
-- CI's `proofs` jobs fail on proof debt: stale perf records (`bun nv benches --owed`) and owed proofs (`bun nv proofs --owed`). Stage 10 owns it (`.github/workflows/ci.yml:1`).
+- CI's warm-start budget passed on Linux on run 39206993876 (`0b85b2057`) and failed on run 39229718066 (`f7eaecd7e`, 7.1 ms; Next owns it) (`tools/nv/cmd/bench.ts:132`). The budget stays 6 ms and stays one budget for every platform: cut the work until it fits, measuring where each remaining millisecond goes. Raise it only for a cost the tree cannot remove, and name that cost in `ci.yml`'s comment.
 - A forged payload can put an enum case with a backing value the enum does not declare into an enum-typed property (`rule:enums/representation`). Whether a typed read of it is safe is not checked (`crates/nvs-runtime/src/object.rs:5629`).
 - `bun nv verify` fails on load: `crates/nvs-stdlib/tests/ldap.rs:277` and `:1485` hit their socket deadline, and `crates/nvs-cli/tests/live_edit.rs:1010` misses its 30 s swap, beside the other binaries. Each passes alone (`tools/nv/cmd/verify.ts`'s module doc).
 - The nightly tests GitHub's `main`, so its `supply chain` failure says nothing about the current lock until the user pushes (`.github/workflows/ci.yml:838`).
 - CI's Windows cost guard missed `serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names` at 1.38× of 1.5× on `1a78b49ef`. Watch for a repeat before changing the margin (`crates/nvs-cli/src/serve.rs:4093`).
 - `bun nv verify` does not run `nv render --website --check`, so the website data goes stale unseen until CI (`tools/nv/cmd/verify.ts:153`).
+- Nor does it run `bun nv site --check structure stale questions prose`, which needs no binary. That is how 788 pages' questions went owed or stale with only the nightly `proofs` legs failing (`tools/nv/cmd/verify.ts:153`).
 - `test_request_dispatches_in_process_through_the_compiled_route_table` was red once, also alone, because `Core\Env::context()` was not `Request`, and red again on CI's Windows leg on `be3e8a605` with 200 for 201 (`crates/nvs-cli/src/runner.rs:3410`).
 - `Core\Ldap::connect` dials each address of a host in turn, so a `localhost` block pays 2 s on Windows (`crates/nvs-stdlib/src/ldap/mod.rs:489`, `crates/nvs-host/src/net.rs:438`).
 - The Cranelift panic on the shared worker (`cranelift-codegen` 0.136.3 `machinst/vcode.rs:1901`) has not repeated. Rerun `RUST_BACKTRACE=1 target/debug/nvs test --shared-worker tests/conformance` and read the backtrace if it does: one thread compiling many units, after other cases ran on it, is where it happened (`crates/nvs-cli/src/shared.rs:171`).
