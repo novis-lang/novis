@@ -330,7 +330,7 @@ pub(crate) fn address_of(host: &str, port: Option<u16>, fallback: u16) -> Option
 
 /// A configuration refusal, rendered with the line of the file it came from.
 ///
-/// The map is the caller's for [`crate::config::boot_snapshot`]'s reason: a `nvs.toml` diagnostic
+/// The map is the caller's for [`crate::config::boot_origins`]'s reason: a `nvs.toml` diagnostic
 /// carries a span into a file nothing else holds.
 fn refuse(diagnostic: Diagnostic, sources: &mut SourceMap) -> ExitCode {
     let mut diags = Diagnostics::new();

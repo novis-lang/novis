@@ -4471,9 +4471,9 @@ mod tests {
         std::fs::write(&entry, "fn main(): void {}\n")
             .expect("an entry file for the tree to be about");
         let mut sources = nvs_diagnostics::SourceMap::new();
-        let snapshot = crate::config::boot_snapshot(
+        let (snapshot, _) = crate::config::boot_origins(
             std::slice::from_ref(&root),
-            &entry,
+            Some(&entry),
             &mut sources,
             crate::config::Init::Never,
         )

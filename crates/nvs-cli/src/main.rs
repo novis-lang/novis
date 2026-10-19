@@ -701,8 +701,8 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 }
 
 /// [`front_end`] with the extension set `extensions` loaded, which `nvs run`
-/// reads from its configuration before the program compiles
-/// ([`config::extension_set`]).
+/// and `nvs build --compile` read from their configuration before the program
+/// compiles.
 fn front_end_extended(
     path: &std::path::Path,
     extensions: Vec<nvs_ext::manifest::Manifest>,
@@ -1597,9 +1597,26 @@ fn run_run(
     } else {
         path.to_path_buf()
     };
-    let extensions = match config::extension_set(config, &config_entry) {
-        Ok(extensions) => extensions,
-        Err(code) => return code,
+    // The configuration tree is read once for the whole run, here, and every later step reads
+    // this one result: the compile types extension calls against its manifests, the run takes
+    // its snapshot, and the extension host loads its set. A tree that does not resolve compiles
+    // the program against no extension, and the refusal is reported where the snapshot is taken
+    // below, so a program's own diagnostics still come first.
+    let mut config_sources = SourceMap::new();
+    let booted = config::boot_origins(config, Some(&config_entry), &mut config_sources, init);
+    let extensions = match &booted {
+        Ok((snapshot, origins)) => {
+            match extensions::manifests(&snapshot.config, origins, &config_sources) {
+                Ok(manifests) => manifests,
+                Err(diagnostic) => {
+                    let mut diags = Diagnostics::new();
+                    diags.report(diagnostic);
+                    render_diagnostics(&mut diags, &config_sources);
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+        Err(_) => Vec::new(),
     };
     let checked = match front_end_extended(path, extensions) {
         Ok(checked) => checked,
@@ -1647,9 +1664,8 @@ fn run_run(
     // the request exists, and the request then clones it once. A refusal here is
     // a refusal to start — `rule:config/later-wins-and-every-override-is-recorded`'s later-wins and `rule:config/ownership-is-the-trust-boundary`'s boundary are only
     // worth anything if a tree that does not resolve stops the run.
-    let mut config_sources = SourceMap::new();
-    let snapshot = match config::boot_snapshot(config, &config_entry, &mut config_sources, init) {
-        Ok(snapshot) => snapshot,
+    let (snapshot, origins) = match booted {
+        Ok(booted) => booted,
         Err(diagnostic) => {
             let mut diags = Diagnostics::new();
             diags.report(diagnostic);
@@ -2150,16 +2166,29 @@ fn run_run(
         )
     });
     // The loaded extensions, which a compiled call into one reaches through
-    // `nvs_runtime::extension` while the run's tasks run.
-    let calls = match config::extension_calls(config, &config_entry) {
-        Ok(calls) => calls.map(std::rc::Rc::new),
-        Err(code) => return code,
+    // `nvs_runtime::extension` while the run's tasks run. The set is the one the
+    // tree read at the top of the run names, so `E0652` points at that tree's line.
+    let calls = match extensions::loaded(&for_compiler.config, &origins, &config_sources) {
+        Ok(set) => std::rc::Rc::new(extensions::Calls::new(set)),
+        Err(diagnostic) => {
+            let mut diags = Diagnostics::new();
+            diags.report(diagnostic);
+            render_diagnostics(&mut diags, &config_sources);
+            return ExitCode::FAILURE;
+        }
     };
-    let calling = calls.clone().map(|calls| {
-        nvs_runtime::extension::install(
-            calls as std::rc::Rc<dyn nvs_runtime::extension::Extensions>,
-        )
-    });
+    let calling = nvs_runtime::extension::install(
+        std::rc::Rc::clone(&calls) as std::rc::Rc<dyn nvs_runtime::extension::Extensions>
+    );
+    // The last step of the start that reads the configuration, and the tree it read is still
+    // the one read at the top. Every `.nvst` case runs through here, so a debug build that
+    // reads a second tree fails the suite.
+    #[cfg(debug_assertions)]
+    assert_eq!(
+        config::trees_read(),
+        1,
+        "`nvs run` reads its configuration tree once"
+    );
     let watchdog = nvs_host::ThreadClock::current()
         .is_some()
         .then(nvs_host::Watchdog::new);
