@@ -4,7 +4,7 @@ clauses, a `finally` block, or both.
 A `catch` clause names one class. It matches that class and every class that extends it. The clauses
 are tried from top to bottom, and the first one that matches runs. Write the narrow classes first.
 A clause names one class only, so two classes need two clauses. Each clause declares its own
-variable, and two clauses in one function need two different names. You may leave the variable out
+variable. Two clauses in one function that catch different classes need two different names. You may leave the variable out
 when you do not need the error itself.
 
 `finally` always runs. It runs after the body, after a `catch`, and on the way out through `return`,

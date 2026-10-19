@@ -909,9 +909,30 @@ sweep's red jobs are run 39173391347 on `main` at be3e8a605, not this branch. Th
 `looper verify` failed one `nvs-cli` agent test on Windows error 1455 (the paging file is too small)
 while another session's `--record-perf` ran; the second run was green.
 
+The next four `70-errors` features are done, each fact run on the binary. One claim was wrong in two
+texts: the chapter and `lang:statements/try-catch-finally`'s `about.md` still said two `catch`
+clauses in one function need two names, which the `20-types` slice had fixed only in `details.md`;
+both now say clauses of different classes do (`70-errors.md:220`). `lang:errors/try-catch-finally`
+keeps only what its chapter adds, and the shared `catch` facts stay in the statements feature's
+`details.md`: its `details.md` has `E0250`, `E0251` (`break 2` too), a loop or a `try` inside
+`finally`, the returned value computed before `finally`, `finally` running before an uncaught throw
+ends the program, and a throw from `finally` replacing the error in flight. Examples 04 and 05 are
+the chapter's `Loader` block and an `E0250` block. `rethrowing`'s `details.md` has a saved error
+thrown again, `==` with it, the class kept through `catch (Throwable)`, `backtrace` keeping the
+first thrower with the rethrow line for the rethrowing function, and `finally`. `an-uncaught-throw`'s
+has the JSON and text report shapes (`[log] format`), the report having no `previous`, and
+`finally`; example 04 is `finally` before the end (`// proof: exit 1`). `recursion-depth`'s has the
+message, frame size changing the depth, a `catch` at any depth (example 04), `finally`, a
+`backtrace` of thousands of entries and `new RecursionError`. Probing found two gaps, owned by
+`release-hardening`. A throw from `finally` discards the error in flight with `previous` `null`,
+which `rule:statements/no-return-leaves-a-finally` calls impossible
+(`data/gaps/nvs-syntax/a-throw-inside-a-finally.json`). `if ($n == 100) { $n + 1 }` on an `int` is
+`E0401`, since the comparison narrows `$n` to `100` and arithmetic on that is `mixed`
+(`data/gaps/nvs-types/an-int-compared-with-a-literal.json`). `llms-full.txt` is rendered again.
+
 ### Next
 
-`70-errors` goes on at `try-catch-finally` (`70-errors.md:200`), three or four features per session;
+`70-errors` goes on at `fatal-errors-limits-no-catch-sees` (`70-errors.md:402`), three or four features per session;
 take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -926,7 +947,7 @@ An enum is `enum Suit { Hearts, Spades }`, with no `case`. An array with string 
 `array<int>`: `array<string, int>` is `E0101`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `70-errors` from `try-catch-finally`; it decides what `lang:errors/try-catch-finally` keeps, and gains `E0250`/`E0251`. `docs/reference/lang/70-errors.md:200`
+- [ ] `70-errors` from `fatal-errors-limits-no-catch-sees`, then `capability-denials-are-catchable`, `assertion-failures` and `inspecting-a-value`. `docs/reference/lang/70-errors.md:402`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
@@ -942,5 +963,5 @@ body, and a script under `.agent-tmp/` that writes and runs each; the guard refu
 - Many compiler diagnostics print a `rule:` id or the word "refused" in their help text, such as `E0234`, `E0413`, `E0448` and `E0230`. That text is held to § *Text an end user reads* when it is changed; this goal changes no product text, so it needs its own owner. `crates/nvs-types/src/expr/members.rs:2345`
 - About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
 - The guard messages and `peek.ts`/`splice.ts` comments cite "AGENTS.md rule 1" and "rule 3" by the block's numbers, which a template change can move; citing `commands.md` sections would not. `tools/nv/cmd/guard.ts:259`
-- `lang:statements/try-catch-finally` and `lang:errors/try-catch-finally` are one syntax and two features, each with an `about.md` and three examples saying much the same. Stage 6's `70-errors` slice decides whether the errors one keeps only what its chapter adds. `docs/examples/lang/errors/try-catch-finally/about.md:1`
+- `lang:statements/try-catch-finally` and `lang:errors/try-catch-finally` are one syntax and two features. Their `details.md` files split the facts, but their `about.md` files and examples 01 to 03 still say much the same; stage 7, which shows both on one syntax page, decides whether one `about.md` goes. `docs/examples/lang/errors/try-catch-finally/about.md:1`
 - Stages 7 and 8 render the syntax pages and the chapters from each feature's `about.md` and `details.md`. `docs/goals/docs-cleanup.md:257`

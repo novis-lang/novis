@@ -1,0 +1,9 @@
+error[E0250]: a `return` never leaves a `finally` block
+   --> 05-a-return-in-finally-does-not-compile.nvs:11:13
+   |
+11 |             return 0;
+   |             ^^^^^^^^^ this discards what the region was leaving with
+   = help: return from the `try` or a `catch` to change the result, or write it after the whole region
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

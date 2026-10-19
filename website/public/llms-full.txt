@@ -5909,8 +5909,9 @@ try {
 - A clause names **one** class. `catch (LogicError | IOError $e)` does not compile; write two
   clauses.
 - Each binding is a local of the enclosing function, declared by the clause, so two clauses in the
-  same function need two names: `catch (IOError $e)` followed by `catch (LogicError $e)` is
-  refused as a second declaration of `$e`. Use the binding inside its own clause only.
+  same function may share a name only when they catch the same class: `catch (IOError $e)`
+  followed by `catch (LogicError $e)` is refused as a second declaration of `$e`. Use the binding
+  inside its own clause only.
 - A `catch` may `return`, `break`, `continue`, rethrow its binding, or throw something new; a throw
   from inside a `catch` is not seen by the sibling clauses of the same `try` — it goes to the
   next enclosing `try`.

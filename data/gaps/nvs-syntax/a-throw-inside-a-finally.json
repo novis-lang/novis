@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-syntax/src/parser/stmt.rs",
+  "title": "A `throw` inside a `finally` block discards the error in flight.",
+  "text": "`try { throw new IOError(\"first\"); } finally { throw new LogicError(\"second\"); }` compiles, and the handler outside sees only the `LogicError`, with `previous` set to `null`. The `IOError` is lost with no `catch` anywhere. `rule:statements/no-return-leaves-a-finally` refuses `return`, `break` and `continue` there because they would discard a throw in flight, and calls that the one way an exception could vanish without a handler, so the rule and the binary disagree. A call in the `finally` that throws does the same. It closes when the rule decides the case (a diagnostic for a direct `throw`, or the new error carrying the one in flight), with a conformance case.",
+  "goal": "release-hardening"
+}
