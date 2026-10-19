@@ -9,7 +9,7 @@
     "tools/looper/src/cli/clean.ts": "448d2ddc34f80758fd75707f0a2035676a078f50e9ec27cdc087a1ff2400c41c",
     "tools/looper/src/cli/cli.ts": "8900bf1dfd10c10a1fe09d9983e82fffb6b029e62651c46996344d9381f7d4f1",
     "tools/looper/src/cli/commands.ts": "5c3ec65ce532ef181203a8643c5b95175944e58e25a42cdc67884b619f955f54",
-    "tools/looper/src/cli/doctor.ts": "95891c74cfa449035598f2c04dba6bbf35ebd10cf3bc1eedbf988cfd1c00701a",
+    "tools/looper/src/cli/doctor.ts": "4fe1f0c1b95b0fac66d8223bb753cad75c155cbb309cd734e1a449a963e593e5",
     "tools/looper/src/cli/event.ts": "a1fe250df819852cfabe610c5eff4475184b4aa66e59bb89efa1165648444f46",
     "tools/looper/src/cli/exec.ts": "7ad0d4c94deae6e1231e7f3e38fddee8c187e741a6e30d10b1374b2e0e7bd36b",
     "tools/looper/src/cli/gates.ts": "83f05111191d89b99b22b94d2acaca09f84e28a7de5914fcb58bc0a5e886cd73",
@@ -83,7 +83,7 @@
     "tools/looper/src/sync/import-sand.ts": "075e2cc49c5eabb59a57a9182c4ee681d0d1ee1f424bc25719b3f8a27a49fdd5",
     "tools/looper/src/sync/import.ts": "d690b070bbf0a82e928f926d111710f3e8720ca80788acea2cf80677cabbae55",
     "tools/looper/src/sync/service-stand-in.ts": "7c851d1fdaac1f8fb8eb88f89db9cd0e72175e86d0b9f39f12de8c640f1478c8",
-    "tools/looper/src/sync/sync.ts": "0562a93d6fe1a0f651e0f96c0c1c4e3a29b473129354cab4a1902c55508b27aa",
+    "tools/looper/src/sync/sync.ts": "9832125dd9691d2801d3b3ba7f1057dac36493b6f6931d7c3ae389f996aac4c2",
     "tools/looper/src/sync/template.ts": "29914f9b44e9dc8b5ebbc3a57e34909a0d853b16434342ea159294263ca4a034",
     "tools/looper/src/testing.ts": "75660c08ebdb197c7a1ecd2b75d2823a1c2b511a431703f6c883b53c6d8a072c",
     "tools/looper/src/verify/accept.ts": "11e35bade2bbf7b8b7aabbb012c9416a7f2a57902210d8f3453324542857f553",
@@ -95,7 +95,7 @@
     "tools/looper/src/verify/select.ts": "7107ad3bb7ee366f72ce7bf0564cc4e5084842ff4f94c6048879a4c3a69ffae5",
     "tools/looper/src/verify/shared.ts": "795778cd479e81d78d2a42bd99277c20a89edd080fe9d4cf69bc8df06e23212f",
     "tools/looper/src/verify/verify.ts": "170ef0d308178065241a1d56f9be8244a3b401be9a908dd22536c954d5058c59",
-    "tools/looper/templates.json": "4a57a2b095f313b2316e370c129c4757e46b81ea9bdac2d4e9ef437cf4fe4446",
+    "tools/looper/templates.json": "0bd28aef1a7ebdb5b6ea5ac59a506c930f9e868a7b74490626c6e3851c2722ad",
     "loop": "8890da6c9378c4ae6fe3d1cb92c9dae203b1c08a6300a624b85393883564612c",
     "loop.cmd": "750eb2ce467a6ac4f08d0c64f0f727fcf2fd8b300c609a4bf14198a1e8d385e6"
   }

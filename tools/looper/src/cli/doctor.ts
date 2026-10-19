@@ -16,7 +16,7 @@
 // `{"problem", "fix"}` split at the line's last `. Fix: `, with `fix` null without one.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { dirname, extname, join } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 import { ConfigError, type Config, defaultConfig, deprecatedKeys, gatesSet, loadConfig, promptsNamed } from "../goal/config.ts";
 import { runsGuard } from "../sync/sync.ts";
 import { type Command, Exit, usage } from "./cli.ts";
@@ -194,7 +194,8 @@ function machine(root: string, cfg: Config): string[] {
     gaps.push("git is not on PATH. Fix: winget install Git.Git");
   } else if (isDir(join(root, "tools", "git-hooks"))) {
     const set = output("git", ["-C", root, "config", "--get", "core.hooksPath"])?.trim().replaceAll("\\", "/");
-    if (set !== "tools/git-hooks") {
+    const folder = (path: string) => resolve(root, path).toLowerCase();
+    if (set === undefined || folder(set) !== folder("tools/git-hooks")) {
       const now = set === undefined ? "unset" : `\`${set}\``;
       gaps.push(`core.hooksPath is ${now}, so the commit-msg hook never runs. Fix: git config core.hooksPath tools/git-hooks`);
     }
