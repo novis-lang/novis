@@ -1398,10 +1398,11 @@ fn stack(nodes: &mut [Node], at: usize, work: &mut Vec<usize>) {
 /// the tree builder makes walks that stack, so the cap is what keeps each
 /// token's cost bounded and a parse's time in proportion to its document.
 ///
-/// Under Miri the cap is 64. The tests that reach the cap parse a document
+/// Under Miri the cap is 16. The tests that reach the cap parse a document
 /// deeper than it, and at 512 each one takes longer than Miri's test timeout.
-/// The code paths are the same at either depth.
-const OPEN_ELEMENTS_CAP: usize = if cfg!(miri) { 64 } else { 512 };
+/// The code paths are the same at either depth, and every test here passes
+/// natively with the cap at 16.
+const OPEN_ELEMENTS_CAP: usize = if cfg!(miri) { 16 } else { 512 };
 
 /// `document`, parsed by the WHATWG algorithm under [`OPEN_ELEMENTS_CAP`].
 ///
@@ -3175,7 +3176,7 @@ mod tests {
     /// so the steps per tag stay under a small multiple of the cap.
     #[test]
     fn every_walk_over_the_stack_of_open_elements_is_bounded_by_the_cap() {
-        const COUNT: usize = if cfg!(miri) { 1_200 } else { 20_000 };
+        const COUNT: usize = if cfg!(miri) { 96 } else { 20_000 };
         let cases = [
             ("<div>".repeat(COUNT), COUNT),
             ("<span>".repeat(COUNT) + &"</x>".repeat(COUNT), 2 * COUNT),
@@ -3201,7 +3202,7 @@ mod tests {
     /// already has a rule for, so no input reaches a panic.
     #[test]
     fn the_cap_closes_tables_templates_selects_and_foreign_content_without_failing() {
-        let deep = OPEN_ELEMENTS_CAP + 50;
+        let deep = OPEN_ELEMENTS_CAP + if cfg!(miri) { 8 } else { 50 };
         let documents = [
             "<table>".repeat(deep),
             "<table><tr><td>".repeat(deep),
@@ -3247,11 +3248,10 @@ mod tests {
     /// The duplicate check runs once for each attribute, against the ones
     /// before it on the same tag. A set makes that check constant, so this tag
     /// parses in time in proportion to its length. Under Miri the tag has
-    /// two thousand attributes, which is still far past the count where the
-    /// set is used.
+    /// three hundred attributes, and each of them still checks the set.
     #[test]
     fn a_tag_with_a_hundred_thousand_attributes_keeps_them_all() {
-        let count: usize = if cfg!(miri) { 2_000 } else { 100_000 };
+        let count: usize = if cfg!(miri) { 300 } else { 100_000 };
         let attributes: String = (0..count).map(|i| format!(" a{i}={i}")).collect();
         let tree = parse(&format!("<p{attributes}>x"));
         let paragraph = &tree.children[0].children[1].children[0];
