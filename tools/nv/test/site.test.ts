@@ -215,6 +215,14 @@ describe("nv site --check snippets: the command line and the server", () => {
     expect(snippetOutputs(p, false, ran("1\n"), { status: 0, body: "", failure: "the server exited 1: error", started: false }, files("1\n", "x")).problems).toEqual([`${p}: delete its .http.out: \`nvs serve\` does not start with it`]);
     expect(snippetOutputs(p, false, ran("1\n"), { status: 0, body: "", failure: "socket closed", started: true }, files("1\n", null)).problems).toEqual([`${p}: \`nvs serve\` started and sent no response: socket closed`]);
   });
+
+  test("a server this host does not start is a skip: a web snippet is not checked, and a command-line one keeps its .out check", () => {
+    const skipped: Served = { status: 0, body: "", failure: null, started: false, skipped: "this host has no Docker" };
+    expect(snippetOutputs(p, true, ran("", 1), skipped, files(null, "x"))).toEqual({ owed: null, problems: [], skipped: "this host has no Docker" });
+    expect(snippetOutputs(p, false, ran("1\n"), skipped, files("1\n", "x"))).toEqual({ owed: null, problems: [], skipped: "this host has no Docker" });
+    expect(snippetOutputs(p, false, ran("2\n"), skipped, files("1\n", null)).problems).toEqual([`${p}: prints something other than its .out`]);
+    expect(snippetOutputs(p, false, ran("1\n"), skipped, files(null, null)).problems).toEqual([`${p}: no .out beside it`]);
+  });
 });
 
 describe("nv site --check syntax", () => {
