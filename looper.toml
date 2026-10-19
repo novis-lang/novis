@@ -46,7 +46,8 @@ render = [["bun", "nv", "render"], ["bun", "nv", "rules", "--render"]]
 
 # The Bash calls that take machine-wide heavy-job slots beside looper's built-in cargo and `bun test`. A
 # pattern matches a command's first words, so a flag counts only where it comes first. The measuring
-# commands take every slot, so no build runs beside them and skews what they record.
+# commands take one slot like any other: a wait for every slot never ends while other projects build, and
+# the perf ledgers count work rather than time.
 [jobs]
 heavy = [
   "bun nv verify",
@@ -56,8 +57,6 @@ heavy = [
   "bun nv proofs --run",
   "bun nv legs",
   "bun nv db-matrix",
-]
-exclusive = [
   "bun nv bench",
   "bun nv benches",
   "bun nv debt",
