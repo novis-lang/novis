@@ -1492,6 +1492,11 @@ mod tests {
                 panic!("the seed corpus at {} is committed: {why}", dir.display())
             })
             .map(|entry| entry.expect("a readable seed").path())
+            // Under Miri, only the seeds under 200 bytes. They still hold both
+            // verdicts, which the counts below require.
+            .filter(|path| {
+                !cfg!(miri) || std::fs::metadata(path).map_or(true, |meta| meta.len() < 200)
+            })
             .collect();
         seeds.sort();
         let mut parsed = 0usize;
