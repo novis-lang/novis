@@ -361,8 +361,7 @@ Stages 1 to 7 and 9 are done. Stage 8 waits only on CI: its two Miri checkpoints
 run below to finish.
 
 - **`main` is pushed at `f7eaecd7e`, and full run 39229718066 was dispatched on it.** The older
-  dispatch 39222242630 and the push's subset run 39229707633 were cancelled. When the session
-  ended, most of its jobs were still queued for runners and none had failed.
+  dispatch 39222242630 and the push's subset run 39229707633 were cancelled.
 - **Run 39229718066 so far:** all three `proofs` legs failed at `Feature proofs`, and
   `cost guards / linux-x86_64` failed its `Warm-start budget` step at 7.1 ms of work against 6
   (floor 3.7 ms). Run 39206993876 passed that budget on `0b85b2057`. No other step had failed.
@@ -373,10 +372,19 @@ run below to finish.
   18 `lang` `about.md` over 200 words (`e23c61102`, trimmed to about 160 and rendered), and 77
   perf records gone stale through the rendered chapters (`265d2b3d4`). The three `Core\Csv`
   benches now declare the Core calls `ece7b500f` made countable.
-- **One feature still owes perf:** `lang:expressions/the-pipeline-operator`. Its twin bench timed
-  0 ns, so `twin_ratio` is written as bare `Infinity` (`tools/nv/proofs/perf.ts:180`, `:199`),
-  and `ledgerRows` skips the line as not JSON (`tools/nv/proofs/ledger.ts:23`). Two such lines
-  are in `data/perf/members.ndjson`. `bun nv proofs --owed` names only this feature locally.
+- **No feature owes a proof locally** (`bun nv proofs --owed` is empty). The pipeline benches ran
+  256 iterations, about 0.1 ms of work, which is under the start floor's spread, so the twin read
+  0 ns. Both now run 100,000 and the twin reads 1.22×. A twin under the floor writes a `null`
+  ratio (`tools/nv/proofs/perf.ts:183`), and the ledger's four `Infinity` lines are `null`.
+- **Run 39229718066 was cancelled** after its only failures: the `proofs` legs (all paid locally)
+  and the warm-start budget. No `test`, `miri units` or `Serve soak` step finished.
+- **The warm start did not regress.** Built in WSL, `0b85b2057` and this tree each run the warm
+  baseline in 30.59 M instructions and 4.04 ms of work. `8e364c834` (the other session) gave the
+  figure a soft and a hard bound. Where the instructions go is in the backlog.
+- **The local `docs` and `lint` checks pass** on this tree: `bun nv check`, `render --check`,
+  `render --website --check`, `rules --check`, `rules --render --check`, `links`,
+  `layout --check`, `release --check`, `lints --check`, `site --check structure stale questions
+  prose` and `cargo fmt --all --check`. Clippy and `cargo doc` were not run.
 - **Another interactive session works on this goal in the same checkout.** When this session
   ended it had uncommitted edits to `tools/nv/cmd/site.ts`, `tools/nv/proofs/run.ts`,
   `tools/nv/test/site.test.ts`, `tools/nv/test/proof-record.test.ts` and
@@ -447,15 +455,19 @@ run below to finish.
 ### Next
 
 Stage 10's push-and-watch loop, which also gives stage 8 its deep-lane run (a `workflow_dispatch` is the deep lane, `rule:testing/the-deep-lane`), over `.github/workflows/ci.yml`:
-- [ ] The pipeline twin: find why `the-pipeline-operator.twin.nvs` times 0 ns over the floor, fix the cause, and write a ratio the reader can parse (null, not `Infinity`) when it is 0. Then `bun nv proofs --record-perf --only lang:expressions/the-pipeline-operator` and `bun nv proofs --owed` empty. `tools/nv/proofs/perf.ts:177`
+- [x] The pipeline twin: both benches run 100,000 iterations, a ratio under the floor is `null`, and `bun nv proofs --owed` is empty. `tools/nv/proofs/perf.ts:177`
 - [x] The warm-start budget has the two bounds `rule:testing/perf-two-mechanisms` gives a timing: CI's soft bound is 9 ms and only warns, and the hard one is 90 ms after three attempts (the user's call). Hosted Linux read 4.9 to 9.3 ms of work from 2026-10-08 on, before `e3e0f316a` as after it. The 6 ms bound only began to fail when the start floor fell under `QUIET_FLOOR_MS` on 2026-10-17 and the leg stopped abstaining. A cache miss is no hard bound: on the baseline a warm run costs 85 to 93% of a cold one. `tools/nv/cmd/bench.ts:46`
-- [ ] Read run 39229718066's other results: `gh run view 39229718066 --json jobs`. Fix each failure at its cause. `.github/workflows/ci.yml:1`
+- [x] Read run 39229718066's other results. It was cancelled: its only failures were the `proofs` legs and the warm-start budget, both now paid. `.github/workflows/ci.yml:1`
+- [ ] Stage 10 again from step 1: `cargo clippy --workspace --all-targets -- -D warnings` and `cargo doc --no-deps --workspace` locally (the other `docs` and `lint` steps passed this session), then push `main`, cancel the push's subset run, and dispatch `gh workflow run ci.yml --ref main`. `docs/goals/release-hardening.md:332`
 - [ ] On that run: the `cost guards` legs' `Serve soak` step, and the `test` legs' `Conformance suite` step for the shared-worker run. `.github/workflows/ci.yml:322`, `.github/workflows/ci.yml:228`
 - [ ] On that run: every `miri units` shard. Tick stage 8's two Miri checkpoints once every shard is green and no test runs past about 200 s, then set stage 8 done. `docs/goals/release-hardening.md:263`
-- [ ] Then stage 10 again from step 1: the local `docs` and `lint` steps, push `main`, cancel the push's subset run, and dispatch `gh workflow run ci.yml --ref main`. `docs/goals/release-hardening.md:332`
 
 ### Backlog
 
+- A warm baseline run is 30.6 M instructions, and 61% is the front end. The largest parts are
+  `build_signatures` (10 M), `seed_natives` (6.5 M), `builtin_manifests` (4.5 M, which parses every
+  built-in extension's manifest on every start) and the TOML parse of `default.toml` (4.4 M).
+  Precomputing the manifests at build time is the plainest cut (`crates/nvs-ext/src/load.rs:704`).
 - `nvs-runtime`'s pool hands a block back through a pointer narrowed to its last owner's size. Exposing each block's provenance and rebuilding the pointer in `push` and the same-class `realloc` removed the report, but no unit test reproduced it, and the user chose the `sanitizer` feature instead (`crates/nvs-runtime/src/alloc.rs:176`).
 - `test / linux-aarch64` and every `test` and `cost guards` leg passed on run 39206993876, macOS included. Check the unoptimised suite step's log on that leg before stage 10 relies on it (`.github/workflows/ci.yml:131`).
 - The suite's probes-on run is still owed: the coverage flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:2394`, `rule:testing/probes-on-is-a-tested-configuration`).
