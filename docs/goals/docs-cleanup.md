@@ -26,7 +26,7 @@ stages:
     context: [docs/agent/commands.md, docs/agent/conventions.md, docs/agent/playbook.md, looper.toml]
   - id: 6
     title: "each language feature's facts are in its about.md, its details.md and its examples, once"
-    status: open
+    status: done
     context: [docs/reference/lang/40-statements.md, docs/examples/lang/statements/break-and-continue/about.md, website/src/content/docs/syntax/control-flow/break-continue-return.mdx, tools/nv/proofs/roster.ts]
   - id: 7
     title: "the syntax pages show each feature's about.md, details and examples"
@@ -263,7 +263,7 @@ with each.
   - [x] `echo-print-unset-exit-yield`: `details.md`, and example 04 (`E0234`)
   - [x] `statement-forms-that-do-not-parse`: `details.md`, example 04 (`goto`), and `about.md`'s two wrong claims fixed
   - [x] the chapter's features before `break-and-continue`, from its top
-- [ ] The other ten chapters, one per slice: `10-programs`, `20-types`, `30-expressions`, `50-classes`, `55-enums`, `60-iteration`, `70-errors`, `80-concurrency`, `90-attributes`, `95-testing`. `docs/reference/lang/10-programs.md:1`
+- [x] The other ten chapters, one per slice: `10-programs`, `20-types`, `30-expressions`, `50-classes`, `55-enums`, `60-iteration`, `70-errors`, `80-concurrency`, `90-attributes`, `95-testing`. `docs/reference/lang/10-programs.md:1`
   - [x] `10-programs`: six `details.md`, examples 04 for `doc-comments`, `names-and-casing` and `ending-a-program`, and five wrong claims fixed
   - [x] `20-types`
     - [x] `every-binding-has-a-type`, `numbers-bool-int-uint-float-decimal`, `text-string-and-bytes` and `array-t`
@@ -323,9 +323,9 @@ with each.
       - [x] `a-child-s-throw` to `isolates-spawn-script-and-await`
       - [x] `a-child-shares-nothing` to `what-does-not-exist`
       - [x] `lang:concurrency`' perf recorded after the chapter's last edit
-  - [ ] `90-attributes` and `95-testing`
+  - [x] `90-attributes` and `95-testing`
     - [x] `90-attributes`, then `lang:attributes`' perf recorded after the chapter's last edit
-    - [ ] `95-testing`, then `lang:testing`' perf recorded after the chapter's last edit
+    - [x] `95-testing`, then `lang:testing`' perf recorded after the chapter's last edit
 
 ### 7. the syntax pages show each feature's about.md, details and examples
 
@@ -1158,15 +1158,26 @@ diagnostics print a `rule:` id or a `§ 8`/`§ 9` mark in their help, such as `E
 constructor-parameter failure; that is the backlog's product-text item. `llms-full.txt` is rendered
 again. The sweep's red jobs are run 39185807455 on `main` at f8ad800d3, not this branch.
 
+Stage 6 is done. Each of the eight `lang:testing/…` ids passes `bun nv proofs --run --only`, and
+`lang:testing`'s perf is recorded. Four `// proof: test` examples showed as diverged on the recording
+run, which ran every example with `nvs run` and compared the report's timings. The recording run now
+uses the judged run's command (`recordingRun`), and both reports lose their timings before they are
+compared (`comparableRun`, `tools/nv/proofs/run.ts`), with a case in `proof-record.test.ts`.
+`lang:testing/assertions` declared `calls 0` and makes one `Core` call per op, so it now declares
+`calls 1`, and its comment no longer says "holds". The sweep's red jobs are still run 39185807455 on
+`main` at f8ad800d3, not this branch.
+
 ### Next
 
-`95-testing`'s content is committed; what closes stage 6 is its checks. Work each feature the way `break-and-continue` was done: read
-its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
-binary, write `details.md`, and turn each chapter code block no example shows into an example
-(`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
-`bun nv proofs --run --only <id>` (one `--only` per run: a second replaces the first) and
-`--comments <dir>`.
-A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` beside it, and a
+Stage 7 is next: the website shows each `lang` feature's `about.md`, `details.md` and examples.
+`website/src/lib/feature.ts:33` skips the `lang` area today, so the first slice makes it read `lang`
+like the other areas and renders a `details.md` through the component the `Core` pages use. Then
+one syntax page per slice: it renders the features it covers, keeps its frame, *Use this when* and
+*Do and don't*, and loses its own snippets for them. Start with
+`website/src/content/docs/syntax/control-flow/break-continue-return.mdx`, whose features were the
+pattern of stage 6. Build the site and check it with `bun nv site --check`, which fails today on
+pages this goal has not touched, so compare its findings before and after.
+If a slice needs a fact checked on the binary, these traps apply. A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` beside it, and a
 probe is a file under `.agent-tmp/` written with Write, since the guard refuses a redirect.
 A probe catching two error types needs two variable names, or it stops at `E0406` before the line
 you meant to test. A probe's method goes in a class: a top-level `function` stops at `E0215`.
@@ -1178,9 +1189,10 @@ A probe with a limit or a grant runs with `nvs run --config <file>.toml`, which 
 `nvs.toml`; an example needs its own `[[app]]` entry in the root `nvs.toml` instead (`nvs.toml:497`).
 A spawning probe has an `nvs.toml` with `[capabilities.script] spawn = true` beside it, and a probe
 runner gives each run a timeout, since a channel or a task with nothing to wait for never ends.
-- [ ] `95-testing`'s checks, which close stage 6: `bun nv proofs --run --only <id>` for each of the eight `lang:testing/…` ids, and `looper verify` (this session's was not run). Then tick stage 6's last item and set its status. `docs/reference/lang/95-testing.md:8`
-- [ ] A bench that calls a `Core` method and declares fewer `calls` fails `--record-perf` (as six in `lang:attributes` did). `lang:testing`'s benches are checked the same way when its perf is recorded. `benches/members/lang/attributes/core-route-and-core-access-the-route-table.nvs:5`
-- [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
+- [ ] `feature.ts` reads the `lang` area, and a feature's `details.md` renders under its examples. `website/src/lib/feature.ts:33`
+- [ ] `break-continue-return.mdx` renders `break-and-continue`, `return` and `throw` and loses their snippets. `website/src/content/docs/syntax/control-flow/break-continue-return.mdx:1`
+- [ ] The site lock hashes a `lang` feature's `about.md`, `details.md` and examples. `tools/nv/cmd/site.ts:306`
+- [ ] A chapter edited in stage 7 or 8 owes `bun nv proofs --record-perf --group lang:<chapter>` after its last edit, and a bench that calls a `Core` method declares that call in `calls`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
 
