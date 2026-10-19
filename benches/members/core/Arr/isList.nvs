@@ -3,7 +3,7 @@
 // whether the array becomes a JSON array or a JSON object.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

@@ -2,7 +2,7 @@
 // Finds which requested items a second list does not have. A program does
 // this when it checks an order against what is in stock.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

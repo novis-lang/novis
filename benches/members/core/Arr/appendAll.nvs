@@ -1,7 +1,7 @@
 <?nvs
 // Joins a page of results onto the list a program has collected so far.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

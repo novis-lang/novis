@@ -2,7 +2,7 @@
 // Finds which of the permissions a request needs the user also has. A program
 // does this on every request that checks access.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

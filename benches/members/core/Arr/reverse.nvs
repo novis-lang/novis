@@ -2,7 +2,7 @@
 // Turns a list of events into newest-first order. A page does this before it
 // shows a history.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

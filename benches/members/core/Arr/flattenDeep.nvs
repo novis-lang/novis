@@ -2,7 +2,7 @@
 // Reads every label of a menu that has menus inside it. A page does this before
 // it draws the navigation.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

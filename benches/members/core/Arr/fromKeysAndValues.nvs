@@ -2,7 +2,7 @@
 // Pairs a short list of column names with a row of values, as a program does
 // for every line it reads from a CSV file.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

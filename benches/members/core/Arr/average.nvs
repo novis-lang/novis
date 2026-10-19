@@ -2,7 +2,7 @@
 // Works out the mean of a short list of response times, as a report does for
 // every service it watches.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

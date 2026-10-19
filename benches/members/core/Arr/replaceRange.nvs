@@ -2,7 +2,7 @@
 // Replaces one item of a basket with another one. A shop does this when it
 // sends a substitute for something it has run out of.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

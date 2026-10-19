@@ -2,7 +2,7 @@
 // Multiplies the choice counts of an article, as a shop does when it counts
 // how many variants a customer can order.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

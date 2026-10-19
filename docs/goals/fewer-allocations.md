@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-ir/src/lower/operator.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-stdlib/src/html.rs, crates/nvs-runtime/src/string.rs]
   - id: 2
     title: "the runtime's array reserves and is looked up by a borrowed key"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-stdlib/src/arr.rs]
   - id: 10
     title: "an ObjectMap overwrite replaces its value in place"
@@ -140,10 +140,10 @@ implementation gains a few owned-or-borrowed paths in the runtime's array and st
 **Split:** an `Explore` subagent lists every caller of `key_bytes` and every member that builds a
 result of a known entry count, as `arr.rs:NN` and one line each, before the session edits.
 
-- [ ] `NvsArray` has a capacity constructor, and each member that knows its entry count uses it. `crates/nvs-runtime/src/array.rs:899`, `crates/nvs-stdlib/src/arr.rs:3102`
-- [ ] `key_bytes` borrows the key for the length of the lookup, and each caller is read against the change. `crates/nvs-stdlib/src/arr.rs:2723`
-- [ ] `core/Arr/keys.nvs`, `core/Arr/filter.nvs` and `core/Arr/hasKey.nvs` declare their new counts (`rule:testing/member-perf-ledger`). `benches/members/core/Arr/keys.nvs:1`, `benches/members/core/Arr/hasKey.nvs:1`
-- [ ] The two records are deleted. `data/gaps/nvs-stdlib/member-that-builds-an-array-grows.json:1`, `data/gaps/nvs-stdlib/key-argument-is-copied-onto-the.json:1`
+- [x] `NvsArray` has a capacity constructor, and each member that knows its entry count uses it. `crates/nvs-runtime/src/array.rs:899`, `crates/nvs-stdlib/src/arr.rs:3102`
+- [x] `key_bytes` borrows the key for the length of the lookup, and each caller is read against the change. `crates/nvs-stdlib/src/arr.rs:2723`
+- [x] `core/Arr/keys.nvs`, `core/Arr/filter.nvs` and `core/Arr/hasKey.nvs` declare their new counts (`rule:testing/member-perf-ledger`). `benches/members/core/Arr/keys.nvs:1`, `benches/members/core/Arr/hasKey.nvs:1`
+- [x] The two records are deleted. `data/gaps/nvs-stdlib/member-that-builds-an-array-grows.json:1`, `data/gaps/nvs-stdlib/key-argument-is-copied-onto-the.json:1`
 
 ### 10. an ObjectMap overwrite replaces its value in place
 
@@ -256,28 +256,35 @@ and those hits stay.
 
 ### State
 
-Stage 1 is done. `$page = $page + $row` on a local `Markup` or `Cli\Text` lowers to a new row-less
-append symbol (`MARKUP_APPEND_SYMBOL`, `TEXT_APPEND_SYMBOL`, recorded on
-`ExprInfo::CarrierComposition`'s `append`), and `bun nv scaling --check templates/markup-concat`
-judges the loop linear. The call borrows both operands like every `CoreCall`, and the in-place answer
-is the same object with one more reference, which the statement's release of the old binding brings
-back to one. `$page += $row` and a chain `$page = $page + $a + $b` still take the copy. Eighteen gap
-records under `data/gaps/` name this goal; `bun nv owners --closes fewer-allocations` lists them.
+Stages 1 and 2 are done. `NvsArray::with_capacity` reserves a packed vector, and the hash form takes
+the room over when the first key is not `"0"`; every `Core\Arr` member that knows its result's entry
+count, or an upper bound no larger than an argument it holds, reserves it. `key_bytes` returns
+`KeyBytes`, a borrowed string or an integer rendered on the stack, so `hasKey` counts 0 allocations
+where it counted 1. `mapKeys`, `groupBy` and `countBy` copy a callback's key out before they release
+it. `keys` stays at 2 and `filter` at 16: their benches are too small to grow past the first reserve.
+A filter result with a gap pays a few more bytes, since its index is sized to the subject.
+
+Since `ece7b500f` a `Core` call counts as a call, so every `Core\Arr` bench now declares its member's
+call and its callbacks'. All 53 `Core\Arr` records, and the `Core\Cli` and `Core\Html` records stage 1
+left stale, are measured again. Sixteen gap records name this goal; `bun nv owners --closes
+fewer-allocations` lists them.
 
 The nightly run 39278568537 was `cancelled` with no job scheduled, in the same GitHub Actions outage
-`release-hardening`'s handoff records; nothing in the tree caused it.
+`release-hardening`'s handoff records; nothing in the tree caused it. The `looper` on PATH has no
+`verify`; `bun tools/looper/main.ts verify` runs it.
 
 ### Next
 
-**Stage 2: the runtime's array reserves and is looked up by a borrowed key**, one file set:
-`crates/nvs-runtime/src/array.rs`, `crates/nvs-stdlib/src/arr.rs`. No gate. Follow the stage's
-`**Split:**` line first: an `Explore` subagent lists every caller of `key_bytes` and every member that
-builds a result of a known entry count.
+**Stage 10: an ObjectMap overwrite replaces its value in place**, one file set:
+`crates/nvs-runtime/src/array.rs`, `crates/nvs-stdlib/src/objmap.rs`,
+`crates/nvs-stdlib/src/identity_store.rs`. `nvs_core_object_map_set` writes both stores through
+`NvsArray::set` with `NvsStr::new(&chain)` (`objmap.rs:379`, `objmap.rs:393`), so an overwrite heap-copies
+the chain key `identity_store::locate` built (`identity_store.rs:104`). Re-recording `objmap.rs`'s
+benches will need their `calls` declared, as `Core\Arr`'s did.
 
-- [ ] `NvsArray` has a capacity constructor, and each member that knows its entry count uses it. `crates/nvs-runtime/src/array.rs:899`, `crates/nvs-stdlib/src/arr.rs:3102`
-- [ ] `key_bytes` borrows the key for the length of the lookup, and each caller is read against the change. `crates/nvs-stdlib/src/arr.rs:2723`
-- [ ] `core/Arr/keys.nvs`, `core/Arr/filter.nvs` and `core/Arr/hasKey.nvs` declare their new counts, recorded with `bun nv proofs --record-perf` (`rule:testing/member-perf-ledger`). `benches/members/core/Arr/keys.nvs:1`, `benches/members/core/Arr/hasKey.nvs:1`
-- [ ] The two records are deleted. `data/gaps/nvs-stdlib/member-that-builds-an-array-grows.json:1`, `data/gaps/nvs-stdlib/key-argument-is-copied-onto-the.json:1`
+- [ ] `NvsArray` has a replace-in-place that takes a borrowed key, and `Core\ObjectMap::set` over an existing key uses it. `crates/nvs-runtime/src/array.rs:1023`, `crates/nvs-stdlib/src/objmap.rs:364`, `crates/nvs-stdlib/src/identity_store.rs:104`
+- [ ] `core/ObjectMap/set.nvs` declares 0 allocations for an overwrite (`rule:testing/member-perf-ledger`). `benches/members/core/ObjectMap/set.nvs:1`
+- [ ] The record is deleted. `data/gaps/nvs-stdlib/an-objectmap-overwrite-allocates-its-chain-key.json:1`
 
 ### Backlog
 

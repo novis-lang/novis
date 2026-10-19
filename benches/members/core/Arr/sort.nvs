@@ -2,7 +2,7 @@
 // Puts a short list of prices in order, as a shop does before it shows the
 // cheapest offer first.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity nlogn
 
 class Bench {

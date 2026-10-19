@@ -1,7 +1,7 @@
 <?nvs
 // Stores a few order codes under a key of their own, as a program does after it reads rows.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 5
 // bench: complexity linear
 
 class Bench {

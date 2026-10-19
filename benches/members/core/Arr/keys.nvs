@@ -2,7 +2,8 @@
 // Reads the keys of a request, as a page does when it checks which fields the
 // form sent.
 // bench: iterations 256
-// bench: calls 0
+// bench: allocations 2
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {
