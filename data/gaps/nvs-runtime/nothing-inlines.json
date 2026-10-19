@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-runtime/src/decimal.rs",
-  "title": "Nothing inlines.",
-  "text": "Every `decimal` operator is an out-of-line helper call, where `+`, `-` and comparison at equal scale could be i128 instructions in the emitted code. That is a latency question to close in the backend, not a semantic one — the results are identical either way.",
-  "goal": "fewer-allocations"
-}
