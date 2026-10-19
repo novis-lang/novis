@@ -28,7 +28,10 @@ commit, a minimal `.nvs` or Rust reproducer, what you expected the boundary to d
 What to expect:
 
 - **Acknowledgement within 3 days**, an initial assessment within 10.
-- We fix, then publish a GitHub advisory naming you as reporter unless you'd rather stay anonymous.
+- **Every security fix gets a GitHub advisory**, whether you reported the flaw or we found it
+  ourselves. The advisory names the affected versions and the release that has the fix, and it names
+  you as reporter unless you'd rather stay anonymous. A security fix never lands as a plain `fix`
+  commit with no advisory behind it.
 - **Coordinated disclosure, 90 days by default**, shortened once a fix is out and extended only by
   agreement.
 - There is no bug bounty. This is a pre-1.0 project with no money behind it; credit is what we can offer.
@@ -47,8 +50,10 @@ isolation*, and each rule there links its reasons. Anything that defeats one of 
   (`rule:security/sink-predicate`,
   `rule:security/secret-sinks-refuse`,
   `rule:security/unclassified-parameter-refuses-tainted`).
-- **Request or isolate boundary escape** — one request reading, corrupting or influencing another;
-  anything shared between requests but compiled code; a poisoned artifact or hot-reload cache
+- **Request or isolate boundary escape** — **one request affecting another is a security bug**,
+  whatever the effect: reading its data, changing its state or output, or changing what a later
+  request on the same worker sees. Anything shared between requests but compiled code is one, and so
+  is a poisoned artifact or hot-reload cache
   ([`security/isolate-shares-nothing`](docs/rules/security.md#security-isolate-shares-nothing),
   [`config/a-request-keeps-the-unit-it-resolved`](docs/rules/config.md#config-a-request-keeps-the-unit-it-resolved),
   [`concurrency/cross-request-state-is-explicit`](docs/rules/concurrency.md#concurrency-cross-request-state-is-explicit)).
@@ -100,6 +105,14 @@ it is reachable, report it privately as above; if it isn't reachable, an issue i
 
 ## How the claims are checked
 
-CI runs on three platforms with Miri over the front end, ASAN over the JIT-bearing crates, libFuzzer
-targets, `cargo deny`, and an audit that keeps `unsafe` out of every crate but the three that are allowed
-it. None of that is a proof — which is why this file exists.
+CI runs on three platforms with Miri over the front end and the runtime and standard library's unit
+tests, ASAN over the JIT-bearing crates, libFuzzer targets, `cargo deny`, and an audit that keeps
+`unsafe` out of every crate but the three that are allowed it. The conformance suite also runs many
+cases on one shared worker and compares each with its fresh run, and a nightly soak fails when the
+memory one worker holds grows with the requests it served.
+
+A release runs the full suite on every platform before it builds. It stops when a fix its notes list
+is not in the commit its binaries were built from. Each binary is built with `cargo auditable`, so
+`cargo audit bin nvs` checks the exact dependency versions inside it.
+
+None of that is a proof — which is why this file exists.
