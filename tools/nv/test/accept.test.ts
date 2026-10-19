@@ -54,7 +54,7 @@ describe("firstErrLine", () => {
     const script = 'error: script "nv" exited with code 1';
     const proofs = "== Core\\Attributes\n  FAIL  tests/hostile/a.nvs: still running after 10s\nproofs hostile: 1 ok, 1 failed\n";
     expect(firstErrLine({ code: 1, out: proofs, err: script })).toBe("FAIL  tests/hostile/a.nvs: still running after 10s");
-    expect(firstErrLine({ code: 1, out: "nv plan: M10 has no status\nsee --help\n", err: script })).toBe("nv plan: M10 has no status | see --help");
+    expect(firstErrLine({ code: 1, out: "nv release: 1.2.0 has no tag\nsee --help\n", err: script })).toBe("nv release: 1.2.0 has no tag | see --help");
     expect(firstErrLine({ code: 1, out: "", err: `nv verify: the fmt step failed\n${script}` })).toBe("nv verify: the fmt step failed");
   });
 });

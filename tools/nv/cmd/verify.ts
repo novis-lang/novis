@@ -13,7 +13,7 @@
 // The steps, in order, stopping at the first failure: `cargo fmt`, `bun nv lints --check`,
 // `bun nv directives --check` and `--check-template`, `bun nv owners --check`, the checks of CI's `docs`
 // job (`DOC_CHECKS`: `nv check`, `nv render --check`, `nv rules --check` and `--render --check`,
-// `nv links`, `nv layout --check`, `nv plan --check` and `nv release --check`), `bun nv selftest`,
+// `nv links`, `nv layout --check` and `nv release --check`), `bun nv selftest`,
 // the fuzz workspace's lock brought back in step, `cargo build`, `nvs fmt` over the `.nvs` files this
 // working tree added or changed, `cargo test`, the `.nvst` trees, `bun nv reference` (every chapter
 // example), `cargo clippy --all-targets -- -D warnings`, and the VS Code extension's headless suites.
@@ -83,8 +83,7 @@
 //
 // `-p` narrows which test binaries run, off the one build, and the steps that run `nvs` over the trees
 // do not run; what it leaves out is owed. `cargo doc` with broken intra-doc links denied is `--doc`, run
-// alone. The documentation gates (`rules`, `records`, links, the plan) are not steps: CI's `docs` job
-// runs them.
+// alone. The documentation gates are the `DOC_CHECKS` steps, which CI's `docs` job runs too.
 //
 // Every process verify starts is killed with the processes it started when it runs out of time, and a
 // test binary or case batch that fails has what it left running killed (`lib/proc.ts`).
@@ -156,7 +155,6 @@ const DOC_CHECKS: [string, string[]][] = [
   ["rules-render", ["rules", "--render", "--check"]],
   ["links", ["links"]],
   ["layout", ["layout", "--check"]],
-  ["plan", ["plan", "--check"]],
   ["release", ["release", "--check"]],
 ];
 /** The script steps, which run at the same time as `build` when they are listed before it. */
@@ -972,9 +970,6 @@ export const summaries: Record<string, (out: string) => string> = {
   },
   layout() {
     return "CONTRIBUTING.md's layout listing describes the tree";
-  },
-  plan(out) {
-    return /every cell agreeing/.test(out) ? "every milestone row parses and agrees with its file" : NO_SUMMARY;
   },
   release(out) {
     const m = /version (\S+) is consistent/.exec(out);
