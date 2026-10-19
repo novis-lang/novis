@@ -3352,7 +3352,14 @@ mod tests {
             let n = 10.0_f64.powi(power);
             assert_eq!(log(n, 10.0), Ok(f64::from(power)), "log({n}, 10)");
         }
-        for power in -1022..=1023 {
+        // Under Miri, only the ends of the range and the powers around zero
+        // and the mantissa's width, because each call builds a context.
+        let powers_of_two: Vec<i32> = if cfg!(miri) {
+            vec![-1022, -1021, -53, -1, 0, 1, 52, 53, 1022, 1023]
+        } else {
+            (-1022..=1023).collect()
+        };
+        for power in powers_of_two {
             let n = 2.0_f64.powi(power);
             assert_eq!(log(n, 2.0), Ok(f64::from(power)), "log({n}, 2)");
         }

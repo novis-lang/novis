@@ -915,8 +915,9 @@ mod tests {
     /// decision is why the prune beside it is deliberately outside the bracket.
     #[test]
     fn a_subscription_is_charged_to_the_process_and_not_to_the_connection() {
-        /// How many names, each as long as a name may be.
-        const NAMES: usize = 512;
+        /// How many names, each as long as a name may be: 512, or 64 under
+        /// Miri, where each call is slow. Every bound below is per name.
+        const NAMES: usize = if cfg!(miri) { 64 } else { 512 };
         const TOTAL: usize = NAMES * super::NAME_CAP;
 
         let names: Vec<String> = (0..NAMES)

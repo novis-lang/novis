@@ -541,15 +541,17 @@ mod tests {
     /// about one code in ten, so a member formatting the integer looks right
     /// nine draws out of ten and loses a digit on the tenth. The count of
     /// leading zeros is what makes the sweep an assertion about the rendering
-    /// rather than about the width.
+    /// rather than about the width. Under Miri the sweep is a tenth as many
+    /// steps, which still expects about twelve codes with a leading zero.
     #[test]
     fn every_code_is_six_ascii_digits_and_keeps_its_leading_zeros() {
         let secrets: [&[u8]; 3] = [b"12345678901234567890", b"0123456789abcdef", &[0xff; 20]];
+        let steps: i64 = if cfg!(miri) { 40 } else { 400 };
 
         let mut counted = 0_u32;
         let mut zeros = 0_u32;
         for secret in secrets {
-            for step in 0..400_i64 {
+            for step in 0..steps {
                 let code = code_at(secret, step);
                 let code = String::from_utf8_lossy(&code);
                 assert_eq!(
@@ -567,11 +569,12 @@ mod tests {
         }
 
         assert_eq!(
-            counted, 1_200,
-            "the sweep is three secrets by four hundred steps"
+            i64::from(counted),
+            3 * steps,
+            "the sweep is three secrets by {steps} steps"
         );
         assert!(
-            zeros > 60,
+            i64::from(zeros) > 3 * steps / 20,
             "a sweep of {counted} codes carries its leading zeros, and this one has {zeros}"
         );
     }
