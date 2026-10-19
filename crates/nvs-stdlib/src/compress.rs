@@ -1954,7 +1954,7 @@ mod tests {
     // covers: Core\Compress\Compressor::add
     #[test]
     fn a_chunk_is_retained_once_per_add_and_released_when_the_stream_closes() {
-        const FED: usize = 1_000;
+        const FED: usize = if cfg!(miri) { 100 } else { 1_000 };
         let mut ctx = Ctx::buffered();
         // [`CODEC`]'s first case, read from the roster rather than named twice,
         // as the ordinal a compiled call site passes.

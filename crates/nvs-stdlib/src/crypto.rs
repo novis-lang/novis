@@ -5113,16 +5113,27 @@ mod tests {
     /// which are a document's literals says what the exchange *is*. The X25519
     /// half of the test above is RFC 7748 § 6.1 for the same reason.
     ///
-    /// Each peer's point is multiplied up from the document's other scalar
-    /// rather than copied out of its coordinate pair, because the point a scalar
-    /// reaches is the point the exchange uses and a copied coordinate is a
-    /// second literal that can be wrong on its own. Both directions are
-    /// asserted, for the reason the test above gives.
+    /// Each peer's point is multiplied up from the document's other scalar and
+    /// asserted equal to the coordinate pair the document publishes, because the
+    /// point a scalar reaches is the point the exchange uses and a copied
+    /// coordinate is a second literal that can be wrong on its own. Both
+    /// directions are asserted, for the reason the test above gives.
+    ///
+    /// Under Miri each multiplication takes about a minute and a half, so there
+    /// the test runs one: the initiator's scalar against the responder's
+    /// published point, which the native run has proved is the multiplied one.
     #[test]
     fn the_p256_agreement_matches_rfc_5903_from_either_end() {
         let initiator = hex("c88f01f510d9ac3f70a292daa2316de544e9aab8afe84049c62a9c57862d1433");
         let responder = hex("c6ef9c5d78ae012a011164acb397ce2088685d8f06bf9be0b283ab46476bee53");
         let published = hex("d6840f6b42f6edafd13116e0e12565202fef8e9ece7dce03812464d04b9442de");
+        // RFC 5903 § 8.1's `gxr` and `gyr`, as an uncompressed SEC1 point.
+        let responder_point = read_p256_point(&hex(concat!(
+            "04",
+            "d12dfb5289c8d4f81208b70270398c342296970a0bccb74c736fc7554494bf63",
+            "56fbf3ca366cc23e8157854c13c58d6aac23f046ada30f8353e74f33039872ab",
+        )))
+        .expect("the document's coordinates are a point of the curve");
         let point = |scalar: &[u8]| {
             P256SecretKey::from_slice(scalar)
                 .expect("the document's key is a scalar of the curve it publishes")
@@ -5130,17 +5141,20 @@ mod tests {
         };
 
         assert_eq!(
-            agree_p256(&initiator, &point(&responder))
+            agree_p256(&initiator, &responder_point)
                 .expect("the document's two keys are two ends of one agreement")
                 .as_slice(),
             published,
             "RFC 5903 § 8.1, the initiator's scalar against the responder's point"
         );
-        // Under Miri each multiplication takes about a minute and a half, so
-        // there the test checks one direction.
         if cfg!(miri) {
             return;
         }
+        assert_eq!(
+            point(&responder),
+            responder_point,
+            "RFC 5903 § 8.1, the responder's scalar reaches the point it publishes"
+        );
         assert_eq!(
             agree_p256(&responder, &point(&initiator))
                 .expect("the document's two keys are two ends of one agreement")

@@ -188,7 +188,7 @@ use std::sync::mpsc;
 use std::thread;
 
 pub use case::{Case, Expectation, ParseError, Subcommand};
-pub use run::{Options, Outcome, record_name, recording};
+pub use run::{Options, Outcome, SharedWorker, record_name, recording};
 
 /// The extension a case file carries.
 pub const EXTENSION: &str = "nvst";
