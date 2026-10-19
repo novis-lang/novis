@@ -665,7 +665,9 @@ mod tests {
     /// The `.nvst` cases can only pin the few variables they set themselves,
     /// because the rest belong to the machine. This side asks about the whole
     /// environment the test binary runs in, so a member that dropped, reordered
-    /// or rewrote an entry nobody named still fails here.
+    /// or rewrote an entry nobody named still fails here. Under Miri only the
+    /// first sixteen values are read back from the platform, because each
+    /// lookup is slow there; every name is still checked.
     // covers: Core\Env::all
     #[test]
     fn all_is_the_whole_text_environment_in_name_order() {
@@ -680,15 +682,18 @@ mod tests {
                 pair[1].0
             );
         }
-        for (name, value) in &reported {
+        let checked = if cfg!(miri) { 16 } else { reported.len() };
+        for (name, value) in reported.iter().take(checked) {
             let platform = nvs_runtime::environment::var(name)
                 .unwrap_or_else(|| panic!("`all` reported {name:?}, which the platform does not"));
             assert_eq!(platform.to_str(), Some(value.as_str()), "{name:?}");
         }
+        let names: std::collections::BTreeSet<&str> =
+            reported.iter().map(|(name, _)| name.as_str()).collect();
         for (name, value) in nvs_runtime::environment::vars() {
             if let (Some(name), Some(_)) = (name.to_str(), value.to_str()) {
                 assert!(
-                    reported.iter().any(|(reported, _)| reported == name),
+                    names.contains(name),
                     "`all` left out {name:?}, whose name and value are both text"
                 );
             }
