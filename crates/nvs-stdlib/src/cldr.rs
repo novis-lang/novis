@@ -3678,10 +3678,13 @@ mod tests {
 
         // Counted rather than read off a line: a table that answered `Other`
         // everywhere would still satisfy any single assertion about English.
+        // Under Miri the walk stops at 11, the first count Arabic calls `many`,
+        // because every row pays for each count it is asked about.
+        let last: u128 = if cfg!(miri) { 11 } else { 120 };
         let reached: std::collections::BTreeSet<Category> = RULES
             .iter()
             .flat_map(|(_, rules)| {
-                (0..=120u128).map(move |i| rules.select(Operands { i, v: 0, f: 0 }))
+                (0..=last).map(move |i| rules.select(Operands { i, v: 0, f: 0 }))
             })
             .collect();
         assert_eq!(
