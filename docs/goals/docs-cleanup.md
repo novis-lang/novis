@@ -351,6 +351,11 @@ repeats none of their text.
 
 **Does:** no chapter section is hand-written, and `nvs agent` prints the same text the website does.
 
+- [x] Each chapter's front matter and feature order have a source, `docs/examples/lang/<chapter>/chapter.md`, and the roster reads its ids from it, with no id changed. `tools/nv/proofs/chapters.ts:1`
+  - [x] the format and its parser, with cases in `tools/nv/test/chapters.test.ts`
+  - [x] the eleven sources, seeded from the chapters' front matter, headings and markers
+  - [x] `langFeatures` in `roster.ts` builds the entries from the sources and stops on a chapter that disagrees
+  - [x] the examples README and the reference README name the file
 - [ ] A renderer writes each chapter from its features' `about.md` and `details.md` in roster order, and a `--check` refuses a hand edit. `tools/nv/proofs/roster.ts:28`
 - [ ] `nvs agent primer` and `show`, and `/llms-full.txt`, read the generated chapters, and their tests pass unchanged in shape. `crates/nvs-cli/src/agent.rs:187`
 
@@ -470,20 +475,37 @@ edit.
 `bun nv site --build` failed once right after a `git rm` of snippet folders and passed when run
 again with no change.
 
-The sweep's red jobs are run 39185807455, which ran on `main` at f8ad800d3 (checked with `gh run
-view`), not this branch.
+The sweep's red jobs are run 39185807455 again, which ran on `main` at f8ad800d3 (checked with `gh
+run view`; this branch does not contain that commit). The `proofs` jobs fail on `main`'s own new
+`Core\Test\Summary` members, which have no `about.md` or examples. This branch cannot fix them.
+
+Stage 8's first slice is done: the design. Each chapter's source is
+`docs/examples/lang/<chapter>/chapter.md`, beside its features (`tools/nv/proofs/chapters.ts`, the
+format in its header and in `docs/examples/README.md` § *A chapter's features*). It has `order`,
+`title`, `summary` and `keywords`, one `# ` line per feature, and the two markers. The directory is the
+chapter's id, and the output is `docs/reference/lang/<order>-<id>.md`. No chapter has a preamble, so
+the format allows none: a sentence there is a problem. `<!-- generated: X -->` sits after the feature
+whose text it follows, and `<!-- primer -->` above the one feature it marks (`a-complete-program-annotated`).
+`langFeatures` (`roster.ts`) builds the `lang` entries from the sources and throws `RosterError` when
+a chapter's headings are not its source's. An entry's anchor and help still come from the chapter
+section, on purpose: `implFile` keys the perf ledger and `card` in `site.ts:301` hashes the section
+into the site lock, so moving the anchor would make every `lang` bench and every syntax page stale in
+this slice. Until the renderer lands, the front matter is in both the source and the chapter.
 
 ### Next
 
-Stage 7 is done. Stage 8 generates the chapters under `docs/reference/lang/`. Design it first, in
-one slice, because the roster reads its feature ids from those same chapters: `chapterFeatures`
-(`tools/nv/proofs/roster.ts:340`) parses each `# ` heading, and an entry's `implemented at` is a
-chapter line. A generated chapter needs another source for its front matter (`id`, `title`,
-`summary`, `keywords`), its preamble, and each feature's heading and order. One small file per
-chapter, beside the chapters or under `data/`, is the likely shape. The heading text must stay
-exactly as it is, since each roster id is its slug.
-- [ ] Choose the source of each chapter's front matter, preamble and feature order, and make the roster read it, with no id changed. `tools/nv/proofs/roster.ts:340`
-- [ ] A renderer writes each chapter from that source and its features' `about.md` and `details.md`, and `--check` fails on a hand edit. `bun nv reference`'s run of every chapter code block then needs the examples instead. `tools/nv/cmd/reference.ts:15`
+Stage 8's renderer, in the slices below. Two choices to make first, each with its safe default:
+- **The generated section's shape.** `about.md`, then `details.md`, then each example as an `nvs`
+  fence with its `.out` as an `output` fence, so `chapterFeatures`' code check and `bun nv reference`
+  keep working unchanged. A `compile-error` example becomes an `nvs error` fence, an `exit N` one
+  `nvs exit=N`, a `test` one `nvs test`. A sibling file or `nvs.toml` an example reads becomes a
+  `file=` fence before it. The old `##` subsections and their prose go: every fact is in a feature's text.
+- **What a generated chapter makes stale.** Every `lang` section changes, so every `lang` bench goes
+  stale through `implFile`, and every syntax page through `card`. Recommended: make `card` return ""
+  for a `lang` entry, because `featureHash` already hashes the files the section is made from, and
+  pay `--record-perf` once per chapter group after the render.
+- [ ] A renderer writes each chapter from its source and its features' `about.md`, `details.md` and examples, and `--check` fails on a hand edit; the source's front matter then leaves the chapter's hand. `tools/nv/proofs/chapters.ts:1`, `tools/nv/cmd/reference.ts:15`
+- [ ] `bun nv reference` runs the generated chapters, and `nvs agent primer`'s tests pass with `a-complete-program-annotated` as the generated section. `crates/nvs-cli/src/agent.rs:176`
 - [ ] `nvs agent` embeds the generated chapters (`include_str!`), and its tests pass unchanged in shape. `crates/nvs-cli/src/agent.rs:188`
 - [ ] A chapter edited in stage 8 owes `bun nv proofs --record-perf --group lang:<chapter>` after its last edit, and a bench that calls a `Core` method declares that call in `calls`. `tools/nv/proofs/roster.ts:28`
 
