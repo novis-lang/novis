@@ -332,7 +332,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.proofs == 'true'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    # A cold proof build on Windows takes about half an hour, and the whole roster's run comes after
+    # it. A job that hits this limit saves no cache, so the next run starts cold again.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
