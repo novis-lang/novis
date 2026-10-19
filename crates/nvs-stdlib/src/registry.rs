@@ -2589,8 +2589,10 @@ pub fn signature_classes(name: &str) -> Vec<&'static str> {
 /// neither is a [`CoreClass`] row, since a program calls no member on them.
 pub const DERIVE_INTERFACES: &[&str] = &[r"Core\Json\Codec", r"Core\Db\Codec"];
 
-/// Every `Core` name a class may write in an `extends`/`implements` clause:
-/// the classes above, [`DERIVE_INTERFACES`] and [`CONTRACTS`].
+/// Every `Core` name an `extends`/`implements` clause resolves: the classes
+/// above, [`DERIVE_INTERFACES`] and [`CONTRACTS`]. A clause may name only the
+/// last two, because every class is also in [`sealed_classes`], and the link
+/// pass refuses those first.
 ///
 /// This is what a front end hands `nvs_hir::CoreRoster::Names`, which is the
 /// only authority on the question — `Core` is compiler-owned, so no source
@@ -2607,6 +2609,20 @@ pub fn link_targets() -> Vec<&'static str> {
         .chain(DERIVE_INTERFACES.iter().copied())
         .chain(CONTRACTS.iter().map(|contract| contract.name))
         .collect()
+}
+
+/// Every `Core` class, which no `extends` or `implements` clause may name
+/// (`rule:core-api/core-classes-are-sealed`).
+///
+/// A front end hands it to `nvs_hir::CoreRoster::Names` as `sealed`. The names
+/// stay in [`link_targets`] too, so a fix for an undeclared `Request` can
+/// still offer `use Core\Request;`. A [`CoreInterface`], a
+/// [`DERIVE_INTERFACES`] entry and a [`CoreContract`] are not classes and are
+/// not here: the first is refused as closed, and the other two are what a
+/// program's class implements.
+#[must_use]
+pub fn sealed_classes() -> Vec<&'static str> {
+    CLASSES.iter().map(|class| class.name).collect()
 }
 
 /// Every `Core` type a program may name where a class, an interface or an
@@ -5913,6 +5929,26 @@ mod tests {
                     check(param, &what);
                 }
             }
+        }
+    }
+
+    /// `rule:core-api/core-classes-are-sealed`: every class is sealed, and no
+    /// interface a program's class implements is, so the link pass refuses
+    /// the first and resolves the second.
+    #[test]
+    fn the_sealed_classes_are_the_classes_and_no_implementable_interface() {
+        let sealed = sealed_classes();
+        assert_eq!(sealed.len(), CLASSES.len());
+        let implementable = DERIVE_INTERFACES
+            .iter()
+            .copied()
+            .chain(CONTRACTS.iter().map(|contract| contract.name));
+        for name in implementable {
+            assert!(
+                !sealed.contains(&name),
+                "{name} is implementable and sealed"
+            );
+            assert!(link_targets().contains(&name), "{name} does not resolve");
         }
     }
 

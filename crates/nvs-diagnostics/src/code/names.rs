@@ -236,4 +236,16 @@ codes! {
          implement it. You can still use it as a type for a parameter or a variable, and test \
          a value with `is`.",
     );
+    /// An `extends`/`implements` clause naming a `Core` class: a registry
+    /// class such as `Core\Test\Response`, or one of the exception classes
+    /// under `Core` such as `Core\Db\DbError`
+    /// (`rule:core-api/core-classes-are-sealed`). A `Core` member reads its
+    /// receiver's slots by index, so a program's subclass would hand it slots
+    /// it never wrote.
+    pub const E_CORE_CLASS_NOT_EXTENDABLE: Code = Code::new("E0329").card(
+        "Your class cannot extend a `Core` class, and cannot implement one. To add methods, \
+         write your own class and give it a property that contains the `Core` value. Your own \
+         error classes extend `RuntimeError`, `LogicError` or another error class that is not \
+         under `Core`.",
+    );
 }

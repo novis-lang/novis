@@ -685,6 +685,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
     check_declarations(&stmts, map.file(entry), &mut diags);
     let core = nvs_stdlib::registry::link_targets();
     let closed = nvs_stdlib::registry::closed_interfaces();
+    let sealed = nvs_stdlib::registry::sealed_classes();
     let imports = nvs_types::core_lib::importable();
     // The one place this walk is not `nvs check`'s, which is always handed the
     // file a program starts from. A file some program autoloads or requires
@@ -700,6 +701,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         nvs_hir::CoreRoster::Names {
             links: &core,
             closed: &closed,
+            sealed: &sealed,
             imports: &imports,
         },
         &mut diags,

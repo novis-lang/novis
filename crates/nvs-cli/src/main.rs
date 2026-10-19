@@ -926,10 +926,12 @@ fn front_end_in(
 
     let core = nvs_stdlib::registry::link_targets();
     let closed = nvs_stdlib::registry::closed_interfaces();
+    let sealed = nvs_stdlib::registry::sealed_classes();
     let imports = nvs_types::core_lib::importable();
     let roster = nvs_hir::CoreRoster::Names {
         links: &core,
         closed: &closed,
+        sealed: &sealed,
         imports: &imports,
     };
     let plain = nvs_hir::lenders::is_plain(map.file(id).text());
