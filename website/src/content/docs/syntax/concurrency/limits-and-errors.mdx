@@ -3,32 +3,14 @@ title: Limits, deadlines and errors in tasks
 covers: ['lang:concurrency/limit-and-deadline', 'lang:concurrency/a-child-s-throw']
 description: How to limit how many tasks run at once, give a group of tasks a deadline, and catch an error one task throws.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 `Core\Task::all` and `Core\Task::map` take an options object as the last argument. It has two
 optional fields, `limit` and `deadline`.
 
-<Snippet src="syntax/task-limits/01-limit-and-deadline.nvs" />
+<FeatureSection examples="lang/concurrency/limit-and-deadline" heading="limit and deadline" id="limit-and-deadline" />
 
-- `limit` is how many tasks may run at once. The other tasks wait in a queue. Without `limit`,
-  every task starts at once.
-- `limit: 0` throws `LogicError`.
-- `deadline` is a duration for the whole call, not for each task.
-- When the deadline is reached, every task that still runs is stopped. Then the call throws
-  `TimeoutError`.
-- A stopped task runs no more of its own code. Its `catch` blocks do not run.
-
-## When a task throws
-
-When one task throws an error, Novis stops the other tasks. Then the call throws the same error.
-
-<Snippet src="syntax/task-limits/02-a-task-throws.nvs" />
-
-- The error you catch is the one the task threw. It has the same class and message.
-- When your `catch` runs, no task of the group is still running.
-- Only the first error is thrown. The other tasks are stopped where they wait.
-- A task that throws before it waits is not stopped in time. Its error is printed on standard
-  error, and your program goes on.
+<FeatureSection examples="lang/concurrency/a-child-s-throw" heading="When a task throws" id="when-a-task-throws" />
 
 ## Do and don't
 

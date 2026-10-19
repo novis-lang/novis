@@ -1,8 +1,0 @@
-<?nvs
-// This is the file counter.nvs. It reads a static property and then changes it.
-final class Ledger {
-    public static int $entries = 0;
-}
-
-echo "child reads ", Ledger::$entries, "\n";
-Ledger::$entries = 99;

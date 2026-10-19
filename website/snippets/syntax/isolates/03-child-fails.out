@@ -1,5 +1,0 @@
-ok=false
-class=RuntimeError
-message=the count is below 0
-output=checking -1
-parent still running
