@@ -1065,9 +1065,29 @@ encode a duplicate key (`data/gaps/nvs-types/two-json-derive-fields-with-the.jso
 decodes into a class as an object, so a field named `"0"` is filled from `["paris"]`
 (`data/gaps/nvs-stdlib/a-json-array-decodes-into-a.json`). `llms-full.txt` is rendered again.
 
+`core-route-and-core-access-the-route-table` is done, each fact run on the binary. One claim was out
+of date: the chapter said the entry file dispatches with one `switch` and sets every `404` and `405`
+itself, and never named `Core\Router::dispatch`, which `about.md` and the syntax page describe. The
+chapter now names both ways (`90-attributes.md:329`). Its `details.md` has `E0750` (a path without
+`/`, a `{x?}` or `{x...}` not last), `E0747`, `E0401` for `method:`, a nameless route matching with
+`name()` `null`, `E0748` across classes and for captures that differ only in name, `E0749` and the
+shared name on one path, `E0751`, `E0752` (`float`, `{x...}`, a `?string` query), `E0753`, `E0765`,
+`E0762`, `E0788`, `E0763`, `E0760`, `E0761`, `E0764` (`Get` is allowed), how each capture type
+matches (`+4` and `04` for an `int`, an enum by case name or by its written values), a `Parses`
+class's throw coming out of `Core\Router::match`, `param()`'s union type, `access()`, `E0754`,
+`E0755`, `E0759`, `E0772`, the two run-time `RuntimeError`s, the encoding, and `null` for a `{x?}`
+giving `/u/`. Examples 04 to 06 are the chapter's `autoload` and `urlAbsolute` block (with
+`routes/Users.nvs`), its `match` and `switch` block, and its `E0762` block. Probing found two gaps,
+owned by `release-hardening`. **A `bool` capture is never converted**: it matches any segment, and
+`param()` gives the text (`data/gaps/nvs-runtime/a-bool-route-capture-is-never.json`); the chapter,
+`details.md` and the syntax page still list `bool` as the rule admits it. A `Core\Router::url` value
+of the wrong type, such as `"x"` for a `uint`, compiles and builds a link the route does not match
+(`data/gaps/nvs-types/a-link-value-of-the-wrong.json`). `llms-full.txt` is rendered again. The
+sweep's red jobs are still run 39173391347 on `main` at be3e8a605, not this branch.
+
 ### Next
 
-`90-attributes` goes on from the route table (`90-attributes.md:286`), one of its long features per session;
+`90-attributes` goes on from the OpenAPI document (`90-attributes.md:492`), one of its long features per session;
 take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -1086,7 +1106,7 @@ A probe with a limit or a grant runs with `nvs run --config <file>.toml`, which 
 `nvs.toml`; an example needs its own `[[app]]` entry in the root `nvs.toml` instead (`nvs.toml:497`).
 A spawning probe has an `nvs.toml` with `[capabilities.script] spawn = true` beside it, and a probe
 runner gives each run a timeout, since a channel or a task with nothing to wait for never ends.
-- [ ] `90-attributes` from the route table (`#[Core\Route]` and `#[Core\Access]`, about 200 lines with `#[Core\Query]` and `Core\Router::url`), then the OpenAPI document, the command table and the two `Core\Program` features; the route, API and command sections are long and may each take a session. A route probe that reads `urlAbsolute` needs an `nvs.toml` with `origin`. Then `bun nv proofs --record-perf --group lang:attributes`, since the chapter changed. `docs/reference/lang/90-attributes.md:286`
+- [ ] `90-attributes` from the OpenAPI document (`#[Core\Api]`, `nvs build --openapi`), then the command table and the two `Core\Program` features; the API and command sections are long and may each take a session. A probe runner (a JSON map of name to body, each run with a timeout) does a batch of twenty in one call. Then `bun nv proofs --record-perf --group lang:attributes`, since the chapter changed. `docs/reference/lang/90-attributes.md:492`
 - [ ] `95-testing`, which closes stage 6. `docs/reference/lang/95-testing.md:8`
 - [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 

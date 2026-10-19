@@ -1,0 +1,9 @@
+<?nvs
+// Shows that every route needs `#[Core\Access]`. This route has none, so the
+// program does not compile.
+// proof: compile-error
+
+class Users {
+    #[Core\Route(path: "/users", method: Core\Http\Method::Get, name: "Users::index")]
+    public function index(): string { return "users"; }
+}
