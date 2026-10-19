@@ -3,7 +3,7 @@
 
 # Tooling
 
-*13 of 70 rules below are **designed** rather than shipped, and are marked where they appear.*
+*13 of 69 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -148,8 +148,7 @@ install; that argument parsing, help, completions, colour, prompts and progress 
 that any function may suspend, so there is no `async` split through the library; that shelling out
 through a string ([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)), leaking a secret
 ([`security/secret-qualifier`](security.md#security-secret-qualifier)) and interpolating a query ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)) are
-compile errors; and any **measured** figure from the userland suite
-([`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data)), quoted with its engine, mode and host.
+compile errors; and any **measured** figure, quoted with its engine, mode and host.
 
 **Forbidden in any document, error message, `--help` text or landing page:** "faster than Python",
 "replaces Python", "Python without the GIL", "a typed Python", or any phrasing implying a Python
@@ -173,7 +172,7 @@ to point at.
   compete there spends the one durable difference, that being wrong does not compile, on a market it
   cannot win ([`tooling/no-repl`](tooling.md#tooling-no-repl)).
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler).</sub>
 
 <a id="tooling-echo-always-has-a-sink"></a>
 
@@ -1930,51 +1929,6 @@ nothing outlives the call. No limit and no setting is added.
   this command answers what the editor answers.
 
 <sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program).</sub>
-
-<a id="tooling-bench-engine-list-is-data"></a>
-
-## The benchmark engine list is data, `total` is the CLI headline, and a missing engine never turns a build red
-
-`rule:tooling/bench-engine-list-is-data`
-
-`benches/userland/` carries a twin per engine beside each case — `.nvs`, `.php`, `.py`, and `.ts`
-for Bun — and `bun nv bench` runs whichever engines a case has twins for
-([`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks)). **The engine list is data, not a count.** `evaluate`, the
-`00-baseline` subtraction, the table, `explain` and the NDJSON record all iterate the list, and
-`--engines nvs,php` narrows it; adding an engine is one `Engine` entry plus a suffix. Bun is kept
-because it is the strongest engine in the suite: measuring only engines Novis beats is how a
-benchmark suite stops being evidence.
-
-**`total` is the headline for a CLI claim and `work` for a language claim**, and the suite refuses to
-pick one. `total` on `00-baseline` is the cold-start figure; quoting either without saying which is
-the misuse [`tooling/python-claims`](tooling.md#tooling-python-claims) forbids.
-
-**Byte-identical output is still the gate:** a case whose twins disagree reports `DIFF` and no time.
-The fairness rule — each case in its own language's idiom, never transliterated — gains exactly one
-exception, of one kind: **arithmetic that must agree.** Python floors `%` where the other three
-truncate, so two cases spell the truncated remainder out; a TypeScript `number` is a float64, so the
-cases whose seeded LCG passes 2^53 run that one line in `BigInt`. Each is confined to the cases that
-need it and carries a comment saying why.
-
-**Neither Python nor Bun is a toolchain dependency.** A missing twin skips that engine with a warning
-and an uninstalled engine is narrowed away with `--engines`, so neither can turn a build, a test or a
-loop session red — nothing outside this suite reads any of it. The cost is that a default run is
-slower, because CPython is far behind the other engines on these loops and pays that on every rep;
-`--engines nvs,php` and the case patterns are the escape. Every twin is one more file to keep in
-step, and the byte-identical gate is what stops one rotting silently.
-
-**Declined:**
-- **A Python column transliterated from the PHP cases.** A transliteration measures how badly one
-  language writes another's idiom, and the arithmetic exception is stated as one so it is not read
-  as licence for more.
-- **PyPy as well as CPython, or instead of it.** CPython is what a tool is actually run under, and a
-  second Python engine doubles the twins to sharpen a comparison the command-line audience never
-  meets. `--engines` makes adding one later a flag.
-- **Leaving Bun out because the command-line audience is not switching from it.** Bun is the
-  closest engine to what Novis is trying to be, a fast JIT behind a scripting surface with the
-  batteries in the binary, so its numbers are the ones that test this project's own claims.
-
-<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims).</sub>
 
 <a id="tooling-telemetry-is-two-opt-ins"></a>
 

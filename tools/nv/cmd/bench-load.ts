@@ -12,22 +12,19 @@
 // request carries, the two modes, and what a run does not measure. This file owns only how a run is
 // carried out on whatever machine it is sitting on.
 //
-// # What this leg is, and why it is a third one
+// # What this leg is, and why it is a second one
 //
-// The three serve legs answer three different questions and no arithmetic crosses between them:
+// The two serve legs answer two different questions and no arithmetic crosses between them:
 //
-// * `bun nv bench --serve-vs-fpm` compares against PHP on this box with no proxy. It is goal `server`'s
-//   acceptance check, it must keep working where there is no Docker and no `wrk`, and its generator is
-//   written into that command so it needs nothing built.
-// * `bun nv bench-proxied` puts nginx in front of both peers in containers, which is the only
+// * `bun nv bench-proxied` puts nginx in front of `nvs serve` and PHP in containers, which is the only
 //   deployment either has.
 // * **This one has no peer at all.** It asks what this machine's server saturates at, and -- the part
-//   neither other leg can answer -- whether every response was the answer to the request that asked for
+//   the other leg cannot answer -- whether every response was the answer to the request that asked for
 //   it. Both of those need a generator faster than the server, which is why this leg is the one with
 //   something to build.
 //
-// **A throughput figure over one constant response is not evidence of a correct server.** Both other legs
-// drive `hello.nvs`, whose every answer is byte-identical, so a response delivered to the wrong connection
+// **A throughput figure over one constant response is not evidence of a correct server.** The proxied leg
+// drives `hello.nvs`, whose every answer is byte-identical, so a response delivered to the wrong connection
 // is indistinguishable from the right one and no generator can see it. This leg drives
 // `benches/serve/echo.nvs`, whose body is the token the request carried, and the probe rejects an answer
 // that names a different request. `nvs-serve-probe`'s own `a_constant_body_fails_every_request` is what

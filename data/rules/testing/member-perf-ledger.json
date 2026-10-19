@@ -3,8 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "testing/feature-proofs",
-    "testing/perf-two-mechanisms",
-    "testing/userland-benchmarks"
+    "testing/perf-two-mechanisms"
   ],
   "guardedBy": [
     "data/perf/members.ndjson",

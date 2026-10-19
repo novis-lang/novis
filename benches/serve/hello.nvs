@@ -2,8 +2,8 @@
 // The server case: what one request costs before any application work does.
 //
 // Deliberately the smallest program that still produces a body, because what
-// `--serve-vs-fpm` measures is the *server* -- accept, parse, isolate, dispatch,
-// write -- and every line of userland here is a line the userland suite in
-// `benches/userland/` already measures better. Its `.php` twin must print the
-// same bytes: `bench.py` refuses to time two servers that disagree.
+// `bun nv bench-proxied` measures is the *server* -- accept, parse, isolate,
+// dispatch, write -- and every line of application code here is a line the
+// member benches under `benches/members/` already measure better. Its `.php`
+// twin must print the same bytes.
 echo "hello, world\n";

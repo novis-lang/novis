@@ -3452,12 +3452,12 @@ impl Emitter<'_, '_> {
     /// call [`Self::runtime_ref`] returns.
     ///
     /// **It costs one instruction per call and nothing else.** Measured with
-    /// callgrind over `benches/userland` (`rule:testing/perf-two-mechanisms`'s currency): naive
-    /// `fib`, the most call-bound case in the suite and so the worst one,
+    /// callgrind (`rule:testing/perf-two-mechanisms`'s currency): a naive
+    /// recursive `fib`, the most call-bound program and so the worst one,
     /// gains almost exactly one retired instruction per call it makes.
-    /// Everything not call-bound is inside the noise floor — json-encode,
-    /// array-map-filter and method-dispatch alike, that last because an
-    /// instance method already dispatches
+    /// Programs that are not call-bound stay inside the noise floor — JSON
+    /// encoding, array map and filter, and method dispatch alike, that last
+    /// because an instance method already dispatches
     /// through `call_indirect` and never took this path. `rule:programs/memory-priority`'s ordering
     /// spends latency to rule out a crash, which is the direction it allows and
     /// not the reverse.

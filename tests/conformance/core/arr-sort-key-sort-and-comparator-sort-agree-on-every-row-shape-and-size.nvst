@@ -10,8 +10,8 @@
 // included, which is what `preserveKeys` exposes — across the sizes and shapes
 // that send the key sort down each of its routes, by counting.
 class Gen {
-    // The seeded generator the userland benches use, so every shape is the
-    // same list on every run.
+    // A seeded linear congruential generator, so every shape is the same list
+    // on every run.
     public static function next(int $seed): int {
         return ($seed * 1103515245 + 12345) % 2147483648;
     }

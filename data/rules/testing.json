@@ -73,7 +73,6 @@
     "testing/bench-counters",
     "testing/perf-two-mechanisms",
     "testing/member-perf-ledger",
-    "testing/userland-benchmarks",
     "testing/valgrind-on-wsl",
     "testing/ci-lanes",
     "testing/lane-table",

@@ -1,25 +1,11 @@
-// `bun nv bench`: the userland benchmark suite, the CLI's warm-start figure, and `nvs serve` against PHP.
+// `bun nv bench`: the CLI's warm-start figure, what a second `nvs run` of the empty program costs.
 //
-//     bun nv bench                        every case, every engine, 5 timed reps each
-//     bun nv bench 05 regex               only cases whose name contains "05" or "regex"
-//     bun nv bench --reps 9               more reps when a number looks noisy
-//     bun nv bench --check                correctness only: do the engines agree? (no timing)
-//     bun nv bench --engines nvs,php      narrow the roster; the default is all four
-//     bun nv bench --php-mode default     PHP as installed, instead of with opcache+JIT
-//     bun nv bench --json data/perf/userland.ndjson   append one record per case
-//     bun nv bench --warm-start --max-work-ms 6       the CLI's own start cost, soft and hard bounds
-//     bun nv bench --serve-vs-fpm --record PATH       requests/sec against PHP, appended to PATH
+//     bun nv bench --warm-start                    the figure, over 25 timed reps
+//     bun nv bench --warm-start --reps 49          more reps when the figure looks noisy
+//     bun nv bench --warm-start --max-work-ms 9    with a soft bound, and ten times it as the hard one
 //
-// The cases live in `benches/userland/` as twins -- `NN-slug.nvs`, `.php`, `.py` and `.ts` -- and that
-// directory's README owns what a case is and how to add one. This command owns only how they are measured.
-//
-// # The engine roster
-//
-// `ENGINES` is a list, not a pair, because `rule:tooling/bench-engine-list-is-data` says the comparison
-// is data: the baseline subtraction, the table and the JSON record all iterate it, so another engine is
-// an entry and a file suffix. A case is defined by its `.nvs` file. Every other engine attaches if its
-// twin is on disk and is skipped with a warning if it is not, because a missing twin must never look
-// like agreement. An engine whose executable is not installed fails every case it is asked to run.
+// The figure is the command's only leg. `--warm-start` names it, so CI's command line says what it
+// measures, and a run without the flag measures the same figure.
 //
 // # What is measured
 //
@@ -27,30 +13,18 @@
 // noise on a desktop adds time and none subtracts it, so the minimum is the estimate of the work, and
 // the median is printed beside it so a busy machine shows as a gap between the two.
 //
-// `00-baseline` is a case like any other, and its time is also subtracted from every other case in the
-// `work` columns, because every engine pays a fixed cost to start a process and read a file. `total`
-// answers "what does this script cost at the command line" and `work` answers "how fast is the
-// language"; `rule:tooling/bench-engine-list-is-data` says which claim quotes which. A ratio column is
-// `<engine> / nvs` over `work`: above 1.0 means Novis is faster. It is a ratio of two figures taken on
-// one machine seconds apart, the only comparison a wall clock supports; `rule:testing/perf-two-mechanisms`
-// is why a history across machines is counted in instructions instead.
-//
-// Every engine's stdout must match byte for byte before any time is reported. A case that disagrees is
-// `DIFF` and prints each output: a benchmark that quietly stopped doing the same work is worse than none.
+// The program is the empty one, `WARM_START_PROGRAM`, written under `target/` on each run where it is
+// not already there byte for byte. The discarded warm-up is what makes the figure warm: the binary and
+// the script are in the page cache, and the artifact that run published is what every timed rep loads,
+// so the figure covers `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s read
+// path and not a compile. A cache directory that is refused makes every rep compile, which is the shape
+// a regression here takes.
 //
 // A binary under `target/debug/` is refused unless `--allow-debug` says the caller means it, since a
 // debug build measures its assertions. Nothing here builds, and a warning says so when the binary is
-// older than the newest file under `crates/`. PHP runs with opcache and the tracing JIT (`--php-mode
-// jit`) because the project's target is stated against PHP with JIT; the mode is in every record.
+// older than the newest file under `crates/`.
 //
 // # The warm-start figure
-//
-// `--warm-start` measures one engine and one script, the baseline case, so it runs with no PHP, Python
-// or Bun installed. The discarded warm-up is what makes it warm: the binary and the script are in the
-// page cache, and the artifact that run published is what every timed rep loads, so the figure covers
-// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s read path and not a
-// compile. A cache directory that is refused makes every rep compile, which is the shape a regression
-// here takes.
 //
 // `--max-work-ms` bounds the total LESS `nvs --version`. Most of a process's wall clock is the
 // operating system creating it, and a bound on the total bounds the machine. `--version` is the same
@@ -62,11 +36,11 @@
 // the soft one: a figure over it prints a warning, a GitHub Actions annotation and a step-summary line,
 // and fails nothing. A hosted Linux runner reads 5 to 8 ms of work across runs of commits with no
 // start-up change between them, so a single bound at 6 ms failed about every second run, and CI
-// passes 9. The hard
-// bound is `HARD_FACTOR` times the soft one, the rule's order of magnitude: a cache miss cannot be the
-// mark, because the empty program compiles in so little time that a warm run costs 85 to 93% of a cold
-// one. A figure past the hard bound is measured again, up to `HARD_ATTEMPTS` attempts, and only the
-// last is judged, so it fails on a start-up that changed in kind and not on a burst of load.
+// passes 9. The hard bound is `HARD_FACTOR` times the soft one, the rule's order of magnitude: a cache
+// miss cannot be the mark, because the empty program compiles in so little time that a warm run costs
+// 85 to 93% of a cold one. A figure past the hard bound is measured again, up to `HARD_ATTEMPTS`
+// attempts, and only the last is judged, so it fails on a start-up that changed in kind and not on a
+// burst of load.
 //
 // The soft bound is read only on a quiet box. Load on a machine dilates a process multiplicatively, so
 // the level of the start floor is the reading that tells a busy box from a quiet one: above
@@ -78,39 +52,14 @@
 // `WARM_START_REPS` because a minimum over a handful of samples is biased high, and that bias lands on
 // a difference of two small numbers.
 //
-// # The serve-versus-FPM leg
-//
-// `--serve-vs-fpm` is the server's throughput figure: requests/sec for `nvs serve` against PHP with opcache.
-// The generator is this file: a closed loop over keep-alive connections is a page of sockets, the same
-// on every platform, and it reports no tail. The baseline is `php-cgi -b`, which is the SAPI FPM runs,
-// speaking FastCGI the way nginx drives FPM, so PHP pays no HTTP parse and no proxy hop while `nvs serve`
-// pays both: the comparison favours PHP. `php -S` is the fallback, named as the weaker peer in the
-// record. With no PHP at all the leg measures `nvs serve` alone and records `baseline: null`, because a
-// runner with no PHP is not a regression in the tree.
-//
-// Concurrency defaults to 1 because neither peer serves two requests at once here: `php-cgi -b` is one
-// process, and `php -S` is serial. Above 1 the figure is Novis against a queue, and the value is in every
-// record. Connections open before the clock starts, and both bodies must match before either number is
-// reported. `--record PATH` appends the run, both peers and the caveats that applied, to a JSON array
-// (`writeServeRecord`). `nvs serve` reads `SHIPPED_CONFIG`, for the warm-start figure's reason: the
-// databases, the queue and the `[[app]]` blocks of this tree's own `nvs.toml` belong to its fixtures, and
-// an edit of any of them would otherwise select this leg.
-//
-// # Records
-//
-// A record's `host` names the machine the way Bun does, a float with no fraction is written `12`, and
-// the default `--python` is the `python` on `PATH`. An engine whose executable cannot start is a failed
-// case. A record file may also hold older runs taken by a Python client that spent more of each request
-// in the client, most visibly on the faster peer, so a requests/sec figure from this command does not
-// continue those runs' series.
-//
-// # What `bun nv bench-load` borrows
+// # What the other benches borrow
 //
 // The load leg (`tools/nv/cmd/bench-load.ts`) imports the binary lookup, the stale-build warning, the
 // free port, the server subprocess, the version probe and the record writer from here, and the proxied
 // leg (`tools/nv/cmd/bench-proxied.ts`) imports the FastCGI client and the closed-loop generator as
 // well. `bun nv scaling`'s `serve` ladders import the free port, the server subprocess with its peak
-// memory, the HTTP client and the generator. Each of them has one copy to keep correct.
+// memory, the HTTP client and the generator. Each of them has one copy to keep correct. A record's
+// `host` names the machine the way Bun does, and a float with no fraction is written `12`.
 
 import { createServer, connect, type AddressInfo, type Socket } from "node:net";
 import { cpus, machine, release } from "node:os";
@@ -121,44 +70,29 @@ import { ROOT } from "../lib/paths.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr, splitlines } from "../lib/py.ts";
 import { unrecorded } from "../lib/reads.ts";
 
-export const summary = "the userland benchmark suite: nv bench [PATTERN...] | --check | --warm-start | --serve-vs-fpm";
+export const summary = "the CLI's warm-start figure: nv bench --warm-start [--max-work-ms MS]";
 
 const USAGE = [
-  "usage: nv bench [-h] [--reps REPS] [--check] [--nvs NVS] [--php PHP]",
-  "                [--python PYTHON] [--bun BUN] [--engines ENGINES]",
-  "                [--php-mode {default,jit}] [--allow-debug] [--warm-start]",
-  "                [--max-work-ms MS] [--json PATH] [--serve-vs-fpm]",
-  "                [--record PATH] [--requests N] [--concurrency N]",
-  "                [--serve-baseline {auto,fcgi,builtin,none}]",
-  "                [patterns ...]",
+  "usage: nv bench [-h] [--warm-start] [--reps REPS] [--nvs NVS] [--allow-debug]",
+  "                [--max-work-ms MS]",
 ].join("\n");
 
 const WINDOWS = process.platform === "win32";
-const CASE_DIR = join(ROOT, "benches", "userland");
-const BASELINE = "00-baseline";
-/** The configuration `--warm-start` and `--serve-vs-fpm` measure against; the module doc says why it is named. */
+/** The configuration the figure is measured against; the module doc says why it is named. */
 const SHIPPED_CONFIG = join(ROOT, "crates", "nvs-config", "src", "default.toml");
-/** The engine every ratio is taken against, and the one that defines a case. */
-const PRIMARY = "nvs";
-/** `--warm-start` reads no soft bound above this start floor; the module doc says why. */
+/** Where the empty program is written; `target/` is build output, and never committed. */
+const WARM_START_SOURCE = join(ROOT, "target", "nv-bench", "warm-start.nvs");
+/** The empty program: what `nvs run` costs before any of a script's own code runs. */
+const WARM_START_PROGRAM = '<?nvs\necho "warm start\\n";\n';
+/** The figure reads no soft bound above this start floor; the module doc says why. */
 const QUIET_FLOOR_MS = 5.75;
-/** `--warm-start`'s hard bound is this many times `--max-work-ms`, its soft one. */
+/** The hard bound is this many times `--max-work-ms`, the soft one. */
 const HARD_FACTOR = 10;
-/** How many times `--warm-start` measures a figure past its hard bound before it fails. */
+/** How many times a figure past its hard bound is measured before it fails. */
 const HARD_ATTEMPTS = 3;
-const SUITE_REPS = 5;
 const WARM_START_REPS = 25;
-const SERVE_DIR = join(ROOT, "benches", "serve");
-/** The twin pair under `SERVE_DIR`. */
-const SERVE_CASE = "hello";
-/** Runs kept in `--record`'s artifact; `writeServeRecord` says why it is capped. */
+/** Runs kept in a record file; `writeServeRecord` says why it is capped. */
 const SERVE_HISTORY = 100;
-
-/** PHP's invocation modes. The name is in every record, so a history never mixes the two. */
-const PHP_MODES: Record<string, string[]> = {
-  jit: ["-d", "opcache.enable_cli=1", "-d", "opcache.jit_buffer_size=64M", "-d", "opcache.jit=tracing"],
-  default: [],
-};
 
 /** A message the command stops on, printed alone to stderr with exit status 1. */
 export class Fail extends Error {}
@@ -168,37 +102,16 @@ export class Fail extends Error {}
 // ---------------------------------------------------------------------------------------------------
 
 interface Options {
-  patterns: string[];
   reps: number | null;
-  check: boolean;
   nvs: string | null;
-  php: string;
-  python: string;
-  bun: string;
-  engines: string;
-  phpMode: string;
   allowDebug: boolean;
-  warmStart: boolean;
   maxWorkMs: number | null;
   maxMs: number | null;
-  json: string | null;
-  serveVsFpm: boolean;
-  record: string | null;
-  requests: number;
-  concurrency: number;
-  serveBaseline: string;
 }
 
-const FLAGS = ["--check", "--allow-debug", "--warm-start", "--serve-vs-fpm"];
-const VALUED = [
-  "--reps", "--nvs", "--php", "--python", "--bun", "--engines", "--php-mode", "--max-work-ms", "--max-ms",
-  "--json", "--record", "--requests", "--concurrency", "--serve-baseline",
-];
-const ORDER = [
-  "--reps", "--check", "--nvs", "--php", "--python", "--bun", "--engines", "--php-mode", "--allow-debug",
-  "--warm-start", "--max-work-ms", "--max-ms", "--json", "--serve-vs-fpm", "--record", "--requests",
-  "--concurrency", "--serve-baseline",
-];
+const FLAGS = ["--allow-debug", "--warm-start"];
+const VALUED = ["--reps", "--nvs", "--max-work-ms", "--max-ms"];
+const ORDER = ["--warm-start", "--reps", "--nvs", "--allow-debug", "--max-work-ms", "--max-ms"];
 
 /** Python's `float` over a command-line word, or null where it would raise. */
 function pyFloat(word: string): number | null {
@@ -210,9 +123,8 @@ function pyFloat(word: string): number | null {
 
 /** The options argparse would have read, or null when `--help` asked for the help instead. */
 function options(args: string[]): Options | null {
-  const p = parseArgs(args, { flags: FLAGS, valued: VALUED, order: ORDER, positionals: true });
+  const p = parseArgs(args, { flags: FLAGS, valued: VALUED, order: ORDER, positionals: false });
   if (p.flags.has("--help")) return null;
-  const text = (o: string, dflt: string) => p.values.get(o) ?? dflt;
   const typed = (o: string, kind: "int" | "float", convert: (w: string) => number | null): number | null => {
     const word = p.values.get(o);
     if (word === undefined) return null;
@@ -220,33 +132,12 @@ function options(args: string[]): Options | null {
     if (n === null) throw new ArgError(`argument ${o}: invalid ${kind} value: ${pyRepr(word)}`);
     return n;
   };
-  const choice = (o: string, dflt: string, choices: string[]): string => {
-    const word = p.values.get(o) ?? dflt;
-    if (!choices.includes(word)) {
-      throw new ArgError(`argument ${o}: invalid choice: ${pyRepr(word)} (choose from ${choices.map(pyRepr).join(", ")})`);
-    }
-    return word;
-  };
   return {
-    patterns: p.positionals,
     reps: typed("--reps", "int", pyInt),
-    check: p.flags.has("--check"),
     nvs: p.values.get("--nvs") ?? null,
-    php: text("--php", "php"),
-    python: text("--python", Bun.which("python") ?? "python"),
-    bun: text("--bun", "bun"),
-    engines: text("--engines", "nvs,php,python,bun"),
-    phpMode: choice("--php-mode", "jit", Object.keys(PHP_MODES).sort()),
     allowDebug: p.flags.has("--allow-debug"),
-    warmStart: p.flags.has("--warm-start"),
     maxWorkMs: typed("--max-work-ms", "float", pyFloat),
     maxMs: typed("--max-ms", "float", pyFloat),
-    json: p.values.get("--json") ?? null,
-    serveVsFpm: p.flags.has("--serve-vs-fpm"),
-    record: p.values.get("--record") ?? null,
-    requests: typed("--requests", "int", pyInt) ?? 1000,
-    concurrency: typed("--concurrency", "int", pyInt) ?? 1,
-    serveBaseline: choice("--serve-baseline", "auto", ["auto", "fcgi", "builtin", "none"]),
   };
 }
 
@@ -254,32 +145,16 @@ function help(): string {
   return [
     USAGE,
     "",
-    "Run the userland benchmark suite across Novis, PHP, Python and Bun side by side.",
-    "",
-    "positional arguments:",
-    "  patterns              substrings; only matching cases run",
+    "Measure how long `nvs run` takes to start an empty program when its compiled code is already cached.",
+    "The figure is the total time less the time of `nvs --version`.",
     "",
     "options:",
     "  -h, --help            show this help message and exit",
-    `  --reps REPS           timed reps per engine (default ${SUITE_REPS}, ${WARM_START_REPS} on --warm-start)`,
-    "  --check               agreement only, no timing",
+    "  --warm-start          measure the warm-start figure (this is also what runs without the flag)",
+    `  --reps REPS           timed reps (default ${WARM_START_REPS})`,
     "  --nvs NVS             path to the nvs binary (default target/release)",
-    "  --php PHP             php executable (default `php`)",
-    "  --python PYTHON       python executable (default: `python` on PATH)",
-    "  --bun BUN             bun executable (default `bun`)",
-    "  --engines ENGINES     comma-separated engine list, in table order; must include nvs (default all four)",
-    "  --php-mode {default,jit}",
-    "                        `jit` (default) runs PHP with opcache+tracing JIT; `default` runs it as installed",
-    "  --allow-debug         permit a debug Novis binary",
-    "  --warm-start          measure the CLI's start floor on the baseline case instead of running the suite",
-    "  --max-work-ms MS      with --warm-start: warn if the total less `nvs --version` is over MS, and exit non-zero if it is over 10 times MS",
-    "  --json PATH           append one NDJSON record per case",
-    "  --serve-vs-fpm        measure `nvs serve` requests/sec against PHP with opcache, instead of the suite",
-    "  --record PATH         with --serve-vs-fpm: append the run to the JSON array at PATH",
-    "  --requests N          with --serve-vs-fpm: requests per rep, per server (default 1000)",
-    "  --concurrency N       with --serve-vs-fpm: keep-alive connections (default 1)",
-    "  --serve-baseline {auto,fcgi,builtin,none}",
-    "                        with --serve-vs-fpm: which PHP peer -- `auto` takes php-cgi over php -S",
+    "  --allow-debug         allow a debug nvs binary",
+    `  --max-work-ms MS      print a warning if the figure is over MS, and fail if it is over ${HARD_FACTOR} times MS`,
   ].join("\n");
 }
 
@@ -297,8 +172,6 @@ export function grouped(x: number, digits: number): string {
 }
 
 const fmt = (value: number | null | undefined) => (value === null || value === undefined ? "-" : grouped(value, 1));
-const ratioText = (value: number | null | undefined) => (value === null || value === undefined ? "-" : `${fixed(value, 2)}x`);
-const listRepr = (items: string[]) => `[${items.map(pyRepr).join(", ")}]`;
 export const round = (x: number, digits: number) => Number(fixed(x, digits));
 
 /** `repr` of a byte string the way Python writes it. */
@@ -316,15 +189,6 @@ export function bytesRepr(b: Uint8Array): string {
     else body += `\\x${c.toString(16).padStart(2, "0")}`;
   }
   return `b${q}${body}${q}`;
-}
-
-/** `json.dumps` with its default separators, which the NDJSON history has always been written with. */
-function pyDumps(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.map(pyDumps).join(", ")}]`;
-  if (v !== null && typeof v === "object") {
-    return `{${Object.entries(v).map(([k, x]) => `${JSON.stringify(k)}: ${pyDumps(x)}`).join(", ")}}`;
-  }
-  return JSON.stringify(v ?? null);
 }
 
 export function median(xs: number[]): number {
@@ -369,7 +233,7 @@ export function version(executable: string, argv: string[]): string {
   }
 }
 
-/** Text mode's newline translation, so two engines on one platform compare as Python compared them. */
+/** Text mode's newline translation, so two runs on one platform compare as Python compared them. */
 const textOf = (b: Uint8Array) => new TextDecoder().decode(b).replace(/\r\n?/g, "\n");
 
 interface Once {
@@ -401,7 +265,7 @@ interface Measured {
   samples_ms?: number[];
 }
 
-/** The measurement seam: one result per engine per case. Another measure is another key here and another column in `columnsFor`. */
+/** One command, warmed once and then timed `reps` times; a failed or unstable run is `failed`. */
 function measure(argv: string[], reps: number): Measured {
   const first = runOnce(argv); // the warm-up, discarded
   if (first.code !== 0) return { failed: true, stdout: first.stdout, stderr: first.stderr, code: first.code };
@@ -489,12 +353,21 @@ export function softWarning(text: string): void {
   if (summary) appendFileSync(summary, `- warm start: ${text}\n`);
 }
 
+/** `WARM_START_SOURCE`, written only where it is missing or differs, so a rerun leaves it untouched. */
+function emptyProgram(): string {
+  const current = existsSync(WARM_START_SOURCE) ? readFileSync(WARM_START_SOURCE, "utf8") : null;
+  if (current !== WARM_START_PROGRAM) {
+    mkdirSync(dirname(WARM_START_SOURCE), { recursive: true });
+    writeFileSync(WARM_START_SOURCE, WARM_START_PROGRAM, "utf8");
+  }
+  return WARM_START_SOURCE;
+}
+
 /** What a second `nvs run` of the empty program costs, less what starting the binary at all costs.
  * `maxWorkMs` is the soft bound and `HARD_FACTOR` times it the hard one; the module doc says why. */
 function warmStart(binary: string, reps: number, maxWorkMs: number | null): number {
-  const source = join(CASE_DIR, `${BASELINE}.nvs`);
-  if (!existsSync(source)) throw new Fail(`no ${source}: the warm-start figure is measured on the baseline case`);
   if (!existsSync(SHIPPED_CONFIG)) throw new Fail(`no ${SHIPPED_CONFIG}: the warm-start figure names the configuration it resolves`);
+  const source = emptyProgram();
 
   const exe = resolve(binary);
   console.log(`nvs  ${shownPath(binary)}  (${version(exe, ["--version"])})`);
@@ -536,258 +409,8 @@ function warmStart(binary: string, reps: number, maxWorkMs: number | null): numb
 }
 
 // ---------------------------------------------------------------------------------------------------
-// The suite.
-// ---------------------------------------------------------------------------------------------------
-
-interface Engine {
-  key: string;
-  /** What the table calls it: short, because every engine costs three columns. */
-  label: string;
-  suffix: string;
-  argv: string[];
-  versionArgv: string[];
-}
-
-interface Case {
-  name: string;
-  sources: Map<string, string>;
-  description: string;
-}
-
-interface CaseRecord {
-  case: string;
-  description: string;
-  engines: Map<string, Measured>;
-  status: "ok" | "ERROR" | "DIFF";
-  work?: Map<string, number>;
-  ratio?: Map<string, number>;
-}
-
-function buildEngines(selected: string[], binary: string, o: Options): Engine[] {
-  const available: Record<string, Engine> = {
-    nvs: { key: "nvs", label: "nvs", suffix: ".nvs", argv: [resolve(binary), "run"], versionArgv: ["--version"] },
-    php: { key: "php", label: "php", suffix: ".php", argv: [o.php, ...PHP_MODES[o.phpMode]!], versionArgv: ["-r", "echo PHP_VERSION;"] },
-    python: { key: "python", label: "py", suffix: ".py", argv: [o.python], versionArgv: ["--version"] },
-    bun: { key: "bun", label: "bun", suffix: ".ts", argv: [o.bun, "run"], versionArgv: ["--version"] },
-  };
-  const unknown = selected.filter((k) => !(k in available));
-  if (unknown.length > 0) throw new Fail(`unknown engine(s) ${listRepr(unknown)}; known: ${Object.keys(available).join(", ")}`);
-  if (!selected.includes(PRIMARY)) throw new Fail(`--engines must include ${PRIMARY}: every ratio is taken against it`);
-  return selected.map((k) => available[k]!);
-}
-
-/** A case describes itself in its first `//` line, so there is no second manifest to update. */
-function describe(path: string): string {
-  for (const line of splitlines(readFileSync(path, "utf8")).slice(0, 6)) {
-    const t = line.trim();
-    if (t.startsWith("//")) return t.slice(2).trim();
-  }
-  return "";
-}
-
-/** Every `NN-slug.nvs`, in name order, with whichever twins are beside it. */
-function discover(patterns: string[], engines: Engine[]): Case[] {
-  const cases: Case[] = [];
-  const names = [...new Bun.Glob("*.nvs").scanSync({ cwd: CASE_DIR })].sort((a, b) => (a.toLowerCase() < b.toLowerCase() ? -1 : 1));
-  for (const name of names) {
-    const stem = name.slice(0, -".nvs".length);
-    const sources = new Map<string, string>();
-    for (const engine of engines) {
-      const source = join(CASE_DIR, stem + engine.suffix);
-      if (existsSync(source)) sources.set(engine.key, source);
-      else console.error(`warning: ${stem} has no ${engine.suffix} twin -- ${engine.key} skipped`);
-    }
-    if (sources.size < 2) {
-      console.error(`warning: ${stem} has nothing to compare against -- skipped`);
-      continue;
-    }
-    cases.push({ name: stem, sources, description: describe(join(CASE_DIR, name)) });
-  }
-  if (patterns.length > 0) {
-    const kept = cases.filter((c) => c.name === BASELINE || patterns.some((p) => c.name.includes(p)));
-    if (!kept.some((c) => c.name !== BASELINE)) throw new Fail(`no case matches ${listRepr(patterns)}; \`ls benches/userland\` lists them`);
-    return kept;
-  }
-  return cases;
-}
-
-/** Runs every engine that has a twin for this case, and gates the timing on their agreement. */
-function evaluate(c: Case, engines: Engine[], reps: number): CaseRecord {
-  const results = new Map<string, Measured>();
-  for (const engine of engines) {
-    const source = c.sources.get(engine.key);
-    if (source !== undefined) results.set(engine.key, measure([...engine.argv, source], reps));
-  }
-  const all = [...results.values()];
-  const outputs = new Set(all.filter((r) => !r.failed).map((r) => r.stdout));
-  const status = all.some((r) => r.failed) ? "ERROR" : outputs.size > 1 ? "DIFF" : "ok";
-  return { case: c.name, description: c.description, engines: results, status };
-}
-
-/** `work` is `total` less the empty program, per engine; the ratio is over `work`. */
-function subtractBaseline(records: CaseRecord[], engines: Engine[]): void {
-  const baseline = records.find((r) => r.case === BASELINE && r.status === "ok");
-  if (!baseline) return;
-  for (const record of records) {
-    if (record.status !== "ok") continue;
-    const work = new Map<string, number>();
-    for (const engine of engines) {
-      const mine = record.engines.get(engine.key);
-      const floor = baseline.engines.get(engine.key);
-      if (mine && floor && !mine.failed && !floor.failed) work.set(engine.key, Math.max(0, mine.min_ms! - floor.min_ms!));
-    }
-    record.work = work;
-    const primary = work.get(PRIMARY);
-    if (primary) record.ratio = new Map([...work].filter(([k]) => k !== PRIMARY).map(([k, v]) => [k, v / primary]));
-  }
-}
-
-/** Header, width, and how to read one row's value: total per engine, then work, then each ratio. */
-function columnsFor(engines: Engine[]): [string, number, (r: CaseRecord) => string][] {
-  return [
-    ...engines.map((e): [string, number, (r: CaseRecord) => string] => [`${e.label} ms`, 10, (r) => fmt(r.engines.get(e.key)?.min_ms)]),
-    ...engines.map((e): [string, number, (r: CaseRecord) => string] => [`${e.label} work`, 11, (r) => fmt(r.work?.get(e.key))]),
-    ...engines
-      .filter((e) => e.key !== PRIMARY)
-      .map((e): [string, number, (r: CaseRecord) => string] => [`${e.label}/nvs`, 10, (r) => ratioText(r.ratio?.get(e.key))]),
-  ];
-}
-
-function explain(record: CaseRecord): void {
-  console.log(`${record.status}: ${record.case} -- ${record.description}`);
-  for (const [key, result] of record.engines) {
-    if (!result.failed) continue;
-    console.log(`  ${key} exited ${result.code}`);
-    for (const line of splitlines((result.stderr || "").trim()).slice(0, 12)) console.log(`    ${line}`);
-  }
-  if (record.status === "DIFF") {
-    for (const [key, result] of record.engines) if (!result.failed) console.log(`  ${key} printed ${pyRepr(result.stdout)}`);
-  }
-}
-
-function reportCheck(records: CaseRecord[]): void {
-  for (const record of records) {
-    if (record.status !== "ok") {
-      explain(record);
-      continue;
-    }
-    const agreed = [...record.engines.values()][0]!.stdout.trim();
-    console.log(`ok    ${record.case}  [${[...record.engines.keys()].join("+")}]  ->  ${pyRepr(agreed)}`);
-  }
-}
-
-function reportTable(records: CaseRecord[], engines: Engine[]): void {
-  const columns = columnsFor(engines);
-  const width = Math.max(...records.map((r) => r.case.length));
-  const header = "case".padEnd(width) + columns.map(([h, w]) => h.padStart(w)).join("");
-  console.log(header);
-  console.log("-".repeat(header.length));
-  for (const record of records) {
-    if (record.status !== "ok") console.log(record.case.padEnd(width) + record.status.padStart(10));
-    else console.log(record.case.padEnd(width) + columns.map(([, w, read]) => read(record).padStart(w)).join(""));
-  }
-  console.log("-".repeat(header.length));
-  for (const engine of engines) {
-    if (engine.key === PRIMARY) continue;
-    const ratios = records.flatMap((r) => (r.status === "ok" && r.ratio?.has(engine.key) ? [[r.case, r.ratio.get(engine.key)!] as const] : []));
-    if (ratios.length === 0) continue;
-    const best = ratios.reduce((a, b) => (b[1] > a[1] ? b : a));
-    const worst = ratios.reduce((a, b) => (b[1] < a[1] ? b : a));
-    console.log(
-      `vs ${engine.label.padEnd(4)} best ${best[0]} ${fixed(best[1], 2)}x |` +
-        ` worst ${worst[0]} ${fixed(worst[1], 2)}x |` +
-        ` median ${fixed(median(ratios.map(([, v]) => v)), 2)}x`,
-    );
-  }
-  for (const record of records) {
-    if (record.status === "ok") continue;
-    console.log();
-    explain(record);
-  }
-  const noisy = records.filter(
-    (r) => r.status === "ok" && [...r.engines.values()].some((e) => !e.failed && e.median_ms! > 1.25 * e.min_ms!),
-  );
-  if (noisy.length > 0) {
-    console.log(
-      `note: min and median differ by more than 25% on ${noisy.map((r) => r.case).join(", ")} -- the machine was busy; re-run before quoting those.`,
-    );
-  }
-}
-
-/**
- * One NDJSON record per case. The `nvs_ms`/`php_ms`/`ratio` keys stay at the top level so the history
- * written before the suite grew a third engine still reads as one series; the rest is under `engines`.
- */
-function writeJson(path: string, records: CaseRecord[], engines: Engine[], binary: string, mode: string, reps: number): void {
-  mkdirSync(dirname(resolve(path)), { recursive: true });
-  const date = stamp();
-  const commit = version("git", ["rev-parse", "--short", "HEAD"]);
-  const machineInfo = host();
-  const versions = Object.fromEntries(engines.map((e) => [e.key, version(e.key === PRIMARY ? resolve(binary) : e.argv[0]!, e.versionArgv)]));
-  let written = 0;
-  let out = "";
-  for (const record of records) {
-    if (record.status !== "ok") continue;
-    const perEngine: Record<string, { ms: number; work_ms: number; ratio: number | null }> = {};
-    for (const [key, result] of record.engines) {
-      if (result.failed) continue;
-      const r = record.ratio?.get(key);
-      perEngine[key] = { ms: round(result.min_ms!, 3), work_ms: round(record.work?.get(key) ?? 0, 3), ratio: r === undefined ? null : round(r, 4) };
-    }
-    out +=
-      pyDumps({
-        date,
-        commit,
-        case: record.case,
-        nvs_ms: perEngine.nvs?.ms,
-        php_ms: perEngine.php?.ms,
-        nvs_work_ms: perEngine.nvs?.work_ms,
-        php_work_ms: perEngine.php?.work_ms,
-        ratio: perEngine.php?.ratio,
-        engines: perEngine,
-        engine_versions: versions,
-        reps,
-        php_mode: mode,
-        nvs_binary: repoRelative(binary),
-        host: machineInfo,
-      }) + "\n";
-    written++;
-  }
-  appendFileSync(path, out, "utf8");
-  console.log(`appended ${written} record(s) to ${path}`);
-}
-
-function suite(binary: string, o: Options, reps: number): number {
-  const selected = o.engines.split(",").map((n) => n.trim()).filter(Boolean);
-  const engines = buildEngines(selected, binary, o);
-  const cases = discover(o.patterns, engines);
-  if (cases.length === 0) throw new Fail("no runnable case found under benches/userland");
-
-  for (const engine of engines) {
-    const target = engine.key === PRIMARY ? shownPath(binary) : engine.argv[0]!;
-    const mode = engine.key === "php" ? ` [${o.phpMode}]` : "";
-    console.log(`${engine.label.padEnd(4)} ${target}${mode}  (${version(engine.argv[0]!, engine.versionArgv)})`);
-  }
-  console.log(`${cases.length} case(s), ${reps} rep(s), min of reps; a ratio above 1.00 means Novis is faster`);
-  console.log();
-
-  const records: CaseRecord[] = [];
-  for (const c of cases) {
-    const record = evaluate(c, engines, reps);
-    records.push(record);
-    console.log(`  ${record.status.padEnd(5)} ${c.name}`);
-  }
-  subtractBaseline(records, engines);
-  console.log();
-  if (o.check) reportCheck(records);
-  else reportTable(records, engines);
-  if (o.json) writeJson(o.json, records, engines, binary, o.phpMode, reps);
-  return records.every((r) => r.status === "ok") ? 0 : 1;
-}
-
-// ---------------------------------------------------------------------------------------------------
-// The serve-versus-FPM leg. The module doc owns every decision -- which peer, why the generator is
-// here, why concurrency is 1 -- and this half owns only how it is carried out.
+// The HTTP and FastCGI clients, the server subprocess and the closed-loop generator. Nothing in this
+// command uses them: they are here for the benches the module doc names.
 // ---------------------------------------------------------------------------------------------------
 
 /** A connection-level failure: the peer closed, reset or went silent. A request retries once on one. */
@@ -898,9 +521,8 @@ export interface HttpShape {
 
 /**
  * One keep-alive HTTP/1.1 connection, issuing one request at a time: a GET, or a POST when the shape
- * carries a body. It reopens when the peer answers `Connection: close`, which `php -S` does on every
- * response, and `reconnects` counts it: a peer paying a handshake per request and one that is not are
- * two different measurements.
+ * carries a body. It reopens when the peer answers `Connection: close`, and `reconnects` counts it: a
+ * peer paying a handshake per request and one that is not are two different measurements.
  */
 export class HttpConn implements Conn {
   reconnects = 0;
@@ -949,7 +571,7 @@ export class HttpConn implements Conn {
     if (lengthLine !== undefined) {
       body = await w.take(Number.parseInt(lengthLine.slice("content-length:".length).trim(), 10), "the server closed the connection mid-response");
     } else if (closing) {
-      // HTTP/1.0 framing: the body ends when the peer closes, which is what `php -S` sends.
+      // HTTP/1.0 framing: the body ends when the peer closes.
       while (await w.more());
       body = w.buf;
       w.buf = EMPTY;
@@ -1097,8 +719,8 @@ export function freePort(): Promise<number> {
 }
 
 /**
- * A server subprocess, listening, with its output drained. The drain is not tidiness: `php -S` logs a
- * line per request, and an undrained pipe wedges it at the OS buffer size, which reads as the peer
+ * A server subprocess, listening, with its output drained. The drain is not tidiness: a server that
+ * logs a line per request wedges at the OS buffer size on an undrained pipe, which reads as the peer
  * becoming slow halfway through a run.
  */
 export class Server {
@@ -1200,130 +822,7 @@ export async function hammer(open: () => Promise<Conn>, requests: number, concur
   return { elapsed, body: answered.length ? Buffer.from(answered[0]!, "latin1") : EMPTY, reopened };
 }
 
-interface Peer {
-  kind: string;
-  label: string;
-  detail: string;
-  argv: string[];
-  cwd?: string;
-  env?: Record<string, string>;
-  port: number;
-  executable: string;
-  versionArgv: string[];
-  open: () => Promise<Conn>;
-}
-
-interface ServerResult {
-  reconnects: number;
-  kind: string;
-  label: string;
-  detail: string;
-  requests_per_sec: number;
-  median_requests_per_sec: number;
-  ms_per_request: number;
-  version: string;
-  body: Buffer;
-}
-
 const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
-/** Boots one peer, warms it, times `reps` passes over it, and shuts it down. */
-async function measureServer(peer: Peer, requests: number, concurrency: number, reps: number): Promise<ServerResult> {
-  const server = await Server.start(peer.argv, peer.port, peer.cwd, peer.env);
-  const rates: number[] = [];
-  let body = EMPTY;
-  let reopened = 0;
-  try {
-    // Discarded: the page cache, opcache's first compile and the JIT's first trace are start-up costs,
-    // and this leg measures a server that has been up for a while.
-    await hammer(peer.open, Math.max(20, Math.min(requests, 200)), concurrency);
-    for (let i = 0; i < reps; i++) {
-      const pass = await hammer(peer.open, requests, concurrency);
-      rates.push(requests / pass.elapsed);
-      body = pass.body;
-      reopened += pass.reopened;
-    }
-  } catch (e) {
-    const hint =
-      concurrency > 1
-        ? `; at --concurrency ${concurrency} a single-process peer does not answer the second connection at all, ` +
-          "which arrives here as a timeout -- the module doc says why 1 is the default"
-        : "";
-    // The generator only ever sees a reset socket; the sentence that says why is on the peer's own output.
-    throw new Error(`${peer.label} failed mid-run (${messageOf(e)})${hint}; it said:\n${server.said()}`);
-  } finally {
-    await server.stop();
-  }
-  const best = Math.max(...rates);
-  return {
-    reconnects: reopened,
-    kind: peer.kind,
-    label: peer.label,
-    detail: peer.detail,
-    requests_per_sec: best,
-    median_requests_per_sec: median(rates),
-    ms_per_request: (1000 * concurrency) / best,
-    version: version(peer.executable, peer.versionArgv),
-    body,
-  };
-}
-
-/**
- * The best PHP peer this box offers, in the order the module doc argues for. `choice` names one instead,
- * so the two weaker branches are reachable on a box that has the strong one: a fallback nothing can run
- * is a fallback nobody has run.
- */
-async function phpPeer(php: string, phpMode: string, choice: string): Promise<Peer | null> {
-  const script = join(SERVE_DIR, `${SERVE_CASE}.php`);
-  const opcache = ["-d", "opcache.enable=1", "-d", "opcache.enable_cli=1", ...PHP_MODES[phpMode]!];
-  if (choice === "none") return null;
-  const cgi = choice === "auto" || choice === "fcgi" ? Bun.which("php-cgi") : null;
-  if (cgi) {
-    const port = await freePort();
-    return {
-      kind: "php-cgi-fastcgi",
-      label: "php-cgi",
-      detail: "the FastCGI SAPI FPM runs, opcache on",
-      argv: [cgi, "-b", `127.0.0.1:${port}`, ...opcache],
-      // The FastCGI SAPI exits after 500 requests unless told otherwise, which arrives here as a reset
-      // socket partway into a run. Recycling is a leak workaround, and a benchmark that recycles
-      // measures process start-up.
-      env: { PHP_FCGI_MAX_REQUESTS: "0" },
-      port,
-      executable: cgi,
-      versionArgv: ["-v"],
-      open: () => FcgiConn.open(port, script),
-    };
-  }
-  if ((choice === "auto" || choice === "builtin") && Bun.which(php)) {
-    const port = await freePort();
-    return {
-      kind: "php-builtin-server",
-      label: "php -S",
-      detail: "PHP's own development server, serial by construction",
-      argv: [php, ...opcache, "-S", `127.0.0.1:${port}`, script],
-      port,
-      executable: php,
-      versionArgv: ["-v"],
-      open: () => HttpConn.open(port),
-    };
-  }
-  return null;
-}
-
-/** One peer's half of the record: the numbers, never the body it sent. */
-function serveEntry(r: ServerResult): Record<string, unknown> {
-  return {
-    kind: r.kind,
-    label: r.label,
-    detail: r.detail,
-    version: r.version,
-    requests_per_sec: round(r.requests_per_sec, 1),
-    median_requests_per_sec: round(r.median_requests_per_sec, 1),
-    ms_per_request: round(r.ms_per_request, 4),
-    reconnects: r.reconnects,
-  };
-}
 
 const pyTypeName = (v: unknown) =>
   v === null ? "NoneType" : typeof v === "string" ? "str" : typeof v === "boolean" ? "bool" : typeof v === "number" ? (Number.isInteger(v) ? "int" : "float") : "dict";
@@ -1358,102 +857,6 @@ export function writeServeRecord(path: string, record: Record<string, unknown>):
   console.log(`  recorded 1 run to ${shown} (${history.length} in the history)`);
 }
 
-/** The server's throughput figure: `nvs serve` against PHP with opcache, both under one generator. */
-async function serveVsFpm(binary: string, o: Options, reps: number): Promise<number> {
-  const entry = join(SERVE_DIR, `${SERVE_CASE}.nvs`);
-  const twin = join(SERVE_DIR, `${SERVE_CASE}.php`);
-  const isFile = (p: string) => existsSync(p) && statSync(p).isFile();
-  if (!isFile(entry)) throw new Fail(`${entry} is missing; this leg's case is the twin pair under benches/serve`);
-  if (o.requests < 1 || o.concurrency < 1) throw new Fail("--requests and --concurrency must each be at least 1");
-
-  const port = await freePort();
-  const exe = resolve(binary);
-  const novis: Peer = {
-    kind: "nvs-serve",
-    label: "nvs serve",
-    detail: "`rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s development server, one core",
-    argv: [exe, "serve", entry, "--config", SHIPPED_CONFIG, "--listen", `127.0.0.1:${port}`],
-    cwd: ROOT,
-    port,
-    executable: exe,
-    versionArgv: ["--version"],
-    open: () => HttpConn.open(port),
-  };
-  const peer = isFile(twin) ? await phpPeer(o.php, o.phpMode, o.serveBaseline) : null;
-  if (peer !== null && peer.kind === "php-cgi-fastcgi" && o.concurrency > 1) {
-    // Honoured where FPM would exist and ignored on Windows, where the SAPI has no fork to make.
-    peer.env!.PHP_FCGI_CHILDREN = String(o.concurrency);
-  }
-
-  const caveats: string[] = [];
-  if (peer === null && !isFile(twin)) caveats.push(`no PHP baseline: ${basename(twin)} is missing`);
-  else if (peer === null && o.serveBaseline === "none") caveats.push("no PHP baseline: --serve-baseline none, so this run is nvs serve alone");
-  else if (peer === null) caveats.push(`no PHP baseline: --serve-baseline ${o.serveBaseline} found nothing on PATH, so this run is nvs serve alone`);
-  else if (peer.kind === "php-builtin-server") {
-    caveats.push(
-      "the baseline is `php -S`, PHP's development server -- a far weaker peer than the FastCGI SAPI FPM runs, and a ratio against it is not the FPM figure",
-    );
-  } else {
-    caveats.push(
-      "the baseline pays no HTTP parse and no proxy hop -- it is driven over FastCGI as nginx would drive FPM -- while nvs serve pays both; the comparison favours PHP",
-    );
-  }
-  if (o.concurrency > 1) {
-    caveats.push(`concurrency is ${o.concurrency}: neither PHP peer here serves two requests at once, so anything above 1 is measuring Novis against a queue`);
-  }
-
-  console.log(`case ${SERVE_CASE}: ${o.requests} request(s) over ${o.concurrency} keep-alive connection(s), ${reps} rep(s), best of reps`);
-  const measured = [await measureServer(novis, o.requests, o.concurrency, reps)];
-  if (peer !== null) measured.push(await measureServer(peer, o.requests, o.concurrency, reps));
-  console.log();
-
-  const labelWidth = Math.max(...measured.map((m) => m.label.length));
-  for (const r of measured) {
-    console.log(
-      `  ${r.label.padEnd(labelWidth)}  ${grouped(r.requests_per_sec, 0).padStart(10)} requests/sec` +
-        `  ${fixed(r.ms_per_request, 3).padStart(8)} ms/request   ${r.detail}`,
-    );
-  }
-
-  if (new Set(measured.map((m) => m.body.toString("latin1"))).size > 1) {
-    console.log();
-    console.log("DIFF: the two servers did not answer with the same bytes, so neither number stands");
-    for (const r of measured) console.log(`  ${r.label} sent ${bytesRepr(r.body)}`);
-    return 1;
-  }
-
-  for (const r of measured) {
-    if (r.reconnects) caveats.push(`${r.label} declined to keep the connection open and paid ${r.reconnects} extra handshake(s) inside the timed passes`);
-  }
-
-  let ratio: number | null = null;
-  if (measured.length === 2) {
-    ratio = measured[0]!.requests_per_sec / measured[1]!.requests_per_sec;
-    console.log(`  nvs serve is ${fixed(ratio, 2)}x ${measured[1]!.label} at concurrency ${o.concurrency}`);
-  }
-  console.log();
-  for (const caveat of caveats) console.log(`  note: ${caveat}`);
-
-  const record = {
-    date: stamp(),
-    commit: version("git", ["rev-parse", "--short", "HEAD"]),
-    case: SERVE_CASE,
-    requests: o.requests,
-    concurrency: o.concurrency,
-    reps,
-    php_mode: o.phpMode,
-    ratio: ratio === null ? null : round(ratio, 4),
-    caveats,
-    nvs: serveEntry(measured[0]!),
-    baseline: measured.length === 2 ? serveEntry(measured[1]!) : null,
-    nvs_binary: repoRelative(binary),
-    host: host(),
-  };
-  if (o.record) writeServeRecord(o.record, record);
-  else console.log("  not recorded: pass --record PATH to append this run to a JSON array");
-  return 0;
-}
-
 // ---------------------------------------------------------------------------------------------------
 
 async function main(o: Options): Promise<number> {
@@ -1463,23 +866,13 @@ async function main(o: Options): Promise<number> {
     throw new Fail(
       "--max-ms budgeted the whole wall clock, of which most is the operating system creating a process " +
         "rather than anything Novis does. Use --max-work-ms, which budgets the total less `nvs --version`; " +
-        "`--warm-start` in `nv bench` says why.",
+        "`nv bench --help` says what the figure is.",
     );
   }
   if (o.reps !== null && o.reps < 1) throw new Fail("--reps must be at least 1");
-  const askedReps = o.reps ?? (o.warmStart ? WARM_START_REPS : SUITE_REPS);
-  const reps = o.check ? 1 : askedReps;
-
   const binary = findNvs(o.nvs, o.allowDebug);
   warnIfStale(binary);
-  // Both legs before the roster, because each is one engine's figure and must not need PHP, Python or
-  // Bun installed to be measured. Each takes `askedReps`: `--check` narrows the suite to agreement, and
-  // neither leg has anything to agree with.
-  if (o.warmStart) return warmStart(binary, askedReps, o.maxWorkMs);
-  if (o.serveVsFpm) return serveVsFpm(binary, o, askedReps);
-  if (o.record) throw new Fail("--record writes the serve leg's artifact, and needs --serve-vs-fpm");
-  if (o.maxWorkMs !== null) throw new Fail("--max-work-ms is a budget on the warm-start figure, and needs --warm-start");
-  return suite(binary, o, reps);
+  return warmStart(binary, o.reps ?? WARM_START_REPS, o.maxWorkMs);
 }
 
 export async function run(args: string[]): Promise<number> {

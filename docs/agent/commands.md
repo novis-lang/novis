@@ -511,33 +511,18 @@ bun nv release --preview minor     # the exact version and notes a dispatch woul
 `bun nv release --check` is the gate CI's `docs` job runs: the workspace version, the
 `[workspace.dependencies]` pins that restate it, the newest tag and `CHANGELOG.md` all agree.
 
-## Benchmarking against PHP
+## The CLI's warm start
 
 ```sh
-bun nv bench                             # the userland cases, Novis, PHP, Python and Bun side by side
-bun nv bench 05 regex                    # only the cases whose name contains these
-bun nv bench --check                     # do the engines still agree? (no timing)
-bun nv bench --php-mode default          # PHP as installed, rather than with opcache+JIT
-bun nv bench --json data/perf/userland.ndjson   # append one record per case
+bun nv bench --warm-start --max-work-ms 9    # what CI runs: the empty program's start, less `nvs --version`
 ```
 
-`benches/userland/` holds pieces of ordinary web-and-CLI PHP written twice, `NN-slug.php` beside
-`NN-slug.nvs`. [Its README](../../benches/userland/README.md) owns what a case is and how to add one —
-including the rule that is not obvious, that each iteration's input must depend on the last one's result,
-because PHP's tracing JIT deletes a loop whose input never changes and the deleted loop still prints the
-right answer.
+`bun nv bench` measures this one figure, and `tools/nv/cmd/bench.ts` owns its bounds. Nothing here
+builds: the release binary on disk is the binary that runs, and a `target/debug/` one is refused by name.
 
-Nothing here builds anything: the release binary on disk is the binary that runs, a `target/debug/` one is
-refused by name, and the harness warns when the binary is older than the newest file under `crates/`. Two
-timings and their baseline-subtracted halves are printed; wall clock is a **same-host, same-minute** ratio
-and is not comparable across machines, which is why the cross-machine history in
-`rule:testing/perf-two-mechanisms` is counted in instructions instead.
-
-## The server's throughput, in three legs that are not one series
+## The server's throughput, in two legs that are not one series
 
 ```sh
-bun nv bench --serve-vs-fpm --record benches/serve.json          # Windows-native, no proxy
-bun nv bench --serve-vs-fpm --record benches/results/serve.json  # what the loop's sweep runs
 bun nv bench-proxied --record benches/serve-proxied.json         # nginx in front of both, in Docker
 bun nv bench-proxied --arm deployed --backend-cpus 8             # PHP's pool against our one core
 bun nv bench-proxied --nvs-bin /var/tmp/nvs-target-wsl/release/nvs   # skip the image build
@@ -547,19 +532,15 @@ bun nv bench-load --concurrency 1,16,256 --seconds 30            # exactly these
 bun nv bench-load --in-flight 0                                  # the sweep without the 10k leg
 ```
 
-**Three legs, three artifacts, and no arithmetic between them.** The first runs on this box with no
-containers and no proxy, drives `php-cgi -b` over FastCGI with a generator written into `tools/nv/cmd/bench.ts`, and
-must keep working where there is no Docker and no `wrk`. The second
+**Two legs, two artifacts, and no arithmetic between them.** The first
 is [`benches/proxied/`](../../benches/proxied/README.md), which owns every decision it makes: nginx in
 front of both peers because that is the only deployment either has, two compose files brought up one at a
-time, equal CPU budgets, and `oha` as the generator. Their inputs
-differ in every dimension, so the two files are separate and a row from one is never a baseline for the
-other.
+time, equal CPU budgets, and `oha` as the generator.
 
-**The third has no peer, and asks the question neither other leg can answer.** `bun nv bench-load`
+**The second has no peer, and asks the question the first cannot answer.** `bun nv bench-load`
 walks a concurrency sweep derived from the machine's core count, then puts ten thousand requests in
 flight at once, and **verifies that every answer belonged to the request that asked for it** — the
-other two drive `hello.nvs`, whose answers are byte-identical, so a response delivered to the wrong
+first drives `hello.nvs`, whose answers are byte-identical, so a response delivered to the wrong
 connection is invisible to them by construction. It is the one leg with something to build:
 [`benches/serve-probe/`](../../benches/serve-probe/src/main.rs) is a generator fast enough not to be
 the bottleneck, which a Python one is not. It needs no PHP and no Docker, and a client that runs out
@@ -572,9 +553,8 @@ the same leg every iteration and points `--record` at `benches/results/`, which 
 because the sweep runs *after* the session's commits: a row appended to a tracked file there is a change
 no slice owns, so nothing stages it and it stays in the working tree for good.
 
-`tools/nv/cmd/bench.ts`'s `# The serve-versus-FPM leg`, that README, and `tools/nv/cmd/bench-load.ts`'s
-`# What this leg is, and why it is a third one` are the three homes; none restates another, and this
-block is only the commands.
+That README and `tools/nv/cmd/bench-load.ts`'s module doc are the two homes; neither restates the
+other, and this block is only the commands.
 
 ## What a feature still owes
 

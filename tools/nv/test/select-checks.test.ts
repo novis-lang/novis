@@ -140,9 +140,7 @@ describe("the heavy set's twins", () => {
     expect(twin?.held).toEqual(["profile:optimized"]);
   });
 
-  test("a bench's twin runs once on the covws nvs, with no budget to fail and nothing written", () => {
-    const serve = heavyTwin(check({ argv: ["bun", "nv", "bench", "--serve-vs-fpm", "--record", "benches/results/serve.json"] }), graph);
-    expect(serve?.argv).toEqual(["bun", "nv", "bench", "--serve-vs-fpm", "--nvs", "{nvs}", "--allow-debug", "--reps", "1", "--requests", "200"]);
+  test("a bench's twin runs once on the covws nvs, with no budget to fail", () => {
     const warm = heavyTwin(check({ argv: ["bun", "nv", "bench", "--warm-start", "--max-work-ms", "6"] }), graph);
     expect(warm?.argv).toEqual(["bun", "nv", "bench", "--warm-start", "--nvs", "{nvs}", "--allow-debug", "--reps", "1"]);
   });

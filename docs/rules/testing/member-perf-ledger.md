@@ -64,5 +64,5 @@ gates a build. A regression is a row with a delta on it.
 - **A symmetric scaling check that also fails a ratio below the declared growth.** A linear member
   over a short input is dominated by its fixed per-call cost and looks nearly constant, which is not
   a bug. Only growing faster than declared fails.
-- **A column for PHP or another engine.** This ledger compares Novis with itself
-  (`rule:testing/userland-benchmarks` owns the comparison).
+- **A column for PHP or another engine.** This ledger compares Novis with itself. The
+  website's comparison (`benches/compare/README.md`) and `benches/proxied/` measure other engines.

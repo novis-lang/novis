@@ -10,7 +10,7 @@
 //
 // It has no `.php` twin on purpose: this leg has no second engine to agree
 // with, so there is nothing for a twin to be. `hello.php` is the twin of
-// `hello.nvs`, for the leg that does.
+// `hello.nvs`, for `bun nv bench-proxied`, which does.
 //
 // The query is read rather than the path, because `rule:http-server/a-path-is-never-derived-from-a-url`
 // means a per-request path would be a mount table this leg does not have.

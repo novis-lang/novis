@@ -24,7 +24,7 @@ stages:
     context: [crates/nvs-cli/src/runner.rs, docs/rules/testing/mutation-testing.md, docs/rules/testing/feature-proofs.md, docs/reference/tools/10-cli.md, benches/members/README.md, tools/nv/proofs/roster.ts]
     extra:
       context:
-        rules: [testing/mutation-testing, testing/feature-proofs, testing/userland-benchmarks]
+        rules: [testing/mutation-testing, testing/feature-proofs, testing/member-perf-ledger]
 checks:
   - id: owners-closes
     stage: 3
@@ -130,7 +130,7 @@ Rust tests and the rule flip. Each subagent's brief names the paths `bun nv proo
 'tools:cli/nvs-test-mutate'` prints and § *Text an end user reads*.
 
 - [ ] A `# nvs test --mutate` heading in the CLI chapter puts the feature on the roster. `docs/reference/tools/10-cli.md:302`
-- [ ] A bench counts mutants and test runs on a fixture of growing size, and shows the covering-test filter keeps runs per mutant flat while the suite grows (`rule:testing/userland-benchmarks`). `benches/members/tools/cli/nvs-test-mutate.nvs:1`
+- [ ] A bench counts mutants and test runs on a fixture of growing size, and shows the covering-test filter keeps runs per mutant flat while the suite grows (`rule:testing/member-perf-ledger`). `benches/members/tools/cli/nvs-test-mutate.nvs:1`
 - [ ] `about.md` and three examples (`rule:testing/feature-proofs`). `docs/examples/tools/cli/nvs-test-mutate/about.md:1`
 - [ ] An attack where a mutant loops or allocates without end and is stopped, and a Novis test (`rule:testing/feature-proofs`). `tests/hostile/tools/cli/nvs-test-mutate/01-a-mutant-that-never-ends.nvs:1`
 - [ ] `bun nv proofs --id 'tools:cli/nvs-test-mutate'` prints nothing owed. `tools/nv/proofs/roster.ts:209`

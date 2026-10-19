@@ -47,7 +47,7 @@ stages:
   - id: 9
     title: "what waits for a measured wall is a stated bound, and the cross-engine suite is gone"
     status: open
-    context: [tools/nv/cmd/bench.ts, docs/rules/testing/userland-benchmarks.md, docs/rules/tooling/bench-engine-list-is-data.md]
+    context: [tools/nv/cmd/bench.ts, benches/proxied/README.md, docs/agent/commands.md]
 checks:
   - id: markup-ladder
     stage: 1
@@ -263,55 +263,46 @@ bench-compare` over `benches/compare/`, is a separate suite and stays.
 `data/perf/`, and returns any hit missing from the last item. "userland" alone also means user code,
 and those hits stay.
 
-- [ ] `virtual-dispatch-resolves-by-name-not`, `nothing-inlines` and `a-switch-terminator-lowers-to-a-compare-chain` are stated bounds in their module docs, each naming its cost and what closes it, and their records are deleted. So is any record an earlier stage stopped on: stage 8 stopped on `bigint-gcd-and-modular-power-grow-quadratically`. Its three benches declare `complexity quadratic`, which `nv scaling` accepts only under a gap marker, so a stated bound for them needs a way for a bench to declare a bounded quadratic cost, or the record keeps another owner. `data/gaps/nvs-ir/virtual-dispatch-resolves-by-name-not.json:1`, `data/gaps/nvs-runtime/nothing-inlines.json:1`, `data/gaps/nvs-codegen/a-switch-terminator-lowers-to-a-compare-chain.json:1`
-- [ ] `benches/userland/` and `data/perf/userland.ndjson` are deleted. `bun nv bench` keeps `--warm-start` alone, which CI runs (`.github/workflows/ci.yml:333`). `--serve-vs-fpm` and `benches/serve/hello.php` go with the suite, and `benches/serve/echo.nvs` stays for `bun nv bench-load`. `tools/nv/cmd/bench.ts:1`
-- [ ] `rule:testing/userland-benchmarks` and `rule:tooling/bench-engine-list-is-data` are retired, and nothing cites them. `docs/rules/testing/userland-benchmarks.md:1`, `docs/rules/tooling/bench-engine-list-is-data.md:1`, `docs/rules/tooling/python-claims.md:21`, `docs/rules/testing/member-perf-ledger.md:68`, `docs/goals/mutation-testing.md:27`
-- [ ] Every other mention is rewritten or removed: `Cargo.toml:4`, `Cargo.toml:31`, `CONTRIBUTING.md:169`, `tools/nv/proofs/perf.ts:392`, `tools/nv/test/rules.test.ts:57`, `docs/setup.md:31`, `docs/setup.md:33`, `docs/agent/commands.md:522`, `docs/examples/README.md:10`, `benches/members/README.md:6`, `benches/members/README.md:60`, `benches/serve/hello.nvs:6`, `crates/nvs-codegen/src/emit.rs:3385`, `crates/nvs-runtime/src/lib.rs:175`, `tests/conformance/core/arr-sort-key-sort-and-comparator-sort-agree-on-every-row-shape-and-size.nvst:13`. A comment that cited a cross-engine figure as its evidence cites its guard test instead.
+- [x] `virtual-dispatch-resolves-by-name-not`, `nothing-inlines` and `a-switch-terminator-lowers-to-a-compare-chain` are stated bounds in their module docs, each naming its cost and what closes it, and their records are deleted. So is any record an earlier stage stopped on: stage 8 stopped on `bigint-gcd-and-modular-power-grow-quadratically`. Its three benches declare `complexity quadratic`, which `nv scaling` accepts only under a gap marker, so a stated bound for them needs a way for a bench to declare a bounded quadratic cost, or the record keeps another owner. `data/gaps/nvs-ir/virtual-dispatch-resolves-by-name-not.json:1`, `data/gaps/nvs-runtime/nothing-inlines.json:1`, `data/gaps/nvs-codegen/a-switch-terminator-lowers-to-a-compare-chain.json:1`
+- [x] `benches/userland/` and `data/perf/userland.ndjson` are deleted. `bun nv bench` keeps `--warm-start` alone, which CI runs (`.github/workflows/ci.yml:393`). `--serve-vs-fpm` goes with the suite. `benches/serve/hello.php` stays, because `benches/proxied/`'s PHP arm mounts `benches/serve/` and serves it, and `benches/serve/echo.nvs` stays for `bun nv bench-load`. `tools/nv/cmd/bench.ts:1`
+- [x] The rules `testing/userland-benchmarks` and `tooling/bench-engine-list-is-data` are retired, and nothing cites them. `docs/rules/tooling/python-claims.md:21`, `docs/rules/testing/member-perf-ledger.md:68`, `docs/goals/mutation-testing.md:27`
+- [ ] Every other mention is rewritten or removed. Done: `Cargo.toml`, `CONTRIBUTING.md`, `tools/nv/proofs/perf.ts`, `tools/nv/test/rules.test.ts`, `docs/setup.md`, `docs/agent/commands.md`, `docs/examples/README.md`, `benches/members/README.md`, `benches/serve/hello.nvs`, `benches/serve/echo.nvs`, `crates/nvs-codegen/src/emit.rs`, `crates/nvs-runtime/src/lib.rs` and the `arr-sort` case. Left: `benches/proxied/` names the deleted `--serve-vs-fpm` leg as its sibling. `benches/proxied/README.md:4`, `benches/proxied/README.md:9`, `benches/proxied/README.md:23`, `benches/proxied/compose.nvs.yaml:35`, `benches/proxied/compose.php.yaml:26`, `benches/serve/hello.php:6`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 8, 10 and 11 are done. Stage 8 landed this session:
+Stages 1 to 8, 10 and 11 are done, and stage 9 has three of its four items. This session:
 
-- `Core\BigInt::parse` reads text past `2 * LEAF_DIGITS` (2048 digits) in a radix that is not a
-  power of two by halves: `parsed` and `from_digits` (`crates/nvs-stdlib/src/bigint.rs:944`,
-  `:974`). The library's `from_str_radix` is quadratic, and its `to_str_radix` is already divide and
-  conquer from 32 limbs, so `toString` and `format` needed no code. No digit cap was written.
-- `sqrt` is `root` (`crates/nvs-stdlib/src/bigint.rs:1191`): the root of the top half of the bits,
-  shifted back, then Newton steps from above. The library's full-width Newton measured a slope of 1.76
-  under callgrind, past `karatsuba`'s 1.7.
-- `parse`, `toString`, `format`, `div`, `mod` and `sqrt` declare `complexity karatsuba`, each with a
-  `.scale.nvs` sibling. The module doc's § *What it costs* names every member's algorithm, and says
-  `MAX_BITS` bounds only `pow` and `shl`.
-- The record is narrowed to `gcd`, `lcm` and an odd-modulus `powMod`, and renamed
-  `data/gaps/nvs-stdlib/bigint-gcd-and-modular-power-grow-quadratically.json`. Each needs big work
-  (half-gcd, a Montgomery step over Karatsuba), so stage 9's first item now owns it.
-- Every BigInt bench declared `calls 0`, which `75fd145bc`'s call probes made wrong. Its figures
-  were not stale then, so nobody saw it. Each now declares what it measures: 1 or 2.
-- `nv scaling`'s callgrind leg now syncs and builds `/var/tmp/nvs-target-wsl/debug/nvs` once per
-  process before its first run (`currentWslNvs`, `tools/nv/cmd/scaling.ts:197`). A stale binary
-  measured an older tree before.
-- `Core\Str::format`'s piece helper declares its type check unreachable from source
-  (`crates/nvs-stdlib/src/format.rs:141`). `conformance_coverage` failed on it.
-
-The nightly run 39322549769's six red jobs were already fixed by `e14320e8f`, `4e3488608` and
-`7b17a387c`, which landed after its commit. The miri stdlib leg was cancelled beside them.
-
-Six gap records still name this goal, so the `owners` check stays red until stage 9.
+- The three backend records are stated bounds, and their records are deleted:
+  `nvs_ir`'s § *A virtual call looks its method up by name* (`crates/nvs-ir/src/lib.rs`),
+  `nvs_codegen`'s § *A `Terminator::Switch` is a compare chain* (`crates/nvs-codegen/src/lib.rs`)
+  and `decimal`'s § *Every operator is a helper call* (`crates/nvs-runtime/src/decimal.rs`). Each
+  names its cost and what closes it. The codegen and decimal modules lost their `Known gaps` block,
+  because `owners` refuses a block no record names.
+- The BigInt record now names `release-hardening`, with a Backlog bullet there. `nv scaling` never
+  accepts `complexity quadratic`, and a bounded-quadratic declaration would loosen that user rule, so
+  the safe option was another owner. An algorithmic cost on request text is the bug class that goal
+  closes. `bun nv owners --closes fewer-allocations` is green.
+- `benches/userland/`, `data/perf/userland.ndjson` and the two rules are deleted, and the rulebook is
+  re-rendered. `bun nv bench` is the warm-start figure alone (`tools/nv/cmd/bench.ts`, 898 lines from
+  1505). Its empty program is `WARM_START_PROGRAM`, written to `target/nv-bench/warm-start.nvs`. It
+  keeps every export `bench-proxied`, `bench-load`, `bench-compare`, `bench-docker` and `scaling` import.
+- `benches/serve/hello.php` stays: `benches/proxied/`'s PHP arm mounts `benches/serve/` and serves it.
+- Two playbook bullets whose anchors were in the deleted code are deleted.
+- The nightly run 39338638244's one red job, `asan`, was `conformance_coverage` on
+  `format.rs:143`, which `70e08835a` fixed after its commit. Every other job was cancelled beside it.
 
 The `looper` on PATH has no `verify`; `bun tools/looper/main.ts verify` runs it.
 
 ### Next
 
-**Stage 9: what waits for a measured wall is a stated bound, and the cross-engine suite is gone.**
-Its items and anchors are under § *Stages*, and its `**Split:**` line names the `Explore` search.
-Its first item now includes the BigInt record. Its three benches declare `complexity quadratic`, which
-`nv scaling` accepts only under a gap marker (`growthOf`, `tools/nv/cmd/scaling.ts`). A stated bound
-for them needs either a way for a bench to declare a bounded quadratic cost, or another goal to own
-the record.
+**Stage 9's last item:** `benches/proxied/` still names the deleted `--serve-vs-fpm` leg as its
+sibling. The anchors are on the item under § *Stages*. The README's opening and § *Two artifacts*
+compare against that leg, so rewrite them as a whole. Then run the goal-end gates (`bun nv verify
+--doc`, `bun nv owners --closes fewer-allocations`), set stage 9 done and write `DONE`.
 
-Before that, one leftover of stage 7: about 25 benches outside `CoreTimeDuration` write a duration
+Before `DONE`, one leftover of stage 7: about 25 benches outside `CoreTimeDuration` write a duration
 literal (`CoreJwt`, `CoreNet*`, `CoreRateLimit*`, `CoreCache-Store`, `CoreTime-Instant`
 and others; `grep -rlE "[0-9]+(ms|s|m|h|d|w)" benches/members`). Their figures are keyed on
 other files, so a count that fell is not seen. Re-measure them with `bun nv proofs --record-perf

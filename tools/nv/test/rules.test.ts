@@ -54,7 +54,7 @@ describe("nv rules --check, deleted docs", () => {
   });
 
   test("the perf ledgers under data/perf are not a deleted doc", () => {
-    expect(doc("//     bun nv bench --json data/perf/userland.ndjson")).toEqual([]);
+    expect(doc("//     bun nv proofs --record-perf writes data/perf/members.ndjson")).toEqual([]);
     expect(doc("[the ledger](../../data/perf/bench-budget.json)")).toEqual([]);
   });
 

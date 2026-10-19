@@ -10,11 +10,10 @@
 // and why its artifact is not `benches/serve.json`. Nothing here restates any of it. This file owns only
 // how the run is carried out.
 //
-// The other leg is `bun nv bench --serve-vs-fpm`: no containers, no proxy, Windows-native, and driven by
-// a generator written into that command. It stays, it is goal `server`'s acceptance check, and it is not
-// comparable with this one. Where the two would otherwise hold the same code -- the FastCGI client and
-// the closed-loop generator behind arm 4 -- this one imports it from `tools/nv/cmd/bench.ts`. The daemon
-// check, compose and the `oha` arms are `tools/nv/cmd/bench-docker.ts`'s.
+// Its php arm serves `benches/serve/hello.php`, the twin of `hello.nvs`, and it is not comparable with
+// `bun nv bench-compare`, which adds TLS and more peers. The FastCGI client and the closed-loop generator behind arm 4 are imported
+// from `tools/nv/cmd/bench.ts`, which keeps them for every bench that drives a server. The daemon check,
+// compose and the `oha` arms are `tools/nv/cmd/bench-docker.ts`'s.
 //
 // # What a run does
 //
@@ -383,8 +382,8 @@ async function main(o: Options): Promise<number> {
   }
 
   // ---- agreement, before any number is reported ----------------------------------------------------
-  // The other leg's rule, and it is not a formality: a peer answering 404 fast is the easiest way for a
-  // benchmark to report a large win. Every arm has to have sent the same bytes.
+  // Not a formality: a peer answering 404 fast is the easiest way for a benchmark to report a large win.
+  // Every arm has to have sent the same bytes.
   if (new Set([...bodies.values()].map((b) => b.toString("latin1"))).size > 1) {
     console.log();
     console.log("DIFF: the arms did not answer with the same bytes, so no number here stands");

@@ -3,7 +3,7 @@
 
 # Testing
 
-*31 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*31 of 78 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -2855,32 +2855,10 @@ gates a build. A regression is a row with a delta on it.
 - **A symmetric scaling check that also fails a ratio below the declared growth.** A linear member
   over a short input is dominated by its fixed per-call cost and looks nearly constant, which is not
   a bug. Only growing faster than declared fails.
-- **A column for PHP or another engine.** This ledger compares Novis with itself
-  ([`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks) owns the comparison).
+- **A column for PHP or another engine.** This ledger compares Novis with itself. The
+  website's comparison (`benches/compare/README.md`) and `benches/proxied/` measure other engines.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks).</sub>
-
-<a id="testing-userland-benchmarks"></a>
-
-## A cross-engine comparison is a `benches/userland/` case with one twin per engine
-
-`rule:testing/userland-benchmarks`
-
-`benches/userland/` holds ordinary web-and-CLI programs written once per engine — Novis, PHP and
-Python — and `bun nv bench` runs whichever engines a case has twins for and prints the
-same-host ratios. That is where a comparison against another engine is made, and it is the only
-place one is made.
-
-**A comparison measures speed and never judges behaviour.** No test and no check runs PHP or any other
-engine to decide whether Novis is right: what a program observably does is stated by the rules and
-pinned by the conformance cases. PHP is installed only to run the benchmarks — these twins,
-`bun nv bench --serve-vs-fpm` and the php-fpm arm of `benches/proxied/`.
-
-It changes nothing about the historical dashboard, whose headline metric stays the instruction
-count. Which workloads populate that dashboard is a benchmark-design question rather than a language
-decision, and it grows as real compiled programs exist to measure.
-
-<sub>See also [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms).</sub>
 
 <a id="testing-valgrind-on-wsl"></a>
 
