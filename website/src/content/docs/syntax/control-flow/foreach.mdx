@@ -3,34 +3,21 @@ title: foreach
 covers: ['lang:statements/foreach', 'lang:iteration/what-foreach-walks', 'lang:iteration/core-collections-are-iterable', 'lang:iteration/materialising-a-sequence-core-arr-from']
 description: How foreach visits each element of an array, an iterator or a Core collection.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 `foreach ($array as var $value)` runs the body once for each element. `$value` is the element for
 that pass.
 
-<Snippet src="syntax/foreach/01-foreach.nvs" />
+<FeatureSection examples="lang/statements/foreach" heading="foreach" id="foreach" />
 
-- Each variable in the header has a type or `var`. `as $v` alone does not compile.
-- `var` gives the variable the element type of the array. For the key, `var` gives `string`.
-- The key of an array is always a `string`, also when it looks like a number.
-- `inout var $v` writes each change to `$v` back into the array.
-- The loop reads a copy of the array. Adding or removing elements in the body does not change which
-  elements the loop visits. An `inout` loop reads the array itself.
-- To convert the value first, put it in parentheses: `foreach (($m as array<int>) as var $v)`.
+<FeatureSection examples="lang/iteration/what-foreach-walks" heading="What foreach walks" id="what-foreach-walks" />
 
-## Objects and collections
+[Iterators and generators](/syntax/control-flow/iterators/) shows how to write a class that
+`foreach` can walk.
 
-`foreach` also takes an object that implements `Iterable<T>` or `Iterator<T>`. These objects have
-no keys, so you write only the value. [Iterators and generators](/syntax/control-flow/iterators/)
-shows how to write one.
+<FeatureSection examples="lang/iteration/core-collections-are-iterable" heading="Core collections" id="core-collections" />
 
-<Snippet src="syntax/foreach/02-collections.nvs" />
-
-- `Core\ObjectSet`, `Core\Heap` and `Core\Task\Channel` give their values.
-- `Core\ObjectMap` gives its keys. Use `get` to read the value for a key.
-- A loop over a `Core\Task\Channel` ends when the channel is closed.
-- `Core\Arr::from` takes anything `foreach` takes, and returns an array with the keys `0`, `1`,
-  `2`, and so on.
+<FeatureSection examples="lang/iteration/materialising-a-sequence-core-arr-from" heading="Core\Arr::from" id="core-arr-from" />
 
 ## Use this when you need the position as a number
 

@@ -13546,7 +13546,7 @@
   },
   "/syntax/control-flow/break-continue-return/": {
     "feature": "syntax/control-flow/break-continue-return.mdx",
-    "hash": "84d8de50f2372afa",
+    "hash": "f675264d754958d2",
     "questions": [
       "How do I stop a loop early?",
       "How do I skip to the next pass of a loop?",
@@ -13557,18 +13557,19 @@
   },
   "/syntax/control-flow/foreach/": {
     "feature": "syntax/control-flow/foreach.mdx",
-    "hash": "38accfc3c1f1dd92",
+    "hash": "a992355c283eee47",
     "questions": [
       "How do I loop over every element of an array?",
       "How do I change array elements while I loop over them?",
       "Why is the key in my loop a string and not a number?",
       "What happens when I add elements to an array inside its loop?",
-      "Loop over the values of a set, a heap or a channel"
+      "Loop over the values of a set, a heap or a channel",
+      "How do I collect the values of a generator into an array?"
     ]
   },
   "/syntax/control-flow/if/": {
     "feature": "syntax/control-flow/if.mdx",
-    "hash": "087393d07e4ae5c4",
+    "hash": "a321c2569887257f",
     "questions": [
       "How do I run code only when a condition is true?",
       "Is elseif the same as else if?",
@@ -13579,7 +13580,7 @@
   },
   "/syntax/control-flow/iterators/": {
     "feature": "syntax/control-flow/iterators.mdx",
-    "hash": "f26a901d2416d8bc",
+    "hash": "226dc8e220f347cd",
     "questions": [
       "How do I make values one at a time with yield?",
       "How do I make my own class work in a foreach loop?",
@@ -13590,7 +13591,7 @@
   },
   "/syntax/control-flow/loops/": {
     "feature": "syntax/control-flow/loops.mdx",
-    "hash": "8d33d0bfd7b623f5",
+    "hash": "79f9d57fec37743a",
     "questions": [
       "How do I repeat code while a condition is true?",
       "How do I write a counting loop with a start, a condition and a step?",
@@ -13601,7 +13602,7 @@
   },
   "/syntax/control-flow/match/": {
     "feature": "syntax/control-flow/match.mdx",
-    "hash": "58f32e2fea2e577d",
+    "hash": "450178f3d35f64ed",
     "questions": [
       "How do I pick a value based on another value without many ifs?",
       "What happens when no arm of a match fits the value?",
@@ -13612,17 +13613,18 @@
   },
   "/syntax/control-flow/other-statements/": {
     "feature": "syntax/control-flow/other-statements.mdx",
-    "hash": "9ee13a6b6cec380e",
+    "hash": "f13f9d6c507a226e",
     "questions": [
       "How do I print a value to the output?",
       "How do I remove an entry from an array?",
       "Why does goto or a global variable not compile?",
-      "Which statements from other languages does Novis not have?"
+      "Which statements from other languages does Novis not have?",
+      "How do I end a program with an exit status?"
     ]
   },
   "/syntax/control-flow/switch/": {
     "feature": "syntax/control-flow/switch.mdx",
-    "hash": "bb111d92be18e87a",
+    "hash": "c62a37ec582a5ef5",
     "questions": [
       "How do I run different blocks of code for different values?",
       "Why does the code of the next case also run?",

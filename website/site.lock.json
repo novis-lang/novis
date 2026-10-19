@@ -103,35 +103,35 @@
     "lang:statements/return": "5b6f3c15be5d4894"
   },
   "syntax/control-flow/foreach.mdx": {
-    "lang:iteration/core-collections-are-iterable": "08f8f188a02fd1a8",
-    "lang:iteration/materialising-a-sequence-core-arr-from": "52eca440224710cf",
-    "lang:iteration/what-foreach-walks": "ca10e817647a6dea",
-    "lang:statements/foreach": "b0ca328d6f788037"
+    "lang:iteration/core-collections-are-iterable": "d71b8121607b4d46",
+    "lang:iteration/materialising-a-sequence-core-arr-from": "fbda4e3df2781944",
+    "lang:iteration/what-foreach-walks": "dae7bbbb0c014b2a",
+    "lang:statements/foreach": "4399ca6b83f8ec6e"
   },
   "syntax/control-flow/if.mdx": {
-    "lang:statements/expression-statements-blocks-and-declarations": "71a1c5759975c3b3",
+    "lang:statements/expression-statements-blocks-and-declarations": "26a9f76eb4ebf701",
     "lang:statements/if-elseif-else": "e3210313c101acda"
   },
   "syntax/control-flow/iterators.mdx": {
     "Iterable": "00f00c8752d0a6b8",
     "Iterator": "c3226424f53707ac",
-    "lang:iteration/generators": "1ccd38934acd8957",
-    "lang:iteration/the-two-interfaces": "1885960b8b9f3b50",
-    "lang:iteration/what-does-not-exist": "528280082914c5ee"
+    "lang:iteration/generators": "6fffbb44b91b17a9",
+    "lang:iteration/the-two-interfaces": "d00a26a9e1cf7ba1",
+    "lang:iteration/what-does-not-exist": "f5a26416de1c61c9"
   },
   "syntax/control-flow/loops.mdx": {
-    "lang:statements/for": "04315f3ad07b44a6",
+    "lang:statements/for": "b9ba0c13c00dae0e",
     "lang:statements/while-and-do-while": "afb54afd748091c6"
   },
   "syntax/control-flow/match.mdx": {
-    "lang:expressions/match": "f59f057c151baecd"
+    "lang:expressions/match": "eec624aa9f9851f3"
   },
   "syntax/control-flow/other-statements.mdx": {
-    "lang:statements/echo-print-unset-exit-yield": "e46e42961c3da58d",
-    "lang:statements/statement-forms-that-do-not-parse": "ab66b65b1103eaed"
+    "lang:statements/echo-print-unset-exit-yield": "ef1477393bd20b22",
+    "lang:statements/statement-forms-that-do-not-parse": "3759148c02dff6ec"
   },
   "syntax/control-flow/switch.mdx": {
-    "lang:statements/switch": "7708e52232f83a45"
+    "lang:statements/switch": "ec1a13507ba84677"
   },
   "syntax/errors/assert-and-dump.mdx": {
     "Core\\Test\\Failure": "ad8300273588bcbf",

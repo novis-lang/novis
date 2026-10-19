@@ -338,7 +338,7 @@ repeats none of their text.
   - [x] `bun nv site --check syntax` accepts a `<FeatureSection>` where it needed a `<Snippet>`, with a case in `site.test.ts`
 - [ ] Each syntax page renders its covered features, keeps its own frame, *Use this when* and *Do and don't*, and loses its snippets for those features. `website/src/content/docs/syntax/control-flow/break-continue-return.mdx:1`
   - [x] `control-flow/break-continue-return.mdx`, stamped
-  - [ ] the rest of `control-flow/`
+  - [x] the rest of `control-flow/`
   - [ ] `errors/`, `functions/`, `operators/` and `basics/`
   - [ ] `values/`, `programs/` and `classes/`
   - [ ] `concurrency/`, `attributes/` and `testing/`
@@ -381,19 +381,26 @@ a `<FeatureSection examples=…>` where it needed a `<Snippet>` (`syntaxProblems
 `featureHash` already hashes every file in a feature's directory, and a new case pins a changed
 `details.md` and example making the page stale.
 
-`syntax/control-flow/break-continue-return.mdx` is the pattern. It keeps its title, a two-sentence
-frame, *Use this when* and *Do and don't*; each covered feature is one `<FeatureSection>` (`h2` per
-feature); its bullets are gone, since `about.md` and `details.md` say each of them; its snippets
-under `website/snippets/syntax/break-continue-return/` are deleted; and it is stamped in
-`website/site.lock.json`. The built page shows 9 examples and both details. `throw` is covered by
-`syntax/errors/throw-and-catch.mdx`, so this page links there. `return`'s `about.md` said "answers",
-now "returns".
+All of `syntax/control-flow/` is converted: eight pages, each one `<FeatureSection>` (`h2`) per
+covered feature, its frame, *Use this when* and *Do and don't* kept, its bullets gone because
+`about.md` and `details.md` say each of them, and its snippets under `website/snippets/syntax/`
+deleted. Every bullet of the seven pages this session converted was already in a feature's text, so
+no `details.md` changed. Each built page's `method-example` count equals its features' example
+files. `iterators.mdx` also covers the `Core` ids `Iterable` and `Iterator`, which have no Reference
+page, so it keeps their method table. `other-statements.mdx` keeps its table of statements Novis
+does not have, as a quick reference beside the feature that says each one.
 
-`bun nv site --check` fails on findings no page of this goal touched, before and after this slice:
-`structure` (2, `/reference/types/`), `questions` (827 broken Core URLs), `syntax` (46 uncovered
-`Core` enums and errors), `apps` (16) and `prose` (5, `run-as-a-service.mdx` and `compare.mdx`).
-`stale` lists 138 page-feature pairs, which are stage 6's content edits; each page is stamped when
-its slice converts it, so a converted page drops off the list.
+**A converted page owes two stamps**: `bun nv site --stamp <page key>` in `website/site.lock.json`,
+and its search questions in `website/src/data/questions.json`, since a handwritten page's question
+hash is its file. Reread the questions against the new page, then `MSYS_NO_PATHCONV=1 bun nv site
+--questions --stamp /syntax/<dir>/<page>/`. The last session missed the second for
+`break-continue-return`; this one stamped all eight.
+
+`bun nv site --check` fails on findings no page of this goal touched: `structure` (2,
+`/reference/types/`), `questions` (826 broken Core URLs), `syntax` (46 uncovered `Core` enums and
+errors), `apps` (`notes` and `paperwork`, the `Novis\Intl\Icu` extension not loaded on this host)
+and `prose` (5, `run-as-a-service.mdx` and `compare.mdx`). `stale` lists 123 page-feature pairs,
+which are stage 6's content edits; each drops off when its page is converted and stamped.
 
 The sweep's red jobs are run 39185807455, which ran on `main` at f8ad800d3 (checked with `gh run
 view`), not this branch.
@@ -404,13 +411,12 @@ Convert the syntax pages one section at a time, as `break-continue-return.mdx` w
 `<FeatureSection>` per covered `lang` feature, the page's frame, *Use this when* and *Do and don't*
 kept, every bullet and paragraph the feature's `about.md` or `details.md` already says deleted, the
 page's snippets for those features deleted with `git rm`, then `bun nv site --build`, a look at the
-built page's headings and `method-example` count, and `bun nv site --stamp <page key>`. A bullet the
+built page's headings and `method-example` count, and both stamps (see *State*). A bullet the
 page has and neither text has is a fact: check it on the binary and move it into the feature's
 `details.md`. A page that also covers a `Core` id (`LateInit`, `PropertyGuard`) keeps a `<Snippet>`
-or links the Reference page for that id. Start with the rest of `control-flow/`
-(`website/src/content/docs/syntax/control-flow/`). `throw-and-catch.mdx` covers both
-`try-catch-finally` features, which decides the backlog item on their two `about.md` files.
-- [ ] The rest of `control-flow/` renders its features and loses their snippets. `website/src/content/docs/syntax/control-flow/foreach.mdx:1`
+or a short table, or links the Reference page for that id. Write a page whole with Write: the guard
+refuses a heredoc script. `throw-and-catch.mdx` covers both `try-catch-finally` features, which
+decides the backlog item on their two `about.md` files.
 - [ ] `errors/`, `functions/`, `operators/` and `basics/`. `website/src/content/docs/syntax/errors/throw-and-catch.mdx:1`
 - [ ] `values/`, `programs/` and `classes/`. `website/src/content/docs/syntax/classes/objects.mdx:1`
 - [ ] `concurrency/`, `attributes/` and `testing/`. `website/src/content/docs/syntax/concurrency/tasks.mdx:1`

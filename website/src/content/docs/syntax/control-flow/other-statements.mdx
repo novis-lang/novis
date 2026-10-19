@@ -3,22 +3,15 @@ title: echo, unset and exit
 covers: ['lang:statements/echo-print-unset-exit-yield', 'lang:statements/statement-forms-that-do-not-parse']
 description: The statements echo, print, unset and exit, and the statements Novis does not have.
 ---
-import Snippet from '@components/Snippet.astro'
+import FeatureSection from '@components/FeatureSection.astro'
 
 `echo` writes values to the output. `unset` removes entries from an array. `exit` ends the program.
 
-<Snippet src="syntax/other-statements/01-echo-unset-exit.nvs" />
+<FeatureSection examples="lang/statements/echo-print-unset-exit-yield" heading="echo, print, unset, exit and yield" id="echo-unset-exit" />
 
-- `echo a, b;` writes each value in order, with nothing between them. `print` writes one value.
-- Both write a value the same way the `.` operator joins it into a string.
-- `unset` only removes array entries. `unset($x)` on a variable or a property does not compile.
-  Assign `null` to a nullable variable instead.
-- `exit;`, `exit(2);` and `exit("message");` end the program. `exit` is also an expression, so
-  `$value ?? exit(1)` works.
-- `yield` is a statement too. [Iterators and generators](/syntax/control-flow/iterators/) explains
-  it.
+[Iterators and generators](/syntax/control-flow/iterators/) explains `yield`.
 
-## Statements Novis does not have
+<FeatureSection examples="lang/statements/statement-forms-that-do-not-parse" heading="Statements Novis does not have" id="statements-novis-does-not-have" />
 
 | Statement | Use instead |
 |---|---|
@@ -30,8 +23,6 @@ import Snippet from '@components/Snippet.astro'
 | `list($a, $b) = ...` | `[int $a, int $b] = ...` |
 | `include`, `require_once` | `require` |
 | `class`, `interface`, `enum`, `namespace` or `use` inside a body | write it at the top level of the file |
-
-Each of these is a syntax error.
 
 ## Use this when you stop a script with an error
 
