@@ -259,9 +259,9 @@ bun nv affected --run                                          # run exactly tha
 bun nv affected --since HEAD~2                                 # the same, for a change already committed
 bun nv affected --paths crates/nvs-ir/src/lower.rs             # the same, for these paths alone
 bun nv verify                                                  # build + fmt + test + clippy, one call
-bun nv verify --fast                                           # build + test only, for a mid-work check
+bun nv verify --fast                                           # build + test only, for the fix pass
 bun nv verify -p nvs-ir                                        # the same build; only nvs-ir's test binaries run
-bun nv verify --fast -p nvs-ir                                 # the mid-work check: build, then nvs-ir's tests
+bun nv verify --fast -p nvs-ir                                 # the fix pass: build, then nvs-ir's tests
 looper verify                                                  # the loop's gate: bun nv verify, joining a run already going
 bun nv verify --no-cache                                       # run every step, whatever the cache holds; by hand only
 bun nv verify --doc                                            # the rustdoc gate alone, a session's before DONE
@@ -289,10 +289,11 @@ and no filter, `looper check` with no `--name`, `bun nv benches`, `bun nv debt`,
 `--run` over every feature, and `bun nv verify --no-cache`. A person runs them by hand; looper's sweep
 and its hooks are not tool calls, so the guard never sees them. To look into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
 
-**Two of those are for the run that is not the final one.** Verification is most of a session's
-tool-execution time, so a mid-work check that only needs to know whether the code compiles and its tests
-pass should say so: `--fast` for build and test, `-p <crate>` when the change cannot reach further. The
-run at the **end of the group** is always the full one — that is step 3, and it is not negotiable.
+**Tests run once per group, and two of those flags are for the fix pass after it.** Verification is
+most of a session's tool-execution time, so nothing runs tests between slices: while you work, the only
+check is `cargo build`. The run at the **end of the group** is always the full one, which is step 3.
+Every failure it names is fixed in one pass, and `--fast -p <crate>` reruns just the crate being fixed
+before the full run goes again.
 
 **And the last one need not be spent in series.** Start it with `run_in_background`, write the wrap
 file — which is prose you already know and cannot fail — and end your turn. The verify's report starts

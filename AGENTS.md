@@ -68,8 +68,10 @@ Each is here because not knowing it exists is the entire cost. The file named af
   questions in one call, and `--locate <symbol> ...` gives `file:line` anchors alone. One patch edits
   any number of files, all of it or none of it ([commands.md](docs/agent/commands.md) § *One shell call
   runs one command, and its exit status is the last one's*).
-- **A mid-work check is `bun nv verify --fast -p <crate>`**: the build, then one crate's tests. The full
-  gate runs once, at the end of the group ([commands.md](docs/agent/commands.md) § *Verifying*).
+- **While you work, the only check is `cargo build`.** No test runs between slices. The full gate runs
+  once, at the end of the group, and every failure it names is fixed in one pass before it runs again.
+  `bun nv verify --fast -p <crate>` is for that fix pass, to rerun one crate's tests
+  ([commands.md](docs/agent/commands.md) § *Verifying*).
 - **The end-of-group gate is `bun nv affected --run`.** It runs `bun nv verify` over what the change
   reaches, then the acceptance checks it reaches that are not green yet. In the loop, `looper verify`
   runs `bun nv verify` and joins a run already going ([commands.md](docs/agent/commands.md)
