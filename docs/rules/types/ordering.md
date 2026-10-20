@@ -4,7 +4,7 @@
 |---|---|
 | two numerics, `int` against `uint` included | `bool` (`int` for `<=>`), mathematically exact over the full range of both |
 | `decimal` against `int`, `uint` or `float` | `bool`, exact — a comparison is computable where a common arithmetic type is not |
-| two `bool`s | `false < true`, the ordering of the one bit they already are |
+| two `bool`s | `false < true`, the ordering of the one bit they already are. A `bool` against a number is the last row, so a chained `1 < 2 < 3` is `E0715` |
 | two objects whose static type is provably the same class implementing `Comparable` | `bool`/`int`, via `compareTo`; a throwing `compareTo` propagates as a checked status like any other call |
 | any other operands | **compile error** |
 

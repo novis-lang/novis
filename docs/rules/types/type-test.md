@@ -65,6 +65,7 @@ as one.
 |---|---|---|
 | `$x is tainted string`, `is secret bytes` | `E0813` | `rule:security/tainted-qualifier` erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one. Over a `mixed` or `object` subject `tainted` is admitted and tested as plain text, because there it is the answer `rule:security/taint-propagation` gives anyway |
 | `$x is void`, `$x is never` | `E0811` | no value inhabits either |
+| `$c is class<Dog>`, alone or in a union | `E0867` | a class reference carries the class it names and no tag for the `T` it was declared with, so there is no run-time row. `$c as ?class<Dog>` walks the named class and gives `null` when it is not a `Dog` |
 | `$m is {name: string}` over a `mixed` or `object` subject, or an object whose `name` field is `mixed`, tainted or not declared | `E0851` | text out of `mixed` is `tainted` (`rule:security/taint-propagation`), and a written shape says so itself: `$m is tainted {name: string}` |
 
 Nothing else is refused. In particular a test whose answer the declaration already settles is **not**:

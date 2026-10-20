@@ -25,7 +25,10 @@
 //! Reusing a name with a *different* type still conflicts — that really is
 //! "a second declared type for one storage location," which `rule:types/declaration`
 //! explicitly forbids for a reference and, by the same reasoning, for a
-//! plain local too.
+//! plain local too. A `catch` variable reuses only a name an earlier `catch`
+//! declared: its binding ends with its clause, so a clause that took over a
+//! parameter's or a local's storage would end that binding too, and it is
+//! `E0406` at the clause instead.
 //!
 //! # Narrowing a local through `is`, `!= null` or a literal
 //!
@@ -191,6 +194,10 @@ pub(crate) struct LocalScope {
     /// binding, so there is no statement boundary afterwards at which the name
     /// could be taken back out. [`ArmBinding`] is that boundary.
     arm_bound: std::cell::RefCell<FxHashMap<String, LocalInfo>>,
+    /// The names a `catch` clause declared. A later clause may reuse one of
+    /// them at the same type, but a clause may not reuse a name any other
+    /// declaration made: that is `E0406`, see the `StmtKind::Try` arm.
+    catch_bound: FxHashSet<String>,
     /// The initializer of every local whose type `var` took from it — read by
     /// [`Self::var_initializer`] when a later write does not fit that type.
     var_initializers: FxHashMap<String, Span>,
@@ -1118,8 +1125,8 @@ fn declare_binding(
 /// — `rule:expressions/catch-expression`'s "a local of the enclosing function under the block form's
 /// rule", written against the `&LocalScope` the expression checker threads.
 ///
-/// The rule is [`declare_binding`]'s non-strict path: reuse when an existing
-/// declaration's type matches exactly, and `E0406` otherwise. What differs is
+/// The rule is the clause's: reuse when another `catch` declared the name at
+/// exactly this type, and `E0406` otherwise. What differs is
 /// only where the binding lives and how it ends — see
 /// [`LocalScope::arm_bound`] and [`ArmBinding`].
 pub(crate) fn bind_catch_arm(
@@ -1136,11 +1143,21 @@ pub(crate) fn bind_catch_arm(
     let existing = {
         let arms = scope.arm_bound.borrow();
         arms.get(name)
-            .or_else(|| scope.by_name.get(name))
-            .map(|info| (info.ty, info.declared_span))
+            .map(|info| (info.ty, info.declared_span, true))
+            .or_else(|| {
+                scope.by_name.get(name).map(|info| {
+                    (
+                        info.ty,
+                        info.declared_span,
+                        scope.catch_bound.contains(name),
+                    )
+                })
+            })
     };
-    if let Some((existing_ty, first)) = existing {
-        if existing_ty != ty {
+    if let Some((existing_ty, first, by_catch)) = existing {
+        // An arm reuses only a name another `catch` declared, as a clause
+        // does — see the `StmtKind::Try` arm of `check_stmt`.
+        if existing_ty != ty || !by_catch {
             env.diags.report(
                 Diagnostic::error(
                     code::E_REDECLARED_LOCAL,
@@ -1744,7 +1761,14 @@ pub(crate) fn check_stmt(
                 reject_uncatchable_arm(ty, catch.ty.span, env);
                 if let Some(var) = catch.var {
                     let name = strip_sigil(span_text(env.src, var)).to_owned();
-                    declare_binding(scope, &name, ty, var, false, env);
+                    // A clause reuses only a name an earlier clause declared.
+                    // A parameter, a local or a `foreach` binding of the same
+                    // name is a second declaration, held strictly: the clause's
+                    // binding ends with the clause, so reusing that storage
+                    // would end the outer local with it.
+                    let strict = !scope.catch_bound.contains(&name);
+                    declare_binding(scope, &name, ty, var, strict, env);
+                    scope.catch_bound.insert(name.clone());
                     // Unless the name was already assigned before the `try`,
                     // in which case the clause reused an existing binding
                     // (`declare_binding`'s non-strict path) and what was live
@@ -1813,7 +1837,11 @@ pub(crate) fn check_stmt(
                     let declared_ty = reject_void_or_never_binding(written, ty.span, false, env);
                     declare_binding(scope, &name_str, declared_ty, *name, true, env);
                     if let Some(value) = value {
-                        check_expr(value, Some(declared_ty), live, scope, ctx, env);
+                        // A refused `void` or `never` binding is `mixed` from
+                        // here on, and its value is checked against nothing:
+                        // a `void` call there is the error already reported.
+                        let expected = (declared_ty == written).then_some(declared_ty);
+                        check_expr(value, expected, live, scope, ctx, env);
                         live.insert(name_str);
                     }
                 }

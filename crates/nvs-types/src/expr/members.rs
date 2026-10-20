@@ -2165,6 +2165,27 @@ pub(crate) fn check_property_member(
                     ctx,
                     env,
                 );
+                // `rule:statements/static-is-a-member-modifier`: a static
+                // property has no slot in an instance, so `->` and `?->` do
+                // not reach it. `$this->x` is left to `nvs_hir::members`, which
+                // already reports it as a property the class does not have.
+                if !is_this_receiver(object, env.src)
+                    && env
+                        .signatures
+                        .get(&owner)
+                        .is_some_and(|sig| sig.static_properties.iter().any(|(n, _)| *n == name))
+                {
+                    let class = owner.to_string();
+                    env.diags.report(
+                        Diagnostic::error(
+                            code::E_STATIC_PROPERTY_THROUGH_INSTANCE,
+                            format!("`{class}::${name}` is static, so an object does not have it"),
+                        )
+                        .with_primary(object.span.to(*name_span), "read through an object here")
+                        .with_help(format!("write `{class}::${name}`")),
+                    );
+                    return ty;
+                }
                 // `rule:classes/property-hooks`: a hooked property's access is a call to its
                 // accessor, not a field touch — except inside that property's
                 // own hooks, where `$this->p` is the backing slot (see

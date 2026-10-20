@@ -64,6 +64,12 @@ pub(crate) fn is_assignable(
     graph: &ClassGraph,
     signatures: &SignatureTable,
 ) -> bool {
+    // A `void` call has no value, so not even `mixed` takes one. Only here,
+    // where a value is stored: a callable signature's return compares through
+    // [`assignable`], where a `void` callback still fills a `mixed` return.
+    if from != to && matches!(interner.get(from), Ty::Void) {
+        return false;
+    }
     assignable(from, to, Widening::Converts, interner, graph, signatures)
 }
 

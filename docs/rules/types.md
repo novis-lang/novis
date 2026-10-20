@@ -27,7 +27,10 @@ annotation like any method ([`types/anonymous-function`](types.md#types-anonymou
 
 A binding is declared **once**. A later assignment is bare, and is legal only where the name is
 already declared in the enclosing function; re-declaring a live name is a diagnostic naming the first
-declaration, and there is no shadowing. Declaration is function-scoped — a binding declared inside an
+declaration, and there is no shadowing. A `foreach` or destructuring binding may reuse a live name at
+the same type. A `catch` variable may reuse only a name another `catch` declared, at the same type,
+because its binding ends with its clause: a parameter or a local of that name is `E0406` at the
+clause. Declaration is function-scoped — a binding declared inside an
 `if` is visible after it — but *definite assignment is checked*: reading a binding on a path that may
 not have reached its initialiser is a compile error.
 
@@ -488,7 +491,7 @@ every key is a `string` already ([`types/arrays`](types.md#types-arrays)).
 |---|---|
 | two numerics, `int` against `uint` included | `bool` (`int` for `<=>`), mathematically exact over the full range of both |
 | `decimal` against `int`, `uint` or `float` | `bool`, exact — a comparison is computable where a common arithmetic type is not |
-| two `bool`s | `false < true`, the ordering of the one bit they already are |
+| two `bool`s | `false < true`, the ordering of the one bit they already are. A `bool` against a number is the last row, so a chained `1 < 2 < 3` is `E0715` |
 | two objects whose static type is provably the same class implementing `Comparable` | `bool`/`int`, via `compareTo`; a throwing `compareTo` propagates as a checked status like any other call |
 | any other operands | **compile error** |
 
@@ -1481,6 +1484,7 @@ as one.
 |---|---|---|
 | `$x is tainted string`, `is secret bytes` | `E0813` | [`security/tainted-qualifier`](security.md#security-tainted-qualifier) erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one. Over a `mixed` or `object` subject `tainted` is admitted and tested as plain text, because there it is the answer [`security/taint-propagation`](security.md#security-taint-propagation) gives anyway |
 | `$x is void`, `$x is never` | `E0811` | no value inhabits either |
+| `$c is class<Dog>`, alone or in a union | `E0867` | a class reference carries the class it names and no tag for the `T` it was declared with, so there is no run-time row. `$c as ?class<Dog>` walks the named class and gives `null` when it is not a `Dog` |
 | `$m is {name: string}` over a `mixed` or `object` subject, or an object whose `name` field is `mixed`, tainted or not declared | `E0851` | text out of `mixed` is `tainted` ([`security/taint-propagation`](security.md#security-taint-propagation)), and a written shape says so itself: `$m is tainted {name: string}` |
 
 Nothing else is refused. In particular a test whose answer the declaration already settles is **not**:

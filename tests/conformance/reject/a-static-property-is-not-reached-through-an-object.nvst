@@ -1,0 +1,32 @@
+--TEST--
+A static property read or written through `->` or `?->` is `E0869`, and the message names `P::$x` (`rule:statements/static-is-a-member-modifier`)
+--FILE--
+<?nvs
+final class P {
+    public static int $x = 1;
+}
+
+P $p = new P();
+?P $q = $p;
+echo $p->x, "\n";
+echo $q?->x, "\n";
+$p->x = 3;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0869]: `P::$x` is static, so an object does not have it
+%A
+8 | echo $p->x, "\n";
+%A
+  = help: write `P::$x`
+%A
+error[E0869]: `P::$x` is static, so an object does not have it
+%A
+9 | echo $q?->x, "\n";
+%A
+error[E0869]: `P::$x` is static, so an object does not have it
+%A
+10 | $p->x = 3;
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

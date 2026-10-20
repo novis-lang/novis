@@ -1,0 +1,39 @@
+--TEST--
+A `void` call has no value: at `mixed` it is `E0401`, as a `match` arm `E0868` whether the `match` is a value or a statement, and as a ternary branch `E0718` (`rule:expressions/a-match-has-at-least-one-arm`)
+--FILE--
+<?nvs
+final class Job {
+    public static function run(): void {}
+    public static function count(): int {
+        return 1;
+    }
+}
+
+mixed $x = Job::run();
+int $n = Job::count();
+match ($n) { 1 => Job::run(), default => 0 };
+mixed $y = match ($n) { 1 => 2, default => Job::run() };
+$n > 0 ? Job::run() : Job::run();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `mixed`, found `void`
+%A
+9 | mixed $x = Job::run();
+%A
+error[E0868]: this `match` arm calls a function that returns `void`
+%A
+11 | match ($n) { 1 => Job::run(), default => 0 };
+%A
+error[E0868]: this `match` arm calls a function that returns `void`
+%A
+12 | mixed $y = match ($n) { 1 => 2, default => Job::run() };
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+13 | $n > 0 ? Job::run() : Job::run();
+%A
+error[E0718]: a call that returns `void` has no value, so it is not an operand
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

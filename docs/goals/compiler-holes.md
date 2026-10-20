@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-types/src/expr/members.rs, crates/nvs-types/src/program.rs, crates/nvs-ir/src/lower/mod.rs]
   - id: 5
     title: "every expression the checker accepts lowers"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/control.rs, crates/nvs-types/src/expr/operators.rs, crates/nvs-types/src/expr/members.rs]
   - id: 6
     title: "generators and `finally` run each block once and lose no error"
@@ -322,13 +322,13 @@ else, and every write of a property runs the same guard and observer pipeline.
 **Does:** none of the seven forms below reaches a lowering panic or `E0901`. Each is either a
 diagnostic where it is written or lowered, as § *Standing decisions* says.
 
-- [ ] A `catch` variable that redeclares a local is `E0406`, with a case at the top level and in a method. `crates/nvs-ir/src/lower/expr.rs:235`, `data/gaps/nvs-ir/a-catch-variable-that-reuses-a.json:1`
-- [ ] `echo` and `.` of a `class<T>` are a diagnostic whose help names `as string`. `crates/nvs-ir/src/lower/expr.rs:1146`, `data/gaps/nvs-ir/a-class-reference-in-echo-or.json:1`
-- [ ] `is class<T>` is a diagnostic whose help names `as ?class<T>`. `crates/nvs-ir/src/lower/expr.rs:6280`, `data/gaps/nvs-ir/an-is-test-against-a-class-reference.json:1`
-- [ ] A `void` call at `mixed`, or as a `match` arm, is a compile error. `crates/nvs-ir/src/lower/control.rs:1`, `data/gaps/nvs-ir/a-void-call-at-a-mixed.json:1`
-- [ ] A static property reached through `->` or `?->` is a diagnostic naming `P::$x`. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-static-property-read-through-an.json:1`
-- [ ] Ordering a `bool` against a number, a chained `1 < 2 < 3` included, is `E0715`. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/ordering-a-bool-against-a-number.json:1`
-- [ ] A `callable` after `echo` or `.` is `E0707`. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/echo-of-a-callable-compiles-and.json:1`
+- [x] A `catch` variable that redeclares a local is `E0406`, with a case at the top level and in a method. `crates/nvs-ir/src/lower/expr.rs:235`, `data/gaps/nvs-ir/a-catch-variable-that-reuses-a.json:1`
+- [x] `echo` and `.` of a `class<T>` are a diagnostic whose help names `as string`. `crates/nvs-ir/src/lower/expr.rs:1146`, `data/gaps/nvs-ir/a-class-reference-in-echo-or.json:1`
+- [x] `is class<T>` is a diagnostic whose help names `as ?class<T>`. `crates/nvs-ir/src/lower/expr.rs:6280`, `data/gaps/nvs-ir/an-is-test-against-a-class-reference.json:1`
+- [x] A `void` call at `mixed`, or as a `match` arm, is a compile error. `crates/nvs-ir/src/lower/control.rs:1`, `data/gaps/nvs-ir/a-void-call-at-a-mixed.json:1`
+- [x] A static property reached through `->` or `?->` is a diagnostic naming `P::$x`. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-static-property-read-through-an.json:1`
+- [x] Ordering a `bool` against a number, a chained `1 < 2 < 3` included, is `E0715`. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/ordering-a-bool-against-a-number.json:1`
+- [x] A `callable` after `echo` or `.` is `E0707`. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/echo-of-a-callable-compiles-and.json:1`
 
 ### 6. generators and `finally` run each block once and lose no error
 
@@ -478,37 +478,47 @@ another goal.
 
 ### State
 
-Stages 1, 2, 3, 16 and 4 are done, and every gap record they owned is deleted. Stage 5 is next.
+Stages 1, 2, 3, 16, 4 and 5 are done, and every gap record they owned is deleted. Stage 6 is next.
 
-- A promoted constructor parameter's store runs the guard before the slot write and the observer
-  after it. `nvs_types::check::check_method` calls `record_promoted_pipelines`
-  (`crates/nvs-types/src/expr/members.rs`) for a constructor, which records a `PromotedPipeline`
-  at each promoted parameter's name when the class implements `PropertyGuard` or
-  `PropertyObserver`. `promoted_stores` in `crates/nvs-ir/src/lower/mod.rs` reads it through
-  `ExprTypeTable::promoted_pipeline`. A class that implements neither records nothing and its
-  store is one slot write. Case:
-  `tests/conformance/class/property-guard-and-observer-run-for-a-promoted-parameter.nvst`.
-- `$t ??= e` stores only when `$t` is `null` or absent. `Lowering::open_kept_value` and
-  `close_kept_value` in `crates/nvs-ir/src/lower/stmt.rs` branch on the staged read, for a tagged
-  or `?class<T>` target. The keeping block writes nothing, does not evaluate `e`, and gives the
-  read as the value, retained in a value position. Every temporary the store made is released on
-  the storing block. `rule:classes/property-observer-pipeline` and
-  `rule:types/absent-storage-is-never-a-zero-value` state it. Case:
-  `tests/conformance/class/a-coalescing-assignment-that-keeps-a-value-runs-no-guard.nvst`.
+Stage 5 made each of its seven forms a diagnostic in `nvs-types`, so none reaches the lowering:
+
+- A `catch` variable reuses only a name another `catch` declared, at the same type.
+  `LocalScope::catch_bound` (`crates/nvs-types/src/locals.rs`) holds those names. A clause over a
+  parameter, a local or a `foreach` binding is `E0406` through `declare_binding`'s strict path, and
+  `bind_catch_arm` applies the same rule to a `catch` expression, which panicked the same way.
+  `rule:types/declaration` states it.
+- `require_stringable` refuses a `class<T>` (help: `as string`) and a `callable` with `E0707`.
+- `is class<T>`, alone or in a union, is the new `E0867` in `reject_unanswerable_target`
+  (`crates/nvs-types/src/expr/type_test.rs`); `rule:types/type-test` lists it.
+- `is_assignable` (`crates/nvs-types/src/expr/assign.rs`) refuses `void` into any other type,
+  `mixed` included (`E0401`), at its top level only, so a `void` callback still fills a callable
+  whose return is `mixed`. A `void` `match` arm is the new `E0868`, and a `void` ternary branch is
+  `E0718`: the ternary had the same `E0901` phi. `rule:expressions/a-match-has-at-least-one-arm`.
+- `$p->x` and `$p?->x` of a static property are the new `E0869` in `check_property_member`
+  (`crates/nvs-types/src/expr/members.rs`). `$this->x` keeps `nvs_hir`'s `E0313`, so it is not
+  reported twice. `rule:statements/static-is-a-member-modifier`.
+- `reject_unordered_operand` refuses a `bool` against a number, so `1 < 2 < 3` is `E0715`.
+  `rule:types/ordering`.
+- Cases: six new files under `tests/conformance/reject/` and
+  `tests/conformance/error/catch-clauses-reuse-a-name-another-catch-declared.nvst`.
+- Two cascades the new checks exposed are cut at their cause. A `|>` whose right side is a
+  callable with no `$_` now recovers to an error node (`parse_pipe`,
+  `crates/nvs-syntax/src/parser/expr.rs`), so it reports `E0129` alone. A refused `void $x = …`
+  checks its value against no type, so it reports `E0742` alone.
+- `tools/nv/test/replay-browser.test.ts` was red before this group: the caret blinks only while a
+  replay plays, and the test checked a replay at rest. It now presses play first.
+- Stage 5 is one commit, because its items share `operators.rs`, `locals.rs` and the code tables.
 - The installed `looper` has no `verify` subcommand, so this session ran `bun nv affected --run`.
 
 ### Next
 
-**Stage 5: the forms the checker accepts and the lowering panics on.** Each becomes a diagnostic
-where it is written (§ *Standing decisions*), with a conformance case and its gap record deleted.
+**Stage 6: generators and `finally`.** Each item closes its gap record with a conformance case;
+§ *Standing decisions* fixes the yield-in-`finally` and the in-flight-error choices.
 
-- [ ] Stage 5: a `catch` variable that redeclares a local is `E0406`, at the top level and in a method. `crates/nvs-ir/src/lower/expr.rs:235`, `data/gaps/nvs-ir/a-catch-variable-that-reuses-a.json:1`
-- [ ] Stage 5: `echo` and `.` of a `class<T>` are a diagnostic whose help names `as string`. `crates/nvs-ir/src/lower/expr.rs:1146`, `data/gaps/nvs-ir/a-class-reference-in-echo-or.json:1`
-- [ ] Stage 5: `is class<T>` is a diagnostic whose help names `as ?class<T>`. `crates/nvs-ir/src/lower/expr.rs:6280`, `data/gaps/nvs-ir/an-is-test-against-a-class-reference.json:1`
-- [ ] Stage 5: a `void` call at `mixed` or as a `match` arm is a compile error. `crates/nvs-ir/src/lower/control.rs:1`, `data/gaps/nvs-ir/a-void-call-at-a-mixed.json:1`
-- [ ] Stage 5: a static property reached through `->` or `?->` is a diagnostic naming `P::$x`. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-static-property-read-through-an.json:1`
-- [ ] Stage 5: ordering a `bool` against a number is `E0715`. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/ordering-a-bool-against-a-number.json:1`
-- [ ] Stage 5: a `callable` after `echo` or `.` is `E0707`. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/echo-of-a-callable-compiles-and.json:1`
+- [ ] Stage 6: a `yield` of a literal in an `Iterator<?int>`, `Iterator<?string>` or `Iterator<int|string>` compiles and yields. `crates/nvs-ir/src/lower/generator.rs:1`, `data/gaps/nvs-ir/a-generator-of-a-nullable-or.json:1`
+- [ ] Stage 6: a generator whose body throws is finished, and its `finally` runs once. `crates/nvs-ir/src/lower/generator.rs:1`, `data/gaps/nvs-ir/a-generator-that-throws-is-not.json:1`
+- [ ] Stage 6: a `yield` inside a `finally` is a compile error with its own code. `crates/nvs-ir/src/lower/generator.rs:1`, `data/gaps/nvs-ir/a-yield-inside-a-finally.json:1`
+- [ ] Stage 6: an error leaving a `finally` while another is in flight carries it as `previous`. `crates/nvs-syntax/src/parser/stmt.rs:1`, `data/gaps/nvs-syntax/a-throw-inside-a-finally.json:1`
 
 ### Backlog
 

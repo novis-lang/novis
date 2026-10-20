@@ -1,0 +1,25 @@
+--TEST--
+`$c is class<Dog>` is `E0867`, alone or in a union, and its help names `as ?class<Dog>`, which checks the class a reference names (`rule:types/type-test`)
+--FILE--
+<?nvs
+class Animal {}
+final class Dog extends Animal {}
+
+class<Animal> $c = Dog::class as class<Animal>;
+echo ($c is class<Dog>) ? "dog" : "other";
+echo ($c is class<Dog>|null) ? "dog" : "other";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0867]: `is` cannot test for `class<Dog>`
+%A
+6 | echo ($c is class<Dog>) ? "dog" : "other";
+%A
+  = help: write `$c as ?class<Dog>`. The result is `null` when the class is not `Dog` or a class that extends it
+%A
+error[E0867]: `is` cannot test for `class<Dog>`
+%A
+7 | echo ($c is class<Dog>|null) ? "dog" : "other";
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

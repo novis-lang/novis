@@ -1,0 +1,42 @@
+--TEST--
+A `class<T>` and a `callable` have no implicit string form: after `echo`, around `.` and in an interpolated piece each is `E0707`, and the class reference's help names `as string` (`rule:classes/stringable`)
+--FILE--
+<?nvs
+class Animal {}
+
+class<Animal> $b = 'Animal' as class<Animal>;
+echo $b;
+echo "a " . $b;
+echo "x {$b}";
+callable $f = fn(): int => 1;
+echo $f;
+echo "a " . $f;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0707]: `class<Animal>` has no string form
+%A
+5 | echo $b;
+%A
+  = help: convert it with `as string` to get the class name, as in `$c as string`
+%A
+error[E0707]: `class<Animal>` has no string form
+%A
+6 | echo "a " . $b;
+%A
+error[E0707]: `class<Animal>` has no string form
+%A
+7 | echo "x {$b}";
+%A
+error[E0707]: `callable` has no string form
+%A
+9 | echo $f;
+%A
+  = help: a function has no text. Call it and use the value it returns
+%A
+error[E0707]: `callable` has no string form
+%A
+10 | echo "a " . $f;
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

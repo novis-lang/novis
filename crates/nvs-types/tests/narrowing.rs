@@ -188,7 +188,7 @@ const WRITES_OF_N: &[&str] = &[
     "T::reset(inout $n);",
     "[?Node $n] = $all;",
     "foreach ($all as ?Node $n) {\n}",
-    "try {\n  echo \"x\";\n} catch (Throwable $e) {\n  $n = null;\n}",
+    "try {\n  echo \"x\";\n} catch (Throwable $caught) {\n  $n = null;\n}",
     "while (true) {\n  $n = null;\n}",
     "for (int $i = 0; $i < 1; $i++) {\n  if ($i == 0) {\n    $n = null;\n  }\n}",
     "var $f = fn() => $n;",
