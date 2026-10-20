@@ -42,21 +42,22 @@ fn a_default_interface_method_is_inherited_and_callable() {
 /// A class overriding a default method wins over the interface's own
 /// body — an ordinary override, resolved because `resolve_method` checks
 /// a class's own signature table before ever walking to `implements`.
-/// Proven here by a signature-shape change (`string` vs `int`) that would
-/// mismatch if the stale interface signature were used instead of the
-/// override's own.
+/// Proven here by an override that widens the parameter to `?string` and
+/// narrows the return to `string`: the `null` argument and the `string`
+/// variable would both mismatch if the interface's signature were used
+/// instead of the override's own.
 #[test]
 fn a_class_can_override_a_default_interface_method() {
     let diags = check_src(
         "<?nvs\n\
-         interface Greets { public function greet(string $x): void {} }\n\
+         interface Greets { public function greet(string $x): ?string { return null; } }\n\
          class Person implements Greets {\n\
-         \x20 public function greet(int $x): void {}\n\
+         \x20 public function greet(?string $x): string { return \"hi\"; }\n\
          }\n\
          class T {\n\
          \x20 function m(): void {\n\
          \x20\x20 Person $p = new Person();\n\
-         \x20\x20 $p->greet(1);\n\
+         \x20\x20 string $s = $p->greet(null);\n\
          \x20 }\n\
          }\n",
     );

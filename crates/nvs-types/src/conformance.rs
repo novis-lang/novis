@@ -21,9 +21,10 @@
 //!
 //! The same walk asks one question of the answers it accepts: a member the
 //! ancestor declared `: static` has to be answered by a declaration that also
-//! writes `static` (`E0404`, [`reject_dropped_static_return`]). Nothing else
-//! about the two signatures is compared here — argument and return
-//! assignability is a rule of its own that nothing has decided yet.
+//! writes `static` (`E0404`, [`reject_dropped_static_return`]). The rest of
+//! the two signatures is [`check_method_overrides`]'s, which compares every
+//! override with the declaration it replaces
+//! (`rule:classes/an-override-keeps-its-parents-signature`).
 //!
 //! These are outside it, each for its own reason:
 //!
@@ -50,7 +51,7 @@
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::{QName, SymbolKind, implements_interface};
-use nvs_syntax::ast::{ClassDecl, ClassMember, ClassMemberKind, Modifier};
+use nvs_syntax::ast::{ClassDecl, ClassMember, ClassMemberKind, Modifier, Visibility};
 use rustc_hash::FxHashSet;
 
 use crate::Env;
@@ -456,6 +457,298 @@ pub(crate) fn check_class_finality(decl: &ClassDecl, qname: &QName, env: &mut En
     }
 }
 
+/// `rule:classes/an-override-keeps-its-parents-signature`: every method a
+/// class or an interface declares again over one an ancestor declares keeps a
+/// signature a call through the ancestor can use (`E0404`).
+///
+/// A call through the ancestor's type is checked against the ancestor's
+/// signature and runs the override, which reads its arguments and returns its
+/// result with no conversion between the two. So the return type fits the
+/// ancestor's in place, the ancestor's type of each parameter fits the
+/// override's in place, and the relation is
+/// [`crate::expr::assign::field_fits`], which leaves out the `int` → `float`
+/// row that converts where a value is stored. The parameter count, `inout`,
+/// the variadic tail, `static` and a visibility no narrower are compared
+/// directly. The count is exact, since a call fills a default from the
+/// ancestor's signature and never from the override's. A `tainted` or `secret` parameter is kept by the same relation,
+/// since the qualifier is part of the parameter's type.
+///
+/// Each direct ancestor is asked through [`resolve_method`], so the nearest
+/// declaration is the one compared, and an interface that redeclares a member
+/// of the one it extends is checked here too. A method a class does not
+/// declare but answers from its superclass is compared against each interface
+/// the class names itself, at the class's name, which is the only span it
+/// wrote. A generic interface's type variables are bound from the class's own
+/// `implements` clause first, and `Comparable::compareTo` takes the class
+/// itself for `self`, as `rule:classes/comparable` declares it.
+pub(crate) fn check_method_overrides(
+    members: &[ClassMember],
+    name_span: Span,
+    qname: &QName,
+    env: &mut Env<'_>,
+) {
+    let Some(links) = env.graph.get(qname) else {
+        return;
+    };
+    let ancestors: Vec<QName> = links
+        .extends
+        .iter()
+        .chain(links.implements.iter())
+        .cloned()
+        .collect();
+    let interfaces = links.implements.clone();
+    let superclass = links.extends.first().cloned();
+    let own_sigs = env.signatures.get(qname).map(|sig| sig.methods.clone());
+    let Some(own_sigs) = own_sigs else {
+        return;
+    };
+
+    for member in members {
+        let ClassMemberKind::Method(m) = &member.kind else {
+            continue;
+        };
+        let name = span_text(env.src, m.name).to_owned();
+        if name == "constructor" {
+            continue;
+        }
+        let Some(own) = own_sigs.get(&name).cloned() else {
+            continue;
+        };
+        for ancestor in &ancestors {
+            let Some((owner, parent)) = resolve_method(ancestor, &name, env.signatures, env.graph)
+            else {
+                continue;
+            };
+            let at = m.return_type.as_ref().map_or(m.name, |ty| ty.span);
+            compare_override(qname, &owner, &name, &own, &parent, (m.name, at), env);
+        }
+    }
+
+    let Some(superclass) = superclass else {
+        return;
+    };
+    let mut names = Vec::new();
+    let mut seen = FxHashSet::default();
+    for interface in &interfaces {
+        reachable_method_names(interface, env, &mut seen, &mut names);
+    }
+    names.sort();
+    names.dedup();
+    for name in names {
+        if own_sigs.contains_key(&name) {
+            continue;
+        }
+        let Some((_, inherited)) = resolve_method(&superclass, &name, env.signatures, env.graph)
+        else {
+            continue;
+        };
+        for interface in &interfaces {
+            let Some((owner, declared)) =
+                resolve_method(interface, &name, env.signatures, env.graph)
+            else {
+                continue;
+            };
+            compare_override(
+                qname,
+                &owner,
+                &name,
+                &inherited,
+                &declared,
+                (name_span, name_span),
+                env,
+            );
+        }
+    }
+}
+
+/// One `E0404` for the first way `own` cannot replace `parent`, which `owner`
+/// declares, when `qname`'s method `name` is called through `owner`. `at` is
+/// the method's name and its return type, or the class's name twice for an
+/// inherited answer.
+fn compare_override(
+    qname: &QName,
+    owner: &QName,
+    name: &str,
+    own: &crate::signatures::MethodSig,
+    parent: &crate::signatures::MethodSig,
+    at: (Span, Span),
+    env: &mut Env<'_>,
+) {
+    if parent.interface_private || owner == qname {
+        return;
+    }
+    let parent = bind_interface_args(qname, owner, parent, env);
+    let (name_at, return_at) = at;
+    let rank = |v: Visibility| match v {
+        Visibility::Public => 2,
+        Visibility::Protected => 1,
+        Visibility::Private => 0,
+    };
+    let problem: Option<(Span, String)> = if own.is_static != parent.is_static {
+        let (is, was) = if parent.is_static {
+            ("is not `static`", "is")
+        } else {
+            ("is `static`", "is not")
+        };
+        Some((
+            name_at,
+            format!("this method {is}, and `{owner}::{name}` {was}"),
+        ))
+    } else if rank(own.visibility) < rank(parent.visibility) {
+        Some((
+            name_at,
+            format!(
+                "this method is `{}`, and `{owner}::{name}` is `{}`",
+                visibility_word(own.visibility),
+                visibility_word(parent.visibility)
+            ),
+        ))
+    } else if !crate::expr::assign::field_fits(
+        own.return_ty,
+        parent.return_ty,
+        env.interner,
+        env.graph,
+        env.signatures,
+    ) {
+        let have = env.interner.describe(own.return_ty);
+        let want = env.interner.describe(parent.return_ty);
+        Some((
+            return_at,
+            format!("this method returns `{have}`, and `{owner}::{name}` returns `{want}`"),
+        ))
+    } else if parent.returns_static
+        && !own.returns_static
+        && (parent.has_body
+            || env.symbols.get(owner).map(|symbol| symbol.kind) != Some(SymbolKind::Interface))
+    {
+        // A bodiless interface member is `reject_dropped_static_return`'s,
+        // which reports it at every class that answers it.
+        Some((
+            return_at,
+            format!("this method does not return `static`, and `{owner}::{name}` does"),
+        ))
+    } else if own.params.len() != parent.params.len() {
+        // A further parameter is refused even with a default: a call fills
+        // a default from the signature it resolved, which is `parent`'s, so
+        // the override would read a parameter nothing passed.
+        Some((
+            name_at,
+            format!(
+                "this method takes {} parameter(s), and `{owner}::{name}` takes {}",
+                own.params.len(),
+                parent.params.len()
+            ),
+        ))
+    } else if own.variadic != parent.variadic {
+        Some((
+            name_at,
+            format!(
+                "`{owner}::{name}` {} a variadic last parameter, and this method {}",
+                if parent.variadic {
+                    "takes"
+                } else {
+                    "does not take"
+                },
+                if own.variadic { "does" } else { "does not" }
+            ),
+        ))
+    } else {
+        parent_params_problem(qname, owner, name, own, &parent, name_at, env)
+    };
+    let Some((span, message)) = problem else {
+        return;
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_INCOMPATIBLE_OVERRIDE,
+            format!("`{qname}::{name}` cannot replace `{owner}::{name}`"),
+        )
+        .with_primary(span, message)
+        .with_help(format!(
+            "a call through `{owner}` passes what `{owner}::{name}` takes and reads what it \
+             returns. Keep its parameters, its `static` and its visibility. Each parameter may \
+             accept a wider type, and the return type may be narrower"
+        )),
+    );
+}
+
+/// The first parameter of `parent` that `own` cannot take as a call through
+/// `owner` passes it: a type that does not fit in place, or `inout` written on
+/// one side only.
+fn parent_params_problem(
+    qname: &QName,
+    owner: &QName,
+    name: &str,
+    own: &crate::signatures::MethodSig,
+    parent: &crate::signatures::MethodSig,
+    name_at: Span,
+    env: &mut Env<'_>,
+) -> Option<(Span, String)> {
+    // Only `Comparable`'s own `compareTo` takes `self`. A class that narrows
+    // it again in a subclass is refused like any other override: a direct
+    // `$price->compareTo($other)` through the parent passes the parent's
+    // class, and no ordering's run-time class check runs there.
+    let comparable = name == "compareTo" && *owner == QName::parse(nvs_hir::interfaces::COMPARABLE);
+    for (index, &passed) in parent.params.iter().enumerate() {
+        let taken = own.params[index];
+        let passed = if comparable {
+            env.interner.class(qname.clone())
+        } else {
+            passed
+        };
+        let param = own.param_names.get(index).map_or("", String::as_str);
+        if own.is_inout(index) != parent.is_inout(index) {
+            return Some((
+                name_at,
+                format!("`${param}` differs from `{owner}::{name}` in `inout`"),
+            ));
+        }
+        if !crate::expr::assign::field_fits(passed, taken, env.interner, env.graph, env.signatures)
+        {
+            let have = env.interner.describe(taken);
+            let want = env.interner.describe(passed);
+            return Some((
+                name_at,
+                format!("`${param}` is `{have}`, and a call to `{owner}::{name}` passes `{want}`"),
+            ));
+        }
+    }
+    None
+}
+
+/// `sig` with the type variables of a generic `owner` bound to the arguments
+/// `qname`'s own `implements` clauses give it. A variable no clause binds
+/// becomes `mixed` ([`crate::generics::substitute`]).
+fn bind_interface_args(
+    qname: &QName,
+    owner: &QName,
+    sig: &crate::signatures::MethodSig,
+    env: &mut Env<'_>,
+) -> crate::signatures::MethodSig {
+    if !sig.is_generic(env.interner) {
+        return sig.clone();
+    }
+    let params = nvs_hir::interfaces::type_params(owner.short_name())
+        .or_else(|| nvs_stdlib::registry::class_type_params(&owner.to_string()))
+        .unwrap_or(&[]);
+    let args = crate::signatures::resolve_interface_args(qname, owner, env.signatures, env.graph)
+        .unwrap_or_default();
+    let bindings: crate::generics::Bindings = params
+        .iter()
+        .map(|name| (*name).to_owned())
+        .zip(args)
+        .collect();
+    sig.clone().substituted(&bindings, env.interner)
+}
+
+fn visibility_word(v: Visibility) -> &'static str {
+    match v {
+        Visibility::Public => "public",
+        Visibility::Protected => "protected",
+        Visibility::Private => "private",
+    }
+}
+
 /// Reports one `E0786` per method of `decl` written without a body, when
 /// `decl` itself is not `abstract`.
 ///
@@ -476,6 +769,7 @@ pub(crate) fn check_class_finality(decl: &ClassDecl, qname: &QName, env: &mut En
 /// `abstract` class, where leaving a member to a subclass is what the
 /// modifier means.
 pub(crate) fn check_abstract_members(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
+    reject_abstract_bodies(decl, qname, env);
     if decl.modifiers.contains(&Modifier::Abstract) {
         return;
     }
@@ -500,6 +794,34 @@ pub(crate) fn check_abstract_members(decl: &ClassDecl, qname: &QName, env: &mut 
                     "give it a body, or declare `{qname}` itself `abstract` and instantiate a \
                      subclass that fills this member in"
                 )),
+        );
+    }
+}
+
+/// One `E0106` per method of `decl` written `abstract` with a body.
+///
+/// `abstract` says a subclass writes the body. One written here would make
+/// the method an ordinary one that no subclass has to write, and a call would
+/// run it, so the modifier would say nothing.
+fn reject_abstract_bodies(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
+    for member in &decl.members {
+        let ClassMemberKind::Method(m) = &member.kind else {
+            continue;
+        };
+        if m.body.is_none() || !m.modifiers.contains(&Modifier::Abstract) {
+            continue;
+        }
+        let name = span_text(env.src, m.name);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_BAD_MODIFIER,
+                format!("`{qname}::{name}` is `abstract`, so it cannot have a body"),
+            )
+            .with_primary(m.name, "this method has a body")
+            .with_help(
+                "delete the body and end the declaration with `;`, so each subclass writes \
+                 it, or delete `abstract` to keep this body",
+            ),
         );
     }
 }

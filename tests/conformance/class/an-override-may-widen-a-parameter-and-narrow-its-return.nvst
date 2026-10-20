@@ -1,0 +1,31 @@
+--TEST--
+An override may accept a wider parameter type, return a narrower type and widen its visibility, and a call through the parent runs it — `rule:classes/an-override-keeps-its-parents-signature`
+--FILE--
+<?nvs
+class Animal {}
+class Dog extends Animal {}
+
+class Shelter {
+    public function adopt(): ?Animal { return null; }
+    public function count(int $n): string { return "shelter " . $n; }
+    protected function code(): int { return 1; }
+    public function name(): string { return "shelter " . $this->code(); }
+}
+
+class DogShelter extends Shelter {
+    // The return type `Dog` is narrower than `?Animal`.
+    public function adopt(): Dog { return new Dog(); }
+    // The parameter type `?int` is wider than `int`.
+    public function count(?int $n): string { return "dogs " . ($n ?? 0); }
+    // `public` is wider than `protected`.
+    public function code(): int { return 2; }
+}
+
+Shelter $s = new DogShelter();
+echo $s->adopt() is Dog ? "a dog" : "nothing", "\n";
+echo $s->count(3), "\n";
+echo $s->name(), "\n";
+--EXPECT--
+a dog
+dogs 3
+shelter 2

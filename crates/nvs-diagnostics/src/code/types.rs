@@ -27,14 +27,15 @@ codes! {
     );
     /// An override whose signature is not compatible with the parent's.
     ///
-    /// One incompatibility is reported under it: a member an ancestor declared
-    /// `: static` answered by a declaration that writes a class of its own.
-    /// `nvs_types::conformance::reject_dropped_static_return` owns why that one
-    /// is not an assignability question, and argument and return assignability
-    /// across an override is a rule no decision has reached yet.
+    /// `rule:classes/an-override-keeps-its-parents-signature`:
+    /// `nvs_types::conformance::check_method_overrides` reports the return
+    /// type, each parameter, the count, `static` and the visibility, and
+    /// `reject_dropped_static_return` a `: static` an interface's implementor
+    /// drops.
     pub const E_INCOMPATIBLE_OVERRIDE: Code = Code::new("E0404").card(
-        "A method that overrides a parent method has a signature that does not match the parent. \
-         If the parent method returns `static`, write `: static` on this method too.",
+        "This method replaces a method of a parent class or an interface, and a call through the \
+         parent cannot use it. Keep the parameters, `static` and the visibility. A parameter may \
+         accept a wider type, and the return type may be narrower.",
     );
     /// A property or method access on a type that has no such member.
     pub const E_UNKNOWN_MEMBER: Code = Code::new("E0405").card(

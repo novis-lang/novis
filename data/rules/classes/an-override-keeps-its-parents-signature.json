@@ -1,0 +1,17 @@
+{
+  "title": "A method declared again over an ancestor's keeps a signature a call through the ancestor can use",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/comparable",
+    "classes/stringable",
+    "classes/constructor-compatibility",
+    "iteration/two-interfaces"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/src/conformance.rs",
+    "tests/conformance/reject/a-method-override-keeps-its-parents-signature.nvst",
+    "tests/conformance/reject/a-built-in-interface-method-keeps-its-signature.nvst",
+    "tests/conformance/reject/an-abstract-method-has-no-body.nvst",
+    "tests/conformance/class/an-override-may-widen-a-parameter-and-narrow-its-return.nvst"
+  ]
+}

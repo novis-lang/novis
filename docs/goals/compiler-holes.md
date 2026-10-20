@@ -6,7 +6,7 @@ context: [docs/rules/programs/memory-priority.md]
 stages:
   - id: 1
     title: "a safe program never reads a value as another type"
-    status: open
+    status: done
     context: [crates/nvs-types/src/check.rs, crates/nvs-types/src/ctor_init.rs, crates/nvs-types/src/expr/isolate.rs, crates/nvs-types/src/expr/operators.rs]
   - id: 2
     title: "an override keeps a signature its parent's callers can use"
@@ -117,7 +117,8 @@ ordering, on the request path only where a program orders objects.
 
 **An override that a call through the parent could not use is a diagnostic at the override.** The
 return type is the parent's or a subtype of it. Each parameter type is the parent's or a supertype
-of it. The parameter count is the parent's, and an extra parameter is allowed only with a default.
+of it. The parameter count is the parent's exactly: an extra parameter with a default ran with
+nothing in it through the parent, because a call fills defaults from the signature it resolved.
 The visibility is not narrower, `static` is the same, and a `tainted` or `secret` qualifier on a
 parameter is kept. The built-in interfaces (`Stringable`, `Comparable`, `Parses`, `Iterator<T>`) are
 held to the same check.
@@ -165,9 +166,10 @@ override check in § *Standing decisions*, and so are the built-in interfaces.
 **Split:** at stage start, an `Explore` subagent lists every built-in interface's methods and their
 signatures, as `file.rs:NN` and one line each. That list is the last item's set.
 
-- [ ] An override with another return type, other parameter types, another parameter count, a narrower visibility or another `static` is a diagnostic at the override, with a case for each form. `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/a-method-override-with-another-signature.json:1`
-- [ ] The built-in interfaces' methods are held to the same check: `toString`, `compareTo`, `parse` and `current`. `crates/nvs-types/src/conformance.rs:1`
-- [ ] An `abstract` method with a body is a diagnostic. `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/an-abstract-method-with-a-body.json:1`
+- [x] An override with another return type, other parameter types, another parameter count, a narrower visibility or another `static` is a diagnostic at the override, with a case for each form. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/reject/a-method-override-keeps-its-parents-signature.nvst:1`
+- [x] The built-in interfaces' methods are held to the same check: `toString`, `compareTo`, `parse` and `current`. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/reject/a-built-in-interface-method-keeps-its-signature.nvst:1`
+- [x] An `abstract` method with a body is a diagnostic. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/reject/an-abstract-method-has-no-body.nvst:1`
+- [ ] A direct `compareTo` call through `Comparable` cannot pass an object of another class to a `self` parameter. `crates/nvs-ir/src/lower/operator.rs:1`, `data/gaps/nvs-types/a-direct-compareto-call-through-comparable.json:1`
 
 ### 3. only the throwable tree is thrown, caught and asserted
 
@@ -315,47 +317,36 @@ one line each. The other lists every citation of `lang:statements/try-catch-fina
 
 ### State
 
-Stage 1 is built, and its five gap records are deleted, but **the end-of-group `bun nv verify` is
-not green yet**. Its last run failed only `nvs-types`'
-`a_hooked_property_read_inside_its_own_hook_records_the_plain_slot` and `nvs-codegen`'s
-`a_classs_hooks_reach_its_descriptor_keyed_by_property_and_accessor`, both fixed and passing alone
-afterwards, and it did not reach the steps after the tests. **The work is uncommitted.** Run `bun
-nv affected --run` first, then commit four slices: the `set` hook parameter (`check.rs`,
-`property-hooks.md`, its case and gap); initialization (`ctor_init.rs`, `signatures.rs`,
-`expr_table.rs`, `definite-property-initialization.md`, two cases, the hostile program, two gaps);
-the spawn entry (`isolate.rs`, its case and gap); and the ordering (`nvs-ir`'s `operator.rs` and
-`expr.rs`, `comparable-is-same-class-only.md`, two cases, its gap, the rendered `classes.md` and
-this file). Then set stage 1 to `done`. Each
-item has a conformance case, and each rule it touched says what is now true:
+Stage 1 is done and committed. Stage 2's three items are built, verified and committed, and its two
+gap records are deleted. Stage 2 stays open for one item it found:
 
-- A written `set` hook parameter type has to accept the property's type in place, so `?int` and
-  `mixed` compile on an `int` property and `float` does not. The hook reads its parameter with no
-  conversion, so `float` read the `int`'s bits (`check.rs`'s `check_set_hook_param`).
-- A hooked property is required when its slot is read: no `get` hook, or a hook that names
-  `$this->p` other than as an `=` target (`signatures.rs`'s `hooks_read_own_slot`). Each `set` hook of
-  a required property stores it on every path, checked with `ctor_init`'s own walker. A `set`-only
-  redeclaration whose ancestor has a `get` hook is not required (`own_required_properties`)
-  (`check_set_hooks_commit`). The hostile `property-hooks/01` program gained `get => 0;` hooks to stay
-  compilable.
-- `ctor_init`'s `InitState::read` refuses a `$this->p` read before the assignment, and an inherited
-  one before `parent::constructor(...)`, as `E0409`.
-- `isolate.rs`'s `reject_instance_method_entry` refuses a non-static method entry as `E0802`.
-- `nvs-ir`'s `lower_object_comparison` compares the two class descriptors and throws a `LogicError`
-  before `compareTo`. `comparable-orders-a-subclass-through-its-override` now orders two subclass
-  objects, since a mixed pair throws.
+- `conformance.rs`'s `check_method_overrides` compares every method a class or interface declares
+  again with each direct ancestor's resolved declaration (`E0404`), through `compare_override` and
+  `parent_params_problem`. The relation is `field_fits` (no `int` → `float` row). A generic
+  interface's `T` is bound from the class's `implements` clause (`bind_interface_args`). A method a
+  class inherits from its superclass is compared with each interface the class names, at the class
+  name. `rule:classes/an-override-keeps-its-parents-signature` is the new rule.
+- **The parameter count is exact**, which narrows the standing decision (now rewritten): an extra
+  parameter with a default crashed when called through the parent, because a call fills defaults
+  from the signature it resolved.
+- **Only `Comparable::compareTo` itself takes `self`.** A subclass that narrows `compareTo(self)`
+  again is refused: a direct `$price->compareTo(new Price())` through the parent ran
+  `SalePrice::compareTo` with a `Price` and printed a garbage number. The ordering case's `SalePrice`
+  now takes `Price`.
+- An `abstract` method with a body is `E0106` (`reject_abstract_bodies`).
+- Two older tests relied on a refused override and now keep the parent's signature:
+  `interface_defaults.rs`'s `a_class_can_override_a_default_interface_method` and the
+  `core/reflect-an-inherited-methods-parameter-names-…` case.
 
 ### Next
 
-**Stage 2: an override keeps a signature its parent's callers can use**, in
-`crates/nvs-types/src/conformance.rs`. Follow the stage's `**Split:**` line first: an `Explore`
-subagent lists the built-in interfaces' methods.
+**Close stage 2's last item, then stage 3.**
 
-- [ ] An override with another return type, parameter types, parameter count, visibility or `static` is a diagnostic at the override. `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/a-method-override-with-another-signature.json:1`
-- [ ] The built-in interfaces' methods are held to the same check. `crates/nvs-types/src/conformance.rs:1`
-- [ ] An `abstract` method with a body is a diagnostic. `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/an-abstract-method-with-a-body.json:1`
-
-The `compareTo(Comparable $other)` override in `comparable-orders-a-subclass-through-its-override`
-widens the parameter, which the override rule allows.
+- [ ] A direct `compareTo` call through `Comparable` passes another class to a `self` parameter. The safe options are a run-time class check on a direct call, as an ordering has (`lower_object_comparison`), or a compile error unless the argument's static type is the receiver's class. `crates/nvs-ir/src/lower/operator.rs:1`, `data/gaps/nvs-types/a-direct-compareto-call-through-comparable.json:1`
+- [ ] Stage 3: `implements` with any class is `E0303`. `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/implements-with-a-class-of.json:1`
+- [ ] Stage 3: a `catch` naming what no `Throwable` can be is a diagnostic. `data/gaps/nvs-types/a-catch-clause-that-names-a.json:1`
+- [ ] Stage 3: a `throw` of anything not `Throwable` is `E0780`. `data/gaps/nvs-types/a-throw-of-an-anonymous-object.json:1`
+- [ ] Stage 3: `Core\Test::assertThrows` takes a `class<Throwable>`. `crates/nvs-stdlib/src/test.rs:1`, `data/gaps/nvs-stdlib/assert-throws-with-a-class-that.json:1`
 
 ### Backlog
 
