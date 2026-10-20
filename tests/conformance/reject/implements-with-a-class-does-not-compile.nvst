@@ -1,0 +1,29 @@
+--TEST--
+`implements` names an interface only, so a class of the `Throwable` tree after it does not compile, and neither does a reserved interface after `extends` in a class — `rule:errors/throwable-hierarchy`
+--FILE--
+<?nvs
+// Refused: `Throwable` is a class.
+class Lost implements Throwable {}
+
+// Refused: `RuntimeError` is a class.
+class Broken implements RuntimeError {}
+
+// Refused: `RuntimeError` is a class, even beside an `extends`.
+class Both extends LogicError implements RuntimeError {}
+
+// Refused: `Comparable` is an interface.
+class Ordered extends Comparable {}
+
+// Accepted: a class joins the tree with `extends`.
+class Missing extends RuntimeError {}
+--EXPECTF-ERROR--
+error[E0303]: `Throwable` is a class, not an interface
+%A
+error[E0303]: `RuntimeError` is a class, not an interface
+%A
+error[E0303]: `RuntimeError` is a class, not an interface
+%A
+error[E0303]: `Comparable` is an interface, not a class
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
