@@ -2867,7 +2867,13 @@ impl<'a> Lowering<'a> {
                 },
             );
         }
-        if expected == Some(Ty::Uint) {
+        // A `?uint` position arrives as `Ty::Tagged`, so the checker records
+        // the literal's `uint` placement at its span.
+        let placed_at_uint = self
+            .exprs
+            .declared_ty(expr.span)
+            .is_some_and(|id| matches!(self.checked_types.get(id), CheckedTy::Uint));
+        if expected == Some(Ty::Uint) || placed_at_uint {
             let n: u64 = u64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
                 panic!("nvs-ir: integer literal `{digits}` doesn't fit a `uint`")
             });

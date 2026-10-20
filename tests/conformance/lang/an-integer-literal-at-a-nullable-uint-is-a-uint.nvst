@@ -1,0 +1,30 @@
+--TEST--
+An integer literal placed at a `?uint` is a `uint`, at a parameter, a property default, a property write, a return and a local
+--FILE--
+<?nvs
+class Shop {
+    public ?uint $limit = 2;
+
+    public static function take(?uint $limit): string {
+        return $limit is uint ? "uint" : "not uint";
+    }
+
+    public static function give(): ?uint {
+        return 3;
+    }
+}
+
+echo Shop::take(1), "\n";
+var $shop = new Shop();
+echo $shop->limit is uint ? "uint" : "not uint", "\n";
+$shop->limit = 4;
+echo $shop->limit is uint ? "uint" : "not uint", "\n";
+echo Shop::give() is uint ? "uint" : "not uint", "\n";
+?uint $local = 5;
+echo $local is uint ? "uint" : "not uint", "\n";
+--EXPECT--
+uint
+uint
+uint
+uint
+uint
