@@ -95,7 +95,7 @@ pub(crate) use self::{
     },
     members::{
         can_hold_an_object, check_unset_target, is_this_receiver, reject_finish_marker_arm,
-        resolve_class_expr,
+        reject_uncatchable_arm, resolve_class_expr,
     },
     operators::{reject_carrier_as_text, reject_disjoint_equality, require_stringable},
     quals::{reject_secret_attribute_constant, reject_secret_output},
@@ -1048,6 +1048,7 @@ pub(crate) fn infer(
             for arm in arms {
                 let ty = lower_type(&arm.ty, ctx, env);
                 reject_finish_marker_arm(ty, arm.ty.span, env);
+                reject_uncatchable_arm(ty, arm.ty.span, env);
                 let mut binding = None;
                 let mut fresh = None;
                 match arm.var {

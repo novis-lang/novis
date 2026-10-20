@@ -605,21 +605,15 @@ pub(crate) fn reject_generator_clone(inner: &Expr, env: &mut Env<'_>) {
     );
 }
 
-/// The same shape for `throw`, over the two ways an operand can fail to be a
-/// `Throwable`: a type that can hold no object at all, and a class outside
-/// the `Core\Error` exception tree.
+/// The same shape for `throw`: an operand whose type is not a class of the
+/// `Throwable` tree is `E0780` (`rule:errors/throwable-hierarchy`).
 ///
-/// The second half is what [`is_throwable_shaped`] answers for `rule:security/secret-sinks-refuse`'s
-/// constructor rule, asked here of the thrown value instead. `mixed` and
-/// `object` pass both, deliberately: the tree is what `catch` matches on at
-/// run time, and refusing a type this pass cannot decide would cost the
-/// rethrow shapes that carry one.
+/// [`may_be_thrown`] is the test. `mixed` and `object` pass, deliberately:
+/// the tree is what `catch` matches on at run time, and refusing a type this
+/// pass cannot decide would cost the rethrow shapes that carry one. An
+/// anonymous object does not: no `catch` matches its class.
 pub(crate) fn reject_unthrowable(ty: TypeId, span: Span, env: &mut Env<'_>) {
-    let outside_the_tree = match class_qname_of(ty, env.interner) {
-        Some(qname) => !is_throwable_shaped(&qname, env.graph),
-        None => false,
-    };
-    if can_hold_an_object(ty, env.interner) && !outside_the_tree {
+    if may_be_thrown(ty, env) {
         return;
     }
     let described = env.interner.describe(ty);
@@ -632,6 +626,61 @@ pub(crate) fn reject_unthrowable(ty: TypeId, span: Span, env: &mut Env<'_>) {
         .with_help(
             "every class a `catch` can match extends `Throwable`. Throw a `RuntimeError`, a \
              `LogicError` or one of your own classes that extends one",
+        ),
+    );
+}
+
+/// Whether a value of `ty` may be a `Throwable`: a class of the tree, `mixed`,
+/// `object`, `never` or a type variable, or a union whose members other than
+/// `null` all are. A scalar, an array, an enum, a shape and every other class
+/// or interface are not.
+fn may_be_thrown(ty: TypeId, env: &Env<'_>) -> bool {
+    match env.interner.get(ty) {
+        Ty::Class(qname, _) => is_throwable_shaped(qname, env.graph),
+        Ty::Mixed | Ty::Object | Ty::Never | Ty::TypeVar(_) => true,
+        Ty::Union(members) => {
+            let mut thrown = members
+                .iter()
+                .filter(|member| !matches!(env.interner.get(**member), Ty::Null))
+                .peekable();
+            thrown.peek().is_some() && thrown.all(|member| may_be_thrown(*member, env))
+        }
+        Ty::Intersection(members) => members.iter().any(|member| may_be_thrown(*member, env)),
+        _ => false,
+    }
+}
+
+/// A `catch` clause or arm naming a type no `Throwable` can be is `E0864`
+/// (`rule:errors/throwable-hierarchy`), since the clause never runs.
+///
+/// An interface passes, since a class under `Throwable` may implement it, and
+/// so do `mixed` and `object`. `Core\Script\Finished` is left to
+/// [`reject_finish_marker_arm`], which says why it is refused.
+pub(crate) fn reject_uncatchable_arm(ty: TypeId, span: Span, env: &mut Env<'_>) {
+    let catchable = match env.interner.get(ty) {
+        Ty::Class(qname, _) => {
+            is_throwable_shaped(qname, env.graph)
+                || *qname == QName::parse(nvs_hir::errors::FINISH_MARKER)
+                || qname.is_reserved_global_interface()
+                || env.symbols.get(qname).map(|symbol| symbol.kind)
+                    == Some(nvs_hir::SymbolKind::Interface)
+        }
+        Ty::Mixed | Ty::Object => true,
+        _ => false,
+    };
+    if catchable {
+        return;
+    }
+    let described = env.interner.describe(ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CATCH_TYPE_NOT_THROWABLE,
+            format!("`catch` takes a `Throwable`, and `{described}` is not one"),
+        )
+        .with_primary(span, "this `catch` never runs")
+        .with_help(
+            "every value a `throw` gives is a class that extends `Throwable`. Catch \
+             `RuntimeError`, `LogicError` or one of your own classes that extends one",
         ),
     );
 }

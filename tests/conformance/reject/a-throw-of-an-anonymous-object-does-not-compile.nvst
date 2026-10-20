@@ -1,0 +1,29 @@
+--TEST--
+A `throw` of an anonymous object, or of a parameter typed with a shape, does not compile, since no `catch` matches it — `rule:errors/throwable-hierarchy`
+--FILE--
+<?nvs
+class Shop {
+    public static function fail(): void {
+        // Refused: an anonymous object is not a `Throwable`.
+        throw {class: "X", message: "m"};
+    }
+
+    public static function again({message: string} $error): void {
+        // Refused: a shape is not a `Throwable`.
+        throw $error;
+    }
+
+    public static function rethrow(?RuntimeError $error): void {
+        // Accepted: a nullable class of the tree.
+        if ($error != null) {
+            throw $error;
+        }
+    }
+}
+--EXPECTF-ERROR--
+error[E0780]: `throw` takes a `Throwable`, and `%s` is not one
+%A
+error[E0780]: `throw` takes a `Throwable`, and `%s` is not one
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

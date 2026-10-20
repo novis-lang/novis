@@ -1,0 +1,42 @@
+--TEST--
+A `catch` clause or arm naming a type no `Throwable` can be does not compile, since it never runs. An interface, `object` and a class of the tree compile — `rule:errors/throwable-hierarchy`
+--FILE--
+<?nvs
+class Order {}
+
+interface Retryable {}
+
+class Busy extends RuntimeError implements Retryable {}
+
+class Shop {
+    public static function run(): int {
+        try {
+            throw new Busy("busy");
+        } catch (Order $order) {
+            // Refused: `Order` does not extend `Throwable`.
+            return 1;
+        } catch (int $number) {
+            // Refused: an `int` is never thrown.
+            return 2;
+        } catch (Retryable $retry) {
+            // Accepted: `Busy` implements `Retryable`.
+            return 3;
+        } catch (RuntimeError $error) {
+            return 4;
+        }
+    }
+
+    public static function arm(): int {
+        // Refused: a `string` is never thrown.
+        return Shop::run() catch (string $e) => 0;
+    }
+}
+--EXPECTF-ERROR--
+error[E0864]: `catch` takes a `Throwable`, and `Order` is not one
+%A
+error[E0864]: `catch` takes a `Throwable`, and `int` is not one
+%A
+error[E0864]: `catch` takes a `Throwable`, and `string` is not one
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
