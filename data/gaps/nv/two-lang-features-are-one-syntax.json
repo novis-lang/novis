@@ -1,6 +1,0 @@
-{
-  "module": "tools/nv/proofs/roster.ts",
-  "title": "`try`/`catch`/`finally` and `throw` are each one syntax and two `lang` features.",
-  "text": "`lang:statements/try-catch-finally` and `lang:errors/try-catch-finally` split their facts between their `details.md` files, but their `about.md` files and examples 01 to 03 say much the same. `lang:statements/throw` and `lang:errors/throw` are the same pair. `throw-and-catch.mdx` shows all four under their own headings, and the chapter generator renders all four. Merging a pair deletes a roster id and a chapter heading. It closes when each pair is one feature, with the other id's examples moved or deleted and every citation of it rewritten.",
-  "goal": "compiler-holes"
-}

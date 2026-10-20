@@ -1091,9 +1091,7 @@ fn resolve_proxy_writes_one_warn_at_every_boot() {
         assert_eq!(announced.len(), 1, "boot {boot} announced {announced:?}");
         let said = format!("{} {}", announced[0].message, announced[0].notes.join(" "));
         assert!(
-            said.contains("resolve")
-                && said.contains("proxy")
-                && said.contains("address policy"),
+            said.contains("resolve") && said.contains("proxy") && said.contains("address policy"),
             "the announcement names the word and the address policy it narrows: {said}",
         );
     }
