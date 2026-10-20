@@ -153,16 +153,20 @@ impl Lender {
 }
 
 /// The lender among `lenders`, taken in entry-path order, that lends `path`
-/// its map: the first that [owns](Lender::owns) the file, else the first that
+/// its map: the first that [owns](Lender::owns) the file, else the nearest that
 /// lends to it by the directory test.
 ///
 /// The directory test is the weakest evidence. A program at a project's root
 /// passes it for every plain file in the tree, and its map need not name the
 /// file's namespace at all, while a program whose declaration names the file's
-/// root is the one the file is built through. `plain` is [`is_plain`] for the
-/// text of `path`, asked at most once and only when the directory test needs
-/// it. The search stops at the first owner, so a caller that walks each lender
-/// lazily walks none past it.
+/// root is the one the file is built through. Among the programs that pass the
+/// directory test, the one whose entry sits deepest lends: every such directory
+/// holds `path`, so the deepest is the nearest, and a test directory's
+/// bootstrap is the program `nvs test` runs its plain files with, where a
+/// program at the root never runs them. Two in one directory keep entry-path
+/// order. `plain` is [`is_plain`] for the text of `path`, asked at most once
+/// and only when the directory test needs it. The search stops at the first
+/// owner, so a caller that walks each lender lazily walks none past it.
 #[must_use]
 pub fn choose<L: Borrow<Lender>>(
     lenders: impl IntoIterator<Item = L>,
@@ -176,7 +180,10 @@ pub fn choose<L: Borrow<Lender>>(
         if lender.borrow().owns(path) {
             return Some(lender);
         }
-        if by_place.is_none()
+        let nearer = by_place.as_ref().is_none_or(|held: &L| {
+            lender.borrow().dir.components().count() > held.borrow().dir.components().count()
+        });
+        if nearer
             && lender.borrow().lends_to(path, || {
                 *is_plain.get_or_insert_with(|| plain.take().is_some_and(|plain| plain()))
             })
@@ -200,7 +207,7 @@ pub fn is_plain(text: &str) -> bool {
 /// The files are walked one by one and the search stops at the first lender
 /// that owns `path`, so the cost is one read per file and one walk per program
 /// up to that lender. When no lender owns it, every program under `root` is
-/// walked before the first that lends by the directory test is returned.
+/// walked before the nearest that lends by the directory test is returned.
 /// `plain` is [`is_plain`] for the text of `path`. `path` itself is skipped:
 /// the caller asks only for a file that declares no map of its own.
 #[must_use]
