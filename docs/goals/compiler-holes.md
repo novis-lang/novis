@@ -16,6 +16,10 @@ stages:
     title: "only the throwable tree is thrown, caught and asserted"
     status: open
     context: [crates/nvs-types/src/conformance.rs, crates/nvs-stdlib/src/test.rs]
+  - id: 16
+    title: "a redeclared property or constant never reads a value as another type"
+    status: open
+    context: [crates/nvs-types/src/conformance.rs, docs/rules/statements/static-is-a-member-modifier.md, docs/rules/classes/an-override-keeps-its-parents-signature.md]
   - id: 4
     title: "visibility and the property pipeline hold on every path"
     status: open
@@ -131,6 +135,23 @@ The visibility is not narrower, `static` is the same, and a `tainted` or `secret
 parameter is kept. The built-in interfaces (`Stringable`, `Comparable`, `Parses`, `Iterator<T>`) are
 held to the same check.
 
+**A redeclared instance property keeps its parent's exact type.** A property is read and written
+through the parent's type, so a narrower type lets the parent's code store what the subclass cannot
+read, and a wider one lets the subclass store what the parent cannot read. Any other type is a
+diagnostic at the redeclaration, with its own code beside `E0833` and a help that says the property
+keeps its parent's type. That holds for a plain property, a promoted constructor parameter, a
+`lateinit` and a hooked property, whose hooks keep the parent's type too. A `readonly` property is
+not redeclared at all, because both constructors would write it. A narrower property with a check on
+each write is goal `covariant`'s, and this stage does not build it. A static property is out of
+scope: each class names its own storage, and `static::$x` is already `E0499`.
+
+**A `static::` constant read gives its value at the type the read is typed with.** A redeclared
+constant still keeps any type assignable to the ancestor's (`E0833`), without the `int` to `float`
+row, as an override has none. The read converts the called class's scalar to the read's type, so an
+`int` read where `int|string` is declared is that union holding the `int`. Safe default if the table
+does not carry each scalar's kind: store each redeclared value at the type of the topmost declaration
+when the table is built, so the read stays what it is today.
+
 **The server closes a connection only after the response is flushed.** An unread body is drained up
 to the bound it has today and never further, so a client cannot make the server read more of its
 bytes. The header line limit is set in `serve_connection` at `hyper`'s current default of 100, as a
@@ -144,12 +165,14 @@ examples move or are deleted, and every citation is rewritten.
 conformance case in the area its rule names under `tests/conformance/`. A help text a stage rewrites
 is held to AGENTS.md § *Text an end user reads*, and every expectation that pins it is re-recorded.
 
-**Lanes.** Stages 1 to 13 share the checker's files and run in order on the chain. Stages 14 and 15
+**Lanes.** Stages 1 to 13 and 16 share the checker's files and run in order on the chain, 16 right
+after 3 because its holes read memory as another type. Stages 14 and 15
 touch only `crates/nvs-stdlib/src/bigint.rs` and its benches, so they can run as a side goal beside
 the chain. No stage waits on another goal.
 
-**Trade-offs.** Every stage but 1 and 12 is compile-time work: no program that runs today runs
-slower. Stage 1 adds one class comparison to an object ordering. Stage 12 holds no new memory, since
+**Trade-offs.** Every stage but 1, 12 and 16 is compile-time work: no program that runs today runs
+slower. Stage 1 adds one class comparison to an object ordering. Stage 16 adds a scalar conversion to a
+`static::` constant read only where the read's type is a union or `float`. Stage 12 holds no new memory, since
 the drain bound stays. Programs that compiled and were wrong stop compiling, which is the point.
 Simplicity of the language gains: twenty-odd forms that did nothing now have one meaning or none.
 
@@ -188,6 +211,18 @@ throwable tree can be.
 - [x] A `catch` that names a class or a built-in type no `Throwable` can be is a diagnostic. An interface stays allowed. `crates/nvs-types/src/expr/members.rs:1`, `tests/conformance/reject/a-catch-names-only-what-a-throwable-can-be.nvst:1`
 - [x] A `throw` of any value that is not `Throwable`, a shape included, is `E0780`. `crates/nvs-types/src/expr/members.rs:1`, `tests/conformance/reject/a-throw-of-an-anonymous-object-does-not-compile.nvst:1`
 - [ ] `Core\Test::assertThrows`'s second argument is a `C::class` written at the call, naming a class of the `Throwable` tree, and anything else is a compile error. `crates/nvs-stdlib/src/test.rs:1`, `data/gaps/nvs-stdlib/assert-throws-with-a-class-that.json:1`
+
+### 16. a redeclared property or constant never reads a value as another type
+
+**Does:** a subclass can no longer change the type of a property it redeclares, and a `static::`
+constant read gives the right value whichever class redeclared it. Both holes read memory as another
+type today, so this stage runs right after stage 3.
+
+- [ ] A redeclared instance property at another type is a diagnostic at the redeclaration, for a plain property, a promoted constructor parameter, `lateinit`, a hooked property and `array<T>`, with a case for each. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/reject/a-redeclared-property-keeps-its-parents-type.nvst:1`, `data/gaps/nvs-types/a-property-redeclared-at-a-narrower-type.json:1`
+- [ ] A redeclared `readonly` property is a diagnostic. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/reject/a-redeclared-property-keeps-its-parents-type.nvst:1`
+- [ ] A rule fragment states both decisions, with its Declined list, and its record is `shipped` with the case in `guardedBy`. `docs/rules/classes/a-redeclared-property-keeps-its-parents-type.md:1`, `data/rules/classes/a-redeclared-property-keeps-its-parents-type.json:1`
+- [ ] A `static::` read gives a redeclared scalar at the read's type: an `int` over `int|string`, a `bool` over `int|bool`, and through an interface. `E0833` refuses `int` over `float`. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/class/a-static-constant-read-gives-the-redeclared-value-at-its-type.nvst:1`, `data/gaps/nvs-types/a-static-constant-read-of-a-narrowed-redeclaration.json:1`
+- [ ] `rule:statements/static-is-a-member-modifier` says the read converts, and drops nothing else. `docs/rules/statements/static-is-a-member-modifier.md:27`
 
 ### 4. visibility and the property pipeline hold on every path
 
@@ -345,6 +380,7 @@ Stages 1 and 2 are done. Stage 3's first three items are built, and their gap re
 **Close stage 3's last item, then stage 4.**
 
 - [ ] `Core\Test::assertThrows`'s second argument is a `C::class` written at the call, naming a class of the `Throwable` tree (§ *Standing decisions*). It is a call-site check in the `reject_*` style of `crates/nvs-types/src/expr/quals.rs`, with `is_throwable_shaped`. Rewrite the calls that pass a string, such as `"RuntimeError"` (`git grep -n 'assertThrows(' -- '*.nvs' '*.nvst' '*.md'`), and the `nvs_core_test_assert_throws` doc. `crates/nvs-stdlib/src/test.rs:3634`, `data/gaps/nvs-stdlib/assert-throws-with-a-class-that.json:1`
+- [ ] Stage 16 before stage 4: a redeclared instance property keeps its parent's exact type, and a `static::` constant read gives a redeclared scalar at the read's type (§ *Standing decisions*). `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/a-property-redeclared-at-a-narrower-type.json:1`, `data/gaps/nvs-types/a-static-constant-read-of-a-narrowed-redeclaration.json:1`
 - [ ] Stage 4: an erased read or write of a property that is not visible throws. `crates/nvs-runtime/src/object.rs:1`, `data/gaps/nvs-runtime/a-private-or-protected-property-is.json:1`
 - [ ] Stage 4: a `private` or `protected` class constant read from outside is a diagnostic. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-private-or-protected-class-constant.json:1`
 - [ ] Stage 4: `Core\Program::implementing` over a non-public constructor is a diagnostic. `crates/nvs-types/src/program.rs:1`, `data/gaps/nvs-types/core-program-implementing-calls-a-private.json:1`
