@@ -70,7 +70,8 @@ concurrency:
 # - `cost-guards-<os>-cost-guards`, saved by the Windows and macOS `cost-guards` legs: release
 #   builds, which took 25 to 50 minutes there.
 # - `proofs-<os>`, saved by the Windows and macOS `proofs` legs, in the profile only they use.
-# - `miri`, `miri-units-<crate>` and `fuzz`, whose nightly builds no other job makes.
+# - `miri-suites`, `miri-samples`, `miri-units-<crate>` and `fuzz`, whose nightly builds no other
+#   job makes.
 #
 # Every other job builds cold, because it finishes cold inside the slowest `test` leg's time:
 # the Linux `cost-guards` and `proofs` legs, `extension-sandbox` and `unsafe-audit` in 19 to 35
@@ -78,7 +79,7 @@ concurrency:
 # not read an entry built on a newer image, whose build scripts need a newer glibc than 22.04 has.
 #
 # The run has 20 concurrent job slots, and it has more jobs than that. `unsafe-audit`,
-# `fuzz-smoke`, `miri` and `miri-units` take 19 slots for 20 to 37 minutes each, and none of them
+# `fuzz-smoke`, `miri` and `miri-units` take 20 slots for 20 to 45 minutes each, and none of them
 # sets the run's length, so they start once `lint` has finished, about ten minutes in. That leaves
 # the slots at the start to the `test`, `cost-guards` and `proofs` legs, which do set it. Each
 # one's `if` starts with `!cancelled()`, so a red `lint` does not skip them.
@@ -1194,14 +1195,21 @@ jobs:
   # use-after-free. TSAN under it takes the crates that start threads and looks
   # for a race, which neither of the other two can see at all.
   # ---------------------------------------------------------------------------
+  # Two legs, so each ends inside `timeout-minutes` and the job is green or red, never cancelled:
+  # the whole suites of the three crates below the checker, and the `nvs-types` and `nvs-ir`
+  # samples. Run as one, the five outgrew 45 minutes. When a leg outgrows it, split that leg again.
   miri:
-    name: miri
+    name: miri (${{ matrix.part }})
     needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
     if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
     runs-on: ubuntu-latest
     # Generous: Miri interprets rather than executes, and the fixture trees below now really touch
     # the filesystem, so this job grows with the front end's test count rather than its code size.
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [suites, samples]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
@@ -1209,7 +1217,7 @@ jobs:
           components: miri
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: miri
+          key: miri-${{ matrix.part }}
       # Cranelift-dependent crates cannot run under Miri (they execute JIT
       # code), so the front-end crates are tested here and the backend relies
       # on ASAN instead.
@@ -1242,16 +1250,23 @@ jobs:
       #
       # A filter that matches nothing is not an error to libtest, so a renamed test would drop out
       # of the sample in silence. `sample` fails the step when a filtered run passes no test.
-      - name: miri test (front end)
+      - name: miri test (front end suites)
+        if: matrix.part == 'suites'
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation
+          INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
+        run: >-
+          cargo +nightly miri test
+          -p nvs-diagnostics
+          -p nvs-syntax
+          -p nvs-hir
+      - name: miri test (front end samples)
+        if: matrix.part == 'samples'
         env:
           MIRIFLAGS: -Zmiri-disable-isolation
           INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
         shell: bash
         run: |
-          cargo +nightly miri test \
-            -p nvs-diagnostics \
-            -p nvs-syntax \
-            -p nvs-hir
           sample() {
             cargo +nightly miri test "$@" | tee "$RUNNER_TEMP/miri-sample.log"
             grep -q '^test result: ok\. [1-9]' "$RUNNER_TEMP/miri-sample.log"
