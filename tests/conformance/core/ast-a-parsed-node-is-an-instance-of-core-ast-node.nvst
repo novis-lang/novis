@@ -1,0 +1,20 @@
+--TEST--
+Every node Core\Ast::parse returns is an instance of Core\Ast\Node, its declared type, and of no unrelated Core class —`rule:core-classes/ast-is-inert`
+--FILE--
+<?nvs
+mixed $root = Core\Ast::parse("<?nvs echo 2;");
+echo $root is Core\Ast\Node ? "node" : "not a node", "\n";
+echo $root is Core\Time\Date ? "a date" : "not a date", "\n";
+int $all = 0;
+int $nodes = 0;
+foreach (Core\Ast::parse("<?nvs if (true) { echo 1 + 2; }")->nodes() as mixed $n) {
+    $all = $all + 1;
+    if ($n is Core\Ast\Node) {
+        $nodes = $nodes + 1;
+    }
+}
+echo $all == $nodes && $all > 0 ? "every node" : "not every node", "\n";
+--EXPECT--
+node
+not a date
+every node

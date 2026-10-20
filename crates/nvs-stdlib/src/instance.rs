@@ -467,25 +467,42 @@ fn descriptors() -> &'static Descriptors {
         let _quiet = nvs_footprint::Quiet::new();
         let mut table = ClassTable::new();
         let mut by_name = Vec::new();
-        for (class, registered) in registry::CLASSES
+        // `Core\Ast\Node`'s id. It is defined with the registry's classes, so
+        // before every production that names it as its parent.
+        let mut node = None;
+        for (class, registered, production) in registry::CLASSES
             .iter()
-            .map(|class| (class, true))
-            .chain(INTERNAL_CLASSES.iter().map(|class| (*class, false)))
+            .map(|class| (class, true, false))
+            .chain(INTERNAL_CLASSES.iter().map(|class| (*class, false, false)))
             // `rule:core-classes/ast-is-inert`'s typed roster, which is the
             // other family of row-less classes and a slice rather than lines
             // above because it is one class per production of the grammar —
             // `crate::ast`'s own second decision owns why none of them is
             // registry surface.
-            .chain(crate::ast::PRODUCTIONS.iter().map(|class| (class, false)))
+            .chain(
+                crate::ast::PRODUCTIONS
+                    .iter()
+                    .map(|class| (class, false, true)),
+            )
         {
             // A **namespace** class is what is skipped here, and
             // [`has_instances`] is the one question that tells one apart.
             if !has_instances(class) {
                 continue;
             }
-            // No parents: a `Core` class is not part of any hierarchy, so
-            // `is` on one answers only for itself.
-            let id = table.define(class.name, class.slots, &[]);
+            // A `Core` class has no parents, so `is` on one is true only for
+            // itself. A production is the one exception: each is a
+            // `Core\Ast\Node`, the type every member that returns a node
+            // declares, so `is Core\Ast\Node` is true for each of them.
+            let parents: Vec<nvs_runtime::ClassId> = if production {
+                node.into_iter().collect()
+            } else {
+                Vec::new()
+            };
+            let id = table.define(class.name, class.slots, &parents);
+            if class.name == crate::ast::NODE_NAME {
+                node = Some(id);
+            }
             by_name.push((class.name, id));
             // The two members below are read off a registry row, so a class
             // with no row has neither.
