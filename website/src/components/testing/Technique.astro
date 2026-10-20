@@ -1,0 +1,197 @@
+---
+/**
+ * One technique on the page about how Novis is tested: its name, the
+ * everyday comparison in a few words, a badge for when it runs, and a
+ * drawing when the idea is hard to picture.
+ *
+ * The default slot is the everyday story, always shown. The `more` slot is
+ * what the technique does and what it catches, behind a "How it works"
+ * disclosure, so the page reads as a list of comparisons first.
+ *
+ * Both slots are Markdown in the page, so `bun nv site --check prose` reads
+ * them like the page's other paragraphs.
+ */
+import Art, { type ArtName } from './Art.astro'
+import { tone, type Tone } from '../diagrams/diagram'
+
+const WHEN = {
+  change: { text: 'every change', tone: 'violet' },
+  push: { text: 'every push', tone: 'crimson' },
+  night: { text: 'every night', tone: 'gold' },
+  release: { text: 'every release', tone: 'green' },
+  hand: { text: 'by hand', tone: 'blue' },
+} satisfies Record<string, { text: string; tone: Tone }>
+
+interface Props {
+  /** The anchor the mind map links to. */
+  id: string
+  /** The name people search for, such as `Miri`. */
+  name: string
+  /** The everyday comparison, in a few words: `the driving instructor`. */
+  picture: string
+  /** When the technique runs; the first one is the most frequent. */
+  when: (keyof typeof WHEN)[]
+  art?: ArtName
+  /** The card's tone, which colours its drawing and its edge. */
+  tone?: Tone
+}
+
+const { id, name, picture, when, art, tone: t = 'violet' } = Astro.props
+---
+
+<article class:list={['technique', { 'has-art': art }]} id={id} style={`--tone: ${tone(t)}`}>
+  {
+    art && (
+      <div class="art">
+        <Art name={art} />
+      </div>
+    )
+  }
+  <div class="body">
+    <header>
+      <h3>
+        {name}
+        <span class="picture">{picture}</span>
+      </h3>
+      <ul class="when" role="list" aria-label="When it runs">
+        {
+          when.map((w) => (
+            <li style={`--tone: ${tone(WHEN[w].tone)}`}>{WHEN[w].text}</li>
+          ))
+        }
+      </ul>
+    </header>
+    <div class="story">
+      <slot />
+    </div>
+    {
+      Astro.slots.has('more') && (
+        <details>
+          <summary>How it works</summary>
+          <div class="more">
+            <slot name="more" />
+          </div>
+        </details>
+      )
+    }
+  </div>
+</article>
+
+<style>
+  .technique {
+    position: relative;
+    display: grid;
+    gap: var(--nv-space-4);
+    margin-block: var(--nv-space-4);
+    padding: var(--nv-space-4) var(--nv-space-5);
+    border: 1px solid var(--nv-hairline);
+    border-inline-start: 3px solid var(--tone);
+    border-radius: var(--nv-radius-lg);
+    background: var(--nv-surface);
+    scroll-margin-top: 5rem;
+    transition:
+      border-color var(--nv-fast) var(--nv-ease),
+      box-shadow var(--nv-slow) var(--nv-ease),
+      translate var(--nv-slow) var(--nv-ease);
+  }
+  .technique:hover {
+    border-color: color-mix(in oklab, var(--tone) 45%, var(--nv-hairline));
+    border-inline-start-color: var(--tone);
+    box-shadow: var(--nv-shadow-md);
+  }
+  .technique:target {
+    box-shadow:
+      0 0 0 2px var(--tone),
+      var(--nv-shadow-md);
+  }
+  .has-art {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+  }
+  .art {
+    width: 5.5rem;
+    padding-block-start: var(--nv-space-1);
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--nv-space-1) var(--nv-space-3);
+  }
+  h3 {
+    margin: 0;
+    font-size: var(--sl-text-lg);
+    line-height: 1.3;
+  }
+  .picture {
+    display: block;
+    margin-block-start: 0.1rem;
+    color: var(--tone);
+    font-size: var(--sl-text-sm);
+    font-weight: 650;
+  }
+  .when {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .when li {
+    margin: 0;
+    padding: 0.05rem 0.6rem;
+    border: 1px solid color-mix(in oklab, var(--tone) 70%, transparent);
+    border-radius: var(--nv-radius-pill);
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .story {
+    margin-block-start: var(--nv-space-2);
+  }
+  .story :global(p) {
+    margin: 0;
+    color: var(--sl-color-gray-1);
+  }
+  details {
+    margin-block-start: var(--nv-space-2);
+  }
+  summary {
+    width: fit-content;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  summary:hover {
+    color: var(--sl-color-white);
+  }
+  .more {
+    margin-block-start: var(--nv-space-2);
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+  }
+  .more :global(p) {
+    margin: 0 0 var(--nv-space-2);
+  }
+  .more :global(p:last-child) {
+    margin-block-end: 0;
+  }
+
+  /* Narrow: the drawing sits above the text, smaller. */
+  @media (max-width: 30rem) {
+    .has-art {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .art {
+      width: 4rem;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .technique:hover {
+      translate: 0 -2px;
+    }
+  }
+</style>

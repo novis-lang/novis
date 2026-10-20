@@ -174,6 +174,7 @@ import { rel, ROOT } from "../lib/paths.ts";
 import { parseReplay, recordReplay } from "../lib/replay.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
+import { diagramProblems } from "../lib/site-diagrams.ts";
 import { commentProblems } from "../proofs/collect.ts";
 import { dockerAbsent, servicesFor } from "../proofs/run.ts";
 import { ABOUT, EXAMPLES, examplesDir, metaJson, roster, RosterError, type Entry, type Meta } from "../proofs/roster.ts";
@@ -691,6 +692,7 @@ export const IN_DEPTH_SECTIONS: [slug: string, least: number][] = [
   ["never", 0],
   ["how-we-decide", 0],
   ["how-novis-is-written", 0],
+  ["how-novis-is-tested", 0],
   ["design-principles", 0],
   ["concepts", 5],
   ["new", 0],
@@ -1657,7 +1659,8 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
         .flatMap((p) => {
           const offset = p.text.split("\n").length - p.body.split("\n").length;
           return proseProblems(p.body).map((x) => `${DOCS}/${p.key}:${Number(x.split(":")[0]) + offset}:${x.slice(x.indexOf(":") + 1)}`);
-        });
+        })
+        .concat(diagramProblems(ROOT, DOCS, proseProblems));
     } else if (nvs === null) problems = ["no `nvs` binary: build one, or pass --nvs"];
     else if (part === "snippets") problems = await snippetProblems(nvs);
     else if (part === "apps") problems = await appsProblems(nvs);

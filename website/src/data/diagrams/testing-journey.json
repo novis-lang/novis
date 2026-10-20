@@ -1,0 +1,49 @@
+{
+  "steps": [
+    {
+      "label": "The developer's computer",
+      "when": "before a change is committed",
+      "icon": "laptop",
+      "tone": "violet",
+      "items": [
+        "Build Novis",
+        "Check the formatting",
+        "Run every test the change can reach",
+        "Run the linter, where a warning is an error"
+      ]
+    },
+    {
+      "label": "Every push",
+      "when": "for the parts the change touches",
+      "icon": "github",
+      "tone": "crimson",
+      "items": [
+        "Tests on Linux, Windows and macOS",
+        "Attack programs",
+        "Examples and the website",
+        "Speed limits",
+        "AddressSanitizer and ThreadSanitizer"
+      ]
+    },
+    {
+      "label": "Every night",
+      "when": "at 03:00 UTC, for every part",
+      "icon": "moon",
+      "tone": "gold",
+      "items": ["Every check from a push", "Fuzzing", "Miri", "The memory soak test", "The unsafe code count"]
+    },
+    {
+      "label": "Every release",
+      "when": "started by a person",
+      "icon": "rocket",
+      "tone": "green",
+      "items": [
+        "Every check, one more time",
+        "Builds for Linux, Windows and macOS",
+        "Each Docker image is started once",
+        "A signed record of each build"
+      ]
+    }
+  ],
+  "note": "A release is built only when every check is green."
+}

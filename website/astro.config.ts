@@ -673,6 +673,7 @@ export default defineConfig({
             { label: 'What Novis will never be', link: '/in-depth/never/' },
             { label: 'How we decide', link: '/in-depth/how-we-decide/' },
             { label: 'How Novis is written', link: '/in-depth/how-novis-is-written/' },
+            { label: 'How Novis is tested', link: '/in-depth/how-novis-is-tested/' },
             { label: 'Design principles', link: '/in-depth/design-principles/' },
             {
               label: 'Concepts',
