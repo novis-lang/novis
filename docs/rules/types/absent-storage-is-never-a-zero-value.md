@@ -17,7 +17,9 @@ is under `=`: the read and the write share one typed entry per span, and a write
 would lose the `null` the write path checks for.
 
 The value of `$a ??= $v` is the value `$a` has afterwards, the one written and never a second read of
-the target, so a hooked property runs its `get` hook once and its `set` hook once. Its type is the
+the target, so a hooked property runs its `get` hook once and its `set` hook at most once. A target
+that already has a value keeps it: `$v` is not evaluated and nothing is written, so no `set` hook,
+guard or observer runs (`rule:classes/property-observer-pipeline`). Its type is the
 target's type with `null` removed when `$v`'s type has no `null`, and the target's type when it does,
 so `return $this->posts ??= Post::findActive();` compiles against a return type of `array<Post>`.
 Every other compound operator and the plain `=` keep the target's type. The target's declared type

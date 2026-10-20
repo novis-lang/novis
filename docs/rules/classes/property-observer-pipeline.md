@@ -26,7 +26,8 @@ An element write is a write of the property that holds the array. `$p->tags["a"]
 assignment, an increment, `??=` and `unset($p->tags["a"])` each run the guard once before the store,
 with the key path, and report one `onPropertySet` with the whole array after it, at any depth of the
 path, and no `onPropertyGet`: the read of the root that the write makes to separate the array is part
-of the write, not an access of its own. Passing the array copies nothing.
+of the write, not an access of its own. Passing the array copies nothing. A `??=` whose target already
+has a value writes nothing, so it runs no guard and reports no `onPropertySet`.
 
 Four boundaries follow from writing it about a receiver. An access inside the property's own hooks is
 the backing slot and carries no guard and no observer, or one write would be checked and reported

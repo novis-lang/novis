@@ -6,6 +6,15 @@
 
 use super::*;
 
+/// The branch a `??=` opens over a target that has a value
+/// ([`Lowering::open_kept_value`]): the block that keeps it, the environment
+/// both blocks start from, and the temporaries the storing block owns above.
+struct KeptValue {
+    keep: BlockId,
+    env: Env,
+    temporaries: usize,
+}
+
 impl<'a> Lowering<'a> {
     /// [`lower_script`]'s own walk: like [`Self::lower_stmts`], but over a
     /// file's top level, where a *declaration* is not part of the frame at
@@ -695,6 +704,9 @@ impl<'a> Lowering<'a> {
         self.silenced_gets.truncate(silenced);
         self.reading_guarded_target = outer;
         self.stage(target.span, old, old_ty);
+        let kept = (op == BinaryOp::Coalesce && !defaults)
+            .then(|| self.open_kept_value(old, old_ty, target.span, env, cur))
+            .flatten();
         // An increment's `1` has no source span to build an `ExprKind::Int`
         // from, so it is emitted here — at the representation the read just
         // reported, since `rule:types/arithmetic` gives `int ⊕ int` and `uint ⊕ uint`
@@ -735,9 +747,127 @@ impl<'a> Lowering<'a> {
         self.unstage_to(reads);
         let (new, new_ty) =
             self.lower_store(target, &Stored::Value(new, new_ty), extra_owner, env, cur);
+        let (new, new_ty) = match kept {
+            Some(kept) => {
+                self.close_kept_value(kept, old, old_ty, new, new_ty, extra_owner, env, cur)
+            }
+            None => (new, new_ty),
+        };
         self.unstage_to(addresses);
         self.release_temporaries_since(temporaries, *cur);
         (old, old_ty, new, new_ty)
+    }
+    /// Opens the test that makes `$t ??= e` store only when `$t` is `null`
+    /// or absent (`rule:classes/property-observer-pipeline`). A target that
+    /// has a value keeps it, so no guard, `set` hook or observer runs, and `e`
+    /// is not evaluated.
+    ///
+    /// This leaves `cur` on the block that stores, and
+    /// [`Self::close_kept_value`] joins it with the block that keeps. A target
+    /// whose representation cannot be `null` opens nothing and always stores.
+    /// The cost is one `null` test, which the rewritten `$t ?? e` already made.
+    fn open_kept_value(
+        &mut self,
+        old: ValueId,
+        old_ty: Ty,
+        span: Span,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> Option<KeptValue> {
+        let is_null = match old_ty {
+            Ty::Tagged => {
+                self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: old })
+                    .0
+            }
+            Ty::ClassDesc => {
+                let word = self.class_desc_word(old, old_ty, *cur);
+                let (zero, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
+                self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::BinOp {
+                        op: BinOp::Eq,
+                        lhs: word,
+                        rhs: zero,
+                    },
+                )
+                .0
+            }
+            _ => return None,
+        };
+        let store = self.new_block();
+        let keep = self.new_block();
+        let store_edge = self.ids.next_edge(span);
+        let keep_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: is_null,
+                then_block: store,
+                then_edge: store_edge,
+                else_block: keep,
+                else_edge: keep_edge,
+            },
+        );
+        *cur = store;
+        Some(KeptValue {
+            keep,
+            env: env.clone(),
+            temporaries: self.temporaries_mark(),
+        })
+    }
+    /// Joins the two blocks [`Self::open_kept_value`] opened, giving the
+    /// assignment's value: the stored one, or the kept one at the same
+    /// representation.
+    ///
+    /// Every temporary the store made is released on its own block, since the
+    /// keeping block never made it. The kept value is a borrow of the target,
+    /// as every staged read is, so a value position gets its own reference.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the open branch, both values with their representations, and the lowering \
+                  context; a struct would buy its one call site nothing"
+    )]
+    fn close_kept_value(
+        &mut self,
+        kept: KeptValue,
+        old: ValueId,
+        old_ty: Ty,
+        new: ValueId,
+        new_ty: Ty,
+        extra_owner: bool,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        self.release_temporaries_since(kept.temporaries, *cur);
+        let stored = *cur;
+        let merge = self.new_block();
+        self.seal(stored, Terminator::Jump(merge));
+        let mut keep_env = kept.env.clone();
+        let keep_v = if old_ty == Ty::Tagged && new_ty != Ty::Tagged {
+            self.emit(kept.keep, new_ty, InstKind::Untag { operand: old })
+                .0
+        } else {
+            self.coerce(kept.keep, old, old_ty, new_ty, &mut keep_env)
+        };
+        if extra_owner && new_ty.is_refcounted() {
+            self.emit_retain(kept.keep, keep_v);
+        }
+        self.seal(kept.keep, Terminator::Jump(merge));
+        *env = self.merge_envs(
+            merge,
+            &[(kept.keep, keep_env), (stored, env.clone())],
+            &kept.env,
+        );
+        let (value, _) = self.emit(
+            merge,
+            new_ty,
+            InstKind::Phi {
+                incoming: vec![(kept.keep, keep_v), (stored, new)],
+            },
+        );
+        *cur = merge;
+        (value, new_ty)
     }
     /// The `$t ?? d` a defaulting assignment applies its operator to, and the
     /// representation of `d`, which is the operator's left operand whenever

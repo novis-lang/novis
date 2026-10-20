@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-ir/src/lower/mod.rs",
-  "title": "A coalescing assignment to a property that has a value runs the guard.",
-  "text": "`$a->x ??= 5` on a `?int` property that is already `4` stores nothing, but it calls `beforePropertySet` with `4`. A guard that throws for that value then fails a statement that writes nothing. `rule:classes/property-observer-pipeline` runs the guard for a `??=` that stores, and says nothing of one that does not. It closes when a `??=` that keeps the value calls no guard, or when the rule says it does, with a conformance case either way.",
-  "goal": "compiler-holes"
-}
