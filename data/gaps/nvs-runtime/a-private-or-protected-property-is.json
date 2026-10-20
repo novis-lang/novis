@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-runtime/src/object.rs",
-  "title": "A private or protected property is read and written from outside its class through an `object` or `mixed` variable.",
-  "text": "`class Account { private int $balance = 10; }`, then `object $o = new Account(); $o->balance = 999;` at the top level compiles and stores the value, and a method of `Account` then returns `999`. `echo $o->balance;` prints the value, a `protected` property the same, and `mixed $m` instead of `object $o` reads it too. The same access through `Account $a` is `E0471`. `read_erased_property` and `write_erased_property` look the name up in the descriptor's slots and check the value's type and `readonly`, but not the property's visibility, and `rule:types/erased-member-access` says nothing about it. That breaks every class's encapsulation in safe code. It closes when an erased read or write of a property not visible at the access site throws, as a missing name does, with a conformance case for a `private` and a `protected` property through `object` and through `mixed`.",
-  "goal": "compiler-holes"
-}

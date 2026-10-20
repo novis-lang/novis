@@ -4679,7 +4679,14 @@ pub unsafe extern "C" fn nvs_object_slot_get(
             reason = "the caller guarantees this points at one initialized value"
         )]
         let receiver = unsafe { *receiver };
-        read_erased_property_hinted(ctx, receiver, name, hint, AbsentField::Throws)
+        read_erased_property_hinted(
+            ctx,
+            receiver,
+            name,
+            hint,
+            AbsentField::Throws,
+            Reach::Public,
+        )
     };
     #[expect(
         unsafe_code,
@@ -4743,7 +4750,7 @@ pub unsafe extern "C" fn nvs_object_slot_optional_get(
             reason = "the caller guarantees this points at one initialized value"
         )]
         let receiver = unsafe { *receiver };
-        read_erased_property_hinted(ctx, receiver, name, hint, AbsentField::Null)
+        read_erased_property_hinted(ctx, receiver, name, hint, AbsentField::Null, Reach::Public)
     };
     #[expect(
         unsafe_code,
@@ -4758,10 +4765,10 @@ pub unsafe extern "C" fn nvs_object_slot_optional_get(
 /// receiver right now**, answered as a `bool` and never as a throw.
 ///
 /// True exactly when [`nvs_object_slot_get`] over the same receiver and the
-/// same name would answer a value. The three states that make it false are the
-/// three that function throws on — a receiver holding no object, a concrete
-/// class carrying no field of that name, and a slot that was never written
-/// ([`Tag::Unset`]) — and they collapse into one answer because the caller is
+/// same name would answer a value. The four states that make it false are the
+/// four that function throws on — a receiver holding no object, a concrete
+/// class carrying no field of that name, a field that is not `public`, and a
+/// slot that was never written ([`Tag::Unset`]) — and they collapse into one answer because the caller is
 /// `rule:types/type-test`'s shape walk, which declines on all three alike. Both
 /// read their answer off [`slot_state`], so the read and the presence question
 /// cannot disagree about where a field is. An object tag over a null pointer
@@ -4818,12 +4825,16 @@ pub unsafe extern "C" fn nvs_object_slot_probe(
                   is too"
     )]
     let desc = unsafe { &*NvsObj::class_of(ptr) };
+    let slot = desc.field_slot(name, hint);
+    if hidden(desc, slot, Reach::Public) {
+        return false;
+    }
     #[expect(
         unsafe_code,
-        reason = "`desc` is this object's own descriptor, which is `slot_state`'s \
-                  whole contract"
+        reason = "the slot came out of this object's own descriptor, which is \
+                  `slot_state`'s whole contract"
     )]
-    let state = unsafe { slot_state(desc, ptr, name, hint) };
+    let state = unsafe { slot_state(ptr, slot) };
     matches!(state, SlotState::Present(_))
 }
 
@@ -4899,7 +4910,7 @@ pub unsafe extern "C" fn nvs_object_slot_set(
             reason = "the caller guarantees each points at one initialized value"
         )]
         let (receiver, value) = unsafe { (*receiver, *value) };
-        write_erased_property(ctx, receiver, name, hint, erased, value)
+        write_property(ctx, receiver, name, hint, erased, Reach::Public, value)
     };
     #[expect(
         unsafe_code,
@@ -4960,7 +4971,7 @@ pub unsafe extern "C" fn nvs_object_key_get(
         )]
         let (receiver, key) = unsafe { (*receiver, *key) };
         let name = key_name(&key)?;
-        read_erased_property(ctx, receiver, name)
+        read_erased_property(ctx, receiver, name, Reach::Public)
     };
     #[expect(
         unsafe_code,
@@ -5004,7 +5015,7 @@ pub unsafe extern "C" fn nvs_object_key_set(
         )]
         let (receiver, key, value) = unsafe { (*receiver, *key, *value) };
         let name = key_name(&key)?;
-        write_erased_property(ctx, receiver, name, 0, true, value)
+        write_property(ctx, receiver, name, 0, true, Reach::Public, value)
     };
     #[expect(
         unsafe_code,
@@ -5037,8 +5048,13 @@ fn key_name(key: &Value) -> Result<&str, Fault> {
 /// # Errors
 ///
 /// [`nvs_object_slot_get`]'s, which its own documentation owns.
-fn read_erased_property(ctx: &mut Ctx, receiver: Value, name: &str) -> crate::HelperResult {
-    read_erased_property_hinted(ctx, receiver, name, 0, AbsentField::Throws)
+fn read_erased_property(
+    ctx: &mut Ctx,
+    receiver: Value,
+    name: &str,
+    reach: Reach,
+) -> crate::HelperResult {
+    read_erased_property_hinted(ctx, receiver, name, 0, AbsentField::Throws, reach)
 }
 
 /// [`read_erased_property`] answering a reference the caller owns, whichever
@@ -5051,6 +5067,10 @@ fn read_erased_property(ctx: &mut Ctx, receiver: Value, name: &str) -> crate::He
 /// The two routes hand back different ownership: a slot is borrowed and a
 /// `get` hook's return is a fresh reference. This retains the first and passes
 /// the second through, so neither leaks nor is released twice.
+///
+/// **The caller has already asked visibility from its own call site**
+/// ([`Ctx::field_is_visible_from`]), so this reaches a `private` or
+/// `protected` slot that a read compiled through `object` or `mixed` does not.
 ///
 /// # Errors
 ///
@@ -5069,7 +5089,7 @@ pub fn read_erased_property_owned(
         .obj_ptr()
         .filter(|ptr| !ptr.is_null())
         .is_some_and(|ptr| unsafe { (*NvsObj::class_of(ptr)).hook_row(name, false).is_some() });
-    let read = read_erased_property(ctx, receiver, name)?;
+    let read = read_erased_property(ctx, receiver, name, Reach::Checked)?;
     if !hooked {
         #[expect(
             unsafe_code,
@@ -5099,6 +5119,52 @@ enum AbsentField {
     Null,
 }
 
+/// Which properties an erased access may reach.
+///
+/// `rule:types/erased-member-access`: an access through `object`, `mixed` or
+/// a shape is outside every class, as a call through `mixed` is, so it reaches
+/// a `public` property and nothing else. That holds even where the access is
+/// written inside the property's own class: the checker knows nothing about
+/// the receiver there, and the class's own code reaches the property through
+/// a variable of its type.
+#[derive(Clone, Copy)]
+enum Reach {
+    /// Compiled code's erased access: only a `public` property.
+    Public,
+    /// `Core\Reflect\ClassInfo`'s, whose caller asked
+    /// [`Ctx::field_is_visible_from`] from its own call site first.
+    Checked,
+}
+
+/// Whether `slot` of `desc` is a property `reach` does not reach. A name the
+/// class does not carry is not hidden: the caller's missing-field answer is
+/// the one it owes.
+///
+/// A shape's fields are never hidden. A shape has no visibility keyword to
+/// write, and a shape class a `Core` member mints natively is never told its
+/// public bits, so [`ClassDesc::field_is_public`]'s safe `false` is the wrong
+/// answer for it.
+fn hidden(desc: &ClassDesc, slot: Option<usize>, reach: Reach) -> bool {
+    matches!(reach, Reach::Public)
+        && !desc.is_shape()
+        && slot.is_some_and(|slot| !desc.field_is_public(slot))
+}
+
+/// The throw for a property [`hidden`] refused, where `verb` is `"read"` or
+/// `"written"`.
+fn hidden_property(desc: &ClassDesc, slot: Option<usize>, name: &str, verb: &str) -> Fault {
+    let level = if slot.is_some_and(|slot| desc.field_is_protected(slot)) {
+        "protected"
+    } else {
+        "private"
+    };
+    Fault::thrown(format!(
+        "`{}::${name}` is {level}. Only a public property can be {verb} through `object`, \
+         `mixed` or a shape type.",
+        desc.name()
+    ))
+}
+
 /// [`read_erased_property`] with the caller's slot hint — see
 /// [`ClassDesc::field_slot`] for what one buys — and its answer for a name
 /// the class does not carry.
@@ -5121,6 +5187,7 @@ fn read_erased_property_hinted(
     name: &str,
     hint: usize,
     absent: AbsentField,
+    reach: Reach,
 ) -> crate::HelperResult {
     let Some(ptr) = receiver.obj_ptr() else {
         return Err(Fault::thrown(format!(
@@ -5139,6 +5206,11 @@ fn read_erased_property_hinted(
                   is too"
     )]
     let desc = unsafe { &*NvsObj::class_of(ptr) };
+    let slot = desc.field_slot(name, hint);
+    // Before the hook, since a hooked property has a visibility of its own.
+    if hidden(desc, slot, reach) {
+        return Err(hidden_property(desc, slot, name, "read"));
+    }
     // Before the slot, and for [`write_erased_property`]'s reason in the other
     // direction: where a property declares a `get`, the slot is that hook's to
     // read and the value it answers is the property's.
@@ -5147,10 +5219,10 @@ fn read_erased_property_hinted(
     }
     #[expect(
         unsafe_code,
-        reason = "`desc` is this object's own descriptor, which is `slot_state`'s \
-                  whole contract"
+        reason = "the slot came out of this object's own descriptor, which is \
+                  `slot_state`'s whole contract"
     )]
-    match unsafe { slot_state(desc, ptr, name, hint) } {
+    match unsafe { slot_state(ptr, slot) } {
         SlotState::Present(held) => Ok(held),
         SlotState::Absent => match absent {
             AbsentField::Null => Ok(Value::null()),
@@ -5185,7 +5257,7 @@ fn read_erased_property_hinted(
                 reason = "the receiver is still live, since this frame borrows it, \
                           and `desc` is still its own descriptor"
             )]
-            match unsafe { slot_state(desc, ptr, name, hint) } {
+            match unsafe { slot_state(ptr, slot) } {
                 SlotState::Present(held) => Ok(held),
                 SlotState::Absent | SlotState::Unwritten => Err(Fault::thrown_as(
                     crate::ThrownClass::Logic,
@@ -5299,19 +5371,21 @@ enum SlotState {
     Present(Value),
 }
 
-/// [`SlotState`] for `name` on the object at `ptr`, trying `hint` first — see
-/// [`ClassDesc::field_slot`] for what a hint buys.
+/// [`SlotState`] of `slot` on the object at `ptr`, where `slot` is what
+/// [`ClassDesc::field_slot`] found for the name, and `None` is a name the
+/// class does not carry.
 ///
 /// # Safety
 ///
-/// `ptr` must point at one live object whose class is `desc`.
+/// `ptr` must point at one live object, and `slot` must come from that
+/// object's own descriptor.
 #[expect(
     unsafe_code,
     reason = "the object and its descriptor are a pairing only the caller can \
               establish"
 )]
-unsafe fn slot_state(desc: &ClassDesc, ptr: *mut ObjHeader, name: &str, hint: usize) -> SlotState {
-    let Some(slot) = desc.field_slot(name, hint) else {
+unsafe fn slot_state(ptr: *mut ObjHeader, slot: Option<usize>) -> SlotState {
+    let Some(slot) = slot else {
         return SlotState::Absent;
     };
     #[expect(
@@ -5375,12 +5449,30 @@ unsafe fn slot_state(desc: &ClassDesc, ptr: *mut ObjHeader, name: &str, hint: us
 /// [`Fault::Pending`] when the guard throws, which stops the write, or when
 /// the observer throws: § 3's "a throwing `onPropertySet` still fails the
 /// overall write", even though the store has already happened.
+///
+/// **The caller has already asked visibility from its own call site**
+/// ([`Ctx::field_is_visible_from`]), as [`read_erased_property_owned`]'s has,
+/// so this reaches a `private` or `protected` slot. Compiled code's own write
+/// is [`nvs_object_slot_set`], which reaches a `public` one only.
 pub fn write_erased_property(
     ctx: &mut Ctx,
     receiver: Value,
     name: &str,
     hint: usize,
     erased: bool,
+    value: Value,
+) -> Result<Value, Fault> {
+    write_property(ctx, receiver, name, hint, erased, Reach::Checked, value)
+}
+
+/// [`write_erased_property`]'s body, with what the write may reach.
+fn write_property(
+    ctx: &mut Ctx,
+    receiver: Value,
+    name: &str,
+    hint: usize,
+    erased: bool,
+    reach: Reach,
     value: Value,
 ) -> Result<Value, Fault> {
     let Some(ptr) = receiver.obj_ptr() else {
@@ -5400,6 +5492,10 @@ pub fn write_erased_property(
                   is live and its descriptor is too"
     )]
     let desc = unsafe { &*NvsObj::class_of(ptr) };
+    let found = desc.field_slot(name, hint);
+    if hidden(desc, found, reach) {
+        return Err(hidden_property(desc, found, name, "written"));
+    }
     // Before the slot, because for a hooked property the slot is the hook's
     // to write: this door is the access spelling that had no class to lower
     // against, not a second way of storing.
@@ -5424,7 +5520,7 @@ pub fn write_erased_property(
             return Ok(Value::null());
         }
         // A hooked property is always backed, so the slot is there to read.
-        let Some(slot) = desc.field_slot(name, hint) else {
+        let Some(slot) = found else {
             return Ok(Value::null());
         };
         #[expect(
@@ -5436,7 +5532,7 @@ pub fn write_erased_property(
         let committed = unsafe { *field_ptr(ptr, slot) };
         return tell_erased_write(ctx, receiver, name, committed);
     }
-    let Some(slot) = desc.field_slot(name, hint) else {
+    let Some(slot) = found else {
         return Err(Fault::thrown(format!(
             "`{}` has no field `{name}`",
             desc.name()
@@ -6545,10 +6641,13 @@ mod tests {
     #[test]
     fn the_slot_probe_answers_true_in_exactly_the_cases_the_read_does_not_throw() {
         let mut table = ClassTable::new();
-        let id = table.define("Point", &["x", "y"], &[]);
+        let id = table.define("Point", &["x", "y", "z"], &[]);
+        // `z` is private, which an erased read does not reach.
+        table.set_public_fields(id, vec![true, true, false]);
         #[expect(unsafe_code, reason = "the table outlives the object")]
         let object = unsafe { NvsObj::new(table.desc(id)) };
         object.set_field(0, Value::int(3));
+        object.set_field(2, Value::int(4));
         // The state an absent optional shape field and an unwritten `lateinit`
         // property both reach, and the one a fresh object's `null` is not.
         object.set_field(1, Value::unset());
@@ -6558,12 +6657,13 @@ mod tests {
         // on.
         let mut ctx = Ctx::new(crate::OutputSink::Buffer(Vec::new()));
 
-        // Present, present through a hint that misses, unwritten, a name the
-        // class does not carry, and a receiver holding no object at all.
+        // Present, present through a hint that misses, unwritten, private, a
+        // name the class does not carry, and a receiver holding no object at all.
         let subjects = [
             (receiver, "x", 0_usize),
             (receiver, "x", 9),
             (receiver, "y", 1),
+            (receiver, "z", 2),
             (receiver, "nope", 0),
             (Value::int(7), "x", 0),
         ];
@@ -6576,8 +6676,14 @@ mod tests {
             let probed = unsafe {
                 nvs_object_slot_probe(&raw const subject, name.as_ptr(), name.len(), hint)
             };
-            let read =
-                read_erased_property_hinted(&mut ctx, subject, name, hint, AbsentField::Throws);
+            let read = read_erased_property_hinted(
+                &mut ctx,
+                subject,
+                name,
+                hint,
+                AbsentField::Throws,
+                Reach::Public,
+            );
             assert_eq!(
                 probed,
                 read.is_ok(),
