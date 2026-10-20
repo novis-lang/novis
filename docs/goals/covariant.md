@@ -127,8 +127,9 @@ call. `rule:classes/an-override-keeps-its-parents-signature` and compiler-holes 
 as the way to narrow.
 
 **Gate.** Stage 4 starts only when compiler-holes stage 16 has landed:
-`docs/rules/classes/a-redeclared-property-keeps-its-parents-type.md` exists. The goal sits behind
-compiler-holes on the chain, so the gate holds when it starts.
+`docs/rules/classes/a-redeclared-property-keeps-its-parents-type.md` exists. Stage 5's matrix rows
+need compiler-holes stage 17: `tools/nv/cmd/soundness.ts` exists. The goal sits behind
+compiler-holes on the chain, so both gates hold when it starts.
 
 **Lanes.** One lane. Stages 1 to 5 share the parser, the checker and the lowering and run in order.
 Stage 6's examples print what stages 3 to 5 return, and stage 7's page embeds stage 6's examples.
@@ -198,6 +199,7 @@ through a wider type that would store another class throws.
 - [ ] The erased write through `object` or `mixed`, the `property<T>` key write and the reflected write test the receiver's narrowed type (`rule:types/erased-member-access`, `rule:types/property-key-access`). `crates/nvs-runtime/src/object.rs:1`
 - [ ] A hooked property tests before its `set` hook, and the guard and observer run after the test. `crates/nvs-ir/src/lower/stmt.rs:1217`
 - [ ] A case for each path. `tests/conformance/class/a-covariant-property-is-checked-on-every-write-path.nvst:1`
+- [ ] The redeclaration matrix of compiler-holes stage 17 gains a `covariant` parameter and a `covariant` property as rows, against every relation and path it lists, and `bun nv soundness --write` writes them. `tools/nv/cmd/soundness.ts:1`
 
 ### 6. `lang:classes/covariant` has its feature proofs, and the rule is shipped
 
