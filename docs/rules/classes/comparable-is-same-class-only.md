@@ -6,8 +6,12 @@ subclass's `compareTo` to an ancestor's.
 The static types are not the whole check. Two operands typed `Comparable`, or typed at a class that is
 not `final`, may hold instances of different classes, and `compareTo` would then read the other
 operand as a class it is not. So the ordering compares the two run-time classes first and throws a
-`LogicError` when they differ, before `compareTo` runs. That costs one class comparison per object
-ordering. A static refusal instead would refuse every ordering over a class that is not `final`.
+`LogicError` when they differ, before `compareTo` runs. A direct `$a->compareTo($b)` call that
+resolves to `Comparable::compareTo` itself, through `Comparable` or an interface that extends it, runs
+the same check. A call through a class needs none, since the argument is already that class's type.
+That costs one class comparison per object ordering or call through `Comparable`. A static refusal
+instead would refuse every ordering over a class that is not `final`, and every direct call through
+`Comparable`.
 
 The alternative is a resolution question with no non-arbitrary answer: which of two classes' methods
 decides the order of a mixed pair, and what a program should conclude when they disagree. Fixing the

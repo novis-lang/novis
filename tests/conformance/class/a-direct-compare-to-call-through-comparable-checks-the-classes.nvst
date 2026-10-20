@@ -1,0 +1,65 @@
+--TEST--
+A direct `compareTo` call through `Comparable` throws a `LogicError` when the receiver and the argument have different run-time classes, before `compareTo` runs, as an ordering does — `rule:classes/comparable-is-same-class-only`
+--FILE--
+<?nvs
+interface Money extends Comparable {}
+
+class Price implements Money {
+    public function constructor(public int $cents) {}
+
+    public function compareTo(self $other): int {
+        return $this->cents <=> $other->cents;
+    }
+}
+
+class Label implements Comparable {
+    public function constructor(public string $text) {}
+
+    public function compareTo(self $other): int {
+        echo "Label::compareTo ran\n";
+        return 0;
+    }
+}
+
+class Coin implements Money {
+    public function constructor(public int $value) {}
+
+    public function compareTo(self $other): int {
+        return $this->value <=> $other->value;
+    }
+}
+
+// Two objects of the same class compare as `compareTo` says.
+Comparable $cheap = new Price(100);
+echo $cheap->compareTo(new Price(250)), "\n";
+
+// The receiver is a `Price`, and the argument is a `Label`.
+try {
+    echo $cheap->compareTo(new Label("tea")), "\n";
+} catch (LogicError $e) {
+    echo "1: ", $e->message, "\n";
+}
+
+// The receiver is a `Label`, and the argument is a `Price` in a variable.
+Comparable $label = new Label("tea");
+try {
+    echo $label->compareTo($cheap), "\n";
+} catch (LogicError $e) {
+    echo "2: ", $e->message, "\n";
+}
+
+// The call goes through an interface that extends `Comparable`.
+Money $coin = new Coin(5);
+try {
+    echo $coin->compareTo(new Price(5)), "\n";
+} catch (LogicError $e) {
+    echo "3: ", $e->message, "\n";
+}
+echo $coin->compareTo(new Coin(1)), "\n";
+// covers: lang:classes/comparable
+--EXPECT--
+-1
+1: `compareTo` compares two objects of different classes. Both objects must have the same class.
+2: `compareTo` compares two objects of different classes. Both objects must have the same class.
+3: `compareTo` compares two objects of different classes. Both objects must have the same class.
+1
