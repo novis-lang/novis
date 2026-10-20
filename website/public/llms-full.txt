@@ -14506,6 +14506,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 | `Iterable` | T |
 | `Iterator` | T |
 | `Core\Router\Gate` | — |
+| `Core\Router\Responder` | — |
 
 ### Property hooks
 
@@ -37218,7 +37219,7 @@ Calls the method of the route that the request matched. First, `$gate->allows()`
 |---|---|---|
 | `$gate` | `Core\Router\Gate` | An instance of your class that implements `Core\Router\Gate`. |
 
-**Returns** `void` — Nothing. The route method or the gate writes the response, for example with `echo` or `Core\Response::html`. `dispatch` does not send the value that a route method returns. Each value captured from the path goes to the method parameter with the same name. An error that `refused()` or `failed()` throws is thrown by `dispatch`.
+**Returns** `void` — Nothing. The route method or the gate writes the response, for example with `echo` or `Core\Response::html`. When the gate implements `Core\Router\Responder`, `dispatch` passes the value that a route method returns to `$gate->respond()`. Otherwise `dispatch` does not send that value. Each value captured from the path goes to the method parameter with the same name. An error that `refused()`, `failed()` or `respond()` throws is thrown by `dispatch`.
 
 **Throws** `LogicError` — When the program has no `#[Route]`. When the program is not answering a request, for example a command-line program, a job or a test. When the route method has a parameter that no value in the path fills, such as a `#[Query]` parameter or an optional capture that the path does not have.
 
@@ -56167,7 +56168,7 @@ array<int> $sizes = [3, 1, 2];
 echo count($sizes), "\n";
 ```
 ```output
-the built-ins live under the reserved `Core` namespace
+The built-in functions are in the `Core` namespace
 ```
 
 `nvs agent find` with the name of the task is the next call.
@@ -56378,7 +56379,7 @@ string $name = "Zoë";
 echo strlen($name), "\n";
 ```
 ```output
-the built-ins live under the reserved `Core` namespace
+The built-in functions are in the `Core` namespace
 ```
 
 Either way it arrives at one program, and `nvs check` accepts it:
