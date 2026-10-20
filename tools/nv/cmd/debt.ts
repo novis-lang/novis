@@ -13,7 +13,9 @@
 // a change reached that they did not run (`select/record.ts` `advance`). The atoms go by their last run,
 // oldest first (`debtTurns`). One runner takes each turn, and the turns go in the order of their first
 // atoms: `select/full.ts` `fullRun` with `only` for every kind but the legs, and `cmd/legs.ts`
-// `legsOver` for the legs. The legs run
+// `legsOver` for the legs. A turn moves the store's tree, which owes each atom the change since its last
+// run reached and the turn did not run, so after the turns the debt is read again and a further round
+// pays what is new, up to `ROUNDS`. The legs run
 // over `--goal`'s goal, else the one `LOOPER_GOAL` names, else the current one (`lib/chain.ts`
 // `namedPlan`). A goal that names no fixture gives the legs nothing to run, so an owed or red leg is not
 // that goal's debt: it stays in the store as it is, and the first goal with a fixture pays it (`legsWait`).
@@ -111,6 +113,10 @@ export interface DebtOutcome {
 
 const LEG_IDS = new Set<string>(LEGS.map(legId));
 
+/** The most rounds one run pays. The second round's turn finds the tree where the first left it, so it
+ * owes nothing new unless the tree moved under the run; the third is for that. */
+const ROUNDS = 3;
+
 /**
  * Each atom of `rows` that is floor debt: an owed atom of any kind but a bench, and a red proof program
  * or leg, since `nv verify` runs neither and so never runs a red one again.
@@ -173,11 +179,18 @@ export async function payDebt(slug: string | undefined, s: DebtSeams): Promise<D
   if (waiting > 0) s.voice.step(`floor debt: ${waiting} leg(s) wait in the store for a goal that names a fixture -- ${wait}`);
   const started = s.now();
   const reds: string[] = [];
-  const turns = debtTurns(before);
-  const planned = new Set(turns.flatMap((t) => t.ids));
-  const kindOf = new Map(before.map((a) => [a.id, a.kind]));
+  const planned = new Set<string>();
+  // Every atom a round planned, as it was when planned.
+  const owed: DebtAtom[] = [];
+  const plan = (atoms: DebtAtom[]) => {
+    for (const a of atoms) {
+      planned.add(a.id);
+      owed.push(a);
+      ev.add(a.id, { parent: DEBT_ITEM, name: a.id, kind: a.kind });
+    }
+  };
   ev.add(DEBT_ITEM, { name: "floor debt", kind: "step" });
-  for (const id of planned) ev.add(id, { parent: DEBT_ITEM, name: id, kind: kindOf.get(id) ?? "atom" });
+  plan(before);
   ev.planned();
   ev.start(DEBT_ITEM);
   // An atom's item ends when its run is recorded, whichever runner records it.
@@ -191,22 +204,30 @@ export async function payDebt(slug: string | undefined, s: DebtSeams): Promise<D
   const onStart = (id: string) => {
     if (planned.has(id) && !ended.has(id)) ev.start(id);
   };
+  // A turn moves the store's tree past the change since its last run, which owes every atom that change
+  // reached and the turn did not run. Those are debt too, so a further round pays them; one that the
+  // round before planned and did not pay stays left, which ends the rounds.
+  let round = before;
+  let left: DebtAtom[] = [];
   try {
     if (before.length === 0) s.voice.step("floor debt: none");
-    else {
-      s.voice.step(`floor debt: ${before.length} atom(s), ${byKind(before)}; the oldest first`);
-      for (const turn of turns) {
-        const kinds = byKind(before.filter((a) => turn.ids.includes(a.id)));
+    for (let n = 0; n < ROUNDS && round.length > 0; n++) {
+      if (n === 0) s.voice.step(`floor debt: ${round.length} atom(s), ${byKind(round)}; the oldest first`);
+      else s.voice.step(`floor debt: ${round.length} more atom(s), ${byKind(round)}, owed by the run's own tree move`);
+      for (const turn of debtTurns(round)) {
+        const kinds = byKind(round.filter((a) => turn.ids.includes(a.id)));
         const at = s.now();
         reds.push(await s.pay(turn, slug, s.voice.note, onStart));
         s.voice.step(`floor debt: paid ${kinds} in ${minutes(s.now() - at)}, by ${turn.runner === "full" ? "the full run's runners" : "the Linux legs"}`);
       }
+      left = ours(s.debt());
+      round = left.filter((a) => !planned.has(a.id));
+      plan(round);
     }
   } finally {
     onRecorded(null);
   }
-  const left = before.length === 0 ? [] : ours(s.debt());
-  const paid = paidOf(before, left);
+  const paid = paidOf(owed, left);
   if (before.length > 0) {
     s.voice.step(`floor debt: paid ${paid.length}${paid.length > 0 ? ` (${byKind(paid)})` : ""} in ${minutes(s.now() - started)}; left ${left.length}${left.length > 0 ? ` (${byKind(left)})` : ""}`);
   }

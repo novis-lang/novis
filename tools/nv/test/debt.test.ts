@@ -124,6 +124,35 @@ describe("bun nv debt", () => {
     expect(steps).toContain("floor debt: paid 3 (2 proof, 1 leg) in 90m00s; left 0");
   });
 
+  test("an atom a turn's tree move owes is paid by a further round, and one a round left unpaid ends the rounds", async () => {
+    const s = seams([atom("proof:a.nvs", 1)]);
+    const pay = s.pay;
+    let moved = false;
+    const steps: string[] = [];
+    // The first turn's tree move owes two atoms the change reached and the turn did not run.
+    const out = await payDebt(undefined, {
+      ...s,
+      pay: async (turn, ...rest) => {
+        const r = await pay(turn, ...rest);
+        if (!moved) {
+          moved = true;
+          for (const a of [atom("nvtest:tools/nv/test/x.test.ts", 5), atom("test:nvs-cli test b", 6)]) s.store.set(a.id, a);
+        }
+        return r;
+      },
+      voice: { step: (l) => steps.push(l), note() {} },
+    });
+    expect(s.turns.map((t) => t.ids)).toEqual([["proof:a.nvs"], ["nvtest:tools/nv/test/x.test.ts", "test:nvs-cli test b"]]);
+    expect(out.left).toEqual([]);
+    expect(steps).toContain("floor debt: 2 more atom(s), 1 nvtest, 1 test, owed by the run's own tree move");
+    expect(steps.at(-1)).toBe("floor debt: paid 3 (1 nvtest, 1 proof, 1 test) in 3m00s; left 0");
+
+    const stuck = seams([atom("proof:a.nvs", 1)]);
+    const once = await payDebt(undefined, { ...stuck, pay: async (turn) => (stuck.turns.push(turn), "") });
+    expect(stuck.turns.length).toBe(1);
+    expect(once.left.map((a) => a.id)).toEqual(["proof:a.nvs"]);
+  });
+
   test("an owed leg runs the Linux legs the store selects, and no leg debt runs none", async () => {
     /** The seams with the real legs turn over `machine`, and nothing run for any other turn. */
     const withLegs = (s: Run, machine: ReturnType<typeof linux>): Run => ({
