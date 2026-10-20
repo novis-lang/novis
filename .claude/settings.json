@@ -26,6 +26,7 @@
       "Bash(bun nv benches:*)",
       "Bash(bun nv brief:*)",
       "Bash(bun nv check:*)",
+      "Bash(bun nv ci:*)",
       "Bash(bun nv ci-changes:*)",
       "Bash(bun nv db-matrix:*)",
       "Bash(bun nv directives:*)",

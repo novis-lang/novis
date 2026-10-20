@@ -25,6 +25,8 @@
 // `planned`, and `done`.
 //
 // It always exits 0, because looper pauses the loop on a hook that fails: the file is the verdict.
+// Under a side loop in the root (`LOOPER_LOOP_KIND=root-side`) it does nothing, because the main loop's
+// run of it sweeps that tree and writes that file.
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -199,9 +201,10 @@ const PRINTED: SweepVoice = {
   note: (l) => console.log(`   ${l}`),
 };
 
-/** What the command reads besides the seams: how it reports itself. */
+/** What the command reads besides the seams: how it reports itself, and looper's `LOOPER_LOOP_KIND`. */
 export interface SweepCmdSeams extends SweepSeams {
   voice: SweepVoice;
+  loopKind: string;
 }
 
 /** Parses, sweeps the disk, reads the nightly run and writes their lines into `.loop/last-sweep.md`;
@@ -209,6 +212,12 @@ export interface SweepCmdSeams extends SweepSeams {
 export async function sweep(args: string[], over: Partial<SweepCmdSeams> = {}): Promise<number> {
   const s: SweepSeams = { ...REAL, ...over };
   const voice = over.voice ?? PRINTED;
+  // A side loop in the root, such as `ci-green`'s, shares the tree with the main loop, whose own hook
+  // sweeps the disk and owns `.loop/last-sweep.md`.
+  if ((over.loopKind ?? process.env.LOOPER_LOOP_KIND) === "root-side") {
+    voice.step("nv sweep: a side loop in the root leaves the sweep to the main loop");
+    return 0;
+  }
   let keepRuns = KEEP_RUNS;
   let bad = "";
   for (let i = 0; i < args.length && bad === ""; i++) {
