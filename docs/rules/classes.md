@@ -165,7 +165,9 @@ name gets the same "must be camelCase" error as any other mis-cased name of its 
 The constructor is a method named `constructor` — an ordinary lowercase-first name that needs no
 casing exception of its own. It has every role a constructor has: `new` invokes it, it is
 where [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)'s obligation attaches, and a subclass
-discharges its inherited properties by calling `parent::constructor(...)`.
+discharges its inherited properties by calling `parent::constructor(...)`. It is never `static`
+(`E0106`): `new` runs it on the object just made, and a static method has no `$this` to assign a
+property through.
 
 `__construct` is not recognized as a constructor and cannot compile as an ordinary method either,
 because two leading underscores fail the identifier pattern

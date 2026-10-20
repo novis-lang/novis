@@ -1,0 +1,33 @@
+--TEST--
+`static` on a `constructor` is `E0106` at the modifier, and a `static` method with another name that returns `new self(...)` compiles
+--FILE--
+<?nvs
+class Point {
+    public int $x = 0;
+
+    public function constructor(int $x) {
+        $this->x = $x;
+    }
+
+    public static function origin(): Point {
+        return new self(0);
+    }
+}
+
+class Counter {
+    public int $start = 0;
+
+    public static function constructor(int $n) {}
+}
+
+echo Point::origin()->x, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0106]: `static` is not allowed on a constructor
+%A
+17 |     public static function constructor(int $n) {}
+   |            ^^^^^^ delete this modifier
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

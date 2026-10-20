@@ -437,15 +437,9 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         }
         let Some(attr) = test else { continue };
         check_method_shape(m, &method, class, env);
+        // A second method of one name is already `E0304` from
+        // `crate::signatures`, so it is skipped here with no second report.
         if cases.iter().any(|case| case.method == method) {
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_DUPLICATE_DECLARATION,
-                    format!("`{class}` declares two `#[Test]` methods named `{method}`"),
-                )
-                .with_primary(m.name, "already declared above")
-                .with_help("a test is reported by its own name, so two cannot share one"),
-            );
             continue;
         }
         let options = fold_options(&attr.fields.clone(), env);

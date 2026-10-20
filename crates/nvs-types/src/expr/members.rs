@@ -274,6 +274,9 @@ pub(crate) fn infer_class_const(
                         // has no wrong behaviour to report — and refused at
                         // all because `rule:classes/no-free-functions-or-constants` leaves `nvs-ir` nothing to
                         // lower a read to, which was a panic before this.
+                        // A value the declaration already reported as not
+                        // of its type is not reported again at the read.
+                        None if sig.refused => {}
                         None => {
                             report_unfoldable_const(expr, &qname, &constant, sig.ty, env);
                         }

@@ -1,0 +1,34 @@
+--TEST--
+A property declared `void` or `never` is `E0742` at its type, with a default or without one, and no second error follows (`rule:types/grammar`)
+--FILE--
+<?nvs
+class Holder {
+    public void $nothing;
+    public never $none;
+    public void $withDefault = 1;
+    public static never $shared = 2;
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0742]: `void` is a return type only, and this is a property
+%A
+3 |     public void $nothing;
+  |            ^^^^ declared `void` here
+%A
+error[E0742]: `never` is a return type only, and this is a property
+%A
+4 |     public never $none;
+%A
+error[E0742]: `void` is a return type only, and this is a property
+%A
+5 |     public void $withDefault = 1;
+%A
+error[E0742]: `never` is a return type only, and this is a property
+%A
+6 |     public static never $shared = 2;
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -9,7 +9,7 @@ a modifier written twice, a second visibility, `abstract` beside `final`, and a 
 // here and not as a missing error.
 abstract class Accepted {
     public const int LIMIT = 9;
-    final protected const int FLOOR = 1;
+    protected const int FLOOR = 1;
     public private(set) static int $count = 0;
     public readonly int $id;
 
@@ -41,6 +41,8 @@ class WrongKind {
     public readonly function g(): void {}
 
     public function constructor(static int $n) {}
+
+    final public const int Y = 1;
 }
 
 final public class OnAHeader {}
@@ -73,8 +75,11 @@ error[E0106]: `readonly` is not allowed on a method
 error[E0106]: `static` is not allowed on a parameter
    --> case.nvs:40:33
 %A
-error[E0106]: `public` is not allowed on a class
-   --> case.nvs:43:7
+error[E0106]: `final` is not allowed on a constant
+   --> case.nvs:42:5
 %A
-error: aborting due to 9 errors
+error[E0106]: `public` is not allowed on a class
+   --> case.nvs:45:7
+%A
+error: aborting due to 10 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

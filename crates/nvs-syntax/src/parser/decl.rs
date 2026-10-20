@@ -45,7 +45,7 @@ impl ModifierSite {
         match self {
             Self::Class => matches!(m, M::Abstract | M::Final),
             Self::Property => !matches!(m, M::Abstract | M::Final),
-            Self::Constant => matches!(m, M::Public | M::Protected | M::Private | M::Final),
+            Self::Constant => matches!(m, M::Public | M::Protected | M::Private),
             Self::Method => matches!(
                 m,
                 M::Public | M::Protected | M::Private | M::Static | M::Abstract | M::Final
@@ -1133,7 +1133,11 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
         if self.at_keyword(Keyword::Function) {
             let modifiers = self.check_modifiers(ModifierSite::Method, &written);
-            out.push(self.parse_method_member(start, attributes, modifiers));
+            let mut member = self.parse_method_member(start, attributes, modifiers);
+            if let ClassMemberKind::Method(m) = &mut member.kind {
+                self.refuse_static_constructor(m, &written);
+            }
+            out.push(member);
             return;
         }
         // Asked before `can_start_type`, which reads the contextual `type` as a
@@ -1306,6 +1310,30 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// whether `=` follows it directly.
     pub(super) fn at_const_name_without_type(&mut self) -> bool {
         matches!(self.peek().kind, TokenKind::Ident) && self.peek_at(1).kind == TokenKind::Equals
+    }
+
+    /// `E_BAD_MODIFIER` for `static` on the method named `constructor`. `new`
+    /// runs the constructor on the object it has just made, so a `static` one
+    /// would run with no `$this` and could assign no property. The modifier is
+    /// left out of the method, as [`Self::check_modifiers`] leaves out every
+    /// modifier it reports.
+    fn refuse_static_constructor(&mut self, m: &mut MethodMember, written: &[WrittenModifier]) {
+        if self.file.span_text(m.name) != Some("constructor")
+            || !m.modifiers.contains(&Modifier::Static)
+        {
+            return;
+        }
+        let Some(at) = written.iter().find(|w| w.modifier == Modifier::Static) else {
+            return;
+        };
+        self.diags.report(
+            Diagnostic::error(code::E_BAD_MODIFIER, "`static` is not allowed on a constructor")
+                .with_primary(at.span, "delete this modifier")
+                .with_help(
+                    "`new` calls the constructor on the new object, so the constructor needs                      `$this`. To make objects in a static method, give that method another name                      and return `new self(...)` from it",
+                ),
+        );
+        m.modifiers.retain(|&k| k != Modifier::Static);
     }
 
     pub(super) fn parse_method_member(

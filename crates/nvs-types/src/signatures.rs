@@ -662,6 +662,10 @@ pub struct ConstSig {
     /// [`crate::expr::members`] so that `nvs-ir`'s `ClassConstAccess` arm is
     /// never reached with nothing to lower.
     pub value: Option<crate::defaults::ConstArg>,
+    /// Whether the declaration already reported that its value does not have
+    /// its type (`reject_const_value_of_another_type`). A read of such a
+    /// constant is then not a second diagnostic about the same mistake.
+    pub refused: bool,
     /// The written visibility, `public` where none is written.
     /// [`crate::expr::members`] checks a read against it with
     /// [`is_visible_from`], as it checks a property.
@@ -1145,12 +1149,14 @@ fn collect_members(
         .symbols
         .get(qname)
         .is_some_and(|sym| sym.kind == SymbolKind::Interface);
+    reject_members_declared_twice(members, qname, env);
     for member in members {
         match &member.kind {
             ClassMemberKind::Property(p) => {
                 let ty = lower_type(&p.ty, ctx, env);
                 let text = span_text(env.src, p.name);
                 let name = strip_sigil(text).to_owned();
+                let void_or_never = reject_void_or_never_property(p, ty, env);
                 let is_lateinit = p.modifiers.contains(&Modifier::Lateinit);
                 if is_lateinit {
                     check_lateinit_property(p, env);
@@ -1166,7 +1172,10 @@ fn collect_members(
                 // class is known.
                 let read_without_get = !reads_own_slot && hooks.set && !hooks.get;
                 let slot_read = reads_own_slot || read_without_get;
+                // A `void` or `never` property is already refused above, and
+                // no value could initialize it or be its default.
                 let required = p.default.is_none()
+                    && !void_or_never
                     && slot_read
                     && !is_lateinit
                     && !env.interner.is_nullable(ty);
@@ -1179,6 +1188,7 @@ fn collect_members(
                 let default = p
                     .default
                     .as_ref()
+                    .filter(|_| !void_or_never)
                     .and_then(|expr| crate::defaults::eval_property_default(expr, ty, ctx, env));
                 // A `static` property occupies no instance slot, so its
                 // constant goes to the other vector — the one
@@ -1189,7 +1199,7 @@ fn collect_members(
                 // see `SignatureTable::property_default_types` for why it is
                 // collected here and not recorded into `env.exprs`, which this
                 // pass deliberately points at a table that is thrown away.
-                if let Some(default) = p.default.as_ref() {
+                if let Some(default) = p.default.as_ref().filter(|_| !void_or_never) {
                     table.property_default_types.push((default.span, ty));
                 }
                 let sig = table.entry(qname.clone());
@@ -1343,12 +1353,18 @@ fn collect_members(
                     None => folded_const_ty(qname, &name, env),
                 };
                 let value = crate::defaults::eval_const_value(&c.value, ty, env);
+                // An unannotated constant is already `E0246`, and its type is
+                // read off the value, so only a written type is checked.
+                let refused = value.is_none()
+                    && c.ty.is_some()
+                    && reject_const_value_of_another_type(c, &name, ty, env);
                 let visibility = declared_visibility(&c.modifiers).unwrap_or(Visibility::Public);
                 table.entry(qname.clone()).constants.insert(
                     name,
                     ConstSig {
                         ty,
                         value,
+                        refused,
                         visibility,
                     },
                 );
@@ -1402,20 +1418,161 @@ fn record_promoted_properties(
     }
 }
 
-/// Refuses a visibility keyword on the parameter of a method that is not the
-/// `constructor` (`E0722`), which is `rule:classes/delegation-by-field`'s own backlog line.
+/// `E0304` at the second declaration of a property, method or constant name
+/// in one member list, in source order. Each name has one slot or one body,
+/// so the second would replace the first or reach code generation as a
+/// duplicate. A promoted parameter of the
+/// `constructor` is a property declaration at its own position, so it
+/// collides with a property written before or after the constructor.
 ///
-/// [`record_promoted_properties`] above is only ever reached from a
-/// constructor, so the keyword written anywhere else declared nothing, took no
-/// slot and was silently ignored — PHP refuses it, and so does this. The
-/// judgement is [`nvs_syntax::ast::Param::is_promoted`]'s, unchanged: that
-/// predicate deliberately does not ask which method encloses it, because that
-/// is this caller's question and no other's.
+/// Properties, methods and constants are three name spaces: `$x`, `x()` and
+/// `X` never collide with each other. Names compare exactly, because names
+/// are case-sensitive (`rule:classes/names-resolve-case-sensitively`).
+fn reject_members_declared_twice(members: &[ClassMember], qname: &QName, env: &mut Env<'_>) {
+    let mut properties: FxHashMap<&str, Span> = FxHashMap::default();
+    let mut methods: FxHashMap<&str, Span> = FxHashMap::default();
+    let mut constants: FxHashMap<&str, Span> = FxHashMap::default();
+    let src = env.src;
+    let mut twice: Vec<(&'static str, String, Span, Span)> = Vec::new();
+    for member in members {
+        match &member.kind {
+            ClassMemberKind::Property(p) => {
+                let name = strip_sigil(span_text(src, p.name));
+                if let Some(&first) = properties.get(name) {
+                    twice.push(("property", format!("${name}"), p.name, first));
+                } else {
+                    properties.insert(name, p.name);
+                }
+            }
+            ClassMemberKind::Method(m) => {
+                let name = span_text(src, m.name);
+                if let Some(&first) = methods.get(name) {
+                    twice.push(("method", format!("{name}()"), m.name, first));
+                } else {
+                    methods.insert(name, m.name);
+                }
+                if name != "constructor" {
+                    continue;
+                }
+                for p in m.params.iter().filter(|p| p.is_promoted()) {
+                    let name = strip_sigil(span_text(src, p.name));
+                    if let Some(&first) = properties.get(name) {
+                        twice.push(("property", format!("${name}"), p.name, first));
+                    } else {
+                        properties.insert(name, p.name);
+                    }
+                }
+            }
+            ClassMemberKind::Const(c) => {
+                let name = span_text(src, c.name);
+                if let Some(&first) = constants.get(name) {
+                    twice.push(("constant", name.to_owned(), c.name, first));
+                } else {
+                    constants.insert(name, c.name);
+                }
+            }
+            _ => {}
+        }
+    }
+    for (kind, name, at, first) in twice {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DUPLICATE_DECLARATION,
+                format!("`{qname}` declares the {kind} `{name}` twice"),
+            )
+            .with_primary(at, "declared again here")
+            .with_secondary(first, "first declared here")
+            .with_help(format!(
+                "a class has one {kind} of each name. Delete one of the two declarations, or \
+                 give one of them another name"
+            )),
+        );
+    }
+}
+
+/// `E0742` for a property declared `void` or `never`, and whether it reported
+/// one. `rule:types/grammar` makes both return-only: no value has either type,
+/// so the property could never be given one. The caller then skips the
+/// default and the initialization obligation, which would report the same
+/// mistake a second time under another code.
+fn reject_void_or_never_property(p: &PropertyMember, ty: TypeId, env: &mut Env<'_>) -> bool {
+    let atom = match env.interner.get(ty) {
+        Ty::Void => "void",
+        Ty::Never => "never",
+        _ => return false,
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_VOID_OR_NEVER_OUTSIDE_RETURN,
+            format!("`{atom}` is a return type only, and this is a property"),
+        )
+        .with_primary(p.ty.span, format!("declared `{atom}` here"))
+        .with_help(
+            "no value has this type, so the property could never have a value. Write the type \
+             of the value the property contains",
+        ),
+    );
+    true
+}
+
+/// `E0401` at a class constant whose value is a constant of another type than
+/// the one it declares: `const uint W = -1;` or `const int S = "a";`, and
+/// whether it reported one. The value is folded with no declared type, and a
+/// value that folds there but not at the declared type does not fit it.
 ///
-/// Widening promotion to every method was never the alternative. A property is
-/// a slot on an instance, armed once where the instance is made, and an
-/// ordinary method has no such moment — it may be called any number of times,
-/// or none.
+/// A value that folds at neither is left to the read, which reports `E0792`
+/// for a value with no constant form ([`crate::expr::members`]). So is a
+/// declared type the literal grid does not place a value in, such as `mixed`,
+/// `bytes`, a shape or a class: [`crate::defaults::eval_const_value`] gives
+/// `None` there for a value that fits too.
+fn reject_const_value_of_another_type(
+    c: &nvs_syntax::ast::ConstMember,
+    name: &str,
+    declared: TypeId,
+    env: &mut Env<'_>,
+) -> bool {
+    if !placed_by_the_literal_grid(declared, env)
+        || crate::defaults::fold_constant_value(&c.value, None, env).is_none()
+    {
+        return false;
+    }
+    let want = env.interner.describe(declared);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TYPE_MISMATCH,
+            format!("the value of the constant `{name}` does not have its declared type `{want}`"),
+        )
+        .with_primary(c.value.span, format!("this value is not of type `{want}`"))
+        .with_help("write a value of the declared type, or change the type of the constant"),
+    );
+    true
+}
+
+/// Whether every part of `ty` is a type [`crate::defaults::literal_default`]
+/// places a written value in: a scalar, a `string`, a single value, `null`,
+/// and an array or a union of those.
+fn placed_by_the_literal_grid(ty: TypeId, env: &Env<'_>) -> bool {
+    match env.interner.get(ty) {
+        Ty::Null
+        | Ty::Bool
+        | Ty::True
+        | Ty::False
+        | Ty::Int
+        | Ty::Uint
+        | Ty::Float
+        | Ty::Decimal
+        | Ty::String
+        | Ty::TaintedString
+        | Ty::SecretString
+        | Ty::SecretTaintedString
+        | Ty::SingleValueString(_)
+        | Ty::SingleValueInt(_) => true,
+        Ty::Array(element) => placed_by_the_literal_grid(*element, env),
+        Ty::Union(members) => members.iter().all(|&m| placed_by_the_literal_grid(m, env)),
+        _ => false,
+    }
+}
+
 /// `rule:types/grammar`: `void` and `never` are return-only, so neither is a parameter.
 ///
 /// Read off the *lowered* type rather than the written spelling, so a `type`
@@ -1456,6 +1613,20 @@ fn reject_void_or_never_params(
     }
 }
 
+/// Refuses a visibility keyword on the parameter of a method that is not the
+/// `constructor` (`E0722`), which is `rule:classes/delegation-by-field`'s own backlog line.
+///
+/// [`record_promoted_properties`] above is only ever reached from a
+/// constructor, so the keyword written anywhere else declared nothing, took no
+/// slot and was silently ignored — PHP refuses it, and so does this. The
+/// judgement is [`nvs_syntax::ast::Param::is_promoted`]'s, unchanged: that
+/// predicate deliberately does not ask which method encloses it, because that
+/// is this caller's question and no other's.
+///
+/// Widening promotion to every method was never the alternative. A property is
+/// a slot on an instance, armed once where the instance is made, and an
+/// ordinary method has no such moment — it may be called any number of times,
+/// or none.
 fn reject_promotion_outside_constructor(
     params: &[nvs_syntax::ast::Param],
     method: &str,

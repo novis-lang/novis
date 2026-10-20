@@ -30,7 +30,10 @@ already declared in the enclosing function; re-declaring a live name is a diagno
 declaration, and there is no shadowing. A `foreach` or destructuring binding may reuse a live name at
 the same type. A `catch` variable may reuse only a name another `catch` declared, at the same type,
 because its binding ends with its clause: a parameter or a local of that name is `E0406` at the
-clause. Declaration is function-scoped — a binding declared inside an
+clause. A class member is declared once too: a second property, method or constant of one name in one
+member list is `E0304` at the second declaration, and a promoted constructor parameter is a property
+declaration. A parameter list has one variadic parameter at most, and it is the last: a `...` on an
+earlier parameter is `E0107` there. Declaration is function-scoped — a binding declared inside an
 `if` is visible after it — but *definite assignment is checked*: reading a binding on a path that may
 not have reached its initialiser is a compile error.
 
@@ -47,7 +50,10 @@ A class or interface constant writes its type too, and PHP's untyped `public con
 the declaration never made, and it is not available everywhere the form is: an interface constant
 records no value to read it from, and a value with no constant form, such as `[1, 2]`, has nothing to
 read a type from either. The rewrite is the type the value already has, one word per constant in a
-migrated file.
+migrated file. The value is checked against that type where it is declared: `const uint W = -1;` is
+`E0401` at `-1`, whether or not anything reads `W`. A constant takes no `final` (`E0106`). A subclass
+may already redeclare one only at a type its ancestor's readers accept (`E0833`), so a second modifier
+with a meaning of its own would grow the surface for no read that is wrong without it.
 
 A declared type is what makes the other priorities cheap. Untrusted input cannot coerce silently into
 a wrong but valid value — `"abc"` read as row id `0` — because no binding changes type without an
@@ -62,6 +68,9 @@ The cost is that PHP source does not run unconverted. PHP has no syntax for the 
 `foreach` binding or a destructuring target, so no PHP file satisfies this rule as it stands.
 
 **Declined:**
+- **`final` on a constant, stopping a subclass from redeclaring it.** A redeclaration is already held
+  to a type the ancestor's readers accept, so the modifier would add a form to the language and make
+  no read safer.
 - **Gradual typing, declared types checked and locals inferred.** It is two type systems to keep in
   agreement, and an unknown type the IR would have to carry. `var` takes a local's type from its
   initializer once, at the declaration, and the type is then fixed like any other.
@@ -180,7 +189,7 @@ field        := identifier ':' type
 
 Unions are canonicalised — flattened, de-duplicated, order-insensitive — so `int|string` and
 `string|int|int` are one type. `array` with no argument is exactly `array<mixed>`. `void` and `never`
-are return-only. `array<T>` is parsed **only in type position**, where a `<` is unambiguously a
+are return-only: either on a parameter, a local or a property is `E0742`, since no value has it. `array<T>` is parsed **only in type position**, where a `<` is unambiguously a
 type-argument list; two expression positions also admit one, a call site's own `<...>` and a `new`
 target's, both settled by a checkpointed trial parse that commits only when the list parses cleanly
 and a `(` follows, so `new Foo < $x` stays a comparison. Only a compiler-owned generic declaration may

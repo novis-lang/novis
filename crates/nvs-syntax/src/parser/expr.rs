@@ -1987,9 +1987,9 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// Every list goes through here, so this is where a second parameter of
-    /// one name is `E_BAD_PARAM_LIST`, for a method and an anonymous function
-    /// alike. The parameter is kept, so the list still has its
-    /// arity.
+    /// one name, and a `...` on any parameter but the last, is
+    /// `E_BAD_PARAM_LIST`, for a method and an anonymous function alike. The
+    /// parameter is kept, so the list still has its arity.
     fn parse_param_list(&mut self, ty_required: bool) -> Vec<Param> {
         self.expect(TokenKind::LParen, "`(`");
         let mut params: Vec<Param> = Vec::new();
@@ -2015,6 +2015,20 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
         }
         self.expect(TokenKind::RParen, "`)`");
+        if let Some((_, before_last)) = params.split_last() {
+            for p in before_last.iter().filter(|p| p.variadic) {
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_BAD_PARAM_LIST,
+                        "only the last parameter can be variadic",
+                    )
+                    .with_primary(p.name, "this parameter has `...` and is not the last one")
+                    .with_help(
+                        "a variadic parameter collects every remaining argument, so no parameter                          can follow it. Move it to the end of the list, or delete the `...`",
+                    ),
+                );
+            }
+        }
         params
     }
 
