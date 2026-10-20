@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/attributes.rs",
   "title": "An array literal in an attribute's payload is an `array<mixed>`, so a typed array field cannot take one.",
   "text": "`type T = {list: array<int>};` and `#[T(list: [1, 2])]` is `E0401` (\"expected `{list: array<int>}`, found `{list: array<mixed>}`\"), and `array<string>` fails the same way. A field typed `array<mixed>` accepts the literal. The same literal at an `array<int>` local compiles, so the payload is checked without the shape's field type as the expected type. `rule:attributes/payload-is-a-compile-time-constant` allows an array literal of constants, and today it fits only an `array<mixed>` field. It closes when an array literal in a named attribute is checked against the field's declared array type, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

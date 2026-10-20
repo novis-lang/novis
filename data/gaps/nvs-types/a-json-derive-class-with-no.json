@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/derive.rs",
   "title": "A `#[Core\\Json\\Derive]` class with no written constructor compiles and gets no codec.",
   "text": "`#[Core\\Json\\Derive] class P { public int $k = 1; }` passes `nvs check`, and both `Core\\Json::encode(new P())` and `Core\\Json::decodeAs<P>(…)` throw `LogicError` \"has no JSON codec\" at run time. `check_constructor_parameter` returns `None` when the class has no constructor, on the reasoning that `ctor_init` has already reported the unassigned properties; a property with a default is never reported there, so nothing is reported and the field is dropped. With an empty written `constructor()` the same class is `E0460`, as `rule:core-classes/derive-field-list` says. It closes when a deriving class without a constructor is a checker error (or derives a codec whose decoder sets each field), with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

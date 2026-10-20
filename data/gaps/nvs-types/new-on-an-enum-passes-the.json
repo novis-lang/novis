@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/enums.rs",
   "title": "`new` on an enum passes the checker.",
   "text": "`new M();` for `enum M { A }` passes the checker and stops at `E0901` (`nvs-codegen does not lower a reference to class M`). `M $m = new M();` is `E0401` with the message \"expected `M`, found `M`\", which names the same type twice. An enum has no constructor and no object form (`rule:enums/no-class-machinery`), so `new` on one is a diagnostic of its own. It closes when `new` naming an enum is a single checker error that says an enum case is written `M::Case`, with a conformance case for both forms.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

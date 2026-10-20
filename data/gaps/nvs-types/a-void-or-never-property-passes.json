@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/signatures.rs",
   "title": "A void or never property passes the check that refuses those types outside a return.",
   "text": "`E0742` refuses `void` and `never` on a parameter (`reject_void_or_never_params`) and on a local (`locals.rs`), and `rule:types/grammar` makes both return-only, but a property declared `public void $x;` is not refused: it fails only on what follows, `E0409` with no default or `E0472` (\"a property default must be a `void` constant\") with one. It closes when a `void` or `never` property is `E0742`, with a conformance case for each.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

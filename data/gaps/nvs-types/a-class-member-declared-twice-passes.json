@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/signatures.rs",
   "title": "A class member declared twice passes the checker.",
   "text": "`nvs check` reports no error for a class that declares the same member twice. Two methods named `f`, or two `constructor` methods, stop at `E0901` when cranelift sees a duplicate definition. Two properties named `$x` compile, and with two different types the program exits with status 5 and prints nothing. A property declared in the class body and again as a promoted constructor parameter compiles, and the promoted value is the one read. Locals have `E0406` for a second declaration; a class member has no such check. It closes when a second declaration of a property, a method or a constructor in one class is a diagnostic at the second one, with a conformance case for each form.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

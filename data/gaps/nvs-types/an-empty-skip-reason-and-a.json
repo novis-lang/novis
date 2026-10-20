@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/testing.rs",
   "title": "An empty `skip:` reason and a negative `retries:` count compile.",
   "text": "`#[Test(skip: \"\")]` passes `nvs check`, and the report prints `skipped: ` with nothing after it. `rule:testing/runner-is-strict` says a skip states a reason, and the type alone (`string`) is what holds it to that. `#[Test(retries: -1, because: \"x\")]` compiles too, and the test runs once with no retry. It closes when an empty `skip:` or `because:` and a `retries:` below 1 are compile errors, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

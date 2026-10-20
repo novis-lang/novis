@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/signatures.rs",
   "title": "A variadic parameter that is not the last one compiles without an error.",
   "text": "`public static function rest(int ...$xs, int $last)` passes `nvs check`. `MethodSig::variadic` reads only `m.params.last()`, so the `...` on an earlier parameter is ignored: the method takes exactly one `int` for `$xs`, and `rest(1, 2, 3)` is `E0402` (\"expected 2 argument(s)\"). The chapter and the syntax page say only the last parameter can be variadic. It closes when a `...` on any parameter but the last is a diagnostic at that parameter, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

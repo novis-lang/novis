@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/attributes.rs",
   "title": "A constructor reference to an enum passes the checker, so an enum's attribute cannot be read.",
   "text": "`E::constructor(...)` for `enum E { A }` passes `nvs check`. As a value, `var $f = E::constructor(...);` panics in `nvs-ir`'s lowering (\"a static call ... has no resolved target\"). As a `Core\\Attributes` target it compiles, and `get<T>` gives `null` and `all<T>` an empty array even when `#[T(...)]` is written above the enum. An enum has no constructor (`rule:enums/no-class-machinery`), so an attribute on an enum, on an enum case or on a class constant attaches and no retrieval reaches it; a class constant's name as `$member` is `E0798`. It closes when a constructor reference to an enum is a checker error, and either an enum's attribute has a target that reads it or `rule:attributes/attach-sites-and-forms` says which sites no retrieval reaches, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

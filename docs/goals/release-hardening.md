@@ -362,18 +362,10 @@ Every stage is done. Full run 39345560526 on `f534cf5ee` passed all 52 jobs. Its
 `test` halves took 33 and 36 minutes of 120, and the zip attack passed on `proofs /
 windows-x86_64`. `bun nv verify --doc` is green.
 
-- **One gate is red, and it needs the user: `bun nv owners --closes release-hardening` lists 69 gap
-  records.** Sessions that wrote the examples' `details.md` pages recorded compiler, runtime and
-  library bugs and gave each to this goal. Most are checker or lowering holes: a panic, an internal
-  error, or a program that compiles and should not. Only `bigint-gcd-and-modular-power-grow-quadratically`
-  was handed over on purpose. None is one of this goal's stages.
-- **The session's recommendation:** a new goal, `compiler-holes`, next on the chain, takes all 69.
-  Its twelve stages group them by the file they share: visibility and unset reads first, then the
-  lowering panics, generators and `finally`, class conformance, declarations, hooks and attributes,
-  operators, locals, calls, derived codecs and routes, tests and help text, and the server with
-  `Core\BigInt` last. `bun nv owners --hand-over release-hardening compiler-holes` moves every
-  record once its file exists (`tools/nv/cmd/owners.ts:1`). Writing that goal file was refused by
-  the loop's permissions, so it was not retried. The other choice adds those stages to this goal.
+- **The 69 gap records belong to `compiler-holes` now**, the goal after this one on the chain. The
+  user took the recommendation: an interactive session wrote `docs/goals/compiler-holes.md` and ran
+  `bun nv owners --hand-over release-hardening compiler-holes`. `bun nv owners --closes
+  release-hardening` passes.
 - The three nightly Miri failures on run 39339578238 were the two BigInt by-halves sweeps at the
   300 s limit, fixed by `f534cf5ee`. Shard 12 was cancelled only when that run was replaced.
 - **The installed `looper` has no `verify` command.** `bun tools/looper/main.ts verify` runs it.
@@ -396,11 +388,11 @@ windows-x86_64`. `bun nv verify --doc` is green.
 
 ### Next
 
-The goal-end gate, once the user has decided where the 69 gap records go:
+The goal-end gate. Only the last item is left:
 - [x] Run 39345560526 on `f534cf5ee` is green on every job, and stage 10 is done. `docs/goals/release-hardening.md:351`
 - [x] `bun nv verify --doc` is green. `docs/goals/release-hardening.md:356`
-- [ ] The 69 gap records have the owner the user chose, through `bun nv owners --hand-over` or new stages here, and `bun nv owners --closes release-hardening` passes. `tools/nv/cmd/owners.ts:1`
-- [ ] The goal's file is deleted after its decisions that only its prose holds move to a rule or a module doc, and the status line is `DONE`. `docs/goals/release-hardening.md:1`
+- [x] The 69 gap records belong to `compiler-holes`, and `bun nv owners --closes release-hardening` passes. `tools/nv/cmd/owners.ts:1`
+- [ ] Each backlog bullet below that is still true moves to `compiler-holes`' `### Backlog`, except the `bigint-gcd-…` one, which is its stages 14 and 15. Each decision only this file's prose holds moves to a rule or a module doc. Then the status line is `DONE`, and looper deletes this file. Never delete it by hand. `docs/goals/compiler-holes.md:1`
 
 ### Backlog
 

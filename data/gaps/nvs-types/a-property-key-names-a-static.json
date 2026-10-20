@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/expr/operators.rs",
   "title": "A property key accepts the name of a static property, and a read through it throws.",
   "text": "`rule:types/property-key` makes a key's values the names of `T`'s public declared properties, and the roster includes a `public static` one: `\"count\" as property<User>` compiles for a `public static int $count`, a run-time `as` accepts it too, and the `as` error lists `$count`. `$user->$key` with that key then throws `RuntimeError` \"`User` has no field `count`\". It closes when a static property is not in a key's roster (or the rule says what a key to one reads), with a conformance case for the literal and the run-time conversion.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

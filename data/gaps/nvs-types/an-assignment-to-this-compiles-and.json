@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/expr/assign.rs",
   "title": "An assignment to `$this` compiles, and rebinds it for the rest of the method.",
   "text": "`$this = new P();` inside a method of `P` passes `nvs check`. After it, `$this->n = 5` writes the new object, and the object the method was called on is unchanged. No rule says `$this` may be written. It closes when an assignment to `$this`, plain or compound, is a compile error where it is written, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

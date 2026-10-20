@@ -2,5 +2,5 @@
   "module": "crates/nvs-ir/src/lower/generator.rs",
   "title": "A `yield` inside a `finally` block stops the build with an internal error.",
   "text": "`try { yield 1; } finally { yield 2; }` in a generator passes the checker, and the build then stops with `E0901` (\"internal error: an operand used before it is defined\"). So does a `finally` that is the only place with a `yield`. Either it compiles and yields, or it is a compile error with its own code where it is written. It closes when one of those is so, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

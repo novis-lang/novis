@@ -2,5 +2,5 @@
   "module": "crates/nvs-ir/src/lower/expr.rs",
   "title": "An `is class<T>` test panics the compiler.",
   "text": "`class<Animal> $c = Dog::class as class<Animal>; echo ($c is class<Dog>) ? \"dog\" : \"other\";` passes `nvs check`, and then `nvs run` panics in lowering with \"`is ClassRef(..)` reached lowering with no run-time row\" (`lower/expr.rs:6280`). No rule or chapter says `is class<T>` is a test the language has; `$c as ?class<Dog>` is the documented way to ask. It closes when the two agree: either the checker refuses an `is` whose right side is a `class<T>` with a diagnostic naming `as ?class<T>`, or the lowering gives it a run-time row, with a conformance case either way.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

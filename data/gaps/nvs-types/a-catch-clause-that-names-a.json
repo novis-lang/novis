@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/conformance.rs",
   "title": "A `catch` clause that names a type outside the throwable tree compiles.",
   "text": "`catch (Foo $e)` for a class `Foo` that does not extend `Throwable` passes `nvs check`, and the clause can never run. `catch (int $e)` and `catch (string $e)` pass the checker and stop at `E0901` (\"`is int` reached codegen\"). `throw` already gives `E0780` for the same types. An interface stays allowed, since a class under `Throwable` may implement it. It closes when a class or a built-in type that no `Throwable` can be is a diagnostic in a `catch`, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

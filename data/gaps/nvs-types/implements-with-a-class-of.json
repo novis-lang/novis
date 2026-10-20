@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/conformance.rs",
   "title": "`implements` with a class of the throwable tree compiles, and acts as `extends`.",
   "text": "`class E implements Throwable {}` and `class E implements RuntimeError {}` pass `nvs check`. The class inherits the constructor, and a `catch (RuntimeError $e)` catches it. `class E extends LogicError implements RuntimeError {}` compiles too, and is caught as both. A user class after `implements` is `E0303` (\"is a class, not an interface\"), so the built-in classes skip that check. It closes when `implements` with any class is `E0303`, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

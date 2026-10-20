@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/conformance.rs",
   "title": "A `throw` of an anonymous object compiles, and no `catch` sees it.",
   "text": "`throw {class: \"X\", message: \"m\"};` passes `nvs check`, and so does a `throw` of a parameter typed with a shape, such as the `error` field of a `spawn script` result. When it runs, `catch (Throwable $t)` does not catch it. `finally` runs, and the program ends with exit 1 and a report with an empty message and the class `$shape{class,message}`. A class that is not `Throwable` is `E0780`, so the shape skips that check. It closes when a `throw` of any value that is not `Throwable` is `E0780`, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

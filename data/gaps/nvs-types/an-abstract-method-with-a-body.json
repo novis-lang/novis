@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/conformance.rs",
   "title": "An `abstract` method with a body compiles, and acts as an ordinary method.",
   "text": "`public abstract function area(): int { return 1; }` in an `abstract` class passes `nvs check`. A subclass that does not declare `area` compiles too, and a call runs the body. `abstract` there says nothing. It closes when a body on an `abstract` method is a diagnostic, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

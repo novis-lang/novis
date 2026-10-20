@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/ctor_init.rs",
   "title": "A constructor that reads a property before it assigns it reads a zero.",
   "text": "`rule:classes/definite-property-initialization` declines a silent per-type default, and `ctor_init` checks that every property is assigned on every path out of the constructor, but not that a read inside the constructor comes after the assignment. `public int $x; public function constructor() { echo $this->x; $this->x = 1; }` compiles and prints `0`. A `lateinit` property already has this check (`E0428`). It closes when a read of a not yet assigned property inside a constructor, through `$this->`, is a diagnostic, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

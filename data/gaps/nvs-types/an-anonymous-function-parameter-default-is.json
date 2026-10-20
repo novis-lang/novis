@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/expr/calls.rs",
   "title": "An anonymous function parameter's default is accepted and never used.",
   "text": "`callable $f = fn(int $x = 3): int => $x;` passes `nvs check`, and `$f()` throws the `LogicError` \"too few arguments to a `callable`: it declares 1 parameter(s), 0 given\". `check_anon_fn` binds the parameter without reading its default, and the run-time arity check counts every declared parameter. No text says whether a default is allowed here. It closes when a default on an anonymous function's parameter is either a diagnostic at the parameter or filled in when the argument is missing, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

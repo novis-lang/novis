@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/expr/members.rs",
   "title": "A static property read through an instance stops with an internal error.",
   "text": "For a class with `public static int $x`, `$p->x` and `$p?->x` on an instance pass `nvs check`, and `nvs run` then stops with `E0901` (\"nvs-codegen does not lower the property `P::x`, which this unit declares no slot for yet\"). A static method called with `?->` runs. It closes when the checker reports a static property reached through `->` or `?->` where it is written, naming `P::$x`, with a conformance case for each operator.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }
