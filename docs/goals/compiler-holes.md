@@ -74,7 +74,7 @@ stages:
     context: [.github/workflows/ci.yml, docs/rules/testing/probes-on-is-a-tested-configuration.md]
   - id: 14
     title: "`Core\\BigInt`'s gcd and lcm are sub-quadratic"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/bigint.rs]
   - id: 15
     title: "`Core\\BigInt`'s modular power is sub-quadratic per step"
@@ -495,8 +495,13 @@ another goal.
 
 **Does:** `gcd` and `lcm` run a half-gcd, so a request's text no longer buys quadratic time.
 
-- [ ] `gcd` and `lcm` use a half-gcd above a measured crossover, and Stein's algorithm below it. `crates/nvs-stdlib/src/bigint.rs:1`
-- [ ] Their benches declare a sub-quadratic complexity, lose the gap's marker, and gain a `.scale.nvs` sibling. `crates/nvs-stdlib/src/bigint.rs:1`
+- [x] `gcd` and `lcm` use a half-gcd above a measured crossover, and Stein's algorithm below it. `crates/nvs-stdlib/src/bigint.rs:1`
+  - [x] `hgcd`, `step` and `Steps` reduce a pair by halves, and `gcd` runs them above `GCD_LEAF_BITS`
+  - [x] the crossover and the leaf are measured: 32768 bits and 128 bits
+  - [x] `hgcd_steps_reduce_the_pair_they_were_given` and `gcd_by_halves_is_the_librarys_gcd` pin it
+- [x] Their benches declare a sub-quadratic complexity, lose the gap's marker, and gain a `.scale.nvs` sibling. `crates/nvs-stdlib/src/bigint.rs:1`
+  - [x] `gcd.nvs` and `lcm.nvs` declare `complexity karatsuba` and carry no gap marker
+  - [x] `gcd.scale.nvs` and `lcm.scale.nvs` ramp from 100000 to 800000 bits, and `--record-perf` recorded both
 
 ### 15. `Core\BigInt`'s modular power is sub-quadratic per step
 
@@ -509,9 +514,24 @@ another goal.
 
 ### State
 
-Stages 1 to 13 and 16 to 19 are done. Only stages 14 and 15 are left, and they own the goal's one
-remaining gap record, `data/gaps/nvs-stdlib/bigint-gcd-and-modular-power-grow-quadratically.json`.
-`bun nv owners --closes compiler-holes` names it and nothing else.
+Stages 1 to 14 and 16 to 19 are done. Only stage 15 is left, and it owns the goal's one
+remaining gap record, `data/gaps/nvs-stdlib/bigint-gcd-and-modular-power-grow-quadratically.json`,
+whose text now names `powMod` alone. `bun nv owners --closes compiler-holes` names it and nothing
+else.
+
+- Stage 14: `gcd` and `lcm` are `bigint.rs`'s `gcd`, which runs Möller's half-gcd (`hgcd`, `step`,
+  `Steps`) above `GCD_LEAF_BITS` (32768) and the library's Stein gcd below it. `hgcd`'s leaf is
+  `HGCD_LEAF_BITS` (128). Both were measured in a release scratch crate: at 524288 bits the
+  half-gcd is 6.5 times faster than Stein's. `hgcd` must bring the pair to `3n/4` bits with single
+  steps before its second call, or the recursion shrinks a few bits per level and overflows the
+  stack. `hgcd_steps_reduce_the_pair_they_were_given` pins that shape. The benches declare
+  `complexity karatsuba`, and their `.scale.nvs` siblings recorded `size flat`.
+- `bun nv proofs --record-perf --group 'Core\BigInt'` recorded every other member with its
+  declared counts, so no `// bench:` line was stale. `powMod.nvs` still carries the gap marker.
+- Stage 14's gate: `affected --run` stopped at `rules-render` again, so the session ran clippy,
+  fmt, `bun nv verify --fast -p nvs-stdlib`, the three `bigint` conformance cases,
+  `proofs --run` for both members, `owners --check` and `layout`. The committed `docs/rules/ide.md`
+  is stale too, so restoring it does not get past `rules-render`.
 
 - Stage 19 closed all four findings. An integer literal at a `?uint` is placed as a `uint`: the
   checker records the placement at the literal (`nvs-types` `expr/literals.rs`'s
@@ -551,13 +571,13 @@ run it once per crate.
 
 ### Next
 
-**Stage 14** is next: `Core\BigInt`'s `gcd` and `lcm` run a half-gcd above a measured crossover
-and Stein's algorithm below it (`crates/nvs-stdlib/src/bigint.rs`), and their benches under
-`benches/members/core/BigInt/` declare the new growth and gain a `.scale.nvs` sibling. Then
-**stage 15**, `powMod`'s Montgomery step over Karatsuba, which deletes the gap record. Both touch
-only `bigint.rs` and its benches. Before planning a re-record, run
-`bun nv proofs --record-perf --group 'Core\BigInt'` once (the playbook's first Tooling bullet).
-Once both land, the goal-end gates and `DONE`.
+**Stage 15** is next: `powMod` over an odd modulus runs its Montgomery step over the library's
+Karatsuba multiplication above a measured crossover (`crates/nvs-stdlib/src/bigint.rs`'s
+`nvs_core_bigint_pow_mod`). `powMod.nvs` then declares its new growth and loses the gap marker,
+a `powMod.scale.nvs` sibling is written like `gcd.scale.nvs`, and the gap record is deleted.
+Measure the crossover in a release scratch crate under `.agent-tmp/` with its own `[workspace]`.
+A debug test's timing is not the release one. In a `.scale.nvs`, every `as uint` operand must be a
+whole number, or the ramp exits at its first batch. Then the goal-end gates and `DONE`.
 
 `bun nv soundness --probe` reruns every cell alone (`NVS_BIN=$PWD/target/debug/nvs.exe` uses the
 tree's build), and `--write` after any change to the table. Never edit a generated file by hand.
