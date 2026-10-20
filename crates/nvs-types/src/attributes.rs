@@ -55,6 +55,9 @@ pub(crate) fn check_declaration(
     env: &mut Env<'_>,
 ) {
     check_groups(groups, ctx, env);
+    if decl == crate::deprecated::Decl::Enum {
+        reject_unread(groups, "an enum", ctx, env);
+    }
     // `#[Core\Path]`'s and `#[Core\Deprecated]`'s attach rules ask the same
     // question of every site this walk visits, so each walks the same lists
     // once, beside it.
@@ -68,7 +71,10 @@ pub(crate) fn check_declaration(
                     check_groups(&hook.attributes, ctx, env);
                 }
             }
-            ClassMemberKind::Const(c) => check_groups(&c.attributes, ctx, env),
+            ClassMemberKind::Const(c) => {
+                check_groups(&c.attributes, ctx, env);
+                reject_unread(&c.attributes, "a class constant", ctx, env);
+            }
             ClassMemberKind::Method(m) => {
                 check_groups(&m.attributes, ctx, env);
                 // `rule:attributes/access-payload`'s repeat rule is a question about the list
@@ -93,6 +99,39 @@ pub(crate) fn check_declaration(
     }
     for case in cases {
         check_groups(&case.attributes, ctx, env);
+        reject_unread(&case.attributes, "an enum case", ctx, env);
+    }
+}
+
+/// `E0871` for each attribute in `groups` that is not one the compiler
+/// recognizes. `groups` are written on `site`, an enum, an enum case or a
+/// class constant, and `Core\Attributes` reads none of those
+/// (`rule:attributes/attach-sites-and-forms`). A recognized attribute is
+/// left to the pass that owns it.
+fn reject_unread(groups: &[AttributeGroup], site: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    for attr in groups.iter().flat_map(|g| &g.attributes) {
+        let recognized = attr.member.is_none()
+            && attr.name.as_ref().is_some_and(|name| {
+                let qname =
+                    nvs_hir::resolve_ref(span_text(env.src, name.span), ctx.namespace, ctx.imports);
+                crate::derive::ATTRIBUTES
+                    .iter()
+                    .any(|want| qname == nvs_hir::QName::parse(want))
+            });
+        if recognized {
+            continue;
+        }
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ATTRIBUTE_NO_RETRIEVAL_REACHES,
+                format!("an attribute cannot be written on {site}"),
+            )
+            .with_primary(attr.span, "`Core\\Attributes` cannot read this attribute")
+            .with_help(
+                "write the attribute on a class, a method, a property or a parameter. \
+                 `Core\\Attributes` reads it there",
+            ),
+        );
     }
 }
 

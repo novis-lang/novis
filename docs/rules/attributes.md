@@ -48,6 +48,11 @@ An attribute attaches to a declaration: a class, an interface or an enum, a meth
 of its hooks, a class constant, an enum case, and a method's parameter. It is written directly above
 the declaration, or directly before the parameter or the enum case.
 
+`Core\Attributes` reads the attributes of a class, a method, a property and a parameter
+([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)), and no retrieval reaches an enum, an enum case or a class constant. A user attribute on
+one of those three is **`E0871`** at the attribute, so a payload is never written where nothing can
+read it. A compiler-recognized attribute is held to the sites its own rule names instead.
+
 ```nvs
 #[Route(path: "/users/:id", method: "GET")]
 class UserController {

@@ -337,6 +337,13 @@ pub(crate) fn infer_static_call(
                 .or(class_ref)
                 .and_then(|qname| {
                     let name = span_text(env.src, *name_span).to_owned();
+                    // `E::constructor(...)` names a constructor an enum does
+                    // not have (`rule:enums/no-class-machinery`), the same
+                    // mistake `new E()` makes.
+                    if name == "constructor" && enum_backing(&qname, env).is_some() {
+                        report_enum_has_no_constructor(&qname, *name_span, env);
+                        return None;
+                    }
                     let found = resolve_method(&qname, &name, env.signatures, env.graph).map(
                         |(owner, sig)| {
                             check_method_visibility(&owner, &name, &sig, *name_span, ctx, env);
@@ -2092,6 +2099,32 @@ fn report_callable_call_arity(
     );
 }
 
+/// The backing type of the enum `qname` names, or `None` when it names no
+/// enum. A declared enum has a [`SymbolKind::Enum`](nvs_hir::SymbolKind)
+/// entry, and a `Core` or extension enum is only in the enum table.
+fn enum_backing(qname: &QName, env: &Env<'_>) -> Option<crate::enums::EnumBacking> {
+    let declared = matches!(
+        env.symbols.get(qname),
+        Some(sym) if sym.kind == nvs_hir::SymbolKind::Enum
+    );
+    (declared || env.enums.get(qname).is_some()).then(|| env.enums.backing_of(qname))
+}
+
+/// `E0870`: `new E()` or `E::constructor(...)` names an enum, which has no
+/// constructor (`rule:enums/no-class-machinery`).
+fn report_enum_has_no_constructor(qname: &QName, span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ENUM_HAS_NO_CONSTRUCTOR,
+            format!("`{qname}` is an enum, so it has no constructor"),
+        )
+        .with_primary(span, "an enum is not a class")
+        .with_help(format!(
+            "a value of an enum is one of its cases. Write a case as `{qname}::Case`"
+        )),
+    );
+}
+
 pub(crate) fn check_new_target(
     target: &NewTarget,
     span: Span,
@@ -2125,6 +2158,15 @@ pub(crate) fn check_new_target(
             // *different* mistake and keeps its own diagnostic: `infer_new`
             // reports the missing `constructor` member, naming the one thing
             // the class is missing rather than the class itself.
+            //
+            // An enum has no constructor and no object form
+            // (`rule:enums/no-class-machinery`), so `new` naming one is
+            // `E0870` here. The result is the enum's own type, so a variable
+            // of that type reports nothing more.
+            if let Some(backing) = enum_backing(&qname, env) {
+                report_enum_has_no_constructor(&qname, name.span, env);
+                return env.interner.enum_(qname, backing);
+            }
             if env.symbols.get(&qname).is_some()
                 || (qname.is_core()
                     && (crate::core_lib::is_registered(&qname)

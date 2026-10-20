@@ -1416,6 +1416,21 @@ impl<'src, 'd> Parser<'src, 'd> {
             let name = self.expect(TokenKind::Variable, "a property name");
             if self.at(TokenKind::LBrace) {
                 let hooks = self.parse_property_hooks();
+                // A hook runs when a property of an object is read or written,
+                // and a `static` property is never reached through an object
+                // (`rule:classes/property-hooks`).
+                if modifiers.contains(&Modifier::Static)
+                    && let Some(hook) = hooks.first()
+                {
+                    self.diags.report(
+                        Diagnostic::error(
+                            code::E_STATIC_PROPERTY_WITH_HOOK,
+                            "a `static` property cannot have a `get` or `set` hook",
+                        )
+                        .with_primary(hook.span, "this hook would never run")
+                        .with_help("remove `static`, or remove the hooks"),
+                    );
+                }
                 // A hook runs code on every read or write, so a `readonly`
                 // property with one is no longer one value written once.
                 if modifiers.contains(&Modifier::Readonly)
@@ -1500,7 +1515,28 @@ impl<'src, 'd> Parser<'src, 'd> {
         let mut hooks = Vec::new();
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             let before = self.peek().span;
-            hooks.push(self.parse_property_hook());
+            let hook = self.parse_property_hook();
+            // A property has one `get` hook and one `set` hook at most. The
+            // second of a kind is reported and left out, so the first runs.
+            if let Some(first) = hooks.iter().find(|h: &&PropertyHook| h.kind == hook.kind) {
+                let kind = match hook.kind {
+                    PropertyHookKind::Get => "get",
+                    PropertyHookKind::Set => "set",
+                };
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_DUPLICATE_DECLARATION,
+                        format!("this property declares the `{kind}` hook twice"),
+                    )
+                    .with_primary(hook.span, "declared again here")
+                    .with_secondary(first.span, "first declared here")
+                    .with_help(format!(
+                        "a property has one `{kind}` hook. Delete one of the two hooks"
+                    )),
+                );
+            } else {
+                hooks.push(hook);
+            }
             if self.peek().span == before && !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof)
             {
                 self.bump();

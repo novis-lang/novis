@@ -1,0 +1,29 @@
+--TEST--
+A second `get` or `set` hook on one property is `E0304` at the second hook, and one hook of each kind compiles
+--FILE--
+<?nvs
+class Box {
+    public int $width { get => 1; get => 2; }
+
+    public int $height {
+        get => 2;
+        set(int $value) {}
+        set(int $value) {}
+    }
+
+    public int $depth {
+        get => 3;
+        set(int $value) {}
+    }
+}
+
+echo (new Box())->width, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0304]: this property declares the `get` hook twice
+%A
+error[E0304]: this property declares the `set` hook twice
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

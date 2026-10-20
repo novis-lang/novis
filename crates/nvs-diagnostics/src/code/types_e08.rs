@@ -957,4 +957,27 @@ codes! {
          write it with the class name, as in `Counter::$count`, or with `self::$count` inside the \
          class.",
     );
+    /// `new E()` or `E::constructor(...)` where `E` is an enum
+    /// (`rule:enums/no-class-machinery`). A case is an integer constant, so
+    /// an enum has no object form and no constructor to call or name.
+    pub const E_ENUM_HAS_NO_CONSTRUCTOR: Code = Code::new("E0870").card(
+        "An enum has no constructor, so `new` cannot create a value of an enum. A value of an \
+         enum is one of its cases. Write a case as `Suit::Hearts`.",
+    );
+    /// A user attribute written on an enum, an enum case or a class constant
+    /// (`rule:attributes/attach-sites-and-forms`). `Core\Attributes` reads
+    /// the attributes of a class, a method, a property and a parameter, and
+    /// nothing reads one written on these three.
+    pub const E_ATTRIBUTE_NO_RETRIEVAL_REACHES: Code = Code::new("E0871").card(
+        "An attribute cannot be written on an enum, an enum case or a class constant. \
+         `Core\\Attributes` cannot read an attribute there. Write it on a class, a method, a \
+         property or a parameter.",
+    );
+    /// A `get` or `set` hook on a `static` property
+    /// (`rule:classes/property-hooks`). A hook runs at a read or a write
+    /// through an object, and a static property is never reached through one.
+    pub const E_STATIC_PROPERTY_WITH_HOOK: Code = Code::new("E0872").card(
+        "A `static` property cannot have a `get` or `set` hook. A hook runs when a property of \
+         an object is read or written. Remove `static`, or remove the hooks.",
+    );
 }
