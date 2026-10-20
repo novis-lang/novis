@@ -333,6 +333,11 @@ pub(crate) fn fold_retrieval(
         // has already been made; a second one names the same mistake twice.
         return;
     };
+    // A type argument that did not resolve has reported already
+    // (`rule:types/one-mistake-reports-once`).
+    if env.interner.is_error(want) {
+        return;
+    }
     if !matches!(env.interner.get(want), Ty::Shape(_)) {
         let found = env.interner.describe(want);
         env.diags.report(

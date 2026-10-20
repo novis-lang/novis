@@ -1454,6 +1454,11 @@ it returns without reporting when either side is the error type, so a report sit
 for free and a contributor has nothing to remember. The error-count guards that stop a second report
 inside one expression stay.
 
+A check that a declaration fails whatever its types are still reports beside the root error: a
+`#[BeforeClass]` method that declares a parameter, a command that is not `static`, a fixture that is not
+`public`. Declaring the missing name does not fix it, so it is a second mistake, and a report site is
+quiet only where its message would name the error type.
+
 An unresolved `use` reports `E0306` at its own line, and the short name it would have brought in types as
 the error type wherever it is written, with no `E0303` there.
 

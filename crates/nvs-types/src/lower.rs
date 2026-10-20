@@ -246,21 +246,23 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
 /// only the spelling, and `class<int>` and `class<Undeclared>` are two
 /// different mistakes ([`TypeAtom::ClassRef`]'s own doc says so). The second is
 /// already `E_UNDEFINED_CLASS`, reported by the recursive lowering below, which
-/// then recovers as `mixed` — so this reports only when that lowering was
-/// itself quiet. Without that guard an unresolvable name would collect a second
-/// diagnostic here saying `mixed` is not a class, which is true and useless.
+/// then gives the error type — so this reports only when that lowering was
+/// quiet and its type is not the error type. The count alone misses an
+/// annotation lowered a second time: its `E_UNDEFINED_CLASS` is identical to the
+/// first, so [`Diagnostics::report`](nvs_diagnostics::Diagnostics::report)
+/// drops it and the count does not move.
 ///
-/// A refused argument recovers as `mixed` rather than as `class<mixed>`: there
-/// is no such type — [`crate::ty::Ty::ClassRef`] promises its argument is a
-/// class — and `mixed` is the one recovery every other atom in this module
-/// already falls back to.
+/// A refused argument recovers as the error type rather than as `class<mixed>`:
+/// there is no such type — [`crate::ty::Ty::ClassRef`] promises its argument is
+/// a class — and a place that has reported is the error type
+/// (`rule:types/one-mistake-reports-once`).
 fn lower_class_ref(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     let before = env.diags.error_count();
     let arg = lower_type_at_depth(inner, depth + 1, ctx, env);
     if matches!(env.interner.get(arg), crate::ty::Ty::Class(..)) {
         return env.interner.class_ref(arg);
     }
-    if env.diags.error_count() == before {
+    if env.diags.error_count() == before && !env.interner.is_error(arg) {
         let described = env.interner.describe(arg);
         env.diags.report(
             Diagnostic::error(
@@ -274,13 +276,13 @@ fn lower_class_ref(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -
             ),
         );
     }
-    env.interner.mixed()
+    env.interner.error()
 }
 
 /// `rule:types/property-key`'s `property<T>`: the argument names one class, and anything
 /// else is refused where it is written.
 ///
-/// [`lower_class_ref`]'s shape, with its guard and its `mixed` recovery, and
+/// [`lower_class_ref`]'s shape, with its guard and its error-type recovery, and
 /// one row narrower: a class reference admits an interface because its value is
 /// a descriptor conforming to that interface, while a key's values are the
 /// *names* an implementor declares — which an interface does not have. The
@@ -321,7 +323,7 @@ fn lower_property_key(
     if named_class {
         return env.interner.property_key(arg);
     }
-    if env.diags.error_count() == before {
+    if env.diags.error_count() == before && !env.interner.is_error(arg) {
         let described = env.interner.describe(arg);
         let word = if path { "propertyPath" } else { "property" };
         env.diags.report(
@@ -337,7 +339,7 @@ fn lower_property_key(
             ),
         );
     }
-    env.interner.mixed()
+    env.interner.error()
 }
 
 /// `rule:types/string-holes`'s `string<K>`: `K` is a `property<T>`, a
@@ -356,7 +358,7 @@ fn lower_string_holes(
     if crate::expr::members::hole_kind(arg, env.interner).is_some() {
         return env.interner.string_holes(arg, tainted);
     }
-    if env.diags.error_count() == before {
+    if env.diags.error_count() == before && !env.interner.is_error(arg) {
         let described = env.interner.describe(arg);
         env.diags.report(
             Diagnostic::error(
@@ -373,7 +375,7 @@ fn lower_string_holes(
             ),
         );
     }
-    env.interner.mixed()
+    env.interner.error()
 }
 
 /// `rule:types/single-value-types`'s `int` atom.
@@ -630,8 +632,9 @@ fn name_atom_in(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<nvs_hir::
 ///
 /// The expansion is lowered before it is named, so the help says what the
 /// author's own alias means rather than repeating the spelling they already
-/// wrote. Recovering as `mixed` matches every other unreadable member here:
-/// there is no narrower type that could honestly be meant.
+/// wrote. It recovers as the error type, and an expansion that is the error
+/// type has reported already, so it reports nothing more
+/// (`rule:types/one-mistake-reports-once`).
 fn report_expansion_has_no_member(
     expansion: &Type,
     text: &str,
@@ -642,6 +645,9 @@ fn report_expansion_has_no_member(
     env: &mut Env<'_>,
 ) -> TypeId {
     let expanded = lower_type_at_depth(expansion, depth, ctx, env);
+    if env.interner.is_error(expanded) {
+        return expanded;
+    }
     let shown = env.interner.describe(expanded);
     env.diags.report(
         Diagnostic::error(

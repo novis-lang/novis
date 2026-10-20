@@ -1140,6 +1140,12 @@ fn check_delegate_field(
         );
         return false;
     };
+    // A field type that did not resolve has reported already. Answering `true`
+    // also keeps the delegated members from being owed a second time
+    // (`rule:types/one-mistake-reports-once`).
+    if env.interner.is_error(ty) {
+        return true;
+    }
     let described = env.interner.describe(ty);
     let nullable = env.interner.is_nullable(ty);
     let target = match env.interner.get(ty) {

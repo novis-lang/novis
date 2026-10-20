@@ -501,7 +501,11 @@ fn check_command_shape(m: &MethodMember, class: &QName, env: &mut Env<'_>) {
             env,
         );
     }
-    if m.return_type.is_some() && !matches!(env.interner.get(return_ty), Ty::Void | Ty::Uint) {
+    // A return type that did not resolve has reported already
+    // (`rule:types/one-mistake-reports-once`).
+    if m.return_type.is_some()
+        && !matches!(env.interner.get(return_ty), Ty::Void | Ty::Uint | Ty::Error)
+    {
         let returned = env.interner.describe(return_ty);
         report_command_shape(
             m,
