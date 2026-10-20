@@ -60,6 +60,18 @@ stages:
     title: "every help text names only what compiles, and each syntax is one feature"
     status: open
     context: [crates/nvs-types/src/expr/members.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/expr/isolate.rs, crates/nvs-types/src/locals.rs, tools/nv/proofs/roster.ts]
+  - id: 17
+    title: "a generated matrix pins every redeclaration a subclass can write"
+    status: open
+    context: [tools/nv/cmd/verify.ts, crates/nvs-types/src/conformance.rs, docs/rules/classes/an-override-keeps-its-parents-signature.md, docs/rules/statements/static-is-a-member-modifier.md]
+  - id: 18
+    title: "a checked build stops at a read whose value is not its declared type"
+    status: open
+    context: [crates/nvs-cli/src/main.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-runtime/src/helpers.rs, docs/rules/testing/probes-on-is-a-tested-configuration.md]
+  - id: 19
+    title: "what the matrix and the checked build found is closed, and CI runs both"
+    status: open
+    context: [.github/workflows/ci.yml, docs/rules/testing/probes-on-is-a-tested-configuration.md]
   - id: 14
     title: "`Core\\BigInt`'s gcd and lcm are sub-quadratic"
     status: open
@@ -165,8 +177,54 @@ examples move or are deleted, and every citation is rewritten.
 conformance case in the area its rule names under `tests/conformance/`. A help text a stage rewrites
 is held to AGENTS.md § *Text an end user reads*, and every expectation that pins it is re-recorded.
 
+**Stages 17 to 19 look for the type confusions nobody has reported.** Stages 1 and 16 closed the
+ones a person happened to write. A rule-driven suite pins what a rule says, and no case exists where
+no rule spoke, so these two tools ask the question for every form instead.
+
+- **The matrix is generated, and its oracle is one table.** `bun nv soundness --write` writes
+  `tests/conformance/soundness/<member>.nvst`, one file per member kind with many classes in it, and
+  `--check` fails when a committed file differs from what it would write. `bun nv verify` runs
+  `--check`. The generator's module doc is the home of the table, and each row cites the rule that
+  gives its verdict: a compile error with its code, or the exact output. The sets are listed in the
+  table, never described:
+  - members: a method parameter, a method return, an interface method's parameter and return, a
+    static method's parameter and return, `compareTo`'s parameter, an instance property (plain,
+    promoted, `lateinit`, hooked, `array<T>`), a `readonly` property, a static property, and a class
+    or interface constant read through `self::`, the class name and `static::`;
+  - relations: the same type, a subclass, a superclass, an unrelated class, `int` under `int|string`,
+    `int` over `float`, `float` over `int`, `T` under `?T`, `?T` over `T`, a union member under the
+    union, and a wider union;
+  - paths: a variable of the parent's type, of the subclass's type, of an interface's type,
+    `static::`, an erased `object` or `mixed` access, a `property<T>` key, and a first-class callable.
+- **A cell that fails today is skipped by a gap, never weakened.** The generator keeps the cell and
+  its expectation, and reads `tools/nv/soundness/open.json`, which maps each failing cell to a gap
+  record under `data/gaps/` owned by this goal. A listed cell is left out of the written files.
+  `--check` fails when a listed cell's gap record is gone or when a listed cell now passes, so the
+  list empties as the gaps close and cannot rot.
+- **The checked build is a compile switch, and production code does not change.** `NOVIS_CHECK_TYPES`
+  sits beside `NOVIS_NO_OPTIMISE` (`crates/nvs-cli/src/main.rs:209`) and works like it: a
+  process-wide one-way switch, with the artifact cache off, since an artifact's key does not cover
+  it. With it on, the lowering adds a type test after each typed read: a property read, a parameter
+  at a method's entry, a call's result, a `static::` constant read and an array element of a class
+  type. The test is the one `is` lowers to. A value that fails stops the process with the source
+  line, the declared type and the class it holds, and nothing can catch it, because it is a compiler
+  bug and never a program's error. With it off, not one instruction is added.
+- **It tests what carries its type at run time.** An object's class, a union's tag and a `null`
+  where the type has none. A raw `int`, `float` or `bool` carries none, so a scalar read as another
+  scalar is the matrix's to find, as the `float` row does.
+- **What the two find is closed in stage 19.** Each finding is a gap record owned by this goal, with
+  the smallest program that shows it and neutral names, and an item in stage 19. A stage 19 that
+  grows past one session is split into stages of one session each, grouped by the files they touch.
+- **CI runs the checked build once the suite passes under it.** Stage 19 adds a step after
+  "Conformance suite, unoptimised" (`.github/workflows/ci.yml:292`) that runs the suite with
+  `NOVIS_CHECK_TYPES=1`, and `rule:testing/probes-on-is-a-tested-configuration` names it beside the
+  unoptimised run. It is not added red.
+- **Goal `covariant` extends the matrix.** Its rows for a `covariant` parameter and property are its
+  own, and the generator takes a row as data, so they are a table edit.
+
 **Lanes.** Stages 1 to 13 and 16 share the checker's files and run in order on the chain, 16 right
-after 3 because its holes read memory as another type. Stages 14 and 15
+after 3 because its holes read memory as another type. Stages 17 to 19 run after 13, so the matrix
+does not report again a hole a stage before it already owns. Stages 14 and 15
 touch only `crates/nvs-stdlib/src/bigint.rs` and its benches, so they can run as a side goal beside
 the chain. No stage waits on another goal.
 
@@ -175,6 +233,9 @@ slower. Stage 1 adds one class comparison to an object ordering. Stage 16 adds a
 `static::` constant read only where the read's type is a union or `float`. Stage 12 holds no new memory, since
 the drain bound stays. Programs that compiled and were wrong stop compiling, which is the point.
 Simplicity of the language gains: twenty-odd forms that did nothing now have one meaning or none.
+Stages 17 and 18 change no program: the matrix is test cases, and the checked build adds code only
+under its switch. Their cost is CI time: one more run of the suite in each leg, and the matrix's
+cases when a change reaches the checker, the layout or the lowering.
 
 ## Stages
 
@@ -341,6 +402,41 @@ one line each. The other lists every citation of `lang:statements/try-catch-fina
 - [ ] `E0303` lists the `autoload` roots it searched. `crates/nvs-types/src/expr/mod.rs:1`, `data/gaps/nvs-types/an-undefined-class-names-no-autoload-root.json:1`
 - [ ] No diagnostic's message or help prints a `rule:` id or a form of "refuse", and a test scans the help texts. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/diagnostic-help-prints-rule-ids.json:1`
 - [ ] The two `lang:statements/` features are merged into their `lang:errors/` twins. `tools/nv/proofs/roster.ts:1`, `data/gaps/nv/two-lang-features-are-one-syntax.json:1`
+
+### 17. a generated matrix pins every redeclaration a subclass can write
+
+**Does:** every member kind, relation and access path in § *Standing decisions* is a cell with the
+verdict its rule gives, and each cell either passes or is skipped by an open gap record.
+
+**Split:** a writing subagent writes the generator and its table from § *Standing decisions*; the
+session checks the table row by row against the rules it cites, then runs it and files the gaps.
+
+- [ ] `bun nv soundness --write` and `--check`, with the oracle table in its module doc. `tools/nv/cmd/soundness.ts:1`
+- [ ] The generated files, one per member kind. `tests/conformance/soundness/properties.nvst:1`
+- [ ] `open.json`, and `--check` fails on a listed cell that passes or whose gap is gone. `tools/nv/soundness/open.json:1`
+- [ ] `bun nv verify` runs `bun nv soundness --check`. `tools/nv/cmd/verify.ts:167`
+- [ ] A gap record for each failing cell, listed in `open.json`, and an item for it in stage 19. `tools/nv/soundness/open.json:1`
+
+### 18. a checked build stops at a read whose value is not its declared type
+
+**Does:** with `NOVIS_CHECK_TYPES=1`, a compiled program tests every typed read of a value that
+carries its type, and a failure stops the process naming the line and both types.
+
+- [ ] `NOVIS_CHECK_TYPES` sets a process-wide switch beside `compile_unoptimised`, with the artifact cache off. `crates/nvs-cli/src/main.rs:209`, `crates/nvs-codegen/src/lib.rs:905`
+- [ ] The lowering adds the type test after a property read, a parameter at entry, a call's result, a `static::` constant read and an array element of a class type, only under the switch. `crates/nvs-ir/src/lower/expr.rs:5361`, `crates/nvs-ir/src/lower/mod.rs:1518`, `crates/nvs-ir/src/lower/mod.rs:1297`, `crates/nvs-ir/src/lower/expr.rs:6569`
+- [ ] The runtime helper that stops the process with the line, the declared type and the class. `crates/nvs-runtime/src/helpers.rs:141`
+- [ ] A Rust test that compiles one confused read with the switch on and sees it stop, and with it off sees no added instruction. `crates/nvs-codegen/tests/checked_types.rs:1`
+- [ ] One local run of the suite under the switch, and a gap record and a stage 19 item for each case it stops. `crates/nvs-cli/src/main.rs:209`
+
+### 19. what the matrix and the checked build found is closed, and CI runs both
+
+**Does:** every gap stages 17 and 18 filed is closed, `open.json` is empty, and CI runs the suite
+under the checked build on every leg.
+
+- [ ] Each finding of stages 17 and 18 gets one item here, added by the session that files it. `tools/nv/soundness/open.json:1`
+- [ ] `open.json` is empty, and every matrix cell is in the written files. `tools/nv/soundness/open.json:1`
+- [ ] The CI step after "Conformance suite, unoptimised", with `NOVIS_CHECK_TYPES=1`. `.github/workflows/ci.yml:292`
+- [ ] `rule:testing/probes-on-is-a-tested-configuration` names the checked run, and a rule fragment states what the matrix guarantees, `shipped` with the matrix files in `guardedBy`. `docs/rules/testing/probes-on-is-a-tested-configuration.md:14`, `docs/rules/testing/redeclaration-matrix.md:1`, `data/rules/testing/redeclaration-matrix.json:1`
 
 ### 14. `Core\BigInt`'s gcd and lcm are sub-quadratic
 
