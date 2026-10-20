@@ -177,7 +177,7 @@ before the body runs, through a class, an interface, a static method and `compar
 
 - [ ] `lower_method` emits one type test per covariant parameter before the body, each element of a variadic one included. `crates/nvs-ir/src/lower/mod.rs:1246`, `crates/nvs-ir/src/lower/mod.rs:1297`, `crates/nvs-ir/src/lower/expr.rs:6569`
 - [ ] A failure throws a `LogicError` that names the method, the parameter, the type and the class it got. `crates/nvs-ir/src/lower/operator.rs:256`
-- [ ] A case through a parent, an interface, a static method, `compareTo`, a grandchild, an `inout` and a variadic parameter, and a first-class callable of the method. `tests/conformance/class/a-covariant-parameter-is-checked-when-the-method-is-entered.nvst:1`
+- [ ] A case through a parent, an interface, a static method, `compareTo`, a grandchild, an `inout` and a variadic parameter, and a first-class callable of the method. The types include `int` under `int|string`, `Dog|Cat` under `Animal`, and `Dog` under `?Animal`, where a `null` throws. `tests/conformance/class/a-covariant-parameter-is-checked-when-the-method-is-entered.nvst:1`
 
 ### 4. a covariant property is checked by every typed write
 
@@ -189,7 +189,7 @@ through a wider type that would store another class throws.
 - [ ] The redeclaration check from stage 16 accepts `covariant` with a narrower type, and its help names `covariant`. `crates/nvs-types/src/conformance.rs:1`
 - [ ] The class descriptor carries the narrowed type for each narrowed slot, and the slot stays the topmost declaration's. `crates/nvs-types/src/layout.rs:1004`
 - [ ] A typed write that can reach a narrowed slot with a wider value loads the receiver's type and tests the value, and every other write is unchanged. `crates/nvs-ir/src/lower/stmt.rs:1137`, `crates/nvs-ir/src/lower/mod.rs:3034`
-- [ ] A case for a plain property, a promoted parameter, `lateinit`, the parent's constructor writing a wider value, and a write through the subclass's own type that is not tested. `tests/conformance/class/a-covariant-property-is-checked-by-every-write.nvst:1`
+- [ ] A case for a plain property, a promoted parameter, `lateinit`, the parent's constructor writing a wider value, and a write through the subclass's own type that is not tested. The types include `int` under `int|string` and `int` under `?int`, read back through both classes. `tests/conformance/class/a-covariant-property-is-checked-by-every-write.nvst:1`
 
 ### 5. an erased, dynamic or hooked write of a covariant property is checked
 
