@@ -1,0 +1,14 @@
+--TEST--
+`#[Core\Json\Derive()]` with an empty list derives the same codec as `#[Core\Json\Derive]`
+--FILE--
+<?nvs
+#[Core\Json\Derive()]
+class Order {
+    public function constructor(public int $total) {}
+}
+
+echo Core\Json::encode(new Order(3)), "\n";
+echo Core\Json::decodeAs<Order>("{\"total\": 4}")->total, "\n";
+--EXPECT--
+{"total":3}
+4

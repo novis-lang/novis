@@ -92,6 +92,64 @@ pub const ATTRIBUTES: &[&str] = [
 ]
 .as_slice();
 
+/// A declaration an attribute is written on (`rule:attributes/attach-sites-and-forms`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Site {
+    Class,
+    Interface,
+    Enum,
+    EnumCase,
+    Method,
+    Property,
+    Hook,
+    Const,
+    /// A method's parameter that does not declare a property.
+    Param,
+    /// A constructor parameter written with a visibility, which declares a
+    /// property too.
+    PromotedParam,
+    /// A `set` hook's parameter.
+    HookParam,
+}
+
+impl Site {
+    /// The site as a diagnostic names it, after "on".
+    pub(crate) const fn written(self) -> &'static str {
+        match self {
+            Self::Class => "a class",
+            Self::Interface => "an interface",
+            Self::Enum => "an enum",
+            Self::EnumCase => "an enum case",
+            Self::Method => "a method",
+            Self::Property => "a property",
+            Self::Hook => "a property hook",
+            Self::Const => "a class constant",
+            Self::Param | Self::PromotedParam => "a parameter",
+            Self::HookParam => "a hook's parameter",
+        }
+    }
+}
+
+/// The sites where the compiler builds something from `name`, one of
+/// [`ATTRIBUTES`], or `None` for a name whose own pass holds it to its sites
+/// (`#[Core\Path]` in [`crate::paths`], `#[Core\Deprecated]` in
+/// [`crate::deprecated`]). Anywhere else the attribute would compile and do
+/// nothing, so [`crate::attributes`] reports it there.
+///
+/// A site here is the kind of declaration only. What a pass asks of the one
+/// declaration beyond its kind — a `static` method for `#[Command]`, a
+/// `#[Route]` beside `#[Api]` — stays with that pass.
+pub(crate) fn sites(name: &str) -> Option<&'static [Site]> {
+    Some(match name {
+        DERIVE | DB_DERIVE => &[Site::Class],
+        FIELD | DB_FIELD => &[Site::Property, Site::PromotedParam],
+        TEST | FIXTURE | TEST_WITH | BEFORE_CLASS | AFTER_CLASS | AFTER_EACH_TEST | COMMAND
+        | ROUTE | ACCESS | API => &[Site::Method],
+        OPTION | QUERY => &[Site::Param, Site::PromotedParam],
+        _ => return None,
+    })
+}
+
 /// One compiler attribute's reference card: what the attribute is for, in one
 /// sentence, the declaration it is written above, and the shape its payload
 /// satisfies, spelled the way a userland attribute declares one

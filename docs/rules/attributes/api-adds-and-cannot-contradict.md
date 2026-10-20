@@ -9,10 +9,13 @@ public static function show(uint $id): Order { … }
 ```
 
 **It may add, and it may not contradict.** Each of these is `E0771`, naming both sites: an `errors`
-entry whose `type` is not a class a handler could produce, an `example` naming a field the return type
-does not declare, a `tags` or `security` entry that is not a string, and an `#[Api]` on a method
-carrying no `#[Route]`. One `#[Api]` describes the operation however many `#[Route]` attributes the
-method carries.
+entry whose `type` is not a concrete class of the `Throwable` tree, an `errors` status outside 400 to
+599 or listed twice, an `example` on a route whose return type is not a class or a shape, an `example`
+naming a field the return type does not declare, an `example` value that does not fit its field's
+type (a nested object and each object in a nested array held to their field's class or shape the
+same way), a `tags` or `security` entry that is not a string, an `#[Api]` on a method carrying no
+`#[Route]`, and a second `#[Api]` on one method. One `#[Api]` describes the operation however many
+`#[Route]` attributes the method carries.
 
 That list is why the attribute exists. The compiler holds both the annotation and the code it
 describes, so the annotation cannot claim a shape the handler no longer returns, which is the normal

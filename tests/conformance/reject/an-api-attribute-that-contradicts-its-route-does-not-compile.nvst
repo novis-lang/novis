@@ -1,0 +1,62 @@
+--TEST--
+An `#[Api]` that contradicts its route is `E0771`: an error type that is not `Throwable`, an error status outside 400-599 or listed twice, an example for a route that returns no object, an example value of the wrong type, an unknown key in a nested example object, and a second `#[Api]` on one method
+--FILE--
+<?nvs
+class Report {}
+
+class Address {
+    public function constructor(public string $city) {}
+}
+
+class Order {
+    public function constructor(public uint $id, public Address $address) {}
+}
+
+class Orders {
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(errors: [{status: 404, type: Report::class}])]
+    public static function show(uint $id): Order { return new Order($id, new Address("Graz")); }
+
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(errors: [{status: 200, type: Core\NotFound::class}, {status: 404, type: Core\NotFound::class}, {status: 404, type: Core\NotFound::class}])]
+    public static function index(): Order { return new Order(1, new Address("Graz")); }
+
+    #[Core\Route(path: "/orders/count", method: Core\Http\Method::Get, name: "Orders::count")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(example: {count: 3})]
+    public static function count(): string { return "3"; }
+
+    #[Core\Route(path: "/orders/first", method: Core\Http\Method::Get, name: "Orders::first")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(example: {id: "seven", address: {city: "Graz", street: "Main"}})]
+    public static function first(): Order { return new Order(1, new Address("Graz")); }
+
+    #[Core\Route(path: "/orders/last", method: Core\Http\Method::Get, name: "Orders::last")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["Orders"])]
+    #[Core\Api(tags: ["Shop"])]
+    public static function last(): Order { return new Order(2, new Address("Graz")); }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0771]: `Report` is not an error class
+%A
+error[E0771]: this `status` is not an HTTP error status
+%A
+error[E0771]: the status 404 is listed twice in `errors`
+%A
+error[E0771]: this route returns `string`, which has no fields
+%A
+error[E0771]: the field `id` is `uint`, and this value is `string`
+%A
+error[E0771]: `Address` declares no `street`
+%A
+error[E0771]: this method has more than one `#[Api]`
+%A
+error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,20 @@
+--TEST--
+An array literal in a named attribute's payload whose elements do not fit the field's array type is `E0401` at the payload
+--FILE--
+<?nvs
+type Tags = {ids: array<int>};
+
+class Shop {
+    #[Tags(ids: ["one"])]
+    public static function open(): void {}
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `{ids: array<int>}`, found `{ids: array<mixed>}`
+  --> case.nvs:5:11
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

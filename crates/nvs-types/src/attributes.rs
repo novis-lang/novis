@@ -63,6 +63,7 @@ pub(crate) fn check_declaration(
     // once, beside it.
     crate::paths::check_marker_sites(groups, members, cases, ctx, env);
     crate::deprecated::check_sites(decl, groups, members, cases, ctx, env);
+    check_recognized_sites(decl, groups, members, cases, ctx, env);
     for member in members {
         match &member.kind {
             ClassMemberKind::Property(p) => {
@@ -81,6 +82,7 @@ pub(crate) fn check_declaration(
                 // rather than about one payload, and this is the walk that
                 // holds a method's whole list.
                 crate::routes::check_one_access(&m.attributes, ctx, env);
+                crate::routes::check_one_api(&m.attributes, ctx, env);
                 // The markers that mean nothing away from the attribute that
                 // reads them — `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]`, `rule:attributes/api-adds-and-cannot-contradict`'s
                 // `#[Api]`, `rule:attributes/access-is-a-required-sibling`'s `#[Access]` and `rule:tooling/commands-are-compiled`'s
@@ -131,6 +133,91 @@ fn reject_unread(groups: &[AttributeGroup], site: &str, ctx: &Ctx<'_>, env: &mut
                 "write the attribute on a class, a method, a property or a parameter. \
                  `Core\\Attributes` reads it there",
             ),
+        );
+    }
+}
+
+/// Every attach site under one declaration, each attribute on it held to
+/// [`crate::derive::sites`].
+fn check_recognized_sites(
+    decl: crate::deprecated::Decl,
+    groups: &[AttributeGroup],
+    members: &[ClassMember],
+    cases: &[EnumCase],
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    use crate::derive::Site;
+    let site = match decl {
+        crate::deprecated::Decl::Class => Site::Class,
+        crate::deprecated::Decl::Interface => Site::Interface,
+        crate::deprecated::Decl::Enum => Site::Enum,
+    };
+    report_wrong_site(groups, site, ctx, env);
+    for member in members {
+        match &member.kind {
+            ClassMemberKind::Property(p) => {
+                report_wrong_site(&p.attributes, Site::Property, ctx, env);
+                for hook in p.hooks.iter().flatten() {
+                    report_wrong_site(&hook.attributes, Site::Hook, ctx, env);
+                    if let Some(param) = &hook.param {
+                        report_wrong_site(&param.attributes, Site::HookParam, ctx, env);
+                    }
+                }
+            }
+            ClassMemberKind::Const(c) => report_wrong_site(&c.attributes, Site::Const, ctx, env),
+            ClassMemberKind::Method(m) => {
+                report_wrong_site(&m.attributes, Site::Method, ctx, env);
+                for param in &m.params {
+                    let site = if param.is_promoted() {
+                        Site::PromotedParam
+                    } else {
+                        Site::Param
+                    };
+                    report_wrong_site(&param.attributes, site, ctx, env);
+                }
+            }
+            _ => {}
+        }
+    }
+    for case in cases {
+        report_wrong_site(&case.attributes, Site::EnumCase, ctx, env);
+    }
+}
+
+/// `E0874` for each recognized attribute in `groups` whose
+/// [`crate::derive::sites`] leaves out `site`.
+fn report_wrong_site(
+    groups: &[AttributeGroup],
+    site: crate::derive::Site,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    for attr in groups.iter().flat_map(|g| &g.attributes) {
+        let Some(name) = attr.name.as_ref().filter(|_| attr.member.is_none()) else {
+            continue;
+        };
+        let written = span_text(env.src, name.span);
+        let qname = nvs_hir::resolve_ref(written, ctx.namespace, ctx.imports);
+        let Some(doc) = crate::derive::ATTRIBUTE_DOCS
+            .iter()
+            .find(|doc| qname == nvs_hir::QName::parse(doc.name))
+        else {
+            continue;
+        };
+        let Some(sites) = crate::derive::sites(doc.name) else {
+            continue;
+        };
+        if sites.contains(&site) {
+            continue;
+        }
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ATTRIBUTE_WRONG_SITE,
+                format!("`#[{written}]` cannot be written on {}", site.written()),
+            )
+            .with_primary(attr.span, "this attribute does nothing here")
+            .with_help(format!("Write `#[{written}]` on {}.", doc.site)),
         );
     }
 }
@@ -206,10 +293,22 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     }
     // Deliberately the ordinary shape-typed position's check, run over an
     // empty scope: § 2 has just proved there is no variable in this payload,
-    // so no binding can be read and none can be captured.
+    // so no binding can be read and none can be captured. An array literal is
+    // then retyped to its field's array type where every element fits it, the
+    // check a retrieval makes, so a payload accepted here is the payload
+    // `Core\Attributes::get<Name>` finds.
     let mut live = Live::default();
     let scope = LocalScope::new();
     let actual = check_anon_object(&attr.fields, None, &mut live, &scope, ctx, env);
+    let actual = crate::retrieval::with_requested_arrays(
+        &attr.fields,
+        actual,
+        shape,
+        &mut live,
+        &scope,
+        ctx,
+        env,
+    );
     if !built_fits(actual, shape, env.interner, env.graph, env.signatures) {
         report_mismatch(attr.payload, shape, actual, env);
     }
@@ -280,6 +379,19 @@ fn check_recognized(
                 ctx,
                 env,
             );
+        } else if [
+            crate::derive::DERIVE,
+            crate::derive::DB_DERIVE,
+            crate::derive::QUERY,
+            crate::derive::PATH,
+        ]
+        .into_iter()
+        .any(recognized)
+        {
+            // `#[Core\Json\Derive()]` is `#[Core\Json\Derive]`, and a field in
+            // the list is an option no pass reads. The test hooks and
+            // `#[Fixture]` report theirs in their own passes.
+            report_no_options(attr, env);
         } else if payload.clean {
             // A recognized name with no roster — `#[Json\Field]`,
             // `#[TestWith]` — has its payload read by its own pass, which
@@ -291,6 +403,26 @@ fn check_recognized(
             let rows = recognized(crate::derive::TEST_WITH);
             infer_fields(&attr.fields, rows, ctx, env);
         }
+    }
+}
+
+/// `E_UNKNOWN_OPTION` for each field of a recognized attribute that takes
+/// none.
+fn report_no_options(attr: &Attribute, env: &mut Env<'_>) {
+    let Some(name) = &attr.name else {
+        return;
+    };
+    let written = span_text(env.src, name.span).to_owned();
+    for field in &attr.fields {
+        let option = span_text(env.src, field.name).to_owned();
+        env.diags.report(
+            Diagnostic::error(
+                code::E_UNKNOWN_OPTION,
+                format!("`{option}` is not an option of `#[{written}]`"),
+            )
+            .with_primary(field.span, "no such option")
+            .with_help(format!("`#[{written}]` takes no options.")),
+        );
     }
 }
 

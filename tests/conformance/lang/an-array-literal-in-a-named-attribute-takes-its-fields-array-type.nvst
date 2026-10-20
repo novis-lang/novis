@@ -1,0 +1,17 @@
+--TEST--
+An array literal in a named attribute's payload is checked against the field's declared array type, so `array<int>`, `array<string>` and a nested array each take a literal of their elements
+--FILE--
+<?nvs
+type Tags = {ids: array<int>, names: array<string>, rows: array<array<string>>};
+
+class Shop {
+    #[Tags(ids: [1, 2], names: ["a", "b"], rows: [["x", "y"]])]
+    public static function open(): void {}
+}
+
+?Tags $tags = Core\Attributes::get<Tags>(Shop::open(...));
+if ($tags != null) {
+    echo $tags->ids[1] + 1, " ", $tags->names[0], " ", $tags->rows[0][1], "\n";
+}
+--EXPECT--
+3 a y
