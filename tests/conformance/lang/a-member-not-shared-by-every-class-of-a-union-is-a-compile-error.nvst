@@ -1,10 +1,27 @@
 --TEST--
-A property read through a union of classes is `E0881` when one class lacks the property or two classes give it different types — `rule:types/a-member-every-class-of-a-union-declares`
+A property read, a method call or a property write through a union of classes is `E0881` when one class lacks the member, two classes give it different types or signatures, the member is not visible, or one class does not allow the write — `rule:types/a-member-every-class-of-a-union-declares`
 --FILE--
 <?nvs
-final class Box { public string $name = "boxed"; public function constructor() { } }
-final class Circle { public int $size = 1; public function constructor() { } }
+final class Box {
+    public string $name = "boxed";
+    public string $title = "box";
+    public function constructor() { }
+    public function label(): string { return "box"; }
+    public function size(int $scale): int { return $scale; }
+    public function secret(): string { return "box"; }
+}
+final class Circle {
+    public int $size = 1;
+    public function constructor() { }
+}
 final class Label { public ?string $name = null; public function constructor() { } }
+final class Tag {
+    public readonly string $title;
+    public function constructor() { $this->title = "tag"; }
+    public function label(): string { return "tag"; }
+    public function size(string $scale): int { return 1; }
+    private function secret(): string { return "tag"; }
+}
 
 // `Circle` has no `$name`, so the read does not compile.
 Box|Circle $either = new Box();
@@ -14,20 +31,61 @@ echo $either->name, "\n";
 // The `??` after it reports nothing more.
 Box|Label $titled = new Box();
 echo $titled->name ?? "none", "\n";
+
+// `Circle` has no method `label`, so the call does not compile.
+echo $either->label(), "\n";
+
+// `Box::size` takes an `int` and `Tag::size` takes a `string`, so the call does not compile.
+Box|Tag $tagged = new Box();
+echo $tagged->size(2), "\n";
+
+// `Tag::secret` is `private`, so the call does not compile here.
+echo $tagged->secret(), "\n";
+
+// `Tag::$title` is `readonly`, so the write does not compile.
+$tagged->title = "new";
 --EXPECTF-ERROR--
 error[E0881]: `Circle` has no property `$name`
-  --> %s:8:6
-  |
-8 | echo $either->name, "\n";
-  |      ^^^^^^^^^^^^^ used through `Box|Circle` here
-  = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
+   --> %s:25:6
+   |
+25 | echo $either->name, "\n";
+   |      ^^^^^^^^^^^^^ used through `Box|Circle` here
+   = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
 
 error[E0881]: `Box::$name` is `string`, and `Label::$name` is `string|null`, so the property has no one type
-   --> %s:13:6
+   --> %s:30:6
    |
-13 | echo $titled->name ?? "none", "\n";
+30 | echo $titled->name ?? "none", "\n";
    |      ^^^^^^^^^^^^^ used through `Box|Label` here
    = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
 
-error: aborting due to 2 errors
+error[E0881]: `Circle` has no method `label()`
+   --> %s:33:6
+   |
+33 | echo $either->label(), "\n";
+   |      ^^^^^^^^^^^^^^ used through `Box|Circle` here
+   = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
+
+error[E0881]: `Box::size()` and `Tag::size()` do not have the same parameters and return type
+   --> %s:37:6
+   |
+37 | echo $tagged->size(2), "\n";
+   |      ^^^^^^^^^^^^^ used through `Box|Tag` here
+   = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
+
+error[E0881]: `Tag::secret()` is private, so it is not visible here
+   --> %s:40:6
+   |
+40 | echo $tagged->secret(), "\n";
+   |      ^^^^^^^^^^^^^^^ used through `Box|Tag` here
+   = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
+
+error[E0881]: `Tag::$title` is `readonly`, so it cannot be written here
+   --> %s:43:1
+   |
+43 | $tagged->title = "new";
+   | ^^^^^^^^^^^^^^ used through `Box|Tag` here
+   = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
+
+error: aborting due to 6 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

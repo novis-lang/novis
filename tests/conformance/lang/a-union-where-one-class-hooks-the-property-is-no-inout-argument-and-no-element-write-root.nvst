@@ -1,0 +1,42 @@
+--TEST--
+An `inout` argument and an element write through a union of classes are refused as they are through the one class that gives the property hooks — `rule:types/a-member-every-class-of-a-union-declares`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $tags = [];
+    public string $name = "box";
+    public function constructor() { }
+}
+final class Circle {
+    public array<string> $tags { get => $this->tags; set { $this->tags = $value; } }
+    public string $name { get => $this->name; set { $this->name = $value; } }
+    public function constructor() { $this->tags = []; $this->name = "circle"; }
+}
+final class Text {
+    public static function grow(inout string $text): void { $text = $text . "+"; }
+}
+
+Box|Circle $shape = new Circle();
+
+// `Circle::$name` has hooks, so it cannot be passed to an `inout` parameter.
+Text::grow(inout $shape->name);
+
+// `Circle::$tags` has hooks, so an element cannot be written through it.
+$shape->tags[] = "round";
+--EXPECTF-ERROR--
+error[E0439]: a property with hooks cannot be passed to an `inout` parameter
+   --> %s:19:18
+   |
+19 | Text::grow(inout $shape->name);
+   |                  ^^^^^^^^^^^^ passed by reference here
+   = help: reading it runs its `get` hook, and writing it runs its `set` hook. Read it into a variable, pass the variable, and assign the result back
+
+error[E0478]: an array element cannot be written through the hooked property `tags`
+   --> %s:22:1
+   |
+22 | $shape->tags[] = "round";
+   | ^^^^^^^^^^^^ reading this runs its `get` hook
+   = help: a property with hooks is read and written through its hooks. Read it into a variable, write the element there, and assign the variable back to the property
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

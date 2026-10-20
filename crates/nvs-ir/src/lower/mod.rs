@@ -1840,6 +1840,12 @@ pub(crate) struct Lowering<'a> {
     /// this flag says which of the two is being lowered. `false` everywhere
     /// else.
     reading_guarded_target: bool,
+    /// The one class's record [`Self::lower_union_member`] is lowering a
+    /// member access through, keyed by the access's span. [`Self::member_record`]
+    /// answers it in place of the table's `ExprInfo::UnionMember`, so each
+    /// arm is lowered by the code that lowers the same access through that
+    /// class alone. `None` everywhere else.
+    union_arm: Option<(Span, &'a ExprInfo)>,
     /// The spans of the root properties of the element writes and `unset`s
     /// being lowered — `$p->tags` in `$p->tags["0"] = v` — whose reads skip
     /// `onPropertyGet` (`rule:classes/property-observer-pipeline`).
@@ -2031,6 +2037,21 @@ pub(crate) enum RefHolder {
         /// The property's own name.
         field: String,
     },
+    /// A property read through a union of classes that all declare it
+    /// (`rule:types/a-member-every-class-of-a-union-declares`), with its
+    /// receiver already lowered. The copy-back tests the receiver's class as
+    /// the staging read did ([`Lowering::branch_on_union_class`]).
+    UnionField {
+        /// The receiver, evaluated once at staging time.
+        object: ValueId,
+        /// Per class of the union, in its order: the class tested, and the
+        /// label of the class that declares the property.
+        arms: Vec<(String, String)>,
+        /// The property's own name.
+        field: String,
+        /// The argument's span, for the branches' edges.
+        span: Span,
+    },
 }
 
 /// One open `foreach (… as inout $v)`: what a write to `$v` inside its body has to
@@ -2219,6 +2240,7 @@ impl<'a> Lowering<'a> {
             owned_temporaries: Vec::new(),
             staged_targets: Vec::new(),
             reading_guarded_target: false,
+            union_arm: None,
             silenced_gets: Vec::new(),
             declared_tys: FxHashMap::default(),
             lsb: None,
@@ -3325,12 +3347,31 @@ impl<'a> Lowering<'a> {
                 env.insert(name, (written, ty));
             }
             ExprKind::PropertyAccess { object, .. } => {
+                // `rule:types/a-member-every-class-of-a-union-declares`: the
+                // array goes back into the slot of whichever class the
+                // receiver is, one branch per class.
+                if let Some(ExprInfo::UnionMember { arms }) = self.member_record(base.span) {
+                    self.lower_union_member(
+                        object,
+                        false,
+                        arms,
+                        false,
+                        base,
+                        env,
+                        cur,
+                        |this, env, cur| {
+                            this.write_back_array(base, written, env, cur);
+                            (written, Ty::Void)
+                        },
+                    );
+                    return;
+                }
                 let Some(ExprInfo::Property {
                     class,
                     name,
                     observer,
                     ..
-                }) = self.exprs.lookup(base.span)
+                }) = self.member_record(base.span)
                 else {
                     unreachable!(
                         "nvs-ir reaches an element write back through the property at {:?} \
@@ -3455,11 +3496,67 @@ impl<'a> Lowering<'a> {
     /// statement. See [`Self::pending_refs`] for why `mark` is what keeps a
     /// nested call from flushing its caller's staging, and [`Ty::Ref`] for the
     /// whole representation.
-    pub(crate) fn flush_ref_writebacks(&mut self, mark: usize, env: &mut Env, cur: BlockId) {
+    pub(crate) fn flush_ref_writebacks(&mut self, mark: usize, env: &mut Env, cur: &mut BlockId) {
         for staged in self.pending_refs.split_off(mark) {
-            let (v, _) = self.emit(cur, staged.ty, InstKind::RefLoad { slot: staged.slot });
+            let (v, _) = self.emit(*cur, staged.ty, InstKind::RefLoad { slot: staged.slot });
             self.write_back_holder(&staged.holder, v, staged.ty, env, cur);
         }
+    }
+    /// One branch per class of a union for an access that touches no local:
+    /// the read and the copy-back of an `inout` property argument. `arms` is
+    /// [`RefHolder::UnionField`]'s list. Every class but the last is one
+    /// [`InstKind::ClassTest`], and the last is the fall-through, as in
+    /// [`Self::lower_union_member`]. `each` emits into the block it is given,
+    /// with the declaring class's label, and returns the arm's value when
+    /// `ty` is `Some`. The values are joined in one phi, and `cur` is left
+    /// on the joined block.
+    pub(crate) fn branch_on_union_class(
+        &mut self,
+        object: ValueId,
+        arms: &[(String, String)],
+        ty: Option<Ty>,
+        span: Span,
+        cur: &mut BlockId,
+        mut each: impl FnMut(&mut Self, BlockId, &str) -> Option<ValueId>,
+    ) -> Option<ValueId> {
+        let done = self.new_block();
+        let mut values = Vec::with_capacity(arms.len());
+        for (index, (tested, declaring)) in arms.iter().enumerate() {
+            let block = if index + 1 < arms.len() {
+                let (is_class, _) = self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::ClassTest {
+                        value: object,
+                        class: TestedClass::Named(tested.clone()),
+                    },
+                );
+                let this_class = self.new_block();
+                let next = self.new_block();
+                let this_edge = self.ids.next_edge(span);
+                let next_edge = self.ids.next_edge(span);
+                self.seal(
+                    *cur,
+                    Terminator::Branch {
+                        cond: is_class,
+                        then_block: this_class,
+                        then_edge: this_edge,
+                        else_block: next,
+                        else_edge: next_edge,
+                    },
+                );
+                *cur = next;
+                this_class
+            } else {
+                *cur
+            };
+            if let Some(v) = each(self, block, declaring) {
+                values.push((block, v));
+            }
+            self.seal(block, Terminator::Jump(done));
+        }
+        *cur = done;
+        ty.map(|ty| self.emit(done, ty, InstKind::Phi { incoming: values }).0)
     }
     /// Re-points `holder` at `written`, the value an [`InstKind::RefLoad`]
     /// just read back out of a by-reference argument's staged slot after the
@@ -3485,41 +3582,63 @@ impl<'a> Lowering<'a> {
         written: ValueId,
         ty: Ty,
         env: &mut Env,
-        cur: BlockId,
+        cur: &mut BlockId,
     ) {
         match holder {
             RefHolder::Local(name) => {
                 if let Some(&(old_v, old_ty)) = env.get(name)
                     && old_ty.is_refcounted()
                 {
-                    self.emit_release(cur, old_v);
+                    self.emit_release(*cur, old_v);
                 }
                 // `f(inout $v)` where `$v` is a `foreach (… as inout $v)` binding: what
                 // the callee wrote back reaches the entry too, the same way
                 // an assignment to it does.
-                self.write_through_element(cur, env, name, written, ty);
+                self.write_through_element(*cur, env, name, written, ty);
                 env.insert(name.clone(), (written, ty));
             }
             RefHolder::Field {
                 object,
                 class,
                 field,
+            } => self.write_back_field(*cur, *object, class, field, written, ty),
+            RefHolder::UnionField {
+                object,
+                arms,
+                field,
+                span,
             } => {
-                if ty.is_refcounted() {
-                    let (old_v, _) = self.emit(
-                        cur,
-                        ty,
-                        InstKind::FieldGet {
-                            object: *object,
-                            class: class.clone(),
-                            field: field.clone(),
-                        },
-                    );
-                    self.emit_release(cur, old_v);
-                }
-                self.emit_field_set(cur, *object, class.clone(), field.clone(), written);
+                self.branch_on_union_class(*object, arms, None, *span, cur, |this, block, class| {
+                    this.write_back_field(block, *object, class, field, written, ty);
+                    None
+                });
             }
         }
+    }
+    /// [`Self::write_back_holder`]'s store into one class's slot: the old
+    /// value is released, then `written` is stored.
+    fn write_back_field(
+        &mut self,
+        cur: BlockId,
+        object: ValueId,
+        class: &str,
+        field: &str,
+        written: ValueId,
+        ty: Ty,
+    ) {
+        if ty.is_refcounted() {
+            let (old_v, _) = self.emit(
+                cur,
+                ty,
+                InstKind::FieldGet {
+                    object,
+                    class: class.to_owned(),
+                    field: field.to_owned(),
+                },
+            );
+            self.emit_release(cur, old_v);
+        }
+        self.emit_field_set(cur, object, class.to_owned(), field.to_owned(), written);
     }
     /// Whether `e` reads storage some durable slot still owns, so a value
     /// taken from it needs a retain before anything else can own it too —
@@ -3547,6 +3666,15 @@ impl<'a> Lowering<'a> {
     /// an object's slot, and [`Lowering::lower_index`] answers it identically,
     /// so the recursion below covers both spellings of "reads a slot of
     /// something nothing else owns".
+    /// The table's record for the member access at `span`, or the one
+    /// class's record [`Self::lower_union_member`] is lowering it through
+    /// ([`Self::union_arm`]).
+    pub(crate) fn member_record(&self, span: Span) -> Option<&'a ExprInfo> {
+        match self.union_arm {
+            Some((arm_span, record)) if arm_span == span => Some(record),
+            _ => self.exprs.lookup(span),
+        }
+    }
     pub(crate) fn aliasing_read(&self, e: &Expr) -> bool {
         // A staged sub-expression of an assignment target is a borrow of a
         // value this frame's own temporaries stack (or a durable slot) already
@@ -3584,6 +3712,13 @@ impl<'a> Lowering<'a> {
             self.exprs.lookup(e.span),
             Some(ExprInfo::HookedProperty { get: Some(_), .. })
         ) {
+            return false;
+        }
+        // A read through a union where one class has a `get` hook is a fresh
+        // producer on every arm (`Self::lower_union_member`).
+        if let Some(ExprInfo::UnionMember { arms }) = self.exprs.lookup(e.span)
+            && arms.iter().any(|(_, arm)| is_get_hook(arm))
+        {
             return false;
         }
         match &e.kind {
@@ -4489,6 +4624,12 @@ pub(crate) enum Stored<'a> {
     /// that builds one is a binary operator's result, which no durable slot
     /// holds yet.
     Value(ValueId, Ty),
+}
+
+/// Whether a property record reads through a `get` hook, which makes the read
+/// a call and its result a fresh producer.
+fn is_get_hook(record: &ExprInfo) -> bool {
+    matches!(record, ExprInfo::HookedProperty { get: Some(_), .. })
 }
 
 pub(crate) fn is_aliasing_read(kind: &ExprKind) -> bool {

@@ -30,7 +30,7 @@
 //   `wider-union` (`Animal|Plant|Stone` over `Animal|Plant`).
 // - paths, per member kind (`PATHS`): a variable of the parent's type, of the child's type, of an
 //   interface's type, `static::`, a class name, `self::`, an erased `object` or `mixed` access, a
-//   `property<T>` key and a first-class callable, each where the member kind has it.
+//   `property<T>` key, a first-class callable and a union of classes, each where the member kind has it.
 //
 // A member kind writes some relations with other types, and leaves some out:
 //
@@ -59,10 +59,16 @@
 //   path (`rule:classes/interfaces-declare-no-state`).
 // - A constant is read through a class name, `self::` or `static::`, never through a variable.
 // - `property-readonly` has no relation that compiles, so it has no path.
+// - An instance property has two union paths, a variable of `Parent<n>|Other<n>` and one of
+//   `Other<n>|Parent<n>`, where `Other<n>` declares the property with the parent's type. A read through
+//   a union tests the class of every arm but the last and reads the slot at a fixed offset
+//   (`rule:types/a-member-every-class-of-a-union-declares`), so the child is reached once through the
+//   parent's tested arm and once through the untested last one. A method has no union path: a call
+//   through the union is the call through the parent's class, which `parent-variable` already covers.
 //
 // **The files.** `--write` writes `tests/conformance/soundness/<member>.nvst`, the cells that run, and
 // `<member>.errors.nvst`, the cells that are compile errors, since one error stops a whole program. Each
-// relation's classes are `Parent<n>`, `Child<n>`, `Face<n>` and `Root<n>`, numbered by the relation's
+// relation's classes are `Parent<n>`, `Child<n>`, `Face<n>`, `Root<n>` and `Other<n>`, numbered by the relation's
 // place in `RELATIONS`, so a cell left out renames nothing else. Every error the second file expects is
 // listed in line order, each with the line its diagnostic points at. Output is deterministic.
 //
@@ -151,6 +157,7 @@ const PROPERTY = "rule:classes/a-redeclared-property-keeps-its-parents-type";
 const STATIC = "rule:statements/static-is-a-member-modifier";
 const CALLABLE = "rule:types/callable-values";
 const ERASED = "rule:types/erased-member-access";
+const UNION = "rule:types/a-member-every-class-of-a-union-declares";
 
 /** A parameter is contravariant: the child's type accepts the parent's, without `int` to `float`. */
 const PARAM: Partial<Record<Rel, string>> = {
@@ -208,6 +215,8 @@ const PROPERTY_PATHS: PathRow[] = [
   { id: "object", verdict: "ok", rule: ERASED },
   { id: "mixed", verdict: "ok", rule: ERASED },
   { id: "property-key", verdict: "ok", rule: "rule:types/property-key-access" },
+  { id: "union-tested", verdict: "ok", rule: UNION },
+  { id: "union-fallthrough", verdict: "ok", rule: UNION },
 ];
 
 const STATIC_PAIRS: Partial<Record<Rel, [string, string]>> = {
@@ -581,6 +590,10 @@ function propertyPiece(c: Ctx): Piece {
   decl.push(childDecl);
   if (childCtor) decl.push(childCtor);
   decl.push("}");
+  // The union paths' other class: the same property, with the parent's type.
+  if (c.paths.some((path) => path.startsWith("union-"))) {
+    decl.push(`final class Other${n} {`, `    public ${P} $x${form === "array" ? " = []" : ""};`, parentCtor, "}");
+  }
   const make = form === "promoted" ? `new Child${n}(${cv})` : `new Child${n}()`;
   const uses: Use[] = c.paths.map((path, k) => {
     const v = `$v${n}x${k}`;
@@ -591,6 +604,8 @@ function propertyPiece(c: Ctx): Piece {
       object: "object",
       mixed: "mixed",
       "property-key": `Parent${n}`,
+      "union-tested": `Parent${n}|Other${n}`,
+      "union-fallthrough": `Other${n}|Parent${n}`,
     };
     const lines = [`${recvType[path]} ${v} = ${make};`];
     if (path === "property-key") lines.push(`property<Parent${n}> $k${n}x${k} = "x" as property<Parent${n}>;`, `echo ${at}, Show::of(${v}->$k${n}x${k}), "\\n";`);

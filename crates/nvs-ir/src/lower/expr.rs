@@ -3507,7 +3507,7 @@ impl<'a> Lowering<'a> {
         // instruction that evaluated them.
         self.forget_transferred_since(mark);
         let built = self.emit_fallible(*cur, Ty::Object, kind, env);
-        self.flush_ref_writebacks(staged_refs, env, *cur);
+        self.flush_ref_writebacks(staged_refs, env, cur);
         built
     }
 
@@ -3589,7 +3589,7 @@ impl<'a> Lowering<'a> {
             },
             env,
         );
-        self.flush_ref_writebacks(staged_refs, env, *cur);
+        self.flush_ref_writebacks(staged_refs, env, cur);
         built
     }
 
@@ -3676,7 +3676,7 @@ impl<'a> Lowering<'a> {
             },
             env,
         );
-        self.flush_ref_writebacks(staged_refs, env, *cur);
+        self.flush_ref_writebacks(staged_refs, env, cur);
         built
     }
 
@@ -4272,19 +4272,25 @@ impl<'a> Lowering<'a> {
         // than calling it. Taken before the resolved arm for the erased one's
         // reason: it is the *variant* that selects it, and both carry the
         // same `ResolvedCall`.
-        if let Some(ExprInfo::CallableRef(call)) = self.exprs.lookup(expr.span) {
+        if let Some(ExprInfo::CallableRef(call)) = self.member_record(expr.span) {
             let call = call.clone();
             return self.lower_method_ref(&call, Some(object), expr, env, cur);
         }
-        if let Some(ExprInfo::UnionMember { .. }) = self.exprs.lookup(expr.span) {
-            panic!(
-                "nvs-ir: the method call at {:?} goes through a union of classes, and no \
-                 lowering takes `ExprInfo::UnionMember` yet \
-                 (`rule:types/a-member-every-class-of-a-union-declares`)",
-                expr.span
+        // `rule:types/a-member-every-class-of-a-union-declares`: one branch per
+        // class, each the call that class alone makes, `$u->m(...)` included.
+        if let Some(ExprInfo::UnionMember { arms }) = self.member_record(expr.span) {
+            return self.lower_union_member(
+                object,
+                nullsafe,
+                arms,
+                false,
+                expr,
+                env,
+                cur,
+                |this, env, cur| this.lower_method_call(object, false, args, expr, env, cur),
             );
         }
-        let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
+        let Some(ExprInfo::Call(call)) = self.member_record(expr.span) else {
             panic!(
                 "nvs-ir: an instance method call at {:?} has no resolved target \
                  recorded in the typed-expression table — did this program pass \
@@ -4519,7 +4525,7 @@ impl<'a> Lowering<'a> {
         // instruction that evaluated them.
         self.forget_transferred_since(mark);
         let (v, ty) = self.emit_fallible(*cur, return_ty, kind, env);
-        self.flush_ref_writebacks(staged_refs, env, *cur);
+        self.flush_ref_writebacks(staged_refs, env, cur);
         self.close_nullsafe(guard, v, ty, env, cur)
     }
 
@@ -4798,7 +4804,7 @@ impl<'a> Lowering<'a> {
         // instruction that evaluated them.
         self.forget_transferred_since(mark);
         let result = self.emit_fallible(*cur, return_ty, kind, env);
-        self.flush_ref_writebacks(staged_refs, env, *cur);
+        self.flush_ref_writebacks(staged_refs, env, cur);
         result
     }
 
@@ -4861,7 +4867,7 @@ impl<'a> Lowering<'a> {
             },
             env,
         );
-        self.flush_ref_writebacks(staged_refs, env, *cur);
+        self.flush_ref_writebacks(staged_refs, env, cur);
         result
     }
 
@@ -5233,6 +5239,121 @@ impl<'a> Lowering<'a> {
         *cur = done;
     }
 
+    /// A property read, a write or a method call through a union of classes
+    /// that all share the member (`rule:types/a-member-every-class-of-a-union-declares`).
+    ///
+    /// The receiver is lowered once and staged under its own span, so each
+    /// arm reads it from [`Self::staged_targets`] and runs nothing twice. Every
+    /// class but the last is one [`InstKind::ClassTest`] and a branch. The last
+    /// is the fall-through, because the checker proved the receiver is one of
+    /// these classes. Each arm is `lower_arm`, the lowering of the same access
+    /// through that one class, with [`Self::union_arm`] answering that class's
+    /// record for `expr`. So a plain property is one `FieldGet`, a hooked one
+    /// calls its hook, and a method call is the call that class makes.
+    ///
+    /// Ownership is the one-class access's, made the same on every arm. The
+    /// staged receiver is a borrow, and a receiver that is a fresh producer is
+    /// owned here and released after the join. A `read` whose result is a
+    /// fresh producer on some arm (a `get` hook) or whose receiver dies here
+    /// retains a plain arm's borrowed slot value, and [`Self::aliasing_read`]
+    /// then reports the access as fresh.
+    ///
+    /// Costs `n - 1` class tests for `n` classes and one copy of the access per
+    /// class in the compiled code. Nothing is looked up by name at run time.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the receiver and its `?->`, the arms and whether they read, the \
+                  access, the env and block every lowering threads, and the arm's \
+                  own lowering"
+    )]
+    pub(crate) fn lower_union_member<C: std::fmt::Display>(
+        &mut self,
+        object: &Expr,
+        nullsafe: bool,
+        arms: &'a [(C, ExprInfo)],
+        read: bool,
+        expr: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+        mut lower_arm: impl FnMut(&mut Self, &mut Env, &mut BlockId) -> (ValueId, Ty),
+    ) -> (ValueId, Ty) {
+        let mark = self.temporaries_mark();
+        let (object_v, receiver_ty, guard) =
+            self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
+        let base_is_temporary = receiver_ty.is_refcounted() && !self.aliasing_read(object);
+        if base_is_temporary {
+            self.own_temporary(object_v);
+        }
+        let own_plain_reads =
+            read && (base_is_temporary || arms.iter().any(|(_, arm)| super::is_get_hook(arm)));
+        let staged = self.staged_mark();
+        self.stage(object.span, object_v, receiver_ty);
+        let outer = self.union_arm;
+        let pre_env = env.clone();
+        let done = self.new_block();
+        let mut ends: Vec<(BlockId, Env)> = Vec::with_capacity(arms.len());
+        let mut values: Vec<(BlockId, ValueId)> = Vec::with_capacity(arms.len());
+        let mut result_ty = Ty::Void;
+        for (index, (class, record)) in arms.iter().enumerate() {
+            let mut block = if index + 1 < arms.len() {
+                let (is_class, _) = self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::ClassTest {
+                        value: object_v,
+                        class: TestedClass::Named(class.to_string()),
+                    },
+                );
+                let this_class = self.new_block();
+                let next = self.new_block();
+                let this_edge = self.ids.next_edge(expr.span);
+                let next_edge = self.ids.next_edge(expr.span);
+                self.seal(
+                    *cur,
+                    Terminator::Branch {
+                        cond: is_class,
+                        then_block: this_class,
+                        then_edge: this_edge,
+                        else_block: next,
+                        else_edge: next_edge,
+                    },
+                );
+                *cur = next;
+                this_class
+            } else {
+                *cur
+            };
+            let mut arm_env = pre_env.clone();
+            self.union_arm = Some((expr.span, record));
+            let (v, ty) = lower_arm(self, &mut arm_env, &mut block);
+            self.union_arm = outer;
+            if own_plain_reads && ty.is_refcounted() && !super::is_get_hook(record) {
+                self.emit_retain(block, v);
+            }
+            self.seal(block, Terminator::Jump(done));
+            ends.push((block, arm_env));
+            values.push((block, v));
+            result_ty = ty;
+        }
+        self.unstage_to(staged);
+        *env = self.merge_envs(done, &ends, &pre_env);
+        *cur = done;
+        let v = if result_ty == Ty::Void {
+            values[0].1
+        } else {
+            self.emit(
+                done,
+                result_ty,
+                InstKind::Phi { incoming: values },
+            )
+            .0
+        };
+        if base_is_temporary {
+            self.release_temporaries_since(mark, *cur);
+        }
+        self.close_nullsafe(guard, v, result_ty, env, cur)
+    }
+
     fn lower_property_access(
         &mut self,
         object: &Expr,
@@ -5242,6 +5363,18 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        if let Some(ExprInfo::UnionMember { arms }) = self.member_record(expr.span) {
+            return self.lower_union_member(
+                object,
+                nullsafe,
+                arms,
+                true,
+                expr,
+                env,
+                cur,
+                |this, env, cur| this.lower_property_access(object, property, false, expr, env, cur),
+            );
+        }
         // `rule:classes/property-hooks`: a read of a property that declares a `get`
         // hook is a call to that hook's compiled function, with the
         // receiver in the ordinary parameter-0 slot — see
@@ -5290,7 +5423,7 @@ impl<'a> Lowering<'a> {
             let ty = *ty;
             return self.lower_keyed_property_access(object, property, ty, nullsafe, env, cur);
         }
-        let (class, name, ty, get, observer, narrowed) = match self.exprs.lookup(expr.span) {
+        let (class, name, ty, get, observer, narrowed) = match self.member_record(expr.span) {
             Some(ExprInfo::Property {
                 class,
                 name,
@@ -5307,12 +5440,6 @@ impl<'a> Lowering<'a> {
                 observer,
                 ..
             }) => (class, name, *ty, get.clone(), observer.clone(), None),
-            Some(ExprInfo::UnionMember { .. }) => panic!(
-                "nvs-ir: the property access at {:?} goes through a union of classes, and no \
-                 lowering takes `ExprInfo::UnionMember` yet \
-                 (`rule:types/a-member-every-class-of-a-union-declares`)",
-                expr.span
-            ),
             // Every shape a `PropertyAccess` takes is handled above,
             // `rule:types/property-key-access`'s keyed one included, so this arm is the
             // consistency claim it reads as and not a lowering still owed.

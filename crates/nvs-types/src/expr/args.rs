@@ -1372,10 +1372,7 @@ pub(crate) fn check_inout_arg(
     // second one, so it has no address to hand out — and no rule for what a
     // callee writing through one would even mean. Checked before the shape
     // match so `$obj->hooked` is refused for the right reason.
-    let hooked = matches!(
-        env.exprs.lookup(arg.value.span),
-        Some(ExprInfo::HookedProperty { .. })
-    );
+    let hooked = env.exprs.hooked_property(arg.value.span).is_some();
     if hooked {
         env.diags.report(
             Diagnostic::error(

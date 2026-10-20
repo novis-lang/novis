@@ -1,0 +1,101 @@
+--TEST--
+A property read and a property write through a union of classes do what the same access through the class of the value does — `rule:types/a-member-every-class-of-a-union-declares`
+--FILE--
+<?nvs
+class Shape { public string $name = "shape"; public function constructor() { } }
+final class Box { public string $name = "box"; public function constructor() { } }
+final class Circle { public string $name = "circle"; public function constructor() { } }
+final class Square extends Shape { public function constructor() { parent::constructor(); } }
+final class Triangle {
+    public string $name { get => "tri"; }
+    public function constructor() { }
+}
+
+final class Bag { public array<string> $items = []; public function constructor() { } }
+final class Crate { public array<string> $items = []; public function constructor() { } }
+
+final class Factory {
+    public static function grow(inout string $text): void { $text = $text . "+"; }
+    public static function make(int $kind): Box|Circle {
+        if ($kind == 1) {
+            return new Circle();
+        }
+        return new Box();
+    }
+}
+
+// A union of two classes. The variable is a `Box`, then a `Circle`.
+Box|Circle $two = new Box();
+echo $two->name, "\n";
+$two = new Circle();
+echo $two->name, "\n";
+
+// A union of three classes. Each class is read once, the last one included.
+Box|Circle|Triangle $three = new Box();
+echo $three->name, "\n";
+$three = new Circle();
+echo $three->name, "\n";
+$three = new Triangle();
+echo $three->name, "\n";
+
+// `Square` gets `$name` from its parent class `Shape`. This prints `shape`.
+Box|Square $inherited = new Square();
+echo $inherited->name, "\n";
+
+// `Triangle` has a `get` hook. The read runs the hook, so this prints `tri`.
+Box|Triangle $hooked = new Triangle();
+echo $hooked->name, "\n";
+$hooked = new Box();
+echo $hooked->name, "\n";
+
+// `?->` on `null` gives `null`, so `??` prints `none`.
+?Box|Circle $maybe = null;
+echo $maybe?->name ?? "none", "\n";
+// `?->` on an object reads the property. This prints `circle`.
+$maybe = new Circle();
+echo $maybe?->name ?? "none", "\n";
+
+// A write through the union changes the property of the object. This prints `round`.
+Box|Circle $written = new Circle();
+$written->name = "round";
+echo $written->name, "\n";
+// `.=` reads the property, appends to it and writes it back. This prints `round!`.
+$written->name .= "!";
+echo $written->name, "\n";
+// The same write on a `Box` prints `box?`.
+$written = new Box();
+$written->name .= "?";
+echo $written->name, "\n";
+
+// `Factory::make` returns `Box|Circle`. The read works directly on the result.
+echo Factory::make(1)->name, "\n";
+echo Factory::make(2)->name, "\n";
+
+// `inout` passes the property of the object to the method. This prints `circle+`.
+Box|Circle $grown = new Circle();
+Factory::grow(inout $grown->name);
+echo $grown->name, "\n";
+
+// An element write adds to the array in the property. This prints `2`.
+Bag|Crate $held = new Crate();
+$held->items[] = "a";
+$held->items["k"] = "b";
+echo Core\Arr::count($held->items), "\n";
+--EXPECT--
+box
+circle
+box
+circle
+tri
+shape
+tri
+box
+none
+circle
+round
+round!
+box?
+circle
+box
+circle+
+2
