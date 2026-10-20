@@ -493,12 +493,17 @@ fn a_catch_binding_is_not_live_after_its_clause() {
         "{diags:?}"
     );
 
-    // A name the body already assigned is a reuse of that binding, not a new
-    // one, so what was live going into the `try` is still live coming out.
+    // A clause may not take over a local of the same name: the clause's
+    // binding ends with it, so the local would end too.
     let diags = check_in_method(
         "LogicError $e = new LogicError(\"x\");\ntry {\n  echo \"ok\";\n} catch (LogicError $e) {\n}\necho $e->message;\n",
     );
-    assert!(!diags.has_errors(), "{diags:?}");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_REDECLARED_LOCAL)),
+        "{diags:?}"
+    );
 }
 
 /// `finally` always runs, so its assignment carries forward even though

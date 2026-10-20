@@ -672,10 +672,15 @@ impl<'src, 'd> Parser<'src, 'd> {
             self.bump();
             let outer = self.pipe_hole.replace(lhs);
             self.pipe_rhs_depth += 1;
-            let rhs = self.parse_postfix();
+            let mut rhs = self.parse_postfix();
             self.pipe_rhs_depth -= 1;
-            if std::mem::replace(&mut self.pipe_hole, outer).is_some() {
-                self.report_right_side_without_a_hole(&rhs);
+            if std::mem::replace(&mut self.pipe_hole, outer).is_some()
+                && self.report_right_side_without_a_hole(&rhs)
+            {
+                rhs = Expr {
+                    span: rhs.span,
+                    kind: ExprKind::Error(rhs.span),
+                };
             }
             lhs = rhs;
         }
@@ -688,8 +693,11 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// The right side of a `|>` never named `$_`, so there was nowhere to put
     /// the left side. Recovery keeps the right side as the expression, which
     /// is the tree the author would have got had they written the hole in the
-    /// argument they meant.
-    fn report_right_side_without_a_hole(&mut self, rhs: &Expr) {
+    /// argument they meant. A right side that is a callable is the one
+    /// exception: the author meant to call it, so its value is not what they
+    /// would have got, and the caller replaces it with an error node so the
+    /// checker reports nothing more about it. Returns whether it is one.
+    fn report_right_side_without_a_hole(&mut self, rhs: &Expr) -> bool {
         let applies_a_callable = matches!(
             &rhs.kind,
             ExprKind::Fn(_)
@@ -721,6 +729,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             );
         }
         self.diags.report(diag);
+        applies_a_callable
     }
 
     /// `$_`, which is a hole and never a variable — so it is turned into the

@@ -167,8 +167,9 @@ codes! {
     /// time — `nvs_ir::lower::expr`'s `concat_operand` owns that row.
     pub const E_NO_STRING_FORM: Code = Code::new("E0707").card(
         "This value has no text form, so it cannot be joined with `.`, put in a string or printed. \
-         Convert `bytes` with `$b as string`, an enum case with `$case as int`, and an array with \
-         `Core\\Json::encode($a)`.",
+         Convert `bytes` or a class reference with `as string`, an enum case with `$case as int`, \
+         and an array with `Core\\Json::encode($a)`. A function has no text: call it and use what \
+         it returns.",
     );
     /// An `expr as T` whose operand and target name no row of `rule:types/conversion`'s
     /// conversion table, its `string` ↔ `bytes` pair, its `decimal` rows and its enum
@@ -315,8 +316,9 @@ codes! {
     /// `bool`s are unordered.
     pub const E_ORDERING_HAS_NO_ROW: Code = Code::new("E0715").card(
         "`<`, `<=`, `>`, `>=` and `<=>` compare numbers, and objects of a class that implements \
-         `Comparable`. They do not compare strings, arrays, enum cases or `null`. Use \
-         `Core\\Str::compare` for text, and `as int` for an enum case.",
+         `Comparable`. They also compare two `bool` values, but not a `bool` and a number. They do \
+         not compare strings, arrays, enum cases or `null`. Use `Core\\Str::compare` for text, and \
+         `as int` for an enum case.",
     );
 
     /// `+`, `-`, `*`, `/`, `%` or `**` over an operand `rule:types/arithmetic` gives no

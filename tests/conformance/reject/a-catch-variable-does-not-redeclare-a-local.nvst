@@ -1,0 +1,64 @@
+--TEST--
+A `catch` variable may reuse only a name another `catch` declared; a local or a parameter of that name is `E0406` at the clause, in a method, at the top level and in a `catch` expression (`rule:types/declaration`)
+--FILE--
+<?nvs
+final class Fail {
+    public static function run(LogicError $e): void {
+        try {
+            throw new LogicError("b");
+        } catch (LogicError $e) {
+        }
+    }
+
+    public static function local(): void {
+        LogicError $e = new LogicError("a");
+        try {
+            throw new LogicError("b");
+        } catch (LogicError $e) {
+        }
+    }
+
+    public static function arm(): void {
+        LogicError $e = new LogicError("a");
+        echo Fail::f() catch (LogicError $e) => 8, "\n";
+    }
+
+    public static function f(): int {
+        throw new LogicError("f");
+    }
+}
+
+LogicError $e = new LogicError("a");
+try {
+    throw new LogicError("b");
+} catch (LogicError $e) {
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0406]: `$e` is already declared
+%A
+3 |     public static function run(LogicError $e): void {
+%A
+6 |         } catch (LogicError $e) {
+%A
+error[E0406]: `$e` is already declared
+%A
+11 |         LogicError $e = new LogicError("a");
+%A
+14 |         } catch (LogicError $e) {
+%A
+error[E0406]: `$e` is already declared
+%A
+19 |         LogicError $e = new LogicError("a");
+%A
+20 |         echo Fail::f() catch (LogicError $e) => 8, %s;
+%A
+error[E0406]: `$e` is already declared
+%A
+28 | LogicError $e = new LogicError("a");
+%A
+31 | } catch (LogicError $e) {
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

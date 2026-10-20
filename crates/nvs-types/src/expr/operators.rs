@@ -1024,8 +1024,8 @@ pub(crate) fn warn_nullable_condition(ty: TypeId, span: Span, env: &mut Env<'_>)
 /// The one diagnostic both operand positions report — the binary operators
 /// through [`reject_void_operand`] and the three arithmetic prefixes through
 /// [`reject_unary_arith_operand`], so that they agree on their wording as well
-/// as on their rule.
-fn report_void_operand(span: Span, env: &mut Env<'_>) {
+/// as on their rule. A ternary's branch reports it too, from [`super::infer`].
+pub(crate) fn report_void_operand(span: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_VOID_IS_NOT_AN_OPERAND,
@@ -1053,7 +1053,8 @@ fn report_void_operand(span: Span, env: &mut Env<'_>) {
 ///
 /// `bool` is deliberately a row rather than a refusal — `false < true` is the
 /// ordering of the one bit it already is, which is PHP's answer too and needs
-/// no conversion to be exact. [`code::E_ORDERING_HAS_NO_ROW`]'s own doc
+/// no conversion to be exact. The row is two `bool`s: a `bool` against a
+/// number is refused first, since the two lower to different machine types. [`code::E_ORDERING_HAS_NO_ROW`]'s own doc
 /// comment is that decision's home.
 ///
 /// Scoped exactly like [`reject_bitwise_operand`] beside it: an operand whose
@@ -1068,6 +1069,31 @@ fn reject_unordered_operand(
     span: Span,
     env: &mut Env<'_>,
 ) -> Option<TypeId> {
+    // `bool` is a row only against another `bool`: the table has no row
+    // that orders the bit against a number, and a chained `1 < 2 < 3` is
+    // `(1 < 2) < 3`, which is that pair.
+    let domains = (
+        equality_domain(env.interner.get(lhs)),
+        equality_domain(env.interner.get(rhs)),
+    );
+    if let (Some(EqDomain::Bool), Some(EqDomain::Numeric))
+    | (Some(EqDomain::Numeric), Some(EqDomain::Bool)) = domains
+    {
+        let message = format!(
+            "`{}` and `{}` cannot be ordered",
+            env.interner.describe(lhs),
+            env.interner.describe(rhs)
+        );
+        env.diags.report(
+            Diagnostic::error(code::E_ORDERING_HAS_NO_ROW, message)
+                .with_primary(span, "ordered here")
+                .with_help(
+                    "a `bool` can be ordered only against another `bool`. To compare three \
+                     values, write two comparisons joined with `&&`, as in `$a < $b && $b < $c`",
+                ),
+        );
+        return Some(env.interner.mixed());
+    }
     // The left operand first, so a pair that is wrong on both sides reports
     // once and names the side written first.
     let (offender, domain) = [lhs, rhs].into_iter().find_map(|ty| {
@@ -2924,8 +2950,11 @@ fn conversion_operand_singleton(
 /// halves of it — [`require_stringable_object`] for the object one, and the
 /// refusal below for the four types the row does not reach at all.
 ///
-/// Those four are `bytes`, `array<T>`, an enum case and a `void` call, and
-/// each has a spelling that says what was meant. They are refused here rather
+/// Those six are `bytes`, `array<T>`, an enum case, a `void` call, a
+/// `class<T>` and a `callable`, and each has a spelling that says what was
+/// meant. A `class<T>` is refused rather than rendered so that `as string`
+/// stays the one way to its name, and a `callable` because no callable value
+/// has text: its run-time class is one the program never wrote. They are refused here rather
 /// than below because `nvs_ir::lower::expr`'s `concat_operand` has no row for
 /// any of them and could only panic — this refusal is what leaves that
 /// function's catch-all no reachable target.
@@ -2953,6 +2982,12 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
         Ty::Void => {
             "a call that returns `void` has no value at all, so there is nothing here to \
              print"
+        }
+        Ty::ClassRef(_) => {
+            "convert it with `as string` to get the class name, as in `$c as string`"
+        }
+        Ty::Callable | Ty::CallableSig { .. } => {
+            "a function has no text. Call it and use the value it returns"
         }
         _ => return,
     };

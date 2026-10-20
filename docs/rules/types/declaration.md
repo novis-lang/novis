@@ -16,7 +16,10 @@ annotation like any method (`rule:types/anonymous-function`).
 
 A binding is declared **once**. A later assignment is bare, and is legal only where the name is
 already declared in the enclosing function; re-declaring a live name is a diagnostic naming the first
-declaration, and there is no shadowing. Declaration is function-scoped — a binding declared inside an
+declaration, and there is no shadowing. A `foreach` or destructuring binding may reuse a live name at
+the same type. A `catch` variable may reuse only a name another `catch` declared, at the same type,
+because its binding ends with its clause: a parameter or a local of that name is `E0406` at the
+clause. Declaration is function-scoped — a binding declared inside an
 `if` is visible after it — but *definite assignment is checked*: reading a binding on a path that may
 not have reached its initialiser is a compile error.
 

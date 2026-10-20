@@ -538,6 +538,16 @@ pub(crate) fn infer(
             let narrowed = crate::locals::narrow(cond, false, scope, env);
             let else_ty = infer(else_.unparenthesized(), else_hint, live, scope, ctx, env);
             narrowed.restore(scope);
+            // A branch is the ternary's value, so a `void` call in one is the
+            // operand with no value `E0718` names, used or not.
+            if let Some(then) = then
+                && matches!(env.interner.get(then_ty), Ty::Void)
+            {
+                operators::report_void_operand(then.span, env);
+            }
+            if matches!(env.interner.get(else_ty), Ty::Void) {
+                operators::report_void_operand(else_.span, env);
+            }
             env.interner.make_union([then_ty, else_ty])
         }
         ExprKind::Conversion {
@@ -869,7 +879,23 @@ pub(crate) fn infer(
                         narrowed = crate::locals::narrow(only, true, scope, env);
                     }
                 }
-                arm_types.push(check_expr(&arm.body, None, live, scope, ctx, env));
+                let arm_ty = check_expr(&arm.body, None, live, scope, ctx, env);
+                // `rule:expressions/a-match-has-at-least-one-arm`: an arm is
+                // the `match`'s value, and a `void` call has none.
+                if matches!(env.interner.get(arm_ty), Ty::Void) {
+                    env.diags.report(
+                        Diagnostic::error(
+                            code::E_VOID_MATCH_ARM,
+                            "this `match` arm calls a function that returns `void`",
+                        )
+                        .with_primary(arm.body.span, "this call has no value")
+                        .with_help(
+                            "every arm of a `match` gives a value. Use an `if` or a `switch` to \
+                             run a statement for each case",
+                        ),
+                    );
+                }
+                arm_types.push(arm_ty);
                 narrowed.restore(scope);
             }
             if arm_types.is_empty() {

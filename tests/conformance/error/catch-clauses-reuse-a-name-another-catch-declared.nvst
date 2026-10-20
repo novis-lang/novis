@@ -1,0 +1,26 @@
+--TEST--
+Two `catch` clauses, two `try` statements and a `catch` expression may share a variable name at one type; each binding ends with its clause (`rule:types/declaration`)
+--FILE--
+<?nvs
+final class Fail {
+    public static function f(): int {
+        throw new LogicError("f");
+    }
+}
+try {
+    throw new LogicError("c");
+} catch (LogicError $x) {
+    echo "1 ", $x->message, "\n";
+}
+try {
+    throw new LogicError("d");
+} catch (RuntimeError $other) {
+    echo "not here\n";
+} catch (LogicError $x) {
+    echo "2 ", $x->message, "\n";
+}
+echo Fail::f() catch (LogicError $x) => 3, "\n";
+--EXPECT--
+1 c
+2 d
+3

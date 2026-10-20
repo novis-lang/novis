@@ -1123,14 +1123,14 @@ impl<'a> Lowering<'a> {
             // says what was meant: `Ty::Bytes` (`rule:types/conversion` grants
             // `as string` and nothing implicit), `Ty::Array` (PHP prints
             // `"Array"` and a notice; Novis names `Core\Json::encode`),
-            // `Ty::Enum` (`rule:enums/no-class-machinery`'s named integer, `$case as int`) and
-            // `Ty::Void` (a call with no value at all).
+            // `Ty::Enum` (`rule:enums/no-class-machinery`'s named integer, `$case as int`),
+            // `Ty::Void` (a call with no value at all) and `Ty::ClassDesc`, the
+            // representation of a `class<T>` value (`$c as string` is its
+            // name). A `callable` lowers to `Ty::Object` and is refused there
+            // by its own static type.
             //
             // What is left is no type a *source expression* ever has.
-            // `Ty::ClassDesc` is produced only as a static call's receiver
-            // slot, by `InstKind::ClassDescOf`/`ClassDescConst` — never
-            // `Self::lower_expr`'s answer, `Foo::class` folding to a `string`
-            // constant instead — and `Ty::Ref` only by `InstKind::RefSlot`
+            // `Ty::Ref` is produced only by `InstKind::RefSlot`
             // staging an `inout $x` argument, which goes straight to the callee.
             // That subtraction is the proof; the message below is not.
             other => panic!(

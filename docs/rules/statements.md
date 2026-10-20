@@ -368,6 +368,8 @@ self()` would return the wrong class rather than fail to compile. A static prope
 its storage is fixed where the access is written, so `static::$prop` is refused (`E0499`). For a
 subclass that redeclares the property it would silently name the parent's storage, while a reader
 expects the called class's. `self::$prop` and a written class name say which storage is meant.
+A static property is never reached through an instance: `$p->x` and `$p?->x` are `E0869`, whose
+message names `P::$x`, because an instance has no slot for it.
 `static::class` is the called class's own name,
 read at run time off the descriptor the frame already holds.
 

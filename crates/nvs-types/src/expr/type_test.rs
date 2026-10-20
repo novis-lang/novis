@@ -270,6 +270,32 @@ fn reject_unanswerable_target(
         );
         return true;
     }
+    // A class reference carries the class it names, not the `T` it was
+    // declared with, so `is class<T>` has no run-time row. `as ?class<T>` is
+    // the conversion that walks the named class instead.
+    let class_ref = env
+        .interner
+        .union_members(tested)
+        .into_iter()
+        .find_map(|m| match env.interner.get(m) {
+            Ty::ClassRef(inner) => Some(*inner),
+            _ => None,
+        });
+    if let Some(inner) = class_ref {
+        let base = env.interner.describe(inner);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_TYPE_TEST_AGAINST_A_CLASS_REFERENCE,
+                format!("`is` cannot test for `class<{base}>`"),
+            )
+            .with_primary(span, "tested here")
+            .with_help(format!(
+                "write `$c as ?class<{base}>`. The result is `null` when the class is not \
+                 `{base}` or a class that extends it"
+            )),
+        );
+        return true;
+    }
     let secret_only = fields_unchecked(subject, env.interner)
         || (has_fields(subject, env.interner) && matches!(env.interner.get(tested), Ty::Shape(_)));
     if let Some(qualified) = qualified_atom(tested, secret_only, env) {

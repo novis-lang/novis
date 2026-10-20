@@ -930,4 +930,31 @@ codes! {
          property cannot be declared again. Use the parent's type, or give the property another \
          name.",
     );
+    /// `$c is class<Dog>` — a class reference type written where `is` takes
+    /// a type (`rule:types/type-test`'s refusals). A class reference carries
+    /// no tag of its own that says which `T` it was declared with, so the
+    /// test has no run-time row. `$c as ?class<Dog>` is the conversion that
+    /// checks the class it names.
+    pub const E_TYPE_TEST_AGAINST_A_CLASS_REFERENCE: Code = Code::new("E0867").card(
+        "`is` cannot test for a class reference type such as `class<Dog>`. To check which class \
+         a class reference names, write `$c as ?class<Dog>`. The result is `null` when the class \
+         is not `Dog` or a class that extends it.",
+    );
+    /// A `match` arm whose body is a call that returns `void`
+    /// (`rule:expressions/a-match-has-at-least-one-arm`). A `match` is an expression,
+    /// and an arm is its value, so an arm with none has nothing to give,
+    /// whether the `match` is used or written as a statement.
+    pub const E_VOID_MATCH_ARM: Code = Code::new("E0868").card(
+        "This `match` arm calls a function that returns `void`, so the arm has no value. Every \
+         arm of a `match` gives a value. Use an `if` or a `switch` to run a statement for each \
+         case, or return a value from the function.",
+    );
+    /// `$p->x` or `$p?->x` where `x` is a `static` property
+    /// (`rule:statements/static-is-a-member-modifier`). A static property has
+    /// one storage for the class, and an instance has no slot for it.
+    pub const E_STATIC_PROPERTY_THROUGH_INSTANCE: Code = Code::new("E0869").card(
+        "This property is `static`, so it belongs to the class and not to an object. Read and \
+         write it with the class name, as in `Counter::$count`, or with `self::$count` inside the \
+         class.",
+    );
 }
