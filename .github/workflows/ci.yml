@@ -40,9 +40,8 @@ env:
   RUST_BACKTRACE: 1
 
 # `github.event_name` is in the group so a 25-minute nightly never sits in front of an 8-minute
-# push. Cancellation is for pull requests only: a run on `main` is what a bisect reads later, and
-# the loop commits one slice at a time, so cancelling the previous commit's run throws away the
-# verdict on the very commit someone will want one for. `rule:testing/every-push-gets-a-verdict`.
+# push. The group cancels a pull request's runs only. On `main`, `bun nv ci --push` and `--watch`
+# cancel each run a newer one replaces, so one run goes at a time. `rule:testing/one-run-on-main`.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

@@ -1,6 +1,6 @@
 // `bun nv ci` with `gh`, `git` and the clock handed in, so nothing is pushed and nothing is asked of
-// GitHub: when `--watch` exits and with which code, what it prints of a failed job, and that `--push`
-// pushes and leaves the runs to the push.
+// GitHub: when `--watch` exits and with which code, what it prints of a failed job, that `--push`
+// pushes and starts no run, and that both cancel a run a newer one replaces.
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
@@ -135,6 +135,19 @@ describe("bun nv ci --watch", () => {
     expect(old.slept).toEqual([POLL_IDLE_MS, POLL_IDLE_MS]);
   });
 
+  test("a run still going beside a newer one of its workflow is cancelled once, and the newer one watched", async () => {
+    const w = seams("two", (p) => ({
+      runs: [
+        runOf(61, "CI", p < 2 ? "in_progress" : "completed", p < 2 ? null : "success", "workflow_dispatch", "new"),
+        runOf(60, "CI", p < 1 ? "in_progress" : "completed", p < 1 ? null : "cancelled", "push", "old"),
+      ],
+      jobs: { 61: [jobOf(11, "lint", p < 2 ? "in_progress" : "completed", p < 2 ? null : "success")] },
+    }));
+    expect(await ci(["--watch"], w.s)).toBe(0);
+    expect(w.asked.filter((a) => a[0] === "run")).toEqual([["run", "cancel", "60"]]);
+    expect(w.said.some((l) => l.startsWith("watching CI (workflow_dispatch) on new"))).toBe(true);
+  });
+
   test("a `gh` that keeps failing ends the watch with exit 2, and one failure does not", async () => {
     const w = seams("gh-down", () => "fail");
     expect(await ci(["--watch"], w.s)).toBe(2);
@@ -154,18 +167,37 @@ describe("bun nv ci --push", () => {
     expect(w.asked.some((a) => a[1] === "push")).toBe(false);
   });
 
-  test("it pushes, and starts or cancels no run, because the push starts its own", async () => {
-    const w = seams("push", () => ({ runs: [runOf(40, "CI", "in_progress", null, "push", "old")], jobs: {} }), heads("new", "old"));
+  const runAsked = (w: { asked: string[][] }) => w.asked.filter((a) => a[0] === "run" || a[0] === "workflow");
+
+  test("it pushes, starts no run, and cancels each run still going on an older commit", async () => {
+    const w = seams("push", () => ({
+      runs: [
+        runOf(40, "CI", "in_progress", null, "push", "old"),
+        runOf(41, "Website", "queued", null, "push", "old"),
+        runOf(39, "CI", "completed", "success", "push", "older"),
+      ],
+      jobs: {},
+    }), heads("new", "old"));
     expect(await ci(["--push"], w.s)).toBe(0);
     expect(w.asked).toContainEqual(["git", "push", "origin", "main:main"]);
-    expect(w.asked.filter((a) => a[0] !== "git")).toEqual([]);
+    expect(runAsked(w)).toEqual([["run", "cancel", "40"], ["run", "cancel", "41"]]);
   });
 
-  test("a refused push exits 1 and starts no run", async () => {
-    const w = seams("refused", () => ({ runs: [], jobs: {} }), (args) =>
+  test("the run of the pushed commit is left going, and a second run beside it is cancelled", async () => {
+    const w = seams("push-kept", () => ({
+      runs: [runOf(51, "CI", "in_progress", null, "workflow_dispatch", "new"), runOf(50, "CI", "in_progress", null, "push", "new")],
+      jobs: {},
+    }), heads("new", "new"));
+    expect(await ci(["--push"], w.s)).toBe(0);
+    expect(w.asked.some((a) => a[1] === "push")).toBe(false);
+    expect(runAsked(w)).toEqual([["run", "cancel", "50"]]);
+  });
+
+  test("a refused push exits 1, and starts or cancels no run", async () => {
+    const w = seams("refused", () => ({ runs: [runOf(42, "CI", "in_progress", null, "push", "old")], jobs: {} }), (args) =>
       args[0] === "push" ? { code: 1, stdout: "", stderr: "! [rejected] main -> main (fetch first)" } : heads("new", "old")(args));
     expect(await ci(["--push"], w.s)).toBe(1);
-    expect(w.asked.some((a) => a[0] === "workflow")).toBe(false);
+    expect(runAsked(w)).toEqual([]);
   });
 });
 

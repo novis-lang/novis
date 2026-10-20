@@ -605,7 +605,7 @@ blocks back in the order you asked for them.
 ```sh
 bun nv sweep [--keep-runs <n>]                        # sweeps the disk, reads nightly CI: looper's after_session hook
 bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
-bun nv ci --push                                      # looper's after_retire: pushes main, which starts its CI runs
+bun nv ci --push                                      # looper's after_retire: pushes main, cancels the runs it replaces
 bun nv ci --watch | --status | --rerun                # the `ci-green` goal's: waits for a failed job, lists them, reruns them
 bun nv debt [--goal <slug>]                           # pays the floor debt: the floor check `floor-debt`
 
@@ -635,8 +635,10 @@ merges `main` in, runs verify, pauses the other loops and fast-forwards `main`. 
 **`main` reaches GitHub through `bun nv ci --push` alone.** looper's `after_retire` hook runs it at
 every goal end. The goal `ci-green` is the one side goal that runs in the root, added with `looper loop
 add --side ci-green --in-root`. It is never reached: its loop watches every CI run on `main`, fixes
-each failure, commits and pushes. No other session pushes or cancels a run. The goal file is its
-procedure, and `tools/nv/cmd/ci.ts` the command's.
+each failure, commits and pushes. No other session pushes or cancels a run. The push starts the runs,
+and the command cancels each run a newer one replaces, so each workflow has one run going on `main`
+(`rule:testing/one-run-on-main`). The goal file is its procedure, and `tools/nv/cmd/ci.ts` the
+command's.
 
 ## Disk
 

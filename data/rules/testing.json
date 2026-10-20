@@ -80,6 +80,6 @@
     "testing/unknown-base-runs-everything",
     "testing/the-deep-lane",
     "testing/a-deferred-job-is-skipped-never-absent",
-    "testing/every-push-gets-a-verdict"
+    "testing/one-run-on-main"
   ]
 }
