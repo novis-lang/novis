@@ -2751,7 +2751,7 @@ error[E0134]: a local declaration cannot be typed with a bare shape
   |
 6 | {x: int, y: int} $p = {x: 1, y: 2};
   | ^^^^^^^^^^^^^^^^ `{` at the start of a statement already opens a block
-  = help: name the shape first: `type Point = {x: int}; Point $point;`
+  = help: give the shape a name first: `type Point = {x: int}; Point $point;`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -3564,7 +3564,7 @@ error[E0307]: a `type` alias may not name a single class, interface or enum on i
    |
 10 | type Bar = Foo;
    |            ^^^ aliases exactly one class-shaped atom
-   = help: give a shape a name instead — a union, an intersection, or an `array<...>` wrapper; a class already has its own name
+   = help: a class already has its own name, so write the class name. An alias can name a union, an intersection or an `array<...>`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -6695,7 +6695,7 @@ error[E0320]: `gettype` is not a function that exists
   |
 6 | echo gettype($value), "\n";
   |      ^^^^^^^ no free function has this name
-  = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`
+  = help: every function is a method of a class. The built-in functions are in the `Core` namespace. Write `Core\Str::length($s)`, or write `use Core\Str;` and then `Str::length($s)`
 
 error[E0208]: `settype` is not supported
   --> main.nvs:7:1
@@ -10148,7 +10148,7 @@ error[E0230]: `list(...)` is not supported
   |
 7 | list(int $a, int $b) = $pair;
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ use `[...]` instead — it is the only destructuring spelling Novis keeps
-  = help: the element grammar is identical inside either bracket
+  = help: the elements are written the same way inside `[...]`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -11184,8 +11184,8 @@ error[E0125]: a `for` init clause declares at most one binding
   --> main.nvs:6:20
   |
 6 | for (int $row = 0, int $column = 0; $row < 3; $row++) {
-  |                    ^^^^^^^^^^^^^^^ this is the header's second declaration
-  = help: declare the second binding above the loop — the counter is function-scoped either way
+  |                    ^^^^^^^^^^^^^^^ this is the second declaration
+  = help: declare the second variable above the loop. The variable can be used in the whole function either way
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -11463,7 +11463,7 @@ error[E0101]: expected a `foreach` binding's type, or `var`
   --> main.nvs:8:21
   |
 8 | foreach ($scores as $score) {
-  |                     ^ a `foreach` binding writes its type, or `var` to take the subject's element type (`rule:types/grammar`.2)
+  |                     ^ write the variable's type, or write `var` to use the element type
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -13000,7 +13000,7 @@ error[E0319]: `endif` is not a constant that exists
   |
 9 | endif;
   | ^^^^^ no global constant has this name
-  = help: `rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no global one to fetch — write `Class::NAME`, and a built-in constant is on its `Core` class, such as `Core\Math::PI`
+  = help: every constant belongs to a class, so write `Class::NAME`. A built-in constant is on its `Core` class, such as `Core\Math::PI`
 
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -14877,7 +14877,7 @@ error[E0227]: traits do not exist
  6 | trait Greets {
    | ^^^^^^^^^^^^^^... not supported
    | (continues to line 10)
-   = help: use an interface default/private method for shared behavior, or `implements Interface by $field;` for shared state
+   = help: for shared methods, write a default or private method in an interface. For shared state, write `implements Interface by $field;`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -17110,7 +17110,7 @@ error[E0233]: a class or an interface is not declared in a class body
 7 |     public class Inner {
   |     ^^^^^^^^^^^^^^^^^^^^... declared inside another type
   | (continues to line 8)
-  = help: move it to file scope; only an `enum` or a `type` alias may be a member
+  = help: move it to file scope. Only an `enum` or a `type` alias can be declared in a class body
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -17311,14 +17311,14 @@ error[E0239]: an enum case is not written with `case`
   |
 6 | enum Suit { case Hearts; case Spades; }
   |             ^^^^ remove this keyword
-  = help: an enum body is a comma list of bare `Name = 1,` cases, with no `case` keyword and no `;`
+  = help: an enum body is a list of cases like `Name = 1,`, separated by commas. It has no `case` keyword and no `;`
 
 error[E0239]: an enum case is not written with `case`
   --> main.nvs:6:26
   |
 6 | enum Suit { case Hearts; case Spades; }
   |                          ^^^^ remove this keyword
-  = help: an enum body is a comma list of bare `Name = 1,` cases, with no `case` keyword and no `;`
+  = help: an enum body is a list of cases like `Name = 1,`, separated by commas. It has no `case` keyword and no `;`
 
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -18559,7 +18559,7 @@ error[E0133]: an enum in a class body takes no modifier
   |
 7 |     private enum Status { Open, Paid }
   |     ^^^^^^^ remove this
-  = help: the enum's cases leave the class in every value, so a visibility would hide only its name
+  = help: the enum's cases can be returned outside the class. A visibility would hide only the enum's name
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -18589,7 +18589,7 @@ error[E0309]: `Refund` has no enum named `Status`
    |
 13 | echo Refund::Status::Paid as int, "\n";
    |      ^^^^^^^^^^^^^^ referenced here
-   = help: `Order::Status` is where it is declared. An enum in a class body is reached through that class and is not inherited
+   = help: `Order::Status` is where it is declared. An enum in a class body is used through that class. A subclass does not inherit it
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -20316,7 +20316,7 @@ error[E0320]: `iterator_to_array` is not a function that exists
    |
 16 | var $all = iterator_to_array(Numbers::upTo(3));
    |            ^^^^^^^^^^^^^^^^^ no free function has this name
-   = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`
+   = help: every function is a method of a class. The built-in functions are in the `Core` namespace. Write `Core\Str::length($s)`, or write `use Core\Str;` and then `Str::length($s)`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

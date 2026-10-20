@@ -196,14 +196,14 @@ error[E0239]: an enum case is not written with `case`
   |
 6 | enum Suit { case Hearts; case Spades; }
   |             ^^^^ remove this keyword
-  = help: an enum body is a comma list of bare `Name = 1,` cases, with no `case` keyword and no `;` (`rule:enums/declaration`)
+  = help: an enum body is a list of cases like `Name = 1,`, separated by commas. It has no `case` keyword and no `;`
 
 error[E0239]: an enum case is not written with `case`
   --> main.nvs:6:26
   |
 6 | enum Suit { case Hearts; case Spades; }
   |                          ^^^^ remove this keyword
-  = help: an enum body is a comma list of bare `Name = 1,` cases, with no `case` keyword and no `;` (`rule:enums/declaration`)
+  = help: an enum body is a list of cases like `Name = 1,`, separated by commas. It has no `case` keyword and no `;`
 
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -230,7 +230,7 @@ error[E0220]: an enum declares only cases and an optional backing type
   |
 9 |     const int COUNT = 2;
   |     ^^^^^^^^^^^^^^^^^^^^ not a case
-  = help: move this to a separate class (`rule:enums/no-class-machinery`)
+  = help: move this to a separate class
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -253,7 +253,7 @@ error[E0219]: an enum cannot be backed by `string`
   |
 6 | enum Suit: string { Hearts, Spades }
   |            ^^^^^^ only `int`/`uint` back an enum
-  = help: use `: int` or `: uint`, or omit the backing type (`rule:enums/no-class-machinery`)
+  = help: use `: int` or `: uint`, or omit the backing type
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -1444,7 +1444,7 @@ error[E0133]: an enum in a class body takes no modifier
   |
 7 |     private enum Status { Open, Paid }
   |     ^^^^^^^ remove this
-  = help: the enum's cases leave the class in every value, so a visibility would hide only its name (`rule:enums/class-scoped-enum`)
+  = help: the enum's cases can be returned outside the class. A visibility would hide only the enum's name
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -1474,7 +1474,7 @@ error[E0309]: `Refund` has no enum named `Status`
    |
 13 | echo Refund::Status::Paid as int, "\n";
    |      ^^^^^^^^^^^^^^ referenced here
-   = help: `Order::Status` is where it is declared. An enum in a class body is reached through that class and is not inherited (`rule:enums/class-scoped-enum`)
+   = help: `Order::Status` is where it is declared. An enum in a class body is used through that class. A subclass does not inherit it
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

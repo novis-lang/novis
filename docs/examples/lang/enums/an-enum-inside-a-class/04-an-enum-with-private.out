@@ -3,7 +3,7 @@ error[E0133]: an enum in a class body takes no modifier
   |
 7 |     private enum Status { Open, Paid }
   |     ^^^^^^^ remove this
-  = help: the enum's cases leave the class in every value, so a visibility would hide only its name (`rule:enums/class-scoped-enum`)
+  = help: the enum's cases can be returned outside the class. A visibility would hide only the enum's name
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

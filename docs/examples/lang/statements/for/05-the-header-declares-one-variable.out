@@ -2,8 +2,8 @@ error[E0125]: a `for` init clause declares at most one binding
   --> 05-the-header-declares-one-variable.nvs:6:20
   |
 6 | for (int $row = 0, int $column = 0; $row < 3; $row++) {
-  |                    ^^^^^^^^^^^^^^^ this is the header's second declaration (`rule:iteration/for-init-clause`)
-  = help: declare the second binding above the loop — the counter is function-scoped either way (`rule:iteration/for-counter-scope`)
+  |                    ^^^^^^^^^^^^^^^ this is the second declaration
+  = help: declare the second variable above the loop. The variable can be used in the whole function either way
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -531,10 +531,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     "an import cannot be renamed",
                 )
                 .with_primary(alias, "rename not supported")
-                .with_help(
-                    "refer to it by its declared short name, or use the fully-qualified path \
-                     directly (`rule:statements/nothing-gets-a-second-name`)",
-                ),
+                .with_help("write its declared short name, or write the fully-qualified path"),
             );
         }
         Stmt {
@@ -565,8 +562,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             )
             .with_primary(colons.to(member), "a member of a class")
             .with_help(format!(
-                "import the class with `use {owner_text};` and write `{short}::{member_text}` \
-                 (`rule:enums/class-scoped-enum`)"
+                "import the class with `use {owner_text};` and write `{short}::{member_text}`"
             )),
         );
         self.expect(TokenKind::Semicolon, "`;`");
@@ -615,9 +611,8 @@ impl<'src, 'd> Parser<'src, 'd> {
             )
             .with_primary(keyword, format!("no free {kind} to import"))
             .with_help(
-                "a function is a method and a constant is a class constant \
-                 (`rule:classes/no-free-functions-or-constants`), so import the class that \
-                 declares it and write `Class::name`",
+                "every function is a method and every constant is a class constant. Import the \
+                 class that declares it and write `Class::name`",
             ),
         );
     }
@@ -756,8 +751,8 @@ impl<'src, 'd> Parser<'src, 'd> {
             )
             .with_primary(span, label)
             .with_help(
-                "write the path out — the map is built at compile time, relative to this file, \
-                 so there is nothing to interpolate from (`rule:programs/autoload`)",
+                "write the path as a plain string. The path is read at compile time, relative \
+                 to this file",
             ),
         );
     }
@@ -829,9 +824,8 @@ impl<'src, 'd> Parser<'src, 'd> {
             )
             .with_primary(first.to(last), "remove this")
             .with_help(
-                "an alias is reachable wherever its owner's name is, so it has no visibility, \
-                 and nothing after the checker sees the name, so an attribute has nothing to \
-                 attach to (`rule:types/type-alias`)",
+                "an alias can be used wherever its class can be used, so it has no visibility. \
+                 An alias exists only at compile time, so an attribute on it has no effect",
             ),
         );
     }
@@ -848,8 +842,8 @@ impl<'src, 'd> Parser<'src, 'd> {
             )
             .with_primary(modifiers, "remove this")
             .with_help(
-                "the enum's cases leave the class in every value, so a visibility would hide \
-                 only its name (`rule:enums/class-scoped-enum`)",
+                "the enum's cases can be returned outside the class. A visibility would hide \
+                 only the enum's name",
             ),
         );
     }
@@ -989,10 +983,9 @@ impl<'src, 'd> Parser<'src, 'd> {
                     )
                     .with_primary(member.span, "declared inside an interface")
                     .with_help(
-                        "`rule:classes/interfaces-declare-no-state`: require a method every \
-                         implementor writes, or declare a typed constant the implementor \
-                         overrides and read it as `static::NAME` from a default method; shared \
-                         state is `implements I by $field;` (`rule:classes/delegation-by-field`)",
+                        "declare a method that every class must write instead. You can also \
+                         declare a typed constant and read it as `static::NAME` in a default \
+                         method. For shared state, write `implements I by $field;` in the class",
                     ),
                 );
             }
@@ -1049,8 +1042,8 @@ impl<'src, 'd> Parser<'src, 'd> {
             Diagnostic::error(code::E_TRAIT_NOT_SUPPORTED, "traits do not exist")
                 .with_primary(span, "not supported")
                 .with_help(
-                    "use an interface default/private method for shared behavior, or \
-                     `implements Interface by $field;` for shared state (`rule:classes/no-traits`)",
+                    "for shared methods, write a default or private method in an interface. \
+                     For shared state, write `implements Interface by $field;`",
                 ),
         );
     }
@@ -1186,8 +1179,8 @@ impl<'src, 'd> Parser<'src, 'd> {
                 )
                 .with_primary(decl.span, "declared inside another type")
                 .with_help(
-                    "move it to file scope; only an `enum` or a `type` alias may be a member \
-                     (`rule:enums/class-scoped-enum`)",
+                    "move it to file scope. Only an `enum` or a `type` alias can be declared \
+                     in a class body",
                 ),
             );
             out.push(ClassMember {
@@ -1724,10 +1717,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     span,
                     "an enum declares only cases and an optional backing type",
                 )
-                .with_help(
-                    "give the enum's consumer a `static` method on some other class instead \
-                     (`rule:enums/no-class-machinery`)",
-                ),
+                .with_help("write a `static` method on another class that takes the enum"),
             );
         }
         let (cases, members) = self.parse_enum_body();
@@ -1756,7 +1746,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     "an enum cannot be backed by `string`",
                 )
                 .with_primary(ty.span, "only `int`/`uint` back an enum")
-                .with_help("use `: int` or `: uint`, or omit the backing type (`rule:enums/no-class-machinery`)"),
+                .with_help("use `: int` or `: uint`, or omit the backing type"),
             );
         }
         ty
@@ -1797,8 +1787,8 @@ impl<'src, 'd> Parser<'src, 'd> {
                     )
                     .with_primary(keyword, "remove this keyword")
                     .with_help(
-                        "an enum body is a comma list of bare `Name = 1,` cases, with no \
-                         `case` keyword and no `;` (`rule:enums/declaration`)",
+                        "an enum body is a list of cases like `Name = 1,`, separated by commas. \
+                         It has no `case` keyword and no `;`",
                     ),
                 );
                 cases.push(self.finish_enum_case(before, doc, attributes));
@@ -1854,10 +1844,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                             "an enum is not declared in an enum body",
                         )
                         .with_primary(span, "not a case")
-                        .with_help(
-                            "declare it in a class or interface body, or at file scope \
-                             (`rule:enums/class-scoped-enum`)",
-                        ),
+                        .with_help("declare it in a class or interface body, or at file scope"),
                     );
                 } else if !alias_only {
                     let span = before.to(self.last_span);
@@ -1867,9 +1854,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                             "an enum declares only cases and an optional backing type",
                         )
                         .with_primary(span, "not a case")
-                        .with_help(
-                            "move this to a separate class (`rule:enums/no-class-machinery`)",
-                        ),
+                        .with_help("move this to a separate class"),
                     );
                 }
             }
@@ -1957,7 +1942,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 "a function must be a method",
             )
             .with_primary(span, "not inside any class")
-            .with_help("wrap it in a class as `public static function` (`rule:classes/no-free-functions-or-constants`)"),
+            .with_help("move it into a class as a `public static function`"),
         );
         Stmt {
             span,
@@ -1978,7 +1963,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 "a constant must belong to a class",
             )
             .with_primary(span, "not inside any class")
-            .with_help("declare it `public const` on the class it belongs to (`rule:classes/no-free-functions-or-constants`)"),
+            .with_help("declare it as a `public const` in the class it belongs to"),
         );
         Stmt {
             span,

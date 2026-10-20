@@ -1872,7 +1872,7 @@ error[E0227]: traits do not exist
  6 | trait Greets {
    | ^^^^^^^^^^^^^^... not supported
    | (continues to line 10)
-   = help: use an interface default/private method for shared behavior, or `implements Interface by $field;` for shared state (`rule:classes/no-traits`)
+   = help: for shared methods, write a default or private method in an interface. For shared state, write `implements Interface by $field;`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -4095,7 +4095,7 @@ error[E0233]: a class or an interface is not declared in a class body
 7 |     public class Inner {
   |     ^^^^^^^^^^^^^^^^^^^^... declared inside another type
   | (continues to line 8)
-  = help: move it to file scope; only an `enum` or a `type` alias may be a member (`rule:enums/class-scoped-enum`)
+  = help: move it to file scope. Only an `enum` or a `type` alias can be declared in a class body
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

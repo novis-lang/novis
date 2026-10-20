@@ -3,7 +3,7 @@ error[E0309]: `Refund` has no enum named `Status`
    |
 13 | echo Refund::Status::Paid as int, "\n";
    |      ^^^^^^^^^^^^^^ referenced here
-   = help: `Order::Status` is where it is declared. An enum in a class body is reached through that class and is not inherited (`rule:enums/class-scoped-enum`)
+   = help: `Order::Status` is where it is declared. An enum in a class body is used through that class. A subclass does not inherit it
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

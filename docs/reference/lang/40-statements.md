@@ -653,8 +653,8 @@ error[E0125]: a `for` init clause declares at most one binding
   --> main.nvs:6:20
   |
 6 | for (int $row = 0, int $column = 0; $row < 3; $row++) {
-  |                    ^^^^^^^^^^^^^^^ this is the header's second declaration (`rule:iteration/for-init-clause`)
-  = help: declare the second binding above the loop — the counter is function-scoped either way (`rule:iteration/for-counter-scope`)
+  |                    ^^^^^^^^^^^^^^^ this is the second declaration
+  = help: declare the second variable above the loop. The variable can be used in the whole function either way
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -932,7 +932,7 @@ error[E0101]: expected a `foreach` binding's type, or `var`
   --> main.nvs:8:21
   |
 8 | foreach ($scores as $score) {
-  |                     ^ a `foreach` binding writes its type, or `var` to take the subject's element type (`rule:types/grammar`.2)
+  |                     ^ write the variable's type, or write `var` to use the element type
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -2469,7 +2469,7 @@ error[E0319]: `endif` is not a constant that exists
   |
 9 | endif;
   | ^^^^^ no global constant has this name
-  = help: `rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no global one to fetch — write `Class::NAME`, and a built-in constant is on its `Core` class, such as `Core\Math::PI`
+  = help: every constant belongs to a class, so write `Class::NAME`. A built-in constant is on its `Core` class, such as `Core\Math::PI`
 
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

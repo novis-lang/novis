@@ -15,7 +15,7 @@ error[E0319]: `endif` is not a constant that exists
   |
 9 | endif;
   | ^^^^^ no global constant has this name
-  = help: `rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no global one to fetch — write `Class::NAME`, and a built-in constant is on its `Core` class, such as `Core\Math::PI`
+  = help: every constant belongs to a class, so write `Class::NAME`. A built-in constant is on its `Core` class, such as `Core\Math::PI`
 
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

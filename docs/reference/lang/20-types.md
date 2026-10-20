@@ -930,7 +930,7 @@ error[E0134]: a local declaration cannot be typed with a bare shape
   |
 6 | {x: int, y: int} $p = {x: 1, y: 2};
   | ^^^^^^^^^^^^^^^^ `{` at the start of a statement already opens a block
-  = help: name the shape first: `type Point = {x: int}; Point $point;` (`rule:types/shape-type`)
+  = help: give the shape a name first: `type Point = {x: int}; Point $point;`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -1743,7 +1743,7 @@ error[E0307]: a `type` alias may not name a single class, interface or enum on i
    |
 10 | type Bar = Foo;
    |            ^^^ aliases exactly one class-shaped atom
-   = help: give a shape a name instead — a union, an intersection, or an `array<...>` wrapper (`rule:types/alias-is-never-a-bare-class`); a class already has its own name
+   = help: a class already has its own name, so write the class name. An alias can name a union, an intersection or an `array<...>`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -4874,7 +4874,7 @@ error[E0320]: `gettype` is not a function that exists
   |
 6 | echo gettype($value), "\n";
   |      ^^^^^^^ no free function has this name
-  = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`
+  = help: every function is a method of a class. The built-in functions are in the `Core` namespace. Write `Core\Str::length($s)`, or write `use Core\Str;` and then `Str::length($s)`
 
 error[E0208]: `settype` is not supported
   --> main.nvs:7:1

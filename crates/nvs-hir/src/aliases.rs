@@ -388,9 +388,8 @@ impl AliasResolver {
                 .with_primary(*span, "duplicate declaration")
                 .with_secondary(*first_span, "previously declared here")
                 .with_help(
-                    "`Owner::Name` in type position names one thing — rename the alias, the \
-                     enum, the constant or the case (`rule:types/type-alias`, \
-                     `rule:enums/class-scoped-enum`)",
+                    "in a type, `Owner::Name` can mean only one thing. Rename the alias, the \
+                     enum, the constant or the case",
                 ),
             );
         }
@@ -643,8 +642,8 @@ fn check_alias_is_not_a_bare_class(pending: &PendingAlias, ctx: &mut ResolveCtx<
             )
             .with_primary(pending.ty.span, "aliases exactly one class-shaped atom")
             .with_help(
-                "give a shape a name instead — a union, an intersection, or an `array<...>` \
-                 wrapper (`rule:types/alias-is-never-a-bare-class`); a class already has its own name",
+                "a class already has its own name, so write the class name. An alias can name \
+                 a union, an intersection or an `array<...>`",
             ),
         );
     }
