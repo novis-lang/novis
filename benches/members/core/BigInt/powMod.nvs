@@ -2,8 +2,7 @@
 // Measures one modular power over numbers the size a key exchange uses, which
 // is the step a program repeats for every handshake it makes.
 // bench: iterations 256
-// bench: complexity quadratic
-// proof: gap nvs-stdlib/bigint-gcd-and-modular-power-grow-quadratically
+// bench: complexity karatsuba
 // bench: calls 2
 
 class Bench {
