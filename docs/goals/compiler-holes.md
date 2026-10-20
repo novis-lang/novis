@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/control.rs, crates/nvs-types/src/expr/operators.rs, crates/nvs-types/src/expr/members.rs]
   - id: 6
     title: "generators and `finally` run each block once and lose no error"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/generator.rs, crates/nvs-syntax/src/parser/stmt.rs]
   - id: 7
     title: "a class declaration is checked where it is written"
@@ -335,10 +335,10 @@ diagnostic where it is written or lowered, as § *Standing decisions* says.
 **Does:** a generator finishes when its body throws, a `finally` runs once, and an error in flight
 is kept as § *Standing decisions* says.
 
-- [ ] A `yield` of a literal in a nullable or union element type compiles and yields, with a case for each element type. `crates/nvs-ir/src/lower/generator.rs:1`, `data/gaps/nvs-ir/a-generator-of-a-nullable-or.json:1`
-- [ ] A generator whose body throws is finished: a later `advance()` returns `false`, and its `finally` runs once. `crates/nvs-ir/src/lower/generator.rs:1`, `data/gaps/nvs-ir/a-generator-that-throws-is-not.json:1`
-- [ ] A `yield` inside a `finally` is a compile error with its own code. `crates/nvs-ir/src/lower/generator.rs:1`, `data/gaps/nvs-ir/a-yield-inside-a-finally.json:1`
-- [ ] An error that leaves a `finally` while another is in flight carries it as `previous`, and the rule states the bound. `crates/nvs-syntax/src/parser/stmt.rs:1`, `data/gaps/nvs-syntax/a-throw-inside-a-finally.json:1`
+- [x] A `yield` of a literal in a nullable or union element type compiles and yields, with a case for each element type. `crates/nvs-ir/src/lower/generator.rs:1`, `data/gaps/nvs-ir/a-generator-of-a-nullable-or.json:1`
+- [x] A generator whose body throws is finished: a later `advance()` returns `false`, and its `finally` runs once. `crates/nvs-ir/src/lower/generator.rs:1`, `data/gaps/nvs-ir/a-generator-that-throws-is-not.json:1`
+- [x] A `yield` inside a `finally` is a compile error with its own code. `crates/nvs-ir/src/lower/generator.rs:1`, `data/gaps/nvs-ir/a-yield-inside-a-finally.json:1`
+- [x] An error that leaves a `finally` while another is in flight carries it as `previous`, and the rule states the bound. `crates/nvs-syntax/src/parser/stmt.rs:1`, `data/gaps/nvs-syntax/a-throw-inside-a-finally.json:1`
 
 ### 7. a class declaration is checked where it is written
 
@@ -478,47 +478,45 @@ another goal.
 
 ### State
 
-Stages 1, 2, 3, 16, 4 and 5 are done, and every gap record they owned is deleted. Stage 6 is next.
+Stages 1, 2, 3, 16, 4, 5 and 6 are done, and every gap record they owned is deleted. Stage 7 is next.
 
-Stage 5 made each of its seven forms a diagnostic in `nvs-types`, so none reaches the lowering:
+Stage 6 closed its four gap records, each with a conformance case:
 
-- A `catch` variable reuses only a name another `catch` declared, at the same type.
-  `LocalScope::catch_bound` (`crates/nvs-types/src/locals.rs`) holds those names. A clause over a
-  parameter, a local or a `foreach` binding is `E0406` through `declare_binding`'s strict path, and
-  `bind_catch_arm` applies the same rule to a `catch` expression, which panicked the same way.
-  `rule:types/declaration` states it.
-- `require_stringable` refuses a `class<T>` (help: `as string`) and a `callable` with `E0707`.
-- `is class<T>`, alone or in a union, is the new `E0867` in `reject_unanswerable_target`
-  (`crates/nvs-types/src/expr/type_test.rs`); `rule:types/type-test` lists it.
-- `is_assignable` (`crates/nvs-types/src/expr/assign.rs`) refuses `void` into any other type,
-  `mixed` included (`E0401`), at its top level only, so a `void` callback still fills a callable
-  whose return is `mixed`. A `void` `match` arm is the new `E0868`, and a `void` ternary branch is
-  `E0718`: the ternary had the same `E0901` phi. `rule:expressions/a-match-has-at-least-one-arm`.
-- `$p->x` and `$p?->x` of a static property are the new `E0869` in `check_property_member`
-  (`crates/nvs-types/src/expr/members.rs`). `$this->x` keeps `nvs_hir`'s `E0313`, so it is not
-  reported twice. `rule:statements/static-is-a-member-modifier`.
-- `reject_unordered_operand` refuses a `bool` against a number, so `1 < 2 < 3` is `E0715`.
-  `rule:types/ordering`.
-- Cases: six new files under `tests/conformance/reject/` and
-  `tests/conformance/error/catch-clauses-reuse-a-name-another-catch-declared.nvst`.
-- Two cascades the new checks exposed are cut at their cause. A `|>` whose right side is a
-  callable with no `$_` now recovers to an error node (`parse_pipe`,
-  `crates/nvs-syntax/src/parser/expr.rs`), so it reports `E0129` alone. A refused `void $x = …`
-  checks its value against no type, so it reports `E0742` alone.
-- `tools/nv/test/replay-browser.test.ts` was red before this group: the caret blinks only while a
-  replay plays, and the test checked a replay at rest. It now presses play first.
-- Stage 5 is one commit, because its items share `operators.rs`, `locals.rs` and the code tables.
+- `lower_yield` (`crates/nvs-ir/src/lower/generator.rs`) converts the operand to `T` through
+  `Lowering::coerce`, as a `return` does, so `yield 2;` in an `Iterator<?int>` is tagged. Case:
+  `tests/conformance/iter/a-generator-yields-a-literal-into-a-nullable-or-union-element.nvst`.
+- `lower_generator_advance` parks `GEN_DONE` before its entry switch, and each `yield` parks its
+  own index. So a throw out of the body leaves the generator finished, and `gen#unwind` finds
+  nothing suspended, which also removes the second `finally`. One field store per `advance()`.
+  Case: `tests/conformance/iter/a-generator-that-throws-is-finished-and-runs-its-finally-once.nvst`.
+- A `yield` in a `finally` is the new `E0255` (`E_YIELD_IN_A_FINALLY`,
+  `crates/nvs-diagnostics/src/code/rejected_php.rs`), reported by `parse_yield` on the parser's
+  `in_finally` flag. `yield from` keeps `E0448` alone. Case:
+  `tests/conformance/reject/a-yield-inside-a-finally-does-not-compile.nvst`.
+- `Lowering::lower_finally_in_flight` (`crates/nvs-ir/src/lower/exception.rs`) lowers a
+  `finally` on both fault paths (unmatched dispatch, and a `catch` body that throws) under a frame
+  whose handler stores the error in flight in the new error's `previous` when that is `null`, and
+  releases it otherwise. Before, the error in flight leaked as well as being lost. Case:
+  `tests/conformance/error/an-error-leaving-a-finally-keeps-the-one-in-flight-as-previous.nvst`.
+- `rule:statements/no-return-leaves-a-finally` states `E0255` and the chaining bound, and
+  `rule:iteration/generators` states the finished-on-throw behaviour. The `try-catch-finally`
+  `details.md` says the same to a reader, and `docs/reference/lang/70-errors.md` is re-rendered.
+- Four `nvs-ir` lowering snapshots were re-recorded: three for the `GEN_DONE` store, one for the
+  chain block.
 - The installed `looper` has no `verify` subcommand, so this session ran `bun nv affected --run`.
 
 ### Next
 
-**Stage 6: generators and `finally`.** Each item closes its gap record with a conformance case;
-§ *Standing decisions* fixes the yield-in-`finally` and the in-flight-error choices.
+**Stage 7: a class declaration is checked where it is written.** Each item is a diagnostic at the
+declaration, in `nvs-types`'s signature pass except `final` on a constant, which is the parser's.
+§ *Standing decisions* makes `final` on a class constant `E0106`.
 
-- [ ] Stage 6: a `yield` of a literal in an `Iterator<?int>`, `Iterator<?string>` or `Iterator<int|string>` compiles and yields. `crates/nvs-ir/src/lower/generator.rs:1`, `data/gaps/nvs-ir/a-generator-of-a-nullable-or.json:1`
-- [ ] Stage 6: a generator whose body throws is finished, and its `finally` runs once. `crates/nvs-ir/src/lower/generator.rs:1`, `data/gaps/nvs-ir/a-generator-that-throws-is-not.json:1`
-- [ ] Stage 6: a `yield` inside a `finally` is a compile error with its own code. `crates/nvs-ir/src/lower/generator.rs:1`, `data/gaps/nvs-ir/a-yield-inside-a-finally.json:1`
-- [ ] Stage 6: an error leaving a `finally` while another is in flight carries it as `previous`. `crates/nvs-syntax/src/parser/stmt.rs:1`, `data/gaps/nvs-syntax/a-throw-inside-a-finally.json:1`
+- [ ] Stage 7: a second property, method or constructor of one name in one class, a promoted parameter included, is a diagnostic at the second one. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-class-member-declared-twice-passes.json:1`
+- [ ] Stage 7: `static` on a `constructor` is a diagnostic. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-static-constructor-compiles-and-new.json:1`
+- [ ] Stage 7: a `...` on any parameter but the last is a diagnostic at that parameter. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-variadic-parameter-that-is-not.json:1`
+- [ ] Stage 7: a `void` or `never` property is `E0742`. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-void-or-never-property-passes.json:1`
+- [ ] Stage 7: `final` on a class constant is `E0106`. `crates/nvs-syntax/src/parser/decl.rs:1`, `data/gaps/nvs-syntax/final-on-a-class-constant-is.json:1`
+- [ ] Stage 7: a class constant's value is checked against its declared type at the declaration. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-class-constant-whose-value-does.json:1`
 
 ### Backlog
 

@@ -10,7 +10,15 @@ live ones cost ten thousand small objects, not ten thousand stacks, and suspensi
 of I/O rather than of ordinary control flow.
 
 A `finally` the generator is suspended inside still runs when the consumer abandons it, and
-definite assignment reasons across resumption edges exactly as it does across a linear body.
+definite assignment reasons across resumption edges exactly as it does across a linear body. A
+generator whose body throws is finished: the error reaches the `advance()` that resumed it, a later
+`advance()` returns `false`, and each `finally` the throw passed through has already run, so
+abandoning it runs none again. A `yield` inside a `finally` does not compile
+(`rule:statements/no-return-leaves-a-finally`). A `yield` operand is converted to `T` as a `return`
+operand is to its declared type, so `yield 2;` in an `Iterator<?int>` gives `2`.
+
+**Latency:** `advance()` parks the finished state before it enters the body, one field store per
+call, so a throw needs no landing of its own.
 
 The lowering does not use the coroutine substrate, because a language feature must behave the same
 on every compile target, and a runtime facility such as stack switching is allowed to differ between

@@ -1,6 +1,6 @@
 ---
 source: crates/nvs-ir/src/lower/tests.rs
-assertion_line: 2767
+assertion_line: 2763
 expression: "print_program(&p, map.file(file))"
 ---
 fn G::two(classdesc) -> object {
@@ -21,56 +21,58 @@ fn G::two$gen::advance(object) -> bool {
     safepoint
     v0 = param 0  ; object
     v1 = field.get v0, G::two$gen::gen#state  ; int
+    v2 = const.int -1  ; int
+    field.set v0, G::two$gen::gen#state, v2
     switch v1 -> 0: bb1 (e0), 1: bb3 (e1), 2: bb4 (e2), default: bb2 (e3)
   bb1:
     ; stmt s0 @4:5-4:20
-    v2 = const.str "t"  ; string
+    v3 = const.str "t"  ; string
     ; stmt s1 @5:5-5:16
-    retain v2
-    v3 = field.get v0, G::two$gen::gen#current  ; string
-    field.set v0, G::two$gen::gen#current, v2
-    release v3
-    v4 = field.get v0, G::two$gen::tag  ; string
-    retain v2
-    field.set v0, G::two$gen::tag, v2
+    retain v3
+    v4 = field.get v0, G::two$gen::gen#current  ; string
+    field.set v0, G::two$gen::gen#current, v3
     release v4
-    v5 = const.int 1  ; int
-    field.set v0, G::two$gen::gen#state, v5
+    v5 = field.get v0, G::two$gen::tag  ; string
+    retain v3
+    field.set v0, G::two$gen::tag, v3
+    release v5
+    v6 = const.int 1  ; int
+    field.set v0, G::two$gen::gen#state, v6
     release v0
-    release v2
-    v6 = const.bool true  ; bool
-    return v6
+    release v3
+    v7 = const.bool true  ; bool
+    return v7
   bb2:
-    v15 = const.bool false  ; bool
+    v16 = const.bool false  ; bool
     release v0
-    return v15
+    return v16
   bb3:
-    v7 = field.get v0, G::two$gen::tag  ; string
-    retain v7
+    v8 = field.get v0, G::two$gen::tag  ; string
+    retain v8
     ; stmt s2 @6:5-6:16
-    retain v7
-    v8 = field.get v0, G::two$gen::gen#current  ; string
-    field.set v0, G::two$gen::gen#current, v7
-    release v8
-    v9 = field.get v0, G::two$gen::tag  ; string
-    retain v7
-    field.set v0, G::two$gen::tag, v7
+    retain v8
+    v9 = field.get v0, G::two$gen::gen#current  ; string
+    field.set v0, G::two$gen::gen#current, v8
     release v9
-    v10 = const.int 2  ; int
-    field.set v0, G::two$gen::gen#state, v10
+    v10 = field.get v0, G::two$gen::tag  ; string
+    retain v8
+    field.set v0, G::two$gen::tag, v8
+    release v10
+    v11 = const.int 2  ; int
+    field.set v0, G::two$gen::gen#state, v11
     release v0
-    release v7
-    v11 = const.bool true  ; bool
-    return v11
+    release v8
+    v12 = const.bool true  ; bool
+    return v12
   bb4:
-    v12 = field.get v0, G::two$gen::tag  ; string
-    retain v12
-    v13 = const.int -1  ; int
-    field.set v0, G::two$gen::gen#state, v13
+    v13 = field.get v0, G::two$gen::tag  ; string
+    retain v13
+    v14 = const.int -1  ; int
+    field.set v0, G::two$gen::gen#state, v14
     release v0
-    release v12
-    v14 = const.bool false  ; bool
-    return v14
+    release v13
+    v15 = const.bool false  ; bool
+    return v15
 }
 
 fn G::two$gen::current(object) -> string {

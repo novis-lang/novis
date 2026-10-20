@@ -511,7 +511,7 @@ impl<'a> Lowering<'a> {
         let mut rethrow_env = join.dispatch_env.clone();
         let mut rethrow_cur = test_block;
         if let Some(block) = finally {
-            self.lower_stmts(&block.stmts, &mut rethrow_cur, &mut rethrow_env);
+            self.lower_finally_in_flight(block, thrown, &mut rethrow_cur, &mut rethrow_env);
         }
         if !self.is_terminated(rethrow_cur) {
             let landing = self.landing_block(&rethrow_env);
@@ -531,9 +531,9 @@ impl<'a> Lowering<'a> {
     ///
     /// PHP's own order, and the one thing that makes a `catch` body no
     /// different from any other exit out of the region: the `finally` runs
-    /// before the new exception leaves the frame, and a `finally` that throws
-    /// on its way *replaces* it, because its own `Terminator::Throw` is never
-    /// reached.
+    /// before the new exception leaves the frame. A `finally` that throws on
+    /// its way leaves with its own error, which keeps this one as `previous`
+    /// ([`Self::lower_finally_in_flight`]).
     ///
     /// `edges` is the clause frame's — one landing block per failing call in
     /// the body — and they are folded into this block's phis by the same
@@ -567,7 +567,7 @@ impl<'a> Lowering<'a> {
             self.emit_release(cur, v);
             env.remove(name);
         }
-        self.lower_stmts(&finally.stmts, &mut cur, &mut env);
+        self.lower_finally_in_flight(finally, thrown, &mut cur, &mut env);
         if !self.is_terminated(cur) {
             let landing = self.landing_block(&env);
             self.seal(
@@ -579,6 +579,90 @@ impl<'a> Lowering<'a> {
                 },
             );
         }
+    }
+    /// Lowers a `finally` body on a path that leaves with `thrown` in flight,
+    /// so an error that leaves the body keeps it
+    /// (`rule:statements/no-return-leaves-a-finally`).
+    ///
+    /// The body runs under a frame of its own, whose handler takes the new
+    /// error and stores `thrown` in its `previous` when that is `null`. When
+    /// `previous` is already set, the new error leaves unchanged and `thrown`
+    /// is released. Both a `throw` statement and a call that fails reach the
+    /// handler, since both land through [`Self::landing_block`]. A `try`
+    /// written inside the body catches first, so an error it handles never
+    /// reaches here. **Cost:** one field read and one null test, on a throw
+    /// out of a `finally` alone. A `finally` that completes runs no new code.
+    pub(crate) fn lower_finally_in_flight(
+        &mut self,
+        finally: &'a Block,
+        thrown: ValueId,
+        cur: &mut BlockId,
+        env: &mut Env,
+    ) {
+        let chain = self.new_block();
+        let before = env.clone();
+        self.try_stack.push(crate::lower::TryFrame {
+            handler: Some(chain),
+            edges: Vec::new(),
+            finally: None,
+        });
+        self.lower_stmts(&finally.stmts, cur, env);
+        let frame = self
+            .try_stack
+            .pop()
+            .expect("just pushed this body's own frame above");
+
+        // The phis first, then the take, for `lower_finally_and_reraise`'s
+        // reason.
+        let mut chain_env = self.merge_envs(chain, &frame.edges, &before);
+        let (raised, _) = self.emit(chain, Ty::Object, InstKind::TakeThrown);
+        let (previous, _) = self.emit(
+            chain,
+            Ty::Tagged,
+            InstKind::FieldGet {
+                object: raised,
+                class: THROWABLE_ROOT.to_owned(),
+                field: PREVIOUS_FIELD.to_owned(),
+            },
+        );
+        let (unset, _) = self.emit(chain, Ty::Bool, InstKind::IsNull { operand: previous });
+        let adopt = self.new_block();
+        let keep = self.new_block();
+        let onward = self.new_block();
+        let adopt_edge = self.ids.next_edge(finally.span);
+        let keep_edge = self.ids.next_edge(finally.span);
+        self.seal(
+            chain,
+            Terminator::Branch {
+                cond: unset,
+                then_block: adopt,
+                then_edge: adopt_edge,
+                else_block: keep,
+                else_edge: keep_edge,
+            },
+        );
+        // The slot was `null`, so there is nothing to release, and it takes
+        // the reference this frame held on `thrown`.
+        let tagged = self.coerce(adopt, thrown, Ty::Object, Ty::Tagged, &mut chain_env);
+        self.emit_field_set(
+            adopt,
+            raised,
+            THROWABLE_ROOT.to_owned(),
+            PREVIOUS_FIELD.to_owned(),
+            tagged,
+        );
+        self.seal(adopt, Terminator::Jump(onward));
+        self.emit_release(keep, thrown);
+        self.seal(keep, Terminator::Jump(onward));
+        let landing = self.landing_block(&chain_env);
+        self.seal(
+            onward,
+            Terminator::Throw {
+                value: raised,
+                source: None,
+                landing,
+            },
+        );
     }
     /// Lowers a copy of every enclosing region's `finally` body, innermost
     /// first — what a `return` inside a protected region owes before it

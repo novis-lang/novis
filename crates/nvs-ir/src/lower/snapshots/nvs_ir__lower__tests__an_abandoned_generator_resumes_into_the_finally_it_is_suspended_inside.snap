@@ -1,6 +1,6 @@
 ---
 source: crates/nvs-ir/src/lower/tests.rs
-assertion_line: 2708
+assertion_line: 2704
 expression: "print_program(&p, map.file(file))"
 ---
 fn G::two(classdesc) -> object {
@@ -21,79 +21,103 @@ fn G::two$gen::advance(object) -> bool {
     safepoint
     v0 = param 0  ; object
     v1 = field.get v0, G::two$gen::gen#state  ; int
-    switch v1 -> 0: bb1 (e2), 1: bb5 (e3), 2: bb12 (e4), default: bb2 (e5)
+    v2 = const.int -1  ; int
+    field.set v0, G::two$gen::gen#state, v2
+    switch v1 -> 0: bb1 (e4), 1: bb5 (e5), 2: bb19 (e6), default: bb2 (e7)
   bb1:
     ; stmt s0 @4:5-8:6
     ; stmt s1 @5:7-5:15
-    v2 = const.int 1  ; int
-    field.set v0, G::two$gen::gen#current, v2
     v3 = const.int 1  ; int
-    field.set v0, G::two$gen::gen#state, v3
+    field.set v0, G::two$gen::gen#current, v3
+    v4 = const.int 1  ; int
+    field.set v0, G::two$gen::gen#state, v4
     release v0
-    v4 = const.bool true  ; bool
-    return v4
+    v5 = const.bool true  ; bool
+    return v5
   bb2:
-    v19 = const.bool false  ; bool
+    v24 = const.bool false  ; bool
     release v0
-    return v19
+    return v24
   bb3:
-    v12 = take.thrown  ; object
+    v13 = take.thrown  ; object
     ; stmt s4 @7:7-7:22
-    v13 = const.str "closing"  ; string
-    helper.echo_str v13 ! bb10
-    release v13
-    throw v12 -> bb11
+    v14 = const.str "closing"  ; string
+    helper.echo_str v14 ! bb11
+    release v14
+    throw v13 -> bb18
   bb4:
     ; stmt s5 @9:5-9:13
-    v14 = const.int 2  ; int
-    field.set v0, G::two$gen::gen#current, v14
-    v15 = const.int 2  ; int
-    field.set v0, G::two$gen::gen#state, v15
+    v19 = const.int 2  ; int
+    field.set v0, G::two$gen::gen#current, v19
+    v20 = const.int 2  ; int
+    field.set v0, G::two$gen::gen#state, v20
     release v0
-    v16 = const.bool true  ; bool
-    return v16
+    v21 = const.bool true  ; bool
+    return v21
   bb5:
-    v5 = field.get v0, G::two$gen::gen#unwind  ; int
-    v6 = const.int 0  ; int
-    v7 = ne v5, v6  ; bool
-    branch v7 -> bb6 (e0), bb7 (e1)
+    v6 = field.get v0, G::two$gen::gen#unwind  ; int
+    v7 = const.int 0  ; int
+    v8 = ne v6, v7  ; bool
+    branch v8 -> bb6 (e0), bb7 (e1)
   bb6:
     ; stmt s2 @7:7-7:22
-    v8 = const.str "closing"  ; string
-    helper.echo_str v8 ! bb8
-    release v8
-    v9 = const.int -1  ; int
-    field.set v0, G::two$gen::gen#state, v9
+    v9 = const.str "closing"  ; string
+    helper.echo_str v9 ! bb8
+    release v9
+    v10 = const.int -1  ; int
+    field.set v0, G::two$gen::gen#state, v10
     release v0
-    v10 = const.bool false  ; bool
-    return v10
+    v11 = const.bool false  ; bool
+    return v11
   bb7:
     ; stmt s3 @7:7-7:22
-    v11 = const.str "closing"  ; string
-    helper.echo_str v11 ! bb9
-    release v11
+    v12 = const.str "closing"  ; string
+    helper.echo_str v12 ! bb9
+    release v12
     jump bb4
   bb8:
-    release v8
+    release v9
     release v0
     propagate "G::two$gen::advance() at t.nvs:7"
   bb9:
-    release v11
+    release v12
     release v0
     propagate "G::two$gen::advance() at t.nvs:7"
   bb10:
-    release v13
-    release v0
-    propagate "G::two$gen::advance() at t.nvs:7"
+    v15 = take.thrown  ; object
+    v16 = field.get v15, Throwable::previous  ; tagged
+    v17 = is.null v16  ; bool
+    branch v17 -> bb14 (e2), bb15 (e3)
   bb11:
+    release v14
+    catch -> bb12 else bb13
+  bb12:
+    raise.site t.nvs:7
+    jump bb10
+  bb13:
     release v0
     propagate "G::two$gen::advance() at t.nvs:7"
-  bb12:
-    v17 = const.int -1  ; int
-    field.set v0, G::two$gen::gen#state, v17
+  bb14:
+    v18 = tag v13  ; tagged
+    field.set v15, Throwable::previous, v18
+    jump bb16
+  bb15:
+    release v13
+    jump bb16
+  bb16:
+    throw v15 -> bb17
+  bb17:
     release v0
-    v18 = const.bool false  ; bool
-    return v18
+    propagate "G::two$gen::advance() at t.nvs:7"
+  bb18:
+    release v0
+    propagate "G::two$gen::advance() at t.nvs:7"
+  bb19:
+    v22 = const.int -1  ; int
+    field.set v0, G::two$gen::gen#state, v22
+    release v0
+    v23 = const.bool false  ; bool
+    return v23
 }
 
 fn G::two$gen::current(object) -> int {

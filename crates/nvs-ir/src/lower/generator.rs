@@ -119,16 +119,15 @@ impl<'a> Lowering<'a> {
             .elem;
         let (class, gen_v) = self.gen_target();
 
+        // A literal lowers to its own representation, so `yield 2;` in an
+        // `Iterator<?int>` gives an `Int` that the element field stores as
+        // `Tagged`. [`Lowering::coerce`] is the conversion a `return` makes
+        // at the same boundary.
         let (v, vty) = self.lower_expr(value, Some(elem), env, cur);
-        assert!(
-            vty == elem,
-            "nvs-ir: a `yield` operand lowered to {vty:?} where the declared `Iterator<T>` \
-             gives {elem:?} — nvs_types checks the operand against `T`, so this is a lowering \
-             bug"
-        );
         if vty.is_refcounted() && self.aliasing_read(value) {
             self.emit_retain(*cur, v);
         }
+        let v = self.coerce(*cur, v, vty, elem, env);
         // The element field owns its reference between suspensions, which is
         // what lets `current()` hand out a retained copy without the loop
         // driving it having to know anything about ownership.
@@ -769,6 +768,14 @@ pub(crate) fn lower_generator_advance(
             field: GEN_STATE.to_owned(),
         },
     );
+    // The state is [`GEN_DONE`] while the body runs, and each `yield` parks
+    // its own resume index before it returns. So a throw that leaves the
+    // body leaves the generator finished: a later `advance()` takes the
+    // default arm, and [`lower_generator_unwind`] finds nothing suspended,
+    // so a `finally` the throw already ran does not run a second time.
+    // **Cost:** one field store per `advance()`.
+    let (done, _) = low.emit(entry, Ty::Int, InstKind::ConstInt(GEN_DONE));
+    low.emit_field_set(entry, gen_v, class.to_owned(), GEN_STATE.to_owned(), done);
 
     // The two fixed arms. `start` is state 0 — the first `advance()`, which
     // reloads what the factory parked and runs the body from the top;
