@@ -5,9 +5,11 @@
  * config/site.mjs, each with its subtitle on a second, smaller line, then
  * Install as the bar's one primary button, then Sponsoring.
  *
- * The mark comes from Starlight's `logo` option (see astro.config.ts) through
- * `<SiteTitle />`, replaces the wordmark and links to the home page. Its size
- * is set below, because the default suits a wide logo and not a square one.
+ * `<SiteTitle />` (src/components/SiteTitle.astro) is the mark with the name
+ * Novis-Lang beside it, on two lines, and links to the home page. The mark's
+ * size is set below, because the default suits a wide logo and not a square one.
+ *
+ * The theme select is an icon alone, styled below.
  *
  * Every item in the bar is centered on the bar's midline. As the window
  * narrows, the parts that are also in the footer go first: the subtitles
@@ -23,9 +25,10 @@ import { withBase } from '~/lib/base'
 
 import LanguageSelect from 'virtual:starlight/components/LanguageSelect'
 import Search from 'virtual:starlight/components/Search'
-import SiteTitle from 'virtual:starlight/components/SiteTitle'
 import SocialIcons from 'virtual:starlight/components/SocialIcons'
 import ThemeSelect from 'virtual:starlight/components/ThemeSelect'
+
+import SiteTitle from './SiteTitle.astro'
 
 const shouldRenderSearch =
   config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro'
@@ -292,6 +295,90 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
     height: 1.5rem;
     margin-inline-start: var(--nv-space-2);
     border-inline-end: 1px solid var(--nv-hairline-strong);
+  }
+
+  /* The theme select is an icon tile, the size of the social icons. The icon
+     shows the current choice: a sun, a moon, or a laptop for the system
+     setting. The select's text and caret are hidden, and the select still
+     covers the whole tile, so a click opens the usual list. Its label stays
+     for screen readers. */
+  .right-group :global(starlight-theme-select label) {
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--nv-radius);
+    transition:
+      color var(--nv-fast) var(--nv-ease),
+      background-color var(--nv-fast) var(--nv-ease);
+  }
+  .right-group :global(starlight-theme-select label:hover) {
+    background-color: var(--nv-hover);
+  }
+  .right-group :global(starlight-theme-select label:active) {
+    background-color: var(--nv-wash);
+  }
+  .right-group :global(starlight-theme-select .label-icon) {
+    inset: 0;
+    margin: auto;
+    transform: none;
+    font-size: 1rem;
+  }
+  .right-group :global(starlight-theme-select .caret) {
+    display: none;
+  }
+  .right-group :global(starlight-theme-select select) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border-radius: inherit;
+    color: transparent;
+  }
+  /* Where the browser lets a page style a select's list (Chrome and Edge),
+     the list is a small panel under the tile, aligned to its right edge.
+     Each choice has room around it, a hover color, and the current one is
+     violet with a check mark. Other browsers show their own list. */
+  .right-group :global(starlight-theme-select select),
+  .right-group :global(starlight-theme-select select::picker(select)) {
+    appearance: base-select;
+  }
+  .right-group :global(starlight-theme-select select::picker-icon) {
+    display: none;
+  }
+  .right-group :global(starlight-theme-select select::picker(select)) {
+    position-area: block-end span-inline-start;
+    margin-block-start: var(--nv-space-1);
+    min-width: 8rem;
+    padding: 0.25rem;
+    border: 1px solid var(--nv-hairline-strong);
+    border-radius: var(--nv-radius);
+    background-color: var(--sl-color-bg-nav);
+    box-shadow: var(--nv-shadow-lg);
+  }
+  .right-group :global(starlight-theme-select option) {
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--nv-radius-sm);
+    background-color: transparent;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .right-group :global(starlight-theme-select option:hover),
+  .right-group :global(starlight-theme-select option:focus-visible) {
+    background-color: var(--nv-hover);
+    color: var(--sl-color-white);
+    outline: none;
+  }
+  .right-group :global(starlight-theme-select option:checked) {
+    color: var(--sl-color-text-accent);
+  }
+  .right-group :global(starlight-theme-select option::checkmark) {
+    order: 1;
+    margin-inline-start: auto;
   }
 
   @media (max-width: 68rem) {
