@@ -93,15 +93,30 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-The goal is new. The first push has not happened. The local `main` is ahead of `origin/main`, and the
-last full run that went green was on `f534cf5ee`.
+The first push happened. `origin/main` is at `21e82d4e6`. Its Website run is green. In its CI run,
+https://github.com/novis-lang/novis/actions/runs/39469820050, one job has failed:
+
+- **`proofs / linux-x86_64`:** `Core\Router\Responder` owes its examples. This is the main loop's
+  `router-responder` stage 3, and it has been told. It is not this goal's to fix.
+
+This session fixed and pushed three reds:
+
+- `cccf415bf`: wasmtime 49.0.4 and cranelift 0.136.4, for RUSTSEC-2026-0378 and -0379.
+- `654415619`: `THIRD-PARTY-LICENSES.txt` matches that lockfile.
+- `21e82d4e6`: 164 perf records measured again. The main loop recorded the 14 `Core\Router` ones in
+  `f24af5be4` and rendered `website/public/llms-full.txt` again in `bd7e7aec9`.
+
+The other jobs of run 39469820050 were still going when the session ended. `cargo deny` also warns that
+`deny.toml`'s ignore of RUSTSEC-2026-0206 matches no crate. It is only a warning.
 
 ### Next
 
-**Stage 1, the cycle.** Start at step 1: push once, then watch.
+**Stage 1, the cycle.** Skip step 1, because the first push happened.
 
-- [ ] Push `main` with `bun nv ci --push`. `tools/nv/cmd/ci.ts:1`
-- [ ] Watch, fix and push until CI is green. `.github/workflows/ci.yml:1`
+- [ ] Read the rest of run 39469820050 with `bun nv ci --status`. `.github/workflows/ci.yml:1`
+  Fix every failed job other than the Responder proof.
+- [ ] Watch, fix and push until CI is green. `tools/nv/cmd/ci.ts:1`
+  A push after the main loop commits the Responder examples clears the proofs job.
 
 ### Backlog
 
