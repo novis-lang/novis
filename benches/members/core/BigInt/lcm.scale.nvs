@@ -1,0 +1,27 @@
+<?nvs
+// Measures `lcm` on numbers of n/3 to n binary digits, at growing sizes of n.
+// bench: start 100000
+// bench: max 800000
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $three = Core\BigInt::of(3);
+        var $five = Core\BigInt::of(5);
+        uint $signs = 0;
+        // Sixteen sizes from n/3 up to n. Each size is 7% smaller than the one before.
+        // Sizes over a range of three times make the cost grow smoothly.
+        array<uint> $parts = [1000, 934, 872, 814, 760, 709, 662, 618, 577, 539, 503, 470, 439, 410, 382, 357];
+        uint $hundreds = ($size / 100000) as uint;
+        foreach ($parts as uint $part) {
+            // A power of 3 and a power of 5. Each has about `$size * $part / 1000` binary digits.
+            var $left = $three->pow($hundreds * $part * 63);
+            var $right = $five->pow($hundreds * $part * 43);
+            $signs = $signs + ($left->lcm($right)->sign() as uint);
+        }
+        return $signs;
+    }
+}
+
+echo Bench::run(100000), "\n";

@@ -72,7 +72,9 @@
 //! Toom-3 above. `div` and `mod` are Burnikel-Ziegler once the dividend is past
 //! 128 limbs and the divisor past 64, so they cost a multiplication's times
 //! `log n`. `sqrt` is [`root`], which halves the width and corrects by Newton
-//! steps, so it costs a few of those divisions. `toString` and
+//! steps, so it costs a few of those divisions. `gcd` and `lcm` are [`gcd`],
+//! a half-gcd at a multiplication's cost times `log n`, where the library's is
+//! Stein's algorithm and quadratic. `toString` and
 //! `format` are the library's conversion, which splits by squared powers of
 //! the radix from 32 limbs up, and a power-of-two radix is linear.
 //!
@@ -1204,25 +1206,193 @@ fn root(value: &BigUint) -> BigUint {
     }
 }
 
+/// The width below which [`gcd`] takes the library's gcd whole. That is
+/// Stein's algorithm, which shifts and subtracts the whole operand once per
+/// bit, so it is quadratic, but its steps are word operations with no
+/// allocation. Measured on two scrambled operands of one width, it is 3×
+/// faster at 4096 bits, the two are equal at this width, and halving is 6×
+/// faster at 524288 bits.
+const GCD_LEAF_BITS: u64 = 32_768;
+
+/// The width below which [`hgcd`] reduces by single division steps rather
+/// than by halves. Measured over leaves from 32 to 2048 bits, 96 and 128
+/// were fastest at every width, and 256 cost half again as much.
+const HGCD_LEAF_BITS: u64 = 128;
+
+/// The greatest common divisor of `a` and `b`, by halves. Each round reduces
+/// the pair with [`hgcd`] to about half its width and then takes one division
+/// step, so a round costs a multiplication's times `log n` and the widths
+/// halve. The total is a multiplication's cost times `log n`, where the
+/// library's gcd is quadratic. `gcd_by_halves_is_the_librarys_gcd` pins the
+/// result.
+///
+/// **What it spends:** the pair and the matrices of one round, about four
+/// times the operands' width, all freed before this returns.
+fn gcd(a: &BigUint, b: &BigUint) -> BigUint {
+    let (mut a, mut b) = (a.clone(), b.clone());
+    loop {
+        if a < b {
+            std::mem::swap(&mut a, &mut b);
+        }
+        if b == BigUint::ZERO {
+            return a;
+        }
+        if a.bits() <= GCD_LEAF_BITS {
+            return a.gcd(&b);
+        }
+        let (_, high, low) = hgcd(a, b);
+        let rest = &high % &low;
+        a = low;
+        b = rest;
+    }
+}
+
+/// A product of reduction steps, `[m00, m01, m10, m11]`, such that the pair
+/// before the steps is this matrix times the pair after them. Each step
+/// subtracts a multiple of one value from the other, so the determinant is
+/// always 1 and every entry is non-negative.
+struct Steps([BigUint; 4]);
+
+impl Steps {
+    fn identity() -> Self {
+        Steps([
+            BigUint::from(1u32),
+            BigUint::ZERO,
+            BigUint::ZERO,
+            BigUint::from(1u32),
+        ])
+    }
+
+    fn is_identity(&self) -> bool {
+        self.0[1] == BigUint::ZERO && self.0[2] == BigUint::ZERO
+    }
+
+    /// These steps and then `next`'s: the product `self * next`.
+    fn then(&self, next: &Steps) -> Steps {
+        let [a, b, c, d] = &self.0;
+        let [e, f, g, h] = &next.0;
+        Steps([a * e + b * g, a * f + b * h, c * e + d * g, c * f + d * h])
+    }
+
+    /// The pair these steps reduce `(a, b)` to: the inverse matrix times
+    /// `(a, b)`. [`None`] where either value would be negative, which
+    /// [`hgcd`]'s split points rule out.
+    fn reduce(&self, a: &BigUint, b: &BigUint) -> Option<(BigUint, BigUint)> {
+        let [m00, m01, m10, m11] = &self.0;
+        let (high, high_less) = (m11 * a, m01 * b);
+        let (low, low_less) = (m00 * b, m10 * a);
+        if high < high_less || low < low_less {
+            return None;
+        }
+        Some((high - high_less, low - low_less))
+    }
+}
+
+/// One reduction step on `(a, b)`, recorded in `steps`: the larger value
+/// loses the largest multiple of the smaller that leaves it above `floor`.
+/// `false` where the two differ by `floor` or less, so no step is possible.
+/// Both values are above `floor` before and after.
+fn step(a: &mut BigUint, b: &mut BigUint, steps: &mut Steps, floor: &BigUint) -> bool {
+    let [m00, m01, m10, m11] = &mut steps.0;
+    if *a > *b {
+        if &*a - &*b <= *floor {
+            return false;
+        }
+        let q = (&*a - floor - 1u32) / &*b;
+        *a -= &q * &*b;
+        *m01 += &q * &*m00;
+        *m11 += &q * &*m10;
+    } else {
+        if &*b - &*a <= *floor {
+            return false;
+        }
+        let q = (&*b - floor - 1u32) / &*a;
+        *b -= &q * &*a;
+        *m00 += &q * &*m01;
+        *m10 += &q * &*m11;
+    }
+    true
+}
+
+/// The half-gcd of Möller's "On Schönhage's algorithm and subquadratic
+/// integer gcd computation": the steps that reduce `(a, b)` while both stay
+/// above `2^s`, with `s` one more than half the wider operand's width, and
+/// the reduced pair. A pair at or below `2^s` is returned as it is.
+///
+/// The steps are found on the top half of the bits twice. The first call
+/// reads the top half and brings the pair from `n` to about `3n/4` bits.
+/// Single steps finish that where the top half had no step to give, as when
+/// one value is already much narrower, so the second call never reads more
+/// than half the width. The second call reads the top of what is left and brings it to about
+/// `n/2`. Each split point leaves the top half's matrix entries smaller than
+/// its reduced values, so applying the matrix to the whole pair gives
+/// non-negative values that are still above `2^s`. A few single steps finish
+/// the reduction. The two calls are on half the width and the rest is a few
+/// multiplications, so the cost is a multiplication's times `log n`.
+fn hgcd(a: BigUint, b: BigUint) -> (Steps, BigUint, BigUint) {
+    let n = a.bits().max(b.bits());
+    let s = n / 2 + 1;
+    let floor = BigUint::from(1u32) << s;
+    let mut steps = Steps::identity();
+    if a <= floor || b <= floor {
+        return (steps, a, b);
+    }
+    let (mut a, mut b) = (a, b);
+    if n <= HGCD_LEAF_BITS {
+        while step(&mut a, &mut b, &mut steps, &floor) {}
+        return (steps, a, b);
+    }
+    let p = n / 2;
+    let (top, _, _) = hgcd(&a >> p, &b >> p);
+    if !top.is_identity()
+        && let Some((high, low)) = top.reduce(&a, &b)
+    {
+        (a, b, steps) = (high, low, top);
+    }
+    let three_quarters = 3 * n / 4 + 1;
+    let mut n = a.bits().max(b.bits());
+    while n > three_quarters {
+        if !step(&mut a, &mut b, &mut steps, &floor) {
+            return (steps, a, b);
+        }
+        n = a.bits().max(b.bits());
+    }
+    if n > s + 2 {
+        let p = 2 * s + 1 - n;
+        let (top, _, _) = hgcd(&a >> p, &b >> p);
+        if !top.is_identity()
+            && let Some((high, low)) = top.reduce(&a, &b)
+        {
+            (a, b, steps) = (high, low, steps.then(&top));
+        }
+    }
+    while step(&mut a, &mut b, &mut steps, &floor) {}
+    (steps, a, b)
+}
+
 nvs_runtime::nvs_helper! {
-    /// `$n->gcd(BigInt $other): BigInt`, never negative.
+    /// `$n->gcd(BigInt $other): BigInt`, never negative, by [`gcd`].
     fn nvs_core_bigint_gcd(_ctx, args: [2]) {
-        built(&operand(args, 0, "gcd")?.gcd(&operand(args, 1, "gcd")?))
+        let left = operand(args, 0, "gcd")?;
+        let right = operand(args, 1, "gcd")?;
+        built(&BigInt::from(gcd(left.magnitude(), right.magnitude())))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$n->lcm(BigInt $other): BigInt`, never negative.
+    /// `$n->lcm(BigInt $other): BigInt`, never negative: the first operand
+    /// divided by [`gcd`], times the second.
     ///
-    /// Two zeroes answer zero here rather than reaching `lcm`, whose quotient
-    /// by the gcd would be a division by zero.
+    /// A zero operand answers zero here rather than reaching the quotient,
+    /// which would be a division by zero when both are.
     fn nvs_core_bigint_lcm(_ctx, args: [2]) {
         let left = operand(args, 0, "lcm")?;
         let right = operand(args, 1, "lcm")?;
-        if left.sign() == Sign::NoSign && right.sign() == Sign::NoSign {
+        if left.sign() == Sign::NoSign || right.sign() == Sign::NoSign {
             return built(&BigInt::from(0));
         }
-        built(&left.lcm(&right))
+        let (left, right) = (left.magnitude(), right.magnitude());
+        built(&BigInt::from(left / gcd(left, right) * right))
     }
 }
 
@@ -1912,6 +2082,121 @@ mod tests {
             }
         }
         assert_eq!(checked, widths.len() * 4);
+    }
+
+    /// A value of `bits` bits from a fixed xorshift sequence, so every run
+    /// checks the same numbers.
+    fn scrambled(bits: u64, seed: &mut u64) -> BigUint {
+        let words = (0..bits.div_ceil(64))
+            .map(|_| {
+                *seed ^= *seed << 13;
+                *seed ^= *seed >> 7;
+                *seed ^= *seed << 17;
+                *seed
+            })
+            .collect::<Vec<u64>>();
+        let one = BigUint::from(1u32);
+        let bytes = words
+            .iter()
+            .flat_map(|word| word.to_le_bytes())
+            .collect::<Vec<u8>>();
+        (BigUint::from_bytes_le(&bytes) % (&one << bits)) | (&one << (bits - 1))
+    }
+
+    /// The `n`th and `n + 1`th Fibonacci numbers: the pair whose every
+    /// quotient is 1, which takes Euclid the most steps for its width.
+    fn fibonacci(n: usize) -> (BigUint, BigUint) {
+        let (mut a, mut b) = (BigUint::from(0u32), BigUint::from(1u32));
+        for _ in 0..n {
+            let next = &a + &b;
+            a = std::mem::replace(&mut b, next);
+        }
+        (a, b)
+    }
+
+    /// [`hgcd`]'s steps take the pair it was given to the pair it returns,
+    /// with determinant 1, and leave both values above `2^s` where they
+    /// started above it. Every width from one leaf to several is checked,
+    /// over scrambled pairs and the Fibonacci pair.
+    #[test]
+    fn hgcd_steps_reduce_the_pair_they_were_given() {
+        let widths: &[u64] = if cfg!(miri) {
+            &[HGCD_LEAF_BITS + 1]
+        } else {
+            &[
+                HGCD_LEAF_BITS + 1,
+                2 * HGCD_LEAF_BITS + 7,
+                5 * HGCD_LEAF_BITS,
+                11 * HGCD_LEAF_BITS + 3,
+            ]
+        };
+        let mut seed = 0x9E37_79B9_7F4A_7C15;
+        let mut checked = 0usize;
+        for &width in widths {
+            let fib = fibonacci(usize::try_from(width).unwrap_or(0) * 3 / 2);
+            let near = scrambled(width, &mut seed);
+            let pairs = [
+                (scrambled(width, &mut seed), scrambled(width, &mut seed)),
+                (
+                    scrambled(width, &mut seed),
+                    scrambled(width - 40, &mut seed),
+                ),
+                (fib.1, fib.0),
+                // The top halves are equal, so the first call has no step to give.
+                (&near + scrambled(width * 5 / 8, &mut seed), near),
+            ];
+            for (a, b) in pairs {
+                let (steps, high, low) = hgcd(a.clone(), b.clone());
+                let [m00, m01, m10, m11] = &steps.0;
+                assert_eq!(m00 * m11, m01 * m10 + 1u32, "{width} bits: determinant");
+                assert_eq!(m00 * &high + m01 * &low, a, "{width} bits: first value");
+                assert_eq!(m10 * &high + m11 * &low, b, "{width} bits: second value");
+                let floor = BigUint::from(1u32) << (a.bits().max(b.bits()) / 2 + 1);
+                assert!(high > floor && low > floor, "{width} bits: above the floor");
+                assert!(!steps.is_identity(), "{width} bits: no step taken");
+                assert!(
+                    high.bits().max(low.bits()) < width * 3 / 4,
+                    "{width} bits: not halved"
+                );
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, widths.len() * 4);
+    }
+
+    /// [`gcd`] by halves is the library's gcd, over pairs with a planted
+    /// common factor, the Fibonacci pair, a power of two, one value dividing
+    /// the other and one value much narrower than the other.
+    // covers: Core\BigInt::gcd
+    #[test]
+    fn gcd_by_halves_is_the_librarys_gcd() {
+        let widths: &[u64] = if cfg!(miri) {
+            &[]
+        } else {
+            &[GCD_LEAF_BITS + 1, 3 * GCD_LEAF_BITS + 5]
+        };
+        let mut seed = 0x2545_F491_4F6C_DD1D;
+        let one = BigUint::from(1u32);
+        let mut checked = 0usize;
+        for &width in widths {
+            let factor = scrambled(width / 3, &mut seed);
+            let a = scrambled(width, &mut seed);
+            let fib = fibonacci(usize::try_from(width).unwrap_or(0) * 3 / 2);
+            let pairs = [
+                (&a * &factor, scrambled(width, &mut seed) * &factor),
+                (a.clone(), scrambled(width, &mut seed)),
+                (fib.1, fib.0),
+                ((&one << width) * &factor, (&one << (width / 2)) * &a),
+                (&a * &factor, factor.clone()),
+                (a.clone(), scrambled(64, &mut seed)),
+                (a.clone(), a.clone()),
+            ];
+            for (a, b) in pairs {
+                assert_eq!(gcd(&a, &b), a.gcd(&b), "{width} bits");
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, widths.len() * 7);
     }
 
     /// `sub` is `add` of the flipped operand, and swapping its two operands
