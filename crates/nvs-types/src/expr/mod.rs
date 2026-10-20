@@ -805,12 +805,12 @@ pub(crate) fn infer(
             // separation to write back through a holder that is only a tag,
             // and until that exists `E0482` refuses it where it is written
             // rather than leaving `nvs-ir` to panic.
-            let deferred_to_the_tag = matches!(env.interner.get(base_ty), Ty::Mixed)
+            let deferred_to_the_tag = matches!(env.interner.get(base_ty), Ty::Mixed | Ty::Error)
                 && !env.write_target_levels.contains_key(&expr.span);
             let mixed = env.interner.mixed();
             let elem_ty = match env.interner.get(base_ty) {
                 Ty::Array(elem) => Some(*elem),
-                Ty::Mixed if deferred_to_the_tag => Some(mixed),
+                Ty::Mixed | Ty::Error if deferred_to_the_tag => Some(mixed),
                 _ => None,
             };
             match elem_ty {

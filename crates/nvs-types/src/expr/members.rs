@@ -206,7 +206,7 @@ pub(crate) fn infer_class_const(
                     // the `nvs-ir` panic it used to be (`crate::core_lib`'s own
                     // docs own that rule).
                     report_unknown_member(class.span, &qname, &constant, "constant", env);
-                    env.interner.mixed()
+                    env.interner.error()
                 }
             }
         }
@@ -283,12 +283,14 @@ pub(crate) fn infer_class_const(
                     sig.ty
                 }
                 // A name no declaration in the chain has — already
-                // `nvs_hir::members`' own `E0303`, so this only has to not
-                // invent a type for it.
-                None => env.interner.mixed(),
+                // `nvs_hir::members`' own `E0303`, so this types it as the
+                // error type and nothing after it reports again
+                // (`rule:types/one-mistake-reports-once`).
+                None => env.interner.error(),
             }
         }
-        None => env.interner.mixed(),
+        // A class name that does not resolve, which `nvs_hir` has reported.
+        None => env.interner.error(),
     }
 }
 
@@ -425,6 +427,7 @@ fn report_unfoldable_const(
     // where it is declared; `bytes` has no literal to write at all (`rule:types/bytes`, and `ConstArg::Bytes`'s own doc), so no value could have folded and
     // the read is not where that is worth saying.
     if declared == env.interner.mixed()
+        || env.interner.is_error(declared)
         || matches!(
             env.interner.get(declared),
             Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes
@@ -642,7 +645,7 @@ pub(crate) fn reject_unthrowable(ty: TypeId, span: Span, env: &mut Env<'_>) {
 fn may_be_thrown(ty: TypeId, env: &Env<'_>) -> bool {
     match env.interner.get(ty) {
         Ty::Class(qname, _) => is_throwable_shaped(qname, env.graph),
-        Ty::Mixed | Ty::Object | Ty::Never | Ty::TypeVar(_) => true,
+        Ty::Mixed | Ty::Error | Ty::Object | Ty::Never | Ty::TypeVar(_) => true,
         Ty::Union(members) => {
             let mut thrown = members
                 .iter()
@@ -670,7 +673,7 @@ pub(crate) fn reject_uncatchable_arm(ty: TypeId, span: Span, env: &mut Env<'_>) 
                 || env.symbols.get(qname).map(|symbol| symbol.kind)
                     == Some(nvs_hir::SymbolKind::Interface)
         }
-        Ty::Mixed | Ty::Object => true,
+        Ty::Mixed | Ty::Error | Ty::Object => true,
         _ => false,
     };
     if catchable {
@@ -1743,7 +1746,7 @@ fn check_dynamic_class_name_const(
              or ask `Core\\Reflect::forObject($v)`, whose description carries the name for a \
              receiver whose type was erased"
         }
-        Ty::Mixed => {
+        Ty::Mixed | Ty::Error => {
             "narrow it to a class first — `if ($v is Foo)` — or ask \
              `Core\\Reflect::forObject($v)`, whose description carries the name for a \
              receiver whose type was erased"
@@ -2123,7 +2126,7 @@ pub(crate) fn check_property_member(
             }
             return ty;
         }
-        Ty::Object | Ty::Mixed => {
+        Ty::Object | Ty::Mixed | Ty::Error => {
             // An erased receiver promises no field at all, so every name it
             // carries is the optional case above with nothing static to read
             // off it: a guarded access answers `null` for absence rather than

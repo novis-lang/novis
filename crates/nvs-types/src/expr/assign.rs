@@ -204,6 +204,11 @@ fn assignable(
     if from == to {
         return true;
     }
+    // A place that already reported fits everywhere, and everything fits it
+    // (`rule:types/one-mistake-reports-once`).
+    if interner.is_error(from) || interner.is_error(to) {
+        return true;
+    }
     if matches!(interner.get(to), Ty::Mixed) {
         return true;
     }
@@ -1685,8 +1690,8 @@ pub(crate) fn check_compound_assign(
     if defaults {
         return env.interner.without_null(target_ty);
     }
-    let value_may_be_null =
-        env.interner.is_nullable(value_ty) || matches!(env.interner.get(value_ty), Ty::Mixed);
+    let value_may_be_null = env.interner.is_nullable(value_ty)
+        || matches!(env.interner.get(value_ty), Ty::Mixed | Ty::Error);
     if op == BinaryOp::Coalesce && !value_may_be_null {
         return env.interner.without_null(target_ty);
     }

@@ -112,7 +112,7 @@ pub(crate) fn infer_method_call(
     };
     if resolved.is_none()
         && let MemberName::Ident(name_span) = method
-        && !matches!(env.interner.get(receiver_ty), Ty::Mixed)
+        && !matches!(env.interner.get(receiver_ty), Ty::Mixed | Ty::Error)
         && class_qname_of(receiver_ty, env.interner).is_none()
         // A nullable receiver whose non-`null` half *is* a class already took
         // `E_NULLABLE_RECEIVER` on the way in ([`strip_nullsafe_receiver`]),
@@ -174,7 +174,7 @@ pub(crate) fn infer_method_call(
     // site can still settle it settles here; the rest is recorded for `nvs-ir`
     // to dispatch on.
     if resolved.is_none()
-        && matches!(env.interner.get(receiver_ty), Ty::Mixed)
+        && matches!(env.interner.get(receiver_ty), Ty::Mixed | Ty::Error)
         && let MemberName::Ident(name_span) = method
     {
         let name = span_text(env.src, *name_span).to_owned();
@@ -2193,7 +2193,7 @@ pub(crate) fn check_new_target(
                     env.symbols,
                     &nvs_stdlib::registry::type_names(),
                 ));
-                env.interner.mixed()
+                env.interner.error()
             }
         }
         NewTarget::SelfTy | NewTarget::StaticTy => {

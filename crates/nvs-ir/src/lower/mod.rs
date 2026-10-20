@@ -4331,6 +4331,18 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // comment for why this crate has no lowering decision that needs it.
         CheckedTy::Array(_) => Ty::Array,
         CheckedTy::Mixed => Ty::Tagged,
+        // The type of a place that already reported an error. A program with
+        // an error does not compile, so lowering never meets it, and a debug
+        // build stops here to say so. A release build lowers it as `mixed`.
+        CheckedTy::Error => {
+            if cfg!(debug_assertions) {
+                unreachable!(
+                    "the checker's error type reached lowering: a program with an error \
+                     diagnostic compiled (rule:types/one-mistake-reports-once)"
+                );
+            }
+            Ty::Tagged
+        }
         // `null` alone is one value with one representation; anything that
         // admits *more* than one runtime shape is tagged. `?T` reaches here as
         // `Union([Null, T])` — the checker has no separate nullable type — so

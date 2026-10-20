@@ -1,0 +1,41 @@
+--TEST--
+A parameter type that does not resolve reports once, where it is written, and a return of that parameter reports nothing more. A parameter written as `mixed` keeps its error — `rule:types/one-mistake-reports-once`
+--FILE--
+<?nvs
+class Shop {
+    // `Missing` is not declared. Its error is the only one this method gives.
+    public static function label(Missing $item): string {
+        return $item;
+    }
+
+    // `mixed` is what the program wrote, so returning it as a `string` is an error.
+    public static function title(mixed $item): string {
+        return $item;
+    }
+
+    // `Shop` has no parent class. Its error is the only one this method gives.
+    public static function parentLabel(parent $item): string {
+        return $item;
+    }
+}
+--EXPECTF-ERROR--
+error[E0303]: `Missing` is not declared
+  --> %s:4:34
+  |
+4 |     public static function label(Missing $item): string {
+  |                                  ^^^^^^^ no matching declaration
+
+error[E0403]: this method declares `string` but returns `mixed`
+   --> %s:10:16
+   |
+10 |         return $item;
+   |                ^^^^^ this is `mixed`
+
+error[E0423]: `Shop` has no parent class to refer to as `parent`
+   --> %s:14:40
+   |
+14 |     public static function parentLabel(parent $item): string {
+   |                                        ^^^^^^ `parent` type
+
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

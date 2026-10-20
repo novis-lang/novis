@@ -1,0 +1,11 @@
+{
+  "title": "One mistake in a program reports one error, and a value written as `mixed` keeps every error it has",
+  "status": "designed",
+  "seeAlso": [
+    "types/unions-and-mixed"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-name-that-does-not-resolve-reports-once-and-a-written-mixed-keeps-its-error.nvst"
+  ],
+  "goal": "one-error-per-mistake"
+}

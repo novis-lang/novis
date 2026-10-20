@@ -818,6 +818,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         // stays disjoint from every other one, `int` included.
         Ty::Enum(qname, _) | Ty::EnumCase(qname, _, _) => EqDomain::Enum(qname),
         Ty::Mixed
+        | Ty::Error
         | Ty::Iterable
         | Ty::Void
         | Ty::Never
@@ -2375,7 +2376,8 @@ fn reject_uncheckable_element_type(to: TypeId, span: Span, env: &mut Env<'_>) {
             | Ty::Decimal
             | Ty::String
             | Ty::Bytes
-            | Ty::Mixed => return,
+            | Ty::Mixed
+            | Ty::Error => return,
             Ty::Array(inner) if level + 1 < ARRAY_ELEMENT_TAG_LEVELS => element = *inner,
             _ => break,
         }

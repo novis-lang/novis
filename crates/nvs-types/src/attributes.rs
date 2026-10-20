@@ -649,7 +649,7 @@ fn resolve_member_shape_alias(
         Ty::Shape(_) => Some(id),
         // A name that resolved to nothing has been reported by the lowering
         // and recovered as `mixed`, and one report is enough.
-        Ty::Mixed => None,
+        Ty::Mixed | Ty::Error => None,
         _ => {
             let written = span_text(env.src, span).to_owned();
             let described = env.interner.describe(id);

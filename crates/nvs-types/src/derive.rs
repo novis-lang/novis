@@ -1039,7 +1039,7 @@ fn codec_ty(
         // admits it and [`json_reachable`] does not — so the erasure is shared
         // and the reachable set is what keeps it out of a JSON document.
         Ty::Bytes | Ty::TaintedBytes => Erased::wire(CodecTy::Bytes),
-        Ty::Mixed => Erased::wire(CodecTy::Mixed),
+        Ty::Mixed | Ty::Error => Erased::wire(CodecTy::Mixed),
         // `rule:core-classes/derive-field-list`'s "another class that itself has a codec", and the one `Core`
         // value type that is a wire type instead. The label is what
         // `crate::layout` keys on and `nvs_ir::lower::lower_file` joins
@@ -1887,6 +1887,7 @@ fn db_reachable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
         | Ty::Bytes
         | Ty::TaintedBytes
         | Ty::Mixed
+        | Ty::Error
         | Ty::True
         | Ty::False
         | Ty::SingleValueString(_)
@@ -1951,6 +1952,7 @@ fn json_reachable(
         | Ty::String
         | Ty::TaintedString
         | Ty::Mixed
+        | Ty::Error
         | Ty::True
         | Ty::False
         | Ty::SingleValueString(_)

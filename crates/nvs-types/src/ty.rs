@@ -13,6 +13,13 @@
 //! are themselves already canonical, since interning is structural) rather
 //! than by source order, so `int|string` and `string|int|int` intern to the
 //! same `TypeId` regardless of how each was written.
+//!
+//! [`Ty::Error`] is the one type no program writes: the type of a place that
+//! has already reported its diagnostic (`rule:types/one-mistake-reports-once`).
+//! It is a variant of [`Ty`] and not a second interned id beside `mixed`, so
+//! every exhaustive `match` over [`Ty`] names a site that has to decide what
+//! it means there, and the compiler finds each one. It prints as `mixed`, and
+//! a union or an intersection with it as a member is the error type itself.
 
 use nvs_hir::QName;
 use nvs_stdlib::registry::Qual;
@@ -120,6 +127,11 @@ pub enum Ty {
     Object,
     /// `mixed` — the one unchecked position.
     Mixed,
+    /// The type of a place that has already reported its diagnostic —
+    /// `rule:types/one-mistake-reports-once`. No program writes it. It prints
+    /// as `mixed`, is assignable to and from every type, and never reaches
+    /// `nvs-ir`, because a program with an error does not compile.
+    Error,
     /// `void` — return-position only.
     Void,
     /// `never` — return-position only.
@@ -572,6 +584,15 @@ impl TypeInterner {
                 _ => ids.push(id),
             }
         }
+        // A member that already reported makes the whole union unknown, and
+        // an operation on it reports nothing (`rule:types/one-mistake-reports-once`).
+        if let Some(error) = ids
+            .iter()
+            .copied()
+            .find(|id| matches!(self.get(*id), Ty::Error))
+        {
+            return error;
+        }
         ids.sort_by_key(|id| id.0);
         ids.dedup();
         // `never` is the bottom type — no value ever has it — so a union that
@@ -597,6 +618,7 @@ impl TypeInterner {
         for id in members {
             match self.get(id) {
                 Ty::Intersection(inner) => ids.extend(inner.iter().copied()),
+                Ty::Error => return id,
                 _ => ids.push(id),
             }
         }
@@ -647,7 +669,7 @@ impl TypeInterner {
                 format!("{word}<{}>", self.describe(*key))
             }
             Ty::Object => "object".to_owned(),
-            Ty::Mixed => "mixed".to_owned(),
+            Ty::Mixed | Ty::Error => "mixed".to_owned(),
             Ty::Void => "void".to_owned(),
             Ty::Never => "never".to_owned(),
             Ty::True => "true".to_owned(),
@@ -821,6 +843,19 @@ impl TypeInterner {
     #[must_use]
     pub fn mixed(&mut self) -> TypeId {
         self.intern(Ty::Mixed)
+    }
+
+    /// The interned error-type singleton — the type a recovery site returns
+    /// after it has reported (`rule:types/one-mistake-reports-once`).
+    #[must_use]
+    pub fn error(&mut self) -> TypeId {
+        self.intern(Ty::Error)
+    }
+
+    /// Whether `id` is [`Ty::Error`]: the place it types has already reported.
+    #[must_use]
+    pub fn is_error(&self, id: TypeId) -> bool {
+        matches!(self.get(id), Ty::Error)
     }
 
     /// The interned `void` singleton.
