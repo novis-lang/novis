@@ -70,7 +70,7 @@ stages:
     context: [crates/nvs-cli/src/main.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-runtime/src/helpers.rs, docs/rules/testing/probes-on-is-a-tested-configuration.md]
   - id: 19
     title: "what the matrix and the checked build found is closed, and CI runs both"
-    status: open
+    status: done
     context: [.github/workflows/ci.yml, docs/rules/testing/probes-on-is-a-tested-configuration.md]
   - id: 14
     title: "`Core\\BigInt`'s gcd and lcm are sub-quadratic"
@@ -482,14 +482,14 @@ carries its type, and a failure stops the process naming the line and both types
 gone, and CI runs the suite under the checked build on every leg. Nothing they found is left for
 another goal.
 
-- [ ] Each finding of stages 17 and 18 gets one item here, added by the session that files it, and is fixed in this goal. `tools/nv/soundness/open.json:1`
-- [ ] A callable taken with `static::m(...)` calls the called class's `m`, and its nine `*/callable` cells pass. `data/gaps/nvs-ir/a-static-method-reference-binds-the-declaring-class.json:1`, `crates/nvs-ir/src/lower/expr.rs:4055`
-- [ ] A static method called through an instance runs the object's class's body, the rule says so, and its nine `*/parent-variable` cells pass. `data/gaps/nvs-ir/a-static-method-called-through-an-instance-binds-the-variables-type.json:1`, `docs/rules/statements/static-is-a-member-modifier.md:1`
-- [ ] A node `Core\Ast::parse` returns is an instance of `Core\Ast\Node`: each production's descriptor has it as its parent, and the twelve `core-ast-*` cases pass under the checked build. `data/gaps/nvs-stdlib/a-parsed-node-is-not-an-instance-of-core-ast-node.json:1`, `crates/nvs-stdlib/src/ast.rs:267`
-- [ ] An integer literal at a `?uint` position is a `uint`, and the five `spreadsheet-*` reader cases pass under the checked build. `data/gaps/nvs-ir/an-integer-literal-at-a-nullable-uint-is-tagged-int.json:1`, `extensions/spreadsheet/nvs/Reader.nvs:225`
-- [ ] `open.json`, the `--allow-open` flag and its use in `verify.ts` are deleted, and every matrix cell is in the written files and passes. `tools/nv/cmd/soundness.ts:1`, `tools/nv/cmd/verify.ts:167`
-- [ ] The CI step after "Conformance suite, unoptimised", with `NOVIS_CHECK_TYPES=1`. `.github/workflows/ci.yml:292`
-- [ ] `rule:testing/probes-on-is-a-tested-configuration` names the checked run, and a rule fragment states what the matrix guarantees, `shipped` with the matrix files in `guardedBy`. `docs/rules/testing/probes-on-is-a-tested-configuration.md:14`, `docs/rules/testing/redeclaration-matrix.md:1`, `data/rules/testing/redeclaration-matrix.json:1`
+- [x] Each finding of stages 17 and 18 gets one item here, added by the session that files it, and is fixed in this goal. `tools/nv/cmd/soundness.ts:1`
+- [x] A callable taken with `static::m(...)` calls the called class's `m`, and its nine `*/callable` cells pass. `crates/nvs-ir/src/lower/expr.rs:4545`
+- [x] A static method called through an instance runs the object's class's body, the rule says so, and its nine `*/parent-variable` cells pass. `crates/nvs-ir/src/lower/expr.rs:4481`, `docs/rules/statements/static-is-a-member-modifier.md:1`
+- [x] A node `Core\Ast::parse` returns is an instance of `Core\Ast\Node`: each production's descriptor has it as its parent, and the twelve `core-ast-*` cases pass under the checked build. `crates/nvs-stdlib/src/instance.rs:470`, `tests/conformance/core/ast-a-parsed-node-is-an-instance-of-core-ast-node.nvst:1`
+- [x] An integer literal at a `?uint` position is a `uint`, and the five `spreadsheet-*` reader cases pass under the checked build. `crates/nvs-types/src/expr/literals.rs:434`, `tests/conformance/lang/an-integer-literal-at-a-nullable-uint-is-a-uint.nvst:1`
+- [x] `open.json`, the `--allow-open` flag and its use in `verify.ts` are deleted, and every matrix cell is in the written files and passes. `tools/nv/cmd/soundness.ts:1`, `tools/nv/cmd/verify.ts:1093`
+- [x] The CI step after "Conformance suite, unoptimised", with `NOVIS_CHECK_TYPES=1`. `.github/workflows/ci.yml:297`
+- [x] `rule:testing/probes-on-is-a-tested-configuration` names the checked run, and a rule fragment states what the matrix guarantees, `shipped` with the matrix files in `guardedBy`. `docs/rules/testing/probes-on-is-a-tested-configuration.md:14`, `docs/rules/testing/redeclaration-matrix.md:1`, `data/rules/testing/redeclaration-matrix.json:1`
 
 ### 14. `Core\BigInt`'s gcd and lcm are sub-quadratic
 
@@ -509,12 +509,21 @@ another goal.
 
 ### State
 
-Stages 1 to 13 and 16 to 18 are done.
+Stages 1 to 13 and 16 to 19 are done. Only stages 14 and 15 are left, and they own the goal's one
+remaining gap record, `data/gaps/nvs-stdlib/bigint-gcd-and-modular-power-grow-quadratically.json`.
+`bun nv owners --closes compiler-holes` names it and nothing else.
 
-- Stage 17's matrix is `bun nv soundness` (`tools/nv/cmd/soundness.ts`, whose module doc is the
-  oracle table): 397 cells in 31 files under `tests/conformance/soundness/`. 18 static-method cells
-  fail and are listed in `tools/nv/soundness/open.json`, owned by two gap records under
-  `data/gaps/nvs-ir/`. `bun nv verify` runs `soundness --check --allow-open`.
+- Stage 19 closed all four findings. An integer literal at a `?uint` is placed as a `uint`: the
+  checker records the placement at the literal (`nvs-types` `expr/literals.rs`'s
+  `infer_int_literal`), and `lower_int_literal` reads it, as for `decimal`. Each `Core\Ast`
+  production's descriptor has `Core\Ast\Node` as its parent (`nvs-stdlib` `instance.rs`'s
+  `descriptors`). An overridden static method called through an instance dispatches on the
+  object's class, and `static::m(...)` over a static `m` stores the frame's called class through
+  `lower_method_ref_on_a_class_reference`, which now takes the descriptor value.
+  `rule:statements/static-is-a-member-modifier` states both readings.
+- The matrix has no skip list: `open.json` and `--allow-open` are gone, all 397 cells are written
+  in 31 files, and `bun nv verify` runs `soundness --check`. Its guarantee is
+  `rule:testing/redeclaration-matrix`.
 - Stage 18's checked build is `NOVIS_CHECK_TYPES` (`crates/nvs-cli/src/main.rs`,
   `nvs_codegen::compile_checked_types`). Its home is `crates/nvs-ir/src/lower/checked.rs`, whose
   module doc lists the reads. `Lowering::lower_expr` calls `check_read` after every expression,
@@ -524,14 +533,14 @@ Stages 1 to 13 and 16 to 18 are done.
   declares. A `?->` chain, a guarded subscript and a `??=` target may also be `null`. A failure is
   `Helper::TypeCheckFailed`, a `FATAL` naming the file, line, declared type and the value's class.
   `crates/nvs-codegen/tests/checked_types.rs` rewrites a lowered `new` to make a confused read.
-- The suite under the switch (`NOVIS_CHECK_TYPES=1 target/debug/nvs test tests/conformance/`)
-  fails 17 cases, and each is one of two real bugs, each with a gap record and a stage 19 item. A
-  parsed `Core\Ast` node is not `is Core\Ast\Node` (twelve `core-ast-*` cases). An integer literal at
-  a `?uint` parameter is tagged `int` (five `spreadsheet-*` reader cases). Every other case passes.
+- All 3058 conformance cases pass plain and under `NOVIS_CHECK_TYPES=1`. CI runs the checked suite
+  on every leg ("Conformance suite, checked types"), and
+  `rule:testing/probes-on-is-a-tested-configuration` names it.
 - `bun nv affected --run` stopped at `rules-render` on `docs/rules/ide.md` again. So the session ran
-  `cargo clippy --all-targets`, `bun nv verify --fast -p` for `nvs-ir`, `nvs-codegen`,
-  `nvs-runtime` and `nvs-cli`, the plain conformance suite, `soundness --check --allow-open`,
-  `owners --check`, `links` and `layout`.
+  `cargo clippy --all-targets -- -D warnings`, `bun nv verify --fast -p` for `nvs-types`, `nvs-ir`,
+  `nvs-stdlib` and `nvs-codegen`, the whole conformance suite both ways, `bun test tools/nv/test`,
+  `soundness --check`, `owners --check`, `links` and `layout`. `bun nv rules --render` rewrites
+  `docs/rules/ide.md` too, so copy it aside and put it back around a render.
 
 The tree holds uncommitted work this goal does not own: `docs/rules/ide.md`,
 `website/src/lib/core.ts`, `website/src/data/numbers.json` and
@@ -542,17 +551,16 @@ run it once per crate.
 
 ### Next
 
-**Stage 19** is next, and it has four findings. Take the two in `nvs-ir` first, since they share
-files: the `?uint` literal (the literal's lowering at a tagged position, `lower/expr.rs`, and the
-argument coercion in `lower/call.rs`) and the two static-method records (`lower/expr.rs:4055` for
-`static::m(...)`, `lower/call.rs` for an instance call of a static method, which also writes its
-reading into `rule:statements/static-is-a-member-modifier`). Then the `Core\Ast` parent link in
-`crates/nvs-stdlib/src/ast.rs:267`, where `PRODUCTIONS` builds each class with no parent. After
-each fix, rerun its cases under `NOVIS_CHECK_TYPES=1`. Once the whole suite passes under it, add
-the CI step and name it in `rule:testing/probes-on-is-a-tested-configuration`.
+**Stage 14** is next: `Core\BigInt`'s `gcd` and `lcm` run a half-gcd above a measured crossover
+and Stein's algorithm below it (`crates/nvs-stdlib/src/bigint.rs`), and their benches under
+`benches/members/core/BigInt/` declare the new growth and gain a `.scale.nvs` sibling. Then
+**stage 15**, `powMod`'s Montgomery step over Karatsuba, which deletes the gap record. Both touch
+only `bigint.rs` and its benches. Before planning a re-record, run
+`bun nv proofs --record-perf --group 'Core\BigInt'` once (the playbook's first Tooling bullet).
+Once both land, the goal-end gates and `DONE`.
 
-`bun nv soundness --probe` reruns every cell alone on the covws `nvs`, and `--write` after any
-change to the table. Never edit a generated file by hand.
+`bun nv soundness --probe` reruns every cell alone (`NVS_BIN=$PWD/target/debug/nvs.exe` uses the
+tree's build), and `--write` after any change to the table. Never edit a generated file by hand.
 
 The installed `looper` binary has no `verify` subcommand, so these sessions run
 `bun nv affected --run` as the gate. The next free diagnostic code is `E0881`

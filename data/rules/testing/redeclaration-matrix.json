@@ -1,0 +1,12 @@
+{
+  "title": "Every redeclaration a subclass can write is a generated conformance cell, and every cell runs or is refused as its rule says",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/probes-on-is-a-tested-configuration",
+    "testing/nvst-is-separate"
+  ],
+  "guardedBy": [
+    "tools/nv/cmd/soundness.ts",
+    "tests/conformance/soundness"
+  ]
+}
