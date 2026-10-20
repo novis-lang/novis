@@ -13,7 +13,7 @@ stages:
         rules: [types/unions-and-mixed, types/a-declared-type-answers-before-the-program-runs, types/erased-member-access]
   - id: 2
     title: "the checker accepts a shared member, and records each class"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-diagnostics/src/code/types.rs]
     extra:
       context:
@@ -157,12 +157,12 @@ access through a union.
 **Does:** `$p->x` and `$p->m()` through `A|B` type-check as the rule says, and the checker records each
 class for the lowering.
 
-- [ ] A property read through a union of classes that all declare it with the same type and make it visible (`rule:types/a-member-every-class-of-a-union-declares`). Today `class_qname_of` has no `Ty::Union` arm, so the read takes the `None` arm's `E0495`. `crates/nvs-types/src/expr/members.rs:733`, `crates/nvs-types/src/expr/members.rs:2308`
-- [ ] A method call through such a union, with the same signature in every class. Today it is `E0477`: resolution runs only when `class_qname_of` is `Some`. `crates/nvs-types/src/expr/calls.rs:83`, `crates/nvs-types/src/expr/calls.rs:113`
-- [ ] A write, as stage 1 decided: the same type, no `readonly` and the same `set` visibility in every class. Reads and writes share `check_property_member`. `crates/nvs-types/src/expr/assign.rs:991`, `crates/nvs-types/src/expr/members.rs:2029`
-- [ ] The new `ExprInfo` variant lists each class with its member. `crates/nvs-types/src/expr_table.rs:654`
-- [ ] The new code `E0881` for a member not shared, with a message that names the class or the two types. `E04xx` is full, so it is the next free code of `types_e08.rs`. `crates/nvs-diagnostics/src/code/types_e08.rs:1045`
-- [ ] Unit tests in the checker for each refusal: a class lacks it, the types differ, it is private in one class, an interface is in the union. `crates/nvs-types/tests/narrowing.rs:1`
+- [x] A property read through a union of classes that all declare it with the same type and make it visible (`rule:types/a-member-every-class-of-a-union-declares`). Today `class_qname_of` has no `Ty::Union` arm, so the read takes the `None` arm's `E0495`. `crates/nvs-types/src/expr/members.rs:733`, `crates/nvs-types/src/expr/members.rs:2308`
+- [x] A method call through such a union, with the same signature in every class. Today it is `E0477`: resolution runs only when `class_qname_of` is `Some`. `crates/nvs-types/src/expr/calls.rs:83`, `crates/nvs-types/src/expr/calls.rs:113`
+- [x] A write, as stage 1 decided: the same type, no `readonly` and the same `set` visibility in every class. Reads and writes share `check_property_member`. `crates/nvs-types/src/expr/assign.rs:991`, `crates/nvs-types/src/expr/members.rs:2029`
+- [x] The new `ExprInfo` variant lists each class with its member. `crates/nvs-types/src/expr_table.rs:654`
+- [x] The new code `E0881` for a member not shared, with a message that names the class or the two types. `E04xx` is full, so it is the next free code of `types_e08.rs`. `crates/nvs-diagnostics/src/code/types_e08.rs:1045`
+- [x] Unit tests in the checker for each refusal: a class lacks it, the types differ, it is private in one class, an interface is in the union. `crates/nvs-types/tests/narrowing.rs:1`
 
 ### 3. a shared member lowers to a class test and a fixed-offset access per class
 
@@ -175,8 +175,8 @@ class for the lowering.
 - [ ] A method call lowers to one branch per class, each the call that class makes. `crates/nvs-ir/src/lower/call.rs:1299`
 - [ ] A write, as stage 1 decided. `crates/nvs-ir/src/lower/stmt.rs:1`
 - [ ] A union receiver row in the soundness matrix, if `FieldGet` does not check its receiver's class. `tools/nv/cmd/soundness.ts:1`
-- [ ] The `Box|Circle` case rewritten to a union whose classes do not share the member. `tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst:52`
-- [ ] The `Dog|Cat` call case rewritten the same way: both classes declare `speak()`, so it must become a method one class lacks. `tests/conformance/reject/a-method-call-through-a-receiver-that-names-no-class-is-refused.nvst:34`
+- [x] The `Box|Circle` case rewritten: it pins `E0495` with `Box|int`, and the new `E0881` case pins the union whose classes do not share the member. `tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst:52`
+- [x] The `Dog|Cat` call case rewritten the same way: it pins `E0477` with `Dog|int`. `tests/conformance/reject/a-method-call-through-a-receiver-that-names-no-class-is-refused.nvst:34`
 - [ ] Cases: a shared property read through each class, a shared method called through each class, each refusal with its code. `tests/conformance/lang/a-property-every-class-of-a-union-declares-is-read.nvst:1`, `tests/conformance/lang/a-method-every-class-of-a-union-declares-is-called.nvst:1`, `tests/conformance/lang/a-member-not-shared-by-every-class-of-a-union-is-a-compile-error.nvst:1`
 
 ### 4. the feature has its proofs and its place on the website
@@ -201,20 +201,27 @@ AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stage 1 is done. Nothing compiles yet: a property through `A|B` is `E0495`, a call is `E0477`, and
-nothing joins a union to a common parent (`make_union` only flattens, `crates/nvs-types/src/ty.rs:579`).
-The contract is `rule:types/a-member-every-class-of-a-union-declares`, a `designed` rule owned by this
-goal, because a shipped rule must be true now. Writes take the safe default. The new code is `E0881`.
-The other two rules already point at it.
+Stages 1 and 2 are done. The checker accepts a read, a write and a call through a union of classes,
+and records `ExprInfo::UnionMember { arms }`: one `(class, record)` per class in union order, where the
+record is exactly what that class alone records (`Property`/`HookedProperty`, `Call`, or
+`CallableRef` for `$u->m(...)`). `members::union_classes` is the test for "a union of classes, no
+interface". The read is `check_union_property`, the write `assign::reject_union_write` (it compares
+the new `property_set_visibility` map), the call `calls::infer_union_method_call` with
+`same_signature`. Each refusal is `E0881` and reports once.
+
+**Nothing lowers it yet.** A program with such an access now type-checks and then panics in `nvs-ir`
+with a message naming the union (two explicit arms in `crates/nvs-ir/src/lower/expr.rs`). The write
+path in `crates/nvs-ir/src/lower/stmt.rs:1431` still panics with its old message. Stage 3 closes this
+first, before anything else.
 
 ### Next
 
-**Stage 2, one group**, in the checker: the property read, the call and the write, the `ExprInfo`
-variant, `E0881`, and the unit tests.
+**Stage 3, one group**, in `nvs-ir`: the read, the hooked read, the call and the method reference, the
+write, then the cases.
 
-- [ ] The read: a `Ty::Union` arm before `class_qname_of`'s `None` arm. `crates/nvs-types/src/expr/members.rs:2160`, `crates/nvs-types/src/expr/members.rs:2308`
-- [ ] The call. `crates/nvs-types/src/expr/calls.rs:83`
-- [ ] The write, and `E0881`. `crates/nvs-types/src/expr/assign.rs:991`, `crates/nvs-diagnostics/src/code/types_e08.rs:1045`
-- [ ] The `ExprInfo` variant. `crates/nvs-types/src/expr_table.rs:654`
+- [ ] The read: replace the `UnionMember` panic arm with `ClassTest` per arm but the last, each arm lowered as its one-class `Property`/`HookedProperty`. `crates/nvs-ir/src/lower/expr.rs:5302`
+- [ ] The call and `$u->m(...)`: replace the panic arm with one branch per `Call`/`CallableRef` arm. `crates/nvs-ir/src/lower/expr.rs:4279`
+- [ ] The write. `crates/nvs-ir/src/lower/stmt.rs:1431`
+- [ ] The soundness row, then the two read/call cases; the refusal case already exists. `tools/nv/cmd/soundness.ts:1`, `tests/conformance/lang/a-member-not-shared-by-every-class-of-a-union-is-a-compile-error.nvst:1`
 
 ### Backlog
