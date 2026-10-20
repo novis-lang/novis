@@ -1192,8 +1192,8 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
             )
             .with_primary(root.span, "this yields `null` when the receiver is `null`")
             .with_help(
-                "`null` is not a place to assign to — test the receiver instead: \
-                 `if ($x !== null) { $x->p = …; }`",
+                "test the receiver for `null` first, then assign to it: \
+                 `if ($x != null) { $x->p = …; }`",
             ),
         );
         return;
