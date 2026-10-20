@@ -478,7 +478,13 @@ another goal.
 
 ### State
 
-Stages 1, 2, 3 and 16 are done, and every gap record they owned is deleted.
+Stages 1, 2, 3 and 16 are done. Stage 16's two gap records are deleted in the working tree and not
+yet committed: the live interactive session `1b75a201` claims both files, so the guard refused to
+stage them. Once that claim is gone, commit the two deletions
+(`data/gaps/nvs-types/a-property-redeclared-at-a-narrower-type.json` and
+`a-static-constant-read-of-a-narrowed-redeclaration.json`). Commit `686c2b292` also carries
+`website/src/content/docs/in-depth/falls-behind.mdx`'s deletion, which another session had staged
+in the shared index.
 
 - A redeclared instance property is checked by `check_property_redeclarations` in
   `crates/nvs-types/src/conformance.rs`, called from `check.rs` beside the constant check. It is the
