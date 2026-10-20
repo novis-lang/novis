@@ -6,6 +6,12 @@ a union or out of `mixed` is a different question from testing for one: that is 
 or `as ?T`, which yields `null`. `as` converts and so accepts what can be converted — `"7" as ?int` is
 `7` — while `is` reads the representation and so answers `false` for the same value.
 
+A member is one of those operations. A property or a method every class of a union of classes declares
+with the same type, and makes visible at the access, is read or called through the union with no
+narrowing: `rule:types/a-member-every-class-of-a-union-declares` is the test, the write and the
+lowering. A union whose classes do not all share the member is narrowed first, as any other operation
+one member alone allows.
+
 `mixed` is **not checked at all** — that is its entire job. It holds anything, every operation on it
 is allowed, and every operation on it is resolved dynamically at runtime through the generic helper
 path. That is dynamic typing at dynamic typing's cost, which is the right pressure: the fast path is

@@ -6,7 +6,7 @@ context: [crates/nvs-types/src/expr/members.rs, crates/nvs-types/src/expr_table.
 stages:
   - id: 1
     title: "the scope: what a union already allows, and the rule"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-diagnostics/src/code/types.rs, docs/rules/types/erased-member-access.md, tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst]
     extra:
       context:
@@ -78,14 +78,14 @@ reads it. Why: the result has one type, so nothing after the read changes.
 interface gives no fixed offset, and a fixed-offset read is the point of the lowering below. A later
 goal may add interface arms through the dispatch a call on an interface already uses.
 
-**Writes.** Stage 1 decides whether a write through the union is allowed, and records why in
-`rule:types/unions-and-mixed`. Safe default: a write is allowed only when the property is writable at
-the call site in every class, with the same type, no `readonly` and the same `set` visibility.
-Otherwise it keeps an error.
+**Writes.** A write through the union is allowed only when the property is writable at the call site
+in every class, with the same type, no `readonly` and the same `set` visibility. Otherwise it keeps an
+error. Why: the write then checks the value against one declared type, as a write through each class
+would. `rule:types/a-member-every-class-of-a-union-declares` records it.
 
 **A refusal gets a code that says what is wrong.** A union where one class lacks the member, where
 the types or signatures differ, or where the member is not visible in one class, gets one new code,
-the next free one in `crates/nvs-diagnostics/src/code/types.rs`. Its message names the class that
+`E0881`, the next free one in `crates/nvs-diagnostics/src/code/types_e08.rs`. Its message names the class that
 lacks the member, or the two types that differ. `E0495` stays for a receiver that can hold no object
 at all. Every message and help line follows AGENTS.md § *Text an end user reads*.
 
@@ -99,8 +99,8 @@ call that class makes. The last class is the fall-through, because the checker p
 one of them. There is no name lookup and no throw edge on the request path.
 
 **The name-keyed `SlotGet` is declined** (`crates/nvs-ir/src/ir.rs:1168`). Why: it looks the name up on
-every read, and it adds an error edge for a case the checker already ruled out. The Declined entry goes
-into `rule:types/unions-and-mixed`.
+every read, and it adds an error edge for a case the checker already ruled out. The Declined entry is
+in `rule:types/a-member-every-class-of-a-union-declares`.
 
 **The fall-through is covered by the soundness matrix.** If `FieldGet` does not check its receiver's
 class at run time, stage 3 adds a union receiver row to `bun nv soundness` (`tools/nv/cmd/soundness.ts`),
@@ -146,22 +146,22 @@ through `A|B` compiles today and where that is decided, whether `A|B` with a com
 declares the member is already read through the parent, and every conformance case that pins a member
 access through a union.
 
-- [ ] The subagent's answers, and the stage items below narrowed to what does not work yet. `crates/nvs-types/src/expr/members.rs:2304`, `crates/nvs-types/src/expr/calls.rs:1819`
-- [ ] Writes decided, and why (`rule:types/unions-and-mixed`). `docs/rules/types/unions-and-mixed.md:1`
-- [ ] `rule:types/unions-and-mixed` states the shared member, the same-type test, visibility, writes, the interface arm, and the Declined `SlotGet` lowering. `docs/rules/types/unions-and-mixed.md:1`
-- [ ] `rule:types/a-declared-type-answers-before-the-program-runs` no longer refuses a union of classes. `docs/rules/types/a-declared-type-answers-before-the-program-runs.md:1`
-- [ ] `rule:types/erased-member-access` no longer repeats the refusal. `docs/rules/types/erased-member-access.md:1`
+- [x] The subagent's answers, and the stage items below narrowed to what does not work yet. `crates/nvs-types/src/expr/members.rs:2304`, `crates/nvs-types/src/expr/calls.rs:1819`
+- [x] Writes decided, and why (`rule:types/a-member-every-class-of-a-union-declares`). `docs/rules/types/a-member-every-class-of-a-union-declares.md:1`
+- [x] The shared member, the same-type test, visibility, writes, the interface arm, and the Declined `SlotGet` lowering are stated, in a `designed` rule of their own that `rule:types/unions-and-mixed` points at. `docs/rules/types/a-member-every-class-of-a-union-declares.md:1`, `docs/rules/types/unions-and-mixed.md:9`
+- [x] `rule:types/a-declared-type-answers-before-the-program-runs` no longer refuses a union of classes. `docs/rules/types/a-declared-type-answers-before-the-program-runs.md:1`
+- [x] `rule:types/erased-member-access` no longer repeats the refusal. `docs/rules/types/erased-member-access.md:1`
 
 ### 2. the checker accepts a shared member, and records each class
 
 **Does:** `$p->x` and `$p->m()` through `A|B` type-check as the rule says, and the checker records each
 class for the lowering.
 
-- [ ] A property read through a union of classes that all declare it with the same type and make it visible (`rule:types/unions-and-mixed`). `crates/nvs-types/src/expr/members.rs:2304`
-- [ ] A method call through such a union, with the same signature in every class. `crates/nvs-types/src/expr/calls.rs:1819`
-- [ ] A write, as stage 1 decided. `crates/nvs-types/src/expr/assign.rs:1`
+- [ ] A property read through a union of classes that all declare it with the same type and make it visible (`rule:types/a-member-every-class-of-a-union-declares`). Today `class_qname_of` has no `Ty::Union` arm, so the read takes the `None` arm's `E0495`. `crates/nvs-types/src/expr/members.rs:733`, `crates/nvs-types/src/expr/members.rs:2308`
+- [ ] A method call through such a union, with the same signature in every class. Today it is `E0477`: resolution runs only when `class_qname_of` is `Some`. `crates/nvs-types/src/expr/calls.rs:83`, `crates/nvs-types/src/expr/calls.rs:113`
+- [ ] A write, as stage 1 decided: the same type, no `readonly` and the same `set` visibility in every class. Reads and writes share `check_property_member`. `crates/nvs-types/src/expr/assign.rs:991`, `crates/nvs-types/src/expr/members.rs:2029`
 - [ ] The new `ExprInfo` variant lists each class with its member. `crates/nvs-types/src/expr_table.rs:654`
-- [ ] The new code for a member not shared, with a message that names the class or the two types. `crates/nvs-diagnostics/src/code/types.rs:936`
+- [ ] The new code `E0881` for a member not shared, with a message that names the class or the two types. `E04xx` is full, so it is the next free code of `types_e08.rs`. `crates/nvs-diagnostics/src/code/types_e08.rs:1045`
 - [ ] Unit tests in the checker for each refusal: a class lacks it, the types differ, it is private in one class, an interface is in the union. `crates/nvs-types/tests/narrowing.rs:1`
 
 ### 3. a shared member lowers to a class test and a fixed-offset access per class
@@ -176,6 +176,7 @@ class for the lowering.
 - [ ] A write, as stage 1 decided. `crates/nvs-ir/src/lower/stmt.rs:1`
 - [ ] A union receiver row in the soundness matrix, if `FieldGet` does not check its receiver's class. `tools/nv/cmd/soundness.ts:1`
 - [ ] The `Box|Circle` case rewritten to a union whose classes do not share the member. `tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst:52`
+- [ ] The `Dog|Cat` call case rewritten the same way: both classes declare `speak()`, so it must become a method one class lacks. `tests/conformance/reject/a-method-call-through-a-receiver-that-names-no-class-is-refused.nvst:34`
 - [ ] Cases: a shared property read through each class, a shared method called through each class, each refusal with its code. `tests/conformance/lang/a-property-every-class-of-a-union-declares-is-read.nvst:1`, `tests/conformance/lang/a-method-every-class-of-a-union-declares-is-called.nvst:1`, `tests/conformance/lang/a-member-not-shared-by-every-class-of-a-union-is-a-compile-error.nvst:1`
 
 ### 4. the feature has its proofs and its place on the website
@@ -194,22 +195,26 @@ AGENTS.md § *Text an end user reads*.
 - [ ] The bench: a read through a union of three classes, with `// bench: complexity constant`. `benches/members/lang/types/a-member-every-class-of-a-union-declares.nvs:1`
 - [ ] `bun nv render` writes the reference section, and `nvs agent show` prints it. `docs/reference/lang/20-types.md:1112`, `crates/nvs-cli/src/agent.rs:352`
 - [ ] The website's union page has a section on the shared member, with one example. `website/src/content/docs/syntax/values/union-types.mdx:1`
-- [ ] `rule:types/unions-and-mixed` names the new cases in `guardedBy`. `data/rules/types/unions-and-mixed.json:1`
+- [ ] `rule:types/a-member-every-class-of-a-union-declares` names the new cases in `guardedBy`, and its `status` is `shipped` with no `goal`. `data/rules/types/a-member-every-class-of-a-union-declares.json:1`
 
 ## Handoff
 
 ### State
 
-The goal is new and nothing is built. Every choice but writes is settled in § *Standing decisions*,
-and stage 1 settles writes with a safe default given.
+Stage 1 is done. Nothing compiles yet: a property through `A|B` is `E0495`, a call is `E0477`, and
+nothing joins a union to a common parent (`make_union` only flattens, `crates/nvs-types/src/ty.rs:579`).
+The contract is `rule:types/a-member-every-class-of-a-union-declares`, a `designed` rule owned by this
+goal, because a shipped rule must be true now. Writes take the safe default. The new code is `E0881`.
+The other two rules already point at it.
 
 ### Next
 
-**Stage 1, one group**, on the rules and a read of the checker. Gate:
-`docs/goals/one-error-per-mistake.md` no longer exists.
+**Stage 2, one group**, in the checker: the property read, the call and the write, the `ExprInfo`
+variant, `E0881`, and the unit tests.
 
-- [ ] The subagent's answers, and stages 2 and 3 narrowed to what does not work yet. `crates/nvs-types/src/expr/members.rs:2304`, `crates/nvs-types/src/expr/calls.rs:1819`
-- [ ] Writes decided (`rule:types/unions-and-mixed`). `docs/rules/types/unions-and-mixed.md:1`
-- [ ] The three rules rewritten to agree. `docs/rules/types/unions-and-mixed.md:1`, `docs/rules/types/a-declared-type-answers-before-the-program-runs.md:1`, `docs/rules/types/erased-member-access.md:1`
+- [ ] The read: a `Ty::Union` arm before `class_qname_of`'s `None` arm. `crates/nvs-types/src/expr/members.rs:2160`, `crates/nvs-types/src/expr/members.rs:2308`
+- [ ] The call. `crates/nvs-types/src/expr/calls.rs:83`
+- [ ] The write, and `E0881`. `crates/nvs-types/src/expr/assign.rs:991`, `crates/nvs-diagnostics/src/code/types_e08.rs:1045`
+- [ ] The `ExprInfo` variant. `crates/nvs-types/src/expr_table.rs:654`
 
 ### Backlog

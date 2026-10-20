@@ -29,6 +29,7 @@
     "types/property-path",
     "types/string-holes",
     "types/unions-and-mixed",
+    "types/a-member-every-class-of-a-union-declares",
     "types/one-mistake-reports-once",
     "types/type-test",
     "types/narrowing",
