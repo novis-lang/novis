@@ -22,11 +22,32 @@
 // `$parent` is the tree, keyed and valued by `::class` so the names the case
 // asks with are the names the compiler resolves rather than string literals
 // that could drift from it. `""` is the root's absent parent.
+//
+// `assertThrows` takes only a `C::class` written at the call, so `Ask::throws`
+// turns each name back into its own written call.
 
 final class Ask {
-    public static function throws(callable(): mixed $body, string $class): bool {
+    public static function throws(callable(): mixed $body, string $named): bool {
         try {
-            Core\Test::assertThrows($body, $class);
+            if ($named == Throwable::class) {
+                Core\Test::assertThrows($body, Throwable::class);
+            } else if ($named == LogicError::class) {
+                Core\Test::assertThrows($body, LogicError::class);
+            } else if ($named == RuntimeError::class) {
+                Core\Test::assertThrows($body, RuntimeError::class);
+            } else if ($named == IOError::class) {
+                Core\Test::assertThrows($body, IOError::class);
+            } else if ($named == ParseError::class) {
+                Core\Test::assertThrows($body, ParseError::class);
+            } else if ($named == TimeoutError::class) {
+                Core\Test::assertThrows($body, TimeoutError::class);
+            } else if ($named == RecursionError::class) {
+                Core\Test::assertThrows($body, RecursionError::class);
+            } else if ($named == ArithmeticError::class) {
+                Core\Test::assertThrows($body, ArithmeticError::class);
+            } else {
+                Core\Test::assertThrows($body, Core\Test\Failure::class);
+            }
             return true;
         } catch (Core\Test\Failure $refused) {
             return false;
@@ -97,19 +118,6 @@ foreach ($bodies as string $thrown => callable(): mixed $body) {
 
 echo "agreed=", $agreed, "/81\n";
 echo "held=", $held, "/81\n";
-
-// The argument is a *name*, and the member answers off the tree rather than
-// off anything the name looks like. A name the tree does not carry bounds
-// nothing, so every one of the nine throws is refused against it -- the same
-// answer as a sibling class, which is what stops an unknown name from reading
-// as a wildcard.
-int $outside = 0;
-foreach ($bodies as string $unknown => callable(): mixed $body2) {
-    if (Ask::throws($body2, "NotInTheTree") == false) {
-        $outside = $outside + 1;
-    }
-}
-echo "outside=", $outside, "/9\n";
 --EXPECT--
 Throwable matched 1
 LogicError matched 2
@@ -122,4 +130,3 @@ ArithmeticError matched 2
 Core\Test\Failure matched 2
 agreed=81/81
 held=21/81
-outside=9/9

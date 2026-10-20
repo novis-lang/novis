@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/test.rs",
-  "title": "`Core\\Test::assertThrows` with a class that is not `Throwable` compiles, and the assertion can never pass.",
-  "text": "`Test::assertThrows(fn (): void => { }, P::class)` with a plain class `P`, and `Test::assertThrows($body, \"RuntimeError\")` with a string, both pass `nvs check`. Nothing can throw a `P`, so the first fails on every run with `returned without throwing P`. The second compares by the name and works, so a typo in the string is found only when the test runs. It closes when the second argument is a `class<Throwable>` and anything else is a compile error, with a conformance case.",
-  "goal": "compiler-holes"
-}

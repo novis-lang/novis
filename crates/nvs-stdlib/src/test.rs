@@ -3635,11 +3635,13 @@ nvs_runtime::nvs_helper! {
     /// — `rule:testing/assertions-are-typed`'s last row, and the one member whose subject is a
     /// **`callable`** and whose expectation is a class.
     ///
-    /// The expectation is a `string` because that is what
-    /// `rule:statements/static-is-a-member-modifier`'s
-    /// `ParseError::class` folds to — a fully qualified name, compiled in as a
-    /// constant — so the match is by name and no class value has to exist for
-    /// a member to take one. What decides it is
+    /// The expectation is a `string` because `ParseError::class` is one
+    /// (`rule:types/class-reference`): a fully qualified name, compiled in as a
+    /// constant, so the match is by name and no class value has to exist for a
+    /// member to take one. The checker takes only a `C::class` written at the
+    /// call whose `C` is a class of the `Throwable` tree
+    /// (`nvs_types::testing::reject_unwritten_thrown_class`), so the name is
+    /// always one the class table carries. What decides it is
     /// [`nvs_runtime::Ctx::pending_conforms_to`], whose own docs own the
     /// decision that an **ancestor** matches and the wiring that reading rests
     /// on: a context holding no exception class table has no ancestry to read,
@@ -3666,10 +3668,8 @@ nvs_runtime::nvs_helper! {
     /// provoked failure recorded, which is why a test asserting that an
     /// assertion fails writes `expectFailure` instead.
     fn nvs_core_test_assert_throws(ctx, args: [3]) {
-        // Unreachable from source: parameter 1 is `CoreTy::Str` in `CLASS`,
-        // so the class name is `E0401: expected string, found mixed` at the
-        // checker before this body sees it. `Core\Test\Failure::class` is the
-        // spelling a call uses, and `::class` is a `string`.
+        // Unreachable from source: the checker takes only a written
+        // `C::class` here, and `::class` is a `string`.
         let expected = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Test::assertThrows expected {:?}, got tag {}",

@@ -28,9 +28,18 @@ final class Ask {
     // The verdict as a `bool` rather than as control flow. A refusal is a
     // `Core\Test\Failure` on both members (`rule:testing/assertions-are-typed`), which is the whole
     // reason one helper can ask either of them.
-    public static function throws(callable(): mixed $body, string $class): bool {
+    public static function throws(callable(): mixed $body): bool {
         try {
-            Core\Test::assertThrows($body, $class);
+            Core\Test::assertThrows($body, Throwable::class);
+            return true;
+        } catch (Core\Test\Failure $refused) {
+            return false;
+        }
+    }
+
+    public static function throwsLogic(callable(): mixed $body): bool {
+        try {
+            Core\Test::assertThrows($body, LogicError::class);
             return true;
         } catch (Core\Test\Failure $refused) {
             return false;
@@ -131,10 +140,10 @@ array<callable(): mixed> $returning = [
 int $partition = 0;
 int $threwHeld = 0;
 foreach ($throwing as string $t => callable(): mixed $body) {
-    if (Ask::throws($body, Throwable::class)) {
+    if (Ask::throws($body)) {
         $threwHeld = $threwHeld + 1;
     }
-    if (Ask::throws($body, Throwable::class) != Ask::quiet($body)) {
+    if (Ask::throws($body) != Ask::quiet($body)) {
         $partition = $partition + 1;
     }
 }
@@ -144,7 +153,7 @@ foreach ($returning as string $r => callable(): mixed $body2) {
     if (Ask::quiet($body2)) {
         $quietHeld = $quietHeld + 1;
     }
-    if (Ask::throws($body2, Throwable::class) != Ask::quiet($body2)) {
+    if (Ask::throws($body2) != Ask::quiet($body2)) {
         $partition = $partition + 1;
     }
 }
@@ -159,7 +168,7 @@ echo "assertDoesNotThrow held on the returning table: ", $quietHeld, "/5\n";
 // and the pair is not a partition. Only the root makes it one.
 int $neither = 0;
 foreach ($throwing as string $n => callable(): mixed $body3) {
-    if (Ask::throws($body3, LogicError::class) == false && Ask::quiet($body3) == false) {
+    if (Ask::throwsLogic($body3) == false && Ask::quiet($body3) == false) {
         $neither = $neither + 1;
     }
 }

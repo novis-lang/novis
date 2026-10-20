@@ -2,6 +2,9 @@
 the code as a function with no parameters, and the name of the class, for example
 `LogicError::class`. The check calls the function once.
 
+You must write the class as `C::class` in the call. `C` must be `Throwable` or a class that extends
+it. A string or a variable does not compile.
+
 The check passes when the function throws that class or a class that extends it. The error is caught,
 so your test continues after the check.
 

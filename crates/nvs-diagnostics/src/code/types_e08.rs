@@ -905,4 +905,14 @@ codes! {
          type is none of them, so the `catch` never runs. Name the error class you expect, such \
          as `RuntimeError`.",
     );
+    /// A `Core\Test::assertThrows` whose second argument is not a `C::class`
+    /// written at the call, or names a class outside the `Throwable` tree —
+    /// `rule:testing/assertions-are-typed`. A string or a variable would find
+    /// a misspelt name only when the test runs, and a class outside the tree
+    /// is never thrown, so the assertion could never pass.
+    pub const E_ASSERT_THROWS_CLASS: Code = Code::new("E0865").card(
+        "The second argument of `Core\\Test::assertThrows` must be written as `C::class`. `C` \
+         must be `Throwable` or a class that extends it, such as `RuntimeError::class`. A string \
+         or a variable is not allowed.",
+    );
 }

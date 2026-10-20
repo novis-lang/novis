@@ -11,14 +11,14 @@ final class AtlasTest
     #[Test]
     public function readsNoFileWithoutAGrant(): void
     {
-        Test::assertThrows(fn() => Atlas::read("cities.txt"), "RuntimeError");
+        Test::assertThrows(fn() => Atlas::read("cities.txt"), RuntimeError::class);
     }
 
     // Connecting to a host throws a `RuntimeError` too.
     #[Test]
     public function reachesNoHostWithoutAGrant(): void
     {
-        Test::assertThrows(fn() => Atlas::status("tiles.example.com"), "RuntimeError");
+        Test::assertThrows(fn() => Atlas::status("tiles.example.com"), RuntimeError::class);
     }
 }
 
