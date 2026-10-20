@@ -17,6 +17,8 @@
 //   ends the run. A hold from the landing pauses the loop, and a resume catches up again. A worker that
 //   starts while its loop holds a landing goes on with it before any session. One whose goal is retired
 //   already catches up first.
+// - A side loop in the project root (`ownGoal`) has no landing. Its run ends once its goal is retired
+//   there, and the `after_retire` hooks have run.
 // - Before each turn, in this order, it compacts the controls file when it is due (`compact`), and reads
 //   `looper.toml` again (`Driver.reload`) under the run's `set` controls. One that does not load holds
 //   the loop with its error, and a resume reads it again. Then it lays the `set` and `skip-stage`
@@ -153,6 +155,8 @@ export interface WorkerOptions {
   /** A side loop's goal and landing places, and its landing. Both are left out for a main loop. */
   side?: Side;
   lander?: Lander;
+  /** The goal of a side loop in the project root, which has neither a `side` nor a `lander`. */
+  ownGoal?: string;
 }
 
 /** What the controls have asked of the run between sessions. */
@@ -252,8 +256,10 @@ export class Worker {
       checkLogs: join(o.dir, "checks"),
       hookLogs: join(o.dir, "hooks"),
       loopName: o.loopName,
-      loopKind: o.side === undefined ? "main" : "side",
+      // A side loop in the root has no lane for a `side` hook to prepare, and works the main branch.
+      loopKind: o.side !== undefined ? "side" : o.ownGoal !== undefined ? "root-side" : "main",
       side: o.side,
+      ownGoal: o.ownGoal,
       // The prompts are read before each turn, where one that cannot be read holds the loop.
       prompts: { session: SESSION_PROMPT, repair: REPAIR_PROMPT, landing: LANDING_PROMPT },
       policy: o.policy,
@@ -477,6 +483,9 @@ export class Worker {
       this.write();
       switch (outcome.kind) {
         case "advanced":
+          if (d.ownGoal !== null) return `${outcome.slug} is reached and retired`;
+          this.name("running");
+          break;
         case "continue":
           this.name("running");
           break;

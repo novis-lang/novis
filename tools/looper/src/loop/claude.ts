@@ -11,7 +11,9 @@
 // It runs in the session's tree with `LOOPER_AGENT=1`, so a looper command the agent runs asks as
 // `agent`. It also gets `LOOPER_WRITTEN` when the session gives a written-paths file. `LOOPER_LOOP` and
 // `LOOPER_GOAL` name the loop and the goal, which the guard records in a claim. `LOOPER_ROOT` names the
-// project root that holds the loop's folder, so `decision` finds it from a side loop's lane. Claude
+// project root that holds the loop's folder, so `decision` finds it from a side loop's lane.
+// `LOOPER_SIDE_GOAL` names the goal of a side loop in the project root, which every looper command the
+// session runs then reads as the live goal. Claude
 // reads one JSON user message per stdin line. It stays running until stdin closes, so a message sent
 // after a `result` starts another turn.
 //
@@ -78,6 +80,7 @@
 // 4. **Failed:** the process exited non-zero, or without a code.
 // 5. **Ok** otherwise.
 
+import { SIDE_GOAL_VAR } from "../goal/model.ts";
 import {
   type AgentAdapter,
   type AgentCommand,
@@ -141,6 +144,7 @@ export function commandLine(program: string[], opts: LaunchOptions): AgentComman
   if (opts.loop !== undefined) env.LOOPER_LOOP = opts.loop;
   if (opts.root !== undefined) env.LOOPER_ROOT = opts.root;
   if (opts.goal !== undefined) env.LOOPER_GOAL = opts.goal;
+  if (opts.sideGoal !== undefined) env[SIDE_GOAL_VAR] = opts.sideGoal;
   env.LOOPER_AGENT = "1";
   return { argv, cwd: opts.cwd, env };
 }

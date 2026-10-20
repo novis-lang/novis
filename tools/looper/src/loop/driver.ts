@@ -12,7 +12,9 @@
 //    `after_session` hooks after the turn.
 // 2. **Pick.** The live goal is the one `liveGoal` names and the live stage its first open stage. A side
 //    loop (`Side`) holds instead when the live goal is not its own, such as when its checkout has left
-//    `side/<slug>`. The run's `Mode` says whether the session is ordinary work, the retry of a refused `DONE`, or a repair.
+//    `side/<slug>`. A side loop in the project root (`ownGoal`) has its goal made live by
+//    `LOOPER_SIDE_GOAL` in its worker's environment, holds the same way when it is not, and ends the run
+//    once its goal file is gone. The run's `Mode` says whether the session is ordinary work, the retry of a refused `DONE`, or a repair.
 //    A dropped stream left to rejoin outranks all three. After a `skip-stage`, the next fresh session
 //    takes the open stage after the live one, or the live one when there is none after it. No goal file
 //    changes.
@@ -23,7 +25,8 @@
 //    decisions for the user (`packSection` in `decisions.ts`), when any stands.
 // 4. **Serve.** The session gets the next number of the loop and its folder `sessions/<n>/`, whose
 //    `session.json` records it from its start. It is served there (`serve` in `session.ts`) with
-//    `LOOPER_LOOP`, `LOOPER_GOAL`, and `LOOPER_ROOT` for the root that holds the loop's folder. Its
+//    `LOOPER_LOOP`, `LOOPER_GOAL`, `LOOPER_ROOT` for the root that holds the loop's folder, and
+//    `LOOPER_SIDE_GOAL` for a side loop in the root. Its
 //    edit claims are released once it ends. Then the driver reads `looper.toml` again (`Driver.reload`), so every step after the session runs the config the session
 //    left. One that does not load is a warning, and the turn keeps its config.
 // 5. **Classify** the exit through the adapter. A session the kit killed itself is not classified: it is
@@ -57,6 +60,9 @@
 //    - reached on a side loop: retire it the same way in its own branch, run the `after_retire` hooks,
 //      and catch up (`Driver.catchUp`). A hook that pauses the loop holds it first, and a resume goes on
 //      to the catch-up. A side loop never takes another goal;
+//    - reached on a side loop in the project root: retire it in the root as a main loop does, and run
+//      the `after_retire` hooks. The turn is `advanced`, and the worker ends the run on it, as the next
+//      turn would, since the goal file is gone. It never catches up or lands;
 //    - reached, but the retirement failed (such as a `commit-msg` hook that refused its commit): hold
 //      with git's reason, with the goal put back and still live;
 //    - `BLOCKED`: hold with the session's reason;
@@ -89,7 +95,8 @@
 // `stream.ndjson`, events, `LOOPER_WRITTEN` list and `session.json` go to its folder under the loop's
 // folder `Driver.dir`. The verdict a retry or a repair is handed, and the operator's notes, travel in the
 // opening prompt. In the project's tree it writes only the run directory `.loop/`, which the shared
-// `.gitignore` block ignores: `interrupted.json` and `last-sweep.md`.
+// `.gitignore` block ignores: `interrupted.json` and `last-sweep.md`, in `.loop/side-<slug>/` for a side
+// loop in the root (`runDir`).
 //
 // # The bounds it keeps
 //
@@ -102,7 +109,7 @@ import { join, resolve } from "node:path";
 import { dir as claimDir, release } from "../claims/claims.ts";
 import { goalVars, extra as packExtra } from "../cli/orient.ts";
 import { type Config, defaultConfig, loadConfig, type Prompts as Named } from "../goal/config.ts";
-import { type Check, type Goal, liveGoal, loadChain, loadGoal, Refused } from "../goal/model.ts";
+import { type Check, type Goal, goalPath, liveGoal, loadChain, loadGoal, Refused, SIDE_GOAL_VAR } from "../goal/model.ts";
 import { pack } from "../goal/orient.ts";
 import { writeState } from "../store/state.ts";
 import { acceptance, named, type Progress, type Project, runReported, unreported, type Units, type Verdict } from "../verify/accept.ts";
@@ -430,8 +437,10 @@ export interface DriverOptions {
   live?: (e: Live) => void;
   stats?: (s: Stats | null) => void;
   progress?: Progress;
-  /** A side loop's goal and landing places, left out for a main loop. */
+  /** A side loop's goal and landing places, left out for a main loop and a side loop in the project root. */
   side?: Side;
+  /** The goal of a side loop in the project root, left out for every other loop. */
+  ownGoal?: string;
 }
 
 /** A session that has ended, and what it left. */
@@ -473,6 +482,8 @@ export class Driver {
   progress: Progress;
   /** A side loop's goal and landing places, and null for a main loop. */
   side: Side | null;
+  /** The goal of a side loop in the project root, and null for every other loop. */
+  ownGoal: string | null;
   state: RunState = newRunState();
   /** The number the loop's next session takes, read from `sessions/` at the first session. */
   private next: number | null = null;
@@ -496,6 +507,7 @@ export class Driver {
     this.hookLogs = o.hookLogs;
     this.progress = o.progress ?? unreported;
     this.side = o.side ?? null;
+    this.ownGoal = o.ownGoal ?? null;
   }
 
   /** The prompt the next session opens with, before the pack. */
@@ -590,6 +602,7 @@ export class Driver {
       ...goalVars(this.root, this.goalsDir()),
       LOOPER_LOOP: this.loopName,
       LOOPER_LOOP_KIND: this.loopKind,
+      [SIDE_GOAL_VAR]: this.ownGoal ?? undefined,
       LOOPER_RUN_SESSIONS: String(this.state.sessions),
       LOOPER_SESSION: s?.number.toString(),
       LOOPER_SESSION_LOG: s?.log,
@@ -674,6 +687,10 @@ export class Driver {
 
     // 2. Pick.
     const goalsDir = this.goalsDir();
+    const own = this.ownGoal;
+    if (own !== null && !existsSync(goalPath(goalsDir, own))) {
+      return { kind: "end", why: `${own} has no goal file in ${this.root}: it is retired, so this side loop is done` };
+    }
     const chain = loadChain(goalsDir);
     const slug = liveGoal(this.root, goalsDir, chain);
     if (this.side !== null && slug !== this.side.goal) {
@@ -681,6 +698,9 @@ export class Driver {
       return this.hold(
         `this side loop works ${g}, but the live goal in ${this.root} is ${slug ?? "none"}: the checkout must be on side/${g} with the goal's file`,
       );
+    }
+    if (own !== null && slug !== own) {
+      return this.hold(`this side loop works ${own}, but the live goal in ${this.root} is ${slug ?? "none"}: its worker must run with ${SIDE_GOAL_VAR}=${own}`);
     }
     if (slug === undefined) return { kind: "end", why: "the chain is complete: there is no live goal" };
     if (this.state.goal !== slug) this.state = reset(this.state, slug);
@@ -797,6 +817,7 @@ export class Driver {
         loop: this.loopName,
         root: resolve(this.dir, "..", "..", ".."),
         goal: slug,
+        sideGoal: this.ownGoal ?? undefined,
       },
       opening,
       limits: { ...this.limits },

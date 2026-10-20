@@ -15,13 +15,15 @@
 // - `interrupted` writes `.loop/interrupted.json` when the sweep of a session that wrote no status line
 //   committed its work, and `wrapped` deletes it. `lastSweep` writes the red checks of an every-session
 //   sweep to `.loop/last-sweep.md`, at most `LAST_SWEEP_MAX` bytes, and deletes it once all are green.
-//   The run directory `.loop/` is in the shared `.gitignore` block, so git tracks none of it.
+//   The run directory `.loop/` is in the shared `.gitignore` block, so git tracks none of it. A side
+//   loop in the project root keeps both in its own `.loop/side-<slug>/` (`runDir`).
 // - `notReached` says why a goal is not reached: an open stage, a red check, a deferred check or a
 //   missing harvest. The machine outranks the claim, so a session's `DONE` counts for nothing here.
 // - `retire` retires a reached goal: the harvest gate, then `retireGoal` (checks into the floor as
 //   `[project] carry_to_floor` says, off the chain, file deleted, README rendered), then one commit of
-//   the goals directory. A retirement that fails is put back, so the goal stays live. With
-//   `[project] harvest = false` there is no harvest gate.
+//   the goal file and the README alone. Another loop's session may be editing its own goal file in the
+//   same tree, so nothing else of the goals directory rides along. A retirement that fails is put back,
+//   so the goal stays live. With `[project] harvest = false` there is no harvest gate.
 //
 // Every git call runs in the project root with no shell, and a message is passed as arguments, so
 // nothing the kit writes lands in the project's tracked files.
@@ -37,7 +39,7 @@ import { isAbsolute, join } from "node:path";
 import type { Config } from "../goal/config.ts";
 import { retireGoal } from "../goal/edit.ts";
 import { type Goal, goalPath, README, Refused } from "../goal/model.ts";
-import { harvested, RUN_DIR } from "../goal/orient.ts";
+import { harvested, runDir } from "../goal/orient.ts";
 import type { Acceptance, Verdict } from "../verify/accept.ts";
 import { type AgentAdapter, MAX_LINE, written } from "./adapter.ts";
 import { STREAM, WRITTEN_MAX } from "./session.ts";
@@ -254,14 +256,14 @@ export function sweepEnded(root: string, index: number, why: string, adapter: Ag
 export function interrupted(root: string, index: number, swept: Swept, why: string): void {
   if (swept.commit === null) return;
   const report = { commit: swept.commit, paths: swept.paths, session: index, why };
-  const dir = join(root, RUN_DIR);
+  const dir = runDir(root);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, INTERRUPTED), `${JSON.stringify(report, null, 2)}\n`);
 }
 
 /** Deletes `.loop/interrupted.json`, if it is there. */
 export function wrapped(root: string): void {
-  remove(join(root, RUN_DIR, INTERRUPTED));
+  remove(join(runDir(root), INTERRUPTED));
 }
 
 /**
@@ -270,7 +272,7 @@ export function wrapped(root: string): void {
  * checks it left out.
  */
 export function lastSweep(root: string, verdicts: Verdict[]): void {
-  const path = join(root, RUN_DIR, LAST_SWEEP);
+  const path = join(runDir(root), LAST_SWEEP);
   const red = verdicts.filter((v) => !v.green);
   if (red.length === 0) {
     remove(path);
@@ -293,7 +295,7 @@ export function lastSweep(root: string, verdicts: Verdict[]): void {
     }
   }
   if (left > 0) text += `- ${left} more red check(s) left out of this report\n`;
-  mkdirSync(join(root, RUN_DIR), { recursive: true });
+  mkdirSync(runDir(root), { recursive: true });
   writeFileSync(path, text);
 }
 
@@ -333,12 +335,13 @@ export function retire(root: string, cfg: Config, slug: string): string {
     throw e;
   }
   const subject = `chore(goals): ${slug} is reached and retired`;
+  const paths = [`${dir}/${slug}.md`, `${dir}/${README}`];
   try {
-    git(root, ["add", "-A", "--", dir]);
-    git(root, ["commit", "-q", "-m", subject, "--only", "--", dir]);
+    git(root, ["add", "-A", "--", ...paths]);
+    git(root, ["commit", "-q", "-m", subject, "--only", "--", ...paths]);
   } catch (e) {
     try {
-      git(root, ["reset", "-q", "--", `${dir}/${slug}.md`, `${dir}/${README}`]);
+      git(root, ["reset", "-q", "--", ...paths]);
       putBack(kept);
     } catch (u) {
       throw new Refused(`${(e as Error).message}; putting ${slug} back failed too: ${(u as Error).message}`);

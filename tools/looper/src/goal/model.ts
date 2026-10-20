@@ -450,10 +450,25 @@ export function extraJson(g: Goal, stageId: number | undefined): string | undefi
 }
 
 /**
- * The live goal of the checkout at `root`, whose goals are in `goalsDir`. On a branch `side/<slug>`
- * whose goal file exists, it is `<slug>`. Anywhere else, it is the chain's first slug, or `undefined`.
+ * The variable that names the goal of a side loop in the project root. Its worker sets it for itself and
+ * for every session, hook and check it starts, so each of them reads that goal as the live one.
+ */
+export const SIDE_GOAL_VAR = "LOOPER_SIDE_GOAL";
+
+/** The goal `SIDE_GOAL_VAR` names in `env`, or `undefined` when it is unset or not a goal's slug. */
+export function sideGoalOf(env: Record<string, string | undefined> = process.env): string | undefined {
+  const slug = env[SIDE_GOAL_VAR];
+  return slug !== undefined && /^[a-z0-9][a-z0-9-]*$/.test(slug) ? slug : undefined;
+}
+
+/**
+ * The live goal of the checkout at `root`, whose goals are in `goalsDir`. When `SIDE_GOAL_VAR` names a
+ * goal whose file exists, it is that goal. Otherwise, on a branch `side/<slug>` whose goal file exists, it
+ * is `<slug>`. Anywhere else, it is the chain's first slug, or `undefined`.
  */
 export function liveGoal(root: string, goalsDir: string, chain: Chain): string | undefined {
+  const own = sideGoalOf();
+  if (own !== undefined && isFile(goalPath(goalsDir, own))) return own;
   const side = headBranch(root)?.match(/^side\/([^/\\]+)$/)?.[1];
   if (side !== undefined && isFile(goalPath(goalsDir, side))) return side;
   return chain.chain[0];

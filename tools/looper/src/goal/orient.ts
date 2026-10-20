@@ -18,7 +18,7 @@ import { readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import type { Config } from "./config.ts";
 import { expand as expandGlob, isGlob } from "./glob.ts";
-import { type Chain, type Check, type Goal, liveGoal, liveStage, loadChain, loadGoal, type Stage } from "./model.ts";
+import { type Chain, type Check, type Goal, liveGoal, liveStage, loadChain, loadGoal, sideGoalOf, type Stage } from "./model.ts";
 import { bulletPaths, loadPlaybook, type Playbook } from "./playbook.ts";
 import { anchors as anchorsIn, items, names, section, sectionsOf } from "./sections.ts";
 
@@ -34,6 +34,16 @@ export const HEAD_CAP = 6000;
 const RUST_HEAD = 400;
 /** The driver's run directory under the project root. */
 export const RUN_DIR = ".loop";
+
+/**
+ * The run directory of the loop this process belongs to in the checkout at `root`: `RUN_DIR`, or
+ * `RUN_DIR/side-<slug>` for a side loop in the project root, so it never reads or clears the main loop's
+ * reports.
+ */
+export function runDir(root: string): string {
+  const own = sideGoalOf();
+  return own === undefined ? join(root, RUN_DIR) : join(root, RUN_DIR, `side-${own}`);
+}
 /** The command prefix the pack tells a session to lint, check and verify with. */
 export const TOOL = "looper";
 /** The line a `usize` parse of an anchor's line gives when it overflows, as looper prints it. */
@@ -147,7 +157,7 @@ function checkLine(c: Check): string {
 /** What the driver left in the run directory: an interrupted session, the last acceptance sweep and the operator's notes. */
 function runSection(root: string): string {
   const out: string[] = [];
-  const run = join(root, RUN_DIR);
+  const run = runDir(root);
   const interrupted = nonEmpty(read(join(run, "interrupted.json")), (t) => t);
   const last = nonEmpty(read(join(run, "last-sweep.md")), (t) => t);
   const notes = nonEmpty(read(join(run, "notes.md")), (t) => t.trim());
@@ -167,8 +177,9 @@ function nonEmpty(text: string | undefined, seen: (t: string) => string): string
   return text === undefined || seen(text) === "" ? undefined : text;
 }
 
-/** Where the live goal `live` stands: the goals ahead of it on the chain, or off the chain on its branch. */
+/** Where the live goal `live` stands: the goals ahead of it on the chain, or off the chain on its branch or in the root. */
 function place(chain: Chain, live: string): string {
+  if (sideGoalOf() === live) return "\nA side goal, live for its own loop in the project root and off the chain.";
   if (chain.chain[0] !== live) return "\nA side goal, live on its own branch and off the chain.";
   const ahead = chain.chain.slice(1);
   return `\n${ahead.length} goal(s) ahead on the chain: ${ahead.length === 0 ? "none" : ahead.join(", ")}.`;
