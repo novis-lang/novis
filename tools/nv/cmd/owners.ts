@@ -40,6 +40,7 @@
 //   bun nv owners                 the roster, by kind, gaps and then designed rules
 //   bun nv owners --check         the gate; exit 1 with a line per refused gap, designed rule or prose gap
 //   bun nv owners --closes SLUG   exit 1 while any gap or designed rule names that goal, each listed
+//   bun nv owners --hand-over FROM TO   every gap record FROM owns names TO instead
 
 //   bun nv owners --registers     one line per register, and how many items each holds
 //   bun nv owners --prose         every gap that lives only in prose; exit 1 while any remains
@@ -54,7 +55,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { chainGoals, goalPlan, liveGoal, sideGoal as runningSideGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
-import { load } from "../lib/store.ts";
+import { load, write } from "../lib/store.ts";
 import { gap as gapType } from "../schema/gap.ts";
 import { rule as ruleType } from "../schema/rule.ts";
 
@@ -405,6 +406,22 @@ function runCloses(found: Gap[], slug: string): number {
   return 1;
 }
 
+/**
+ * Rewrites the owner of every gap record `from` owns to `to`, a goal whose file is under `docs/goals/`,
+ * and prints each record it wrote. A goal that reaches its end with gaps it should not close hands them
+ * over this way, and the commit says why.
+ */
+function runHandOver(from: string, to: string): number {
+  if (!existsSync(join(ROOT, "docs", "goals", `${to}.md`))) {
+    console.error(`nv owners: no goal \`${to}\` in docs/goals/ to hand the gaps to`);
+    return 2;
+  }
+  const owned = load(gapType).filter((r) => r.value.goal === from);
+  for (const r of owned) console.log(`  ${write(gapType, r.id, { ...r.value, goal: to }).path}`);
+  console.log(`nv owners: ${owned.length} gap record(s) handed from \`${from}\` to \`${to}\``);
+  return 0;
+}
+
 function ruleLine(r: DesignedRule): string {
   return `  rule:${r.id}  ${cut(r.title, 78)}`;
 }
@@ -465,6 +482,15 @@ function runRuleCloses(found: DesignedRule[], slug: string): number {
 export async function run(args: string[]): Promise<number> {
   const known = new Set(["--check", "--registers", "--prose", "--untagged", "--unowned", "--json",
     "--untagged-is-an-error", "--reasons"]);
+  const hand = args.indexOf("--hand-over");
+  if (hand >= 0) {
+    const [from, to, ...more] = args.slice(hand + 1);
+    if (!from || !to || more.length > 0 || args.length !== hand + 3) {
+      console.error("nv owners: --hand-over needs exactly two goal slugs, FROM and TO");
+      return 2;
+    }
+    return runHandOver(from, to);
+  }
   const at = args.indexOf("--closes");
   const slug = at >= 0 ? args[at + 1] : undefined;
   const rest = args.filter((a, i) => i !== at && !(at >= 0 && i === at + 1));
