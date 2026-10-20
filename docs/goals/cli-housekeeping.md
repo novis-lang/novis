@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: The cache commands, the update check and telemetry exist
-summary: "nvs cache gc and clear, nvs update-check and nvs telemetry are built as their rules say, every designed rule this goal owns is shipped, and the checks below pass."
+summary: "nvs cache gc and clear, nvs update-check and nvs telemetry are built as their rules say, every project walk skips what .gitignore and .ignore ignore, every designed rule and gap record this goal owns is closed, and the checks below pass."
 context: [crates/nvs-cli/src/main.rs, crates/nvs-config/src/data.rs]
 stages:
   - id: 1
@@ -32,6 +32,13 @@ stages:
     extra:
       context:
         rules: [tooling/a-serving-process-never-uploads, tooling/a-failed-upload-never-fails-the-command, config/telemetry-and-update-endpoints-are-configuration]
+  - id: 5
+    title: "the project walk skips what `.gitignore` ignores, `nvs check` reads a directory, and a `require` that cannot be followed is an error"
+    status: open
+    context: [crates/nvs-hir/src/lenders.rs, crates/nvs-cli/src/fmt.rs, crates/nvs-lsp/src/index.rs, crates/nvs-hir/src/requires.rs, docs/rules/tooling/nvs-code-answers-about-the-project.md, docs/rules/tooling/fmt-check-writes-nothing.md, docs/rules/statements/require-is-the-only-inclusion-construct.md]
+    extra:
+      context:
+        rules: [tooling/nvs-code-answers-about-the-project, tooling/fmt-check-writes-nothing, testing/a-directory-of-programs-is-one-test-program, statements/require-is-the-only-inclusion-construct, programs/relative-paths-resolve-from-their-file]
 checks:
   - id: cache-help
     stage: 1
@@ -48,7 +55,7 @@ checks:
     run: [cargo, run, -q, --bin, nvs, --, telemetry, --help]
     stdout_contains: ["on", "off", status, reset, show]
   - id: owners-closes
-    stage: 4
+    stage: 5
     name: no gap record or designed rule names this goal
     run: [bun, nv, owners, --closes, cli-housekeeping]
     reach: true
@@ -65,6 +72,12 @@ operator cannot empty or trim the cache on demand. `nvs update-check` and `nvs t
 designed in the tooling chapter, and nothing in `crates/` implements them. This goal builds all
 three. They touch no request path, and each one is tested against a local listener or a temporary
 directory.
+
+Stage 5 is three smaller fixes to how the CLI finds files. The project walk reads every `.nvs` file
+under the project, including generated and copied trees that `.gitignore` already names, so `nvs code`,
+the editor and `nvs check`'s lender search analyse files nobody wrote. `nvs check <directory>` fails
+instead of checking the directory. A `require` whose path is not statically known reports nothing, and
+every `use` after it fails with `E0306` instead.
 
 ## Standing decisions
 
@@ -118,17 +131,58 @@ check and the upload go through `Core\Http\Client`'s transport (`crates/nvs-stdl
   file and `NVS_TELEMETRY_URL` at a local listener. A loop of requests drives it, and the test
   asserts that the listener accepted zero connections and `invocation.serve` counted once.
 
+**The project walk skips what `.gitignore` and `.ignore` ignore, and nothing is configured.** The one
+source walk, `nvs_hir::lenders::sources` (`crates/nvs-hir/src/lenders.rs:239`), serves `nvs code`, the
+editor's workspace index (`crates/nvs-lsp/src/index.rs:894`) and `nvs check`'s lender search. It goes
+through the `ignore` crate's `WalkBuilder`, the walker ripgrep uses, added to the workspace
+`Cargo.toml` and to `nvs-hir`. The settings:
+
+- `.gitignore` and `.ignore` are read in every directory, also outside a git repository.
+- The global git excludes file and `.git/info/exclude` are not read. Why: the same tree gives the same
+  file list on every machine and in CI.
+- `target/`, `vendor/` and a dot-directory are still skipped, and a dot-file is still read, as today.
+- A path named on the command line is always taken, even when an ignore file names it.
+
+Why: a project already lists what it does not write in `.gitignore`. **Declined:** an exclude key in
+`nvs.toml`, because every project would repeat its `.gitignore` there. The rule that says which files
+are analysed (`rule:tooling/nvs-code-answers-about-the-project`, `docs/rules/tooling.md:1894`, "Every
+`.nvs` file under it is analysed") names the ignore files, with that Declined entry.
+
+**`nvs fmt` walks with the same function.** `formatter-complete` stage 1 makes the `nvs fmt` walk
+(`crates/nvs-cli/src/fmt.rs:177`) skip `vendor/`. Stage 5 replaces that walk with
+`nvs_hir::lenders::sources`, so the `vendor/` skip lives in one place, and
+`rule:tooling/fmt-check-writes-nothing` says that `nvs fmt` walks the project's files. Gate:
+`docs/goals/formatter-complete.md` no longer exists, which holds because it sits ahead of this goal on
+the chain.
+
+**`nvs check <directory>` checks the program `nvs test` runs for it.** It reads the directory through
+`Program::Directory` (`crates/nvs-cli/src/main.rs:2585`), so the two commands agree
+(`rule:testing/a-directory-of-programs-is-one-test-program`).
+
+**A `require` whose path is not statically known is a compile error.** Such a site loads no file while
+compiling and always throws when it is reached (`crates/nvs-hir/src/requires.rs:8`), so it can never
+work. It gets one new code beside `E0311` (`crates/nvs-diagnostics/src/code/names.rs:64`). Its help
+names the literal form, `require './autoload.nvs';`, which resolves from the file it is written in.
+`rule:statements/require-is-the-only-inclusion-construct` lists the forms that are statically known:
+literal text, a class constant, and `.` between them (`crates/nvs-hir/src/requires.rs:88`).
+
 **Lanes.** Stage 1 (`cache_cmd.rs`, `cache.rs`, and `agent.rs` for the gap) is a lane of its own and can run in any order or
 as a side goal. Stages 2 and 3 share `endpoints.rs`, so 3 runs after 2. Stage 4 shares
 `telemetry.rs` with 3 and `update_check.rs` with 2, so it runs last. All four share only the
-subcommand table in `main.rs`, which is a one-line merge each. The whole goal touches no request path
-and can run beside the chain as a side goal.
+subcommand table in `main.rs`, which is a one-line merge each. Stage 5 (`lenders.rs`, `fmt.rs`,
+`requires.rs` and `nvs check`'s entry in `main.rs`) shares no other file with stages 1 to 4 and is a
+lane of its own. The whole goal touches no request path. Stages 1 to 4 can run beside the chain as a
+side goal. Stage 5 changes `nvs-hir` and waits for its gate, so it does not run while
+`compiler-holes` or `formatter-complete` is open.
 
 **Trade-offs.** No program changes, and nothing runs on the request path. `nvs serve` pays one
 buffered counter append at startup when telemetry is on, before the listener binds
 (`rule:tooling/telemetry-counters-are-a-closed-set`). The counter file is a few KiB per user. The
 update check is one HTTPS request per run, only when the user runs it. Three new subcommands add to
-the CLI surface, and each is one verb a user already expects.
+the CLI surface, and each is one verb a user already expects. Stage 5 adds the `ignore` crate, the
+walker ripgrep uses, with its small set of dependencies. The walk reads each ignore file once per
+walk, which costs a few KiB for the parsed patterns while the walk runs, and never runs on the request
+path. A dynamic `require` that compiled before and always threw now fails to compile.
 
 ## Stages
 
@@ -189,14 +243,50 @@ at most three seconds.
 - [ ] The answer decides the week's report: `204` records the upload, `429` and `5xx` keep it, `400`, `413` and `415` drop it, each with its line (`rule:tooling/a-failed-upload-never-fails-the-command`). `crates/nvs-cli/src/telemetry.rs:1`
 - [ ] Tests against a local listener: one upload per finished week, none for an empty week, a dead listener inside the budget, and one case per status above. `crates/nvs-cli/src/telemetry.rs:1`
 - [ ] The `nvs serve` test § *Standing decisions* names: zero connections under load, `invocation.serve` counted. `crates/nvs-cli/src/telemetry.rs:1`
-- [ ] Both rules `shipped`, and `bun nv owners --closes cli-housekeeping` passes. `data/rules/tooling/a-serving-process-never-uploads.json:3`, `data/rules/tooling/a-failed-upload-never-fails-the-command.json:3`
+- [ ] Both rules `shipped`. `data/rules/tooling/a-serving-process-never-uploads.json:3`, `data/rules/tooling/a-failed-upload-never-fails-the-command.json:3`
+
+### 5. the project walk skips what `.gitignore` ignores, `nvs check` reads a directory, and a `require` that cannot be followed is an error
+
+**Does:** every project walk goes through one function that reads the ignore files, and the two gap
+records this stage owns are closed. Gate: `docs/goals/formatter-complete.md` no longer exists.
+
+**Split:** one `Explore` subagent first lists every rule fragment under `docs/rules/` that says which
+files a project walk, a workspace index or `nvs fmt` reads, as `file.md:NN` and one line each. Each
+one is an item of the walk group. A second `Explore` subagent, sent with it, lists every `.nvs` and
+`.nvst` file and every Rust test that writes a `require` whose path is not statically known. Each one
+is rewritten in the `require` group.
+
+The walk, one group:
+
+- [ ] The `ignore` crate in the workspace `Cargo.toml` and in `nvs-hir`, and `bun nv lints` and `deny.toml` accept it. `Cargo.toml:1`, `crates/nvs-hir/Cargo.toml:17`
+- [ ] `sources` walks with `WalkBuilder` and the settings § *Standing decisions* names, and its doc comment says so. `crates/nvs-hir/src/lenders.rs:239`
+- [ ] `nvs fmt`'s walk is replaced by `sources`, and a path named on the command line is still formatted. `crates/nvs-cli/src/fmt.rs:177`
+- [ ] Tests over a temporary tree: a file a `.gitignore` names, one an `.ignore` names, a nested `.gitignore`, no git repository, `vendor/` and a dot-directory. `crates/nvs-hir/src/lenders.rs:239`
+- [ ] The rule names the ignore files, with the Declined exclude key (`rule:tooling/nvs-code-answers-about-the-project`). `docs/rules/tooling/nvs-code-answers-about-the-project.md:1`
+- [ ] `rule:tooling/fmt-check-writes-nothing` says `nvs fmt` walks the project's files with the same function. `docs/rules/tooling/fmt-check-writes-nothing.md:1`
+- [ ] Each fragment the subagent listed says the same. `docs/rules/tooling/nvs-code-answers-about-the-project.md:1`
+
+`nvs check <directory>`, its own group:
+
+- [ ] `nvs check` reads a directory through `Program::Directory` (`rule:testing/a-directory-of-programs-is-one-test-program`). `crates/nvs-cli/src/main.rs:1100`, `crates/nvs-cli/src/main.rs:2585`
+- [ ] A test over a directory whose files have one error between them. `crates/nvs-cli/tests/check_command.rs:1`
+- [ ] The gap record deleted. `data/gaps/nvs-cli/check-of-a-directory-is-not-one-program.json:1`
+
+A `require` that cannot be followed, its own group:
+
+- [ ] `rule:statements/require-is-the-only-inclusion-construct` lists the statically known forms and the new code. `docs/rules/statements/require-is-the-only-inclusion-construct.md:1`
+- [ ] The new code beside `E0311`, with help text that follows AGENTS.md § *Text an end user reads*. `crates/nvs-diagnostics/src/code/names.rs:64`
+- [ ] The dynamic fallback reports it at the `require`, and its module doc says so. `crates/nvs-hir/src/requires.rs:8`, `crates/nvs-hir/src/requires.rs:1837`
+- [ ] A conformance case: a `require` of a call joined with a literal is the new error, and the literal form compiles. `tests/conformance/lang/a-require-whose-path-is-not-statically-known-is-a-compile-error.nvst:1`
+- [ ] The gap record deleted, and `bun nv owners --closes cli-housekeeping` passes. `data/gaps/nvs-hir/a-require-path-that-is-not-static-reports-nothing.json:1`
 
 ## Handoff
 
 ### State
 
 No stage is started. Every open point is settled in § *Standing decisions*, and each stage writes
-its choice into its rule first. The anchors above were checked against the tree.
+its choice into its rule first. The anchors above were checked against the tree. Stage 5 waits for
+`formatter-complete`, and owns two gap records.
 
 ### Next
 
