@@ -726,7 +726,7 @@ codes! {
     /// $a->b = v; }` says which of the two outcomes was meant.
     pub const E_NULLSAFE_WRITE_TARGET: Code = Code::new("E0479").card(
         "You cannot assign a value through `?->`. Test for `null` first: \
-         `if ($a !== null) { $a->b = $value; }`.",
+         `if ($a != null) { $a->b = $value; }`.",
     );
     /// An array element written through a property whose receiver erased:
     /// an `rule:types/object-top` shape, or `rule:types/grammar`'s plain `object`.
@@ -779,7 +779,7 @@ codes! {
     /// `Core\Str`, not through a subscript.
     pub const E_SUBSCRIPT_ON_NON_ARRAY: Code = Code::new("E0482").card(
         "`[...]` reads an element of an array, and destructuring takes an array apart. This value \
-         is not an `array<T>`, so neither works. Test a `?array<T>` with `!== null` first, and \
+         is not an `array<T>`, so neither works. Test a `?array<T>` with `!= null` first, and \
          use `Core\\Str` for the characters of a string.",
     );
     /// `&value` as an element of an array literal, or `[int &$x] = $pair;`
