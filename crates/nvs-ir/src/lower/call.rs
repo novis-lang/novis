@@ -1295,6 +1295,63 @@ impl<'a> Lowering<'a> {
                 let (v, _) = self.lower_expr(arg, Some(ty), env, cur);
                 (RefHolder::Local(name), v)
             }
+            // `rule:types/a-member-every-class-of-a-union-declares`: the read
+            // and the copy-back each test the receiver's class.
+            ExprKind::PropertyAccess { object, .. }
+                if matches!(self.exprs.lookup(arg.span), Some(ExprInfo::UnionMember { .. })) =>
+            {
+                let Some(ExprInfo::UnionMember { arms }) = self.exprs.lookup(arg.span) else {
+                    unreachable!("the guard above matched a union member");
+                };
+                let mut field = String::new();
+                let arms: Vec<(String, String)> = arms
+                    .iter()
+                    .map(|(tested, record)| {
+                        let ExprInfo::Property { class, name, .. } = record else {
+                            panic!(
+                                "nvs-ir: the by-reference argument at {:?} goes through a union \
+                                 whose class `{tested}` gives the property a hook, and nvs_types' \
+                                 `check_inout_arg` is expected to have refused it",
+                                arg.span
+                            );
+                        };
+                        field.clone_from(name);
+                        (tested.to_string(), class.to_string())
+                    })
+                    .collect();
+                let (object_v, _) = self.lower_expr(object, None, env, cur);
+                let read = self.branch_on_union_class(
+                    object_v,
+                    &arms,
+                    Some(ty),
+                    arg.span,
+                    cur,
+                    |this, block, class| {
+                        let (v, _) = this.emit(
+                            block,
+                            ty,
+                            InstKind::FieldGet {
+                                object: object_v,
+                                class: class.to_owned(),
+                                field: field.clone(),
+                            },
+                        );
+                        Some(v)
+                    },
+                );
+                let Some(v) = read else {
+                    unreachable!("a read with a type joins its arms in one value");
+                };
+                (
+                    RefHolder::UnionField {
+                        object: object_v,
+                        arms,
+                        field,
+                        span: arg.span,
+                    },
+                    v,
+                )
+            }
             ExprKind::PropertyAccess { object, .. } => {
                 let Some(ExprInfo::Property { class, name, .. }) = self.exprs.lookup(arg.span)
                 else {

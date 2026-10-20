@@ -27,6 +27,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 ## Tooling
 
 ## Running things
+- **`bun nv soundness --probe` runs the `covws` build, not the debug build you just changed.** After a
+  lowering change, the probe reports the old binary's panic for every new cell. Run it as
+  `NVS_BIN=E:/mwl/target/debug/nvs.exe bun nv soundness --probe`, with an absolute path, because a
+  relative one is not found. See `tools/nv/cmd/soundness.ts`.
+  `until: gone tools/nv/cmd/soundness.ts:covws`
 
 ## Writing a test case
 

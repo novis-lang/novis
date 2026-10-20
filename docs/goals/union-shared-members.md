@@ -170,14 +170,14 @@ class for the lowering.
 
 **Split:** after the lowering lands, one writing subagent writes the `.nvst` cases below.
 
-- [ ] A property read lowers to `ClassTest` per class but the last and one `FieldGet` per branch. `crates/nvs-ir/src/lower/expr.rs:5262`, `crates/nvs-ir/src/ir.rs:1353`, `crates/nvs-ir/src/ir.rs:1031`
-- [ ] A hooked property's branch calls its hook, as a read through that class does. `crates/nvs-ir/src/lower/expr.rs:5262`
-- [ ] A method call lowers to one branch per class, each the call that class makes. `crates/nvs-ir/src/lower/call.rs:1299`
-- [ ] A write, as stage 1 decided. `crates/nvs-ir/src/lower/stmt.rs:1`
-- [ ] A union receiver row in the soundness matrix, if `FieldGet` does not check its receiver's class. `tools/nv/cmd/soundness.ts:1`
+- [x] A property read lowers to `ClassTest` per class but the last and one `FieldGet` per branch. `crates/nvs-ir/src/lower/expr.rs:5262`, `crates/nvs-ir/src/ir.rs:1353`, `crates/nvs-ir/src/ir.rs:1031`
+- [x] A hooked property's branch calls its hook, as a read through that class does. `crates/nvs-ir/src/lower/expr.rs:5262`
+- [x] A method call lowers to one branch per class, each the call that class makes. `crates/nvs-ir/src/lower/call.rs:1299`
+- [x] A write, as stage 1 decided. `crates/nvs-ir/src/lower/stmt.rs:1`
+- [x] A union receiver row in the soundness matrix, if `FieldGet` does not check its receiver's class. `tools/nv/cmd/soundness.ts:1`
 - [x] The `Box|Circle` case rewritten: it pins `E0495` with `Box|int`, and the new `E0881` case pins the union whose classes do not share the member. `tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst:52`
 - [x] The `Dog|Cat` call case rewritten the same way: it pins `E0477` with `Dog|int`. `tests/conformance/reject/a-method-call-through-a-receiver-that-names-no-class-is-refused.nvst:34`
-- [ ] Cases: a shared property read through each class, a shared method called through each class, each refusal with its code. `tests/conformance/lang/a-property-every-class-of-a-union-declares-is-read.nvst:1`, `tests/conformance/lang/a-method-every-class-of-a-union-declares-is-called.nvst:1`, `tests/conformance/lang/a-member-not-shared-by-every-class-of-a-union-is-a-compile-error.nvst:1`
+- [x] Cases: a shared property read through each class, a shared method called through each class, each refusal with its code. `tests/conformance/lang/a-property-every-class-of-a-union-declares-is-read.nvst:1`, `tests/conformance/lang/a-method-every-class-of-a-union-declares-is-called.nvst:1`, `tests/conformance/lang/a-member-not-shared-by-every-class-of-a-union-is-a-compile-error.nvst:1`
 
 ### 4. the feature has its proofs and its place on the website
 
@@ -201,27 +201,53 @@ AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1 and 2 are done. The checker accepts a read, a write and a call through a union of classes,
-and records `ExprInfo::UnionMember { arms }`: one `(class, record)` per class in union order, where the
-record is exactly what that class alone records (`Property`/`HookedProperty`, `Call`, or
-`CallableRef` for `$u->m(...)`). `members::union_classes` is the test for "a union of classes, no
-interface". The read is `check_union_property`, the write `assign::reject_union_write` (it compares
-the new `property_set_visibility` map), the call `calls::infer_union_method_call` with
-`same_signature`. Each refusal is `E0881` and reports once.
+Stages 1 and 2 are done and committed. **Stage 3's work is written and UNCOMMITTED, and its verify
+has not run.** The session hit the hand-off budget, and `looper verify` was not a subcommand of the
+installed `looper` binary (`bun tools/looper/main.ts verify` or `bun nv affected --run` is the gate).
+Every new `.nvst` case and the soundness probe pass on the debug build, and `cargo build` is clean.
 
-**Nothing lowers it yet.** A program with such an access now type-checks and then panics in `nvs-ir`
-with a message naming the union (two explicit arms in `crates/nvs-ir/src/lower/expr.rs`). The write
-path in `crates/nvs-ir/src/lower/stmt.rs:1431` still panics with its old message. Stage 3 closes this
-first, before anything else.
+What landed in the working tree:
+
+- **The lowering.** `Lowering::lower_union_member` (`crates/nvs-ir/src/lower/expr.rs:5269`) lowers
+  the receiver once and stages it under its span. For each class it emits a `ClassTest` and a branch,
+  except the last class, which is the fall-through. Each arm then runs the *one-class* lowering, and
+  `Lowering::union_arm` / `member_record` (`crates/nvs-ir/src/lower/mod.rs:3672`) answer that class's
+  record for the access span. Read, call, `$u->m(...)`, write (`stmt.rs` `lower_store`) and the
+  element write-back (`mod.rs` `write_back_array`) all go through it. `aliasing_read` reports a union
+  read with a `get`-hook arm as fresh, and a plain arm then retains its borrowed value.
+- **`inout $u->p`** is `RefHolder::UnionField` and `Lowering::branch_on_union_class`
+  (`mod.rs:2044`, `mod.rs:3513`). `write_back_holder` and `flush_ref_writebacks` now take
+  `cur: &mut BlockId`.
+- **The checker** refuses `inout` and an element write through a union where one class hooks the
+  property, with the one-class codes `E0439`/`E0478`: `ExprTypeTable::hooked_property`
+  (`crates/nvs-types/src/expr_table.rs:1668`), used in `args::check_inout_arg` and
+  `assign`'s element-write root check.
+- **Two leaks that were already there are fixed**, and the cause was in the one-class code:
+  `lower_read_modify_write` never released a fresh `get`-hook read (`$t->hooked .= "x"`), and a
+  plain write through a fresh receiver (`make()->p = v`) never released the receiver (`stmt.rs`).
+  `tests/conformance/lang/a-write-through-a-fresh-receiver-or-a-get-hook-holds-no-memory-after-it.nvst`
+  pins both, and it prints `grew` without the fix.
+- **Soundness:** `PROPERTY_PATHS` gained `union-tested` and `union-fallthrough`, with an `Other<n>`
+  class. `--write` was run, and `--probe` with `NVS_BIN=E:/mwl/target/debug/nvs.exe` gives 0 of 407
+  failing. The default `covws` binary is stale and reports the old panic.
+- **Cases:** `a-property-every-class-of-a-union-declares-is-read.nvst`,
+  `a-method-every-class-of-a-union-declares-is-called.nvst`, the extended
+  `a-member-not-shared-by-every-class-of-a-union-is-a-compile-error.nvst` (6 errors), and
+  `a-union-where-one-class-hooks-the-property-is-no-inout-argument-and-no-element-write-root.nvst`.
+  There is also a lowering unit test in `crates/nvs-ir/src/lower/tests.rs` that counts the class tests.
 
 ### Next
 
-**Stage 3, one group**, in `nvs-ir`: the read, the hooked read, the call and the method reference, the
-write, then the cases.
+**First, finish stage 3:** run the gate, fix what it names, then commit and set stage 3 `done`.
 
-- [ ] The read: replace the `UnionMember` panic arm with `ClassTest` per arm but the last, each arm lowered as its one-class `Property`/`HookedProperty`. `crates/nvs-ir/src/lower/expr.rs:5302`
-- [ ] The call and `$u->m(...)`: replace the panic arm with one branch per `Call`/`CallableRef` arm. `crates/nvs-ir/src/lower/expr.rs:4279`
-- [ ] The write. `crates/nvs-ir/src/lower/stmt.rs:1431`
-- [ ] The soundness row, then the two read/call cases; the refusal case already exists. `tools/nv/cmd/soundness.ts:1`, `tests/conformance/lang/a-member-not-shared-by-every-class-of-a-union-is-a-compile-error.nvst:1`
+- [ ] `bun nv affected --run` over the working tree, and fix every failure in one pass. `crates/nvs-ir/src/lower/expr.rs:5269`
+- [ ] Commit in three slices: `fix(ir)` for the two leak fixes and their case (`stmt.rs` `lower_read_modify_write`/`lower_store`'s plain arm), `feat(ir)` for the union lowering, the checker refusals, the cases and `tests.rs`, and `test(soundness)` for `tools/nv/cmd/soundness.ts` and `tests/conformance/soundness/`. The rule fragment's new sentence goes with `feat(ir)`. `tools/nv/cmd/soundness.ts:1`
+- [ ] Then stage 4 as written. The examples print what stage 3 lowers. `docs/examples/lang/types/chapter.md:1`
 
 ### Backlog
+
+- `isinit($u->p)` through a union is `E0854` ("needs an object of a known class"). The rule says
+  nothing about it, so it is a choice for stage 4's `about.md` or a later goal.
+  `crates/nvs-types/src/expr/presence.rs`
+- The write refusals for a different `(set)` visibility and for a `get` hook with no `set` hook have
+  no case yet. `crates/nvs-types/src/expr/assign.rs:1297`

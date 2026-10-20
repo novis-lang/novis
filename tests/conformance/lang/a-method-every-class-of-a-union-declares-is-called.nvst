@@ -1,0 +1,90 @@
+--TEST--
+A method call through a union of classes runs the method of the class the value is — `rule:types/a-member-every-class-of-a-union-declares`
+--FILE--
+<?nvs
+class Shape {
+    public function constructor() { }
+    public function label(): string { return "shape"; }
+}
+final class Box {
+    public int $count = 0;
+    public function constructor() { }
+    public function label(): string { return "box"; }
+    public function add(int $a, int $b): int { return $a + $b; }
+    public function bump(): void { $this->count = $this->count + 1; }
+}
+final class Circle {
+    public int $count = 0;
+    public function constructor() { }
+    public function label(): string { return "circle"; }
+    public function add(int $a, int $b): int { return $a * $b; }
+    public function bump(): void { $this->count = $this->count + 10; }
+}
+final class Square extends Shape {
+    public function constructor() { parent::constructor(); }
+}
+final class Round extends Shape {
+    public function constructor() { parent::constructor(); }
+    public function label(): string { return "round"; }
+}
+
+final class Factory {
+    public static function make(int $kind): Box|Circle {
+        if ($kind == 1) {
+            return new Circle();
+        }
+        return new Box();
+    }
+}
+
+// The variable is a `Box`, then a `Circle`. Each call runs the method of that class.
+Box|Circle $s = new Box();
+echo $s->label(), "\n";
+$s = new Circle();
+echo $s->label(), "\n";
+
+// `Square` gets `label` from its parent class `Shape`. This prints `shape`.
+Box|Square $inherited = new Square();
+echo $inherited->label(), "\n";
+
+// `Round` overrides `label`. The value is a `Round`, so this prints `round`.
+Shape|Box $overridden = new Round();
+echo $overridden->label(), "\n";
+// The same call with `Shape` last in the union also prints `round`.
+Box|Shape $last = new Round();
+echo $last->label(), "\n";
+
+// `bump` returns nothing. It adds 1 on a `Box` and 10 on a `Circle`.
+Box|Circle $bumped = new Box();
+$bumped->bump();
+echo $bumped->count, "\n";
+$bumped = new Circle();
+$bumped->bump();
+echo $bumped->count, "\n";
+
+// `add` takes two arguments. A `Box` adds them and a `Circle` multiplies them.
+Box|Circle $math = new Box();
+echo $math->add(3, 4), "\n";
+$math = new Circle();
+echo $math->add(3, 4), "\n";
+
+// `$math->add(...)` creates a callable for the method of the `Circle`. Calling it prints `12`.
+callable $f = $math->add(...);
+echo $f(3, 4), "\n";
+
+// `Factory::make` returns `Box|Circle`. The call works directly on the result.
+echo Factory::make(1)->label(), "\n";
+echo Factory::make(2)->label(), "\n";
+--EXPECT--
+box
+circle
+shape
+round
+round
+1
+10
+7
+12
+12
+circle
+box

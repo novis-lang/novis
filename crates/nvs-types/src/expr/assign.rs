@@ -1245,7 +1245,12 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
         );
         return;
     }
-    match env.exprs.lookup(root.span) {
+    // A union where one class hooks the property is refused as that class is.
+    let root_record = env
+        .exprs
+        .hooked_property(root.span)
+        .or_else(|| env.exprs.lookup(root.span));
+    match root_record {
         Some(ExprInfo::HookedProperty { name, .. }) => {
             let name = name.clone();
             env.diags.report(

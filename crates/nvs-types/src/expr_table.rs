@@ -1660,6 +1660,22 @@ impl ExprTypeTable {
             .map(|id| &self.entries[id.0 as usize])
     }
 
+    /// The [`ExprInfo::HookedProperty`] recorded for the property access at
+    /// `span`, or the first one among the arms of an
+    /// [`ExprInfo::UnionMember`] there. A place that has no address through a
+    /// hooked property (an `inout` argument, an element write's root) has none
+    /// through a union where one class hooks it either.
+    pub fn hooked_property(&self, span: Span) -> Option<&ExprInfo> {
+        match self.lookup(span)? {
+            hooked @ ExprInfo::HookedProperty { .. } => Some(hooked),
+            ExprInfo::UnionMember { arms } => arms
+                .iter()
+                .map(|(_, arm)| arm)
+                .find(|arm| matches!(arm, ExprInfo::HookedProperty { .. })),
+            _ => None,
+        }
+    }
+
     /// Every entry recorded after the table held `mark` of them, in the order
     /// they were recorded — what one expression's check resolved, for a
     /// caller that took [`Self::len`] before it

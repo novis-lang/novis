@@ -1,0 +1,33 @@
+--TEST--
+A plain write through a receiver no variable holds, and a compound write on a property with a `get` hook, free what they used, so memory does not grow across rounds — `rule:classes/property-hooks`
+--FILE--
+<?nvs
+final class Box { public string $label = "box"; public function constructor() { } }
+final class Tag {
+    public string $label { get => $this->label; set { $this->label = $value; } }
+    public function constructor() { $this->label = "t"; }
+}
+final class Factory {
+    public static function box(): Box { return new Box(); }
+}
+
+// Each round writes through a new `Box` that no variable holds,
+// and appends to a hooked property, many times.
+Tag $tag = new Tag();
+uint $before = 0;
+for (int $round = 0; $round < 3; $round++) {
+    for (int $i = 0; $i < 2000; $i++) {
+        Factory::box()->label = "gone" . $i;
+        $tag->label = "v" . $i;
+        $tag->label .= "w";
+    }
+    // The first round warms up. After it, memory stays the same.
+    if ($round == 2) {
+        echo Core\Budget::memoryHeld() == $before ? "steady" : "grew", "\n";
+    }
+    $before = Core\Budget::memoryHeld();
+}
+echo $tag->label, "\n";
+--EXPECT--
+steady
+v1999w

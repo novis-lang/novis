@@ -703,8 +703,16 @@ impl<'a> Lowering<'a> {
         let (old, old_ty) = self.lower_expr(target, None, env, cur);
         self.silenced_gets.truncate(silenced);
         self.reading_guarded_target = outer;
+        // A read through a `get` hook is a fresh producer, and the staged
+        // entry below is a borrow, so this frame owns the value and releases
+        // it with the other temporaries. A `??=` that keeps the old value
+        // gives it to its caller, so that one is left alone.
+        let kept_old = op == BinaryOp::Coalesce && !defaults;
+        if !kept_old && old_ty.is_refcounted() && !self.aliasing_read(target) {
+            self.own_temporary(old);
+        }
         self.stage(target.span, old, old_ty);
-        let kept = (op == BinaryOp::Coalesce && !defaults)
+        let kept = kept_old
             .then(|| self.open_kept_value(old, old_ty, target.span, env, cur))
             .flatten();
         // An increment's `1` has no source span to build an `ExprKind::Int`
@@ -1427,7 +1435,21 @@ impl<'a> Lowering<'a> {
                         cur,
                     );
                 }
-                let (class, name, ty, set, observer, guard) = match self.exprs.lookup(target.span) {
+                // `rule:types/a-member-every-class-of-a-union-declares`: one
+                // branch per class, each the write that class alone makes.
+                if let Some(ExprInfo::UnionMember { arms }) = self.member_record(target.span) {
+                    return self.lower_union_member(
+                        object,
+                        false,
+                        arms,
+                        false,
+                        target,
+                        env,
+                        cur,
+                        |this, env, cur| this.lower_store(target, stored, extra_owner, env, cur),
+                    );
+                }
+                let (class, name, ty, set, observer, guard) = match self.member_record(target.span) {
                     Some(ExprInfo::Property {
                         class,
                         name,
@@ -1591,6 +1613,14 @@ impl<'a> Lowering<'a> {
                 } else {
                     let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
                     let (object_v, receiver_ty) = self.untag_receiver(object_v, receiver_ty, *cur);
+                    // A receiver that is a fresh producer — `Box::make()->name = v`
+                    // — has no other owner, so this frame releases it after the
+                    // store, and a throw before that releases it too.
+                    let receiver_mark = self.temporaries_mark();
+                    let fresh_receiver = receiver_ty.is_refcounted() && !self.aliasing_read(object);
+                    if fresh_receiver {
+                        self.own_temporary(object_v);
+                    }
                     let (v, vty, aliasing) = self.lower_stored(stored, Some(field_ty), env, cur);
                     // Coerce first, retain second — the arm above says why.
                     let v = self.coerce(*cur, v, vty, field_ty, env);
@@ -1672,6 +1702,10 @@ impl<'a> Lowering<'a> {
                         if let Some(open) = unless_plain {
                             self.close_unless_plain(open, env, cur);
                         }
+                    }
+                    if fresh_receiver {
+                        self.forget_temporaries_since(receiver_mark);
+                        self.emit_release(*cur, object_v);
                     }
                     (v, field_ty)
                 }

@@ -3092,6 +3092,49 @@ class T {
     );
 }
 
+/// A read through a union of three classes that all declare `$name` is two
+/// class tests and three fixed-offset reads, one per class
+/// (`rule:types/a-member-every-class-of-a-union-declares`). The last class is
+/// the fall-through, and nothing is looked up by name.
+#[test]
+fn a_property_every_class_of_a_union_declares_lowers_to_a_class_test_per_class_but_the_last() {
+    let (f, _, _) = lower_first_method(
+        "<?nvs
+class Box { public string $name = \"box\"; }
+class Circle { public string $name = \"circle\"; }
+class Label { public string $name = \"label\"; }
+class T {
+  function m(Box|Circle|Label $s): string {
+    return $s->name;
+  }
+}
+",
+    );
+    let insts = || f.blocks.iter().flat_map(|b| &b.insts);
+    let tested: Vec<&TestedClass> = insts()
+        .filter_map(|i| match &i.kind {
+            InstKind::ClassTest { class, .. } => Some(class),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        matches!(&tested[..], [TestedClass::Named(a), TestedClass::Named(b)] if a == "Box" && b == "Circle"),
+        "{tested:?}"
+    );
+    let read: Vec<&str> = insts()
+        .filter_map(|i| match &i.kind {
+            InstKind::FieldGet { class, .. } => Some(class.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(read, ["Box", "Circle", "Label"], "{:?}", f.blocks);
+    assert!(
+        !insts().any(|i| matches!(i.kind, InstKind::SlotGet { .. })),
+        "a union read looks nothing up by name: {:?}",
+        f.blocks
+    );
+}
+
 /// A zero divisor throws whatever the operand types are (`rule:types/arithmetic`), and
 /// `nvs-codegen` raises that inline rather than through a helper, so the
 /// frame's cleanup path has to exist at the operator itself: integer `%` and
