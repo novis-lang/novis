@@ -1,0 +1,42 @@
+--TEST--
+A `yield` inside a `finally` block is `E0255`, whether or not the `try` yields too (`rule:statements/no-return-leaves-a-finally`)
+--FILE--
+<?nvs
+class Src {
+    public static function both(): Iterator<int> {
+        try {
+            yield 1;
+        } finally {
+            yield 2;
+        }
+    }
+
+    public static function onlyFinally(): Iterator<int> {
+        try {
+            echo "body\n";
+        } finally {
+            foreach (Src::both() as int $v) {
+                yield $v;
+            }
+        }
+    }
+}
+
+foreach (Src::onlyFinally() as int $v) {
+    echo $v, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0255]: a `yield` cannot be written inside a `finally` block
+%A
+7 |             yield 2;
+%A
+  = help: write the `yield` in the `try` block or after the whole `try` statement
+%A
+error[E0255]: a `yield` cannot be written inside a `finally` block
+%A
+16 |                 yield $v;
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,37 @@
+--TEST--
+a `yield` of a literal into a nullable or union element type gives that value to the loop — `rule:iteration/generators`
+--FILE--
+<?nvs
+class Src {
+    public static function ints(): Iterator<?int> {
+        yield 2;
+        yield null;
+    }
+
+    public static function strings(): Iterator<?string> {
+        yield "a";
+        yield null;
+    }
+
+    public static function mixedScalars(): Iterator<int|string> {
+        yield 1;
+        yield "b";
+    }
+}
+
+foreach (Src::ints() as ?int $v) {
+    echo $v ?? "null", "\n";
+}
+foreach (Src::strings() as ?string $s) {
+    echo $s ?? "null", "\n";
+}
+foreach (Src::mixedScalars() as int|string $u) {
+    echo $u is int ? "int " : "string ", $u, "\n";
+}
+--EXPECT--
+2
+null
+a
+null
+int 1
+string b

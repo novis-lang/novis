@@ -2245,6 +2245,23 @@ impl<'src, 'd> Parser<'src, 'd> {
                 kind: ExprKind::YieldFrom(Box::new(e)),
             };
         }
+        // `rule:statements/no-return-leaves-a-finally`: a `finally` also runs
+        // with a throw in flight and while an abandoned generator unwinds,
+        // and neither can suspend. The flag is parked in a nested body, so
+        // a `yield` there belongs to that body. `yield from` is `E0448`
+        // wherever it is written, so it is not reported twice.
+        if self.in_finally {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_YIELD_IN_A_FINALLY,
+                    "a `yield` cannot be written inside a `finally` block",
+                )
+                .with_primary(start, "a `finally` block cannot pause the generator")
+                .with_help(
+                    "write the `yield` in the `try` block or after the whole `try` statement",
+                ),
+            );
+        }
         if self.at_expr_terminator() {
             return Expr {
                 span: start,

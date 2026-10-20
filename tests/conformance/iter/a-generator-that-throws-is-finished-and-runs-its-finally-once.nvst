@@ -1,0 +1,46 @@
+--TEST--
+a generator whose body throws is finished: a later `advance()` returns `false`, a second `foreach` runs nothing, and its `finally` runs once — `rule:iteration/generators`
+--FILE--
+<?nvs
+class Src {
+    public static function once(): Iterator<int> {
+        yield 1;
+        throw new RuntimeError("bad");
+    }
+
+    public static function guarded(): Iterator<int> {
+        try {
+            yield 1;
+            throw new RuntimeError("bad");
+        } finally {
+            echo "[closed]";
+        }
+    }
+}
+
+var $g = Src::once();
+try {
+    while ($g->advance()) {
+        echo $g->current();
+    }
+} catch (RuntimeError $e) {
+    echo "caught";
+}
+echo $g->advance() ? " again" : " finished", "\n";
+foreach ($g as int $v) {
+    echo "again ", $v;
+}
+
+var $h = Src::guarded();
+try {
+    foreach ($h as int $w) {
+        echo $w;
+    }
+} catch (RuntimeError $e) {
+    echo "caught";
+}
+$h = Src::guarded();
+echo "\n";
+--EXPECT--
+1caught finished
+1[closed]caught

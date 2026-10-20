@@ -1,0 +1,80 @@
+--TEST--
+an error that leaves a `finally` while another is in flight gets that one as `previous`, from a `throw` or a call, and keeps a `previous` it already has — `rule:statements/no-return-leaves-a-finally`
+--FILE--
+<?nvs
+class Src {
+    public static function fail(): void {
+        throw new LogicError("from a call");
+    }
+
+    public static function direct(): void {
+        try {
+            throw new IOError("first");
+        } finally {
+            throw new LogicError("second");
+        }
+    }
+
+    public static function viaCall(): void {
+        try {
+            throw new IOError("first");
+        } catch (LogicError $e) {
+            echo "not this";
+        } finally {
+            Src::fail();
+        }
+    }
+
+    public static function fromCatch(): void {
+        try {
+            throw new IOError("first");
+        } catch (IOError $e) {
+            throw new RuntimeError("from catch");
+        } finally {
+            throw new LogicError("second");
+        }
+    }
+
+    public static function alreadySet(): void {
+        try {
+            throw new IOError("first");
+        } finally {
+            throw new LogicError("second", {previous: new RuntimeError("own")});
+        }
+    }
+
+    public static function caughtInside(): void {
+        try {
+            throw new IOError("first");
+        } finally {
+            try {
+                throw new LogicError("inner");
+            } catch (LogicError $e) {
+                echo "inner caught\n";
+            }
+        }
+    }
+
+    public static function show(Throwable $e): void {
+        echo $e->message;
+        var $p = $e->previous;
+        while ($p != null) {
+            echo " <- ", $p?->message;
+            $p = $p?->previous;
+        }
+        echo "\n";
+    }
+}
+
+try { Src::direct(); } catch (Throwable $e) { Src::show($e); }
+try { Src::viaCall(); } catch (Throwable $e) { Src::show($e); }
+try { Src::fromCatch(); } catch (Throwable $e) { Src::show($e); }
+try { Src::alreadySet(); } catch (Throwable $e) { Src::show($e); }
+try { Src::caughtInside(); } catch (Throwable $e) { Src::show($e); }
+--EXPECT--
+second <- first
+from a call <- first
+second <- from catch
+second <- own
+inner caught
+first

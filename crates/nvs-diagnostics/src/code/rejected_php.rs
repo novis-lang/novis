@@ -492,4 +492,13 @@ codes! {
         "`use function` and `use const` are not available in Novis. Every function is a method \
          and every constant belongs to a class. Import the class and write `Class::name`.",
     );
+    /// A `yield` or `yield from` written inside a `finally` block
+    /// (`rule:statements/no-return-leaves-a-finally`). The block also runs
+    /// while an error is in flight and when an abandoned generator is
+    /// unwound, and neither path can suspend. PHP allows it.
+    pub const E_YIELD_IN_A_FINALLY: Code = Code::new("E0255").card(
+        "A `yield` cannot be written inside a `finally` block. The block also runs when an error \
+         is thrown and when a generator is freed, and a generator cannot pause there. Write the \
+         `yield` in the `try` block or after the whole `try` statement.",
+    );
 }
