@@ -5341,12 +5341,8 @@ impl<'a> Lowering<'a> {
         let v = if result_ty == Ty::Void {
             values[0].1
         } else {
-            self.emit(
-                done,
-                result_ty,
-                InstKind::Phi { incoming: values },
-            )
-            .0
+            self.emit(done, result_ty, InstKind::Phi { incoming: values })
+                .0
         };
         if base_is_temporary {
             self.release_temporaries_since(mark, *cur);
@@ -5372,7 +5368,9 @@ impl<'a> Lowering<'a> {
                 expr,
                 env,
                 cur,
-                |this, env, cur| this.lower_property_access(object, property, false, expr, env, cur),
+                |this, env, cur| {
+                    this.lower_property_access(object, property, false, expr, env, cur)
+                },
             );
         }
         // `rule:classes/property-hooks`: a read of a property that declares a `get`

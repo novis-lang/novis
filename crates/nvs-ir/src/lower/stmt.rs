@@ -1449,7 +1449,8 @@ impl<'a> Lowering<'a> {
                         |this, env, cur| this.lower_store(target, stored, extra_owner, env, cur),
                     );
                 }
-                let (class, name, ty, set, observer, guard) = match self.member_record(target.span) {
+                let (class, name, ty, set, observer, guard) = match self.member_record(target.span)
+                {
                     Some(ExprInfo::Property {
                         class,
                         name,

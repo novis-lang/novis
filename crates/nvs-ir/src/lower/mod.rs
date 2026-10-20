@@ -3608,10 +3608,17 @@ impl<'a> Lowering<'a> {
                 field,
                 span,
             } => {
-                self.branch_on_union_class(*object, arms, None, *span, cur, |this, block, class| {
-                    this.write_back_field(block, *object, class, field, written, ty);
-                    None
-                });
+                self.branch_on_union_class(
+                    *object,
+                    arms,
+                    None,
+                    *span,
+                    cur,
+                    |this, block, class| {
+                        this.write_back_field(block, *object, class, field, written, ty);
+                        None
+                    },
+                );
             }
         }
     }
