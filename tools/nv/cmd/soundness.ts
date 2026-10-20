@@ -4,9 +4,7 @@
 // declaration runs and what it reads.
 //
 //     bun nv soundness --write                 write tests/conformance/soundness/ from the table
-//     bun nv soundness --check                 exit 1 when a written file differs, or a cell is open
-//     bun nv soundness --check --allow-open    the same, with open cells allowed while their record exists
-//                                              and their cell still fails
+//     bun nv soundness --check                 exit 1 when a written file differs from what --write writes
 //     bun nv soundness --probe                 run every cell alone through `nvs`; print each that fails
 //     bun nv soundness --help                  this usage
 //
@@ -68,11 +66,9 @@
 // place in `RELATIONS`, so a cell left out renames nothing else. Every error the second file expects is
 // listed in line order, each with the line its diagnostic points at. Output is deterministic.
 //
-// **Open cells.** `tools/nv/soundness/open.json` maps a cell id to the gap record under `data/gaps/` that
-// files it, and a listed cell is left out of the written files. `--check` fails on a listed cell unless
-// `--allow-open` is given; then it fails when a listed record is gone or a listed cell now passes. Deciding
-// that runs the cell alone through `nvs`: `NVS_BIN`, else the `covws` build's (`lib/covws.ts`). `bun nv
-// verify` runs `--check --allow-open` after `build`.
+// **No cell is skipped.** Every cell is in the written files, so a cell that fails is a red `.nvst` run,
+// never a skip and never a gap record. `--probe` runs each cell alone through `nvs`: `NVS_BIN`, else the
+// `covws` build's (`lib/covws.ts`). `bun nv verify` runs `--check`.
 //
 // Exits 0 when everything holds, 1 on a finding, and 2 on a bad argument.
 
@@ -83,20 +79,16 @@ import { covwsNvs } from "../lib/covws.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 
-export const summary = "the type-soundness matrix as conformance cases: nv soundness [--write | --check [--allow-open] | --probe]";
+export const summary = "the type-soundness matrix as conformance cases: nv soundness [--write | --check | --probe]";
 
-const USAGE = `usage: bun nv soundness [--write | --check [--allow-open] | --probe | --help]
+const USAGE = `usage: bun nv soundness [--write | --check | --probe | --help]
 
   --write                write tests/conformance/soundness/ from the table in tools/nv/cmd/soundness.ts
-  --check                exit 1 when a written file differs from what --write writes, or a cell is open
-  --allow-open           with --check: allow the cells tools/nv/soundness/open.json lists, while each
-                         one's gap record exists and the cell still fails when it runs alone
+  --check                exit 1 when a written file differs from what --write writes
   --probe                run every cell alone through nvs, and print each one that fails`;
 
 /** Where the cases go, relative to the root. */
 const OUT = "tests/conformance/soundness";
-/** The open cells: cell id to gap record path. */
-const OPEN = "tools/nv/soundness/open.json";
 /** Where a cell is written to run alone. */
 const SCRATCH = ".agent-tmp/soundness";
 
@@ -800,10 +792,10 @@ function caseText(title: string, p: Program, refused: boolean): string {
   return `${parts.join("\n")}\n`;
 }
 
-/** Every file `--write` writes, by repo-relative path, leaving out the open cells. */
-export function files(open: Set<string>): Map<string, string> {
+/** Every file `--write` writes, by repo-relative path. */
+export function files(): Map<string, string> {
   const out = new Map<string, string>();
-  const all = cells().filter((c) => !open.has(c.id));
+  const all = cells();
   for (const member of MEMBERS) {
     const mine = all.filter((c) => c.member === member);
     const ok = mine.filter(runs);
@@ -876,11 +868,6 @@ const head = (s: string, n = 6) => s.split("\n").slice(0, n).map((l) => `      $
 
 // ---- the command -----------------------------------------------------------------------------------
 
-function readOpen(): Record<string, string> {
-  const path = join(ROOT, OPEN);
-  if (!existsSync(path)) return {};
-  return JSON.parse(readFileSync(path, "utf8")) as Record<string, string>;
-}
 
 function onDisk(): Map<string, string> {
   const out = new Map<string, string>();
@@ -897,34 +884,26 @@ export async function run(args: string[]): Promise<number> {
       console.log(USAGE);
       return 0;
     }
-    if (!["--write", "--check", "--allow-open", "--probe"].includes(a)) {
+    if (!["--write", "--check", "--probe"].includes(a)) {
       console.error(`${USAGE}\n\nnv soundness: no option ${a}`);
       return 2;
     }
     flags.add(a);
   }
   const modes = ["--write", "--check", "--probe"].filter((f) => flags.has(f));
-  if (modes.length !== 1 || (flags.has("--allow-open") && !flags.has("--check"))) {
+  if (modes.length !== 1) {
     console.error(USAGE);
     return 2;
   }
 
   const all = cells();
-  const byId = new Map(all.map((c) => [c.id, c]));
-  const open = readOpen();
-  const unknown = Object.keys(open).filter((id) => !byId.has(id));
-  if (unknown.length) {
-    for (const id of unknown) console.error(`nv soundness: ${OPEN} lists ${id}, which is not a cell`);
-    return 1;
-  }
-  const want = files(new Set(Object.keys(open)));
+  const want = files();
 
   if (flags.has("--write")) {
     mkdirSync(join(ROOT, OUT), { recursive: true });
     for (const f of onDisk().keys()) if (!want.has(f)) rmSync(join(ROOT, f));
     for (const [f, text] of want) writeFileSync(join(ROOT, f), text);
-    const skipped = Object.keys(open).length;
-    console.log(`nv soundness: wrote ${want.size} file(s) under ${OUT}, ${all.length - skipped} cell(s), ${skipped} open`);
+    console.log(`nv soundness: wrote ${want.size} file(s) under ${OUT}, ${all.length} cell(s)`);
     return 0;
   }
 
@@ -944,16 +923,8 @@ export async function run(args: string[]): Promise<number> {
     else if (disk.get(f) !== text) problems.push(`${f} differs from what \`bun nv soundness --write\` writes`);
   }
   for (const f of disk.keys()) if (!want.has(f)) problems.push(`${f} is not a file \`bun nv soundness --write\` writes`);
-  const listed = Object.keys(open).sort();
-  if (listed.length && !flags.has("--allow-open")) {
-    for (const id of listed) problems.push(`${id} is open (${open[id]}), and \`--allow-open\` was not given`);
-  } else if (listed.length) {
-    for (const id of listed) if (!existsSync(join(ROOT, open[id]!))) problems.push(`${id}: its gap record ${open[id]} is gone`);
-    const got = await runAll(listed.map((id) => byId.get(id)!));
-    for (const o of got) if (o.pass) problems.push(`${o.cell.id} passes now: remove it from ${OPEN}, close ${open[o.cell.id]} and write again`);
-  }
   for (const p of problems) console.error(`nv soundness: ${p}`);
   if (problems.length) return 1;
-  console.log(`nv soundness: ${want.size} file(s) current, ${all.length - listed.length} cell(s) written, ${listed.length} open`);
+  console.log(`nv soundness: ${want.size} file(s) current, ${all.length} cell(s) written`);
   return 0;
 }

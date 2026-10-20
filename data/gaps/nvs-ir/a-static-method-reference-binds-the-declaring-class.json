@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-ir/src/lower/expr.rs",
-  "title": "A callable taken with `static::m(...)` calls the declaring class's `m`, not the called class's.",
-  "text": "`rule:types/callable-values` says `static::helper(...)` is late-bound. In `Base::viaCallable`, written as `var $f = static::m(...); $f();` and called as `Child::viaCallable()`, the callable runs `Base::m` where `Child` overrides `m`. Where `Child::m` returns a narrower type than `Base::m`, the reader still gets the right type, but the wrong body runs. The soundness matrix's `static-method-param/*/callable` and `static-method-return/*/callable` cells pin it (`tools/nv/soundness/open.json`). Closing it binds the reference to the frame's called class, as a `static::m()` call already does.",
-  "goal": "compiler-holes"
-}
