@@ -77,13 +77,16 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 1. **Push once, at the very first session only:** `bun nv ci --push`. The handoff's *State* says
    whether that push happened. Every later session skips this step.
 2. **Watch:** `bun nv ci --watch` with `run_in_background` and a timeout of 7200000, then end your turn.
-   Its exit code starts your next turn.
+   Its exit code starts your next turn. Pass `--past <job>` for each red already handed to the main
+   loop, so the watch goes on for the other jobs.
    - **0, green:** write the handoff and the status line `CONTINUE CI green on <sha>`, and stop. The
      next session's watch waits for the next push.
    - **1, a job failed:** go to step 3.
    - **2, `gh` failed twenty times in a row:** check githubstatus.com and `gh auth status`, then
      watch again. An outage that lasts is reported in the status line with `CONTINUE`.
    - **3, nothing failed in 110 minutes:** watch again in the same session.
+   - **4, only the `--past` jobs failed:** write the handoff and the status line `CONTINUE CI green
+     on <sha> but for <job>`, and stop.
 3. **Fix:** `bun nv ci --status` lists every job that failed so far. Find each cause in the code,
    fix it, check it locally as § *Standing decisions* says, and commit each fix on its own with a
    pathspec.
@@ -93,31 +96,29 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-The first push happened. `origin/main` is at `21e82d4e6`. Its Website run is green. In its CI run,
-https://github.com/novis-lang/novis/actions/runs/39469820050, one job has failed:
+`origin/main` is at `21e82d4e6`. Its Website run is green. Its CI run,
+https://github.com/novis-lang/novis/actions/runs/39469820050, ended with 34 of 35 jobs green. The one
+red job is the main loop's:
 
 - **`proofs / linux-x86_64`:** `Core\Router\Responder` owes its examples. This is the main loop's
   `router-responder` stage 3, and it has been told. It is not this goal's to fix.
 
-This session fixed and pushed three reds:
-
-- `cccf415bf`: wasmtime 49.0.4 and cranelift 0.136.4, for RUSTSEC-2026-0378 and -0379.
-- `654415619`: `THIRD-PARTY-LICENSES.txt` matches that lockfile.
-- `21e82d4e6`: 164 perf records measured again. The main loop recorded the 14 `Core\Router` ones in
-  `f24af5be4` and rendered `website/public/llms-full.txt` again in `bd7e7aec9`.
-
-The other jobs of run 39469820050 were still going when the session ended. `cargo deny` also warns that
-`deny.toml`'s ignore of RUSTSEC-2026-0206 matches no crate. It is only a warning.
+This session added `bun nv ci --watch --past <job>` in `68ead3697`. Before it, a watch exited 1 at once
+on the proofs job and could not wait for the rest of the run. Stage 1 step 2 now passes `--past` and
+handles its exit 4. The local `main` is ahead of `origin`, but nothing it adds fixes a red, so this
+session did not push. `cargo deny` still warns that `deny.toml`'s ignore of RUSTSEC-2026-0206 matches
+no crate. It is only a warning.
 
 ### Next
 
 **Stage 1, the cycle.** Skip step 1, because the first push happened.
 
-- [ ] Read the rest of run 39469820050 with `bun nv ci --status`. `.github/workflows/ci.yml:1`
-  Fix every failed job other than the Responder proof.
-- [ ] Watch, fix and push until CI is green. `tools/nv/cmd/ci.ts:1`
-  A push after the main loop commits the Responder examples clears the proofs job.
+- [ ] Watch with `bun nv ci --watch --past proofs`. `tools/nv/cmd/ci.ts:224`
+  It waits for the next push, because the newest CI run ended red only in `proofs`. Drop `--past
+  proofs` once the main loop commits the Responder examples.
+- [ ] Fix and push each other red job. `.github/workflows/ci.yml:1`
 
 ### Backlog
 
 Nothing waits.
+
