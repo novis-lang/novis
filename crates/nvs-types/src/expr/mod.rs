@@ -647,9 +647,9 @@ pub(crate) fn infer(
                     )
                     .with_primary(class.span, "not a class name")
                     .with_help(
-                        "a static property's storage belongs to a written class — `App::$mode`, or \
-                         `self::$mode` inside the class; a `class<T>` reference opens `new`, a `::` \
-                         call and `is`, not a static property (`rule:types/class-reference-sites`)",
+                        "write the class name, such as `App::$mode`, or `self::$mode` inside the \
+                         class. A `class<T>` value works with `new`, a `::` call and `is`, but \
+                         not with a static property",
                     ),
                 );
                 return env.interner.mixed();
@@ -921,8 +921,8 @@ pub(crate) fn infer(
                     )
                     .with_primary(expr.span, "every path through this `match` throws")
                     .with_help(
-                        "write the arm this was meant to have, or `throw` outright if the \
-                         intent was to refuse every subject",
+                        "write the arms of the `match`. To always stop with an error, write \
+                         `throw` instead",
                     ),
                 );
                 env.interner.mixed()
@@ -960,8 +960,8 @@ pub(crate) fn infer(
                 )
                 .with_primary(expr.span, "nothing is produced here")
                 .with_help(
-                    "`rule:iteration/one-way-only` gives a generator no `send()`, so a resumed `yield` has \
-                     nothing to hand back — write `yield $v;` on its own",
+                    "a generator cannot receive values, so `yield` returns nothing. Write \
+                     `yield $v;` as a statement of its own",
                 ),
             );
             env.interner.mixed()
@@ -1319,13 +1319,11 @@ fn report_unsubscriptable(base: &Expr, base_ty: TypeId, env: &mut Env<'_>) {
             | Ty::SecretTaintedString
             | Ty::SecretTaintedBytes
     ) {
-        "`rule:types/string-is-utf8` indexes a `string` by extended grapheme cluster, which is said out \
-         loud rather than spelled with a subscript — `Core\\Str::slice($s, $i, 1)`, or \
+        "a `string` has no `[]`. Use `Core\\Str::slice($s, $i, 1)` for one character, or \
          `Core\\Bytes::slice` for a byte offset"
     } else {
-        "only an `array<T>` has elements to subscript — declare the binding as the \
-         `array<T>` it holds, so `rule:types/arrays` has an element type to check the read \
-         against"
+        "only an `array<T>` has elements. If the value is an array, declare the variable \
+         with its `array<T>` type"
     };
     let desc = env.interner.describe(base_ty);
     env.diags.report(

@@ -19,7 +19,7 @@ error[E0830]: `Core\Test::assertCalled` names a method here, and this is not a m
    |
 12 | Core\Test::assertCalled($mailer, "send");
    |                                  ^^^^^^ write `Interface::method`
-   = help: `rule:testing/interaction-after-the-fact`: the method is named as a reference so that renaming it updates or breaks the test — a `string` holding the name is checked by nothing, and a typo in one reports as a call that never happened
+   = help: a method reference is checked when the program compiles, and a `string` is not. With a `string`, a typo looks like a call that never happened
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

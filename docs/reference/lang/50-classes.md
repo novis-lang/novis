@@ -535,7 +535,7 @@ error[E0782]: `Id::$value` is `readonly`, so only `Id`'s constructor writes it
    |
 11 | $id->value = 2;
    | ^^^^^^^^^^ this write happens after construction
-   = help: `readonly` promises the value is assigned exactly once, while the object is being built (`rule:classes/lateinit-restrictions`) — assign it in the constructor, take it as a constructor parameter (`public readonly T $x`), or drop the modifier if the property is meant to change
+   = help: a `readonly` property is assigned once, in the constructor. Assign it there, or make it a constructor parameter (`public readonly T $x`). If the property must change, remove `readonly`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -1002,7 +1002,7 @@ error[E0832]: `static::STEPS` reads `Retry::STEPS`, which is `array<int>` and ha
    |
 10 |         return Core\Arr::count(static::STEPS);
    |                                ^^^^^^^^^^^^^ read through `static::`
-   = help: `rule:statements/static-is-a-member-modifier`: a `static::` constant is read at run time off the called class's table, which carries `string`, `int`, `uint`, `bool` and `float` values and nothing else — write `self::` or the class name, which inline the constant, or make the constant a scalar
+   = help: a `static::` constant is read when the program runs, and only a `string`, `int`, `uint`, `bool` or `float` constant can be read that way. Write `self::` or the class name, or make the constant one of those types
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -2093,7 +2093,7 @@ error[E0478]: an array element cannot be written through the hooked property `xs
    |
 21 | $b->xs[0] = 1;
    | ^^^^^^ reading this runs its `get` hook
-   = help: `rule:classes/property-hooks` makes a hooked property a pair of accessors, not a slot, so the separated array would have nowhere to go — read it into a local, write the element there, and assign the local back through the property
+   = help: a property with hooks is read and written through its hooks. Read it into a variable, write the element there, and assign the variable back to the property
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -3877,7 +3877,7 @@ error[E0477]: `object` names no class, so it has no method `shout`
    |
 13 | echo $o->shout(), "\n";
    |      ^^^^^^^^^ called on a receiver that names no class here
-   = help: narrow the receiver to the class that declares `shout` first — `if ($x is ClassName) { … }`, or `$x as ClassName`; `rule:types/grammar` makes `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property access through one but not a call
+   = help: test the receiver for the class that declares `shout` first: `if ($x is ClassName) { … }`. An `object` has no methods of its own
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

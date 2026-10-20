@@ -16,7 +16,7 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0413]: `unset()` on `Tag::$name` is refused; a declared property can never become uninitialized again
+error[E0413]: `unset()` does not work on the property `Tag::$name`
    --> case.nvs:11:7
 %A
 error: aborting due to 1 error

@@ -184,8 +184,8 @@ pub(crate) fn accept_shape_conversion(
             )
             .with_primary(span, "converted here")
             .with_help(
-                "`rule:types/conversion` converts into a shape by testing the value's fields, and \
-                 no value of this type is an object that could have them",
+                "a conversion to a shape checks the fields of an object. A value of this type \
+                 is never an object",
             ),
         );
         return true;

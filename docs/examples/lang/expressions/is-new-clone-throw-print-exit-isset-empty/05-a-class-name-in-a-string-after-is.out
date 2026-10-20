@@ -3,7 +3,7 @@ error[E0496]: the right-hand side of `is` is a type or a class reference, and th
   |
 9 |         return $v is $name;
   |                      ^^^^^ not a class name
-  = help: Novis has no dynamic class names (`rule:types/conversion`, the rule that rejects `$$var` and `eval`) — write the class, or convert the name once and carry the result: `$name as class<Base>` yields a class reference this site accepts, checked against `Base`'s hierarchy where the conversion stands (`rule:types/class-reference-sites`)
+  = help: a class name cannot come from a string. Write the class name, or convert the string first: `$name as class<Base>` gives a class reference that works here. The conversion checks that the class is a `Base`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

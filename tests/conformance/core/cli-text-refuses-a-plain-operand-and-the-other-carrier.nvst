@@ -20,11 +20,11 @@ echo $text + $markup, "\n";
 --EXPECTF-ERROR--
 error[E0716]: `+` has no meaning for `Core\Cli\Text`
 %A
-  = help: `rule:tooling/styling-is-a-value-not-a-grammar` composes `Cli\Text` with `Cli\Text` and nothing else: lift the other operand with `Core\Cli\Text::plain(...)`, which substitutes its control bytes on the way in — `+` is not a sink and will not substitute them for you
+  = help: `+` adds `Cli\Text` only to `Cli\Text`. Convert the other operand with `Core\Cli\Text::plain(...)`, which replaces its control characters. `+` does not replace them for you
 
 error[E0716]: `+` has no meaning for `Core\Cli\Text`
 %A
-   = help: `rule:tooling/styling-is-a-value-not-a-grammar` composes `Cli\Text` with `Cli\Text` and nothing else: lift the other operand with `Core\Cli\Text::plain(...)`, which substitutes its control bytes on the way in — `+` is not a sink and will not substitute them for you
+   = help: `+` adds `Cli\Text` only to `Cli\Text`. Convert the other operand with `Core\Cli\Text::plain(...)`, which replaces its control characters. `+` does not replace them for you
 
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

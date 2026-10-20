@@ -107,10 +107,9 @@ pub(crate) fn infer_class_const(
             )
             .with_primary(class.span, "not a class name")
             .with_help(
-                "a constant is inlined where it is read, so its class is written, never carried in \
-                 a value — `App::VERSION`, or `self::VERSION` inside the class; a `class<T>` \
-                 reference opens `new`, a `::` call and `is`, not a constant \
-                 (`rule:types/class-reference-sites`)",
+                "write the class name, such as `App::VERSION`, or `self::VERSION` inside the \
+                 class. A `class<T>` value works with `new`, a `::` call and `is`, but not \
+                 with a constant",
             ),
         );
         return env.interner.mixed();
@@ -327,9 +326,8 @@ fn method_reference(
             )
             .with_primary(class.span, "the method is named here")
             .with_help(
-                "`rule:testing/interaction-after-the-fact`: the method an assertion names is a \
-                 compile-checked reference, so renaming the method updates or breaks the test \
-                 rather than leaving it passing against a method that no longer exists",
+                "the method name is checked when the program compiles. If you rename the \
+                 method, rename it in the test too",
             ),
         );
         return env.interner.string();
@@ -406,10 +404,9 @@ fn report_static_const_without_scalar(
         )
         .with_primary(expr.span, "read through `static::`")
         .with_help(
-            "`rule:statements/static-is-a-member-modifier`: a `static::` constant is read at run time off the \
-             called class's table, which carries `string`, `int`, `uint`, `bool` and `float` \
-             values and nothing else — write `self::` or the class name, which inline the \
-             constant, or make the constant a scalar",
+            "a `static::` constant is read when the program runs, and only a `string`, `int`, \
+             `uint`, `bool` or `float` constant can be read that way. Write `self::` or the \
+             class name, or make the constant one of those types",
         ),
     );
 }
@@ -572,8 +569,8 @@ pub(crate) fn reject_non_object_clone(ty: TypeId, span: Span, env: &mut Env<'_>)
         )
         .with_primary(span, "this value's type names no class to instantiate")
         .with_help(
-            "an `array<T>` and a scalar are already copied when they are assigned (`rule:programs/memory-priority`'s \
-             copy-on-write), so there is nothing for `clone` to do — drop it (`rule:classes/clone-is-shallow`)",
+            "an `array<T>` and a scalar are already copied when they are assigned. Remove \
+             the `clone`",
         ),
     );
 }
@@ -607,8 +604,8 @@ pub(crate) fn reject_generator_clone(inner: &Expr, env: &mut Env<'_>) {
         )
         .with_primary(inner.span, "this call returns a generator")
         .with_help(
-            "a generator is a paused function, and a copy has no meaning to resume — call \
-             the function again for a new one (`rule:iteration/generator-stays-in-one-isolate`)",
+            "a generator is a paused function, and it cannot be copied. Call the function \
+             again to get a new generator",
         ),
     );
 }
@@ -1332,16 +1329,14 @@ fn check_keyed_property(
             Diagnostic::error(
                 code::E_UNSET_ON_PROPERTY,
                 format!(
-                    "`unset()` through a `property<{key_class}>` key is refused; every name it \
-                     can hold is a declared property, and a declared property can never become \
-                     uninitialized again"
+                    "`unset()` does not work through a `property<{key_class}>` key, because \
+                     every name it can contain is a declared property"
                 ),
             )
             .with_primary(name_span, "unset here")
             .with_help(
-                "`rule:classes/definite-property-initialization` already guarantees every one of those properties is definitely \
-                 initialized; assign `null` through the key instead where the property is \
-                 nullable",
+                "a declared property always has a value. If the property is nullable, assign \
+                 `null` to it through the key",
             ),
         );
         return env.interner.mixed();
@@ -1393,10 +1388,10 @@ pub(crate) fn report_computed_member_name(span: Span, help: &str, env: &mut Env<
 }
 
 /// [`report_computed_member_name`]'s help at a property access, where `rule:types/property-key-access` leaves one way to write the same thing.
-pub(crate) const COMPUTED_PROPERTY_HELP: &str = "`rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver \
-     satisfies — convert the name with `as property<ClassName>`, where the set it may hold is \
-     checked, or write the member out; data whose keys are only known at run time belongs in an \
-     `array<T>`, whose keys are `string`";
+pub(crate) const COMPUTED_PROPERTY_HELP: &str = "`$obj->$key` works only when `$key` is a \
+     `property<T>` of the object's class. Convert the name with `as property<ClassName>`, or \
+     write the property name. For data whose keys are known only when the program runs, use \
+     an `array<T>`";
 
 /// `E0235`'s help where the key would be admitted but for `null`: a
 /// `?property<T>` whose `T` the receiver satisfies. `None` for every other
@@ -1438,9 +1433,8 @@ fn nullable_key_help(
 }
 
 /// [`report_computed_member_name`]'s help at a call, where it does not.
-pub(crate) const COMPUTED_METHOD_HELP: &str = "`rule:classes/no-call-magic` refuses a computed *dispatch* itself rather than its spelling, and `rule:types/property-key`'s \
-     `property<T>` names a property rather than a method — write the call out, or `match` on the \
-     name and call each arm";
+pub(crate) const COMPUTED_METHOD_HELP: &str = "a method name cannot come from a value. Write \
+     the method name in the call, or use `match` on the name and call one method in each arm";
 
 /// Whether `object` is exactly the `$this` variable — the one receiver shape
 /// `nvs_hir::members` already diagnoses a missing property on, so
@@ -1532,8 +1526,8 @@ fn reject_keyword_owned_enum(class: &Expr, env: &mut Env<'_>) -> bool {
         )
         .with_primary(class.span, "a class keyword in front of an enum name")
         .with_help(
-            "write the owner's name, `Order::Status::Paid`, or inside the class that declares \
-             the enum, its name alone, `Status::Paid` (`rule:enums/class-scoped-enum`)",
+            "write the name of the class that declares the enum: `Order::Status::Paid`. \
+             Inside that class, you can write `Status::Paid`",
         ),
     );
     true
@@ -1563,10 +1557,9 @@ pub(crate) fn reject_dynamic_class_name(headline: &str, span: Span, env: &mut En
         Diagnostic::error(code::E_DYNAMIC_CLASS_NAME, headline)
             .with_primary(span, "not a class name")
             .with_help(
-                "Novis has no dynamic class names (`rule:types/conversion`, the rule that rejects `$$var` \
-                 and `eval`) — write the class, or convert the name once and carry the result: \
-                 `$name as class<Base>` yields a class reference this site accepts, checked \
-                 against `Base`'s hierarchy where the conversion stands (`rule:types/class-reference-sites`)",
+                "a class name cannot come from a string. Write the class name, or convert the \
+                 string first: `$name as class<Base>` gives a class reference that works here. \
+                 The conversion checks that the class is a `Base`",
             ),
     );
 }
@@ -2318,10 +2311,9 @@ pub(crate) fn check_property_member(
                         "this receiver's type declares no properties",
                     )
                     .with_help(
-                        "only an object has properties — convert the receiver to the class you \
-                         expect (`$x as Box`), or declare it `mixed`, which is the one unchecked \
-                         position (`rule:types/conversion`) and defers the whole question to a catchable \
-                         throw at run time",
+                        "only an object has properties. Test the value with `$x is Box` first. \
+                         Or declare it `mixed`, and a missing property throws an error when the \
+                         program runs",
                     ),
                 );
             }
@@ -2435,17 +2427,14 @@ fn report_unset_not_an_element(operand: &Expr, subscripted: bool, env: &mut Env<
     let (label, help) = if subscripted {
         (
             "nothing holds the array this subscripts",
-            "`rule:types/arrays` separates the array before the entry is removed, so the separated copy \
-             needs a local, a property or a static property to be written back into — bind the \
-             value first, `unset()` the element there, and use the binding",
+            "the array must be in a variable or a property. Assign the value to a variable \
+             first, and `unset()` the element there",
         )
     } else {
         (
             "this is not an array element",
-            "`unset()` removes an array entry and nothing else — every Novis binding is declared \
-             with a type and definitely assigned (`rule:types/declaration`), so there is no way to make one \
-             undefined again; assign `null` where the declared type is nullable, or let the \
-             binding go out of scope",
+            "`unset()` removes an array element and nothing else. A variable always has a \
+             value. If its type is nullable, assign `null` to it",
         )
     };
     env.diags.report(
@@ -2463,14 +2452,13 @@ pub(crate) fn report_unset_on_property(span: Span, qname: &QName, name: &str, en
         Diagnostic::error(
             code::E_UNSET_ON_PROPERTY,
             format!(
-                "`unset()` on `{qname}::${name}` is refused; a declared property can never \
-                 become uninitialized again"
+                "`unset()` does not work on the property `{qname}::${name}`"
             ),
         )
         .with_primary(span, "unset here")
         .with_help(
-            "`rule:classes/definite-property-initialization` already guarantees this property is always definitely initialized; \
-             assign `null` instead if it is nullable",
+            "a declared property always has a value. If the property is nullable, assign \
+             `null` to it",
         ),
     );
 }
@@ -2569,8 +2557,7 @@ pub(crate) fn report_core_instance_member(
         )
         .with_primary(span, "called through the class name here")
         .with_help(format!(
-            "write `$value->{name}(…)`; `rule:core-api/shape-rules` R20 gives every `Core` operation exactly one \
-             spelling"
+            "write `$value->{name}(…)`. Each `Core` operation has only one way to call it"
         )),
     );
 }

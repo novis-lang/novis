@@ -3,7 +3,7 @@ error[E0715]: `<` has no meaning for `string`
   |
 5 | echo ("apple" < "banana") ? "apple first" : "banana first", "\n";
   |       ^^^^^^^^^^^^^^^^^^ ordered here
-  = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+  = help: to compare two strings, use `Core\Str::compare($a, $b)`. The operators `<`, `<=`, `>`, `>=` and `<=>` work only on numbers
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

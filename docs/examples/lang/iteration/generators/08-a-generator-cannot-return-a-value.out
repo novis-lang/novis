@@ -3,7 +3,7 @@ error[E0447]: a generator cannot return a value
   |
 9 |         return 5;
   |                ^ this value has nowhere to go
-  = help: `rule:iteration/one-way-only`: there is no generator return value to retrieve — write `return;` to stop the sequence, or `yield` this value
+  = help: write `return;` to stop the generator, or `yield` this value
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

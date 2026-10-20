@@ -27,28 +27,28 @@ error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    |
 11 | echo $b->$n, "\n";
    |          ^^ this names a member only when the statement runs
-   = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<T>`, whose keys are `string`
+   = help: `$obj->$key` works only when `$key` is a `property<T>` of the object's class. Convert the name with `as property<ClassName>`, or write the property name. For data whose keys are known only when the program runs, use an `array<T>`
 
 error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    --> %s:14:6
    |
 14 | $b->{$n} = "z";
    |      ^^ this names a member only when the statement runs
-   = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<T>`, whose keys are `string`
+   = help: `$obj->$key` works only when `$key` is a `property<T>` of the object's class. Convert the name with `as property<ClassName>`, or write the property name. For data whose keys are known only when the program runs, use an `array<T>`
 
 error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    --> %s:17:11
    |
 17 | echo $b->{"lab" . "el"}(), "\n";
    |           ^^^^^^^^^^^^ this names a member only when the statement runs
-   = help: `rule:classes/no-call-magic` refuses a computed *dispatch* itself rather than its spelling, and `rule:types/property-key`'s `property<T>` names a property rather than a method — write the call out, or `match` on the name and call each arm
+   = help: a method name cannot come from a value. Write the method name in the call, or use `match` on the name and call one method in each arm
 
 error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    --> %s:20:11
    |
 20 | echo $b?->$n, "\n";
    |           ^^ this names a member only when the statement runs
-   = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<T>`, whose keys are `string`
+   = help: `$obj->$key` works only when `$key` is a `property<T>` of the object's class. Convert the name with `as property<ClassName>`, or write the property name. For data whose keys are known only when the program runs, use an `array<T>`
 
 error: aborting due to 4 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

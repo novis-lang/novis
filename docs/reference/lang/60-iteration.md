@@ -417,7 +417,7 @@ error[E0444]: an `Iterable`/`Iterator` subject has no key to bind
    |
 16 | foreach (Steps::upTo(3) as string $k => int $v) {
    |                            ^^^^^^^^^ no key exists here
-   = help: `rule:iteration/two-interfaces` gives `Iterator<T>` exactly `advance()` and `current()`; drop the `$k =>` or iterate an `array<T>` instead
+   = help: an iterator has values but no keys. Remove the `$k =>`, or loop over an `array<T>`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -774,7 +774,7 @@ error[E0448]: `yield from` does not exist in Novis
    |
 12 |         yield from Pages::first();
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^ this delegation form
-   = help: `rule:iteration/one-way-only`: write `foreach ($inner as T $v) { yield $v; }`, which is what it is a second spelling of
+   = help: write `foreach ($inner as T $v) { yield $v; }`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -802,7 +802,7 @@ error[E0447]: a generator cannot return a value
   |
 9 |         return 5;
   |                ^ this value has nowhere to go
-  = help: `rule:iteration/one-way-only`: there is no generator return value to retrieve — write `return;` to stop the sequence, or `yield` this value
+  = help: write `return;` to stop the generator, or `yield` this value
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

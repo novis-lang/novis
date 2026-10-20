@@ -3,7 +3,7 @@ error[E0782]: `Id::$value` is `readonly`, so only `Id`'s constructor writes it
    |
 11 | $id->value = 2;
    | ^^^^^^^^^^ this write happens after construction
-   = help: `readonly` promises the value is assigned exactly once, while the object is being built (`rule:classes/lateinit-restrictions`) — assign it in the constructor, take it as a constructor parameter (`public readonly T $x`), or drop the modifier if the property is meant to change
+   = help: a `readonly` property is assigned once, in the constructor. Assign it there, or make it a constructor parameter (`public readonly T $x`). If the property must change, remove `readonly`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

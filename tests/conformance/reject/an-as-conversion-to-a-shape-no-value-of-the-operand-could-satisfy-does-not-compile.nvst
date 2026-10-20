@@ -20,14 +20,14 @@ error[E0708]: `int` cannot be converted to `{left: float, top: float}`
   |
 6 | $n as Pad;
   | ^^^^^^^^^ converted here
-  = help: `rule:types/conversion` converts into a shape by testing the value's fields, and no value of this type is an object that could have them
+  = help: a conversion to a shape checks the fields of an object. A value of this type is never an object
 
 error[E0708]: `string` cannot be converted to `{a: int}`
   --> %s:8:1
   |
 8 | $s as {a: int};
   | ^^^^^^^^^^^^^^ converted here
-  = help: `rule:types/conversion` converts into a shape by testing the value's fields, and no value of this type is an object that could have them
+  = help: a conversion to a shape checks the fields of an object. A value of this type is never an object
 
 error[E0711]: `mixed` cannot be converted to `{key: secret string}`
    --> %s:13:1

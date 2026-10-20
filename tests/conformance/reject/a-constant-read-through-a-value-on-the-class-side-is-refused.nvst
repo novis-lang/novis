@@ -19,14 +19,14 @@ error[E0496]: the class side of a `::` constant must be a written class name
   |
 8 | echo $o::VERSION, "\n";
   |      ^^ not a class name
-  = help: a constant is inlined where it is read, so its class is written, never carried in a value — `App::VERSION`, or `self::VERSION` inside the class; a `class<T>` reference opens `new`, a `::` call and `is`, not a constant (`rule:types/class-reference-sites`)
+  = help: write the class name, such as `App::VERSION`, or `self::VERSION` inside the class. A `class<T>` value works with `new`, a `::` call and `is`, but not with a constant
 
 error[E0496]: the class side of a `::` constant must be a written class name
    --> %s:10:6
    |
 10 | echo $cls::VERSION, "\n";
    |      ^^^^ not a class name
-   = help: a constant is inlined where it is read, so its class is written, never carried in a value — `App::VERSION`, or `self::VERSION` inside the class; a `class<T>` reference opens `new`, a `::` call and `is`, not a constant (`rule:types/class-reference-sites`)
+   = help: write the class name, such as `App::VERSION`, or `self::VERSION` inside the class. A `class<T>` value works with `new`, a `::` call and `is`, but not with a constant
 
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

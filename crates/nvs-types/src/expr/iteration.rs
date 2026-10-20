@@ -49,8 +49,7 @@ pub(crate) fn infer_yield(
             )
             .with_primary(k.span, "no key exists here")
             .with_help(
-                "`rule:iteration/two-interfaces` gives `Iterator<T>` exactly `advance()` and \
-                 `current()`; drop the `key =>`",
+                "a generator has values but no keys. Remove the `key =>`",
             ),
         );
     }
@@ -65,7 +64,7 @@ pub(crate) fn infer_yield(
                 Diagnostic::error(code::E_YIELD_FORM_UNSUPPORTED, "a `yield` needs a value")
                     .with_primary(expr.span, "nothing is yielded here")
                     .with_help(
-                        "`rule:iteration/two-interfaces`: `current()` returns a `T`, never nothing",
+                        "write the value to yield after `yield`",
                     ),
             );
         }
@@ -97,8 +96,7 @@ pub(crate) fn infer_yield_from(
         )
         .with_primary(expr.span, "this delegation form")
         .with_help(
-            "`rule:iteration/one-way-only`: write `foreach ($inner as T $v) { yield $v; }`, which is \
-             what it is a second spelling of",
+            "write `foreach ($inner as T $v) { yield $v; }`",
         ),
     );
     env.interner.void()
@@ -221,8 +219,7 @@ pub(crate) fn report_not_iterable(subject_ty: TypeId, span: Span, env: &mut Env<
         )
         .with_primary(span, format!("this is `{got}`"))
         .with_help(
-            "`rule:iteration/foreach-subjects`: `foreach` accepts an `array<T>`, an `Iterable<T>` or an \
-             `Iterator<T>`, and nothing else",
+            "`foreach` works on an `array<T>`, an `Iterable<T>` or an `Iterator<T>`",
         ),
     );
 }
@@ -303,8 +300,8 @@ pub(crate) fn check_foreach_inout(
                 )
                 .with_primary(binding.span, "bound by reference here")
                 .with_help(
-                    "`rule:iteration/two-interfaces` gives a cursor exactly `advance()` and `current()`, so there \
-                     is no storage to write back to — drop the `inout`, or iterate an `array<T>`",
+                    "an iterator only reads its values, so there is nothing to write back to. \
+                     Remove the `inout`, or loop over an `array<T>`",
                 ),
             );
             return;
@@ -420,8 +417,8 @@ pub(crate) fn check_foreach_key(
                 )
                 .with_primary(binding.span, "no key exists here")
                 .with_help(
-                    "`rule:iteration/two-interfaces` gives `Iterator<T>` exactly `advance()` and `current()`; \
-                     drop the `$k =>` or iterate an `array<T>` instead",
+                    "an iterator has values but no keys. Remove the `$k =>`, or loop over an \
+                     `array<T>`",
                 ),
             );
         }
@@ -440,10 +437,9 @@ pub(crate) fn check_foreach_key(
                     )
                     .with_primary(binding.span, format!("this binds as `{got}`"))
                     .with_help(format!(
-                        "`rule:types/arrays` gives an `array<T>` one stored key type — every key is a \
-                         `string`, and `$a[8]` is normalised to `$a[\"8\"]` at the subscript \
-                         rather than converted — so write `{want} $k`, and convert inside the \
-                         body if the loop wants another type"
+                        "every key of an `array<T>` is a `string`. `$a[8]` is the same as \
+                         `$a[\"8\"]`. Write `{want} $k`, and convert the key inside the loop if \
+                         you need another type"
                     )),
                 );
             }

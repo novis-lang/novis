@@ -46,70 +46,70 @@ error[E0706]: `&` has no meaning for `float`
    |
 18 | mixed $a1 = $f & $f;
    |             ^^^^^^^ a bitwise operator is over integers
-   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `&`, `|`, `^`, `~`, `<<` and `>>` work only on `int` and `uint`. The operand is not converted for you. Write `$x as int`
 
 error[E0706]: `|` has no meaning for `float`
    --> %s:19:13
    |
 19 | mixed $a2 = $f | $f;
    |             ^^^^^^^ a bitwise operator is over integers
-   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `&`, `|`, `^`, `~`, `<<` and `>>` work only on `int` and `uint`. The operand is not converted for you. Write `$x as int`
 
 error[E0706]: `^` has no meaning for `float`
    --> %s:20:13
    |
 20 | mixed $a3 = $f ^ $f;
    |             ^^^^^^^ a bitwise operator is over integers
-   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `&`, `|`, `^`, `~`, `<<` and `>>` work only on `int` and `uint`. The operand is not converted for you. Write `$x as int`
 
 error[E0706]: `<<` has no meaning for `float`
    --> %s:21:13
    |
 21 | mixed $a4 = $f << $f;
    |             ^^^^^^^^ a bitwise operator is over integers
-   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `&`, `|`, `^`, `~`, `<<` and `>>` work only on `int` and `uint`. The operand is not converted for you. Write `$x as int`
 
 error[E0706]: `>>` has no meaning for `float`
    --> %s:22:13
    |
 22 | mixed $a5 = $f >> $f;
    |             ^^^^^^^^ a bitwise operator is over integers
-   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `&`, `|`, `^`, `~`, `<<` and `>>` work only on `int` and `uint`. The operand is not converted for you. Write `$x as int`
 
 error[E0706]: `~` has no meaning for `float`
    --> %s:23:13
    |
 23 | mixed $a6 = ~$f;
    |             ^^^ a bitwise operator is over integers
-   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `&`, `|`, `^`, `~`, `<<` and `>>` work only on `int` and `uint`. The operand is not converted for you. Write `$x as int`
 
 error[E0706]: `&` has no meaning for `decimal`
    --> %s:29:13
    |
 29 | mixed $c1 = $d & $d;
    |             ^^^^^^^ a bitwise operator is over integers
-   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `&`, `|`, `^`, `~`, `<<` and `>>` work only on `int` and `uint`. The operand is not converted for you. Write `$x as int`
 
 error[E0706]: `~` has no meaning for `decimal`
    --> %s:30:13
    |
 30 | mixed $c2 = ~$d;
    |             ^^^ a bitwise operator is over integers
-   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `&`, `|`, `^`, `~`, `<<` and `>>` work only on `int` and `uint`. The operand is not converted for you. Write `$x as int`
 
 error[E0706]: `&` has no meaning for `string`
    --> %s:33:13
    |
 33 | mixed $e1 = $s & $s;
    |             ^^^^^^^ a bitwise operator is over integers
-   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `&`, `|`, `^`, `~`, `<<` and `>>` work only on `int` and `uint`. The operand is not converted for you. Write `$x as int`
 
 error[E0706]: `&` has no meaning for `bool`
    --> %s:34:13
    |
 34 | mixed $e2 = $b & $b;
    |             ^^^^^^^ a bitwise operator is over integers
-   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `&`, `|`, `^`, `~`, `<<` and `>>` work only on `int` and `uint`. The operand is not converted for you. Write `$x as int`
 
 error: aborting due to 10 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -3,7 +3,7 @@ error[E0713]: this argument binds an `inout` parameter and must say so
    |
 15 | Counter::bump($visits);
    |               ^^^^^^^ write `inout` before it
-   = help: `rule:statements/inout-is-written-at-the-call` writes the marker at both ends: the callee writes back through this argument, and a call that does not say so hides it
+   = help: the function writes a new value back into this argument. `inout` at the call shows that to the reader
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

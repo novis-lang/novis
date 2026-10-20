@@ -53,35 +53,35 @@ error[E0723]: an array's key binding is a `string`, not `int`
    |
 16 | foreach ($a as int $ki => int $v2) {
    |                ^^^^^^^ this binds as `int`
-   = help: `rule:types/arrays` gives an `array<T>` one stored key type — every key is a `string`, and `$a[8]` is normalised to `$a["8"]` at the subscript rather than converted — so write `string $k`, and convert inside the body if the loop wants another type
+   = help: every key of an `array<T>` is a `string`. `$a[8]` is the same as `$a["8"]`. Write `string $k`, and convert the key inside the loop if you need another type
 
 error[E0723]: an array's key binding is a `string`, not `uint`
    --> %s:20:16
    |
 20 | foreach ($a as uint $ku => int $v3) {
    |                ^^^^^^^^ this binds as `uint`
-   = help: `rule:types/arrays` gives an `array<T>` one stored key type — every key is a `string`, and `$a[8]` is normalised to `$a["8"]` at the subscript rather than converted — so write `string $k`, and convert inside the body if the loop wants another type
+   = help: every key of an `array<T>` is a `string`. `$a[8]` is the same as `$a["8"]`. Write `string $k`, and convert the key inside the loop if you need another type
 
 error[E0723]: an array's key binding is a `string`, not `mixed`
    --> %s:26:16
    |
 26 | foreach ($a as mixed $km => int $v4) {
    |                ^^^^^^^^^ this binds as `mixed`
-   = help: `rule:types/arrays` gives an `array<T>` one stored key type — every key is a `string`, and `$a[8]` is normalised to `$a["8"]` at the subscript rather than converted — so write `string $k`, and convert inside the body if the loop wants another type
+   = help: every key of an `array<T>` is a `string`. `$a[8]` is the same as `$a["8"]`. Write `string $k`, and convert the key inside the loop if you need another type
 
 error[E0723]: an array's key binding is a `string`, not `string|int`
    --> %s:30:16
    |
 30 | foreach ($a as int|string $kn => int $v5) {
    |                ^^^^^^^^^^^^^^ this binds as `string|int`
-   = help: `rule:types/arrays` gives an `array<T>` one stored key type — every key is a `string`, and `$a[8]` is normalised to `$a["8"]` at the subscript rather than converted — so write `string $k`, and convert inside the body if the loop wants another type
+   = help: every key of an `array<T>` is a `string`. `$a[8]` is the same as `$a["8"]`. Write `string $k`, and convert the key inside the loop if you need another type
 
 error[E0723]: an array's key binding is a `string`, not `int`
    --> %s:37:22
    |
 37 |     foreach ($row as int $c => int $v6) {
    |                      ^^^^^^ this binds as `int`
-   = help: `rule:types/arrays` gives an `array<T>` one stored key type — every key is a `string`, and `$a[8]` is normalised to `$a["8"]` at the subscript rather than converted — so write `string $k`, and convert inside the body if the loop wants another type
+   = help: every key of an `array<T>` is a `string`. `$a[8]` is the same as `$a["8"]`. Write `string $k`, and convert the key inside the loop if you need another type
 
 error: aborting due to 5 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

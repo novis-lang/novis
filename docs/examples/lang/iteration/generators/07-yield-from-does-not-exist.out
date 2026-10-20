@@ -3,7 +3,7 @@ error[E0448]: `yield from` does not exist in Novis
    |
 12 |         yield from Pages::first();
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^ this delegation form
-   = help: `rule:iteration/one-way-only`: write `foreach ($inner as T $v) { yield $v; }`, which is what it is a second spelling of
+   = help: write `foreach ($inner as T $v) { yield $v; }`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
