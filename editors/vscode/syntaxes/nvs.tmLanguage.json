@@ -293,6 +293,11 @@
         },
         { "name": "keyword.control.nvs", "match": "(?<![$\\w])await\\b(?=\\s+[$\\\\A-Za-z_])" },
         { "name": "keyword.other.nvs", "match": "(?<![$\\w])by\\b(?=\\s+\\$)" },
+        {
+          "comment": "`covariant` is a modifier only before a type (crates/nvs-syntax/src/parser/decl.rs, eat_covariant). A `$` after it makes it a type name, and a `(` makes it a method's name.",
+          "name": "storage.modifier.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)covariant\\b(?=\\s+[?\\\\A-Za-z_])"
+        },
         { "name": "keyword.other.nvs", "match": "(?<![$\\w])(?:from|discover)\\b(?=\\s*['\"$])" },
         { "name": "keyword.other.nvs", "match": "(?<![$\\w])(?:get|set)\\b(?=\\s*(?:\\{|=>))" }
       ]

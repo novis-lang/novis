@@ -445,6 +445,10 @@
           "match": "(?<![$\\w])by\\b(?=\\s+\\$)"
         },
         {
+          "name": "storage.modifier.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)covariant\\b(?=\\s+[?\\\\A-Za-z_])"
+        },
+        {
           "name": "keyword.other.nvs",
           "match": "(?<![$\\w])(?:from|discover)\\b(?=\\s*['\"$])"
         },

@@ -90,6 +90,43 @@ abstract class Cache
     assert_eq!(formatted(mangled), canonical);
 }
 
+/// `covariant` is parsed only between the modifiers and the type, so the
+/// modifiers move around it and it stays last.
+#[test]
+fn covariant_is_written_after_every_other_modifier() {
+    let mangled = "\
+<?nvs
+class Kennel extends Shelter
+{
+    lateinit public covariant Dog $pet;
+
+    public function constructor(readonly public covariant Dog $first)
+    {
+    }
+
+    public function feed(inout covariant Dog $a, covariant Dog ...$all): void
+    {
+    }
+}
+";
+    let canonical = "\
+<?nvs
+class Kennel extends Shelter
+{
+    public lateinit covariant Dog $pet;
+
+    public function constructor(public readonly covariant Dog $first)
+    {
+    }
+
+    public function feed(inout covariant Dog $a, covariant Dog ...$all): void
+    {
+    }
+}
+";
+    assert_eq!(formatted(mangled), canonical);
+}
+
 #[test]
 fn a_declaration_brace_is_allman_and_a_control_brace_is_k_and_r() {
     let mangled = "\
