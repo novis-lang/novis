@@ -508,8 +508,8 @@ fn both_set(block: &str, value: &str, written_in: Option<&Origin>) -> Diagnostic
         format!("`[{block}]` sets both `{value}` and `{value}_file`"),
     )
     .with_note(format!(
-        "`rule:config/a-secret-is-a-file-whose-content-is-the-value` gives a secret directive two sources and exactly one may be set: `{value}` \
-         holds the value, `{value}_file` names the file whose content is the value{}",
+        "set exactly one of the two. `{value}` is the value, and `{value}_file` names a file \
+         whose content is the value{}",
         origin_note(written_in)
     ))
     .with_help(format!(
@@ -526,9 +526,8 @@ fn refusal(path: &Path, key: &str, problem: &str, written_in: Option<&Origin>) -
         format!("`{key}` names `{}`, which {problem}", path.display()),
     )
     .with_note(format!(
-        "`rule:config/a-secret-is-a-file-whose-content-is-the-value` makes that file's whole content the value, minus one trailing newline, and \
-         refuses rather than carrying an unusable one forward: an empty credential otherwise fails \
-         at the first request instead of at boot{}",
+        "the value is the file's whole content, without one trailing newline. A value that \
+         cannot be used stops the server at boot, so it does not fail at the first request{}",
         origin_note(written_in)
     ))
 }
@@ -547,14 +546,13 @@ fn padded(key: &str, edge: &str, from: Option<&Path>, written_in: Option<&Origin
         },
     )
     .with_note(format!(
-        "`rule:config/a-secret-is-a-file-whose-content-is-the-value` keeps a credential exactly as it was written — a password may legitimately \
-         carry an edge space, and removing it would be `rule:errors/ambiguous-input-refused`'s repair of input in place of a \
-         reading of it — so the value is in force as-is and this is an advisory{}",
+        "a credential is used exactly as it is written, because a password may start or end \
+         with a space. The value is used as it is, and this is only a warning{}",
         origin_note(written_in)
     ))
     .with_help(
-        "if it was not meant, rewrite the value without it; a secret file is written with \
-         `printf %s` rather than `echo`, whose one trailing newline `rule:config/a-secret-is-a-file-whose-content-is-the-value` already removes"
+        "if the space is a mistake, write the value again without it. Write a secret file with \
+         `printf %s`. Only one trailing newline is removed from the file"
             .to_string(),
     )
 }
@@ -566,9 +564,9 @@ fn exposed(path: &Path, key: &str, how: &str) -> Diagnostic {
         format!("`{key}` names `{}`, which {how}", path.display()),
     )
     .with_note(
-        "`rule:config/a-secret-is-a-file-whose-content-is-the-value` warns rather than refuses here because a Compose secret is mounted `0444` \
-         and a Kubernetes secret volume defaults to `0644`: inside a container that is the norm, \
-         on a shared host it is not, and nothing readable from here says which this is"
+        "this is a warning and not an error. A Compose secret is mounted `0444`, and a \
+         Kubernetes secret volume is `0644` by default. That is normal in a container, but not \
+         on a shared host"
             .to_string(),
     )
 }

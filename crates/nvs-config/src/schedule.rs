@@ -153,8 +153,8 @@ pub fn validate(
                     "`{name}` is also the name of {}",
                     label(first, &config.schedule[first])
                 ),
-                "§ 1 makes `name` the label a run is logged and measured under, so two entries \
-                 sharing one cannot be told apart in either",
+                "each run is logged and measured under its `name`, so two entries with one name \
+                 cannot be told apart",
                 "give one of them a name of its own",
                 origins,
                 "name",
@@ -167,9 +167,9 @@ pub fn validate(
                 index,
                 entry,
                 format!("`cron = \"{cron}\"` is not a schedule: {fault}"),
-                "§ 2 accepts five-field POSIX cron — minute, hour, day-of-month, month, \
-                 day-of-week — plus `@hourly`, `@daily`, `@weekly`, `@monthly` and `@yearly`; a \
-                 seconds field and Quartz's `L`, `W`, `#` and `?` are not part of the dialect",
+                "a schedule is POSIX cron with five fields: minute, hour, day of month, month and \
+                 day of week. `@hourly`, `@daily`, `@weekly`, `@monthly` and `@yearly` also work. \
+                 A seconds field and Quartz's `L`, `W`, `#` and `?` do not",
                 "write the five fields, or one of the five shorthands",
                 origins,
                 "cron",
@@ -181,9 +181,8 @@ pub fn validate(
                 index,
                 entry,
                 format!("`timezone = \"{unknown}\"` is not a zone this build knows"),
-                "§ 6 pins the zone because implementations differ about DST and the difference is a \
-                 production incident; the name is the operator's only way to say which rules apply, \
-                 and a name the IANA database does not carry has no fires to compute at all",
+                "the zone decides when each run happens, including across daylight saving time. A \
+                 name that is not in the IANA database has no rules to use",
                 "name an IANA zone, as `Europe/Vienna`, or drop the key for the `UTC` default",
                 origins,
                 "timezone",
@@ -196,9 +195,9 @@ pub fn validate(
                 index,
                 entry,
                 format!("`scope = \"{scope}\"` is neither `fleet` nor `host`"),
-                "§ 3 has an entry fire either once across the deployment, over a lease in the \
-                 shared store, or once on every host that runs it; there is no third answer and no \
-                 default, because which one is right is a property of the job",
+                "`fleet` runs the entry once across the deployment, through a lease in the shared \
+                 store. `host` runs it once on every host. There is no default, because the right \
+                 one depends on the job",
                 "set `scope = \"host\"` for work whose effect is local, `scope = \"fleet\"` for \
                  work that must happen once",
                 origins,
@@ -211,9 +210,8 @@ pub fn validate(
                 entry,
                 "`scope = \"fleet\"` needs a shared store, and this configuration has none"
                     .to_string(),
-                "§ 3 fires a fleet entry under a lease held in the shared store; with no store the \
-                 only thing left is one run per host, which is the failure `scope` exists to \
-                 prevent, so the boot refuses rather than degrading to it",
+                "a fleet entry runs once across all hosts, through a lease in the shared store. \
+                 With no store, it would run once on every host",
                 "configure the shared store, or set `scope = \"host\"` if one run per host is what \
                  this job means",
                 origins,
@@ -233,9 +231,9 @@ pub fn validate(
                 index,
                 entry,
                 format!("`overlap = \"{overlap}\"` is none of `skip`, `queue` or `kill`"),
-                "§ 6 gives an entry that comes due while its last run is still going exactly three \
-                 answers — drop this fire, hold one until that run ends, or cancel that run and \
-                 wait for its teardown — and `skip` is what an entry that says nothing gets",
+                "this key says what happens when a run is due and the last run is still going. \
+                 `skip` drops the new run, `queue` starts it when the last one ends, and `kill` \
+                 stops the last run first. The default is `skip`",
                 "drop the key for `skip`, or name one of the three",
                 origins,
                 "overlap",
@@ -251,9 +249,8 @@ pub fn validate(
                 index,
                 entry,
                 format!("`{}` is not under any `script.spawn` root", named.display()),
-                "§ 1 resolves a scheduled script against the same `[capabilities] script.spawn` \
-                 roots a `spawn script` target is checked against: the set of files a deployment \
-                 can execute is one list, and a schedule is not a way around it",
+                "a scheduled script is checked against the `[capabilities] script.spawn` roots, \
+                 the same as a `spawn script` target",
                 "move the script under a granted root, or add its directory to `script.spawn`",
                 origins,
                 "script",
@@ -301,9 +298,8 @@ fn required<'a>(
             index,
             entry,
             format!("has no `{field}`"),
-            "§ 1 gives a `[[schedule]]` entry no defaults for `name`, `cron`, `script` or `scope`: \
-             each is a decision about the job that only the operator can make, and a default would \
-             be this file guessing at one",
+            "`name`, `cron`, `script` and `scope` have no default in a `[[schedule]]` entry. \
+             Each one is a choice about the job",
             "add the key to the entry",
             origins,
             field,

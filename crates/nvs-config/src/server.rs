@@ -318,8 +318,8 @@ fn refuse(
     )
     .with_note(format!("{why}{}", origin_note(origins.get(key))))
     .with_help(format!(
-        "write how long the server waits, as `10s` — there is no spelling for waiting forever, \
-         and leaving `{key}` out keeps `rule:http-server/the-server-block-is-boot-class`'s own default"
+        "write how long the server waits, as `10s`. No value waits forever. Leave `{key}` out \
+         to keep the default"
     ))
 }
 
@@ -479,9 +479,8 @@ fn unbounded(
     )
     .with_note(format!("{why}{}", origin_note(origins.get(key))))
     .with_help(format!(
-        "write the bound this deployment wants, or leave `{key}` out to keep \
-         `rule:concurrency/connection-bounds-are-finite`'s own finite default — there is no \
-         spelling here for an unbounded one"
+        "write the limit this deployment wants, or leave `{key}` out to keep the default. No \
+         value removes the limit"
     ))
 }
 
@@ -542,8 +541,8 @@ pub fn listen_on(
             origin_note(origins.get("server.listen"))
         ))
         .with_help(
-            "leave `server.listen` out to keep `rule:http-server/the-server-block-is-boot-class`'s own `127.0.0.1:8000`, or write the \
-             address this deployment answers on",
+            "leave `server.listen` out to keep the default `127.0.0.1:8000`, or write the \
+             address this deployment listens on",
         ));
     }
     written
@@ -622,8 +621,8 @@ pub fn socket_mode_for(
             origin_note(origins.get("server.socket_mode"))
         ))
         .with_help(
-            "write the permissions as octal in quotes, as `\"0660\"` — the proxy's account and its \
-             group, which is `rule:http-server/a-unix-socket-listener`'s own default",
+            "write the permissions as octal in quotes, as `\"0660\"`. That is the default: the \
+             proxy's account and its group",
         ))
     };
     if written.is_empty() || written.len() > 4 {
@@ -735,8 +734,8 @@ pub fn health_path(
         origin_note(origins.get("server.health_path"))
     ))
     .with_help(
-        "write the one absolute path the probe asks for, as `/healthz`, or leave \
-         `server.health_path` out to keep `rule:http-server/the-server-block-is-boot-class`'s own off",
+        "write the one absolute path the probe requests, as `/healthz`. Or leave \
+         `server.health_path` out, and the probe is off",
     ))
 }
 
@@ -852,7 +851,7 @@ pub fn capacity_for(
         Some(0) => {
             return Err(Diagnostic::error(
                 code::E_NO_ADMISSION,
-                "`server.max_in_flight` is `0`, which is a server that refuses every request",
+                "`server.max_in_flight` is `0`, so the server answers every request with `503`",
             )
             .with_note(format!(
                 "the ceiling is the point at which a request is answered `503` instead of being \
@@ -861,7 +860,7 @@ pub fn capacity_for(
             ))
             .with_help(
                 "write how many requests may be in flight at once, as `10000`, or leave \
-                 `server.max_in_flight` out to keep `rule:http-server/the-server-block-is-boot-class`'s own default",
+                 `server.max_in_flight` out to keep the default",
             ));
         }
         Some(written) => written,

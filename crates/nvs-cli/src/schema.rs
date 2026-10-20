@@ -266,14 +266,10 @@ pub(crate) fn converge(
     for step in plan.runnable() {
         for sql in step.sql() {
             if let Err(err) = nvs_db::direct::run(conn, sql) {
+                eprintln!("error: the server rejected `{}`: {err}", step.change());
                 eprintln!(
-                    "error: `{}` was refused by the server: {err}",
-                    step.change()
-                );
-                eprintln!(
-                    "note: the steps before it are applied, and the next plan is computed against \
-                     the database as it is now — so re-running this command once the refusal is \
-                     fixed converges the rest rather than colliding with what is already there"
+                    "note: the steps before it are applied. Fix the error and run this command \
+                     again. It plans against the database as it is now, so it applies only the rest"
                 );
                 return ExitCode::FAILURE;
             }
@@ -432,7 +428,7 @@ pub(crate) fn opened(
             "error: `[db.{name}]` names the `{written}` driver, which Novis has no backend for"
         );
         eprintln!(
-            "note: `rule:core-classes/db-one-api`'s five are {}",
+            "note: the drivers are {}",
             nvs_db::Driver::ALL
                 .iter()
                 .map(|one| format!("`{}`", one.matrix_name()))

@@ -366,9 +366,9 @@ impl Outcome {
             return self;
         }
         let named = format!(
-            "it left {running} task(s) still running when it returned: `rule:testing/task-tree-and-virtual-clock` \
-             fails a test whose task tree outlives it — `Core\\Task::all` and `::map` \
-             return with nothing still running, and a `spawn script` is finished by `await`"
+            "it left {running} task(s) still running when it returned. A test fails when one \
+             of its tasks is still running at its end. `Core\\Task::all` and `::map` return with \
+             nothing still running, and `await` finishes a `spawn script`"
         );
         self.and_failed(named)
     }

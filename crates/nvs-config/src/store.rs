@@ -106,15 +106,13 @@ fn unix_transport(config: &Config, origins: &BTreeMap<String, Origin>) -> Result
         ),
     )
     .with_note(format!(
-        "`rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`: the transport is \
-         `#[cfg(unix)]` and this is a {} build, so the store named here would never be reached{}",
+        "Unix-domain sockets exist only in a Unix build, and this is a {} build. The store named \
+         here cannot be reached{}",
         std::env::consts::OS,
         origin_note(origins.get("cache.shared.url"))
     ))
     .with_help(
-        "write the store as `redis://host[:port]`; a `unix:` url is not quietly read as loopback \
-         TCP, because a configuration that reads as one transport and runs as another is invisible \
-         in exactly the review that would have caught it"
+        "write the store as `redis://host[:port]`. A `unix:` URL is never read as a TCP address"
             .to_string(),
     ))
 }
@@ -155,10 +153,9 @@ fn fill_wait(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), 
         format!("`[cache.memory] fill_wait = \"{written}\"`, and {complaint}"),
     )
     .with_note(format!(
-        "`rule:concurrency/a-secret-fill-runs-once-per-process`: one caller in this process runs a \
-         miss's fill while every other caller waits for it, and this key is the whole bound on that \
-         wait — at zero they are all released throwing `TimeoutError` with the fetch still in \
-         flight, and unbounded they are held for as long as a provider takes{}",
+        "when a value is missing, one caller fetches it and every other caller waits. This key is \
+         the longest they wait. At zero, they all throw `TimeoutError` at once. With no limit, they \
+         wait as long as the fetch takes{}",
         origin_note(origins.get(key))
     ))
     .with_help(
@@ -208,10 +205,8 @@ pub fn advise(config: &Config, origins: &BTreeMap<String, Origin>) -> Option<Dia
             ),
         )
         .with_note(format!(
-            "`rule:config/cache-shared-is-the-grant-over-the-configured-store`: the grant over a \
-             store an operator configured names the *store* and not its address, so \
-             `Core\\Cache::shared()` and `Core\\RateLimit::consume` ask `cache.shared` and no \
-             longer ask `net.connect` at this URL's host{}",
+            "`Core\\Cache::shared()` and `Core\\RateLimit::consume` need the `cache.shared` \
+             grant. They do not need `net.connect` for this URL's host{}",
             origin_note(origins.get("cache.shared.url"))
         ))
         .with_help(

@@ -654,8 +654,8 @@ fn write_bundle(files: &[(String, Vec<u8>)], out: &Path) -> std::io::Result<()> 
         match signed {
             Ok(status) if status.success() => {}
             _ => eprintln!(
-                "warning: `codesign --sign -` did not succeed; {} is unsigned and macOS \
-                 will refuse to run it until it is signed",
+                "warning: `codesign --sign -` failed, so {} is not signed. macOS does not run \
+                 it until it is signed",
                 out.display()
             ),
         }
