@@ -673,10 +673,7 @@ fn report_not_a_shape(span: Span, what: &str, env: &mut Env<'_>) {
             code::E_ATTRIBUTE_NAME_NOT_A_SHAPE,
             format!("an attribute's name must be a shape-typed `type` alias, and {what}"),
         )
-        .with_primary(
-            span,
-            "this names no shape to check the payload against",
-        )
+        .with_primary(span, "this names no shape to check the payload against")
         .with_help(
             "an attribute's name is a `type` alias of a shape, such as \
              `type Route = {path: string, method: string};`. The payload is checked against \

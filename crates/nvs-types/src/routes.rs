@@ -1142,9 +1142,7 @@ fn check_string_list(api: &Attribute, option: &str, env: &mut Env<'_>) -> Vec<St
             format!("`{option}` is not a list"),
             span,
             "written as a single value",
-            format!(
-                "`{option}` is always an array. Write `{option}: [...]`, even for one entry"
-            ),
+            format!("`{option}` is always an array. Write `{option}: [...]`, even for one entry"),
             env,
         );
         return Vec::new();

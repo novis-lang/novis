@@ -861,9 +861,7 @@ pub(crate) fn check_return(
                 "a generator cannot return a value",
             )
             .with_primary(expr.span, "this value has nowhere to go")
-            .with_help(
-                "write `return;` to stop the generator, or `yield` this value",
-            ),
+            .with_help("write `return;` to stop the generator, or `yield` this value"),
         );
         return;
     }

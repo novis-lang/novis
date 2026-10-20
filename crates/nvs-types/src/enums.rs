@@ -392,9 +392,7 @@ fn backing_of(ty: Option<&Type>, diags: &mut nvs_diagnostics::Diagnostics) -> En
                     "an enum's backing type must be `int` or `uint`",
                 )
                 .with_primary(ty.span, "not an integer type")
-                .with_help(
-                    "use `: int` or `: uint`, or remove the backing type",
-                ),
+                .with_help("use `: int` or `: uint`, or remove the backing type"),
             );
             EnumBacking::Int
         }
