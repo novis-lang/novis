@@ -277,10 +277,6 @@
 //! formats none. A whole document that is
 //! a list, [`decode_each`], stops at the first bad element instead: which of the
 //! two a list field should do is not a cost question, and it stays as written.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/json.rs` lists them.
 
 use std::fmt;
 
@@ -1735,19 +1731,22 @@ fn flag(value: &Value, option: &str) -> Result<bool, Fault> {
 /// so the recursion needs no borrow of a shared counter and no reset on the
 /// way back out.
 #[derive(Clone, Copy, Debug)]
-struct Decode {
+struct Decode<'a> {
     /// This value's own nesting level; the document is 1.
     depth: u32,
     /// The level past which nothing is read — [`max_depth`]'s answer.
     max: u32,
+    /// Where each array built from a JSON list is noted, on a parse a class
+    /// decode reads ([`read_marked`]), and `None` on every other.
+    lists: Option<&'a Lists>,
 }
 
-impl Decode {
+impl Decode<'_> {
     /// This value's elements, one level deeper.
     fn child(self) -> Self {
         Self {
             depth: self.depth + 1,
-            max: self.max,
+            ..self
         }
     }
 
@@ -1761,7 +1760,7 @@ impl Decode {
     }
 }
 
-impl<'de> DeserializeSeed<'de> for Decode {
+impl<'de> DeserializeSeed<'de> for Decode<'_> {
     type Value = Value;
 
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Value, D::Error> {
@@ -1769,7 +1768,7 @@ impl<'de> DeserializeSeed<'de> for Decode {
     }
 }
 
-impl<'de> Visitor<'de> for Decode {
+impl<'de> Visitor<'de> for Decode<'_> {
     type Value = Value;
 
     fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1816,7 +1815,11 @@ impl<'de> Visitor<'de> for Decode {
         while let Some(value) = seq.next_element_seed(self.child())? {
             array.append(value);
         }
-        Ok(Value::array(array))
+        let value = Value::array(array);
+        if let Some(lists) = self.lists {
+            lists.note(value);
+        }
+        Ok(value)
     }
 
     fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Value, A::Error> {
@@ -1852,10 +1855,50 @@ const IN_PLACE_BYTES: usize = 64;
 /// (`nvs_host::on_spare_stack`), which holds [`DEPTH_CEILING`] levels on every
 /// profile. The parse calls no compiled code, which is what that stack needs.
 pub(crate) fn read(text: &str, max: u32) -> Result<Value, serde_json::Error> {
+    read_with(text, max, None)
+}
+
+/// [`read`] for a class decode: each array the parse builds from a JSON list
+/// is noted in `lists`, which the decode asks where it needs an object.
+pub(crate) fn read_marked(text: &str, max: u32, lists: &Lists) -> Result<Value, serde_json::Error> {
+    read_with(text, max, Some(lists))
+}
+
+/// [`read`] and [`read_marked`], on the stack the text's length needs.
+fn read_with(text: &str, max: u32, lists: Option<&Lists>) -> Result<Value, serde_json::Error> {
     if text.len() <= IN_PLACE_BYTES {
-        parse(text, max)
+        parse(text, max, lists)
     } else {
-        nvs_host::on_spare_stack(|| parse(text, max))
+        nvs_host::on_spare_stack(|| parse(text, max, lists))
+    }
+}
+
+/// The arrays one [`read_marked`] parse built from a JSON list, by address.
+///
+/// A JSON list and a JSON object both become one `NvsArray`, and `["a"]` has
+/// the same entries as `{"0": "a"}`, so the array alone cannot say which the
+/// document wrote. A class decodes from an object only, and this is how it
+/// tells a list apart. An address is unique while the document is alive,
+/// which is the whole of the decode that asks.
+///
+/// **What it spends:** one address per JSON list in the document, on a class
+/// decode only, freed with the decode. The document's own size bounds it.
+#[derive(Debug, Default)]
+pub(crate) struct Lists(std::cell::RefCell<std::collections::HashSet<usize>>);
+
+impl Lists {
+    /// Notes `value`, an array the parse just built from a JSON list.
+    fn note(&self, value: Value) {
+        if let Some(ptr) = value.array_ptr() {
+            self.0.borrow_mut().insert(ptr.addr());
+        }
+    }
+
+    /// Whether `value` is an array the parse built from a JSON list.
+    fn holds(&self, value: Value) -> bool {
+        value
+            .array_ptr()
+            .is_some_and(|ptr| self.0.borrow().contains(&ptr.addr()))
     }
 }
 
@@ -1866,10 +1909,15 @@ pub(crate) fn read(text: &str, max: u32) -> Result<Value, serde_json::Error> {
 /// default of [`DEFAULT_MAX_DEPTH`], so leaving it on would make the
 /// declared default unreachable. [`Decode`]'s own counter is the bound
 /// instead, and it is checked against a ceiling the call cannot raise.
-fn parse(text: &str, max: u32) -> Result<Value, serde_json::Error> {
+fn parse(text: &str, max: u32, lists: Option<&Lists>) -> Result<Value, serde_json::Error> {
     let mut deserializer = serde_json::Deserializer::from_str(text);
     deserializer.disable_recursion_limit();
-    let value = Decode { depth: 1, max }.deserialize(&mut deserializer)?;
+    let value = Decode {
+        depth: 1,
+        max,
+        lists,
+    }
+    .deserialize(&mut deserializer)?;
     match deserializer.end() {
         Ok(()) => Ok(value),
         Err(why) => {
@@ -1996,7 +2044,8 @@ pub(crate) unsafe fn decode_as(
     unsafe {
         check_codec(class, shape, member)?;
     }
-    let document = read(text, max).map_err(|why| {
+    let lists = Lists::default();
+    let document = read_marked(text, max, &lists).map_err(|why| {
         let message = format!("{member}(): {why}");
         let issues = crate::issue::list([("", message.as_str())]);
         Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
@@ -2006,7 +2055,15 @@ pub(crate) unsafe fn decode_as(
         reason = "the same live descriptor the caller vouched for"
     )]
     unsafe {
-        hydrate(ctx, class, shape, document, list, Reading::Wire, member)
+        hydrate(
+            ctx,
+            class,
+            shape,
+            document,
+            list,
+            Reading::Wire(&lists),
+            member,
+        )
     }
 }
 
@@ -2039,9 +2096,9 @@ struct Contract<'a> {
     /// where it wrote a class name, which is the one bit everything above
     /// branches on.
     shape: Option<&'a nvs_runtime::ShapeCodec>,
-    /// What the values under this walk are, which is [`scalar`]'s one
-    /// question and no other caller's.
-    reading: Reading,
+    /// What the values under this walk are: [`scalar`]'s question, and
+    /// whether an array is a JSON list ([`Contract::object_of`]).
+    reading: Reading<'a>,
 }
 
 /// What the values one walk is handed already are — the second axis
@@ -2063,11 +2120,12 @@ struct Contract<'a> {
 /// already answer for `$mixed as int`.
 ///
 /// [`Values`]: Reading::Values
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Reading {
+#[derive(Clone, Copy)]
+pub(crate) enum Reading<'a> {
     /// A JSON document's own types, matched exactly — `Core\Json::decodeAs`
-    /// and `Core\Request::jsonAs`.
-    Wire,
+    /// and `Core\Request::jsonAs`. It carries the arrays the parse built from
+    /// a JSON list, so a list never decodes where an object is expected.
+    Wire(&'a Lists),
     /// Loose values converted per field by `rule:types/conversion`'s table —
     /// `Core\Arr::shapeAs` and the request wrappers over it.
     Values,
@@ -2098,7 +2156,7 @@ impl<'a> Contract<'a> {
             class,
             desc,
             shape,
-            reading: Reading::Wire,
+            reading: Reading::Values,
         }
     }
 
@@ -2108,12 +2166,49 @@ impl<'a> Contract<'a> {
     /// only what the *declaration* says, and a parameter it never reads on the
     /// call every door already makes would be one more thing to get right for
     /// nothing.
-    const fn over(self, reading: Reading) -> Self {
+    const fn over(self, reading: Reading<'a>) -> Self {
         Self {
             class: self.class,
             desc: self.desc,
             shape: self.shape,
             reading,
+        }
+    }
+
+    /// `value`'s array, where it is one a class decodes from. Under
+    /// [`Reading::Wire`] an array the document wrote as a JSON list is not:
+    /// `[1]` and `{"0": 1}` have the same entries, and only the second is an
+    /// object.
+    fn object_of(&self, value: Value) -> Option<*mut nvs_runtime::ArrayHeader> {
+        match self.reading {
+            Reading::Wire(lists) if lists.holds(value) => None,
+            _ => value.array_ptr(),
+        }
+    }
+
+    /// `value`'s array, where it is one a list decodes from. Under
+    /// [`Reading::Wire`] that is an array the document wrote as a JSON list,
+    /// and never a JSON object.
+    fn list_of(&self, value: Value) -> Option<*mut nvs_runtime::ArrayHeader> {
+        match self.reading {
+            Reading::Wire(lists) if !lists.holds(value) => None,
+            _ => value.array_ptr(),
+        }
+    }
+
+    /// What `value` is, for an issue's "found" half: [`describe`], with an
+    /// array named as the JSON list or the JSON object the document wrote
+    /// where the reading knows which.
+    fn describe(&self, value: Value) -> &'static str {
+        match self.reading {
+            Reading::Wire(lists) if value.array_ptr().is_some() => {
+                if lists.holds(value) {
+                    "a list"
+                } else {
+                    "an object"
+                }
+            }
+            _ => describe(value),
         }
     }
 
@@ -2369,7 +2464,7 @@ pub(crate) unsafe fn hydrate(
     shape: Option<*const nvs_runtime::ShapeCodec>,
     document: Value,
     list: bool,
-    reading: Reading,
+    reading: Reading<'_>,
     member: &str,
 ) -> Result<Value, Fault> {
     #[expect(
@@ -2437,16 +2532,16 @@ unsafe fn decode_each(
         let issues = crate::issue::list([("", message.as_str())]);
         Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
     };
-    let Some(ptr) = document.array_ptr() else {
+    let Some(ptr) = contract.list_of(document) else {
         return Err(refusal());
     };
     let source = crate::arr::borrowed(ptr);
     let mut decoded = NvsArray::new();
     for index in 0..source.count() {
-        // A JSON array reads back as a *packed* array, so a position that is
-        // not there is a JSON object arriving at a list decode: `{"a": 1}` has
-        // a count of one and no index 0. This is the only place the two are
-        // told apart, since both are one `NvsArray`.
+        // A position that is not there is an object arriving at a list
+        // decode: `{"a": 1}` has a count of one and no index 0. A wire decode
+        // has already refused every JSON object above, and this test is what
+        // tells an array a program built from a list.
         let element = i64::try_from(index)
             .ok()
             .and_then(|position| source.get_index(position))
@@ -2498,7 +2593,7 @@ unsafe fn decode_object(
         )]
         return unsafe { hand_written(ctx, contract, document, member) };
     }
-    let Some(ptr) = document.array_ptr() else {
+    let Some(ptr) = contract.object_of(document) else {
         let message = match at {
             None => format!(
                 "{member}(): a `{}` decodes from a JSON object",
@@ -3013,7 +3108,7 @@ impl<'a> Positions<'a> {
             else {
                 return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
                     "expected an array, found {}",
-                    describe(self.found)
+                    contract.describe(self.found)
                 ))])));
             };
             // A nested object at a position, whichever of the two kinds it is: a
@@ -3067,7 +3162,7 @@ impl<'a> Positions<'a> {
                             Issue::here(format!(
                                 "expected {}, found {}",
                                 wanted(self.element.ty),
-                                describe(item)
+                                contract.describe(item)
                             ))
                             .under(Segment::At(at)),
                         ),
@@ -3365,7 +3460,7 @@ unsafe fn convert_field<'a>(
         return issue(format!(
             "expected {}, found {}",
             wanted(field.ty),
-            describe(found)
+            contract.describe(found)
         ));
     };
     // [`scalar`] answered with a reference of its own, which is what the
@@ -3446,11 +3541,11 @@ unsafe fn decode_nested<'a>(
             nested.name()
         )))));
     }
-    let Some(ptr) = found.array_ptr() else {
+    let Some(ptr) = contract.object_of(found) else {
         return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
             "expected an object for `{}`, found {}",
             nested.name(),
-            describe(found)
+            contract.describe(found)
         ))])));
     };
     Step::Enter(Build::Fields(Fields::new(
@@ -3494,9 +3589,9 @@ unsafe fn scalar(
     ty: CodecTy,
     cases: Option<&EnumCases>,
     found: Value,
-    reading: Reading,
+    reading: Reading<'_>,
 ) -> Option<Value> {
-    let coerce = reading == Reading::Values;
+    let coerce = matches!(reading, Reading::Values);
     let kept = match ty {
         // A `mixed` field is exactly as checked as `mixed` ever is (`rule:core-classes/derive-field-list`), so whatever the document held is the value.
         CodecTy::Mixed => Some(found),
@@ -3671,10 +3766,10 @@ fn decode_positions<'a>(
     found: Value,
 ) -> Step<'a> {
     let field = &contract.fields()[index];
-    let Some(ptr) = found.array_ptr() else {
+    let Some(ptr) = contract.list_of(found) else {
         return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
             "expected an array, found {}",
-            describe(found)
+            contract.describe(found)
         ))])));
     };
     // Resolved once rather than per position: an element's roster is the
@@ -3770,11 +3865,11 @@ unsafe fn decode_element<'a>(
             element.name()
         )))));
     }
-    let Some(ptr) = item.array_ptr() else {
+    let Some(ptr) = contract.object_of(item) else {
         return Step::Done(Err(DecodeFailure::Issues(vec![Issue::here(format!(
             "expected an object for `{}`, found {}",
             element.name(),
-            describe(item)
+            contract.describe(item)
         ))])));
     };
     Step::Enter(Build::Fields(Fields::new(

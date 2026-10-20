@@ -8926,8 +8926,12 @@ mod tests {
             dropped_fault(failure);
             issues
         };
+        let lists = crate::json::Lists::default();
         let over_values = reported(&mut ctx, crate::json::Reading::Values);
-        assert_eq!(over_values, reported(&mut ctx, crate::json::Reading::Wire));
+        assert_eq!(
+            over_values,
+            reported(&mut ctx, crate::json::Reading::Wire(&lists))
+        );
         assert_eq!(over_values.len(), 1);
         assert_eq!(over_values[0].0, "n");
 
@@ -8974,7 +8978,7 @@ mod tests {
         ctx: &mut Ctx,
         contract: (*const ClassDesc, *const ShapeCodec),
         subject: Value,
-        reading: crate::json::Reading,
+        reading: crate::json::Reading<'_>,
     ) -> Result<Value, Fault> {
         unsafe {
             crate::json::hydrate(
@@ -8994,7 +8998,7 @@ mod tests {
         ctx: &mut Ctx,
         contract: (*const ClassDesc, *const ShapeCodec),
         subject: Value,
-        reading: crate::json::Reading,
+        reading: crate::json::Reading<'_>,
     ) -> Fault {
         match hydrated(ctx, contract, subject, reading) {
             Ok(built) => {
