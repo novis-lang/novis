@@ -30,8 +30,10 @@ class that implements `Core\Router\Gate`.
 
 - `failed` also runs when the program uses too much memory or time. The status is `500`.
 - A capture that cannot be converted gives `Refusal::BadCapture` and the status `400`.
-- A route method is `static`, or its class has a constructor without parameters. `dispatch` does
-  not use the value that the method returns.
+- A route method is `static`, or its class has a constructor without parameters.
+- A route method can return a value, such as its page. When the gate implements
+  `Core\Router\Responder`, `dispatch` gives that value to the gate's `respond` method. A plain gate
+  does not use the value, and `nvs check` gives a warning for it.
 - A request that the server stopped, for example in the CSRF check, never reaches a route method.
   `dispatch` calls `refused` for it.
 
