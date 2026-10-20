@@ -2,8 +2,8 @@ A class implementing the global interface `PropertyGuard` has
 `beforePropertySet(string $name, mixed $value, array<string> $keys): void` called before every write of
 one of its properties, and `beforePropertyUnset(string $name, array<string> $keys): void` before every
 `unset` of an element of one, and a throw from either stops the change: nothing is stored, and no
-observer runs. The guard runs in the constructor too, and on a hooked property before the `set` hook,
-with the caller's value. Its place in the order is `rule:classes/property-observer-pipeline`'s.
+observer runs. The guard runs in the constructor too, a promoted constructor parameter's store
+included, and on a hooked property before the `set` hook, with the caller's value. Its place in the order is `rule:classes/property-observer-pipeline`'s.
 
 The guard gets the change, never the resulting array. `$keys` is `[]` for a whole write, and `$value`
 is the new value. For an element write `$value` is the new element and `$keys` is its path from the

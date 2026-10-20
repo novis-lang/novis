@@ -1485,6 +1485,22 @@ pub struct ExprTypeTable {
     attribute_names: Vec<(Span, QName)>,
     deprecation_checks: FxHashMap<Span, Vec<DeprecationCheck>>,
     deprecated_entries: FxHashMap<Span, DeprecationCheck>,
+    promoted_pipelines: FxHashMap<Span, PromotedPipeline>,
+}
+
+/// The guard and observer a promoted constructor parameter's store runs,
+/// recorded at the parameter's name for a class that implements
+/// `PropertyGuard` or `PropertyObserver`.
+///
+/// The store has no written `$this->x = $x;` to record an
+/// [`ExprInfo::Property`] at, so the parameter's name carries what that
+/// access would have carried (`rule:classes/property-guard-runs-before-the-write`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PromotedPipeline {
+    /// `rule:classes/property-observer-pipeline`'s second step — see [`ObserverCalls`].
+    pub observer: Option<ObserverCalls>,
+    /// The check before the store — see [`GuardCalls`].
+    pub guard: Option<GuardCalls>,
 }
 
 /// What one runtime check of `rule:errors/a-use-of-deprecated-code-may-log-or-throw`
@@ -1830,6 +1846,19 @@ impl ExprTypeTable {
     #[must_use]
     pub fn deprecated_entry(&self, span: Span) -> Option<&DeprecationCheck> {
         self.deprecated_entries.get(&span)
+    }
+
+    /// Records the pipeline the promoted parameter whose name sits at `span`
+    /// stores through.
+    pub(crate) fn record_promoted_pipeline(&mut self, span: Span, pipeline: PromotedPipeline) {
+        self.promoted_pipelines.insert(span, pipeline);
+    }
+
+    /// The guard and observer the promoted parameter whose name sits at
+    /// `span` stores through, or `None` when its class implements neither.
+    #[must_use]
+    pub fn promoted_pipeline(&self, span: Span) -> Option<&PromotedPipeline> {
+        self.promoted_pipelines.get(&span)
     }
 
     /// The `Class::method` label of the method declaration whose name sits at
