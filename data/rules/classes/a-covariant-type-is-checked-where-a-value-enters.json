@@ -1,0 +1,12 @@
+{
+  "title": "A covariant parameter or property takes a narrower type, and each value that enters it is tested",
+  "status": "designed",
+  "seeAlso": [
+    "classes/an-override-keeps-its-parents-signature",
+    "classes/a-redeclared-property-keeps-its-parents-type",
+    "classes/property-hooks",
+    "types/no-user-generics"
+  ],
+  "guardedBy": [],
+  "goal": "covariant"
+}
