@@ -1,6 +1,7 @@
 ---
 /**
- * Footer override: the site-wide footer, the project's name and one sentence
+ * Footer override: the site-wide footer, the project's name Novis-Lang (the
+ * one place on the site with the trademark sign) and one sentence
  * beside three columns of links, on one grid. There is no edit link,
  * no previous and next links and no "last updated" stamp: a page links to
  * what comes next in its own text, and `editLink` and `lastUpdated` in
@@ -41,7 +42,7 @@ const columns = [
   <div class="site-footer">
     <div class="site-footer-grid">
       <div class="site-footer-brand">
-        <p class="site-footer-name">Novis</p>
+        <p class="site-footer-name">Novis-Lang<sup class="tm">™</sup></p>
         <p>A programming language for web servers and the command line. It is safe by default.</p>
       </div>
       {
@@ -62,7 +63,7 @@ const columns = [
       }
     </div>
     <p class="site-footer-note">
-      © {year} The Novis project. Novis is open source. Novis-Lang® is a registered EU trademark.
+      © {year} The Novis-Lang project. Novis-Lang is open source.
     </p>
   </div>
 </footer>
@@ -128,6 +129,15 @@ const columns = [
     color: transparent;
     -webkit-text-fill-color: transparent;
     width: fit-content;
+  }
+  /* The trademark sign: small, at the top of the name's line. */
+  .site-footer-name .tm {
+    margin-inline-start: 0.08em;
+    font-size: 0.45em;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0;
+    vertical-align: top;
   }
 
   .site-footer-col h2 {

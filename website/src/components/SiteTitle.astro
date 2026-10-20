@@ -1,0 +1,110 @@
+---
+/**
+ * The site title in the header bar: the mark and the name Novis-Lang beside
+ * it, as one link to the home page. src/components/Header.astro renders it in
+ * place of Starlight's own SiteTitle. The name is set on two lines, "Novis-" over "Lang", so it
+ * takes little of the bar's width. It has the colors of the name in the home
+ * page's hero (src/components/home/Hero.astro): text color into violet into
+ * crimson. The colors drift slowly across the name and back, unless the
+ * reader asks for less motion.
+ *
+ * The mark comes from Starlight's `logo` option (see astro.config.ts). Its
+ * size is set in src/components/Header.astro. The image has an empty alt,
+ * because the name beside it is the link's text. A screen reader reads the
+ * name once, from the hidden copy, and never the two visible lines.
+ */
+import { logos } from 'virtual:starlight/user-images'
+import config from 'virtual:starlight/user-config'
+
+const { siteTitleHref } = Astro.locals.starlightRoute
+const name = 'Novis-Lang'
+---
+
+<a href={siteTitleHref} class="site-title sl-flex" translate="no">
+  {
+    config.logo && logos.dark && (
+      <img alt="" src={logos.dark.src} width={logos.dark.width} height={logos.dark.height} />
+    )
+  }
+  <span class="wordmark" aria-hidden="true">
+    <span>Novis-</span>
+    <span>Lang</span>
+  </span>
+  <span class="sr-only">{name}</span>
+</a>
+
+<style>
+  .site-title {
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .wordmark {
+    display: flex;
+    flex-direction: column;
+    /* The padding keeps the tail of the "g" inside the box the gradient
+       paints, and the negative margin keeps the name centred on the mark. */
+    padding-block-end: 0.15em;
+    margin-block-end: -0.15em;
+    font-size: 1rem;
+    font-weight: 900;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    /* The gradient is twice the name's width and mirrored: its first half is
+       the hero's gradient, the second half runs back. The animation below
+       slides it slowly from one half to the other and back. */
+    background: linear-gradient(
+      120deg,
+      var(--sl-color-white) 0%,
+      var(--sl-color-white) 14%,
+      var(--nv-grad-b) 31%,
+      var(--nv-grad-a) 50%,
+      var(--nv-grad-b) 69%,
+      var(--sl-color-white) 86%,
+      var(--sl-color-white) 100%
+    );
+    background-size: 200% 100%;
+    background-position: 0% 50%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  @keyframes wordmark-drift {
+    to {
+      background-position: 100% 50%;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .wordmark {
+      animation: wordmark-drift 7s ease-in-out infinite alternate;
+    }
+  }
+
+  /* On the narrowest phones the bar keeps only the mark and Install. */
+  @media (max-width: 24rem) {
+    .wordmark {
+      display: none;
+    }
+  }
+
+  /* With more contrast the name is solid text, as in the hero. */
+  @media (prefers-contrast: more) {
+    .wordmark {
+      background: none;
+      color: var(--sl-color-white);
+      -webkit-text-fill-color: currentColor;
+    }
+  }
+  @media (forced-colors: active) {
+    .wordmark {
+      background: none;
+      color: LinkText;
+      -webkit-text-fill-color: LinkText;
+    }
+  }
+</style>

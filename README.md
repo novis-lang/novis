@@ -98,8 +98,6 @@ around Novis one day, consulting for example, but a service never takes a featur
 And we do our best to keep Novis the best and simplest way to run the web applications of today and of
 the future.
 
-Novis-Lang® is a registered EU trademark.
-
 Every donation helps, no matter how large, how small, how long or how short. Ask on
 [Discord](https://discord.gg/8ftMjPeH8h) and we will tell you how — the full story is on the website's
 sponsoring page.
