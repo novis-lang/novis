@@ -1,0 +1,58 @@
+--TEST--
+`Core\Router::url` refuses a literal `$params` value that the conversion of its capture or `#[Query]` parameter refuses, so a link never names a path its route does not match — `rule:routing/link-name-and-params-are-checked`
+--FILE--
+<?nvs
+class Shop {
+    #[Core\Route(path: "/items/{id}", method: Core\Http\Method::Get, name: "items.show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id, #[Core\Query] int $page = 1): string {
+        return "";
+    }
+
+    #[Core\Route(path: "/prices/{amount}", method: Core\Http\Method::Get, name: "prices.show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function price(decimal $amount): string {
+        return "";
+    }
+}
+
+// Each of these converts, so none is in the error list below.
+echo Core\Router::url("items.show", ["id" => 7]), "\n";
+echo Core\Router::url("items.show", ["id" => "12", "page" => -2]), "\n";
+echo Core\Router::url("prices.show", ["amount" => 2.5]), "\n";
+echo Core\Router::url("prices.show", ["amount" => "19.90"]), "\n";
+
+// A `uint` capture does not convert text, a negative number or a fraction.
+echo Core\Router::url("items.show", ["id" => "x"]), "\n";
+echo Core\Router::url("items.show", ["id" => -3]), "\n";
+echo Core\Router::url("items.show", ["id" => 2.5]), "\n";
+
+// A `#[Query]` parameter is checked the same way.
+echo Core\Router::url("items.show", ["id" => 1, "page" => "two"]), "\n";
+
+// A `decimal` capture does not convert text that is not a number.
+echo Core\Router::url("prices.show", ["amount" => "cheap"]), "\n";
+
+// A computed value is not checked here.
+var $id = "x";
+echo Core\Router::url("items.show", ["id" => $id]), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0772]: `Shop::show` declares `id` as `uint`, and this link gives it a value that does not convert to `uint`
+   --> case.nvs:23:6
+%A
+error[E0772]: `Shop::show` declares `id` as `uint`, and this link gives it a value that does not convert to `uint`
+   --> case.nvs:24:6
+%A
+error[E0772]: `Shop::show` declares `id` as `uint`, and this link gives it a value that does not convert to `uint`
+   --> case.nvs:25:6
+%A
+error[E0772]: `Shop::show` declares `page` as `int`, and this link gives it a value that does not convert to `int`
+   --> case.nvs:28:6
+%A
+error[E0772]: `Shop::price` declares `amount` as `decimal`, and this link gives it a value that does not convert to `decimal`
+   --> case.nvs:31:6
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

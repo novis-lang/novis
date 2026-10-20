@@ -813,6 +813,14 @@ left out, whose whole segment is then dropped. A key in that array literal that 
 parameter. A **computed** `$name` throws instead, and a computed `$params` is not checked at all —
 there are no keys to read.
 
+**A literal value is held to the conversion of the parameter it supplies**, a capture's or a
+`#[Query]` parameter's, and one the conversion refuses is `E0772` at the call: `"x"`, `-3` and `2.5`
+for a `uint`. The check runs the matcher's own conversion on the segment the value builds, for the
+types the matcher converts itself (`int`, `uint`, `decimal`, `Core\Uuid`); a closed set is
+[`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)'s. A `float` literal is refused for each of those but
+`decimal` without being turned into text. A computed value, a `string` parameter and a class built from
+text are not checked, so a link is a path its route matches wherever the value is written at the call.
+
 The result is a laundered URL path ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)): each substituted
 value is percent-encoded into its own segment under RFC 3986's component rules, so a `tainted`
 parameter produces a plain `string` that is safe *as a path* and for nothing else. `urlAbsolute` is

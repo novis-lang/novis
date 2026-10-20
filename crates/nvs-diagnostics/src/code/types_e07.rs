@@ -1300,6 +1300,11 @@ codes! {
     /// this one a key that names something and cannot hold what it was given.
     /// Only a *literal* value is checked, exactly as § 6's key rule checks only
     /// a literal key — a computed value has nothing to read.
+    ///
+    /// The same code covers a literal the parameter's conversion refuses, such
+    /// as `"x"` or `-3` for a `uint`
+    /// (`rule:routing/link-name-and-params-are-checked`): that link is a
+    /// `404` for the same reason, and the card already says so.
     pub const E_ROUTE_LINK_VALUE_NOT_IN_SET: Code = Code::new("E0772").card(
         "A value in the `$params` of `Core\\Router::url` is not one of the values its route \
          parameter allows. A link with this value leads to a `404` page. Use an allowed value, or \

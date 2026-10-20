@@ -117,6 +117,9 @@ struct LinkArg {
     /// spellings `rule:routing/a-capture-narrows-to-a-closed-set`'s closed sets are written in. `None` for
     /// everything else, and a `None` is checked against nothing.
     value: Option<String>,
+    /// Whether the value is a `float` literal, which [`converts`] refuses for
+    /// an `int`, `uint` or `Core\Uuid` parameter without folding it to text.
+    float: bool,
     /// The enum case written here, where the value is one — the entry with
     /// **two** spellings rather than one, and so the entry that cannot be
     /// folded to a segment until the parameter it supplies says which
@@ -250,6 +253,7 @@ fn literal_args(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<Vec<Lin
         args.push(LinkArg {
             key: text,
             value: segment_text(&item.value, env),
+            float: is_float_literal(&item.value),
             case: case_arg(&item.value, ctx, env),
         });
     }
@@ -272,6 +276,18 @@ fn segment_text(expr: &Expr, env: &mut Env<'_>) -> Option<String> {
             Some(ConstArg::Int(value)) => Some(value.to_string()),
             _ => None,
         },
+    }
+}
+
+/// Whether `expr` is a `float` literal, negated or not.
+fn is_float_literal(expr: &Expr) -> bool {
+    match &expr.kind {
+        ExprKind::Float(_) => true,
+        ExprKind::Unary {
+            op: nvs_syntax::ast::UnaryOp::Neg,
+            expr,
+        } => matches!(expr.kind, ExprKind::Float(_)),
+        _ => false,
     }
 }
 
@@ -359,7 +375,8 @@ pub(crate) fn resolve(
         if let Some(args) = &site.args
             && !(covered(&pieces, args, site, row, diags)
                 && declared(&pieces, args, site, row, diags)
-                && within_set(args, site, row, diags))
+                && within_set(args, site, row, diags)
+                && converts(args, site, row, diags))
         {
             continue;
         }
@@ -604,6 +621,68 @@ fn within_set(
                  outside it falls through to a `404` rather than reaching the handler — so this \
                  link names a route it would not match. Correct the value, or widen the \
                  parameter's declared type",
+            ),
+        );
+        return false;
+    }
+    true
+}
+
+/// `rule:routing/link-name-and-params-are-checked`'s value check: a literal
+/// value that the conversion of the parameter it supplies refuses.
+///
+/// [`within_set`] asks this of a closed set, and this asks it of the types the
+/// matcher converts natively: `int`, `uint`, `decimal` and `Core\Uuid`. The
+/// segment the value builds is run through the matcher's own conversion
+/// ([`nvs_stdlib::router::segment_converts`]), so `"x"`, `-3` and `2.5` for a
+/// `uint` are each a link to a route that will not match. A `float` literal is
+/// refused for every one of those types but `decimal` without being folded to
+/// text: it is not a whole number, and it is not a UUID. A value that did not
+/// fold, a `string` parameter and a class built from text are not checked.
+///
+/// `E0772` is reused: its card already says the value is not one the
+/// parameter allows. A `#[Query]` parameter is checked by the same walk, as
+/// [`within_set`] checks it.
+fn converts(
+    args: &[LinkArg],
+    site: &LinkSite,
+    row: &crate::routes::Route,
+    diags: &mut Diagnostics,
+) -> bool {
+    for arg in args {
+        let Some(param) = row.params.iter().find(|param| param.name == arg.key) else {
+            continue;
+        };
+        if param.admits().is_some() {
+            continue;
+        }
+        let Some(ty) = param.ty.as_deref() else {
+            continue;
+        };
+        let refused = match (&arg.value, arg.float) {
+            (_, true) => nvs_stdlib::router::native_conv(ty).is_some() && ty != "decimal",
+            (Some(segment), false) => {
+                nvs_stdlib::router::segment_converts(ty, segment) == Some(false)
+            }
+            (None, false) => false,
+        };
+        if !refused {
+            continue;
+        }
+        diags.report(
+            Diagnostic::error(
+                code::E_ROUTE_LINK_VALUE_NOT_IN_SET,
+                format!(
+                    "`{}` declares `{}` as `{ty}`, and this link gives it a value that does \
+                     not convert to `{ty}`",
+                    row.handler, arg.key
+                ),
+            )
+            .with_primary(site.span, "no request could carry this value")
+            .with_help(
+                "the router converts each part of the path to the type of its parameter. A \
+                 value that does not convert leads to a `404` page. Give a value of the \
+                 parameter's type",
             ),
         );
         return false;

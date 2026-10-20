@@ -402,8 +402,14 @@ reads and writes each wire key once.
 **Does:** a link a program builds is a path its route matches, and the server answers a request
 whose body the program did not read.
 
-- [ ] A literal `Core\Router::url` value that the capture's conversion would refuse is a compile error. `crates/nvs-types/src/routes.rs:1`, `data/gaps/nvs-types/a-link-value-of-the-wrong.json:1`
-- [ ] A `bool` route capture is `E0752`, with a case for the match, the link and the dispatch. `crates/nvs-runtime/src/routes.rs:1`, `crates/nvs-stdlib/src/router.rs:1`, `data/gaps/nvs-runtime/a-bool-route-capture-is-never.json:1`
+- [x] A literal `Core\Router::url` value that the capture's conversion would refuse is a compile error. `crates/nvs-types/src/links.rs:converts`
+  - [x] `CaptureConv::convert` is public and the matcher calls it
+  - [x] `nvs_stdlib::router::native_conv` is the one type-to-conversion map, and `segment_converts` asks it
+  - [x] `links::converts` reports `E0772` for a literal the conversion refuses, and a `float` literal for `int`, `uint` and `Core\Uuid`
+  - [x] the rule says it and `reject/a-route-link-refuses-a-value-its-capture-cannot-convert.nvst` pins it
+- [x] A `bool` route capture is `E0752`, with a case for the match, the link and the dispatch. `crates/nvs-types/src/routes.rs:converts_from_segment`
+  - [x] a capture and a `#[Query]` declared `bool`, `true` or `false` is `E0752`
+  - [x] the rule says it and `reject/a-bool-route-capture-does-not-compile.nvst` pins it
 - [ ] The connection closes only after the response is flushed, with a case that pipelines a request behind a large unread POST. `crates/nvs-server/src/body.rs:1`, `data/gaps/nvs-server/an-unread-post-body-can-lose-the-response.json:1`
 - [ ] The header line limit is a named constant in `serve_connection`, stated by a rule, with a case at the bound and one past it. `crates/nvs-server/src/serve.rs:1`, `data/gaps/nvs-server/header-line-limit-is-hyper-default.json:1`
 
@@ -480,30 +486,26 @@ another goal.
 
 Stages 1, 2, 3, 16, 4, 5, 6, 7, 8, 9, 10 and 11 are done, and every gap record they owned is deleted.
 
-Stage 11's code landed in the loop's `wip(loop)` commit `4a35591bc`, which looper made when session
-0039 ended uncommitted. That commit cannot be split without a force operation, so the follow-up
-commits carry the rest of each slice: the gap and playbook deletions, the regenerated rule chapters,
-and the gate's fixes. The gate (`bun nv affected --run`) is green.
+Stage 12's two compiler items are done, and their gap records are deleted.
 
-- The gate's fixes: `crates/nvs-stdlib/src/command.rs`'s `ArgConv::Unconverted` throw is declared
-  "unreachable from source" (E0746) for `conformance_coverage`, and its message now reads whole.
-  Three programs wrote forms that are now compile errors and were rewritten:
-  `tests/conformance/core/command-completions-writes-a-name-bash-cannot-expand.nvst` (`$(id)`, no
-  space), `tests/conformance/reject/a-retry-states-the-reason-it-is-retried.nvst` (`retries: 1`), and
-  three attacks under `tests/hostile/` (`core/Command/completions/01-…`,
-  `lang/testing/test-options/01-…`, `tools/php-differences/the-tools-you-do-not-install/01-…`). Each
-  attack runs to its last line.
+- A literal `$params` value is held to its parameter's conversion: `nvs_types::links::converts`
+  runs `nvs_stdlib::router::segment_converts`, which is the matcher's own
+  `nvs_runtime::routes::CaptureConv::convert`. It reuses `E0772`, whose card already fits.
+  `nvs_stdlib::router::native_conv` is now the one map from a described type to a native
+  conversion, and `nvs-cli`'s `capture_conv` reads it.
+- `nvs_types::routes::converts_from_segment` refuses `bool`, `true` and `false` for a capture and a
+  `#[Query]`. `CaptureConv::Unconverted` is now unreachable from a compiling program, and its doc
+  says so. No program in the tree declared one.
 - `website/src/lib/core.ts` and `tools/nv/test/core-type-links.test.ts` were changed in the tree
   before session 0039 and belong to no stage of this goal. They are left uncommitted.
 
 ### Next
 
-**Stage 12** (`### 12.` in this file): a route link matches its route, and an unread body never
-costs the response. § *Standing decisions* settles the drain bound and the header line limit (100,
-a named constant in `serve_connection`, no new setting) and makes a `bool` capture `E0752`.
+**Stage 12**'s two server items (`### 12.` in this file). § *Standing decisions* settles the drain
+bound and the header line limit (100, a named constant in `serve_connection`, no new setting). Both
+touch `crates/nvs-server` only, so they are one group. Read the playbook bullets on `-p nvs-server`
+tests first: a pipelined pair needs a bounded read, not a half-close.
 
-- [ ] Stage 12: a literal `Core\Router::url` value that the capture's conversion would refuse is a compile error. `crates/nvs-types/src/routes.rs:1`, `data/gaps/nvs-types/a-link-value-of-the-wrong.json:1`
-- [ ] Stage 12: a `bool` route capture is `E0752`, with a case for the match, the link and the dispatch. `crates/nvs-runtime/src/routes.rs:1`, `crates/nvs-stdlib/src/router.rs:1`, `data/gaps/nvs-runtime/a-bool-route-capture-is-never.json:1`
 - [ ] Stage 12: the connection closes only after the response is flushed, with a case that pipelines a request behind a large unread POST. `crates/nvs-server/src/body.rs:1`, `data/gaps/nvs-server/an-unread-post-body-can-lose-the-response.json:1`
 - [ ] Stage 12: the header line limit is a named constant in `serve_connection`, stated by a rule, with a case at the bound and one past it. `crates/nvs-server/src/serve.rs:1`, `data/gaps/nvs-server/header-line-limit-is-hyper-default.json:1`
 
