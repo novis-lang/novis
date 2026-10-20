@@ -410,8 +410,7 @@ fn lower_int_single_value_type(lit: Span, env: &mut Env<'_>) -> TypeId {
                 )
                 .with_primary(lit, "outside `int`'s range")
                 .with_help(
-                    "`rule:types/single-value-types`: a number used as a type is an `int`, so the value has \
-                     to fit in an `int`",
+                    "a number used as a type is an `int`, so the number must fit in an `int`",
                 ),
             );
             env.interner.int()
@@ -648,9 +647,8 @@ fn report_expansion_has_no_member(
         )
         .with_primary(span, "read through a `type` alias here")
         .with_help(format!(
-            "`rule:types/type-alias` makes an alias its expansion everywhere, so `{text}::{case}` \
-             reads `{case}` from `{shown}`; only an alias standing for a single class, interface \
-             or enum name has a member to read"
+            "an alias is the same as the type it names, so `{text}::{case}` reads `{case}` \
+             from `{shown}`. Only an alias of one class, interface or enum has members"
         )),
     );
     env.interner.mixed()
@@ -749,9 +747,8 @@ fn report_missing_member(
         )
         .with_primary(span, "not inherited")
         .with_help(format!(
-            "`{owner}::{name}` is where it is declared, and that is the spelling that resolves \
-             — an enum in a class body is reached through its own owner and through no subclass \
-             or implementor (`rule:enums/class-scoped-enum`)"
+            "write `{owner}::{name}`. An enum declared in a class is read through that class \
+             only. A subclass or an implementing class does not have it"
         ))
     } else {
         Diagnostic::error(
@@ -760,9 +757,8 @@ fn report_missing_member(
         )
         .with_primary(span, "not inherited")
         .with_help(format!(
-            "`{owner}::{name}` is where it is declared, and that is the spelling that resolves \
-             — a class-scoped `type` is reached through its own owner and through no subclass or \
-             implementor (`rule:types/type-alias`)"
+            "write `{owner}::{name}`. A `type` declared in a class is read through that class \
+             only. A subclass or an implementing class does not have it"
         ))
     };
     env.diags.report(diag);
@@ -820,9 +816,8 @@ fn report_not_const(span: Span, qname: &nvs_hir::QName, name: &str, env: &mut En
         )
         .with_primary(span, "this value cannot be used as a type")
         .with_help(
-            "`rule:types/constant-in-type-position` uses a class constant as a type that allows only the constant's value, \
-             so only a `string` or `int` constant may be written here — write the base \
-             type instead",
+            "a class constant used as a type allows only the constant's value. Only a `string` \
+             or `int` constant can be a type. Write the type of the value instead",
         ),
     );
     env.interner.mixed()
@@ -956,10 +951,8 @@ fn report_not_generic(qname: &nvs_hir::QName, span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "type arguments written here")
         .with_help(
-            "user-declared type parameters are deferred (`rule:types/declaration`); only a \
-             compiler-owned generic declaration may be written with one — \
-             `Iterable<T>`/`Iterator<T>` (`rule:iteration/concrete-generic-implements`) and \
-             the `Core` collections `ObjectMap`, `ObjectSet` and `Heap`",
+            "only `Iterable<T>`, `Iterator<T>` and the `Core` collections `ObjectMap`, \
+             `ObjectSet` and `Heap` take type arguments. Remove the type arguments",
         ),
     );
 }
@@ -1022,8 +1015,8 @@ fn lower_generic_interface(
                 )
             } else {
                 format!(
-                    "`rule:iteration/two-interfaces` declares `{qname}<{names}>`; the argument fixes what it iterates \
-                 over, and there is no spelling that leaves it open"
+                    "`{qname}` is declared as `{qname}<{names}>`. The type argument is the type \
+                 of each value, and it is always written"
                 )
             },
         ),

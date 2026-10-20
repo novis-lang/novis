@@ -634,9 +634,8 @@ pub(crate) fn check_stray_options(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env
             )
             .with_primary(attr.span, "nothing reads this marker")
             .with_help(
-                "`rule:tooling/commands-are-compiled` gives `#[Option]` its meaning on a `#[Command]` method's parameter, \
-                 where it is the spelling an argument arrives by — anywhere else nothing supplies \
-                 it: write the `#[Command]` this parameter serves, or delete the marker",
+                "`#[Option]` works only on a parameter of a `#[Command]` method. Add \
+                 `#[Command]` to this method, or remove `#[Option]`",
             ),
         );
     }

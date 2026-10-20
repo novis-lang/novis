@@ -1074,9 +1074,9 @@ fn check_return_type_is_written(m: &MethodMember, env: &mut Env<'_>) {
         Diagnostic::error(code::E_METHOD_RETURN_TYPE_REQUIRED, message)
             .with_primary(m.name, "no `: T` follows this declaration's parameters")
             .with_help(
-                "`rule:types/declaration` makes the return slot mandatory — write `: void` \
-                 where the body hands nothing back, and `: never` where it always throws. \
-                 A constructor is the one declaration that omits it",
+                "every method declares its return type. Write `: void` when the body returns \
+                 nothing, and `: never` when it always throws. Only a constructor has no \
+                 return type",
             ),
     );
 }
@@ -1129,8 +1129,8 @@ pub(crate) fn check_body_exits(
             .with_primary(span, "leaves with no value")
             .with_secondary(declared, "declared here")
             .with_help(
-                "return a value here, or declare `void` — `rule:types/conversion` has no implicit \
-                 `null` to stand in for the declared type",
+                "return a value here, or declare the return type `void`. A missing value is \
+                 not converted to `null`",
             ),
         );
     }
@@ -1141,9 +1141,8 @@ pub(crate) fn check_body_exits(
         "throw, call `exit`, or call a `never` function on that path — a `never` body never \
          comes back to its caller, so no path may reach its end"
     } else {
-        "return a value on that path, throw, or declare `void` — a body that falls off its \
-         end returns nothing at all, and `rule:types/conversion` has no implicit `null` to stand in for \
-         the declared type"
+        "return a value on that path, throw an error, or declare the return type `void`. A \
+         missing value is not converted to `null`"
     };
     env.diags.report(
         Diagnostic::error(
@@ -1183,9 +1182,9 @@ fn check_generator_inout_params(m: &MethodMember, env: &mut Env<'_>) {
             )
             .with_primary(param.name, "declared `inout` here")
             .with_help(
-                "`rule:iteration/generators`: calling a generator returns the state object without running \
-                 the body, so the caller's cell is gone before the first `advance()` — take \
-                 the value by copy and `yield` what the body computes from it",
+                "calling a generator does not run its body. The caller's variable can be gone \
+                 before the body starts. Take the parameter without `inout`, and `yield` what \
+                 the body computes from it",
             ),
         );
     }
@@ -1221,8 +1220,8 @@ fn generator_element(
         )
         .with_primary(span, format!("this declares `{got}`"))
         .with_help(
-            "`rule:iteration/generators`: calling a generator runs no user code — it allocates and returns \
-             the state object, which implements `Iterator<T>`",
+            "calling a generator does not run its body. The call returns an `Iterator<T>`, \
+             and each `yield` gives one value of type `T`",
         ),
     );
     let _ = ctx;

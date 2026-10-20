@@ -420,8 +420,8 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
                     )
                     .with_primary(m.name, format!("`{prior}` already supplies `{described}`"))
                     .with_help(
-                        "`rule:testing/fixtures` resolves a fixture by its type, so two of one type leave a \
-                         parameter asking for it with no answer",
+                        "a parameter gets the fixture that returns its type. With two fixtures of \
+                         one type, the parameter has no single fixture. Delete one of them",
                     ),
                 );
                 continue;
@@ -611,8 +611,8 @@ fn resolve_parameters(
                 report_row_field(
                     field.span,
                     format!("`{method}` declares no parameter `${name}`"),
-                    "`rule:testing/data-rows` matches a data row against the method's parameters by name: \
-                     write the field the parameter is called, or declare the parameter",
+                    "each field of a data row fills the parameter with the same name. Write the \
+                     parameter's name, or declare the parameter",
                     env,
                 );
                 ok = false;
@@ -650,9 +650,8 @@ fn resolve_parameters(
                         "the data row field `{name}` is not a `{want}` value written directly in the code, which is what \
                          `{parameter}` is declared as"
                     ),
-                    "`rule:testing/data-rows` matches a data row against the method's parameters by name \
-                     **and** by type, so that a row is compiled into the call it will be made \
-                     with",
+                    "each field of a data row fills the parameter with the same name. The \
+                     value must have the parameter's type",
                     env,
                 );
                 ok = false;
@@ -675,9 +674,9 @@ fn resolve_parameters(
             report_row_field(
                 row.span,
                 format!("this data row of `{method}` gives no `{parameter}`, which another does"),
-                "`rule:testing/data-rows` reports each row as its own case, so every one of them fills the \
-                 same parameters: give this row the field too, or take it off the others and \
-                 supply the parameter with a `#[Fixture]`",
+                "each row is its own test case, so every row fills the same parameters. Add the \
+                 field to this row. Or remove it from the other rows, and fill the parameter \
+                 with a `#[Fixture]`",
                 env,
             );
             ok = false;
@@ -719,15 +718,13 @@ fn resolve_parameters(
             // refused.
             .with_help(if marker == "#[Test]" {
                 format!(
-                    "`rule:testing/fixtures` resolves a parameter by its type and § 9 by its name: \
-                     declare a `public static` `#[Fixture]` on this class returning \
-                     `{described}`, or write a `#[TestWith({parameter}: ...)]` row on the \
-                     method"
+                    "declare a `public static` `#[Fixture]` method in this class that returns \
+                     `{described}`. Or write a `#[TestWith({parameter}: ...)]` row on the method"
                 )
             } else {
                 format!(
-                    "`rule:testing/fixtures` resolves a parameter by its type: declare a `public static` \
-                     `#[Fixture]` on this class returning `{described}`"
+                    "declare a `public static` `#[Fixture]` method in this class that returns \
+                     `{described}`"
                 )
             }),
         );
@@ -772,9 +769,8 @@ fn report_stray_rows(rows: &[RawRow], did: &str, env: &mut Env<'_>) {
         report_row_field(
             row.span,
             format!("this `#[TestWith]` is on a method that {did}"),
-            "`rule:testing/data-rows` reports each row of a `#[Test]` as its own case, so a row on \
-             anything else names a call that is never made: mark the method `#[Test]`, or \
-             drop the row",
+            "a `#[TestWith]` row is a test case of a `#[Test]` method. Add `#[Test]` to the \
+             method, or delete the row",
             env,
         );
     }
@@ -822,9 +818,8 @@ fn reject_fixture_cycles(
             )
             .with_primary(at, "this fixture is needed to build itself")
             .with_help(
-                "`rule:testing/fixtures` builds a fixture before the parameter it fills, so a cycle has no \
-                 order to be built in: break it by taking the shared value out into a fixture of \
-                 its own",
+                "a fixture is built before the parameter it fills, so these fixtures cannot be \
+                 built in any order. Move the shared value into a fixture of its own",
             ),
         );
         for node in chain {
@@ -1200,8 +1195,8 @@ fn check_retries_state_a_reason(fields: &[AnonObjectField], env: &mut Env<'_>) {
         )
         .with_primary(retries.span, "retried for no stated reason")
         .with_help(
-            "`rule:testing/runner-is-strict` reports a retried test as flaky rather than green, and charges a \
-             written reason for it: `#[Test(retries: 2, because: \"real DNS\")]`",
+            "a test that passes only after a retry is reported as flaky. Write the reason for \
+             the retries: `#[Test(retries: 2, because: \"real DNS\")]`",
         ),
     );
 }

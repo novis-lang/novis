@@ -3,7 +3,7 @@ error[E0798]: `Core\Program::implementingWith` names `rows`, which `Archive` doe
    |
 20 | var $rows = Core\Program::implementingWith<Report, Label>("rows");
    |                                                           ^^^^^^ no method, parameter or property of that name
-   = help: `rule:programs/implementing-with`: the member is read on every class listed for `Report`, so it is checked against each one's real declarations — name a member `Report` declares, or the empty string for the class's own attributes
+   = help: the name is checked against every class that implements `Report`. Write a method or property that `Report` declares. Write an empty string for the attributes of the class itself
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

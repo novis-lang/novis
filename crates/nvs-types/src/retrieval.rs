@@ -342,9 +342,8 @@ pub(crate) fn fold_retrieval(
             )
             .with_primary(call.span, format!("`{found}` written here"))
             .with_help(
-                "`rule:attributes/structural-retrieval`: retrieval matches by shape. An attribute's payload object \
-                 matches exactly when it satisfies `T` under `rule:types/shape-type`'s width subtyping, so `T` \
-                 is an inline `{...}` or a `type` alias naming one",
+                "an attribute matches when its value has every field of the shape `T`. Write `T` \
+                 as a shape `{...}`, or as a `type` alias of a shape",
             ),
         );
         return;
@@ -361,10 +360,9 @@ pub(crate) fn fold_retrieval(
             )
             .with_primary(target.span, "this is not a declaration reference")
             .with_help(
-                "`rule:attributes/structural-retrieval`: the target is a method reference, and it is read \
-                 where it is written: `Foo::bar(...)` for a method, and \
-                 `Foo::constructor(...)` for the class itself, plus a property or parameter name \
-                 written in quotes",
+                "write a method reference: `Foo::bar(...)` for a method, or \
+                 `Foo::constructor(...)` for the class itself. A property or parameter name in \
+                 quotes can follow it",
             ),
         );
         return;
@@ -395,11 +393,8 @@ pub(crate) fn fold_retrieval(
             )
             .with_primary(*span, "no parameter or property of that name")
             .with_help(
-                "`rule:attributes/structural-retrieval`: a *written* member name is checked against the target's real \
-                 declarations here, because the answer a misspelling would fold to — `null`, or \
-                 the empty array — is the same one a correct retrieval of an absent attribute \
-                 gives, and nothing later can tell them apart; only a computed `$member` falls \
-                 back to that empty result",
+                "a misspelled name would give `null` or an empty array. A correct name with no \
+                 attribute gives the same result, so the name is checked here. Correct the name",
             ),
         );
         return;
@@ -432,9 +427,7 @@ pub(crate) fn fold_retrieval(
                 )
                 .with_primary(call.span, "`get` answers at most one")
                 .with_help(
-                    "`rule:attributes/retrieval-folds-while-checking`: an attached-attribute list is static, so this is decided \
-                     here rather than by a test run — write `Core\\Attributes::all<T>(…)`, \
-                     which answers every match",
+                    "write `Core\\Attributes::all<T>(…)`, which returns every match",
                 ),
             );
             return;
@@ -720,10 +713,9 @@ fn report_unfoldable(value: &Expr, env: &mut Env<'_>) {
         )
         .with_primary(value.span, "no constant form")
         .with_help(
-            "`rule:attributes/retrieval-folds-while-checking` replaces the retrieval with the payload itself, so every value in \
-             it has to be materializable — a class constant, `Foo::class` and an enum case \
-             all are, so what is left is a constant whose own declaration folds to nothing \
-             (`E0792`): write the value out here, or give that constant a foldable one",
+            "the compiler replaces the call with the attribute's value, so every part of the \
+             value must be a constant. A constant here has no value the compiler can compute \
+             (`E0792`). Write the value here, or give that constant a literal value",
         ),
     );
 }

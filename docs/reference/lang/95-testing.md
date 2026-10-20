@@ -686,7 +686,7 @@ error[E0734]: `retries` is given with no `because`
   |
 9 |     #[Test(retries: 2)]
   |            ^^^^^^^^^^ retried for no stated reason
-  = help: `rule:testing/runner-is-strict` reports a retried test as flaky rather than green, and charges a written reason for it: `#[Test(retries: 2, because: "real DNS")]`
+  = help: a test that passes only after a retry is reported as flaky. Write the reason for the retries: `#[Test(retries: 2, because: "real DNS")]`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

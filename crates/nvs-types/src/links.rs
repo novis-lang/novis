@@ -356,9 +356,8 @@ pub(crate) fn resolve(
                 )
                 .with_primary(site.name_span, "no route is named this")
                 .with_help(
-                    "`rule:routing/link-name-and-params-are-checked`: a name written in quotes is checked against the compiled route \
-                     table — give the route a `name:` field of exactly this spelling, or \
-                     correct the name written here",
+                    "a route name in quotes is checked against the routes of the program. Give \
+                     the route a `name:` field with exactly this name, or correct the name here",
                 ),
             );
             continue;
@@ -489,9 +488,8 @@ fn declared(
         )
         .with_primary(site.span, "this key would become a query string")
         .with_help(
-            "`rule:routing/a-leftover-link-key-is-a-query-string`: a key that is not a capture becomes the link's query string, so one \
-             that names nothing ships as a query parameter nobody reads — correct the spelling, \
-             or declare the parameter with `#[Query]` on the handler",
+            "a key that is not a capture goes into the link's query string. No parameter reads \
+             this key. Correct the name, or declare the parameter with `#[Query]` on the handler",
         ),
     );
     false
@@ -548,9 +546,8 @@ fn covered(
         )
         .with_primary(site.span, "this link cannot be built")
         .with_help(
-            "`rule:routing/link-name-and-params-are-checked`: a `$params` array that does not cover the route's captures is a \
-             compile error — only a `{name?}` may be left out, because its whole segment is \
-             dropped when it is",
+            "`$params` must give a value for every capture of the route. Only a `{name?}` \
+             capture may be left out. Its whole segment is then left out of the link",
         ),
     );
     false
@@ -617,10 +614,9 @@ fn within_set(
             )
             .with_primary(site.span, "no request could carry this value")
             .with_help(
-                "`rule:routing/a-capture-narrows-to-a-closed-set`: a capture narrows to a closed set with a type, and a segment \
-                 outside it falls through to a `404` rather than reaching the handler — so this \
-                 link names a route it would not match. Correct the value, or widen the \
-                 parameter's declared type",
+                "a request with this value does not match the route, and the server returns \
+                 `404`. Correct the value, or change the parameter's type so that it allows \
+                 the value",
             ),
         );
         return false;

@@ -79,9 +79,8 @@ pub(crate) fn reject_unknown_capability(
         )
         .with_primary(arg.value.span, "no `nvs.toml` grant can name this")
         .with_help(format!(
-            "`rule:security/capability-roster-is-closed`'s roster is closed, and this call would answer `false` on every \
-             deployment — which is what a capability that is merely ungranted answers too, so \
-             nothing at run time could tell the misspelling apart: {}",
+            "this call would return `false` on every server. A capability that is not granted \
+             also returns `false`, so a misspelled name is found only here. The capabilities are: {}",
             nvs_stdlib::cap::roster()
         )),
     );

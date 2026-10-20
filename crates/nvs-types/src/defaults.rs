@@ -454,8 +454,8 @@ fn const_reference_default(
                 )
                 .with_primary(expr.span, "a `secret` constant in a non-`secret` slot")
                 .with_help(
-                    "declare the property `secret` too, so the qualifier `rule:security/secret-qualifier` puts on \
-                     the constant still travels with the value it initializes",
+                    "declare the property `secret` too. Then the value stays `secret` after it \
+                     is stored in the property",
                 ),
             );
             *reported = true;
@@ -495,9 +495,9 @@ fn report_static_in_constant_expression(span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "folded once, with no call to bind `static` to")
         .with_help(
-            "`rule:statements/static-is-a-member-modifier`: a `static::` constant is read when the call runs, \
-             and a default or a payload is fixed before any call — write `self::NAME` or the \
-             class name here, and read `static::NAME` in a method body instead",
+            "a `static::` constant is read when a method runs. A default value or an attribute \
+             value is fixed before that. Write `self::NAME` or the class name here, and read \
+             `static::NAME` in a method body",
         ),
     );
 }

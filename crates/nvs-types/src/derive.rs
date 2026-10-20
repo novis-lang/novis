@@ -787,15 +787,14 @@ impl Format {
     const fn no_mapping_help(self) -> &'static str {
         match self {
             Self::Json => {
-                "`rule:core-classes/derive-field-list`: a field is a scalar, an enum, an inline shape, an `array<T>` or \
-                 `?T` of one of those, or another class that itself carries a codec — write \
-                 `#[Json\\Field(skip: true)]` to leave it off the contract"
+                "a field is a scalar, an enum, a shape, an `array<T>` or `?T` of one of those, \
+                 or a class that has its own `#[Json\\Derive]`. Write \
+                 `#[Json\\Field(skip: true)]` to leave the property out"
             }
             Self::Db => {
-                "`rule:core-classes/db-column-types`: a column reads back as a scalar, a `decimal`, `bytes`, an enum, a \
-                 `Core\\Time` date or time, a `Core\\Uuid`, or an `array<T>` or `?T` of one of \
-                 those — a row is flat, so a nested object is not a column type; write \
-                 `#[Db\\Field(skip: true)]` to leave it off the mapping"
+                "a column is a scalar, a `decimal`, `bytes`, an enum, a `Core\\Time` date or \
+                 time, a `Core\\Uuid`, or an `array<T>` or `?T` of one of those. An object is \
+                 not a column type. Write `#[Db\\Field(skip: true)]` to leave the property out"
             }
         }
     }
@@ -1335,9 +1334,8 @@ pub(crate) fn check_row_sites(
             report_row_site(
                 site,
                 format!("`{member}` builds one class per row, and `array<{class}>` is a list"),
-                "`rule:core-classes/db-statement-members`: the member already answers one row per row — a \
-                 `Core\\Db\\Rows` to read or a walk to step — so a list form asks for the plural \
-                 twice. Write the row class alone",
+                "this method already gives one object for each row. Write the row class \
+                 without `array<…>`",
                 diags,
             );
             continue;
@@ -1364,12 +1362,10 @@ pub(crate) fn check_row_sites(
                     "`{class}` carries no `#[Db\\Derive]` and declares no `{DB_DECODE}`, so \
                      `{member}` has no mapping"
                 ),
-                "`rule:core-classes/derive-attribute`: hydrating a row is opt-in — write `#[Db\\Derive]` on the class, \
-                 which is what generates the `Core\\Db\\Codec` this call needs, or declare that \
-                 interface's `fromRow` yourself and build the instance from the \
-                 `Core\\Db\\Row`. A `#[Json\\Derive]` \
-                 is the document half and answers for nothing here: `rule:core-classes/db-column-types`'s map is over \
-                 columns",
+                "write `#[Db\\Derive]` on the class. It generates the `Core\\Db\\Codec` this call \
+                 needs. Or implement `Core\\Db\\Codec` yourself, and build the object from the \
+                 `Core\\Db\\Row` in `fromRow`. `#[Json\\Derive]` is for JSON only, and it does \
+                 not read a row",
                 diags,
             );
             continue;
@@ -1398,10 +1394,9 @@ pub(crate) fn check_row_sites(
                     "`{class}::${property}` is declared a type no column reads back, so \
                      `{member}` has no value to give it"
                 ),
-                "`rule:core-classes/db-column-types`: a row is a flat list of columns, and an \
-                 inline shape is a nested document rather than one. Declare the property as \
-                 the column's own type, or leave it off the mapping with \
-                 `#[Db\\Field(skip: true)]` and give the constructor a value for it yourself",
+                "a row is a list of columns, and a shape is not a column. Declare the property \
+                 with the column's type. Or leave it out with `#[Db\\Field(skip: true)]`, and \
+                 give the constructor a value for it yourself",
                 diags,
             );
             continue;
@@ -1420,10 +1415,9 @@ pub(crate) fn check_row_sites(
                     "`{class}`'s mapping fills {mapped} of its constructor's {arity} \
                      parameter(s), so `{member}` cannot build one"
                 ),
-                "a property left off the mapping — `#[Db\\Field(skip: true)]`, `rule:core-classes/derive-field-list` — is \
-                 still a constructor parameter, and a row has no column to fill it from. Give it \
-                 a column and drop the `skip`, or build the class yourself from a \
-                 `Core\\Db\\Row`",
+                "a property with `#[Db\\Field(skip: true)]` is still a constructor parameter, \
+                 and the row has no column for it. Give it a column and remove the `skip`. Or \
+                 build the object yourself from a `Core\\Db\\Row`",
                 diags,
             );
         }
@@ -1605,11 +1599,9 @@ pub(crate) fn check_json_sites(
                 )
                 .with_primary(site.span, "written here")
                 .with_help(
-                    "a property left off the contract — `#[Json\\Field(skip: true)]`, \
-                     `rule:core-classes/derive-field-list` — is still a constructor parameter, \
-                     and a document has no key to fill it from. Drop the `skip` and let the \
-                     field carry it, or assign the property in the constructor body rather than \
-                     taking it as a parameter",
+                    "a property with `#[Json\\Field(skip: true)]` is still a constructor \
+                     parameter, and the JSON has no key for it. Remove the `skip`. Or assign \
+                     the property in the constructor body, and remove it from the parameters",
                 ),
             );
         }
@@ -1658,11 +1650,10 @@ fn check_json_participation(
         )
         .with_primary(site.span, "written here")
         .with_help(
-            "`rule:core-classes/derive-attribute`: reading a class out of a document is opt-in — \
-             write `#[Json\\Derive]` on the class, which is what generates the `Core\\Json\\Codec` \
-             this call needs, or declare that interface's `fromJson` yourself and build the \
-             instance from the `mixed` value. A `#[Db\\Derive]` is the row half and answers for \
-             nothing here: `rule:core-classes/db-column-types`'s map is over columns",
+            "write `#[Json\\Derive]` on the class. It generates the `Core\\Json\\Codec` this \
+             call needs. Or implement `Core\\Json\\Codec` yourself, and build the object from \
+             the `mixed` value in `fromJson`. `#[Db\\Derive]` is for database rows only, and \
+             it does not read JSON",
         ),
     );
 }
@@ -1763,9 +1754,8 @@ pub(crate) fn check_decode_sites(
                     .with_primary(field.span, "declared without a qualifier")
                     .with_secondary(site.span, format!("hydrated by `{member}` here"))
                     .with_help(
-                        "`rule:security/derived-codec-qualifiers`: a decoder assigns into the \
-                         declared property types, so a field that receives a peer's octets is \
-                         the one that has to declare them — write `tainted` on it",
+                        "the decoder stores data from outside the program in this property. \
+                         Write `tainted` in front of its type",
                     ),
                 );
             }
@@ -1835,9 +1825,8 @@ pub(crate) fn check_shape_decode_site(
             )
             .with_primary(span, "written without a qualifier")
             .with_help(
-                "`rule:security/tainted-qualifier`: write the qualifier in front of the \
-                 shape — `tainted {…}` distributes to every text-carrying field, so it is \
-                 one word however many keys receive text",
+                "write `tainted` in front of the shape. `tainted {…}` makes every text field \
+                 of the shape `tainted`",
             ),
         );
     }
@@ -2060,14 +2049,13 @@ fn check_class_format(
         let (declared, help) = match format {
             Format::Json => (
                 format!("both `{ENCODE}` and `{DECODE}`"),
-                "`rule:core-classes/derive-generates-what-is-missing`: the derive fills in the half a class does not write — keep one \
-                 of the two and the attribute generates the other, or delete the attribute",
+                "the attribute generates the method the class does not write. Keep one of the \
+                 two methods, and the attribute generates the other. Or delete the attribute",
             ),
             Format::Db => (
                 format!("`{DB_DECODE}`"),
-                "`rule:core-classes/derive-generates-what-is-missing`: `Core\\Db\\Codec` declares `fromRow` and nothing else, so a \
-                 class that writes it has left the attribute nothing to generate — delete one \
-                 of the two",
+                "`Core\\Db\\Codec` has only the method `fromRow`. This class writes it, so the \
+                 attribute has nothing to generate. Delete the attribute or the method",
             ),
         };
         env.diags.report(
@@ -2160,9 +2148,8 @@ fn check_class_format(
             )
             .with_primary(attribute, "no declared property reaches the wire contract")
             .with_help(
-                "`rule:core-classes/derive-field-list`: the field list is the class's own declared instance properties, \
-                 written as properties or promoted in the `constructor` — declare one, or \
-                 delete the attribute",
+                "the fields are the class's own instance properties, declared in the class or in \
+                 the `constructor`. Declare a property, or delete the attribute",
             ),
         );
     }
@@ -2335,8 +2322,8 @@ fn codec_field(
             )
             .with_primary(p.name, "assigned after the constructor, not by it")
             .with_help(format!(
-                "`rule:core-classes/derive-field-list`: a decode is an ordinary `new`, and `rule:classes/lateinit` makes a `lateinit` \
-                 property one the constructor does not assign — write `{skip}` on it"
+                "the decoder builds the object with `new`, and the constructor does not assign a \
+                 `lateinit` property. Write `{skip}` on it"
             )),
         );
         return FieldOutcome::Refused;
@@ -2352,8 +2339,7 @@ fn codec_field(
             )
             .with_primary(p.name, "a `secret` value has no wire form")
             .with_help(format!(
-                "`rule:security/derived-codec-qualifiers`: encoding was already an `rule:security/secret-qualifier` sink — write `{skip}` to leave \
-                 it off the contract in writing"
+                "a `secret` value is never encoded. Write `{skip}` to leave the property out"
             )),
         );
         return FieldOutcome::Refused;
@@ -2443,8 +2429,8 @@ fn check_constructor_parameter(
             )
             .with_primary(at, "nothing decodes into this")
             .with_help(format!(
-                "`rule:core-classes/derive-field-list`: a decode is an ordinary `new`, so every field needs a \
-                 same-named constructor parameter — add one, or write `{skip}`"
+                "the decoder builds the object with `new`, so every field needs a constructor \
+                 parameter with the same name. Add one, or write `{skip}`"
             )),
         );
         return None;
@@ -2477,8 +2463,8 @@ fn check_constructor_parameter(
         .with_primary(param.name, format!("this is `{got}`"))
         .with_secondary(at, format!("the property is `{want}`"))
         .with_help(
-            "`rule:core-classes/derive-field-list`: the decoder decodes into the property's declared type and passes \
-             it to the constructor, so the two have to agree",
+            "the decoder reads the value as the property's type and passes it to the \
+             constructor. Give the parameter the same type as the property",
         ),
     );
     Some(bound)
@@ -2567,8 +2553,7 @@ fn report_field_arg(field: &AnonObjectField, why: String, format: Format, env: &
         Diagnostic::error(code::E_DERIVE_FIELD_ATTRIBUTE, why)
             .with_primary(field.span, "not an option this attribute declares")
             .with_help(format!(
-                "`rule:core-classes/derive-field-list`: `{signature}` — there is no whole-class naming policy and no \
-                 third option"
+                "the options are `{signature}`. There are no other options"
             )),
     );
 }
