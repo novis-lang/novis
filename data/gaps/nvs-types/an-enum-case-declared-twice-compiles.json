@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/enums.rs",
-  "title": "An enum case declared twice compiles.",
-  "text": "`enum Suit { Hearts, Hearts }` passes `nvs check` and runs. With `enum Suit { Hearts, Hearts = 5 }`, `Suit::Hearts as int` is `5`: the later case wins and the first is lost with no diagnostic. Two cases may share a value (`rule:enums/declaration`), but nothing says two cases may share a name, and a class member or a local declared twice is an error. It closes when a second case of the same name in one enum is a diagnostic at the second one, with a conformance case.",
-  "goal": "compiler-holes"
-}

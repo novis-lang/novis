@@ -25,7 +25,8 @@
 //! at `0`; an explicit value resets the counter for whatever follows it
 //! (`rule:enums/declaration`). Two cases may share a value — that rule says so outright,
 //! because equality is value equality and there is no identity to collide — so
-//! this table deliberately reports nothing for a duplicate.
+//! this table reports nothing for a duplicate value. A duplicate *name* is
+//! `E0304` at the second case.
 //!
 //! # What is diagnosed here
 //!
@@ -46,8 +47,8 @@
 use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, EnumDecl, Expr, ExprKind, NamespaceDecl, Stmt, StmtKind, Type,
-    TypeAtom, TypeKind, UnaryOp,
+    ClassMember, ClassMemberKind, EnumCase, EnumDecl, Expr, ExprKind, NamespaceDecl, Stmt,
+    StmtKind, Type, TypeAtom, TypeKind, UnaryOp,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -302,7 +303,11 @@ fn resolve_enum(
     // arithmetic: `-2`'s successor is `-1`, not a `u64` bit pattern no `int`
     // can hold.
     let mut next = Some(zero_of(backing));
+    let mut seen: FxHashMap<&str, Span> = FxHashMap::default();
     for case in &decl.cases {
+        if case_declared_twice(decl, case, src, &mut seen, diags) {
+            continue;
+        }
         let value = match &case.value {
             Some(expr) => literal_value(expr, backing, src, diags),
             None => next.or_else(|| {
@@ -330,6 +335,38 @@ fn resolve_enum(
         cases,
         written,
     }
+}
+
+/// `E0304` for a case whose name an earlier case of `decl` already took, and
+/// whether it reported one. `rule:enums/declaration` lets two cases share a
+/// value and never a name, so the second case is left out of the table and
+/// the first keeps its value.
+fn case_declared_twice<'s>(
+    decl: &EnumDecl,
+    case: &EnumCase,
+    src: &'s SourceFile,
+    seen: &mut FxHashMap<&'s str, Span>,
+    diags: &mut nvs_diagnostics::Diagnostics,
+) -> bool {
+    let name = span_text(src, case.name.span);
+    let Some(&first) = seen.get(name) else {
+        seen.insert(name, case.name.span);
+        return false;
+    };
+    let enum_name = span_text(src, decl.name.span);
+    diags.report(
+        Diagnostic::error(
+            code::E_DUPLICATE_DECLARATION,
+            format!("the enum `{enum_name}` declares the case `{name}` twice"),
+        )
+        .with_primary(case.name.span, "declared again here")
+        .with_secondary(first, "first declared here")
+        .with_help(
+            "an enum has one case of each name. Delete one of the two cases, or give one of \
+             them another name",
+        ),
+    );
+    true
 }
 
 /// `rule:enums/one-backing-type`: `int` unless `: uint` is written.
