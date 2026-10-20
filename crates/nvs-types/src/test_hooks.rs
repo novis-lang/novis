@@ -60,7 +60,7 @@ use nvs_syntax::ast::{Attribute, ClassDecl, ClassMemberKind, MethodMember, Visib
 use nvs_syntax::walk::Node;
 
 use crate::testing::attribute_named;
-use crate::ty::Ty;
+use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
 
 /// One hook method: its name, and whether it declares the one parameter its
@@ -320,7 +320,9 @@ fn check_shape(
             env,
         );
     }
-    if !matches!(env.interner.get(sig.return_ty), Ty::Void) {
+    // A return type that did not resolve has reported already
+    // (`rule:types/one-mistake-reports-once`).
+    if !matches!(env.interner.get(sig.return_ty), Ty::Void | Ty::Error) {
         let returned = env.interner.describe(sig.return_ty);
         report_shape(
             m.name,
@@ -341,12 +343,24 @@ fn check_shape(
             env,
         );
     }
-    check_parameters(m, hook, method, ctx, env);
+    let first_ty = sig.params.first().copied();
+    check_parameters(m, hook, method, first_ty, ctx, env);
 }
 
 /// The one parameter a hook may declare: none for `#[BeforeClass]`, and one of
 /// [`Hook::parameter`]'s type for the other two.
-fn check_parameters(m: &MethodMember, hook: Hook, method: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+///
+/// `first_ty` is the first parameter's lowered type. When it is the error type,
+/// its name did not resolve and has reported already, so its type is not
+/// reported again (`rule:types/one-mistake-reports-once`).
+fn check_parameters(
+    m: &MethodMember,
+    hook: Hook,
+    method: &str,
+    first_ty: Option<TypeId>,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
     let Some(first) = m.params.first() else {
         return;
     };
@@ -361,10 +375,11 @@ fn check_parameters(m: &MethodMember, hook: Hook, method: &str, ctx: &Ctx<'_>, e
         );
         return;
     };
-    let typed_as_allowed = first
-        .ty
-        .as_ref()
-        .is_some_and(|ty| crate::derive::resolves_to(span_text(env.src, ty.span), allowed, ctx));
+    let unresolved = first_ty.is_some_and(|ty| env.interner.is_error(ty));
+    let typed_as_allowed = unresolved
+        || first.ty.as_ref().is_some_and(|ty| {
+            crate::derive::resolves_to(span_text(env.src, ty.span), allowed, ctx)
+        });
     if !typed_as_allowed || first.variadic || first.inout {
         report_shape(
             first.span,

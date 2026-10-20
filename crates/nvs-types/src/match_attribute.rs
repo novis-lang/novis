@@ -52,6 +52,11 @@ pub(crate) fn fold(
         return None;
     }
     let want = *written.first()?;
+    // A type argument that did not resolve has reported already
+    // (`rule:types/one-mistake-reports-once`).
+    if env.interner.is_error(want) {
+        return None;
+    }
     if !matches!(env.interner.get(want), Ty::Shape(_)) {
         let found = env.interner.describe(want);
         env.diags.report(

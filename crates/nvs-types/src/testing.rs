@@ -639,6 +639,12 @@ fn resolve_parameters(
                 continue;
             }
             let declared = params[position];
+            // A parameter type that did not resolve has reported already, and a
+            // row value cannot be judged against it.
+            if env.interner.is_error(declared) {
+                ok = false;
+                continue;
+            }
             if let Some(value) = crate::defaults::literal_default(&field.value, declared, env) {
                 folded[index][position] = Some(value);
             } else {
@@ -700,6 +706,11 @@ fn resolve_parameters(
         if let Some((supplier, _)) = roster.iter().find(|(_, supplies)| supplies == ty) {
             resolved.push(Injection::Fixture(supplier.clone()));
             continue;
+        }
+        // A parameter type that did not resolve has reported already, and no
+        // fixture can be found for it (`rule:types/one-mistake-reports-once`).
+        if env.interner.is_error(*ty) {
+            return (Vec::new(), Vec::new());
         }
         let described = env.interner.describe(*ty);
         let parameter = describe(position);
@@ -901,7 +912,8 @@ pub(crate) fn attribute_named<'a>(
 /// exactly. `None` — no row at all — for a fixture with nothing to supply: a
 /// method the signature table has no row for, which `nvs_syntax` is already
 /// refusing, and one returning `void`, which has no type for `rule:testing/fixtures`'s by-type
-/// resolution to key on. The other two refusals still record their row, so
+/// resolution to key on, and one returning the error type, which has reported
+/// already and names no type either. The other two refusals still record their row, so
 /// that a test asking for the type is answered by the fixture the author
 /// plainly wrote rather than by a second diagnostic saying nothing supplies
 /// it.
@@ -945,6 +957,12 @@ fn check_fixture_shape(
             "a fixture is injected by its type, so declare the type it builds",
             env,
         );
+        return None;
+    }
+    // A return type that did not resolve has reported already. It supplies no
+    // type, so two such fixtures are not reported as two of one type
+    // (`rule:types/one-mistake-reports-once`).
+    if env.interner.is_error(return_ty) {
         return None;
     }
     Some(return_ty)

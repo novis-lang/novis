@@ -339,6 +339,11 @@ pub(crate) fn expand_constructors(
         }
     };
 
+    // A parameter type that did not resolve has reported already, and no
+    // constructor can be judged against it (`rule:types/one-mistake-reports-once`).
+    if params.iter().any(|&param| env.interner.is_error(param)) {
+        return answer;
+    }
     let classes = nvs_hir::implementors(&selector, env.graph);
     let mut ctors = Vec::with_capacity(classes.len());
     let mut refused = false;

@@ -2452,7 +2452,9 @@ fn check_constructor_parameter(
             .as_ref()
             .and_then(|expr| crate::defaults::quiet_param_default(expr, param_ty, ctx, env)),
     };
-    if param_ty == declared {
+    // A type that did not resolve has reported already, and the two types
+    // cannot be compared (`rule:types/one-mistake-reports-once`).
+    if param_ty == declared || env.interner.is_error(param_ty) || env.interner.is_error(declared) {
         return Some(bound);
     }
     let want = env.interner.describe(declared);

@@ -40,6 +40,56 @@ class Shop {
     public static function parentLabel(parent $item): string {
         return $item;
     }
+
+    // A class reference, a property key and a read through an alias give no
+    // error. Each `Missing` written here gives one.
+    public static function kind(class<Missing> $kind, property<Missing> $key, Lookup::Red $red): string {
+        return $key;
+    }
+}
+
+type Lookup = Missing|int;
+
+interface Lists {
+    public function first(): string;
+}
+
+// A delegate typed with `Missing` gives no error.
+class Catalog implements Lists by $inner {
+    public function constructor(private Missing $inner) {}
+}
+
+// A command, a fixture, a test hook and a codec typed with `Missing` give no error.
+class Tasks {
+    #[Core\Command(name: "run", about: "Run the tasks")]
+    public static function run(): Missing {
+        return 0;
+    }
+}
+
+final class ShopTest {
+    #[Core\Test\Fixture]
+    public static function item(): Missing {
+        return 1;
+    }
+
+    #[Core\Test\Fixture]
+    public static function other(): Missing {
+        return 2;
+    }
+
+    #[Core\Test\AfterEachTest]
+    public function after(Missing $outcome): void {
+    }
+}
+
+#[Core\Json\Derive]
+class Order {
+    public Missing $item;
+
+    public function constructor(int $item) {
+        $this->item = $item;
+    }
 }
 --EXPECTF-ERROR--
 error[E0303]: `Missing` is not declared
@@ -72,5 +122,59 @@ error[E0423]: `Shop` has no parent class to refer to as `parent`
 37 |     public static function parentLabel(parent $item): string {
    |                                        ^^^^^^ `parent` type
 
-error: aborting due to 5 errors
+error[E0303]: `Missing` is not declared
+   --> %s:43:39
+   |
+43 |     public static function kind(class<Missing> $kind, property<Missing> $key, Lookup::Red $red): string {
+   |                                       ^^^^^^^ no matching declaration
+
+error[E0303]: `Missing` is not declared
+   --> %s:43:64
+   |
+43 |     public static function kind(class<Missing> $kind, property<Missing> $key, Lookup::Red $red): string {
+   |                                                                ^^^^^^^ no matching declaration
+
+error[E0303]: `Missing` is not declared
+   --> %s:48:15
+   |
+48 | type Lookup = Missing|int;
+   |               ^^^^^^^ no matching declaration
+
+error[E0303]: `Missing` is not declared
+   --> %s:56:41
+   |
+56 |     public function constructor(private Missing $inner) {}
+   |                                         ^^^^^^^ no matching declaration
+
+error[E0303]: `Missing` is not declared
+   --> %s:62:35
+   |
+62 |     public static function run(): Missing {
+   |                                   ^^^^^^^ no matching declaration
+
+error[E0303]: `Missing` is not declared
+   --> %s:69:36
+   |
+69 |     public static function item(): Missing {
+   |                                    ^^^^^^^ no matching declaration
+
+error[E0303]: `Missing` is not declared
+   --> %s:74:37
+   |
+74 |     public static function other(): Missing {
+   |                                     ^^^^^^^ no matching declaration
+
+error[E0303]: `Missing` is not declared
+   --> %s:79:27
+   |
+79 |     public function after(Missing $outcome): void {
+   |                           ^^^^^^^ no matching declaration
+
+error[E0303]: `Missing` is not declared
+   --> %s:85:12
+   |
+85 |     public Missing $item;
+   |            ^^^^^^^ no matching declaration
+
+error: aborting due to 14 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
