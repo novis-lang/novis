@@ -7,6 +7,7 @@
 //! [`Parser::parse_expr`](super::Parser::parse_expr) directly after bumping
 //! the open tag, which no integration test can do.
 
+mod covariant;
 mod decl;
 mod expr;
 mod inout;

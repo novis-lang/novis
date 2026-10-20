@@ -2049,6 +2049,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let attributes = self.parse_attribute_groups();
         let modifiers = self.parse_modifiers(super::decl::ModifierSite::Parameter);
         let inout = self.eat_keyword(Keyword::Inout).is_some();
+        let covariant = self.eat_covariant();
         let ty = if self.can_start_type() {
             Some(self.parse_type())
         } else if ty_required {
@@ -2084,6 +2085,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             modifiers,
             ty,
             inout,
+            covariant,
             variadic,
             name,
             default,

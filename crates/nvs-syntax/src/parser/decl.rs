@@ -286,8 +286,22 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// order, and no other production writes one.
     pub(super) fn parse_written_modifiers(&mut self) -> Vec<WrittenModifier> {
         let mut written = Vec::new();
+        self.covariant_before_modifier = false;
         loop {
             let at = self.peek().span;
+            if self.at_covariant_before_modifier() {
+                self.bump();
+                self.covariant_before_modifier = true;
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_BAD_MODIFIER,
+                        "`covariant` is written just before the type",
+                    )
+                    .with_primary(at, "move this after the other modifiers")
+                    .with_help("write `public covariant Dog $pet` or `inout covariant Dog $a`"),
+                );
+                continue;
+            }
             let m = match self.peek().kind {
                 TokenKind::Keyword(Keyword::Public) => {
                     self.parse_visibility_modifier(Visibility::Public)
@@ -331,6 +345,52 @@ impl<'src, 'd> Parser<'src, 'd> {
             runs.push(written.clone());
         }
         written
+    }
+
+    /// The contextual `covariant` of a parameter or a property
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`),
+    /// eaten when it is written after the modifiers and the next token starts
+    /// a type. Anywhere else the word is an identifier, so `covariant $x` is a
+    /// parameter typed by a class named `covariant` and `->covariant()` is a
+    /// method call.
+    ///
+    /// A `covariant` written in front of a modifier or `inout` was reported
+    /// by [`Self::parse_written_modifiers`], which read it there, and counts
+    /// here: the declaration is still covariant, so the checker reports
+    /// nothing a second time about the same word.
+    pub(super) fn eat_covariant(&mut self) -> bool {
+        let misplaced = std::mem::take(&mut self.covariant_before_modifier);
+        if !self.at_contextual("covariant") {
+            return misplaced;
+        }
+        let next = self.peek_at(1).kind;
+        let starts_type = Self::token_starts_type(next)
+            || matches!(next, TokenKind::Minus | TokenKind::Keyword(Keyword::Class));
+        if starts_type {
+            self.bump();
+        }
+        starts_type || misplaced
+    }
+
+    /// `covariant` in front of a modifier or `inout`, which is the one place
+    /// before its own that the word can be read as the keyword: an
+    /// identifier followed by a modifier is no other construct.
+    fn at_covariant_before_modifier(&mut self) -> bool {
+        self.at_contextual("covariant")
+            && matches!(
+                self.peek_at(1).kind,
+                TokenKind::Keyword(
+                    Keyword::Public
+                        | Keyword::Protected
+                        | Keyword::Private
+                        | Keyword::Readonly
+                        | Keyword::Lateinit
+                        | Keyword::Static
+                        | Keyword::Abstract
+                        | Keyword::Final
+                        | Keyword::Inout
+                )
+            )
     }
 
     /// `public`/`protected`/`private`, optionally followed by PHP 8.4's
@@ -1192,7 +1252,8 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
         if self.can_start_type() {
             let modifiers = self.check_modifiers(ModifierSite::Property, &written);
-            self.parse_property_members(start, attributes, modifiers, out);
+            let covariant = self.eat_covariant();
+            self.parse_property_members(start, attributes, modifiers, covariant, out);
             return;
         }
         let span = self.error_expected("a class member");
@@ -1402,6 +1463,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         start: Span,
         attributes: Vec<AttributeGroup>,
         modifiers: Vec<Modifier>,
+        covariant: bool,
         out: &mut Vec<ClassMember>,
     ) {
         let ty = self.parse_type();
@@ -1449,6 +1511,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                         attributes,
                         modifiers,
                         ty,
+                        covariant,
                         name,
                         default: None,
                         hooks: Some(hooks),
@@ -1487,6 +1550,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     attributes: attributes.clone(),
                     modifiers: modifiers.clone(),
                     ty: ty.clone(),
+                    covariant,
                     name,
                     default,
                     hooks: None,
@@ -1605,6 +1669,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             modifiers: Vec::new(),
             ty,
             inout: false,
+            covariant: false,
             variadic: false,
             name,
             default: None,

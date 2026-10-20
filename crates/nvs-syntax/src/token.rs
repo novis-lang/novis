@@ -84,7 +84,9 @@ pub enum TriviaKind {
 /// spellings Novis introduces are deliberately kept *contextual* instead:
 /// `spawn`, `script` and `with` (the `spawn script … with(…)` grammar,
 /// [`docs/reference/lang/80-concurrency.md`](/docs/reference/lang/80-concurrency.md)) and `type`
-/// (the alias declaration, `rule:statements/nothing-gets-a-second-name`)
+/// (the alias declaration, `rule:statements/nothing-gets-a-second-name`) and
+/// `covariant` (before a parameter's or a property's type,
+/// `rule:classes/a-covariant-type-is-checked-where-a-value-enters`)
 /// lex as plain [`Ident`]s; the parser recognises them by text only at the one
 /// grammar position each is meaningful in. Reserving common English words
 /// globally when only a handful of Novis-only constructs need them would

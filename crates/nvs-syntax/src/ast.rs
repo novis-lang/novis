@@ -676,6 +676,10 @@ pub struct Param {
     /// Whether this parameter binds by reference — `inout int $x`, `rule:statements/inout-is-the-by-reference-spelling`. The mechanism is copy-in/copy-out at the call site, which is why
     /// the word is `inout` rather than `ref`.
     pub inout: bool,
+    /// Whether the type is written `covariant`, narrower than the method it
+    /// overrides and tested when the method is entered
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+    pub covariant: bool,
     /// Whether this is a variadic parameter (`...$x`).
     pub variadic: bool,
     /// The parameter's name, `$`-sigil included.
@@ -1822,6 +1826,10 @@ pub struct PropertyMember {
     pub modifiers: Vec<Modifier>,
     /// The declared type.
     pub ty: Type,
+    /// Whether the type is written `covariant`, narrower than the superclass
+    /// property it redeclares and tested by each write that can reach it
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+    pub covariant: bool,
     /// The property's name, `$`-sigil included.
     pub name: Span,
     /// The default value, if any. Never present together with `hooks`.
