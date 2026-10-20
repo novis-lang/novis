@@ -151,11 +151,11 @@ Simplicity of the language gains: twenty-odd forms that did nothing now have one
 **Does:** each of the five type confusions below is a compile error or a thrown error, so no safe
 program reads memory as the wrong type.
 
-- [ ] A `set` hook whose parameter type does not accept its property's type is a diagnostic at the hook. `crates/nvs-types/src/check.rs:1`, `data/gaps/nvs-types/the-parameter-type-of-a-set.json:1`
-- [ ] A hooked property that a path can leave unwritten is `E0409` or `E0428`, as a plain property is. `crates/nvs-types/src/ctor_init.rs:1`, `data/gaps/nvs-types/a-hooked-property-is-not-checked.json:1`
-- [ ] A read of a property through `$this->` in the constructor before every path assigns it is a diagnostic. `crates/nvs-types/src/ctor_init.rs:1`, `data/gaps/nvs-types/a-constructor-reads-a-property-before.json:1`
-- [ ] A non-static method at a `spawn script` site is a diagnostic that names the static form. `crates/nvs-types/src/expr/isolate.rs:1`, `data/gaps/nvs-types/an-instance-method-spawned-as-an.json:1`
-- [ ] An ordering of two objects of different run-time classes throws before `compareTo` runs, with a case for the interface-typed pair and the subclass override. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/an-ordering-of-two-objects-passes.json:1`
+- [x] A `set` hook whose parameter type does not accept its property's type is a diagnostic at the hook. `crates/nvs-types/src/check.rs:1`, `tests/conformance/reject/a-set-hook-parameter-accepts-its-property-type.nvst:1`
+- [x] A hooked property that a path can leave unwritten is `E0409` or `E0428`, as a plain property is. `crates/nvs-types/src/ctor_init.rs:1`, `tests/conformance/reject/a-hooked-property-is-assigned-before-it-is-read.nvst:1`
+- [x] A read of a property through `$this->` in the constructor before every path assigns it is a diagnostic. `crates/nvs-types/src/ctor_init.rs:1`, `tests/conformance/reject/a-constructor-reads-a-property-only-after-assigning-it.nvst:1`
+- [x] A non-static method at a `spawn script` site is a diagnostic that names the static form. `crates/nvs-types/src/expr/isolate.rs:1`, `tests/conformance/reject/a-spawn-entry-method-is-static.nvst:1`
+- [x] An ordering of two objects of different run-time classes throws before `compareTo` runs, with a case for the interface-typed pair and the subclass override. `crates/nvs-ir/src/lower/operator.rs:1`, `tests/conformance/class/an-ordering-of-two-objects-of-different-classes-throws.nvst:1`
 
 ### 2. an override keeps a signature its parent's callers can use
 
@@ -315,19 +315,47 @@ one line each. The other lists every citation of `lang:statements/try-catch-fina
 
 ### State
 
-No stage has started. The records were moved here from `release-hardening` with `bun nv owners
---hand-over`. Each item's anchor is its gap record, whose text gives the probe that shows the hole.
+Stage 1 is built, and its five gap records are deleted, but **the end-of-group `bun nv verify` is
+not green yet**. Its last run failed only `nvs-types`'
+`a_hooked_property_read_inside_its_own_hook_records_the_plain_slot` and `nvs-codegen`'s
+`a_classs_hooks_reach_its_descriptor_keyed_by_property_and_accessor`, both fixed and passing alone
+afterwards, and it did not reach the steps after the tests. **The work is uncommitted.** Run `bun
+nv affected --run` first, then commit four slices: the `set` hook parameter (`check.rs`,
+`property-hooks.md`, its case and gap); initialization (`ctor_init.rs`, `signatures.rs`,
+`expr_table.rs`, `definite-property-initialization.md`, two cases, the hostile program, two gaps);
+the spawn entry (`isolate.rs`, its case and gap); and the ordering (`nvs-ir`'s `operator.rs` and
+`expr.rs`, `comparable-is-same-class-only.md`, two cases, its gap, the rendered `classes.md` and
+this file). Then set stage 1 to `done`. Each
+item has a conformance case, and each rule it touched says what is now true:
+
+- A written `set` hook parameter type has to accept the property's type in place, so `?int` and
+  `mixed` compile on an `int` property and `float` does not. The hook reads its parameter with no
+  conversion, so `float` read the `int`'s bits (`check.rs`'s `check_set_hook_param`).
+- A hooked property is required when its slot is read: no `get` hook, or a hook that names
+  `$this->p` other than as an `=` target (`signatures.rs`'s `hooks_read_own_slot`). Each `set` hook of
+  a required property stores it on every path, checked with `ctor_init`'s own walker. A `set`-only
+  redeclaration whose ancestor has a `get` hook is not required (`own_required_properties`)
+  (`check_set_hooks_commit`). The hostile `property-hooks/01` program gained `get => 0;` hooks to stay
+  compilable.
+- `ctor_init`'s `InitState::read` refuses a `$this->p` read before the assignment, and an inherited
+  one before `parent::constructor(...)`, as `E0409`.
+- `isolate.rs`'s `reject_instance_method_entry` refuses a non-static method entry as `E0802`.
+- `nvs-ir`'s `lower_object_comparison` compares the two class descriptors and throws a `LogicError`
+  before `compareTo`. `comparable-orders-a-subclass-through-its-override` now orders two subclass
+  objects, since a mixed pair throws.
 
 ### Next
 
-**Stage 1: the five type confusions**, in `crates/nvs-types/src/`. No gate.
+**Stage 2: an override keeps a signature its parent's callers can use**, in
+`crates/nvs-types/src/conformance.rs`. Follow the stage's `**Split:**` line first: an `Explore`
+subagent lists the built-in interfaces' methods.
 
-- [ ] A `set` hook's parameter type is checked against its property. `crates/nvs-types/src/check.rs:1`, `data/gaps/nvs-types/the-parameter-type-of-a-set.json:1`
-- [ ] A hooked property is checked for initialization, and a constructor read before the assignment is a diagnostic. `crates/nvs-types/src/ctor_init.rs:1`
-- [ ] A non-static method at a `spawn script` site is a diagnostic. `crates/nvs-types/src/expr/isolate.rs:1`
-- [ ] An ordering of two objects of different run-time classes throws. `crates/nvs-types/src/expr/operators.rs:1`
+- [ ] An override with another return type, parameter types, parameter count, visibility or `static` is a diagnostic at the override. `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/a-method-override-with-another-signature.json:1`
+- [ ] The built-in interfaces' methods are held to the same check. `crates/nvs-types/src/conformance.rs:1`
+- [ ] An `abstract` method with a body is a diagnostic. `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/an-abstract-method-with-a-body.json:1`
 
-Stage 2 follows on `crates/nvs-types/src/conformance.rs`.
+The `compareTo(Comparable $other)` override in `comparable-orders-a-subclass-through-its-override`
+widens the parameter, which the override rule allows.
 
 ### Backlog
 

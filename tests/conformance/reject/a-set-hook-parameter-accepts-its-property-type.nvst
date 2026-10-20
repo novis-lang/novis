@@ -1,0 +1,51 @@
+--TEST--
+A `set` hook's parameter type accepts the property's own type, or the hook does not compile — `rule:classes/property-hooks`
+--FILE--
+<?nvs
+// A wider parameter type compiles: an `int` value fits `?int`.
+class Wider {
+    public int $count {
+        set (?int $v) {
+            $this->count = $v ?? 0;
+        }
+    }
+
+    public function constructor() {
+        $this->count = 1;
+    }
+}
+
+// Refused: an `int` value is not a `string`.
+class Text {
+    public int $count {
+        set (string $v) {
+            $this->count = 0;
+        }
+    }
+
+    public function constructor() {
+        $this->count = 42;
+    }
+}
+
+// Refused: the hook gets the stored `int`, and it is not converted to `float`.
+class Ratio {
+    public int $count {
+        set (float $v) {
+            $this->count = 0;
+        }
+    }
+
+    public function constructor() {
+        $this->count = 42;
+    }
+}
+--EXPECTF-ERROR--
+error[E0401]: this `set` hook takes `string`, but the property is `int`
+   --> case.nvs:18:14
+%A
+error[E0401]: this `set` hook takes `float`, but the property is `int`
+   --> case.nvs:31:14
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

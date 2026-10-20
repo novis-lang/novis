@@ -8,6 +8,11 @@ a hooked access costs no new instruction, no new calling convention and no dispa
 Inside a hook the property names its own backing slot, which is what makes a `set` hook that
 transforms the value it stores terminate rather than recurse.
 
+A `set` hook's parameter may leave its type out, which gives it the property's type. A written type
+accepts the property's type without a conversion, or the hook does not compile (`E0401`): every write
+is checked against the property's type and handed to the hook unchanged, so `set (float $v)` on an
+`int` property would read the `int` as a `float`. A wider type such as `?int` or `mixed` compiles.
+
 Novis keeps the backing slot for every hooked property, so there is no split between virtual and
 backed properties. That spends one slot on a property whose `get` computes its answer, and buys one
 storage model instead of two — and a `set` hook that commits a value discharges that property's

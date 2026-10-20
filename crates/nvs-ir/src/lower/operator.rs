@@ -190,12 +190,51 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
             ordering
         } else {
+            // `rule:classes/comparable-is-same-class-only`: `compareTo(self $other)` reads its
+            // operand as the receiver's own class, and two operands typed at an
+            // interface or a parent class may be instances of different
+            // classes. So the run-time classes are compared first, and a
+            // mismatch throws before `compareTo` runs. A fresh operand is this
+            // frame's until the call takes it, so it is a temporary for the
+            // check and the throw's landing block releases it.
+            let check_mark = self.temporaries_mark();
+            for (v, operand) in [(lv, lhs), (rv, rhs)] {
+                if !self.aliasing_read(operand) {
+                    self.own_temporary(v);
+                }
+            }
+            let (desc, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescOf { object: lv });
+            let (other, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescOf { object: rv });
+            let (desc_word, _) = self.emit(*cur, Ty::Int, InstKind::Reinterpret { operand: desc });
+            let (other_word, _) =
+                self.emit(*cur, Ty::Int, InstKind::Reinterpret { operand: other });
+            let (same, _) = self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::BinOp {
+                    op: BinOp::Eq,
+                    lhs: desc_word,
+                    rhs: other_word,
+                },
+            );
+            let written = match op {
+                BinaryOp::Lt => "<",
+                BinaryOp::LtEq => "<=",
+                BinaryOp::Gt => ">",
+                BinaryOp::GtEq => ">=",
+                _ => "<=>",
+            };
+            let message = format!(
+                "`{written}` compares two objects of different classes. Both objects must have \
+                 the same class."
+            );
+            self.emit_logic_error_when(same, false, message, expr.span, env, cur);
+            self.forget_temporaries_since(check_mark);
             for (v, operand) in [(lv, lhs), (rv, rhs)] {
                 if self.aliasing_read(operand) {
                     self.emit_retain(*cur, v);
                 }
             }
-            let (desc, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescOf { object: lv });
             let (ordering, _) = self.emit_fallible(
                 *cur,
                 Ty::Int,

@@ -2969,10 +2969,11 @@ mod tests {
         let (exprs, _span) = check_and_find_expr_span(concat!(
             "<?nvs\nclass T {\n",
             "  public int $n { get => $this->n + 1; }\n",
-            "  function constructor() { }\n",
+            "  function constructor() { $this->n = 0; }\n",
             "  function m(): int { return 0; }\n}\n",
         ));
-        // The hook body's own `$this->n` is the only access in the file.
+        // The hook body's own `$this->n` is the plain slot. The constructor's
+        // write is the one hooked access, outside the hook.
         let hooked = exprs
             .entries
             .iter()
@@ -2983,7 +2984,7 @@ mod tests {
             .iter()
             .filter(|e| matches!(e, ExprInfo::Property { name, .. } if name == "n"))
             .count();
-        assert_eq!((hooked, plain), (0, 1));
+        assert_eq!((hooked, plain), (1, 1));
     }
 
     /// A shape receiver has no declaring class either, but it does have a

@@ -1,0 +1,72 @@
+--TEST--
+A hooked property whose stored value is read needs a value, as a plain property does: a constructor assigns it, and each `set` hook stores it on every path — `rule:classes/definite-property-initialization`, `rule:classes/property-hooks`
+--FILE--
+<?nvs
+class Box {
+    public int $n = 1;
+}
+
+// Compiles: the `get` hook computes the value, so nothing is stored.
+class Computed {
+    public int $base = 2;
+    public int $double {
+        get => $this->base * 2;
+    }
+}
+
+// Compiles: the constructor assigns the property, and the hook always stores it.
+class Clamped {
+    public int $level {
+        set (int $v) {
+            if ($v < 0) {
+                $this->level = 0;
+            } else {
+                $this->level = $v;
+            }
+        }
+    }
+
+    public function constructor(int $start) {
+        $this->level = $start;
+    }
+}
+
+// Refused: there is no constructor, so nothing assigns the property.
+class NoConstructor {
+    public Box $box {
+        set (Box $v) {
+            $this->box = $v;
+        }
+    }
+}
+
+// Refused: the hook stores the value only when it is positive.
+class Sometimes {
+    public int $count {
+        set (int $v) {
+            if ($v > 0) {
+                $this->count = $v;
+            }
+        }
+    }
+
+    public function constructor() {
+        $this->count = 1;
+    }
+}
+
+// Refused: the `get` hook reads the stored value, and nothing assigns it.
+class Cached {
+    public Box $box {
+        get => $this->box;
+    }
+}
+--EXPECTF-ERROR--
+error[E0409]: `$box` has no default value, and `NoConstructor` declares no constructor to assign it
+%A
+error[E0409]: the `set` hook of `$count` does not store a value on every path
+%A
+error[E0409]: `$box` has no default value, and `Cached` declares no constructor to assign it
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

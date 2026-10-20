@@ -1,0 +1,62 @@
+--TEST--
+A constructor reads a property through `$this->` only after every path assigns it, and an inherited one only after `parent::constructor(...)` — `rule:classes/definite-property-initialization`
+--FILE--
+<?nvs
+class Base {
+    public string $name;
+
+    public function constructor() {
+        $this->name = "base";
+    }
+}
+
+// Compiles: each read comes after the assignment.
+class Counter {
+    public int $count;
+
+    public function constructor() {
+        $this->count = 1;
+        $this->count += $this->count;
+        echo $this->count, "\n";
+    }
+}
+
+// Refused: the first line reads `$count` before it has a value.
+class ReadsFirst {
+    public int $count;
+
+    public function constructor() {
+        echo $this->count, "\n";
+        $this->count = 1;
+    }
+}
+
+// Refused: only one branch assigns `$count`, and the read comes after both.
+class OneBranch {
+    public int $count;
+
+    public function constructor(bool $flag) {
+        if ($flag) {
+            $this->count = 1;
+        }
+        echo $this->count, "\n";
+        $this->count = 2;
+    }
+}
+
+// Refused: `$name` belongs to `Base`, and `Base`'s constructor has not run yet.
+class Early extends Base {
+    public function constructor() {
+        echo $this->name, "\n";
+        parent::constructor();
+    }
+}
+--EXPECTF-ERROR--
+error[E0409]: `$count` is read before the constructor assigns it
+%A
+error[E0409]: `$count` is read before the constructor assigns it
+%A
+error[E0409]: `$name` is read before the constructor assigns it
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
