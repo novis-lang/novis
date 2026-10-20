@@ -78,7 +78,7 @@ stages:
     context: [crates/nvs-stdlib/src/bigint.rs]
   - id: 15
     title: "`Core\\BigInt`'s modular power is sub-quadratic per step"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/bigint.rs]
 checks:
   - id: owners-closes
@@ -507,18 +507,29 @@ another goal.
 
 **Does:** `powMod` over an odd modulus runs its Montgomery step over Karatsuba multiplication.
 
-- [ ] `powMod`'s Montgomery step multiplies with Karatsuba above a measured crossover. `crates/nvs-stdlib/src/bigint.rs:1`
-- [ ] Its bench declares the new complexity, loses the gap's marker, gains a `.scale.nvs` sibling, and the gap record is deleted. `crates/nvs-stdlib/src/bigint.rs:1`, `data/gaps/nvs-stdlib/bigint-gcd-and-modular-power-grow-quadratically.json:1`
+- [x] `powMod`'s Montgomery step multiplies with Karatsuba above a measured crossover. `crates/nvs-stdlib/src/bigint.rs:1`
+  - [x] `pow_mod` runs Montgomery products above `MONTGOMERY_LEAF_BITS` (10240), measured equal at 9216 bits
+  - [x] `pow_mod_by_products_is_the_librarys_modpow` pins it
+- [x] Its bench declares the new complexity, loses the gap's marker, gains a `.scale.nvs` sibling, and the gap record is deleted. `crates/nvs-stdlib/src/bigint.rs:1`, `data/gaps/nvs-stdlib/bigint-gcd-and-modular-power-grow-quadratically.json:1`
+  - [x] `powMod.nvs` declares `complexity karatsuba` and carries no gap marker
+  - [x] `powMod.scale.nvs` ramps the modulus from 32000 to 256000 bits, and the gap record is deleted
 
 ## Handoff
 
 ### State
 
-Stages 1 to 14 and 16 to 19 are done. Only stage 15 is left, and it owns the goal's one
-remaining gap record, `data/gaps/nvs-stdlib/bigint-gcd-and-modular-power-grow-quadratically.json`,
-whose text now names `powMod` alone. `bun nv owners --closes compiler-holes` names it and nothing
-else.
+Every stage is done, and the goal is reached. `bun nv owners --closes compiler-holes` names no
+gap, `bun nv soundness --check` writes all 397 cells with none skipped, and `bun nv verify --doc`
+finds every link.
 
+- Stage 15 landed in `b3a4202df`: `pow_mod` runs Montgomery multiplication over the library's
+  Karatsuba and Toom-3 products above `MONTGOMERY_LEAF_BITS` (10240). The two steps were equal at
+  9216 bits, and the new one is 1.7 times faster at 32768 bits. `powMod.nvs` declares
+  `complexity karatsuba`, `powMod.scale.nvs` ramps the modulus from 32000 to 256000 bits, and the
+  gap record is deleted. Its recorded `size_growth` is missing: on Windows the counts did not agree
+  by the ceiling, and the run had no callgrind. A Linux `--record-perf` of the group fills it.
+- The closing session re-ran `bun nv affected --run` (22 of 22 green, 3058 conformance cases),
+  `verify --doc`, `soundness --check` and `proofs --run --id 'Core\BigInt::powMod'`.
 - Stage 14: `gcd` and `lcm` are `bigint.rs`'s `gcd`, which runs Möller's half-gcd (`hgcd`, `step`,
   `Steps`) above `GCD_LEAF_BITS` (32768) and the library's Stein gcd below it. `hgcd`'s leaf is
   `HGCD_LEAF_BITS` (128). Both were measured in a release scratch crate: at 524288 bits the
@@ -567,13 +578,9 @@ given several, it runs only the last, so run it once per crate.
 
 ### Next
 
-**Stage 15** is next: `powMod` over an odd modulus runs its Montgomery step over the library's
-Karatsuba multiplication above a measured crossover (`crates/nvs-stdlib/src/bigint.rs`'s
-`nvs_core_bigint_pow_mod`). `powMod.nvs` then declares its new growth and loses the gap marker,
-a `powMod.scale.nvs` sibling is written like `gcd.scale.nvs`, and the gap record is deleted.
-Measure the crossover in a release scratch crate under `.agent-tmp/` with its own `[workspace]`.
-A debug test's timing is not the release one. In a `.scale.nvs`, every `as uint` operand must be a
-whole number, or the ramp exits at its first batch. Then the goal-end gates and `DONE`.
+Nothing is left in this goal. It is retired by deleting this file and its slug from the chain in
+`docs/goals/README.md`'s front matter, then `looper render`. The backlog below moves to the next
+goal that takes it, `router-responder` being the live one after this.
 
 `bun nv soundness --probe` reruns every cell alone (`NVS_BIN=$PWD/target/debug/nvs.exe` uses the
 tree's build), and `--write` after any change to the table. Never edit a generated file by hand.
