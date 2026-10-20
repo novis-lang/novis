@@ -25,7 +25,8 @@
 //!
 //! The two refusals are each reported at the call: `T` must be an interface
 //! or a class (`E0743`), and every class the enumeration would instantiate
-//! needs a no-argument constructor (`E0744`). Their own `Code` doc comments
+//! needs a no-argument constructor (`E0744`). A constructor the call's site
+//! cannot see is `E0471`, as a written `new` is. Their own `Code` doc comments
 //! own why each is refused rather than worked around.
 //!
 //! `rule:programs/constructors`' `constructors<T, C>()` is the third member,
@@ -525,6 +526,7 @@ fn constructors_of(
     env: &mut Env<'_>,
 ) -> Option<Vec<Option<ResolvedCall>>> {
     let mut ctors = Vec::with_capacity(classes.len());
+    let mut hidden = false;
     for class in classes {
         // A class declaring no `constructor` at all is the common case and the
         // one § 3 is written for; `ExprInfo::New`'s own `ctor` is `None` there
@@ -534,6 +536,15 @@ fn constructors_of(
             ctors.push(None);
             continue;
         };
+        // The visibility a written `new` faces at this call, so a class that
+        // hides its constructor is not built from outside it. Every such
+        // class is reported before the enumeration is refused.
+        let before = env.diags.len();
+        check_method_visibility(&owner, "constructor", &sig, call.span, ctx, env);
+        if env.diags.len() > before {
+            hidden = true;
+            continue;
+        }
         if sig.required() > 0 {
             env.diags.report(
                 Diagnostic::error(
@@ -580,7 +591,7 @@ fn constructors_of(
             env.signatures,
         )));
     }
-    Some(ctors)
+    (!hidden).then_some(ctors)
 }
 
 #[cfg(test)]
