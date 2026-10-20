@@ -1,0 +1,28 @@
+<?nvs
+// Measures `powMod` with a fixed exponent over a modulus of n/3 to n binary digits, at growing sizes of n.
+// bench: start 32000
+// bench: max 256000
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $one = Core\BigInt::of(1);
+        var $base = Core\BigInt::of(3);
+        // 65537 is the exponent most RSA keys use. It stays the same at every size.
+        var $exponent = Core\BigInt::of(65537);
+        uint $signs = 0;
+        // Sixteen sizes from n/3 up to n. Each size is 7% smaller than the one before.
+        // Sizes over a range of three times make the cost grow smoothly.
+        array<uint> $parts = [1000, 934, 872, 814, 760, 709, 662, 618, 577, 539, 503, 470, 439, 410, 382, 357];
+        uint $unit = ($size / 1000) as uint;
+        foreach ($parts as uint $part) {
+            // An odd modulus with `$unit * $part` binary digits, all of them 1.
+            var $modulus = $one->shl($unit * $part)->sub($one);
+            $signs = $signs + ($base->powMod($exponent, $modulus)->sign() as uint);
+        }
+        return $signs;
+    }
+}
+
+echo Bench::run(32000), "\n";

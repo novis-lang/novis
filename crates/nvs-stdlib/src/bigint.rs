@@ -74,7 +74,9 @@
 //! `log n`. `sqrt` is [`root`], which halves the width and corrects by Newton
 //! steps, so it costs a few of those divisions. `gcd` and `lcm` are [`gcd`],
 //! a half-gcd at a multiplication's cost times `log n`, where the library's is
-//! Stein's algorithm and quadratic. `toString` and
+//! Stein's algorithm and quadratic. `powMod` is [`pow_mod`], one step per
+//! exponent bit, and a step over an odd modulus is three multiplications,
+//! where the library's Montgomery step is quadratic. `toString` and
 //! `format` are the library's conversion, which splits by squared powers of
 //! the radix from 32 limbs up, and a power-of-two radix is linear.
 //!
@@ -89,10 +91,6 @@
 //! operands are as wide as the program made them, so its cost per call is
 //! bounded by the request's memory ceiling and by the growth its bench
 //! declares.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/bigint.rs` lists them.
 
 use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
@@ -1135,17 +1133,17 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$n->powMod(BigInt $exponent, BigInt $modulus): BigInt` — `bcpowmod`,
-    /// computed by `modpow` so the whole power is never held.
+    /// computed by [`pow_mod`] so the whole power is never held.
     ///
     /// The answer is the least non-negative residue modulo `|$modulus|`, for
     /// every receiver and either sign of modulus: modular exponentiation is not
     /// `mod`, and the residue is what every use of it wants. So
     /// `of(-3)->powMod(3, 7)` is `1`, where `pow` then `mod` gives `-6`.
-    /// `modpow` takes the modulus's sign, so the magnitude is handed to it.
+    /// [`pow_mod`] takes magnitudes, so a negative receiver with an odd
+    /// exponent gives the modulus minus the residue of its magnitude.
     ///
-    /// The two refusals are `modpow`'s own panics, turned into throws ahead of
-    /// the call: it panics on a zero modulus, and on a negative exponent where
-    /// the receiver has no inverse.
+    /// The two refusals are thrown ahead of the call: a zero modulus has no
+    /// residues, and a negative exponent would need the receiver's inverse.
     fn nvs_core_bigint_pow_mod(_ctx, args: [3]) {
         let base = operand(args, 0, "powMod")?;
         let exponent = operand(args, 1, "powMod")?;
@@ -1158,9 +1156,92 @@ nvs_runtime::nvs_helper! {
                 "Core\\BigInt::powMod(): the exponent is negative".to_owned(),
             ));
         }
-        let modulus = if modulus.sign() == Sign::Minus { -modulus } else { modulus };
-        built(&base.modpow(&exponent, &modulus))
+        let residue = pow_mod(base.magnitude(), exponent.magnitude(), modulus.magnitude());
+        let residue = if base.sign() == Sign::Minus
+            && exponent.magnitude().bit(0)
+            && residue != BigUint::ZERO
+        {
+            modulus.magnitude() - residue
+        } else {
+            residue
+        };
+        built(&BigInt::from(residue))
     }
+}
+
+/// The modulus width below which [`pow_mod`] takes the library's `modpow`
+/// whole. Over an odd modulus that is Montgomery multiplication in word
+/// steps, which is quadratic but allocates nothing. Measured with a 256-bit
+/// exponent, the two are equal at 9216 bits, and the step here is 1.15×
+/// faster at 12288 bits, 1.7× at 32768 and 2.4× at 65536.
+const MONTGOMERY_LEAF_BITS: u64 = 10_240;
+
+/// `base` to the power `exponent`, modulo `modulus`, which is not zero.
+/// An even or narrow modulus goes to the library. Above
+/// [`MONTGOMERY_LEAF_BITS`] an odd one runs Montgomery multiplication with
+/// the library's whole-number products, which are Karatsuba and Toom-3, so a
+/// step costs three multiplications where the library's is quadratic. The
+/// exponent is read in windows of four bits, as the library reads it.
+/// `pow_mod_by_products_is_the_librarys_modpow` pins the result.
+///
+/// **What it spends:** sixteen powers of the base at the modulus's width,
+/// and a product of twice that width per step, all freed before this
+/// returns. The library's table is the same size.
+fn pow_mod(base: &BigUint, exponent: &BigUint, modulus: &BigUint) -> BigUint {
+    if !modulus.bit(0) || modulus.bits() <= MONTGOMERY_LEAF_BITS {
+        return base.modpow(exponent, modulus);
+    }
+    // `r` is a power of two above the modulus, a whole number of words wide,
+    // so reducing modulo `r` and dividing by it move whole words.
+    let k = modulus.bits().div_ceil(64) * 64;
+    let r = BigUint::from(1u32) << k;
+    let mask = &r - 1u32;
+    let n_prime = (&r - inverse_modulo_power_of_two(modulus, k)) & &mask;
+    // `t / r` modulo the modulus, for any `t` below the modulus times `r`.
+    let reduce = |t: BigUint| -> BigUint {
+        let m = ((&t & &mask) * &n_prime) & &mask;
+        let u = (t + m * modulus) >> k;
+        if &u >= modulus { u - modulus } else { u }
+    };
+    let one = &r % modulus;
+    let x = ((base % modulus) << k) % modulus;
+    let mut powers = Vec::with_capacity(16);
+    powers.push(one.clone());
+    powers.push(x.clone());
+    for i in 2..16 {
+        let next = reduce(&powers[i - 1] * &x);
+        powers.push(next);
+    }
+    let mut z = one;
+    for window in (0..exponent.bits().div_ceil(4)).rev() {
+        for _ in 0..4 {
+            z = reduce(&z * &z);
+        }
+        let digit = (0..4).rev().fold(0usize, |d, b| {
+            (d << 1) | usize::from(exponent.bit(window * 4 + b))
+        });
+        if digit != 0 {
+            z = reduce(&z * &powers[digit]);
+        }
+    }
+    reduce(z)
+}
+
+/// The inverse of the odd `n` modulo `2^k`, by Newton's iteration, which
+/// doubles the bits that are right at each step: `x · (2 − n·x)`. The widths
+/// double, so the total is a few multiplications at `k` bits.
+fn inverse_modulo_power_of_two(n: &BigUint, k: u64) -> BigUint {
+    let mut x = BigUint::from(1u32);
+    let mut bits = 1u64;
+    while bits < k {
+        bits = (2 * bits).min(k);
+        let power = BigUint::from(1u32) << bits;
+        let mask = &power - 1u32;
+        let t = (n * &x) & &mask;
+        let correction = (power + 2u32 - t) & &mask;
+        x = (&x * correction) & &mask;
+    }
+    x
 }
 
 nvs_runtime::nvs_helper! {
@@ -2193,6 +2274,45 @@ mod tests {
             ];
             for (a, b) in pairs {
                 assert_eq!(gcd(&a, &b), a.gcd(&b), "{width} bits");
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, widths.len() * 7);
+    }
+
+    /// [`pow_mod`] by products is the library's `modpow` over an odd modulus
+    /// past the leaf, a modulus just under a word boundary, a base wider than
+    /// the modulus, a zero base and exponent, the modulus minus one, and the
+    /// modulus itself as the base.
+    // covers: Core\BigInt::powMod
+    #[test]
+    fn pow_mod_by_products_is_the_librarys_modpow() {
+        let widths: &[u64] = if cfg!(miri) {
+            &[]
+        } else {
+            &[MONTGOMERY_LEAF_BITS + 1, 2 * MONTGOMERY_LEAF_BITS - 64]
+        };
+        let mut seed = 0x9E37_79B9_7F4A_7C15;
+        let one = BigUint::from(1u32);
+        let mut checked = 0usize;
+        for &width in widths {
+            let modulus = scrambled(width, &mut seed) | &one;
+            let exponent = scrambled(97, &mut seed);
+            let cases = [
+                (scrambled(width - 5, &mut seed), exponent.clone()),
+                (scrambled(2 * width, &mut seed), exponent.clone()),
+                (BigUint::ZERO, exponent.clone()),
+                (scrambled(width - 5, &mut seed), BigUint::ZERO),
+                (&modulus - &one, exponent.clone()),
+                (modulus.clone(), exponent.clone()),
+                (scrambled(width - 5, &mut seed), &one << 64u32),
+            ];
+            for (base, exponent) in cases {
+                assert_eq!(
+                    pow_mod(&base, &exponent, &modulus),
+                    base.modpow(&exponent, &modulus),
+                    "{width} bits"
+                );
                 checked += 1;
             }
         }

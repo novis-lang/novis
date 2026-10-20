@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/bigint.rs",
-  "title": "`Core\\BigInt`'s modular power grows faster than any class `nv scaling` accepts.",
-  "text": "`powMod` over an odd modulus is the library's Montgomery multiplication, which is schoolbook and quadratic in the modulus per step, and it takes one step per exponent bit. Its bench declares `complexity quadratic`, which the growth proof refuses, and carries this gap's marker. Nothing but the request's memory ceiling bounds an operand's width, so a program that hands it text a request sent pays the quadratic cost on that length. Closing it is a Montgomery step over the library's Karatsuba multiplication, then a `.scale.nvs` sibling under the class it reaches. `gcd`, `lcm`, `div`, `mod`, `sqrt`, `parse`, `toString` and `format` are sub-quadratic, and their siblings pin it.",
-  "goal": "compiler-holes"
-}
