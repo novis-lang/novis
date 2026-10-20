@@ -1559,10 +1559,13 @@ pub(crate) fn unit_for(
     source: Digest,
     cache: Option<&Cache>,
 ) -> Result<(nvs_codegen::Unit, Provenance), nvs_codegen::CodegenError> {
-    // An unoptimised process neither reads nor writes an artifact: the key does not cover the
-    // optimisation level, so a hit would run the other level's code and a write would hand this
-    // level's code to every later run (`nvs_codegen::compile_unoptimised`).
-    let Some(cache) = cache.filter(|_| !nvs_codegen::is_unoptimised()) else {
+    // An unoptimised or a checked process neither reads nor writes an artifact: the key covers
+    // neither the optimisation level nor the checked build's tests, so a hit would run the other
+    // build's code and a write would hand this build's code to every later run
+    // (`nvs_codegen::compile_unoptimised`, `nvs_codegen::compile_checked_types`).
+    let Some(cache) =
+        cache.filter(|_| !nvs_codegen::is_unoptimised() && !nvs_codegen::is_checking_types())
+    else {
         return Ok((nvs_codegen::compile(program)?, Provenance::Compiled));
     };
     let key = artifact_key(source, cache.env());

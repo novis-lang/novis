@@ -208,6 +208,10 @@ const VERSION: &str = concat!(
 /// (`rule:testing/probes-on-is-a-tested-configuration`).
 const NO_OPTIMISE: &str = "NOVIS_NO_OPTIMISE";
 
+/// The variable that compiles every unit of this process with a type test after each typed read
+/// (`nvs_codegen::compile_checked_types`). It works on presence, as [`NO_OPTIMISE`] does.
+const CHECK_TYPES: &str = "NOVIS_CHECK_TYPES";
+
 /// The environment variables `nvs` reads, which `nvs --help` lists below the options.
 const ENVIRONMENT: &str = "\
 Environment:
@@ -215,6 +219,9 @@ Environment:
   NOVIS_NO_FILE_CACHE  Read and write no compiled artifact, so every program is compiled again.
   NOVIS_NO_OPTIMISE    Compile without optimisations, and read and write no compiled artifact.
                        The test suite uses it to check that both builds print the same output.
+  NOVIS_CHECK_TYPES    Test each value a program reads against its declared type, and stop with
+                       an error at the first value that does not match. A value like that is a
+                       bug in Novis. Reads and writes no compiled artifact.
   NVS_FOOTPRINT_LOG    Append each `Core` class looked up, file read, directory listed and path
                        tested to this file, one line each. Used to record what a test run needs.";
 
@@ -539,6 +546,9 @@ fn main() -> ExitCode {
     // command compiles, so every unit of this process is compiled at the same level.
     if std::env::var_os(NO_OPTIMISE).is_some() {
         nvs_codegen::compile_unoptimised();
+    }
+    if std::env::var_os(CHECK_TYPES).is_some() {
+        nvs_codegen::compile_checked_types();
     }
 
     let cli = Cli::parse();
