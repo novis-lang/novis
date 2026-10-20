@@ -2103,6 +2103,9 @@ fn walk_destructure_target(
 ) {
     let elem_ty = subject.and_then(|subject| match env.interner.get(subject) {
         Ty::Array(elem) => Some(*elem),
+        // A subject that did not resolve has reported already
+        // (`rule:types/one-mistake-reports-once`).
+        Ty::Error => None,
         _ => {
             let found = env.interner.describe(subject);
             env.diags.report(

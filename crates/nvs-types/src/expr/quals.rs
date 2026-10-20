@@ -170,9 +170,13 @@ pub(crate) fn carries_secret(ty: TypeId, interner: &TypeInterner) -> bool {
 /// It reaches as far as [`carries_tainted`] does and for its reason: the
 /// answer decides whether to *set* the bit, so reaching too far over-taints
 /// and never leaks.
+///
+/// The error type is not `mixed` here: a program that has it never runs, so
+/// its text reaches nothing, and tainting it would report a second error at
+/// every place it is used as a `string` (`rule:types/one-mistake-reports-once`).
 pub(crate) fn carries_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
-        Ty::Mixed | Ty::Error => true,
+        Ty::Mixed => true,
         Ty::Array(elem) => carries_unchecked(*elem, interner),
         Ty::Union(members) => members
             .iter()
@@ -208,7 +212,8 @@ pub(crate) fn fields_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
 /// [`carries_unchecked`]'s safe direction.
 pub(crate) fn keys_from_outside(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
-        Ty::Mixed | Ty::Error | Ty::Iterable => true,
+        // The error type is not `mixed` here, for [`carries_unchecked`]'s reason.
+        Ty::Mixed | Ty::Iterable => true,
         Ty::Array(elem) => carries_unchecked(*elem, interner) || carries_tainted(*elem, interner),
         _ => false,
     }
@@ -1180,7 +1185,8 @@ fn walks_outside_text(
         return true;
     }
     match env.interner.get(ty).clone() {
-        Ty::Mixed | Ty::Error | Ty::Object | Ty::Iterable | Ty::TypeVar(_) => true,
+        // The error type is not `mixed` here, for [`carries_unchecked`]'s reason.
+        Ty::Mixed | Ty::Object | Ty::Iterable | Ty::TypeVar(_) => true,
         Ty::Array(elem) => walks_outside_text(elem, seen, env),
         Ty::Shape(fields) => fields
             .iter()

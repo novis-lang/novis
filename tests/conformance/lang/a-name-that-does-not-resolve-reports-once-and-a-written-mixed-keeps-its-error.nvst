@@ -14,7 +14,21 @@ class Shop {
         }
         string $class = $item::class;
         string $text = $item;
+        // A conversion, a type test, text and destructuring give no error.
+        int $count = $item as int;
+        object $object = $item as object;
+        string $converted = $item as string;
+        bool $isShop = $item is Shop;
+        string $joined = "item: {$item}";
+        [int $left, int $right] = $item;
+        array<int> $spread = [...$item];
         return $item;
+    }
+
+    // Each `Missing` written here gives one error. The default and the empty
+    // `return` give none.
+    public static function fallback(Missing $item = 3): Missing {
+        return;
     }
 
     // `mixed` is what the program wrote, so returning it as a `string` is an error.
@@ -34,17 +48,29 @@ error[E0303]: `Missing` is not declared
 4 |     public static function label(Missing $item): string {
   |                                  ^^^^^^^ no matching declaration
 
-error[E0403]: this method declares `string` but returns `mixed`
-   --> %s:19:16
+error[E0303]: `Missing` is not declared
+   --> %s:27:37
    |
-19 |         return $item;
+27 |     public static function fallback(Missing $item = 3): Missing {
+   |                                     ^^^^^^^ no matching declaration
+
+error[E0303]: `Missing` is not declared
+   --> %s:27:57
+   |
+27 |     public static function fallback(Missing $item = 3): Missing {
+   |                                                         ^^^^^^^ no matching declaration
+
+error[E0403]: this method declares `string` but returns `mixed`
+   --> %s:33:16
+   |
+33 |         return $item;
    |                ^^^^^ this is `mixed`
 
 error[E0423]: `Shop` has no parent class to refer to as `parent`
-   --> %s:23:40
+   --> %s:37:40
    |
-23 |     public static function parentLabel(parent $item): string {
+37 |     public static function parentLabel(parent $item): string {
    |                                        ^^^^^^ `parent` type
 
-error: aborting due to 3 errors
+error: aborting due to 5 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

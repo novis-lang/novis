@@ -1461,6 +1461,11 @@ fn check_spread_element(
 
 /// `E0484`, for [`check_spread_element`] and [`spread_element_ty`] alike.
 fn report_spread_not_an_array(item: &ArrayItem, subject_ty: TypeId, env: &mut Env<'_>) {
+    // A subject that did not resolve has reported already
+    // (`rule:types/one-mistake-reports-once`).
+    if env.interner.is_error(subject_ty) {
+        return;
+    }
     let rendered = env.interner.describe(subject_ty);
     env.diags.report(
         Diagnostic::error(
