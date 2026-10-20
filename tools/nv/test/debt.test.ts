@@ -148,9 +148,11 @@ describe("bun nv debt", () => {
     expect(steps.at(-1)).toBe("floor debt: paid 3 (1 nvtest, 1 proof, 1 test) in 3m00s; left 0");
 
     const stuck = seams([atom("proof:a.nvs", 1)]);
-    const once = await payDebt(undefined, { ...stuck, pay: async (turn) => (stuck.turns.push(turn), "") });
+    const named: string[] = [];
+    const once = await payDebt(undefined, { ...stuck, pay: async (turn) => (stuck.turns.push(turn), ""), voice: { step: (l) => named.push(l), note() {} } });
     expect(stuck.turns.length).toBe(1);
     expect(once.left.map((a) => a.id)).toEqual(["proof:a.nvs"]);
+    expect(named.at(-1)).toBe("floor debt: still owed: proof:a.nvs");
   });
 
   test("an owed leg runs the Linux legs the store selects, and no leg debt runs none", async () => {
