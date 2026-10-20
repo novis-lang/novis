@@ -204,8 +204,12 @@ describe.skipIf(!EXE)("a replay in Chromium", () => {
     expect(await tab.run(`getComputedStyle(document.querySelector(".nv-caret")).animationName`)).toBe("none");
     expect(await tab.run(`getComputedStyle(document.querySelector(".nv-replay-progress span")).transitionDuration`)).toBe("0s");
     await tab.close();
-    // Without the setting, both move.
+    // Without the setting, both move while the replay plays. The cursor
+    // blinks only then, so a page at rest runs no animation.
     const moving = await open("/one");
+    await moving.run(INTO_VIEW);
+    await moving.run(CLICK(0));
+    expect(await moving.run(STATES)).toEqual(["playing"]);
     expect(await moving.run(`getComputedStyle(document.querySelector(".nv-caret")).animationName`)).toBe("nv-blink");
     expect(await moving.run(`getComputedStyle(document.querySelector(".nv-replay-progress span")).transitionDuration`)).not.toBe("0s");
     await moving.close();
