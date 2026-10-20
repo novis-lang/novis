@@ -983,7 +983,7 @@ fn may_be_number(ty: TypeId, env: &Env<'_>) -> bool {
         // `rule:types/conversion`'s one unchecked position, and the two shapes standing
         // for a type this call site does not name: nothing is knowable here,
         // so nothing is refused.
-        Ty::Mixed | Ty::TypeVar(_) | Ty::Never => true,
+        Ty::Mixed | Ty::Error | Ty::TypeVar(_) | Ty::Never => true,
         Ty::Union(members) => members.iter().any(|member| may_be_number(*member, env)),
         _ => false,
     }

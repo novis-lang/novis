@@ -164,7 +164,7 @@ pub(crate) fn classify_foreach_source(
         Ty::Array(elem) => ForeachSource::Array { value: elem },
         // Neither `mixed` nor `iterable` says which of the three loops to
         // run, so the subject is converted where it is written.
-        Ty::Mixed | Ty::Iterable => {
+        Ty::Mixed | Ty::Error | Ty::Iterable => {
             report_unchecked_subject(subject_ty, span, env);
             ForeachSource::Unchecked
         }

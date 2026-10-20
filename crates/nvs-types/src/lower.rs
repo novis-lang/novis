@@ -19,6 +19,9 @@
 //! name that resolves to neither, and is not trusted as a `Core`
 //! reference or one of [`nvs_hir::errors`]' exception classes
 //! ([`nvs_hir::QName::is_reserved_global_class`]), is `E_UNDEFINED_CLASS`.
+//! That name, and a `self`/`static`/`parent` that cannot resolve, types as
+//! [`crate::ty::Ty::Error`] after its report, so no later use of it reports
+//! again (`rule:types/one-mistake-reports-once`).
 //!
 //! Nesting is bounded at depth 32 (`rule:types/arrays`) — past that, lowering
 //! stops and reports `E_ARRAY_TYPE_TOO_DEEP` rather than recursing further, so
@@ -861,7 +864,7 @@ fn resolve_special(span: Span, keyword: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) 
                 )
                 .with_primary(span, "no enclosing class"),
             );
-            env.interner.mixed()
+            env.interner.error()
         }
     }
 }
@@ -880,7 +883,7 @@ fn resolve_parent(span: Span, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
             Diagnostic::error(code::E_UNDEFINED_CLASS, "`parent` used outside any class")
                 .with_primary(span, "no enclosing class"),
         );
-        return env.interner.mixed();
+        return env.interner.error();
     };
     match env
         .graph
@@ -896,7 +899,7 @@ fn resolve_parent(span: Span, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
                 )
                 .with_primary(span, "`parent` type"),
             );
-            env.interner.mixed()
+            env.interner.error()
         }
     }
 }
@@ -1119,7 +1122,7 @@ fn resolve_name_type(
                 env.symbols,
                 &nvs_stdlib::registry::type_names(),
             ));
-            env.interner.mixed()
+            env.interner.error()
         }
     }
 }

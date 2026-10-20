@@ -268,7 +268,9 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
     match env.interner.get(ty) {
         // A parameter written with no type at all interns as `mixed` and has
         // already been reported for it; its text is the honest answer.
-        Ty::String | Ty::TaintedString | Ty::SingleValueString(_) | Ty::Mixed => ArgConv::Text,
+        Ty::String | Ty::TaintedString | Ty::SingleValueString(_) | Ty::Mixed | Ty::Error => {
+            ArgConv::Text
+        }
         Ty::Bool | Ty::True | Ty::False => ArgConv::Flag,
         Ty::Int | Ty::SingleValueInt(_) => ArgConv::Int,
         Ty::Uint => ArgConv::Uint,
@@ -979,7 +981,7 @@ pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
         // A parameter written with no type at all interns as `mixed` and has
         // already been reported for the omission; naming it again here would
         // charge one mistake twice.
-        Ty::Mixed => true,
+        Ty::Mixed | Ty::Error => true,
         // A class is admitted by the contract it carries, never by its name:
         // `rule:expressions/try-parse`'s pair, read as `Parses` off the same
         // signature table `crate::expr::operators` asks `Comparable` of. So
