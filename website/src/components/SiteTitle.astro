@@ -5,7 +5,8 @@
  * place of Starlight's own SiteTitle. The name is set on two lines, "Novis-" over "Lang", so it
  * takes little of the bar's width. It has the colors of the name in the home
  * page's hero (src/components/home/Hero.astro): text color into violet into
- * crimson. The colors drift slowly across the name and back, unless the
+ * crimson. The colors drift slowly across the name and back once when the
+ * page loads, and again while the link is hovered or focused, unless the
  * reader asks for less motion.
  *
  * The mark comes from Starlight's `logo` option (see astro.config.ts). Its
@@ -74,14 +75,29 @@ const name = 'Novis-Lang'
     -webkit-text-fill-color: transparent;
   }
 
+  /* The drift runs across and back once when the page loads, and again
+     while the pointer or the focus is on the link; otherwise the name is
+     still. A gradient clipped to text repaints the header, and the blur
+     behind it, on every frame it moves, so a drift that never stops costs
+     every page a share of its main thread. The second name restarts the
+     animation on hover. */
   @keyframes wordmark-drift {
+    to {
+      background-position: 100% 50%;
+    }
+  }
+  @keyframes wordmark-drift-again {
     to {
       background-position: 100% 50%;
     }
   }
   @media (prefers-reduced-motion: no-preference) {
     .wordmark {
-      animation: wordmark-drift 7s ease-in-out infinite alternate;
+      animation: wordmark-drift 3.5s ease-in-out 2 alternate;
+    }
+    .site-title:hover .wordmark,
+    .site-title:focus-visible .wordmark {
+      animation: wordmark-drift-again 3.5s ease-in-out infinite alternate;
     }
   }
 
