@@ -148,26 +148,41 @@ export function findMember(id: string): { cls: CoreClass; member: CoreMember } |
  * A class goes to its page, an enum, exception or interface to its Types
  * page, and a shape type to its own heading on its class page. An enum
  * with no Types page goes to its class page's `#enums` section. A name that is
- * the last segment of exactly one of these is the last resort, and a built-in
- * scalar goes to the Syntax page. A name in `NO_PAGE` has no link, and any
- * other name fails the build, so a signature never links to a page that does
- * not describe it.
+ * the last segment of exactly one of these is the last resort, and a type
+ * built into the language goes to its row in `LANGUAGE_TYPES`. A name in
+ * `NO_PAGE` has no link, and any other name fails the build, so a signature
+ * never links to a page that does not describe it.
  */
-const SYNTAX_PAGE = withBase('/syntax/')
-
 /** The id of a shape type's heading on its class page: `type-info` for `Info`. */
 export const shapeAnchor = (name: string) => `type-${name.toLowerCase()}`
 
-const BUILTIN_TYPES = new Set([
-  'string', 'int', 'uint', 'float', 'decimal', 'bool', 'bytes', 'mixed', 'void', 'null', 'never',
-  'callable', 'array', 'object', 'Iterable', 'Iterator', 'self', 'static',
-])
-
-/** The language types the syntax page has no heading for, each to the concept page that explains it. */
-const FIELD_NAMES_PAGE = withBase('/in-depth/concepts/checked-field-names/')
+/**
+ * Each type built into the language, to the section of a Syntax or concept
+ * page that explains it. A path has no base: `typeLink` adds it. Each anchor is
+ * a `FeatureSection` id or a `##` heading on that page, and
+ * tools/nv/test/core-type-links.test.ts fails when the page or the anchor is gone.
+ */
 const LANGUAGE_TYPES = new Map([
-  ['property', `${FIELD_NAMES_PAGE}#a-field-name`],
-  ['propertyPath', `${FIELD_NAMES_PAGE}#a-path-through-objects`],
+  ['string', '/syntax/values/strings/#text-and-bytes'],
+  ['bytes', '/syntax/values/strings/#text-and-bytes'],
+  ['int', '/syntax/values/numbers/#the-number-types'],
+  ['uint', '/syntax/values/numbers/#the-number-types'],
+  ['float', '/syntax/values/numbers/#the-number-types'],
+  ['decimal', '/syntax/values/numbers/#the-number-types'],
+  ['bool', '/syntax/values/bool-and-null/'],
+  ['null', '/syntax/values/bool-and-null/'],
+  ['mixed', '/syntax/values/union-types/#mixed'],
+  ['void', '/syntax/functions/declaring/#void-never-self-static'],
+  ['never', '/syntax/functions/declaring/#void-never-self-static'],
+  ['self', '/syntax/functions/declaring/#void-never-self-static'],
+  ['static', '/syntax/functions/declaring/#void-never-self-static'],
+  ['callable', '/syntax/functions/anonymous-functions/'],
+  ['array', '/syntax/values/arrays/'],
+  ['object', '/syntax/classes/objects/#the-object-type'],
+  ['Iterable', '/syntax/control-flow/iterators/#iterable-and-iterator'],
+  ['Iterator', '/syntax/control-flow/iterators/#iterable-and-iterator'],
+  ['property', '/in-depth/concepts/checked-field-names/#a-field-name'],
+  ['propertyPath', '/in-depth/concepts/checked-field-names/#a-path-through-objects'],
 ])
 
 /** Every linkable name, fully qualified (`Core\Str`, `Core\Arr::Order`, `Throwable`), to its page. */
@@ -246,9 +261,8 @@ export function typeLink(name: string, owner?: string): string | null {
   // An enum case, `Core\Hash::Digest::Sha256`, links to its enum's page.
   const enumCase = /^(.+::[A-Za-z_][A-Za-z0-9_]*)::[A-Za-z_][A-Za-z0-9_]*$/.exec(name)
   if (enumCase) return typeLink(enumCase[1]!, owner)
-  if (BUILTIN_TYPES.has(name)) return `${SYNTAX_PAGE}#${name}`
   const language = LANGUAGE_TYPES.get(name)
-  if (language) return language
+  if (language) return withBase(language)
   const only = byLastSegment.get(name)
   if (only?.size === 1) return [...only][0]
   if (NO_PAGE.has(name)) return null
