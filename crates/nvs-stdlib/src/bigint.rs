@@ -1887,15 +1887,22 @@ mod tests {
     // covers: Core\BigInt::sqrt
     #[test]
     fn sqrt_by_halves_is_the_librarys_root() {
-        let widths = [
-            ROOT_LEAF_BITS + 1,
-            2 * ROOT_LEAF_BITS + 3,
-            4 * ROOT_LEAF_BITS + 1,
-            9 * ROOT_LEAF_BITS,
-        ];
+        // Under Miri the sweep is the one width that takes a single halving,
+        // the step every wider root repeats. The whole sweep takes Miri past
+        // its 300s budget, and runs natively.
+        let widths: &[u64] = if cfg!(miri) {
+            &[ROOT_LEAF_BITS + 1]
+        } else {
+            &[
+                ROOT_LEAF_BITS + 1,
+                2 * ROOT_LEAF_BITS + 3,
+                4 * ROOT_LEAF_BITS + 1,
+                9 * ROOT_LEAF_BITS,
+            ]
+        };
         let one = BigUint::from(1u32);
         let mut checked = 0usize;
-        for width in widths {
+        for &width in widths {
             let ones = (&one << width) - &one;
             let half = (&one << (width / 2)) + BigUint::from(12345u32);
             let square = &half * &half;
@@ -2283,16 +2290,26 @@ mod tests {
     // covers: Core\BigInt::parse
     #[test]
     fn parse_by_halves_reads_what_the_library_reads() {
-        let lengths = [
-            2 * LEAF_DIGITS,
-            2 * LEAF_DIGITS + 1,
-            3001,
-            4 * LEAF_DIGITS + 1,
-            9001,
-        ];
+        // Under Miri the sweep is one radix and one length just past the first
+        // split, which reads by halves the way every longer text does. The
+        // whole sweep takes Miri past its 300s budget, and runs natively.
+        let (radices, lengths): (&[u32], &[usize]) = if cfg!(miri) {
+            (&[10], &[2 * LEAF_DIGITS + 1])
+        } else {
+            (
+                &[3, 10, 36],
+                &[
+                    2 * LEAF_DIGITS,
+                    2 * LEAF_DIGITS + 1,
+                    3001,
+                    4 * LEAF_DIGITS + 1,
+                    9001,
+                ],
+            )
+        };
         let mut checked = 0usize;
-        for radix in [3u32, 10, 36] {
-            for length in lengths {
+        for &radix in radices {
+            for &length in lengths {
                 let mut seed = u64::from(radix) * 7919 + length as u64;
                 let digits: String = (0..length)
                     .map(|_| {
@@ -2337,7 +2354,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(checked, 3 * lengths.len() * 7);
+        assert_eq!(checked, radices.len() * lengths.len() * 7);
     }
 
     /// `pow` is repeated multiplication rather than a table of remembered
