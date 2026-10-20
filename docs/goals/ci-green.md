@@ -96,15 +96,10 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `67e83f008`. Its CI run,
-https://github.com/novis-lang/novis/actions/runs/39487313208, and its Website run are green.
-
-The Responder examples reached `origin`, so the proofs job got past its feature proofs. Then its step
-"Website stale guard" failed. The diagnostic rewrites (`2a8ccc93c`, `7fb63ee6e`, `5aea550c6`) changed
-example outputs and a snippet's help, and the Responder work rewrote the routes, dispatch and Gate
-pages. No session stamped the pages again. `67e83f008` blesses the snippet and stamps the 25 pages and
-9 question entries, and it writes `Core\Router\Responder`'s questions. No red is handed to the main
-loop, so no watch passes `--past`. `cargo deny` still warns that `deny.toml`'s ignore of
+`origin/main` is at `691cbcd5a`. Its CI run,
+https://github.com/novis-lang/novis/actions/runs/39506154898, and its Website run,
+https://github.com/novis-lang/novis/actions/runs/39506154943, are green. No fix was needed. No red is
+handed to the main loop, so no watch passes `--past`. `cargo deny` still warns that `deny.toml`'s ignore of
 RUSTSEC-2026-0206 matches no crate. It is only a warning.
 
 ### Next
