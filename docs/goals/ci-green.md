@@ -1,0 +1,107 @@
+---
+looper: 1
+title: "GitHub CI stays green on main"
+summary: "Never reached: a loop in the project root watches every CI run on main, fixes each failure the moment a job reports it, commits, pushes and watches again, for as long as main changes."
+context: [tools/nv/cmd/ci.ts, .github/workflows/ci.yml, .github/workflows/pages.yml, looper.toml]
+stages:
+  - id: 1
+    title: "the newest CI and Website runs on main are green"
+    status: open
+    context: [tools/nv/cmd/ci.ts, .github/workflows/ci.yml, .github/workflows/pages.yml]
+---
+
+# GitHub CI stays green on main
+
+## Why
+
+The loop commits to `main` all day, and CI is the only place the whole matrix runs: three operating
+systems, Miri, the fuzzers, the release guards, the proofs and the website. A failure found an hour
+after its push costs a cold cache and a stack of commits to bisect. A failure found the minute its job
+reports it costs one fix.
+
+This goal is never reached. It runs as its own loop in the project root, beside the main loop, and
+nothing retires it. A person stops it with `looper loop stop --loop side-ci-green`.
+
+## Standing decisions
+
+**The loop works in the root, on `main`.** It was added with `looper loop add --side ci-green
+--in-root`, so it has no worktree, no branch and no landing. The main loop's sessions edit the same
+tree at the same time, so every rule for two sessions in one tree holds: commit with a pathspec of your
+own files, never run a tree-wide git command (`stash`, `checkout -- .`, `reset`, `add -A`, `clean`), and
+leave every file you did not write as it is. The claims guard refuses a file another session holds.
+
+**`main` is pushed at three moments, always through `bun nv ci --push`.** Once when this goal's loop
+starts for the first time, at every goal end through `looper.toml`'s `after_retire` hook, and after
+each fix this goal commits. Never `git push`, never a force push, and never a push of another branch.
+A push sends everything on the local `main`, the main loop's finished slices with it.
+
+**`bun nv ci` is the only way the session talks to GitHub.** `--push` pushes and starts the full run.
+`--watch` waits for the first failed job and prints its step and the end of its log. `--status` lists
+every failed job of the newest runs. `--rerun` reruns the failed jobs. Their module doc is
+`tools/nv/cmd/ci.ts`.
+
+**CI is this goal's gate, not `looper verify`.** A fix is checked locally by the one thing that failed:
+`cargo build`, then the failing test by name (`cargo test --test <name> <filter>`), or
+`bun nv verify --fast -p <crate>`, or the `bun nv` step the job runs. Before each commit that touches
+Rust, `cargo fmt --all --check` and `cargo clippy --all-targets` must be clean. The full `looper
+verify` is the main loop's, and this goal never starts one.
+
+**A failure a commit cannot fix is rerun, not fixed.** A runner that went away, a network error while
+downloading, a GitHub outage (githubstatus.com), or a timing guard that failed with no code change
+(`docs/agent/playbook.md`'s measuring traps): `bun nv ci --rerun`, then watch again. A test that
+fails the same way twice is not noise.
+
+**A red that the main loop's open work owns is handed to it.** When the failing file is claimed by the
+main loop's session, or the failure is a feature proof or a perf record the live goal's open stage is
+still writing, tell the main loop with `bun tools/looper/main.ts loop say --loop main "<job>: <what
+failed and why>"` and watch again. Everything else that is red is this goal's to fix, whoever wrote it.
+
+**Nothing here is ever ticked.** The goal has one stage that stays open, and no checkpoints. The
+handoff's *State* is the only record.
+
+**Split.** Each failed job whose cause is independent of the others may go to its own writing
+subagent, one after another, each told its failure, the files to touch, the local check to run and to
+commit with a pathspec. Read a CI log through a read-only subagent when it is longer than the tail
+`--watch` prints. The whole log of each failed job is under `.agent-tmp/ci/`.
+
+**Lanes.** This loop runs beside the main loop and every side loop, and shares the root with the main
+loop only.
+
+## Stages
+
+### 1. the newest CI and Website runs on main are green
+
+Every session runs this cycle until CI is green or the context reaches 120k:
+
+1. **Push once, at the very first session only:** `bun nv ci --push`. The handoff's *State* says
+   whether that push happened. Every later session skips this step.
+2. **Watch:** `bun nv ci --watch` with `run_in_background` and a timeout of 7200000, then end your turn.
+   Its exit code starts your next turn.
+   - **0, green:** write the handoff and the status line `CONTINUE CI green on <sha>`, and stop. The
+     next session's watch waits for the next push.
+   - **1, a job failed:** go to step 3.
+   - **2, `gh` failed twenty times in a row:** check githubstatus.com and `gh auth status`, then
+     watch again. An outage that lasts is reported in the status line with `CONTINUE`.
+   - **3, nothing failed in 110 minutes:** watch again in the same session.
+3. **Fix:** `bun nv ci --status` lists every job that failed so far. Find each cause in the code,
+   fix it, check it locally as § *Standing decisions* says, and commit each fix on its own with a
+   pathspec.
+4. **Push:** `bun nv ci --push`. It cancels the run that failed and starts a full one. Go to step 2.
+
+## Handoff
+
+### State
+
+The goal is new. The first push has not happened. The local `main` is ahead of `origin/main`, and the
+last full run that went green was on `f534cf5ee`.
+
+### Next
+
+**Stage 1, the cycle.** Start at step 1: push once, then watch.
+
+- [ ] Push `main` with `bun nv ci --push`. `tools/nv/cmd/ci.ts:1`
+- [ ] Watch, fix and push until CI is green. `.github/workflows/ci.yml:1`
+
+### Backlog
+
+Nothing waits.
