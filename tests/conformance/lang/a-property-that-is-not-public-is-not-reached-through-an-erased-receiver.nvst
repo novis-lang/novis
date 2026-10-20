@@ -1,0 +1,72 @@
+--TEST--
+A `private` or `protected` property read or written through an `object` or `mixed` receiver throws, as a call of a method that is not `public` does — `rule:types/erased-member-access`
+--FILE--
+<?nvs
+// An erased receiver is outside every class, so it reaches `public` properties
+// only. That holds inside the class too: `same()` reads through `object` and
+// is refused, while `balance()` reads through `$this` and is not.
+class Account {
+    private int $balance = 10;
+    protected string $owner = "ann";
+    public string $label = "main";
+
+    public function constructor() { }
+
+    public function balance(): int {
+        return $this->balance;
+    }
+
+    public function same(object $other): mixed {
+        return $other->balance;
+    }
+}
+
+object $o = new Account();
+mixed $m = new Account();
+
+try {
+    echo $o->balance, "\n";
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+try {
+    $o->balance = 999;
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+try {
+    echo $m->owner, "\n";
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+try {
+    $m->owner = "eve";
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+try {
+    echo $m->balance ?? "none", "\n";
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+try {
+    echo (new Account())->same(new Account()), "\n";
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+
+// A `public` property is reached as before, and the refused writes changed nothing.
+$o->label = "spare";
+echo $o->label, "\n";
+echo ($o as Account)->balance(), "\n";
+echo $m is {balance: int} ? "matches" : "does not match", "\n";
+--EXPECT--
+`Account::$balance` is private. Only a public property can be read through `object`, `mixed` or a shape type.
+`Account::$balance` is private. Only a public property can be written through `object`, `mixed` or a shape type.
+`Account::$owner` is protected. Only a public property can be read through `object`, `mixed` or a shape type.
+`Account::$owner` is protected. Only a public property can be written through `object`, `mixed` or a shape type.
+`Account::$balance` is private. Only a public property can be read through `object`, `mixed` or a shape type.
+`Account::$balance` is private. Only a public property can be read through `object`, `mixed` or a shape type.
+spare
+10
+does not match

@@ -2460,6 +2460,12 @@ For all three:
   This refuses some writes the declared type allows: a `{pet: ?Dog}` field that is `null` takes only
   `null`, an empty array takes only an empty array, and an absent optional field takes nothing. It
   spends nothing per object, which a declared type carried by each anonymous object would.
+- **Visibility:** an erased receiver is outside every class, so a read or write of a property that
+  is not `public` throws, as a call of a method that is not `public` through `mixed` does. That
+  holds inside the property's own class too, whose code reaches the property through a variable of
+  its type. A `??` over such a read throws as well, and `is` with a shape that names the property
+  gives `false`. `Core\Reflect\ClassInfo` reaches further, because it asks the visibility from its
+  own call site ([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
 - **Call:** only `mixed` defers a call. A call through `mixed` is dispatched on the value's own
   descriptor when it runs; a call through a plain `object` or a shape is `E0477`, as the paragraphs
   below say. What cannot be deferred is refused: taking a *method reference* off an erased receiver
