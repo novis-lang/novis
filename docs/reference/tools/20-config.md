@@ -48,7 +48,8 @@ wall_time=unset
 # The blocks the binary accepts
 
 A directive always lives inside a block; the root table holds none. The full roster the parser
-accepts — anything else is `E0601`:
+accepts is below. Any other block is `E0601` when it contains a setting. An unknown block with no
+setting under it gives the warning `W1024`, and Novis ignores it.
 
 | Block | Holds |
 |---|---|

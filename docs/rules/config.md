@@ -141,6 +141,18 @@ costs nothing to refuse, and a typo'd `capabilties` must fail at boot rather tha
 nothing". A typo'd block header is refused the same way and claims no block. Both are `serde`'s own
 behaviour with `deny_unknown_fields`; neither is new machinery.
 
+**One exception: an unknown header with nothing under it is a warning (`W1024`), not `E0601`.** A
+plain `[table]` header the typed tree has no block for, with no key under it at any depth, is removed
+from its file before the file is typed, and the warning names the header, the file and the line. An
+empty header sets nothing, so letting it through loses none of what the refusal protects: there is no
+value to misread as "granted nothing". What it buys is that a file written for a release that had the
+block, with every key commented out, still starts after the block is folded into another or removed.
+Anything under the header — a key, a sub-table with a key, `name = {}` — keeps it `E0601`, and so does
+an empty `[[entry]]` of an unknown array, because writing an entry states that it exists. An empty
+header the tree *does* know is no block at all, the same as a file that never wrote it, and raises no
+warning. `nvs_config::file::parse_with_warnings` is the one place this runs; it costs nothing on a
+file that types first time.
+
 On a reload the same diagnostic refuses the swap and the previous snapshot keeps serving, so a typo is
 never published to a running server either.
 
@@ -159,7 +171,9 @@ the root is.
 `rule:config/every-block-is-argued-where-it-is-added`
 
 The set of top-level blocks is closed, and the typed tree refuses any other with the unknown-key
-diagnostic ([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one)). The format rule owns
+diagnostic ([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one)). That rule's one
+exception holds here too: an unknown header with nothing under it is ignored with a warning. The
+format rule owns
 only the *syntax*; every block's directives, defaults and changeability class are argued by the rule
 that adds the block, so a reader of `nvs.toml` has one place to start:
 

@@ -55,6 +55,34 @@ fn a_well_formed_file_parses_and_is_registered_for_reporting() {
     );
 }
 
+/// An empty unknown table inside an `[[entry]]` is removed from that entry alone: the entry stays,
+/// with what it set, and the warning carries the header and the names the entry accepts.
+#[test]
+fn an_empty_unknown_table_inside_an_entry_is_a_warning() {
+    let mut sources = SourceMap::new();
+    let text = "[[app]]\nroot = \".\"\n[app.shop]\n";
+    let (_, parsed) =
+        nvs_config::file::parse_with_warnings::<nvs_config::Config>(&mut sources, "nvs.toml", text);
+
+    let (config, warnings) = parsed.expect("an empty unknown header is not refused");
+    assert_eq!(config.app.len(), 1);
+    let [warning] = warnings.as_slice() else {
+        panic!("expected one warning: {warnings:?}");
+    };
+    assert_eq!(warning.severity, Severity::Warning);
+    assert_eq!(warning.code, Some(code::W_EMPTY_UNKNOWN_BLOCK));
+    assert!(
+        warning.message.contains("`[app.shop]`"),
+        "{}",
+        warning.message
+    );
+    assert!(
+        warning.notes.iter().any(|note| note.contains("`root`")),
+        "{:?}",
+        warning.notes
+    );
+}
+
 /// A syntax error is not a duplicate, and the code is what a caller switches on.
 #[test]
 fn a_malformed_file_is_refused_under_the_bad_directive_code() {

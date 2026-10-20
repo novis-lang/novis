@@ -331,7 +331,8 @@ pub struct Resolved {
     /// Every override, in the order they happened. `rule:config/check-and-dump-audit-the-tree-offline`'s `nvs config dump --origin` prints these in
     /// full and the boot log summarizes them; dropping them is not an option (see the module doc).
     pub overrides: Vec<Override>,
-    /// What the tree is only *advised* about — `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s readable secret file (`W1005`), its
+    /// What the tree is only *advised* about — an empty header no block answers to (`W1024`,
+    /// [`crate::file::parse_with_warnings`]), `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s readable secret file (`W1005`), its
     /// credential with an edge space (`W1007`), a configured store no capability may reach
     /// (`W1008`, [`crate::store::advise`]), a TLS key log a development host left on and a proxy
     /// that resolves this deployment's destinations (`W1009` and `W1010`, both
@@ -441,7 +442,7 @@ pub fn resolve(
     // origins they resolve their relative paths against.
     let origins = std::mem::take(&mut resolved.origins);
     let materialized = crate::secret::materialize(&mut resolved.config, &origins, files)?;
-    resolved.warnings = materialized.warnings;
+    resolved.warnings.extend(materialized.warnings);
     resolved.secrets = materialized.secrets;
     // `rule:core-classes/db-capabilities`'s trust anchors, beside `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secrets and for the same reason: a `_file` on a
     // `[db]` block is resolved against the file that wrote it, and only the merge knows which of
@@ -599,10 +600,14 @@ fn read_into(
         .read_config(path)
         .map_err(|err| unreadable(path, &err, "the configuration reads it"))?;
     let (source, parsed) =
-        crate::file::parse::<Config>(sources, &path.display().to_string(), &text);
+        crate::file::parse_with_warnings::<Config>(sources, &path.display().to_string(), &text);
     // `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s two refusals are per file, so this is where they run: the diagnostic carries
-    // this file's own line, before anything of it has been merged into the stream.
-    let file = parsed?;
+    // this file's own line, before anything of it has been merged into the stream. Its one
+    // exception, an empty unknown header, is a warning carried to `Resolved::warnings`; the raw
+    // table below still holds that header, and `Merge::finish` drops it with every other empty
+    // table.
+    let (file, warnings) = parsed?;
+    merge.warnings.extend(warnings);
     let table: toml::Table = toml::from_str(&text).map_err(|err| {
         // Unreachable in practice — the typed parse above accepted the same bytes — but a
         // configuration reader is not the place to unwrap on that reasoning.
@@ -785,6 +790,8 @@ struct Merge {
     overrides: Vec<Override>,
     files: Vec<PathBuf>,
     probed: Vec<PathBuf>,
+    /// The per-file warnings, `W1024`, in the order the files were read.
+    warnings: Vec<Diagnostic>,
 }
 
 impl Merge {
@@ -819,7 +826,7 @@ impl Merge {
             files: self.files,
             probed: self.probed,
             overrides: self.overrides,
-            warnings: Vec::new(),
+            warnings: self.warnings,
             table: self.table,
             origins: self.origins,
             secrets: BTreeMap::new(),
