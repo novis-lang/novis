@@ -2277,7 +2277,9 @@ derive is a compile error at the attribute. For a class written with promoted pa
 lists are literally the same declaration, so this costs nothing. It is worth its cost because a
 decode is an ordinary `new`: the generated decoder fills locals and calls the constructor, so a
 decoded object is indistinguishable from a hand-built one and every invariant the constructor
-establishes still holds. A `lateinit` property cannot be a field, being by definition not
+establishes still holds. A deriving class with no written `constructor` is therefore one compile
+error at the attribute (`E0460`), even when every property carries a default: with no parameter
+list, no field has a position to arrive through. A `lateinit` property cannot be a field, being by definition not
 constructor-assigned; `readonly` is unaffected, because the constructor assigns it like any other.
 Because the two lists are checked to agree at compile time, `fromJson(toJson($x))` rebuilding `$x`
 is a property of the mechanism rather than of the care taken writing two functions, and a renamed
@@ -2301,6 +2303,12 @@ no key for that position, and a default carried on a field cannot be read for a 
 field. So the refusal is of the call that asks for a whole instance out of a document or a row rather
 than of the declaration, at every door that reads a derived codec. A field's default key or column
 is the property's own name, exactly, with no case mapping between the two.
+
+**The key is the field's identity**, so two fields of one format with equal keys are a compile error
+at the second (`E0873`), naming the first. The encoder would write the key twice, and the decoder
+would fill both properties from one value. A JSON decode reads a class only from a JSON object and
+an `array<T>` only from a JSON list: `["a"]` and `{"0": "a"}` have the same entries once read, and
+the decode tells them apart by what the document wrote.
 
 **Declined:**
 - **Building the object without its constructor**, the way a serializer for a language with no

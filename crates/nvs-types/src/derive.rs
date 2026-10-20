@@ -752,8 +752,7 @@ pub struct DerivedCodec {
     pub fields: Vec<DerivedField>,
     /// How many parameters the class's `constructor` declares — what a
     /// generated decoder has to fill before it can run one. Zero for a class
-    /// that declares none, which [`check_constructor_parameter`] has already
-    /// reported through [`crate::ctor_init`].
+    /// that declares none, which [`check_class_format`] has already reported.
     pub ctor_arity: usize,
 }
 
@@ -2024,6 +2023,24 @@ fn check_class_format(
         return;
     }
     let params = constructor_params(decl, env);
+    // `rule:core-classes/derive-field-list`: a decode is an ordinary `new`, so
+    // a class with no written constructor has no parameter for any field to
+    // arrive through. It is one error at the attribute, whatever defaults the
+    // properties declare, and every field is still collected below.
+    if params.is_none() {
+        let derive = format.attribute();
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DERIVE_FIELD_NOT_A_PARAMETER,
+                format!("`{class}` has `{derive}` but no `constructor`"),
+            )
+            .with_primary(attribute, "this attribute needs a constructor")
+            .with_help(
+                "A decoder creates the object with `new`, and passes each field to the \
+                 constructor. Write a `constructor` with one parameter for each field.",
+            ),
+        );
+    }
     let mut codec = DerivedCodec {
         ctor_arity: params.map_or(0, <[Param]>::len),
         ..DerivedCodec::default()
@@ -2031,6 +2048,9 @@ fn check_class_format(
     // Whether any property was *refused* rather than skipped — see the empty
     // contract check below, which a refusal must not also report.
     let mut refused = false;
+    // Each kept field's wire key and the name it was declared at, for
+    // [`check_unique_key`].
+    let mut keys: Vec<(String, Span)> = Vec::new();
     // `rule:core-classes/derive-field-list`'s declaration order, over both spellings of a declaration: the
     // members in the order they are written, and the constructor's promoted
     // parameters at the point the constructor itself appears. Walking the
@@ -2051,8 +2071,13 @@ fn check_class_format(
             _ => continue,
         };
         for field in fields {
+            let at = field.name;
             match codec_field(&field, class, format, params, ctx, env) {
-                FieldOutcome::Kept(field) => codec.fields.push(*field),
+                FieldOutcome::Kept(field) => {
+                    check_unique_key(&field.key, at, &keys, format, env);
+                    keys.push((field.key.clone(), at));
+                    codec.fields.push(*field);
+                }
                 FieldOutcome::Skipped => {}
                 FieldOutcome::Refused => refused = true,
             }
@@ -2084,6 +2109,35 @@ fn check_class_format(
         );
     }
     env.exprs.record_codec(format, class.to_string(), codec);
+}
+
+/// `rule:core-classes/derive-field-list`'s "the wire key is the field's
+/// identity": `key`, declared at `at`, is an `E_DERIVE_DUPLICATE_KEY` when a
+/// field before it in `keys` has the same one. The encoder would write the
+/// key twice, and the decoder would fill both properties from one value.
+fn check_unique_key(
+    key: &str,
+    at: Span,
+    keys: &[(String, Span)],
+    format: Format,
+    env: &mut Env<'_>,
+) {
+    let Some((_, first)) = keys.iter().find(|(seen, _)| seen == key) else {
+        return;
+    };
+    let field = format.field_attribute();
+    env.diags.report(
+        Diagnostic::error(
+            code::E_DERIVE_DUPLICATE_KEY,
+            format!("two fields have the key `{key}`"),
+        )
+        .with_primary(at, format!("this field's key is `{key}`"))
+        .with_secondary(*first, "this field has the same key")
+        .with_help(format!(
+            "Each field needs its own key. Give one field another key with `{field}`'s \
+             `name`, or leave it out with `skip: true`."
+        )),
+    );
 }
 
 /// The two members `Core\Json\Codec` declares, which are also the two halves
@@ -2314,9 +2368,8 @@ fn check_constructor_parameter(
     env: &mut Env<'_>,
 ) -> Option<FieldParam> {
     // A class with no written constructor has no parameter list to disagree
-    // with, and `nvs_types::ctor_init` has already reported that its properties
-    // are not definitely assigned (`rule:classes/definite-property-initialization`) — a second diagnostic here would
-    // only bury that one.
+    // with, and [`check_class_format`] has already reported it once at the
+    // attribute — one more diagnostic per field would only bury that one.
     let params = params?;
     let Some((index, param)) = params
         .iter()

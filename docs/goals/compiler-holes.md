@@ -370,9 +370,9 @@ reads and writes each wire key once.
 - [ ] A recognized attribute at a site its rule does not name is a checker error, and `Derive()` follows § *Standing decisions*. `crates/nvs-types/src/attributes.rs:1`, `data/gaps/nvs-types/a-compiler-read-attribute-on-a.json:1`
 - [ ] An array literal in a named attribute is checked against the field's declared array type. `crates/nvs-types/src/attributes.rs:1`, `data/gaps/nvs-types/an-array-literal-in-an-attribute.json:1`
 - [ ] Each contradiction `rule:attributes/api-adds-and-cannot-contradict` names is `E0771`, a second `#[Core\Api]` on one method included. `crates/nvs-types/src/routes.rs:1`, `data/gaps/nvs-types/core-api-accepts-what-its-rule.json:1`
-- [ ] A `#[Core\Json\Derive]` class with no written constructor is a checker error. `crates/nvs-types/src/derive.rs:1`, `data/gaps/nvs-types/a-json-derive-class-with-no.json:1`
-- [ ] Two derived fields with equal wire keys are a checker error. `crates/nvs-types/src/derive.rs:1`, `data/gaps/nvs-types/two-json-derive-fields-with-the.json:1`
-- [ ] A JSON list where a derived class expects an object gives the object issue. `crates/nvs-stdlib/src/json.rs:1`, `data/gaps/nvs-stdlib/a-json-array-decodes-into-a.json:1`
+- [x] A `#[Core\Json\Derive]` class with no written constructor is a checker error. `crates/nvs-types/src/derive.rs:1`, `data/gaps/nvs-types/a-json-derive-class-with-no.json:1`
+- [x] Two derived fields with equal wire keys are a checker error. `crates/nvs-types/src/derive.rs:1`, `data/gaps/nvs-types/two-json-derive-fields-with-the.json:1`
+- [x] A JSON list where a derived class expects an object gives the object issue. `crates/nvs-stdlib/src/json.rs:1`, `data/gaps/nvs-stdlib/a-json-array-decodes-into-a.json:1`
 
 ### 10. operators and locals give what their rules say
 
@@ -479,48 +479,37 @@ another goal.
 ### State
 
 Stages 1, 2, 3, 16, 4, 5, 6, 7 and 8 are done, and every gap record they owned is deleted. Stage 9
-is next.
+has three of its six items done, and their three gap records are deleted.
 
-Stage 8 closed its six gap records, each with a case under `tests/conformance/reject/`:
-
-- A second case of one name in one enum is `E0304` at the second case, from
-  `case_declared_twice` in `crates/nvs-types/src/enums.rs`. The first case keeps its value.
-  Case: `an-enum-case-declared-twice-does-not-compile.nvst`.
-- `new E()` and `E::constructor(...)` on an enum are each one `E0870`
-  (`E_ENUM_HAS_NO_CONSTRUCTOR`), from `report_enum_has_no_constructor` in
-  `crates/nvs-types/src/expr/calls.rs`. `check_new_target` gives the enum's own type, so a
-  typed variable adds no `E0401`. The static-call arm returns no target, so the
-  `CoreAttributes` path gets the same error. Case: `new-on-an-enum-does-not-compile.nvst`.
-- A user attribute on an enum, an enum case or a class constant is `E0871`
-  (`E_ATTRIBUTE_NO_RETRIEVAL_REACHES`), from `reject_unread` in
-  `crates/nvs-types/src/attributes.rs`. A recognized attribute (`derive::ATTRIBUTES`) is left
-  to its own pass, which is stage 9's first item. Case:
-  `an-attribute-on-an-enum-or-a-class-constant-does-not-compile.nvst`.
-- A `<` after a built-in atom (`int`, `iterable`, `mixed` ...) is `E0441` at the `<`, from
-  the parser's `reject_builtin_type_args` (`crates/nvs-syntax/src/parser/ty.rs`), which drops
-  the list. Case: `type-arguments-after-a-built-in-type-do-not-compile.nvst`.
-- A hook on a `static` property is `E0872` (`E_STATIC_PROPERTY_WITH_HOOK`), and a second hook
-  of one kind is `E0304` with the second hook left out. Both are in the parser
-  (`parse_property_members`, `parse_property_hooks` in `crates/nvs-syntax/src/parser/decl.rs`),
-  beside `E0843`. Cases: `a-hook-on-a-static-property-does-not-compile.nvst`,
-  `a-property-hook-declared-twice-does-not-compile.nvst`.
-- The rules: `rule:enums/declaration` (one name per case), `rule:enums/no-class-machinery`
-  (`E0870`), `rule:attributes/attach-sites-and-forms` (`E0871`),
-  `rule:classes/property-hooks` (`E0872` and one hook per kind) and `rule:types/no-user-generics`
-  (the built-in `<`).
+- A `#[Json\Derive]` or `#[Db\Derive]` class with no written `constructor` is one `E0460` at the
+  attribute, even when every property has a default, from `check_class_format` in
+  `crates/nvs-types/src/derive.rs`. Its fields are still collected, so nothing else changes. Case:
+  `tests/conformance/reject/a-json-derive-class-with-no-constructor-does-not-compile.nvst`.
+- Two fields of one format with equal wire keys are `E0873` (`E_DERIVE_DUPLICATE_KEY`, new in
+  `crates/nvs-diagnostics/src/code/types_e08.rs`) at the second, naming the first, from
+  `check_unique_key` in `derive.rs`. The diagnostic's primary line is the second field's, but the
+  `-->` location is the first span in source order. Case:
+  `tests/conformance/reject/two-derived-fields-with-one-key-do-not-compile.nvst`.
+- A wire decode (`Core\Json::decodeAs`, `Core\Request::jsonAs`) tells a JSON list from a JSON
+  object. `crate::json::read_marked` notes the address of each array the parse built from a list in
+  a `Lists` set, and `Reading::Wire` carries it. `Contract::object_of` refuses a list where a
+  class is expected (the top, a nested field, an `array<Class>` element), and `Contract::list_of`
+  refuses an object where a list is expected (`decode_each`, `decode_positions`).
+  `Contract::describe` names "a list" or "an object" in the issue under a wire reading. The
+  `Reading::Values` door (`Core\Arr::shapeAs`, forms) is unchanged. Case:
+  `tests/conformance/core/json-decode-as-reads-a-class-only-from-a-json-object.nvst`.
+- The rule: `rule:core-classes/derive-field-list` states all three.
 
 ### Next
 
-**Stage 9: attributes and derived JSON codecs are checked where they are written.** A recognized
-attribute is accepted only where it builds something, and a derived codec reads and writes each
-wire key once. § *Standing decisions* settles `Derive()`, the array literal and the JSON list.
+**Stage 9's last three items.** § *Standing decisions* settles `Derive()` and the array literal.
 
 - [ ] Stage 9: a recognized attribute at a site its rule does not name is a checker error, and `Derive()` follows § *Standing decisions*. `crates/nvs-types/src/attributes.rs:1`, `data/gaps/nvs-types/a-compiler-read-attribute-on-a.json:1`
 - [ ] Stage 9: an array literal in a named attribute is checked against the field's declared array type. `crates/nvs-types/src/attributes.rs:1`, `data/gaps/nvs-types/an-array-literal-in-an-attribute.json:1`
-- [ ] Stage 9: each contradiction `rule:attributes/api-adds-and-cannot-contradict` names is `E0771`, a second `#[CoreApi]` on one method included. `crates/nvs-types/src/routes.rs:1`, `data/gaps/nvs-types/core-api-accepts-what-its-rule.json:1`
-- [ ] Stage 9: a `#[CoreJsonDerive]` class with no written constructor is a checker error. `crates/nvs-types/src/derive.rs:1`, `data/gaps/nvs-types/a-json-derive-class-with-no.json:1`
-- [ ] Stage 9: two derived fields with equal wire keys are a checker error. `crates/nvs-types/src/derive.rs:1`, `data/gaps/nvs-types/two-json-derive-fields-with-the.json:1`
-- [ ] Stage 9: a JSON list where a derived class expects an object gives the object issue. `crates/nvs-stdlib/src/json.rs:1`, `data/gaps/nvs-stdlib/a-json-array-decodes-into-a.json:1`
+- [ ] Stage 9: each contradiction `rule:attributes/api-adds-and-cannot-contradict` names is `E0771`, a second `#[Core\Api]` on one method included. `crates/nvs-types/src/routes.rs:1`, `data/gaps/nvs-types/core-api-accepts-what-its-rule.json:1`
+
+The installed `looper` binary has no `verify` subcommand, so this session ran
+`bun nv affected --run` as the gate.
 
 A note for stage 11: its `...` on an anonymous function's parameter will also reach the anonymous
 function in `a-variadic-parameter-that-is-not-the-last-does-not-compile.nvst`, whose expected

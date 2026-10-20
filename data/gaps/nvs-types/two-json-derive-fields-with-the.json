@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/derive.rs",
-  "title": "Two `#[Core\\Json\\Derive]` fields with the same wire key compile.",
-  "text": "`public int $a;` beside `#[Core\\Json\\Field(name: \"a\")] public int $b;` passes `nvs check`. `Core\\Json::encode` then writes a document with the key `a` twice, `{\"a\":1,\"a\":2}`, and `Core\\Json::decodeAs` fills both properties from the one key, so `{\"a\":5}` decodes to `5` and `5`. `rule:core-classes/derive-field-list` makes the wire key the field's identity, and a duplicate key is a document most readers resolve by keeping the last value. It closes when two fields whose wire keys are equal are a checker error, with a conformance case.",
-  "goal": "compiler-holes"
-}

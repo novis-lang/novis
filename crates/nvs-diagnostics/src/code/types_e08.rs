@@ -980,4 +980,13 @@ codes! {
         "A `static` property cannot have a `get` or `set` hook. A hook runs when a property of \
          an object is read or written. Remove `static`, or remove the hooks.",
     );
+    /// Two fields of one `#[Json\Derive]` or `#[Db\Derive]` class with the
+    /// same wire key (`rule:core-classes/derive-field-list`). The key is a
+    /// field's identity, so the encoder would write it twice and the decoder
+    /// would fill both properties from one value.
+    pub const E_DERIVE_DUPLICATE_KEY: Code = Code::new("E0873").card(
+        "Two fields of a class with `#[Json\\Derive]` or `#[Db\\Derive]` have the same key. \
+         Each field needs its own key. Change one key with `#[Json\\Field(name: \"...\")]` or \
+         `#[Db\\Field(name: \"...\")]`, or leave one field out with `skip: true`.",
+    );
 }

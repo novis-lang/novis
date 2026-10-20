@@ -1,0 +1,29 @@
+--TEST--
+Two fields of one derived class with the same wire key are `E0873` at the second, whether the key is the property's name or a `name:` override
+--FILE--
+<?nvs
+#[Core\Json\Derive]
+class Order {
+    public function constructor(
+        public int $total,
+        #[Core\Json\Field(name: "total")]
+        public int $sum,
+        #[Core\Json\Field(name: "id")]
+        public int $first,
+        #[Core\Json\Field(name: "id")]
+        public int $second,
+    ) {}
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0873]: two fields have the key `total`
+  --> case.nvs:5:20
+%A
+error[E0873]: two fields have the key `id`
+   --> case.nvs:9:20
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
