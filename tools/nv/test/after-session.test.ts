@@ -37,7 +37,7 @@ function hook(name: string, nightly: SweepCmdSeams["gh"] = GREEN_NIGHTLY): Sweep
   rmSync(root, { recursive: true, force: true });
   mkdirSync(root, { recursive: true });
   const kept: number[] = [];
-  return { root, kept, voice: SILENT, gh: nightly, disk: async (keepRuns) => (kept.push(keepRuns), "disk: freed nothing") };
+  return { root, kept, voice: SILENT, loopKind: "main", gh: nightly, disk: async (keepRuns) => (kept.push(keepRuns), "disk: freed nothing") };
 }
 
 const lastSweep = (root: string) => join(root, LAST_SWEEP);
@@ -53,6 +53,16 @@ describe("bun nv sweep: the disk and its own lines", () => {
     const h = hook("disk");
     expect(await sweep(["--keep-runs", "3"], h)).toBe(0);
     expect(h.kept).toEqual([3]);
+  });
+
+  test("under a side loop in the root it sweeps nothing, reads no CI run and leaves the file alone", async () => {
+    const nightly = ghOf([{ databaseId: 1, status: "completed", conclusion: "success" }]);
+    const h = { ...hook("root-side", nightly.gh), loopKind: "root-side" };
+    looperWrote(h.root);
+    expect(await sweep([], h)).toBe(0);
+    expect(h.kept).toEqual([]);
+    expect(nightly.asked).toEqual([]);
+    expect(readFileSync(lastSweep(h.root), "utf8")).toBe(`${LOOPER_LINE}\n`);
   });
 
   test("nv sweep exits 0 on a bad argument, says why, sweeps nothing, and still reads the nightly run", async () => {
