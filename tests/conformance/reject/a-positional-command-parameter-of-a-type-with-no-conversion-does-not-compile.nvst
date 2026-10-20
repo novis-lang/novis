@@ -1,0 +1,42 @@
+--TEST--
+A positional `#[Command]` parameter is held to the conversions an `#[Option]` is, and an `array<string>` is allowed only as the last one — `rule:tooling/commands-are-compiled` and `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`
+--FILE--
+<?nvs
+// Cases of two different enums leave no enum for a word to be a case of,
+// so no conversion exists. `float` and `?int` have none either.
+enum Level {
+    Quiet,
+    Loud,
+}
+
+enum Mode {
+    Fast,
+    Slow,
+}
+
+class Radio {
+    #[Core\Command(name: "tune")]
+    public static function tune(Level::Loud|Mode::Fast $level): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "mix")]
+    public static function mix(float $gain, ?int $track, array<string> $files, string $out): uint {
+        return 0;
+    }
+}
+
+uint $status = Core\Command::run();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0746]: `Level::Loud|Mode::Fast` is not a type an argument of `tune` can be given at
+%A
+error[E0746]: `float` is not a type an argument of `mix` can be given at
+%A
+error[E0746]: `int|null` is not a type an argument of `mix` can be given at
+%A
+error[E0746]: `$files` of `mix` is an `array<string>` and is not the last argument
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

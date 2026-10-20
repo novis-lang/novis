@@ -7,6 +7,8 @@
   ],
   "guardedBy": [
     "tests/conformance/core/a-task-all-answers-a-shape-each-field-keeping-its-own-type.nvst",
+    "tests/conformance/reject/a-task-all-field-whose-function-takes-a-parameter-does-not-compile.nvst",
+    "tests/conformance/core/a-task-all-field-typed-callable-whose-function-takes-a-parameter-throws.nvst",
     "crates/nvs-types/tests/core_members.rs"
   ]
 }

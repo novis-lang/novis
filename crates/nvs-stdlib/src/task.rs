@@ -468,6 +468,23 @@ nvs_runtime::nvs_helper! {
         let shape = receiver(args, "Core\\Task::all")?;
         let bounds = bounds(args, 1, "Core\\Task::all")?;
 
+        // The checker refuses a field whose written signature has a parameter
+        // (`E0878`), and a field typed bare `callable` reaches here unproven.
+        // Each child is called with no arguments, so such a field throws here,
+        // before any child starts.
+        for slot in 0..shape.field_count() {
+            let arity = nvs_runtime::callable_arity(shape.field(slot))?;
+            if arity > 0 {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Logic,
+                    format!(
+                        "Core\\Task::all calls each field's function with no arguments, and one \
+                         of them has {arity} parameter(s)"
+                    ),
+                ));
+            }
+        }
+
         // Every callable is *borrowed* from the argument's slot — the module
         // doc's paragraph on what a job captures owns why nothing is retained.
         let jobs: Vec<Job> = (0..shape.field_count())

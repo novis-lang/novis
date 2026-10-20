@@ -2384,8 +2384,16 @@ pub(crate) fn check_anon_fn(
         if param.inout {
             report_by_reference_parameter(param, env);
         }
+        report_variadic_or_default_parameter(param, env);
         params.push(ty);
-        inner.declare_param(name.clone(), ty, param.name);
+        // The body of a refused variadic reads the list it meant, so it
+        // reports nothing past the one error at the `...`.
+        let bound = if param.variadic {
+            env.interner.array(ty)
+        } else {
+            ty
+        };
+        inner.declare_param(name.clone(), bound, param.name);
         inner_live.insert(name);
     }
     inner.captures = Some(Captures {
@@ -2527,6 +2535,42 @@ fn infer_param_type(
         ),
     );
     env.interner.mixed()
+}
+
+/// `rule:types/anonymous-function`'s parameter list: each parameter takes
+/// exactly one argument, so it has neither a `...` nor a default.
+///
+/// A call through `callable` passes the arguments it was given and checks
+/// only that there are enough of them (`nvs_runtime::callable`), so a variadic
+/// parameter would collect no list and a default would never be read. Both are
+/// the same mistake and share one code. The parameter is still bound at its
+/// declared type afterwards, so the body reports nothing more about it.
+fn report_variadic_or_default_parameter(param: &nvs_syntax::ast::Param, env: &mut Env<'_>) {
+    let (label, site, help) = if param.variadic {
+        (
+            "declared with `...` here",
+            param.name,
+            "remove the `...`. To pass many values, declare an `array<T>` parameter and pass \
+             one array",
+        )
+    } else if let Some(default) = &param.default {
+        (
+            "a default value here",
+            default.span,
+            "remove the default, and pass the value in every call",
+        )
+    } else {
+        return;
+    };
+    let name = span_text(env.src, param.name).to_owned();
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ANON_FN_PARAM_SHAPE,
+            format!("the anonymous function's parameter `{name}` takes exactly one argument"),
+        )
+        .with_primary(site, label)
+        .with_help(help),
+    );
 }
 
 /// `rule:types/callable-is-the-only-function-type`'s opaque `callable`, as a refusal: an anonymous function declares no `inout $x`

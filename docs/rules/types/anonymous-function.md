@@ -11,6 +11,11 @@ A block-bodied `fn` still declares its return type (`E0450`) — inferring one w
 return-type inference, which this language does not do. `static fn` is diagnosed as a `function`
 anonymous function.
 
+Each parameter of a `fn` takes exactly one argument. A `...` or a default on one is `E0877` at the
+parameter: a call through `callable` passes one argument for each declared parameter and checks only
+that there are enough, so a variadic parameter would collect no list and a default would never be read.
+A function that takes many values declares an `array<T>` parameter.
+
 This removes a second spelling rather than adding a capability: a method reference and the
 expression-bodied anonymous function already produce exactly the value a block-bodied anonymous function does
 (`rule:types/callable-values`). Capture is never written (`rule:types/implicit-capture`), and an
@@ -24,5 +29,9 @@ keep that restriction.
   (`rule:statements/nothing-gets-a-second-name`).
 - **A bare `($x) => ...` without `fn`.** A parenthesised list before `=>` cannot be told apart from a
   parenthesised expression without a cover grammar; `fn` decides it from one token.
+- **Filling a missing argument from a parameter's default, or collecting a `...` into a list.** A
+  `callable` carries its arity and its parameter tags, never its defaults, so each call through it
+  would have to read the declaration at run time. One argument for each parameter keeps the call as it
+  is.
 - **Blocks that are expressions, returning their last value.** That decides statements against
   expressions for the whole language to save one `return`.

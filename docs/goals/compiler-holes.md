@@ -480,32 +480,66 @@ another goal.
 
 Stages 1, 2, 3, 16, 4, 5, 6, 7, 8, 9 and 10 are done, and every gap record they owned is deleted.
 
-- `$this = …` and every compound assignment to `$this` are the new `E0875` (`E_THIS_ASSIGNED`),
-  in `reject_this_write` at the top of `check_assign` (`crates/nvs-types/src/expr/assign.rs`).
-  The rule is the new `rule:classes/this-is-not-assignable`.
-- A second `default` in a `match` or a `switch` is the new `E0876` (`E_SECOND_DEFAULT`) at its
-  keyword, in `operators::reject_second_default`, called from `infer`'s `Match` arm and from
-  `locals.rs`'s `Switch` arm. The rule is a paragraph of `rule:expressions/a-match-has-at-least-one-arm`.
-- A destructuring leaf is declared with `strict`, like a `LocalDecl`, so a name already declared or
-  written twice in one pattern is `E0406` (`rule:types/declaration`).
-- `binary_result` widens a single-value operand to its base for arithmetic and bitwise operators, so
-  `$n + 1` on an `int` narrowed by `$n == 100` is `int` (`rule:types/single-value-types`).
-- A `static` property is left out of `collect_public_properties`
-  (`crates/nvs-types/src/expr/members.rs`), so a property key's literal, its run-time conversion and
-  the `E0405` list no longer name it (`rule:types/property-key`).
-- `-1` beside a `uint` threw in `nvs-ir`: `lower_binary` lowers the right operand at the left's
-  representation, and `lower_unary` passed `uint` down to the digit run. `lower_unary` now lowers a
-  negated digit run with no expectation when it is `uint` (`crates/nvs-ir/src/lower/operator.rs`),
-  and the comparison is the exact `int`/`uint` one, also for the largest `uint`.
-- Cases: `tests/conformance/reject/` `an-assignment-to-this-…`, `a-second-default-in-a-match-or-a-switch-…`,
-  `a-destructuring-variable-already-declared-…` and `a-property-key-naming-a-static-property-…`, and
-  under `tests/conformance/lang/` `a-negative-literal-compared-with-a-uint-is-false.nvst`,
-  `arithmetic-on-an-int-narrowed-by-a-literal-keeps-int.nvst` and
-  `a-property-key-from-a-string-at-run-time-skips-a-static-property.nvst`.
+**Stage 11 is written in the working tree and NOT committed.** All seven items are built, `cargo
+build` is clean, and each new or changed case passes alone under `target/debug/nvs test`. The gate
+(`bun nv affected --run`) was started and stopped at the context budget, so nothing is verified past
+those cases. The seven gap records are deleted in the tree (`git rm`).
+
+- **Anonymous function parameters:** a `...` or a default is the new `E0877`
+  (`E_ANON_FN_PARAM_SHAPE`) at the `...` or the default, in `report_variadic_or_default_parameter`
+  (`crates/nvs-types/src/expr/calls.rs`), called from `check_anon_fn`. A refused variadic binds as
+  `array<T>` in the body, so it reports once. Rule: a paragraph and a Declined bullet of
+  `rule:types/anonymous-function`.
+- **`Core\Task::all`:** a written field whose signature has a parameter is the new `E0878`
+  (`E_TASK_FIELD_TAKES_PARAMETERS`) at the field, in `assign::report_task_fields_with_parameters`,
+  called from the generic-call argument check in `crates/nvs-types/src/expr/args.rs` (about line
+  1699). `is_assignable`'s `ShapeOfCallables` arm also refuses a signature with parameters, so a
+  shape held in a variable is `E0401`. A field typed bare `callable` is checked at run time:
+  `nvs_core_task_all` (`crates/nvs-stdlib/src/task.rs`) reads each field's arity first and throws a
+  `LogicError`. Rule: a paragraph of `rule:concurrency/all-answers-a-typed-shape`.
+- **Command spellings:** an empty or spaced `name:` or `long:`, and a `short:` that is not one ASCII
+  letter or digit, are the new `E0879` (`E_COMMAND_SPELLING`), in `report_spelling` /
+  `spellings` / `collect_command` (`crates/nvs-types/src/commands.rs`).
+- **Positional command parameters:** `check_positional` holds them to `check_convertible` (`E0746`,
+  worded "an argument of"). A trailing `array<string>` is the new `ArgConv::Words` in both
+  `nvs_types::commands` and `nvs_runtime::commands`, mapped in `crates/nvs-cli/src/main.rs`, and
+  collected by `fill` in `crates/nvs-stdlib/src/command.rs`. The usage line shows `[<files>...]`. An
+  `array<string>` that is not the last positional is `E0746`. An array default is already `E0451`.
+  A row with `ArgConv::Unconverted` is now a fatal internal error, since the checker refuses every
+  such parameter. The `E0746` card is rewritten. Rules: `rule:tooling/commands-are-compiled` and
+  `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`. Two playbook bullets about the
+  old positional throw are deleted, and the old case moved to
+  `tests/conformance/reject/a-positional-command-parameter-of-a-type-with-no-conversion-does-not-compile.nvst`.
+- **`#[TestWith]` `null`:** `materialize` in `crates/nvs-cli/src/runner.rs` gives `Value::null()`
+  for `ConstArg::Null`. Rule: a paragraph of `rule:testing/data-rows`.
+- **`#[Test]` values:** an empty or blank `skip:` or `because:`, and a `retries:` below 1, are the new
+  `E0880` (`E_TEST_OPTION_VALUE`), in `check_option_values` (`crates/nvs-types/src/testing.rs`).
+  Rule: `rule:testing/runner-is-strict`.
+- New cases, each listed in its rule's `guardedBy`: under `tests/conformance/reject/`
+  `an-anonymous-function-parameter-with-a-variadic-or-a-default-…`,
+  `a-task-all-field-whose-function-takes-a-parameter-…`,
+  `a-command-name-or-option-name-no-command-line-can-type-…`,
+  `a-positional-command-parameter-of-a-type-with-no-conversion-…` and
+  `an-empty-test-reason-or-a-retry-count-below-one-…`; under `tests/conformance/core/`
+  `a-task-all-field-typed-callable-whose-function-takes-a-parameter-throws.nvst`,
+  `command-run-collects-the-remaining-words-into-a-trailing-array-of-strings.nvst` and
+  `command-run-gives-an-empty-array-when-no-word-is-left.nvst`; under `tests/conformance/lang/`
+  `a-null-data-row-field-fills-a-nullable-parameter-with-null.nvst`.
+  `a-variadic-parameter-that-is-not-the-last-does-not-compile.nvst` now expects the `E0877` too.
+- `website/src/lib/core.ts` and `tools/nv/test/core-type-links.test.ts` were already changed in the
+  tree before this session and are not part of stage 11. Leave them out of its commits.
 
 ### Next
 
-**Stage 11.** Seven items, in the checker's call, command and test files.
+**Stage 11: verify and commit what is in the tree.** Run `bun nv affected --run` once, fix every
+failure it names in one pass, and run it again. Likely spots: a case or a website page that pins
+the old `E0746` card or help, a `Core\Command` help or completion snapshot, and `bun nv proofs
+--comments` on the new cases. Then commit in three slices: the anonymous functions and
+`Task::all` (`calls.rs`, `args.rs`, `assign.rs`, `task.rs`); the commands (`commands.rs` in
+`nvs-types`, `nvs-runtime` and `nvs-stdlib`, `main.rs`, the two tooling rules, the two playbook
+deletions); and the tests (`testing.rs`, `runner.rs`, the two testing rules). The diagnostic
+codes in `types_e07.rs` and `types_e08.rs` go with the slice that uses them. Tick the seven items
+and set stage 11 to `done` once the gate is green.
 
 - [ ] Stage 11: a `...` on an anonymous function's parameter is a diagnostic at the parameter. `crates/nvs-types/src/expr/calls.rs:1`, `data/gaps/nvs-types/a-variadic-parameter-on-an-anonymous.json:1`
 - [ ] Stage 11: a default on an anonymous function's parameter is a diagnostic at the parameter. `crates/nvs-types/src/expr/calls.rs:1`, `data/gaps/nvs-types/an-anonymous-function-parameter-default-is.json:1`
@@ -516,12 +550,11 @@ Stages 1, 2, 3, 16, 4, 5, 6, 7, 8, 9 and 10 are done, and every gap record they 
 - [ ] Stage 11: an empty `skip:` or `because:`, and a `retries:` below 1, are compile errors. `crates/nvs-types/src/testing.rs:1`, `data/gaps/nvs-types/an-empty-skip-reason-and-a.json:1`
 
 The installed `looper` binary has no `verify` subcommand, so these sessions run
-`bun nv affected --run` as the gate. The next free diagnostic code is `E0877`
+`bun nv affected --run` as the gate. The next free diagnostic code is `E0881`
 (`crates/nvs-diagnostics/src/code/types_e08.rs`).
 
-The `...` item will also reach the anonymous function in
-`a-variadic-parameter-that-is-not-the-last-does-not-compile.nvst`, whose expected block then needs
-that error too.
+Then **stage 12** (`### 12.` in this file): a route link matches its route, and an unread body
+never costs the response.
 
 ### Backlog
 

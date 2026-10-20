@@ -114,6 +114,55 @@ pub(crate) fn note_float_widening(value: &Expr, from: TypeId, to: TypeId, env: &
     note_float_widening_at(value.unparenthesized().span, from, to, env);
 }
 
+/// `rule:concurrency/all-answers-a-typed-shape`'s zero-argument fields, at
+/// the field: a `Core\Task::all` shape written at the call, one of whose
+/// functions declares a parameter, is `E0878` at that field's value.
+///
+/// [`is_assignable`] refuses the same shape wherever it comes from, so a shape
+/// held in a variable still gets the plain mismatch. This only moves the error
+/// to the field when the field is in sight. Returns whether it reported, so
+/// the generic call's argument check adds no second mismatch for the whole
+/// argument.
+pub(crate) fn report_task_fields_with_parameters(
+    expr: &Expr,
+    actual: TypeId,
+    env: &mut Env<'_>,
+) -> bool {
+    let ExprKind::AnonObject(written) = &expr.unparenthesized().kind else {
+        return false;
+    };
+    let Ty::Shape(fields) = env.interner.get(actual).clone() else {
+        return false;
+    };
+    let mut reported = false;
+    for field in written {
+        let name = span_text(env.src, field.name);
+        let Some(declared) = fields.iter().find(|f| f.name == name) else {
+            continue;
+        };
+        let Ty::CallableSig { params, .. } = env.interner.get(declared.ty) else {
+            continue;
+        };
+        if params.is_empty() {
+            continue;
+        }
+        let count = params.len();
+        env.diags.report(
+            Diagnostic::error(
+                code::E_TASK_FIELD_TAKES_PARAMETERS,
+                format!("the function in field `{name}` has {count} parameter(s)"),
+            )
+            .with_primary(field.value.span, "`Core\\Task::all` calls this with no arguments")
+            .with_help(
+                "remove the parameters. The function can read a variable from the code around \
+                 it, so a value it needs can come from there",
+            ),
+        );
+        reported = true;
+    }
+    reported
+}
+
 /// [`note_float_widening`] for a value with no expression of its own: the
 /// result of `$x ??= e`, which `nvs-ir` lowers as the `$x ?? e` it means, at
 /// the assignment's span.
@@ -345,16 +394,18 @@ fn assignable(
     // Checked here rather than at the binding pass because it is a question
     // about the argument's *type*, which is what `rule:types/callable-signature`
     // put within reach: a field is refused for declaring no callable at all,
-    // never for being written somewhere other than at the call.
+    // never for being written somewhere other than at the call. Each field is
+    // called with no arguments, so a signature with a parameter is refused too,
+    // and [`report_task_fields_with_parameters`] names the field when the
+    // shape is written at the call.
     if let Ty::ShapeOfCallables(_) = interner.get(to) {
         let Ty::Shape(fields) = interner.get(from) else {
             return false;
         };
-        return fields.iter().all(|field| {
-            matches!(
-                interner.get(field.ty),
-                Ty::Callable | Ty::CallableSig { .. }
-            )
+        return fields.iter().all(|field| match interner.get(field.ty) {
+            Ty::Callable => true,
+            Ty::CallableSig { params, .. } => params.is_empty(),
+            _ => false,
         });
     }
     // `rule:types/callable-arity` and `rule:types/callable-variance` are one

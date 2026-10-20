@@ -9,6 +9,9 @@ every time: write the row against the parameter list. A field naming no paramete
 not a literal of that parameter's declared type, a row omitting a field its siblings supply, and the
 marker written on a method that is no test at all.
 
+`null` is a literal of a parameter whose type has `null` in it, such as `?int`, and the row fills
+that parameter with `null`. At a parameter whose type has no `null`, it is the same refusal.
+
 Where a row and a fixture could both answer one parameter, the **row** wins: it was written against
 this method's own parameter list, while a fixture answers every method of the class at once. Each
 row's values are folded to constants in parameter order rather than in written order, because that

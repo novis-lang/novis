@@ -901,8 +901,9 @@ codes! {
          one of them.",
     );
 
-    /// An `#[Option]` is attached to a parameter whose declared type has no
-    /// conversion from `string`.
+    /// A `#[Command]` method's parameter whose declared type has no conversion
+    /// from `string`: an `#[Option]`, or a positional argument. A positional
+    /// `array<string>` is admitted only as the last positional argument.
     ///
     /// `rule:tooling/commands-are-compiled`'s third compile error. A matched value's type comes from
     /// the parameter and the argument arrives as text, so a parameter no text
@@ -915,10 +916,11 @@ codes! {
     /// attribute is written correctly and it is the declared type that cannot
     /// answer it.
     pub const E_OPTION_TYPE_HAS_NO_CONVERSION: Code = Code::new("E0746").card(
-        "An option's value arrives as text, so an `#[Option]` parameter needs a type that text can \
-         be converted to. Use `string`, `int`, `uint`, `decimal`, `bool`, an enum, a set of \
-         allowed values like `\"asc\"|\"desc\"`, or a class that implements `Parses`, like \
-         `Core\\Uuid`.",
+        "A command line argument arrives as text, so each parameter of a `#[Command]` method needs \
+         a type that text can be converted to. Use `string`, `int`, `uint`, `decimal`, `bool`, an \
+         enum, a set of allowed values like `\"asc\"|\"desc\"`, or a class that implements \
+         `Parses`, like `Core\\Uuid`. The last parameter without `#[Option]` can also be \
+         `array<string>`. It gets all the remaining words.",
     );
 
     /// A `#[Route]` gives no `path`, no `method`, or neither.

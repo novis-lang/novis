@@ -98,7 +98,7 @@
 //! `nvs-stdlib` is handed it rather than reading `argv[0]` (`rule:security/capability-check-at-the-door`).
 
 use nvs_runtime::commands::{ArgConv, CaseValue, Command, CommandArg, CommandTable};
-use nvs_runtime::{Decimal, Fault, MethodRow, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Decimal, Fault, MethodRow, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
     ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -307,18 +307,16 @@ nvs_runtime::nvs_helper! {
         };
         // Asked once, before a word is matched, so that a row the compiler
         // could not choose a conversion for answers as what it is — a
-        // declaration that was refused where it was written
-        // (`nvs_runtime::commands::ArgConv::Unconverted`) — rather than as a
-        // complaint about the argument that happened to reach it.
+        // declaration the compiler refuses where it is written
+        // (`nvs_runtime::commands::ArgConv::Unconverted`), so a table it did
+        // not check — rather than as a complaint about the argument that
+        // happened to reach it.
         if let Some(arg) = row.args.iter().find(|arg| arg.conv == ArgConv::Unconverted) {
-            return Err(Fault::thrown_as(
-                ThrownClass::Logic,
-                format!(
-                    "`Core\\Command::run` has no conversion into the type `{}`'s `{}` is \
-                     declared at",
-                    row.name, arg.param
-                ),
-            ));
+            return Err(Fault::fatal(format!(
+                "internal error: `Core\\Command::run` has no conversion into the type `{}`'s `{}` \
+                 is declared at",
+                row.name, arg.param
+            )));
         }
         let values = match matched(&row, &line[1..]) {
             Ok(values) => values,
@@ -472,13 +470,18 @@ fn matched(row: &Command, words: &[String]) -> Result<Vec<Value>, String> {
 /// takes no value; any other word fills the next positional. An argument nobody
 /// wrote takes its declared default where the row carries one, is `false` where
 /// it is a flag — § 6's rule, which outranks a flag's own declared default —
-/// and is a usage error otherwise.
+/// and is a usage error otherwise. A trailing `array<string>`
+/// ([`ArgConv::Words`]) takes every positional word left, and is an empty
+/// array when none is.
 fn fill(row: &Command, words: &[String], slots: &mut [Option<Value>]) -> Result<(), String> {
     let positions: Vec<usize> = (0..row.args.len())
         .filter(|&index| !row.args[index].is_option())
         .collect();
     let mut filled = 0;
     let mut index = 0;
+    // The words a trailing `array<string>` collects. Built into an array only
+    // once every word is read, so a usage error before that frees nothing.
+    let mut rest: Vec<&str> = Vec::new();
     while let Some(word) = words.get(index) {
         index += 1;
         if word.starts_with('-') && word.len() > 1 {
@@ -507,11 +510,23 @@ fn fill(row: &Command, words: &[String], slots: &mut [Option<Value>]) -> Result<
                 positions.len()
             ));
         };
+        if row.args[slot].conv == ArgConv::Words {
+            rest.push(word);
+            continue;
+        }
         filled += 1;
         slots[slot] = Some(convert(&row.args[slot], word)?);
     }
     for (arg, slot) in row.args.iter().zip(slots.iter_mut()) {
         if slot.is_some() {
+            continue;
+        }
+        if arg.conv == ArgConv::Words {
+            let mut collected = NvsArray::new();
+            for word in &rest {
+                collected.append(Value::str(NvsStr::new(word.as_bytes())));
+            }
+            *slot = Some(Value::array(collected));
             continue;
         }
         // § 6's flag is *given by being written*, so the one an author left
@@ -633,8 +648,14 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
                         .join(", ")
                 )
             }),
+        // Unreachable: [`fill`] collects these words itself, and builds the
+        // array once every word is read.
+        ArgConv::Words => Err(format!(
+            "`{}` collects the remaining words and converts none of them",
+            arg.param
+        )),
         // Unreachable: the helper refuses a row carrying one before it reads a
-        // word, so that the gap answers as a `LogicError` rather than as a
+        // word, so that the gap answers as an engine fault rather than as a
         // usage error about the argument that happened to arrive.
         ArgConv::Unconverted => Err(format!(
             "`{}` has a type no matcher converts yet",
@@ -755,6 +776,9 @@ fn usage_line(row: &Command) -> String {
     for arg in &row.args {
         if arg.is_option() {
             line.push_str(&format!(" [{}]", summary_spelling(&arg.spellings)));
+        } else if arg.conv == ArgConv::Words {
+            // Any number of words, none included.
+            line.push_str(&format!(" [<{}>...]", arg.param));
         } else if arg.default.is_some() {
             // Brackets say *optional*, which is what a declared default makes a
             // positional: the command line that leaves it out is matched.

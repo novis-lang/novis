@@ -1,0 +1,38 @@
+--TEST--
+An empty `skip:` or `because:` and a `retries:` below 1 in `#[Test]` are `E0880` at the value — `rule:testing/runner-is-strict`
+--FILE--
+<?nvs
+use Core\Test;
+
+final class ReasonTest {
+    #[Test(skip: "")]
+    public function emptySkip(): void {}
+
+    #[Test(retries: 2, because: " ")]
+    public function blankReason(): void {}
+
+    #[Test(retries: 0, because: "real DNS")]
+    public function noRetry(): void {}
+
+    #[Test(retries: -1, because: "real DNS")]
+    public function negativeRetry(): void {}
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0880]: `skip:` is empty, so it gives no reason
+%A
+5 |     #[Test(skip: "")]
+  |                  ^^ this value
+  = help: write the reason in the text, such as `"needs a network"`
+
+error[E0880]: `because:` is empty, so it gives no reason
+%A
+error[E0880]: `retries:` is below 1, so a failed test never runs again
+%A
+   = help: write 1 or more. To run the test only once, remove `retries:` and `because:`
+
+error[E0880]: `retries:` is below 1, so a failed test never runs again
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

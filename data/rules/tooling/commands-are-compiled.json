@@ -13,6 +13,7 @@
   "guardedBy": [
     "crates/nvs-types/tests/commands.rs",
     "tests/conformance/reject/a-command-is-static-and-returns-void-or-uint.nvst",
+    "tests/conformance/reject/a-command-name-or-option-name-no-command-line-can-type-does-not-compile.nvst",
     "tests/conformance/core/command-help-is-generated-from-the-compiled-table.nvst"
   ]
 }

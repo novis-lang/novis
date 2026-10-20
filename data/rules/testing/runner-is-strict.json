@@ -10,6 +10,7 @@
   "guardedBy": [
     "tests/conformance/lang/a-retried-test-that-passes-is-reported-as-flaky.nvst",
     "tests/conformance/reject/a-retry-states-the-reason-it-is-retried.nvst",
+    "tests/conformance/reject/an-empty-test-reason-or-a-retry-count-below-one-does-not-compile.nvst",
     "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst"
   ]
 }

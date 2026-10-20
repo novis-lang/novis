@@ -1133,6 +1133,44 @@ fn fold_options(fields: &[AnonObjectField], env: &mut Env<'_>) -> Vec<(String, C
 pub(crate) fn check_payload(fields: &[AnonObjectField], ctx: &Ctx<'_>, env: &mut Env<'_>) {
     crate::attributes::check_roster("Test", OPTIONS, fields, ctx, env);
     check_retries_state_a_reason(fields, env);
+    check_option_values(fields, env);
+}
+
+/// `rule:testing/runner-is-strict`'s reasons and retry count, held to a
+/// value that says something: a `skip:` or `because:` that is empty states no
+/// reason, and a `retries:` below 1 retries nothing.
+///
+/// The roster checks each value's type and not its value, so this reads the
+/// folded constants. A value of the wrong type is the roster's error already,
+/// and folds to nothing here.
+fn check_option_values(fields: &[AnonObjectField], env: &mut Env<'_>) {
+    let string = env.interner.string();
+    let int = env.interner.int();
+    for field in fields {
+        let option = span_text(env.src, field.name).to_owned();
+        let (fault, help) = match option.as_str() {
+            "skip" | "because" => match crate::defaults::literal_default(&field.value, string, env) {
+                Some(crate::defaults::ConstArg::Str(text)) if text.trim().is_empty() => (
+                    "is empty, so it gives no reason",
+                    "write the reason in the text, such as `\"needs a network\"`",
+                ),
+                _ => continue,
+            },
+            "retries" => match crate::defaults::literal_default(&field.value, int, env) {
+                Some(crate::defaults::ConstArg::Int(count)) if count < 1 => (
+                    "is below 1, so a failed test never runs again",
+                    "write 1 or more. To run the test only once, remove `retries:` and `because:`",
+                ),
+                _ => continue,
+            },
+            _ => continue,
+        };
+        env.diags.report(
+            Diagnostic::error(code::E_TEST_OPTION_VALUE, format!("`{option}:` {fault}"))
+                .with_primary(field.value.span, "this value")
+                .with_help(help),
+        );
+    }
 }
 
 /// `rule:testing/runner-is-strict`'s other half of the retry bullet: `retries:` requires `because:`.

@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "tests/conformance/lang/a-data-row-is-its-own-reported-case.nvst",
+    "tests/conformance/lang/a-null-data-row-field-fills-a-nullable-parameter-with-null.nvst",
     "tests/conformance/reject/a-data-row-is-matched-against-the-parameters-by-name-and-by-type.nvst",
     "crates/nvs-types/tests/testing.rs"
   ]
