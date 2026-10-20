@@ -749,18 +749,24 @@ fn resolve_supertype(
         );
         return None;
     }
-    if qname.is_reserved_global_interface() || qname.is_reserved_global_class() {
-        return Some(qname);
-    }
-    match symbols.get(&qname) {
-        Some(sym) if expected.contains(&sym.kind) => Some(qname),
-        Some(sym) => {
+    // A reserved name is checked for its kind like a declared one, so
+    // `implements RuntimeError` is the same error `implements` of a user class is.
+    let kind = if qname.is_reserved_global_interface() {
+        Some(SymbolKind::Interface)
+    } else if qname.is_reserved_global_class() {
+        Some(SymbolKind::Class)
+    } else {
+        symbols.get(&qname).map(|sym| sym.kind)
+    };
+    match kind {
+        Some(kind) if expected.contains(&kind) => Some(qname),
+        Some(kind) => {
             diags.report(
                 Diagnostic::error(
                     code::E_UNDEFINED_CLASS,
                     format!(
                         "`{qname}` is {}, not {}",
-                        sym.kind.describe(),
+                        kind.describe(),
                         describe_kinds(expected)
                     ),
                 )
@@ -1288,14 +1294,14 @@ mod tests {
             "<?nvs\n",
             "namespace App;\n",
             "use Throwable;\n",
-            "class Boom implements Throwable {}\n",
+            "class Boom extends Throwable {}\n",
         ));
         assert!(!diags.has_errors(), "the import reaches it: {diags:?}");
 
         let (_, diags) = resolve(concat!(
             "<?nvs\n",
             "namespace App;\n",
-            "class Boom implements Throwable {}\n",
+            "class Boom extends Throwable {}\n",
         ));
         assert!(
             diags.has_errors(),
