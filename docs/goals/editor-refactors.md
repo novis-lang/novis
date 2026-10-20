@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: The editor renames, finds, imports and generates
-summary: "Workspace rename, workspace symbol search, organize imports, the two extractions and the three generators answer as their rules say, every designed rule this goal owns is shipped, and the checks below pass."
+summary: "Workspace rename, workspace symbol search, organize imports, the two extractions and the three generators answer as their rules say, nvs check warns about an unused use and removes it with --fix, every designed rule this goal owns is shipped, and the checks below pass."
 context: [crates/nvs-lsp/src/capabilities.rs, crates/nvs-lsp/src/index.rs, docs/rules/ide/the-request-set-is-closed.md, docs/rules/ide/an-lsp-answer-is-frozen-as-an-lspt-case.md]
 stages:
   - id: 1
@@ -12,12 +12,12 @@ stages:
       context:
         rules: [ide/no-refactoring-introduces-an-alias, ide/five-features-are-one-reference-index, statements/require-is-the-only-inclusion-construct, ide/the-request-set-is-closed]
   - id: 2
-    title: "workspace symbol search, and organize imports"
+    title: "workspace symbol search, organize imports, and a warning for an unused `use`"
     status: open
-    context: [crates/nvs-lsp/src/capabilities.rs, crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/imports.rs, crates/nvs-fmt/src/imports.rs, docs/rules/ide/no-refactoring-introduces-an-alias.md, docs/rules/tooling/fmt-sorts-the-use-block.md]
+    context: [crates/nvs-lsp/src/capabilities.rs, crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/imports.rs, crates/nvs-fmt/src/imports.rs, crates/nvs-lsp/src/diagnostics.rs, crates/nvs-diagnostics/src/code/warnings.rs, crates/nvs-cli/src/check.rs, docs/rules/ide/no-refactoring-introduces-an-alias.md, docs/rules/tooling/fmt-sorts-the-use-block.md, docs/rules/tooling/fmt-is-never-a-diagnostic.md]
     extra:
       context:
-        rules: [ide/no-refactoring-introduces-an-alias, statements/nothing-gets-a-second-name, tooling/fmt-sorts-the-use-block, ide/the-request-set-is-closed]
+        rules: [ide/no-refactoring-introduces-an-alias, statements/nothing-gets-a-second-name, tooling/fmt-sorts-the-use-block, ide/the-request-set-is-closed, statements/an-unused-use-is-a-warning, tooling/fmt-is-never-a-diagnostic, core-api/casing-has-no-suppression]
   - id: 3
     title: "extract to variable and extract to method"
     status: open
@@ -85,18 +85,40 @@ rule exists to refuse.
 `extract.rs`, the three generators `generate.rs`. `actions.rs:150` gains one call per module. Why:
 stages 3 to 5 then share one line of `actions.rs`, not its body.
 
+**An unused `use` is a warning that `nvs check` reports.** It gets a new code, the next free
+`W10xx` in `crates/nvs-diagnostics/src/code/warnings.rs` (`W1025` when this was written, but
+`compiler-holes` adds codes, so the session reads the file first). `nvs check` reports it, so the edit
+hook an agent runs shows it. Stage 2 picks its source and records why in the rule: the unused-import
+index the editor dims with (`crates/nvs-lsp/src/index.rs:498`, `crates/nvs-lsp/src/diagnostics.rs:316`),
+or the name resolution of `nvs-hir`. Safe default: the index, because the editor and `nvs check` then
+cannot disagree.
+
+- The editor shows one diagnostic per unused `use`: the warning, with the `Unnecessary` tag that
+  dims it. The separate dimming hint for an import goes. Why: one mistake, one entry in the problems
+  list.
+- The warning carries a safe fix that deletes the line, so `nvs check --fix` removes it
+  (`crates/nvs-cli/src/check.rs:94`).
+- `nvs fmt` keeps the line. Why: `nvs fmt` is layout only and has no name resolution
+  (`rule:tooling/fmt-is-never-a-diagnostic`).
+- The rule is `statements/an-unused-use-is-a-warning`, a new fragment. Three rule sentences say that
+  Novis has no warning tier, and the `W10xx` tier exists (`W1003`, `W1023`). Stage 2 rewrites them to
+  say what is true: a construct the language does not allow is always an error, and a warning is for
+  code that runs as written.
+
 **Lanes.** Stages 1 and 2 share `capabilities.rs` and `index.rs`, so 2 runs after 1. Stage 3
 (`extract.rs`) is disjoint from 1 and 2 apart from one capability line, and can run in any order
 with them. Stages 4 and 5 share `generate.rs`, so 5 runs after 4. Stage 5 also touches
-`nvs-types` and `nvs-diagnostics` and nothing else here touches them. The whole goal is editor-only
-and can run beside the chain as a side goal.
+`nvs-types` and `nvs-diagnostics`. Stage 2's warning touches `warnings.rs` and `nvs check`'s
+`--fix`, which no other stage here touches. The goal changes no program's behaviour and can run
+beside the chain as a side goal.
 
 **Trade-offs.** No program changes, and nothing runs on the request path. Rename and symbol search
 read the reference index the server already holds, so they add no store. The index answers
 per-request work in the editor, and its memory does not change. Each action is one more answer in
 the closed request set, which `rule:ide/the-request-set-is-closed` lists, so the protocol surface
 grows by the requests named here and no others. Stage 5 adds the argument types to one diagnostic,
-a few words per unresolved call, only while the checker reports it.
+a few words per unresolved call, only while the checker reports it. The unused-`use` warning adds
+one diagnostic per unused line to `nvs check`, and nothing to a program that compiles and runs.
 
 ## Stages
 
@@ -118,13 +140,27 @@ renamed file's `require`.
 - [ ] `.lspt` cases for each. `tests/lsp/rename/a-local-is-renamed-at-every-occurrence.lspt:1`
 - [ ] `rule:ide/the-request-set-is-closed` lists the three new requests. `docs/rules/ide/the-request-set-is-closed.md:1`
 
-### 2. workspace symbol search, and organize imports
+### 2. workspace symbol search, organize imports, and a warning for an unused `use`
 
-**Does:** `workspace/symbol` finds a declaration in any indexed file, and organize imports reorders
-the `use` block and removes unused lines.
+**Does:** `workspace/symbol` finds a declaration in any indexed file, organize imports reorders
+the `use` block and removes unused lines, and `nvs check` warns about an unused `use` and removes it
+with `--fix`.
 
 **Split:** after both land, one writing subagent writes the `.lspt` cases under `tests/lsp/symbols/`
 and `tests/lsp/actions/`.
+
+The unused-`use` warning, which reads the index organize imports also reads:
+
+- [ ] The rule fragment and its `designed` record, with the source the session picked and why (`statements/an-unused-use-is-a-warning`). `docs/rules/statements/an-unused-use-is-a-warning.md:1`, `data/rules/statements/an-unused-use-is-a-warning.json:1`
+- [ ] The next free `W10xx` code, with its card and its help text, which follows AGENTS.md § *Text an end user reads*. `crates/nvs-diagnostics/src/code/warnings.rs:1`
+- [ ] `nvs check` reports it for each unused `use`, from the index or from name resolution. `crates/nvs-cli/src/check.rs:1`, `crates/nvs-lsp/src/index.rs:498`
+- [ ] It carries a safe fix that deletes the line, and `nvs check --fix` applies it. `crates/nvs-cli/src/check.rs:94`, `crates/nvs-diagnostics/src/diagnostic.rs:115`
+- [ ] The editor shows the warning with the `Unnecessary` tag, and the separate import dimming goes. `crates/nvs-lsp/src/diagnostics.rs:316`
+- [ ] Tests: an unused `use` warns, a used one does not, `--fix` removes the line and the program still compiles, and `nvs fmt` keeps it. `crates/nvs-cli/tests/check_flags.rs:1`
+- [ ] The three sentences that say Novis has no warning tier say what is true. `docs/rules/core-api/casing-has-no-suppression.md:1`, `docs/rules/core-api/written-visibility.md:1`, `docs/rules/types/no-legacy-cast.md:1`
+- [ ] The rule `shipped` with the tests in `guardedBy`. `data/rules/statements/an-unused-use-is-a-warning.json:1`
+
+Workspace symbol search and organize imports:
 
 - [ ] `workspace/symbol` answers from the index. `crates/nvs-lsp/src/capabilities.rs:162`, `crates/nvs-lsp/src/index.rs:655`, `crates/nvs-lsp/src/server.rs:569`
 - [ ] Organize imports is a `source.organizeImports` action built on the edit machinery of `nvs/importEdits`. It only reorders and removes (`rule:ide/no-refactoring-introduces-an-alias`). `crates/nvs-lsp/src/imports.rs:188`, `crates/nvs-lsp/src/imports.rs:241`, `crates/nvs-lsp/src/index.rs:498`
