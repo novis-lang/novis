@@ -35,6 +35,10 @@ class Child1 extends Parent1 {
     public Animal $x { set (Animal $v) { $this->x = $v; } }
     public function constructor() { parent::constructor(); $this->x = new Dog(); }
 }
+final class Other1 {
+    public Animal $x;
+    public function constructor() { $this->x = new Animal(); }
+}
 Parent1 $v1x0 = new Child1();
 echo "same parent-variable: ", Show::of($v1x0->x), "\n";
 Child1 $v1x1 = new Child1();
@@ -46,9 +50,15 @@ echo "same mixed: ", Show::of($v1x3->x), "\n";
 Parent1 $v1x4 = new Child1();
 property<Parent1> $k1x4 = "x" as property<Parent1>;
 echo "same property-key: ", Show::of($v1x4->$k1x4), "\n";
+Parent1|Other1 $v1x5 = new Child1();
+echo "same union-tested: ", Show::of($v1x5->x), "\n";
+Other1|Parent1 $v1x6 = new Child1();
+echo "same union-fallthrough: ", Show::of($v1x6->x), "\n";
 --EXPECT--
 same parent-variable: Dog
 same child-variable: Dog
 same object: Dog
 same mixed: Dog
 same property-key: Dog
+same union-tested: Dog
+same union-fallthrough: Dog
