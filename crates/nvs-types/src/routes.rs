@@ -77,10 +77,10 @@
 //! attribute on this list that changes nothing a program does: it supplies
 //! what the route table and the signature cannot say, and `#[Api]`'s whole rule is
 //! that it **may add and may not contradict**. Its payload's two roster
-//! questions are [`API_OPTIONS`], and its four contradictions are
-//! [`check_api`] — three of them, each a comparison against the declaration —
-//! plus [`check_stray_api`] for the fourth, which is [`check_stray_query`]'s
-//! question about a marker away from the thing that reads it. One `#[Api]`
+//! questions are [`API_OPTIONS`]. Its contradictions are [`check_api`]'s,
+//! each a comparison against the declaration, plus [`check_stray_api`], which
+//! is [`check_stray_query`]'s question about a marker away from the thing that
+//! reads it, and [`check_one_api`] for a second `#[Api]`. One `#[Api]`
 //! describes the operation however many `#[Route]`s the method carries, so it
 //! is asked once per method beside `#[Access]` rather than once per row.
 //!
@@ -107,6 +107,7 @@ use nvs_syntax::ast::{
 use rustc_hash::FxHashMap;
 
 use crate::expr_table::UrlPiece;
+use crate::locals::{Live, LocalScope};
 use crate::testing::OptionTy;
 use crate::{ConstArg, Ctx, Env, span_text};
 
@@ -261,6 +262,33 @@ pub(crate) fn check_one_access(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &m
                 "two decisions are two readings — every one of them, or any one of them — and \
                  `rule:attributes/access-payload` refuses to choose between them silently: write the one decision \
                  the method makes, and let whatever reads it interpret one name",
+            ),
+        );
+    }
+}
+
+/// A second `#[Api]` on one method (`rule:attributes/api-adds-and-cannot-contradict`).
+/// One `#[Api]` describes the operation, and the route reads only the first,
+/// so each later one is `E0771` naming the first.
+pub(crate) fn check_one_api(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let mut first: Option<Span> = None;
+    for attr in groups.iter().flat_map(|group| &group.attributes) {
+        if !crate::derive::attribute_is(attr, crate::derive::API, ctx, env) {
+            continue;
+        }
+        let Some(declared) = first else {
+            first = Some(attr.span);
+            continue;
+        };
+        env.diags.report(
+            Diagnostic::error(
+                code::E_API_CONTRADICTS_THE_CODE,
+                "this method has more than one `#[Api]`",
+            )
+            .with_primary(attr.span, "a second `#[Api]`")
+            .with_secondary(declared, "the first `#[Api]`")
+            .with_help(
+                "One `#[Api]` describes the operation. Write all its fields in one `#[Api]`.",
             ),
         );
     }
@@ -1053,7 +1081,9 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 ///   produce. The rule's own wording, read as the widest question that is both
 ///   sound and *not already asked*: the type is instantiable —
 ///   [`nvs_hir::ClassLinks::concrete`], so not an interface, not `abstract`,
-///   and not an enum. A name resolving to nothing is deliberately **not** this
+///   and not an enum — and of the `Throwable` tree, since an error response
+///   is what a thrown error becomes. Its `status` is an error status, 400 to
+///   599, and no status is listed twice. A name resolving to nothing is deliberately **not** this
 ///   error: it is `E_UNDEFINED_CLASS` from the expression walk that already
 ///   read the `::class`, and a second diagnostic would name the author's one
 ///   mistake twice. The narrower question the rule's phrase could also mean — does
@@ -1068,10 +1098,10 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 ///   asks for the example to decode "with the same decoder `rule:core-classes/derive-attribute` already
 ///   built", and the decoder's first question is this one: a key naming no
 ///   property is a bad field, and a bad field is the whole of what a derived
-///   decode reports. Asked only where the return type is a class this program
-///   declares — against a scalar, an array or an absent annotation there is no
-///   field roster to disagree with, and inventing one would refuse an example
-///   that is correct.
+///   decode reports. Each value is held to its field's type, nested objects
+///   included ([`check_example_fields`]). A return type that is not a class or
+///   a shape has no fields, so an example there is refused; a handler the
+///   signature table has no row for stays silent.
 /// - a **`tags`** or **`security`** entry that is not a string, which is the
 ///   structural half the roster cannot state.
 ///
@@ -1164,6 +1194,7 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
     };
     let int_ty = env.interner.intern(crate::ty::Ty::Int);
     let mut recorded = Vec::with_capacity(items.len());
+    let mut statuses: Vec<(u16, Span)> = Vec::with_capacity(items.len());
     for item in items {
         let entry = item.value.clone();
         let ExprKind::AnonObject(fields) = &entry.kind else {
@@ -1204,18 +1235,35 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
                 let code = match crate::defaults::literal_default(&written, int_ty, env) {
                     Some(ConstArg::Int(code)) => u16::try_from(code)
                         .ok()
-                        .filter(|code| (100..=599).contains(code)),
+                        .filter(|code| (400..=599).contains(code)),
                     _ => None,
                 };
                 if code.is_none() {
                     report_api(
-                        "this `status` is not an HTTP status code".to_owned(),
+                        "this `status` is not an HTTP error status".to_owned(),
                         field.span,
-                        "not in 100-599",
-                        "an `errors` entry's `status` is the response's own code, so it is one \
-                         HTTP defines",
+                        "not in 400-599",
+                        "An `errors` entry describes an error response, so its `status` is \
+                         from 400 to 599.",
                         env,
                     );
+                }
+                // One status is one response, so a second entry with it
+                // would describe the same response twice.
+                if let Some(code) = code {
+                    if let Some(&(_, first)) = statuses.iter().find(|(seen, _)| *seen == code) {
+                        env.diags.report(
+                            Diagnostic::error(
+                                code::E_API_CONTRADICTS_THE_CODE,
+                                format!("the status {code} is listed twice in `errors`"),
+                            )
+                            .with_primary(field.span, "listed again here")
+                            .with_secondary(first, "listed first here")
+                            .with_help("Each status has one entry. Remove one of the two."),
+                        );
+                        continue;
+                    }
+                    statuses.push((code, field.span));
                 }
                 code
             }
@@ -1297,8 +1345,20 @@ fn check_error_type(
     if env.graph.get(&qname).is_none() && env.signatures.get(&qname).is_none() {
         return None;
     }
-    if env.graph.get(&qname).is_some_and(|links| links.concrete) {
+    let concrete = env.graph.get(&qname).is_some_and(|links| links.concrete);
+    if concrete && crate::expr::quals::is_throwable_shaped(&qname, env.graph) {
         return Some(qname.to_string());
+    }
+    if concrete {
+        report_api(
+            format!("`{qname}` is not an error class"),
+            span,
+            "does not extend `Throwable`",
+            "An `errors` entry names the error that the handler throws. Write a class that \
+             extends `Throwable`, such as `Core\\NotFound`.",
+            env,
+        );
+        return None;
     }
     report_api(
         format!("`{qname}` is not a class a handler could produce"),
@@ -1353,32 +1413,114 @@ fn check_api_example(
     else {
         return recorded;
     };
-    let crate::ty::Ty::Class(returns, _) = env.interner.get(returns).clone() else {
-        return recorded;
-    };
-    let Some(properties) = env
-        .signatures
-        .get(&returns)
-        .map(|sig| sig.properties.keys().cloned().collect::<Vec<_>>())
-    else {
-        return recorded;
-    };
-    for field in fields {
-        let name = span_text(env.src, field.name).to_owned();
-        if properties.iter().any(|declared| declared == &name) {
-            continue;
-        }
-        let field_span = field.span;
+    let object = env.interner.without_null(returns);
+    if !matches!(
+        env.interner.get(object),
+        crate::ty::Ty::Class(..) | crate::ty::Ty::Shape(_)
+    ) {
+        let described = env.interner.describe(returns);
         report_api(
-            format!("`{returns}` declares no `{name}`"),
-            field_span,
-            "no such field",
-            "`example` is decoded as the return type. Every key must be a property of that \
-             class",
+            format!("this route returns `{described}`, which has no fields"),
+            span,
+            "an example of an object",
+            "`example` is one object that the route returns. Remove `example`, or return a \
+             class.",
             env,
         );
+        return recorded;
     }
+    let mut live = Live::default();
+    let scope = LocalScope::new();
+    check_example_fields(fields, object, &mut live, &scope, ctx, env);
     recorded
+}
+
+/// Each field of one `example` object held to `object`, a class or a shape:
+/// the key is a field `object` declares, and the value fits that field's type.
+/// A nested object is held to its field's class or shape the same way, and so
+/// is each object in a nested array.
+fn check_example_fields(
+    fields: &[nvs_syntax::ast::AnonObjectField],
+    object: crate::ty::TypeId,
+    live: &mut Live,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    for field in fields {
+        let name = span_text(env.src, field.name).to_owned();
+        let declared = match env.interner.get(object).clone() {
+            crate::ty::Ty::Class(class, _) => {
+                crate::signatures::resolve_property_owned(&class, &name, env.signatures, env.graph)
+                    .map(|(_, ty)| ty)
+            }
+            crate::ty::Ty::Shape(shape) => shape.iter().find(|f| f.name == name).map(|f| f.ty),
+            _ => None,
+        };
+        let Some(declared) = declared else {
+            let described = env.interner.describe(object);
+            let help = if matches!(env.interner.get(object), crate::ty::Ty::Shape(_)) {
+                "`example` is decoded as the return type. Every key must be a field of that shape"
+            } else {
+                "`example` is decoded as the return type. Every key must be a property of that \
+                 class"
+            };
+            report_api(
+                format!("`{described}` declares no `{name}`"),
+                field.span,
+                "no such field",
+                help,
+                env,
+            );
+            continue;
+        };
+        check_example_value(&field.value, declared, &name, live, scope, ctx, env);
+    }
+}
+
+/// One `example` value against the type its field declares.
+fn check_example_value(
+    value: &nvs_syntax::ast::Expr,
+    declared: crate::ty::TypeId,
+    name: &str,
+    live: &mut Live,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    let inner = env.interner.without_null(declared);
+    match (&value.kind, env.interner.get(inner).clone()) {
+        (ExprKind::AnonObject(fields), crate::ty::Ty::Class(..) | crate::ty::Ty::Shape(_)) => {
+            check_example_fields(fields, inner, live, scope, ctx, env);
+            return;
+        }
+        (ExprKind::ArrayLiteral(items), crate::ty::Ty::Array(element)) => {
+            for item in items {
+                check_example_value(&item.value, element, name, live, scope, ctx, env);
+            }
+            return;
+        }
+        _ => {}
+    }
+    // The payload walk has already reported anything wrong with the value
+    // itself, so only the answer is kept from this second check.
+    let before = env.diags.len();
+    let actual = crate::expr::check_expr(value, Some(declared), live, scope, ctx, env);
+    env.diags.truncate(before);
+    if crate::expr::is_assignable(actual, declared, env.interner, env.graph, env.signatures) {
+        return;
+    }
+    let (actual, declared) = (
+        env.interner.describe(actual),
+        env.interner.describe(declared),
+    );
+    report_api(
+        format!("the field `{name}` is `{declared}`, and this value is `{actual}`"),
+        value.span,
+        "the wrong type",
+        format!("Write a `{declared}` value for `{name}`."),
+        env,
+    );
 }
 
 /// `#[Api]`'s `example` as the constant it is: one entry per written field, in

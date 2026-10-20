@@ -1,0 +1,38 @@
+--TEST--
+A compiler-recognized attribute on a declaration where it builds nothing is `E0874` at the attribute: a command on a class or a property, a route on a property, an API description on a class, and a JSON derive on a method
+--FILE--
+<?nvs
+#[Core\Command(name: "report")]
+#[Core\Api(tags: ["shop"])]
+class Shop {
+    #[Core\Command(name: "count")]
+    #[Core\Route(path: "/count", method: Core\Http\Method::Get)]
+    public int $count = 0;
+
+    #[Core\Json\Derive]
+    public function total(): int {
+        return $this->count;
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0874]: `#[Core\Command]` cannot be written on a class
+  --> case.nvs:2:3
+%A
+error[E0874]: `#[Core\Api]` cannot be written on a class
+  --> case.nvs:3:3
+%A
+error[E0874]: `#[Core\Command]` cannot be written on a property
+  --> case.nvs:5:7
+%A
+error[E0874]: `#[Core\Route]` cannot be written on a property
+  --> case.nvs:6:7
+%A
+error[E0874]: `#[Core\Json\Derive]` cannot be written on a method
+  --> case.nvs:9:7
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

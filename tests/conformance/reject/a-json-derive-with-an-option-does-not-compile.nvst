@@ -1,0 +1,18 @@
+--TEST--
+`#[Core\Json\Derive]` takes no options, so a field in its list is `E0454` at the field
+--FILE--
+<?nvs
+#[Core\Json\Derive(colour: 1)]
+class Order {
+    public function constructor(public int $total) {}
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0454]: `colour` is not an option of `#[Core\Json\Derive]`
+  --> case.nvs:2:20
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

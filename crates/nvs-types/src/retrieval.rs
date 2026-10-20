@@ -616,7 +616,11 @@ pub(crate) fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) 
 ///
 /// The elements were already checked once by [`check_anon_object`], so the
 /// diagnostics this second check reports are withdrawn.
-fn with_requested_arrays(
+///
+/// [`crate::attributes`] calls it too, against the alias a named payload is
+/// checked against, so a payload is accepted where it is written exactly when a
+/// retrieval of that alias finds it.
+pub(crate) fn with_requested_arrays(
     fields: &[AnonObjectField],
     actual: TypeId,
     want: TypeId,

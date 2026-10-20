@@ -68,7 +68,12 @@ Two forms carry one payload between them, and both take named fields — there i
 The **bare** `#[{...}]` names no shape and is checked only as a well-formed anonymous object. The
 **named** `#[Name(...)]` requires `Name` to resolve, through the ordinary namespace and `use` scope, to
 a `type` alias whose right-hand side is a shape type; the payload object is then checked against it by the
-width subtyping every shape-typed position already uses.
+width subtyping every shape-typed position already uses. An array literal in a field is checked
+against that field's declared array type, element by element and nested literals included, so
+`#[Tags(ids: [1, 2])]` fits `{ids: array<int>}`. That is the check a retrieval makes
+([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)), so a payload accepted where it is written is the payload
+`Core\Attributes::get<Tags>` finds. Neither has the `int` to `float` row, because the payload is
+stored as written.
 
 The name may be written `Owner::Name`, an alias declared as a member of an interface, class or enum
 body ([`types/class-scoped-alias`](types.md#types-class-scoped-alias)), and it is then resolved exactly as the type `Owner::Name` is,
@@ -101,7 +106,15 @@ as the bare form, so the checker says nothing more about it.
 The one exemption is the closed, `Core`-owned roster of compiler-recognized attributes, matched by name
 and naming no shape at all. Each is a plain name, so `Owner::Name` never matches one. Every userland
 name is an alias or a mistake. A recognized attribute takes only the sites where it means something,
-and the rule that owns it names them: `#[Core\Path]` is written before a `string` parameter
+and on any other declaration it is **`E0874`** at the attribute. `#[Core\Json\Derive]` and
+`#[Core\Db\Derive]` go on a class; their `Field`s on a property or a promoted constructor parameter;
+`#[Core\Test]`, `#[Fixture]`, `#[TestWith]`, the three test hooks, `#[Core\Command]`, `#[Core\Route]`,
+`#[Core\Access]` and `#[Core\Api]` on a method; and `#[Core\Option]` and `#[Core\Query]` on a
+parameter. The table is `nvs_types::derive::sites`, and what an owning pass asks beyond the kind of
+declaration (a `static` method, a `#[Route]` beside `#[Api]`) stays with that pass. An attribute that
+takes no options is the same attribute with an empty list, so `#[Core\Json\Derive()]` is
+`#[Core\Json\Derive]`, and a field in that list is `E0454`. The rule that owns an attribute may name
+its sites itself: `#[Core\Path]` is written before a `string` parameter
 ([`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file)), and `#[Core\Deprecated]` above any of these
 sites but a property hook and that hook's parameter
 ([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code)).
@@ -270,10 +283,13 @@ public static function show(uint $id): Order { … }
 ```
 
 **It may add, and it may not contradict.** Each of these is `E0771`, naming both sites: an `errors`
-entry whose `type` is not a class a handler could produce, an `example` naming a field the return type
-does not declare, a `tags` or `security` entry that is not a string, and an `#[Api]` on a method
-carrying no `#[Route]`. One `#[Api]` describes the operation however many `#[Route]` attributes the
-method carries.
+entry whose `type` is not a concrete class of the `Throwable` tree, an `errors` status outside 400 to
+599 or listed twice, an `example` on a route whose return type is not a class or a shape, an `example`
+naming a field the return type does not declare, an `example` value that does not fit its field's
+type (a nested object and each object in a nested array held to their field's class or shape the
+same way), a `tags` or `security` entry that is not a string, an `#[Api]` on a method carrying no
+`#[Route]`, and a second `#[Api]` on one method. One `#[Api]` describes the operation however many
+`#[Route]` attributes the method carries.
 
 That list is why the attribute exists. The compiler holds both the annotation and the code it
 describes, so the annotation cannot claim a shape the handler no longer returns, which is the normal

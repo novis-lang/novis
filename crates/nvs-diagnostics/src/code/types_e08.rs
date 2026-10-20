@@ -989,4 +989,12 @@ codes! {
          Each field needs its own key. Change one key with `#[Json\\Field(name: \"...\")]` or \
          `#[Db\\Field(name: \"...\")]`, or leave one field out with `skip: true`.",
     );
+    /// A compiler-recognized attribute on a declaration where the compiler
+    /// builds nothing from it (`rule:attributes/attach-sites-and-forms`), such
+    /// as `#[Core\Route]` on a property.
+    pub const E_ATTRIBUTE_WRONG_SITE: Code = Code::new("E0874").card(
+        "This attribute cannot be written on this declaration. The compiler uses it only on \
+         some declarations, such as `#[Core\\Route]` on a method. Move the attribute, or \
+         remove it.",
+    );
 }
