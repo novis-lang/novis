@@ -1,0 +1,189 @@
+---
+/**
+ * Lanes: things that run at the same time, one bar each on a shared time
+ * axis. A bar that finishes ends in a green check; a bar that stops ends in
+ * a red cross and may carry a short note, such as `memory limit`.
+ *
+ * The drawing is inline SVG painted with the theme's tokens. Its bars grow
+ * as it scrolls into view where scroll-driven animations run and the reader
+ * allows motion; everywhere else they are drawn at their full length.
+ */
+import Frame from './Frame.astro'
+import { uid } from './diagram'
+
+export interface Lane {
+  label: string
+  /** Where the bar ends, from 0 (the start of the axis) to 1 (its end). */
+  end: number
+  /** Whether the lane finished; one that did not ends in a cross. */
+  ok: boolean
+  /** A word or two after a stopped lane's cross. */
+  note?: string
+}
+
+interface Props {
+  /** One sentence that says what the drawing shows, for a screen reader. */
+  title: string
+  /** The axis label, such as `time`. */
+  axis: string
+  lanes: Lane[]
+  /** The legend's two entries. */
+  legend: { ok: string; stop: string }
+  class?: string
+  flush?: boolean
+}
+
+const { title, axis, lanes, legend, class: extra, flush } = Astro.props
+
+/** The track runs from x 140 to x 480 of a 520-wide drawing. */
+const X0 = 140
+const X1 = 480
+const id = uid('lanes')
+const height = 60 * lanes.length + 60
+---
+
+<Frame class={extra} flush={flush}>
+  <svg viewBox={`0 0 520 ${height}`} role="img" aria-labelledby={id}>
+    <title id={id}>{title}</title>
+    <text class="axis" x={X0} y="28">{axis}</text>
+    <line class="axis-line" x1={X0 + 36} y1="24" x2={X1} y2="24"></line>
+    <path class="axis-line" d={`M${X1 - 6} 20 L${X1} 24 L${X1 - 6} 28`}></path>
+    {
+      lanes.map((lane, i) => {
+        const y = 70 + i * 60
+        const end = X0 + lane.end * (X1 - X0)
+        return (
+          <g class:list={['lane', { fail: !lane.ok }]} style={`--i: ${i}`}>
+            <text class="label" x="0" y={y + 5}>
+              {lane.label}
+            </text>
+            <line class="track" x1={X0} y1={y} x2={X1} y2={y} />
+            <rect class="bar" x={X0} y={y - 7} width={end - X0} height="14" rx="7" />
+            <g class="end" transform={`translate(${end + 18} ${y})`}>
+              <circle r="11" />
+              <path d={lane.ok ? 'M-5 0 L-1.5 4 L5 -4' : 'M-4 -4 L4 4 M4 -4 L-4 4'} />
+            </g>
+            {lane.note && (
+              <text class="note" x={end + 38} y={y + 5}>
+                {lane.note}
+              </text>
+            )}
+          </g>
+        )
+      })
+    }
+  </svg>
+  <Fragment slot="caption">
+    <span class="key"><i class="ok"></i> {legend.ok}</span>
+    <span class="key"><i class="stop"></i> {legend.stop}</span>
+  </Fragment>
+</Frame>
+
+<style>
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    font-family: var(--sl-font-mono);
+  }
+  .axis {
+    font-size: 12px;
+    fill: var(--sl-color-gray-3);
+  }
+  .axis-line {
+    fill: none;
+    stroke: var(--sl-color-gray-4);
+    stroke-width: 1.5;
+  }
+  .label {
+    font-size: 13px;
+    font-weight: 600;
+    fill: var(--sl-color-gray-2);
+  }
+  .track {
+    stroke: var(--nv-hairline-strong);
+    stroke-width: 2;
+    stroke-dasharray: 2 6;
+    stroke-linecap: round;
+  }
+  .bar {
+    fill: var(--sl-color-accent);
+    transform-box: fill-box;
+    transform-origin: left center;
+  }
+  .end circle {
+    fill: var(--nv-ok);
+  }
+  .end path {
+    fill: none;
+    stroke: var(--sl-color-black);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .fail .bar {
+    fill: var(--nv-crimson-fill);
+  }
+  .fail .end circle {
+    fill: var(--nv-crimson-fill);
+  }
+  .fail .end path {
+    stroke: white;
+  }
+  .note {
+    font-size: 12px;
+    font-weight: 700;
+    fill: var(--nv-crimson-text);
+  }
+
+  .key {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+  }
+  .key i {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+  }
+  .key .ok {
+    background: var(--nv-ok);
+  }
+  .key .stop {
+    background: var(--nv-crimson-fill);
+  }
+
+  /* The bars grow from the left as the drawing scrolls in, one after another. */
+  @keyframes grow {
+    from {
+      scale: 0 1;
+    }
+    to {
+      scale: 1 1;
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      .bar {
+        animation: grow linear both;
+        animation-timeline: view();
+        animation-range: entry calc(30% + var(--i) * 8%) cover calc(45% + var(--i) * 6%);
+      }
+      .end,
+      .note {
+        animation: pop linear both;
+        animation-timeline: view();
+        animation-range: cover calc(42% + var(--i) * 6%) cover calc(50% + var(--i) * 6%);
+      }
+    }
+  }
+</style>

@@ -1,0 +1,330 @@
+---
+/**
+ * Layers: the "Swiss cheese" picture of safety. Each layer is a slice with
+ * holes, and no layer catches everything; stacked, they catch what passes
+ * the ones before. The reader picks a bug, and the drawing shows it run
+ * through the holes of the layers before the one that catches it.
+ *
+ * The bugs are radio buttons, so the picker works with a keyboard and needs
+ * no script: the checked button shows its own scene. Each scene's line and
+ * dot run when the scene is shown; with less motion they are simply drawn.
+ * The layers' names are an HTML list under the drawing, numbered like the
+ * slices, so they stay readable on a narrow screen.
+ */
+import Frame from './Frame.astro'
+import { label, tone, uid, type Tone } from './diagram'
+
+export interface LayersData {
+  layers: { label: string; tone: Tone }[]
+  bugs: {
+    label: string
+    /** The index of the layer that catches the bug, from 0. */
+    caughtBy: number
+    /** One or two sentences: what that layer does with it. */
+    result: string
+  }[]
+}
+
+interface Props {
+  data: LayersData
+  /** The picker's question, such as `Pick a bug`. */
+  title: string
+}
+
+const { data, title } = Astro.props
+const id = uid('layers')
+const L = data.layers.length
+
+/** The drawing is 600 wide; the slices sit between x 120 and x 560, the bug runs at y 110. */
+const LINE = 110
+const sliceX = (k: number) => 120 + (k * 420) / Math.max(1, L - 1) - 15
+/** Each layer's own holes, as heights inside the slice, before a scene moves them. */
+const HOLES = [
+  [52, 150, 178],
+  [70, 138],
+  [46, 94, 164],
+  [60, 124, 176],
+  [82, 154],
+  [40, 102, 168],
+]
+const holesFor = (k: number, open: boolean) => {
+  const own = (HOLES[k % HOLES.length] ?? []).filter((y) => Math.abs(y - LINE) > 24)
+  return open ? [...own, LINE] : own
+}
+
+/** Show the checked bug's scene and mark its button; nothing else needs a rule per bug. */
+const css = data.bugs
+  .map(
+    (_, b) =>
+      `#${id} > input:nth-of-type(${b + 1}):checked ~ .scenes > :nth-child(${b + 1}){display:block}` +
+      `#${id} > input:nth-of-type(${b + 1}):checked ~ .picker > :nth-child(${b + 1}){color:var(--sl-color-white);border-color:var(--sl-color-accent);background:var(--nv-wash)}` +
+      `#${id} > input:nth-of-type(${b + 1}):focus-visible ~ .picker > :nth-child(${b + 1}){outline:2px solid var(--sl-color-accent);outline-offset:2px}`,
+  )
+  .join('')
+---
+
+<Frame>
+  <div class="dg-layers" id={id}>
+    <style is:inline set:html={css} />
+    {data.bugs.map((_, b) => <input class="sr-only" type="radio" name={id} id={`${id}-${b}`} checked={b === 0} />)}
+    <p class="title" id={`${id}-title`}>{title}</p>
+    <div class="picker" role="presentation">
+      {
+        data.bugs.map((bug, b) => (
+          <label for={`${id}-${b}`}>{label(bug.label)}</label>
+        ))
+      }
+    </div>
+    <div class="scenes">
+      {
+        data.bugs.map((bug) => {
+          const c = bug.caughtBy
+          const stopX = sliceX(c) - 6
+          const catcher = data.layers[c]!
+          return (
+            <div class="scene" style={`--dx: ${stopX - 30}px; --catch: ${tone(catcher.tone)}`}>
+              <svg viewBox="0 -10 600 215" role="img" aria-label={`${label(bug.label)}: ${label(catcher.label)}.`}>
+                {data.layers.map((layer, k) => (
+                  <g
+                    class:list={['slice', { after: k > c, catcher: k === c }]}
+                    style={`--tone: ${tone(layer.tone)}`}
+                    transform={`translate(${sliceX(k)} 0)`}
+                  >
+                    <path class="side" d="M30 25 L38 17 V187 L30 195 Z" />
+                    <path class="top" d="M0 25 L8 17 H38 L30 25 Z" />
+                    <rect x="0" y="25" width="30" height="170" rx="4" />
+                    {holesFor(k, k < c).map((y) => (
+                      <ellipse cx="15" cy={y} rx="8" ry="11" />
+                    ))}
+                    <circle class="num-bg" cx="19" cy="4" r="10" />
+                    <text class="num" x="19" y="8.5">
+                      {k + 1}
+                    </text>
+                  </g>
+                ))}
+                <path class="run" d={`M30 ${LINE} H${stopX}`} pathLength="1" />
+                <g class="ring" transform={`translate(${stopX} ${LINE})`}>
+                  <circle r="16" />
+                </g>
+                <g class="bug" transform={`translate(30 ${LINE})`}>
+                  <g class="move">
+                    <circle r="7" />
+                    <path d="M-4 -7 L-7 -11 M4 -7 L7 -11 M-7 -2 L-12 -3 M7 -2 L12 -3 M-7 3 L-12 5 M7 3 L12 5" />
+                  </g>
+                </g>
+              </svg>
+              <p class="result">
+                <strong>
+                  {c + 1}. {label(catcher.label)}.
+                </strong>{' '}
+                {label(bug.result)}
+              </p>
+            </div>
+          )
+        })
+      }
+    </div>
+    <ol class="legend" role="list">
+      {
+        data.layers.map((layer) => (
+          <li style={`--tone: ${tone(layer.tone)}`}>{label(layer.label)}</li>
+        ))
+      }
+    </ol>
+  </div>
+</Frame>
+
+<style>
+  .title {
+    margin: 0 0 var(--nv-space-2);
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+  }
+  .picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-2);
+    margin: 0;
+  }
+  .picker label {
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--nv-hairline-strong);
+    border-radius: var(--nv-radius-pill);
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+    line-height: 1.35;
+    cursor: pointer;
+    transition:
+      border-color var(--nv-fast) var(--nv-ease),
+      background-color var(--nv-fast) var(--nv-ease);
+  }
+  .picker label:hover {
+    border-color: var(--sl-color-gray-3);
+    background: var(--nv-hover);
+  }
+  .scene {
+    display: none;
+    margin-block-start: var(--nv-space-4);
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .slice rect {
+    fill: color-mix(in oklab, var(--tone) 24%, var(--nv-surface));
+    stroke: var(--tone);
+    stroke-width: 1.5;
+  }
+  .slice .side {
+    fill: color-mix(in oklab, var(--tone) 40%, var(--nv-surface));
+  }
+  .slice .top {
+    fill: color-mix(in oklab, var(--tone) 55%, var(--nv-surface));
+  }
+  .slice ellipse {
+    fill: var(--sl-color-black);
+    stroke: color-mix(in oklab, var(--tone) 60%, transparent);
+    stroke-width: 1;
+  }
+  .num-bg {
+    fill: var(--tone);
+  }
+  .num {
+    fill: var(--sl-color-black);
+    font-family: var(--sl-font);
+    font-size: 12px;
+    font-weight: 800;
+    text-anchor: middle;
+  }
+  .slice.catcher rect {
+    stroke-width: 2.5;
+    fill: color-mix(in oklab, var(--tone) 42%, var(--nv-surface));
+  }
+  .slice.after {
+    opacity: 0.35;
+  }
+  .run {
+    fill: none;
+    stroke: var(--nv-crimson-text);
+    stroke-width: 2.5;
+    stroke-dasharray: 0.012 0.012;
+    stroke-linecap: round;
+  }
+  .ring circle {
+    fill: color-mix(in oklab, var(--catch) 18%, transparent);
+    stroke: var(--catch);
+    stroke-width: 2.5;
+  }
+  .bug .move {
+    translate: var(--dx) 0;
+  }
+  .bug circle {
+    fill: var(--nv-crimson-fill);
+  }
+  .bug path {
+    fill: none;
+    stroke: var(--nv-crimson-text);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+  }
+  .result {
+    margin: var(--nv-space-3) 0 0;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+    line-height: 1.6;
+  }
+  .result strong {
+    color: var(--sl-color-white);
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-2) var(--nv-space-4);
+    margin: var(--nv-space-4) 0 0;
+    padding: var(--nv-space-3) 0 0;
+    border-top: 1px solid var(--nv-hairline);
+    list-style: none;
+    counter-reset: layer;
+  }
+  .legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+    counter-increment: layer;
+  }
+  .legend li::before {
+    content: counter(layer);
+    display: grid;
+    place-items: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 50%;
+    background: var(--tone);
+    color: var(--sl-color-black);
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+
+  @media (forced-colors: active) {
+    .slice rect,
+    .slice ellipse,
+    .ring circle,
+    .run,
+    .bug path {
+      stroke: CanvasText;
+    }
+    .num-bg,
+    .bug circle,
+    .legend li::before {
+      fill: CanvasText;
+      background: CanvasText;
+      color: Canvas;
+    }
+  }
+
+  /* When a scene is shown, the bug walks to the layer that catches it, the
+     ring around it appears, and the layers after it fade. */
+  @keyframes walk {
+    from {
+      translate: 0 0;
+    }
+  }
+  @keyframes ring {
+    0% {
+      opacity: 0;
+      scale: 0.4;
+    }
+    70% {
+      opacity: 1;
+      scale: 1.25;
+    }
+    100% {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .bug .move {
+      animation: walk 1.3s cubic-bezier(0.45, 0, 0.25, 1) both;
+    }
+    .ring circle {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: ring 0.5s 1.25s ease-out both;
+    }
+    .slice.after {
+      animation: fade 0.5s 1.3s ease-out both;
+    }
+  }
+</style>

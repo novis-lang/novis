@@ -1,0 +1,65 @@
+---
+/**
+ * The card every diagram is drawn on: the page's surface with a soft violet
+ * wash in one corner, a hairline and a shadow. A diagram passes its drawing
+ * as the default slot and, when it has one, its legend as `caption`.
+ *
+ * The frame is a size container, so a diagram can switch to its narrow
+ * layout from the width it is given, whatever the page around it does. It is
+ * `not-content`, so Starlight's styles for Markdown leave its lists alone.
+ */
+interface Props {
+  /** More classes for the figure, such as `nv-reveal`. */
+  class?: string
+  /** The figure's accessible name, when the drawing has no visible title. */
+  label?: string
+  /** No margin around the frame, for a frame placed in a layout grid. */
+  flush?: boolean
+}
+
+const { class: extra, label, flush = false } = Astro.props
+---
+
+<figure class:list={['dg-frame', 'not-content', { flush }, extra]} aria-label={label}>
+  <slot />
+  {
+    Astro.slots.has('caption') && (
+      <figcaption>
+        <slot name="caption" />
+      </figcaption>
+    )
+  }
+</figure>
+
+<style>
+  .dg-frame {
+    container-type: inline-size;
+    margin: var(--nv-space-6) 0;
+    padding: var(--nv-space-5);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-lg);
+    background:
+      radial-gradient(70% 60% at 80% 0%, var(--nv-wash), transparent 70%),
+      var(--nv-surface);
+    box-shadow: var(--nv-shadow-md);
+  }
+  .dg-frame.flush {
+    margin: 0;
+  }
+  /* With more contrast or forced colors the diagram is its plain surface. */
+  @media (prefers-contrast: more), (forced-colors: active) {
+    .dg-frame {
+      background: var(--nv-surface);
+    }
+  }
+  figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-2) var(--nv-space-5);
+    margin-block-start: var(--nv-space-4);
+    padding-block-start: var(--nv-space-3);
+    border-top: 1px solid var(--nv-hairline);
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+</style>

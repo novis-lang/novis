@@ -1,0 +1,306 @@
+---
+/**
+ * A flow: steps in order, left to right, joined by a track. Each step is a
+ * round icon on the track and a card under it with a title, a short line
+ * that says when it happens, and a list.
+ *
+ * As the flow scrolls through the view, a dot of light runs along the track
+ * and each step lights up when the dot reaches it. Where scroll-driven
+ * animations do not run, or the reader asked for less motion, every step is
+ * lit and there is no dot. Below 48rem, which is a page's text column, the
+ * steps stack top to bottom, and the line under each step grows down to the
+ * next one instead of the dot.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import type { StarlightIcon } from '@astrojs/starlight/types'
+import Frame from './Frame.astro'
+import { label, tone, type Tone } from './diagram'
+
+export interface FlowData {
+  steps: {
+    label: string
+    /** When the step happens, such as `every night`. */
+    when: string
+    icon: StarlightIcon
+    tone: Tone
+    items: string[]
+  }[]
+  /** A sentence under the flow, such as what stops it. */
+  note?: string
+}
+
+interface Props {
+  data: FlowData
+  /** The flow's accessible name. */
+  title: string
+}
+
+const { data, title } = Astro.props
+const n = data.steps.length
+/** The scroll range the dot runs in, as `cover` percentages. */
+const START = 25
+const END = 55
+const at = (i: number) => START + ((END - START) * i) / Math.max(1, n - 1)
+---
+
+<Frame label={title}>
+  <div class="flow" style={`--n: ${n}; --start: ${START}%; --end: ${END}%`}>
+    <div class="track" aria-hidden="true">
+      <span class="fill"></span>
+      <span class="dot"></span>
+    </div>
+    <ol class="steps" role="list">
+      {
+        data.steps.map((s, i) => (
+          <li
+            style={`--tone: ${tone(s.tone)}; --at: ${at(i)}%; --next: ${at(i + 1)}%; --next-tone: ${tone((data.steps[i + 1] ?? s).tone)}`}
+          >
+            <span class="badge" aria-hidden="true">
+              <Icon name={s.icon} size="1.15rem" />
+            </span>
+            <div class="card">
+              <strong>{label(s.label)}</strong>
+              <span class="when">{label(s.when)}</span>
+              <ul role="list">
+                {s.items.map((item) => (
+                  <li>{label(item)}</li>
+                ))}
+              </ul>
+            </div>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+  {
+    data.note && (
+      <Fragment slot="caption">
+        <span class="stop">
+          <i />
+          {label(data.note)}
+        </span>
+      </Fragment>
+    )
+  }
+</Frame>
+
+<style>
+  .flow {
+    position: relative;
+    view-timeline: --dg-flow block;
+  }
+  /* The track runs from the middle of the first badge to the middle of the last. */
+  .track {
+    position: absolute;
+    inset-inline: calc(50% / var(--n));
+    top: 1.375rem;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--nv-hairline-strong);
+  }
+  .fill {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--nv-tone-violet), var(--nv-tone-crimson), var(--nv-tone-gold), var(--nv-tone-green));
+    transform-origin: left center;
+  }
+  .dot {
+    display: none;
+    position: absolute;
+    top: -6px;
+    left: 0;
+    width: 14px;
+    height: 14px;
+    margin-inline-start: -7px;
+    border-radius: 50%;
+    background: var(--sl-color-white);
+    box-shadow:
+      0 0 0 4px color-mix(in oklab, var(--sl-color-white) 14%, transparent),
+      0 0 18px 4px var(--sl-color-accent);
+  }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+    gap: var(--nv-space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .steps > li {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+  }
+  .badge {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-block-end: var(--nv-space-3);
+    border: 2px solid var(--tone);
+    border-radius: 50%;
+    background: var(--nv-surface);
+    color: var(--tone);
+    box-shadow:
+      0 0 0 5px color-mix(in oklab, var(--tone) 16%, transparent),
+      0 0 20px color-mix(in oklab, var(--tone) 40%, transparent);
+  }
+  .card {
+    align-self: stretch;
+    flex: 1;
+    padding: var(--nv-space-3);
+    border: 1px solid color-mix(in oklab, var(--tone) 45%, var(--nv-hairline));
+    border-top: 3px solid var(--tone);
+    border-radius: var(--nv-radius);
+    background: var(--nv-surface-2);
+  }
+  .card strong {
+    display: block;
+    color: var(--sl-color-white);
+    font-size: var(--sl-text-sm);
+    line-height: 1.3;
+  }
+  .when {
+    display: block;
+    margin-block: 0.15rem var(--nv-space-2);
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+  }
+  .card ul {
+    margin: 0;
+    padding-inline-start: 1rem;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-xs);
+    line-height: 1.55;
+  }
+  .card li {
+    margin: 0.1rem 0 0;
+  }
+  .stop {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+  }
+  .stop i {
+    flex: none;
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    background: var(--nv-crimson-fill);
+    box-shadow: 0 0 8px var(--nv-crimson-fill);
+  }
+
+  /* Narrow: the steps stack, and the track runs down the badges' column. */
+  @container (max-width: 48rem) {
+    .steps {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--nv-space-4);
+    }
+    .steps > li {
+      flex-direction: row;
+      align-items: flex-start;
+      gap: var(--nv-space-3);
+    }
+    .badge {
+      flex: none;
+      margin: 0;
+    }
+    /* One segment under each badge, down to the next step's badge. */
+    .track {
+      display: none;
+    }
+    .steps > li:not(:last-child)::before {
+      content: '';
+      position: absolute;
+      left: calc(1.375rem - 1px);
+      top: 2.75rem;
+      bottom: calc(-1 * var(--nv-space-4));
+      width: 2px;
+      background: linear-gradient(180deg, var(--tone), var(--next-tone));
+      transform-origin: center top;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .badge,
+    .card {
+      border-color: CanvasText;
+      color: CanvasText;
+    }
+    .fill {
+      background: CanvasText;
+    }
+  }
+
+  /* The dot runs along the track; the fill grows behind it; each step is
+     dim until the dot reaches it. In the stack, each segment grows down from
+     its step to the next one. */
+  @keyframes run {
+    from {
+      left: 0;
+      opacity: 1;
+    }
+    to {
+      left: 100%;
+      opacity: 1;
+    }
+  }
+  @keyframes fill {
+    from {
+      scale: 0 1;
+    }
+    to {
+      scale: 1 1;
+    }
+  }
+  @keyframes drop {
+    from {
+      scale: 1 0;
+    }
+    to {
+      scale: 1 1;
+    }
+  }
+  @keyframes light {
+    from {
+      opacity: 0.45;
+      translate: 0 0.4rem;
+      filter: saturate(0);
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+      filter: none;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      .dot {
+        display: block;
+        animation: run linear both;
+        animation-timeline: --dg-flow;
+        animation-range: cover var(--start) cover var(--end);
+      }
+      .fill {
+        animation: fill linear both;
+        animation-timeline: --dg-flow;
+        animation-range: cover var(--start) cover var(--end);
+      }
+      .steps > li {
+        animation: light ease-out both;
+        animation-timeline: --dg-flow;
+        animation-range: cover calc(var(--at) - 6%) cover var(--at);
+      }
+      .steps > li::before {
+        animation: drop linear both;
+        animation-timeline: --dg-flow;
+        animation-range: cover var(--at) cover var(--next);
+      }
+    }
+  }
+</style>
