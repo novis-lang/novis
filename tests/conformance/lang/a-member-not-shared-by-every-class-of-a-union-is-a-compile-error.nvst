@@ -1,0 +1,33 @@
+--TEST--
+A property read through a union of classes is `E0881` when one class lacks the property or two classes give it different types — `rule:types/a-member-every-class-of-a-union-declares`
+--FILE--
+<?nvs
+final class Box { public string $name = "boxed"; public function constructor() { } }
+final class Circle { public int $size = 1; public function constructor() { } }
+final class Label { public ?string $name = null; public function constructor() { } }
+
+// `Circle` has no `$name`, so the read does not compile.
+Box|Circle $either = new Box();
+echo $either->name, "\n";
+
+// Both classes have `$name`, but the types differ, so the read does not compile.
+// The `??` after it reports nothing more.
+Box|Label $titled = new Box();
+echo $titled->name ?? "none", "\n";
+--EXPECTF-ERROR--
+error[E0881]: `Circle` has no property `$name`
+  --> %s:8:6
+  |
+8 | echo $either->name, "\n";
+  |      ^^^^^^^^^^^^^ used through `Box|Circle` here
+  = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
+
+error[E0881]: `Box::$name` is `string`, and `Label::$name` is `string|null`, so the property has no one type
+   --> %s:13:6
+   |
+13 | echo $titled->name ?? "none", "\n";
+   |      ^^^^^^^^^^^^^ used through `Box|Label` here
+   = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

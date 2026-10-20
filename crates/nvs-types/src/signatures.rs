@@ -506,6 +506,12 @@ pub struct ClassSignature {
     /// installed through [`SignatureTable::seed_class`] and every synthesized
     /// declaration is, since only user source can write a level at all.
     pub property_visibility: FxHashMap<String, Visibility>,
+    /// This declaration's own properties that write a `(set)` half, such as
+    /// `public private(set)`, by name. Read through
+    /// [`property_set_visibility`]. A write through a union of classes
+    /// compares it across the classes
+    /// (`rule:types/a-member-every-class-of-a-union-declares`).
+    pub property_set_visibility: FxHashMap<String, Visibility>,
     /// This declaration's own properties that carry an `rule:classes/property-hooks` hook
     /// block, by name — see [`PropertyHooks`]. A property with no hooks, or
     /// whose hooks are all bodiless (an abstract hook in an interface), is
@@ -1126,6 +1132,27 @@ fn collect_stmts(
 /// `None` where nothing was written — which `nvs_syntax::check_declarations`
 /// already reports as `E_MISSING_VISIBILITY`, so this only has to not invent
 /// a level for source that is already being refused.
+fn declared_set_visibility(modifiers: &[Modifier]) -> Option<Visibility> {
+    modifiers.iter().find_map(|modifier| match modifier {
+        Modifier::SetVisibility(level) => Some(*level),
+        _ => None,
+    })
+}
+
+/// The `(set)` half `owner::$name` was declared with, or `None` where the
+/// declaration wrote none. `owner` is the declaring class
+/// [`resolve_property_owned`] returned, as for [`property_visibility`].
+#[must_use]
+pub fn property_set_visibility(
+    owner: &QName,
+    name: &str,
+    table: &SignatureTable,
+) -> Option<Visibility> {
+    table
+        .get(owner)
+        .and_then(|sig| sig.property_set_visibility.get(name).copied())
+}
+
 fn declared_visibility(modifiers: &[Modifier]) -> Option<Visibility> {
     modifiers.iter().find_map(|modifier| match modifier {
         Modifier::Public => Some(Visibility::Public),
@@ -1206,6 +1233,9 @@ fn collect_members(
                 sig.properties.insert(name.clone(), ty);
                 if let Some(level) = visibility {
                     sig.property_visibility.insert(name.clone(), level);
+                }
+                if let Some(level) = declared_set_visibility(&p.modifiers) {
+                    sig.property_set_visibility.insert(name.clone(), level);
                 }
                 if hooks != PropertyHooks::default() {
                     sig.hooked_properties.insert(name.clone(), hooks);
@@ -1411,6 +1441,9 @@ fn record_promoted_properties(
         sig.properties.insert(name.clone(), ty);
         if p.modifiers.contains(&Modifier::Readonly) {
             sig.readonly_properties.insert(name.clone());
+        }
+        if let Some(level) = declared_set_visibility(&p.modifiers) {
+            sig.property_set_visibility.insert(name.clone(), level);
         }
         if let Some(level) = declared_visibility(&p.modifiers) {
             sig.property_visibility.insert(name, level);

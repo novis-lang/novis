@@ -674,6 +674,23 @@ pub enum ExprInfo {
         /// the value's representation to this type, and throws if it is.
         narrowed: Option<TypeId>,
     },
+    /// A property access, read or write, or a method call through a receiver
+    /// whose type is a union of classes that all share the member
+    /// (`rule:types/a-member-every-class-of-a-union-declares`). It has one arm
+    /// per class of the union, in the union's order, and each arm is the record
+    /// the same access through that class alone makes: [`ExprInfo::Property`]
+    /// or [`ExprInfo::HookedProperty`] for a property, [`ExprInfo::Call`] or
+    /// [`ExprInfo::CallableRef`] for a call. `nvs-ir` tests the receiver's class
+    /// for every arm but the last, and the last is the fall-through, because
+    /// the checker proved the receiver is one of these classes.
+    ///
+    /// Costs one list of arms per access site, per compiled program.
+    UnionMember {
+        /// The receiver's class this arm is taken for, and that class's own
+        /// record. A call's record names the *declaring* class, which may be
+        /// an ancestor, so the class tested is carried beside it.
+        arms: Vec<(QName, ExprInfo)>,
+    },
     /// A resolved `Class::$prop` access, read or write — the static
     /// counterpart of [`ExprInfo::Property`], and recorded for the same reason:
     /// `nvs-ir` has no way of its own to turn the written class expression
@@ -3019,6 +3036,64 @@ mod tests {
             .filter(|e| matches!(e, ExprInfo::Property { name, .. } if name == "n"))
             .count();
         assert_eq!((hooked, plain), (1, 1));
+    }
+
+    /// The two classes of `Box|Circle` used by the union fixtures below. Both
+    /// declare `$name` and `label()`, and neither is related to the other.
+    const UNION_CLASSES: &str = concat!(
+        "<?nvs\nclass Box {\n  public string $name = \"box\";\n",
+        "  function label(): string { return \"b\"; }\n}\n",
+        "class Circle {\n  public string $name = \"circle\";\n",
+        "  function label(): string { return \"c\"; }\n}\n",
+    );
+
+    /// `rule:types/a-member-every-class-of-a-union-declares`: a read through
+    /// `Box|Circle` records one arm per class, in the union's order, and each
+    /// arm is the record a read through that class alone makes.
+    #[test]
+    fn a_property_read_through_a_union_records_one_arm_per_class() {
+        let (exprs, span) = check_and_find_expr_span(&format!(
+            "{UNION_CLASSES}class T {{\n  function m(Box|Circle $s): string {{\n    return \
+             $s->name;\n  }}\n}}\n"
+        ));
+        let Some(ExprInfo::UnionMember { arms }) = exprs.lookup(span) else {
+            panic!(
+                "expected a union member record, got {:?}",
+                exprs.lookup(span)
+            );
+        };
+        let classes: Vec<String> = arms.iter().map(|(class, _)| class.to_string()).collect();
+        assert_eq!(classes, ["Box", "Circle"]);
+        for (class, arm) in arms {
+            assert!(
+                matches!(arm, ExprInfo::Property { class: owner, name, .. } if owner == class && name == "name"),
+                "{arm:?}"
+            );
+        }
+    }
+
+    /// The call through the same union records each class's own call, so each
+    /// arm names the method that class declares.
+    #[test]
+    fn a_method_call_through_a_union_records_each_class_call() {
+        let (exprs, span) = check_and_find_expr_span(&format!(
+            "{UNION_CLASSES}class T {{\n  function m(Box|Circle $s): string {{\n    return \
+             $s->label();\n  }}\n}}\n"
+        ));
+        let Some(ExprInfo::UnionMember { arms }) = exprs.lookup(span) else {
+            panic!(
+                "expected a union member record, got {:?}",
+                exprs.lookup(span)
+            );
+        };
+        let targets: Vec<String> = arms
+            .iter()
+            .map(|(_, arm)| match arm {
+                ExprInfo::Call(call) => format!("{}::{}", call.class, call.method),
+                other => panic!("expected a call, got {other:?}"),
+            })
+            .collect();
+        assert_eq!(targets, ["Box::label", "Circle::label"]);
     }
 
     /// A shape receiver has no declaring class either, but it does have a
