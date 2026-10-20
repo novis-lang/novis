@@ -605,7 +605,7 @@ blocks back in the order you asked for them.
 ```sh
 bun nv sweep [--keep-runs <n>]                        # sweeps the disk, reads nightly CI: looper's after_session hook
 bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
-bun nv ci --push                                      # looper's after_retire: pushes main and starts the full CI run
+bun nv ci --push                                      # looper's after_retire: pushes main, which starts its CI runs
 bun nv ci --watch | --status | --rerun                # the `ci-green` goal's: waits for a failed job, lists them, reruns them
 bun nv debt [--goal <slug>]                           # pays the floor debt: the floor check `floor-debt`
 

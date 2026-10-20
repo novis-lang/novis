@@ -1,6 +1,6 @@
 // `bun nv ci` with `gh`, `git` and the clock handed in, so nothing is pushed and nothing is asked of
-// GitHub: when `--watch` exits and with which code, what it prints of a failed job, and which runs
-// `--push` starts and cancels.
+// GitHub: when `--watch` exits and with which code, what it prints of a failed job, and that `--push`
+// pushes and leaves the runs to the push.
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
@@ -123,20 +123,11 @@ describe("bun nv ci --push", () => {
     expect(w.asked.some((a) => a[1] === "push")).toBe(false);
   });
 
-  test("it pushes, starts the full run, and cancels every other CI run in progress but no Website run", async () => {
-    const runs = [
-      runOf(42, "CI", "queued", null, "workflow_dispatch", "new"),
-      runOf(41, "Website", "in_progress", null, "push", "new"),
-      runOf(40, "CI", "in_progress", null, "push", "new"),
-      runOf(39, "CI", "in_progress", null, "workflow_dispatch", "old"),
-      runOf(38, "CI", "completed", "success", "workflow_dispatch", "old"),
-    ];
-    const w = seams("push", () => ({ runs, jobs: {} }), heads("new", "old"));
+  test("it pushes, and starts or cancels no run, because the push starts its own", async () => {
+    const w = seams("push", () => ({ runs: [runOf(40, "CI", "in_progress", null, "push", "old")], jobs: {} }), heads("new", "old"));
     expect(await ci(["--push"], w.s)).toBe(0);
     expect(w.asked).toContainEqual(["git", "push", "origin", "main:main"]);
-    expect(w.asked).toContainEqual(["workflow", "run", "ci.yml", "--ref", "main"]);
-    const cancelled = w.asked.filter((a) => a[0] === "run" && a[1] === "cancel").map((a) => a[2]);
-    expect(cancelled).toEqual(["40", "39"]);
+    expect(w.asked.filter((a) => a[0] !== "git")).toEqual([]);
   });
 
   test("a refused push exits 1 and starts no run", async () => {
