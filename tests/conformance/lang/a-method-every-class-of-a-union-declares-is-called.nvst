@@ -2,6 +2,7 @@
 A method call through a union of classes runs the method of the class the value is — `rule:types/a-member-every-class-of-a-union-declares`
 --FILE--
 <?nvs
+// covers: lang:types/a-member-every-class-of-a-union-declares
 class Shape {
     public function constructor() { }
     public function label(): string { return "shape"; }

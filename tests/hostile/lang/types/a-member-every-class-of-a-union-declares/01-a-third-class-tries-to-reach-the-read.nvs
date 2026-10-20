@@ -1,0 +1,70 @@
+<?nvs
+// Attack: objects of a third class try to reach a read through `Box|Circle`.
+// Every attempt should throw an error at the conversion, before the read runs.
+
+final class Box
+{
+    public int $size = 4;
+    public string $name = 'box';
+    public function constructor()
+    { }
+}
+
+final class Circle
+{
+    public string $name = 'circle';
+    public function constructor()
+    { }
+}
+
+// `Triangle` has a property with the same name and type, but it is not in the union.
+final class Triangle
+{
+    public string $name = 'triangle';
+    public string $secret = 'hidden';
+    public function constructor()
+    { }
+}
+
+final class Attack
+{
+    // A value is a `Box` or it is converted to a `Circle`.
+    // The conversion throws an error for every other value.
+    public static function shape(mixed $value): Box|Circle
+    {
+        if ($value is Box) {
+            return $value as Box;
+        }
+        return $value as Circle;
+    }
+}
+
+array<mixed> $values = [new Box(), new Triangle(), new Circle(), null, 'box', 7, [1, 2]];
+uint $read = 0;
+uint $stopped = 0;
+
+// 1. Sends every value through the conversion many times.
+//    Only the `Box` and the `Circle` reach the read.
+uint $round = 0;
+while ($round < 20000) {
+    foreach ($values as mixed $value) {
+        try {
+            Box|Circle $shape = Attack::shape($value);
+            if ($shape->name != 'box' && $shape->name != 'circle') {
+                throw new LogicError('the read returned ' . $shape->name);
+            }
+            $read = $read + 1;
+        } catch (RuntimeError $wrongClass) {
+            $stopped = $stopped + 1;
+        }
+    }
+    $round = $round + 1;
+}
+echo $read, ' read, ', $stopped, " stopped\n";
+
+// 2. Tests a `Triangle` with `is Box|Circle`. The result is `false`.
+mixed $triangle = new Triangle();
+if ($triangle is Box|Circle) {
+    throw new LogicError('a Triangle passed the test');
+}
+echo "the Triangle did not pass the test\n";

@@ -2,6 +2,7 @@
 A property read and a property write through a union of classes do what the same access through the class of the value does — `rule:types/a-member-every-class-of-a-union-declares`
 --FILE--
 <?nvs
+// covers: lang:types/a-member-every-class-of-a-union-declares
 class Shape { public string $name = "shape"; public function constructor() { } }
 final class Box { public string $name = "box"; public function constructor() { } }
 final class Circle { public string $name = "circle"; public function constructor() { } }

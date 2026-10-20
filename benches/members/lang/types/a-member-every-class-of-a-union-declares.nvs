@@ -1,0 +1,37 @@
+<?nvs
+// Reads a property through a union of three classes, as a program does with a value that may be one of several kinds.
+// bench: iterations 1024
+// bench: allocations 0
+// bench: calls 0
+// bench: complexity constant
+
+final class Courier {
+    public int $weight = 4;
+    public function constructor() { }
+}
+
+final class Pickup {
+    public int $weight = 7;
+    public function constructor() { }
+}
+
+final class Freight {
+    public int $weight = 1;
+    public function constructor() { }
+}
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<Courier|Pickup|Freight> $parcels = [new Courier(), new Pickup(), new Freight()];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Courier|Pickup|Freight $parcel = $parcels[$total % 3];
+            $total = $total + $parcel->weight;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

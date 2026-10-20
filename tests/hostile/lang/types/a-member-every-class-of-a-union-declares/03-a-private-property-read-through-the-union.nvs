@@ -1,0 +1,22 @@
+<?nvs
+// Attack: a program reads a private property through `Box|Circle`.
+// The property is private in `Circle`, so the program should not compile.
+// hostile: expect-refusal
+
+final class Box
+{
+    public string $name = 'box';
+    public function constructor()
+    { }
+}
+
+final class Circle
+{
+    private string $name = 'the password';
+    public function constructor()
+    { }
+}
+
+// 1. Reads `$name` of a `Circle` through the union. This does not compile.
+Box|Circle $shape = new Circle();
+echo $shape->name, "\n";
