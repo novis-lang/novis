@@ -152,7 +152,10 @@ pub(crate) fn report_task_fields_with_parameters(
                 code::E_TASK_FIELD_TAKES_PARAMETERS,
                 format!("the function in field `{name}` has {count} parameter(s)"),
             )
-            .with_primary(field.value.span, "`Core\\Task::all` calls this with no arguments")
+            .with_primary(
+                field.value.span,
+                "`Core\\Task::all` calls this with no arguments",
+            )
             .with_help(
                 "remove the parameters. The function can read a variable from the code around \
                  it, so a value it needs can come from there",

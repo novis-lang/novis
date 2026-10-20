@@ -185,6 +185,11 @@ argument's own and the call site is what chooses them — so the parameter is a 
 carries for this one purpose, and what each field is worth is read off
 [`concurrency/an-all-field-answers-what-its-callable-declares`](concurrency.md#concurrency-an-all-field-answers-what-its-callable-declares).
 
+Each field's function is called with no arguments. A field whose written signature declares a
+parameter is `E0878` at that field, and a shape held in a variable is the plain `E0401`. A field typed
+bare `callable` names no parameters, so `all` reads each field's arity before any child starts, and a
+function that takes one throws a `LogicError`.
+
 `all` over a one-field shape is legal and pointless, and nothing special-cases it. Its subject is a
 shape and never an array; that is the line between it and [`concurrency/map-preserves-keys-and-order`](concurrency.md#concurrency-map-preserves-keys-and-order),
 and each member refuses the other's subject.
