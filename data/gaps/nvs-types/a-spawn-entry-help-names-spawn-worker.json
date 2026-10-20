@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/expr/isolate.rs",
-  "title": "`E0802`'s help for an anonymous function as a spawn entry names `spawn worker`, which does not exist.",
-  "text": "The help says \"In `spawn worker` it would capture the variables around it\". Novis has no `spawn worker` form, so the help points the reader at syntax that does not compile. It closes when the help names only forms the parser accepts, with a case that pins the text.",
-  "goal": "compiler-holes"
-}
