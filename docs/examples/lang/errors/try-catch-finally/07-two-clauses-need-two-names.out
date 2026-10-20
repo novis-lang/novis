@@ -1,5 +1,5 @@
 error[E0406]: `$e` is already declared
-   --> 04-two-clauses-need-two-names.nvs:12:29
+   --> 07-two-clauses-need-two-names.nvs:12:29
    |
 12 |         } catch (LogicError $e) {
    |                             -- first declared here

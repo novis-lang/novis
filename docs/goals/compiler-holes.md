@@ -58,7 +58,7 @@ stages:
     context: [crates/nvs-types/src/routes.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-server/src/body.rs, crates/nvs-server/src/serve.rs]
   - id: 13
     title: "every help text names only what compiles, and each syntax is one feature"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/members.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/expr/isolate.rs, crates/nvs-types/src/locals.rs, tools/nv/proofs/roster.ts]
   - id: 17
     title: "a generated matrix pins every redeclaration a subclass can write"
@@ -449,7 +449,7 @@ one line each. The other lists every citation of `lang:statements/try-catch-fina
   - [x] the rest of `crates/nvs-types/src/`
   - [x] `crates/nvs-config/src/`, `crates/nvs-diagnostics/src/code/config.rs` and the `eprintln!` lines in `crates/nvs-cli/src/`
   - [x] a test scans every help text and card, and the gap record is deleted
-- [ ] The two `lang:statements/` features are merged into their `lang:errors/` twins. `tools/nv/proofs/roster.ts:1`, `data/gaps/nv/two-lang-features-are-one-syntax.json:1`
+- [x] The two `lang:statements/` features are merged into their `lang:errors/` twins. `tools/nv/proofs/roster.ts:1`, `data/gaps/nv/two-lang-features-are-one-syntax.json:1`
 
 ### 17. a generated matrix pins every redeclaration a subclass can write
 
@@ -505,38 +505,30 @@ another goal.
 
 ### State
 
-Stages 1 to 12 and 16 are done, and every gap record they owned is deleted. Stage 13's four
-single-help items landed, and their four gap records are deleted:
+Stages 1 to 13 and 16 are done, and every gap record they owned is deleted. Stage 13's last item
+merged `lang:statements/throw` and `lang:statements/try-catch-finally` into `lang:errors/throw` and
+`lang:errors/try-catch-finally`:
 
-- `E0479`'s help writes `if ($x != null) { $x->p = …; }`, and so do the `E0479` and `E0482`
-  reference cards.
-- `E0802`'s two helps name only a path and `Class::method(...)`.
-- `E0233`'s help for a nested `use`, `namespace` or `autoload` says to move it above the code that
-  needs it, and that it applies to the code below it.
-- `E0303` carries a note naming where `autoload` looked: the files probed for a name under a
-  prefix, or the prefixes when none covers it. `nvs_hir::AutoloadMap::note_searched_roots` adds it
-  and `front_end_in` (`crates/nvs-cli/src/main.rs`) runs it on a failed compile. It finds its
-  diagnostics through `nvs_hir::hierarchy::undeclared_subject`, which reads the name back off the
-  headline `undeclared_name_at` writes. The editor (`crates/nvs-lsp/src/document.rs`) does not run
-  it yet.
+- The statements chapter lost its two headings. The examples that said something new moved:
+  `throw`'s 04 and `try-catch-finally`'s 06 to 08. The rest were the same as an `errors` example and
+  are deleted. Both attacks moved to `tests/hostile/lang/errors/*/02-*`, and both benches are deleted.
+- The `statements` facts are in the kept `about.md` and `details.md` files, and each `covers:` line,
+  the website page, its stamps and the perf ledger name only the `errors` ids. The page now has one
+  section per feature. `bun nv proofs --id` owes nothing for either feature.
+- `data/perf/members.md` was regenerated whole, so it also picked up ledger records other commits
+  appended without regenerating it.
+- `bun nv affected --run` stopped at `rules-render` on `docs/rules/ide.md`, so the session ran
+  what the change reaches by hand: `layout`, `release`, `render` and `owners --check`, both
+  features' `proofs --run`, the four `error/` cases, and `nvs-cli`'s `ast`, `bundle` and
+  `compile_cache` tests. All are green. The gate's `fmt` step also formatted
+  `crates/nvs-config/tests/resolve.rs`, which the last group left unformatted, and that is its own
+  commit.
 
-The fifth item is done, and its gap record is deleted. No message, label, help or note under
-`crates/nvs-syntax/src/`, `crates/nvs-hir/src/`, `crates/nvs-types/src/` or
-`crates/nvs-config/src/` prints a `rule:` id or a form of "refuse". The last group rewrote about
-50 notes and helps in `nvs-config`, and with them each `§ N` reference to a rule's section, which is
-the same internal. It also rewrote the `E0622` card and the `nvs-cli` lines the handoff named
-(`bundle.rs`, `queue.rs`, `schema.rs`), the task-tree failure in `runner.rs` and the `refuses
-tainted` line of `nvs ext`. No expectation pinned any of these texts.
-
-`crates/nvs-diagnostics/tests/no_diagnostic_text_cites_a_rule.rs` holds the line. It checks every
-card in `code::ALL`, and every printed string literal under the four crates and
-`nvs-diagnostics/src`. A small lexer skips comments, the `#[cfg(test)]` tail, and literals inside
-`assert!`, `panic!`, `.expect(…)` and `#[expect(…)]`. It also asserts it read more than 5000
-literals, so a lexer that loses its place fails. `nvs-config`'s `audit.rs` is left out by name:
-`nvs config dump` prints `rule:security/net-address-policy` beside `resolve = "proxy"`, as its
-rule and `config/resolve-at-the-proxy-is-dumped-beside-the-rule-it-narrows.nvst` say.
-Run-time messages in `nvs-cli` that say "refused" (`reload.rs`'s reload record, `runner.rs`'s
-isolate error) are out of the scan, as this item scoped it.
+`crates/nvs-diagnostics/tests/no_diagnostic_text_cites_a_rule.rs` holds stage 13's other line: no
+printed diagnostic text under `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-config` or
+`nvs-diagnostics/src` cites a `rule:` id or says "refuse". `nvs-config`'s `audit.rs` is left out by
+name, because `nvs config dump` prints a rule id on purpose. The editor
+(`crates/nvs-lsp/src/document.rs`) does not run `E0303`'s `note_searched_roots` yet.
 
 The tree holds uncommitted work this goal does not own: `docs/rules/ide.md`,
 `website/src/lib/core.ts`, `website/src/data/numbers.json` and
@@ -547,22 +539,21 @@ run it once per crate.
 
 ### Next
 
-**The sixth item** is next and is stage 13's last. Once it lands, set stage 13 to done and start
-stage 17 as its `**Split:**` line says.
-
-**The sixth item** (`data/gaps/nv/two-lang-features-are-one-syntax.json`) has its list:
-`docs/examples/lang/statements/chapter.md:16` and `:18` are the two headings; the examples are
-`docs/examples/lang/statements/{throw,try-catch-finally}/` (4 and 5 pairs, `about.md`, one
-`details.md`); the attacks `tests/hostile/lang/statements/{throw,try-catch-finally}/`; the benches
-`benches/members/lang/statements/{throw,try-catch-finally}.nvs`; `// covers:` lines in
-`tests/conformance/error/{two-catch-clauses-pick-by-class,a-nested-finally-runs-inside-out,throwing-a-nullable-throwable-throws-the-object-it-holds,a-throw-crosses-two-frames}.nvst`;
-`website/src/content/docs/syntax/errors/throw-and-catch.mdx:3,12,18`; `website/site.lock.json:178`;
-and the perf rows in `data/perf/members.md`, `bench-budget.json` and `members.ndjson`.
+**Stage 17** is next. Follow its `**Split:**` line: one writing subagent writes
+`tools/nv/cmd/soundness.ts` (registered in `tools/nv/main.ts`) and its oracle table from
+§ *Standing decisions*' three lists. The session then checks each row against the rule it cites
+(`docs/rules/classes/an-override-keeps-its-parents-signature.md`,
+`docs/rules/statements/static-is-a-member-modifier.md`, and the `E0833` redeclaration rule), runs
+`--write`, and files a gap record for each failing cell in `tools/nv/soundness/open.json`.
+`tools/nv/cmd/verify.ts:167` is where `--check --allow-open` joins verify. The conformance runner
+for the generated files is `crates/nvs-types/src/conformance.rs`.
 
 The installed `looper` binary has no `verify` subcommand, so these sessions run
 `bun nv affected --run` as the gate. The next free diagnostic code is `E0881`
 (`crates/nvs-diagnostics/src/code/types_e08.rs`). A new checker error can break an attack under
-`tests/hostile/` that the gate does not run: grep them for the refused form before the gate.
+`tests/hostile/` that the gate does not run: grep them for the refused form before the gate. In
+Git Bash, a URL argument such as `bun nv site --questions --stamp /syntax/…/` needs
+`MSYS_NO_PATHCONV=1`, or the shell rewrites it into a Windows path.
 
 ### Backlog
 

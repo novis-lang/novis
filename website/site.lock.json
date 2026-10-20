@@ -173,10 +173,8 @@
     "lang:errors/rethrowing": "2996c22364ad0e1e"
   },
   "syntax/errors/throw-and-catch.mdx": {
-    "lang:errors/throw": "9f1edece7906cdbb",
-    "lang:errors/try-catch-finally": "68ad5d56ddb3151c",
-    "lang:statements/throw": "7fe4489d0f868a07",
-    "lang:statements/try-catch-finally": "d274c6864a561e7b"
+    "lang:errors/throw": "22f0ed67cc737f35",
+    "lang:errors/try-catch-finally": "fb07892e40403f04"
   },
   "syntax/functions/anonymous-functions.mdx": {
     "lang:expressions/anonymous-functions": "4e889cf6fff1b528"

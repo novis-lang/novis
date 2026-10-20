@@ -38,11 +38,11 @@ Conventions the whole file uses:
 - A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
 - A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, property<T>, property key, property name, propertyPath<T>, property path, field path, dynamic property, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret)*
 - A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, reference, |>, pipeline, pipe, $_, hole, substitution)*
-- A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, global, static variable)*
+- A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `catch` as an expression, `echo`, `unset`, and the statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, catch, echo, print, unset, exit, yield, goto, label, declare, global, static variable)*
 - A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
 - A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have *(enum, case, backed enum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order)*
 - A.7 [Iteration and generators](#lang-iteration) — what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>` *(foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel)*
-- A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, uncaught exception, error handler, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, dump a value, assertion, Core\Test\Failure)*
+- A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, multi-catch, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, uncaught exception, error handler, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, dump a value, assertion, Core\Test\Failure)*
 - A.9 [Tasks, channels and isolates](#lang-concurrency) — structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing *(Core\Task, all, map, limit, deadline, TimeoutError, sleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, fibers, fork, parallel, concurrent requests, threads, workers, shared state)*
 - A.10 [Attributes, routes, commands and derived codecs](#lang-attributes) — `#[...]` metadata as anonymous objects, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration *(attribute, #[...], Attribute, reflection, read attributes, Core\Attributes, get, all, #[Route], route attribute, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, console command, Json\Derive, Json\Field, JSON encoding, decodeAs, Program::implementing, autoload)*
 - A.11 [Testing](#lang-testing) — `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, the assertion roster, fixed clocks and seeds, and the report formats *(test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output)*
@@ -10535,7 +10535,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 <a id="lang-statements"></a>
 ## A.4 Statements and control flow
 
-Keywords: statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, global, static variable
+Keywords: statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, catch, echo, print, unset, exit, yield, goto, label, declare, global, static variable
 
 ### Expression statements, blocks and declarations
 
@@ -12005,239 +12005,6 @@ error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
 ```
 
-### `try`, `catch`, `finally`
-
-`try` runs a block of code and handles the errors it raises. Write `try { … }`, then `catch`
-clauses, a `finally` block, or both.
-
-A `catch` clause names one class. It matches that class and every class that extends it. The clauses
-are tried from top to bottom, and the first one that matches runs. Write the narrow classes first.
-A clause names one class only, so two classes need two clauses. Each clause declares its own
-variable. Two clauses in one function that catch different classes need two different names. You may leave the variable out
-when you do not need the error itself.
-
-`finally` always runs. It runs after the body, after a `catch`, and on the way out through `return`,
-`break`, `continue` or an error nothing caught. Put your clean-up work there.
-
-**The examples below** show the block form around a call that fails, then two `catch` clauses picked
-by class, then a `finally` that closes a job whatever happens. The last two show two clauses with
-one variable name, which does not compile, and a `finally` that runs on `continue`.
-
-A `try` needs at least one `catch` clause or a `finally` block. A `try` with neither does not compile:
-it is the error `E0242`.
-
-A `catch` clause may name an interface. It then matches every class that implements that interface.
-
-A clause for a parent class that is written before a clause for its subclass catches that error
-first. The later clause never runs. This compiles without a warning.
-
-`catch (LogicError | IOError $e)` does not compile: it is the error `E0245`.
-
-The variable of a `catch` clause is a variable of the whole function. Two clauses in one function may
-use the same name when they catch the same type. When the types are different, the second clause does
-not compile: that is the error `E0406`.
-
-When a `catch` clause throws, the other clauses of the same `try` do not catch the new error. The
-`finally` block of that `try` runs first. Then the next `try` outside handles the error.
-
-When one `try` is inside another, the inner `finally` block runs before the outer one.
-
-#### Example 01: carrying on after a row that fails
-
-```nvs
-<?nvs
-// Shows the block form of `try`. The `catch` clause runs when the code inside
-// the `try` block throws an error, and the program carries on after the block.
-
-class Amount
-{
-    public static function of(string $text): int
-    {
-        ?int $value = $text as ?int;
-        if ($value == null) {
-            throw new RuntimeError("not a whole number: " . $text);
-        }
-        return $value;
-    }
-}
-
-array<string> $rows = ["12", "seven", "30"];
-int $total = 0;
-
-foreach ($rows as string $row) {
-    try {
-        $total = $total + Amount::of($row);
-    } catch (RuntimeError $e) {
-        // This prints: skipped: not a whole number: seven
-        echo "skipped: ", $e->message, "\n";
-    }
-}
-
-// This prints 42. The row that failed added nothing.
-echo $total, "\n";
-```
-
-```output
-skipped: not a whole number: seven
-42
-```
-
-#### Example 02: handling two kinds of error apart
-
-```nvs
-<?nvs
-// Shows two `catch` clauses on one `try`. Each clause names one class, and the
-// first clause whose class matches the error is the one that runs.
-
-class Settings
-{
-    public static function port(string $text): int
-    {
-        if ($text == "") {
-            throw new LogicError("no port was given");
-        }
-        ?int $port = $text as ?int;
-        if ($port == null) {
-            throw new RuntimeError("the port is not a number: " . $text);
-        }
-        return $port;
-    }
-}
-
-array<string> $inputs = ["8080", "", "http"];
-
-foreach ($inputs as string $input) {
-    try {
-        int $port = Settings::port($input);
-        echo "port ", $port, "\n";
-    } catch (LogicError) {
-        // You may leave the variable out when you do not need the error itself.
-        echo "this program has a bug: it asked for a port without a value\n";
-    } catch (RuntimeError $wrong) {
-        echo "bad setting: ", $wrong->message, "\n";
-    }
-}
-```
-
-```output
-port 8080
-this program has a bug: it asked for a port without a value
-bad setting: the port is not a number: http
-```
-
-#### Example 03: releasing a slot however the work ends
-
-```nvs
-<?nvs
-// Shows `finally` around work that must always be closed. The block runs on
-// every way out of the `try`: a normal `return`, and a caught error as well.
-
-class Job
-{
-    public static int $running = 0;
-
-    public static function run(string $name, bool $fails): string
-    {
-        self::$running = self::$running + 1;
-        try {
-            if ($fails) {
-                throw new IOError("cannot write " . $name);
-            }
-            return "done " . $name;
-        } catch (IOError $e) {
-            return "failed: " . $e->message;
-        } finally {
-            // Both ways out of the block above pass through here.
-            self::$running = self::$running - 1;
-            echo "[", $name, " closed] ";
-        }
-    }
-}
-
-// This prints: [report closed] done report
-echo Job::run("report", false), "\n";
-// This prints: [invoice closed] failed: cannot write invoice
-echo Job::run("invoice", true), "\n";
-
-// This prints 0. Every job gave its slot back, the failed one too.
-echo Job::$running, "\n";
-```
-
-```output
-[report closed] done report
-[invoice closed] failed: cannot write invoice
-0
-```
-
-#### Example 04: two clauses need two names
-
-```nvs error
-<?nvs
-// Shows that two `catch` clauses for different types need two variable names.
-// Both clauses below use `$e`, so this program does not compile.
-// proof: compile-error
-
-class Twice
-{
-    public static function run(): string
-    {
-        try {
-            throw new LogicError("x");
-        } catch (LogicError $e) {
-            return "a";
-        } catch (Throwable $e) {
-            return "b";
-        }
-    }
-}
-
-echo Twice::run(), "\n";
-```
-
-```output
-error[E0406]: `$e` is already declared
-   --> main.nvs:12:29
-   |
-12 |         } catch (LogicError $e) {
-   |                             -- first declared here
-...
-14 |         } catch (Throwable $e) {
-   |                            ^^ second declaration
-
-error: aborting due to 1 error
-To read what a code means and how to fix it, run `nvs agent show <code>`.
-```
-
-#### Example 05: finally runs on continue
-
-```nvs
-<?nvs
-// Shows that `finally` also runs when `continue` leaves the `try` block.
-
-int $i = 0;
-
-while ($i < 3) {
-    $i++;
-    try {
-        if ($i == 2) {
-            // The rest of the block is skipped, but `finally` still runs.
-            continue;
-        }
-        echo "body", $i, " ";
-    } finally {
-        echo "fin", $i, " ";
-    }
-}
-
-// The loop above prints: body1 fin1 fin2 body3 fin3
-// The second pass prints only fin2.
-echo "\n";
-```
-
-```output
-body1 fin1 fin2 body3 fin3
-```
-
 ### `catch` as an expression
 
 `catch` written after an expression gives that expression a value to fall back on when it throws an
@@ -12467,161 +12234,6 @@ error[E0126]: a `catch` arm is an expression, and `return` is a statement
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
-```
-
-### `throw`
-
-`throw` raises an error. The method stops at that line and Novis looks for a `catch` clause that
-matches, first in the same method and then in each caller.
-
-Everything you throw is a `Throwable`, or a class that extends one. `throw new RuntimeError("the
-reason");` is the usual form: the message is the first argument, and a class may add more.
-
-If no `catch` matches, the program ends with status 1. It writes the message, the error class and
-the methods that were running to standard error, as one log record.
-
-`throw` is also an expression, so you can write it where a value is expected. `$name ?? throw new
-LogicError("no name")` gives the name when there is one, and raises the error when there is not.
-
-**Good to know:** `{previous: $e}` as a last argument records the error that caused this one. The
-error you add then keeps the first one with it.
-
-**The examples below** show a method that reports a value it cannot use, a `throw` written where a
-value is expected, and an error that keeps the error that caused it. The last one shows a program
-that ends because no `catch` handles its error.
-
-#### Example 01: reporting a value the method cannot use
-
-```nvs
-<?nvs
-// Shows how `throw` reports a value a method cannot work with. The method
-// stops at the `throw`, and the `catch` around the call runs instead.
-
-class Age
-{
-    public static function of(int $birthYear, int $thisYear): int
-    {
-        if ($birthYear > $thisYear) {
-            throw new RuntimeError("a birth year in the future: " . $birthYear);
-        }
-        return $thisYear - $birthYear;
-    }
-}
-
-// This prints 41
-echo Age::of(1985, 2026), "\n";
-
-try {
-    echo Age::of(2040, 2026), "\n";
-    echo "this line is never reached\n";
-} catch (RuntimeError $e) {
-    // This prints: cannot use that row: a birth year in the future: 2040
-    echo "cannot use that row: ", $e->message, "\n";
-}
-```
-
-```output
-41
-cannot use that row: a birth year in the future: 2040
-```
-
-#### Example 02: requiring a setting that may be missing
-
-```nvs
-<?nvs
-// Shows `throw` written where a value is expected. `??` takes the value on the
-// left when there is one. When there is none, the `throw` on the right runs.
-
-class Settings
-{
-    public static function need(array<string> $config, string $key): string
-    {
-        return $config[$key] ?? throw new LogicError("the setting `" . $key . "` is missing");
-    }
-}
-
-array<string> $config = ["host" => "localhost", "user" => "app"];
-
-// This prints localhost
-echo Settings::need($config, "host"), "\n";
-
-try {
-    echo Settings::need($config, "port"), "\n";
-} catch (LogicError $e) {
-    // This prints: the setting `port` is missing
-    echo $e->message, "\n";
-}
-```
-
-```output
-localhost
-the setting `port` is missing
-```
-
-#### Example 03: adding context to an error you caught
-
-```nvs
-<?nvs
-// Shows how to add context to an error you caught. `{previous: $cause}` keeps
-// the first error, so a report can name both what failed and why.
-
-class ProfileError extends RuntimeError
-{
-    public string $user;
-
-    public function constructor(string $message, string $user, Throwable $cause)
-    {
-        parent::constructor($message, {previous: $cause});
-        $this->user = $user;
-    }
-}
-
-class Profile
-{
-    public static function load(string $user): string
-    {
-        try {
-            throw new IOError("no file for " . $user);
-        } catch (IOError $io) {
-            throw new ProfileError("could not load the profile", $user, $io);
-        }
-    }
-}
-
-try {
-    echo Profile::load("ada"), "\n";
-} catch (ProfileError $p) {
-    // This prints: could not load the profile (ada)
-    echo $p->message, " (", $p->user, ")\n";
-    // This prints: caused by: no file for ada
-    echo "caused by: ", $p->previous?->message ?? "nothing", "\n";
-}
-```
-
-```output
-could not load the profile (ada)
-caused by: no file for ada
-```
-
-#### Example 04: an error no catch handles
-
-```nvs exit=1
-<?nvs
-// Shows what happens when no `catch` handles an error. The program ends with
-// status 1, and the error goes to standard error.
-// proof: exit 1
-
-echo "loading the price list\n";
-
-// Nothing catches this error, so the program ends here.
-throw new RuntimeError("the price list is empty");
-
-// This line never runs.
-echo "prices loaded\n";
-```
-
-```output
-loading the price list
 ```
 
 ### `echo`, `print`, `unset`, `exit`, `yield`
@@ -20325,7 +19937,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 <a id="lang-errors"></a>
 ## A.8 Errors, exceptions and limits
 
-Keywords: Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, uncaught exception, error handler, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, dump a value, assertion, Core\Test\Failure
+Keywords: Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, multi-catch, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, uncaught exception, error handler, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, dump a value, assertion, Core\Test\Failure
 
 ### The throwable tree
 
@@ -20900,13 +20512,17 @@ caused by: Core\Json::decode(): expected value at line 1 column 10
 `Throwable`, such as `LogicError`, `IOError`, or a class you wrote yourself. The nearest `catch`
 clause whose class matches takes over, and the lines after the `throw` never run.
 
+`throw new RuntimeError("the reason");` is the usual form. The message is the first argument, and a
+class may add more. If no `catch` matches, the program ends with status 1.
+
 `throw` is a statement, and it is also an expression. You can write it where a value is expected:
 after `??` when a value may be missing, in the `default` arm of a `match`, and in a ternary
 arm. In each of those places the program either has a value or throws, so
 every line after it can use the value.
 
 **The examples below** show `throw` after `??` for a missing field, in the `default` arm of a
-`match` over order statuses, and in the checks a program runs before it ships an order.
+`match` over order statuses, and in the checks a program runs before it ships an order. The last
+one shows a method that throws for a value it cannot use, and a `catch` around the call.
 
 `throw "x"`, `throw 5` and `throw new Foo()` for a class not under `Throwable` are each the error
 `E0780`. A variable whose type is an interface is `E0780` too, even when the object in it extends
@@ -21042,24 +20658,77 @@ an order needs at least one item
 an order needs an address
 ```
 
+#### Example 04: reporting a value the method cannot use
+
+```nvs
+<?nvs
+// Shows how `throw` reports a value a method cannot work with. The method
+// stops at the `throw`, and the `catch` around the call runs instead.
+
+class Age
+{
+    public static function of(int $birthYear, int $thisYear): int
+    {
+        if ($birthYear > $thisYear) {
+            throw new RuntimeError("a birth year in the future: " . $birthYear);
+        }
+        return $thisYear - $birthYear;
+    }
+}
+
+// This prints 41
+echo Age::of(1985, 2026), "\n";
+
+try {
+    echo Age::of(2040, 2026), "\n";
+    echo "this line is never reached\n";
+} catch (RuntimeError $e) {
+    // This prints: cannot use that row: a birth year in the future: 2040
+    echo "cannot use that row: ", $e->message, "\n";
+}
+```
+
+```output
+41
+cannot use that row: a birth year in the future: 2040
+```
+
 ### `try`, `catch`, `finally`
 
-`try` guards a block of code that can throw. Each `catch` clause beside it names one class from the
-throwable tree, and `finally` runs whatever the outcome is.
+`try` guards a block of code that can throw. Write `try { … }`, then `catch` clauses, a `finally`
+block, or both. Each `catch` clause names one class from the throwable tree.
 
 A clause matches its own class and every class under it, so `catch (RuntimeError $e)` also takes an
-`IOError` and a `TimeoutError`, and `catch (Throwable $e)` takes everything. The clauses are tried
-from top to bottom, so the narrow classes go first.
+`IOError`. The clauses are tried from top to bottom, so the narrow classes go first. You may leave
+the variable out when you do not need the error itself.
 
-A `catch` clause may throw as well. What it throws leaves the whole `try`: the clauses beside it
-never see it, and the next `try` further out handles it. This is how one layer reports an error of
-its own and keeps the caught one as the cause.
-
-`finally` runs on every way out of the block, and nested `finally` blocks run from the innermost one
-outwards.
+`finally` runs on every way out of the block: after the body, after a `catch`, and on `return`,
+`break`, `continue` or an error that nothing caught.
 
 **The examples below** show two clauses picked by class, a `catch` that throws a new error with a
-cause, and the clean-up around a job that reads rows.
+cause, and the clean-up around a job that reads rows. Then they show a loop that carries on after a
+row that fails, two clauses with one variable name, which does not compile, and a `finally` that
+runs on `continue`.
+
+A `try` needs at least one `catch` clause or a `finally` block. A `try` with neither does not compile:
+it is the error `E0242`.
+
+A `catch` clause may name an interface. It then matches every class that implements that interface.
+
+A clause for a parent class that is written before a clause for its subclass catches that error
+first. The later clause never runs. This compiles without a warning.
+
+`catch (LogicError | IOError $e)` does not compile: it is the error `E0245`. Write two clauses.
+
+The variable of a `catch` clause is a variable of the whole function. Two clauses in one function may
+use the same name when they catch the same type. When the types are different, the second clause does
+not compile: that is the error `E0406`.
+
+A `catch` clause may throw as well. The other clauses of the same `try` do not catch the new error.
+The `finally` block of that `try` runs first, and then the next `try` outside handles the error. This
+is how one layer reports an error of its own and keeps the caught one as its `previous`.
+
+When one `try` is inside another, the inner `finally` block runs before the outer one.
 
 A `return` inside a `finally` block does not compile: it is the error `E0250`. Change the result in
 the `try` or in a `catch`, or after the whole block.
@@ -21302,6 +20971,115 @@ error[E0250]: a `return` never leaves a `finally` block
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+#### Example 06: carrying on after a row that fails
+
+```nvs
+<?nvs
+// Shows the block form of `try`. The `catch` clause runs when the code inside
+// the `try` block throws an error, and the program carries on after the block.
+
+class Amount
+{
+    public static function of(string $text): int
+    {
+        ?int $value = $text as ?int;
+        if ($value == null) {
+            throw new RuntimeError("not a whole number: " . $text);
+        }
+        return $value;
+    }
+}
+
+array<string> $rows = ["12", "seven", "30"];
+int $total = 0;
+
+foreach ($rows as string $row) {
+    try {
+        $total = $total + Amount::of($row);
+    } catch (RuntimeError $e) {
+        // This prints: skipped: not a whole number: seven
+        echo "skipped: ", $e->message, "\n";
+    }
+}
+
+// This prints 42. The row that failed added nothing.
+echo $total, "\n";
+```
+
+```output
+skipped: not a whole number: seven
+42
+```
+
+#### Example 07: two clauses need two names
+
+```nvs error
+<?nvs
+// Shows that two `catch` clauses for different types need two variable names.
+// Both clauses below use `$e`, so this program does not compile.
+// proof: compile-error
+
+class Twice
+{
+    public static function run(): string
+    {
+        try {
+            throw new LogicError("x");
+        } catch (LogicError $e) {
+            return "a";
+        } catch (Throwable $e) {
+            return "b";
+        }
+    }
+}
+
+echo Twice::run(), "\n";
+```
+
+```output
+error[E0406]: `$e` is already declared
+   --> main.nvs:12:29
+   |
+12 |         } catch (LogicError $e) {
+   |                             -- first declared here
+...
+14 |         } catch (Throwable $e) {
+   |                            ^^ second declaration
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+#### Example 08: finally runs on continue
+
+```nvs
+<?nvs
+// Shows that `finally` also runs when `continue` leaves the `try` block.
+
+int $i = 0;
+
+while ($i < 3) {
+    $i++;
+    try {
+        if ($i == 2) {
+            // The rest of the block is skipped, but `finally` still runs.
+            continue;
+        }
+        echo "body", $i, " ";
+    } finally {
+        echo "fin", $i, " ";
+    }
+}
+
+// The loop above prints: body1 fin1 fin2 body3 fin3
+// The second pass prints only fin2.
+echo "\n";
+```
+
+```output
+body1 fin1 fin2 body3 fin3
 ```
 
 ### Rethrowing

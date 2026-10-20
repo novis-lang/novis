@@ -969,8 +969,6 @@
     "benches/members/lang/statements/return.nvs": 2181,
     "benches/members/lang/statements/statement-forms-that-do-not-parse.nvs": 25618,
     "benches/members/lang/statements/switch.nvs": 2564,
-    "benches/members/lang/statements/throw.nvs": 1797,
-    "benches/members/lang/statements/try-catch-finally.nvs": 2181,
     "benches/members/lang/statements/while-and-do-while.nvs": 2053,
     "benches/members/lang/testing/a-test-is-a-method-marked-test.nvs": 8197,
     "benches/members/lang/testing/assertions.nvs": 1029,

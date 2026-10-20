@@ -125,15 +125,15 @@ marked `~`: it is the machine, not the code.
 | `Core\Bytes::pack` | 3.00 | 0.00 | 7.00 | 333.0 |  | -0.001 | complexity linear, calls 0 | 12bd24661f00 |
 | `Core\Bytes::repeat` | 3.00 | 0.00 | 3.00 | 248.0 |  | +0.031 | complexity linear, calls 0 | 12bd24661f00 |
 | `Core\Bytes::slice` | 3.00 | 0.00 | 1.00 | 48.0 |  | -0.041 | complexity linear, calls 0 | 12bd24661f00 |
-| `Core\Bytes::startsWith` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.007 | complexity linear, calls 0, allocations 0 | 12bd24661f00 |
+| `Core\Bytes::startsWith` | 3.00 | 1.00 | 0.00 | 0.0 |  | -0.004 | complexity linear, calls 1, allocations 0 | c69dcb286493 |
 | `Core\Bytes::unpack` | 5.00 | 0.00 | 3.00 | 272.0 |  | +0.027 | complexity linear, calls 0 | 12bd24661f00 |
 | `Core\Cache::memory` | 5.00 | 0.00 | 16.00 | 231.0 |  | -1.000 | complexity linear, calls 0 | 6dc575f880cf |
-| `Core\Cache\SecretEntry::of` | 5.00 | 0.00 | 2.00 | 112.0 |  |  | complexity constant, calls 0 | 6dc575f880cf |
+| `Core\Cache\SecretEntry::of` | 5.00 | 1.00 | 1.00 | 64.0 | -1.000 | -48.000 | complexity constant, calls 1 | c69dcb286493 |
 | `Core\Cache\Store::forget` | 5.00 | 0.00 | 14.00 | 163.0 | +4.000 | +80.000 | complexity linear, calls 0 | 6dc575f880cf |
 | `Core\Cache\Store::get` | 3.00 | 0.00 | 4.00 | 51.0 | +2.000 | +34.000 | complexity linear, calls 0 | 6dc575f880cf |
-| `Core\Cache\Store::getSecret` | 5.00 | 0.00 | 10.00 | 284.0 | +2.000 | +46.000 | complexity linear, calls 0 | 6dc575f880cf |
+| `Core\Cache\Store::getSecret` | 5.00 | 1.00 | 10.00 | 292.0 |  | +8.000 | complexity linear, calls 1 | c69dcb286493 |
 | `Core\Cache\Store::put` | 4.00 | 0.00 | 10.00 | 90.0 | +2.000 | +36.000 | complexity linear, calls 0 | 6dc575f880cf |
-| `Core\Cache\Store::putSecret` | 5.00 | 0.00 | 15.00 | 382.0 | +2.000 | +44.000 | complexity linear, calls 0 | 6dc575f880cf |
+| `Core\Cache\Store::putSecret` | 5.00 | 1.00 | 14.00 | 334.0 | -1.000 | -48.000 | complexity linear, calls 1 | c69dcb286493 |
 | `Core\Cap::has` | 7.00 | 0.00 | 0.00 | 0.0 |  | +0.003 | complexity constant, calls 0, allocations 0 | 12bd24661f00 |
 | `Core\Cldr::ordinalCategory` | 8.66 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | 8dd568f3f9f7 |
 | `Core\Cldr::pluralCategory` | 8.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | 8dd568f3f9f7 |
@@ -142,7 +142,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Cli::colorDepth` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | fc68c555ecc5 |
 | `Core\Cli::confirm` | 6.00 | 1.00 | 3.00 | 70.8 |  |  | complexity linear, calls 1, allocations 3 | fc68c555ecc5 |
 | `Core\Cli::displayWidth` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | fc68c555ecc5 |
-| `Core\Cli::escape` | 4.00 | 2.00 | 1.00 | 37.0 |  |  | complexity linear, calls 2, allocations 1 | fc68c555ecc5 |
+| `Core\Cli::escape` | 4.00 | 2.00 | 1.00 | 45.0 |  | +8.000 | complexity linear, calls 2, allocations 1 | c69dcb286493 |
 | `Core\Cli::height` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | fc68c555ecc5 |
 | `Core\Cli::isTty` | 6.67 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | fc68c555ecc5 |
 | `Core\Cli::live` | 5.00 | 4.00 | 11.00 | 710.0 | -1.000 | -56.000 | complexity constant, calls 4, allocations 11 | 764525d4bdf3 |
@@ -389,10 +389,10 @@ marked `~`: it is the machine, not the code.
 | `Core\Jwe\Key::password` | 5.00 | 0.00 | 2.00 | 131.3 |  | -0.008 | complexity linear | 12bd24661f00 |
 | `Core\Jwe\Key::recipient` | 5.00 | 0.00 | 2.00 | 172.2 |  | +0.510 | complexity constant | 12bd24661f00 |
 | `Core\Jwe\Key::shared` | 5.00 | 0.00 | 2.00 | 144.0 |  | +0.027 | complexity constant | 12bd24661f00 |
-| `Core\Jwt::sign` | 4.00 | 0.00 | 38.00 | 1643.0 |  | -29.199 | complexity linear | 12bd24661f00 |
-| `Core\Jwt::signObject` | 7.00 | 1.00 | 37.00 | 2376.0 |  | -27.564 | complexity linear | 12bd24661f00 |
-| `Core\Jwt::verify` | 4.00 | 0.00 | 32.00 | 2264.0 | -0.001 | -0.068 | complexity linear | 12bd24661f00 |
-| `Core\Jwt::verifyIssued` | 4.00 | 0.00 | 40.00 | 2727.0 | -0.016 | -1.151 | complexity linear | 12bd24661f00 |
+| `Core\Jwt::sign` | 4.00 | 2.00 | 36.00 | 1598.0 | -2.000 | -45.000 | complexity linear | c69dcb286493 |
+| `Core\Jwt::signObject` | 7.00 | 3.00 | 35.00 | 2339.0 | -2.000 | -37.000 | complexity linear | c69dcb286493 |
+| `Core\Jwt::verify` | 4.00 | 2.00 | 32.00 | 2312.0 |  | +48.000 | complexity linear | c69dcb286493 |
+| `Core\Jwt::verifyIssued` | 4.00 | 2.00 | 40.00 | 2775.0 |  | +48.000 | complexity linear | c69dcb286493 |
 | `Core\Jwt\KeySet::read` | 5.00 | 0.00 | 65.00 | 5586.0 | -0.002 | -0.248 | complexity linear | 12bd24661f00 |
 | `Core\Ldap::connect` | 5.00 | 0.00 | 19.00 | 1845.0 |  |  | complexity constant, calls 0 | 4404822743f4 |
 | `Core\Ldap::open` | 5.00 | 0.00 | 19.00 | 1822.0 |  |  | complexity constant, calls 0 | 4404822743f4 |
@@ -551,7 +551,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Net\Datagram::send` | 3.00 | 0.00 | 2.00 | 65.0 | -0.005 | +1.434 | complexity linear | 12bd24661f00 |
 | `Core\Net\Datagram\Message::host` | 5.00 | 0.00 | 0.00 | 0.0 |  | -0.060 | complexity constant | 12bd24661f00 |
 | `Core\Net\Datagram\Message::payload` | 5.00 | 0.00 | 0.00 | 0.0 |  | -0.056 | complexity constant | 12bd24661f00 |
-| `Core\Net\Datagram\Message::port` | 3.00 | 0.00 | 0.00 | 0.0 |  | -0.064 | complexity constant, allocations 0 | 12bd24661f00 |
+| `Core\Net\Datagram\Message::port` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | c69dcb286493 |
 | `Core\Net\Listener::accept` | 11.00 | 0.00 | 14.02 | 930.0 | -0.049 | +108.850 | complexity constant | 12bd24661f00 |
 | `Core\Net\Listener::close` | 5.00 | 0.00 | 2.02 | 144.0 | +0.011 | +0.976 | complexity constant | 12bd24661f00 |
 | `Core\Net\Listener::port` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 12bd24661f00 |
@@ -638,10 +638,10 @@ marked `~`: it is the machine, not the code.
 | `Core\Random\Seeded::shuffle` | 4.00 | 1.00 | 5.00 | 400.0 |  |  | complexity linear | b23b5116fcf3 |
 | `Core\Random\Seeded::token` | 5.00 | 1.00 | 1.00 | 44.0 |  | -0.015 | complexity linear, calls 1, allocations 1 | c21e52f41dad |
 | `Core\RateLimit::shed` | 4.00 | 0.00 | 11.00 | 294.0 | +1.000 | +57.313 | complexity constant | 6dc575f880cf |
-| `Core\RateLimit\Decision::allowed` | 6.00 | 1.00 | 0.00 | 0.0 |  | -0.004 | complexity constant, allocations 0 | b23b5116fcf3 |
-| `Core\RateLimit\Decision::limit` | 4.00 | 1.00 | 0.00 | 0.0 |  | -0.004 | complexity constant, allocations 0 | b23b5116fcf3 |
-| `Core\RateLimit\Decision::remaining` | 4.00 | 1.00 | 0.00 | 0.0 |  | -0.004 | complexity constant, allocations 0 | b23b5116fcf3 |
-| `Core\RateLimit\Decision::retryAfter` | 6.00 | 1.00 | 0.00 | 0.0 |  | -0.004 | complexity constant, allocations 0 | b23b5116fcf3 |
+| `Core\RateLimit\Decision::allowed` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | c69dcb286493 |
+| `Core\RateLimit\Decision::limit` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | c69dcb286493 |
+| `Core\RateLimit\Decision::remaining` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | c69dcb286493 |
+| `Core\RateLimit\Decision::retryAfter` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | c69dcb286493 |
 | `Core\Reflect::forClass` | 6.00 | 3.00 | 14.50 | 1101.0 |  |  | complexity constant | b23b5116fcf3 |
 | `Core\Reflect::forObject` | 4.00 | 3.00 | 10.50 | 847.0 |  |  | complexity constant | b23b5116fcf3 |
 | `Core\Reflect::steps` | 3.00 | 2.00 | 10.00 | 683.0 |  |  | complexity linear, calls 2 | c21e52f41dad |
@@ -910,7 +910,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Time\DateTime::weekday` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | c21e52f41dad |
 | `Core\Time\DateTime::with` | 4.00 | 2.00 | 3.00 | 138.0 |  |  | complexity constant | b23b5116fcf3 |
 | `Core\Time\DateTime::withTime` | 4.00 | 2.00 | 4.00 | 171.0 | -1.000 | -1.000 | complexity constant | b23b5116fcf3 |
-| `Core\Time\DateTime::zone` | 4.00 | 3.00 | 3.34 | 141.0 |  |  | complexity constant, calls 3 | c21e52f41dad |
+| `Core\Time\DateTime::zone` | 4.00 | 3.00 | 3.34 | 149.0 |  | +8.000 | complexity constant, calls 3 | c69dcb286493 |
 | `Core\Time\Duration::compareTo` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 7b17a387c5c1 |
 | `Core\Time\Duration::days` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 7b17a387c5c1 |
 | `Core\Time\Duration::hours` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 7b17a387c5c1 |
@@ -988,7 +988,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Validate::isDomain` | 5.00 | 0.00 | 0.00 | 0.0 |  | -0.001 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
 | `Core\Validate::isEmail` | 5.00 | 0.00 | 0.00 | 0.0 |  | -0.001 | complexity linear, allocations 0, calls 0 | 12bd24661f00 |
 | `Core\Validate::isIp` | 5.00 | 0.00 | 0.00 | 0.0 |  | -0.001 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
-| `Core\Validate::isMac` | 5.00 | 0.00 | 0.00 | 0.0 |  | -0.001 | complexity linear, allocations 0, calls 0 | 12bd24661f00 |
+| `Core\Validate::isMac` | 5.00 | 1.00 | 0.00 | 0.0 |  | +0.008 | complexity linear, allocations 0, calls 1 | c69dcb286493 |
 | `Core\Validate::isPrintable` | 5.00 | 0.00 | 0.00 | 0.0 |  | -0.001 | complexity linear, allocations 0, calls 0 | 12bd24661f00 |
 | `Core\Xml::parse` | 6.00 | 4.00 | 65.00 | 5788.0 |  |  | complexity linear | 4910c38647bb |
 | `Core\Xml::reader` | 8.00 | 4.00 | 52.00 | 3298.0 |  |  | complexity linear | 4910c38647bb |
@@ -1203,8 +1203,8 @@ marked `~`: it is the machine, not the code.
 | `lang:errors/recursion-depth` | 38.00 | 17.00 | 0.00 | 0.0 |  |  | complexity constant, calls 17, allocations 0 | 4ebedd60f361 |
 | `lang:errors/rethrowing` | 8.00 | 2.00 | 19.02 | 2171.0 |  |  | complexity constant | 4ebedd60f361 |
 | `lang:errors/the-throwable-tree` | 5.00 | 2.00 | 15.00 | 1480.0 |  |  | complexity constant | 4ebedd60f361 |
-| `lang:errors/throw` | 6.00 | 3.00 | 14.00 | 1394.0 |  |  | complexity constant, calls 3 | 4ebedd60f361 |
-| `lang:errors/try-catch-finally` | 8.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4ebedd60f361 |
+| `lang:errors/throw` | 6.00 | 3.00 | 14.00 | 1402.0 |  |  | complexity constant, calls 3 | 8c790eff13ac |
+| `lang:errors/try-catch-finally` | 8.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 8c790eff13ac |
 | `lang:expressions/and-the-ternary` | 6.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | e23c611022c5 |
 | `lang:expressions/anonymous-functions` | 7.00 | 3.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 3 | 764525d4bdf3 |
 | `lang:expressions/anonymous-objects` | 5.00 | 0.00 | 1.00 | 64.0 |  |  | complexity constant | e23c611022c5 |
@@ -1245,8 +1245,6 @@ marked `~`: it is the machine, not the code.
 | `lang:statements/return` | 4.25 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | e23c611022c5 |
 | `lang:statements/statement-forms-that-do-not-parse` | 12.51 | 0.00 | 0.00 | 0.0 |  |  | complexity linear, calls 0, allocations 0 | e23c611022c5 |
 | `lang:statements/switch` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | e23c611022c5 |
-| `lang:statements/throw` | 7.00 | 2.00 | 14.00 | 1458.0 |  |  | complexity constant, calls 2 | e23c611022c5 |
-| `lang:statements/try-catch-finally` | 8.50 | 1.25 | 3.50 | 410.8 |  |  | complexity constant | e23c611022c5 |
 | `lang:statements/while-and-do-while` | 8.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | e23c611022c5 |
 | `lang:testing/a-test-is-a-method-marked-test` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | b23b5116fcf3 |
 | `lang:testing/assertions` | 4.00 | 1.00 | 0.02 | 80.0 |  |  | complexity constant, calls 1, allocations 0 | c21e52f41dad |
@@ -1307,7 +1305,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\BigInt::lcm` | Core\BigInt | recorded as known-gap: `// bench: complexity quadratic` is not one of constant, linear, nlogn, karatsuba |
 | `Core\BigInt::powMod` | Core\BigInt | recorded as known-gap: `// bench: complexity quadratic` is not one of constant, linear, nlogn, karatsuba |
 | `Core\Bytes::at` | Core\Bytes | 274.7 units against a `constant` ceiling of 100 |
-| `Core\Cache\SecretEntry::of` | Core\Cache\SecretEntry | 11426.6 units against a `constant` ceiling of 100 |
+| `Core\Cache\SecretEntry::of` | Core\Cache\SecretEntry | 523.6 units against a `constant` ceiling of 100 |
 | `Core\Cldr::ordinalCategory` | Core\Cldr | 2942.3 units against a `constant` ceiling of 100 |
 | `Core\Cldr::pluralCategory` | Core\Cldr | 845.9 units against a `constant` ceiling of 100 |
 | `Core\Cli\Style::of` | Core\Cli\Style | 690.0 units against a `constant` ceiling of 100 |
@@ -1595,7 +1593,6 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Time\DateTime::timeOfDay` | Core\Time\DateTime | 94983.9 units against a `constant` ceiling of 100 |
 | `Core\Time\DateTime::toInstant` | Core\Time\DateTime | 21168.1 units against a `constant` ceiling of 100 |
 | `Core\Time\DateTime::weekday` | Core\Time\DateTime | 2052.4 units against a `constant` ceiling of 100 |
-| `Core\Time\DateTime::zone` | Core\Time\DateTime | 8295.3 units against a `constant` ceiling of 100 |
 | `Core\Time\Duration::compareTo` | Core\Time\Duration | 200.6 units against a `constant` ceiling of 100 |
 | `Core\Time\Duration::minus` | Core\Time\Duration | 232.4 units against a `constant` ceiling of 100 |
 | `Core\Time\Duration::minutes` | Core\Time\Duration | 1999.2 units against a `constant` ceiling of 100 |
@@ -1754,6 +1751,7 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:enums/what-replaces-php-s-enum-members` | lang:enums | 1055.2 units against a `constant` ceiling of 100 |
 | `lang:errors/rethrowing` | lang:errors | 1164.1 units against a `constant` ceiling of 100 |
 | `lang:errors/the-throwable-tree` | lang:errors | 1251.5 units against a `constant` ceiling of 100 |
+| `lang:errors/try-catch-finally` | lang:errors | 241.1 units against a `constant` ceiling of 100 |
 | `lang:expressions/anonymous-functions` | lang:expressions | 79.6x its group's median of 3.5 units — 275.3 units against a `constant` ceiling of 100 |
 | `lang:expressions/arithmetic` | lang:expressions | 90.0x its group's median of 3.5 units — 311.3 units against a `constant` ceiling of 100 |
 | `lang:expressions/closures` | lang:expressions | 13.6x its group's median of 3.5 units — recorded as known-gap: declares `allocations 0` per op and did 3.000 |
@@ -1763,7 +1761,6 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:statements/echo-print-unset-exit-yield` | lang:statements | 29.6x its group's median of 18.9 units — 559.1 units against a `constant` ceiling of 100 |
 | `lang:statements/return` | lang:statements | 8.5x its group's median of 18.9 units — 159.8 units against a `constant` ceiling of 100 |
 | `lang:statements/statement-forms-that-do-not-parse` | lang:statements | 16.4x its group's median of 18.9 units |
-| `lang:statements/try-catch-finally` | lang:statements | 83.4x its group's median of 18.9 units — 1572.1 units against a `constant` ceiling of 100 |
 | `lang:statements/while-and-do-while` | lang:statements | 408.5x its group's median of 18.9 units — 7703.5 units against a `constant` ceiling of 100 |
 | `lang:testing/assertions` | lang:testing | 13853.5 units against a `constant` ceiling of 100 |
 | `lang:types/array-t` | lang:types | 201.7 units against a `constant` ceiling of 100 |
@@ -1885,15 +1882,15 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Bytes::pack` | 0.0 | 2494.5 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | 8d6a36b1cd6076d02ab821e1638373c4 |
 | `Core\Bytes::repeat` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | 8d6a36b1cd6076d02ab821e1638373c4 |
 | `Core\Bytes::slice` | 0.0 | 2159.8 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | 8d6a36b1cd6076d02ab821e1638373c4 |
-| `Core\Bytes::startsWith` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | 8d6a36b1cd6076d02ab821e1638373c4 |
+| `Core\Bytes::startsWith` | 0.0 | 0.0 | 0.000 |  | flat, flat | c69dcb286493 | 8d6a36b1cd6076d02ab821e1638373c4 |
 | `Core\Bytes::unpack` | 0.0 | 675.4 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | 8d6a36b1cd6076d02ab821e1638373c4 |
 | `Core\Cache::memory` | 8335.2 | 19635.5 | 1602.730 |  | flat, flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
-| `Core\Cache\SecretEntry::of` | 59425.4 | 73326.2 | 11426.641 |  | flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
+| `Core\Cache\SecretEntry::of` | 1476.2 | 7952.0 | 523.577 | -97.5% ~ | flat | c69dcb286493 | 8ed0144d75d479dcfeafc3746e08d255 |
 | `Core\Cache\Store::forget` | 4000.0 | 5840.6 | 769.142 | +919.9% | flat, flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
 | `Core\Cache\Store::get` | 13934.4 | 15586.3 | 2679.378 | -54.8% | flat, flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
-| `Core\Cache\Store::getSecret` | 10157.8 | 50376.2 | 1953.200 |  | flat, flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
+| `Core\Cache\Store::getSecret` | 2053.5 | 19879.7 | 728.352 | -79.8% ~ | flat, flat | c69dcb286493 | 8ed0144d75d479dcfeafc3746e08d255 |
 | `Core\Cache\Store::put` | 6246.9 | 22492.6 | 1201.184 |  | flat, flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
-| `Core\Cache\Store::putSecret` | 35038.3 | 42031.2 | 6737.354 |  | flat, flat | 6dc575f880cf | 8ed0144d75d479dcfeafc3746e08d255 |
+| `Core\Cache\Store::putSecret` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | c69dcb286493 | 8ed0144d75d479dcfeafc3746e08d255 |
 | `Core\Cap::has` | 0.0 | 632.6 | 0.000 | -100.0% | flat | 12bd24661f00 | 062fdd431cc4f821fafb73f7bee3d27b |
 | `Core\Cldr::ordinalCategory` | 10026.8 | 19231.7 | 2942.296 | -61.6% ~ | flat | 8dd568f3f9f7 | a7eec54d04bafe4419345a392d9d8758 |
 | `Core\Cldr::pluralCategory` | 2882.6 | 6026.8 | 845.874 | -84.9% ~ | flat | 8dd568f3f9f7 | a7eec54d04bafe4419345a392d9d8758 |
@@ -1902,7 +1899,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Cli::colorDepth` | 0.0 | 0.0 | 0.000 | -100.0% | flat | fc68c555ecc5 | d268a202acd9ee5c4ef56f726c093a3c |
 | `Core\Cli::confirm` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | fc68c555ecc5 | d268a202acd9ee5c4ef56f726c093a3c |
 | `Core\Cli::displayWidth` | 47.6 | 412.1 | 16.526 | -95.8% ~ | flat, flat | fc68c555ecc5 | d268a202acd9ee5c4ef56f726c093a3c |
-| `Core\Cli::escape` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | fc68c555ecc5 | d268a202acd9ee5c4ef56f726c093a3c |
+| `Core\Cli::escape` | 0.0 | 2030.9 | 0.000 |  | flat, flat | c69dcb286493 | d268a202acd9ee5c4ef56f726c093a3c |
 | `Core\Cli::height` | 0.0 | 2.1 | 0.000 | -100.0% | flat | fc68c555ecc5 | d268a202acd9ee5c4ef56f726c093a3c |
 | `Core\Cli::isTty` | 0.0 | 0.0 | 0.000 | -100.0% | flat | fc68c555ecc5 | d268a202acd9ee5c4ef56f726c093a3c |
 | `Core\Cli::live` | 0.0 | 1461.3 | 0.000 |  | flat | 764525d4bdf3 | d268a202acd9ee5c4ef56f726c093a3c |
@@ -2149,10 +2146,10 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Jwe\Key::password` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | c468fd7895b0865c151057c2f7acc72d |
 | `Core\Jwe\Key::recipient` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | c468fd7895b0865c151057c2f7acc72d |
 | `Core\Jwe\Key::shared` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | c468fd7895b0865c151057c2f7acc72d |
-| `Core\Jwt::sign` | 3037.5 | 11562.1 | 885.065 | +158.2% ~ | flat, flat | 12bd24661f00 | 487ff940b29b99a33101a8af5df2d52c |
-| `Core\Jwt::signObject` | 67424.2 | 72934.4 | 19646.038 | -3.3% ~ | flat, flat | 12bd24661f00 | 487ff940b29b99a33101a8af5df2d52c |
-| `Core\Jwt::verify` | 0.0 | 8173.4 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | 487ff940b29b99a33101a8af5df2d52c |
-| `Core\Jwt::verifyIssued` | 43101.2 | 44523.4 | 12558.799 | -1.6% ~ | flat, flat | 12bd24661f00 | 487ff940b29b99a33101a8af5df2d52c |
+| `Core\Jwt::sign` | 259.0 | 9698.4 | 66.193 | -91.5% ~ | flat, flat | c69dcb286493 | 487ff940b29b99a33101a8af5df2d52c |
+| `Core\Jwt::signObject` | 95519.1 | 120858.6 | 24413.526 | +41.7% | flat, flat | c69dcb286493 | 487ff940b29b99a33101a8af5df2d52c |
+| `Core\Jwt::verify` | 5847.7 | 18035.5 | 1494.590 |  | flat, flat | c69dcb286493 | 487ff940b29b99a33101a8af5df2d52c |
+| `Core\Jwt::verifyIssued` | 57502.0 | 104766.8 | 14696.797 | +33.4% ~ | flat, flat | c69dcb286493 | 487ff940b29b99a33101a8af5df2d52c |
 | `Core\Jwt\KeySet::read` | 3637.5 | 7206.6 | 1059.893 | +36.1% ~ | flat, flat | 12bd24661f00 | 487ff940b29b99a33101a8af5df2d52c |
 | `Core\Ldap::connect` | 513.9 | 545.1 | 119.970 | -5.1% ~ | flat | 4404822743f4 | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap::open` | 536.3 | 587.4 | 125.221 | +4.8% ~ | flat | 4404822743f4 | 86eae8625ca2e82f629f101b5d37f23a |
@@ -2311,7 +2308,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Net\Datagram::send` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | a178ef3d641ce647c9abe4a7a407d365 |
 | `Core\Net\Datagram\Message::host` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | a178ef3d641ce647c9abe4a7a407d365 |
 | `Core\Net\Datagram\Message::payload` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | a178ef3d641ce647c9abe4a7a407d365 |
-| `Core\Net\Datagram\Message::port` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | a178ef3d641ce647c9abe4a7a407d365 |
+| `Core\Net\Datagram\Message::port` | 0.0 | 0.0 | 0.000 |  | flat | c69dcb286493 | a178ef3d641ce647c9abe4a7a407d365 |
 | `Core\Net\Listener::accept` | 30770187.0 | 30977463.5 | 8965802.823 | +6.3% | flat | 12bd24661f00 | a178ef3d641ce647c9abe4a7a407d365 |
 | `Core\Net\Listener::close` | 11352.7 | 14818.4 | 3307.954 | -82.3% | flat | 12bd24661f00 | a178ef3d641ce647c9abe4a7a407d365 |
 | `Core\Net\Listener::port` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | a178ef3d641ce647c9abe4a7a407d365 |
@@ -2398,10 +2395,10 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Random\Seeded::shuffle` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b23b5116fcf3 | 106ebf050a7554aabd08176495cd93f4 |
 | `Core\Random\Seeded::token` | 70600.4 | 103929.7 | 20635.244 | +41.5% ~ | flat, flat | c21e52f41dad | 106ebf050a7554aabd08176495cd93f4 |
 | `Core\RateLimit::shed` | 32237.5 | 187674.6 | 6198.804 |  | flat | 6dc575f880cf | 09cb440de720891942668c3ba23a991b |
-| `Core\RateLimit\Decision::allowed` | 0.0 | 0.0 | 0.000 |  | flat | b23b5116fcf3 | 09cb440de720891942668c3ba23a991b |
-| `Core\RateLimit\Decision::limit` | 0.0 | 0.0 | 0.000 |  | flat | b23b5116fcf3 | 09cb440de720891942668c3ba23a991b |
-| `Core\RateLimit\Decision::remaining` | 0.0 | 0.0 | 0.000 |  | flat | b23b5116fcf3 | 09cb440de720891942668c3ba23a991b |
-| `Core\RateLimit\Decision::retryAfter` | 0.0 | 0.0 | 0.000 |  | flat | b23b5116fcf3 | 09cb440de720891942668c3ba23a991b |
+| `Core\RateLimit\Decision::allowed` | 0.0 | 0.0 | 0.000 |  | flat | c69dcb286493 | 09cb440de720891942668c3ba23a991b |
+| `Core\RateLimit\Decision::limit` | 0.0 | 0.0 | 0.000 |  | flat | c69dcb286493 | 09cb440de720891942668c3ba23a991b |
+| `Core\RateLimit\Decision::remaining` | 0.0 | 0.0 | 0.000 |  | flat | c69dcb286493 | 09cb440de720891942668c3ba23a991b |
+| `Core\RateLimit\Decision::retryAfter` | 0.0 | 0.0 | 0.000 |  | flat | c69dcb286493 | 09cb440de720891942668c3ba23a991b |
 | `Core\Reflect::forClass` | 0.0 | 0.0 | 0.000 |  | flat | b23b5116fcf3 | 3deca934ffdd8941201c52dbc02ec5ed |
 | `Core\Reflect::forObject` | 0.0 | 0.0 | 0.000 |  | flat | b23b5116fcf3 | 3deca934ffdd8941201c52dbc02ec5ed |
 | `Core\Reflect::steps` | 41131.6 | 43305.5 | 12022.050 |  | flat, flat | c21e52f41dad | 3deca934ffdd8941201c52dbc02ec5ed |
@@ -2670,7 +2667,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Time\DateTime::weekday` | 7022.0 | 8572.8 | 2052.398 | +475.1% | flat | c21e52f41dad | fd539f3fb2626e3a073f05ba5f51607e |
 | `Core\Time\DateTime::with` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b23b5116fcf3 | fd539f3fb2626e3a073f05ba5f51607e |
 | `Core\Time\DateTime::withTime` | 0.0 | 0.0 | 0.000 |  | flat | b23b5116fcf3 | fd539f3fb2626e3a073f05ba5f51607e |
-| `Core\Time\DateTime::zone` | 28381.2 | 75626.6 | 8295.337 |  | flat | c21e52f41dad | fd539f3fb2626e3a073f05ba5f51607e |
+| `Core\Time\DateTime::zone` | 0.0 | 3709.4 | 0.000 | -100.0% | flat | c69dcb286493 | fd539f3fb2626e3a073f05ba5f51607e |
 | `Core\Time\Duration::compareTo` | 628.3 | 3408.1 | 200.639 |  | flat | 7b17a387c5c1 | fd539f3fb2626e3a073f05ba5f51607e |
 | `Core\Time\Duration::days` | 0.0 | 22610.5 | 0.000 |  | flat | 7b17a387c5c1 | fd539f3fb2626e3a073f05ba5f51607e |
 | `Core\Time\Duration::hours` | 0.0 | 13935.5 | 0.000 |  | flat | 7b17a387c5c1 | fd539f3fb2626e3a073f05ba5f51607e |
@@ -2748,7 +2745,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Validate::isDomain` | 507.7 | 959.1 | 147.938 | +1347.9% | flat | 12bd24661f00 | e7ab62acfa39fddd533ac2095af1dfcf |
 | `Core\Validate::isEmail` | 846.4 | 1120.8 | 246.613 | +1515.8% | flat, flat | 12bd24661f00 | e7ab62acfa39fddd533ac2095af1dfcf |
 | `Core\Validate::isIp` | 655.6 | 887.7 | 191.018 | +1728.4% | flat | 12bd24661f00 | e7ab62acfa39fddd533ac2095af1dfcf |
-| `Core\Validate::isMac` | 970.7 | 1203.5 | 282.850 | +1833.5% | flat, flat | 12bd24661f00 | e7ab62acfa39fddd533ac2095af1dfcf |
+| `Core\Validate::isMac` | 594.8 | 963.4 | 210.967 | -38.7% ~ | flat, flat | c69dcb286493 | e7ab62acfa39fddd533ac2095af1dfcf |
 | `Core\Validate::isPrintable` | 837.4 | 1199.6 | 243.995 | +4149.4% | flat, flat | 12bd24661f00 | e7ab62acfa39fddd533ac2095af1dfcf |
 | `Core\Xml::parse` | 2189.5 | 5893.0 | 754.048 | +338.6% | flat, flat | 4910c38647bb | e360f1a369d9ae359fe7db5e2840d9ac |
 | `Core\Xml::reader` | 807.4 | 3859.0 | 278.076 | +233.4% ~ | flat, flat | 4910c38647bb | e360f1a369d9ae359fe7db5e2840d9ac |
@@ -2963,8 +2960,8 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:errors/recursion-depth` | 0.0 | 1995.1 | 0.000 | -100.0% | flat | 4ebedd60f361 | 4dd9779587e6b9564111172c52960685 |
 | `lang:errors/rethrowing` | 4389.8 | 12368.4 | 1164.060 | +23.9% ~ | flat | 4ebedd60f361 | 4dd9779587e6b9564111172c52960685 |
 | `lang:errors/the-throwable-tree` | 4719.5 | 7092.6 | 1251.483 |  | flat | 4ebedd60f361 | 4dd9779587e6b9564111172c52960685 |
-| `lang:errors/throw` | 0.0 | 951.2 | 0.000 |  | flat | 4ebedd60f361 | 4dd9779587e6b9564111172c52960685 |
-| `lang:errors/try-catch-finally` | 165.6 | 777.7 | 43.906 |  | flat | 4ebedd60f361 | 4dd9779587e6b9564111172c52960685 |
+| `lang:errors/throw` | 0.0 | 3345.3 | 0.000 | -100.0% | flat | 8c790eff13ac | d2767ee1b949db34f7f3816b2b791469 |
+| `lang:errors/try-catch-finally` | 921.1 | 1325.4 | 241.131 |  | flat | 8c790eff13ac | d2767ee1b949db34f7f3816b2b791469 |
 | `lang:expressions/and-the-ternary` | 0.0 | 343.8 | 0.000 |  | flat | e23c611022c5 | 72fc1110aef5bb6d7b007c6b19a8c684 |
 | `lang:expressions/anonymous-functions` | 813.3 | 2069.9 | 275.306 | -92.5% ~ | unclear | 764525d4bdf3 | 72fc1110aef5bb6d7b007c6b19a8c684 |
 | `lang:expressions/anonymous-objects` | 0.0 | 6734.8 | 0.000 |  | flat | e23c611022c5 | 72fc1110aef5bb6d7b007c6b19a8c684 |
@@ -3005,8 +3002,6 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:statements/return` | 468.0 | 3652.5 | 159.826 |  | flat | e23c611022c5 | 4f438bed713f95e729bfd51ffdac8ab0 |
 | `lang:statements/statement-forms-that-do-not-parse` | 904.2 | 1453.6 | 308.811 |  | flat, flat | e23c611022c5 | 4f438bed713f95e729bfd51ffdac8ab0 |
 | `lang:statements/switch` | 0.0 | 3083.0 | 0.000 |  | flat | e23c611022c5 | 4f438bed713f95e729bfd51ffdac8ab0 |
-| `lang:statements/throw` | 0.0 | 1493.4 | 0.000 |  | flat | e23c611022c5 | 4f438bed713f95e729bfd51ffdac8ab0 |
-| `lang:statements/try-catch-finally` | 4603.1 | 7653.5 | 1572.105 |  | flat | e23c611022c5 | 4f438bed713f95e729bfd51ffdac8ab0 |
 | `lang:statements/while-and-do-while` | 22555.9 | 61634.0 | 7703.504 |  | flat | e23c611022c5 | 4f438bed713f95e729bfd51ffdac8ab0 |
 | `lang:testing/a-test-is-a-method-marked-test` | 0.0 | 0.0 | 0.000 |  | flat | b23b5116fcf3 | eccf76bcd3da7cbd50de51a217f9cee4 |
 | `lang:testing/assertions` | 47397.7 | 55790.2 | 13853.495 |  | flat | c21e52f41dad | eccf76bcd3da7cbd50de51a217f9cee4 |
