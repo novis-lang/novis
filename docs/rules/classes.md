@@ -613,8 +613,10 @@ return it to, and a temporary, which copy-on-write would separate into a slot no
 
 `rule:classes/property-hooks`
 
-A property may declare `get` and `set` hooks, scoped to that one property, and a `readonly`
-property declares none. A hooked property's read is a call
+A property may declare one `get` and one `set` hook, scoped to that one property. A second hook of
+one kind is `E0304` at the second hook, and the first is the one that runs. A `readonly` property
+declares none (`E0843`), and neither does a `static` one (`E0872`): a hook runs at a read or a write
+through an instance, and a static property is never reached through one. A hooked property's read is a call
 to its `get` and its write a call to its `set`, at every access spelling alike — including one inside
 a string interpolation.
 

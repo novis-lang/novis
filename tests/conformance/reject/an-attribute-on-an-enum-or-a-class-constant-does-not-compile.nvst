@@ -1,0 +1,37 @@
+--TEST--
+A user attribute on an enum, an enum case or a class constant is `E0871`, and the same attribute on a class, a method and a property compiles
+--FILE--
+<?nvs
+type Label = {text: string};
+
+#[Label(text: "suit")]
+enum Suit {
+    #[Label(text: "hearts")]
+    Hearts,
+    Spades,
+}
+
+#[Label(text: "shop")]
+class Shop {
+    #[Label(text: "limit")]
+    public const int LIMIT = 3;
+
+    #[Label(text: "name")]
+    public string $name = "";
+
+    #[Label(text: "open")]
+    public function open(): void {}
+}
+
+echo Shop::LIMIT, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0871]: an attribute cannot be written on an enum
+%A
+error[E0871]: an attribute cannot be written on an enum case
+%A
+error[E0871]: an attribute cannot be written on a class constant
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

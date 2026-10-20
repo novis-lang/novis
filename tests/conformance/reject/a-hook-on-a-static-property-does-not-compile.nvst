@@ -1,0 +1,18 @@
+--TEST--
+A `get` or `set` hook on a `static` property is `E0872` at the first hook, and the same hook on an instance property compiles
+--FILE--
+<?nvs
+class Counter {
+    public static int $count { get => 3; }
+
+    public int $size { get => 4; }
+}
+
+echo (new Counter())->size, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0872]: a `static` property cannot have a `get` or `set` hook
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-types/src/signatures.rs, crates/nvs-syntax/src/parser/decl.rs, crates/nvs-types/src/expr/members.rs]
   - id: 8
     title: "enums, type arguments and property hooks are checked where they are written"
-    status: open
+    status: done
     context: [crates/nvs-types/src/enums.rs, crates/nvs-syntax/src/parser/ty.rs, crates/nvs-types/src/check.rs, crates/nvs-types/src/attributes.rs]
   - id: 9
     title: "attributes and derived JSON codecs are checked where they are written"
@@ -355,12 +355,12 @@ is kept as § *Standing decisions* says.
 
 **Does:** each of the six forms below is a diagnostic at the form.
 
-- [ ] A second case of one name in one enum is a diagnostic at the second one. `crates/nvs-types/src/enums.rs:1`, `data/gaps/nvs-types/an-enum-case-declared-twice-compiles.json:1`
-- [ ] `new` naming an enum is one checker error that says a case is written `M::Case`. `crates/nvs-types/src/enums.rs:1`, `data/gaps/nvs-types/new-on-an-enum-passes-the.json:1`
-- [ ] A constructor reference to an enum, and a user attribute on an enum, an enum case or a class constant, are checker errors. `crates/nvs-types/src/attributes.rs:1`, `data/gaps/nvs-types/a-constructor-reference-to-an-enum.json:1`
-- [ ] A `<` after a built-in type name is an error at the `<` that names the generic types. `crates/nvs-syntax/src/parser/ty.rs:1`, `data/gaps/nvs-syntax/type-arguments-after-a-built-in-type.json:1`
-- [ ] A hook on a `static` property is a diagnostic, as one on a `readonly` property is `E0843`. `crates/nvs-types/src/check.rs:1`, `data/gaps/nvs-types/a-hook-on-a-static-property.json:1`
-- [ ] A second hook of one kind on one property is a diagnostic at the second hook. `crates/nvs-types/src/check.rs:1`, `data/gaps/nvs-types/a-property-with-two-get-hooks.json:1`
+- [x] A second case of one name in one enum is a diagnostic at the second one. `crates/nvs-types/src/enums.rs:1`, `data/gaps/nvs-types/an-enum-case-declared-twice-compiles.json:1`
+- [x] `new` naming an enum is one checker error that says a case is written `M::Case`. `crates/nvs-types/src/enums.rs:1`, `data/gaps/nvs-types/new-on-an-enum-passes-the.json:1`
+- [x] A constructor reference to an enum, and a user attribute on an enum, an enum case or a class constant, are checker errors. `crates/nvs-types/src/attributes.rs:1`, `data/gaps/nvs-types/a-constructor-reference-to-an-enum.json:1`
+- [x] A `<` after a built-in type name is an error at the `<` that names the generic types. `crates/nvs-syntax/src/parser/ty.rs:1`, `data/gaps/nvs-syntax/type-arguments-after-a-built-in-type.json:1`
+- [x] A hook on a `static` property is a diagnostic, as one on a `readonly` property is `E0843`. `crates/nvs-types/src/check.rs:1`, `data/gaps/nvs-types/a-hook-on-a-static-property.json:1`
+- [x] A second hook of one kind on one property is a diagnostic at the second hook. `crates/nvs-types/src/check.rs:1`, `data/gaps/nvs-types/a-property-with-two-get-hooks.json:1`
 
 ### 9. attributes and derived JSON codecs are checked where they are written
 
@@ -478,51 +478,49 @@ another goal.
 
 ### State
 
-Stages 1, 2, 3, 16, 4, 5, 6 and 7 are done, and every gap record they owned is deleted. Stage 8 is
-next.
+Stages 1, 2, 3, 16, 4, 5, 6, 7 and 8 are done, and every gap record they owned is deleted. Stage 9
+is next.
 
-Stage 7 closed its six gap records, each with a case under `tests/conformance/reject/`:
+Stage 8 closed its six gap records, each with a case under `tests/conformance/reject/`:
 
-- A second property, method, constructor or constant of one name in one member list is
-  `E0304` (`E_DUPLICATE_DECLARATION`), from `reject_members_declared_twice` in
-  `crates/nvs-types/src/signatures.rs`. `crates/nvs-types/src/testing.rs` no longer reports a
-  second `E0304` for two `#[Test]` methods of one name. A promoted
-  `constructor` parameter is a property at its own position. Case:
-  `a-class-member-declared-twice-does-not-compile.nvst`.
-- `static` on `constructor` is `E0106`, from the parser's `refuse_static_constructor`
-  (`crates/nvs-syntax/src/parser/decl.rs`), which drops the modifier. Case:
-  `a-static-constructor-does-not-compile.nvst`.
-- A `...` on any parameter but the last is `E0107`, in `parse_param_list`
-  (`crates/nvs-syntax/src/parser/expr.rs`), so a method and an anonymous function both get it.
-  `E0107`'s card now covers both. Case:
-  `a-variadic-parameter-that-is-not-the-last-does-not-compile.nvst`.
-- A `void` or `never` property is `E0742` (`reject_void_or_never_property`). The default and
-  the initialization obligation are skipped for it, so no `E0409` or `E0472` follows. Case:
-  `a-void-or-never-property-does-not-compile.nvst`.
-- `ModifierSite::Constant` no longer takes `final`, so it is `E0106`. The modifier case
-  `a-repeated-or-misplaced-modifier-does-not-compile.nvst` pins it.
-- A typed constant whose value folds untyped but not at its type is `E0401` at the value
-  (`reject_const_value_of_another_type`). `ConstSig::refused` keeps the read from adding
-  `E0792`. A shape value is left to the read. Case:
-  `a-class-constant-whose-value-does-not-fit-its-type-does-not-compile.nvst`.
-- `rule:types/declaration` states the member-once, variadic-last, constant-value and no-`final`
-  rules, with `final` on a constant in its Declined list. `rule:types/grammar` names a property
-  for `E0742`, and `rule:classes/constructor-is-a-method-named-constructor` says it is never
-  `static`.
-- The installed `looper` has no `verify` subcommand, so this session ran `bun nv affected --run`.
+- A second case of one name in one enum is `E0304` at the second case, from
+  `case_declared_twice` in `crates/nvs-types/src/enums.rs`. The first case keeps its value.
+  Case: `an-enum-case-declared-twice-does-not-compile.nvst`.
+- `new E()` and `E::constructor(...)` on an enum are each one `E0870`
+  (`E_ENUM_HAS_NO_CONSTRUCTOR`), from `report_enum_has_no_constructor` in
+  `crates/nvs-types/src/expr/calls.rs`. `check_new_target` gives the enum's own type, so a
+  typed variable adds no `E0401`. The static-call arm returns no target, so the
+  `CoreAttributes` path gets the same error. Case: `new-on-an-enum-does-not-compile.nvst`.
+- A user attribute on an enum, an enum case or a class constant is `E0871`
+  (`E_ATTRIBUTE_NO_RETRIEVAL_REACHES`), from `reject_unread` in
+  `crates/nvs-types/src/attributes.rs`. A recognized attribute (`derive::ATTRIBUTES`) is left
+  to its own pass, which is stage 9's first item. Case:
+  `an-attribute-on-an-enum-or-a-class-constant-does-not-compile.nvst`.
+- A `<` after a built-in atom (`int`, `iterable`, `mixed` ...) is `E0441` at the `<`, from
+  the parser's `reject_builtin_type_args` (`crates/nvs-syntax/src/parser/ty.rs`), which drops
+  the list. Case: `type-arguments-after-a-built-in-type-do-not-compile.nvst`.
+- A hook on a `static` property is `E0872` (`E_STATIC_PROPERTY_WITH_HOOK`), and a second hook
+  of one kind is `E0304` with the second hook left out. Both are in the parser
+  (`parse_property_members`, `parse_property_hooks` in `crates/nvs-syntax/src/parser/decl.rs`),
+  beside `E0843`. Cases: `a-hook-on-a-static-property-does-not-compile.nvst`,
+  `a-property-hook-declared-twice-does-not-compile.nvst`.
+- The rules: `rule:enums/declaration` (one name per case), `rule:enums/no-class-machinery`
+  (`E0870`), `rule:attributes/attach-sites-and-forms` (`E0871`),
+  `rule:classes/property-hooks` (`E0872` and one hook per kind) and `rule:types/no-user-generics`
+  (the built-in `<`).
 
 ### Next
 
-**Stage 8: enums, type arguments and property hooks are checked where they are written.** Each
-item is a diagnostic at the form. § *Standing decisions* makes a constructor reference to an enum
-and a user attribute on an enum, an enum case or a class constant compile errors.
+**Stage 9: attributes and derived JSON codecs are checked where they are written.** A recognized
+attribute is accepted only where it builds something, and a derived codec reads and writes each
+wire key once. § *Standing decisions* settles `Derive()`, the array literal and the JSON list.
 
-- [ ] Stage 8: a second case of one name in one enum is a diagnostic at the second one. `crates/nvs-types/src/enums.rs:1`, `data/gaps/nvs-types/an-enum-case-declared-twice-compiles.json:1`
-- [ ] Stage 8: `new` naming an enum is one checker error that says a case is written `M::Case`. `crates/nvs-types/src/enums.rs:1`, `data/gaps/nvs-types/new-on-an-enum-passes-the.json:1`
-- [ ] Stage 8: a constructor reference to an enum, and a user attribute on an enum, an enum case or a class constant, are checker errors. `crates/nvs-types/src/attributes.rs:1`, `data/gaps/nvs-types/a-constructor-reference-to-an-enum.json:1`
-- [ ] Stage 8: a `<` after a built-in type name is an error at the `<` that names the generic types. `crates/nvs-syntax/src/parser/ty.rs:1`, `data/gaps/nvs-syntax/type-arguments-after-a-built-in-type.json:1`
-- [ ] Stage 8: a hook on a `static` property is a diagnostic, as one on a `readonly` property is `E0843`. `crates/nvs-types/src/check.rs:1`, `data/gaps/nvs-types/a-hook-on-a-static-property.json:1`
-- [ ] Stage 8: a second hook of one kind on one property is a diagnostic at the second hook. `crates/nvs-types/src/check.rs:1`, `data/gaps/nvs-types/a-property-with-two-get-hooks.json:1`
+- [ ] Stage 9: a recognized attribute at a site its rule does not name is a checker error, and `Derive()` follows § *Standing decisions*. `crates/nvs-types/src/attributes.rs:1`, `data/gaps/nvs-types/a-compiler-read-attribute-on-a.json:1`
+- [ ] Stage 9: an array literal in a named attribute is checked against the field's declared array type. `crates/nvs-types/src/attributes.rs:1`, `data/gaps/nvs-types/an-array-literal-in-an-attribute.json:1`
+- [ ] Stage 9: each contradiction `rule:attributes/api-adds-and-cannot-contradict` names is `E0771`, a second `#[CoreApi]` on one method included. `crates/nvs-types/src/routes.rs:1`, `data/gaps/nvs-types/core-api-accepts-what-its-rule.json:1`
+- [ ] Stage 9: a `#[CoreJsonDerive]` class with no written constructor is a checker error. `crates/nvs-types/src/derive.rs:1`, `data/gaps/nvs-types/a-json-derive-class-with-no.json:1`
+- [ ] Stage 9: two derived fields with equal wire keys are a checker error. `crates/nvs-types/src/derive.rs:1`, `data/gaps/nvs-types/two-json-derive-fields-with-the.json:1`
+- [ ] Stage 9: a JSON list where a derived class expects an object gives the object issue. `crates/nvs-stdlib/src/json.rs:1`, `data/gaps/nvs-stdlib/a-json-array-decodes-into-a.json:1`
 
 A note for stage 11: its `...` on an anonymous function's parameter will also reach the anonymous
 function in `a-variadic-parameter-that-is-not-the-last-does-not-compile.nvst`, whose expected

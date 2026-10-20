@@ -25,6 +25,10 @@ from a negative one.
 Two cases may carry the same value. Nothing forbids the alias, because equality over an enum is
 value equality and there is no identity for two names to collide on.
 
+Two cases never carry the same name. A second case of a name the enum already declares is `E0304` at
+the second one, as a class member declared twice is ([`types/declaration`](types.md#types-declaration)), and the first case
+keeps its value.
+
 <sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword).</sub>
 
 <a id="enums-no-case-keyword"></a>
@@ -388,6 +392,10 @@ An enum body therefore declares only cases and an optional backing type. An `imp
 refused with **`E0218`**; a method, a property, a class constant or a trait use inside the body is
 refused with **`E0220`**, which names the class such a member belongs on instead. A case has no
 members of its own, and is not an array key — index with `$case as int`.
+
+An enum has no constructor. `new E()` and the constructor reference `E::constructor(...)` are each
+**`E0870`** at the enum's name, whose help says a case is written `E::Case`. A user attribute on an
+enum or an enum case is `E0871` ([`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms)).
 
 What a program writes for each job:
 

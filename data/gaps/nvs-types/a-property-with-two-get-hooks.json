@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/check.rs",
-  "title": "A property with two get hooks passes the checker and stops at E0901.",
-  "text": "`public int $a { get => 1; get => 2; }` passes `nvs check`, and `nvs run` stops at `E0901` because code generation defines `C::$a::get` twice. It closes when a second hook of one kind is a diagnostic at the second hook, with a conformance case.",
-  "goal": "compiler-holes"
-}

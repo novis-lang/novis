@@ -1,0 +1,25 @@
+--TEST--
+`new` naming an enum and a constructor reference to an enum are each one `E0870`, whose help says a case is written `M::Case`
+--FILE--
+<?nvs
+enum Mode {
+    Read,
+    Write,
+}
+
+new Mode();
+Mode $m = new Mode();
+var $f = Mode::constructor(...);
+
+echo Mode::Read as int, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0870]: `Mode` is an enum, so it has no constructor
+%A
+error[E0870]: `Mode` is an enum, so it has no constructor
+%A
+error[E0870]: `Mode` is an enum, so it has no constructor
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
