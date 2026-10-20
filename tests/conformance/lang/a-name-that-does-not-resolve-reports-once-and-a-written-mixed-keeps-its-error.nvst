@@ -5,6 +5,15 @@ A parameter type that does not resolve reports once, where it is written, and a 
 class Shop {
     // `Missing` is not declared. Its error is the only one this method gives.
     public static function label(Missing $item): string {
+        // A method call, a property, an index, an operator and a loop give no error.
+        $item->open();
+        string $name = $item->name;
+        int $first = $item[0];
+        int $next = $item + 1;
+        foreach ($item as string $part) {
+        }
+        string $class = $item::class;
+        string $text = $item;
         return $item;
     }
 
@@ -26,15 +35,15 @@ error[E0303]: `Missing` is not declared
   |                                  ^^^^^^^ no matching declaration
 
 error[E0403]: this method declares `string` but returns `mixed`
-   --> %s:10:16
+   --> %s:19:16
    |
-10 |         return $item;
+19 |         return $item;
    |                ^^^^^ this is `mixed`
 
 error[E0423]: `Shop` has no parent class to refer to as `parent`
-   --> %s:14:40
+   --> %s:23:40
    |
-14 |     public static function parentLabel(parent $item): string {
+23 |     public static function parentLabel(parent $item): string {
    |                                        ^^^^^^ `parent` type
 
 error: aborting due to 3 errors

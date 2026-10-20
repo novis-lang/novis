@@ -805,12 +805,18 @@ pub(crate) fn infer(
             // separation to write back through a holder that is only a tag,
             // and until that exists `E0482` refuses it where it is written
             // rather than leaving `nvs-ir` to panic.
-            let deferred_to_the_tag = matches!(env.interner.get(base_ty), Ty::Mixed | Ty::Error)
+            //
+            // An error-type base already reported, so a read or a write
+            // through it reports nothing and its element is the error type
+            // too (`rule:types/one-mistake-reports-once`).
+            let deferred_to_the_tag = matches!(env.interner.get(base_ty), Ty::Mixed)
                 && !env.write_target_levels.contains_key(&expr.span);
             let mixed = env.interner.mixed();
+            let error = env.interner.error();
             let elem_ty = match env.interner.get(base_ty) {
                 Ty::Array(elem) => Some(*elem),
-                Ty::Mixed | Ty::Error if deferred_to_the_tag => Some(mixed),
+                Ty::Error => Some(error),
+                Ty::Mixed if deferred_to_the_tag => Some(mixed),
                 _ => None,
             };
             match elem_ty {
@@ -1028,16 +1034,16 @@ pub(crate) fn infer(
                     && !is_assignable(actual, string_ty, env.interner, env.graph, env.signatures)
                 {
                     let actual_desc = env.interner.describe(actual);
-                    env.diags.report(
-                        Diagnostic::error(
-                            code::E_TYPE_MISMATCH,
-                            format!("expected `int` or `string`, found `{actual_desc}`"),
-                        )
-                        .with_primary(
+                    if let Some(diag) = assign::type_mismatch(
+                        &[actual],
+                        format!("expected `int` or `string`, found `{actual_desc}`"),
+                        env,
+                    ) {
+                        env.diags.report(diag.with_primary(
                             e.span,
                             "`exit` takes an `int` process status or a `string` message".to_owned(),
-                        ),
-                    );
+                        ));
+                    }
                 }
             }
             env.interner.never()

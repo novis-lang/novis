@@ -847,7 +847,9 @@ fn check_shape_field(
     let laundered = untainted(actual, env.interner);
     let qualifier_alone = carries_tainted(actual, env.interner)
         && is_assignable(laundered, field.ty, env.interner, env.graph, env.signatures);
-    let mut diag = mismatch(value.span, field.ty, actual, env);
+    let Some(mut diag) = mismatch(value.span, field.ty, actual, env) else {
+        return actual;
+    };
     if qualifier_alone {
         diag = diag.with_help(carrier_help(field.ty, env).map_or_else(
             || {
@@ -926,7 +928,9 @@ fn check_carrier_arg(
     let laundered = untainted(actual, env.interner);
     let qualifier_alone = carries_tainted(actual, env.interner)
         && is_assignable(laundered, expected, env.interner, env.graph, env.signatures);
-    let mut diag = mismatch(value.span, expected, actual, env);
+    let Some(mut diag) = mismatch(value.span, expected, actual, env) else {
+        return actual;
+    };
     if qualifier_alone && let Some(help) = carrier_help(expected, env) {
         diag = diag.with_help(help);
     }

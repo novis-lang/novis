@@ -639,12 +639,18 @@ pub(crate) fn built_fits(
 }
 
 pub(crate) fn report_mismatch(span: Span, expected: TypeId, actual: TypeId, env: &mut Env<'_>) {
-    let diag = mismatch(span, expected, actual, env);
-    env.diags.report(diag);
+    if let Some(diag) = mismatch(span, expected, actual, env) {
+        env.diags.report(diag);
+    }
 }
 
 /// [`report_mismatch`]'s diagnostic, built and not yet reported — for the one
 /// caller that has something to add to it.
+///
+/// `None` when either side is the error type: that place already reported its
+/// mistake, and a mismatch against it would be the same mistake reported again
+/// (`rule:types/one-mistake-reports-once`). [`type_mismatch`] is where that skip
+/// is written.
 ///
 /// The wording is the same either way on purpose: a mismatch that reads
 /// differently depending on which pass noticed it is two diagnostics for one
@@ -666,42 +672,60 @@ pub(crate) fn mismatch(
     expected: TypeId,
     actual: TypeId,
     env: &mut Env<'_>,
-) -> Diagnostic {
+) -> Option<Diagnostic> {
     let expected_desc = env.interner.describe(expected);
     let actual_desc = env.interner.describe(actual);
-    let diag = Diagnostic::error(
-        code::E_TYPE_MISMATCH,
+    let diag = type_mismatch(
+        &[expected, actual],
         format!("expected `{expected_desc}`, found `{actual_desc}`"),
-    )
+        env,
+    )?
     .with_primary(span, format!("this is `{actual_desc}`"));
-    match missing_required_keys(expected, actual, env).as_slice() {
-        [] => match unconverted_field(expected, actual, env) {
-            Some((name, from, to)) => {
-                let (from, to) = (env.interner.describe(from), env.interner.describe(to));
-                diag.with_help(format!(
-                    "the field `{name}` is `{from}` in this value, and a value that already \
+    Some(
+        match missing_required_keys(expected, actual, env).as_slice() {
+            [] => match unconverted_field(expected, actual, env) {
+                Some((name, from, to)) => {
+                    let (from, to) = (env.interner.describe(from), env.interner.describe(to));
+                    diag.with_help(format!(
+                        "the field `{name}` is `{from}` in this value, and a value that already \
                      exists keeps its field types, so it is not converted to `{to}`. Build a new \
                      value instead: `{{{name}: $value->{name}}}`"
+                    ))
+                }
+                None => match null_help(expected, actual, env)
+                    .or_else(|| unconverted_array_help(expected, actual, env))
+                {
+                    Some(help) => diag.with_help(help),
+                    None => diag,
+                },
+            },
+            [one] => diag.with_help(format!(
+                "`{one}` is required here, and this value does not supply it"
+            )),
+            several => {
+                let names: Vec<String> = several.iter().map(|name| format!("`{name}`")).collect();
+                diag.with_help(format!(
+                    "these keys are required here, and this value supplies none of them: {}",
+                    names.join(", ")
                 ))
             }
-            None => match null_help(expected, actual, env)
-                .or_else(|| unconverted_array_help(expected, actual, env))
-            {
-                Some(help) => diag.with_help(help),
-                None => diag,
-            },
         },
-        [one] => diag.with_help(format!(
-            "`{one}` is required here, and this value does not supply it"
-        )),
-        several => {
-            let names: Vec<String> = several.iter().map(|name| format!("`{name}`")).collect();
-            diag.with_help(format!(
-                "these keys are required here, and this value supplies none of them: {}",
-                names.join(", ")
-            ))
-        }
+    )
+}
+
+/// An [`code::E_TYPE_MISMATCH`] headed `message`, or `None` when any of `types`
+/// is the error type (`rule:types/one-mistake-reports-once`). Every `E0401` is
+/// built here, [`mismatch`]'s and the ones that word their own headline, so the
+/// skip is written once. `types` is every type the message names.
+pub(crate) fn type_mismatch(
+    types: &[TypeId],
+    message: String,
+    env: &Env<'_>,
+) -> Option<Diagnostic> {
+    if types.iter().any(|&ty| env.interner.is_error(ty)) {
+        return None;
     }
+    Some(Diagnostic::error(code::E_TYPE_MISMATCH, message))
 }
 
 /// The keys `expected`'s shape requires that `actual` does not supply, in the
@@ -1074,7 +1098,10 @@ fn name_the_var_line(
     let help = format!("to accept this value, write the type: `{widened} ${name} = {shown};`");
     let declared = env.interner.describe(declared);
     env.diags.truncate(before);
-    let diag = mismatch(value.span, expected, actual, env)
+    let Some(diag) = mismatch(value.span, expected, actual, env) else {
+        return;
+    };
+    let diag = diag
         .with_secondary(
             at,
             format!("`var` gave `${name}` the type `{declared}` here"),
@@ -1464,21 +1491,24 @@ pub(crate) fn reject_qualified_write_through_key(
         if is_assignable(stored, declared, env.interner, env.graph, env.signatures) {
             continue;
         }
-        let (declared, got) = (
+        let (declared_desc, got) = (
             env.interner.describe(declared),
             env.interner.describe(stored),
         );
-        let operand = env.interner.describe(operand);
+        let operand_desc = env.interner.describe(operand);
+        let Some(diag) = type_mismatch(
+            &[declared, stored, operand],
+            format!("expected `{declared_desc}`, found `{got}`"),
+            env,
+        ) else {
+            continue;
+        };
         env.diags.report(
-            Diagnostic::error(
-                code::E_TYPE_MISMATCH,
-                format!("expected `{declared}`, found `{got}`"),
-            )
-            .with_primary(
+            diag.with_primary(
                 root.span,
-                format!("the key may name `{owner}::${name}`, which is `{declared}`"),
+                format!("the key may name `{owner}::${name}`, which is `{declared_desc}`"),
             )
-            .with_secondary(value_span, format!("this is `{operand}`"))
+            .with_secondary(value_span, format!("this is `{operand_desc}`"))
             .with_help(format!(
                 "A `property<{key_class}>` key can name any public property of `{key_class}`. \
                  A value written through the key must be valid for each of them. To set only \

@@ -762,12 +762,15 @@ fn check_set_hook_param(span: Span, prop_ty: TypeId, param_ty: TypeId, env: &mut
         env.interner.describe(prop_ty),
         env.interner.describe(param_ty),
     );
+    let Some(diag) = crate::expr::assign::type_mismatch(
+        &[prop_ty, param_ty],
+        format!("this `set` hook takes `{param}`, but the property is `{prop}`"),
+        env,
+    ) else {
+        return;
+    };
     env.diags.report(
-        Diagnostic::error(
-            code::E_TYPE_MISMATCH,
-            format!("this `set` hook takes `{param}`, but the property is `{prop}`"),
-        )
-        .with_primary(
+        diag.with_primary(
             span,
             format!("a value of type `{prop}` does not fit `{param}`"),
         )

@@ -1733,6 +1733,9 @@ fn check_dynamic_class_name_const(
     // a nullable receiver.
     let erased = env.interner.is_nullable(recv_ty);
     let help = match env.interner.get(recv_ty) {
+        // The receiver already reported its mistake
+        // (`rule:types/one-mistake-reports-once`).
+        Ty::Error => return env.interner.error(),
         Ty::Class(..) | Ty::Object if !erased => {
             env.exprs.record(expr.span, ExprInfo::ClassNameOf);
             return env.interner.string();
@@ -1746,7 +1749,7 @@ fn check_dynamic_class_name_const(
              or ask `Core\\Reflect::forObject($v)`, whose description carries the name for a \
              receiver whose type was erased"
         }
-        Ty::Mixed | Ty::Error => {
+        Ty::Mixed => {
             "narrow it to a class first — `if ($v is Foo)` — or ask \
              `Core\\Reflect::forObject($v)`, whose description carries the name for a \
              receiver whose type was erased"
@@ -2126,7 +2129,10 @@ pub(crate) fn check_property_member(
             }
             return ty;
         }
-        Ty::Object | Ty::Mixed | Ty::Error => {
+        // The receiver already reported its mistake
+        // (`rule:types/one-mistake-reports-once`).
+        Ty::Error => return env.interner.error(),
+        Ty::Object | Ty::Mixed => {
             // An erased receiver promises no field at all, so every name it
             // carries is the optional case above with nothing static to read
             // off it: a guarded access answers `null` for absence rather than

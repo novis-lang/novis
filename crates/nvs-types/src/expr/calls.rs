@@ -166,6 +166,12 @@ pub(crate) fn infer_method_call(
         // [`super::quals::reject_secret_cached_argument`].
         reject_secret_cached_argument(owner, name, args, &arg_types, &slots, env);
     }
+    // The receiver already reported its mistake, and its arguments were
+    // checked above, so the call reports nothing and gives the error type
+    // again (`rule:types/one-mistake-reports-once`).
+    if env.interner.is_error(receiver_ty) {
+        return env.interner.error();
+    }
     // `rule:types/erased-member-access`'s deferral, and the one receiver the refusal above
     // deliberately leaves alone: `mixed` is `rule:types/conversion`'s one unchecked
     // position, so which class is behind the handle — and whether there is one
@@ -174,7 +180,7 @@ pub(crate) fn infer_method_call(
     // site can still settle it settles here; the rest is recorded for `nvs-ir`
     // to dispatch on.
     if resolved.is_none()
-        && matches!(env.interner.get(receiver_ty), Ty::Mixed | Ty::Error)
+        && matches!(env.interner.get(receiver_ty), Ty::Mixed)
         && let MemberName::Ident(name_span) = method
     {
         let name = span_text(env.src, *name_span).to_owned();
