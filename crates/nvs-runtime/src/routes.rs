@@ -197,11 +197,55 @@ pub enum CaptureConv {
         /// Every admitted case: the segment text, and the value it becomes.
         cases: Vec<(String, crate::commands::CaseValue)>,
     },
-    /// A type § 5 admits and no arm above turns text into: a `bool`. The
-    /// segment matches and its text is handed over — never silently `Text`, so
-    /// what is missing stays an arm rather than a behaviour somebody has to
-    /// notice.
+    /// A declared type no arm above turns text into. No program that compiles
+    /// builds one: every type a capture may declare has an arm, and a `bool`
+    /// capture is `E0752`. The segment matches and its text is handed over —
+    /// never silently `Text`, so a type admitted without an arm stays visible
+    /// here rather than becoming a behaviour somebody has to notice.
     Unconverted,
+}
+
+impl CaptureConv {
+    /// `text` converted the way this capture converts a segment, or `None`
+    /// where the segment is not one of its values.
+    ///
+    /// Public because the compiler asks it too: a literal link value is held to
+    /// the conversion its capture takes (`nvs_stdlib::router`'s
+    /// `segment_converts`), and a second parser there would agree today and
+    /// drift tomorrow.
+    #[must_use]
+    pub fn convert(&self, text: &str) -> Option<Param> {
+        match self {
+            Self::Text | Self::Unconverted => Some(Param::Text(text.to_owned())),
+            // The segment and the class that claims it, neither of which this
+            // walk may act on and both of which the crossing needs.
+            Self::Parses(class) => Some(Param::Parses {
+                class: class.clone(),
+                text: text.to_owned(),
+            }),
+            Self::Int => text.parse::<i64>().ok().map(Param::Int),
+            Self::Uint => text.parse::<u64>().ok().map(Param::Uint),
+            Self::Decimal => Decimal::parse(text).map(Param::Decimal),
+            Self::Uuid => crate::uuid::read(text).map(Param::Uuid),
+            Self::OneOf(admitted) => admitted
+                .iter()
+                .any(|value| value == text)
+                .then(|| Param::Text(text.to_owned())),
+            // Compared byte for byte and case-sensitively under either
+            // spelling, as `Seg::Fixed` is: a case name is a name
+            // (`rule:classes/names-resolve-case-sensitively`), and a backing
+            // value has one decimal spelling and no other.
+            Self::Enum { cases, .. } => {
+                cases
+                    .iter()
+                    .find(|(spelling, _)| spelling == text)
+                    .map(|(_, value)| match value {
+                        crate::commands::CaseValue::Int(number) => Param::Int(*number),
+                        crate::commands::CaseValue::Uint(number) => Param::Uint(*number),
+                    })
+            }
+        }
+    }
 }
 
 /// One capture of a route: the parameter it binds and the conversion its text
@@ -544,39 +588,11 @@ impl Route {
     /// `code::E_ROUTE_CAPTURE_UNBOUND`), and text is what the segment already
     /// is.
     fn convert(&self, name: &str, text: &str) -> Option<Param> {
-        let conv = self
-            .captures
+        self.captures
             .iter()
             .find(|capture| capture.name == name)
-            .map_or(&CaptureConv::Text, |capture| &capture.conv);
-        match conv {
-            CaptureConv::Text | CaptureConv::Unconverted => Some(Param::Text(text.to_owned())),
-            // The segment and the class that claims it, neither of which this
-            // walk may act on and both of which the crossing needs.
-            CaptureConv::Parses(class) => Some(Param::Parses {
-                class: class.clone(),
-                text: text.to_owned(),
-            }),
-            CaptureConv::Int => text.parse::<i64>().ok().map(Param::Int),
-            CaptureConv::Uint => text.parse::<u64>().ok().map(Param::Uint),
-            CaptureConv::Decimal => Decimal::parse(text).map(Param::Decimal),
-            CaptureConv::Uuid => crate::uuid::read(text).map(Param::Uuid),
-            CaptureConv::OneOf(admitted) => admitted
-                .iter()
-                .any(|value| value == text)
-                .then(|| Param::Text(text.to_owned())),
-            // Compared byte for byte and case-sensitively under either
-            // spelling, as `Seg::Fixed` is: a case name is a name
-            // (`rule:classes/names-resolve-case-sensitively`), and a backing
-            // value has one decimal spelling and no other.
-            CaptureConv::Enum { cases, .. } => cases
-                .iter()
-                .find(|(spelling, _)| spelling == text)
-                .map(|(_, value)| match value {
-                    crate::commands::CaseValue::Int(number) => Param::Int(*number),
-                    crate::commands::CaseValue::Uint(number) => Param::Uint(*number),
-                }),
-        }
+            .map_or(&CaptureConv::Text, |capture| &capture.conv)
+            .convert(text)
     }
 }
 

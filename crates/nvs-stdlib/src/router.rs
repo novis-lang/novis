@@ -1103,6 +1103,37 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
+/// The conversion a capture declared at `ty` takes, for each type the matcher
+/// converts natively: `int`, `uint`, `decimal` and `Core\Uuid`, spelled as
+/// `nvs_types` describes them. `None` for every other type.
+///
+/// The one home of that mapping. `nvs-cli` builds the route table's rows
+/// through it, and [`segment_converts`] asks the compiler's question through
+/// it, so the match and the compile-time check read one list.
+#[must_use]
+pub fn native_conv(ty: &str) -> Option<nvs_runtime::routes::CaptureConv> {
+    use nvs_runtime::routes::CaptureConv;
+    Some(match ty {
+        "int" => CaptureConv::Int,
+        "uint" => CaptureConv::Uint,
+        "decimal" => CaptureConv::Decimal,
+        crate::uuid::NAME => CaptureConv::Uuid,
+        _ => return None,
+    })
+}
+
+/// Whether `segment` converts to a capture declared at `ty`, or `None` where
+/// `ty` is not one [`native_conv`] reads.
+///
+/// `rule:routing/link-name-and-params-are-checked`'s value check, asked by
+/// `nvs_types::links` of a literal `$params` value. A `false` is a link the
+/// route does not match, because the matcher runs this same conversion
+/// ([`nvs_runtime::routes::CaptureConv::convert`]) on the segment.
+#[must_use]
+pub fn segment_converts(ty: &str, segment: &str) -> Option<bool> {
+    native_conv(ty).map(|conv| conv.convert(segment).is_some())
+}
+
 /// One `$params` value as the text a path segment carries.
 ///
 /// [`nvs_runtime::value_to_string`]'s own rules, plus the release its contract

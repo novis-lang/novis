@@ -1457,20 +1457,21 @@ fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureCo
     if let Some(allowed) = &param.allowed {
         return CaptureConv::OneOf(allowed.clone());
     }
+    if let Some(conv) = param
+        .ty
+        .as_deref()
+        .and_then(nvs_stdlib::router::native_conv)
+    {
+        return conv;
+    }
     match param.ty.as_deref() {
-        Some("int") => CaptureConv::Int,
-        Some("uint") => CaptureConv::Uint,
-        Some("decimal") => CaptureConv::Decimal,
-        // The one class § 5 admits, spelled as `describe` renders
-        // `nvs_stdlib::uuid::NAME` — matched as text like every arm above, and
-        // the same spelling `openapi`'s schema arm matches.
-        Some(r"Core\Uuid") => CaptureConv::Uuid,
         // A capture is always `tainted`, and both spellings render for one
         // declared `string` depending on where the qualifier was written.
         Some("string" | "tainted string") | None => CaptureConv::Text,
-        // Below the `Core\Uuid` arm on purpose: that class implements `Parses`
-        // too, so a rule reading the interface alone would take the one type
-        // the engine ships off the match and defer it to the crossing.
+        // Below the `Core\Uuid` arm of `native_conv` on purpose: that class
+        // implements `Parses` too, so a rule reading the interface alone would
+        // take the one type the engine ships off the match and defer it to the
+        // crossing.
         Some(class) if param.parses => CaptureConv::Parses(class.to_owned()),
         Some(_) => CaptureConv::Unconverted,
     }
