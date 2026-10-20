@@ -16,6 +16,7 @@
     "tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst",
     "tests/conformance/core/router-dispatch-hands-a-returned-value-to-respond.nvst",
     "crates/nvs-types/tests/routes.rs",
-    "crates/nvs-cli/tests/gate.rs"
+    "crates/nvs-cli/tests/gate.rs",
+    "crates/nvs-cli/tests/check.rs"
   ]
 }

@@ -652,10 +652,24 @@ pub struct EnumCapture {
 /// (`rule:routing/a-gate-answers-around-every-handler`). It is found at the
 /// call site as a link is, and set whatever the call's place in the program,
 /// so a call in a file the entry `require`s marks the unit as well.
+///
+/// Each call is kept with its span and whether its gate can be a
+/// `Core\Router\Responder`, because [`check_responders`] warns at the call
+/// only once every row is collected, and the call may be checked first.
 #[derive(Debug, Default)]
 pub struct RouteTable {
     rows: Vec<Route>,
-    dispatches: bool,
+    dispatches: Vec<DispatchSite>,
+}
+
+/// One `Core\Router::dispatch` call, as [`check_responders`] reads it.
+#[derive(Debug)]
+struct DispatchSite {
+    /// The gate argument, or the whole call where none is written.
+    span: Span,
+    /// Whether any class the program declares is both admitted by the gate
+    /// argument's static type and a `Core\Router\Responder`.
+    responds: bool,
 }
 
 impl RouteTable {
@@ -664,13 +678,13 @@ impl RouteTable {
     /// that dispatches by hand would read that request as one with no route.
     #[must_use]
     pub fn dispatches(&self) -> bool {
-        self.dispatches
+        !self.dispatches.is_empty()
     }
 
     /// Records a `Core\Router::dispatch` call site, from
-    /// [`crate::links::is_dispatch`]'s caller.
-    pub(crate) fn mark_dispatch(&mut self) {
-        self.dispatches = true;
+    /// [`crate::links::is_dispatch`]'s caller, with [`gate_can_respond`]'s answer.
+    pub(crate) fn mark_dispatch(&mut self, span: Span, responds: bool) {
+        self.dispatches.push(DispatchSite { span, responds });
     }
 
     /// Every row, in load order.
@@ -1779,6 +1793,45 @@ fn returns_value(m: &MethodMember, class: &QName, env: &Env<'_>) -> bool {
         })
 }
 
+/// Whether a `dispatch` gate of static type `gate` can be a
+/// `Core\Router\Responder`: some non-abstract class the program declares
+/// implements it and is admitted by `gate`. A type that names no class the
+/// program declares, such as `Core\Router\Gate`, `mixed` or `object`, admits
+/// every such class, so the answer leans to `true` and
+/// [`check_responders`] is never wrong about the program as written.
+pub(crate) fn gate_can_respond(gate: Option<crate::ty::TypeId>, env: &Env<'_>) -> bool {
+    let responder = QName::parse(nvs_stdlib::router::RESPONDER_NAME);
+    let responders = nvs_hir::implementors(&responder, env.graph);
+    if responders.is_empty() {
+        return false;
+    }
+    gate.is_none_or(|ty| admits_any(ty, &responders, env))
+}
+
+/// Whether `ty` admits any of `classes`, for [`gate_can_respond`].
+fn admits_any(ty: crate::ty::TypeId, classes: &[QName], env: &Env<'_>) -> bool {
+    use crate::ty::Ty;
+    match env.interner.get(ty) {
+        Ty::Class(q, _) if env.graph.get(q).is_some() => classes
+            .iter()
+            .any(|class| nvs_hir::implements_interface(class, q, env.graph)),
+        Ty::Union(members) => members.iter().any(|&m| admits_any(m, classes, env)),
+        Ty::Null
+        | Ty::Bool
+        | Ty::True
+        | Ty::False
+        | Ty::Int
+        | Ty::Uint
+        | Ty::Float
+        | Ty::Decimal
+        | Ty::Void
+        | Ty::Never
+        | Ty::Enum(..)
+        | Ty::EnumCase(..) => false,
+        _ => true,
+    }
+}
+
 /// The doc-comment split, over the run's prose.
 ///
 /// The summary ends at the first `.` that a space or the end of the text
@@ -2435,6 +2488,57 @@ fn access_name(attr: &Attribute, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<String>
     };
     let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
     Some(format!("{qname}::{}", span_text(env.src, *name)))
+}
+
+/// `rule:routing/a-gate-answers-around-every-handler`'s warning: a `dispatch`
+/// whose gate cannot be a `Core\Router\Responder`, in a program with a route
+/// method that returns a value, ignores that value.
+///
+/// Run once the table is complete, for [`check_table`]'s reason: the call and
+/// the route methods may be in different files. The message names up to three
+/// methods in load order, each once however many `#[Route]`s it carries.
+pub(crate) fn check_responders(table: &RouteTable, diags: &mut Diagnostics) {
+    const NAMED: usize = 3;
+    let mut returning: Vec<&str> = Vec::new();
+    for row in table.rows.iter().filter(|row| row.returns_value) {
+        if !returning.contains(&row.handler.as_str()) {
+            returning.push(&row.handler);
+        }
+    }
+    let Some(first) = returning.first() else {
+        return;
+    };
+    let named: Vec<String> = returning
+        .iter()
+        .take(NAMED)
+        .map(|h| format!("`{h}`"))
+        .collect();
+    let message = match named.as_slice() {
+        [_] => format!("`dispatch` ignores the value that `{first}` returns"),
+        [a, b] => format!("`dispatch` ignores the values that {a} and {b} return"),
+        [a, b, c] if returning.len() == NAMED => {
+            format!("`dispatch` ignores the values that {a}, {b} and {c} return")
+        }
+        _ => format!(
+            "`dispatch` ignores the values that {} and {} more return",
+            named.join(", "),
+            returning.len() - NAMED
+        ),
+    };
+    for site in table.dispatches.iter().filter(|site| !site.responds) {
+        diags.report(
+            Diagnostic::warning(code::W_DISPATCH_IGNORES_RETURNED_VALUE, message.clone())
+                .with_primary(
+                    site.span,
+                    "this gate does not implement `Core\\Router\\Responder`",
+                )
+                .with_help(
+                    "implement `Core\\Router\\Responder` in the gate class, and write the \
+                     response in its `respond` method. If a route method writes its own \
+                     response, declare its return type `void`",
+                ),
+        );
+    }
 }
 
 /// The two of § 1-§ 3's compile errors that are questions about the whole

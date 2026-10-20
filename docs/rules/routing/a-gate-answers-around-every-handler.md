@@ -26,7 +26,15 @@ the value, and so does a gate that declares a `respond` method without implement
 name alone never decides it. A handler that throws reaches `failed` and never `respond`, a refused
 request reaches neither the handler nor `respond`, and an error `respond` throws is thrown by
 `dispatch`. Either way the declared type is what `nvs build --openapi` describes as the response body
-(`rule:routing/api-document-is-generated-from-the-route-table`). A handler is a static method or a
+(`rule:routing/api-document-is-generated-from-the-route-table`). **`nvs check` warns at a `dispatch`
+whose gate cannot be a `Responder` while a handler returns a value** (`W1025`), at the gate argument,
+naming up to three such handlers in load order and then how many more. "Cannot be" is over every
+non-abstract class the program declares: the argument's static type must admit none that implements
+`Responder`, and a type naming no class of the program, such as `Core\Router\Gate` or `mixed`, admits
+all of them. So the warning is never wrong about the program as written, and a program with a
+`Responder` that passes a plain gate through a wide type gets none. It is never an error: a program
+that wants the value dropped writes a `respond` that does nothing, or declares the handler `void`.
+A handler is a static method or a
 method of a class with a no-argument constructor; any other `#[Route]` method is a compile error at its
 attribute, because the jump has no arguments to build an instance with.
 
@@ -83,7 +91,8 @@ run, so their pages, when they exist, are static and come from the configuration
 - **Latency:** `respond` is one more method call, only for a request whose handler returns a value and
   whose gate is a `Responder`. A `void` handler or a plain gate pays one bit test.
 - **Usability and simplicity:** a page is a method that returns its markup, and a test calls it as one,
-  for one more interface. Security is unchanged, because `allows` still runs before the handler.
+  for one more interface and one warning. Security is unchanged, because `allows` still runs before
+  the handler. The warning costs the checker one walk over the program's classes per `dispatch` call.
 
 **Declined:**
 - **A dispatch `switch` every program writes.** It repeats every `#[Route]`, nothing checks it, and an

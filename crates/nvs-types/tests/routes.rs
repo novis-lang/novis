@@ -362,6 +362,108 @@ fn a_call_to_dispatch_marks_the_unit_and_a_hand_written_dispatcher_does_not() {
     assert!(!exprs.routes().dispatches());
 }
 
+/// A plain `Core\Router\Gate`, for the `W1025` tests below.
+const PLAIN_GATE: &str = "class Gate implements Core\\Router\\Gate {\n  \
+                          public function allows(Core\\Router\\Match $route): bool { return true; }\n  \
+                          public function refused(Core\\Router\\Refusal $reason, ?Core\\Router\\Match $route): void {}\n  \
+                          public function failed(?Core\\Router\\Match $route, ?Throwable $error): void {}\n}\n";
+
+/// A `Core\Router\Responder` beside [`PLAIN_GATE`]'s three members.
+const RESPONDER_GATE: &str = "class Pages implements Core\\Router\\Responder {\n  \
+                              public function allows(Core\\Router\\Match $route): bool { return true; }\n  \
+                              public function refused(Core\\Router\\Refusal $reason, ?Core\\Router\\Match $route): void {}\n  \
+                              public function failed(?Core\\Router\\Match $route, ?Throwable $error): void {}\n  \
+                              public function respond(Core\\Router\\Match $route, mixed $value): void {}\n}\n";
+
+/// `routes` in a controller, then `gates`, then a `dispatch` of `gate`.
+fn dispatching(routes: &str, gates: &str, gate: &str) -> Diagnostics {
+    let (diags, _) = check_src_table(&format!(
+        "{}{gates}if (Core\\Env::context() == Core\\Env::Context::Request) {{\n  \
+         Core\\Router::dispatch({gate});\n}}\n",
+        route_src(routes)
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    diags
+}
+
+const RENDER: &str = "  #[Route(path: \"/\", method: Core\\Http\\Method::Get)]\n  \
+                      public function render(): string { return \"\"; }\n";
+
+#[test]
+fn a_plain_gate_warns_when_a_route_method_returns_a_value() {
+    // `rule:routing/a-gate-answers-around-every-handler`: `dispatch` ignores
+    // the value, so the call names the method whose value is lost.
+    let diags = dispatching(RENDER, PLAIN_GATE, "new Gate()");
+    let warned: Vec<_> = diags
+        .iter()
+        .filter(|d| d.code == Some(code::W_DISPATCH_IGNORES_RETURNED_VALUE))
+        .collect();
+    assert_eq!(warned.len(), 1, "{diags:?}");
+    assert!(warned[0].message.contains("`Users::render`"), "{diags:?}");
+}
+
+#[test]
+fn a_responder_or_void_route_methods_do_not_warn() {
+    let diags = dispatching(RENDER, RESPONDER_GATE, "new Pages()");
+    assert!(
+        !reported(&diags, code::W_DISPATCH_IGNORES_RETURNED_VALUE),
+        "{diags:?}"
+    );
+
+    let void = "  #[Route(path: \"/\", method: Core\\Http\\Method::Get)]\n  \
+                public function render(): void {}\n";
+    let diags = dispatching(void, PLAIN_GATE, "new Gate()");
+    assert!(
+        !reported(&diags, code::W_DISPATCH_IGNORES_RETURNED_VALUE),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn a_gate_typed_argument_does_not_warn_while_the_program_has_a_responder() {
+    // The argument's static type admits `Pages`, which is a `Responder`, so
+    // the warning could be wrong about this program and is not given.
+    let gates = format!(
+        "{PLAIN_GATE}{RESPONDER_GATE}class Pick {{\n  \
+         public static function gate(): Core\\Router\\Gate {{ return new Pages(); }}\n}}\n"
+    );
+    let diags = dispatching(RENDER, &gates, "Pick::gate()");
+    assert!(
+        !reported(&diags, code::W_DISPATCH_IGNORES_RETURNED_VALUE),
+        "{diags:?}"
+    );
+
+    // `Gate` as a class type admits only itself, so a `Responder` elsewhere
+    // in the program does not quiet it.
+    let diags = dispatching(RENDER, &gates, "new Gate()");
+    assert!(
+        reported(&diags, code::W_DISPATCH_IGNORES_RETURNED_VALUE),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn the_warning_names_three_route_methods_and_counts_the_rest() {
+    let routes: String = ["a", "b", "c", "d"]
+        .iter()
+        .map(|m| {
+            format!(
+                "  #[Route(path: \"/{m}\", method: Core\\Http\\Method::Get)]\n  \
+                 public function {m}(): string {{ return \"\"; }}\n"
+            )
+        })
+        .collect();
+    let diags = dispatching(&routes, PLAIN_GATE, "new Gate()");
+    let warning = diags
+        .iter()
+        .find(|d| d.code == Some(code::W_DISPATCH_IGNORES_RETURNED_VALUE))
+        .unwrap_or_else(|| panic!("{diags:?}"));
+    assert_eq!(
+        warning.message,
+        "`dispatch` ignores the values that `Users::a`, `Users::b`, `Users::c` and 1 more return"
+    );
+}
+
 #[test]
 fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
     // `rule:attributes/repeatable`'s repetition, read as `rule:routing/route-attribute` writes it: one method
