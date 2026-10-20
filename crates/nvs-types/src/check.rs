@@ -238,6 +238,7 @@ pub fn check_program_loaded(
         anon_fn_seq = env.anon_fn_seq;
     }
     crate::routes::check_table(&routes, diags);
+    crate::routes::check_responders(&routes, diags);
     // `rule:tooling/commands-are-compiled`'s duplicate command name, over the same enumeration and for
     // the same reason — see `crate::commands::check_table`.
     crate::commands::check_table(&commands, diags);

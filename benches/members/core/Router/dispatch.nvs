@@ -6,15 +6,15 @@
 class Shop {
     #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Shop::home")]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function home(): uint { return 1; }
+    public function home(): void {}
 
     #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function product(uint $id): uint { return $id; }
+    public function product(uint $id): void {}
 
     #[Core\Route(path: "/cart", method: Core\Http\Method::Post, name: "Shop::cart")]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function cart(): uint { return 3; }
+    public function cart(): void {}
 }
 
 class Gate implements Core\Router\Gate {

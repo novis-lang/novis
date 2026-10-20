@@ -250,4 +250,20 @@ codes! {
          ignores it. Delete the line. A block that Novis does not know stops the start when it \
          contains a setting.",
     );
+    /// A `Core\Router::dispatch` call whose gate cannot be a
+    /// `Core\Router\Responder`, in a program with a route method that returns
+    /// a value (`rule:routing/a-gate-answers-around-every-handler`). `dispatch`
+    /// ignores that value, so the page the method built never reaches the
+    /// response. A warning and never an error: a program may mean to ignore it,
+    /// and it says so with a `respond` that does nothing or a `void` method.
+    /// "Cannot be" is over every class the program declares, so the warning is
+    /// never wrong about the program as written.
+    /// `nvs_types::routes::check_responders` raises it.
+    pub const W_DISPATCH_IGNORES_RETURNED_VALUE: Code = Code::new("W1025").card(
+        "A route method returns a value, but the gate passed to `Core\\Router::dispatch` does \
+         not implement `Core\\Router\\Responder`. So `dispatch` ignores the value, and it is not \
+         sent in the response. Implement `Core\\Router\\Responder` in the gate class. Its \
+         `respond` method receives the value and writes the response. If a route method writes \
+         its own response, declare its return type `void`.",
+    );
 }

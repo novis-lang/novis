@@ -248,6 +248,31 @@ fn a_nullable_condition_warns_naming_not_null() {
     );
 }
 
+/// `rule:routing/a-gate-answers-around-every-handler`: a `dispatch` whose gate
+/// is not a `Core\Router\Responder` warns once, at the gate, naming the route
+/// method whose value it ignores, and the file still checks clean of errors.
+/// Here rather than in a conformance case because a case's stderr is pinned
+/// only for a run that fails.
+#[test]
+fn a_dispatch_whose_gate_ignores_a_returned_value_warns() {
+    let (_, rendered, ok) = run_check(&[], &fixture("dispatch-ignores-a-returned-value.nvs"));
+    assert!(ok, "a warning does not fail the check: {rendered}");
+    let warnings: Vec<_> = text_heads(&rendered)
+        .into_iter()
+        .filter(|(severity, _, _)| severity == "warning")
+        .collect();
+    assert_eq!(warnings.len(), 1, "{rendered}");
+    assert_eq!(warnings[0].1, "W1025", "{rendered}");
+    assert!(
+        rendered.contains("`Home::render`"),
+        "it names the method: {rendered}"
+    );
+    assert!(
+        rendered.contains("implement `Core\\Router\\Responder`"),
+        "the help names the contract: {rendered}"
+    );
+}
+
 /// The compared spelling is the fix the warning names, so it is silent.
 #[test]
 fn a_nullable_compared_with_null_does_not_warn() {
