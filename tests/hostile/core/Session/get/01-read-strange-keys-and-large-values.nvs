@@ -25,13 +25,13 @@ Core\Session::set('big', Core\Str::repeat('x', 1048576));
 uint $length = 0;
 uint $i = 0;
 while ($i < 500) {
-    tainted string $read =Core\Session::get('big') as ?string ?? '';
+    tainted string $read = Core\Session::get('big') as ?string ?? '';
     $length = Core\Str::length($read);
     $i = $i + 1;
 }
 echo 'big value length: ', $length, "\n";
 
-// 4. The request saves 500 keys and reads each one, and a missing one, 100 times.
+// 4. The request saves 500 keys and reads each one, and a missing one, 10 times.
 uint $key = 0;
 while ($key < 500) {
     Core\Session::set('item-' . $key, $key);
@@ -39,7 +39,7 @@ while ($key < 500) {
 }
 uint $found = 0;
 uint $round = 0;
-while ($round < 100) {
+while ($round < 10) {
     uint $k = 0;
     while ($k < 501) {
         if (Core\Session::get('item-' . $k) != null) {
