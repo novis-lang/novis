@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/commands.rs",
-  "title": "A positional command parameter of a type with no conversion compiles, and `Core\\Command::run` throws.",
-  "text": "`#[Core\\Option] float $f` is `E0746`, but a positional `float $f`, `mixed $h`, `?int $i` or `array<string> $words` passes `nvs check`. When `Core\\Command::run` reaches that command it throws `LogicError` \"`Core\\Command::run` has no conversion into the type `fl`'s `f` is declared at\", whatever the command line is. `rule:tooling/commands-are-compiled` makes a type with no conversion a compile error, and `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option` makes a trailing `array<string>` take the remaining words, which the matcher does not do. It closes when a positional parameter is checked like an option, a trailing `array<string>` either collects the words or is an error, and each has a conformance case.",
-  "goal": "compiler-holes"
-}

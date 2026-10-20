@@ -305,17 +305,15 @@ nvs_runtime::nvs_helper! {
             Ok(row) => row,
             Err(page) => return usage(ctx, &page),
         };
-        // Asked once, before a word is matched, so that a row the compiler
-        // could not choose a conversion for answers as what it is — a
-        // declaration the compiler refuses where it is written
-        // (`nvs_runtime::commands::ArgConv::Unconverted`), so a table it did
-        // not check — rather than as a complaint about the argument that
-        // happened to reach it.
+        // Asked once, before a word is matched. Unreachable from source: the
+        // checker refuses every parameter with no conversion (E0746), so a
+        // row carrying `nvs_runtime::commands::ArgConv::Unconverted` is a
+        // table it did not check, and that is a fatal internal error.
         if let Some(arg) = row.args.iter().find(|arg| arg.conv == ArgConv::Unconverted) {
             return Err(Fault::fatal(format!(
-                "internal error: `Core\\Command::run` has no conversion into the type `{}`'s `{}` \
-                 is declared at",
-                row.name, arg.param
+                "internal error: `Core\\Command::run` has no conversion for the parameter `{}` \
+                 of the command `{}`",
+                arg.param, row.name
             )));
         }
         let values = match matched(&row, &line[1..]) {

@@ -13,13 +13,13 @@ class Tool {
     #[Core\Command(name: "deploy", about: "Push the current build")]
     public static function deploy(
         string $target,
-        #[Core\Option(long: "x$(echo pwned)", about: "An option that tries to run")]
+        #[Core\Option(long: "x$(id)", about: "An option that tries to run")]
         bool $flag = false,
     ): uint {
         return 0;
     }
 
-    #[Core\Command(name: "run$(echo pwned)", about: "A name that tries to run")]
+    #[Core\Command(name: "run$(id)", about: "A name that tries to run")]
     public static function sneaky(): uint {
         return 0;
     }
@@ -31,12 +31,12 @@ echo Core\Command::completions(Core\Command::Shell::Bash);
 _case_complete() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     if [ "$COMP_CWORD" -eq 1 ]; then
-        COMPREPLY=($(compgen -W 'deploy run\$(echo pwned)' -- "$cur"))
+        COMPREPLY=($(compgen -W 'deploy run\$(id)' -- "$cur"))
         return
     fi
     local options=''
     case "${COMP_WORDS[1]}" in
-        'deploy') options='--x\$(echo pwned)' ;;
+        'deploy') options='--x\$(id)' ;;
     esac
     COMPREPLY=($(compgen -W "$options" -- "$cur"))
 }

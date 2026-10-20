@@ -597,8 +597,12 @@ public static function deploy(
 [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered) uses for the route table
 ([`programs/implementing`](programs.md#programs-implementing)). The three errors every run-time argument parser discovers at the
 worst moment are **compile errors** here: a duplicate command name, two options of one command sharing
-a short or long spelling, and an `#[Option]` on a parameter whose declared type has no conversion from
-`string`. A `#[Command]` method is static and returns `void` (exit status 0) or `uint`.
+a short or long spelling, and a parameter whose declared type has no conversion from `string`. That
+last one holds for an `#[Option]` and a positional parameter alike (`E0746`). A `#[Command]` method is
+static and returns `void` (exit status 0) or `uint`.
+
+A spelling no command line can type is `E0879` at the field: a `name:` or a `long:` that is empty or
+holds white space, and a `short:`, the one-letter spelling, that is not one ASCII letter or digit.
 
 A program with no `#[Command]` builds no table, runs no scan and pays nothing. Nobody writes usage
 text and nobody lets it rot, because help and completions are read off the table
@@ -617,7 +621,9 @@ completions, and is the design every other ecosystem already has.
 
 **A parameter is a positional argument unless it carries `#[Option]`.** One sentence, with no
 inference from defaults or types. A `bool` `#[Option]` is a flag; a trailing `array<string>` parameter
-is variadic. An argument the command line leaves out takes the parameter's declared default, so
+is variadic. It is the last parameter without `#[Option]`, takes every positional word left once the
+ones before it are filled, and is an empty array when none is left. An `array<string>` anywhere else is
+`E0746`, and an array has no constant default (`E0451`). An argument the command line leaves out takes the parameter's declared default, so
 `#[Option] uint $retries = 3` is optional and a parameter declaring none is required — the flag being
 the one exception, since being *written* is how it is given, and an unwritten `bool $loud = true` is
 still `false`. Nothing new is admitted: a default is already a literal of the parameter's own type, so

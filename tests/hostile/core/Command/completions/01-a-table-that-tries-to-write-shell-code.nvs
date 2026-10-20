@@ -7,10 +7,10 @@
 
 class Tool
 {
-    // Every piece of shell syntax that ends a word, a quote or a line, inside
-    // one command's name and description.
+    // Shell syntax that ends a word, a quote or a line, in a name and a description.
+    // A name cannot contain a space, so the name uses only syntax without one.
     #[Core\Command(
-        name: "de'ploy; rm -rf /",
+        name: "de'ploy;id&&true|tee",
         about: "it's $(whoami) `id` ; echo no | tee /tmp/x && true",
     )]
     public static function deploy(
@@ -21,9 +21,9 @@ class Tool
         return 0;
     }
 
-    // A colon ends the command word of a `zsh` entry, and a newline ends a line
-    // of every script written here.
-    #[Core\Command(name: "db:migrate\nrm -rf /", about: "Apply pending migrations")]
+    // A colon ends the command word of a `zsh` entry. A newline ends a line of
+    // every script written here, and the description has one.
+    #[Core\Command(name: "db:migrate;id", about: "Apply pending migrations\nrm -rf /")]
     public static function migrate(): uint
     {
         return 0;

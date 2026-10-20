@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/commands.rs",
-  "title": "A command name or option spelling that a command line cannot type compiles.",
-  "text": "`#[Core\\Command(name: \"\")]` and `name: \"do it\"` compile, and so do `#[Core\\Option(short: \"ab\")]`, `short: \"-\"` and `long: \"\"`. A name with a space can never be the first word of a command line, and an empty name can never be typed. `short: \"-\"` and `long: \"\"` are both spelled `--`, so two such options are `E0745` with that spelling. `rule:tooling/commands-are-compiled` calls `short:` the one-letter spelling. It closes when a name or a `long:` that is empty or has a space, and a `short:` that is not one letter or digit, are checker errors with a conformance case.",
-  "goal": "compiler-holes"
-}
