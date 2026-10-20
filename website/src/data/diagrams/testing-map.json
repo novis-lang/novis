@@ -1,0 +1,69 @@
+{
+  "root": "What could go wrong?",
+  "branches": [
+    {
+      "label": "Wrong results",
+      "tone": "violet",
+      "leaves": [
+        { "label": "Answer-key tests · {languageTests}", "href": "#answer-key-tests" },
+        { "label": "Part tests in Rust · {rustTests}", "href": "#part-tests" },
+        { "label": "Examples with saved output · {examples}", "href": "#examples" },
+        { "label": "Before-and-after photos", "href": "#snapshots" },
+        { "label": "Four kinds of computer", "href": "#platforms" },
+        { "label": "Real databases", "href": "#databases" },
+        { "label": "Editor tests · {editorTests}", "href": "#editor-tests" }
+      ]
+    },
+    {
+      "label": "Crashes and memory errors",
+      "tone": "crimson",
+      "leaves": [
+        { "label": "Fuzzing: random input all night", "href": "#fuzzing" },
+        { "label": "Miri: the driving instructor", "href": "#miri" },
+        { "label": "AddressSanitizer: tripwires", "href": "#addresssanitizer" },
+        { "label": "ThreadSanitizer: two hands, one cell", "href": "#threadsanitizer" },
+        { "label": "Unsafe code, counted", "href": "#unsafe-count" }
+      ]
+    },
+    {
+      "label": "Attacks",
+      "tone": "orange",
+      "leaves": [
+        { "label": "Attack programs · {attacks}", "href": "#attacks" },
+        { "label": "The same room, the next guest", "href": "#shared-worker" },
+        { "label": "A sandbox for extensions", "href": "#sandbox" },
+        { "label": "Every ingredient checked", "href": "#dependencies" },
+        { "label": "Rebuilt from the blueprint", "href": "#rebuilt" }
+      ]
+    },
+    {
+      "label": "Too slow",
+      "tone": "gold",
+      "leaves": [
+        { "label": "Speed limits with a margin", "href": "#speed-limits" },
+        { "label": "Doubling the dinner guests", "href": "#growth" },
+        { "label": "Rush hour", "href": "#load" }
+      ]
+    },
+    {
+      "label": "Memory that keeps growing",
+      "tone": "green",
+      "leaves": [
+        { "label": "The tap left running", "href": "#soak" },
+        { "label": "A locker for each request", "href": "#limits" },
+        { "label": "Valgrind: the stock count", "href": "#valgrind" }
+      ]
+    },
+    {
+      "label": "Tests that miss things",
+      "tone": "blue",
+      "leaves": [
+        { "label": "No empty box on the list", "href": "#coverage" },
+        { "label": "Six proofs for each feature", "href": "#feature-proofs" },
+        { "label": "The fire drill", "href": "#fire-drill" },
+        { "label": "Known problems, written down", "href": "#known-problems" },
+        { "label": "The manual is tested too", "href": "#manual" }
+      ]
+    }
+  ]
+}

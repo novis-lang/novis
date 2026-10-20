@@ -5,7 +5,7 @@ description: Novis is written with coding agents. This page shows the rules, the
 ---
 
 import { githubFile } from '@config/site.mjs'
-import { atLeast, counts } from '~/lib/numbers'
+import { counts } from '~/lib/numbers'
 
 Novis is written with coding agents. A coding agent is a program that reads and changes code with
 the help of a large language model (LLM). We use today's top coding agents and models. We say this
@@ -65,40 +65,14 @@ work session. <a href={githubFile('AGENTS.md')}>Read AGENTS.md.</a>
 
 ## Tested from every direction
 
-A feature is finished when its proofs exist, not when it works. Every feature needs all of these:
-
-- a page that describes it
-- tests written in Novis, and tests written in Rust
-- three examples that run, with their output compared to a saved file
-- a benchmark that shows how its cost grows with the size of the input
-- an attack: a program that tries to break it
-- its help text in the `nvs` command
-
-CI stops when a feature is missing one of them.
+A feature is finished when its proofs exist, not when it works. It needs a page, tests, three
+examples, a benchmark, an attack and its help text. CI stops when one of them is missing.
 <a href={githubFile('docs/rules/testing.md')}>Read the rule.</a>
 
-| Kind of test | Count | What it checks |
-|---|---|---|
-| Language tests | {atLeast(counts.languageTests)} | each rule of the language, with the exact output or error |
-| Rust tests | {atLeast(counts.rustTests)} | the compiler, the runtime and the library, from the inside |
-| Examples | {atLeast(counts.examples)} | each example runs, and its output matches a saved file |
-| Attacks | {atLeast(counts.attacks)} | the runtime does not crash, hang or leak memory |
-| Benchmarks | {atLeast(counts.benchmarks)} | the speed of each feature, and how its cost grows |
-| Editor tests | {atLeast(counts.editorTests)} | completion, hover and errors in the editor |
-
-Each push builds and tests Novis on Linux, Windows and macOS. Every night, more checks run:
-
-- **Fuzzing** sends random input to the lexer, the parser and the URL parser.
-- **Miri, AddressSanitizer and ThreadSanitizer** look for memory errors and data races.
-- **Valgrind** runs the attacks and looks for memory leaks.
-- **A dependency check** tests every library Novis uses for its licence and for known security problems.
-
-Before any commit, one command builds Novis, checks the formatting and runs every test the change
-can affect. It also runs the Rust linter, with every warning treated as an error. The commit is made
-only when all of this passes. <a href={githubFile('.github/workflows/ci.yml')}>See the CI setup.</a>
-
-Speed is measured too. The same programs run in Novis, PHP, Bun and Go on one machine.
-[See the results.](/in-depth/compare/)
+Before a change is committed, every test it can reach runs. Each push tests Novis on Linux, Windows
+and macOS, and every night every check runs.
+[How Novis is tested](/in-depth/how-novis-is-tested/) explains each test and check, with a comparison
+from everyday life.
 
 ## Every change can be traced
 

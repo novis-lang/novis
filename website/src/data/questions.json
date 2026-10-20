@@ -712,7 +712,7 @@
   },
   "/in-depth/": {
     "feature": "in-depth/index.mdx",
-    "hash": "6b116aa7054d5513",
+    "hash": "743e2cd5413ceb5d",
     "questions": [
       "Why does Novis work the way it does?",
       "Where can I read about the design decisions behind Novis?",
@@ -830,15 +830,26 @@
       "Why are error messages in Novis easy to read?"
     ]
   },
+  "/in-depth/how-novis-is-tested/": {
+    "feature": "in-depth/how-novis-is-tested.mdx",
+    "hash": "dccdb3dce557c084",
+    "questions": [
+      "How is Novis tested?",
+      "How many tests does the Novis project have?",
+      "Does Novis use fuzzing to find crashes?",
+      "What do Miri and the sanitizers check in Novis?",
+      "Which checks run every night in the Novis CI?",
+      "Is Novis tested against attacks?"
+    ]
+  },
   "/in-depth/how-novis-is-written/": {
     "feature": "in-depth/how-novis-is-written.mdx",
-    "hash": "7ee2ba22d376751b",
+    "hash": "c41a460d5349ed5d",
     "questions": [
       "Is Novis written with AI coding agents?",
       "Is Novis AI slop?",
       "How is the code quality of Novis checked?",
-      "Who makes the design decisions in Novis?",
-      "How many tests does the Novis project have?"
+      "Who makes the design decisions in Novis?"
     ]
   },
   "/in-depth/how-we-decide/": {

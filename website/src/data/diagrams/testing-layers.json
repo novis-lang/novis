@@ -1,0 +1,36 @@
+{
+  "layers": [
+    { "label": "Tests on every change", "tone": "violet" },
+    { "label": "Attack programs", "tone": "orange" },
+    { "label": "Fuzzing", "tone": "crimson" },
+    { "label": "Miri and the sanitizers", "tone": "gold" },
+    { "label": "Limits while the server runs", "tone": "green" }
+  ],
+  "bugs": [
+    {
+      "label": "A function returns the wrong number",
+      "caughtBy": 0,
+      "result": "An answer-key test prints a different number than its saved answer. The test fails before the change is committed."
+    },
+    {
+      "label": "One request reads data from another",
+      "caughtBy": 1,
+      "result": "An attack program stores data in one request and tries to read it in the next. The attack test fails if it finds anything."
+    },
+    {
+      "label": "A strange HTTP header crashes the server",
+      "caughtBy": 2,
+      "result": "Every night, fuzzing sends random headers to the code that reads requests. When one causes a crash, the fuzzer saves it so we can fix it."
+    },
+    {
+      "label": "Memory is used after it was freed",
+      "caughtBy": 3,
+      "result": "Miri and AddressSanitizer check each memory access. They report the error even when the program printed the right answer."
+    },
+    {
+      "label": "A bug no test found uses too much memory",
+      "caughtBy": 4,
+      "result": "Each request has a memory limit. The request stops when it goes over. The server and every other request keep running."
+    }
+  ]
+}

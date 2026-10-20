@@ -1,0 +1,507 @@
+---
+title: How Novis is tested
+covers: []
+description: Every test and check that guards Novis, each explained with a comparison from everyday life.
+---
+
+import { githubFile } from '@config/site.mjs'
+import { atLeast, counts } from '~/lib/numbers'
+import MindMap from '@components/diagrams/MindMap.astro'
+import Flow from '@components/diagrams/Flow.astro'
+import Layers from '@components/diagrams/Layers.astro'
+import Technique from '@components/testing/Technique.astro'
+import map from '@data/diagrams/testing-map.json'
+import journey from '@data/diagrams/testing-journey.json'
+import layers from '@data/diagrams/testing-layers.json'
+
+Novis runs web servers. A bug in Novis could show one user's data to another user, crash a server
+or make it slow. This page shows every way we look for these bugs.
+
+Many of the methods have technical names, such as Miri or fuzzing. Each one gets a comparison from
+everyday life, so you do not need to know any of the tools. Every claim links to the setup in the
+repository, so you can check it yourself.
+
+The map shows the six kinds of problem we test for. Select a name to read how that test works.
+
+<MindMap data={map} />
+
+These are the largest groups of tests, counted from the repository:
+
+| Kind of test | Count | What it checks |
+|---|---|---|
+| Answer-key tests | {atLeast(counts.languageTests)} | each rule of the language, with the exact output or error |
+| Part tests in Rust | {atLeast(counts.rustTests)} | the compiler, the runtime and the library, from the inside |
+| Examples | {atLeast(counts.examples)} | each example runs, and its output matches a saved file |
+| Attack programs | {atLeast(counts.attacks)} | Novis does not crash or hang, and stops what it must not allow |
+| Benchmarks | {atLeast(counts.benchmarks)} | the speed of each feature, and how its cost grows |
+| Editor tests | {atLeast(counts.editorTests)} | completion, hover and errors in the editor |
+
+## When the checks run
+
+Fast checks run on every change. Slow checks run every night, when they delay nobody.
+
+<Flow data={journey} title="The journey of one change" />
+
+A push runs the checks for the parts of Novis that the change touches. A change to the website does
+not test the compiler again. Every night, every check runs for every part. A release runs all of them
+once more, and it is built only when they all pass.
+<a href={githubFile('.github/workflows/ci.yml')}>See the CI setup.</a>
+
+## Many layers, each with holes
+
+No single test finds every bug. Safety engineers draw this as slices of Swiss cheese. Each slice has
+holes, but the holes are in different places. A bug that passes one slice is stopped by a later one.
+
+Pick a bug. The drawing shows which layer stops it.
+
+<Layers data={layers} title="Pick a bug" />
+
+## Wrong results
+
+These tests check that Novis gives the right answer. Most of them compare the output with a saved
+answer.
+
+<Technique id="answer-key-tests" name="Answer-key tests" picture="the teacher's answer sheet" when={['change', 'push']}>
+
+A teacher checks each test against an answer sheet. Every answer must match exactly. One wrong
+number, and the answer is wrong.
+
+<Fragment slot="more">
+
+Each answer-key test is a short Novis program and the exact output it must print. When the program
+must not compile, the test has the exact error message instead. There are
+{atLeast(counts.languageTests)} of them. They cover the rules of the language and every function of
+the library.
+
+Each test runs a second time with the optimiser turned off. This is like doing a sum in two
+different ways. Both results must be the same. If they are not, the optimiser changed what the
+program does.
+
+</Fragment>
+</Technique>
+
+<Technique id="part-tests" name="Part tests in Rust" picture="each car part on the test bench" when={['change', 'push']}>
+
+A car factory tests each part on a bench before it goes into a car. The brakes are tested long before
+anybody drives the car.
+
+<Fragment slot="more">
+
+Novis itself is written in the Rust language. {atLeast(counts.rustTests)} small tests check its
+parts from the inside: the parser, the compiler, the runtime and the library. Some test a single
+function. Others start a real server and send it requests.
+
+</Fragment>
+</Technique>
+
+<Technique id="examples" name="Examples with saved output" picture="the photo in the cookbook" when={['change', 'push']}>
+
+A good cookbook has a photo of every dish. Imagine that every recipe is cooked again after each
+change, and the result is compared with its photo.
+
+<Fragment slot="more">
+
+Every feature has at least three example programs, and each one has a file with its exact output.
+The examples run, and their output must match the file. There are {atLeast(counts.examples)} of
+them. The examples on this website are the same files, so every example you read has been run.
+
+</Fragment>
+</Technique>
+
+<Technique id="snapshots" name="Snapshot tests" picture="spot the difference" when={['change', 'push']}>
+
+Two photos look the same until you search them for differences. A snapshot test saves a photo of a
+result. It compares every new result with that photo.
+
+<Fragment slot="more">
+
+The compiler turns a program into simpler steps before it makes machine code. Snapshot tests save
+these steps for many small programs. When a change produces different steps, the test shows the
+difference. A person then decides if the new steps are correct.
+
+</Fragment>
+</Technique>
+
+<Technique id="platforms" name="Four kinds of computer" picture="one recipe, four kitchens" when={['push']}>
+
+A recipe that works in your kitchen can fail in another oven. So we cook it in four kitchens.
+
+<Fragment slot="more">
+
+The tests run on Linux with Intel or AMD processors, on Linux with ARM processors, on Windows and on
+macOS. Each system handles files, threads and memory in its own way. A bug that hides on one system
+often shows on another.
+
+</Fragment>
+</Technique>
+
+<Technique id="databases" name="Real databases" picture="a test drive on real roads" when={['push']}>
+
+A driving simulator is useful, but a new car is also tested on real roads. Real roads have
+surprises that a simulator does not.
+
+<Fragment slot="more">
+
+Novis works with five databases: PostgreSQL, MySQL, MariaDB, Microsoft SQL Server and SQLite. The
+tests start a real server for each one and run against it. The code that checks logins against a
+company directory (LDAP) is tested against a real directory server.
+
+</Fragment>
+</Technique>
+
+<Technique id="editor-tests" name="Editor tests" picture="the helper in your editor, checked" when={['change', 'push']}>
+
+Novis helps you while you type. It completes names, shows errors and explains code when you point at
+it. Editor tests check each of these answers.
+
+<Fragment slot="more">
+
+Each of the {atLeast(counts.editorTests)} editor tests is a small file with a cursor position and the
+answer the editor must give. Other tests start the real VS Code extension and use it the way a person
+does. They run on Linux, Windows and macOS.
+
+</Fragment>
+</Technique>
+
+## Crashes and memory errors
+
+Novis is written in Rust, a language that prevents most memory errors. A few parts of Novis do work
+that Rust cannot check, such as running the machine code that Novis makes. These tools check those
+parts.
+
+<Technique id="fuzzing" name="Fuzzing" picture="the crash-test lab" when={['night']} art="fuzzing" tone="crimson">
+
+A crash-test lab throws thousands of objects at a car, from every angle. It keeps notes on the
+throws that found something new, and tries more throws like them.
+
+<Fragment slot="more">
+
+A fuzzer sends random input to one part of Novis, as fast as it can. It sees which code each input
+reaches, and changes the inputs that reach new code. It runs on {counts.fuzzTargets} parts, such as
+the parser and the code that reads requests, cookies, uploads, URLs, JSON and XML.
+
+Each part gets five minutes every night. The fuzzer keeps its notes from night to night, so each
+night starts where the last one ended.
+
+</Fragment>
+</Technique>
+
+<Technique id="miri" name="Miri" picture="the driving instructor" when={['night']} art="miri" tone="crimson">
+
+You drive home safely, but you went through a red light. Nothing happened this time. The driving
+instructor beside you still notices.
+
+<Fragment slot="more">
+
+Miri runs Rust code very slowly, one step at a time. It checks every memory access against the rules
+of Rust. It finds code that breaks a rule but works today by luck. On another computer, or after a
+small change, the same code could crash or leak data.
+
+Miri checks the parser, parts of the type checker, the runtime and the library.
+
+</Fragment>
+</Technique>
+
+<Technique id="addresssanitizer" name="AddressSanitizer" picture="a tripwire around every box" when={['push', 'night']} art="asan" tone="crimson">
+
+In this warehouse, every box has a tripwire around it. Reach one centimetre past your own box, and
+the alarm goes off.
+
+<Fragment slot="more">
+
+AddressSanitizer builds Novis with a guard area around every block of memory. A read or a write in a
+guard area stops the test with a report. It finds code that reads past the end of its memory, or uses
+memory after it was freed. It checks the runtime, the library and the code generator.
+
+</Fragment>
+</Technique>
+
+<Technique id="threadsanitizer" name="ThreadSanitizer" picture="two hands on one cell" when={['push', 'night']} art="tsan" tone="crimson">
+
+Two people change the same cell of a shared spreadsheet at the same moment. One of the two changes
+is lost, and nobody notices.
+
+<Fragment slot="more">
+
+A web server does many things at the same time, on many threads. ThreadSanitizer records every
+memory access and the thread that made it. It reports two threads that use the same memory without
+waiting for each other. These bugs are rare and hard to repeat, and this tool sees them every time.
+
+</Fragment>
+</Technique>
+
+<Technique id="unsafe-count" name="The unsafe code count" picture="the rooms without safety rails" when={['night']}>
+
+In a factory, a few rooms have no safety rails, because the work there needs it. Each of these rooms
+has a sign that says why.
+
+<Fragment slot="more">
+
+Rust can switch off some of its checks inside a block of code called `unsafe`. In
+{counts.cratesWithoutUnsafe} of the {counts.crates} parts of Novis, this is not allowed at all. In
+the other parts, each `unsafe` block has a written reason. Every night, a tool counts the `unsafe`
+code in each part, so any growth is easy to see.
+
+</Fragment>
+</Technique>
+
+## Attacks
+
+The tests above use Novis the way it is meant to be used. These tests use it the way an attacker
+would.
+
+<Technique id="attacks" name="Attack programs" picture="a burglar hired to test the locks" when={['push']} art="attack" tone="orange">
+
+Some companies hire a burglar to break into their own building. The test passes when every door
+holds.
+
+<Fragment slot="more">
+
+Every feature of Novis has at least one attack program. It sends huge input, broken data or loops
+that never end. The test fails if Novis crashes, hangs or stops with an internal error. Each attack
+has 10 seconds.
+
+Some attacks try something Novis must not allow, such as keeping data for the next request. They
+pass only when Novis stops the attempt and keeps running. There are {atLeast(counts.attacks)} attack
+programs.
+<a href={githubFile('tests/hostile/tools/server/nvs-serve/01-a-request-that-keeps-data-for-the-next-request.nvs')}>Read that attack.</a>
+
+</Fragment>
+</Technique>
+
+<Technique id="shared-worker" name="The second run in one process" picture="the same room, the next guest" when={['push']} tone="orange">
+
+A hotel cleans each room before the next guest arrives. Nothing from the last guest may be left
+behind: no note, no key, no towel.
+
+<Fragment slot="more">
+
+Each Novis request starts with its own clean memory. To test this, most answer-key tests run a second
+time, one after another, in one shared process. Each test must print exactly what it printed alone.
+If a test left anything behind, the next test would see it, and its output would change.
+[Read how isolation works.](/in-depth/concepts/isolation/)
+
+</Fragment>
+</Technique>
+
+<Technique id="sandbox" name="The extension sandbox" picture="the glovebox in a lab" when={['push']} tone="orange">
+
+A chemist handles dangerous material inside a sealed box, through gloves. Whatever happens inside
+the box stays inside.
+
+<Fragment slot="more">
+
+An extension adds functions to Novis, and it can be written in another language. Each extension runs
+inside a WebAssembly sandbox. Tests check that an extension can only reach the memory it was given.
+They also check that an endless loop is stopped, and that each run starts clean.
+
+</Fragment>
+</Technique>
+
+<Technique id="dependencies" name="The dependency check" picture="every ingredient checked" when={['push', 'night']} tone="orange">
+
+A restaurant checks every ingredient it buys. Is it on a recall list? Does its label say what is
+inside?
+
+<Fragment slot="more">
+
+Novis uses open-source libraries that other people write. A check tests each library against a public
+list of known security problems. It also checks each library's licence. Libraries may only come from
+the official Rust registry, and a few are not allowed at all. For example, Novis does not use OpenSSL.
+For HTTPS, it uses a library written in Rust.
+
+</Fragment>
+</Technique>
+
+<Technique id="rebuilt" name="Rebuilt from source" picture="a second part from the blueprint" when={['push']} tone="orange">
+
+To check a delivered part, a factory builds a second one from the blueprint. The two must be the
+same.
+
+<Fragment slot="more">
+
+Novis includes the library for WebP images in compiled form. A check builds the library again from
+its source code. It compares the result with the copy in Novis, byte for byte. A copy that somebody
+changed would not match.
+
+</Fragment>
+</Technique>
+
+## Too slow
+
+Novis exists to run web requests fast. These checks find a change that makes it slower.
+
+<Technique id="speed-limits" name="Speed limits" picture="a speed camera with a margin" when={['push']} tone="gold">
+
+A speed camera does not flash at 51 in a 50 zone. It has a margin, so only a driver who is really too
+fast gets a ticket.
+
+<Fragment slot="more">
+
+Some tests measure how much work Novis does, such as the work to start a program. Each test has two
+limits. Above the first limit, the test prints a warning. Above the second, much higher limit, the
+test fails. The margin keeps a busy test computer from failing a good change.
+
+</Fragment>
+</Technique>
+
+<Technique id="growth" name="Growth ladders" picture="doubling the dinner guests" when={['hand']} art="growth" tone="gold">
+
+Cooking for 8 guests should take about twice as long as cooking for 4. If it takes four times as
+long, something in the kitchen is wrong.
+
+<Fragment slot="more">
+
+Every feature has a benchmark that runs with input of growing size, doubled at each step. A tool
+checks how the cost grows when the input doubles. A feature whose cost grows faster than its input,
+such as with its square, is not accepted. There are {atLeast(counts.benchmarks)} benchmarks. We run
+the ladders by hand.
+
+</Fragment>
+</Technique>
+
+<Technique id="load" name="The load test" picture="rush hour" when={['hand']} tone="gold">
+
+A road that is fine at noon can stop at rush hour. You only learn this by driving it at rush hour.
+
+<Fragment slot="more">
+
+The load test sends a Novis server as many requests as it can answer. It checks every answer, and
+not only the speed. We run it by hand. We also run the same programs in other languages, on one
+machine. [See the results.](/in-depth/compare/)
+
+</Fragment>
+</Technique>
+
+## Memory that keeps growing
+
+A server runs for weeks. If each request leaves a little memory behind, the server slowly fills up
+and stops.
+
+<Technique id="soak" name="The soak test" picture="the tap left running" when={['night']} art="soak" tone="green">
+
+Leave a tap running into a basin with an open drain. If the water level stays the same all night,
+the drain works.
+
+<Fragment slot="more">
+
+Every night, a test sends thousands of requests to one Novis server, on Linux, Windows and macOS. It
+measures the server's memory after a warm-up, and again at the end. The memory must stay almost the
+same. If it grows, some request left memory behind.
+
+</Fragment>
+</Technique>
+
+<Technique id="limits" name="Memory and time limits" picture="a locker for each request" when={['change', 'push']} tone="green">
+
+At a swimming pool, each guest gets a locker of the same size. A guest with too much luggage cannot
+take a second locker.
+
+<Fragment slot="more">
+
+Each request has a memory limit and a time limit, which you set in `nvs.toml`. Tests check that a
+request over its limit stops, and that only that request stops. Other tests check that the memory a
+request uses is counted for that request. [Read about limits.](/in-depth/concepts/limits/)
+
+</Fragment>
+</Technique>
+
+<Technique id="valgrind" name="Valgrind" picture="the stock count" when={['hand']} tone="green">
+
+At the end of the day, a shop counts its stock. Everything that came in is sold or still on the
+shelf.
+
+<Fragment slot="more">
+
+Valgrind runs a program and records every block of memory it takes and frees. At the end, it lists
+every block that was never freed. We run the examples and the attack programs under Valgrind, by
+hand, on Linux. It is slow, so it does not run in CI.
+
+</Fragment>
+</Technique>
+
+## Who tests the tests
+
+A test can pass and still miss a bug. These checks look for gaps in the tests themselves.
+
+<Technique id="coverage" name="The coverage check" picture="no empty box on the list" when={['change', 'push']} tone="blue">
+
+A checklist is only useful when every box is filled in. An empty box means a step that nobody did.
+
+<Fragment slot="more">
+
+Every function in the Novis library must appear in at least three answer-key tests. A test fails
+when a function has fewer, so a new function cannot arrive without its tests. The editor tests have
+the same kind of list, with one box for each kind of editor request.
+
+</Fragment>
+</Technique>
+
+<Technique id="feature-proofs" name="Feature proofs" picture="the inspector's list" when={['push']} tone="blue">
+
+A new building is finished when the inspector signs every item on the list. Doors that open are not
+enough.
+
+<Fragment slot="more">
+
+A Novis feature is finished when it has six things. These are a page, tests in Novis and in Rust,
+three examples, a benchmark, an attack program and its help text. A check fails when a feature is
+missing one of them.
+
+</Fragment>
+</Technique>
+
+<Technique id="fire-drill" name="The fire drill" picture="breaking things on purpose" when={['hand']} art="drill" tone="blue">
+
+A fire drill tests the alarm, not the fire. Somebody starts a pretend fire, and everybody checks
+that the alarm rings.
+
+<Fragment slot="more">
+
+For a normal change, Novis runs only the tests that the change can reach. This is fast, but a wrong
+choice could skip a test that would fail. So we break Novis on purpose, in many small ways. For each
+break, the drill checks that the chosen tests include one that fails. We run the drill by hand.
+
+</Fragment>
+</Technique>
+
+<Technique id="known-problems" name="Known problems, written down" picture="the board on the wall" when={['push']} tone="blue">
+
+A good workshop has a board with every known problem on it. Nothing is hidden in a drawer.
+
+<Fragment slot="more">
+
+Sometimes an attack program or an example fails, and the fix takes longer. Then the problem is
+written down in a file in the repository. A check fails when a test fails without such a file. Each
+file says what fails and why.
+<a href={githubFile('data/gaps')}>Read the list.</a>
+
+</Fragment>
+</Technique>
+
+<Technique id="manual" name="The manual is tested too" picture="a manual with no wrong steps" when={['push']} tone="blue">
+
+A manual with a wrong step is worse than no manual. So this website is checked like code.
+
+<Fragment slot="more">
+
+Every code example on this website runs, and its output must match the output on the page. Every
+link must lead to a page that exists. A check also measures every sentence, and no sentence may have
+more than 25 words. When a feature changes, a check lists the pages about it, so somebody reads them
+again.
+
+</Fragment>
+</Technique>
+
+## What we do not do yet
+
+These are the gaps we know about.
+
+- **An independent security audit.** No outside company has reviewed Novis yet.
+- **Property tests.** A property test checks a general rule with many generated inputs. For
+  example, sorting a list twice gives the same result as sorting it once. Novis has no property
+  tests yet. Fuzzing covers some of the same ground.
+- **Mutation testing.** A mutation tool changes the code of Novis in many small ways. Each time, some
+  test must fail. Novis has no such tool yet. The fire drill does this for the test selection only.
+- **Some checks run only by hand.** These are Valgrind, the growth ladders, the load test and the
+  fire drill. They do not run in CI.
