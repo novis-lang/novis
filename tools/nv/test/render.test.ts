@@ -95,6 +95,9 @@ describe("render", () => {
     tmp.put("benches/members/core/Str/length.scale.nvs", "");
     tmp.put("benches/members/_calibration/unit.nvs", "");
     tmp.put("tests/lsp/hover/a.lspt", "");
+    tmp.put("fuzz/fuzz_targets/parse.rs", "");
+    tmp.put("fuzz/fuzz_targets/uri.rs", "");
+    tmp.put("fuzz/seeds/parse/a", "");
     const exact = countTree(tmp.root);
     expect(exact).toEqual({
       attacks: 2,
@@ -105,6 +108,7 @@ describe("render", () => {
       editorTests: 1,
       crates: 2,
       cratesWithoutUnsafe: 1,
+      fuzzTargets: 2,
     });
     expect([1422, 384, 75, 100, 7148, 12_345].map(roundDown)).toEqual([1400, 380, 75, 100, 7100, 12_000]);
 
@@ -116,6 +120,7 @@ describe("render", () => {
     expect(stillTrue(out.text, { ...big, attacks: 1500 })).toBe(true);
     expect(stillTrue(out.text, { ...big, attacks: 1399 })).toBe(false);
     expect(stillTrue(out.text, { ...big, crates: 3 })).toBe(false);
+    expect(stillTrue(out.text, { ...big, fuzzTargets: 3 })).toBe(false);
     expect(stillTrue(JSON.stringify({ ...shown, extra: 1 }), big)).toBe(false);
     expect(stillTrue("not json", big)).toBe(false);
   });

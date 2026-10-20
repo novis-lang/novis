@@ -7,5 +7,6 @@
   "benchmarks": 1600,
   "editorTests": 390,
   "crates": 21,
-  "cratesWithoutUnsafe": 14
+  "cratesWithoutUnsafe": 14,
+  "fuzzTargets": 15
 }

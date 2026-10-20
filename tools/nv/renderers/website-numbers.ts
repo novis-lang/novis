@@ -1,5 +1,5 @@
-// The counts the website prints: `website/src/data/numbers.json`, which the front page's numbers and
-// the page about how Novis is written read. Each count is taken from the tree, and this file is the
+// The counts the website prints: `website/src/data/numbers.json`, which the front page's numbers, the
+// in-depth pages and the labels of the diagrams read. Each count is taken from the tree, and this file is the
 // one home of what each one counts:
 //
 // - `attacks`: the cases under `tests/hostile/`, each a file named `NN-slug.nvs`. A file in a
@@ -12,11 +12,13 @@
 // - `editorTests`: the `.lspt` cases under `tests/lsp/`.
 // - `crates` and `cratesWithoutUnsafe`: the crates under `crates/`, and those not on `bun nv lints`'s
 //   `UNSAFE_CRATES`, where the workspace's `unsafe_code = "forbid"` applies.
+// - `fuzzTargets`: the `.rs` files under `fuzz/fuzz_targets/`, one target each.
 //
 // A count is written rounded down to its first two digits (1,422 is written 1,400), so the site
 // says "at least" and stays true while tests are added. That is also why the file has its own
 // `--check`: a file on disk passes while every figure in it is still at most what the tree has
-// and the two crate counts are exact, so a new test does not make it stale and a deleted one can.
+// and the crate and fuzz-target counts are exact, so a new test does not make it stale and a
+// deleted one can.
 // `bun nv render` without `--check` always writes the current figures.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -29,7 +31,7 @@ export const WEBSITE_NUMBERS = "website/src/data/numbers.json";
 /** The counts written rounded down. */
 const AT_LEAST = ["attacks", "languageTests", "rustTests", "examples", "benchmarks", "editorTests"] as const;
 /** The counts written as they are. */
-const EXACT = ["crates", "cratesWithoutUnsafe"] as const;
+const EXACT = ["crates", "cratesWithoutUnsafe", "fuzzTargets"] as const;
 
 export type Counts = Record<(typeof AT_LEAST)[number] | (typeof EXACT)[number], number>;
 
@@ -60,6 +62,7 @@ export function countTree(root: string): Counts {
     editorTests: filesUnder(root, "tests/lsp").filter((p) => p.endsWith(".lspt")).length,
     crates: crates.length,
     cratesWithoutUnsafe: crates.filter((c) => !(c in UNSAFE_CRATES)).length,
+    fuzzTargets: filesUnder(root, "fuzz/fuzz_targets").filter((p) => p.endsWith(".rs")).length,
   };
 }
 
