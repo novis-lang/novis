@@ -1,14 +1,14 @@
 // Two checks over the website's styles, which `bun nv site --check structure` runs.
 //
 // **A loop runs only while a reader can see it.** An animation that repeats forever runs on every
-// frame, on screen or off it, and one that repaints, such as a gradient clipped to text, took a fifth
-// of every page's main thread. So a loop lives in a `data-motion` region: custom.css pauses every
+// frame, on screen or off it: the testing page's card drawings, all looping at once, cost a few
+// percent of the main thread with nothing on screen to show for it. So a loop lives in a
+// `data-motion` region: custom.css pauses every
 // animation inside one that `src/scripts/on-screen.ts` has not marked `data-on-screen`. A file with a
 // loop names `data-motion`, on the root it renders or in the comment that says where its root gets
 // it. A loop that runs only in a state the reader started needs no region: a rule whose selector has
 // `:hover`, `:focus`, `:focus-within`, `:focus-visible`, `:active`, or a script's
-// `[data-...-state=...]`. A region that is always on screen, such as the header, gets no loop at all:
-// it would run for as long as the page is open.
+// `[data-...-state=...]`.
 //
 // **A timeline survives the minifier.** The build minifies CSS with lightningcss, which folds an
 // `animation-timeline` into the `animation` shorthand of the same rule:
