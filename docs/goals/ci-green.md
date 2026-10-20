@@ -96,27 +96,25 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `21e82d4e6`. Its Website run is green. Its CI run,
-https://github.com/novis-lang/novis/actions/runs/39469820050, ended with 34 of 35 jobs green. The one
-red job is the main loop's:
+`origin/main` is at `67e83f008`. Its CI run,
+https://github.com/novis-lang/novis/actions/runs/39487313208, and its Website run are green.
 
-- **`proofs / linux-x86_64`:** `Core\Router\Responder` owes its examples. This is the main loop's
-  `router-responder` stage 3, and it has been told. It is not this goal's to fix.
-
-This session added `bun nv ci --watch --past <job>` in `68ead3697`. Before it, a watch exited 1 at once
-on the proofs job and could not wait for the rest of the run. Stage 1 step 2 now passes `--past` and
-handles its exit 4. The local `main` is ahead of `origin`, but nothing it adds fixes a red, so this
-session did not push. `cargo deny` still warns that `deny.toml`'s ignore of RUSTSEC-2026-0206 matches
-no crate. It is only a warning.
+The Responder examples reached `origin`, so the proofs job got past its feature proofs. Then its step
+"Website stale guard" failed. The diagnostic rewrites (`2a8ccc93c`, `7fb63ee6e`, `5aea550c6`) changed
+example outputs and a snippet's help, and the Responder work rewrote the routes, dispatch and Gate
+pages. No session stamped the pages again. `67e83f008` blesses the snippet and stamps the 25 pages and
+9 question entries, and it writes `Core\Router\Responder`'s questions. No red is handed to the main
+loop, so no watch passes `--past`. `cargo deny` still warns that `deny.toml`'s ignore of
+RUSTSEC-2026-0206 matches no crate. It is only a warning.
 
 ### Next
 
 **Stage 1, the cycle.** Skip step 1, because the first push happened.
 
-- [ ] Watch with `bun nv ci --watch --past proofs`. `tools/nv/cmd/ci.ts:224`
-  It waits for the next push, because the newest CI run ended red only in `proofs`. Drop `--past
-  proofs` once the main loop commits the Responder examples.
-- [ ] Fix and push each other red job. `.github/workflows/ci.yml:1`
+- [ ] Watch with `bun nv ci --watch`, which waits for the next push. `tools/nv/cmd/ci.ts:224`
+- [ ] Fix and push each red job. `.github/workflows/ci.yml:1`
+  A stale guard red is fixed by `bun nv site --stale` and `bun nv site --questions --owed`, then a
+  reread and a `--stamp`. Under Git Bash, a URL argument needs `MSYS_NO_PATHCONV=1`.
 
 ### Backlog
 
