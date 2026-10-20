@@ -13,7 +13,7 @@ stages:
         rules: [routing/a-gate-answers-around-every-handler, routing/matching-is-not-dispatching, core-api/reference-card]
   - id: 2
     title: "`nvs check` warns at a `dispatch` whose gate cannot be a `Responder`"
-    status: open
+    status: done
     context: [crates/nvs-types/src/routes.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/check.rs, crates/nvs-diagnostics/src/code/warnings.rs, crates/nvs-types/tests/routes.rs]
     extra:
       context:
@@ -175,12 +175,12 @@ a route method that returns a value, as `file:line` one each. The session fixes 
 after the warning lands: a method that writes its own response is declared `void`, and one whose value
 is the response gets a `Responder` gate.
 
-- [ ] The `RouteTable` records each `dispatch` site's span and whether its gate can be a `Responder`. `crates/nvs-types/src/routes.rs:655`, `crates/nvs-types/src/routes.rs:669`, `crates/nvs-types/src/expr/calls.rs:640`
-- [ ] The warning's code and card in the plain voice, raised beside `check_table`, naming up to three route methods. `crates/nvs-diagnostics/src/code/warnings.rs:248`, `crates/nvs-types/src/check.rs:240`
-- [ ] Rust tests: a plain gate warns, a `Responder` does not, `void` methods do not, a `Core\Router\Gate`-typed argument with a `Responder` in the program does not. `crates/nvs-types/tests/routes.rs:1`
-- [ ] A conformance case for the warning on the motivating program. `tests/conformance/core/router-dispatch-warns-when-a-returned-value-has-no-respond.nvst:1`
-- [ ] Every program the `Explore` list names is fixed, so no published program prints the warning. `docs/examples/core/Router/dispatch/01-call-the-method-of-a-route.nvs:1`
-- [ ] The rule's sentence on the warning, and the warning case in `guardedBy`. `docs/rules/routing/a-gate-answers-around-every-handler.md:15`, `data/rules/routing/a-gate-answers-around-every-handler.json:13`
+- [x] The `RouteTable` records each `dispatch` site's span and whether its gate can be a `Responder`. `crates/nvs-types/src/routes.rs:655`, `crates/nvs-types/src/routes.rs:669`, `crates/nvs-types/src/expr/calls.rs:640`
+- [x] The warning's code and card in the plain voice, raised beside `check_table`, naming up to three route methods. `crates/nvs-diagnostics/src/code/warnings.rs:248`, `crates/nvs-types/src/check.rs:240`
+- [x] Rust tests: a plain gate warns, a `Responder` does not, `void` methods do not, a `Core\Router\Gate`-typed argument with a `Responder` in the program does not. `crates/nvs-types/tests/routes.rs:1`
+- [x] The warning on the motivating program, pinned through the binary by `nvs check`. A conformance case pins stderr only for a run that fails, so this is a CLI test, as `W1023`'s is. `crates/nvs-cli/tests/check.rs:257`
+- [x] Every program the `Explore` list names is fixed, so no published program prints the warning. The bench's route methods are `void`; the discard case keeps its plain gate, because it pins that half. `benches/members/core/Router/dispatch.nvs:9`
+- [x] The rule's sentence on the warning, and the warning's test in `guardedBy`. `docs/rules/routing/a-gate-answers-around-every-handler.md:29`, `data/rules/routing/a-gate-answers-around-every-handler.json:13`
 
 ### 3. `Core\Router\Responder` has its feature proofs, and the pages say what `dispatch` does with a value
 
@@ -205,33 +205,36 @@ files and the website page itself.
 
 ### State
 
-Stage 1 is done. `Core\Router\Responder` is a second `CoreContract` with `parents: &[GATE_NAME]`
-(`crates/nvs-stdlib/src/router.rs`, `RESPONDER`). `core_lib` seeds the parent edge through
-`seed_implements` and also seeds each parent's members onto the contract (`contract_members`), because
-the class graph lives in `nvs-hir` and cannot hold the edge: `conformance` and method resolution walk
-the graph, and `assign` reads the seeded edge. The descriptor bit is not a new `nvs_ir::ir::Class`
-field: `nvs-codegen` reads `class.conforms` for `RESPONDER_NAME` and calls
-`ClassTable::set_responder` (`crates/nvs-codegen/src/lib.rs:1660`), because `conforms` already crosses.
-The route row carries `returns_value` (`crates/nvs-types/src/routes.rs:372`, `Route::with_returned_value`).
-`dispatch_matched` calls `respond` and then releases the value. The two rules say so, with the
-trade-offs. The discard case pins only run output, so stage 2 adds nothing to it.
+Stages 1 and 2 are done. `W1025` (`W_DISPATCH_IGNORES_RETURNED_VALUE`,
+`crates/nvs-diagnostics/src/code/warnings.rs`) is raised by `crate::routes::check_responders` beside
+`check_table` (`crates/nvs-types/src/check.rs:241`). Each `dispatch` call records a `DispatchSite` on
+the `RouteTable`: the gate argument's span, and `gate_can_respond`'s answer. That answer is
+`nvs_hir::implementors` of `Core\Router\Responder` over the class graph, filtered by the argument's
+static type; a type naming no class of the program (`Core\Router\Gate`, `mixed`) admits every one.
+Pinned by four tests in `crates/nvs-types/tests/routes.rs` (after
+`a_call_to_dispatch_marks_the_unit…`) and by `crates/nvs-cli/tests/check.rs`'s
+`a_dispatch_whose_gate_ignores_a_returned_value_warns`. No conformance case: the harness pins stderr
+only for a run that fails (`crates/nvs-test/src/run.rs:332`). The discard case still warns under
+`nvs check` and still runs green. `website/` was rendered again for stage 1's contract, and the 14
+`Core\Router` and `Core\Router\Match` perf records were recorded again on `router.rs`.
 
 ### Next
 
-**Stage 2**, on `crates/nvs-types/src/routes.rs`, `crates/nvs-types/src/expr/calls.rs`,
-`crates/nvs-types/src/check.rs` and `crates/nvs-diagnostics/src/code/warnings.rs`. Start with the
-stage's `Explore` split.
+**Stage 3**, the feature proofs. Follow the stage's `**Split:**` line: writing subagents, one after
+another, write the three examples with their `.out`, then the bench, then the attack.
 
-- [ ] `RouteTable` (`crates/nvs-types/src/routes.rs:656`, beside `dispatches` at 658) records each
-  `dispatch` site's span and whether its gate can be a `Responder`, set at the call
-  (`crates/nvs-types/src/expr/calls.rs:640`).
-- [ ] The warning, the next free `W` code after `W1024` (`crates/nvs-diagnostics/src/code/warnings.rs:248`),
-  raised beside `crate::routes::check_table` (`crates/nvs-types/src/check.rs:240`) from rows with
-  `returns_value`.
-- [ ] The stage's tests, case, fixes and rule sentence. `crates/nvs-types/tests/routes.rs:1`
+- [ ] Proofs mirror `Core\Router\Gate`'s, `docs/examples/types/Router-Gate/about.md:1`. Run
+  `bun nv proofs --id 'Core\Router\Responder'` first. Its paths win over the stage's.
+- [ ] Three examples, none printing `W1025`, `crates/nvs-cli/tests/fixtures/check/dispatch-ignores-a-returned-value.nvs:1`
+  being the program that does. Run `nvs check` on each.
+- [ ] The bench and the attack. `benches/members/types/Router-Responder.nvs:1`,
+  `tests/hostile/types/Router-Responder/a-value-never-skips-allows-or-failed.nvs:1`
+- [ ] `about.md` and the pages: `docs/examples/core/Router/dispatch/about.md:12`,
+  `docs/examples/types/Router-Gate/about.md:1`, `website/src/content/docs/syntax/attributes/routes.mdx:34`.
+  Each says that `nvs check` warns when a gate ignores a value.
 
 ### Backlog
 
-- Stage 3's proofs. Its Rust tests are the five `dispatching` cases in `crates/nvs-stdlib/src/router.rs`
-  (`a_responder_is_handed_the_value_a_route_method_returns` onward). `bun nv proofs --id
-  'Core\Router\Responder'` names what it owes.
+- Stage 3's Rust tests are the five `dispatching` cases in `crates/nvs-stdlib/src/router.rs`
+  (`a_responder_is_handed_the_value_a_route_method_returns` onward).
+- Before `DONE`: `bun nv verify --doc` and `bun nv owners --closes router-responder`.
