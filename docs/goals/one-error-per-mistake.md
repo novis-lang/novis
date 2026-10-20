@@ -136,12 +136,17 @@ unresolved name returns it.
 message renders a `TypeId`, as `file.rs:NN` and its code. Each one not named below is an item of this
 stage.
 
-- [ ] `mismatch()` returns without a report when either side is the error type (`types/one-mistake-reports-once`). `crates/nvs-types/src/expr/assign.rs:659`, `crates/nvs-types/src/expr/assign.rs:636`
-- [ ] The hand-built `E0401` sites go through `mismatch()`. `crates/nvs-types/src/check.rs:766`, `crates/nvs-types/src/defaults.rs:452`, `crates/nvs-types/src/signatures.rs:1542`, `crates/nvs-types/src/expr/assign.rs:1476`, `crates/nvs-types/src/expr/mod.rs:1033`, `crates/nvs-types/src/expr/operators.rs:1834`
-- [ ] `E0403` is quiet for a returned error type. `crates/nvs-types/src/expr/assign.rs:883`
-- [ ] `E0743` is quiet when the type argument is the error type. `crates/nvs-types/src/program.rs:484`, `crates/nvs-types/src/program.rs:494`
-- [ ] A member read, a method call, a subscript and an operator on the error type report nothing and give the error type. `crates/nvs-types/src/expr/members.rs:289`, `crates/nvs-types/src/expr/calls.rs:1819`, `crates/nvs-types/src/expr/operators.rs:1834`
-- [ ] Each site the subagent listed is quiet for the error type, or the rule says why it reports. `docs/rules/types/one-mistake-reports-once.md:1`
+- [x] `mismatch()` returns without a report when either side is the error type (`types/one-mistake-reports-once`). `crates/nvs-types/src/expr/assign.rs:670`, `crates/nvs-types/src/expr/assign.rs:718`
+- [x] The hand-built `E0401` sites go through `type_mismatch()`, which `mismatch()` calls. `crates/nvs-types/src/check.rs:765`, `crates/nvs-types/src/defaults.rs:450`, `crates/nvs-types/src/signatures.rs:1540`, `crates/nvs-types/src/expr/assign.rs:1497`, `crates/nvs-types/src/expr/mod.rs:1031`, `crates/nvs-types/src/expr/operators.rs:1824`
+- [x] `E0403` is quiet for a returned error type, through `is_assignable`. `crates/nvs-types/src/expr/assign.rs:903`
+- [x] `E0743` is quiet when the type argument is the error type. `crates/nvs-types/src/program.rs:487`
+- [x] A member read, a method call, a subscript, an operator, a `foreach` and `::class` on the error type report nothing and give the error type. `crates/nvs-types/src/expr/members.rs:2134`, `crates/nvs-types/src/expr/calls.rs:172`, `crates/nvs-types/src/expr/mod.rs:818`, `crates/nvs-types/src/expr/operators.rs:488`, `crates/nvs-types/src/expr/iteration.rs:173`, `crates/nvs-types/src/expr/members.rs:1738`
+- [ ] The remaining `Ty::Mixed | Ty::Error` arms decide: quiet, or act as `mixed` with the reason in a comment. `crates/nvs-types/src/expr/quals.rs:175`, `crates/nvs-types/src/expr/quals.rs:211`, `crates/nvs-types/src/expr/quals.rs:1183`, `crates/nvs-types/src/expr/type_test.rs:362`, `crates/nvs-types/src/derive.rs:1042`, `crates/nvs-types/src/attributes.rs:652`, `crates/nvs-types/src/commands.rs:271`
+- [ ] Recovery sites stage 1 did not name, each `mixed` right after a report, return the error type. `crates/nvs-types/src/lower.rs:133`, `crates/nvs-types/src/lower.rs:521`, `crates/nvs-types/src/lower.rs:657`, `crates/nvs-types/src/lower.rs:699`, `crates/nvs-types/src/lower.rs:724`, `crates/nvs-types/src/lower.rs:826`, `crates/nvs-types/src/expr/members.rs:115`
+- [ ] The conversion, type-test and text sites are quiet for the error type: `as`, `is`, `echo` and interpolation. `crates/nvs-types/src/expr/operators.rs:2038`, `crates/nvs-types/src/expr/operators.rs:2192`, `crates/nvs-types/src/expr/operators.rs:2277`, `crates/nvs-types/src/expr/operators.rs:2310`, `crates/nvs-types/src/expr/operators.rs:2411`, `crates/nvs-types/src/expr/operators.rs:2857`, `crates/nvs-types/src/expr/operators.rs:3014`, `crates/nvs-types/src/expr/operators.rs:637`, `crates/nvs-types/src/expr/operators.rs:1860`, `crates/nvs-types/src/expr/operators.rs:1900`, `crates/nvs-types/src/expr/type_test.rs:181`, `crates/nvs-types/src/expr/type_test.rs:264`, `crates/nvs-types/src/expr/type_test.rs:287`, `crates/nvs-types/src/expr/type_test.rs:304`
+- [ ] The expression sites are quiet for the error type. `crates/nvs-types/src/expr/mod.rs:1330`, `crates/nvs-types/src/locals.rs:2109`, `crates/nvs-types/src/expr/literals.rs:1466`, `crates/nvs-types/src/expr/calls.rs:1489`, `crates/nvs-types/src/expr/members.rs:403`, `crates/nvs-types/src/expr/members.rs:569`, `crates/nvs-types/src/expr/members.rs:629`, `crates/nvs-types/src/expr/members.rs:684`, `crates/nvs-types/src/expr/members.rs:1882`, `crates/nvs-types/src/expr/members.rs:2308`, `crates/nvs-types/src/expr/args.rs:1454`, `crates/nvs-types/src/expr/args.rs:1985`, `crates/nvs-types/src/expr/args.rs:2031`, `crates/nvs-types/src/expr/iteration.rs:210`, `crates/nvs-types/src/expr/iteration.rs:324`, `crates/nvs-types/src/expr/iteration.rs:426`, `crates/nvs-types/src/expr/iteration.rs:450`, `crates/nvs-types/src/expr/quals.rs:258`, `crates/nvs-types/src/expr/quals.rs:971`
+- [ ] The declaration sites are quiet for the error type. `crates/nvs-types/src/check.rs:1129`, `crates/nvs-types/src/check.rs:1152`, `crates/nvs-types/src/check.rs:1221`, `crates/nvs-types/src/defaults.rs:299`, `crates/nvs-types/src/defaults.rs:370`, `crates/nvs-types/src/conformance.rs:126`, `crates/nvs-types/src/conformance.rs:248`, `crates/nvs-types/src/conformance.rs:788`, `crates/nvs-types/src/conformance.rs:1158`, `crates/nvs-types/src/conformance.rs:1373`, `crates/nvs-types/src/lower.rs:266`, `crates/nvs-types/src/lower.rs:328`, `crates/nvs-types/src/lower.rs:362`, `crates/nvs-types/src/lower.rs:647`
+- [ ] The feature sites are quiet for the error type, or the rule says why one reports. `crates/nvs-types/src/program.rs:152`, `crates/nvs-types/src/program.rs:325`, `crates/nvs-types/src/program.rs:351`, `crates/nvs-types/src/derive.rs:1264`, `crates/nvs-types/src/derive.rs:1747`, `crates/nvs-types/src/derive.rs:1819`, `crates/nvs-types/src/derive.rs:2461`, `crates/nvs-types/src/routes.rs:1582`, `crates/nvs-types/src/routes.rs:2132`, `crates/nvs-types/src/routes.rs:2378`, `crates/nvs-types/src/retrieval.rs:339`, `crates/nvs-types/src/match_attribute.rs:58`, `crates/nvs-types/src/commands.rs:521`, `crates/nvs-types/src/commands.rs:947`, `crates/nvs-types/src/testing.rs:415`, `crates/nvs-types/src/testing.rs:707`, `crates/nvs-types/src/testing.rs:740`, `crates/nvs-types/src/testing.rs:1091`, `crates/nvs-types/src/test_hooks.rs:395`, `crates/nvs-types/src/attributes.rs:672`, `crates/nvs-types/src/intrinsics.rs:1067`, `crates/nvs-types/src/deprecated/template.rs:515`, `docs/rules/types/one-mistake-reports-once.md:1`
 
 ### 3. an unresolved `use` reports once, and the cases pin every root
 
@@ -172,26 +177,31 @@ named recovery sites and `Core` constant recovery in `infer_class_const` (`membe
 `nvs-ir`'s `erase_checked_ty` arm is `unreachable!` under `debug_assertions` and `Ty::Tagged`
 otherwise.
 
-Stage 1 changed no other site's behaviour on purpose: every arm that matched `Ty::Mixed` now reads
-`Ty::Mixed | Ty::Error`, so the error type acts exactly as `mixed` everywhere except assignability.
-Those arms are stage 2's list (below). Because `assignable` is quiet for it, `E0403` on a returned error
-type and every `E0401` that goes through `is_assignable` are already quiet.
-`tests/conformance/lang/a-name-that-does-not-resolve-reports-once-and-a-written-mixed-keeps-its-error.nvst`
-pins it: `Missing` and `parent` each report once, and a written `mixed` keeps `E0403`.
+Stage 2's first group is built. Every `E0401` is built by `type_mismatch()` (`assign.rs:718`), which
+gives `None` when any type its message names is the error type. `mismatch()` calls it and now returns
+`Option<Diagnostic>`, and the six hand-built sites call it with their own headline. `E0403` was already
+quiet through `is_assignable`. `E0743` checks `is_error` at `selector_of`. A method call, a property
+read, a subscript, a binary operator, a `foreach` subject and `::class` on the error type report
+nothing. Unary operators and `++`/`--` were already quiet, because `equality_domain` puts the error type
+in no domain. The stage 1 conformance case now pins all of these in `label`'s body.
 
-The nightly CI failures the sweep named (run 39462919214, at `654415619`) are fixed on main already:
-the stale perf records by `21e82d4e6`, the Responder proof by `385b3c5eb`, and `llms-full.txt` renders
-current locally. CI run 39482423202 on `e7cd41bfd` is the one that proves it.
+The stage's `Explore` sweep is done, and its sites are the stage's open items, grouped by kind. The
+three `E0401` builders in `args.rs` and the `var` widening in `assign.rs` go through `mismatch()` too.
+`calls.rs:115`'s arm and `members.rs:647`'s `may_be_thrown` are already quiet, so they left the list.
+
+The nightly CI failures the sweep named (run 39462919214) are fixed on main by `21e82d4e6` and
+`385b3c5eb`. CI run 39482423202 on `e7cd41bfd` was still running at this session's start. The chapter
+examples and miri are nightly-only jobs, so the next nightly run is the proof.
 
 ### Next
 
-**Stage 2, one group**, on `nvs-types`. First the stage's `Explore` subagent lists every
-`Diagnostic::error` whose message renders a `TypeId`.
+**Stage 2, second group**, on `nvs-types`. Write the program first and run `target/debug/nvs.exe check`
+on it, then make each site quiet. Most guards are one `env.interner.is_error(ty)` before the report.
 
-- [ ] `mismatch()` returns without a report when either side is the error type. `crates/nvs-types/src/expr/assign.rs:659`
-- [ ] Each `Ty::Mixed | Ty::Error` arm decides: quiet and give `Ty::Error`, or report as `mixed` does. `crates/nvs-types/src/expr/calls.rs:115`, `crates/nvs-types/src/expr/calls.rs:177`, `crates/nvs-types/src/expr/members.rs:647`, `crates/nvs-types/src/expr/members.rs:1748`, `crates/nvs-types/src/expr/members.rs:2128`, `crates/nvs-types/src/expr/mod.rs:808`, `crates/nvs-types/src/expr/iteration.rs:167`, `crates/nvs-types/src/expr/quals.rs:175`, `crates/nvs-types/src/expr/quals.rs:211`, `crates/nvs-types/src/expr/quals.rs:1183`, `crates/nvs-types/src/expr/type_test.rs:362`, `crates/nvs-types/src/derive.rs:1042`, `crates/nvs-types/src/attributes.rs:652`, `crates/nvs-types/src/commands.rs:271`
-- [ ] Recovery sites stage 1 did not name, each `mixed` right after a report: `crates/nvs-types/src/lower.rs:133` (`E_ARRAY_TYPE_TOO_DEEP`), `crates/nvs-types/src/lower.rs:521`, `crates/nvs-types/src/lower.rs:657`, `crates/nvs-types/src/lower.rs:699`, `crates/nvs-types/src/lower.rs:724`, `crates/nvs-types/src/lower.rs:826`, `crates/nvs-types/src/expr/members.rs:115` (`E_DYNAMIC_CLASS_NAME`)
-- [ ] Then the stage's own items from `E0743` on. `crates/nvs-types/src/program.rs:484`
+- [ ] The remaining `Ty::Mixed | Ty::Error` arms, then the recovery sites stage 1 did not name. `crates/nvs-types/src/expr/quals.rs:175`, `crates/nvs-types/src/lower.rs:133`
+- [ ] The conversion, type-test and text sites: `$err as int`, `$err is Foo`, `echo $err`. `crates/nvs-types/src/expr/operators.rs:2192`, `crates/nvs-types/src/expr/operators.rs:3014`, `crates/nvs-types/src/expr/type_test.rs:181`
+- [ ] The expression sites, then the declaration and feature sites. `crates/nvs-types/src/expr/mod.rs:1330`, `crates/nvs-types/src/check.rs:1129`
+- [ ] Extend the stage 1 case with one line per group. `tests/conformance/lang/a-name-that-does-not-resolve-reports-once-and-a-written-mixed-keeps-its-error.nvst:5`
 
 ### Backlog
 
