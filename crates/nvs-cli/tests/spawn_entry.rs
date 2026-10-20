@@ -46,10 +46,9 @@ fn refusal(fixture: &str) -> String {
     stderr
 }
 
-/// The `fn` literal half of the rule, and specifically the *help* — the rule
-/// refuses this spelling because `fn() => …` one keyword away in `spawn worker`
-/// captures, so a diagnostic that only said "no" would leave a reader with a
-/// working alternative one keyword away and no reason to prefer either.
+/// The `fn` literal half of the rule, and specifically the *help*: it names the
+/// method form, and every form it names is one the parser accepts, so it never
+/// names `spawn worker`, which Novis does not have.
 #[test]
 fn an_anon_fn_is_refused_as_a_spawn_target_naming_the_method_form() {
     let stderr = refusal("anon-fn-entry.nvs");
@@ -64,6 +63,14 @@ fn an_anon_fn_is_refused_as_a_spawn_target_naming_the_method_form() {
     assert!(
         stderr.contains("Class::method(...)"),
         "`rule:security/isolate-shares-nothing` requires the diagnostic to name the method form: {stderr}"
+    );
+    assert!(
+        stderr.contains(
+            "help: write a `static` method and use `Class::method(...)` as the entry. An \
+             anonymous function can capture the variables around it, and an isolate shares \
+             only compiled code"
+        ),
+        "the help names only forms the parser accepts: {stderr}"
     );
 }
 

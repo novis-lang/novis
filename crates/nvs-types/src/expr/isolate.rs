@@ -551,11 +551,11 @@ fn is_method_reference(path: &Expr) -> bool {
 /// The refusal for the two spellings `rule:security/isolate-shares-nothing` names as forbidden,
 /// which differ only in whether there is a mechanical way out.
 ///
-/// An `fn` literal has one — name it — and the diagnostic says so, because the
-/// rule's reason for refusing it is that `fn() => …` one keyword away in `spawn
-/// worker` *does* capture, and one spelling with two meanings is what the
-/// refusal exists to prevent. A variable has none to offer: what it holds is
-/// not visible here, so the help can only name the two forms that are.
+/// An `fn` literal has one — name it — and the diagnostic says so, because an
+/// anonymous function captures the variables around it and an isolate shares
+/// only compiled code. A variable has none to offer: what it holds is not
+/// visible here, so the help can only name the two forms that are. The help
+/// names only forms the parser accepts.
 ///
 /// `form` names the construct the entry was written for and is the only part
 /// either site contributes — see [`entry_operand`]. The help below says "here"
@@ -570,15 +570,15 @@ fn refuse_entry(span: Span, path: &Expr, form: &str) -> Diagnostic {
     if matches!(path.kind, ExprKind::Fn(_)) {
         diag.with_primary(span, "this is an anonymous function")
             .with_help(
-                "give it a name: a `static` method, spawned as `Class::method(...)`. \
-                 An anonymous function is not allowed here. In `spawn worker` it would capture \
-                 the variables around it, and an isolate shares only compiled code",
+                "write a `static` method and use `Class::method(...)` as the entry. \
+                 An anonymous function can capture the variables around it, \
+                 and an isolate shares only compiled code",
             )
     } else {
         diag.with_primary(span, "this is a `callable`").with_help(
-            "write the entry here rather than passing it in — a path, or \
-                 `Class::method(...)`. Whether a `callable` in a variable captures is not \
-                 knowable here, and an isolate shares nothing but compiled code",
+            "write the entry here: a path, or `Class::method(...)`. \
+             A `callable` in a variable can capture variables, \
+             and an isolate shares only compiled code",
         )
     }
 }
