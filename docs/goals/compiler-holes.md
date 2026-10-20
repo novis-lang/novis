@@ -80,7 +80,19 @@ stages:
     title: "`Core\\BigInt`'s modular power is sub-quadratic per step"
     status: open
     context: [crates/nvs-stdlib/src/bigint.rs]
-checks: []
+checks:
+  - id: owners-closes
+    stage: 19
+    name: no gap record or designed rule names this goal
+    run: [bun, nv, owners, --closes, compiler-holes]
+    reach: true
+    floor: false
+  - id: soundness-has-no-skip
+    stage: 19
+    name: every matrix cell is written and passes, and none is skipped
+    run: [bun, nv, soundness, --check]
+    reach: true
+    floor: false
 ---
 
 # Every program the checker accepts compiles and runs as its rules say
@@ -183,8 +195,8 @@ no rule spoke, so these two tools ask the question for every form instead.
 
 - **The matrix is generated, and its oracle is one table.** `bun nv soundness --write` writes
   `tests/conformance/soundness/<member>.nvst`, one file per member kind with many classes in it, and
-  `--check` fails when a committed file differs from what it would write. `bun nv verify` runs
-  `--check`. The generator's module doc is the home of the table, and each row cites the rule that
+  `--check` fails when a committed file differs from what it would write, or when any cell is
+  skipped. `bun nv verify` runs `--check`. The generator's module doc is the home of the table, and each row cites the rule that
   gives its verdict: a compile error with its code, or the exact output. The sets are listed in the
   table, never described:
   - members: a method parameter, a method return, an interface method's parameter and return, a
@@ -196,11 +208,19 @@ no rule spoke, so these two tools ask the question for every form instead.
     union, and a wider union;
   - paths: a variable of the parent's type, of the subclass's type, of an interface's type,
     `static::`, an erased `object` or `mixed` access, a `property<T>` key, and a first-class callable.
-- **A cell that fails today is skipped by a gap, never weakened.** The generator keeps the cell and
-  its expectation, and reads `tools/nv/soundness/open.json`, which maps each failing cell to a gap
-  record under `data/gaps/` owned by this goal. A listed cell is left out of the written files.
-  `--check` fails when a listed cell's gap record is gone or when a listed cell now passes, so the
-  list empties as the gaps close and cannot rot.
+- **Everything the matrix and the checked build find is fixed inside this goal.** No finding is
+  handed to another goal, left as a gap record past the goal, or skipped when it ends. A finding too
+  big for stage 19 gets a stage of its own in this goal. A cell's expectation is the rule's verdict,
+  and it is never changed to match what the binary does today. Where a rule itself is wrong, the rule
+  and the code change together in this goal.
+- **A cell that fails is skipped only while the goal runs.** The generator keeps the cell and its
+  expectation, and `tools/nv/soundness/open.json` maps each failing cell to a gap record owned by this
+  goal, which tracks the work until it is fixed. A listed cell is left out of the written files.
+  `--check` passes a listed cell only under `--allow-open`, which `bun nv verify` passes while the
+  goal runs, so a session's verify stays green. `--allow-open` also fails when a listed cell's gap
+  record is gone or a listed cell now passes, so the list cannot rot. Stage 19 deletes `open.json`,
+  the `--allow-open` flag and its use in `verify.ts`. After the goal, a failing cell is a red verify,
+  never a skip and never a gap.
 - **The checked build is a compile switch, and production code does not change.** `NOVIS_CHECK_TYPES`
   sits beside `NOVIS_NO_OPTIMISE` (`crates/nvs-cli/src/main.rs:209`) and works like it: a
   process-wide one-way switch, with the artifact cache off, since an artifact's key does not cover
@@ -212,9 +232,10 @@ no rule spoke, so these two tools ask the question for every form instead.
 - **It tests what carries its type at run time.** An object's class, a union's tag and a `null`
   where the type has none. A raw `int`, `float` or `bool` carries none, so a scalar read as another
   scalar is the matrix's to find, as the `float` row does.
-- **What the two find is closed in stage 19.** Each finding is a gap record owned by this goal, with
-  the smallest program that shows it and neutral names, and an item in stage 19. A stage 19 that
-  grows past one session is split into stages of one session each, grouped by the files they touch.
+- **What the two find is fixed in stage 19.** Each finding is a gap record owned by this goal, with
+  the smallest program that shows it and neutral names, and an item in stage 19. The record is
+  deleted in the slice that fixes it. A stage 19 that grows past one session is split into stages of
+  one session each, grouped by the files they touch, all of them in this goal.
 - **CI runs the checked build once the suite passes under it.** Stage 19 adds a step after
   "Conformance suite, unoptimised" (`.github/workflows/ci.yml:292`) that runs the suite with
   `NOVIS_CHECK_TYPES=1`, and `rule:testing/probes-on-is-a-tested-configuration` names it beside the
@@ -414,7 +435,7 @@ session checks the table row by row against the rules it cites, then runs it and
 - [ ] `bun nv soundness --write` and `--check`, with the oracle table in its module doc. `tools/nv/cmd/soundness.ts:1`
 - [ ] The generated files, one per member kind. `tests/conformance/soundness/properties.nvst:1`
 - [ ] `open.json`, and `--check` fails on a listed cell that passes or whose gap is gone. `tools/nv/soundness/open.json:1`
-- [ ] `bun nv verify` runs `bun nv soundness --check`. `tools/nv/cmd/verify.ts:167`
+- [ ] `bun nv verify` runs `bun nv soundness --check --allow-open` while the goal runs. `tools/nv/cmd/verify.ts:167`
 - [ ] A gap record for each failing cell, listed in `open.json`, and an item for it in stage 19. `tools/nv/soundness/open.json:1`
 
 ### 18. a checked build stops at a read whose value is not its declared type
@@ -430,11 +451,12 @@ carries its type, and a failure stops the process naming the line and both types
 
 ### 19. what the matrix and the checked build found is closed, and CI runs both
 
-**Does:** every gap stages 17 and 18 filed is closed, `open.json` is empty, and CI runs the suite
-under the checked build on every leg.
+**Does:** every finding of stages 17 and 18 is fixed and its gap record deleted, the skip list is
+gone, and CI runs the suite under the checked build on every leg. Nothing they found is left for
+another goal.
 
-- [ ] Each finding of stages 17 and 18 gets one item here, added by the session that files it. `tools/nv/soundness/open.json:1`
-- [ ] `open.json` is empty, and every matrix cell is in the written files. `tools/nv/soundness/open.json:1`
+- [ ] Each finding of stages 17 and 18 gets one item here, added by the session that files it, and is fixed in this goal. `tools/nv/soundness/open.json:1`
+- [ ] `open.json`, the `--allow-open` flag and its use in `verify.ts` are deleted, and every matrix cell is in the written files and passes. `tools/nv/cmd/soundness.ts:1`, `tools/nv/cmd/verify.ts:167`
 - [ ] The CI step after "Conformance suite, unoptimised", with `NOVIS_CHECK_TYPES=1`. `.github/workflows/ci.yml:292`
 - [ ] `rule:testing/probes-on-is-a-tested-configuration` names the checked run, and a rule fragment states what the matrix guarantees, `shipped` with the matrix files in `guardedBy`. `docs/rules/testing/probes-on-is-a-tested-configuration.md:14`, `docs/rules/testing/redeclaration-matrix.md:1`, `data/rules/testing/redeclaration-matrix.json:1`
 
