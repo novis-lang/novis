@@ -834,7 +834,7 @@ const pyTypeName = (v: unknown) =>
  *
  * Where the caller points this is what makes the artifact. The loop's sweep records into the ignored
  * `benches/results/`, because a row appended after a session's commits is a change no slice owns;
- * `benches/serve.json` is tracked, so a row there is a figure published by hand.
+ * a tracked file such as `benches/serve-proxied.json` holds only figures published by hand.
  * `docs/agent/commands.md` § *The server's throughput* is that split's home.
  */
 export function writeServeRecord(path: string, record: Record<string, unknown>): void {

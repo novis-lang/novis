@@ -547,7 +547,7 @@ the bottleneck, which a Python one is not. It needs no PHP and no Docker, and a 
 of ports or descriptors before the server runs out of anything is reported as `client_limited`
 rather than as a server ceiling.
 
-**Where `--record` is pointed is what makes the artifact.** `benches/serve.json` is tracked, so a run
+**Where `--record` is pointed is what makes the artifact.** A file under `benches/` is tracked, so a run
 recorded there is a figure someone chose to publish — record it by hand. The loop's acceptance sweep runs
 the same leg every iteration and points `--record` at `benches/results/`, which `.gitignore` covers,
 because the sweep runs *after* the session's commits: a row appended to a tracked file there is a change

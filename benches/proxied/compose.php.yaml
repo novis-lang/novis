@@ -11,8 +11,7 @@
 name: nvs-bench-php
 
 services:
-  # PHP 8.5.11, matching the `php.exe` on this machine's PATH to the patch so the two legs of this
-  # repository's benchmarking are measuring one PHP rather than two.
+  # PHP 8.5.11, pinned to the patch so every row of `benches/serve-proxied.json` measures one PHP.
   php:
     image: php:8.5.11-fpm
 
@@ -23,8 +22,8 @@ services:
 
     working_dir: /app
     volumes:
-      # The same twin pair `bun nv bench --serve-vs-fpm` runs, mounted read-only rather than
-      # copied: one case on disk, measured by both legs, and no chance of the two drifting.
+      # The twin pair `compose.nvs.yaml` mounts too, read-only rather than copied: one case on
+      # disk, served by both stacks, and no chance of the two drifting.
       - ../serve:/app:ro
       - ./php/opcache.ini:/usr/local/etc/php/conf.d/zz-opcache.ini:ro
       # Rendered by `bun nv bench-proxied` from `php/pool.conf.in`, because php-fpm interpolates no
