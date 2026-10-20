@@ -7,7 +7,8 @@ contains the settings of one application, and `[[include]]` reads other files. O
 configure a named database (`[db.<name>]`), a mail server (`[mail.<name>]`), the caches, the log,
 HTTP, the web server and scheduled scripts.
 
-A setting outside a block, an unknown block and an unknown key all give the error `E0601`. Novis
+A setting outside a block, an unknown key and an unknown block with a setting in it all give the
+error `E0601`. Novis ignores an empty unknown block and gives the warning `W1024`. Novis
 stores every key that it accepts. `nvs config dump` prints each one, and a program reads one with
 `Core\Config::get`.
 

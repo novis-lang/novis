@@ -1,5 +1,7 @@
 The set of top-level blocks is closed, and the typed tree refuses any other with the unknown-key
-diagnostic (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`). The format rule owns
+diagnostic (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`). That rule's one
+exception holds here too: an unknown header with nothing under it is ignored with a warning. The
+format rule owns
 only the *syntax*; every block's directives, defaults and changeability class are argued by the rule
 that adds the block, so a reader of `nvs.toml` has one place to start:
 

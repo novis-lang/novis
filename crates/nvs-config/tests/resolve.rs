@@ -427,6 +427,113 @@ fn an_empty_array_entry_is_still_an_entry() {
     assert_eq!(diagnostic.code, Some(code::E_BAD_APP_BLOCK));
 }
 
+/// Resolves `root` in `fs` with the source map kept, so a case can read which file and line a
+/// warning points at.
+fn tree_and_sources(fs: &Fake, root: &str) -> (Resolved, SourceMap) {
+    let mut sources = SourceMap::new();
+    let resolved = resolve(&Roots::Files(vec![p(root)]), &mut sources, fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes));
+    (resolved, sources)
+}
+
+/// The one `W1024` warning in `resolved`, with the file name and 0-based line it points at.
+fn empty_header_warning(resolved: &Resolved, sources: &SourceMap) -> (String, String, usize) {
+    let warnings: Vec<&Diagnostic> = resolved
+        .warnings
+        .iter()
+        .filter(|warning| warning.code == Some(code::W_EMPTY_UNKNOWN_BLOCK))
+        .collect();
+    let [warning] = warnings.as_slice() else {
+        panic!("expected one empty-header warning: {:?}", resolved.warnings);
+    };
+    let span = warning
+        .primary_span()
+        .expect("the warning points at the header line");
+    let file = sources.file(span.file);
+    (
+        warning.message.clone(),
+        file.name().to_string(),
+        file.line_col(span.start).0,
+    )
+}
+
+/// `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s exception: a header no
+/// block answers to, with nothing under it, sets nothing, so the file loads with a warning naming
+/// the header, the file and the line. The tree is the one the file holds without the header.
+#[test]
+fn an_empty_unknown_header_is_a_warning_and_the_file_loads() {
+    let fs = Fake::with(&[(
+        "etc/nvs.toml",
+        "[limits]\nmemory = \"128M\"\n\n[shop]\n# enabled = true\n",
+    )]);
+
+    let (resolved, sources) = tree_and_sources(&fs, "etc/nvs.toml");
+
+    let (message, file, line) = empty_header_warning(&resolved, &sources);
+    assert!(message.contains("`[shop]`"), "{message}");
+    assert_eq!(p(&file), p("etc/nvs.toml"));
+    assert_eq!(line, 3, "the warning points at the `[shop]` line");
+    let bare = tree_of(
+        &Fake::with(&[("etc/nvs.toml", "[limits]\nmemory = \"128M\"\n")]),
+        "etc/nvs.toml",
+    );
+    assert_eq!(resolved.config, bare.config);
+}
+
+/// The same exception one level down, in an included file: an empty `[cache.local]` under a
+/// `[cache]` that has no such block warns against the include's own line.
+#[test]
+fn an_empty_unknown_nested_header_in_an_included_file_is_a_warning() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[[include]]\npath = \"local.toml\"\n\n[cache.memory]\nmax_size = \"32M\"\n",
+        ),
+        ("etc/local.toml", "# the shared settings\n[cache.local]\n"),
+    ]);
+
+    let (resolved, sources) = tree_and_sources(&fs, "etc/nvs.toml");
+
+    let (message, file, line) = empty_header_warning(&resolved, &sources);
+    assert!(message.contains("`[cache.local]`"), "{message}");
+    assert_eq!(p(&file), p("etc/local.toml"));
+    assert_eq!(line, 1);
+    assert!(resolved.table["cache"].get("local").is_none());
+}
+
+/// The exception covers an empty header and nothing more: a key under an unknown header, a key
+/// whose value is an empty table, and an `[[entry]]` of an unknown array are each still `E0601`.
+#[test]
+fn an_unknown_header_with_anything_under_it_is_still_refused() {
+    for text in [
+        "[shop]\nenabled = true\n",
+        "[shop]\n[shop.orders]\nlimit = 3\n",
+        "[cache]\nlocal = {}\n",
+        "[[shop]]\n",
+    ] {
+        let fs = Fake::with(&[("etc/nvs.toml", text)]);
+
+        let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+        assert_eq!(diagnostic.code, Some(code::E_BAD_DIRECTIVE), "{text}");
+    }
+}
+
+/// An empty header the tree does know keeps its meaning, which is no block at all
+/// (`a_block_with_no_key_under_it_is_no_block`), and raises no warning.
+#[test]
+fn an_empty_known_header_is_no_block_and_no_warning() {
+    let fs = Fake::with(&[("etc/nvs.toml", "[cache.memory]\n\n[metrics]\n")]);
+
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+
+    assert!(resolved.warnings.is_empty(), "{:?}", resolved.warnings);
+    assert_eq!(
+        resolved.config,
+        tree_of(&Fake::with(&[("etc/nvs.toml", "")]), "etc/nvs.toml").config
+    );
+}
+
 /// `rule:config/later-wins-and-every-override-is-recorded`: an include overrides the file that pulled it in — the base-plus-local shape, with the
 /// include line at the point the operator wants overridden — and **both origins are recorded**.
 /// That record is the whole of what makes later-wins acceptable here, so it is asserted, not the

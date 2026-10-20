@@ -236,4 +236,18 @@ codes! {
          So `if ($s as ?int)` is false when `$s` is not a number, and also when it is `\"0\"`. \
          Write `!= null` to test whether there is a value: `if (($s as ?int) != null)`.",
     );
+    /// A table header in one configuration file that the typed tree has no
+    /// block for, with no key under it and no table under it that has a key
+    /// (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`).
+    /// The table is removed before the file is read, so it sets nothing. A
+    /// warning rather than `E0601` because an empty header grants nothing and
+    /// claims nothing: the unknown-key refusal exists so a typo cannot read as
+    /// "granted nothing", and a header with nothing under it reads as nothing
+    /// either way. A header with any key under it stays `E0601`.
+    /// `nvs_config::file::parse_with_warnings` raises it.
+    pub const W_EMPTY_UNKNOWN_BLOCK: Code = Code::new("W1024").card(
+        "This block is not part of the configuration, and it contains no settings, so Novis \
+         ignores it. Delete the line. A block that Novis does not know stops the start when it \
+         contains a setting.",
+    );
 }

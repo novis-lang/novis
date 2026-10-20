@@ -213,11 +213,22 @@ fn a_typoed_block_header_is_refused_and_claims_no_block() {
         diagnostic.message,
     );
     assert!(
-        !diagnostic
-            .notes
-            .iter()
-            .any(|note| note.contains("[capabilties]")),
+        !diagnostic.notes.iter().any(|note| note.starts_with("in `")),
         "a block header that is itself the unknown key is not a block to blame: {:?}",
+        diagnostic.notes,
+    );
+}
+
+/// The same for a nested header: the unknown `local` of `[cache.local]` is written on the header
+/// line, so no note names a block, and no note names half of the header.
+#[test]
+fn an_unknown_nested_header_with_a_key_claims_no_block() {
+    let diagnostic = refusal("[limits]\nmemory = \"128M\"\n\n[cache.local]\nmax_size = \"32M\"\n");
+
+    assert_eq!(diagnostic.code, Some(code::E_BAD_DIRECTIVE));
+    assert!(
+        !diagnostic.notes.iter().any(|note| note.starts_with("in `")),
+        "{:?}",
         diagnostic.notes,
     );
 }
