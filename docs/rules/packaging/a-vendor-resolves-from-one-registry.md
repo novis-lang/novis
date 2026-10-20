@@ -3,6 +3,10 @@ resolves from `https://registry.novis-lang.org`. The client never asks a second 
 first one lacks.
 
 A registry URL is `https:` or `file:`. `file:` is how the tests and an offline mirror read a directory.
+A vendor mapped to a registry other than the default names that registry's verifier key beside its URL
+(`rule:packaging/the-registry-keeps-an-append-only-log`). The client reads the registry's root file,
+`registry.json`, from that URL, and the index and archives from the file hosts the root file lists
+(`rule:packaging/registry-hosting-is-configuration`).
 A private registry is an ordinary registry, so an organisation points its own vendors at it and leaves
 every other vendor on the default (`rule:packaging/a-git-dependency-is-root-only`).
 

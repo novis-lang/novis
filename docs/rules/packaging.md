@@ -3,7 +3,7 @@
 
 # Packaging
 
-*26 of 90 rules below are **designed** rather than shipped, and are marked where they appear.*
+*27 of 91 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -1275,6 +1275,10 @@ resolves from `https://registry.novis-lang.org`. The client never asks a second 
 first one lacks.
 
 A registry URL is `https:` or `file:`. `file:` is how the tests and an offline mirror read a directory.
+A vendor mapped to a registry other than the default names that registry's verifier key beside its URL
+([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)). The client reads the registry's root file,
+`registry.json`, from that URL, and the index and archives from the file hosts the root file lists
+([`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration)).
 A private registry is an ordinary registry, so an organisation points its own vendors at it and leaves
 every other vendor on the default ([`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only)).
 
@@ -1296,7 +1300,7 @@ registries in order would make the first one that answers the owner of every nam
 
 **Not on disk.** The tree has no package system.
 
-<sub>See also [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
+<sub>See also [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
 <a id="packaging-a-git-dependency-is-root-only"></a>
 
@@ -1350,9 +1354,9 @@ client runs.
 **The application** stores its data in SQLite through `Core\Db`, signs users in with `Core\Passkey`
 ([`core-classes/passkey-verifies-a-webauthn-ceremony`](core-classes.md#core-classes-passkey-verifies-a-webauthn-ceremony)), sends push notifications with `Core\WebPush`
 ([`core-classes/web-push-sends-an-encrypted-message`](core-classes.md#core-classes-web-push-sends-an-encrypted-message)), and runs the subcommands below as child
-processes, granted in its own `nvs.toml`. It serves the static index — one JSON file per package and one
-archive per digest — that the client reads, and it serves the archives itself so it can count
-downloads ([`packaging/search-sorts-by-the-readers-choice`](packaging.md#packaging-search-sorts-by-the-readers-choice)).
+processes, granted in its own `nvs.toml`. It writes the static index that the client reads (one signed
+JSON file per package and one archive per digest) to the stores its settings file names, and where
+those files are served from is configuration ([`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration)).
 
 **The byte work** is these commands:
 
@@ -1361,6 +1365,7 @@ downloads ([`packaging/search-sorts-by-the-readers-choice`](packaging.md#packagi
 | `nvs registry build` | clones a commit and packs and digests the package directory ([`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git)) |
 | `nvs registry log append` | adds entries to the log and signs a new checkpoint ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)) |
 | `nvs registry log verify` | checks a log directory from scratch |
+| `nvs registry index sign` | signs index files with the log key, the time and the current checkpoint ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)) |
 | `nvs pkg api`, `nvs pkg diff` | extract a package's API and compare two versions ([`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api)) |
 | `nvs pkg pack` | builds the deterministic archive, as `nvs registry build` does after its clone |
 
@@ -1384,7 +1389,98 @@ child process whose memory ends with it.
 
 **Not on disk.** There is no `apps/registry/` and no `nvs registry` command.
 
-<sub>See also [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`core-classes/passkey-verifies-a-webauthn-ceremony`](core-classes.md#core-classes-passkey-verifies-a-webauthn-ceremony), [`core-classes/web-push-sends-an-encrypted-message`](core-classes.md#core-classes-web-push-sends-an-encrypted-message).</sub>
+<sub>See also [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`core-classes/passkey-verifies-a-webauthn-ceremony`](core-classes.md#core-classes-passkey-verifies-a-webauthn-ceremony), [`core-classes/web-push-sends-an-encrypted-message`](core-classes.md#core-classes-web-push-sends-an-encrypted-message).</sub>
+
+<a id="packaging-registry-hosting-is-configuration"></a>
+
+## The registry's hosting is one settings file: stores, file hosts, backup and download logs, with a publish durable on every store before it is visible  *(designed — owned by goal registry-service)*
+
+`rule:packaging/registry-hosting-is-configuration`
+
+The registry's hosting is configuration. The same `apps/registry/` runs on a developer's machine with
+every file in a local directory, and in production with its public files on a CDN; the difference is
+one settings file the deployment writes, never a code change.
+
+**The settings file is `apps/registry/hosting.json`,** read when the service starts. The committed copy
+is the local one: every store is a directory under the application's data folder, so the whole service
+is developed and tested on one machine. A deployment replaces the file. A secret in it, such as a
+store's credential or the backup key, is the path of a file, read through `Core\Secret` so it never
+prints, and a path that does not exist stops the start and names the path. The file names:
+
+- **the public stores**, where the static files are written: the root file, the index files, the
+  archives, the log tiles and the checkpoint. A store is `dir`, a directory, or `http`, where each file
+  is a `PUT` to a base URL with one credential header, which is Bunny Storage's API and any WebDAV
+  server's. Every public store receives every file.
+- **the file hosts**, the `https:` URLs clients read the public files from, in order. The service
+  writes them into the root file `registry.json` at the registry's URL, the one file a client reads
+  from the registry's own host ([`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry)). The root file
+  is signed like an index file, and the client keeps the last one it read, so it still finds the file
+  hosts when the registry's host does not answer.
+- **the backup store**, `dir` or `http`, which is never a public store.
+- **the download-log source**, where the file hosts' access lines come from, when the service does not
+  serve the files itself.
+
+**A publish is durable before it is visible.** The service writes the archive, then the log tiles,
+then the signed index files, and the checkpoint last, to every public store, and answers the publish
+only after every store has confirmed every write. A store that fails fails the publish, which the
+publisher retries, and nothing a client reads has moved. Why: a client refuses a checkpoint that does
+not extend the newest one it saw ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)), so a
+checkpoint a client saw and the service then lost would make the next one a fork. The CDN's store,
+off the host, is that durable copy.
+
+**Files are cached by whether they change.** An archive and a full log tile never change, and the
+deploy guide serves them with a cache lifetime of a year. The root file, the index files, a partial
+tile and the checkpoint change, and are served with one of 60 seconds. The service never purges the
+CDN, so it holds no CDN account key.
+
+**The database is copied to the backup store** after each publish and at an interval the settings set,
+five minutes by default, and not when nothing changed since the last copy. The copy is a
+`VACUUM INTO` a temporary file, sealed with `Core\Crypto::seal` under XChaCha20Poly1305 and a key the
+settings name, so the backup store never reads it. The log is the record of every release, so a lost
+interval loses at most the rows the log does not hold, such as a token created in it, which its owner
+creates again.
+
+**A service that starts with no database restores itself.** When the backup store has a copy, the
+service opens it, takes the log from a public store, runs `nvs registry log verify`, rebuilds every
+release's state from the log, and starts. A new host with the same settings comes up restored, with no
+step by hand. The deploy guide stops the old host first, because two services writing one log sign
+two checkpoints of one size.
+
+**Downloads are counted from the file hosts' access lines.** When the settings name a download-log
+source, a daily job reads the previous day's lines, applies the counting rule of
+[`packaging/search-sorts-by-the-readers-choice`](packaging.md#packaging-search-sorts-by-the-readers-choice) in memory, and keeps no line. When the service
+serves the files itself, as it does locally, it counts as it serves them, through the same function.
+Each CDN writes its own line format, so each source is one parser; Bunny's is the first.
+
+**One host runs each service as its own account.** The deploy guide runs the registry and the
+telemetry collector as two operating-system accounts in two service units, so the registry's database
+and log key are readable by the registry's account alone. The log key is also kept offline, encrypted,
+and outside every store, because a lost key cannot sign the next checkpoint.
+
+**Memory:** a publish holds one archive while it writes it to each store, and the repository size
+limit bounds it. A database copy is a temporary file the size of the database, deleted once it is
+sent. The daily count holds one day's salted hashes, as the counting rule says.
+
+**Declined:**
+- **The service serving every file in production.** An outage of one host would stop every
+  `nvs pkg add` and every fresh build. crates.io moved its downloads off its API servers for this
+  reason.
+- **A counting redirect on the service.** Every download would still need the service to be up.
+- **Purging the CDN on publish.** A purge needs an account-wide key on the server, and a 60-second
+  lifetime needs none.
+- **Replicating the log asynchronously.** A signed checkpoint lost in the lag becomes a fork for every
+  client that saw it.
+- **A standby that takes over by itself.** Two writers sign two different checkpoints of one size, a
+  fork by construction, while a write outage only delays publishers.
+- **A provider's SDK or name in the code.** `dir` and `http` cover a local disk, Bunny Storage and any
+  WebDAV server, and the CDN is replaced by editing the settings. The access-line parser is the one
+  place a provider's format is code.
+- **Hosting settings in `nvs.toml`.** It holds the runtime's directives and refuses a name it does not
+  know, and hosting is the application's own.
+
+**Not on disk.** There is no `apps/registry/` and no `hosting.json`.
+
+<sub>See also [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/search-sorts-by-the-readers-choice`](packaging.md#packaging-search-sorts-by-the-readers-choice), [`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry).</sub>
 
 <a id="packaging-a-registry-account-is-a-passkey"></a>
 
@@ -1706,6 +1802,28 @@ checkpoint is a hard error that names the registry and says the log was forked, 
 and nothing is fetched. `nvs pkg audit` also compares the checkpoint with a second published copy
 of it.
 
+**Every index file is signed, and its age is bounded.** The root file and each package's index file are
+signed notes under the log key, written by `nvs registry index sign`. The note's text is the file's
+JSON, which carries the time it was signed and the size and root hash of the checkpoint it was signed
+with. The service signs every index file again each day. The client refuses an index file whose
+signature does not verify, whose checkpoint is not consistent with the stored one, or whose time is
+more than an hour ahead of the client's clock, and tries the next file host
+([`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration)). A validly signed checkpoint that is not
+consistent stays the fork error, and no other host is tried. `nvs pkg add`, `nvs pkg update` and
+`nvs pkg outdated` refuse an index file signed more than seven days ago and name the registry and the
+time. A build from the lock and `nvs pkg fetch --locked` select nothing, need only digests and
+inclusion, and work through any outage.
+
+The index is what tells a client which version is released, pending, retracted or withheld. A host
+that could change it could skip the seven-day window or show a withheld version as released, and one
+that could serve an old copy could hide a fix for as long as it liked. The signature stops the first,
+the age bound limits the second to seven days, and the lock keeps every build working while the
+service is down.
+
+**The registry's verifier key is pinned, never learned.** The default registry's key is a constant in
+`nvs`. A vendor that `package.toml` maps to another registry names that registry's key beside its URL,
+in the C2SP note verifier-key form ([`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry)).
+
 A registry that serves one client different bytes than another must therefore fork the log, which the
 next client that checks consistency detects, or sign a statement that contradicts one it already made.
 Compromising the registry stops being silent, and the lockfile
@@ -1720,18 +1838,29 @@ The C2SP formats are what make that true, and they are what other transparency l
 The byte work is `nvs registry log append` and `nvs registry log verify`, the commands the service calls
 ([`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program)).
 
-**Memory:** a stored checkpoint is a few hundred bytes per registry. A fetch holds one inclusion proof
-per archive and one consistency proof per checkpoint while it runs.
+**Memory:** a stored checkpoint and the last root file are a few hundred bytes per registry. A fetch
+holds one inclusion proof per archive and one consistency proof per checkpoint while it runs. The
+daily signing writes every index file again, one small file per package per store per day.
 
 **Declined:**
 - **A log format of the registry's own.** It would work, and it would shut out every witness and
   verifier that already reads C2SP.
 - **Witnesses required from the start.** The format leaves room for them; requiring them now would
   make the registry depend on parties that do not exist yet.
+- **Unsigned index files.** Only the archive would be checked, and whoever serves the files would
+  decide every version's state.
+- **A snapshot file listing every index file's hash.** It stops the rollback of one file, but every
+  client downloads a file that grows with the number of packages. A daily signature on each file
+  bounds a rollback with nothing extra to download.
+- **Refusing every command on an old index.** A long outage would then break every build, while the
+  lock already holds what a build needs.
+- **A time line of the registry's own in the checkpoint.** The checkpoint stays C2SP's, and the time
+  is in the index file, whose format is the registry's.
+- **The key the registry serves.** Whoever controls the files would then also choose the key.
 
 **Not on disk.** There is no registry and no log.
 
-<sub>See also [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
+<sub>See also [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration), [`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
 
 <a id="packaging-an-owner-may-unlist"></a>
 
@@ -1860,10 +1989,12 @@ capabilities each version requests and what changed from the version before, the
 the commit each version was built from, the owners and their history, advisories, `supersedes`, and the
 facts behind the ranking.
 
-**Downloads are counted without storing an address.** The service serves archives itself and counts
-per version per day. One count per address per day goes through a hash with a daily salt, and the salt
-is deleted when the day ends, so no address and no lasting hash of one is kept. Copies from mirrors and
-from `vendor/` are not counted.
+**Downloads are counted without storing an address.** A download is counted per version per day, from
+the access lines of the hosts that serve the archives, or as the service serves one itself
+([`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration)); both go through one function. Only a request
+whose user agent is `nvs` counts. One count per address per day goes through a hash with a daily salt,
+and the salt is deleted when the day ends, so no address and no lasting hash of one is kept. Copies
+from mirrors and from `vendor/` are not counted.
 
 A ranking a publisher can write into a repository is a ranking a publisher can fake. Facts the registry
 observed itself cannot be backdated, and showing every one of them lets a reader judge the default
@@ -1882,7 +2013,7 @@ the only per-address data, and both are deleted when the day ends.
 
 **Not on disk.** There is no registry.
 
-<sub>See also [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api).</sub>
+<sub>See also [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api).</sub>
 
 <a id="packaging-the-version-contract-starts-at-0-1-0"></a>
 

@@ -5,9 +5,9 @@ client runs.
 **The application** stores its data in SQLite through `Core\Db`, signs users in with `Core\Passkey`
 (`rule:core-classes/passkey-verifies-a-webauthn-ceremony`), sends push notifications with `Core\WebPush`
 (`rule:core-classes/web-push-sends-an-encrypted-message`), and runs the subcommands below as child
-processes, granted in its own `nvs.toml`. It serves the static index — one JSON file per package and one
-archive per digest — that the client reads, and it serves the archives itself so it can count
-downloads (`rule:packaging/search-sorts-by-the-readers-choice`).
+processes, granted in its own `nvs.toml`. It writes the static index that the client reads (one signed
+JSON file per package and one archive per digest) to the stores its settings file names, and where
+those files are served from is configuration (`rule:packaging/registry-hosting-is-configuration`).
 
 **The byte work** is these commands:
 
@@ -16,6 +16,7 @@ downloads (`rule:packaging/search-sorts-by-the-readers-choice`).
 | `nvs registry build` | clones a commit and packs and digests the package directory (`rule:packaging/the-registry-builds-the-archive-from-git`) |
 | `nvs registry log append` | adds entries to the log and signs a new checkpoint (`rule:packaging/the-registry-keeps-an-append-only-log`) |
 | `nvs registry log verify` | checks a log directory from scratch |
+| `nvs registry index sign` | signs index files with the log key, the time and the current checkpoint (`rule:packaging/the-registry-keeps-an-append-only-log`) |
 | `nvs pkg api`, `nvs pkg diff` | extract a package's API and compare two versions (`rule:packaging/only-a-major-may-break-the-api`) |
 | `nvs pkg pack` | builds the deterministic archive, as `nvs registry build` does after its clone |
 

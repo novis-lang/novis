@@ -1,0 +1,12 @@
+{
+  "title": "The registry's hosting is one settings file: stores, file hosts, backup and download logs, with a publish durable on every store before it is visible",
+  "status": "designed",
+  "seeAlso": [
+    "packaging/the-registry-is-a-novis-program",
+    "packaging/the-registry-keeps-an-append-only-log",
+    "packaging/search-sorts-by-the-readers-choice",
+    "packaging/a-vendor-resolves-from-one-registry"
+  ],
+  "guardedBy": [],
+  "goal": "registry-service"
+}

@@ -3,6 +3,8 @@
   "status": "designed",
   "seeAlso": [
     "packaging/a-git-dependency-is-root-only",
+    "packaging/registry-hosting-is-configuration",
+    "packaging/the-registry-keeps-an-append-only-log",
     "packaging/the-lockfile-holds-every-digest",
     "packaging/resolution-takes-the-highest-minimum",
     "security/package-authority-is-granted-one-line-at-a-time"

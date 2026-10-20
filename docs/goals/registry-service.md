@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: The registry is a Novis application that builds every release from git
-summary: "apps/registry is a Novis web application with passkey accounts, recovery codes and a proof-of-work sign-up, owned vendors, scoped expiring tokens, publishing that builds the archive from a git commit and refuses what its rules refuse, a seven-day pending window an owner's passkey ends early, unlisting, withholding, a log entry per event, owner notifications by Web Push, webhooks, feeds and an inbox with no email and a verified channel required to publish or become an owner, a 60-day activity rule that token use never satisfies, counted downloads and the static index; nvs pkg login, whoami, publish, retract and unlist work against it, it has a deploy guide, the commands have their feature proofs, every designed rule this goal owns is shipped, and the checks below pass."
+summary: "apps/registry is a Novis web application with passkey accounts, recovery codes and a proof-of-work sign-up, owned vendors, scoped expiring tokens, publishing that builds the archive from a git commit and refuses what its rules refuse, a seven-day pending window an owner's passkey ends early, unlisting, withholding, a log entry per event, owner notifications by Web Push, webhooks, feeds and an inbox with no email and a verified channel required to publish or become an owner, a 60-day activity rule that token use never satisfies, the signed static index written to the stores one settings file names with every publish durable before it is visible, a sealed database backup and a restore on start, downloads counted from the file hosts' access lines; nvs pkg login, whoami, publish, retract and unlist work against it, it has a deploy guide, the commands have their feature proofs, every designed rule this goal owns is shipped, and the checks below pass."
 context: [apps/registry/README.md, apps/registry/src/App.nvs, crates/nvs-cli/src/package/mod.rs, docs/rules/packaging/the-registry-is-a-novis-program.md]
 stages:
   - id: 1
@@ -67,6 +67,13 @@ stages:
     extra:
       context:
         rules: [packaging/an-account-stays-active-by-proof-not-by-token, packaging/an-owner-is-notified-without-email, packaging/a-registry-account-is-a-passkey]
+  - id: 11
+    title: the hosting is one settings file, a publish is durable before it is visible, and the service backs itself up and restores itself
+    status: open
+    context: [apps/registry/hosting.json, apps/registry/src/Stores.nvs, apps/registry/src/Backup.nvs, apps/registry/src/Downloads.nvs, docs/rules/packaging/registry-hosting-is-configuration.md]
+    extra:
+      context:
+        rules: [packaging/registry-hosting-is-configuration, packaging/search-sorts-by-the-readers-choice, packaging/the-registry-keeps-an-append-only-log]
   - id: 10
     title: the service has its deploy guide and its proofs, and its rules are shipped
     status: open
@@ -202,9 +209,31 @@ answer too. Token use never counts. An answer keeps an active account active, an
 without activity, only a passkey sign-in makes the account active again. The owner chooses when the
 reminders start, such as after 14, 30 or 45 quiet days.
 
-**Downloads are counted without storing an address.** The service serves archives itself and counts
-per version per day. One count per address per day goes through a hash with a daily salt, and the
-salt is deleted when the day ends. Copies from mirrors and from `vendor/` are not counted.
+**The service is built and tested on one machine, and hosting is configuration**
+(`rule:packaging/registry-hosting-is-configuration`). The committed `apps/registry/hosting.json` names
+directories as every store, so `nvs serve apps/registry` and `nvs test apps/registry` need nothing
+else. A deployment writes its own `hosting.json`, and nothing in the code names a host or a provider.
+The tests run the `http` store, the backup and the access-line source against loopback listeners, as
+the push and webhook tests do. Why: the user's call is that the service is finished locally and a
+deployment only changes configuration.
+
+**A publish is durable before it is visible.** The archive, the log tiles, the index files signed by
+`nvs registry index sign` (goal `registry-log`), and the checkpoint last, go to every public store, and
+the publish is answered only after every store confirmed. A daily task signs every index file again.
+The service never purges a CDN: the deploy guide gives the files that change a 60-second cache
+lifetime.
+
+**The service backs itself up and restores itself.** After each publish, and every five minutes when
+something changed, the database is copied with `VACUUM INTO`, sealed with `Core\Crypto::seal`, and
+written to the backup store. A service that starts with no database restores the newest copy, takes
+the log from a public store, verifies it, and rebuilds every release's state from the log.
+
+**Downloads are counted from the file hosts' access lines** (`rule:packaging/search-sorts-by-the-readers-choice`).
+A daily task reads the previous day's lines from the source the settings name, counts per version per
+day only requests whose user agent is `nvs`, one per address per day through a hash with a daily salt,
+and keeps no line. The service counts through the same function when it serves a file itself, as it
+does locally. The salt is deleted when the day ends. Copies from mirrors and from `vendor/` are not
+counted. Bunny's line format is the first parser.
 
 **Lanes.** The Rust lane (`crates/nvs-cli/src/package/login.rs`, `build.rs`, `publish.rs`,
 `retract.rs`, `unlist.rs`) is disjoint from `apps/registry/`, so stage 3 can run beside stage 2's app
@@ -212,7 +241,7 @@ items, and stage 4's and stage 9's Rust items can go to their own sessions. Its 
 `crates/nvs-cli/src/main.rs`'s `Command` enum (`crates/nvs-cli/src/main.rs:373`), which goals
 `api-compat`, `package-client` and `registry-log` also edit, so those merges are serial. Every app
 stage edits `apps/registry/src/App.nvs`'s route wiring and the schema, so no two app stages run at
-once. Their order is 1, 2, 7, 4, 5, 8, 9, 6, except that stage 8 needs only stage 2 and may go
+once. Their order is 1, 2, 7, 11, 4, 5, 8, 9, 6, except that stage 8 needs only stage 2 and may go
 earlier. Stages 5 and 8 write disjoint channel files (`Push.nvs`, `Webhooks.nvs`) and share only
 `Channels.nvs`. Stage 10 writes `docs/reference/tools/35-packages.md`, where every package
 goal adds a heading, so it merges serially with them.
@@ -220,8 +249,9 @@ goal adds a heading, so it merges serially with them.
 **Gates.** Stage 1 needs `Core\Passkey`: `data/rules/core-classes/passkey-verifies-a-webauthn-ceremony.json`
 reads `"status": "shipped"`; until then, the session takes stage 1's first item alone. Stage 2's `nvs pkg
 login` needs `crates/nvs-cli/src/package/mod.rs`. Stage 3 needs goals `package-client` and `api-compat`
-reached: `docs/goals/package-client.md` and `docs/goals/api-compat.md` are gone. Stage 4 needs goal
-`registry-log` reached: `docs/goals/registry-log.md` is gone. Stage 5 needs `Core\WebPush`:
+reached: `docs/goals/package-client.md` and `docs/goals/api-compat.md` are gone. Stages 4 and 11, and
+stage 7's signing, need goal `registry-log` reached: `docs/goals/registry-log.md` is gone. Stage 5
+needs `Core\WebPush`:
 `data/rules/core-classes/web-push-sends-an-encrypted-message.json` reads `"status": "shipped"`; until
 then, the session takes stage 8, which needs only stage 2. A session whose stage is gated takes the
 earliest open stage whose gate holds, and ends `BLOCKED` naming the missing file when none does.
@@ -232,6 +262,11 @@ the reason for every choice above: no forge to compromise, no password to phish,
 over, a build the registry does itself, a pending window anyone can watch, an account that a stolen
 token cannot keep alive, and an operator who cannot rewrite anything. The cost to a publisher is a
 passkey, one verified notification channel, and, for a hotfix, one confirmation on the website.
+Hosting: downloads keep working while the service is down, because the files are on the file hosts
+and the client keeps the last root file. A publish takes one write per store per file, which is slow
+next to a local write and rare. Memory: one archive per publish while it is written, and a temporary
+database copy the size of the database during a backup. A write outage, or a lost backup interval,
+delays publishers and loses at most the rows the log does not hold.
 
 ## Stages
 
@@ -284,8 +319,8 @@ a second writes `Index.nvs`'s download count and its test.
 
 - [ ] The service's publish endpoint, the build class the tests double, the repository binding, and every refusal in the standing decision (`rule:packaging/publishing-never-overwrites`). `apps/registry/src/Publish.nvs:1`
 - [ ] Tests: one per refusal in the standing decision, a republished version refused, and a changed repository URL refused without a passkey. `apps/registry/src/PublishTest.nvs:1`
-- [ ] The static index in the client's schema, archive downloads, and the salted daily count. `apps/registry/src/Index.nvs:1`, `crates/nvs-cli/src/package/index.rs:1`
-- [ ] Tests: the client's index reader parses what the service writes, and one address counts once per day across a day change. `apps/registry/src/IndexTest.nvs:1`
+- [ ] The static index in the client's schema, signed with `nvs registry index sign`, the root file with the file hosts, and the salted daily count as the service serves a file itself. `apps/registry/src/Index.nvs:1`, `crates/nvs-cli/src/package/index.rs:1`
+- [ ] Tests: the client's index reader parses and verifies what the service writes, and one address counts once per day across a day change. `apps/registry/src/IndexTest.nvs:1`
 - [ ] `rule:packaging/publishing-never-overwrites` and `rule:packaging/the-registry-builds-the-archive-from-git` are `shipped`. `data/rules/packaging/publishing-never-overwrites.json:1`, `data/rules/packaging/the-registry-builds-the-archive-from-git.json:1`
 
 ### 4. a release waits seven days unless an owner confirms it, an owner unlists, and the operator only withholds
@@ -349,6 +384,22 @@ writes the Rust items after the session lands the feeds.
 - [ ] Tests under a fixed clock moved by `Core\Test::advance`: token use on day 59 does not count, a reminder answer does, and on day 61 only a passkey sign-in revives. `apps/registry/src/ActivityTest.nvs:1`
 - [ ] `rule:packaging/an-account-stays-active-by-proof-not-by-token` is `shipped`. `data/rules/packaging/an-account-stays-active-by-proof-not-by-token.json:1`
 
+### 11. the hosting is one settings file, a publish is durable before it is visible, and the service backs itself up and restores itself
+
+**Does:** the service reads its stores, file hosts, backup and download-log source from
+`hosting.json`, writes each publish to every store before it answers, backs up a sealed copy of its
+database, restores itself on a start with no database, and counts downloads from access lines.
+
+**Split:** after the session lands `Stores.nvs` and the settings reader, one writing subagent writes
+`Backup.nvs` and its test, then a second writes `Downloads.nvs` and its test.
+
+- [ ] `hosting.json` and its reader: `dir` and `http` stores, the file hosts, the backup store and the download-log source, each secret a path read through `Core\Secret`, and a missing path stopping the start (`rule:packaging/registry-hosting-is-configuration`). `apps/registry/hosting.json:1`, `apps/registry/src/Stores.nvs:1`
+- [ ] The publish writes the archive, the tiles, the index files and the checkpoint last to every public store, and fails when one store fails; the daily task signs every index file again. `apps/registry/src/Stores.nvs:1`, `apps/registry/src/Publish.nvs:1`
+- [ ] The sealed database copy after each publish and every five minutes when something changed, and the restore on a start with no database, which rebuilds release state from the verified log. `apps/registry/src/Backup.nvs:1`
+- [ ] The daily count from Bunny's access lines through the counting function, keeping no line. `apps/registry/src/Downloads.nvs:1`
+- [ ] Tests against loopback listeners: an `http` store receiving each file in order, a publish failed by a store that answers `500` with no checkpoint moved, a backup the store cannot open without the key, a restore that brings back every release's state, and access lines that count one address once and skip a user agent that is not `nvs`. `apps/registry/src/StoresTest.nvs:1`, `apps/registry/src/BackupTest.nvs:1`, `apps/registry/src/DownloadsTest.nvs:1`
+- [ ] `rule:packaging/registry-hosting-is-configuration` is `shipped`. `data/rules/packaging/registry-hosting-is-configuration.json:1`
+
 ### 10. the service has its deploy guide and its proofs, and its rules are shipped
 
 **Does:** the service can be deployed from its guide, the commands are features with their proofs, and
@@ -358,7 +409,7 @@ every rule this goal owns is `shipped`.
 another, writes its `about.md` and the examples `bun nv proofs --id` lists, then one writes the three
 attacks. All follow AGENTS.md § *Text an end user reads*.
 
-- [ ] The deploy guide in `apps/registry/README.md`, and the client's tests run against the service. `apps/registry/README.md:1`
+- [ ] The deploy guide in `apps/registry/README.md`, and the client's tests run against the service. It gives a `hosting.json` for one VPS with Bunny Storage in two regions as the public store and a second provider as the backup store, the two cache lifetimes, the registry and the telemetry collector as two accounts in two service units, the log key kept offline and encrypted, and the old host stopped before a new one restores (`rule:packaging/registry-hosting-is-configuration`). `apps/registry/README.md:1`
 - [ ] The headings `# nvs pkg login and nvs pkg whoami`, `# nvs pkg publish` and `# nvs pkg retract and nvs pkg unlist`. `docs/reference/tools/35-packages.md:1`
 - [ ] `about.md` and examples for `nvs pkg login and nvs pkg whoami`. `docs/examples/tools/packages/nvs-pkg-login-and-nvs-pkg-whoami/about.md:1`
 - [ ] `about.md` and examples for `nvs pkg publish`. `docs/examples/tools/packages/nvs-pkg-publish/about.md:1`
@@ -388,4 +439,5 @@ it does, take the first item alone.
 - Stage 3, `nvs registry build` and `nvs pkg publish`, is the Rust lane; its gate is goals `package-client` and `api-compat` reached (`docs/goals/package-client.md`).
 
 - Search, package pages, account pages and the policy page are goal `registry-website`'s (`docs/goals/registry-website.md`).
+- Stage 11, the hosting settings, the durable publish, the backup and the restore, follows stage 7 (`apps/registry/src/Stores.nvs`).
 - The advisory feed and `nvs pkg audit` are goal `package-audit`'s (`docs/goals/package-audit.md`).

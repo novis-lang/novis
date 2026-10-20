@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: The registry keeps an append-only log, and the client refuses a fork
-summary: "A Rust log library writes and verifies C2SP tlog-tiles with signed-note Ed25519 checkpoints, inclusion and consistency proofs, and one entry kind per event the registry records, nvs registry log append and verify are the commands the service calls, the client checks every fetched digest's inclusion, keeps the newest checkpoint it saw and refuses an inconsistent one as a fork, the log has its feature proofs, rule packaging/the-registry-keeps-an-append-only-log is shipped, and the checks below pass."
+summary: "A Rust log library writes and verifies C2SP tlog-tiles with signed-note Ed25519 checkpoints, inclusion and consistency proofs, and one entry kind per event the registry records, nvs registry log append and verify are the commands the service calls, the client checks every fetched digest's inclusion, keeps the newest checkpoint it saw and refuses an inconsistent one as a fork, every index file is a signed note with a time and a checkpoint that nvs registry index sign writes and the client checks against a pinned verifier key and a seven-day age bound for selecting, the log has its feature proofs, rule packaging/the-registry-keeps-an-append-only-log is shipped, and the checks below pass."
 context: [crates/nvs-cli/src/package/mod.rs, docs/rules/packaging/the-registry-keeps-an-append-only-log.md]
 stages:
   - id: 1
@@ -32,6 +32,13 @@ stages:
     extra:
       context:
         rules: [packaging/the-registry-keeps-an-append-only-log, config/ownership-is-the-trust-boundary, packaging/the-lockfile-holds-every-digest]
+  - id: 6
+    title: every index file is signed with a time, and the client checks it against a pinned key and an age bound
+    status: open
+    context: [crates/nvs-cli/src/package/index.rs, crates/nvs-cli/src/package/note.rs, crates/nvs-cli/src/package/manifest.rs, docs/rules/packaging/a-vendor-resolves-from-one-registry.md]
+    extra:
+      context:
+        rules: [packaging/the-registry-keeps-an-append-only-log, packaging/a-vendor-resolves-from-one-registry, packaging/registry-hosting-is-configuration]
   - id: 4
     title: the log has its feature proofs, and its rule is shipped
     status: open
@@ -101,24 +108,43 @@ applies (`crates/nvs-cli/src/cache.rs:1258`). A new checkpoint must come with a 
 the stored one. An inconsistent one is a hard error that names the registry and says the log was
 forked, and nothing is fetched.
 
+**Every index file is a signed note with a time** (`rule:packaging/the-registry-keeps-an-append-only-log`).
+`nvs registry index sign <dir>` signs the root file and each package's index file in a directory with
+the key file, the current time and the size and root hash of the directory's newest checkpoint; the
+note's text is the file's JSON, which carries both. The service runs it after each publish and once a
+day over every file. The client verifies each index file with the registry's pinned verifier key: the
+default registry's is a constant in `crates/nvs-cli/src/package/index.rs`, and a vendor that
+`package.toml` maps to another registry names its key beside its URL. A file that fails the signature,
+names a checkpoint not consistent with the stored one, or is signed more than an hour ahead of the
+client's clock is refused, and the next file host is tried. `nvs pkg add`, `update` and `outdated`
+refuse a file signed more than seven days ago. A build from the lock and `nvs pkg fetch --locked` read
+no state they select from and are unaffected. Why: the index decides which version is released, so
+whoever serves it must not be able to change it, and an old copy may hide a fix for seven days at most.
+
 **Lanes.** Stage 1 (`log.rs`, `Cargo.toml`) and stage 5 (`note.rs`) touch disjoint files and can run in
 either order or as side goals; both add to `crates/nvs-cli/Cargo.toml`, so the second to land rebases
 it. Stage 2 needs both: it writes `log.rs` and `crates/nvs-cli/src/main.rs`'s `Command` enum
 (`crates/nvs-cli/src/main.rs:373`), which goals `api-compat` and `package-client` also edit for the
 `pkg` group, so its merge is serial with theirs. Stage 3 writes `package-client`'s `fetch.rs` and
-`data.rs`, and runs after stages 1, 5 and 2. Stage 4 writes `docs/reference/tools/35-packages.md`,
+`data.rs`, and runs after stages 1, 5 and 2. Stage 6 writes `index.rs`, `manifest.rs` and the
+`nvs registry index sign` arm of the `Command` enum, and runs after stage 3. Stage 4 writes `docs/reference/tools/35-packages.md`,
 where every package goal adds a heading, so it merges serially.
 
 **Gates.** Stages 1, 5 and 2 need `crates/nvs-cli/src/package/mod.rs` to exist (goal `api-compat`
 creates it with the `nvs pkg` group). Stage 3 needs `crates/nvs-cli/src/package/fetch.rs` and
-`crates/nvs-cli/tests/fixtures/registry/` (goal `package-client` stages 3 and 4). When a stage's gate
+`crates/nvs-cli/tests/fixtures/registry/` (goal `package-client` stages 3 and 4). Stage 6 needs stage
+3's stored checkpoint (`crates/nvs-cli/src/package/log.rs` checks consistency). When a stage's gate
 does not hold, the session takes the earliest stage whose gate holds; when none holds, it ends
 `BLOCKED` naming the missing file.
 
 **Trade-offs.** Nothing runs on the request path, and no program changes. A fetch pays one inclusion
 proof per archive and one consistency proof per checkpoint, each a few hashes and one tile read.
 Memory: a stored checkpoint is a few hundred bytes per registry. Security gains the most: a registry
-cannot rewrite history without every client that saw it refusing.
+cannot rewrite history without every client that saw it refusing, and whoever serves the index cannot
+change a version's state or hide a fix for more than seven days. The cost is a signature check per
+index file read, and the service writing every index file again once a day. Usability: selecting a
+new version needs an index signed in the last seven days, while every build from the lock works
+through any outage.
 
 ## Stages
 
@@ -167,6 +193,18 @@ the one the client saw is refused.
 - [ ] The stored checkpoint per registry, its consistency proof, and the fork error naming the registry. `crates/nvs-cli/src/package/log.rs:1`
 - [ ] The fixture registry from goal `package-client` gains a log built with `nvs registry log append`, and tests cover an archive absent from the log and a forked log. `crates/nvs-cli/tests/package_client.rs:1`
 
+### 6. every index file is signed with a time, and the client checks it against a pinned key and an age bound
+
+**Does:** `nvs registry index sign` signs the root file and every index file, and the client refuses an
+index file that is unsigned, signed by another key, bound to an inconsistent checkpoint or too old to
+select from.
+
+- [ ] `nvs registry index sign <dir>` with the key file, the time and the newest checkpoint, hidden from the user's command list (`rule:packaging/the-registry-keeps-an-append-only-log`). `crates/nvs-cli/src/package/note.rs:1`, `crates/nvs-cli/src/main.rs:373`
+- [ ] The pinned verifier key: the default registry's constant, and a key beside each other registry's URL in `package.toml` (`rule:packaging/a-vendor-resolves-from-one-registry`). `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-cli/src/package/manifest.rs:1`
+- [ ] The reader checks each file's signature, its checkpoint against the stored one and its time, and tries the next file host on a refusal; an inconsistent checkpoint stays the fork error. `crates/nvs-cli/src/package/index.rs:1`
+- [ ] `nvs pkg add`, `update` and `outdated` refuse a file signed more than seven days ago, naming the registry and the time; a build from the lock and `nvs pkg fetch --locked` do not. `crates/nvs-cli/src/package/resolve.rs:1`
+- [ ] The fixture registry is signed with `nvs registry index sign`, and tests cover an unsigned file, another key, a changed state with the old signature, a file eight days old refused for `add` and accepted for `--locked`, a file two hours ahead, and the second file host used after a bad signature. `crates/nvs-cli/tests/package_client.rs:1`
+
 ### 4. the log has its feature proofs, and its rule is shipped
 
 **Does:** the log is a feature with its proofs, and its rule is `shipped`.
@@ -177,8 +215,8 @@ attack. Both follow AGENTS.md § *Text an end user reads*.
 
 - [ ] The heading `# The transparency log` in `docs/reference/tools/35-packages.md`. `docs/reference/tools/35-packages.md:1`
 - [ ] `about.md` and the examples the proofs command lists. `docs/examples/tools/packages/the-transparency-log/about.md:1`
-- [ ] The attack: a registry serves a rewritten log to a client that saw the old one. `tests/hostile/tools/packages/the-transparency-log/01-a-forked-log.nvs:1`
-- [ ] The rule is `shipped` with the stage 1, 5, 2 and 3 tests in its `guardedBy`, and `bun nv owners --closes registry-log` passes. `data/rules/packaging/the-registry-keeps-an-append-only-log.json:1`
+- [ ] The attacks: a registry serves a rewritten log to a client that saw the old one, and a file host marks a pending release as released. `tests/hostile/tools/packages/the-transparency-log/01-a-forked-log.nvs:1`, `tests/hostile/tools/packages/the-transparency-log/02-a-changed-index.nvs:1`
+- [ ] The rule is `shipped` with the stage 1, 5, 2, 3 and 6 tests in its `guardedBy`, and `bun nv owners --closes registry-log` passes. `data/rules/packaging/the-registry-keeps-an-append-only-log.json:1`
 
 ## Handoff
 
@@ -200,4 +238,5 @@ Stage 1, the tiles and proofs, on `Cargo.toml`, `crates/nvs-cli/src/package/log.
 ### Backlog
 
 - Stage 5, the signed note, is a lane beside stage 1 (`crates/nvs-cli/src/package/note.rs`).
+- Stage 6, the signed index files, follows stage 3 (`crates/nvs-cli/src/package/index.rs`).
 - The second published copy of the checkpoint is compared by `nvs pkg audit` in goal `package-audit` (`docs/goals/package-audit.md`).

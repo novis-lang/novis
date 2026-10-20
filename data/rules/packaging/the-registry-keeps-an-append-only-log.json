@@ -6,6 +6,8 @@
     "packaging/a-known-bad-version-is-retracted-not-deleted",
     "packaging/publishing-never-overwrites",
     "packaging/the-registry-is-a-novis-program",
+    "packaging/registry-hosting-is-configuration",
+    "packaging/a-vendor-resolves-from-one-registry",
     "config/ownership-is-the-trust-boundary"
   ],
   "guardedBy": [],
