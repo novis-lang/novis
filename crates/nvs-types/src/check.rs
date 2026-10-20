@@ -407,6 +407,7 @@ pub(crate) fn check_stmts(
                 crate::conformance::check_class_conformance(decl, &qname, env);
                 crate::conformance::check_member_conflicts(decl, &qname, env);
                 crate::conformance::check_constant_redeclarations(&decl.members, &qname, env);
+                crate::conformance::check_property_redeclarations(decl, &qname, env);
                 crate::conformance::check_class_finality(decl, &qname, env);
                 crate::conformance::check_method_overrides(
                     &decl.members,

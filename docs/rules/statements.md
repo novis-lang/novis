@@ -393,7 +393,10 @@ the frame's called class is asked for `NAME` when the read runs, so a default me
 body reads the implementor's override where `self::NAME` reads the declaring class's value. Three things
 follow from that read being a run-time one. A redeclaration of an inherited constant keeps a type
 assignable to the ancestor's, in every class and interface, because the read is typed where the
-constant is declared and answers whichever class the call was made on (`E0833`). A `static::` constant
+constant is declared and answers whichever class the call was made on (`E0833`). The read converts
+the called class's value to that type: a subclass's `int` read where `int|string` is declared is that
+union holding the `int`. Nothing converts an `int` to a `float` there, so `int` over `float` is
+`E0833` too, as it is for an override's return type. A `static::` constant
 is refused in a constant expression — a default, a payload — which is folded once with no call to bind
 it to (`E0831`). A `static::` read of a constant with no scalar value — an `array`, an object, `null`
 — is refused, because the called class's table carries `string`, `int`, `uint`, `bool` and `float`

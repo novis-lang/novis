@@ -915,4 +915,19 @@ codes! {
          must be `Throwable` or a class that extends it, such as `RuntimeError::class`. A string \
          or a variable is not allowed.",
     );
+    /// A class declares an instance property again that a superclass already
+    /// declares, at another type or with `readonly` on either declaration —
+    /// `rule:classes/a-redeclared-property-keeps-its-parents-type`.
+    ///
+    /// Both declarations name one slot, and the parent's code reads and writes
+    /// it at the parent's type. A narrower type lets the parent store a value
+    /// the subclass reads as another class, and a wider one the reverse. A
+    /// `readonly` property would be written by both constructors.
+    /// [`E_CONST_REDECLARED_AT_ANOTHER_TYPE`] is the same hazard for a constant.
+    pub const E_PROPERTY_REDECLARED_AT_ANOTHER_TYPE: Code = Code::new("E0866").card(
+        "This class declares a property again that its parent class already declares. Both \
+         classes use the same property, so it must have the parent's type. A `readonly` \
+         property cannot be declared again. Use the parent's type, or give the property another \
+         name.",
+    );
 }

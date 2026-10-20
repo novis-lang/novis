@@ -446,27 +446,17 @@ impl<'a> Lowering<'a> {
                 }
                 // `static::NAME` — `rule:statements/static-is-a-member-modifier`'s
                 // late-bound read, and the one constant that is not inlined.
-                // The entry's value is the *declaring* class's and only its
-                // kind is used, to type the load: the class is the frame's
-                // called class, so the value is read off that descriptor's own
-                // constant table at run time. The name is a fresh string with
+                // The class is the frame's called class, so the value is read
+                // off that descriptor's own constant table at run time, and the
+                // load is typed by the declaring class's declared type. The
+                // helper answers a tagged value, so a union reads it whole and
+                // a scalar unpacks it; `E0833` keeps every redeclaration's
+                // kind inside that type. The name is a fresh string with
                 // exactly one use, staged as a borrowed temporary the way
                 // [`Self::emit_const_arg`]'s `Core` arguments are, so it is
                 // released on both edges of the call.
-                Some(ExprInfo::ClassConstLate { name, value, .. }) => {
-                    let ty = match value {
-                        nvs_types::ConstArg::Str(_) => Ty::Str,
-                        nvs_types::ConstArg::Int(_) => Ty::Int,
-                        nvs_types::ConstArg::Uint(_) => Ty::Uint,
-                        nvs_types::ConstArg::Bool(_) => Ty::Bool,
-                        nvs_types::ConstArg::Float(_) => Ty::Float,
-                        _ => panic!(
-                            "nvs-ir: a `static::` constant read at {:?} carries a value with no \
-                             scalar form — `nvs_types` refuses that read with `E0832` before \
-                             lowering",
-                            expr.span
-                        ),
-                    };
+                Some(ExprInfo::ClassConstLate { name, ty, .. }) => {
+                    let ty = erase_checked_ty(*ty, self.checked_types);
                     let name = name.clone();
                     let desc = self.lsb();
                     let mark = self.temporaries_mark();

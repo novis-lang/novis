@@ -840,6 +840,44 @@ parameter a caller never notices.
 
 <sub>See also [`classes/comparable`](classes.md#classes-comparable), [`classes/stringable`](classes.md#classes-stringable), [`classes/constructor-compatibility`](classes.md#classes-constructor-compatibility), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces).</sub>
 
+<a id="classes-a-redeclared-property-keeps-its-parents-type"></a>
+
+## A property declared again over a superclass's keeps the superclass's exact type
+
+`rule:classes/a-redeclared-property-keeps-its-parents-type`
+
+An instance property a class declares again over one a superclass declares keeps the superclass's
+exact type. Otherwise it is `E0866`, at the redeclaration. Both declarations name one slot, and the
+superclass's code reads and writes it at the superclass's type: a narrower type lets the superclass
+store a value the subclass reads as another class, and a wider one lets the subclass store a value
+the superclass reads as another class. "Exact" is assignability both ways, without the `int` →
+`float` row, so `?Animal` and `Animal|null` are the same type and `float` over `int` is refused.
+
+It holds for every way a property is declared: a plain property, a promoted constructor parameter,
+a `lateinit`, an `array<T>` and a hooked property. A hooked property's `set` parameter already
+accepts the property's own type ([`classes/property-hooks`](classes.md#classes-property-hooks)), so its hooks keep the superclass's
+type with it. A redeclaration at the same type compiles, which is how a subclass overrides a hook.
+
+**A `readonly` property is not declared again**, on either side: both constructors would write it,
+and [`classes/readonly-is-written-once`](classes.md#classes-readonly-is-written-once) allows one write. That is `E0866` too.
+
+A static property is outside the rule. Each class names its own storage, and `static::$x` is refused
+([`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier)). An interface declares no property
+([`classes/interfaces-declare-no-state`](classes.md#classes-interfaces-declare-no-state)), so only the superclass chain is walked.
+
+[`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier)'s `E0833` is the same hazard for a constant, and it
+allows any assignable type there because a constant is only read, never written through the parent.
+
+Declined: a narrower property type with a check on each write through the parent. It is sound, but
+it is a second mechanism with a run-time check on every write of a redeclared property.
+Declined too: PHP's rule, which allows the same as this one, except that PHP keeps the parent's
+`private` property as a separate slot. Novis gives a redeclared name one slot whatever its
+visibility, so a `private` redeclaration is held to the same type.
+
+`crates/nvs-types/src/conformance.rs`'s `check_property_redeclarations` is the check.
+
+<sub>See also [`classes/an-override-keeps-its-parents-signature`](classes.md#classes-an-override-keeps-its-parents-signature), [`classes/property-hooks`](classes.md#classes-property-hooks), [`classes/readonly-is-written-once`](classes.md#classes-readonly-is-written-once), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier).</sub>
+
 <a id="classes-member-conflict-is-an-error"></a>
 
 ## A member reachable from two default or delegated sources with no override is a compile error

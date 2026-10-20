@@ -1071,23 +1071,28 @@ pub enum ExprInfo {
     /// (`rule:statements/static-is-a-member-modifier`), and so the one
     /// constant read that is **not** inlined.
     ///
-    /// The same three fields as [`Self::ClassConst`], and read differently:
-    /// `nvs-ir` takes the frame's called class (`Lowering::lsb`) and reads
-    /// `name` off that descriptor's own constant table through
-    /// `nvs_ir::ir::Helper::ClassConstant`, at the representation `value`'s
-    /// kind names. `class` and `value` are the *declaring* class's, recorded
-    /// for the editor — a read is an occurrence of the declaration it names —
-    /// and for the type of the load; the value itself is never emitted.
+    /// Read differently from [`Self::ClassConst`]: `nvs-ir` takes the frame's
+    /// called class (`Lowering::lsb`) and reads `name` off that descriptor's
+    /// own constant table through `nvs_ir::ir::Helper::ClassConstant`, at the
+    /// representation `ty` erases to. The table answers a tagged value, so a
+    /// subclass's `int` redeclared over `int|string` is read as that union
+    /// holding the `int`. `class` and `value` are the *declaring* class's,
+    /// recorded for the editor — a read is an occurrence of the declaration
+    /// it names; the value itself is never emitted.
     ClassConstLate {
         /// The class that declares the constant the read resolves to when
         /// `static` is the declaring class — [`Self::ClassConst`]'s `class`.
         class: QName,
         /// The constant's own name, which is what the run-time read keys on.
         name: String,
-        /// The declaring class's value, in its declared type, whose kind is
-        /// the representation the read is typed at. `nvs_types::expr::members`
-        /// records this entry only for a value with a scalar form (`E0832`).
+        /// The declaring class's value, in its declared type.
+        /// `nvs_types::expr::members` records this entry only for a value with
+        /// a scalar form (`E0832`).
         value: ConstArg,
+        /// The declaring class's declared type, which is the read's type. Each
+        /// redeclaration's type is assignable to it without a conversion
+        /// (`E0833`), so the called class's value fits its representation.
+        ty: TypeId,
     },
     /// `static::class` and `$obj::class` — a `::class` whose answer is not
     /// known until the call runs, and the one shape that is *not* folded into

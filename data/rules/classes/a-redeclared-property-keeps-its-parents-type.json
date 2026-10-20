@@ -1,0 +1,14 @@
+{
+  "title": "A property declared again over a superclass's keeps the superclass's exact type",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/an-override-keeps-its-parents-signature",
+    "classes/property-hooks",
+    "classes/readonly-is-written-once",
+    "statements/static-is-a-member-modifier"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/src/conformance.rs",
+    "tests/conformance/reject/a-redeclared-property-keeps-its-parents-type.nvst"
+  ]
+}
