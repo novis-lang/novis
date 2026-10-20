@@ -1,0 +1,12 @@
+{
+  "title": "A union of classes reads and calls a member every class declares with the same type",
+  "status": "designed",
+  "seeAlso": [
+    "types/unions-and-mixed",
+    "types/a-declared-type-answers-before-the-program-runs",
+    "types/erased-member-access",
+    "types/narrowing"
+  ],
+  "guardedBy": [],
+  "goal": "union-shared-members"
+}

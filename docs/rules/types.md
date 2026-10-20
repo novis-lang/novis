@@ -3,6 +3,8 @@
 
 # Types
 
+*1 of 57 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="types-declaration"></a>
 
 ## Every binding declares its type, and no binding's type ever changes
@@ -1399,6 +1401,12 @@ a union or out of `mixed` is a different question from testing for one: that is 
 or `as ?T`, which yields `null`. `as` converts and so accepts what can be converted — `"7" as ?int` is
 `7` — while `is` reads the representation and so answers `false` for the same value.
 
+A member is one of those operations. A property or a method every class of a union of classes declares
+with the same type, and makes visible at the access, is read or called through the union with no
+narrowing: [`types/a-member-every-class-of-a-union-declares`](types.md#types-a-member-every-class-of-a-union-declares) is the test, the write and the
+lowering. A union whose classes do not all share the member is narrowed first, as any other operation
+one member alone allows.
+
 `mixed` is **not checked at all** — that is its entire job. It holds anything, every operation on it
 is allowed, and every operation on it is resolved dynamically at runtime through the generic helper
 path. That is dynamic typing at dynamic typing's cost, which is the right pressure: the fast path is
@@ -1430,6 +1438,59 @@ every step out of it is an `as` a reviewer can see.
   honestly, which is the one thing `mixed` is for.
 
 <sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test).</sub>
+
+<a id="types-a-member-every-class-of-a-union-declares"></a>
+
+## A union of classes reads and calls a member every class declares with the same type  *(designed — owned by goal union-shared-members)*
+
+`rule:types/a-member-every-class-of-a-union-declares`
+
+A property read and a method call through a union of classes compile when every class of the union
+declares or inherits that member, the member is visible at the access site in every class, and every
+class gives it the same type. `Box|Circle $s; echo $s->name;` compiles when both classes declare
+`string $name`. This is [`types/unions-and-mixed`](types.md#types-unions-and-mixed)'s own sentence applied to a member: the
+operation is valid for every member of the union, so the union permits it.
+
+- **The same type** is identical, nullability and the `tainted` and `secret` qualifiers included. A
+  method's **same signature** is the same parameters with their types, `inout`, defaults and
+  variadic, the same return type and the same `static`. The result therefore has one type, and
+  nothing after the access depends on which class was behind it.
+- **A common parent is not needed and not used.** Two classes that inherit the member from one parent
+  share it by the test above; two unrelated classes that each declare it share it the same way.
+- **Every member of the union is a class.** An interface in the union keeps `E0477` for a call and
+  `E0495` for a property, because an interface has no fixed offset, and the fixed-offset read is what
+  the lowering below is. A nullable union follows the nullable rules a single class follows: `?->`
+  reads it, and `->` is `E_NULLABLE_RECEIVER`.
+- **A write** compiles only when the property is writable at the site in every class: the same type,
+  not `readonly` in any class, and the same `set` visibility. A write checks the incoming value
+  against one declared type, so a union whose classes agree on that type writes exactly what a write
+  through each class would. A union where one class makes the property `readonly` or narrows its
+  `set` visibility could not be written through one check, and stays an error.
+- **A union of classes that do not share the member** is one new code, `E0881`, whose message names
+  the class that lacks the member, the class where it is not visible, or the two types that differ.
+  `E0495` and `E0477` stay for a receiver that can hold no object at all, and for a union with a
+  non-class member ([`types/a-declared-type-answers-before-the-program-runs`](types.md#types-a-declared-type-answers-before-the-program-runs)).
+
+**The lowering is a class test per class, then the access that class alone makes.** The checker records
+each class of the union with its member, and the lowering tests the receiver with `ClassTest` for each
+class but the last. Each branch lowers as the same access through that one class does: a fixed-offset
+field load for a plain property, the hook for a hooked one, the class's own call for a method. The last
+class is the fall-through, because the checker proved the receiver is one of the union's classes.
+
+- **Latency:** a union of `n` classes pays `n - 1` class tests and the access, with no name lookup
+  and no error edge. An access through one class does not change.
+- **Memory:** one list of classes per access site in the checker's table, per compiled program and
+  never per request.
+
+**Declined:**
+- **The name-keyed slot fetch [`types/erased-member-access`](types.md#types-erased-member-access) uses.** It looks the name up on every
+  read and adds an error edge for a case the checker already ruled out.
+- **Reading through the nearest common parent.** It would accept only unions with such a parent, and a
+  member two unrelated classes each declare is the case the `is` ladder this replaces is written for.
+- **Interface arms.** A later change can add them through the dispatch a call on an interface already
+  uses; refusing them now is the reversible choice.
+
+<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/a-declared-type-answers-before-the-program-runs`](types.md#types-a-declared-type-answers-before-the-program-runs), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/narrowing`](types.md#types-narrowing).</sub>
 
 <a id="types-one-mistake-reports-once"></a>
 
@@ -2519,9 +2580,10 @@ one map entry per declared field at check time, and at run time only the convers
 
 Three receivers are erased: plain `object`, a shape type asked for a name it does not list, and
 `mixed` — the widest, because it defers not only *which* class is behind the handle but *whether there
-is one*. Every receiver whose **declared** type can hold no object — a scalar, an `array<T>`, a union
-naming no single class — is refused where it is written (`E0495`) instead, because a type that has
-already answered the question does not get to ask it again at run time.
+is one*. A receiver whose **declared** type answers the question is never erased: a type that can hold
+no object is refused where it is written ([`types/a-declared-type-answers-before-the-program-runs`](types.md#types-a-declared-type-answers-before-the-program-runs)),
+and a union of classes resolves a member against every class
+([`types/a-member-every-class-of-a-union-declares`](types.md#types-a-member-every-class-of-a-union-declares)).
 
 For all three:
 
@@ -2562,8 +2624,9 @@ checker wants the label for representation. What wants it is resolution: `$o->m(
 to check its arguments against and no return type for the position it sits in. There is no `__call`
 to fall back on ([`classes/no-call-magic`](classes.md#classes-no-call-magic)), and a dynamic call with run-time-checked arguments is
 granted to bare `callable` alone. `E0477` is one code for every receiver that names no class, because
-it is one mistake: plain `object`, a shape, a union naming no single class, and a type that can hold
-no object at all, such as a scalar, an `array<T>` or a `void` call's result. Only the help splits:
+it is one mistake: plain `object`, a shape, a union with a member that is not a class, and a type that
+can hold no object at all, such as a scalar, an `array<T>` or a `void` call's result. A union of
+classes is resolved against every class instead ([`types/a-member-every-class-of-a-union-declares`](types.md#types-a-member-every-class-of-a-union-declares)). Only the help splits:
 narrow the receiver (`is` proves the class, `as ClassName` converts to it), convert it, or nothing at
 all for a value that does not exist. The property half splits a deferral off from `E0495` and the call
 half does not, because a property read has a name-keyed fetch to defer to and a call has nothing.
@@ -2873,8 +2936,10 @@ are both accepted, the field being a slot in a heap object either way. Parenthes
 `rule:types/a-declared-type-answers-before-the-program-runs`
 
 `->` on a receiver whose declared type can hold no object is refused where it is written: `$i->name`
-where `$i` is declared `int` is `E0495`. A union naming no single class takes the same code, having no
-one property set to resolve against. The receiver's declaration has ruled the question out, so the
+where `$i` is declared `int` is `E0495`. A union with a member that is not a class takes the same code,
+having no one property set to resolve against. A union of classes is not refused here: a property every
+class declares is read through it, and one they do not all share is `E0881`
+([`types/a-member-every-class-of-a-union-declares`](types.md#types-a-member-every-class-of-a-union-declares)). The receiver's declaration has ruled the question out, so the
 access is dead code that reads as a live one — the same call
 [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused) makes for `==` over two statically disjoint types.
 

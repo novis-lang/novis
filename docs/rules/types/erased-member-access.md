@@ -1,8 +1,9 @@
 Three receivers are erased: plain `object`, a shape type asked for a name it does not list, and
 `mixed` — the widest, because it defers not only *which* class is behind the handle but *whether there
-is one*. Every receiver whose **declared** type can hold no object — a scalar, an `array<T>`, a union
-naming no single class — is refused where it is written (`E0495`) instead, because a type that has
-already answered the question does not get to ask it again at run time.
+is one*. A receiver whose **declared** type answers the question is never erased: a type that can hold
+no object is refused where it is written (`rule:types/a-declared-type-answers-before-the-program-runs`),
+and a union of classes resolves a member against every class
+(`rule:types/a-member-every-class-of-a-union-declares`).
 
 For all three:
 
@@ -43,8 +44,9 @@ checker wants the label for representation. What wants it is resolution: `$o->m(
 to check its arguments against and no return type for the position it sits in. There is no `__call`
 to fall back on (`rule:classes/no-call-magic`), and a dynamic call with run-time-checked arguments is
 granted to bare `callable` alone. `E0477` is one code for every receiver that names no class, because
-it is one mistake: plain `object`, a shape, a union naming no single class, and a type that can hold
-no object at all, such as a scalar, an `array<T>` or a `void` call's result. Only the help splits:
+it is one mistake: plain `object`, a shape, a union with a member that is not a class, and a type that
+can hold no object at all, such as a scalar, an `array<T>` or a `void` call's result. A union of
+classes is resolved against every class instead (`rule:types/a-member-every-class-of-a-union-declares`). Only the help splits:
 narrow the receiver (`is` proves the class, `as ClassName` converts to it), convert it, or nothing at
 all for a value that does not exist. The property half splits a deferral off from `E0495` and the call
 half does not, because a property read has a name-keyed fetch to defer to and a call has nothing.
