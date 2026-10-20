@@ -1,0 +1,49 @@
+<?nvs
+// Sends the page a route method returns through the gate's `respond`, as a web app does for each page it shows.
+// bench: iterations 256
+// bench: complexity linear
+
+class Blog {
+    #[Core\Route(path: "/post/{slug}", method: Core\Http\Method::Get, name: "Blog::post")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function post(string $slug): Core\Html\Markup {
+        return html`<h1>{$slug}</h1>`;
+    }
+}
+
+class Gate implements Core\Router\Responder {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {}
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {}
+
+    public function respond(Core\Router\Match $route, mixed $value): void {
+        if ($value is Core\Html\Markup) {
+            Core\Response::html($value);
+        }
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = ["/post/cake", "/post/biscuit", "/post/shortbread"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $response = Core\Test::request(Core\Http\Method::Get, $paths[(($total + $i) % 3) as int]);
+            $total = $total + $response->status() + Core\Str::length($response->body());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each request runs this file again. In that run, the router sends the page.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+echo Bench::run(256), "\n";
+}

@@ -1,0 +1,50 @@
+<?nvs
+// Measures a page sent through the gate's `respond`, at growing page lengths.
+// The page shows a part of the path, so a longer path gives a longer page.
+// bench: start 256
+// bench: max 4096
+
+class Blog {
+    #[Core\Route(path: "/post/{slug}", method: Core\Http\Method::Get, name: "Blog::post")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function post(string $slug): Core\Html\Markup {
+        return html`<h1>{$slug}</h1>`;
+    }
+}
+
+class Gate implements Core\Router\Responder {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {}
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {}
+
+    public function respond(Core\Router\Match $route, mixed $value): void {
+        if ($value is Core\Html\Markup) {
+            Core\Response::html($value);
+        }
+    }
+}
+
+class Bench {
+    public static function run(uint $size): uint {
+        string $path = '/post/' . Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $response = Core\Test::request(Core\Http\Method::Get, $path);
+            $total = $total + $response->status() + Core\Str::length($response->body());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each request runs this file again. In that run, the router sends the page.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+echo Bench::run(256), "\n";
+}
