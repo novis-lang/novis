@@ -1309,15 +1309,12 @@ fn reject_float_modulo(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) 
         return None;
     }
     env.diags.report(
-        Diagnostic::error(
-            code::E_FLOAT_MODULO,
-            "`%` has no meaning for `float`",
-        )
-        .with_primary(span, "no `float` row for `%`")
-        .with_help(
-            "write `($a as int) % ($b as int)` for an integer remainder. Write \
+        Diagnostic::error(code::E_FLOAT_MODULO, "`%` has no meaning for `float`")
+            .with_primary(span, "no `float` row for `%`")
+            .with_help(
+                "write `($a as int) % ($b as int)` for an integer remainder. Write \
              `Core\\Math::mod($a, $b)` for the floating-point remainder",
-        ),
+            ),
     );
     Some(env.interner.mixed())
 }

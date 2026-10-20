@@ -48,9 +48,7 @@ pub(crate) fn infer_yield(
                 "a `yield` has no key half in Novis",
             )
             .with_primary(k.span, "no key exists here")
-            .with_help(
-                "a generator has values but no keys. Remove the `key =>`",
-            ),
+            .with_help("a generator has values but no keys. Remove the `key =>`"),
         );
     }
     match (ctx.generator_elem, value) {
@@ -63,9 +61,7 @@ pub(crate) fn infer_yield(
             env.diags.report(
                 Diagnostic::error(code::E_YIELD_FORM_UNSUPPORTED, "a `yield` needs a value")
                     .with_primary(expr.span, "nothing is yielded here")
-                    .with_help(
-                        "write the value to yield after `yield`",
-                    ),
+                    .with_help("write the value to yield after `yield`"),
             );
         }
         (None, _) => {
@@ -95,9 +91,7 @@ pub(crate) fn infer_yield_from(
             "`yield from` does not exist in Novis",
         )
         .with_primary(expr.span, "this delegation form")
-        .with_help(
-            "write `foreach ($inner as T $v) { yield $v; }`",
-        ),
+        .with_help("write `foreach ($inner as T $v) { yield $v; }`"),
     );
     env.interner.void()
 }
@@ -218,9 +212,7 @@ pub(crate) fn report_not_iterable(subject_ty: TypeId, span: Span, env: &mut Env<
             format!("`foreach` cannot iterate a `{got}`"),
         )
         .with_primary(span, format!("this is `{got}`"))
-        .with_help(
-            "`foreach` works on an `array<T>`, an `Iterable<T>` or an `Iterator<T>`",
-        ),
+        .with_help("`foreach` works on an `array<T>`, an `Iterable<T>` or an `Iterator<T>`"),
     );
 }
 

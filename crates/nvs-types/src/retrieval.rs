@@ -426,9 +426,7 @@ pub(crate) fn fold_retrieval(
                     ),
                 )
                 .with_primary(call.span, "`get` answers at most one")
-                .with_help(
-                    "write `Core\\Attributes::all<T>(…)`, which returns every match",
-                ),
+                .with_help("write `Core\\Attributes::all<T>(…)`, which returns every match"),
             );
             return;
         }

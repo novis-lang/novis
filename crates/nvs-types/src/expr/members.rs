@@ -2451,9 +2451,7 @@ pub(crate) fn report_unset_on_property(span: Span, qname: &QName, name: &str, en
     env.diags.report(
         Diagnostic::error(
             code::E_UNSET_ON_PROPERTY,
-            format!(
-                "`unset()` does not work on the property `{qname}::${name}`"
-            ),
+            format!("`unset()` does not work on the property `{qname}::${name}`"),
         )
         .with_primary(span, "unset here")
         .with_help(

@@ -1249,7 +1249,9 @@ pub(crate) fn check_double_answers(
         env.diags.report(
             Diagnostic::error(
                 code::E_DOUBLE_TYPE_ARG_NOT_AN_INTERFACE,
-                format!("`{owner}::{method}` stands in for an interface, and `{interface}` is not one"),
+                format!(
+                    "`{owner}::{method}` stands in for an interface, and `{interface}` is not one"
+                ),
             )
             .with_primary(call_span, format!("`{interface}` written here"))
             .with_help(
