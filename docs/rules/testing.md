@@ -3,7 +3,7 @@
 
 # Testing
 
-*31 of 78 rules below are **designed** rather than shipped, and are marked where they appear.*
+*31 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -2045,15 +2045,63 @@ rules say under that one codegen, and this bug class lives only where a probe-at
 build of the same program prints something else. The cost is CI wall-clock proportional to the added
 axes, and nothing at all at run time.
 
-CI runs the conformance suite on every leg twice, at `opt_level` `speed` and again with
+CI runs the conformance suite on every leg three times: at `opt_level` `speed`, again with
 `NOVIS_NO_OPTIMISE` set, which compiles at `none` and keeps the artifact cache off
-(`nvs_codegen::compile_unoptimised`).
+(`nvs_codegen::compile_unoptimised`), and again with `NOVIS_CHECK_TYPES` set. That third run is the
+checked build (`nvs_codegen::compile_checked_types`): each typed read also tests its value against its
+declared type, and a value of another type stops the process naming the line. A case whose output is
+right can still read a value as another type, and only this run sees that.
 
 **Not on disk.** The probes half. The codegen tests compile with probes on
 (`crates/nvs-codegen/tests/probes.rs:276`), but the coverage flags are refused over a `.nvst` tree
 (`crates/nvs-cli/src/main.rs:2394`), so no suite run has probes on.
 
 <sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate).</sub>
+
+<a id="testing-redeclaration-matrix"></a>
+
+## Every redeclaration a subclass can write is a generated conformance cell, and every cell runs or is refused as its rule says
+
+`rule:testing/redeclaration-matrix`
+
+Every way a subclass or an implementor can declare a member again over its parent's is a conformance
+case, generated from one table. **Each cell compiles and runs the declaration its rule names, reading a
+value of its declared type, or is the compile error its rule names at the line it names.** No cell is
+skipped, and none is a gap record.
+
+The table is the module doc of `bun nv soundness` (`tools/nv/cmd/soundness.ts`), and each row cites the
+rule that gives its verdict. A cell is one member kind, one type relation between the two declarations
+and one path a program reaches the member by:
+
+- **members:** a method's parameter and return, an interface method's parameter and return, a static
+  method's parameter and return, `compareTo`'s parameter, an instance property (plain, promoted,
+  `lateinit`, hooked, `array<T>`), a `readonly` property, a static property, and a class or interface
+  constant read through `self::`, the class name and `static::`;
+- **relations:** the same type, a subclass, a superclass, an unrelated class, `int` under `int|string`,
+  `int` over `float`, `float` over `int`, `T` under `?T`, `?T` over `T`, a union member under the union,
+  and a wider union;
+- **paths:** a variable of the parent's type, of the child's type, of an interface's type, `static::`,
+  an erased `object` or `mixed` access, a `property<T>` key, and a first-class callable.
+
+`--write` writes the cells to `tests/conformance/soundness/`, one file per member kind for the cells that
+run and one for the cells that are compile errors. `bun nv verify` runs `--check`, which fails when a
+committed file differs from what `--write` writes, and the `.nvst` step runs the cells like any case. A
+cell's expectation is the rule's verdict and is never changed to match the binary: where the rule is
+wrong, the rule and the table change together. `--probe` runs each cell alone, to name the one that
+fails when a whole file does.
+
+A rule-driven suite pins what a rule says, and no case exists where no rule spoke. The matrix asks the
+question for every form instead, and the checked build
+([`testing/probes-on-is-a-tested-configuration`](testing.md#testing-probes-on-is-a-tested-configuration)) asks it for every typed read of every case. The
+cost is CI time: the cells run with the rest of the suite.
+
+**Declined:**
+- **A skip list of failing cells.** It held the first findings while they were fixed, and a list that
+  outlives its fixes is a place a regression can hide. A failing cell is a red verify.
+- **Hand-written cases per relation.** The relations multiply with the member kinds and the paths, and a
+  hand-written set covers the combinations someone thought of.
+
+<sub>See also [`testing/probes-on-is-a-tested-configuration`](testing.md#testing-probes-on-is-a-tested-configuration), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate).</sub>
 
 <a id="testing-writing-a-debug-record-to-disk-is-its-own-gate"></a>
 

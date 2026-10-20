@@ -294,6 +294,14 @@ jobs:
         env:
           NOVIS_NO_OPTIMISE: '1'
         run: cargo run --quiet -p nvs-cli -- test tests/conformance/
+      # The same suite under the checked build (`rule:testing/probes-on-is-a-tested-configuration`):
+      # each typed read also tests its value against its declared type, and a value of another type
+      # stops the case. That is a compiler bug a case's output alone may not show.
+      - name: Conformance suite, checked types
+        if: matrix.part != 'tests'
+        env:
+          NOVIS_CHECK_TYPES: '1'
+        run: cargo run --quiet -p nvs-cli -- test tests/conformance/
       - name: Stop the compose servers (Linux)
         if: always() && runner.os == 'Linux'
         run: docker compose -f tests/db/compose.yaml down --volumes
