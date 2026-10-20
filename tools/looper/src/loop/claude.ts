@@ -10,9 +10,10 @@
 //
 // It runs in the session's tree with `LOOPER_AGENT=1`, so a looper command the agent runs asks as
 // `agent`. It also gets `LOOPER_WRITTEN` when the session gives a written-paths file. `LOOPER_LOOP` and
-// `LOOPER_GOAL` name the loop and the goal, which the guard records in a claim. Claude reads one JSON
-// user message per stdin line. It stays running until stdin closes, so a message sent after a `result`
-// starts another turn.
+// `LOOPER_GOAL` name the loop and the goal, which the guard records in a claim. `LOOPER_ROOT` names the
+// project root that holds the loop's folder, so `decision` finds it from a side loop's lane. Claude
+// reads one JSON user message per stdin line. It stays running until stdin closes, so a message sent
+// after a `result` starts another turn.
 //
 // # The stdin lines
 //
@@ -138,6 +139,7 @@ export function commandLine(program: string[], opts: LaunchOptions): AgentComman
   const env: Record<string, string> = {};
   if (opts.written !== undefined) env.LOOPER_WRITTEN = opts.written;
   if (opts.loop !== undefined) env.LOOPER_LOOP = opts.loop;
+  if (opts.root !== undefined) env.LOOPER_ROOT = opts.root;
   if (opts.goal !== undefined) env.LOOPER_GOAL = opts.goal;
   env.LOOPER_AGENT = "1";
   return { argv, cwd: opts.cwd, env };

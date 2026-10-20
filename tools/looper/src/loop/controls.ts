@@ -4,7 +4,8 @@
 //
 // - **A line is one `Control`:** `{"at", "by", "action", "payload"}`, with `refused` when the asker
 //   was refused. `by` is `ui`, `cli:<who>`, `agent` or `looper`. Any process appends one with
-//   `appendControl`, under the loop's named mutex, as one write call with its newline. A file whose
+//   `appendControl`, under the loop's named mutex (`lock`), as one write call with its newline. The
+//   decisions file of `decisions.ts` is written under the same mutex. A file whose
 //   last line a killed writer tore is ended with a newline first, so the torn line is skipped alone.
 // - **The pause that stands** is folded from the lines in order (`standingPause`): a `start`, and a
 //   `resume` its asker `canLift`, lift it, and a `pause` sets its owner as `pauseOwner` says. So a
@@ -144,7 +145,7 @@ function mutexName(dir: string): string {
 }
 
 /** Takes the controls mutex of the loop whose folder is `dir`, waiting while another process holds it. Close it to release it. */
-async function lock(dir: string): Promise<Mutex> {
+export async function lock(dir: string): Promise<Mutex> {
   const m = openMutex(mutexName(dir));
   while (!m.tryTake()) await Bun.sleep(LOCK_EVERY_MS);
   return m;

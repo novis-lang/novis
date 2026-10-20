@@ -12,7 +12,7 @@
 // | `Bash`, `PowerShell` | a sleep or a poll loop: `sleep`, `Start-Sleep`, `timeout /t`, `while true`, `while :`, `while ($true)`, `until`, `Wait-Process`, and a `wait`, `while`, `until` or `.WaitForExit` in a pipeline that finds a process with `pgrep`, `pidof`, `ps`, `Get-Process` or `tasklist`. The reason points at `run_in_background` and Monitor |
 // | `Bash`, `PowerShell` | a kill by process name: `pkill`, `killall`, `taskkill /im`, `Stop-Process -Name`, and a `kill`, `Stop-Process` or `taskkill` in a pipeline that finds a process as above. The reason points at `TaskStop` and `looper exec kill` |
 // | `Bash`, `PowerShell` | a build or test piped into `head`, `tail`, or `Select-Object` with `-First` or `-Last`, since the harness keeps the whole output. A pipe into `grep` passes |
-// | `Bash`, `PowerShell` | an install or update of looper: `looper self-update`, `looper service install` and `looper service update`, and their `cargo run … --` forms |
+// | `Bash`, `PowerShell` | an install or a build of looper in the session's job: `looper self-update` and `looper service install`, and their `cargo run … --` forms. `looper service update` passes, because the server runs it detached and refuses an agent's request |
 // | `Bash`, `PowerShell` | a test run wider than `looper verify` (decision 0011): a `cargo test` without `--test`, `--lib`, `--bin`, `--example`, `--bench`, `--no-run` or a filter, and a `bun test` without a file or `-t` |
 // | `Read` | a read without `limit` of a text file with more than `WHOLE_READ_LINES` lines from its `offset` on |
 // | `Edit`, `Write`, `NotebookEdit` | an edit of a file in a git tree that another live session claims (`claims.ts`) |

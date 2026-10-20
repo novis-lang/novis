@@ -68,6 +68,8 @@ export interface LaunchOptions {
   written?: string;
   /** The loop the session runs in, passed as `LOOPER_LOOP`. */
   loop?: string;
+  /** The project root that holds the loop's folder, passed as `LOOPER_ROOT`. A side loop's `cwd` is its lane. */
+  root?: string;
   /** The goal the session works on, passed as `LOOPER_GOAL`. */
   goal?: string;
 }

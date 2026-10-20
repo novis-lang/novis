@@ -383,7 +383,7 @@ function doneSteps(file: string, scratch: string): string {
     `2. Overwrite ## Handoff in ${file} (### State, ### Next with anchors, ### Backlog); tick finished items; set a stage's status to done in the front matter when its items are done and its checks pass.`,
     "3. A playbook bullet if a trap cost you time.",
     `4. One commit per slice: \`git add <the slice's paths>\` then \`git commit -F ${scratch}/msg.txt\`.`,
-    "5. Write .loop/status.txt with one line: CONTINUE <what landed> | DONE <goal reached> | BLOCKED <the decision only the user can make>. Then stop.",
+    `5. Write .loop/status.txt with one line: CONTINUE <what landed> | DONE <goal reached> | BLOCKED <the decision only the user can make>. A decision that leaves other work to do goes to \`${TOOL} decision ask\` instead of BLOCKED. Then stop.`,
   ].join("\n");
 }
 

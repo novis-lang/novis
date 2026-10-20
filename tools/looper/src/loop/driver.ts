@@ -19,11 +19,12 @@
 // 3. **Open.** The opening is the prompt for the mode (`Driver.prompt`) with the orientation pack behind
 //    it, or, to rejoin a dropped stream, `RESUME_PROMPT` alone. A skipped stage is named in the prompt,
 //    and the pack shows the stage taken as the live one. The pack's project sections run with the
-//    loop's variables, and `LOOPER_STAGE` names that stage.
+//    loop's variables, and `LOOPER_STAGE` names that stage. After them comes the section on the loop's
+//    decisions for the user (`packSection` in `decisions.ts`), when any stands.
 // 4. **Serve.** The session gets the next number of the loop and its folder `sessions/<n>/`, whose
 //    `session.json` records it from its start. It is served there (`serve` in `session.ts`) with
-//    `LOOPER_LOOP` and `LOOPER_GOAL`. Its edit claims are released once it ends. Then the driver reads
-//    `looper.toml` again (`Driver.reload`), so every step after the session runs the config the session
+//    `LOOPER_LOOP`, `LOOPER_GOAL`, and `LOOPER_ROOT` for the root that holds the loop's folder. Its
+//    edit claims are released once it ends. Then the driver reads `looper.toml` again (`Driver.reload`), so every step after the session runs the config the session
 //    left. One that does not load is a warning, and the turn keeps its config.
 // 5. **Classify** the exit through the adapter. A session the kit killed itself is not classified: it is
 //    swept and judged like one that ended.
@@ -43,7 +44,8 @@
 //    with `MERGE_HOLD`.
 // 7. **Judge.** Read the status line from `Driver.statusFile` and count the commits since the session's
 //    base. A chain or a goal file the session left unloadable is a `chain-error` repair. Only a session
-//    that claims `DONE` runs the `before_sweep` hooks, and holds when one that pauses the loop fails.
+//    that claims `DONE` while no decision for the user stands (`standing` in `decisions.ts`) runs the
+//    `before_sweep` hooks, and holds when one that pauses the loop fails.
 //    Then it runs acceptance, adds its results to the run's check history, and asks `notReached`
 //    (decision 0014). Every other session is judged by its status line and its commits alone; it checks
 //    its own work with verify, and step 9 may sweep it after the verdict.
@@ -58,6 +60,8 @@
 //    - reached, but the retirement failed (such as a `commit-msg` hook that refused its commit): hold
 //      with git's reason, with the goal put back and still live;
 //    - `BLOCKED`: hold with the session's reason;
+//    - `DONE` while a decision stands, open or answered: a retry handed why, and a `decisions` hold
+//      on the second such claim in a row;
 //    - `DONE` refused: a retry handed the reasons, up to `done_retries`, then a `done-claim` repair;
 //    - `max_stalls` sessions in a row without a commit: a `stalled` repair;
 //    - otherwise continue.
@@ -94,7 +98,7 @@
 // `CHECKS_MAX` checks, so a run of any length carries the same state. `session.json` holds one record.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { dir as claimDir, release } from "../claims/claims.ts";
 import { goalVars, extra as packExtra } from "../cli/orient.ts";
 import { type Config, defaultConfig, loadConfig, type Prompts as Named } from "../goal/config.ts";
@@ -105,6 +109,7 @@ import { acceptance, named, type Progress, type Project, runReported, unreported
 import { storeDir } from "../verify/select.ts";
 import type { AgentAdapter, ExitClass } from "./adapter.ts";
 import { catchUp, type Side } from "./catch-up.ts";
+import { packSection, standing } from "./decisions.ts";
 import { type HookEvent, runHooks } from "./hooks.ts";
 import { type Controls, type Limits, type Live, limitsFrom, NOTES_MAX, type Served, type Stats, serve, sessionEnd, WRITTEN_MAX } from "./session.ts";
 import { git, interrupted, lastSweep, notReached, retire, sweep, WRITTEN_LIST, wrapped } from "./turn.ts";
@@ -222,6 +227,8 @@ export interface RunState {
   goal: string;
   repairs: number;
   doneClaims: number;
+  /** The `DONE` claims refused because a decision for the user stood. */
+  decisionClaims: number;
   /** Counts of the same thing in a row. */
   stalls: number;
   failures: number;
@@ -259,6 +266,7 @@ export function newRunState(): RunState {
     goal: "",
     repairs: 0,
     doneClaims: 0,
+    decisionClaims: 0,
     stalls: 0,
     failures: 0,
     overloads: 0,
@@ -695,6 +703,8 @@ export class Driver {
         prompt += `\nThe operator skipped stage ${live.id} for this session: take stage ${stage.id}, which the pack below shows as the live stage, and leave stage ${live.id}'s status as it is.\n`;
       }
       const sections = await packExtra(this.root, this.cfg, stage?.id, false, this.project().vars);
+      const decided = packSection(this.dir);
+      if (decided !== null) sections.push(decided);
       opening = this.adapter.opening(prompt, pack(this.root, this.cfg, false, stage?.id, sections));
     }
     this.state.notes = [];
@@ -785,6 +795,7 @@ export class Driver {
         resume: dropped?.agentSession,
         written: writtenList,
         loop: this.loopName,
+        root: resolve(this.dir, "..", "..", ".."),
         goal: slug,
       },
       opening,
@@ -947,7 +958,8 @@ export class Driver {
     const status = statusLine ?? "";
     const s = this.state;
     let why: string[] = [];
-    if (status.startsWith("DONE")) {
+    const waits = status.startsWith("DONE") ? standing(this.dir) : null;
+    if (status.startsWith("DONE") && waits === null) {
       const paused = await this.hooks("before_sweep");
       if (paused !== null) return this.hold(setupHold(paused));
       const acc = await acceptance(this.root, goal, chain.floor, this.checkLogs, this.units(), this.project(), this.progress);
@@ -975,6 +987,20 @@ export class Driver {
       s.verdict = "";
       return this.hold(`the session is BLOCKED: ${status.slice("BLOCKED".length).trim()}`);
     }
+    if (waits !== null) {
+      s.decisionClaims++;
+      if (s.decisionClaims > 1) {
+        s.decisionClaims = 0;
+        s.mode = "work";
+        s.verdict = "";
+        return this.hold(`decisions: ${waits}`);
+      }
+      s.mode = "retry";
+      s.verdict = `- ${waits}`;
+      s.held = null;
+      return { kind: "continue" };
+    }
+    s.decisionClaims = 0;
     if (status.startsWith("DONE")) {
       s.doneClaims++;
       const reasons = why.map((w) => `- ${w}`).join("\n");
