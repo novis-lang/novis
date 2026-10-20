@@ -50,7 +50,7 @@ stages:
     context: [crates/nvs-types/src/expr/operators.rs, crates/nvs-types/src/locals.rs, crates/nvs-types/src/expr/mod.rs, crates/nvs-types/src/expr/assign.rs]
   - id: 11
     title: "anonymous functions, commands and tests take only what can run"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/commands.rs, crates/nvs-types/src/testing.rs]
   - id: 12
     title: "a route link matches its route, and an unread body never costs the response"
@@ -389,13 +389,13 @@ reads and writes each wire key once.
 
 **Does:** each of the seven forms below is a compile error, or runs as § *Standing decisions* says.
 
-- [ ] A `...` on an anonymous function's parameter is a diagnostic at the parameter. `crates/nvs-types/src/expr/calls.rs:1`, `data/gaps/nvs-types/a-variadic-parameter-on-an-anonymous.json:1`
-- [ ] A default on an anonymous function's parameter is a diagnostic at the parameter. `crates/nvs-types/src/expr/calls.rs:1`, `data/gaps/nvs-types/an-anonymous-function-parameter-default-is.json:1`
-- [ ] A `Core\Task::all` field whose function takes a parameter is a diagnostic at the field. `crates/nvs-types/src/expr/assign.rs:1`, `data/gaps/nvs-types/a-task-group-function-that-takes.json:1`
-- [ ] A command name or `long:` that is empty or has a space, and a `short:` that is not one letter or digit, are checker errors. `crates/nvs-types/src/commands.rs:1`, `data/gaps/nvs-types/a-command-name-or-option-spelling.json:1`
-- [ ] A positional command parameter is checked like an option, and a trailing `array<string>` collects the remaining words. `crates/nvs-types/src/commands.rs:1`, `data/gaps/nvs-types/a-positional-command-parameter-of-a.json:1`
-- [ ] A `null` value in a `#[TestWith]` row fills a `?T` parameter with `null`. `crates/nvs-types/src/testing.rs:1`, `data/gaps/nvs-types/a-null-data-row-compiles-and.json:1`
-- [ ] An empty `skip:` or `because:`, and a `retries:` below 1, are compile errors. `crates/nvs-types/src/testing.rs:1`, `data/gaps/nvs-types/an-empty-skip-reason-and-a.json:1`
+- [x] A `...` on an anonymous function's parameter is a diagnostic at the parameter. `crates/nvs-types/src/expr/calls.rs:1`, `data/gaps/nvs-types/a-variadic-parameter-on-an-anonymous.json:1`
+- [x] A default on an anonymous function's parameter is a diagnostic at the parameter. `crates/nvs-types/src/expr/calls.rs:1`, `data/gaps/nvs-types/an-anonymous-function-parameter-default-is.json:1`
+- [x] A `Core\Task::all` field whose function takes a parameter is a diagnostic at the field. `crates/nvs-types/src/expr/assign.rs:1`, `data/gaps/nvs-types/a-task-group-function-that-takes.json:1`
+- [x] A command name or `long:` that is empty or has a space, and a `short:` that is not one letter or digit, are checker errors. `crates/nvs-types/src/commands.rs:1`, `data/gaps/nvs-types/a-command-name-or-option-spelling.json:1`
+- [x] A positional command parameter is checked like an option, and a trailing `array<string>` collects the remaining words. `crates/nvs-types/src/commands.rs:1`, `data/gaps/nvs-types/a-positional-command-parameter-of-a.json:1`
+- [x] A `null` value in a `#[TestWith]` row fills a `?T` parameter with `null`. `crates/nvs-types/src/testing.rs:1`, `data/gaps/nvs-types/a-null-data-row-compiles-and.json:1`
+- [x] An empty `skip:` or `because:`, and a `retries:` below 1, are compile errors. `crates/nvs-types/src/testing.rs:1`, `data/gaps/nvs-types/an-empty-skip-reason-and-a.json:1`
 
 ### 12. a route link matches its route, and an unread body never costs the response
 
@@ -478,83 +478,39 @@ another goal.
 
 ### State
 
-Stages 1, 2, 3, 16, 4, 5, 6, 7, 8, 9 and 10 are done, and every gap record they owned is deleted.
+Stages 1, 2, 3, 16, 4, 5, 6, 7, 8, 9, 10 and 11 are done, and every gap record they owned is deleted.
 
-**Stage 11 is written in the working tree and NOT committed.** All seven items are built, `cargo
-build` is clean, and each new or changed case passes alone under `target/debug/nvs test`. The gate
-(`bun nv affected --run`) was started and stopped at the context budget, so nothing is verified past
-those cases. The seven gap records are deleted in the tree (`git rm`).
+Stage 11's code landed in the loop's `wip(loop)` commit `4a35591bc`, which looper made when session
+0039 ended uncommitted. That commit cannot be split without a force operation, so the follow-up
+commits carry the rest of each slice: the gap and playbook deletions, the regenerated rule chapters,
+and the gate's fixes. The gate (`bun nv affected --run`) is green.
 
-- **Anonymous function parameters:** a `...` or a default is the new `E0877`
-  (`E_ANON_FN_PARAM_SHAPE`) at the `...` or the default, in `report_variadic_or_default_parameter`
-  (`crates/nvs-types/src/expr/calls.rs`), called from `check_anon_fn`. A refused variadic binds as
-  `array<T>` in the body, so it reports once. Rule: a paragraph and a Declined bullet of
-  `rule:types/anonymous-function`.
-- **`Core\Task::all`:** a written field whose signature has a parameter is the new `E0878`
-  (`E_TASK_FIELD_TAKES_PARAMETERS`) at the field, in `assign::report_task_fields_with_parameters`,
-  called from the generic-call argument check in `crates/nvs-types/src/expr/args.rs` (about line
-  1699). `is_assignable`'s `ShapeOfCallables` arm also refuses a signature with parameters, so a
-  shape held in a variable is `E0401`. A field typed bare `callable` is checked at run time:
-  `nvs_core_task_all` (`crates/nvs-stdlib/src/task.rs`) reads each field's arity first and throws a
-  `LogicError`. Rule: a paragraph of `rule:concurrency/all-answers-a-typed-shape`.
-- **Command spellings:** an empty or spaced `name:` or `long:`, and a `short:` that is not one ASCII
-  letter or digit, are the new `E0879` (`E_COMMAND_SPELLING`), in `report_spelling` /
-  `spellings` / `collect_command` (`crates/nvs-types/src/commands.rs`).
-- **Positional command parameters:** `check_positional` holds them to `check_convertible` (`E0746`,
-  worded "an argument of"). A trailing `array<string>` is the new `ArgConv::Words` in both
-  `nvs_types::commands` and `nvs_runtime::commands`, mapped in `crates/nvs-cli/src/main.rs`, and
-  collected by `fill` in `crates/nvs-stdlib/src/command.rs`. The usage line shows `[<files>...]`. An
-  `array<string>` that is not the last positional is `E0746`. An array default is already `E0451`.
-  A row with `ArgConv::Unconverted` is now a fatal internal error, since the checker refuses every
-  such parameter. The `E0746` card is rewritten. Rules: `rule:tooling/commands-are-compiled` and
-  `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`. Two playbook bullets about the
-  old positional throw are deleted, and the old case moved to
-  `tests/conformance/reject/a-positional-command-parameter-of-a-type-with-no-conversion-does-not-compile.nvst`.
-- **`#[TestWith]` `null`:** `materialize` in `crates/nvs-cli/src/runner.rs` gives `Value::null()`
-  for `ConstArg::Null`. Rule: a paragraph of `rule:testing/data-rows`.
-- **`#[Test]` values:** an empty or blank `skip:` or `because:`, and a `retries:` below 1, are the new
-  `E0880` (`E_TEST_OPTION_VALUE`), in `check_option_values` (`crates/nvs-types/src/testing.rs`).
-  Rule: `rule:testing/runner-is-strict`.
-- New cases, each listed in its rule's `guardedBy`: under `tests/conformance/reject/`
-  `an-anonymous-function-parameter-with-a-variadic-or-a-default-…`,
-  `a-task-all-field-whose-function-takes-a-parameter-…`,
-  `a-command-name-or-option-name-no-command-line-can-type-…`,
-  `a-positional-command-parameter-of-a-type-with-no-conversion-…` and
-  `an-empty-test-reason-or-a-retry-count-below-one-…`; under `tests/conformance/core/`
-  `a-task-all-field-typed-callable-whose-function-takes-a-parameter-throws.nvst`,
-  `command-run-collects-the-remaining-words-into-a-trailing-array-of-strings.nvst` and
-  `command-run-gives-an-empty-array-when-no-word-is-left.nvst`; under `tests/conformance/lang/`
-  `a-null-data-row-field-fills-a-nullable-parameter-with-null.nvst`.
-  `a-variadic-parameter-that-is-not-the-last-does-not-compile.nvst` now expects the `E0877` too.
-- `website/src/lib/core.ts` and `tools/nv/test/core-type-links.test.ts` were already changed in the
-  tree before this session and are not part of stage 11. Leave them out of its commits.
+- The gate's fixes: `crates/nvs-stdlib/src/command.rs`'s `ArgConv::Unconverted` throw is declared
+  "unreachable from source" (E0746) for `conformance_coverage`, and its message now reads whole.
+  Three programs wrote forms that are now compile errors and were rewritten:
+  `tests/conformance/core/command-completions-writes-a-name-bash-cannot-expand.nvst` (`$(id)`, no
+  space), `tests/conformance/reject/a-retry-states-the-reason-it-is-retried.nvst` (`retries: 1`), and
+  three attacks under `tests/hostile/` (`core/Command/completions/01-…`,
+  `lang/testing/test-options/01-…`, `tools/php-differences/the-tools-you-do-not-install/01-…`). Each
+  attack runs to its last line.
+- `website/src/lib/core.ts` and `tools/nv/test/core-type-links.test.ts` were changed in the tree
+  before session 0039 and belong to no stage of this goal. They are left uncommitted.
 
 ### Next
 
-**Stage 11: verify and commit what is in the tree.** Run `bun nv affected --run` once, fix every
-failure it names in one pass, and run it again. Likely spots: a case or a website page that pins
-the old `E0746` card or help, a `Core\Command` help or completion snapshot, and `bun nv proofs
---comments` on the new cases. Then commit in three slices: the anonymous functions and
-`Task::all` (`calls.rs`, `args.rs`, `assign.rs`, `task.rs`); the commands (`commands.rs` in
-`nvs-types`, `nvs-runtime` and `nvs-stdlib`, `main.rs`, the two tooling rules, the two playbook
-deletions); and the tests (`testing.rs`, `runner.rs`, the two testing rules). The diagnostic
-codes in `types_e07.rs` and `types_e08.rs` go with the slice that uses them. Tick the seven items
-and set stage 11 to `done` once the gate is green.
+**Stage 12** (`### 12.` in this file): a route link matches its route, and an unread body never
+costs the response. § *Standing decisions* settles the drain bound and the header line limit (100,
+a named constant in `serve_connection`, no new setting) and makes a `bool` capture `E0752`.
 
-- [ ] Stage 11: a `...` on an anonymous function's parameter is a diagnostic at the parameter. `crates/nvs-types/src/expr/calls.rs:1`, `data/gaps/nvs-types/a-variadic-parameter-on-an-anonymous.json:1`
-- [ ] Stage 11: a default on an anonymous function's parameter is a diagnostic at the parameter. `crates/nvs-types/src/expr/calls.rs:1`, `data/gaps/nvs-types/an-anonymous-function-parameter-default-is.json:1`
-- [ ] Stage 11: a `Core\Task::all` field whose function takes a parameter is a diagnostic at the field. `crates/nvs-types/src/expr/assign.rs:1`, `data/gaps/nvs-types/a-task-group-function-that-takes.json:1`
-- [ ] Stage 11: a command name or `long:` that is empty or has a space, and a `short:` that is not one letter or digit, are checker errors. `crates/nvs-types/src/commands.rs:1`, `data/gaps/nvs-types/a-command-name-or-option-spelling.json:1`
-- [ ] Stage 11: a positional command parameter is checked like an option, and a trailing `array<string>` collects the remaining words. `crates/nvs-types/src/commands.rs:1`, `data/gaps/nvs-types/a-positional-command-parameter-of-a.json:1`
-- [ ] Stage 11: a `null` value in a `#[TestWith]` row fills a `?T` parameter with `null`. `crates/nvs-types/src/testing.rs:1`, `data/gaps/nvs-types/a-null-data-row-compiles-and.json:1`
-- [ ] Stage 11: an empty `skip:` or `because:`, and a `retries:` below 1, are compile errors. `crates/nvs-types/src/testing.rs:1`, `data/gaps/nvs-types/an-empty-skip-reason-and-a.json:1`
+- [ ] Stage 12: a literal `Core\Router::url` value that the capture's conversion would refuse is a compile error. `crates/nvs-types/src/routes.rs:1`, `data/gaps/nvs-types/a-link-value-of-the-wrong.json:1`
+- [ ] Stage 12: a `bool` route capture is `E0752`, with a case for the match, the link and the dispatch. `crates/nvs-runtime/src/routes.rs:1`, `crates/nvs-stdlib/src/router.rs:1`, `data/gaps/nvs-runtime/a-bool-route-capture-is-never.json:1`
+- [ ] Stage 12: the connection closes only after the response is flushed, with a case that pipelines a request behind a large unread POST. `crates/nvs-server/src/body.rs:1`, `data/gaps/nvs-server/an-unread-post-body-can-lose-the-response.json:1`
+- [ ] Stage 12: the header line limit is a named constant in `serve_connection`, stated by a rule, with a case at the bound and one past it. `crates/nvs-server/src/serve.rs:1`, `data/gaps/nvs-server/header-line-limit-is-hyper-default.json:1`
 
 The installed `looper` binary has no `verify` subcommand, so these sessions run
 `bun nv affected --run` as the gate. The next free diagnostic code is `E0881`
-(`crates/nvs-diagnostics/src/code/types_e08.rs`).
-
-Then **stage 12** (`### 12.` in this file): a route link matches its route, and an unread body
-never costs the response.
+(`crates/nvs-diagnostics/src/code/types_e08.rs`). A new checker error can break an attack under
+`tests/hostile/` that the gate does not run: grep them for the refused form before the gate.
 
 ### Backlog
 

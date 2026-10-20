@@ -9,15 +9,15 @@ use Core\Test;
 
 class Options
 {
-    // 1. The two ends of the allowance: the largest whole number, and none.
+    // 1. The two ends of the allowance: the largest whole number, and 1.
     #[Test(retries: 9223372036854775807, because: "the largest allowance a whole number can hold")]
     public function itTakesTheLargestAllowance(): void
     {
         Test::assertTrue(true);
     }
 
-    #[Test(retries: 0, because: "an allowance of nothing is still an allowance")]
-    public function itTakesAnAllowanceOfNothing(): void
+    #[Test(retries: 1, because: "the smallest allowance")]
+    public function itTakesTheSmallestAllowance(): void
     {
         Test::assertTrue(true);
     }
