@@ -1,0 +1,55 @@
+--TEST--
+A static call or a static property on a class that is not declared, or a static member a declared class does not have, reports once, and using the result reports nothing — `rule:types/one-mistake-reports-once`
+--FILE--
+<?nvs
+class Shop {
+    public static int $count = 0;
+
+    // `Gone` is not declared. Each `Gone` written here gives one error, and
+    // using each result as a `string` gives none.
+    public static function label(): string {
+        string $made = Gone::make();
+        string $total = Gone::$total;
+        return Gone::label();
+    }
+
+    // `Shop` has no method `nothing` and no static property `missing`.
+    // Each gives one error, and returning the result gives none.
+    public static function title(): string {
+        string $text = Shop::nothing();
+        return Shop::$missing;
+    }
+}
+--EXPECTF-ERROR--
+error[E0303]: `Gone` is not declared
+  --> %s:8:24
+  |
+8 |         string $made = Gone::make();
+  |                        ^^^^ no matching declaration
+
+error[E0303]: `Gone` is not declared
+  --> %s:9:25
+  |
+9 |         string $total = Gone::$total;
+  |                         ^^^^ no matching declaration
+
+error[E0303]: `Gone` is not declared
+   --> %s:10:16
+   |
+10 |         return Gone::label();
+   |                ^^^^ no matching declaration
+
+error[E0309]: `Shop` has no method named `nothing`
+   --> %s:16:24
+   |
+16 |         string $text = Shop::nothing();
+   |                        ^^^^ referenced here
+
+error[E0309]: `Shop` has no static property named `missing`
+   --> %s:17:16
+   |
+17 |         return Shop::$missing;
+   |                ^^^^ referenced here
+
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

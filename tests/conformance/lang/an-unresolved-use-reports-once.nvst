@@ -1,0 +1,43 @@
+--TEST--
+A `use` that does not resolve reports once, at the `use` line, and each later use of its short name as a type, in `new`, in a static call, in `extends` and in a `catch` reports nothing — `rule:types/one-mistake-reports-once`
+--FILE--
+<?nvs
+namespace App;
+
+// Nothing declares `App\Missing`. Its error is the only one this file gives.
+use App\Missing;
+
+// `extends Missing` gives no error.
+class Shop extends Missing {
+}
+
+class Store {
+    // A parameter typed `Missing` and a property read on it give no error.
+    public static function label(Missing $item): string {
+        string $name = $item->name;
+        return $name;
+    }
+
+    // `new Missing()` and the static call `Missing::build()` give no error.
+    public static function make(): void {
+        Missing $made = new Missing();
+        Missing $built = Missing::build();
+    }
+
+    // `catch (Missing $e)` gives no error.
+    public static function guard(): void {
+        try {
+            Store::make();
+        } catch (Missing $e) {
+        }
+    }
+}
+--EXPECTF-ERROR--
+error[E0306]: `App\Missing` does not resolve to any declaration
+  --> %s:5:5
+  |
+5 | use App\Missing;
+  |     ^^^^^^^^^^^ no matching class, interface or enum declared
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

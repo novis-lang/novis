@@ -689,7 +689,7 @@ pub(crate) fn infer(
                     )
                     .with_primary(class.span, "referenced here"),
                 );
-                return env.interner.mixed();
+                return env.interner.error();
             }
             let resolved = qname.and_then(|qname| {
                 resolve_property_owned(&qname, &prop_name, env.signatures, env.graph)
@@ -719,7 +719,9 @@ pub(crate) fn infer(
                     );
                     ty
                 }
-                None => env.interner.mixed(),
+                // `nvs_hir::members` has reported the class side's `E0303` or
+                // the property's `E0309` (`rule:types/one-mistake-reports-once`).
+                None => env.interner.error(),
             }
         }
         ExprKind::ClassConstAccess { class, name } => {

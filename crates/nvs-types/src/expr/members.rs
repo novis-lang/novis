@@ -1657,19 +1657,21 @@ pub(crate) fn check_class_name_const(
                 && !qname.is_core()
                 && !qname.is_reserved_global_class()
                 && !qname.is_reserved_global_interface()
-            {
-                env.diags.report(nvs_hir::undeclared_name(
+                && let Some(diagnostic) = nvs_hir::undeclared_name(
                     nvs_hir::Undeclared {
                         qname: &qname,
                         text: span_text(env.src, class.span),
                         span: class.span,
                         namespace: ctx.namespace,
+                        imports: ctx.imports,
                         stmts: env.stmts,
                         src: env.src,
                     },
                     env.symbols,
                     &nvs_stdlib::registry::type_names(),
-                ));
+                )
+            {
+                env.diags.report(diagnostic);
             }
             let value = crate::defaults::ConstArg::Str(qname.to_string());
             env.exprs.record(expr.span, ExprInfo::CoreConst { value });

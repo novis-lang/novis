@@ -1,0 +1,27 @@
+--TEST--
+A parameter written as `mixed` keeps its errors: assigning it to a `string` variable and returning it from a method declared `string` both report — `rule:types/one-mistake-reports-once`
+--FILE--
+<?nvs
+class Shop {
+    // `mixed` is what the program wrote. Assigning it to a `string` variable
+    // is an error, and returning it as a `string` is an error.
+    public static function title(mixed $item): string {
+        string $name = $item;
+        return $item;
+    }
+}
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `mixed`
+  --> %s:6:24
+  |
+6 |         string $name = $item;
+  |                        ^^^^^ this is `mixed`
+
+error[E0403]: this method declares `string` but returns `mixed`
+  --> %s:7:16
+  |
+7 |         return $item;
+  |                ^^^^^ this is `mixed`
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

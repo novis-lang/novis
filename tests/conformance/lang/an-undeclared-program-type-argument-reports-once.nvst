@@ -1,0 +1,24 @@
+--TEST--
+An undeclared type argument to `Core\Program::implementing` reports once, at the type, and a loop over its result and a count of it report nothing — `rule:types/one-mistake-reports-once`
+--FILE--
+<?nvs
+class Shop {
+    // `Missing` is not declared. Its error is the only one this method gives.
+    // The loop and the count give no error.
+    public static function count(): uint {
+        var $kinds = Core\Program::implementing<Missing>();
+        foreach ($kinds as var $kind) {
+            string $name = $kind;
+        }
+        return Core\Arr::count($kinds);
+    }
+}
+--EXPECTF-ERROR--
+error[E0303]: `Missing` is not declared
+  --> %s:6:49
+  |
+6 |         var $kinds = Core\Program::implementing<Missing>();
+  |                                                 ^^^^^^^ no matching declaration
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

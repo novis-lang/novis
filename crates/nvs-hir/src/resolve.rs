@@ -26,8 +26,9 @@ pub struct Import {
     pub span: Span,
     /// Whether `target` names a real declaration (or is trusted as a `Core`
     /// or reserved-global reference). `false` means `E_UNRESOLVED_IMPORT` was
-    /// already reported
-    /// for it.
+    /// already reported for it, and [`SymbolTable::is_unresolved_import`]
+    /// answers `true` for `target`, so no use of the short name reports it again
+    /// (`rule:types/one-mistake-reports-once`).
     pub resolved: bool,
 }
 
@@ -287,6 +288,7 @@ impl Resolver {
                     )
                     .with_primary(import.span, "no matching class, interface or enum declared"),
                 );
+                self.module.symbols.note_unresolved_import(&import.target);
             }
         }
     }

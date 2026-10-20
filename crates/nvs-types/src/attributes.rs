@@ -598,18 +598,21 @@ fn resolve_shape_alias(
         if declared {
             report_not_a_shape(name.span, &format!("`{qname}` is not a `type` alias"), env);
         } else {
-            env.diags.report(nvs_hir::undeclared_name(
+            if let Some(diagnostic) = nvs_hir::undeclared_name(
                 nvs_hir::Undeclared {
                     qname,
                     text: span_text(env.src, name.span),
                     span: name.span,
                     namespace: ctx.namespace,
+                    imports: ctx.imports,
                     stmts: env.stmts,
                     src: env.src,
                 },
                 env.symbols,
                 &nvs_stdlib::registry::type_names(),
-            ));
+            ) {
+                env.diags.report(diagnostic);
+            }
         }
         return None;
     };
