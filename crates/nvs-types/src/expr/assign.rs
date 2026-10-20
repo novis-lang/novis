@@ -1340,7 +1340,7 @@ fn reject_union_write(root: &Expr, env: &mut Env<'_>) -> bool {
                     };
                     Some(format!(
                         "`{first}::${name}` has {}, and `{owner}::${name}` has {}, so the \
-                         property cannot be written through one check",
+                         property cannot be written through the union",
                         word(*first_level),
                         word(set)
                     ))
