@@ -6,7 +6,7 @@ context: [crates/nvs-types/src/ty.rs, crates/nvs-types/src/lower.rs, docs/rules/
 stages:
   - id: 1
     title: "the error type exists, and every recovery site returns it"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/expr/members.rs, crates/nvs-types/src/expr/mod.rs]
     extra:
       context:
@@ -121,12 +121,12 @@ missing name gives one error, so an editor hook that shows the first five shows 
 **Does:** the checker has a type that means "already reported", and each place that reports an
 unresolved name returns it.
 
-- [ ] The rule fragment and its `designed` record, with the policy, the reasons and the Declined list above (`types/one-mistake-reports-once`). `docs/rules/types/one-mistake-reports-once.md:1`, `data/rules/types/one-mistake-reports-once.json:1`
-- [ ] The error type, its display as `mixed`, and the choice recorded in the module doc. `crates/nvs-types/src/ty.rs:29`
-- [ ] It is assignable to and from every type. `crates/nvs-types/src/ty.rs:29`
-- [ ] `resolve_name_type`, `resolve_special` and `resolve_parent` return it after their report. `crates/nvs-types/src/lower.rs:1116`, `crates/nvs-types/src/lower.rs:869`, `crates/nvs-types/src/lower.rs:888`
-- [ ] `check_new_target` and the two member recovery sites return it. `crates/nvs-types/src/expr/calls.rs:2184`, `crates/nvs-types/src/expr/members.rs:289`, `crates/nvs-types/src/expr/members.rs:292`
-- [ ] Lowering treats it as unreachable, with a debug assertion. `crates/nvs-ir/src/lower/expr.rs:1`
+- [x] The rule fragment and its `designed` record, with the policy, the reasons and the Declined list above (`types/one-mistake-reports-once`). `docs/rules/types/one-mistake-reports-once.md:1`, `data/rules/types/one-mistake-reports-once.json:1`
+- [x] The error type, its display as `mixed`, and the choice recorded in the module doc. `crates/nvs-types/src/ty.rs:134`
+- [x] It is assignable to and from every type. `crates/nvs-types/src/expr/assign.rs:209`
+- [x] `resolve_name_type`, `resolve_special` and `resolve_parent` return it after their report. `crates/nvs-types/src/lower.rs:1125`, `crates/nvs-types/src/lower.rs:867`, `crates/nvs-types/src/lower.rs:902`
+- [x] `check_new_target` and the two member recovery sites return it. `crates/nvs-types/src/expr/calls.rs:2196`, `crates/nvs-types/src/expr/members.rs:289`, `crates/nvs-types/src/expr/members.rs:293`
+- [x] Lowering treats it as unreachable, with a debug assertion. `crates/nvs-ir/src/lower/mod.rs:4337`
 
 ### 2. no report site reports the error type
 
@@ -165,18 +165,35 @@ another. The session reads each expected output against this goal's decisions.
 
 ### State
 
-The goal is new and nothing is built. Every choice is settled in § *Standing decisions*. The anchors
-were read from the tree while `compiler-holes` was changing `nvs-types`, so each line number may have
-moved. A session finds each site by its function name.
+Stage 1 is built. `Ty::Error` is the error type, chosen over a second interned id for the reason in
+`ty.rs`'s module doc. It prints as `mixed`, `assignable` accepts it both ways, and a union or an
+intersection with it as a member is `Ty::Error` itself (`make_union`, `make_intersection`). The six
+named recovery sites and `Core` constant recovery in `infer_class_const` (`members.rs:209`) return it.
+`nvs-ir`'s `erase_checked_ty` arm is `unreachable!` under `debug_assertions` and `Ty::Tagged`
+otherwise.
+
+Stage 1 changed no other site's behaviour on purpose: every arm that matched `Ty::Mixed` now reads
+`Ty::Mixed | Ty::Error`, so the error type acts exactly as `mixed` everywhere except assignability.
+Those arms are stage 2's list (below). Because `assignable` is quiet for it, `E0403` on a returned error
+type and every `E0401` that goes through `is_assignable` are already quiet.
+`tests/conformance/lang/a-name-that-does-not-resolve-reports-once-and-a-written-mixed-keeps-its-error.nvst`
+pins it: `Missing` and `parent` each report once, and a written `mixed` keeps `E0403`.
+
+The nightly CI failures the sweep named (run 39462919214, at `654415619`) are fixed on main already:
+the stale perf records by `21e82d4e6`, the Responder proof by `385b3c5eb`, and `llms-full.txt` renders
+current locally. CI run 39482423202 on `e7cd41bfd` is the one that proves it.
 
 ### Next
 
-**Stage 1, one group**, on `nvs-types`. Gate: `docs/goals/compiler-holes.md` no longer exists.
+**Stage 2, one group**, on `nvs-types`. First the stage's `Explore` subagent lists every
+`Diagnostic::error` whose message renders a `TypeId`.
 
-- [ ] The rule fragment and its `designed` record (`types/one-mistake-reports-once`). `docs/rules/types/one-mistake-reports-once.md:1`, `data/rules/types/one-mistake-reports-once.json:1`
-- [ ] The error type, its display, and the choice recorded. `crates/nvs-types/src/ty.rs:29`
-- [ ] The three name recovery sites return it. `crates/nvs-types/src/lower.rs:1116`, `crates/nvs-types/src/lower.rs:869`, `crates/nvs-types/src/lower.rs:888`
-- [ ] `check_new_target` and the member recovery sites. `crates/nvs-types/src/expr/calls.rs:2184`, `crates/nvs-types/src/expr/members.rs:289`
-- [ ] Lowering treats it as unreachable. `crates/nvs-ir/src/lower/expr.rs:1`
+- [ ] `mismatch()` returns without a report when either side is the error type. `crates/nvs-types/src/expr/assign.rs:659`
+- [ ] Each `Ty::Mixed | Ty::Error` arm decides: quiet and give `Ty::Error`, or report as `mixed` does. `crates/nvs-types/src/expr/calls.rs:115`, `crates/nvs-types/src/expr/calls.rs:177`, `crates/nvs-types/src/expr/members.rs:647`, `crates/nvs-types/src/expr/members.rs:1748`, `crates/nvs-types/src/expr/members.rs:2128`, `crates/nvs-types/src/expr/mod.rs:808`, `crates/nvs-types/src/expr/iteration.rs:167`, `crates/nvs-types/src/expr/quals.rs:175`, `crates/nvs-types/src/expr/quals.rs:211`, `crates/nvs-types/src/expr/quals.rs:1183`, `crates/nvs-types/src/expr/type_test.rs:362`, `crates/nvs-types/src/derive.rs:1042`, `crates/nvs-types/src/attributes.rs:652`, `crates/nvs-types/src/commands.rs:271`
+- [ ] Recovery sites stage 1 did not name, each `mixed` right after a report: `crates/nvs-types/src/lower.rs:133` (`E_ARRAY_TYPE_TOO_DEEP`), `crates/nvs-types/src/lower.rs:521`, `crates/nvs-types/src/lower.rs:657`, `crates/nvs-types/src/lower.rs:699`, `crates/nvs-types/src/lower.rs:724`, `crates/nvs-types/src/lower.rs:826`, `crates/nvs-types/src/expr/members.rs:115` (`E_DYNAMIC_CLASS_NAME`)
+- [ ] Then the stage's own items from `E0743` on. `crates/nvs-types/src/program.rs:484`
 
 ### Backlog
+
+- Stage 3's cases `an-undeclared-parameter-type-reports-once` and `a-written-mixed-keeps-its-errors`
+  overlap the stage 1 case above. Extend that case or write the two, whichever reads better.
