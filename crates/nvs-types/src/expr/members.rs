@@ -1950,6 +1950,33 @@ fn guard_calls(qname: &QName, env: &Env<'_>) -> Option<GuardCalls> {
     })
 }
 
+/// Records the guard and observer each promoted parameter of the constructor
+/// `m` stores through, as `$this->x = $x;` written in its body would.
+///
+/// The receiver is `$this`, so the class asked is the constructor's own, as
+/// it is for that written store. A class that implements neither interface
+/// records nothing, and its stores stay one slot write each.
+pub(crate) fn record_promoted_pipelines(
+    m: &nvs_syntax::ast::MethodMember,
+    class: &QName,
+    env: &mut Env<'_>,
+) {
+    let observer = observer_calls(class, env);
+    let guard = guard_calls(class, env);
+    if observer.is_none() && guard.is_none() {
+        return;
+    }
+    for p in m.params.iter().filter(|p| p.is_promoted()) {
+        env.exprs.record_promoted_pipeline(
+            p.name,
+            crate::expr_table::PromotedPipeline {
+                observer: observer.clone(),
+                guard: guard.clone(),
+            },
+        );
+    }
+}
+
 /// [`check_property_access`]'s member half: everything after the receiver's
 /// own type is known, so that `?->` and `->` reach it identically.
 ///

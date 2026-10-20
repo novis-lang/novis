@@ -1340,7 +1340,7 @@ pub fn lower_method(
     if let Some(class) = name.rsplit_once("::").and_then(|(class, method)| {
         (method == "constructor" && !is_static).then_some(class.to_owned())
     }) {
-        promoted_stores(&mut low, entry, &class, m, src, &env);
+        promoted_stores(&mut low, entry, &class, m, src, &mut env);
     }
 
     let body = m.body.as_ref().expect(
@@ -1397,6 +1397,14 @@ pub fn lower_method(
 /// ever sees, the instance having been allocated by the `new` that reached
 /// this call, so there is nothing there to drop.
 ///
+/// The guard and the observer run as they do for the written store
+/// (`rule:classes/property-guard-runs-before-the-write`,
+/// `rule:classes/property-observer-pipeline`): `beforePropertySet` before the
+/// slot is written, so a throw leaves it unwritten, and `onPropertySet` after.
+/// `nvs_types` records both at the parameter's name
+/// ([`nvs_types::expr_table::ExprTypeTable::promoted_pipeline`]), and a class
+/// that implements neither records nothing, so its store is the one slot write.
+///
 /// A `static` method cannot be a constructor and is not asked; a parameter
 /// with no visibility keyword declares nothing
 /// ([`nvs_syntax::ast::Param::is_promoted`]).
@@ -1406,7 +1414,7 @@ fn promoted_stores(
     class: &str,
     m: &MethodMember,
     src: &SourceFile,
-    env: &Env,
+    env: &mut Env,
 ) {
     let this = low
         .this
@@ -1416,10 +1424,38 @@ fn promoted_stores(
         let Some(&(v, ty)) = env.get(&field) else {
             continue; // the binding above skipped it; nothing to store
         };
+        let pipeline = low.exprs.promoted_pipeline(p.name).cloned();
+        // The parameter is this frame's own and is released at every exit, a
+        // throwing one included, so the guard is handed it as not fresh.
+        if let Some(calls) = pipeline.as_ref().and_then(|p| p.guard.as_ref()) {
+            low.emit_guard_call(
+                entry,
+                this,
+                Ty::Object,
+                &field,
+                Some((v, ty, false)),
+                None,
+                calls.set.clone(),
+                env,
+            );
+        }
         if ty.is_refcounted() {
             low.emit_retain(entry, v);
         }
-        low.emit_field_set(entry, this, class.to_owned(), field, v);
+        low.emit_field_set(entry, this, class.to_owned(), field.clone(), v);
+        if let Some(calls) = pipeline.as_ref().and_then(|p| p.observer.as_ref()) {
+            low.emit_observer_call(
+                entry,
+                this,
+                Ty::Object,
+                &field,
+                v,
+                ty,
+                "onPropertySet",
+                calls.set.clone(),
+                env,
+            );
+        }
     }
 }
 

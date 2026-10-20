@@ -1,0 +1,48 @@
+--TEST--
+A promoted constructor parameter is stored through the same pipeline as `$this->x = $x;`: the guard runs before the store and can stop it, and the observer reports it after
+--FILE--
+<?nvs
+// covers: lang:classes/propertyguard, PropertyGuard
+final class Account implements PropertyGuard, PropertyObserver {
+    public function constructor(public int $balance, public string $owner) {
+        echo "  body sees ", $this->balance, " ", $this->owner, "\n";
+    }
+
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+        echo "  guard ", $name, " = ", Core\Json::encode($value), "\n";
+        if ($name == "balance" && $value is int && $value < 0) {
+            throw new LogicError("negative");
+        }
+    }
+
+    public function beforePropertyUnset(string $name, array<string> $keys): void {}
+
+    public function onPropertyGet(string $name, mixed $value): void {}
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "  observed ", $name, " = ", Core\Json::encode($value), "\n";
+    }
+}
+
+echo "an allowed value:\n";
+Account $a = new Account(10, "ann");
+echo "balance: ", $a->balance, "\n";
+
+echo "a refused value:\n";
+try {
+    new Account(-5, "bob");
+    echo "  built\n";
+} catch (LogicError $e) {
+    echo "  refused: ", $e->message, "\n";
+}
+--EXPECT--
+an allowed value:
+  guard balance = 10
+  observed balance = 10
+  guard owner = "ann"
+  observed owner = "ann"
+  body sees 10 ann
+balance: 10
+a refused value:
+  guard balance = -5
+  refused: negative

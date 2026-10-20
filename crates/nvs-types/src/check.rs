@@ -815,6 +815,9 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         in_constructor: span_text(env.src, m.name) == "constructor",
         in_anon_fn: false,
     };
+    if let Some(class) = ctx.current_class.filter(|_| ctx.in_constructor) {
+        crate::expr::members::record_promoted_pipelines(m, class, env);
+    }
 
     let mut scope = LocalScope::new();
     let mut live = Live::default();
