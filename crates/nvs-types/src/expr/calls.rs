@@ -1196,9 +1196,8 @@ fn note_method_ref_args(
         )
         .with_primary(arg.value.span, "write `Interface::method`")
         .with_help(
-            "`rule:testing/interaction-after-the-fact`: the method is named as a reference so that \
-             renaming it updates or breaks the test — a `string` holding the name is checked by \
-             nothing, and a typo in one reports as a call that never happened",
+            "a method reference is checked when the program compiles, and a `string` is not. \
+             With a `string`, a typo looks like a call that never happened",
         ),
     );
 }
@@ -1323,8 +1322,8 @@ fn check_new_type_args(
                 )
                 .with_primary(span, "type arguments written here")
                 .with_help(
-                    "user-declared generic classes are deferred (`rule:types/grammar`), so the only \
-                     `new` target that may be written with one is a compiler-owned generic class",
+                    "only a built-in generic class takes type arguments after `new`. Remove \
+                     the type arguments",
                 ),
             );
         }
@@ -1617,10 +1616,8 @@ pub(crate) fn report_args_with_no_parameter_list(
              `inout` parameter. So nothing this call reaches can take one. Remove the `inout`"
         }
         NoParameterList::ErasedReceiver => {
-            "`rule:types/erased-member-access` defers this call to the receiver's runtime class, and an `inout` \
-             parameter list is packed and written back here at the call site — so a callee that \
-             is not known until the call runs can never bind one; narrow the receiver with \
-             `is` or `as ClassName` if the write-back is what was meant"
+            "the method this call reaches is known only when the program runs, so it cannot \
+             take an `inout` argument. Test the receiver with `$x is ClassName` first"
         }
     };
     let name_help = match callee {
@@ -1629,10 +1626,9 @@ pub(crate) fn report_args_with_no_parameter_list(
              names of the function it reaches. Pass the argument by position"
         }
         NoParameterList::ErasedReceiver => {
-            "`rule:types/erased-member-access`: the receiver's runtime class chooses the callee, and the method row \
-             that marshals the call carries its arity and its parameter tags rather than their \
-             names — pass the argument positionally, or narrow the receiver to the class that \
-             declares the member"
+            "the method this call reaches is known only when the program runs, so its \
+             parameter names are not known. Pass the argument by position, or test the \
+             receiver with `$x is ClassName` first"
         }
     };
     let mut positional_ends: Option<Span> = None;
@@ -1796,16 +1792,14 @@ fn report_method_on_erased_receiver(span: Span, name: &str, ty: TypeId, env: &mu
         )
     } else if can_hold_an_object(ty, env.interner) {
         format!(
-            "narrow the receiver to the class that declares `{name}` first — \
-             `if ($x is ClassName) {{ … }}`, or `$x as ClassName`; `rule:types/grammar` makes \
-             `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property \
-             access through one but not a call"
+            "test the receiver for the class that declares `{name}` first: \
+             `if ($x is ClassName) {{ … }}`. An `object` has no methods of its own"
         )
     } else {
         format!(
-            "only an object has methods — convert the receiver to the class that declares \
-             `{name}` (`$x as Box`), or declare it `mixed`, which is the one unchecked position \
-             (`rule:types/conversion`) and defers the whole question to a catchable throw at run time"
+            "only an object has methods. Test the value for the class that declares `{name}` \
+             first: `if ($x is Box) {{ … }}`. Or declare it `mixed`, and a missing method throws \
+             an error when the program runs"
         )
     };
     env.diags.report(

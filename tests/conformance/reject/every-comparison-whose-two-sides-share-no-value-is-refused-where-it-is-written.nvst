@@ -81,21 +81,21 @@ error[E0715]: `<` has no meaning for `string`
    |
 27 | var $twoStrings = $s < $s;
    |                   ^^^^^^^ ordered here
-   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+   = help: to compare two strings, use `Core\Str::compare($a, $b)`. The operators `<`, `<=`, `>`, `>=` and `<=>` work only on numbers
 
 error[E0715]: `<` has no meaning for `bytes`
    --> %s:28:17
    |
 28 | var $twoBytes = $b < $b;
    |                 ^^^^^^^ ordered here
-   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (`rule:classes/comparable`); this operand is on neither half
+   = help: `<`, `<=`, `>`, `>=` and `<=>` work on numbers, and on two objects of one class that implements `Comparable`. This operand is neither
 
 error[E0715]: `<` has no meaning for `array<int>`
    --> %s:29:18
    |
 29 | var $twoArrays = $xs < $xs;
    |                  ^^^^^^^^^ ordered here
-   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (`rule:classes/comparable`); this operand is on neither half
+   = help: `<`, `<=`, `>`, `>=` and `<=>` work on numbers, and on two objects of one class that implements `Comparable`. This operand is neither
 
 error[E0411]: `Meter` does not implement `Comparable`; ordering two objects with `<`/`<=`/`>`/`>=`/`<=>` requires it
    --> %s:30:19

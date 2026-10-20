@@ -209,11 +209,10 @@ fn reject_impossible_class_reference_conversion(
             format!("`{from_q}` is not a `{target_q}`, so this can never be a `class<{target_q}>`"),
         )
         .with_primary(span, "converted here")
-        .with_help(
-            "`rule:types/class-reference` decides a class name written out in the source at compile \
-             time, and this one names a class outside the hierarchy: convert to `class<T>` at a \
-             class the name actually reaches, or make the class an implementor of the one written here",
-        ),
+        .with_help(format!(
+            "make `{from_q}` extend or implement `{target_q}`. Or write a class in `class<…>` \
+             that `{from_q}` already extends"
+        )),
     );
 }
 
@@ -402,8 +401,8 @@ pub(crate) fn report_unwritten_property_key(
         .collect::<Vec<_>>()
         .join(", ");
     let help = format!(
-        "`rule:types/property-key` decides a written-out operand where it is written, and a key's values are \
-         `{qname}`'s public declared properties: {listed}"
+        "a property name written in the code is checked when the program compiles. \
+         The public properties of `{qname}` are: {listed}"
     );
     env.diags.report(
         Diagnostic::error(
@@ -441,10 +440,9 @@ fn reject_empty_property_key_set(qname: &QName, span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "no name could ever reach this key")
         .with_help(
-            "`rule:types/property-key` makes a key's values the public declared property names of its \
-             argument — its own and its ancestors' — so a class declaring none has an empty set \
-             and no value of the type exists; a `private` property is not one of them, so name \
-             the class that declares the property publicly, or make it `public`",
+            "a `property<T>` value is the name of a public property of `T` or of a parent class. \
+             This class has no public property, so no value of this type can exist. Name the \
+             class that declares the property as `public`, or make the property `public`",
         ),
     );
 }
@@ -1023,8 +1021,8 @@ pub(crate) fn reject_void_condition(ty: TypeId, span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "tested here")
         .with_help(
-            "`rule:expressions/truthy-table`'s truthy table is over values, and a `void` call is not one; give the \
-             callee a return type and `return` from it, or call it as its own statement",
+            "give the function a return type and return a value from it. Or call it as a \
+             statement of its own",
         ),
     );
 }
@@ -1064,8 +1062,8 @@ pub(crate) fn report_void_operand(span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "operated on here")
         .with_help(
-            "`rule:types/arithmetic`'s table has no row for a value that is not one; give the callee a \
-             return type and `return` from it, or call it as its own statement",
+            "give the function a return type and return a value from it. Or call it as a \
+             statement of its own",
         ),
     );
 }
@@ -1170,17 +1168,16 @@ fn reject_unordered_operand(
     };
     let help = match domain {
         Unordered::Str => {
-            "`Core\\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no \
-             `<` for text, because PHP's own answer there is a conversion Novis never makes by \
-             itself"
+            "to compare two strings, use `Core\\Str::compare($a, $b)`. The operators `<`, `<=`, \
+             `>`, `>=` and `<=>` work only on numbers"
         }
         Unordered::Enum => {
-            "an enum case is a name rather than a number (`rule:enums/closed-integer-type`); order the backing values \
-             instead — `($a as int) < ($b as int)`"
+            "an enum case is a name, not a number. Compare the backing values instead: \
+             `($a as int) < ($b as int)`"
         }
         _ => {
-            "`rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one \
-             `Comparable` class (`rule:classes/comparable`); this operand is on neither half"
+            "`<`, `<=`, `>`, `>=` and `<=>` work on numbers, and on two objects of one class \
+             that implements `Comparable`. This operand is neither"
         }
     };
     env.diags.report(
@@ -1244,12 +1241,12 @@ fn reject_unrowed_arithmetic_operand(
     let spelling = binary_operator_spelling(op);
     let help = match domain {
         EqDomain::Bool => {
-            "`rule:types/arithmetic`'s arithmetic rows are the numeric types; PHP converts a `bool` to an \
-             `int` first and Novis never converts by itself, so say it — `($b ? 1 : 0)`"
+            "arithmetic works only on numbers. A `bool` is not converted for you. \
+             Write `($b ? 1 : 0)` to get a number"
         }
         EqDomain::Str => {
-            "`rule:types/arithmetic` tabulates no arithmetic for text; `.` is how two strings combine, and \
-             `$s as int`/`$s as float` is how one becomes a number"
+            "arithmetic works only on numbers. Use `.` to join two strings. Use `$s as int` or \
+             `$s as float` to convert a string to a number"
         }
         // The two sink carriers are the only classes with an arithmetic row, so
         // the general help below would be false where it is most likely to be
@@ -1264,19 +1261,17 @@ fn reject_unrowed_arithmetic_operand(
              `Core\\Html::escape(...)`. `+` does not escape it for you"
         }
         EqDomain::Object if carrier_of(offender, env) == Some(crate::CORE_CLI_TEXT_CLASS) => {
-            "`rule:tooling/styling-is-a-value-not-a-grammar` composes `Cli\\Text` with `Cli\\Text` and nothing else: lift the other \
-             operand with `Core\\Cli\\Text::plain(...)`, which substitutes its control bytes on \
-             the way in — `+` is not a sink and will not substitute them for you"
+            "`+` adds `Cli\\Text` only to `Cli\\Text`. Convert the other operand with \
+             `Core\\Cli\\Text::plain(...)`, which replaces its control characters. `+` does not \
+             replace them for you"
         }
         EqDomain::Object => {
-            "Novis has no operator overloading: `rule:types/arithmetic` names two classes in its arithmetic \
-             rows and both are sink carriers — `rule:core-classes/html-auto-escape`'s `Core\\Html\\Markup` and `rule:tooling/terminal-output-is-a-sink` \
-             § 2's `Core\\Cli\\Text` — so for every other class the operation belongs in a method \
-             on it"
+            "Novis has no operator overloading. Only `Core\\Html\\Markup` and `Core\\Cli\\Text` \
+             support `+`. For any other class, write a method that does the operation"
         }
         _ => {
-            "`rule:types/arithmetic`'s arithmetic rows are `int`, `uint`, `float` and `decimal`; this \
-             operand is none of them, and `as` is the only way to make it one"
+            "arithmetic works on `int`, `uint`, `float` and `decimal`. This operand is none of \
+             them. Use `as` to convert it to one"
         }
     };
     env.diags.report(
@@ -1320,9 +1315,8 @@ fn reject_float_modulo(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) 
         )
         .with_primary(span, "no `float` row for `%`")
         .with_help(
-            "PHP's `%` converts both operands to an integer and answers one, where `rule:types/arithmetic`'s \
-             float row would answer a `float`; say which was meant — `($a as int) % ($b as int)`, \
-             or `Core\\Math::mod($a, $b)` for the floating-point remainder",
+            "write `($a as int) % ($b as int)` for an integer remainder. Write \
+             `Core\\Math::mod($a, $b)` for the floating-point remainder",
         ),
     );
     Some(env.interner.mixed())
@@ -1695,8 +1689,8 @@ fn report_bitwise_operand(spelling: &str, ty: TypeId, span: Span, env: &mut Env<
         )
         .with_primary(span, "a bitwise operator is over integers")
         .with_help(
-            "`rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this \
-             operand first and Novis never converts by itself, so say it — `$x as int`",
+            "`&`, `|`, `^`, `~`, `<<` and `>>` work only on `int` and `uint`. The operand is not \
+             converted for you. Write `$x as int`",
         ),
     );
 }
@@ -1868,9 +1862,8 @@ pub(crate) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
         )
         .with_primary(span, "a unary arithmetic operator is over numbers")
         .with_help(
-            "`rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP \
-             converts this operand first and Novis never converts by itself, so say it — \
-             `$x as int`",
+            "arithmetic works on `int`, `uint`, `float` and `decimal`. The operand is not \
+             converted for you. Write `$x as int`",
         ),
     );
 }
@@ -1909,8 +1902,8 @@ pub(crate) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut 
         )
         .with_primary(span, "an increment is `± 1`, and this is not a number")
         .with_help(
-            "`rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP's \
-             string increment does not exist in Novis, because a binding never changes type",
+            "`++` and `--` work on `int`, `uint`, `float` and `decimal`. A string cannot be \
+             incremented, because a variable never changes its type",
         ),
     );
 }
@@ -2049,9 +2042,8 @@ fn reject_unavailable_nullable_conversion(from: TypeId, to: TypeId, span: Span, 
         )
         .with_primary(span, "converted here")
         .with_help(format!(
-            "write `as {described_to}`: `rule:expressions/nullable-conversion-availability` makes a `?T` that is never `null` a compile \
-             error, since every reader after it then has to check for a value the conversion \
-             cannot produce"
+            "write `as {described_to}`. With `?`, every reader of the result would have to check \
+             for a `null` that the conversion never returns"
         )),
     );
 }
@@ -2287,9 +2279,9 @@ fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: 
         )
         .with_primary(span, "converted here")
         .with_help(
-            "`rule:types/conversion` tabulates no conversion into a class, and these two share no value at \
-             all: ask `$x is Name` and use the value the test narrows, or call that \
-             class's own named constructor",
+            "`as` cannot convert a value to a class, and these two types have no value in \
+             common. Test the value with `$x is Name` and use it inside that branch, or call a \
+             constructor of the class",
         ),
     );
 }
@@ -2711,43 +2703,40 @@ fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
              it to `string` first"
         }
         (_, PropertyKey) => {
-            "`rule:types/property-key` gives `property<T>` exactly two sources: a `string` naming a public \
-             declared property of `T`, and a narrowing from another key — so make the name first \
-             and convert that"
+            "only two types convert to `property<T>`: a `string` that names a public property \
+             of `T`, and another property key. Make the name first and convert that"
         }
         (PropertyKey, _) => {
-            "a property key converts back to the `string` it names and to nothing else \
-             (`rule:types/property-key`): read the property through it — `$obj->$key` — or convert to \
-             `string` first"
+            "a property key converts only to the `string` it names. Read the property with \
+             `$obj->$key`, or convert the key to `string` first"
         }
         (_, ClassRef) => {
-            "`rule:types/class-reference` gives `class<T>` exactly two sources: a `string` naming a class that \
-             is a `T`, and a narrowing from another class reference — so make the name first \
-             (`Foo::class`, or the text a request carried) and convert that"
+            "only two types convert to `class<T>`: a `string` that names a class that is a \
+             `T`, and another class reference. Make the name first, such as `Foo::class`, and \
+             convert that"
         }
         (ClassRef, _) => {
-            "a class reference is a class descriptor: `rule:types/class-reference-sites`'s three sites take the value \
-             itself, `as string` reads the class's own name off it, and `Core\\Reflect` answers \
-             every other reflective question about a class (`rule:classes/no-free-functions-or-constants`)"
+            "use a class reference with `new`, a static call or `is`. `as string` gives the \
+             class name. `Core\\Reflect` gives any other information about the class"
         }
         (Void, _) => {
             "a call that returns `void` has no value at all, so there is nothing here to convert"
         }
-        (_, Void) => "`void` is a return type, not a value's type — there is nothing to produce",
+        (_, Void) => "`void` is only a return type. No value has the type `void`",
         (_, Object) => {
-            "`rule:types/conversion` tabulates no conversion into a class: ask `$x is Name` and use \
-             the value the test narrows, or call that class's own named constructor"
+            "`as` cannot convert a value to a class. Test the value with `$x is Name` and use \
+             it inside that branch, or call a constructor of the class"
         }
         (Array, Str) => {
-            "an `array<T>` has no text of its own; render it — `Core\\Json::encode($a)` — or \
-             build the string from its elements"
+            "an `array<T>` is not text. Use `Core\\Json::encode($a)`, or build the string from \
+             its elements"
         }
         (Enum(_), Str) => {
-            "an enum case is a named integer (`rule:enums/no-class-machinery`), not text — `$case as int as string`, \
-             or a member of your own that names it"
+            "an enum case is a named integer, not text. Write `$case as int as string`, or \
+             write a method that returns its name"
         }
         (Enum(_), _) => {
-            "`rule:types/conversion` converts an enum to its own backing type alone — convert to that first, \
+            "an enum converts only to its backing type. Convert it to that type first, and \
              then to the type you want"
         }
         (_, Array) => {
@@ -2755,25 +2744,22 @@ fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
              read JSON text with `Core\\Json::decode($s)`"
         }
         (_, Bytes) => {
-            "`rule:types/conversion` gives `bytes` exactly one source, a `string`: render the value first — \
+            "only a `string` converts to `bytes`. Convert the value to a string first: \
              `$v as string as bytes`"
         }
         (Bytes, _) => {
-            "`rule:types/conversion` gives `bytes` exactly one target, a `string` — `$b as string`, and then \
-             the type you want"
+            "`bytes` converts only to `string`. Write `$b as string`, and then convert to the \
+             type you want"
         }
         (Bool, _) => {
-            "`bool` converts to `string` and to `bool` alone (`rule:types/conversion`); a number out of a \
-             predicate is a branch said out loud — `$b ? 1 : 0`"
+            "`bool` converts only to `string` and to `bool`. To get a number, write \
+             `$b ? 1 : 0`"
         }
         (Null, _) => {
-            "`null` converts to `string` — the empty one — and to `bool`; every other target \
-             would be a substituted default, and `as` never substitutes one"
+            "`null` converts only to `string`, which gives the empty string, and to `bool`. \
+             `as` never replaces `null` with a default value"
         }
-        _ => {
-            "`rule:types/conversion`'s table is the whole list of conversions there is, and it has no row \
-             for this pair"
-        }
+        _ => "there is no conversion between these two types",
     }
 }
 
@@ -2999,16 +2985,15 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
     require_stringable_object(ty, span, env);
     let help = match env.interner.get(ty) {
         Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => {
-            "`rule:types/conversion` makes that conversion explicit, because which encoding the octets \
-             are in is a decision — `$b as string`"
+            "`bytes` is not converted to text for you. Write `$b as string`"
         }
         Ty::Array(_) => {
-            "an `array<T>` has no text of its own; render it — `Core\\Json::encode($a)` — or \
-             build the string from its elements"
+            "an `array<T>` is not text. Use `Core\\Json::encode($a)`, or build the string from \
+             its elements"
         }
         Ty::Enum(..) | Ty::EnumCase(..) => {
-            "an enum case is a named integer (`rule:enums/no-class-machinery`), not text — `$case as int`, or a \
-             member of your own that names it"
+            "an enum case is a named integer, not text. Write `$case as int`, or write a \
+             method that returns its name"
         }
         Ty::Void => {
             "a call that returns `void` has no value at all, so there is nothing here to \

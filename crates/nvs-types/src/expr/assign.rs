@@ -862,8 +862,7 @@ pub(crate) fn check_return(
             )
             .with_primary(expr.span, "this value has nowhere to go")
             .with_help(
-                "`rule:iteration/one-way-only`: there is no generator return value to retrieve — write \
-                 `return;` to stop the sequence, or `yield` this value",
+                "write `return;` to stop the generator, or `yield` this value",
             ),
         );
         return;
@@ -1210,10 +1209,8 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
             )
             .with_primary(root.span, "this value is not stored anywhere")
             .with_help(
-                "`rule:types/arrays` separates the array before the element is written, and the \
-                 separated copy has to go back into whatever held it — a temporary holds it \
-                 nowhere, so the write would be discarded. Bind it first, write the element \
-                 through the binding, and assign that back if it has an owner",
+                "this value is not in a variable or a property, so the write would be lost. \
+                 Assign the value to a variable first, and write the element there",
             ),
         );
         return;
@@ -1230,9 +1227,9 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
                 )
                 .with_primary(root.span, "reading this runs its `get` hook")
                 .with_help(
-                    "`rule:classes/property-hooks` makes a hooked property a pair of accessors, not a slot, so the \
-                     separated array would have nowhere to go — read it into a local, write the \
-                     element there, and assign the local back through the property",
+                    "a property with hooks is read and written through its hooks. Read it into \
+                     a variable, write the element there, and assign the variable back to the \
+                     property",
                 ),
             );
         }
@@ -1247,10 +1244,9 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
                 )
                 .with_primary(root.span, "this receiver is a shape or a plain `object`")
                 .with_help(
-                    "`rule:types/erased-member-access` resolves such a property by *name* at run time, which gives the \
-                     separated array no slot to be written back into — convert the receiver to \
-                     the class that declares it first (`var $c = $x as ClassName;`), or read the \
-                     property into a typed local, write the element there, and assign it back",
+                    "this property is found by its name when the program runs. Test the value \
+                     with `$x is ClassName` first. Or read the property into a variable, write the \
+                     element there, and assign the variable back",
                 ),
             );
         }
@@ -1321,10 +1317,9 @@ fn reject_readonly_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool 
         )
         .with_primary(root.span, label)
         .with_help(
-            "`readonly` promises the value is assigned exactly once, while the object is being \
-             built (`rule:classes/lateinit-restrictions`) — assign it in the constructor, take it as a constructor \
-             parameter (`public readonly T $x`), or drop the modifier if the property is meant \
-             to change",
+            "a `readonly` property is assigned once, in the constructor. Assign it there, or \
+             make it a constructor parameter (`public readonly T $x`). If the property must \
+             change, remove `readonly`",
         ),
     );
     true

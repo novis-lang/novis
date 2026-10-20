@@ -3,7 +3,7 @@ error[E0708]: `Rock` is not a `Animal`, so this can never be a `class<Animal>`
   |
 9 | class<Animal> $c = 'Rock' as class<Animal>;
   |                    ^^^^^^^^^^^^^^^^^^^^^^^ converted here
-  = help: `rule:types/class-reference` decides a class name written out in the source at compile time, and this one names a class outside the hierarchy: convert to `class<T>` at a class the name actually reaches, or make the class an implementor of the one written here
+  = help: make `Rock` extend or implement `Animal`. Or write a class in `class<…>` that `Rock` already extends
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

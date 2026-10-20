@@ -2245,7 +2245,7 @@ error[E0234]: `unset()` takes an array element of a named holder
   |
 7 | unset($x);
   |       ^^ this is not an array element
-  = help: `unset()` removes an array entry and nothing else — every Novis binding is declared with a type and definitely assigned (`rule:types/declaration`), so there is no way to make one undefined again; assign `null` where the declared type is nullable, or let the binding go out of scope
+  = help: `unset()` removes an array element and nothing else. A variable always has a value. If its type is nullable, assign `null` to it
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

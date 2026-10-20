@@ -215,17 +215,17 @@ fn check_inout_markers(list: &[Arg], slots: &[ArgSlot], sig: &MethodSig, env: &m
                     )
                     .with_primary(arg.span, "write `inout` before it")
                     .with_help(
-                        "`rule:statements/inout-is-written-at-the-call` writes the marker at both ends: the callee writes back \
-                         through this argument, and a call that does not say so hides it",
+                        "the function writes a new value back into this argument. `inout` \
+                         at the call shows that to the reader",
                     ),
                 );
             }
             (false, true) => {
                 let help = if matches!(slot, ArgSlot::Spread(_)) {
-                    "a `...` hands over its subject's entries rather than the subject, so \
-                     there is no one storage location to write back to — drop the `inout`"
+                    "`...` passes the elements of the array, so there is no one variable to \
+                     write back to. Remove the `inout`"
                 } else {
-                    "drop the `inout`, or declare the parameter `inout` (`rule:statements/inout-is-the-by-reference-spelling`)"
+                    "remove the `inout`, or declare the parameter `inout`"
                 };
                 env.diags.report(
                     Diagnostic::error(
@@ -1380,8 +1380,8 @@ pub(crate) fn check_inout_arg(
             )
             .with_primary(arg.value.span, "passed by reference here")
             .with_help(
-                "reading it runs its `get` hook and writing it runs its `set` hook (`rule:classes/property-observer` \
-                 § 1) — read it into a local, pass that, and assign the result back",
+                "reading it runs its `get` hook, and writing it runs its `set` hook. Read it \
+                 into a variable, pass the variable, and assign the result back",
             ),
         );
         return;
@@ -1419,9 +1419,8 @@ pub(crate) fn check_inout_arg(
                 )
                 .with_primary(arg.value.span, "passed by reference here")
                 .with_help(
-                    "`rule:types/arrays`'s copy-on-write separation gives an element no stable \
-                     address — read it into a local, pass that, and write it back, where \
-                     the copy is visible",
+                    "read the element into a variable and pass the variable. Then write the \
+                     variable back into the array",
                 ),
             );
         }
@@ -1797,7 +1796,8 @@ pub(crate) fn check_written_type_args(
             )
             .with_primary(span, "type arguments written here")
             .with_help(
-                "user-declared type parameters are deferred (`rule:types/declaration`), and a `Core` member                  whose spec signature writes none infers every type it needs from its arguments",
+                "this method gets every type it needs from its arguments. Remove the type \
+                 arguments",
             ),
         );
         return (Some(sig), written);
@@ -1987,12 +1987,9 @@ pub(crate) fn written_class_of(
         )
         .with_primary(span, format!("`{found}` written here"))
         .with_help(
-            "`rule:types/arrays`: a written type argument names the thing to build — a class \
-             carrying the deriving attribute its format asks for, so hydrating is an ordinary \
-             `new` (`rule:core-classes/derive-field-list`), or an inline shape such as \
-             `{id: uint, name: string}`, which declares its own fields where it is written \
-             (`rule:types/shape-type`). `array<…>` of either is the form for a source that is a \
-             list",
+            "the type argument is what the method builds. It is a class with the attribute \
+             its format needs, or a shape such as `{id: uint, name: string}`. Write `array<…>` \
+             around either one when the source is a list",
         ),
     );
     None

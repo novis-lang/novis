@@ -2608,7 +2608,7 @@ error[E0708]: `Rock` is not a `Animal`, so this can never be a `class<Animal>`
   |
 9 | class<Animal> $c = 'Rock' as class<Animal>;
   |                    ^^^^^^^^^^^^^^^^^^^^^^^ converted here
-  = help: `rule:types/class-reference` decides a class name written out in the source at compile time, and this one names a class outside the hierarchy: convert to `class<T>` at a class the name actually reaches, or make the class an implementor of the one written here
+  = help: make `Rock` extend or implement `Animal`. Or write a class in `class<…>` that `Rock` already extends
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -2632,7 +2632,7 @@ error[E0709]: `int as ?int` cannot fail, so it never answers `null`
   |
 7 | ?int $a = $i as ?int;
   |           ^^^^^^^^^^ converted here
-  = help: write `as int`: `rule:expressions/nullable-conversion-availability` makes a `?T` that is never `null` a compile error, since every reader after it then has to check for a value the conversion cannot produce
+  = help: write `as int`. With `?`, every reader of the result would have to check for a `null` that the conversion never returns
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -4160,7 +4160,7 @@ error[E0713]: this argument binds an `inout` parameter and must say so
    |
 15 | Counter::bump($visits);
    |               ^^^^^^^ write `inout` before it
-   = help: `rule:statements/inout-is-written-at-the-call` writes the marker at both ends: the callee writes back through this argument, and a call that does not say so hides it
+   = help: the function writes a new value back into this argument. `inout` at the call shows that to the reader
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -4909,7 +4909,7 @@ error[E0716]: `*` has no meaning for `string`
   |
 8 | int $double = $count * 2;
   |               ^^^^^^^^^^ no arithmetic row for this operand
-  = help: `rule:types/arithmetic` tabulates no arithmetic for text; `.` is how two strings combine, and `$s as int`/`$s as float` is how one becomes a number
+  = help: arithmetic works only on numbers. Use `.` to join two strings. Use `$s as int` or `$s as float` to convert a string to a number
 
 error[E0466]: `string` and `int` are disjoint; no value is both, so this comparison is always false
   --> main.nvs:9:14
@@ -4923,14 +4923,14 @@ error[E0715]: `<` has no meaning for `string`
    |
 10 | bool $first = $name < "Bob";
    |               ^^^^^^^^^^^^^ ordered here
-   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+   = help: to compare two strings, use `Core\Str::compare($a, $b)`. The operators `<`, `<=`, `>`, `>=` and `<=>` work only on numbers
 
 error[E0482]: `string` cannot be subscripted
    --> main.nvs:11:19
    |
 11 | string $initial = $name[0];
    |                   ^^^^^ this is `string`
-   = help: `rule:types/string-is-utf8` indexes a `string` by extended grapheme cluster, which is said out loud rather than spelled with a subscript — `Core\Str::slice($s, $i, 1)`, or `Core\Bytes::slice` for a byte offset
+   = help: a `string` has no `[]`. Use `Core\Str::slice($s, $i, 1)` for one character, or `Core\Bytes::slice` for a byte offset
 
 error: aborting due to 4 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -689,9 +689,8 @@ pub(crate) fn reject_secret_markup_conversion(
     env.diags.report(
         Diagnostic::error(
             code::E_SECRET_MARKUP_UNSUPPORTED,
-            "a `secret`-qualified value cannot be converted `as Markup`; escaping neutralizes \
-             injection risk, not confidentiality, so it is refused outright rather than \
-             auto-escaped",
+            "a `secret` value cannot be converted `as Markup`. Escaping makes a value safe \
+             to put in HTML, but it does not keep the value secret",
         )
         .with_primary(span, "converted here")
         .with_help("reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`"),
@@ -975,11 +974,10 @@ pub(crate) fn reject_secret_into_container(
         )
         .with_primary(value.span, "this value is `secret`")
         .with_help(
-            "the container's own type is what carries the qualifier onward — declare it \
-             `array<secret string>` for an element, or `{name: secret string}` for a field — or \
-             hand the value over deliberately with `Core\\Secret::reveal(..., \"reason\")`. A \
-             bound database parameter, a process argv and an outbound request each take a \
-             `secret` as a written argument and need neither (`rule:security/secret-sinks-refuse`)",
+            "declare the container as secret too: `array<secret string>` for an element, or \
+             `{name: secret string}` for a field. Or reveal the value with \
+             `Core\\Secret::reveal(..., \"reason\")`. A database parameter, a process argument \
+             and an outgoing request take a `secret` argument directly",
         ),
     );
 }
@@ -1596,10 +1594,8 @@ pub(crate) fn reject_secret_crossing(
     if !is_secret(ty, env.interner) {
         return;
     }
-    let reveal = "reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`, at \
-                  the one call site where handing the secret over is the point; a \
-                  `secret`-typed *property* of a copied object needs nothing here — the walk \
-                  refuses that one itself";
+    let reveal = "reveal it first with `Core\\Secret::reveal(..., \"reason\")`, at the call \
+                  where the secret value is needed";
     env.diags.report(
         Diagnostic::error(
             code::E_SECRET_CROSSES_A_BOUNDARY,
@@ -1611,7 +1607,7 @@ pub(crate) fn reject_secret_crossing(
         .with_primary(at.span, "secret value copied out here")
         .with_help(instead.map_or_else(
             || reveal.to_owned(),
-            |instead| format!("{instead}; or {reveal}"),
+            |instead| format!("{instead}. Or {reveal}"),
         )),
     );
 }
@@ -1660,8 +1656,8 @@ pub(crate) fn reject_secret_cached_argument(
             ty,
             "`Core\\Cache\\Store::put` copies it into a tier that outlives the request",
             Some(
-                "write `putSecret($key, $value, $ttl, $keys)` instead, which seals the value \
-                 under a key ring so that what reaches the tier is ciphertext",
+                "write `putSecret($key, $value, $ttl, $keys)` instead. It encrypts the value \
+                 before it is stored",
             ),
             env,
         );
@@ -1710,8 +1706,8 @@ pub(crate) fn reject_secret_session_argument(
             "`Core\\Session::set` encodes it into the record this request writes back to a \
              store that outlives it",
             Some(
-                "write `setSecret($key, $value, $keys)` instead, which seals the value under a \
-                 key ring so that what reaches the record is ciphertext",
+                "write `setSecret($key, $value, $keys)` instead. It encrypts the value before \
+                 it is stored",
             ),
             env,
         );
@@ -1817,9 +1813,9 @@ pub(crate) fn reject_secret_attribute_constant(
         )
         .with_primary(expr.span, "secret value written into metadata here")
         .with_help(
-            "`rule:security/secret-sinks-refuse`: there is no `Core\\Secret::reveal(..., \"reason\")` way out of this \
-             one, a payload admitting no call at all — a credential belongs somewhere read at \
-             run time, and the attribute carries the name of where to read it from",
+            "an attribute cannot contain a call, so `Core\\Secret::reveal` does not work here. \
+             Read the secret when the program runs. Put only the name of where to read it in \
+             the attribute",
         ),
     );
     true

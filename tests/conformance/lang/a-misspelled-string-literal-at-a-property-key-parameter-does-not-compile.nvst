@@ -27,14 +27,14 @@ error[E0405]: `Order` has no public property `$idd`
    |
 15 | echo Report::column("idd"), "\n";
    |                     ^^^^^ this name is checked here
-   = help: `rule:types/property-key` decides a written-out operand where it is written, and a key's values are `Order`'s public declared properties: `$id`
+   = help: a property name written in the code is checked when the program compiles. The public properties of `Order` are: `$id`
 
 error[E0405]: `Order` has no public property `$secret`
    --> %s:17:21
    |
 17 | echo Report::column("secret"), "\n";
    |                     ^^^^^^^^ this name is checked here
-   = help: `rule:types/property-key` decides a written-out operand where it is written, and a key's values are `Order`'s public declared properties: `$id`
+   = help: a property name written in the code is checked when the program compiles. The public properties of `Order` are: `$id`
 
 error[E0401]: expected `property<Order>`, found `string`
    --> %s:20:21

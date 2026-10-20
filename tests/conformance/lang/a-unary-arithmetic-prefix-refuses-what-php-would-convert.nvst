@@ -40,35 +40,35 @@ error[E0705]: `+` has no meaning for `string`
    |
 16 | string $s1 = +$s;
    |              ^^^ a unary arithmetic operator is over numbers
-   = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: arithmetic works on `int`, `uint`, `float` and `decimal`. The operand is not converted for you. Write `$x as int`
 
 error[E0705]: `-` has no meaning for `string`
    --> %s:17:14
    |
 17 | string $s2 = -$s;
    |              ^^^ a unary arithmetic operator is over numbers
-   = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: arithmetic works on `int`, `uint`, `float` and `decimal`. The operand is not converted for you. Write `$x as int`
 
 error[E0705]: `~` has no meaning for `string`
    --> %s:18:14
    |
 18 | string $s3 = ~$s;
    |              ^^^ a unary arithmetic operator is over numbers
-   = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: arithmetic works on `int`, `uint`, `float` and `decimal`. The operand is not converted for you. Write `$x as int`
 
 error[E0705]: `-` has no meaning for `bool`
    --> %s:23:12
    |
 23 | bool $b1 = -$b;
    |            ^^^ a unary arithmetic operator is over numbers
-   = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: arithmetic works on `int`, `uint`, `float` and `decimal`. The operand is not converted for you. Write `$x as int`
 
 error[E0705]: `~` has no meaning for `array<int>`
    --> %s:26:17
    |
 26 | array<int> $q = ~$xs;
    |                 ^^^^ a unary arithmetic operator is over numbers
-   = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: arithmetic works on `int`, `uint`, `float` and `decimal`. The operand is not converted for you. Write `$x as int`
 
 error[E0401]: `-` has no meaning for `Thing`
    --> %s:31:13

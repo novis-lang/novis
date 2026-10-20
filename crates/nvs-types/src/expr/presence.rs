@@ -226,8 +226,8 @@ fn report_not_a_variable(operand: &Expr, env: &mut Env<'_>) {
         )
         .with_primary(operand.span, "not a variable, element or property")
         .with_help(
-            "`isset($x)` is `$x != null` (`rule:classes/unset-is-refused-on-a-property`), so write the test that way when \
-             the thing being tested is an expression — `Foo::bar() != null`",
+            "`isset($x)` is the same as `$x != null`. To test an expression, write \
+             `Foo::bar() != null`",
         ),
     );
 }

@@ -884,7 +884,7 @@ error[E0715]: `<` has no meaning for `string`
   |
 5 | echo ("apple" < "banana") ? "apple first" : "banana first", "\n";
   |       ^^^^^^^^^^^^^^^^^^ ordered here
-  = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+  = help: to compare two strings, use `Core\Str::compare($a, $b)`. The operators `<`, `<=`, `>`, `>=` and `<=>` work only on numbers
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -2321,7 +2321,7 @@ error[E0496]: the right-hand side of `is` is a type or a class reference, and th
   |
 9 |         return $v is $name;
   |                      ^^^^^ not a class name
-  = help: Novis has no dynamic class names (`rule:types/conversion`, the rule that rejects `$$var` and `eval`) — write the class, or convert the name once and carry the result: `$name as class<Base>` yields a class reference this site accepts, checked against `Base`'s hierarchy where the conversion stands (`rule:types/class-reference-sites`)
+  = help: a class name cannot come from a string. Write the class name, or convert the string first: `$name as class<Base>` gives a class reference that works here. The conversion checks that the class is a `Base`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

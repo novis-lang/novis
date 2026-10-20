@@ -3,7 +3,7 @@ error[E0832]: `static::STEPS` reads `Retry::STEPS`, which is `array<int>` and ha
    |
 10 |         return Core\Arr::count(static::STEPS);
    |                                ^^^^^^^^^^^^^ read through `static::`
-   = help: `rule:statements/static-is-a-member-modifier`: a `static::` constant is read at run time off the called class's table, which carries `string`, `int`, `uint`, `bool` and `float` values and nothing else — write `self::` or the class name, which inline the constant, or make the constant a scalar
+   = help: a `static::` constant is read when the program runs, and only a `string`, `int`, `uint`, `bool` or `float` constant can be read that way. Write `self::` or the class name, or make the constant one of those types
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -3,7 +3,7 @@ error[E0709]: `int as ?int` cannot fail, so it never answers `null`
   |
 7 | ?int $a = $i as ?int;
   |           ^^^^^^^^^^ converted here
-  = help: write `as int`: `rule:expressions/nullable-conversion-availability` makes a `?T` that is never `null` a compile error, since every reader after it then has to check for a value the conversion cannot produce
+  = help: write `as int`. With `?`, every reader of the result would have to check for a `null` that the conversion never returns
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

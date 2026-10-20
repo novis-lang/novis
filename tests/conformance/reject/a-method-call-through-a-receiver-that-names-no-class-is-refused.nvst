@@ -56,21 +56,21 @@ error[E0477]: `Dog|Cat` names no class, so it has no method `speak`
    |
 31 | echo $u->speak(), "\n";
    |      ^^^^^^^^^ called on a receiver that names no class here
-   = help: narrow the receiver to the class that declares `speak` first — `if ($x is ClassName) { … }`, or `$x as ClassName`; `rule:types/grammar` makes `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property access through one but not a call
+   = help: test the receiver for the class that declares `speak` first: `if ($x is ClassName) { … }`. An `object` has no methods of its own
 
 error[E0477]: `string` names no class, so it has no method `speak`
    --> %s:37:6
    |
 37 | echo $s->speak(), "\n";
    |      ^^^^^^^^^ called on a receiver that names no class here
-   = help: only an object has methods — convert the receiver to the class that declares `speak` (`$x as Box`), or declare it `mixed`, which is the one unchecked position (`rule:types/conversion`) and defers the whole question to a catchable throw at run time
+   = help: only an object has methods. Test the value for the class that declares `speak` first: `if ($x is Box) { … }`. Or declare it `mixed`, and a missing method throws an error when the program runs
 
 error[E0477]: `array<int>` names no class, so it has no method `speak`
    --> %s:40:6
    |
 40 | echo $xs->speak(), "\n";
    |      ^^^^^^^^^^ called on a receiver that names no class here
-   = help: only an object has methods — convert the receiver to the class that declares `speak` (`$x as Box`), or declare it `mixed`, which is the one unchecked position (`rule:types/conversion`) and defers the whole question to a catchable throw at run time
+   = help: only an object has methods. Test the value for the class that declares `speak` first: `if ($x is Box) { … }`. Or declare it `mixed`, and a missing method throws an error when the program runs
 
 error[E0477]: `void` names no class, so it has no method `speak`
    --> %s:43:6

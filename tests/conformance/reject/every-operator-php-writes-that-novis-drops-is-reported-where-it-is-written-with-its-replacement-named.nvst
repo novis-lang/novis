@@ -77,14 +77,14 @@ error[E0482]: `string` cannot be subscripted
    |
 19 | var $first = $s[0];
    |              ^^ this is `string`
-   = help: `rule:types/string-is-utf8` indexes a `string` by extended grapheme cluster, which is said out loud rather than spelled with a subscript — `Core\Str::slice($s, $i, 1)`, or `Core\Bytes::slice` for a byte offset
+   = help: a `string` has no `[]`. Use `Core\Str::slice($s, $i, 1)` for one character, or `Core\Bytes::slice` for a byte offset
 
 error[E0474]: `++`/`--` has no meaning for `string`
    --> %s:20:1
    |
 20 | $s++;
    | ^^^^ an increment is `± 1`, and this is not a number
-   = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP's string increment does not exist in Novis, because a binding never changes type
+   = help: `++` and `--` work on `int`, `uint`, `float` and `decimal`. A string cannot be incremented, because a variable never changes its type
 
 error: aborting due to 9 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

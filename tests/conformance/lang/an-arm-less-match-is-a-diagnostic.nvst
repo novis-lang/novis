@@ -16,14 +16,14 @@ error[E0476]: a `match` with no arms has no value
   |
 5 | mixed $m = match ($k) { };
   |            ^^^^^^^^^^^^^^ every path through this `match` throws
-  = help: write the arm this was meant to have, or `throw` outright if the intent was to refuse every subject
+  = help: write the arms of the `match`. To always stop with an error, write `throw` instead
 
 error[E0476]: a `match` with no arms has no value
   --> %s:9:1
   |
 9 | match ($k) { };
   | ^^^^^^^^^^^^^^ every path through this `match` throws
-  = help: write the arm this was meant to have, or `throw` outright if the intent was to refuse every subject
+  = help: write the arms of the `match`. To always stop with an error, write `throw` instead
 
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

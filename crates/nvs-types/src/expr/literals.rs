@@ -809,8 +809,8 @@ pub(crate) fn report_decimal_out_of_range(reason: &str, span: Span, env: &mut En
         )
         .with_primary(span, "outside `decimal`'s range")
         .with_help(
-            "`decimal` holds a 96-bit mantissa at a scale of 0 to 28 (`rule:types/decimal`); \
-             `Core\\BigInt` is the type for a whole number beyond it",
+            "a `decimal` has at most 28 digits after the point, and its digits must fit in \
+             96 bits. Use `Core\\BigInt` for a larger whole number",
         ),
     );
 }
@@ -1484,9 +1484,8 @@ fn report_by_reference_element(item: &ArrayItem, env: &mut Env<'_>) {
         )
         .with_primary(item.span, "this element is `&value`")
         .with_help(
-            "Novis has no references: `rule:types/implicit-capture` removed by-reference capture and `rule:classes/two-copy-depths` \
-             makes an element a copy, so drop the `&` — to share one mutable cell, hold it in \
-             an object and store that",
+            "Novis has no references, and an array element is a copy. Remove the `&`. To \
+             share one value that changes, put it in an object and store the object",
         ),
     );
 }
@@ -1530,10 +1529,9 @@ pub(crate) fn check_array_key_type(key_ty: TypeId, span: Span, env: &mut Env<'_>
         )
         .with_primary(span, "this key")
         .with_help(
-            "`rule:enums/closed-integer-type` makes an enum case a named integer, so normalizing one would key the \
-             array by a backing value two enums can share — write `$case as int` where that \
-             number is the key you mean, or a member of your own that names the case where \
-             it is not (`as string` is `E0708` for the same reason)",
+            "an enum case is a named integer, and two enums can have the same numbers. Write \
+             `$case as int` if the number is the key you want. Otherwise write a method that \
+             returns a name for the case",
         ),
     );
 }

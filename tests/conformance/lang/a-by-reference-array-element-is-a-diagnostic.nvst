@@ -21,21 +21,21 @@ error[E0483]: an array element cannot be taken by reference
   |
 6 | array<string> $a = [&$x];
   |                     ^^^ this element is `&value`
-  = help: Novis has no references: `rule:types/implicit-capture` removed by-reference capture and `rule:classes/two-copy-depths` makes an element a copy, so drop the `&` — to share one mutable cell, hold it in an object and store that
+  = help: Novis has no references, and an array element is a copy. Remove the `&`. To share one value that changes, put it in an object and store the object
 
 error[E0483]: an array element cannot be taken by reference
   --> %s:9:21
   |
 9 | array<string> $b = ["k" => &$x];
   |                     ^^^^^^^^^^ this element is `&value`
-  = help: Novis has no references: `rule:types/implicit-capture` removed by-reference capture and `rule:classes/two-copy-depths` makes an element a copy, so drop the `&` — to share one mutable cell, hold it in an object and store that
+  = help: Novis has no references, and an array element is a copy. Remove the `&`. To share one value that changes, put it in an object and store the object
 
 error[E0483]: an array element cannot be taken by reference
    --> %s:13:29
    |
 13 | array<array<string>> $c = [["n" => &$x]];
    |                             ^^^^^^^^^^ this element is `&value`
-   = help: Novis has no references: `rule:types/implicit-capture` removed by-reference capture and `rule:classes/two-copy-depths` makes an element a copy, so drop the `&` — to share one mutable cell, hold it in an object and store that
+   = help: Novis has no references, and an array element is a copy. Remove the `&`. To share one value that changes, put it in an object and store the object
 
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
