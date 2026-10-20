@@ -666,7 +666,8 @@ fn check_options(
     let mut args: Vec<CommandArg> = Vec::with_capacity(m.params.len());
     // The one parameter a trailing `array<string>` may be (`ArgConv::Words`).
     let last_positional = m.params.iter().rposition(|param| {
-        crate::testing::attribute_named(&param.attributes, crate::derive::OPTION, ctx, env).is_none()
+        crate::testing::attribute_named(&param.attributes, crate::derive::OPTION, ctx, env)
+            .is_none()
     });
     for (index, param) in m.params.iter().enumerate() {
         let name = strip_sigil(span_text(env.src, param.name)).to_owned();
@@ -900,9 +901,14 @@ fn check_positional(
         env.diags.report(
             Diagnostic::error(
                 code::E_OPTION_TYPE_HAS_NO_CONVERSION,
-                format!("`{name}` of `{method}` is an `array<string>` and is not the last argument"),
+                format!(
+                    "`{name}` of `{method}` is an `array<string>` and is not the last argument"
+                ),
             )
-            .with_primary(param.span, "an `array<string>` gets all the remaining words")
+            .with_primary(
+                param.span,
+                "an `array<string>` gets all the remaining words",
+            )
             .with_help(
                 "only the last parameter without `#[Option]` can be an `array<string>`. Move it \
                  to the end, or give it another type",
