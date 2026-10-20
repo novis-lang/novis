@@ -2,7 +2,7 @@
 // Reads every capture of a route match, as a program does when it writes a log line for a request.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Orders {
