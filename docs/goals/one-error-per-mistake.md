@@ -13,7 +13,7 @@ stages:
         rules: [types/unions-and-mixed, types/one-mistake-reports-once]
   - id: 2
     title: "no report site reports the error type"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/check.rs, crates/nvs-types/src/defaults.rs, crates/nvs-types/src/signatures.rs, crates/nvs-types/src/expr/operators.rs, crates/nvs-types/src/program.rs, crates/nvs-types/src/expr/members.rs]
     extra:
       context:
@@ -145,8 +145,8 @@ stage.
 - [x] Recovery sites stage 1 did not name, each `mixed` right after a report, return the error type. `crates/nvs-types/src/lower.rs:133`, `crates/nvs-types/src/lower.rs:521`, `crates/nvs-types/src/lower.rs:657`, `crates/nvs-types/src/lower.rs:699`, `crates/nvs-types/src/lower.rs:724`, `crates/nvs-types/src/lower.rs:826`, `crates/nvs-types/src/expr/members.rs:115`
 - [x] The conversion, type-test and text sites are quiet for the error type: `as`, `is`, `echo` and interpolation. `crates/nvs-types/src/expr/operators.rs:2038`, `crates/nvs-types/src/expr/operators.rs:2192`, `crates/nvs-types/src/expr/operators.rs:2277`, `crates/nvs-types/src/expr/operators.rs:2310`, `crates/nvs-types/src/expr/operators.rs:2411`, `crates/nvs-types/src/expr/operators.rs:2857`, `crates/nvs-types/src/expr/operators.rs:3014`, `crates/nvs-types/src/expr/operators.rs:637`, `crates/nvs-types/src/expr/operators.rs:1860`, `crates/nvs-types/src/expr/operators.rs:1900`, `crates/nvs-types/src/expr/type_test.rs:181`, `crates/nvs-types/src/expr/type_test.rs:264`, `crates/nvs-types/src/expr/type_test.rs:287`, `crates/nvs-types/src/expr/type_test.rs:304`
 - [x] The expression sites are quiet for the error type. `crates/nvs-types/src/expr/mod.rs:1330`, `crates/nvs-types/src/locals.rs:2109`, `crates/nvs-types/src/expr/literals.rs:1466`, `crates/nvs-types/src/expr/calls.rs:1489`, `crates/nvs-types/src/expr/members.rs:403`, `crates/nvs-types/src/expr/members.rs:569`, `crates/nvs-types/src/expr/members.rs:629`, `crates/nvs-types/src/expr/members.rs:684`, `crates/nvs-types/src/expr/members.rs:1882`, `crates/nvs-types/src/expr/members.rs:2308`, `crates/nvs-types/src/expr/args.rs:1454`, `crates/nvs-types/src/expr/args.rs:1985`, `crates/nvs-types/src/expr/args.rs:2031`, `crates/nvs-types/src/expr/iteration.rs:210`, `crates/nvs-types/src/expr/iteration.rs:324`, `crates/nvs-types/src/expr/iteration.rs:426`, `crates/nvs-types/src/expr/iteration.rs:450`, `crates/nvs-types/src/expr/quals.rs:258`, `crates/nvs-types/src/expr/quals.rs:971`
-- [ ] The declaration sites are quiet for the error type. `crates/nvs-types/src/check.rs:1129`, `crates/nvs-types/src/check.rs:1152`, `crates/nvs-types/src/check.rs:1221`, `crates/nvs-types/src/defaults.rs:299`, `crates/nvs-types/src/defaults.rs:370`, `crates/nvs-types/src/conformance.rs:126`, `crates/nvs-types/src/conformance.rs:248`, `crates/nvs-types/src/conformance.rs:788`, `crates/nvs-types/src/conformance.rs:1158`, `crates/nvs-types/src/conformance.rs:1373`, `crates/nvs-types/src/lower.rs:266`, `crates/nvs-types/src/lower.rs:328`, `crates/nvs-types/src/lower.rs:362`, `crates/nvs-types/src/lower.rs:647`
-- [ ] The feature sites are quiet for the error type, or the rule says why one reports. `crates/nvs-types/src/program.rs:152`, `crates/nvs-types/src/program.rs:325`, `crates/nvs-types/src/program.rs:351`, `crates/nvs-types/src/derive.rs:1264`, `crates/nvs-types/src/derive.rs:1747`, `crates/nvs-types/src/derive.rs:1819`, `crates/nvs-types/src/derive.rs:2461`, `crates/nvs-types/src/routes.rs:1582`, `crates/nvs-types/src/routes.rs:2132`, `crates/nvs-types/src/routes.rs:2378`, `crates/nvs-types/src/retrieval.rs:339`, `crates/nvs-types/src/match_attribute.rs:58`, `crates/nvs-types/src/commands.rs:521`, `crates/nvs-types/src/commands.rs:947`, `crates/nvs-types/src/testing.rs:415`, `crates/nvs-types/src/testing.rs:707`, `crates/nvs-types/src/testing.rs:740`, `crates/nvs-types/src/testing.rs:1091`, `crates/nvs-types/src/test_hooks.rs:395`, `crates/nvs-types/src/attributes.rs:672`, `crates/nvs-types/src/intrinsics.rs:1067`, `crates/nvs-types/src/deprecated/template.rs:515`, `docs/rules/types/one-mistake-reports-once.md:1`
+- [x] The declaration sites are quiet for the error type. `crates/nvs-types/src/check.rs:1129`, `crates/nvs-types/src/check.rs:1152`, `crates/nvs-types/src/check.rs:1221`, `crates/nvs-types/src/defaults.rs:299`, `crates/nvs-types/src/defaults.rs:370`, `crates/nvs-types/src/conformance.rs:126`, `crates/nvs-types/src/conformance.rs:248`, `crates/nvs-types/src/conformance.rs:788`, `crates/nvs-types/src/conformance.rs:1158`, `crates/nvs-types/src/conformance.rs:1373`, `crates/nvs-types/src/lower.rs:266`, `crates/nvs-types/src/lower.rs:328`, `crates/nvs-types/src/lower.rs:362`, `crates/nvs-types/src/lower.rs:647`
+- [x] The feature sites are quiet for the error type, or the rule says why one reports. `crates/nvs-types/src/program.rs:152`, `crates/nvs-types/src/program.rs:325`, `crates/nvs-types/src/program.rs:351`, `crates/nvs-types/src/derive.rs:1264`, `crates/nvs-types/src/derive.rs:1747`, `crates/nvs-types/src/derive.rs:1819`, `crates/nvs-types/src/derive.rs:2461`, `crates/nvs-types/src/routes.rs:1582`, `crates/nvs-types/src/routes.rs:2132`, `crates/nvs-types/src/routes.rs:2378`, `crates/nvs-types/src/retrieval.rs:339`, `crates/nvs-types/src/match_attribute.rs:58`, `crates/nvs-types/src/commands.rs:521`, `crates/nvs-types/src/commands.rs:947`, `crates/nvs-types/src/testing.rs:415`, `crates/nvs-types/src/testing.rs:707`, `crates/nvs-types/src/testing.rs:740`, `crates/nvs-types/src/testing.rs:1091`, `crates/nvs-types/src/test_hooks.rs:395`, `crates/nvs-types/src/attributes.rs:672`, `crates/nvs-types/src/intrinsics.rs:1067`, `crates/nvs-types/src/deprecated/template.rs:515`, `docs/rules/types/one-mistake-reports-once.md:1`
 
 ### 3. an unresolved `use` reports once, and the cases pin every root
 
@@ -170,51 +170,48 @@ another. The session reads each expected output against this goal's decisions.
 
 ### State
 
-Stage 1 is built. `Ty::Error` is the error type, chosen over a second interned id for the reason in
-`ty.rs`'s module doc. It prints as `mixed`, `assignable` accepts it both ways, and a union or an
-intersection with it as a member is `Ty::Error` itself (`make_union`, `make_intersection`). The six
-named recovery sites and `Core` constant recovery in `infer_class_const` (`members.rs:209`) return it.
-`nvs-ir`'s `erase_checked_ty` arm is `unreachable!` under `debug_assertions` and `Ty::Tagged`
-otherwise.
+Stages 1 and 2 are done. `Ty::Error` is the error type (`ty.rs`'s module doc says why it is a variant).
+It prints as `mixed`, is assignable both ways, and absorbs a union or an intersection it is in. Every
+recovery site returns it, and every report site that would name it as a value's type is quiet. Every
+`E0401` goes through `type_mismatch()` (`assign.rs`). The stage 1 conformance case
+`a-name-that-does-not-resolve-reports-once-and-a-written-mixed-keeps-its-error` pins one line per group:
+expressions, conversions, defaults, declarations and features.
 
-Stage 2's first group is built. Every `E0401` is built by `type_mismatch()` (`assign.rs:718`), which
-gives `None` when any type its message names is the error type. `mismatch()` calls it and now returns
-`Option<Diagnostic>`, and the six hand-built sites call it with their own headline. `E0403` was already
-quiet through `is_assignable`. `E0743` checks `is_error` at `selector_of`. A method call, a property
-read, a subscript, a binary operator, a `foreach` subject and `::class` on the error type report
-nothing. Unary operators and `++`/`--` were already quiet, because `equality_domain` puts the error type
-in no domain. The stage 1 conformance case now pins all of these in `label`'s body.
+Stage 2's last group, found by probe programs through `nvs check`:
 
-The stage's `Explore` sweep is done, and its sites are the stage's open items, grouped by kind. The
-three `E0401` builders in `args.rs` and the `var` widening in `assign.rs` go through `mismatch()` too.
-`calls.rs:115`'s arm and `members.rs:647`'s `may_be_thrown` are already quiet, so they left the list.
+- `class<T>`, `property<T>` and `string<K>` over an unresolved name were quiet only on the first
+  lowering. `Diagnostics::report` drops an identical diagnostic without counting it, so the
+  error-count guard misses a second lowering of the same annotation. Each now also tests
+  `is_error(arg)` and recovers as the error type (`lower.rs`). An alias read `Alias::Case` over an
+  error-type expansion reports nothing.
+- Quiet now: the delegate field check (`conformance.rs`, answers `true` so no member is owed), a
+  `#[Command]` return, a duplicate `#[Fixture]` of the error type (`check_fixture_shape` gives
+  `None`), a data row against an error-typed parameter, an unsupplied error-typed test parameter
+  (`testing.rs`), a hook's return and parameter type (`test_hooks.rs`), `Attributes::get<Missing>`
+  (`retrieval.rs`, `match_attribute.rs`), `Program::constructors` with an error-typed maker
+  parameter (`program.rs`), and a derived property against its constructor parameter (`derive.rs`).
+- Already quiet when probed: a constant, property or override redeclared at an error type, a double's
+  callable, a valueless or missing return, a generator, `#[Route]` captures, `#[Query]`, `#[Option]`,
+  a codec's reachability, format templates and attribute names.
+- A check a declaration fails whatever its types are still reports, such as a `#[BeforeClass]` method
+  that declares a parameter. The rule now says so.
 
-Stage 2's second group is built, found by probe programs run through `nvs check`. The taint walks
-`carries_unchecked`, `keys_from_outside` and `walks_outside_text` (`quals.rs`) no longer count the
-error type as `mixed`: its program never runs, and tainting it made `$err as string` and
-interpolation report `E0401` against `string`. The other `Mixed | Error` arms report nothing and stay.
-The seven recovery sites in `lower.rs` and `members.rs:115` return the error type. `infer_conversion`
-(`operators.rs:117`) returns the target after `check_class_target_conversion` when either side is the
-error type. A parameter or property default of the error type folds to `ConstArg::Null`
-(`defaults.rs`), so the parameter stays optional. `check_body_exits` and the generator check
-(`check.rs`) skip it, and so do destructuring (`locals.rs`), a spread (`literals.rs`) and the `inout`
-exactness check (`args.rs`). The probes found the rest of the expression list already quiet, and an
-override or an interface method typed with an undeclared class quiet too. The stage 1 case pins one
-line per group, including the `fallback` method's default and empty `return`.
+`Missing::Red` in a type position gives one `E0405` ("`Missing` has no constant named `Red`") and
+no `E0303`. That is one error, but the message names the wrong mistake. Stage 3 may reword it while
+it is in `nvs-hir`.
 
-The nightly CI failures the sweep named (run 39462919214) are fixed on main: CI run 39487313208 on
-`67e83f008` passed `proofs / linux-x86_64` and the chapter examples. Miri runs nightly only.
+The nightly CI failures the sweep named (run 39462919214) were fixed on main before this session: CI
+run 39487313208 on `67e83f008` passed every `proofs` job that finished and the chapter examples.
+Miri runs nightly only, and was cancelled with that run.
 
 ### Next
 
-**Stage 2, last group**, on `nvs-types`. Write the probe program first under `.agent-tmp/` and run
-`target/debug/nvs.exe check` on it. Add one deliberate real error so a silent run is known to have
-reached the checker.
+**Stage 3, first group**, on `nvs-hir` and `nvs-types`. Probe first: a `use App\Missing;` and the short
+name `Missing` written in a parameter, a `new` and a static call, through `target/debug/nvs.exe check`.
 
-- [ ] The declaration sites not probed yet: a type alias, a class constant and an enum case in a type position, over an unresolved name. `crates/nvs-types/src/lower.rs:266`, `crates/nvs-types/src/lower.rs:647`, `crates/nvs-types/src/conformance.rs:788`, `crates/nvs-types/src/conformance.rs:1373`
-- [ ] The feature sites: `#[Route]`, a derived codec, a command, a test hook and an attribute, each over a parameter or property typed `Missing`. `crates/nvs-types/src/routes.rs:1582`, `crates/nvs-types/src/derive.rs:1264`, `crates/nvs-types/src/commands.rs:521`, `crates/nvs-types/src/testing.rs:415`
-- [ ] Any feature site that must still report gets its reason in the rule. `docs/rules/types/one-mistake-reports-once.md:1`
-- [ ] Extend the stage 1 case with one line per group, then set stage 2 `done`. `tests/conformance/lang/a-name-that-does-not-resolve-reports-once-and-a-written-mixed-keeps-its-error.nvst:5`
+- [ ] The checker reads `Import::resolved == false` and gives the error type with no `E0303`. `crates/nvs-hir/src/resolve.rs:31`, `crates/nvs-hir/src/resolve.rs:278`, `crates/nvs-types/src/lower.rs:1037`
+- [ ] `nvs-hir` reports no `E0303` for a name an unresolved `use` brought in. `crates/nvs-hir/src/hierarchy.rs:675`, `crates/nvs-hir/src/hierarchy.rs:765`, `crates/nvs-hir/src/hierarchy.rs:786`
+- [ ] Then the stage's cases, through one writing subagent, one after another. `tests/conformance/lang/an-unresolved-use-reports-once.nvst:1`
 
 ### Backlog
 
