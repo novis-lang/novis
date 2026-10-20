@@ -619,7 +619,7 @@ fn a_shown_section_carries_no_rule_citation() {
         "no parenthesised citation survives: {card}"
     );
     assert!(
-        card.contains("with no `case` keyword and no `;`\n"),
+        card.contains("It has no `case` keyword and no `;`\n"),
         "the line ends where the citation was: {card}"
     );
 }

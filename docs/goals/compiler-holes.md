@@ -444,6 +444,11 @@ one line each. The other lists every citation of `lang:statements/try-catch-fina
   - [x] `hierarchy::undeclared_subject` reads the name back off the headline it writes
   - [x] `lang/an-undeclared-class-names-the-autoload-roots-it-searched.nvst` pins both notes, `rule:programs/autoload` says it, and the gap record is deleted
 - [ ] No diagnostic's message or help prints a `rule:` id or a form of "refuse", and a test scans the help texts. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/diagnostic-help-prints-rule-ids.json:1`
+  - [x] `crates/nvs-syntax/src/` and `crates/nvs-hir/src/`: every message, label, help and note is rewritten, and each expectation that pins one is re-recorded
+  - [ ] `crates/nvs-types/src/expr/`
+  - [ ] the rest of `crates/nvs-types/src/`
+  - [ ] `crates/nvs-config/src/`, `crates/nvs-diagnostics/src/code/config.rs` and the `eprintln!` lines in `crates/nvs-cli/src/`
+  - [ ] a test scans every help text and card, and the gap record is deleted
 - [ ] The two `lang:statements/` features are merged into their `lang:errors/` twins. `tools/nv/proofs/roster.ts:1`, `data/gaps/nv/two-lang-features-are-one-syntax.json:1`
 
 ### 17. a generated matrix pins every redeclaration a subclass can write
@@ -515,25 +520,36 @@ single-help items landed, and their four gap records are deleted:
   headline `undeclared_name_at` writes. The editor (`crates/nvs-lsp/src/document.rs`) does not run
   it yet.
 
-`website/public/llms-full.txt` is committed with only this goal's hunks. The tree also holds
-uncommitted work this goal does not own: `crates/nvs-cli/src/{agent,meta}.rs`,
-`crates/nvs-cli/tests/agent.rs`, `docs/reference/tools/50-agents.md`, `crates/nvs-config/`,
-`crates/nvs-diagnostics/src/code/warnings.rs`, `website/src/lib/core.ts`,
-`website/src/data/numbers.json` and `tools/nv/test/core-type-links.test.ts`. Run
-`bun nv render --website` again once that work is committed.
+The fifth item's first crate group landed: no message, label, help or note under
+`crates/nvs-syntax/src/` or `crates/nvs-hir/src/` prints a `rule:` id or a form of "refuse"
+(54 texts, `duration.rs`'s mis-cased unit among them). Nine conformance cases, sixteen example
+`.out` files, six `docs/reference/lang/` chapters, `llms-full.txt` and `nvs-cli`'s
+`a_shown_section_carries_no_rule_citation` were re-recorded.
+
+**`nvs test` cannot re-record a `.nvst` case**: `--update` is for inline snapshots only. Copy each
+changed line from the failing run's `actual:` block into the case. An example's `.out` is
+`bun nv proofs --bless <file.nvs>`, then `bun nv render` writes the reference chapters and
+`bun nv render --website` writes `llms-full.txt`.
+
+The tree holds uncommitted work this goal does not own: `docs/rules/ide.md`,
+`website/src/lib/core.ts`, `website/src/data/numbers.json` and
+`tools/nv/test/core-type-links.test.ts`. Leave them out of this goal's commits. `docs/rules/ide.md`
+differs from what `bun nv rules --render` writes, so `bun nv verify` stops at `rules-render` until
+that work lands. This group's gate was therefore `bun nv verify --fast -p` over `nvs-syntax`,
+`nvs-hir`, `nvs-types`, `nvs-lsp` and `nvs-cli`, all green, and `nvs test` over the 36 cases that
+pinned an old text.
 
 ### Next
 
-**Stage 13's fifth item is about 300 strings, so it is split by crate**, one session each, in this
-order. The list is a fresh `Explore` search per session: every string literal that reaches a
-`Diagnostic` builder, a reference card or an `eprintln!` `error:`/`warning:`/`note:` line and holds
-`rule:` or a form of "refuse". Leave out doc comments, tests, `#[expect(reason)]`, `panic!` text and
-run-time error messages. Each rewritten text is held to AGENTS.md § *Text an end user reads*, and
-each expectation that pins it is re-recorded with `nvs test` on the case.
+**Stage 13's fifth item is split by crate**, one session each, in this order. The list is a grep
+of the crate's non-comment lines for `rule:` and `[Rr]efus`, with test files, `assert!`,
+`#[expect(reason)]` and identifiers filtered out. A multi-line string puts the id on a line of its
+own, which the grep still finds. Leave out doc comments, tests, `panic!` text and run-time error
+messages. Each rewritten text is held to AGENTS.md § *Text an end user reads*. Then find each
+expectation that pins an old text: put a distinctive fragment of each into a file and
+`grep -rlF -f` it over `tests/`, `docs/examples/` and `crates/*/tests/`.
 
-1. `crates/nvs-syntax/src/parser/` and `crates/nvs-hir/src/` (about 50): `decl.rs`, `stmt.rs`,
-   `ty.rs`, `expr.rs`, `aliases.rs`, `members.rs`, `autoload.rs`, and `hierarchy.rs:671`'s
-   `E_RELATIVE_QUALIFIED_NAME` help.
+1. Done: `crates/nvs-syntax/src/` and `crates/nvs-hir/src/`.
 2. `crates/nvs-types/src/expr/` (about 110): `operators.rs` has the most, including the conversion
    help table near `operators.rs:2714`, then `members.rs`, `calls.rs`, `args.rs`, `iteration.rs`,
    `quals.rs`, `assign.rs`, `literals.rs`, `mod.rs`.

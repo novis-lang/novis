@@ -78,7 +78,7 @@ impl DurationError {
                  `h`, `d` and `w`"
             ),
             Self::MisCasedUnit(unit) => format!(
-                "a duration unit is lower case only, so `{unit}` is `{}` (`rule:classes/names-resolve-case-sensitively`)",
+                "a duration unit is written in lower case, so write `{}` for `{unit}`",
                 unit.to_ascii_lowercase()
             ),
             Self::OutOfOrder(first, second) => format!(

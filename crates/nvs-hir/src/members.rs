@@ -1164,10 +1164,10 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                     if !env.refused_toplevel.contains(text) {
                         // Every name gets the same help, whose
                         // `Core\Str::length` is an example of the shape.
-                        let help = "`rule:classes/no-free-functions-or-constants`: every callable is a \
-                                    method, and the built-ins live under the reserved `Core` \
-                                    namespace — `Core\\Str::length($s)`, or `use Core\\Str;` and \
-                                    then `Str::length($s)`";
+                        let help = "every function is a method of a class. The built-in \
+                                    functions are in the `Core` namespace. Write \
+                                    `Core\\Str::length($s)`, or write `use Core\\Str;` and then \
+                                    `Str::length($s)`";
                         env.diags.report(
                             Diagnostic::error(
                                 code::E_NO_FREE_FUNCTION,
@@ -1348,14 +1348,12 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                      text is a `Core\\Html\\Markup` and every `{$…}` hole in it is escaped"
                         .to_owned()
                 } else if matches!(text, "__FILE__" | "__DIR__") {
-                    "there are no magic constants: `Core\\Path::thisFile()` is the path of this \
-                     file and `Core\\Path::thisDir()` its folder, both written in while compiling \
-                     (`rule:programs/relative-paths-resolve-from-their-file`)"
+                    "there are no magic constants. `Core\\Path::thisFile()` returns the path of \
+                     this file, and `Core\\Path::thisDir()` returns its folder"
                         .to_owned()
                 } else {
-                    "`rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no \
-                     global one to fetch — write `Class::NAME`, and a built-in constant is on its \
-                     `Core` class, such as `Core\\Math::PI`"
+                    "every constant belongs to a class, so write `Class::NAME`. A built-in \
+                     constant is on its `Core` class, such as `Core\\Math::PI`"
                         .to_owned()
                 };
                 env.diags.report(
@@ -1381,9 +1379,8 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 )
                 .with_primary(expr.span, "used where a value is expected")
                 .with_help(format!(
-                    "write `{written}::` and the member wanted — a method call, a constant or a \
-                     static property. There is no class handle to pass around: `rule:classes/no-free-functions-or-constants` puts \
-                     every reflective question on `Core\\Reflect` instead"
+                    "write `{written}::` and then a method call, a constant or a static property. \
+                     To get information about a class, use `Core\\Reflect`"
                 )),
             );
         }
@@ -1555,8 +1552,8 @@ fn report_missing_owned_enum(owner: &QName, name: &str, span: Span, env: &mut En
     .with_primary(span, "referenced here");
     if let Some(declaring) = ancestor_owning_enum(owner, name, env) {
         diag = diag.with_help(format!(
-            "`{declaring}::{name}` is where it is declared. An enum in a class body is reached \
-             through that class and is not inherited (`rule:enums/class-scoped-enum`)"
+            "`{declaring}::{name}` is where it is declared. An enum in a class body is used \
+             through that class. A subclass does not inherit it"
         ));
     }
     env.diags.report(diag);
@@ -2062,7 +2059,7 @@ mod tests {
     /// no PHP function (`rule:classes/no-free-functions-or-constants`).
     #[test]
     fn an_undefined_free_function_gets_the_general_help() {
-        let general = "the built-ins live under the reserved `Core` namespace";
+        let general = "The built-in functions are in the `Core` namespace";
         for src in [
             "<?nvs\necho count([1, 2]);\n",
             "<?nvs\necho tally([1, 2]);\n",

@@ -981,7 +981,7 @@ fn report_duplicate(prefix: &str, first: Span, second: Span, diags: &mut Diagnos
         )
         .with_primary(second, "declared again here")
         .with_secondary(first, "first declared here")
-        .with_note("one prefix has one home (`rule:programs/autoload`)"),
+        .with_note("each prefix can be autoloaded from only one place"),
     );
 }
 
@@ -1350,7 +1350,8 @@ pub fn check_file_shape(
             )
             .with_primary(at, message)
             .with_note(
-                "`rule:programs/one-declaration-per-autoloaded-file`: otherwise whether a name exists depends on what was resolved first",
+                "with more declarations in one file, a name would exist only after another \
+                 name in the same file was loaded",
             ),
         );
     }
@@ -1431,7 +1432,7 @@ pub fn reject_declarations(sites: &[Site], diags: &mut Diagnostics) {
                 site.span,
                 "this declaration would extend the map that found it",
             )
-            .with_note("`rule:programs/autoload`: write it in a file the entry point `require`s"),
+            .with_note("write it in a file that the entry point loads with `require`"),
         );
     }
 }

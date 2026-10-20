@@ -436,14 +436,8 @@ impl<'src, 'd> Parser<'src, 'd> {
             "return" | "returns" => {
                 "the return type is already in the signature; a sentence says what the value means"
             }
-            "throws" => {
-                "say what it throws in a sentence — a `Core` member's errors are its registry card \
-                 (`rule:core-api/reference-card`)"
-            }
-            _ => {
-                "a doc comment is Markdown plus `@see` and `@example`, and the set is closed \
-                 (`rule:tooling/doc-comment-tags-are-see-and-example`)"
-            }
+            "throws" => "say in a sentence what it throws",
+            _ => "a doc comment is Markdown. The only tags are `@see` and `@example`",
         };
         self.diags.report(
             Diagnostic::error(
@@ -822,7 +816,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 span,
                 "an anonymous function captures `$this` only when it uses it",
             )
-            .with_help("drop `static` (`rule:statements/no-function-static-and-no-global`)"),
+            .with_help("remove `static`"),
         );
     }
 
@@ -879,9 +873,8 @@ impl<'src, 'd> Parser<'src, 'd> {
                  value as a parameter"
             }
             "$_REQUEST" => {
-                "`$_REQUEST` does not exist, and neither does anything merging query, body and \
-                 cookie input into one place — read each explicitly, so the source is visible at \
-                 the call site (`rule:statements/no-host-populated-variables`)"
+                "`$_REQUEST` does not exist. Read the query, the body and the cookies each with \
+                 its own call, so the code shows where each value comes from"
             }
             "$_GET" => {
                 "use `Core\\Request::query` — it returns one query parameter of the current request"
@@ -1013,10 +1006,9 @@ pub fn by_reference_assignment(span: Span, value_text: &str) -> Diagnostic {
     )
     .with_primary(span, format!("this would share `{value_text}`'s own slot"))
     .with_help(
-        "Novis has no references: `rule:types/implicit-capture` removed by-reference capture and `rule:classes/two-copy-depths` makes \
-         this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), \
-         not a way to make two names one place, and to share one mutable cell you hold it in \
-         an object and assign that",
+        "Novis has no references, so remove the `&`. The assignment then copies the value. \
+         To change a caller's variable, use an `inout` parameter. To share one value that \
+         changes, put it in an object and assign the object",
     )
 }
 

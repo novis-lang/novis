@@ -3394,7 +3394,7 @@ error[E0230]: `list(...)` is not supported
   |
 7 | list(int $a, int $b) = $pair;
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ use `[...]` instead — it is the only destructuring spelling Novis keeps
-  = help: the element grammar is identical inside either bracket (`rule:expressions/bracket-destructuring`)
+  = help: the elements are written the same way inside `[...]`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -3611,7 +3611,7 @@ error[E0117]: an anonymous object here is ambiguous with a block
   |
 6 | {x: 1};
   | ^^^^^^ `{` already means a block in this position
-  = help: wrap it in parentheses: `({...})` (`rule:types/anonymous-object`)
+  = help: wrap it in parentheses: `({...})`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

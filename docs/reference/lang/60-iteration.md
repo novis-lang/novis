@@ -1297,7 +1297,7 @@ error[E0320]: `iterator_to_array` is not a function that exists
    |
 16 | var $all = iterator_to_array(Numbers::upTo(3));
    |            ^^^^^^^^^^^^^^^^^ no free function has this name
-   = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`
+   = help: every function is a method of a class. The built-in functions are in the `Core` namespace. Write `Core\Str::length($s)`, or write `use Core\Str;` and then `Str::length($s)`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

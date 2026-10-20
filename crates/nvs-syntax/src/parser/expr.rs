@@ -621,8 +621,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             )
             .with_primary(span, "no operator is spelled this way")
             .with_help(
-                "write `$x is Request`; a class reference on the right is `$x is $cls` \
-                 (`rule:types/type-test`)",
+                "write `$x is Request`. With a class reference on the right, write `$x is $cls`",
             ),
         );
     }
@@ -1664,7 +1663,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 "an anonymous object here is ambiguous with a block",
             )
             .with_primary(span, "`{` already means a block in this position")
-            .with_help("wrap it in parentheses: `({...})` (`rule:types/anonymous-object`)"),
+            .with_help("wrap it in parentheses: `({...})`"),
         );
         Expr {
             span,
@@ -1822,8 +1821,8 @@ impl<'src, 'd> Parser<'src, 'd> {
             )
             .with_primary(start.to(class), "this class has no name to be known by")
             .with_help(
-                "declare a named class in the same file and write `new That(…)`, or use a \
-                 anonymous function when the class has only one method (`rule:types/anonymous-function`)",
+                "declare a named class in the same file and write `new That(…)`. If the class \
+                 has only one method, you can use an anonymous function instead",
             ),
         );
         let args = if self.at(TokenKind::LParen) {
@@ -2056,10 +2055,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             let span = self.peek().span.shrink_to_start();
             self.diags.report(
                 Diagnostic::error(code::E_EXPECTED_TOKEN, "expected a parameter type")
-                    .with_primary(
-                        span,
-                        "every parameter declares a type (`rule:types/declaration`)",
-                    ),
+                    .with_primary(span, "every parameter needs a type"),
             );
             None
         } else {

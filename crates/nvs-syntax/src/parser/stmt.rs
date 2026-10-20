@@ -141,10 +141,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 shape,
                 "`{` at the start of a statement already opens a block",
             )
-            .with_help(
-                "name the shape first: `type Point = {x: int}; Point $point;` \
-                 (`rule:types/shape-type`)",
-            ),
+            .with_help("give the shape a name first: `type Point = {x: int}; Point $point;`"),
         );
         self.bump(); // the variable the tell found behind the `}`
         while !self.at(TokenKind::Semicolon)
@@ -502,13 +499,10 @@ impl<'src, 'd> Parser<'src, 'd> {
                                 code::E_FOR_INIT_TWO_DECLARATIONS,
                                 "a `for` init clause declares at most one binding",
                             )
-                            .with_primary(
-                                second.span,
-                                "this is the header's second declaration (`rule:iteration/for-init-clause`)",
-                            )
+                            .with_primary(second.span, "this is the second declaration")
                             .with_help(
-                                "declare the second binding above the loop — the counter is \
-                                 function-scoped either way (`rule:iteration/for-counter-scope`)",
+                                "declare the second variable above the loop. The variable can \
+                                 be used in the whole function either way",
                             ),
                         );
                     }
@@ -555,10 +549,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 code::E_FOR_INIT_MIXES_DECL_AND_EXPR,
                 "a `for` init clause holds one declaration or a list of expressions, not both",
             )
-            .with_primary(
-                item,
-                "this item is the other kind (`rule:iteration/for-init-clause`)",
-            )
+            .with_primary(item, "this item is the other kind")
             .with_help(
                 "move the extra initialiser above the loop, or make every item an expression",
             ),
@@ -661,8 +652,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 )
                 .with_primary(
                     span,
-                    "a `foreach` binding writes its type, or `var` to take the subject's \
-                     element type (`rule:types/grammar`.2)",
+                    "write the variable's type, or write `var` to use the element type",
                 ),
             );
             ForeachBindingTy::Omitted
@@ -980,10 +970,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     span,
                     "no function may reach outside its own frame for state",
                 )
-                .with_help(
-                    "pass it as a parameter, or make it a `static` property or a `const` \
-                     (`rule:statements/no-function-static-and-no-global`)",
-                ),
+                .with_help("pass it as a parameter, or make it a `static` property or a `const`"),
         );
         Stmt {
             span,
@@ -1039,7 +1026,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             .with_primary(span, "there is no per-function storage class")
             .with_help(
                 "declare a `private static` property on a class, or pass the value as a \
-                 parameter (`rule:statements/no-function-static-and-no-global`)",
+                 parameter",
             ),
         );
         Stmt {
@@ -1148,7 +1135,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 stmt.span,
                 "use `[...]` instead — it is the only destructuring spelling Novis keeps",
             )
-            .with_help("the element grammar is identical inside either bracket (`rule:expressions/bracket-destructuring`)"),
+            .with_help("the elements are written the same way inside `[...]`"),
         );
         Stmt {
             span: stmt.span,
@@ -1264,10 +1251,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     code::E_EXPECTED_TOKEN,
                     "expected a destructuring leaf's type",
                 )
-                .with_primary(
-                    span,
-                    "every destructuring leaf declares a type (`rule:types/grammar`.3)",
-                ),
+                .with_primary(span, "every variable in a destructuring needs a type"),
             );
             None
         };

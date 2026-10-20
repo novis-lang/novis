@@ -19,7 +19,7 @@ error[E0253]: `instanceof` is not a Novis operator; the type test is `is`
    |
 10 | echo $pet instanceof Animal, "\n";
    |           ^^^^^^^^^^ no operator is spelled this way
-   = help: write `$x is Request`; a class reference on the right is `$x is $cls` (`rule:types/type-test`)
+   = help: write `$x is Request`. With a class reference on the right, write `$x is $cls`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

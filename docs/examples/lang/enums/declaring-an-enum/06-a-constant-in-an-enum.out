@@ -3,7 +3,7 @@ error[E0220]: an enum declares only cases and an optional backing type
   |
 9 |     const int COUNT = 2;
   |     ^^^^^^^^^^^^^^^^^^^^ not a case
-  = help: move this to a separate class (`rule:enums/no-class-machinery`)
+  = help: move this to a separate class
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

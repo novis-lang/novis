@@ -666,9 +666,8 @@ pub fn undeclared_name_at(
         )
         .with_primary(span, "a qualified name is read from the root")
         .with_help(format!(
-            "`{relative}` is what is declared. A name with a `\\` in it is absolute in Novis, \
-             where PHP would have read this one as relative to the enclosing namespace \
-             (`rule:statements/a-qualified-name-is-absolute`) — write `{relative}`, or `use {relative};` and write `{}`",
+            "`{relative}` is declared. A name that contains a `\\` always starts at the root. \
+             Write `{relative}`, or write `use {relative};` and then `{}`",
             relative.short_name()
         ));
     }

@@ -3,7 +3,7 @@ error[E0219]: an enum cannot be backed by `string`
   |
 6 | enum Suit: string { Hearts, Spades }
   |            ^^^^^^ only `int`/`uint` back an enum
-  = help: use `: int` or `: uint`, or omit the backing type (`rule:enums/no-class-machinery`)
+  = help: use `: int` or `: uint`, or omit the backing type
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

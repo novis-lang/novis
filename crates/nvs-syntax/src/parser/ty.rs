@@ -390,8 +390,8 @@ impl<'src, 'd> Parser<'src, 'd> {
             )
             .with_primary(span, "a class keyword is a whole type on its own")
             .with_help(
-                "name the owner class — `Owner::MEMBER` — or, for a `type` alias inside the body \
-                 that declares it, write the alias's bare name (`rule:types/grammar`)",
+                "write the class name, as in `Owner::MEMBER`. Inside the class that declares \
+                 a `type` alias, write the alias's name alone",
             ),
         );
         Type {
@@ -473,8 +473,8 @@ impl<'src, 'd> Parser<'src, 'd> {
                                 )
                                 .with_primary(span, "no `string` or `bytes` field anywhere in it")
                                 .with_help(
-                                    "drop the qualifier, or write the field this shape was \
-                                     meant to carry (`rule:security/tainted-qualifier`)",
+                                    "remove `tainted`, or add the `string` or `bytes` field \
+                                     the shape needs",
                                 ),
                             );
                         }
@@ -497,10 +497,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                                 "`secret` must come before `tainted`",
                             )
                             .with_primary(span, "wrong qualifier order")
-                            .with_help(
-                                "write `secret tainted string`/`secret tainted bytes` \
-                                 (`rule:security/secret-qualifier`)",
-                            ),
+                            .with_help("write `secret tainted string` or `secret tainted bytes`"),
                         );
                         return Type { kind: other, span };
                     }
@@ -511,7 +508,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                                 "`tainted` only qualifies `string`, `bytes` and a shape of them",
                             )
                             .with_primary(span, "not something `tainted` can qualify")
-                            .with_help("write `tainted string`, `tainted bytes` or `tainted {…}` (`rule:security/tainted-qualifier`)"),
+                            .with_help("write `tainted string`, `tainted bytes` or `tainted {…}`"),
                         );
                         return Type { kind: other, span };
                     }
@@ -537,7 +534,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                                 "`secret` only qualifies `string`/`bytes`",
                             )
                             .with_primary(span, "not a scalar `secret` can qualify")
-                            .with_help("write `secret string` or `secret bytes` (`rule:security/secret-qualifier`)"),
+                            .with_help("write `secret string` or `secret bytes`"),
                         );
                         return Type {
                             kind: inner.kind,
@@ -722,8 +719,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 )
                 .with_primary(span, "this type names one exact string")
                 .with_help(
-                    "write the string out — a type is resolved at compile time, so there is \
-                     nothing to interpolate from (`rule:types/single-value-types`)",
+                    "write the whole string without variables. A type is read at compile time",
                 ),
             );
         }
@@ -748,8 +744,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 "only a string or a whole number can be a single-value type",
             )
             .with_help(
-                "use `float` and check the value, or list the allowed values as whole \
-                 numbers (`rule:types/single-value-types`)",
+                "use `float` and check the value, or list the allowed values as whole numbers",
             ),
         );
         Type {
@@ -812,10 +807,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     "a `callable` type does not name its parameters",
                 )
                 .with_primary(name, "a parameter name")
-                .with_help(
-                    "write the types alone, as `callable(int): string` — a name here would \
-                     imply calling through the value by name (`rule:types/callable-signature`)",
-                ),
+                .with_help("write only the types, as in `callable(int): string`"),
             );
         }
         if self.eat(TokenKind::Colon).is_none() {
@@ -827,9 +819,8 @@ impl<'src, 'd> Parser<'src, 'd> {
                 )
                 .with_primary(span, "no `:` and return type after the parameter list")
                 .with_help(
-                    "write `callable(int): void` if it returns nothing — a parameter list \
-                     without a return type says less than bare `callable` \
-                     (`rule:types/callable-signature`)",
+                    "write the return type after a `:`. If it returns nothing, write \
+                     `callable(int): void`",
                 ),
             );
             return Type {
@@ -1012,8 +1003,8 @@ impl<'src, 'd> Parser<'src, 'd> {
                 )
                 .with_primary(slash, "remove the leading `\\`")
                 .with_help(
-                    "a name with a `\\` in it is read from the root, and one without resolves \
-                     through the imports then the enclosing namespace (`rule:statements/a-qualified-name-is-absolute` and `rule:statements/a-leading-separator-does-not-parse`)",
+                    "a name that contains a `\\` always starts at the root. A name without \
+                     one is looked up in the imports, then in the current namespace",
                 ),
             );
         }
