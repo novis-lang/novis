@@ -1,0 +1,88 @@
+--TEST--
+`??=` on a property that already has a value stores nothing, so no guard and no observer run and the right side is not evaluated; on a `null` property it stores through the whole pipeline
+--FILE--
+<?nvs
+// covers: lang:classes/propertyguard, PropertyGuard
+final class Box implements PropertyGuard, PropertyObserver {
+    public ?int $count = 4;
+    public ?string $label = null;
+    public array<string> $tags = [];
+
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+        echo "  guard ", $name, " = ", Core\Json::encode($value), " keys ", Core\Json::encode($keys), "\n";
+        if ($value is int && $value == 4) {
+            throw new LogicError("4 is not allowed");
+        }
+    }
+
+    public function beforePropertyUnset(string $name, array<string> $keys): void {}
+
+    public function onPropertyGet(string $name, mixed $value): void {}
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "  observed ", $name, "\n";
+    }
+}
+
+final class Numbers {
+    public static function five(): int {
+        echo "  five() runs\n";
+        return 5;
+    }
+}
+
+echo "setup:\n";
+Box $b = new Box();
+$b->tags["a"] = "x";
+
+echo "a property with a value:\n";
+$b->count ??= Numbers::five();
+echo "count: ", $b->count, "\n";
+
+echo "as a value:\n";
+?int $kept = ($b->count ??= Numbers::five());
+echo "kept: ", $kept, "\n";
+
+echo "a null property:\n";
+$b->label ??= "new";
+echo "label: ", $b->label, "\n";
+?string $label = ($b->label ??= "other");
+echo "label kept: ", $label, "\n";
+
+echo "an element with a value:\n";
+$b->tags["a"] ??= "y";
+echo "a: ", $b->tags["a"], "\n";
+
+echo "an absent element:\n";
+$b->tags["b"] ??= "z";
+echo "b: ", $b->tags["b"], "\n";
+
+echo "a local:\n";
+?string $s = "one";
+$s ??= "two";
+echo "s: ", $s, "\n";
+?string $t = null;
+$t ??= "three";
+echo "t: ", $t, "\n";
+--EXPECT--
+setup:
+  guard tags = "x" keys ["a"]
+  observed tags
+a property with a value:
+count: 4
+as a value:
+kept: 4
+a null property:
+  guard label = "new" keys []
+  observed label
+label: new
+label kept: new
+an element with a value:
+a: x
+an absent element:
+  guard tags = "z" keys ["b"]
+  observed tags
+b: z
+a local:
+s: one
+t: three

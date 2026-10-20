@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-types/src/conformance.rs, docs/rules/statements/static-is-a-member-modifier.md, docs/rules/classes/an-override-keeps-its-parents-signature.md]
   - id: 4
     title: "visibility and the property pipeline hold on every path"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-types/src/expr/members.rs, crates/nvs-types/src/program.rs, crates/nvs-ir/src/lower/mod.rs]
   - id: 5
     title: "every expression the checker accepts lowers"
@@ -314,8 +314,8 @@ else, and every write of a property runs the same guard and observer pipeline.
 - [x] An erased read or write through `object` or `mixed` of a property not visible at the access site throws, as a missing name does. `rule:types/erased-member-access` says so. `crates/nvs-runtime/src/object.rs:1`, `data/gaps/nvs-runtime/a-private-or-protected-property-is.json:1`
 - [x] A read of a `private` class constant outside its class, or of a `protected` one outside the class and its subclasses, is a diagnostic. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-private-or-protected-class-constant.json:1`
 - [x] `Core\Program::implementing` and `implementingWith` over a class with a `private` or `protected` constructor is a diagnostic at the call. `crates/nvs-types/src/program.rs:1`, `data/gaps/nvs-types/core-program-implementing-calls-a-private.json:1`
-- [ ] A promoted constructor parameter is stored through the same pipeline as `$this->x = $x;`, with a case for the guard and the observer. `crates/nvs-ir/src/lower/mod.rs:1`, `data/gaps/nvs-ir/a-promoted-constructor-parameter-runs-no.json:1`
-- [ ] A `??=` that keeps the property's value calls no guard. `crates/nvs-ir/src/lower/mod.rs:1`, `data/gaps/nvs-ir/a-coalescing-assignment-to-a-property.json:1`
+- [x] A promoted constructor parameter is stored through the same pipeline as `$this->x = $x;`, with a case for the guard and the observer. `crates/nvs-ir/src/lower/mod.rs:1`, `data/gaps/nvs-ir/a-promoted-constructor-parameter-runs-no.json:1`
+- [x] A `??=` that keeps the property's value calls no guard. `crates/nvs-ir/src/lower/mod.rs:1`, `data/gaps/nvs-ir/a-coalescing-assignment-to-a-property.json:1`
 
 ### 5. every expression the checker accepts lowers
 
@@ -478,32 +478,37 @@ another goal.
 
 ### State
 
-Stages 1, 2, 3 and 16 are done, and stage 16's two gap records are deleted and committed. Stage 4's
-three visibility items are done, each with its gap record deleted; the two `nvs-ir` pipeline items
-are left.
+Stages 1, 2, 3, 16 and 4 are done, and every gap record they owned is deleted. Stage 5 is next.
 
-- An erased property access reaches `public` properties only, as a call through `mixed` does. The
-  compiled entry points in `crates/nvs-runtime/src/object.rs` (`nvs_object_slot_get`, its optional
-  twin, `nvs_object_slot_set`, the two keyed ones and `nvs_object_slot_probe`) pass `Reach::Public`.
-  `Core\Reflect\ClassInfo`'s `read_erased_property_owned` and `write_erased_property` pass
-  `Reach::Checked`, since reflect asks `Ctx::field_is_visible_from` from its own site first. A `??`
-  over a hidden property throws, and `is` with a shape naming it gives `false`.
-  `rule:types/erased-member-access` states it. A shape class is never hidden (`hidden` checks
-  `is_shape`), because the shapes `Core` members mint natively are never told their public bits.
-- `ConstSig` carries the constant's `visibility`, and `infer_class_const` runs
-  `check_member_visibility` on it, so a hidden constant read is `E0471`.
-  `rule:core-api/written-visibility` no longer says the levels are enforced later.
-- `constructors_of` in `crates/nvs-types/src/program.rs` runs `check_method_visibility` on each
-  listed constructor, reports every hidden one at the call (`E0471`) and refuses the enumeration.
-  `implementingWith` returns `mixed` after any refusal, so a wrapping call adds a second `E0401`.
-  That was already so for `E0744`.
+- A promoted constructor parameter's store runs the guard before the slot write and the observer
+  after it. `nvs_types::check::check_method` calls `record_promoted_pipelines`
+  (`crates/nvs-types/src/expr/members.rs`) for a constructor, which records a `PromotedPipeline`
+  at each promoted parameter's name when the class implements `PropertyGuard` or
+  `PropertyObserver`. `promoted_stores` in `crates/nvs-ir/src/lower/mod.rs` reads it through
+  `ExprTypeTable::promoted_pipeline`. A class that implements neither records nothing and its
+  store is one slot write. Case:
+  `tests/conformance/class/property-guard-and-observer-run-for-a-promoted-parameter.nvst`.
+- `$t ??= e` stores only when `$t` is `null` or absent. `Lowering::open_kept_value` and
+  `close_kept_value` in `crates/nvs-ir/src/lower/stmt.rs` branch on the staged read, for a tagged
+  or `?class<T>` target. The keeping block writes nothing, does not evaluate `e`, and gives the
+  read as the value, retained in a value position. Every temporary the store made is released on
+  the storing block. `rule:classes/property-observer-pipeline` and
+  `rule:types/absent-storage-is-never-a-zero-value` state it. Case:
+  `tests/conformance/class/a-coalescing-assignment-that-keeps-a-value-runs-no-guard.nvst`.
+- The installed `looper` has no `verify` subcommand, so this session ran `bun nv affected --run`.
 
 ### Next
 
-**Stage 4's last two items, both in `nvs-ir`.**
+**Stage 5: the forms the checker accepts and the lowering panics on.** Each becomes a diagnostic
+where it is written (§ *Standing decisions*), with a conformance case and its gap record deleted.
 
-- [ ] Stage 4: a promoted constructor parameter is stored through the `$this->x = $x;` pipeline, guard and observer included. `crates/nvs-ir/src/lower/mod.rs:1403` (`promoted_stores`), `data/gaps/nvs-ir/a-promoted-constructor-parameter-runs-no.json:1`
-- [ ] Stage 4: a `??=` that keeps the property's value calls no guard. `crates/nvs-ir/src/lower/mod.rs:1`, `data/gaps/nvs-ir/a-coalescing-assignment-to-a-property.json:1`
+- [ ] Stage 5: a `catch` variable that redeclares a local is `E0406`, at the top level and in a method. `crates/nvs-ir/src/lower/expr.rs:235`, `data/gaps/nvs-ir/a-catch-variable-that-reuses-a.json:1`
+- [ ] Stage 5: `echo` and `.` of a `class<T>` are a diagnostic whose help names `as string`. `crates/nvs-ir/src/lower/expr.rs:1146`, `data/gaps/nvs-ir/a-class-reference-in-echo-or.json:1`
+- [ ] Stage 5: `is class<T>` is a diagnostic whose help names `as ?class<T>`. `crates/nvs-ir/src/lower/expr.rs:6280`, `data/gaps/nvs-ir/an-is-test-against-a-class-reference.json:1`
+- [ ] Stage 5: a `void` call at `mixed` or as a `match` arm is a compile error. `crates/nvs-ir/src/lower/control.rs:1`, `data/gaps/nvs-ir/a-void-call-at-a-mixed.json:1`
+- [ ] Stage 5: a static property reached through `->` or `?->` is a diagnostic naming `P::$x`. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-static-property-read-through-an.json:1`
+- [ ] Stage 5: ordering a `bool` against a number is `E0715`. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/ordering-a-bool-against-a-number.json:1`
+- [ ] Stage 5: a `callable` after `echo` or `.` is `E0707`. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/echo-of-a-callable-compiles-and.json:1`
 
 ### Backlog
 
