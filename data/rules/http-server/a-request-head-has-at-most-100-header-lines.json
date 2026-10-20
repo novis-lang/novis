@@ -1,0 +1,11 @@
+{
+  "title": "A request head has at most 100 header lines, and the 101st is answered `431` and a close",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/four-idle-waits-all-finite",
+    "errors/http-message-defects"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/serve.rs"
+  ]
+}

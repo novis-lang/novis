@@ -1094,6 +1094,22 @@ impl NvsConnection {
             Self::Unix(stream) => stream.poll_write(buf),
         }
     }
+
+    /// Ends this connection's writing and leaves its reading open: the FIN
+    /// goes out now, and the peer's bytes can still be read.
+    ///
+    /// A syscall that does not wait, so it parks nothing.
+    ///
+    /// # Errors
+    ///
+    /// The socket's own, such as a peer that has already reset it.
+    pub fn shutdown_write(&self) -> io::Result<()> {
+        match self {
+            Self::Tcp(stream) => stream.inner.shutdown(std::net::Shutdown::Write),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.inner.shutdown(std::net::Shutdown::Write),
+        }
+    }
 }
 
 impl Read for NvsConnection {

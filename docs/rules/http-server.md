@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*1 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -343,6 +343,45 @@ This is the division of labour with the proxy in one sentence: **a proxy owns si
 **Declined:** an idle head wait, which a client trickling one byte per interval never reaches. A configuration key or a head size cap beside the deadline, because a proxy owns size.
 
 <sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite).</sub>
+
+<a id="http-server-a-request-head-has-at-most-100-header-lines"></a>
+
+## A request head has at most 100 header lines, and the 101st is answered `431` and a close
+
+`rule:http-server/a-request-head-has-at-most-100-header-lines`
+
+A request head may have at most 100 header lines, `Host` included. A head with 101 is answered `431 Request Header Fields Too Large`, and the connection is closed. No request is run for it. The bound is `MAX_HEADER_LINES` in `nvs_server::serve`, set on the HTTP parser by name. It is the parser's own default, so a head the server answered before it was named is answered now, and naming it keeps it from moving with the parser's version.
+
+The bound is the parser's and not a size policy. A head is parsed into an array of this many entries, so the number is also what one head costs to parse. [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite) leaves a head's size to the proxy, and this rule does not change that: a proxy still owns how many bytes a head may have.
+
+**Declined:**
+
+- **A setting.** No application needs more than a hundred header lines, and one that does is sending state the body should carry.
+- **Leaving it to the parser's default unnamed.** The bound would be one no rule and no case states, and a dependency upgrade could move it.
+
+<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`errors/http-message-defects`](errors.md#errors-http-message-defects).</sub>
+
+<a id="http-server-a-response-is-not-lost-to-an-unread-body"></a>
+
+## A connection closes only after its last response is written, and reads what its peer still sends for up to two seconds, so an unread body never costs the response
+
+`rule:http-server/a-response-is-not-lost-to-an-unread-body`
+
+A program that never reads its request body is still answered. The body is not drained for it: once nothing reads a body, `hyper` reads what one read of the socket already holds and stops. A body that ends there leaves the connection open for the next request. A longer one ends reading on the connection, so the response is the connection's last and a request pipelined behind it is not answered. A `413` for a declared length past `upload_total` is the same case, with nothing of the body read at all.
+
+**The close comes after the response, in two steps.** A socket closed while its peer's bytes are still unread in it is reset, not closed, and a reset can discard a response the peer has received and not yet read. On the loopback a client that writes a 4 MiB body before it reads anything loses its response that way. So once the last response is written, the server sends its FIN first, then reads and discards what the peer still sends until the peer closes its side, the socket fails, or `LINGER` (two seconds, a named constant in `nvs_server::serve`) passes. Under a drain, the drain period's end comes first if it is sooner. A connection that ended in an error — an expired wait, a refused head — is closed at once, and so is one whose task is cancelled. An upgraded connection is not closed at all: its socket belongs to its isolate.
+
+**What is read while closing reaches nothing.** It is not given to a program or to `hyper`, and it is not counted against `upload_total`, so the time bound is the whole bound. The body bound a request has does not grow: a body nobody reads is not delivered past the one read `hyper` makes.
+
+- **Memory:** one 8 KiB scratch buffer of the connection's own stack while it reads, and the connection's coroutine for up to two seconds past its last response. Per connection being closed, so O(in-flight). A peer that closes once it has the response ends the wait at that read.
+
+**Declined:**
+
+- **Draining an unread body before the response.** The client chooses how long the body is, so the server would read as much as `upload_total` allows for a program that wanted none of it, and the response would wait for all of it.
+- **A byte bound on the close.** A client that writes its whole body before it reads gets a reset at any bound smaller than its body. The two seconds bound the cost whatever the client sends.
+- **A setting for the two seconds.** No deployment has a reason to choose it, and a proxy in front closes its side as soon as it has the response.
+
+<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly).</sub>
 
 <a id="http-server-the-accept-loop-backs-off"></a>
 

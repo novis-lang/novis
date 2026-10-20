@@ -14,6 +14,8 @@
     "http-server/max-in-flight-refuses-before-allocating",
     "http-server/admission-is-arithmetic-not-a-number",
     "http-server/four-idle-waits-all-finite",
+    "http-server/a-request-head-has-at-most-100-header-lines",
+    "http-server/a-response-is-not-lost-to-an-unread-body",
     "http-server/the-accept-loop-backs-off",
     "http-server/a-request-resolves-in-five-steps",
     "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",

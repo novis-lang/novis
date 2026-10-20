@@ -54,7 +54,7 @@ stages:
     context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/commands.rs, crates/nvs-types/src/testing.rs]
   - id: 12
     title: "a route link matches its route, and an unread body never costs the response"
-    status: open
+    status: done
     context: [crates/nvs-types/src/routes.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-server/src/body.rs, crates/nvs-server/src/serve.rs]
   - id: 13
     title: "every help text names only what compiles, and each syntax is one feature"
@@ -410,8 +410,15 @@ whose body the program did not read.
 - [x] A `bool` route capture is `E0752`, with a case for the match, the link and the dispatch. `crates/nvs-types/src/routes.rs:converts_from_segment`
   - [x] a capture and a `#[Query]` declared `bool`, `true` or `false` is `E0752`
   - [x] the rule says it and `reject/a-bool-route-capture-does-not-compile.nvst` pins it
-- [ ] The connection closes only after the response is flushed, with a case that pipelines a request behind a large unread POST. `crates/nvs-server/src/body.rs:1`, `data/gaps/nvs-server/an-unread-post-body-can-lose-the-response.json:1`
-- [ ] The header line limit is a named constant in `serve_connection`, stated by a rule, with a case at the bound and one past it. `crates/nvs-server/src/serve.rs:1`, `data/gaps/nvs-server/header-line-limit-is-hyper-default.json:1`
+- [x] The connection closes only after the response is flushed, with a case that pipelines a request behind a large unread POST. `crates/nvs-server/src/serve.rs:close_after_the_response`
+  - [x] a raw-socket probe shows the reset from 64 KB and the lost response at 2 MB
+  - [x] `NvsConnection::shutdown_write`, and `close_after_the_response` sends the FIN and reads until the peer closes or `LINGER` passes
+  - [x] `a_post_whose_body_is_never_read_is_still_answered`, which fails with the close removed
+  - [x] `rule:http-server/a-response-is-not-lost-to-an-unread-body` says it, and the gap record is deleted
+- [x] The header line limit is a named constant in `serve_connection`, stated by a rule, with a case at the bound and one past it. `crates/nvs-server/src/serve.rs:MAX_HEADER_LINES`
+  - [x] `MAX_HEADER_LINES` is 100 and set on the `http1::Builder`
+  - [x] `a_request_head_is_answered_up_to_its_header_line_limit` pins 100 and 101
+  - [x] `rule:http-server/a-request-head-has-at-most-100-header-lines` says it, and the gap record is deleted
 
 ### 13. every help text names only what compiles, and each syntax is one feature
 
@@ -484,30 +491,41 @@ another goal.
 
 ### State
 
-Stages 1, 2, 3, 16, 4, 5, 6, 7, 8, 9, 10 and 11 are done, and every gap record they owned is deleted.
+Stages 1, 2, 3, 16, 4, 5, 6, 7, 8, 9, 10, 11 and 12 are done, and every gap record they owned is
+deleted.
 
-Stage 12's two compiler items are done, and their gap records are deleted.
+Stage 12's two server items landed in `crates/nvs-server/src/serve.rs`:
 
-- A literal `$params` value is held to its parameter's conversion: `nvs_types::links::converts`
-  runs `nvs_stdlib::router::segment_converts`, which is the matcher's own
-  `nvs_runtime::routes::CaptureConv::convert`. It reuses `E0772`, whose card already fits.
-  `nvs_stdlib::router::native_conv` is now the one map from a described type to a native
-  conversion, and `nvs-cli`'s `capture_conv` reads it.
-- `nvs_types::routes::converts_from_segment` refuses `bool`, `true` and `false` for a capture and a
-  `#[Query]`. `CaptureConv::Unconverted` is now unreachable from a compiling program, and its doc
-  says so. No program in the tree declared one.
+- The lost response was a reset, not an early close. `hyper` stops reading a body nobody wants
+  after one read and ends the connection after the response, and a socket dropped with the peer's
+  bytes still unread in it is reset. That reset discarded the client's unread response.
+  `close_after_the_response` now sends the FIN (`nvs_host::NvsConnection::shutdown_write`) and
+  reads and discards until the peer closes, the socket fails, or `LINGER` (2 s) passes, or the
+  drain period ends if it is sooner. It runs only for a connection that ended `Ok` and did not
+  upgrade. The body bound is unchanged, as § *Standing decisions* says: nothing read while closing
+  reaches a program or `hyper`. `rule:http-server/a-response-is-not-lost-to-an-unread-body` states
+  it and declines a byte bound, because a client that writes its whole body before it reads gets
+  a reset at any byte bound smaller than its body.
+- `MAX_HEADER_LINES` (100) is set on the `http1::Builder`, and
+  `rule:http-server/a-request-head-has-at-most-100-header-lines` states it. 100 lines are
+  answered and 101 are `431`, the same as before.
 - `website/src/lib/core.ts` and `tools/nv/test/core-type-links.test.ts` were changed in the tree
   before session 0039 and belong to no stage of this goal. They are left uncommitted.
 
 ### Next
 
-**Stage 12**'s two server items (`### 12.` in this file). § *Standing decisions* settles the drain
-bound and the header line limit (100, a named constant in `serve_connection`, no new setting). Both
-touch `crates/nvs-server` only, so they are one group. Read the playbook bullets on `-p nvs-server`
-tests first: a pipelined pair needs a bounded read, not a half-close.
+**Stage 13** (`### 13.` in this file). Start with its `**Split:**` line: two `Explore` subagents go
+out together, one listing every diagnostic message and help text that prints `rule:` or a form of
+"refuse", and one listing every citation of the two `lang:statements/` features. Then take the four
+single-help items first. They share `crates/nvs-types/src/expr/` and `locals.rs`.
 
-- [ ] Stage 12: the connection closes only after the response is flushed, with a case that pipelines a request behind a large unread POST. `crates/nvs-server/src/body.rs:1`, `data/gaps/nvs-server/an-unread-post-body-can-lose-the-response.json:1`
-- [ ] Stage 12: the header line limit is a named constant in `serve_connection`, stated by a rule, with a case at the bound and one past it. `crates/nvs-server/src/serve.rs:1`, `data/gaps/nvs-server/header-line-limit-is-hyper-default.json:1`
+- [ ] Stage 13: `E0479`'s help suggests `!=`, and `lang:expressions/and-the-ternary`'s example 05 is blessed again. `crates/nvs-types/src/expr/assign.rs:1`, `data/gaps/nvs-types/a-nullsafe-write-help-suggests-not-identical.json:1`
+- [ ] Stage 13: `E0802`'s help names only forms the parser accepts. `crates/nvs-types/src/expr/isolate.rs:1`, `data/gaps/nvs-types/a-spawn-entry-help-names-spawn-worker.json:1`
+- [ ] Stage 13: `E0233`'s help says a nested `use` covers the code below it. `crates/nvs-types/src/locals.rs:1`, `data/gaps/nvs-types/a-nested-use-help-says-it-covers.json:1`
+- [ ] Stage 13: `E0303` lists the `autoload` roots it searched. `crates/nvs-types/src/expr/mod.rs:1`, `data/gaps/nvs-types/an-undefined-class-names-no-autoload-root.json:1`
+
+Every help text these items rewrite is held to AGENTS.md § *Text an end user reads*, and every
+expectation that pins it is re-recorded.
 
 The installed `looper` binary has no `verify` subcommand, so these sessions run
 `bun nv affected --run` as the gate. The next free diagnostic code is `E0881`
