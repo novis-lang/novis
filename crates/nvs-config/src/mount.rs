@@ -79,9 +79,8 @@ const IMPLICIT_ENTRY: &str = "public/index.nvs";
 /// Why a brace that is not a capture reference is refused rather than kept as text. § 4 step 1
 /// matches a prefix against the path as it was sent, so a brace that survived expansion would be a
 /// mount no request reaches.
-const UNREACHABLE: &str = "`rule:http-server/a-mount-table-expands-at-boot` reads a brace as `{n}` \
-     or `{n:lower}` and as nothing else: a host name and a URL path never carry one unescaped, so \
-     a mount that kept it would be one no request reaches";
+const UNREACHABLE: &str = "a brace is `{n}` or `{n:lower}` and nothing else. A host name and a \
+     URL path never contain a brace, so no request could reach this mount";
 
 /// Everything a `[[server.mount]]` block can be wrong about without asking the disk.
 ///
@@ -119,8 +118,8 @@ fn shape(
         (Some(_), Some(_)) => {
             return Err(refuse(
                 format!("{} names both `scan` and `entry`", ordinal(index)),
-                "`rule:http-server/a-mount-table-expands-at-boot` gives a mount one source: `scan` is a glob expanded against the disk \
-                 at boot, `entry` is the one literal file that overrides it",
+                "a mount has one source. `scan` is a glob that is matched against the disk at \
+                 boot, and `entry` is one file",
                 "keep `scan` to cover a fleet of modules, or drop it and keep `entry` for the one \
                  irregular module this block is for",
                 key("scan"),
@@ -129,8 +128,8 @@ fn shape(
         (None, None) => {
             return Err(refuse(
                 format!("{} names neither `scan` nor `entry`", ordinal(index)),
-                "`rule:http-server/a-path-is-never-derived-from-a-url` enumerates every path the server may execute before it accepts \
-                 anything, and a block naming no file contributes none",
+                "the server lists every file it may run before it starts, and this block names \
+                 no file",
                 "add `entry` with the one file this mount serves, or `scan` with the glob that \
                  finds it under `[server] root`",
                 key("prefix"),
@@ -141,8 +140,8 @@ fn shape(
     if block.prefix.is_none() && block.host.is_none() {
         return Err(refuse(
             format!("{} matches on neither `prefix` nor `host`", ordinal(index)),
-            "`rule:http-server/a-request-resolves-in-five-steps` step 1 selects a mount by host and by prefix, so a block naming neither \
-             is one no request can ever reach",
+            "a request finds its mount by host and by prefix, so no request can reach a block \
+             with neither",
             "add `prefix = \"/\"` to serve this mount at the root, or `host` for the name it \
              answers on",
             key("prefix"),
@@ -156,8 +155,7 @@ fn shape(
                 "{}'s prefix `{prefix}` does not begin with `/`",
                 ordinal(index)
             ),
-            "§ 4 step 2 strips the prefix off a request path, which always begins with `/`, so a \
-             prefix that does not is one nothing matches",
+            "a request path always begins with `/`, so no request matches this prefix",
             "write the prefix as it appears in a URL, as `/admin`",
             key("prefix"),
         ));
@@ -179,8 +177,8 @@ fn shape(
                      capture(s)",
                     ordinal(index)
                 ),
-                "§ 3 numbers the captures by the `*`s in `scan`, from 1, so a reference past the \
-                 last one names a segment no expansion can produce",
+                "each `*` in `scan` is one capture, numbered from 1. This reference is past the \
+                 last capture",
                 "renumber the reference, or add the `*` that captures the segment it means",
             ),
             Err(Malformed::Unknown(written)) => (
@@ -427,8 +425,8 @@ fn root_of(
                 root.display()
             ),
             format!(
-                "`rule:http-server/a-path-is-never-derived-from-a-url` enumerates every executable path before the server accepts anything, \
-                 and the enumeration starts here: {why}"
+                "the server lists every file it may run before it starts, and the list starts \
+                 here: {why}"
             ),
             "point `server.root` at the directory the mounted modules live under",
             origins.get("server.root"),
@@ -440,8 +438,8 @@ fn root_of(
 fn no_root(written_in: Option<&Origin>) -> Diagnostic {
     refuse(
         "`[server] root` is not written".to_string(),
-        "`rule:http-server/a-mount-table-expands-at-boot` finds every mounted file under `[server] root`, and an unwritten one \
-         would be whatever directory the server happened to be started in",
+        "every mounted file is under `[server] root`. Without it, the root would be the \
+         directory the server was started in",
         "write `root` in the `[server]` block: the directory the mounted modules live under",
         written_in,
     )
@@ -502,9 +500,8 @@ fn scanned(
             refused(refuse(
                 format!("`{capture}` is not a name a mount capture may take"),
                 format!(
-                    "`rule:http-server/a-mount-table-expands-at-boot` bounds a capture to `[A-Za-z0-9._-]`, forbids a leading dot \
-                     and refuses a reserved device name, and `{}` matched it under \
-                     `server.root`",
+                    "a capture contains only `[A-Za-z0-9._-]`. It may not start with a dot or \
+                     be a reserved device name. `{}` under `server.root` matched it",
                     path.display()
                 ),
                 "rename the directory, or narrow the glob so it does not reach this one",
@@ -538,9 +535,8 @@ fn mounted(
                 path.display()
             ),
             format!(
-                "`rule:http-server/a-path-is-never-derived-from-a-url` knows every path this server can execute before it binds a socket, \
-                 so a mount naming a file that is not on disk is a server that would answer a \
-                 request with nothing: {why}"
+                "the server lists every file it may run before it starts, and this file is not \
+                 on disk: {why}"
             ),
             "correct the path, or drop the block until the module it names is deployed",
             origins.get(&format!("server.mount.{index}.entry")),
@@ -556,11 +552,7 @@ fn mounted(
                 ordinal(index),
                 entry.display()
             ),
-            format!(
-                "`rule:http-server/a-mount-table-expands-at-boot` bounds every mount to `{}`, which is what keeps the executable set \
-                 something an operator can read off the tree",
-                root.display()
-            ),
+            format!("every mount must be inside `{}`", root.display()),
             "move the module under `server.root`, or widen `server.root` to the directory that \
              holds them all",
             origins.get(&format!("server.mount.{index}.entry")),
@@ -653,8 +645,8 @@ fn duplicate(
             "{} answers at {key}, and so does an earlier one",
             ordinal(index)
         ),
-        "`rule:http-server/a-mount-table-expands-at-boot` lets one explicit `entry` override one scanned mount at a key and stops \
-         there: two blocks claiming a key is a request whose answer depends on which was read first",
+        "one `entry` may replace one scanned mount at the same key. Any other pair would make \
+         the result depend on which block was read first",
         "give one of them its own `prefix` or `host`, or drop it if the other already covers the \
          module",
         origins.get(&format!("server.mount.{index}.prefix")),

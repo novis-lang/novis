@@ -840,8 +840,8 @@ fn both_keys(index: usize, origins: &BTreeMap<String, Origin>) -> Diagnostic {
         format!("{} names both `root` and `entry`", ordinal(index)),
     )
     .with_note(format!(
-        "`rule:config/an-application-is-its-entry-file-path` keys an application on one or the other: `root` is every entry file beneath \
-         a directory, `entry` is one file exactly{}",
+        "a block names one or the other. `root` covers every entry file in a directory, and \
+         `entry` is exactly one file{}",
         origin_note(origins.get(&format!("app.{index}.root")))
     ))
     .with_help(
@@ -859,8 +859,8 @@ fn no_key(index: usize) -> Diagnostic {
         format!("{} names neither `root` nor `entry`", ordinal(index)),
     )
     .with_note(
-        "`rule:config/an-application-is-its-entry-file-path` keys an application on an entry file path, so a block with no key matches no \
-         entry file and its directives would never apply"
+        "a block with no `root` and no `entry` matches no entry file, so its directives never \
+         apply"
             .to_string(),
     )
     .with_help(
@@ -886,9 +886,8 @@ fn duplicate(path: &Path, first: usize, second: usize, written_in: Option<&Origi
         ),
     )
     .with_note(format!(
-        "`rule:config/every-matching-app-block-applies-least-specific-first` layers matching blocks by specificity, so two blocks on the same path are a \
-         duplicate rather than a refinement and there is no order between them to decide which \
-         value wins{}",
+        "matching blocks apply from the least specific path to the most specific one. Two blocks \
+         on the same path have no order, so neither value can win{}",
         written_in.map_or_else(String::new, |origin| format!(
             "; the second is written in `{}`",
             origin.path.display()
@@ -927,8 +926,8 @@ fn above_ceiling(
         ),
     )
     .with_note(format!(
-        "`rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` lets a block widen `[app.limits]` and lower its own `[app.limits.hard]`, but \
-         `[limits.hard]` is the host's answer and an application cannot exceed it{}{}",
+        "a block may raise `[app.limits]` and lower its own `[app.limits.hard]`. No application \
+         may go above the host's `[limits.hard]`{}{}",
         origin_note(written_in),
         host_written_in.map_or_else(String::new, |origin| format!(
             "; the ceiling is set in `{}`",
@@ -936,9 +935,8 @@ fn above_ceiling(
         ))
     ))
     .with_help(
-        "lower the block to the host's ceiling or below, or raise `[limits.hard]` if every \
-         application on this host may have it — the value is refused rather than clamped, so that \
-         a block never reads as though it got what it asked for"
+        "lower the block to the host's ceiling or below. Or raise `[limits.hard]` if every \
+         application on this host may have this value"
             .to_string(),
     )
 }
@@ -955,8 +953,8 @@ fn not_utf8(path: &Path, index: usize, field: &str) -> Diagnostic {
         ),
     )
     .with_note(
-        "`rule:config/an-application-is-its-entry-file-path` matches on the canonical path, and a configuration file is UTF-8 text, so a \
-         path this process cannot spell back is one no block could be compared against"
+        "a block matches the canonical path, and a configuration file is UTF-8 text. A path that \
+         is not UTF-8 cannot be compared with any block"
             .to_string(),
     )
 }

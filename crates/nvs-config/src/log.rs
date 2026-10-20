@@ -395,7 +395,7 @@ fn spelled(
         format!("`[log] target = \"{written}\"` names no destination"),
     )
     .with_note(format!(
-        "`rule:errors/engine-floor`'s floor writes to `stderr`, to `file:<path>` or to `syslog`{}",
+        "the log writes to `stderr`, to `file:<path>` or to `syslog`{}",
         origin_note(origins.get(key))
     ))
     .with_help(help.to_string()))
@@ -421,13 +421,11 @@ fn levelled(
         format!("`[log] level = \"{written}\"` names no level"),
     )
     .with_note(format!(
-        "`rule:errors/log-level`'s roster is `Debug`, `Info`, `Warn`, `Error` and `Critical`{}",
+        "the levels are `Debug`, `Info`, `Warn`, `Error` and `Critical`{}",
         origin_note(origins.get(key))
     ))
     .with_help(
-        "write the case as § 2 spells it — `level = \"Info\"` — or as a record renders it, \
-         `level = \"info\"`"
-            .to_owned(),
+        "write `level = \"Info\"`, or `level = \"info\"` as a log record prints it".to_owned(),
     ))
 }
 
@@ -451,7 +449,7 @@ fn formatted(
         format!("`[log] format = \"{written}\"` names no rendering a log target emits"),
     )
     .with_note(format!(
-        "`rule:errors/renderings` gives this directive two values, `json` and `text`{}",
+        "this directive has two values, `json` and `text`{}",
         origin_note(origins.get(key))
     ))
     .with_help(

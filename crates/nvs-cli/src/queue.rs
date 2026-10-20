@@ -150,7 +150,7 @@ pub(crate) fn dialect_of(name: &str, written: Option<&str>) -> Option<nvs_db::Dr
             "error: `[db.{name}]` names the `{written}` driver, which Novis has no backend for"
         );
         eprintln!(
-            "note: `rule:core-classes/db-one-api`'s five are {}",
+            "note: the drivers are {}",
             nvs_db::Driver::ALL
                 .iter()
                 .map(|one| format!("`{}`", one.matrix_name()))
@@ -204,7 +204,7 @@ pub(crate) fn migrate(
                      jobs table belongs in"
                 );
                 eprintln!(
-                    "note: write `rule:core-classes/queue-storage-is-a-table`'s block, as `connection = \"main\"`, or name a \
+                    "note: write a `[queue]` block with `connection = \"main\"`, or name a \
                      `[db.<name>]` here with `--connection <name>`"
                 );
                 return ExitCode::FAILURE;
@@ -242,8 +242,8 @@ pub(crate) fn migrate(
         // nothing here adds one: what is printed is what a server would be sent.
         let steps = nvs_stdlib::queue::migration(driver);
         println!(
-            "-- `rule:core-classes/queue-storage-is-a-table`'s schema for `[db.{name}]` in {}'s dialect, as {} statements in this \
-             order.",
+            "-- The queue table's schema for `[db.{name}]` in {}'s dialect, as {} statements in \
+             this order.",
             driver.display_name(),
             steps.len()
         );

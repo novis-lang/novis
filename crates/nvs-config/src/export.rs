@@ -277,7 +277,7 @@ fn exporter(
         ),
     )
     .with_note(format!(
-        "`rule:observability/metrics-and-trace-blocks-are-system` gives `[{}]` {}, and nothing else{}",
+        "`[{}] exporter` is one of {}{}",
         block.name(),
         block.roster(),
         origin_note(origins.get(&format!("{}.exporter", block.name())))
@@ -300,7 +300,7 @@ fn sampled(fraction: f64, origins: &BTreeMap<String, Origin>) -> Result<(), Diag
         format!("`[trace] sample = {fraction}` is not a fraction of one"),
     )
     .with_note(format!(
-        "`rule:observability/metrics-and-trace-blocks-are-system`'s head sample runs from `0.0` to `1.0` inclusive{}",
+        "`sample` is a number from `0.0` to `1.0`, both included{}",
         origin_note(origins.get("trace.sample"))
     ))
     .with_help(

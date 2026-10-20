@@ -117,7 +117,7 @@ pub fn not_loaded(
         format!("The extension `{path}` does not load: {reason}"),
     )
     .with_note(format!(
-        "one entry that does not load refuses every extension{}",
+        "when one entry does not load, no extension loads{}",
         origin_note(written_in(index, origins))
     ));
     if let Some(span) = locate(index, None, origins, sources) {

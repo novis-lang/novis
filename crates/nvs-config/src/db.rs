@@ -293,8 +293,8 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
             "a table of bounds",
             "bounds written with no block in front of them would size a pool whose key is a \
              credential hash, and no one server's `max_connections` is what that is sized against",
-            "write the bounds under the block they are for, as `[db.<name>.pool]`; `pool = false` \
-             is the one directive § 13 gives an unscoped meaning",
+            "write the bounds under the block they are for, as `[db.<name>.pool]`. Only \
+             `pool = false` may be written without a block",
             origins,
         ));
     }
@@ -344,16 +344,14 @@ pub fn unix_transport(
         ),
     )
     .with_note(format!(
-        "`rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`: the transport is \
-         `#[cfg(unix)]` and this is a {} build, so the database named here would never be \
-         reached{}",
+        "Unix-domain sockets exist only in a Unix build, and this is a {} build. The database \
+         named here cannot be reached{}",
         std::env::consts::OS,
         origin_note(origins.get(&key))
     ))
     .with_help(
-        "write the server as `host = \"127.0.0.1\"` with its `port`; a socket path is not quietly \
-         read as loopback TCP, because a configuration that reads as one transport and runs as \
-         another is invisible in exactly the review that would have caught it"
+        "write the server as `host = \"127.0.0.1\"` with its `port`. A socket path is never \
+         read as a TCP address"
             .to_string(),
     ))
 }
@@ -404,7 +402,7 @@ pub fn pool_of(
             "0",
             "a pool that may hold no connection can never hand one out, so every acquire would \
              throw",
-            "write `pool = false`, which is § 13's one spelling of turning the pool off",
+            "write `pool = false` to turn the pool off",
             origins,
         ));
     }

@@ -432,7 +432,11 @@ fn describe(manifest: &Manifest, sha256: &str, files: &[SourceFile], source: boo
             .map(|param| format!("${}", param.name))
             .collect();
         if !sinks.is_empty() {
-            let _ = writeln!(out, "      refuses tainted {}", e(&sinks.join(", ")));
+            let _ = writeln!(
+                out,
+                "      throws an error for tainted {}",
+                e(&sinks.join(", "))
+            );
         }
         if let Some(help) = &method.help {
             let _ = writeln!(out, "      {}", e(help));

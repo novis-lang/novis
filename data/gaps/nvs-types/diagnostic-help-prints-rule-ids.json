@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/expr/members.rs",
-  "title": "Many compiler diagnostics print a `rule:` id or the word \"refused\" in their help text.",
-  "text": "`E0234`, `E0413`, `E0448` and `E0230` are among them. A diagnostic is product text, held to AGENTS.md § *Text an end user reads*, which has no rule ids and says \"is not allowed\" or \"does not compile\" for a refusal. That section binds a diagnostic when it is written or changed, so these stay until something rewrites them. It closes when no diagnostic's message or help prints a `rule:` id or a form of \"refuse\", with a test that scans the help texts.",
-  "goal": "compiler-holes"
-}

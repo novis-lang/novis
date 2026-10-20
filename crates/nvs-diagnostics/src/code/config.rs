@@ -295,8 +295,8 @@ codes! {
     /// condition is separate from this count, so no number written here can
     /// disagree with it.
     pub const E_NO_ADMISSION: Code = Code::new("E0622").card(
-        "`[server] max_in_flight` is `0`, so the server would refuse every request. Write a number \
-         above zero, or leave the key out to use the default.",
+        "`[server] max_in_flight` is `0`, so the server would answer every request with `503`. \
+         Write a number above zero, or leave the key out to use the default.",
     );
 
     /// A `[server] health_path` that is not an absolute path: `healthz`,

@@ -204,14 +204,12 @@ impl Meaningless {
     fn note(self) -> &'static str {
         match self {
             Self::CorsStarWithCredentials => {
-                "§ 2 permits `*` only with `credentials = false`: every browser rejects a wildcard \
-                 origin on a credentialed response, so the pair is not a risky access-control \
-                 policy but one that does not run at all, and nothing in the deployment would say so"
+                "`*` is allowed only with `credentials = false`. Every browser rejects a wildcard \
+                 origin on a response with credentials, so this policy never works"
             }
             Self::SameSiteNoneWithoutSecure => {
-                "§ 3 refuses this pair by the same mechanism as § 2's and for the same reason: \
-                 browsers drop a `SameSite=None` cookie that is not `Secure`, so the configuration \
-                 describes a cookie that is never stored"
+                "browsers drop a `SameSite=None` cookie that is not `Secure`, so this cookie is \
+                 never stored"
             }
         }
     }
@@ -589,10 +587,9 @@ fn proxy(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diag
                     .to_string(),
             )
             .with_note(format!(
-                "the word says who resolves the destination, which is who the address policy is \
-                 asked of: `{RESOLVE_LOCALLY}` resolves here and tunnels to an address \
-                 `rule:security/net-address-policy` approved, `{RESOLVE_AT_THE_PROXY}` sends the \
-                 host name and moves that question to the proxy{}",
+                "`resolve` says who looks up the destination's address. `{RESOLVE_LOCALLY}` looks \
+                 it up here and checks it against the address policy. `{RESOLVE_AT_THE_PROXY}` \
+                 sends the host name, and the proxy looks it up{}",
                 origin_note(origins.get("http.client.proxy.url"))
             ))
             .with_help(format!(
@@ -788,9 +785,9 @@ pub fn advise(config: &Config, origins: &BTreeMap<String, Origin>) -> Vec<Diagno
                 ),
             )
             .with_note(format!(
-                "`rule:security/net-address-policy` is answered about an address, and there is \
-                 none here: `CONNECT` carries the host name, so what is judged is the URL's \
-                 scheme, the `net.connect` grant's host list and the tainted-URL check{}",
+                "the address policy checks an address, and there is none here. `CONNECT` sends the \
+                 host name. Only the URL's scheme, the `net.connect` host list and the tainted-URL \
+                 check apply{}",
                 origin_note(origins.get("http.client.proxy.resolve"))
             ))
             .with_help(format!(
@@ -929,8 +926,8 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
             origin_note(origins.get("http.csrf_key"))
         ))
         .with_help(
-            "write the key's base64, or leave the directive out and let the door refuse only the \
-             cross-origin half"
+            "write the key's base64. Or leave the directive out: then only cross-origin requests \
+             are checked"
                 .to_string(),
         ));
     }
@@ -955,13 +952,12 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
                 format!("`[http.headers] {key}` holds a byte a header line cannot carry"),
             )
             .with_note(format!(
-                "§ 1 writes this value onto every response verbatim, so a field value is printable \
-                 ASCII and nothing else — a carriage return or a newline in it would end the \
-                 header and begin one nobody wrote{}",
+                "this value is written unchanged onto every response, so it may contain only \
+                 printable ASCII. A carriage return or a newline would start a new header{}",
                 origin_note(origins.get(&format!("http.headers.{key}")))
             ))
             .with_help(
-                "write the policy on one line, or leave the key out for § 1's shipped default"
+                "write the policy on one line, or leave the key out to keep the default"
                     .to_string(),
             ));
         }
@@ -987,14 +983,13 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
                 format!("`[http.cors] {key}` holds a byte a header line cannot carry"),
             )
             .with_note(format!(
-                "§ 2 sends this list to a browser as one header line, so each entry is printable \
-                 ASCII and nothing else — a carriage return or a newline in one would end the \
-                 header and begin one nobody wrote{}",
+                "this list is sent to a browser as one header line, so each entry may contain only \
+                 printable ASCII. A carriage return or a newline would start a new header{}",
                 origin_note(origins.get(&format!("http.cors.{key}")))
             ))
             .with_help(
-                "write one method or header name per entry, or leave the key out for § 2's \
-                 shipped default"
+                "write one method or header name per entry, or leave the key out to keep the \
+                 default"
                     .to_string(),
             ));
         }
@@ -1026,9 +1021,8 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
             format!("`[http.cookies] same_site` is `{value}`, which is not a `SameSite` attribute"),
         )
         .with_note(format!(
-            "§ 3 names three and a browser parses three: `Lax`, `Strict` and `None`. A fourth \
-             spelling is dropped by the browser, which leaves the cookie at that browser's own \
-             default rather than at the one this block was written to state{}",
+            "a browser knows three values: `Lax`, `Strict` and `None`. It ignores any other \
+             value and uses its own default{}",
             origin_note(origins.get("http.cookies.same_site"))
         ))
         .with_help(

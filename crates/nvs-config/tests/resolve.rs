@@ -1093,8 +1093,8 @@ fn resolve_proxy_writes_one_warn_at_every_boot() {
         assert!(
             said.contains("resolve")
                 && said.contains("proxy")
-                && said.contains("net-address-policy"),
-            "the announcement named neither the word nor the rule it narrows: {said}",
+                && said.contains("address policy"),
+            "the announcement names the word and the address policy it narrows: {said}",
         );
     }
 }

@@ -740,9 +740,8 @@ pub(crate) fn untrusted(path: &Path, why: &Untrusted, who: &str) -> Diagnostic {
         Untrusted::Unreadable(message) => unreadable(path, message, who),
         Untrusted::Breach(message) => Diagnostic::error(code::E_UNTRUSTED_CONFIG, message.clone())
             .with_note(format!(
-                "{who}, and `rule:config/ownership-is-the-trust-boundary` leaves no file in the tree writable by any account but \
-                 this one: whoever can write one of them can grant themselves every capability the \
-                 configuration carries"
+                "{who}. No other account may write a configuration file, because whoever can \
+                 write one can grant themselves every capability"
             ))
             .with_help(trust::REMEDY.to_string()),
     }
