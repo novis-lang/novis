@@ -215,6 +215,10 @@ const html = replayMarkup({
     margin-right: -2px;
     vertical-align: text-bottom;
     border-left: 2px solid var(--sl-color-white, currentColor);
+  }
+  /* The cursor blinks while the replay plays, as an editor's does while you
+     type, and is solid while it is stopped. */
+  .nv-replay[data-replay-state='playing'] .nv-caret {
     animation: nv-blink 1s step-end infinite;
   }
   @keyframes nv-blink {
