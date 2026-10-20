@@ -1,15 +1,13 @@
 # The proxied benchmark: nginx in front of both peers
 
-`bun nv bench-proxied` runs this directory. It answers the same question
-`bun nv bench --serve-vs-fpm` asks — requests/sec for `nvs serve` against
-PHP 8.5 with opcache — but in the shape both peers actually ship in, with the same generator, the
-same kernel and the same CPU budget on either side.
+`bun nv bench-proxied` runs this directory. It measures requests/sec for `nvs serve` against PHP 8.5
+with opcache, in the shape both peers actually ship in, with the same generator, the same kernel and
+the same CPU budget on either side.
 
-**This file is the only home for why this leg is built the way it is.** The other leg's decisions —
-why `bun nv bench --serve-vs-fpm` hand-rolls a generator, why its baseline is `php-cgi -b`, why its
-concurrency is 1 — stay in `tools/nv/cmd/bench.ts`'s `# The serve-versus-FPM leg`, and nothing here
-restates them.
-The two legs are not one series and must never be read as one; § *Two artifacts* below is why.
+**This file is the only home for why this leg is built the way it is.** `bun nv bench-load` is the
+other server leg. It has no peer, and `tools/nv/cmd/bench-load.ts` owns its decisions. The two are
+not one series and must never be read as one; § *One artifact, and no arithmetic across legs* below
+is why.
 
 ## Why nginx fronts both, and why that is not a handicap
 
@@ -20,9 +18,8 @@ earlier and better. PHP-FPM is the same shape for the same reason — FPM speaks
 else, so *there is no deployment of it without a proxy*.
 
 So nginx in front of both is not a fairness adjustment applied to a benchmark. It is the only
-topology either peer has. The measurement `bun nv bench --serve-vs-fpm` takes — our HTTP parse against PHP's
-FastCGI frame, no proxy on either side — is the artificial one, which is why its record carries a
-caveat saying so in every row.
+topology either peer has. A measurement with no proxy on either side sets our HTTP parse against
+PHP's FastCGI frame, which is the artificial shape; arms 3 and 4 below take it only to price the proxy.
 
 ## The CPU budget, and the two arms
 
@@ -44,8 +41,7 @@ fair arm — one core *and one PHP worker* against one Novis core — does not m
 not run: a FastCGI worker holding a keep-alive connection is *bound* to that connection and accepts
 no other, so a single worker facing eight concurrent connections serves one of them and leaves the
 rest accepted by the kernel and answered by nobody. It presents as a socket timeout while the
-container's own log shows healthy `200`s going past. `bun nv bench`'s single-process peer has the
-same property, which is why that leg pins its concurrency to 1 and this one does not have to.
+container's own log shows healthy `200`s going past.
 
 So the pool is sized from `--concurrency` (`max(2 × concurrency, 96)`, rendered into
 `generated/pool.conf` and recorded as `php_children`), which is also how a real FPM pool is sized,
@@ -74,9 +70,10 @@ down, and only then brings up the other.
 | 3 | `oha` → `nvs serve` | `oha` | what nginx costs us |
 | 4 | fcgi → php-fpm | `bun nv bench`'s FastCGI client | what nginx and the bridge cost PHP |
 
-**`oha` and not our own generator**, unlike the other leg: `bun nv bench` uses a hand-rolled one
-only because neither `wrk` nor `oha` is installed on the Windows box it runs on. In a container both are one pinned image away, so the substitution has no reason to
-survive here — and `oha` reports the tail latencies our own generator deliberately does not.
+**`oha` and not our own generator.** The closed-loop generator in `tools/nv/cmd/bench.ts` exists for
+a host where neither `wrk` nor `oha` is installed. In a container both are one pinned image away, so
+it has no reason to run here — and `oha` reports the tail latencies that generator deliberately does
+not.
 
 **Arm 4 is the one asymmetry, and it is recorded rather than hidden.** FPM has no HTTP origin, so
 "PHP without a proxy" cannot be driven by `oha` at all; it is driven over FastCGI by the client in
@@ -84,21 +81,19 @@ survive here — and `oha` reports the tail latencies our own generator delibera
 stack* proxy cost each, and it makes arm 3 against arm 4 a comparison across two generators. Every
 record says so in its `caveats`.
 
-## Two artifacts, and no arithmetic between them
+## One artifact, and no arithmetic across legs
 
-`benches/serve.json` is the Windows-native leg. This one writes `benches/serve-proxied.json`, and
-they are separate files because every input differs: operating system, generator, topology, CPU
-budget and container runtime. `tools/nv/cmd/bench.ts`'s own rule — a figure taken at concurrency 1 and one
-taken at 64 "can never be read as one series" — applies with more force here, and the split is how
-it is enforced rather than remembered.
+This leg writes `benches/serve-proxied.json`, and nothing else writes it. `bun nv bench-load`
+records into a file of its own, because every input differs: operating system, generator, topology,
+CPU budget and container runtime. A figure taken at one concurrency and one taken at another can
+never be read as one series, and separate files are how that is enforced rather than remembered.
 
-**Expect the ratio to fall.** nginx adds a cost both sides pay, so the proxied number is closer to 1
-than the direct one. That is the benchmark getting more honest, not the server getting slower, and a
-row from this file must never be compared against a row from the other one to claim a regression.
+**The ratio includes nginx.** nginx adds a cost both sides pay, so the proxied ratio is closer to 1
+than an origin-against-origin one. That is the benchmark measuring the deployment, not the server
+getting slower, and a row from this file is compared only with an earlier row from this file.
 
 ## Tuning is a variable we own, so it is written into every row
 
-The other leg has no tuning to get wrong: `php-cgi -b` is one process with no knobs. Here
 `pm.max_children`, the opcache and JIT settings, nginx's `worker_processes` and both upstream
 keepalive pools are all ours to set, and a benchmark of oneself whose peer is badly tuned is not a
 benchmark. Two rules keep it honest:

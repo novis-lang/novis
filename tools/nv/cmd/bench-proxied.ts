@@ -7,7 +7,7 @@
 //
 // `benches/proxied/README.md` is this leg's design and the only home for **why** it is shaped this way --
 // why nginx fronts both peers, why the two stacks are separate compose files, why there are two arms,
-// and why its artifact is not `benches/serve.json`. Nothing here restates any of it. This file owns only
+// and why its artifact is its own. Nothing here restates any of it. This file owns only
 // how the run is carried out.
 //
 // Its php arm serves `benches/serve/hello.php`, the twin of `hello.nvs`, and it is not comparable with
@@ -415,8 +415,6 @@ async function main(o: Options): Promise<number> {
     "arm 4 is driven by nv bench's FastCGI client and not by oha, because FPM has no " +
       "HTTP origin to point a load generator at; origin-against-origin therefore crosses two " +
       "generators and is the weaker of the two ratios",
-    "this row shares no inputs with benches/serve.json -- different OS, generator, topology " +
-      "and CPU budget -- and no arithmetic between the two files is meaningful",
   ];
   if (o.arm === "deployed") {
     caveats.push(

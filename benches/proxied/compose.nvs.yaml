@@ -32,8 +32,8 @@ services:
     cpus: ${NVS_CPUS:-1}
 
     volumes:
-      # The same twin pair `bun nv bench --serve-vs-fpm` runs, mounted read-only rather than
-      # copied: one case on disk, measured by both legs, and no chance of the two drifting.
+      # The twin pair `compose.php.yaml` mounts too, read-only rather than copied: one case on
+      # disk, served by both stacks, and no chance of the two drifting.
       - ../serve:/app:ro
 
     # `0.0.0.0` and not the loopback: the listener has to be reachable from the nginx container, and
