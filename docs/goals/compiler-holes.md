@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-types/src/check.rs, crates/nvs-types/src/ctor_init.rs, crates/nvs-types/src/expr/isolate.rs, crates/nvs-types/src/expr/operators.rs]
   - id: 2
     title: "an override keeps a signature its parent's callers can use"
-    status: open
+    status: done
     context: [crates/nvs-types/src/conformance.rs]
   - id: 3
     title: "only the throwable tree is thrown, caught and asserted"
@@ -113,7 +113,15 @@ error leaves unchanged, and `rule:statements/no-return-leaves-a-finally` states 
 **An ordering of two objects checks their run-time classes.** `$a < $b` on two objects throws a
 `LogicError` when their run-time classes differ, before `compareTo` runs. A static refusal would
 refuse every ordering of a class that is not `final`. The cost is one class comparison per object
-ordering, on the request path only where a program orders objects.
+ordering, on the request path only where a program orders objects. A direct `compareTo` call that
+resolves to `Comparable::compareTo` runs the same check: a static refusal would refuse every direct
+call through `Comparable`, since the receiver's class is not known there.
+
+**`Core\Test::assertThrows`'s second argument is a `C::class` written at the call**, and `C` is a
+class of the `Throwable` tree. A string, a variable and a class outside the tree are compile errors
+at the argument. The parameter is not typed `class<Throwable>`: `C::class` is a `string`
+(`rule:types/class-reference`), so that type would make every call write `C::class as
+class<Throwable>`.
 
 **An override that a call through the parent could not use is a diagnostic at the override.** The
 return type is the parent's or a subtype of it. Each parameter type is the parent's or a supertype
@@ -169,17 +177,17 @@ signatures, as `file.rs:NN` and one line each. That list is the last item's set.
 - [x] An override with another return type, other parameter types, another parameter count, a narrower visibility or another `static` is a diagnostic at the override, with a case for each form. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/reject/a-method-override-keeps-its-parents-signature.nvst:1`
 - [x] The built-in interfaces' methods are held to the same check: `toString`, `compareTo`, `parse` and `current`. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/reject/a-built-in-interface-method-keeps-its-signature.nvst:1`
 - [x] An `abstract` method with a body is a diagnostic. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/reject/an-abstract-method-has-no-body.nvst:1`
-- [ ] A direct `compareTo` call through `Comparable` cannot pass an object of another class to a `self` parameter. `crates/nvs-ir/src/lower/operator.rs:1`, `data/gaps/nvs-types/a-direct-compareto-call-through-comparable.json:1`
+- [x] A direct `compareTo` call through `Comparable` cannot pass an object of another class to a `self` parameter. `crates/nvs-ir/src/lower/operator.rs:1`, `tests/conformance/class/a-direct-compare-to-call-through-comparable-checks-the-classes.nvst:1`
 
 ### 3. only the throwable tree is thrown, caught and asserted
 
 **Does:** `implements`, `catch`, `throw` and `Core\Test::assertThrows` each take only what the
 throwable tree can be.
 
-- [ ] `implements` with any class, built-in or not, is `E0303`. `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/implements-with-a-class-of.json:1`
-- [ ] A `catch` that names a class or a built-in type no `Throwable` can be is a diagnostic. An interface stays allowed. `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/a-catch-clause-that-names-a.json:1`
-- [ ] A `throw` of any value that is not `Throwable`, a shape included, is `E0780`. `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/a-throw-of-an-anonymous-object.json:1`
-- [ ] `Core\Test::assertThrows`'s second argument is a `class<Throwable>`, and anything else is a compile error. `crates/nvs-stdlib/src/test.rs:1`, `data/gaps/nvs-stdlib/assert-throws-with-a-class-that.json:1`
+- [x] `implements` with any class, built-in or not, is `E0303`. `crates/nvs-hir/src/hierarchy.rs:1`, `tests/conformance/reject/implements-with-a-class-does-not-compile.nvst:1`
+- [x] A `catch` that names a class or a built-in type no `Throwable` can be is a diagnostic. An interface stays allowed. `crates/nvs-types/src/expr/members.rs:1`, `tests/conformance/reject/a-catch-names-only-what-a-throwable-can-be.nvst:1`
+- [x] A `throw` of any value that is not `Throwable`, a shape included, is `E0780`. `crates/nvs-types/src/expr/members.rs:1`, `tests/conformance/reject/a-throw-of-an-anonymous-object-does-not-compile.nvst:1`
+- [ ] `Core\Test::assertThrows`'s second argument is a `C::class` written at the call, naming a class of the `Throwable` tree, and anything else is a compile error. `crates/nvs-stdlib/src/test.rs:1`, `data/gaps/nvs-stdlib/assert-throws-with-a-class-that.json:1`
 
 ### 4. visibility and the property pipeline hold on every path
 
@@ -317,36 +325,29 @@ one line each. The other lists every citation of `lang:statements/try-catch-fina
 
 ### State
 
-Stage 1 is done and committed. Stage 2's three items are built, verified and committed, and its two
-gap records are deleted. Stage 2 stays open for one item it found:
+Stages 1 and 2 are done. Stage 3's first three items are built, and their gap records are deleted.
 
-- `conformance.rs`'s `check_method_overrides` compares every method a class or interface declares
-  again with each direct ancestor's resolved declaration (`E0404`), through `compare_override` and
-  `parent_params_problem`. The relation is `field_fits` (no `int` → `float` row). A generic
-  interface's `T` is bound from the class's `implements` clause (`bind_interface_args`). A method a
-  class inherits from its superclass is compared with each interface the class names, at the class
-  name. `rule:classes/an-override-keeps-its-parents-signature` is the new rule.
-- **The parameter count is exact**, which narrows the standing decision (now rewritten): an extra
-  parameter with a default crashed when called through the parent, because a call fills defaults
-  from the signature it resolved.
-- **Only `Comparable::compareTo` itself takes `self`.** A subclass that narrows `compareTo(self)`
-  again is refused: a direct `$price->compareTo(new Price())` through the parent ran
-  `SalePrice::compareTo` with a `Price` and printed a garbage number. The ordering case's `SalePrice`
-  now takes `Price`.
-- An `abstract` method with a body is `E0106` (`reject_abstract_bodies`).
-- Two older tests relied on a refused override and now keep the parent's signature:
-  `interface_defaults.rs`'s `a_class_can_override_a_default_interface_method` and the
-  `core/reflect-an-inherited-methods-parameter-names-…` case.
+- A direct call that resolves to `Comparable::compareTo` compares the two run-time classes first
+  (`lower_method_call` in `crates/nvs-ir/src/lower/expr.rs`, through the new
+  `emit_same_class_check` in `operator.rs`, which the ordering now shares). It covers a call through
+  an interface that extends `Comparable`, since the resolved class is the declaring one.
+- `resolve_supertype` in `crates/nvs-hir/src/hierarchy.rs` checks a reserved name's kind as it
+  checks a declared one, so `implements RuntimeError` and `class X extends Comparable` are `E0303`.
+- `throw` uses `may_be_thrown` in `crates/nvs-types/src/expr/members.rs`: a class of the tree,
+  `mixed`, `object`, `never`, a type variable, or a union whose non-`null` members all are.
+- `catch` is the new `E0864` (`reject_uncatchable_arm`, called from `locals.rs` and `expr/mod.rs`).
+  An interface, `object`, `mixed` and the finish marker pass it (the marker has `E0814`).
+- `rule:errors/throwable-hierarchy` states all three. `X::class` is a `string`, and `class<T>` comes
+  only from `as`. That is why the standing decision for `assertThrows` is a call-site check.
 
 ### Next
 
-**Close stage 2's last item, then stage 3.**
+**Close stage 3's last item, then stage 4.**
 
-- [ ] A direct `compareTo` call through `Comparable` passes another class to a `self` parameter. The safe options are a run-time class check on a direct call, as an ordering has (`lower_object_comparison`), or a compile error unless the argument's static type is the receiver's class. `crates/nvs-ir/src/lower/operator.rs:1`, `data/gaps/nvs-types/a-direct-compareto-call-through-comparable.json:1`
-- [ ] Stage 3: `implements` with any class is `E0303`. `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/implements-with-a-class-of.json:1`
-- [ ] Stage 3: a `catch` naming what no `Throwable` can be is a diagnostic. `data/gaps/nvs-types/a-catch-clause-that-names-a.json:1`
-- [ ] Stage 3: a `throw` of anything not `Throwable` is `E0780`. `data/gaps/nvs-types/a-throw-of-an-anonymous-object.json:1`
-- [ ] Stage 3: `Core\Test::assertThrows` takes a `class<Throwable>`. `crates/nvs-stdlib/src/test.rs:1`, `data/gaps/nvs-stdlib/assert-throws-with-a-class-that.json:1`
+- [ ] `Core\Test::assertThrows`'s second argument is a `C::class` written at the call, naming a class of the `Throwable` tree (§ *Standing decisions*). It is a call-site check in the `reject_*` style of `crates/nvs-types/src/expr/quals.rs`, with `is_throwable_shaped`. Rewrite the calls that pass a string, such as `"RuntimeError"` (`git grep -n 'assertThrows(' -- '*.nvs' '*.nvst' '*.md'`), and the `nvs_core_test_assert_throws` doc. `crates/nvs-stdlib/src/test.rs:3634`, `data/gaps/nvs-stdlib/assert-throws-with-a-class-that.json:1`
+- [ ] Stage 4: an erased read or write of a property that is not visible throws. `crates/nvs-runtime/src/object.rs:1`, `data/gaps/nvs-runtime/a-private-or-protected-property-is.json:1`
+- [ ] Stage 4: a `private` or `protected` class constant read from outside is a diagnostic. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-private-or-protected-class-constant.json:1`
+- [ ] Stage 4: `Core\Program::implementing` over a non-public constructor is a diagnostic. `crates/nvs-types/src/program.rs:1`, `data/gaps/nvs-types/core-program-implementing-calls-a-private.json:1`
 
 ### Backlog
 
