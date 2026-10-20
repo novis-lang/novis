@@ -1,11 +1,12 @@
 {
-  "title": "A run on `main` is never cancelled by the next commit",
+  "title": "Each workflow has one run going on `main` at a time",
   "status": "shipped",
   "seeAlso": [
     "testing/ci-lanes",
     "testing/lane-table"
   ],
   "guardedBy": [
+    "tools/nv/cmd/ci.ts",
     ".github/workflows/ci.yml"
   ]
 }

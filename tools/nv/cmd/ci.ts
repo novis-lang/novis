@@ -8,12 +8,15 @@
 //     bun nv ci --rerun                 # run the failed jobs of each red newest run again
 //
 // **`--push`** pushes the local `main` to `origin`, and does nothing when `origin` has it already. The
-// push itself starts `ci.yml`'s push lane and the `Website` run, so the command starts and cancels no
-// run. The push lane runs every job the diff since the last push reaches, and the nightly deep lane
-// runs the rest (`rule:testing/ci-lanes`).
+// push itself starts `ci.yml`'s push lane and the `Website` run, so the command starts no run. It then
+// cancels every run of a workflow in `WORKFLOWS` still going on `main` for an older commit, so each
+// workflow has one run going on `main` at a time (`rule:testing/one-run-on-main`). The push lane runs
+// every job the diff since the last push reaches, and the nightly deep lane runs the rest
+// (`rule:testing/ci-lanes`).
 //
 // **`--watch`** reads the newest run of each workflow in `WORKFLOWS` on `main`, passing over cancelled
-// ones, and polls the jobs of each run in progress every `POLL_BUSY_MS`. It exits 1 the moment a job
+// ones, and polls the jobs of each run in progress every `POLL_BUSY_MS`. Each poll cancels every run of
+// a workflow still going beside a newer one, such as a push run the nightly deep lane started after. It exits 1 the moment a job
 // fails, or at once when a newest run already ended red, and prints each failed job, its failed step,
 // its URL and the end of its log. The whole log is kept under `.agent-tmp/ci/`. It exits 0 when every
 // run it watched in progress ended green. With nothing in progress and nothing red it waits, polling
@@ -172,6 +175,28 @@ function runLine(r: Run): string {
   return `${r.name} (${r.event}) on ${short(r.head_sha)}: ${state}  ${r.html_url}`;
 }
 
+/**
+ * The runs of each watched workflow still going that a newer run replaces: every one but the newest,
+ * and with `head` given, every one on another commit too, since its run may not be listed yet.
+ */
+export function superseded(runs: Run[], head?: string): Run[] {
+  const out: Run[] = [];
+  for (const w of WORKFLOWS) {
+    const going = runs.filter((x) => x.name === w && !done(x)).sort((a, b) => b.id - a.id);
+    out.push(...going.filter((r, i) => i > 0 || (head !== undefined && r.head_sha !== head)));
+  }
+  return out;
+}
+
+/** Cancels each run `superseded` names that `asked` has not cancelled already. A failed cancel only warns. */
+async function cancelSuperseded(s: CiSeams, runs: Run[], head: string | undefined, asked: Set<number>): Promise<void> {
+  for (const r of superseded(runs, head).filter((x) => !asked.has(x.id))) {
+    asked.add(r.id);
+    const c = await s.gh(["run", "cancel", String(r.id)]);
+    s.say(c.code === 0 ? `cancelled ${runLine(r)}: a newer run replaces it` : `could not cancel ${r.id}: ${firstLine(c)}`);
+  }
+}
+
 /** Prints each failed job of `jobs`: its failed step, its URL and the end of its log. */
 async function report(s: CiSeams, run: Run, jobs: Job[]): Promise<void> {
   for (const j of jobs.filter(red)) {
@@ -251,13 +276,16 @@ export async function watch(s: CiSeams, maxMin: number, past: string[] = []): Pr
     }
     return jobs.some((j) => red(j) && !passed(j));
   };
+  const cancelled = new Set<number>();
   let endedRed = false;
   let failures = 0;
   let first = true;
   while (true) {
     let busy = false;
     try {
-      const runs = newest(await listRuns(s));
+      const all = await listRuns(s);
+      await cancelSuperseded(s, all, undefined, cancelled);
+      const runs = newest(all);
       failures = 0;
       for (const r of runs) {
         if (done(r) && red(r)) {
@@ -319,21 +347,30 @@ async function gitOut(s: CiSeams, args: string[]): Promise<string> {
   return r.stdout.trim();
 }
 
-/** Pushes `main` when `origin` does not have it yet. The push starts its own runs. */
+/**
+ * Pushes `main` when `origin` does not have it yet, then cancels each run still going on an older
+ * commit. The push starts its own runs.
+ */
 export async function push(s: CiSeams): Promise<number> {
   await gitOut(s, ["fetch", "-q", "origin", BRANCH]);
   const head = await gitOut(s, ["rev-parse", BRANCH]);
   const remote = await gitOut(s, ["rev-parse", `origin/${BRANCH}`]);
-  if (head === remote) {
-    s.say(`origin/${BRANCH} is at ${short(head)} already: nothing to push`);
-    return 0;
+  if (head === remote) s.say(`origin/${BRANCH} is at ${short(head)} already: nothing to push`);
+  else {
+    const pushed = await s.git(["push", "origin", `${BRANCH}:${BRANCH}`]);
+    if (pushed.code !== 0) {
+      s.say(`the push failed: ${firstLine(pushed)}`);
+      return 1;
+    }
+    s.say(`pushed ${BRANCH} at ${short(head)}: the push starts its CI and Website runs`);
   }
-  const pushed = await s.git(["push", "origin", `${BRANCH}:${BRANCH}`]);
-  if (pushed.code !== 0) {
-    s.say(`the push failed: ${firstLine(pushed)}`);
-    return 1;
+  // The push succeeded whatever GitHub says next, so a failed listing only warns.
+  try {
+    await cancelSuperseded(s, await listRuns(s), head, new Set());
+  } catch (e) {
+    if (!(e instanceof GhFailed) && !(e instanceof SyntaxError)) throw e;
+    s.say(`the older runs could not be listed: ${e.message}`);
   }
-  s.say(`pushed ${BRANCH} at ${short(head)}: the push starts its CI and Website runs`);
   return 0;
 }
 
