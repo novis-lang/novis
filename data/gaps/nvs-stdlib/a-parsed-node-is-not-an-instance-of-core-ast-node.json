@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/ast.rs",
+  "title": "A node `Core\\Ast::parse` returns is not an instance of `Core\\Ast\\Node`, its declared type.",
+  "text": "`Core\\Ast::parse`, `children` and `nodes` are declared to return `Core\\Ast\\Node`, and each node is an instance of its production's class (`PRODUCTIONS`), whose descriptor has no parent. So `mixed $m = Core\\Ast::parse('<?nvs echo 2;'); echo $m is Core\\Ast\\Node ? \"node\" : \"not a node\";` prints `not a node`, and a `catch` or an `as Core\\Ast\\Node` on a node fails the same way. The checked build stops at every read of a parsed node (`NOVIS_CHECK_TYPES=1 nvs test tests/conformance/core/`, twelve `core-ast-*` cases). Closing it gives each production's descriptor `Core\\Ast\\Node` as its parent, with a conformance case for the `is` test.",
+  "goal": "compiler-holes"
+}
