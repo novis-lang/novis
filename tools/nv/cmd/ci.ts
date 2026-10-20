@@ -1,17 +1,15 @@
 // `bun nv ci`: pushes `main` and watches GitHub's CI on it, for the `ci-green` goal and looper's
 // `after_retire` hook.
 //
-//     bun nv ci --push                  # push main, start a full CI run, cancel every other CI run in progress
+//     bun nv ci --push                  # push main, which starts its CI and Website runs
 //     bun nv ci --watch [--max-min <n>] # wait for the first failed job, or the next green verdict
 //     bun nv ci --status                # the newest run of each watched workflow, and each failed job
 //     bun nv ci --rerun                 # run the failed jobs of each red newest run again
 //
-// **`--push`** pushes the local `main` to `origin` and does nothing more when `origin` has it already. A
-// push starts `ci.yml`'s push lane, which runs only the jobs its diff reaches. The command then starts
-// the full lane with `gh workflow run ci.yml --ref main` and cancels every other `CI` run on `main` still
-// in progress, the push lane's among them. The `Website` run is left alone. Cancelling costs the cache
-// of a job cut off mid-way, and buys one full verdict per push instead of a queue of stale ones:
-// `ci.yml`'s concurrency queues a dispatch behind the one before it.
+// **`--push`** pushes the local `main` to `origin`, and does nothing when `origin` has it already. The
+// push itself starts `ci.yml`'s push lane and the `Website` run, so the command starts and cancels no
+// run. The push lane runs every job the diff since the last push reaches, and the nightly deep lane
+// runs the rest (`rule:testing/ci-lanes`).
 //
 // **`--watch`** reads the newest run of each workflow in `WORKFLOWS` on `main`, passing over cancelled
 // ones, and polls the jobs of each run in progress every `POLL_BUSY_MS`. It exits 1 the moment a job
@@ -41,16 +39,12 @@ const USAGE = "usage: bun nv ci --push\n       bun nv ci --watch [--max-min <n>]
 
 /** The workflows whose runs on `main` are watched, by their `name:`. */
 export const WORKFLOWS = ["CI", "Website"];
-/** The workflow `--push` starts in full and whose other runs it cancels. */
-const FULL_WORKFLOW = "CI";
-const FULL_FILE = "ci.yml";
 const BRANCH = "main";
 
 /** How often a run in progress is polled, and how often an idle watch looks for a new run. */
 export const POLL_BUSY_MS = 15_000;
 export const POLL_IDLE_MS = 60_000;
-/** How long `--push` waits for a run it started to show up. */
-const APPEAR_MS = 180_000;
+
 /** How many failed polls in a row end the watch. */
 const GH_GIVE_UP = 20;
 /** The default `--max-min`: under a two-hour background limit. */
@@ -289,18 +283,7 @@ async function gitOut(s: CiSeams, args: string[]): Promise<string> {
   return r.stdout.trim();
 }
 
-/** Waits for a `CI` run of `event` on `sha` to show up, and returns it, or null after `APPEAR_MS`. */
-async function appear(s: CiSeams, event: string, sha: string): Promise<Run | null> {
-  const until = s.now() + APPEAR_MS;
-  while (true) {
-    const r = (await listRuns(s)).find((x) => x.name === FULL_WORKFLOW && x.event === event && x.head_sha === sha);
-    if (r !== undefined) return r;
-    if (s.now() >= until) return null;
-    await s.sleep(5_000);
-  }
-}
-
-/** Pushes `main`, starts the full CI lane on it, and cancels every other `CI` run in progress. */
+/** Pushes `main` when `origin` does not have it yet. The push starts its own runs. */
 export async function push(s: CiSeams): Promise<number> {
   await gitOut(s, ["fetch", "-q", "origin", BRANCH]);
   const head = await gitOut(s, ["rev-parse", BRANCH]);
@@ -314,25 +297,7 @@ export async function push(s: CiSeams): Promise<number> {
     s.say(`the push failed: ${firstLine(pushed)}`);
     return 1;
   }
-  s.say(`pushed ${BRANCH} at ${short(head)}`);
-  const lane = await appear(s, "push", head);
-  if (lane === null) s.say(`no push run showed up for ${short(head)}; dispatching anyway`);
-  const started = await s.gh(["workflow", "run", FULL_FILE, "--ref", BRANCH]);
-  if (started.code !== 0) {
-    s.say(`the full run could not be started: ${firstLine(started)}`);
-    return 1;
-  }
-  const full = await appear(s, "workflow_dispatch", head);
-  if (full === null) {
-    s.say(`the full run for ${short(head)} did not show up within ${APPEAR_MS / 1000} s; nothing was cancelled`);
-    return 1;
-  }
-  s.say(`full run: ${full.html_url}`);
-  const stale = (await listRuns(s)).filter((r) => r.name === FULL_WORKFLOW && !done(r) && r.id !== full.id);
-  for (const r of stale) {
-    const c = await s.gh(["run", "cancel", String(r.id)]);
-    s.say(c.code === 0 ? `cancelled ${runLine(r)}` : `could not cancel ${r.id}: ${firstLine(c)}`);
-  }
+  s.say(`pushed ${BRANCH} at ${short(head)}: the push starts its CI and Website runs`);
   return 0;
 }
 

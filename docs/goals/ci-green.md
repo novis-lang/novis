@@ -35,7 +35,8 @@ starts for the first time, at every goal end through `looper.toml`'s `after_reti
 each fix this goal commits. Never `git push`, never a force push, and never a push of another branch.
 A push sends everything on the local `main`, the main loop's finished slices with it.
 
-**`bun nv ci` is the only way the session talks to GitHub.** `--push` pushes and starts the full run.
+**`bun nv ci` is the only way the session talks to GitHub.** `--push` pushes, and the push starts the
+CI and Website runs. Never start or cancel a run by hand.
 `--watch` waits for the first failed job and prints its step and the end of its log. `--status` lists
 every failed job of the newest runs. `--rerun` reruns the failed jobs. Their module doc is
 `tools/nv/cmd/ci.ts`.
@@ -86,7 +87,7 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 3. **Fix:** `bun nv ci --status` lists every job that failed so far. Find each cause in the code,
    fix it, check it locally as § *Standing decisions* says, and commit each fix on its own with a
    pathspec.
-4. **Push:** `bun nv ci --push`. It cancels the run that failed and starts a full one. Go to step 2.
+4. **Push:** `bun nv ci --push`. The push starts new runs. Go to step 2.
 
 ## Handoff
 
