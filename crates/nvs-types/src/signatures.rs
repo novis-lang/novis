@@ -2243,7 +2243,8 @@ pub fn own_required_properties(
     sig.required_properties
         .iter()
         .filter(|(name, _)| {
-            !sig.read_without_get.contains(name) || !ancestor_has_get_hook(qname, name, table, graph)
+            !sig.read_without_get.contains(name)
+                || !ancestor_has_get_hook(qname, name, table, graph)
         })
         .cloned()
         .collect()

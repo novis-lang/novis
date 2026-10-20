@@ -23,8 +23,9 @@ class SalePrice extends Price {
         parent::constructor($cents);
     }
 
-    public function compareTo(self $other): int {
-        echo $other->reason, "\n";
+    // The parameter stays `Price`, as the parent's is.
+    public function compareTo(Price $other): int {
+        echo "SalePrice::compareTo ran\n";
         return 0;
     }
 }

@@ -408,6 +408,12 @@ pub(crate) fn check_stmts(
                 crate::conformance::check_member_conflicts(decl, &qname, env);
                 crate::conformance::check_constant_redeclarations(&decl.members, &qname, env);
                 crate::conformance::check_class_finality(decl, &qname, env);
+                crate::conformance::check_method_overrides(
+                    &decl.members,
+                    decl.name.span,
+                    &qname,
+                    env,
+                );
                 crate::conformance::check_abstract_members(decl, &qname, env);
                 crate::derive::check_class_derive(decl, &qname, &ctx, env);
                 crate::testing::check_class_tests(decl, &qname, &ctx, env);
@@ -421,6 +427,12 @@ pub(crate) fn check_stmts(
             StmtKind::InterfaceDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
                 crate::conformance::check_constant_redeclarations(&decl.members, &qname, env);
+                crate::conformance::check_method_overrides(
+                    &decl.members,
+                    decl.name.span,
+                    &qname,
+                    env,
+                );
                 let ctx = Ctx {
                     namespace: &current_ns,
                     imports: &current_imports,

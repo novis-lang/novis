@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/conformance.rs",
+  "title": "A direct `compareTo` call through `Comparable` passes an object of another class to a `self` parameter.",
+  "text": "`Comparable::compareTo` takes `Comparable`, and an implementor writes `compareTo(self $other)`. An ordering operator compares the two run-time classes before it calls `compareTo`, but a direct call does not: `Comparable $c = new Price(); $c->compareTo(new Label());` compiles and runs `Price::compareTo` with a `Label`, which reads the `Label` as a `Price`. An override that narrows `self` again in a subclass is `E0404`, so the hole is the call through `Comparable` alone. It closes when a direct `compareTo` call either checks the argument's run-time class as an ordering does, or is a compile error unless the argument's static type is the receiver's class, with a conformance case.",
+  "goal": "compiler-holes"
+}

@@ -1,0 +1,49 @@
+--TEST--
+A class that implements `Stringable`, `Comparable`, `Parses` or `Iterator<T>` keeps each method's signature, with `T` taken from its own `implements` clause — `rule:classes/an-override-keeps-its-parents-signature`
+--FILE--
+<?nvs
+class Title implements Stringable {
+    // Refused: `echo` reads a `string`.
+    public function toString(): int { return 1; }
+}
+
+class Label implements Stringable {
+    // Refused: `toString` is called on an object.
+    public static function toString(): string { return "label"; }
+}
+
+class Price implements Comparable {
+    // Refused: an ordering reads an `int`.
+    public function compareTo(self $other): bool { return true; }
+}
+
+class Slug implements Parses {
+    // Refused: the text is `tainted`, and this parameter would forget that.
+    public static function parse(string $s): static { return new static(); }
+}
+
+class Code implements Parses {
+    // Refused: `parse` is called on the class, with no object.
+    public function parse(tainted string $s): static { return new static(); }
+}
+
+class Words implements Iterator<int> {
+    public function advance(): bool { return false; }
+    // Refused: `foreach` over an `Iterator<int>` reads an `int`.
+    public function current(): string { return "one"; }
+}
+--EXPECTF-ERROR--
+error[E0404]: `Title::toString` cannot replace `Stringable::toString`
+%A
+error[E0404]: `Label::toString` cannot replace `Stringable::toString`
+%A
+error[E0404]: `Price::compareTo` cannot replace `Comparable::compareTo`
+%A
+error[E0404]: `Slug::parse` cannot replace `Parses::parse`
+%A
+error[E0404]: `Code::parse` cannot replace `Parses::parse`
+%A
+error[E0404]: `Words::current` cannot replace `Iterator::current`
+%A
+error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,16 @@
+--TEST--
+An `abstract` method has no body, because each subclass writes it — `rule:classes/an-override-keeps-its-parents-signature`
+--FILE--
+<?nvs
+abstract class Shape {
+    // Compiles: each subclass writes `name`.
+    abstract public function name(): string;
+
+    // Refused: a body makes `area` an ordinary method that no subclass has to write.
+    abstract public function area(): int { return 1; }
+}
+--EXPECTF-ERROR--
+error[E0106]: `Shape::area` is `abstract`, so it cannot have a body
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

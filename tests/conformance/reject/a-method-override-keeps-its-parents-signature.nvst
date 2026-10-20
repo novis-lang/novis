@@ -1,0 +1,47 @@
+--TEST--
+A method declared again in a subclass keeps a signature a call through the parent can use: the return type, each parameter, the count, `static` and the visibility — `rule:classes/an-override-keeps-its-parents-signature`
+--FILE--
+<?nvs
+class Shape {
+    public function area(): int { return 1; }
+    public function scale(int $by): void {}
+    public function move(int $x): void {}
+    public function show(): void {}
+    protected function reset(): void {}
+    public function ratio(): float { return 1.5; }
+    public function label(): string { return "shape"; }
+}
+
+class Square extends Shape {
+    // Refused: a call through `Shape` reads an `int`.
+    public function area(): string { return "four"; }
+    // Refused: a call through `Shape` passes an `int`.
+    public function scale(string $by): void {}
+    // Refused: a call through `Shape` passes one argument.
+    public function move(): void {}
+    // Refused: a call through `Shape` may be made from outside the class.
+    private function show(): void {}
+    // Refused: a call through `Shape` passes an object.
+    public static function reset(): void {}
+    // Refused: an `int` is not stored as a `float`, so the caller would read it wrong.
+    public function ratio(): int { return 2; }
+    // Refused: a call through `Shape` fills no `$suffix`, even with a default here.
+    public function label(string $suffix = "!"): string { return "square" . $suffix; }
+}
+--EXPECTF-ERROR--
+error[E0404]: `Square::area` cannot replace `Shape::area`
+%A
+error[E0404]: `Square::scale` cannot replace `Shape::scale`
+%A
+error[E0404]: `Square::move` cannot replace `Shape::move`
+%A
+error[E0404]: `Square::show` cannot replace `Shape::show`
+%A
+error[E0404]: `Square::reset` cannot replace `Shape::reset`
+%A
+error[E0404]: `Square::ratio` cannot replace `Shape::ratio`
+%A
+error[E0404]: `Square::label` cannot replace `Shape::label`
+%A
+error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

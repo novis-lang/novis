@@ -10,7 +10,7 @@ class Courier {
         return $parcel;
     }
 
-    public function label(string $recipient): string {
+    public function label(string $recipient, bool $rush): string {
         return $recipient;
     }
 }
