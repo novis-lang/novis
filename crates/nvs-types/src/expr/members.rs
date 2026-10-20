@@ -227,6 +227,10 @@ pub(crate) fn infer_class_const(
             .map(|(owner, sig)| (owner, sig.clone()));
             match found {
                 Some((owner, sig)) => {
+                    // `rule:core-api/written-visibility`: a `private` or
+                    // `protected` constant is read where a property of that
+                    // level is.
+                    check_member_visibility(name, &owner, &constant, sig.visibility, ctx, env);
                     match sig.value {
                         // `static::NAME` is `rule:statements/static-is-a-member-modifier`'s
                         // late-bound read: the class is the frame's called

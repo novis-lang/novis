@@ -662,6 +662,10 @@ pub struct ConstSig {
     /// [`crate::expr::members`] so that `nvs-ir`'s `ClassConstAccess` arm is
     /// never reached with nothing to lower.
     pub value: Option<crate::defaults::ConstArg>,
+    /// The written visibility, `public` where none is written.
+    /// [`crate::expr::members`] checks a read against it with
+    /// [`is_visible_from`], as it checks a property.
+    pub visibility: Visibility,
 }
 
 /// Every declaration's own [`ClassSignature`], keyed by its [`QName`].
@@ -1339,10 +1343,15 @@ fn collect_members(
                     None => folded_const_ty(qname, &name, env),
                 };
                 let value = crate::defaults::eval_const_value(&c.value, ty, env);
-                table
-                    .entry(qname.clone())
-                    .constants
-                    .insert(name, ConstSig { ty, value });
+                let visibility = declared_visibility(&c.modifiers).unwrap_or(Visibility::Public);
+                table.entry(qname.clone()).constants.insert(
+                    name,
+                    ConstSig {
+                        ty,
+                        value,
+                        visibility,
+                    },
+                );
             }
             ClassMemberKind::Error => {}
             _ => {}

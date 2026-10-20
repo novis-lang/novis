@@ -195,6 +195,7 @@ pub(crate) fn seed(
                     ConstSig {
                         ty,
                         value: Some(value),
+                        visibility: nvs_syntax::ast::Visibility::Public,
                     },
                 )
             })
