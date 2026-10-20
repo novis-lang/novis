@@ -558,9 +558,11 @@ document and no table of which omissions are legal. The check is one pass over p
 nothing of it reaches the IR, so it costs nothing at run time.
 
 An enum body has no member slot at all ([`enums/no-class-machinery`](enums.md#enums-no-class-machinery)), so nothing here reaches one, and
-a property hook has no visibility slot either. What each level *means* at an access site is a separate
-question, enforced separately; until that lands everywhere, a written `private` is an accurate declaration,
-which is strictly better than an unwritten one. The formatter never inserts the keyword, because a formatter
+a property hook has no visibility slot either. What each level *means* is checked at every access site
+where it is written: a `private` member is reached from its own class's bodies, and a `protected` one also
+from the classes that extend it. A class constant read, a property access and a method call are each a
+diagnostic (`E0471`) outside that reach, and an access through an erased receiver reaches `public` members
+only ([`types/erased-member-access`](types.md#types-erased-member-access)). The formatter never inserts the keyword, because a formatter
 that changes meaning is not a formatter ([`tooling/fmt-never-inserts-visibility`](tooling.md#tooling-fmt-never-inserts-visibility)).
 
 **Declined:**

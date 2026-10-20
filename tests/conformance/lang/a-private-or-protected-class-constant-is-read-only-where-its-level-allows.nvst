@@ -1,0 +1,38 @@
+--TEST--
+A `private` class constant is read only inside its class, and a `protected` one also inside the classes that extend it — `rule:core-api/written-visibility`
+--FILE--
+<?nvs
+// `Limits` and `Strict` read both constants and give no diagnostic. `Report`
+// does not extend `Limits`, and the top level is outside every class, so
+// exactly two diagnostics are reported.
+class Limits {
+    private const int SECRET = 7;
+    protected const int SHARED = 8;
+
+    public function total(): int {
+        return self::SECRET + self::SHARED;
+    }
+}
+
+class Strict extends Limits {
+    public function shared(): int {
+        return self::SHARED + Limits::SHARED;
+    }
+}
+
+class Report {
+    public function show(): int {
+        return Limits::SHARED;
+    }
+}
+
+echo Limits::SECRET, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0471]: `Limits::SHARED` is `protected`, so only `Limits` and the classes that extend it reach it
+%A
+error[E0471]: `Limits::SECRET` is `private`, so only `Limits`'s own bodies reach it
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
