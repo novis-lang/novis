@@ -599,6 +599,8 @@ pub struct Undeclared<'a> {
     pub span: Span,
     /// The namespace in force there.
     pub namespace: &'a [String],
+    /// The `use` imports in force there.
+    pub imports: &'a FxHashMap<String, QName>,
     /// The top-level statements of the file it was written in.
     pub stmts: &'a [Stmt],
     /// That file.
@@ -614,16 +616,32 @@ pub struct Undeclared<'a> {
 ///
 /// [`undeclared_name_at`] is the rest of this function, given the site.
 #[must_use]
-pub fn undeclared_name(at: Undeclared<'_>, symbols: &SymbolTable, core: &[&str]) -> Diagnostic {
+pub fn undeclared_name(
+    at: Undeclared<'_>,
+    symbols: &SymbolTable,
+    core: &[&str],
+) -> Option<Diagnostic> {
     undeclared_name_at(
         at.qname,
         at.text,
         at.span,
-        at.namespace,
+        (at.namespace, at.imports),
         symbols,
         core,
         imports::import_site(at.stmts, at.src, at.span.start),
     )
+}
+
+/// Whether `text` is a short name that a `use` brought in, and that `use`
+/// was reported for resolving to nothing. Its one error is at the `use` line
+/// (`rule:types/one-mistake-reports-once`).
+fn through_unresolved_import(
+    qname: &QName,
+    text: &str,
+    imports: &FxHashMap<String, QName>,
+    symbols: &SymbolTable,
+) -> bool {
+    !text.contains('\\') && imports.get(text) == Some(qname) && symbols.is_unresolved_import(qname)
 }
 
 /// Ordinarily [`nvs_diagnostics::code::E_UNDEFINED_CLASS`]. Where the
@@ -647,29 +665,38 @@ pub fn undeclared_name(at: Undeclared<'_>, symbols: &SymbolTable, core: &[&str])
 /// undeclared is that import's mistake, and a second `use` of the same short
 /// name would not compile — so neither is offered one. With no site there is
 /// no fix, and the diagnostic is what it was.
+///
+/// **A short name an unresolved `use` brought in gives `None`.** Its `use`
+/// line has its `E_UNRESOLVED_IMPORT`, and the caller recovers as it does
+/// after a report (`rule:types/one-mistake-reports-once`).
 #[must_use]
 pub fn undeclared_name_at(
     qname: &QName,
     text: &str,
     span: Span,
-    namespace: &[String],
+    (namespace, imports): (&[String], &FxHashMap<String, QName>),
     symbols: &SymbolTable,
     core: &[&str],
     site: Option<ImportSite>,
-) -> Diagnostic {
+) -> Option<Diagnostic> {
+    if through_unresolved_import(qname, text, imports, symbols) {
+        return None;
+    }
     if let Some(relative) = relative_spelling(text, namespace)
         && symbols.contains(&relative)
     {
-        return Diagnostic::error(
-            code::E_RELATIVE_QUALIFIED_NAME,
-            format!("`{qname}` is not declared"),
-        )
-        .with_primary(span, "a qualified name is read from the root")
-        .with_help(format!(
-            "`{relative}` is declared. A name that contains a `\\` always starts at the root. \
+        return Some(
+            Diagnostic::error(
+                code::E_RELATIVE_QUALIFIED_NAME,
+                format!("`{qname}` is not declared"),
+            )
+            .with_primary(span, "a qualified name is read from the root")
+            .with_help(format!(
+                "`{relative}` is declared. A name that contains a `\\` always starts at the root. \
              Write `{relative}`, or write `use {relative};` and then `{}`",
-            relative.short_name()
-        ));
+                relative.short_name()
+            )),
+        );
     }
     let mut diagnostic =
         Diagnostic::error(code::E_UNDEFINED_CLASS, format!("`{qname}`{NOT_DECLARED}"))
@@ -688,7 +715,7 @@ pub fn undeclared_name_at(
             };
         }
     }
-    diagnostic
+    Some(diagnostic)
 }
 
 /// The end of [`undeclared_name_at`]'s headline, after the quoted name.
@@ -795,15 +822,17 @@ fn resolve_supertype(
             None
         }
         None => {
-            diags.report(undeclared_name_at(
+            if let Some(diagnostic) = undeclared_name_at(
                 &qname,
                 &raw.text,
                 raw.span,
-                &pending.namespace,
+                (&pending.namespace, &pending.imports),
                 symbols,
                 core.names(),
                 pending.import_site,
-            ));
+            ) {
+                diags.report(diagnostic);
+            }
             None
         }
     }

@@ -12,7 +12,7 @@
 use std::collections::hash_map::Entry;
 
 use nvs_diagnostics::Span;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::qname::QName;
 
@@ -99,6 +99,10 @@ pub struct SymbolTable {
     /// The classes the loaded extension set declares, which have no source, each with the
     /// built-in component that declares it.
     extensions: FxHashMap<String, Option<String>>,
+    /// Every name a `use` imports that resolves to nothing, already reported as
+    /// `E_UNRESOLVED_IMPORT` at its `use` line. Costs one string per such import,
+    /// per check run.
+    unresolved_imports: FxHashSet<String>,
 }
 
 impl SymbolTable {
@@ -163,6 +167,19 @@ impl SymbolTable {
             nvs_footprint::component(component);
         }
         true
+    }
+
+    /// Records that a `use` imports `qname` and that `qname` resolves to
+    /// nothing. The caller has reported `E_UNRESOLVED_IMPORT` for it.
+    pub fn note_unresolved_import(&mut self, qname: &QName) {
+        self.unresolved_imports.insert(qname.to_string());
+    }
+
+    /// Whether a `use` imports `qname` and was reported for resolving to
+    /// nothing ([`Self::note_unresolved_import`]).
+    #[must_use]
+    pub fn is_unresolved_import(&self, qname: &QName) -> bool {
+        self.unresolved_imports.contains(&qname.to_string())
     }
 
     /// Every declared symbol, in no particular order.

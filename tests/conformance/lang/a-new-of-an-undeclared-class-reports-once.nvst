@@ -1,0 +1,34 @@
+--TEST--
+Each `new` of an undeclared class reports once, at the class name, and a method call, a property read and a return on the new object report nothing — `rule:types/one-mistake-reports-once`
+--FILE--
+<?nvs
+class Shop {
+    // Each `new Undeclared()` gives one error. The method call, the property
+    // read and the return give none.
+    public static function label(): string {
+        (new Undeclared())->open();
+        string $name = (new Undeclared())->name;
+        return (new Undeclared())->label();
+    }
+}
+--EXPECTF-ERROR--
+error[E0303]: `Undeclared` is not declared
+  --> %s:6:14
+  |
+6 |         (new Undeclared())->open();
+  |              ^^^^^^^^^^ no matching declaration
+
+error[E0303]: `Undeclared` is not declared
+  --> %s:7:29
+  |
+7 |         string $name = (new Undeclared())->name;
+  |                             ^^^^^^^^^^ no matching declaration
+
+error[E0303]: `Undeclared` is not declared
+  --> %s:8:21
+  |
+8 |         return (new Undeclared())->label();
+  |                     ^^^^^^^^^^ no matching declaration
+
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

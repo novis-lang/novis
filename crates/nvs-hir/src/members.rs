@@ -1526,18 +1526,21 @@ fn resolve_class_name(
     if resolved.is_core() || env.symbols.contains(&resolved) {
         return Some(resolved);
     }
-    env.diags.report(crate::hierarchy::undeclared_name(
+    if let Some(diagnostic) = crate::hierarchy::undeclared_name(
         crate::hierarchy::Undeclared {
             qname: &resolved,
             text,
             span: class_name.span,
             namespace: ctx.namespace,
+            imports: ctx.imports,
             stmts: env.stmts,
             src,
         },
         env.symbols,
         env.core,
-    ));
+    ) {
+        env.diags.report(diagnostic);
+    }
     None
 }
 

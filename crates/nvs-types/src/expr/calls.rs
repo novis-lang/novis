@@ -687,8 +687,12 @@ pub(crate) fn infer_static_call(
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
     // The return type already has `static` bound to the called class, above.
+    // A written class side with no signature has had its one error: `E0303` or
+    // `E0309` from `nvs_hir::members`, or the `Core` report above. So the call
+    // is the error type (`rule:types/one-mistake-reports-once`).
     let returned = match &sig {
         Some(s) => s.return_ty,
+        None if is_written_class_side(class) => env.interner.error(),
         None => env.interner.mixed(),
     };
     // See [`infer_method_call`]: the static half of the same contagion.
@@ -2187,18 +2191,21 @@ pub(crate) fn check_new_target(
                 // most often catches is PHP's `new Exception(…)` — the `Core\Error`
                 // tree has no such class, so the ordinary undeclared-class
                 // diagnostic is exactly the right answer.
-                env.diags.report(nvs_hir::undeclared_name(
+                if let Some(diagnostic) = nvs_hir::undeclared_name(
                     nvs_hir::Undeclared {
                         qname: &qname,
                         text,
                         span: name.span,
                         namespace: ctx.namespace,
+                        imports: ctx.imports,
                         stmts: env.stmts,
                         src: env.src,
                     },
                     env.symbols,
                     &nvs_stdlib::registry::type_names(),
-                ));
+                ) {
+                    env.diags.report(diagnostic);
+                }
                 env.interner.error()
             }
         }
