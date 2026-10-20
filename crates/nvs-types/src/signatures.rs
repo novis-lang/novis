@@ -1537,13 +1537,16 @@ fn reject_const_value_of_another_type(
         return false;
     }
     let want = env.interner.describe(declared);
+    let Some(diag) = crate::expr::assign::type_mismatch(
+        &[declared],
+        format!("the value of the constant `{name}` does not have its declared type `{want}`"),
+        env,
+    ) else {
+        return false;
+    };
     env.diags.report(
-        Diagnostic::error(
-            code::E_TYPE_MISMATCH,
-            format!("the value of the constant `{name}` does not have its declared type `{want}`"),
-        )
-        .with_primary(c.value.span, format!("this value is not of type `{want}`"))
-        .with_help("write a value of the declared type, or change the type of the constant"),
+        diag.with_primary(c.value.span, format!("this value is not of type `{want}`"))
+            .with_help("write a value of the declared type, or change the type of the constant"),
     );
     true
 }

@@ -447,18 +447,22 @@ fn const_reference_default(
         {
             let reported = reported?;
             let want = env.interner.describe(declared);
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_TYPE_MISMATCH,
-                    format!("`{qname}::{member}` is `secret`, and `{want}` is not"),
-                )
-                .with_primary(expr.span, "a `secret` constant in a non-`secret` slot")
-                .with_help(
-                    "declare the property `secret` too. Then the value stays `secret` after it \
-                     is stored in the property",
-                ),
-            );
+            // An error type was reported where it was written, so the slot
+            // counts as reported whether or not this builds a diagnostic.
             *reported = true;
+            if let Some(diag) = crate::expr::assign::type_mismatch(
+                &[declared],
+                format!("`{qname}::{member}` is `secret`, and `{want}` is not"),
+                env,
+            ) {
+                env.diags.report(
+                    diag.with_primary(expr.span, "a `secret` constant in a non-`secret` slot")
+                        .with_help(
+                            "declare the property `secret` too. Then the value stays `secret` \
+                             after it is stored in the property",
+                        ),
+                );
+            }
             return None;
         }
         match env.consts.get(&qname, &member, env.graph) {

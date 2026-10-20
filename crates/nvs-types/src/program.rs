@@ -471,7 +471,7 @@ fn constructor_fitting(
 
 /// The interface or class a written type argument names, or `None` after
 /// reporting `E0743` — the selector's one refusal, shared by both
-/// enumerations.
+/// enumerations. An error type gives `None` with no report.
 ///
 /// A class is accepted abstract or not. What the enumeration then lists is
 /// [`nvs_hir::implementors`]' answer for it: every non-abstract class that is
@@ -482,7 +482,9 @@ fn selector_of(call: &Expr, member: &str, want: TypeId, env: &mut Env<'_>) -> Op
             .get(qname)
             .is_some_and(|sym| matches!(sym.kind, SymbolKind::Interface | SymbolKind::Class))
     });
-    if found.is_none() {
+    // A type argument that is the error type already reported where it is
+    // written (`rule:types/one-mistake-reports-once`).
+    if found.is_none() && !env.interner.is_error(want) {
         let found = env.interner.describe(want);
         env.diags.report(
             Diagnostic::error(

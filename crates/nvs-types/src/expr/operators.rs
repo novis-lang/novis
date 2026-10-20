@@ -482,6 +482,12 @@ pub(crate) fn binary_result(
     span: Span,
     env: &mut Env<'_>,
 ) -> TypeId {
+    // An operand of the error type already reported its mistake, so the
+    // operator reports nothing and gives the error type again
+    // (`rule:types/one-mistake-reports-once`).
+    if env.interner.is_error(lhs) || env.interner.is_error(rhs) {
+        return env.interner.error();
+    }
     // Ahead of the whole table: an operand that is not a value has no row to
     // be judged by, whichever operator it was written under. `.` is the one
     // exception and keeps its own code — [`reject_void_operand`] says why.
@@ -1821,16 +1827,19 @@ pub(crate) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
         Ty::Class(..) | Ty::Object | Ty::Shape(_)
     ) {
         let described = env.interner.describe(ty);
+        let Some(diag) = super::assign::type_mismatch(
+            &[ty],
+            format!("`{spelling}` has no meaning for `{described}`"),
+            env,
+        ) else {
+            return;
+        };
         env.diags.report(
-            Diagnostic::error(
-                code::E_TYPE_MISMATCH,
-                format!("`{spelling}` has no meaning for `{described}`"),
-            )
-            .with_primary(span, "an object takes part in no arithmetic")
-            .with_help(
-                "Novis has no operator overloading; call the member that does this — a \
+            diag.with_primary(span, "an object takes part in no arithmetic")
+                .with_help(
+                    "Novis has no operator overloading; call the member that does this — a \
                  `Core\\Time\\Duration` negates with `->negated()` and subtracts with `->minus(…)`",
-            ),
+                ),
         );
         return;
     }
