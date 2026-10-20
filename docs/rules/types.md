@@ -3,8 +3,6 @@
 
 # Types
 
-*1 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="types-declaration"></a>
 
 ## Every binding declares its type, and no binding's type ever changes
@@ -1435,7 +1433,7 @@ every step out of it is an `as` a reviewer can see.
 
 <a id="types-one-mistake-reports-once"></a>
 
-## One mistake in a program reports one error, and a value written as `mixed` keeps every error it has  *(designed — owned by goal one-error-per-mistake)*
+## One mistake in a program reports one error, and a value written as `mixed` keeps every error it has
 
 `rule:types/one-mistake-reports-once`
 

@@ -1,11 +1,15 @@
 {
   "title": "One mistake in a program reports one error, and a value written as `mixed` keeps every error it has",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "types/unions-and-mixed"
   ],
   "guardedBy": [
-    "tests/conformance/lang/a-name-that-does-not-resolve-reports-once-and-a-written-mixed-keeps-its-error.nvst"
-  ],
-  "goal": "one-error-per-mistake"
+    "tests/conformance/lang/a-name-that-does-not-resolve-reports-once-and-a-written-mixed-keeps-its-error.nvst",
+    "tests/conformance/lang/an-unresolved-use-reports-once.nvst",
+    "tests/conformance/lang/a-new-of-an-undeclared-class-reports-once.nvst",
+    "tests/conformance/lang/a-static-member-of-an-undeclared-class-reports-once.nvst",
+    "tests/conformance/lang/an-undeclared-program-type-argument-reports-once.nvst",
+    "tests/conformance/lang/a-written-mixed-keeps-its-errors.nvst"
+  ]
 }
