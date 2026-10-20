@@ -1013,6 +1013,7 @@ codes! {
          every value that no other arm matches, so a second `default` never runs. Remove one \
          of them.",
     );
+
     /// A `...` or a default on a `fn` anonymous function's parameter
     /// (`rule:types/anonymous-function`). A call through `callable` passes
     /// one argument for each declared parameter, so a variadic parameter never
