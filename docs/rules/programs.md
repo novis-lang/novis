@@ -525,6 +525,13 @@ file name plus `.nvs`, and the on-disk entry is compared exactly ([`programs/pat
 explicit prefix beats a `discover` glob producing the same prefix and the glob skips that name; any
 other duplicate is `E_DUPLICATE_AUTOLOAD_PREFIX`, naming both sites.
 
+A miss is not a diagnostic of its own: the name stays undeclared, and the site that named it is
+`E_UNDEFINED_CLASS`. When the program declares any `autoload`, that diagnostic carries a note naming
+where resolution looked: every file probed for a name under a prefix, in probe order, and the prefixes
+there are for a name under none. A wrong root then reads differently from a typo in the class name.
+The note is built on a failed compile only, with one probe per root, through the plain resolve, so
+the cache key's probe trace does not move (`nvs_hir::AutoloadMap::note_searched_roots`).
+
 Declarations are honoured only in a file reachable through `require` from the entry point. One inside
 an autoloaded file is `E_AUTOLOAD_IN_AUTOLOADED_FILE`, because the map would otherwise depend on
 itself; operationally the map is fixed the moment it is first consulted, so the rule reaches the whole

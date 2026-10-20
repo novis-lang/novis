@@ -34,6 +34,7 @@ error[E0303]: `App\Mailer` is not declared
    |
 11 | echo App\Mailer::send(), "\n";
    |      ^^^^^^^^^^ no matching declaration
+   = note: `autoload` looked for `App\Mailer` in `src/Mailer.nvs`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -988,6 +988,12 @@ fn front_end_in(
             looked.take(&map, Some(&autoload));
         }
         if diags.has_errors() {
+            autoload.note_searched_roots(
+                &mut diags,
+                path.parent()
+                    .filter(|dir| !dir.as_os_str().is_empty())
+                    .unwrap_or_else(|| std::path::Path::new(".")),
+            );
             emit_diagnostics(&mut diags, &map, sink);
             return Err(ExitCode::FAILURE);
         }

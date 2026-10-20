@@ -672,11 +672,9 @@ pub fn undeclared_name_at(
             relative.short_name()
         ));
     }
-    let mut diagnostic = Diagnostic::error(
-        code::E_UNDEFINED_CLASS,
-        format!("`{qname}` is not declared"),
-    )
-    .with_primary(span, "no matching declaration");
+    let mut diagnostic =
+        Diagnostic::error(code::E_UNDEFINED_CLASS, format!("`{qname}`{NOT_DECLARED}"))
+            .with_primary(span, "no matching declaration");
     let through_namespace = !text.contains('\\') && QName::join(namespace, text) == *qname;
     if let Some(site) = site.filter(|_| through_namespace) {
         let candidates = imports::candidates(text, symbols, core.iter().copied());
@@ -692,6 +690,29 @@ pub fn undeclared_name_at(
         }
     }
     diagnostic
+}
+
+/// The end of [`undeclared_name_at`]'s headline, after the quoted name.
+const NOT_DECLARED: &str = " is not declared";
+
+/// The name an [`undeclared_name_at`] diagnostic says is not declared, read
+/// back off its headline, and `None` for any other diagnostic.
+///
+/// A pass that runs after the checker and knows something the checker did not,
+/// such as [`crate::AutoloadMap::note_searched_roots`], finds its diagnostics
+/// through this. The headline is written and read here, in one file, so the two
+/// cannot drift apart.
+#[must_use]
+pub fn undeclared_subject(diagnostic: &Diagnostic) -> Option<QName> {
+    if diagnostic.code != Some(code::E_UNDEFINED_CLASS) {
+        return None;
+    }
+    let name = diagnostic
+        .message
+        .strip_prefix('`')?
+        .strip_suffix(NOT_DECLARED)?
+        .strip_suffix('`')?;
+    (!name.is_empty() && !name.contains('`')).then(|| QName::parse(name))
 }
 
 fn describe_kinds(kinds: &[SymbolKind]) -> String {

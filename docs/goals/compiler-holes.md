@@ -430,10 +430,19 @@ message and help text under `crates/` that prints `rule:` or a form of "refuse",
 one line each. The other lists every citation of `lang:statements/try-catch-finally` and
 `lang:statements/throw` in the tree. The two lists are the sets of the fifth and sixth items.
 
-- [ ] `E0479`'s help suggests `!=`, and `lang:expressions/and-the-ternary`'s example 05 is blessed again. `crates/nvs-types/src/expr/assign.rs:1`, `data/gaps/nvs-types/a-nullsafe-write-help-suggests-not-identical.json:1`
-- [ ] `E0802`'s help names only forms the parser accepts. `crates/nvs-types/src/expr/isolate.rs:1`, `data/gaps/nvs-types/a-spawn-entry-help-names-spawn-worker.json:1`
-- [ ] `E0233`'s help says a nested `use` covers the code below it. `crates/nvs-types/src/locals.rs:1`, `data/gaps/nvs-types/a-nested-use-help-says-it-covers.json:1`
-- [ ] `E0303` lists the `autoload` roots it searched. `crates/nvs-types/src/expr/mod.rs:1`, `data/gaps/nvs-types/an-undefined-class-names-no-autoload-root.json:1`
+- [x] `E0479`'s help suggests `!=`, and `lang:expressions/and-the-ternary`'s example 05 is blessed again. `crates/nvs-types/src/expr/assign.rs:check_assign`
+  - [x] the help and the `E0479` and `E0482` reference cards write `!=`
+  - [x] example 05's `.out`, `docs/reference/lang/30-expressions.md` and `llms-full.txt` are re-recorded, and the gap record is deleted
+- [x] `E0802`'s help names only forms the parser accepts. `crates/nvs-types/src/expr/isolate.rs:refuse_entry`
+  - [x] both helps name only a path and `Class::method(...)`, and neither names `spawn worker`
+  - [x] `an_anon_fn_is_refused_as_a_spawn_target_naming_the_method_form` pins the whole help, and the gap record is deleted
+- [x] `E0233`'s help says a nested `use` covers the code below it. `crates/nvs-types/src/locals.rs:nested_declaration`
+  - [x] the help says to move it above the code that needs it, and that it applies to the code below it
+  - [x] `lang/a-namespace-use-or-autoload-inside-a-body-is-a-compile-error.nvst` is re-recorded, and the gap record is deleted
+- [x] `E0303` lists the `autoload` roots it searched. `crates/nvs-hir/src/autoload.rs:note_searched_roots`
+  - [x] `AutoloadMap::note_searched_roots` adds a note with the files probed, or the prefixes when none covers the name, and `front_end_in` runs it on a failed compile
+  - [x] `hierarchy::undeclared_subject` reads the name back off the headline it writes
+  - [x] `lang/an-undeclared-class-names-the-autoload-roots-it-searched.nvst` pins both notes, `rule:programs/autoload` says it, and the gap record is deleted
 - [ ] No diagnostic's message or help prints a `rule:` id or a form of "refuse", and a test scans the help texts. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/diagnostic-help-prints-rule-ids.json:1`
 - [ ] The two `lang:statements/` features are merged into their `lang:errors/` twins. `tools/nv/proofs/roster.ts:1`, `data/gaps/nv/two-lang-features-are-one-syntax.json:1`
 
@@ -491,41 +500,57 @@ another goal.
 
 ### State
 
-Stages 1, 2, 3, 16, 4, 5, 6, 7, 8, 9, 10, 11 and 12 are done, and every gap record they owned is
-deleted.
+Stages 1 to 12 and 16 are done, and every gap record they owned is deleted. Stage 13's four
+single-help items landed, and their four gap records are deleted:
 
-Stage 12's two server items landed in `crates/nvs-server/src/serve.rs`:
+- `E0479`'s help writes `if ($x != null) { $x->p = …; }`, and so do the `E0479` and `E0482`
+  reference cards.
+- `E0802`'s two helps name only a path and `Class::method(...)`.
+- `E0233`'s help for a nested `use`, `namespace` or `autoload` says to move it above the code that
+  needs it, and that it applies to the code below it.
+- `E0303` carries a note naming where `autoload` looked: the files probed for a name under a
+  prefix, or the prefixes when none covers it. `nvs_hir::AutoloadMap::note_searched_roots` adds it
+  and `front_end_in` (`crates/nvs-cli/src/main.rs`) runs it on a failed compile. It finds its
+  diagnostics through `nvs_hir::hierarchy::undeclared_subject`, which reads the name back off the
+  headline `undeclared_name_at` writes. The editor (`crates/nvs-lsp/src/document.rs`) does not run
+  it yet.
 
-- The lost response was a reset, not an early close. `hyper` stops reading a body nobody wants
-  after one read and ends the connection after the response, and a socket dropped with the peer's
-  bytes still unread in it is reset. That reset discarded the client's unread response.
-  `close_after_the_response` now sends the FIN (`nvs_host::NvsConnection::shutdown_write`) and
-  reads and discards until the peer closes, the socket fails, or `LINGER` (2 s) passes, or the
-  drain period ends if it is sooner. It runs only for a connection that ended `Ok` and did not
-  upgrade. The body bound is unchanged, as § *Standing decisions* says: nothing read while closing
-  reaches a program or `hyper`. `rule:http-server/a-response-is-not-lost-to-an-unread-body` states
-  it and declines a byte bound, because a client that writes its whole body before it reads gets
-  a reset at any byte bound smaller than its body.
-- `MAX_HEADER_LINES` (100) is set on the `http1::Builder`, and
-  `rule:http-server/a-request-head-has-at-most-100-header-lines` states it. 100 lines are
-  answered and 101 are `431`, the same as before.
-- `website/src/lib/core.ts` and `tools/nv/test/core-type-links.test.ts` were changed in the tree
-  before session 0039 and belong to no stage of this goal. They are left uncommitted.
+`website/public/llms-full.txt` is committed with only this goal's hunks. The tree also holds
+uncommitted work this goal does not own: `crates/nvs-cli/src/{agent,meta}.rs`,
+`crates/nvs-cli/tests/agent.rs`, `docs/reference/tools/50-agents.md`, `crates/nvs-config/`,
+`crates/nvs-diagnostics/src/code/warnings.rs`, `website/src/lib/core.ts`,
+`website/src/data/numbers.json` and `tools/nv/test/core-type-links.test.ts`. Run
+`bun nv render --website` again once that work is committed.
 
 ### Next
 
-**Stage 13** (`### 13.` in this file). Start with its `**Split:**` line: two `Explore` subagents go
-out together, one listing every diagnostic message and help text that prints `rule:` or a form of
-"refuse", and one listing every citation of the two `lang:statements/` features. Then take the four
-single-help items first. They share `crates/nvs-types/src/expr/` and `locals.rs`.
+**Stage 13's fifth item is about 300 strings, so it is split by crate**, one session each, in this
+order. The list is a fresh `Explore` search per session: every string literal that reaches a
+`Diagnostic` builder, a reference card or an `eprintln!` `error:`/`warning:`/`note:` line and holds
+`rule:` or a form of "refuse". Leave out doc comments, tests, `#[expect(reason)]`, `panic!` text and
+run-time error messages. Each rewritten text is held to AGENTS.md § *Text an end user reads*, and
+each expectation that pins it is re-recorded with `nvs test` on the case.
 
-- [ ] Stage 13: `E0479`'s help suggests `!=`, and `lang:expressions/and-the-ternary`'s example 05 is blessed again. `crates/nvs-types/src/expr/assign.rs:1`, `data/gaps/nvs-types/a-nullsafe-write-help-suggests-not-identical.json:1`
-- [ ] Stage 13: `E0802`'s help names only forms the parser accepts. `crates/nvs-types/src/expr/isolate.rs:1`, `data/gaps/nvs-types/a-spawn-entry-help-names-spawn-worker.json:1`
-- [ ] Stage 13: `E0233`'s help says a nested `use` covers the code below it. `crates/nvs-types/src/locals.rs:1`, `data/gaps/nvs-types/a-nested-use-help-says-it-covers.json:1`
-- [ ] Stage 13: `E0303` lists the `autoload` roots it searched. `crates/nvs-types/src/expr/mod.rs:1`, `data/gaps/nvs-types/an-undefined-class-names-no-autoload-root.json:1`
+1. `crates/nvs-syntax/src/parser/` and `crates/nvs-hir/src/` (about 50): `decl.rs`, `stmt.rs`,
+   `ty.rs`, `expr.rs`, `aliases.rs`, `members.rs`, `autoload.rs`, and `hierarchy.rs:671`'s
+   `E_RELATIVE_QUALIFIED_NAME` help.
+2. `crates/nvs-types/src/expr/` (about 110): `operators.rs` has the most, including the conversion
+   help table near `operators.rs:2714`, then `members.rs`, `calls.rs`, `args.rs`, `iteration.rs`,
+   `quals.rs`, `assign.rs`, `literals.rs`, `mod.rs`.
+3. the rest of `crates/nvs-types/src/` (about 90): `derive.rs`, `routes.rs`, `testing.rs`,
+   `program.rs`, `retrieval.rs`, `conformance.rs`, `lower.rs`, `links.rs`, `check.rs`, `enums.rs`.
+4. `crates/nvs-config/src/` (about 50), `crates/nvs-diagnostics/src/code/config.rs:298`, and six
+   `eprintln!` lines in `crates/nvs-cli/src/{bundle,queue,schema}.rs`. Then the test that scans
+   every help text and card, and delete `data/gaps/nvs-types/diagnostic-help-prints-rule-ids.json`.
 
-Every help text these items rewrite is held to AGENTS.md § *Text an end user reads*, and every
-expectation that pins it is re-recorded.
+**The sixth item** (`data/gaps/nv/two-lang-features-are-one-syntax.json`) has its list:
+`docs/examples/lang/statements/chapter.md:16` and `:18` are the two headings; the examples are
+`docs/examples/lang/statements/{throw,try-catch-finally}/` (4 and 5 pairs, `about.md`, one
+`details.md`); the attacks `tests/hostile/lang/statements/{throw,try-catch-finally}/`; the benches
+`benches/members/lang/statements/{throw,try-catch-finally}.nvs`; `// covers:` lines in
+`tests/conformance/error/{two-catch-clauses-pick-by-class,a-nested-finally-runs-inside-out,throwing-a-nullable-throwable-throws-the-object-it-holds,a-throw-crosses-two-frames}.nvst`;
+`website/src/content/docs/syntax/errors/throw-and-catch.mdx:3,12,18`; `website/site.lock.json:178`;
+and the perf rows in `data/perf/members.md`, `bench-budget.json` and `members.ndjson`.
 
 The installed `looper` binary has no `verify` subcommand, so these sessions run
 `bun nv affected --run` as the gate. The next free diagnostic code is `E0881`

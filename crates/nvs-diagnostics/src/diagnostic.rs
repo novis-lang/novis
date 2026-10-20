@@ -376,6 +376,13 @@ impl Diagnostics {
         self.items.iter()
     }
 
+    /// Every diagnostic, in the order reported, for a pass that adds a note to
+    /// one after the fact. A pass changes what a diagnostic says, never its
+    /// severity, so the error count stays right.
+    pub fn iter_mut(&mut self) -> impl ExactSizeIterator<Item = &mut Diagnostic> {
+        self.items.iter_mut()
+    }
+
     /// Total number of diagnostics at any severity.
     #[must_use]
     pub fn len(&self) -> usize {
