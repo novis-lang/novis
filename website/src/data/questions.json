@@ -712,7 +712,7 @@
   },
   "/in-depth/": {
     "feature": "in-depth/index.mdx",
-    "hash": "908f58db4a902447",
+    "hash": "6b116aa7054d5513",
     "questions": [
       "Why does Novis work the way it does?",
       "Where can I read about the design decisions behind Novis?",
@@ -830,20 +830,9 @@
       "Why are error messages in Novis easy to read?"
     ]
   },
-  "/in-depth/falls-behind/": {
-    "feature": "in-depth/falls-behind.mdx",
-    "hash": "dc8beda0283e6fd4",
-    "questions": [
-      "What are the disadvantages of using Novis today?",
-      "Is Novis ready for production use?",
-      "Why does a Novis server use more memory than others?",
-      "Does Novis have many third-party packages?",
-      "Why must I pass the locale to every date or sort function?"
-    ]
-  },
   "/in-depth/how-novis-is-written/": {
     "feature": "in-depth/how-novis-is-written.mdx",
-    "hash": "d72c1fde88c23428",
+    "hash": "7ee2ba22d376751b",
     "questions": [
       "Is Novis written with AI coding agents?",
       "Is Novis AI slop?",
@@ -872,6 +861,17 @@
       "Does Novis run my existing PHP files unchanged?",
       "Features Novis will never add, and why",
       "How do extensions work without native code?"
+    ]
+  },
+  "/in-depth/new/": {
+    "feature": "in-depth/new.mdx",
+    "hash": "32978755a64aa817",
+    "questions": [
+      "What are the disadvantages of using Novis today?",
+      "Is Novis ready for production use?",
+      "Has Novis had a security audit?",
+      "Does Novis have third-party packages?",
+      "Why does Novis need more checks than other languages?"
     ]
   },
   "/in-depth/questions/": {
