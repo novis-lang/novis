@@ -180,11 +180,18 @@ fn an_unmarked_chapter_section_is_not_lifted_into_the_primer() {
 fn the_index_has_exactly_one_line_for_every_registered_member() {
     let document = document();
     let mut registered = Vec::new();
-    for class in document["classes"].as_array().expect("`classes`") {
-        let class_name = class["name"].as_str().expect("a class names itself");
-        for member in class["members"].as_array().expect("`members`") {
+    // A `Core` interface's members are on the index as a class's are. An
+    // interface with no members has no `members` key.
+    let owners = document["classes"]
+        .as_array()
+        .expect("`classes`")
+        .iter()
+        .chain(document["interfaces"].as_array().expect("`interfaces`"));
+    for owner in owners {
+        let owner_name = owner["name"].as_str().expect("a row names itself");
+        for member in owner["members"].as_array().map_or(&[][..], Vec::as_slice) {
             let name = member["name"].as_str().expect("a member names itself");
-            registered.push(format!("{class_name}::{name}"));
+            registered.push(format!("{owner_name}::{name}"));
         }
     }
 
@@ -536,6 +543,44 @@ fn a_class_card_prints_its_prose_above_its_members() {
     );
 }
 
+/// A `Core` interface that a program's class implements has a card like a
+/// class's: its line names its members, its prose follows, and each member has
+/// a line and a card of its own.
+// covers: tools:agents/nvs-agent
+#[test]
+fn a_core_interface_resolves_to_a_card_listing_its_members() {
+    let (card, _, ok) = agent(&["show", r"Core\Router\Gate"]);
+    assert!(ok, "an interface name resolves");
+    assert!(
+        card.starts_with("Core\\Router\\Gate  interface: allows, refused, failed\n"),
+        "the card opens with the interface line: {card}"
+    );
+    let members = card.find("\nmembers:\n").expect("the members are listed");
+    for member in ["allows(", "refused(", "failed("] {
+        let at = card
+            .find(&format!(r"  Core\Router\Gate::{member}"))
+            .unwrap_or_else(|| panic!("{member} is listed: {card}"));
+        assert!(at > members, "{member} is under `members:`: {card}");
+    }
+
+    let (card, _, ok) = agent(&["show", r"Core\Router\Gate::failed"]);
+    assert!(ok, "an interface member resolves");
+    assert!(
+        card.starts_with(r"Core\Router\Gate::failed("),
+        "the card opens with the member line: {card}"
+    );
+    assert!(card.contains("\nparams:\n  $route"), "{card}");
+    assert!(card.contains("\nreturns:\n"), "{card}");
+
+    let (out, _, ok) = agent(&["find", r"Router\Gate"]);
+    assert!(ok, "`nvs agent find` succeeds");
+    assert!(
+        out.lines()
+            .any(|line| line.starts_with(r"Core\Router\Gate::allows(")),
+        "find reaches the interface's members: {out}"
+    );
+}
+
 /// The html template has no member to be named for, so the word `html` has to
 /// reach it through a heading — and through the class whose value it makes —
 /// or an agent concludes from six member lines that no html template exists.
@@ -736,6 +781,7 @@ fn index_json_has_one_record_for_every_line_of_the_index() {
 
     let kinds = [
         "class",
+        "interface",
         "member",
         "enum",
         "exception",

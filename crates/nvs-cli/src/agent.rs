@@ -479,7 +479,8 @@ fn gates(document: &Value) -> Vec<(String, &str)> {
 }
 
 /// Every line of the index, in the registry's own order: the members class by
-/// class, then the enums, exceptions and attributes beside them, then each
+/// class, then the members of each `Core` interface a program implements, then
+/// the enums, exceptions and attributes beside them, then each
 /// chapter over its headings, then the configuration keys, the commands with
 /// their flags and the diagnostic codes.
 fn entries(document: &Value) -> Vec<Entry> {
@@ -508,24 +509,28 @@ fn entries(document: &Value) -> Vec<Entry> {
             }
             out.push(Entry::new("class", class_name.to_owned(), line));
         }
-        for member in array(class, "members") {
-            let symbol = format!("{class_name}::{}", text(member, "name"));
-            let signature = text(member, "signature");
-            let mut line = format!("{class_name}::{signature}");
-            let capability = gates
-                .iter()
-                .find(|(gated, _)| *gated == symbol)
-                .map(|(_, capability)| *capability);
-            if let Some(capability) = capability {
-                line.push_str("  [");
-                line.push_str(capability);
-                line.push(']');
-            }
-            let mut entry = Entry::new("member", symbol, line);
-            entry.signature = Some(signature.to_owned());
-            entry.capability = capability.map(str::to_owned);
-            out.push(entry);
+        push_members(&mut out, &gates, class);
+    }
+
+    // A `Core` interface a program implements, `Core\Router\Gate`, has a line
+    // naming its members and a line per member, as a class does. The
+    // interfaces the compiler declares, `Iterable` and the others, carry no
+    // card and no members, so they have no line.
+    for interface in array(document, "interfaces") {
+        if interface["doc"].is_null() {
+            continue;
         }
+        let name = text(interface, "name");
+        let names: Vec<&str> = array(interface, "members")
+            .iter()
+            .map(|member| text(member, "name"))
+            .collect();
+        let mut line = format!("{name}  interface");
+        if !names.is_empty() {
+            line.push_str(&format!(": {}", names.join(", ")));
+        }
+        out.push(Entry::new("interface", name.to_owned(), line));
+        push_members(&mut out, &gates, interface);
     }
 
     for core_enum in array(document, "enums") {
@@ -578,6 +583,31 @@ fn entries(document: &Value) -> Vec<Entry> {
     out.extend(names::commands());
     out.extend(names::codes());
     out
+}
+
+/// One `member` entry for each member of `owner`, a class or an interface row
+/// of the document: the member's signature after the owner's name, and the
+/// capability its call is gated on in brackets when it has one.
+fn push_members(out: &mut Vec<Entry>, gates: &[(String, &str)], owner: &Value) {
+    let owner_name = text(owner, "name");
+    for member in array(owner, "members") {
+        let symbol = format!("{owner_name}::{}", text(member, "name"));
+        let signature = text(member, "signature");
+        let mut line = format!("{owner_name}::{signature}");
+        let capability = gates
+            .iter()
+            .find(|(gated, _)| *gated == symbol)
+            .map(|(_, capability)| *capability);
+        if let Some(capability) = capability {
+            line.push_str("  [");
+            line.push_str(capability);
+            line.push(']');
+        }
+        let mut entry = Entry::new("member", symbol, line);
+        entry.signature = Some(signature.to_owned());
+        entry.capability = capability.map(str::to_owned);
+        out.push(entry);
+    }
 }
 
 /// One thing a chapter is asked for: the chapter, or one heading in it.
@@ -1093,22 +1123,157 @@ fn wanted(symbol: &str) -> String {
     }
 }
 
-/// The symbols closest to what was asked for, longest shared run first.
+/// How many symbols a failed `show` names.
+const NEAREST: usize = 8;
+
+/// The symbols closest to what was asked for.
 ///
-/// A wrong guess is usually a near miss — a plural, a `Core\Str` where the
-/// member is on `Core\Arr` — so the ranking is the longest run of characters the
-/// two names share, which recovers a misspelling in the middle as well as a
-/// wrong prefix. Nothing shorter than three characters is a match, or every
-/// symbol is one.
+/// A wanted `<chapter>#<slug>` whose chapter exists is usually a heading that
+/// was renamed, so that chapter's sections that share words with the slug come
+/// first, in the order [`section_order`] gives them. The remaining places go to
+/// the symbols with the longest run of characters shared with what was asked
+/// for. That second ranking recovers a near miss — a plural, a misspelling in
+/// the middle, a `Core\Str` where the member is on `Core\Arr`. Nothing shorter
+/// than three characters is a match, or every symbol is one.
 fn nearest<'a>(entries: &'a [Entry], wanted: &str) -> Vec<&'a Entry> {
+    let mut out = chapter_sections(entries, wanted);
+    out.truncate(NEAREST);
     let mut scored: Vec<(usize, &Entry)> = entries
         .iter()
         .map(|entry| (shared_run(&entry.symbol.to_lowercase(), wanted), entry))
         .filter(|(run, _)| *run >= 3)
         .collect();
     scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.symbol.cmp(&b.1.symbol)));
-    scored.truncate(8);
-    scored.into_iter().map(|(_, entry)| entry).collect()
+    for (_, entry) in scored {
+        if out.len() == NEAREST {
+            break;
+        }
+        if !out.iter().any(|shown| std::ptr::eq(*shown, entry)) {
+            out.push(entry);
+        }
+    }
+    out
+}
+
+/// For a wanted `<chapter>#<slug>` whose chapter exists, that chapter's
+/// sections ranked by [`section_order`] against the slug. Anything else gives
+/// no entry.
+fn chapter_sections<'a>(entries: &'a [Entry], wanted: &str) -> Vec<&'a Entry> {
+    let Some((chapter, slug)) = wanted.split_once('#') else {
+        return Vec::new();
+    };
+    let known = entries
+        .iter()
+        .any(|entry| entry.kind == "chapter" && entry.symbol.eq_ignore_ascii_case(chapter));
+    if !known {
+        return Vec::new();
+    }
+    let prefix = format!("{chapter}#");
+    let topics = topics();
+    let sections: Vec<(&Entry, String)> = entries
+        .iter()
+        .filter(|entry| entry.kind == "section" && entry.symbol.to_lowercase().starts_with(&prefix))
+        .map(|entry| {
+            // The section's own text, up to its first subheading: a section
+            // that has many subsections would otherwise share a word with
+            // almost every slug.
+            let text = topics
+                .iter()
+                .find(|topic| topic.symbol == entry.symbol)
+                .map(|topic| {
+                    let levels = heading_levels(&topic.lines);
+                    let end = (1..topic.lines.len())
+                        .find(|&i| levels[i] > 0)
+                        .unwrap_or(topic.lines.len());
+                    topic.lines[..end].join("\n")
+                })
+                .unwrap_or_default();
+            (entry, text)
+        })
+        .collect();
+    let texts: Vec<&str> = sections.iter().map(|(_, text)| text.as_str()).collect();
+    section_order(slug, &texts)
+        .into_iter()
+        .map(|index| sections[index].0)
+        .collect()
+}
+
+/// The indices of `sections` that share a word with `slug`, the most shared
+/// words first. On a tie, the section with more of those words in one sentence
+/// comes first, and then the earlier section.
+///
+/// The slug's words are its parts between `-`, without the ones under three
+/// letters. A section's words are the runs of letters and digits in its text,
+/// heading included. Both sides are compared lowercased and through [`stem`],
+/// so `files` in the slug matches `file` in the text. The sentence count is
+/// what puts a section that says the old heading in one sentence ahead of a
+/// longer section that uses the same words in different places.
+fn section_order(slug: &str, sections: &[&str]) -> Vec<usize> {
+    let mut wanted: Vec<String> = slug
+        .split('-')
+        .filter(|word| word.chars().count() >= 3)
+        .map(stem)
+        .collect();
+    wanted.sort();
+    wanted.dedup();
+    let shared = |text: &str| {
+        let words: rustc_hash::FxHashSet<String> = text
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|word| !word.is_empty())
+            .map(stem)
+            .collect();
+        wanted.iter().filter(|word| words.contains(*word)).count()
+    };
+    let mut scored: Vec<(usize, usize, usize)> = sections
+        .iter()
+        .enumerate()
+        .filter_map(|(index, text)| {
+            let in_section = shared(text);
+            let in_sentence = sentences(text).map(shared).max().unwrap_or(0);
+            (in_section > 0).then_some((in_section, in_sentence, index))
+        })
+        .collect();
+    // A stable sort, so sections with the same counts keep the chapter's order.
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
+    scored.into_iter().map(|(_, _, index)| index).collect()
+}
+
+/// The sentences of `text`: it is cut after a `.`, `!`, `?` or `:` that a
+/// space, a line break or the end follows, and at every blank line. A `.`
+/// inside a word or a code span, as in `.nvs`, does not end a sentence.
+fn sentences(text: &str) -> impl Iterator<Item = &str> {
+    text.split("\n\n").flat_map(|paragraph| {
+        let mut out = Vec::new();
+        let mut start = 0;
+        let mut chars = paragraph.char_indices().peekable();
+        while let Some((at, c)) = chars.next() {
+            let ends = matches!(c, '.' | '!' | '?' | ':')
+                && chars.peek().is_none_or(|(_, next)| next.is_whitespace());
+            if ends {
+                out.push(&paragraph[start..at + c.len_utf8()]);
+                start = at + c.len_utf8();
+            }
+        }
+        out.push(&paragraph[start..]);
+        out
+    })
+}
+
+/// `word` lowercased, with a plural ending taken off: `entries` is `entry`,
+/// `classes` is `class`, and `files` is `file`. A word ending in `ss`, such as
+/// `process`, stays as it is.
+fn stem(word: &str) -> String {
+    let word = word.to_lowercase();
+    if let Some(base) = word.strip_suffix("ies") {
+        return format!("{base}y");
+    }
+    if let Some(base) = word.strip_suffix("sses") {
+        return format!("{base}ss");
+    }
+    if word.len() > 3 && word.ends_with('s') && !word.ends_with("ss") {
+        return word[..word.len() - 1].to_owned();
+    }
+    word
 }
 
 /// The length of the longest run of bytes `a` and `b` share.
@@ -1152,6 +1317,17 @@ fn row<'a>(document: &'a Value, key: &str, name: &str) -> &'a Value {
         .unwrap_or(&ABSENT)
 }
 
+/// The class named `name`, or failing that the interface named `name`: the two
+/// rows a member belongs to.
+fn owner<'a>(document: &'a Value, name: &str) -> &'a Value {
+    let class = row(document, "classes", name);
+    if class.is_null() {
+        row(document, "interfaces", name)
+    } else {
+        class
+    }
+}
+
 /// `{name, desc}` for each row, the shape of a parameter and of an enum case.
 fn named_rows(rows: &[Value], name: &str) -> Value {
     rows.iter()
@@ -1165,14 +1341,15 @@ fn named_rows(rows: &[Value], name: &str) -> Value {
 ///
 /// A class's card lists its members, so the class name alone is a way into its
 /// members without knowing one of them. An attribute that is also a class,
-/// `Core\Test`, has the same card; one that is not has no members.
+/// `Core\Test`, has the same card; one that is not has no members. A `Core`
+/// interface's card is a class's card over the interface's row.
 fn card(document: &Value, entry: &Entry) -> Map<String, Value> {
     let mut out = entry.record();
     let symbol = entry.symbol.as_str();
     match entry.kind {
         "member" => {
-            let (class_name, member_name) = symbol.split_once("::").unwrap_or((symbol, ""));
-            let doc = &row(row(document, "classes", class_name), "members", member_name)["doc"];
+            let (owner_name, member_name) = symbol.split_once("::").unwrap_or((symbol, ""));
+            let doc = &row(owner(document, owner_name), "members", member_name)["doc"];
             out.insert("prose".into(), or_null(text(doc, "short")));
             out.insert("params".into(), named_rows(array(doc, "params"), "name"));
             out.insert("returns".into(), or_null(text(doc, "return")));
@@ -1184,8 +1361,8 @@ fn card(document: &Value, entry: &Entry) -> Map<String, Value> {
                 .collect();
             out.insert("throws".into(), throws);
         }
-        "class" | "attribute" => {
-            let class = row(document, "classes", symbol);
+        "class" | "attribute" | "interface" => {
+            let class = owner(document, symbol);
             out.insert("prose".into(), or_null(text(&class["doc"], "short")));
             let members: Value = array(class, "members")
                 .iter()
@@ -1236,7 +1413,7 @@ fn render_card(card: &Value) -> String {
                 (text(error, "error").to_owned(), text(error, "desc"))
             });
         }
-        "class" | "attribute" => {
+        "class" | "attribute" | "interface" => {
             push_prose(&mut out, text(card, "prose"));
             let members = array(card, "members");
             if !members.is_empty() {
@@ -2607,6 +2784,36 @@ fn cursor_hooked() -> bool {
 mod tests {
     use std::ffi::OsStr;
     use std::path::{Path, PathBuf};
+
+    /// A heading that was renamed is found by the words its old slug shares
+    /// with the new section's text. The section that has the most of them
+    /// comes first. Of two with the same number, the one that has more of them
+    /// in one sentence comes first. A section with none is not listed.
+    #[test]
+    fn a_renamed_heading_ranks_the_sections_that_share_its_words() {
+        let sections = [
+            "## Reports\nA report is one page. Each file is kept in a folder.",
+            "## Running reports\nEvery `.txt` file in a folder is read as one report.",
+            "## Sharing\nNothing in common.",
+            "## Report files\nWhere the files go.",
+        ];
+        assert_eq!(
+            super::section_order("a-folder-of-report-files-is-one-book", &sections),
+            [1, 0, 3]
+        );
+        assert!(super::section_order("an-of-is", &sections).is_empty());
+    }
+
+    /// A plural and its singular compare equal, and a word ending in `ss` keeps
+    /// its ending.
+    #[test]
+    fn a_stem_takes_a_plural_ending_off() {
+        assert_eq!(super::stem("Files"), "file");
+        assert_eq!(super::stem("entries"), "entry");
+        assert_eq!(super::stem("classes"), "class");
+        assert_eq!(super::stem("process"), "process");
+        assert_eq!(super::stem("bus"), "bus");
+    }
 
     /// The copy of the hook gets the `--data` folder this process was given, and nothing when this
     /// process uses the default folder beside the binary.

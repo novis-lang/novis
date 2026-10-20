@@ -60,7 +60,8 @@
 //! rosters declared outside the registry's own class table: `exceptions`
 //! ([`nvs_hir::errors::TREE`]), `interfaces`
 //! ([`nvs_hir::interfaces::RESERVED`], then
-//! [`nvs_stdlib::registry::CONTRACTS`] with their cards), `attributes`
+//! [`nvs_stdlib::registry::CONTRACTS`] with their cards and their `members`
+//! in a class member's shape), `attributes`
 //! ([`nvs_types::derive::ATTRIBUTES`]), `directives`
 //! ([`nvs_config::DIRECTIVES`]) and `capabilities`
 //! ([`nvs_stdlib::registry::CAPABILITIES`]). Each is a table already, so this
@@ -286,11 +287,34 @@ fn exception_json(row: &(&str, Option<&str>)) -> Value {
     Value::Object(out)
 }
 
-/// One `Core` interface a program's class implements: its name, and its
-/// class card's `short` as its `doc`, as a class carries it.
+/// One `Core` interface a program's class implements: its name, its members
+/// in the shape a class's instance members have, and its class card's `short`
+/// as its `doc`, as a class carries it.
+///
+/// Each member goes through [`member_json`] as a `CoreMethod` with no defaults
+/// and no symbol, so its `signature`, `params`, `returns` and `doc` are
+/// spelled by the code that spells a class member's. The empty symbol is never
+/// written: [`member_json`] does not read it.
 fn contract_json(contract: &nvs_stdlib::registry::CoreContract) -> Value {
+    let members: Vec<Value> = contract
+        .members
+        .iter()
+        .map(|member| {
+            let method = CoreMethod {
+                name: member.name,
+                names: member.names,
+                params: member.params,
+                defaults: &[],
+                return_ty: member.return_ty,
+                symbol: "",
+                doc: member.doc,
+            };
+            member_json(&method, "instance")
+        })
+        .collect();
     let mut out = Map::new();
     out.insert("name".into(), Value::from(contract.name));
+    out.insert("members".into(), Value::Array(members));
     if let Some(doc) = contract.doc {
         let mut card = Map::new();
         put_str(&mut card, "short", doc.short);
@@ -1652,5 +1676,40 @@ mod tests {
             builtin.iter().all(|name| name.starts_with(r"Novis\")),
             "{builtin:?}"
         );
+    }
+
+    /// A `Core` interface a program implements lists its members in a class
+    /// instance member's shape: the same keys, the signature spelled the same
+    /// way, and the member's card under `doc`.
+    #[test]
+    fn a_core_interface_lists_its_members_with_their_cards() {
+        let document = document();
+        let gate = document["interfaces"]
+            .as_array()
+            .expect("an array")
+            .iter()
+            .find(|row| row["name"] == r"Core\Router\Gate")
+            .expect(r"`Core\Router\Gate` is listed");
+        assert!(gate["doc"]["short"].is_string(), "{gate}");
+        let members = gate["members"].as_array().expect("an array");
+        let names: Vec<&str> = members
+            .iter()
+            .map(|m| m["name"].as_str().expect("a name"))
+            .collect();
+        assert_eq!(names, ["allows", "refused", "failed"]);
+
+        let failed = &members[2];
+        assert_eq!(failed["kind"], "instance");
+        assert_eq!(failed["names"], json!(["route", "error"]));
+        assert_eq!(failed["returns"], "void");
+        let signature = failed["signature"].as_str().expect("a signature");
+        assert!(
+            signature.starts_with("failed(") && signature.ends_with("?Throwable $error): void"),
+            "{signature}"
+        );
+        assert_eq!(failed["params"][1]["name"], "error");
+        assert!(failed["doc"]["short"].is_string(), "{failed}");
+        assert_eq!(failed["doc"]["params"][0]["name"], "route");
+        assert!(failed["doc"]["return"].is_string(), "{failed}");
     }
 }

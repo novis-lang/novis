@@ -68,18 +68,21 @@ code carries that word.
 It is not yet the answer that the language lacks the thing — a keyword may be written under a
 heading that does not name it — so standard error says what was searched and points at the chapter
 map. `show` is the opposite — it was asked for one specific thing, and when it cannot resolve the
-symbol it exits non-zero and prints the nearest names it does have.
+symbol it exits non-zero and prints the nearest names it does have. For a section name such as
+`testing#some-heading`, the sections of that chapter that share the most words with the heading
+come first.
 
 **`--json` is for a tool that reads the answer.** With `--json`, `index`, `find` and `show` print
 one JSON document with `schemaVersion: 1`. For `index` and `find`, `entries` is a list with one
 record for each line. A record has the `symbol`, the `kind` and the `line`, and also `alias`,
 `signature`, `capability`, `title` and `summary`. A key is `null` when the entry does not have that
-part. The `kind` is `class`, `member`, `enum`, `exception`, `attribute`, `chapter`, `section`,
-`config`, `command`, `flag` or `code`. When nothing matches, `entries` is an empty list.
+part. The `kind` is `class`, `interface`, `member`, `enum`, `exception`, `attribute`, `chapter`,
+`section`, `config`, `command`, `flag` or `code`. When nothing matches, `entries` is an empty list.
 
 For `show`, the document is the record with the parts of the card added. A member has `prose`,
-`params`, `returns` and `throws`. A class or an attribute has `prose` and `members`, and an enum
-has `prose` and `cases`. An exception has `parent` and `properties`, and a chapter has `sections`.
+`params`, `returns` and `throws`. A class, an interface or an attribute has `prose` and `members`.
+An enum has `prose` and `cases`. An exception has `parent` and `properties`, and a chapter has
+`sections`.
 A section, a key, a command, a flag and a code have `text`. An unknown symbol gives an `error` and a
 `nearest` list of records, and the command exits with a non-zero status.
 
