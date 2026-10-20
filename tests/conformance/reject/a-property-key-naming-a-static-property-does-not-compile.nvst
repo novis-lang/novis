@@ -1,0 +1,21 @@
+--TEST--
+A `static` property is not one of a property key's names, so a literal that names one is `E0405`, and the error lists only the instance properties
+--FILE--
+<?nvs
+class Visitor {
+    public static int $count = 0;
+    public string $name = "a";
+}
+
+property<Visitor> $key = "count" as property<Visitor>;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Visitor` has no public property `$count`
+  --> case.nvs:7:26
+%A
+  = help: %s: `$name`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

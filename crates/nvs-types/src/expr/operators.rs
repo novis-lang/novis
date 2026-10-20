@@ -507,6 +507,16 @@ pub(crate) fn binary_result(
     if arithmetic_or_bitwise && let Some(mixed) = reject_enum_operand(op, lhs, rhs, span, env) {
         return mixed;
     }
+    // `rule:types/single-value-types`: a single-value operand is a value of its
+    // base type, so `$n + 1` on an `int` that `$n == 100` narrowed is `int`.
+    let (lhs, rhs) = if arithmetic_or_bitwise {
+        (
+            env.interner.single_value_base(lhs),
+            env.interner.single_value_base(rhs),
+        )
+    } else {
+        (lhs, rhs)
+    };
     if arithmetic_or_bitwise
         && let Some(offender) = [lhs, rhs].into_iter().find(|ty| carries_null(*ty, env))
     {
@@ -630,6 +640,27 @@ pub(crate) fn reject_disjoint_equality(lhs: TypeId, rhs: TypeId, span: Span, env
             .with_primary(span, "compared here")
             .with_help(help),
     );
+}
+
+/// `rule:expressions/a-match-has-at-least-one-arm`: a `match` or a `switch`
+/// has one `default`. `defaults` is the span of each arm or case that is a
+/// `default`, in source order, and every one after the first is `E0876` at its
+/// keyword, since the first runs for every value the others would.
+pub(crate) fn reject_second_default(defaults: impl Iterator<Item = Span>, env: &mut Env<'_>) {
+    let mut first = None;
+    for arm in defaults {
+        let keyword = Span::new(arm.file, arm.start, (arm.start + 7).min(arm.end));
+        let Some(first) = first else {
+            first = Some(keyword);
+            continue;
+        };
+        env.diags.report(
+            Diagnostic::error(code::E_SECOND_DEFAULT, "this is a second `default`")
+                .with_primary(keyword, "this `default` never runs")
+                .with_secondary(first, "the first `default` runs for every unmatched value")
+                .with_help("remove one of the two `default`s"),
+        );
+    }
 }
 
 /// The advice `E0466` ends on, chosen from the two operands' domains.

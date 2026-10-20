@@ -468,6 +468,20 @@ write-once promise to be true, which is why both halves are enforced rather than
 
 <sub>See also [`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions), [`classes/property-hooks`](classes.md#classes-property-hooks), [`types/narrowing`](types.md#types-narrowing).</sub>
 
+<a id="classes-this-is-not-assignable"></a>
+
+## `$this` is not assignable
+
+`rule:classes/this-is-not-assignable`
+
+An assignment to `$this`, plain (`$this = …`) or compound (`$this .= …`, `$this ??= …`), is `E0875` at
+the target. `$this` is the object the method was called on. A write to it could only rebind the local
+name for the rest of the body, which leaves that object unchanged while every later `$this->…` line
+reads as if it changed. No program needs the rebinding: a second object is a new local, declared like
+any other ([`types/declaration`](types.md#types-declaration)).
+
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`types/declaration`](types.md#types-declaration).</sub>
+
 <a id="classes-lateinit-read-before-write"></a>
 
 ## A `lateinit` read the enclosing method can prove is too early is a compile error, and nothing wider is attempted

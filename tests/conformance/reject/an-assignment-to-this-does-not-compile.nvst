@@ -1,0 +1,25 @@
+--TEST--
+An assignment to `$this` is `E0875` at the target, for a plain and for a compound assignment
+--FILE--
+<?nvs
+class Cart {
+    public int $count = 0;
+
+    public function reset(): void {
+        $this = new Cart();
+        $this ??= new Cart();
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0875]: `$this` cannot be assigned
+  --> case.nvs:6:9
+%A
+error[E0875]: `$this` cannot be assigned
+  --> case.nvs:7:9
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

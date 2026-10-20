@@ -404,6 +404,9 @@ every evaluation, so no program that ran is lost. A `match` is an expression, an
 throws has nothing for the position it sits in to bind, pass or return, and no value for a merge with
 no incoming edge to carry. A written arm, or `default => throw …`, says the same thing on purpose.
 
+A `match` has one `default` arm at most, and a `switch` one `default:` label. A second one is `E0876`
+at its keyword: the first runs for every value no other arm matches, so the second never runs.
+
 For the same reason an arm whose body is a `void` call is `E0868` where it is written, whether the
 `match` is a value or a statement: the arm has no value for the merge to carry. A statement per case
 is an `if` or a `switch`. A `void` call stored at `mixed` is `E0401`, as it is at any other declared

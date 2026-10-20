@@ -46,7 +46,7 @@ stages:
     context: [crates/nvs-types/src/attributes.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/routes.rs, crates/nvs-stdlib/src/json.rs]
   - id: 10
     title: "operators and locals give what their rules say"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/operators.rs, crates/nvs-types/src/locals.rs, crates/nvs-types/src/expr/mod.rs, crates/nvs-types/src/expr/assign.rs]
   - id: 11
     title: "anonymous functions, commands and tests take only what can run"
@@ -378,12 +378,12 @@ reads and writes each wire key once.
 
 **Does:** each of the six forms below gives its rule's result or is a compile error.
 
-- [ ] A negative literal compared with a `uint`, in `==`, a `switch` label and a `match` arm, gives `false`. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/a-negative-literal-compared-with-a.json:1`
-- [ ] A static property is not in a property key's roster, for the literal and the run-time conversion. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/a-property-key-names-a-static.json:1`
-- [ ] Arithmetic on an `int` narrowed by `==` keeps the type `int`. `crates/nvs-types/src/locals.rs:1`, `data/gaps/nvs-types/an-int-compared-with-a-literal.json:1`
-- [ ] A destructuring variable already declared in scope, or written twice in one pattern, is `E0406`. `crates/nvs-types/src/locals.rs:1`, `data/gaps/nvs-types/a-destructuring-variable-that-is-already.json:1`
-- [ ] A second `default` in a `match` or a `switch` is a compile error where it is written. `crates/nvs-types/src/expr/mod.rs:1`, `data/gaps/nvs-types/a-match-with-two-default-arms.json:1`
-- [ ] An assignment to `$this`, plain or compound, is a compile error. `crates/nvs-types/src/expr/assign.rs:1`, `data/gaps/nvs-types/an-assignment-to-this-compiles-and.json:1`
+- [x] A negative literal compared with a `uint`, in `==`, a `switch` label and a `match` arm, gives `false`. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/a-negative-literal-compared-with-a.json:1`
+- [x] A static property is not in a property key's roster, for the literal and the run-time conversion. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/a-property-key-names-a-static.json:1`
+- [x] Arithmetic on an `int` narrowed by `==` keeps the type `int`. `crates/nvs-types/src/locals.rs:1`, `data/gaps/nvs-types/an-int-compared-with-a-literal.json:1`
+- [x] A destructuring variable already declared in scope, or written twice in one pattern, is `E0406`. `crates/nvs-types/src/locals.rs:1`, `data/gaps/nvs-types/a-destructuring-variable-that-is-already.json:1`
+- [x] A second `default` in a `match` or a `switch` is a compile error where it is written. `crates/nvs-types/src/expr/mod.rs:1`, `data/gaps/nvs-types/a-match-with-two-default-arms.json:1`
+- [x] An assignment to `$this`, plain or compound, is a compile error. `crates/nvs-types/src/expr/assign.rs:1`, `data/gaps/nvs-types/an-assignment-to-this-compiles-and.json:1`
 
 ### 11. anonymous functions, commands and tests take only what can run
 
@@ -478,48 +478,50 @@ another goal.
 
 ### State
 
-Stages 1, 2, 3, 16, 4, 5, 6, 7, 8 and 9 are done, and every gap record they owned is deleted.
+Stages 1, 2, 3, 16, 4, 5, 6, 7, 8, 9 and 10 are done, and every gap record they owned is deleted.
 
-- A compiler-recognized attribute on a declaration where it builds nothing is the new `E0874`
-  (`E_ATTRIBUTE_WRONG_SITE`) at the attribute. The table is `sites` in
-  `crates/nvs-types/src/derive.rs` (per name, a list of `Site`s); `#[Core\Path]` and
-  `#[Core\Deprecated]` answer `None` because their own passes hold them. The walk is
-  `check_recognized_sites` in `crates/nvs-types/src/attributes.rs`. `#[Core\Json\Derive()]`
-  already derived the same codec; a field in the list of `Derive`, `Db\Derive`, `Query` or `Path`
-  is now `E0454` (`report_no_options`).
-- A named attribute's payload runs `crate::retrieval::with_requested_arrays` before `built_fits`, so
-  an array literal fits its field's array type exactly when a retrieval of that alias finds it.
-  Passing the shape as `check_anon_object`'s expected type was tried and rejected: it widens `2` to
-  `float`, which retrieval then never matches.
-- `#[Core\Api]`: an `errors` type outside the `Throwable` tree, a status outside 400-599 or listed
-  twice, an `example` on a return type that is not a class or a shape, an example value of the wrong
-  type (`check_example_value`, recursing into nested objects and arrays), and a second `#[Api]`
-  (`check_one_api`) are each `E0771`, in `crates/nvs-types/src/routes.rs`.
-- The rules: `rule:attributes/attach-sites-and-forms` and
-  `rule:attributes/api-adds-and-cannot-contradict`. Cases under `tests/conformance/reject/`
-  (`a-compiler-attribute-where-it-builds-nothing-…`, `a-json-derive-with-an-option-…`,
-  `an-array-literal-in-an-attribute-with-the-wrong-elements-…`,
-  `an-api-attribute-that-contradicts-its-route-…`) and the passing ones
-  `tests/conformance/core/json-derive-with-an-empty-list-is-the-same-attribute.nvst` and
-  `tests/conformance/lang/an-array-literal-in-a-named-attribute-takes-its-fields-array-type.nvst`.
+- `$this = …` and every compound assignment to `$this` are the new `E0875` (`E_THIS_ASSIGNED`),
+  in `reject_this_write` at the top of `check_assign` (`crates/nvs-types/src/expr/assign.rs`).
+  The rule is the new `rule:classes/this-is-not-assignable`.
+- A second `default` in a `match` or a `switch` is the new `E0876` (`E_SECOND_DEFAULT`) at its
+  keyword, in `operators::reject_second_default`, called from `infer`'s `Match` arm and from
+  `locals.rs`'s `Switch` arm. The rule is a paragraph of `rule:expressions/a-match-has-at-least-one-arm`.
+- A destructuring leaf is declared with `strict`, like a `LocalDecl`, so a name already declared or
+  written twice in one pattern is `E0406` (`rule:types/declaration`).
+- `binary_result` widens a single-value operand to its base for arithmetic and bitwise operators, so
+  `$n + 1` on an `int` narrowed by `$n == 100` is `int` (`rule:types/single-value-types`).
+- A `static` property is left out of `collect_public_properties`
+  (`crates/nvs-types/src/expr/members.rs`), so a property key's literal, its run-time conversion and
+  the `E0405` list no longer name it (`rule:types/property-key`).
+- `-1` beside a `uint` threw in `nvs-ir`: `lower_binary` lowers the right operand at the left's
+  representation, and `lower_unary` passed `uint` down to the digit run. `lower_unary` now lowers a
+  negated digit run with no expectation when it is `uint` (`crates/nvs-ir/src/lower/operator.rs`),
+  and the comparison is the exact `int`/`uint` one, also for the largest `uint`.
+- Cases: `tests/conformance/reject/` `an-assignment-to-this-…`, `a-second-default-in-a-match-or-a-switch-…`,
+  `a-destructuring-variable-already-declared-…` and `a-property-key-naming-a-static-property-…`, and
+  under `tests/conformance/lang/` `a-negative-literal-compared-with-a-uint-is-false.nvst`,
+  `arithmetic-on-an-int-narrowed-by-a-literal-keeps-int.nvst` and
+  `a-property-key-from-a-string-at-run-time-skips-a-static-property.nvst`.
 
 ### Next
 
-**Stage 10.** Six items, all in the checker's operator and local files.
+**Stage 11.** Seven items, in the checker's call, command and test files.
 
-- [ ] Stage 10: a negative literal compared with a `uint` gives `false`. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/a-negative-literal-compared-with-a.json:1`
-- [ ] Stage 10: a static property is not in a property key's roster. `crates/nvs-types/src/expr/operators.rs:1`, `data/gaps/nvs-types/a-property-key-names-a-static.json:1`
-- [ ] Stage 10: arithmetic on an `int` narrowed by `==` keeps `int`. `crates/nvs-types/src/locals.rs:1`, `data/gaps/nvs-types/an-int-compared-with-a-literal.json:1`
-- [ ] Stage 10: a destructuring variable already declared, or written twice, is `E0406`. `crates/nvs-types/src/locals.rs:1`, `data/gaps/nvs-types/a-destructuring-variable-that-is-already.json:1`
-- [ ] Stage 10: a second `default` in a `match` or `switch` is a compile error. `crates/nvs-types/src/expr/mod.rs:1`, `data/gaps/nvs-types/a-match-with-two-default-arms.json:1`
-- [ ] Stage 10: an assignment to `$this` is a compile error. `crates/nvs-types/src/expr/assign.rs:1`, `data/gaps/nvs-types/an-assignment-to-this-compiles-and.json:1`
+- [ ] Stage 11: a `...` on an anonymous function's parameter is a diagnostic at the parameter. `crates/nvs-types/src/expr/calls.rs:1`, `data/gaps/nvs-types/a-variadic-parameter-on-an-anonymous.json:1`
+- [ ] Stage 11: a default on an anonymous function's parameter is a diagnostic at the parameter. `crates/nvs-types/src/expr/calls.rs:1`, `data/gaps/nvs-types/an-anonymous-function-parameter-default-is.json:1`
+- [ ] Stage 11: a `Core\Task::all` field whose function takes a parameter is a diagnostic at the field. `crates/nvs-types/src/expr/assign.rs:1`, `data/gaps/nvs-types/a-task-group-function-that-takes.json:1`
+- [ ] Stage 11: a command name or `long:` that is empty or has a space, and a `short:` that is not one letter or digit, are checker errors. `crates/nvs-types/src/commands.rs:1`, `data/gaps/nvs-types/a-command-name-or-option-spelling.json:1`
+- [ ] Stage 11: a positional command parameter is checked like an option, and a trailing `array<string>` collects the remaining words. `crates/nvs-types/src/commands.rs:1`, `data/gaps/nvs-types/a-positional-command-parameter-of-a.json:1`
+- [ ] Stage 11: a `null` value in a `#[TestWith]` row fills a `?T` parameter with `null`. `crates/nvs-types/src/testing.rs:1`, `data/gaps/nvs-types/a-null-data-row-compiles-and.json:1`
+- [ ] Stage 11: an empty `skip:` or `because:`, and a `retries:` below 1, are compile errors. `crates/nvs-types/src/testing.rs:1`, `data/gaps/nvs-types/an-empty-skip-reason-and-a.json:1`
 
 The installed `looper` binary has no `verify` subcommand, so these sessions run
-`bun nv affected --run` as the gate.
+`bun nv affected --run` as the gate. The next free diagnostic code is `E0877`
+(`crates/nvs-diagnostics/src/code/types_e08.rs`).
 
-A note for stage 11: its `...` on an anonymous function's parameter will also reach the anonymous
-function in `a-variadic-parameter-that-is-not-the-last-does-not-compile.nvst`, whose expected
-block then needs that error too.
+The `...` item will also reach the anonymous function in
+`a-variadic-parameter-that-is-not-the-last-does-not-compile.nvst`, whose expected block then needs
+that error too.
 
 ### Backlog
 

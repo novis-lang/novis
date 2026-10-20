@@ -16,7 +16,9 @@
 //!
 //! **A deliberate judgment call `rule:types/declaration` leaves open:** a
 //! second plain `LocalDecl` for a live name is always a diagnostic (that
-//! rule says so outright). A `foreach` key/value binding, a destructuring leaf, or a
+//! rule says so outright), and so is a destructuring leaf, which declares its
+//! variable exactly as a `LocalDecl` does, whether the name was declared before
+//! the pattern or earlier in it. A `foreach` key/value binding or a
 //! `catch` variable is *not* held to that same strictness: reusing the same
 //! name with the *same* declared type (the ordinary "loop index `$i` used in
 //! two separate loops" case) is accepted as reuse rather than a fresh
@@ -1082,8 +1084,9 @@ fn dollar_names(text: &str) -> impl Iterator<Item = String> + '_ {
 /// Declares `name` in `scope`, or checks it against an existing declaration.
 ///
 /// `strict`: a plain `LocalDecl` (`true`) conflicts with *any* prior
-/// declaration of the same name, matching or not. A `foreach`/destructuring/
-/// `catch` binding (`false`) is accepted as reuse when the existing
+/// declaration of the same name, matching or not, and a destructuring leaf
+/// passes it too. A `foreach`/`catch` binding (`false`) is accepted as reuse
+/// when the existing
 /// declaration's type matches exactly — see the module docs' judgment call.
 fn declare_binding(
     scope: &mut LocalScope,
@@ -1678,6 +1681,10 @@ pub(crate) fn check_stmt(
             // falls into eventually exits. With no `default` arm, "no case
             // matched" is itself a possible path, so the pre-switch `live`
             // joins the other candidates too.
+            crate::expr::reject_second_default(
+                cases.iter().filter(|c| c.cond.is_none()).map(|c| c.span),
+                env,
+            );
             let last_index = cases.len().saturating_sub(1);
             let mut candidates: Vec<Vec<String>> = Vec::new();
             let mark = live.mark();
@@ -2142,7 +2149,7 @@ fn walk_destructure_target(
                     }
                 }
                 let name_str = strip_sigil(span_text(env.src, *name)).to_owned();
-                declare_binding(scope, &name_str, declared, *name, false, env);
+                declare_binding(scope, &name_str, declared, *name, true, env);
                 live.insert(name_str);
             }
             DestructureElement::Nested { key, target, span } => {

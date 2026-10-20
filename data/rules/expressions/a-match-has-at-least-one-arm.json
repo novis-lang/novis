@@ -5,6 +5,7 @@
     "expressions/switch-match-equality"
   ],
   "guardedBy": [
-    "tests/conformance/lang/an-arm-less-match-is-a-diagnostic.nvst"
+    "tests/conformance/lang/an-arm-less-match-is-a-diagnostic.nvst",
+    "tests/conformance/reject/a-second-default-in-a-match-or-a-switch-does-not-compile.nvst"
   ]
 }

@@ -1,0 +1,23 @@
+--TEST--
+A negative literal compared with a `uint` gives `false` in `==`, in `<` and on either side, and a `switch` label or a `match` arm of `-1` does not match, even for the largest `uint`
+--FILE--
+<?nvs
+uint $small = 3;
+uint $big = 18446744073709551615;
+echo ($small == -1) ? "equal" : "not equal", "\n";
+echo (-1 == $big) ? "equal" : "not equal", "\n";
+echo ($big < -1) ? "less" : "not less", "\n";
+echo match ($big) { -1 => "minus one", default => "other" }, "\n";
+switch ($small) {
+    case -1:
+        echo "minus one\n";
+        break;
+    default:
+        echo "other\n";
+}
+--EXPECT--
+not equal
+not equal
+not less
+other
+other

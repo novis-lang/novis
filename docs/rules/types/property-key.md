@@ -1,5 +1,6 @@
 `property<T>` is a type atom, written in every position a type is written, whose **values** are the
-names of `T`'s public declared properties — its own and its ancestors' — and nothing else. What is
+names of `T`'s public declared instance properties — its own and its ancestors' — and nothing else. A
+`static` property belongs to the class and to no object, so it is not one of the names. What is
 carried at run time is that name, a string in the representation but **not** in the type.
 
 `T` names one **class**. An interface, an enum, a scalar, a `class<...>` — anything that is not a
