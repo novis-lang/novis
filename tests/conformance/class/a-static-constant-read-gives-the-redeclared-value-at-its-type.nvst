@@ -1,0 +1,61 @@
+--TEST--
+a `static::` read of a constant a subclass redeclared at a narrower type gives the subclass's value at the read's type, for a scalar union, a `bool` in `int|bool` and a constant an interface declares, `rule:statements/static-is-a-member-modifier`
+--FILE--
+<?nvs
+class Base {
+    public const int|string CODE = "x";
+    public const int|bool FLAG = 0;
+
+    public static function describe(): string {
+        int|string $code = static::CODE;
+        if ($code is int) {
+            return "int " . ($code + 1);
+        }
+        return "string " . $code;
+    }
+
+    public static function flag(): string {
+        int|bool $flag = static::FLAG;
+        if ($flag is bool) {
+            return $flag ? "bool true" : "bool false";
+        }
+        return "int " . $flag;
+    }
+}
+
+class Child extends Base {
+    public const int CODE = 7;
+    public const bool FLAG = true;
+}
+
+interface Labeled {
+    public const int|string LABEL = "none";
+
+    public function label(): string {
+        int|string $label = static::LABEL;
+        return $label is int ? "number " . $label : "text " . $label;
+    }
+}
+
+class Numbered implements Labeled {
+    public const int LABEL = 42;
+}
+
+class Named implements Labeled {
+    public const string LABEL = "box";
+}
+
+echo Base::describe(), "\n";
+echo Child::describe(), "\n";
+echo Base::flag(), "\n";
+echo Child::flag(), "\n";
+echo (new Numbered())->label(), "\n";
+echo (new Named())->label(), "\n";
+// covers: lang:classes/inheritance
+--EXPECT--
+string x
+int 8
+int 0
+bool true
+number 42
+text box

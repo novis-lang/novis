@@ -1,5 +1,5 @@
 --TEST--
-a class and an interface redeclaring an inherited constant at another type are refused, since a `static::NAME` read is typed where the constant is declared, `rule:statements/static-is-a-member-modifier`
+a class and an interface redeclaring an inherited constant at another type are refused, `int` over `float` included, since a `static::NAME` read is typed where the constant is declared, `rule:statements/static-is-a-member-modifier`
 --FILE--
 <?nvs
 interface Named {
@@ -22,6 +22,14 @@ class Fine extends Base {
     public const string PATH = "/fine";
 }
 
+class Rate {
+    public const float RATE = 1.5;
+}
+
+class WholeRate extends Rate {
+    public const int RATE = 2;
+}
+
 echo "after\n";
 // covers: lang:classes/interfaces
 --EXPECT--
@@ -33,5 +41,8 @@ error[E0833]: `Titled::NAME` is `int`, and `Named::NAME` is `string`
 error[E0833]: `Child::PATH` is `int`, and `Base::PATH` is `string`
    --> case.nvs:15:22
 %A
-error: aborting due to 2 errors
+error[E0833]: `WholeRate::RATE` is `int`, and `Rate::RATE` is `float`
+   --> case.nvs:27:22
+%A
+error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

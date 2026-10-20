@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-types/src/conformance.rs, crates/nvs-stdlib/src/test.rs]
   - id: 16
     title: "a redeclared property or constant never reads a value as another type"
-    status: open
+    status: done
     context: [crates/nvs-types/src/conformance.rs, docs/rules/statements/static-is-a-member-modifier.md, docs/rules/classes/an-override-keeps-its-parents-signature.md]
   - id: 4
     title: "visibility and the property pipeline hold on every path"
@@ -300,11 +300,11 @@ throwable tree can be.
 constant read gives the right value whichever class redeclared it. Both holes read memory as another
 type today, so this stage runs right after stage 3.
 
-- [ ] A redeclared instance property at another type is a diagnostic at the redeclaration, for a plain property, a promoted constructor parameter, `lateinit`, a hooked property and `array<T>`, with a case for each. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/reject/a-redeclared-property-keeps-its-parents-type.nvst:1`, `data/gaps/nvs-types/a-property-redeclared-at-a-narrower-type.json:1`
-- [ ] A redeclared `readonly` property is a diagnostic. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/reject/a-redeclared-property-keeps-its-parents-type.nvst:1`
-- [ ] A rule fragment states both decisions, with its Declined list, and its record is `shipped` with the case in `guardedBy`. `docs/rules/classes/a-redeclared-property-keeps-its-parents-type.md:1`, `data/rules/classes/a-redeclared-property-keeps-its-parents-type.json:1`
-- [ ] A `static::` read gives a redeclared scalar at the read's type: an `int` over `int|string`, a `bool` over `int|bool`, and through an interface. `E0833` refuses `int` over `float`. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/class/a-static-constant-read-gives-the-redeclared-value-at-its-type.nvst:1`, `data/gaps/nvs-types/a-static-constant-read-of-a-narrowed-redeclaration.json:1`
-- [ ] `rule:statements/static-is-a-member-modifier` says the read converts, and drops nothing else. `docs/rules/statements/static-is-a-member-modifier.md:27`
+- [x] A redeclared instance property at another type is a diagnostic at the redeclaration, for a plain property, a promoted constructor parameter, `lateinit`, a hooked property and `array<T>`, with a case for each. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/reject/a-redeclared-property-keeps-its-parents-type.nvst:1`
+- [x] A redeclared `readonly` property is a diagnostic. `crates/nvs-types/src/conformance.rs:1`, `tests/conformance/reject/a-redeclared-property-keeps-its-parents-type.nvst:1`
+- [x] A rule fragment states both decisions, with its Declined list, and its record is `shipped` with the case in `guardedBy`. `docs/rules/classes/a-redeclared-property-keeps-its-parents-type.md:1`, `data/rules/classes/a-redeclared-property-keeps-its-parents-type.json:1`
+- [x] A `static::` read gives a redeclared scalar at the read's type: an `int` over `int|string`, a `bool` over `int|bool`, and through an interface. `E0833` refuses `int` over `float`. `crates/nvs-ir/src/lower/expr.rs:1`, `tests/conformance/class/a-static-constant-read-gives-the-redeclared-value-at-its-type.nvst:1`
+- [x] `rule:statements/static-is-a-member-modifier` says the read converts, and drops nothing else. `docs/rules/statements/static-is-a-member-modifier.md:27`
 
 ### 4. visibility and the property pipeline hold on every path
 
@@ -478,27 +478,22 @@ another goal.
 
 ### State
 
-Stages 1, 2 and 3 are done, and every gap record they owned is deleted.
+Stages 1, 2, 3 and 16 are done, and every gap record they owned is deleted.
 
-- `Core\Test::assertThrows`'s second argument is checked at the call by
-  `reject_unwritten_thrown_class` in `crates/nvs-types/src/testing.rs`, hooked in
-  `crates/nvs-types/src/expr/calls.rs` beside `note_inline_snapshot`. It is the new `E0865`: a
-  string, a variable, a spread and `static::class` give "needs the error class written as
-  `C::class`", and a declared class outside the tree gives "is not an error class". A name declared
-  nowhere is left to `E0303`. An interface is refused, as the decision names a class.
-- `rule:testing/assertions-are-typed` and the member's `about.md` state it. The two conformance
-  cases that passed a class name through a `string` parameter now write each call
-  (`test-assert-throws-class-argument-agrees-with-the-exception-tree-at-every-pair.nvst` turns each
-  name into its own call, and lost its unknown-name section). The attack lost its huge and empty
-  class name steps, which no longer compile.
+- A redeclared instance property is checked by `check_property_redeclarations` in
+  `crates/nvs-types/src/conformance.rs`, called from `check.rs` beside the constant check. It is the
+  new `E0866`: the type must fit both ways under `field_fits` (no `int` → `float` row), and a
+  `readonly` on either declaration is refused. Only `extends` is walked, since an interface declares
+  no property. A static property on either side is skipped. A promoted constructor parameter is a
+  declaration too. `rule:classes/a-redeclared-property-keeps-its-parents-type` states it.
+- `ExprInfo::ClassConstLate` now carries the declaring class's `ty`, and `nvs-ir` types the
+  `static::` load with `erase_checked_ty(ty)`, so a union reads the helper's tagged value whole.
+  `E0833` uses `field_fits` instead of `is_assignable`, so `int` over `float` is refused.
 
 ### Next
 
-**Stage 16, then stage 4.** Stage 16 runs first: both of its holes read memory as another type.
+**Stage 4.**
 
-- [ ] Stage 16: a redeclared instance property at another type is a diagnostic at the redeclaration, with its own code beside `E0833`, for a plain property, a promoted constructor parameter, `lateinit`, a hooked property and `array<T>`, and a redeclared `readonly` property is one too (§ *Standing decisions*). `crates/nvs-types/src/conformance.rs:1`, `data/gaps/nvs-types/a-property-redeclared-at-a-narrower-type.json:1`
-- [ ] Stage 16: its rule fragment and record, `shipped` with the case in `guardedBy`. `docs/rules/classes/a-redeclared-property-keeps-its-parents-type.md:1`
-- [ ] Stage 16: a `static::` constant read gives a redeclared scalar at the read's type, and `rule:statements/static-is-a-member-modifier` says the read converts. `docs/rules/statements/static-is-a-member-modifier.md:27`, `data/gaps/nvs-types/a-static-constant-read-of-a-narrowed-redeclaration.json:1`
 - [ ] Stage 4: an erased read or write of a property that is not visible throws. `crates/nvs-runtime/src/object.rs:1`, `data/gaps/nvs-runtime/a-private-or-protected-property-is.json:1`
 - [ ] Stage 4: a `private` or `protected` class constant read from outside is a diagnostic. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-private-or-protected-class-constant.json:1`
 - [ ] Stage 4: `Core\Program::implementing` over a non-public constructor is a diagnostic. `crates/nvs-types/src/program.rs:1`, `data/gaps/nvs-types/core-program-implementing-calls-a-private.json:1`
@@ -506,6 +501,8 @@ Stages 1, 2 and 3 are done, and every gap record they owned is deleted.
 ### Backlog
 
 The bullets below were carried from `release-hardening`'s backlog when it was reached.
+
+- A class's constant table stores a `uint` constant as `ConstantValue::Int`, so a `static::` read typed with a union that holds `uint` (`int|uint`, `uint|string`) gets an `int` tag for it. The bits are right and the read is sound, but `is uint` on it gives `false`. A `Uint` row in `ConstantValue` and `nvs_types::ConstValue` closes it (`crates/nvs-runtime/src/helpers.rs`'s `nvs_class_constant`).
 
 - A warm baseline run is 30.6 M instructions, and 61% is the front end. The largest parts are `build_signatures` (10 M), `seed_natives` (6.5 M), `builtin_manifests` (4.5 M, which parses every built-in extension's manifest on every start) and the TOML parse of `default.toml` (4.4 M). Precomputing the manifests at build time is the plainest cut (`crates/nvs-ext/src/load.rs:704`).
 - `nvs-runtime`'s pool hands a block back through a pointer narrowed to its last owner's size. Exposing each block's provenance and rebuilding the pointer in `push` and the same-class `realloc` removed Miri's report, but no unit test reproduced it, and the user chose the `sanitizer` feature instead (`crates/nvs-runtime/src/alloc.rs:176`, the `miri-units` comment in `.github/workflows/ci.yml`).

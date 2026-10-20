@@ -1,0 +1,77 @@
+--TEST--
+a subclass that declares an inherited property again keeps the parent's exact type, for a plain, a nullable, a `lateinit`, an `array<T>`, a hooked and a promoted property, and a `readonly` property is not declared again, `rule:classes/a-redeclared-property-keeps-its-parents-type`
+--FILE--
+<?nvs
+class Animal {}
+class Dog extends Animal {}
+
+class Shelter {
+    public Animal $pet;
+    public ?Animal $spare = null;
+    public lateinit Animal $later;
+    public array<Animal> $all = [];
+    public Animal $hooked { set (Animal $v) { $this->hooked = $v; } }
+    public Animal $same;
+
+    public function constructor(public Animal $promoted) {
+        $this->pet = $promoted;
+        $this->hooked = $promoted;
+        $this->same = $promoted;
+    }
+}
+
+class DogShelter extends Shelter {
+    public Dog $pet;
+    public Animal $spare;
+    public lateinit Dog $later;
+    public array<Dog> $all = [];
+    public Dog $hooked { set (Dog $v) { $this->hooked = $v; } }
+    public Animal $same;
+
+    public function constructor(public Dog $promoted) {
+        parent::constructor($promoted);
+        $this->spare = $promoted;
+        $this->pet = $promoted;
+        $this->hooked = $promoted;
+        $this->same = $promoted;
+    }
+}
+
+class Ticket {
+    public readonly int $id;
+
+    public function constructor() {
+        $this->id = 1;
+    }
+}
+
+class VipTicket extends Ticket {
+    public readonly int $id;
+
+    public function constructor() {
+        parent::constructor();
+        $this->id = 2;
+    }
+}
+
+echo "after\n";
+// covers: lang:classes/inheritance
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0866]: `DogShelter::$pet` is `Dog`, and `Shelter::$pet` is `Animal`
+%A
+error[E0866]: `DogShelter::$spare` is `Animal`, and `Shelter::$spare` is `null|Animal`
+%A
+error[E0866]: `DogShelter::$later` is `Dog`, and `Shelter::$later` is `Animal`
+%A
+error[E0866]: `DogShelter::$all` is `array<Dog>`, and `Shelter::$all` is `array<Animal>`
+%A
+error[E0866]: `DogShelter::$hooked` is `Dog`, and `Shelter::$hooked` is `Animal`
+%A
+error[E0866]: `DogShelter::$promoted` is `Dog`, and `Shelter::$promoted` is `Animal`
+%A
+error[E0866]: `VipTicket` declares `$id` again, and it is `readonly`
+%A
+error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

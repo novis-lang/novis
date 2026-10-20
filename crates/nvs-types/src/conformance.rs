@@ -70,8 +70,10 @@ use crate::{span_text, strip_sigil};
 /// A `static::NAME` read is typed at the declaring class and lowered as a
 /// load at that type, and it answers whichever class the call was made on —
 /// so a redeclaration at another type would be read at the wrong
-/// representation, the `secret` bit included, which is why the test is
-/// [`is_assignable`] rather than equality. Every declaration kind is walked,
+/// representation, the `secret` bit included. The test is assignability
+/// rather than equality, because a union reads a tagged value whole, and it
+/// has no `int` → `float` row, because nothing converts the called class's
+/// `int` into the `float` the load expects. Every declaration kind is walked,
 /// `abstract` classes and interfaces too: the read may be made through any
 /// of them, and an interface's own redeclaration over one it `extends` is the
 /// same hazard.
@@ -109,7 +111,13 @@ pub(crate) fn check_constant_redeclarations(
                 continue;
             };
             let inherited = inherited.ty;
-            if is_assignable(own, inherited, env.interner, env.graph, env.signatures) {
+            if crate::expr::assign::field_fits(
+                own,
+                inherited,
+                env.interner,
+                env.graph,
+                env.signatures,
+            ) {
                 continue;
             }
             let have = env.interner.describe(own);
@@ -125,6 +133,127 @@ pub(crate) fn check_constant_redeclarations(
                      `{owner}` declares it and answers whichever class the call was made on, \
                      so every redeclaration keeps a type assignable to `{want}` — declare it \
                      `{want}` here, or a subtype of it"
+                )),
+            );
+        }
+    }
+}
+
+/// `rule:classes/a-redeclared-property-keeps-its-parents-type`: an instance
+/// property a class declares again over a superclass's keeps the superclass's
+/// exact type, and neither declaration is `readonly` (`E0866`).
+///
+/// Both declarations name one slot ([`crate::layout`] reuses the inherited
+/// one), and the superclass's code reads and writes it at its own type. So
+/// a narrower type lets the parent store what the subclass reads as another
+/// class, and a wider one the reverse. "Exact" is [`field_fits`] both ways,
+/// which has no `int` → `float` row. A hooked property is covered by the
+/// same test: a `set` hook's parameter already accepts the property's own
+/// type (`E0401`). A promoted constructor parameter is a declaration too.
+/// A static property is skipped, since each class names its own storage.
+///
+/// [`field_fits`]: crate::expr::assign::field_fits
+pub(crate) fn check_property_redeclarations(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
+    let Some(links) = env.graph.get(qname) else {
+        return;
+    };
+    let parents = links.extends.clone();
+    if parents.is_empty() {
+        return;
+    }
+    let mut declared: Vec<(String, Span, bool)> = Vec::new();
+    for member in &decl.members {
+        match &member.kind {
+            ClassMemberKind::Property(p) => {
+                if p.modifiers.contains(&Modifier::Static) {
+                    continue;
+                }
+                let readonly = p.modifiers.contains(&Modifier::Readonly);
+                declared.push((
+                    strip_sigil(span_text(env.src, p.name)).to_owned(),
+                    p.name,
+                    readonly,
+                ));
+            }
+            ClassMemberKind::Method(m) if span_text(env.src, m.name) == "constructor" => {
+                for p in m.params.iter().filter(|p| p.is_promoted()) {
+                    let readonly = p.modifiers.contains(&Modifier::Readonly);
+                    declared.push((
+                        strip_sigil(span_text(env.src, p.name)).to_owned(),
+                        p.name,
+                        readonly,
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+    for (name, span, own_readonly) in declared {
+        let Some(own) = env
+            .signatures
+            .get(qname)
+            .and_then(|sig| sig.properties.get(&name))
+            .copied()
+        else {
+            continue;
+        };
+        for parent in &parents {
+            let Some((owner, inherited)) =
+                crate::signatures::resolve_property_owned(parent, &name, env.signatures, env.graph)
+            else {
+                continue;
+            };
+            let parent_static = env
+                .signatures
+                .get(&owner)
+                .is_some_and(|sig| sig.static_properties.iter().any(|(n, _)| *n == name));
+            if parent_static {
+                continue;
+            }
+            let readonly = own_readonly
+                || crate::signatures::property_is_readonly(&owner, &name, env.signatures);
+            if readonly {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_PROPERTY_REDECLARED_AT_ANOTHER_TYPE,
+                        format!("`{qname}` declares `${name}` again, and it is `readonly`"),
+                    )
+                    .with_primary(span, "a `readonly` property declared again")
+                    .with_help(format!(
+                        "`{owner}` already declares `${name}`. A `readonly` property is written \
+                         once, and both constructors would write it. Remove this declaration, or \
+                         give the property another name"
+                    )),
+                );
+                continue;
+            }
+            let fits = crate::expr::assign::field_fits(
+                own,
+                inherited,
+                env.interner,
+                env.graph,
+                env.signatures,
+            ) && crate::expr::assign::field_fits(
+                inherited,
+                own,
+                env.interner,
+                env.graph,
+                env.signatures,
+            );
+            if fits {
+                continue;
+            }
+            let have = env.interner.describe(own);
+            let want = env.interner.describe(inherited);
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_PROPERTY_REDECLARED_AT_ANOTHER_TYPE,
+                    format!("`{qname}::${name}` is `{have}`, and `{owner}::${name}` is `{want}`"),
+                )
+                .with_primary(span, "declared again with another type")
+                .with_help(format!(
+                    "both classes use the same property, and `{owner}` reads and writes it as \
+                     `{want}`. Declare it `{want}` here"
                 )),
             );
         }

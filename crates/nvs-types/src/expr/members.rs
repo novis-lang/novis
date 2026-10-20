@@ -243,6 +243,7 @@ pub(crate) fn infer_class_const(
                                         class: owner,
                                         name: constant.clone(),
                                         value,
+                                        ty: sig.ty,
                                     },
                                 );
                             } else {
