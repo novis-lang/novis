@@ -631,14 +631,23 @@ fn a_route_table_is_built_from_the_program_enumeration() {
 fn a_route_parameter_takes_its_type_from_the_method_that_declares_it() {
     // § 3: a capture is typed by the parameter it names, so the roster of
     // types a segment converts to is asked of the *declaration* rather than of
-    // the path — the four spellings below are one path checked four ways.
-    for ty in ["uint", "int", "string", "bool"] {
+    // the path — the three spellings below are one path checked three ways,
+    // and a `bool`, which no segment converts to, is `E0752`.
+    for ty in ["uint", "int", "string"] {
         let diags = check_src(&route_src(&format!(
             "  #[Route(path: \"/users/{{id}}\", method: Core\\Http\\Method::Get)]\n  \
              public function show({ty} $id): string {{ return \"\"; }}\n"
         )));
         assert!(!diags.has_errors(), "{ty}: {diags:?}");
     }
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
+         public function show(bool $id): string { return \"\"; }\n",
+    ));
+    assert!(
+        reported(&diags, code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION),
+        "bool: {diags:?}"
+    );
 
     // And it is the method's own parameter, not the capture's name pooled
     // across the program: two routes capturing `{id}` are two questions, and

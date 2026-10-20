@@ -1699,6 +1699,12 @@ declared type is what the segment is converted to during matching. A failed conv
 match**: matching continues, and if nothing else matches the result is a 404 — which is what every
 framework otherwise writes by hand as a digit constraint on the placeholder.
 
+**A capture or a `#[Query]` parameter declared `bool`, `true` or `false` is `E0752`.** A segment is
+text, and no spelling of a `bool` is the one a link would build and a match would read, so a `bool`
+capture would match every segment and arrive as text. A command's `bool` option is a flag given by
+being written, which is why the conversion list [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled) shares with this
+rule admits it there and not here.
+
 **A capture typed at a class built from text is the one exception, and it fails the other way.** The
 matcher narrows on the conversions it reads natively — `int`, `uint`, `decimal`, `Core\Uuid` and a
 closed set — and a capture declared at any *other* class implementing `Parses` matches on **shape**.

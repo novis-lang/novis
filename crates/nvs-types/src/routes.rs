@@ -2052,7 +2052,7 @@ fn check_captures(
                 env.interner.get(ty),
                 crate::ty::Ty::String | crate::ty::Ty::TaintedString
             ),
-            _ => crate::commands::converts_from_string(ty, env),
+            _ => converts_from_segment(ty, env),
         };
         if admitted {
             continue;
@@ -2080,6 +2080,21 @@ fn check_captures(
         );
     }
     params
+}
+
+/// Whether a path segment or a query value converts to `ty`: the shared roster
+/// [`crate::commands::converts_from_string`] less its `bool` row.
+///
+/// That row is a command's flag, given by being written rather than by
+/// carrying text, and a segment is always text. So a `bool` capture or
+/// `#[Query]` is `E0752`
+/// (`rule:security/route-capture-is-laundered-by-its-type`). `true` and
+/// `false` alone are refused with it, since each is a `bool` too.
+fn converts_from_segment(ty: crate::ty::TypeId, env: &Env<'_>) -> bool {
+    !matches!(
+        env.interner.get(ty),
+        crate::ty::Ty::Bool | crate::ty::Ty::True | crate::ty::Ty::False
+    ) && crate::commands::converts_from_string(ty, env)
 }
 
 /// `rule:routing/a-capture-narrows-to-a-closed-set`
@@ -2287,7 +2302,7 @@ fn query_params(
         let name = crate::strip_sigil(span_text(env.src, param.name)).to_owned();
         let declared = sig.and_then(|sig| sig.params.get(index).copied());
         if let Some(ty) = declared
-            && !crate::commands::converts_from_string(ty, env)
+            && !converts_from_segment(ty, env)
         {
             let described = env.interner.describe(ty);
             env.diags.report(

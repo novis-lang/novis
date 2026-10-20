@@ -1,0 +1,39 @@
+--TEST--
+A route capture or a `#[Query]` parameter declared `bool` is `E0752`, so no route matches, links to or dispatches a `bool` — `rule:security/route-capture-is-laundered-by-its-type`
+--FILE--
+<?nvs
+class Blog {
+    #[Core\Route(path: "/posts/{draft}", method: Core\Http\Method::Get, name: "posts.list")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(bool $draft): string {
+        return $draft ? "drafts" : "published";
+    }
+
+    #[Core\Route(path: "/feed", method: Core\Http\Method::Get, name: "feed")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function feed(#[Core\Query] bool $full = false): string {
+        return "";
+    }
+
+    #[Core\Route(path: "/only/{flag}", method: Core\Http\Method::Get, name: "only")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function only(true $flag): string {
+        return "";
+    }
+}
+
+echo Core\Router::url("posts.list", ["draft" => false]), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0752]: `bool` is not a type `{draft}` can arrive at
+  --> case.nvs:3:18
+%A
+error[E0752]: `bool` is not a type `#[Query] $full` can arrive at
+   --> case.nvs:11:26
+%A
+error[E0752]: `true` is not a type `{flag}` can arrive at
+   --> case.nvs:15:18
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
