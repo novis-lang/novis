@@ -1,0 +1,37 @@
+--TEST--
+A property write through a union of classes is `E0881` when two classes give the property different `(set)` visibility, or one class has a `get` hook and no `set` hook — `rule:types/a-member-every-class-of-a-union-declares`
+--FILE--
+<?nvs
+final class Box {
+    public private(set) string $name = "box";
+    public string $title = "box";
+    public function constructor() { }
+}
+final class Circle {
+    public string $name = "circle";
+    public string $title { get => "circle"; }
+    public function constructor() { }
+}
+
+Box|Circle $either = new Circle();
+// `Box::$name` is `private(set)` and `Circle::$name` is not, so the write does not compile.
+$either->name = "new";
+// `Circle::$title` has no `set` hook, so the write does not compile.
+$either->title = "new";
+--EXPECTF-ERROR--
+error[E0881]: `Box::$name` has `private(set)`, and `Circle::$name` has no `(set)` visibility, so the property cannot be written through the union
+   --> %s:15:1
+   |
+15 | $either->name = "new";
+   | ^^^^^^^^^^^^^ used through `Box|Circle` here
+   = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
+
+error[E0881]: `Circle::$title` has a `get` hook and no `set` hook, so it cannot be written
+   --> %s:17:1
+   |
+17 | $either->title = "new";
+   | ^^^^^^^^^^^^^^ used through `Box|Circle` here
+   = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

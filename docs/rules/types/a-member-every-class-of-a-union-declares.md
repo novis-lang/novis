@@ -18,7 +18,10 @@ operation is valid for every member of the union, so the union permits it.
   not `readonly` in any class, and the same `set` visibility. A write checks the incoming value
   against one declared type, so a union whose classes agree on that type writes exactly what a write
   through each class would. A union where one class makes the property `readonly` or narrows its
-  `set` visibility could not be written through one check, and stays an error.
+  `set` visibility could not be written through one check, and stays an error. So does a class whose
+  property has a `get` hook and no `set` hook. A union where one class hooks the property is no
+  `inout` argument and no root of an element write, with the one-class codes `E0439` and `E0478`.
+- **`isinit($u->p)`** needs one known class and stays `E0854` through a union.
 - **A union of classes that do not share the member** is one new code, `E0881`, whose message names
   the class that lacks the member, the class where it is not visible, or the two types that differ.
   `E0495` and `E0477` stay for a receiver that can hold no object at all, and for a union with a
