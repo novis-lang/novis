@@ -130,7 +130,7 @@ fn lower_node(ty: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId
             )
             .with_primary(ty.span, "too deeply nested"),
         );
-        return env.interner.mixed();
+        return env.interner.error();
     }
 
     match &ty.kind {
@@ -518,7 +518,7 @@ fn lower_member_case_type(
     };
     let Some(owned) = owned_enum(&owner, &member, env) else {
         report_missing_member(span, &owner, &member, "enum", env);
-        return env.interner.mixed();
+        return env.interner.error();
     };
     let backing = env.enums.backing_of(&owned);
     if env.enums.case(&owned, &case).is_some() {
@@ -654,7 +654,7 @@ fn report_expansion_has_no_member(
              from `{shown}`. Only an alias of one class, interface or enum has members"
         )),
     );
-    env.interner.mixed()
+    env.interner.error()
 }
 
 /// `rule:types/constant-in-type-position`'s fold, for a name that resolved to something other than an
@@ -670,8 +670,9 @@ fn report_expansion_has_no_member(
 ///
 /// Both of § 2's mistakes are diagnosed at the *use*, not the declaration: a
 /// value with no single-value type to fold to is `E_SINGLE_VALUE_TYPE_NOT_CONST`, and a
-/// name nothing declares is `E_UNKNOWN_MEMBER`. Each recovers as `mixed`,
-/// since neither leaves a narrower type that could honestly be meant.
+/// name nothing declares is `E_UNKNOWN_MEMBER`. Each recovers as the error
+/// type, since neither leaves a type that could honestly be meant, and no
+/// later use of it reports again (`rule:types/one-mistake-reports-once`).
 fn lower_class_const_type(
     qname: &nvs_hir::QName,
     name: &str,
@@ -696,7 +697,7 @@ fn lower_class_const_type(
                 // does not hold has no constant either — the same withdrawal of
                 // blanket trust `crate::expr::members` makes one position over.
                 report_missing_member(span, qname, name, "constant", env);
-                env.interner.mixed()
+                env.interner.error()
             }
         };
     }
@@ -721,7 +722,7 @@ fn lower_class_const_type(
         ) => report_not_const(span, qname, name, env),
         None => {
             report_missing_member(span, qname, name, "constant", env);
-            env.interner.mixed()
+            env.interner.error()
         }
     }
 }
@@ -823,7 +824,7 @@ fn report_not_const(span: Span, qname: &nvs_hir::QName, name: &str, env: &mut En
              or `int` constant can be a type. Write the type of the value instead",
         ),
     );
-    env.interner.mixed()
+    env.interner.error()
 }
 
 /// The `Foo` has no `kind` named `NAME` diagnostic, at the two type-position

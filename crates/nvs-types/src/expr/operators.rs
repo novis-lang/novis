@@ -115,6 +115,11 @@ pub(crate) fn infer_conversion(
         reject_carrier_as_text(inner_ty, inner.span, env);
     }
     check_class_target_conversion(ty, result, expr.span, env);
+    // An operand or a target that did not resolve has reported already, and no
+    // row below can be judged against it (`rule:types/one-mistake-reports-once`).
+    if env.interner.is_error(inner_ty) || env.interner.is_error(result) {
+        return result;
+    }
     // The two tables are one question asked of two spellings. `as ?T` interns
     // as `Union([Null, T])`, which is one `ConvKind::Wide` target and so says
     // nothing to the table below — `rule:expressions/nullable-conversion-availability` is what judges it, over the

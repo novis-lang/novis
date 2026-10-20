@@ -1118,7 +1118,9 @@ pub(crate) fn check_body_exits(
     declared: Span,
     env: &mut Env<'_>,
 ) {
-    if matches!(env.interner.get(return_ty), Ty::Void) {
+    // A return type that did not resolve has reported already, and no `return`
+    // can be judged against it (`rule:types/one-mistake-reports-once`).
+    if matches!(env.interner.get(return_ty), Ty::Void | Ty::Error) {
         return;
     }
     let mut valueless = Vec::new();
@@ -1213,6 +1215,9 @@ fn generator_element(
         && let Some(&elem) = args.first()
     {
         return Some(elem);
+    }
+    if env.interner.is_error(return_ty) {
+        return Some(return_ty);
     }
     let got = env.interner.describe(return_ty);
     let span = m.return_type.as_ref().map_or(m.name, |t| t.span);

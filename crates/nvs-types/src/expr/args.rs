@@ -1442,8 +1442,12 @@ pub(crate) fn check_inout_arg(
             );
         }
     }
+    // A side that did not resolve has reported already
+    // (`rule:types/one-mistake-reports-once`).
     if let Some(declared) = expected
         && declared != actual
+        && !env.interner.is_error(declared)
+        && !env.interner.is_error(actual)
         && is_assignable(actual, declared, env.interner, env.graph, env.signatures)
     {
         let (want, got) = (

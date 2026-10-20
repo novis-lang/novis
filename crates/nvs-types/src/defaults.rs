@@ -287,6 +287,13 @@ pub(crate) fn eval_param_default(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> Option<ConstArg> {
+    // A declared type that did not resolve has reported already. `null` keeps
+    // the parameter optional, so a call that leaves it out reports nothing
+    // either, and a program with an error never runs to emit it
+    // (`rule:types/one-mistake-reports-once`).
+    if env.interner.is_error(declared) {
+        return Some(ConstArg::Null);
+    }
     let mut reported = false;
     let value = if matches!(&expr.kind, ExprKind::ClassConstAccess { .. }) {
         const_reference_default(expr, declared, ctx, Some(&mut reported), env)
@@ -354,6 +361,11 @@ pub(crate) fn eval_property_default(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> Option<ConstArg> {
+    // [`eval_param_default`]'s reason: `null` stands for a default that cannot
+    // be judged against a type that did not resolve.
+    if env.interner.is_error(declared) {
+        return Some(ConstArg::Null);
+    }
     let empty_array = matches!(&expr.kind, ExprKind::ArrayLiteral(items) if items.is_empty())
         && matches!(env.interner.get(declared), Ty::Array(_));
     let mut reported = false;

@@ -112,7 +112,7 @@ pub(crate) fn infer_class_const(
                  with a constant",
             ),
         );
-        return env.interner.mixed();
+        return env.interner.error();
     }
     let qname = resolve_class_expr(class, ctx, env);
     // `rule:testing/interaction-after-the-fact`'s method reference. The
