@@ -2056,8 +2056,8 @@ pub(crate) fn nested_declaration(kind: &str, at: Span, introduces_a_name: bool, 
                 format!("this `{kind}` would only take effect once control reached this statement"),
             )
             .with_help(format!(
-                "move the `{kind}` out to file scope — it applies to the whole file, so what a \
-                 name resolves to never depends on control flow"
+                "move the `{kind}` to the top level of the file, above the code that needs it. \
+                 It applies to the code below it"
             ))
     };
     env.diags.report(diag);

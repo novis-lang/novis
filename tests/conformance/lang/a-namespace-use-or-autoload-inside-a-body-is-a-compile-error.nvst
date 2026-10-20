@@ -29,14 +29,14 @@ error[E0233]: a nested `use` declaration is not supported
   |
 6 |         use App\Thing;
   |             ^^^^^^^^^ this `use` would only take effect once control reached this statement
-  = help: move the `use` out to file scope — it applies to the whole file, so what a name resolves to never depends on control flow
+  = help: move the `use` to the top level of the file, above the code that needs it. It applies to the code below it
 
 error[E0233]: a nested `autoload` declaration is not supported
   --> %s:7:9
   |
 7 |         autoload 'App' from './src';
   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this `autoload` would only take effect once control reached this statement
-  = help: move the `autoload` out to file scope — it applies to the whole file, so what a name resolves to never depends on control flow
+  = help: move the `autoload` to the top level of the file, above the code that needs it. It applies to the code below it
 
 error[E0233]: a nested `type` declaration is not supported
    --> %s:13:10
@@ -50,7 +50,7 @@ error[E0233]: a nested `namespace` declaration is not supported
    |
 19 |     namespace Inner;
    |               ^^^^^ this `namespace` would only take effect once control reached this statement
-   = help: move the `namespace` out to file scope — it applies to the whole file, so what a name resolves to never depends on control flow
+   = help: move the `namespace` to the top level of the file, above the code that needs it. It applies to the code below it
 
 error: aborting due to 4 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
