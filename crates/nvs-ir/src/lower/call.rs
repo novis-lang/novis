@@ -1298,7 +1298,10 @@ impl<'a> Lowering<'a> {
             // `rule:types/a-member-every-class-of-a-union-declares`: the read
             // and the copy-back each test the receiver's class.
             ExprKind::PropertyAccess { object, .. }
-                if matches!(self.exprs.lookup(arg.span), Some(ExprInfo::UnionMember { .. })) =>
+                if matches!(
+                    self.exprs.lookup(arg.span),
+                    Some(ExprInfo::UnionMember { .. })
+                ) =>
             {
                 let Some(ExprInfo::UnionMember { arms }) = self.exprs.lookup(arg.span) else {
                     unreachable!("the guard above matched a union member");

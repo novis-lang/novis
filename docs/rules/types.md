@@ -1476,6 +1476,8 @@ each class of the union with its member, and the lowering tests the receiver wit
 class but the last. Each branch lowers as the same access through that one class does: a fixed-offset
 field load for a plain property, the hook for a hooked one, the class's own call for a method. The last
 class is the fall-through, because the checker proved the receiver is one of the union's classes.
+The field load does not check its receiver's class, so `bun nv soundness` reads a subclass's
+redeclared property through a union both from a tested arm and from the fall-through.
 
 - **Latency:** a union of `n` classes pays `n - 1` class tests and the access, with no name lookup
   and no error edge. An access through one class does not change.
