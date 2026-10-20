@@ -66,7 +66,7 @@ stages:
     context: [tools/nv/cmd/verify.ts, crates/nvs-types/src/conformance.rs, docs/rules/classes/an-override-keeps-its-parents-signature.md, docs/rules/statements/static-is-a-member-modifier.md]
   - id: 18
     title: "a checked build stops at a read whose value is not its declared type"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-runtime/src/helpers.rs, docs/rules/testing/probes-on-is-a-tested-configuration.md]
   - id: 19
     title: "what the matrix and the checked build found is closed, and CI runs both"
@@ -470,11 +470,11 @@ session checks the table row by row against the rules it cites, then runs it and
 **Does:** with `NOVIS_CHECK_TYPES=1`, a compiled program tests every typed read of a value that
 carries its type, and a failure stops the process naming the line and both types.
 
-- [ ] `NOVIS_CHECK_TYPES` sets a process-wide switch beside `compile_unoptimised`, with the artifact cache off. `crates/nvs-cli/src/main.rs:209`, `crates/nvs-codegen/src/lib.rs:905`
-- [ ] The lowering adds the type test after a property read, a parameter at entry, a call's result, a `static::` constant read and an array element of a class type, only under the switch. `crates/nvs-ir/src/lower/expr.rs:5361`, `crates/nvs-ir/src/lower/mod.rs:1518`, `crates/nvs-ir/src/lower/mod.rs:1297`, `crates/nvs-ir/src/lower/expr.rs:6569`
-- [ ] The runtime helper that stops the process with the line, the declared type and the class. `crates/nvs-runtime/src/helpers.rs:141`
-- [ ] A Rust test that compiles one confused read with the switch on and sees it stop, and with it off sees no added instruction. `crates/nvs-codegen/tests/checked_types.rs:1`
-- [ ] One local run of the suite under the switch, and a gap record and a stage 19 item for each case it stops. `crates/nvs-cli/src/main.rs:209`
+- [x] `NOVIS_CHECK_TYPES` sets a process-wide switch beside `compile_unoptimised`, with the artifact cache off. `crates/nvs-cli/src/main.rs:209`, `crates/nvs-codegen/src/lib.rs:905`
+- [x] The lowering adds the type test after a property read, a parameter at entry, a call's result, a `static::` constant read and an array element of a class type, only under the switch. `crates/nvs-ir/src/lower/expr.rs:5361`, `crates/nvs-ir/src/lower/mod.rs:1518`, `crates/nvs-ir/src/lower/mod.rs:1297`, `crates/nvs-ir/src/lower/expr.rs:6569`
+- [x] The runtime helper that stops the process with the line, the declared type and the class. `crates/nvs-runtime/src/helpers.rs:141`
+- [x] A Rust test that compiles one confused read with the switch on and sees it stop, and with it off sees no added instruction. `crates/nvs-codegen/tests/checked_types.rs:1`
+- [x] One local run of the suite under the switch, and a gap record and a stage 19 item for each case it stops. `crates/nvs-cli/src/main.rs:209`
 
 ### 19. what the matrix and the checked build found is closed, and CI runs both
 
@@ -485,6 +485,8 @@ another goal.
 - [ ] Each finding of stages 17 and 18 gets one item here, added by the session that files it, and is fixed in this goal. `tools/nv/soundness/open.json:1`
 - [ ] A callable taken with `static::m(...)` calls the called class's `m`, and its nine `*/callable` cells pass. `data/gaps/nvs-ir/a-static-method-reference-binds-the-declaring-class.json:1`, `crates/nvs-ir/src/lower/expr.rs:4055`
 - [ ] A static method called through an instance runs the object's class's body, the rule says so, and its nine `*/parent-variable` cells pass. `data/gaps/nvs-ir/a-static-method-called-through-an-instance-binds-the-variables-type.json:1`, `docs/rules/statements/static-is-a-member-modifier.md:1`
+- [ ] A node `Core\Ast::parse` returns is an instance of `Core\Ast\Node`: each production's descriptor has it as its parent, and the twelve `core-ast-*` cases pass under the checked build. `data/gaps/nvs-stdlib/a-parsed-node-is-not-an-instance-of-core-ast-node.json:1`, `crates/nvs-stdlib/src/ast.rs:267`
+- [ ] An integer literal at a `?uint` position is a `uint`, and the five `spreadsheet-*` reader cases pass under the checked build. `data/gaps/nvs-ir/an-integer-literal-at-a-nullable-uint-is-tagged-int.json:1`, `extensions/spreadsheet/nvs/Reader.nvs:225`
 - [ ] `open.json`, the `--allow-open` flag and its use in `verify.ts` are deleted, and every matrix cell is in the written files and passes. `tools/nv/cmd/soundness.ts:1`, `tools/nv/cmd/verify.ts:167`
 - [ ] The CI step after "Conformance suite, unoptimised", with `NOVIS_CHECK_TYPES=1`. `.github/workflows/ci.yml:292`
 - [ ] `rule:testing/probes-on-is-a-tested-configuration` names the checked run, and a rule fragment states what the matrix guarantees, `shipped` with the matrix files in `guardedBy`. `docs/rules/testing/probes-on-is-a-tested-configuration.md:14`, `docs/rules/testing/redeclaration-matrix.md:1`, `data/rules/testing/redeclaration-matrix.json:1`
@@ -507,29 +509,29 @@ another goal.
 
 ### State
 
-Stages 1 to 13, 16 and 17 are done. Stage 17 landed `bun nv soundness`
-(`tools/nv/cmd/soundness.ts`, whose module doc is the oracle table):
+Stages 1 to 13 and 16 to 18 are done.
 
-- 397 cells over 16 member kinds, written as 31 files under `tests/conformance/soundness/`:
-  `<member>.nvst` for the cells that run and `<member>.errors.nvst` for the compile errors. The
-  module doc lists which combinations are not cells, and why.
-- The session checked every row against its rule. Override parameters are contravariant and returns
-  covariant (`E0404`), instance properties are exact (`E0866`), a `readonly` property is never
-  redeclared, constants are assignable (`E0833`), and none of these has the `int` to `float` row.
-  `compareTo`'s parameter follows the general contravariant rule. A wider parameter compiles.
-- The session added one path the subagent had left out: a static method called through a
-  variable of the parent's type. It expects the object's class's body, because a static method
-  binds late to the called class.
-- `--probe` runs each cell alone. 18 cells fail, all static methods, and two gap records under
-  `data/gaps/nvs-ir/` own them. `static::m(...)` binds the declaring class, and `$base->m()` on a
-  static `m` runs the variable's class. `tools/nv/soundness/open.json` lists all 18, and stage 19 has
-  an item for each record.
-- `bun nv verify` runs `soundness --check --allow-open` after `reference`, with `NVS_BIN` set to the
-  covws `nvs`.
+- Stage 17's matrix is `bun nv soundness` (`tools/nv/cmd/soundness.ts`, whose module doc is the
+  oracle table): 397 cells in 31 files under `tests/conformance/soundness/`. 18 static-method cells
+  fail and are listed in `tools/nv/soundness/open.json`, owned by two gap records under
+  `data/gaps/nvs-ir/`. `bun nv verify` runs `soundness --check --allow-open`.
+- Stage 18's checked build is `NOVIS_CHECK_TYPES` (`crates/nvs-cli/src/main.rs`,
+  `nvs_codegen::compile_checked_types`). Its home is `crates/nvs-ir/src/lower/checked.rs`, whose
+  module doc lists the reads. `Lowering::lower_expr` calls `check_read` after every expression,
+  and `lower_method` tests each parameter at entry. The test is `is`'s `test_shape`, made shallow:
+  arrays are tested for their tag and shapes for being objects. A class row becomes
+  `TestedClass::IfDeclared`, which passes a class with no descriptor, such as one an extension
+  declares. A `?->` chain, a guarded subscript and a `??=` target may also be `null`. A failure is
+  `Helper::TypeCheckFailed`, a `FATAL` naming the file, line, declared type and the value's class.
+  `crates/nvs-codegen/tests/checked_types.rs` rewrites a lowered `new` to make a confused read.
+- The suite under the switch (`NOVIS_CHECK_TYPES=1 target/debug/nvs test tests/conformance/`)
+  fails 17 cases, and each is one of two real bugs, each with a gap record and a stage 19 item. A
+  parsed `Core\Ast` node is not `is Core\Ast\Node` (twelve `core-ast-*` cases). An integer literal at
+  a `?uint` parameter is tagged `int` (five `spreadsheet-*` reader cases). Every other case passes.
 - `bun nv affected --run` stopped at `rules-render` on `docs/rules/ide.md` again. So the session ran
-  by hand what the change reaches: `layout`, `links`, `release`, `owners --check`, `tsc`, the `bun
-  test` files for verify, reads, surfaces and proof growth, `nvs test tests/conformance/soundness`
-  (31 passed), and `nvs-cli`'s `ast`, `bundle` and `compile_cache` tests. All are green.
+  `cargo clippy --all-targets`, `bun nv verify --fast -p` for `nvs-ir`, `nvs-codegen`,
+  `nvs-runtime` and `nvs-cli`, the plain conformance suite, `soundness --check --allow-open`,
+  `owners --check`, `links` and `layout`.
 
 The tree holds uncommitted work this goal does not own: `docs/rules/ide.md`,
 `website/src/lib/core.ts`, `website/src/data/numbers.json` and
@@ -540,14 +542,14 @@ run it once per crate.
 
 ### Next
 
-**Stage 18** is next: the `NOVIS_CHECK_TYPES` switch. Its items name the anchors: the switch beside
-`NOVIS_NO_OPTIMISE` (`crates/nvs-cli/src/main.rs:209`, `crates/nvs-codegen/src/lib.rs:905`), the
-type tests in the lowering (`crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/lower/mod.rs`),
-and the stopping helper (`crates/nvs-runtime/src/helpers.rs`). Each case the checked suite stops
-gets a gap record with neutral names and an item in stage 19. Stage 19 may also take the
-two stage 17 records first, since they are small and in `nvs-ir` (`lower/expr.rs:4055` for
-`static::m(...)`, `lower/call.rs` for an instance call of a static method). The second one also
-writes its reading into `rule:statements/static-is-a-member-modifier`.
+**Stage 19** is next, and it has four findings. Take the two in `nvs-ir` first, since they share
+files: the `?uint` literal (the literal's lowering at a tagged position, `lower/expr.rs`, and the
+argument coercion in `lower/call.rs`) and the two static-method records (`lower/expr.rs:4055` for
+`static::m(...)`, `lower/call.rs` for an instance call of a static method, which also writes its
+reading into `rule:statements/static-is-a-member-modifier`). Then the `Core\Ast` parent link in
+`crates/nvs-stdlib/src/ast.rs:267`, where `PRODUCTIONS` builds each class with no parent. After
+each fix, rerun its cases under `NOVIS_CHECK_TYPES=1`. Once the whole suite passes under it, add
+the CI step and name it in `rule:testing/probes-on-is-a-tested-configuration`.
 
 `bun nv soundness --probe` reruns every cell alone on the covws `nvs`, and `--write` after any
 change to the table. Never edit a generated file by hand.
