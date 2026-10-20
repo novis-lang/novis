@@ -4447,6 +4447,20 @@ impl<'a> Lowering<'a> {
                 cur,
             )
             .values;
+        // `rule:classes/comparable-is-same-class-only`: a call that resolved to
+        // `Comparable::compareTo` itself may hold a receiver and an argument of
+        // different classes, and the implementor's `compareTo(self $other)`
+        // would read the argument as its own class. So the two run-time classes
+        // are compared first, as an ordering does
+        // ([`Self::lower_object_comparison`]). The receiver and the argument
+        // are still this frame's temporaries here, so the throw releases them.
+        if call.method == "compareTo"
+            && !is_static
+            && call.class.to_string() == "Comparable"
+            && let [other] = arg_values[..]
+        {
+            self.emit_same_class_check(object_v, other, "`compareTo`", expr.span, env, cur);
+        }
         // Two shapes have no static answer, and both take the
         // receiver's own class instead.
         //

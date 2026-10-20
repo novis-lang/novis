@@ -22,7 +22,8 @@ whose `T` is the argument the class's own `implements` clause writes. `compareTo
 `self` (`rule:classes/comparable`), so the class itself is accepted there, and an ordering compares
 the two run-time classes before it calls it (`rule:classes/comparable-is-same-class-only`). A subclass
 that overrides `compareTo` again keeps its parent's parameter type. A direct `$price->compareTo($other)`
-through the parent passes the parent's class, and no run-time check runs there.
+through the parent passes the parent's class, and no run-time check runs there. A direct call through
+`Comparable` itself does compare the two run-time classes, as an ordering does.
 
 A class that answers an interface's method with one it inherits from its superclass is checked the
 same way, at the class's name, since that is the only declaration it wrote. A constructor is not an

@@ -203,32 +203,14 @@ impl<'a> Lowering<'a> {
                     self.own_temporary(v);
                 }
             }
-            let (desc, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescOf { object: lv });
-            let (other, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescOf { object: rv });
-            let (desc_word, _) = self.emit(*cur, Ty::Int, InstKind::Reinterpret { operand: desc });
-            let (other_word, _) =
-                self.emit(*cur, Ty::Int, InstKind::Reinterpret { operand: other });
-            let (same, _) = self.emit(
-                *cur,
-                Ty::Bool,
-                InstKind::BinOp {
-                    op: BinOp::Eq,
-                    lhs: desc_word,
-                    rhs: other_word,
-                },
-            );
             let written = match op {
-                BinaryOp::Lt => "<",
-                BinaryOp::LtEq => "<=",
-                BinaryOp::Gt => ">",
-                BinaryOp::GtEq => ">=",
-                _ => "<=>",
+                BinaryOp::Lt => "`<`",
+                BinaryOp::LtEq => "`<=`",
+                BinaryOp::Gt => "`>`",
+                BinaryOp::GtEq => "`>=`",
+                _ => "`<=>`",
             };
-            let message = format!(
-                "`{written}` compares two objects of different classes. Both objects must have \
-                 the same class."
-            );
-            self.emit_logic_error_when(same, false, message, expr.span, env, cur);
+            let desc = self.emit_same_class_check(lv, rv, written, expr.span, env, cur);
             self.forget_temporaries_since(check_mark);
             for (v, operand) in [(lv, lhs), (rv, rhs)] {
                 if self.aliasing_read(operand) {
@@ -268,6 +250,43 @@ impl<'a> Lowering<'a> {
                 rhs: zero,
             },
         )
+    }
+
+    /// `rule:classes/comparable-is-same-class-only`'s run-time half: throws a
+    /// `LogicError` naming `written` when `object` and `other` have different
+    /// run-time classes, and gives `object`'s class descriptor otherwise.
+    ///
+    /// An ordering of two objects and a direct call to `Comparable::compareTo`
+    /// both run it before `compareTo`. Whatever the caller still owns has to be
+    /// on its temporaries stack, since the throw's landing block releases that.
+    pub(crate) fn emit_same_class_check(
+        &mut self,
+        object: ValueId,
+        other: ValueId,
+        written: &str,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        let (desc, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescOf { object });
+        let (other, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescOf { object: other });
+        let (desc_word, _) = self.emit(*cur, Ty::Int, InstKind::Reinterpret { operand: desc });
+        let (other_word, _) = self.emit(*cur, Ty::Int, InstKind::Reinterpret { operand: other });
+        let (same, _) = self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::BinOp {
+                op: BinOp::Eq,
+                lhs: desc_word,
+                rhs: other_word,
+            },
+        );
+        let message = format!(
+            "{written} compares two objects of different classes. Both objects must have the \
+             same class."
+        );
+        self.emit_logic_error_when(same, false, message, span, env, cur);
+        desc
     }
 
     /// `!expr` — `rule:expressions/truthy-positions`'s truthy table applied to `expr`, then negated;
