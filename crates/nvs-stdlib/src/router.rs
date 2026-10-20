@@ -519,9 +519,10 @@ const DISPATCH_DOC: MethodDoc = MethodDoc {
         desc: "An instance of your class that implements `Core\\Router\\Gate`.",
         shape: &[],
     }],
-    ret: "Nothing. The route method or the gate writes the response. Each value captured from \
-          the path goes to the method parameter with the same name. An error that `refused()` \
-          or `failed()` throws is thrown by `dispatch`.",
+    ret: "Nothing. The route method or the gate writes the response, for example with `echo` \
+          or `Core\\Response::html`. `dispatch` does not send the value that a route method \
+          returns. Each value captured from the path goes to the method parameter with the same \
+          name. An error that `refused()` or `failed()` throws is thrown by `dispatch`.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "When the program has no `#[Route]`. When the program is not answering a request, \
@@ -989,16 +990,20 @@ const GATE_REFUSED_DOC: MethodDoc = MethodDoc {
 /// `Core\Router\Gate::failed`'s reference card — `rule:core-api/reference-card`.
 const GATE_FAILED_DOC: MethodDoc = MethodDoc {
     short: "Writes the response when the method of the route threw an error. `dispatch` sets \
-            the status to `500` before it calls this method.",
+            the status to `500` before it calls this method. It is also called when the program \
+            stopped at its memory or CPU time limit. The server then runs the program again, \
+            and both arguments are `null`.",
     params: &[
         ParamDoc {
             name: "route",
-            desc: "The route whose method threw the error.",
+            desc: "The route whose method threw the error. It is `null` only after a memory or \
+                   CPU time limit.",
             shape: &[],
         },
         ParamDoc {
             name: "error",
-            desc: "The error that the method threw.",
+            desc: "The error that the method threw. It is `null` only after a memory or CPU \
+                   time limit, because a limit is not an error that a program can catch.",
             shape: &[],
         },
     ],

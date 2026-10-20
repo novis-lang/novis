@@ -37194,7 +37194,7 @@
                 "descHtml": "An instance of your class that implements <code>Core\\Router\\Gate</code>."
               }
             ],
-            "returnHtml": "Nothing. The route method or the gate writes the response. Each value captured from the path goes to the method parameter with the same name. An error that <code>refused()</code> or <code>failed()</code> throws is thrown by <code>dispatch</code>.",
+            "returnHtml": "Nothing. The route method or the gate writes the response, for example with <code>echo</code> or <code>Core\\Response::html</code>. <code>dispatch</code> does not send the value that a route method returns. Each value captured from the path goes to the method parameter with the same name. An error that <code>refused()</code> or <code>failed()</code> throws is thrown by <code>dispatch</code>.",
             "errors": [
               {
                 "error": "LogicError",

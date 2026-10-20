@@ -9,7 +9,8 @@ page or a missing CSRF token. `failed` writes the page when the route method thr
 sends the right code.
 
 **Good to know:** the gate cannot let a refused request through. If `allows` throws an error, the
-route method does not run.
+route method does not run. `dispatch` does not send the value a route method returns. The method
+writes the response itself, with `echo` or `Core\Response`.
 
 **The examples below** show two routes and a missing page, a gate that checks a login, and an
 error page for a method that fails.
