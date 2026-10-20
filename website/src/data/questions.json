@@ -17162,7 +17162,7 @@
   },
   "/syntax/errors/throw-and-catch/": {
     "feature": "syntax/errors/throw-and-catch.mdx",
-    "hash": "9ff12095f5748ac4",
+    "hash": "838a75a3928644ba",
     "questions": [
       "How do I throw an error from a function?",
       "How do I handle an error with try and catch?",

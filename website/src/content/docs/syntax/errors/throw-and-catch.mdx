@@ -1,6 +1,6 @@
 ---
 title: throw, try and catch
-covers: ['lang:statements/throw', 'lang:statements/try-catch-finally', 'lang:errors/throw', 'lang:errors/try-catch-finally']
+covers: ['lang:errors/throw', 'lang:errors/try-catch-finally']
 description: How throw stops a function with an error, and how try, catch and finally handle it.
 ---
 import FeatureSection from '@components/FeatureSection.astro'
@@ -9,15 +9,11 @@ import FeatureSection from '@components/FeatureSection.astro'
 block, and a `catch (IOError $e) { ... }` after it runs when that block throws an `IOError`.
 `finally { ... }` runs last, whatever happened.
 
-<FeatureSection examples="lang/statements/throw" heading="throw" id="throw" />
-
-<FeatureSection examples="lang/errors/throw" heading="throw where a value is expected" id="throw-as-a-value" />
+<FeatureSection examples="lang/errors/throw" heading="throw" id="throw" />
 
 The classes you can throw are on the page [Error types](/syntax/errors/error-types/).
 
-<FeatureSection examples="lang/statements/try-catch-finally" heading="try, catch and finally" id="try-catch-finally" />
-
-<FeatureSection examples="lang/errors/try-catch-finally" heading="Which clause runs, and finally" id="clauses-and-finally" />
+<FeatureSection examples="lang/errors/try-catch-finally" heading="try, catch and finally" id="try-catch-finally" />
 
 ## Use this when you only need a value
 
