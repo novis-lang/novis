@@ -1,5 +1,5 @@
 --TEST--
-`Comparable` reaches the receiver's own `compareTo`, so a subclass that overrides it changes how `<`/`>`/`<=>` answer for a base-typed pair — `rule:classes/comparable`
+`Comparable` reaches the receiver's own `compareTo`, so a subclass that overrides it changes how `<`/`>`/`<=>` answer for a base-typed pair of two subclass objects — `rule:classes/comparable`
 --FILE--
 <?nvs
 // covers: lang:classes/comparable
@@ -44,11 +44,12 @@ echo Cmp::of($two, $ace), "\n";
 echo Cmp::of($ace, new Card("also-ace", 14)), "\n";
 
 var $lowAce = new Reversed("ace", 14);
-echo Cmp::of($lowAce, $two), "\n";
-echo Cmp::of($two, $lowAce), "\n";
+var $lowTwo = new Reversed("two", 2);
+echo Cmp::of($lowAce, $lowTwo), "\n";
+echo Cmp::of($lowTwo, $lowAce), "\n";
 --EXPECT--
 1||1
 |1|-1
 ||0
 |1|-1
-|1|-1
+1||1

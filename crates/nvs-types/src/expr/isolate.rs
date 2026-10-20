@@ -324,8 +324,9 @@ fn check_literal_args(path: &Expr, map: Option<&Expr>, env: &mut Env<'_>) {
 /// - **An `fn` literal or a `callable` value**, refused under
 ///   [`code::E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD`] with the way out that rule
 ///   names.
-/// - **A method reference**, which is the specified form and has nothing left
-///   to refuse: it lowers to its own `Core` symbol (`nvs_ir::lower`'s
+/// - **A method reference**, which is the specified form when the method is
+///   `static` and is refused by [`reject_instance_method_entry`] when it is
+///   not. It lowers to its own `Core` symbol (`nvs_ir::lower`'s
 ///   `lower_spawn_script`), carrying the entry's parameter names, and
 ///   `nvs_stdlib::script` binds `args:`'s entries to them by name. A literal
 ///   `args:` map is compared against those names by [`check_literal_args`].
@@ -357,6 +358,7 @@ fn check_entry(path: &Expr, live: &mut Live, scope: &LocalScope, ctx: &Ctx<'_>, 
 /// parameter — reports nothing twice.
 fn entry_operand(path: &Expr, ty: TypeId, form: &str, env: &mut Env<'_>) {
     if is_method_reference(path) {
+        reject_instance_method_entry(path, form, env);
         return;
     }
 
@@ -378,6 +380,38 @@ fn entry_operand(path: &Expr, ty: TypeId, form: &str, env: &mut Env<'_>) {
     if !is_assignable(ty, string, env.interner, env.graph, env.signatures) {
         report_mismatch(path.span, string, ty, env);
     }
+}
+
+/// Refuses a method reference whose method is not `static`.
+///
+/// The isolate calls its entry with no receiver, so an instance method would
+/// run with `$this` naming no object and read whatever its slots contain. The
+/// reference is resolved by the time this runs: [`check_expr`] recorded it as
+/// [`ExprInfo::CallableRef`], and an unresolved one was reported there.
+fn reject_instance_method_entry(path: &Expr, form: &str, env: &mut Env<'_>) {
+    let Some(ExprInfo::CallableRef(call)) = env.exprs.lookup(path.span) else {
+        return;
+    };
+    let Some((owner, sig)) =
+        crate::signatures::resolve_method(&call.class, &call.method, env.signatures, env.graph)
+    else {
+        return;
+    };
+    if sig.is_static {
+        return;
+    }
+    let method = &call.method;
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD,
+            format!("a {form} entry is a path or a static method"),
+        )
+        .with_primary(path.span, format!("`{owner}::{method}` is not `static`"))
+        .with_help(format!(
+            "declare `{method}` as `static`. The script starts with no objects, so there is no \
+             object to call the method on"
+        )),
+    );
 }
 
 /// A `Core` member that **opens an isolate** — one whose registry row marks a

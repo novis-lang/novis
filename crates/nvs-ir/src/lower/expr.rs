@@ -5591,7 +5591,7 @@ impl<'a> Lowering<'a> {
 
     /// Throws a `LogicError` carrying `message` where `cond` equals
     /// `throws_on`, and leaves `cur` on the block where it does not.
-    fn emit_logic_error_when(
+    pub(crate) fn emit_logic_error_when(
         &mut self,
         cond: ValueId,
         throws_on: bool,

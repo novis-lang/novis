@@ -3,6 +3,12 @@ that are not both known to be that same class is a diagnostic even when both cla
 `Comparable` independently — there is no cross-class overload and no implicit widening from a
 subclass's `compareTo` to an ancestor's.
 
+The static types are not the whole check. Two operands typed `Comparable`, or typed at a class that is
+not `final`, may hold instances of different classes, and `compareTo` would then read the other
+operand as a class it is not. So the ordering compares the two run-time classes first and throws a
+`LogicError` when they differ, before `compareTo` runs. That costs one class comparison per object
+ordering. A static refusal instead would refuse every ordering over a class that is not `final`.
+
 The alternative is a resolution question with no non-arbitrary answer: which of two classes' methods
 decides the order of a mixed pair, and what a program should conclude when they disagree. Fixing the
 parameter to `self` removes the question instead of answering it.

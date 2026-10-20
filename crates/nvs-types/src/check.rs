@@ -705,6 +705,9 @@ fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
                 ),
                 None => (HOOK_VALUE_PARAM.to_owned(), p.name, prop_ty),
             };
+            if let Some(written) = hook.param.as_ref().and_then(|param| param.ty.as_ref()) {
+                check_set_hook_param(written.span, prop_ty, pty, env);
+            }
             scope.declare_param(pname.clone(), pty, pspan);
             live.insert(pname);
         }
@@ -725,6 +728,39 @@ fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
             }
         }
     }
+}
+
+/// Refuses a `set` hook parameter type that a value of the property's own
+/// type does not fit, at the parameter's type.
+///
+/// Every write is checked against the property's type and stored in its
+/// representation, and the hook reads its parameter in the parameter's own
+/// representation with no conversion between them. So the parameter has to
+/// accept the property's type *in place*: `?int` or `mixed` on an `int`
+/// property is read correctly, and `float` or `string` would read the `int`'s
+/// bits as another type. [`crate::expr::assign::field_fits`] is that relation,
+/// without the `int` → `float` row a converted value gets.
+fn check_set_hook_param(span: Span, prop_ty: TypeId, param_ty: TypeId, env: &mut Env<'_>) {
+    if crate::expr::assign::field_fits(prop_ty, param_ty, env.interner, env.graph, env.signatures) {
+        return;
+    }
+    let (prop, param) = (
+        env.interner.describe(prop_ty),
+        env.interner.describe(param_ty),
+    );
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TYPE_MISMATCH,
+            format!("this `set` hook takes `{param}`, but the property is `{prop}`"),
+        )
+        .with_primary(
+            span,
+            format!("a value of type `{prop}` does not fit `{param}`"),
+        )
+        .with_help(format!(
+            "write the property's type `{prop}` here, or leave the type out"
+        )),
+    );
 }
 
 /// The name a `set` hook's parameter binds under when the declaration leaves

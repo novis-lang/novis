@@ -546,13 +546,19 @@ pub struct ClassSignature {
     pub methods: FxHashMap<String, MethodSig>,
     /// This declaration's own properties that `rule:classes/definite-property-initialization` requires a
     /// constructor to definitely assign: non-nullable (`TypeInterner::is_nullable`
-    /// is false), no inline default, and no hook block. A hooked property is
-    /// exempted here entirely rather than modeled — see
-    /// `crate::ctor_init`'s module docs for why. A `lateinit` property is
+    /// is false), no inline default, and a backing slot something reads. A
+    /// hooked property's slot is read when it has no `get` hook, or when a hook
+    /// names `$this->prop` other than as an `=` target; a property whose hooks
+    /// compute its value reads none. A `lateinit` property is
     /// also excluded (`rule:classes/lateinit-restrictions`: it is exempt from this obligation by
     /// design, not merely by accident of shape). Name, declaration span, in
     /// declaration order.
     pub required_properties: Vec<(String, Span)>,
+    /// The hooked properties in [`Self::required_properties`] only because
+    /// this declaration writes a `set` hook and no `get` hook, so a plain read
+    /// reads the slot. [`own_required_properties`] drops one whose ancestor
+    /// declares a `get` hook for it, since that hook is what a read runs.
+    pub read_without_get: FxHashSet<String>,
     /// This declaration's own properties declared `lateinit` (`rule:classes/lateinit-restrictions`),
     /// by name. Never includes one pulled in from an `extends`/`implements`
     /// ancestor — `crate::lateinit` walks those in.
@@ -1145,11 +1151,21 @@ fn collect_members(
                 if is_lateinit {
                     check_lateinit_property(p, env);
                 }
+                let hooks = declared_hooks(p);
+                // A hooked property needs a value in its slot when something
+                // reads the slot: a plain read where there is no `get` hook,
+                // or a hook that reads `$this->name`. A property whose hooks
+                // compute the value from other properties reads no slot.
+                let reads_own_slot = p.hooks.is_none() || hooks_read_own_slot(p, &name, env.src);
+                // A `set`-only redeclaration may inherit its parent's `get`
+                // hook, which [`own_required_properties`] asks once every
+                // class is known.
+                let read_without_get = !reads_own_slot && hooks.set && !hooks.get;
+                let slot_read = reads_own_slot || read_without_get;
                 let required = p.default.is_none()
-                    && p.hooks.is_none()
+                    && slot_read
                     && !is_lateinit
                     && !env.interner.is_nullable(ty);
-                let hooks = declared_hooks(p);
                 let visibility = declared_visibility(&p.modifiers);
                 // Evaluated here rather than at check time because this is
                 // the one pass that holds the declared type and the written
@@ -1209,6 +1225,9 @@ fn collect_members(
                     );
                 } else if required {
                     sig.required_properties.push((name.clone(), p.name));
+                    if read_without_get {
+                        sig.read_without_get.insert(name.clone());
+                    }
                 }
                 if p.modifiers.contains(&Modifier::Readonly) {
                     sig.readonly_properties.insert(name.clone());
@@ -1509,6 +1528,60 @@ fn collect_defaults(
 /// Which hooks `p` declares *with a body* — a bodiless `get;` in an
 /// interface or abstract class declares a requirement, not code to call, so
 /// it contributes nothing here.
+/// Whether one of `p`'s hooks reads `$this->name`, the property's own backing
+/// slot. Such a slot needs a value before the first read, as a plain property
+/// does. A hook that computes the value from other properties reads no slot,
+/// and neither does the target of a plain `$this->name = v`.
+fn hooks_read_own_slot(p: &PropertyMember, name: &str, src: &SourceFile) -> bool {
+    use nvs_syntax::ast::{AssignOp, Expr, ExprKind, MemberName, PropertyHookBody};
+    use nvs_syntax::visit::{StmtChild, each_child_expr, each_child_of_stmt};
+    fn is_slot(e: &Expr, name: &str, src: &SourceFile) -> bool {
+        matches!(
+            &e.kind,
+            ExprKind::PropertyAccess {
+                object,
+                property: MemberName::Ident(span),
+                ..
+            } if crate::expr::is_this_receiver(object, src)
+                && strip_sigil(span_text(src, *span)) == name
+        )
+    }
+    fn in_expr(e: &Expr, name: &str, src: &SourceFile) -> bool {
+        if is_slot(e, name, src) {
+            return true;
+        }
+        if let ExprKind::Assign {
+            op: AssignOp::Assign,
+            target,
+            value,
+            ..
+        } = &e.kind
+            && is_slot(target, name, src)
+        {
+            return in_expr(value, name, src);
+        }
+        let mut found = false;
+        each_child_expr(e, &mut |child| found = found || in_expr(child, name, src));
+        found
+    }
+    fn in_stmt(s: &nvs_syntax::ast::Stmt, name: &str, src: &SourceFile) -> bool {
+        let mut found = false;
+        each_child_of_stmt(s, &mut |child| {
+            found = found
+                || match child {
+                    StmtChild::Stmt(s) => in_stmt(s, name, src),
+                    StmtChild::Expr(e) => in_expr(e, name, src),
+                };
+        });
+        found
+    }
+    p.hooks.iter().flatten().any(|hook| match &hook.body {
+        Some(PropertyHookBody::Expr(e)) => in_expr(e, name, src),
+        Some(PropertyHookBody::Block(block)) => block.stmts.iter().any(|s| in_stmt(s, name, src)),
+        None => false,
+    })
+}
+
 fn declared_hooks(p: &PropertyMember) -> PropertyHooks {
     let mut out = PropertyHooks::default();
     for hook in p.hooks.iter().flatten() {
@@ -2155,12 +2228,56 @@ fn resolve_iteration_rec(
 /// ordinary declared property of `qname` itself, already covered by
 /// `required_properties` with no special case needed (`rule:classes/no-traits`'s own
 /// amendment to `rule:classes/definite-property-initialization`).
+///
+/// A `set`-only redeclaration whose ancestor declares a `get` hook for the
+/// property is left out: a read runs that inherited hook, not the slot.
 #[must_use]
-pub fn own_required_properties(qname: &QName, table: &SignatureTable) -> Vec<(String, Span)> {
-    table
+pub fn own_required_properties(
+    qname: &QName,
+    table: &SignatureTable,
+    graph: &ClassGraph,
+) -> Vec<(String, Span)> {
+    let Some(sig) = table.get(qname) else {
+        return Vec::new();
+    };
+    sig.required_properties
+        .iter()
+        .filter(|(name, _)| {
+            !sig.read_without_get.contains(name) || !ancestor_has_get_hook(qname, name, table, graph)
+        })
+        .cloned()
+        .collect()
+}
+
+/// Whether a class `qname` extends, at any depth, declares a `get` hook for
+/// the property `name`.
+fn ancestor_has_get_hook(
+    qname: &QName,
+    name: &str,
+    table: &SignatureTable,
+    graph: &ClassGraph,
+) -> bool {
+    let mut seen = FxHashSet::default();
+    let mut queue: Vec<&QName> = graph
         .get(qname)
-        .map(|sig| sig.required_properties.clone())
-        .unwrap_or_default()
+        .map(|links| links.extends.iter().collect())
+        .unwrap_or_default();
+    while let Some(ancestor) = queue.pop() {
+        if !seen.insert(ancestor.clone()) {
+            continue;
+        }
+        if table
+            .get(ancestor)
+            .and_then(|sig| sig.hooked_properties.get(name))
+            .is_some_and(|hooks| hooks.get)
+        {
+            return true;
+        }
+        if let Some(links) = graph.get(ancestor) {
+            queue.extend(links.extends.iter());
+        }
+    }
+    false
 }
 
 #[cfg(test)]

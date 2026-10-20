@@ -19,12 +19,14 @@ final class Knot
 
     // Writing `$up` writes `$down`, and writing `$down` writes `$up`.
     public int $up {
+        get => 0;
         set (int $v) {
         $this->down = $v + 1;
         }
     }
 
     public int $down {
+        get => 0;
         set (int $v) {
         $this->up = $v + 1;
         }
@@ -42,6 +44,7 @@ final class Grower
     }
 
     public int $always {
+        get => 0;
         set (int $v) {
         throw new LogicError('this property refuses every write');
         }

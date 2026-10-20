@@ -1,0 +1,64 @@
+--TEST--
+An ordering of two objects throws a `LogicError` when their run-time classes differ, before `compareTo` runs, whether the operands are typed at an interface or at a parent class — `rule:classes/comparable-is-same-class-only`
+--FILE--
+<?nvs
+class Price implements Comparable {
+    public function constructor(public int $cents) {}
+
+    public function compareTo(self $other): int {
+        return $this->cents <=> $other->cents;
+    }
+}
+
+class Label implements Comparable {
+    public function constructor(public string $text) {}
+
+    public function compareTo(self $other): int {
+        return 0;
+    }
+}
+
+class SalePrice extends Price {
+    public function constructor(int $cents, public string $reason) {
+        parent::constructor($cents);
+    }
+
+    public function compareTo(self $other): int {
+        echo $other->reason, "\n";
+        return 0;
+    }
+}
+
+class Shop {
+    public static function item(bool $price): Comparable {
+        if ($price) {
+            return new Price(100);
+        }
+        return new Label("tea");
+    }
+}
+
+// Two objects of the same class compare as `compareTo` says.
+Price $cheap = new Price(100);
+Price $dear = new Price(250);
+echo ($cheap < $dear) ? "less" : "not less", "\n";
+
+// The operands are typed `Comparable`, and they are a `Price` and a `Label`.
+try {
+    echo (Shop::item(true) < Shop::item(false)) ? "less" : "not less", "\n";
+} catch (LogicError $e) {
+    echo "1: ", $e->message, "\n";
+}
+
+// Both operands are typed `Price`, and the left one is a `SalePrice`.
+Price $sale = new SalePrice(80, "summer");
+try {
+    echo $sale <=> $cheap, "\n";
+} catch (LogicError $e) {
+    echo "2: ", $e->message, "\n";
+}
+// covers: lang:classes/comparable
+--EXPECT--
+less
+1: `<` compares two objects of different classes. Both objects must have the same class.
+2: `<=>` compares two objects of different classes. Both objects must have the same class.

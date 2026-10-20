@@ -61,15 +61,21 @@
 //! therefore refused, and `rule:classes/lateinit` is the spelling for a
 //! property that really is written after construction.
 //!
-//! **A property backed by a `set` hook carries no obligation here.**
-//! [`crate::signatures::ClassSignature::required_properties`] leaves it out
-//! rather than asking whether the hook commits a value, because this pass has
-//! no model of a hook's body: what a hook does with what it is handed cannot
-//! be read off the constructor's own paths. A hooked property no constructor
-//! assigns is caught where every unwritten property is caught in the end, by
-//! `rule:classes/lateinit`'s read-before-write throw at run time — later than
-//! a compile error, and the price of never refusing a hook that does commit
-//! the value.
+//! **A hooked property whose backing slot is read carries the obligation**,
+//! and [`crate::signatures::ClassSignature::required_properties`] says which
+//! those are. A write in the constructor runs the `set` hook, so it assigns
+//! the property only when the hook stores it. [`check_set_hooks_commit`]
+//! walks each such hook with this same walker, the hook's own property as its
+//! one obligation, and refuses a hook a path can leave without storing. Every
+//! constructor write then counts as an assignment, and the constructor is
+//! checked as it would be with no hook.
+//!
+//! **A read before the assignment is refused too.** [`InitState::read`] sees
+//! every `$this->prop` the walk evaluates other than the target of a plain
+//! `=`, and a required property no path has assigned yet is `E0409` at the
+//! read, where the zeroed slot would otherwise be read. An inherited required
+//! property is read too early before `parent::constructor(...)` is called. A
+//! read through a method call is not followed, as no call is.
 //!
 //! **A `readonly` property is written at most once on each path**, which is
 //! the "assigned exactly once" `rule:classes/lateinit-restrictions` states for
@@ -115,6 +121,18 @@ struct CtorObligations<'a> {
     required: &'a [(String, Span)],
     ctor_name: Span,
     needs_parent_call: bool,
+    /// Which body is walked, for the wording of what [`finish`] reports.
+    body: Body,
+}
+
+/// The two bodies [`walk_stmts`] checks the obligations of.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Body {
+    /// A constructor, which assigns every required property.
+    Constructor,
+    /// A `set` hook, which stores its own property on every path that does
+    /// not throw — see [`check_set_hooks_commit`].
+    SetHook,
 }
 
 /// Per-path state while walking a constructor body: which required
@@ -147,6 +165,23 @@ pub(crate) struct InitState {
     loop_depth: u32,
     /// Every second write found, reported once the walk is over.
     refused: Vec<SecondWrite>,
+    /// The class's own required properties, whose reads `read` checks
+    /// against `assigned`. Empty for a `set` hook's walk.
+    own_required: Vec<String>,
+    /// The required properties of the class's ancestors, which a read before
+    /// `parent::constructor(...)` finds unassigned.
+    inherited_required: Vec<String>,
+    /// Every read of a property no path has assigned yet, reported once the
+    /// walk is over.
+    early_reads: Vec<EarlyRead>,
+}
+
+/// A read through `$this` of a property no path has assigned yet.
+struct EarlyRead {
+    name: String,
+    span: Span,
+    /// The property is an ancestor's, which `parent::constructor(...)` assigns.
+    inherited: bool,
 }
 
 /// A write to a `readonly` property that may not be the first one on its path.
@@ -243,6 +278,25 @@ impl InitState {
         }
         self.written.insert(name.to_owned());
     }
+
+    /// Records a read through `$this` of the property `name`, and refuses it
+    /// where a path reaches it before the property is assigned.
+    fn read(&mut self, name: &str, span: Span) {
+        let inherited = !self.own_required.iter().any(|r| r == name);
+        let early = !self.assigned.contains(name)
+            && if inherited {
+                !self.parent_called && self.inherited_required.iter().any(|r| r == name)
+            } else {
+                true
+            };
+        if early && !self.early_reads.iter().any(|read| read.span == span) {
+            self.early_reads.push(EarlyRead {
+                name: name.to_owned(),
+                span,
+                inherited,
+            });
+        }
+    }
 }
 
 /// What every way in `ways` added, or `None` when there are no ways at all.
@@ -267,7 +321,8 @@ fn added_on_every_way(ways: Vec<Added>) -> Option<Added> {
 /// arm calls this, since only a class is ever instantiated through a
 /// constructor.
 pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
-    let required = own_required_properties(qname, env.signatures);
+    let required = own_required_properties(qname, env.signatures, env.graph);
+    check_set_hooks_commit(decl, qname, &required, env);
 
     let ctor = decl.members.iter().find_map(|m| match &m.kind {
         ClassMemberKind::Method(method) if span_text(env.src, method.name) == "constructor" => {
@@ -281,6 +336,16 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
         // assigned along, so it is refused right at its own declaration
         // (`rule:classes/definite-property-initialization`, third bullet).
         for (name, span) in &required {
+            // A hooked property has no syntax for a default value.
+            let hooked = env
+                .signatures
+                .get(qname)
+                .is_some_and(|sig| sig.hooked_properties.contains_key(name));
+            let help = if hooked {
+                "add a `constructor` that assigns it"
+            } else {
+                "give it a default value, or add a `constructor` that assigns it"
+            };
             env.diags.report(
                 Diagnostic::error(
                     code::E_UNINITIALIZED_PROPERTY,
@@ -290,7 +355,7 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
                     ),
                 )
                 .with_primary(*span, "never assigned")
-                .with_help("give it a default value, or add a `constructor` that assigns it"),
+                .with_help(help),
             );
         }
         return;
@@ -305,6 +370,7 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
         required: &required,
         ctor_name: ctor.name,
         needs_parent_call: decl.extends.is_some() && parent_declares_constructor(qname, env),
+        body: Body::Constructor,
     };
     let readonly: Vec<String> = env
         .signatures
@@ -321,6 +387,8 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
     let mut state = InitState {
         readonly,
         promoted,
+        own_required: required.iter().map(|(name, _)| name.clone()).collect(),
+        inherited_required: ancestors_required(qname, env),
         ..InitState::default()
     };
     let terminates = walk_stmts(&body.stmts, &mut state, &obligations, env);
@@ -328,6 +396,25 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
         // Fell off the end of the body without an explicit `return` — the
         // implicit return `rule:classes/definite-property-initialization` also covers.
         finish(&state, &obligations, env);
+    }
+    for read in &state.early_reads {
+        let name = &read.name;
+        let help = if read.inherited {
+            "call `parent::constructor(...)` before this line on every path".to_owned()
+        } else {
+            format!("assign `$this->{name}` before this line on every path")
+        };
+        env.diags.report(
+            Diagnostic::error(
+                code::E_UNINITIALIZED_PROPERTY,
+                format!("`${name}` is read before the constructor assigns it"),
+            )
+            .with_primary(
+                read.span,
+                "a path reaches this read before the property has a value",
+            )
+            .with_help(help),
+        );
     }
     for refused in &state.refused {
         let name = &refused.name;
@@ -365,23 +452,110 @@ fn parent_declares_constructor(qname: &QName, env: &Env<'_>) -> bool {
         .any(|parent| resolve_method(parent, "constructor", env.signatures, env.graph).is_some())
 }
 
+/// The required properties of every class `qname` extends, nearest first.
+fn ancestors_required(qname: &QName, env: &Env<'_>) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut seen: Vec<&QName> = Vec::new();
+    let mut queue: Vec<&QName> = env
+        .graph
+        .get(qname)
+        .map(|links| links.extends.iter().collect())
+        .unwrap_or_default();
+    while let Some(ancestor) = queue.pop() {
+        if seen.contains(&ancestor) {
+            continue;
+        }
+        seen.push(ancestor);
+        names.extend(
+            own_required_properties(ancestor, env.signatures, env.graph)
+                .into_iter()
+                .map(|(name, _)| name),
+        );
+        if let Some(links) = env.graph.get(ancestor) {
+            queue.extend(links.extends.iter());
+        }
+    }
+    names
+}
+
+/// Checks that each `set` hook of a property in `required` stores the
+/// property on every path that does not throw.
+///
+/// A write to a hooked property runs its `set` hook, so the constructor's
+/// `$this->p = v` assigns `$p` only when the hook stores a value. A hook that
+/// can return without storing is refused here, at the hook, and every write
+/// in a constructor then counts as an assignment. The short `set => expr;`
+/// form always stores, so only a block body is walked, with [`walk_stmts`]
+/// and the hook's own property as the one obligation.
+fn check_set_hooks_commit(
+    decl: &ClassDecl,
+    qname: &QName,
+    required: &[(String, Span)],
+    env: &mut Env<'_>,
+) {
+    use nvs_syntax::ast::{PropertyHookBody, PropertyHookKind};
+    for member in &decl.members {
+        let ClassMemberKind::Property(p) = &member.kind else {
+            continue;
+        };
+        let name = strip_sigil(span_text(env.src, p.name));
+        let Some(own) = required.iter().find(|(r, _)| r == name) else {
+            continue;
+        };
+        for hook in p.hooks.iter().flatten() {
+            let Some(PropertyHookBody::Block(block)) = &hook.body else {
+                continue;
+            };
+            if hook.kind != PropertyHookKind::Set {
+                continue;
+            }
+            let one = std::slice::from_ref(own);
+            let obligations = CtorObligations {
+                qname,
+                required: one,
+                ctor_name: crate::returns::closing_brace(block),
+                needs_parent_call: false,
+                body: Body::SetHook,
+            };
+            let mut state = InitState::default();
+            if !walk_stmts(&block.stmts, &mut state, &obligations, env) {
+                finish(&state, &obligations, env);
+            }
+        }
+    }
+}
+
 /// Reports whatever `state` still leaves unsatisfied at one point a
-/// constructor can return from.
+/// constructor, or a `set` hook, can return from.
 fn finish(state: &InitState, obligations: &CtorObligations<'_>, env: &mut Env<'_>) {
     for (name, span) in obligations.required {
-        if !state.assigned.contains(name) {
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_UNINITIALIZED_PROPERTY,
-                    format!("`${name}` is not assigned on every path out of the constructor"),
-                )
-                .with_primary(*span, "declared here")
-                .with_secondary(
-                    obligations.ctor_name,
-                    "not assigned along every path out of this constructor",
-                ),
-            );
+        if state.assigned.contains(name) {
+            continue;
         }
+        let diag = match obligations.body {
+            Body::Constructor => Diagnostic::error(
+                code::E_UNINITIALIZED_PROPERTY,
+                format!("`${name}` is not assigned on every path out of the constructor"),
+            )
+            .with_primary(*span, "declared here")
+            .with_secondary(
+                obligations.ctor_name,
+                "not assigned along every path out of this constructor",
+            ),
+            Body::SetHook => Diagnostic::error(
+                code::E_UNINITIALIZED_PROPERTY,
+                format!("the `set` hook of `${name}` does not store a value on every path"),
+            )
+            .with_primary(
+                obligations.ctor_name,
+                format!("a path can reach the end of the hook without assigning `$this->{name}`"),
+            )
+            .with_secondary(*span, "this property has no default value")
+            .with_help(format!(
+                "assign `$this->{name}` on every path that does not throw"
+            )),
+        };
+        env.diags.report(diag);
     }
     if obligations.needs_parent_call && !state.parent_called {
         env.diags.report(
@@ -655,7 +829,20 @@ pub(crate) fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
     if scan_branches(e, state, env) {
         return;
     }
-    each_child_expr(e, &mut |child| scan_expr(child, state, env));
+    // The target of a plain `$this->p = v` is the one `$this->p` that is not
+    // a read. A compound operator reads the target first.
+    match &e.kind {
+        ExprKind::Assign {
+            op: AssignOp::Assign,
+            target,
+            value,
+            ..
+        } if this_property(target, env).is_some() => scan_expr(value, state, env),
+        _ => each_child_expr(e, &mut |child| scan_expr(child, state, env)),
+    }
+    if let Some(name) = this_property(e, env) {
+        state.read(name, e.span);
+    }
     match &e.kind {
         ExprKind::Assign { op, target, .. } => {
             if let Some((name, span)) = this_property_written(target, env) {
@@ -889,9 +1076,35 @@ mod tests {
     }
 
     #[test]
-    fn a_hooked_property_is_exempt_from_the_check() {
+    fn a_hooked_property_that_reads_no_slot_is_exempt_from_the_check() {
         let diags = check_src("<?nvs\nclass Foo {\n  public int $count { get => 1; }\n}\n");
         assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_set_hook_that_does_not_always_store_is_diagnosed() {
+        let diags = check_src(
+            "<?nvs\nclass Foo {\n  public int $n { set (int $v) { if ($v > 0) { $this->n = $v; } } }\n  public function constructor() { $this->n = 1; }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNINITIALIZED_PROPERTY)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_constructor_read_before_the_assignment_is_diagnosed() {
+        let diags = check_src(
+            "<?nvs\nclass Foo {\n  public int $x;\n  public function constructor() { echo $this->x; $this->x = 1; }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNINITIALIZED_PROPERTY)),
+            "{diags:?}"
+        );
     }
 
     /// `rule:classes/lateinit-restrictions`: a `lateinit` property is exempt from `rule:classes/definite-property-initialization`'s

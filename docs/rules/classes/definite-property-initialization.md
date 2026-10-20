@@ -13,11 +13,18 @@ Without it, the mistake surfaces at whichever read happens to hit the unset prop
 constructor that forgot it. One analysis over two binding kinds turns that into a refusal at the
 cause.
 
-Two exemptions are declared rather than implicit: a `lateinit` property (`rule:classes/lateinit`), and
-a property with a hook. A virtual property with a `get` hook and no backing slot has nothing to
-initialize, and the check has no model of a `set` hook's body, so it cannot tell whether the hook
-commits a value; it never refuses a hook that does. Neither
-copy depth reopens the gap — `clone` starts from a live object and cannot produce a less initialized
+A constructor also reads a property through `$this->` only where every path has assigned it, and an
+inherited one only after `parent::constructor(...)`; an earlier read is refused at the read, since it
+would see the zeroed slot.
+
+A hooked property carries the obligation when its backing slot is read: by a plain read, because it
+has no `get` hook, or by a hook that names `$this->prop` other than as the target of `=`. Each `set`
+hook of such a property stores the property on every path that does not throw, or is refused at the
+hook, and every write in the constructor then counts as an assignment. A property whose hooks compute
+its value from other properties reads no slot and owes nothing.
+
+One exemption is declared rather than implicit: a `lateinit` property (`rule:classes/lateinit`).
+Neither copy depth reopens the gap — `clone` starts from a live object and cannot produce a less initialized
 one, and the graph copy either copies a live source or refuses a payload missing a declared property
 (`rule:classes/serialize-is-a-closed-format`).
 
