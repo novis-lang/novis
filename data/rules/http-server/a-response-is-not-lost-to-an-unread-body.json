@@ -1,0 +1,13 @@
+{
+  "title": "A connection closes only after its last response is written, and reads what its peer still sends for up to two seconds, so an unread body never costs the response",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/four-idle-waits-all-finite",
+    "http-server/request-body-and-upload-total-are-two-caps",
+    "http-server/the-body-is-read-on-demand-under-two-caps",
+    "concurrency/a-drain-closes-a-connection-cleanly"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/serve.rs"
+  ]
+}

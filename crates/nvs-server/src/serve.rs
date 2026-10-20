@@ -218,6 +218,24 @@ impl Drop for DrainCut {
 /// per step on both paths.
 pub const FILE_CHUNK: usize = 64 * 1024;
 
+/// How many header lines a request head may have, `Host` included:
+/// `rule:http-server/a-request-head-has-at-most-100-header-lines`. The 101st is
+/// answered `431` and the connection is closed.
+///
+/// `hyper`'s own default, set here by name so the bound is this server's and
+/// does not move with `hyper`'s version. `hyper` parses a head into an array of
+/// this many entries, so it is also what one head costs to parse.
+pub const MAX_HEADER_LINES: usize = 100;
+
+/// The longest a connection that is closing reads and discards what its peer
+/// still sends, after its last response is written:
+/// `rule:http-server/a-response-is-not-lost-to-an-unread-body`.
+///
+/// Long enough for a peer to read a response it was sent while it was still
+/// sending a body, and short enough that a peer which never closes holds the
+/// connection's coroutine for two seconds and no longer.
+pub const LINGER: Duration = Duration::from_secs(2);
+
 /// Why a response body ended before all of it was sent.
 ///
 /// An error rather than an end, because an end makes `hyper` finish the
@@ -2342,9 +2360,11 @@ where
     // and should not: [`crate::io::ConnectionIo`] is an `Rc` and a socket
     // registered on the core that accepted it, and making it `Send` to satisfy
     // a bound would be saying it may move between cores.
-    let mut connection = http1::Builder::new().serve_connection(io, service);
+    let mut connection = http1::Builder::new()
+        .max_headers(MAX_HEADER_LINES)
+        .serve_connection(io, service);
     let mut asked_to_close = false;
-    let framed = block_on(std::future::poll_fn(|cx| {
+    let driven = block_on(std::future::poll_fn(|cx| {
         // `rule:concurrency/a-drain-closes-a-connection-cleanly`: a connection
         // idle between requests closes the moment it sees the drain, and only
         // `hyper` knows whether it is idle — the adapter's phase reads the
@@ -2390,18 +2410,22 @@ where
             crate::bounds::wake_at(at);
         }
         polled
-    }))
-    .unwrap_or(Ok(()));
+    }));
+    // A cancelled drive is `None`, and its connection is not closed as below:
+    // the task that would wait out the peer is the one being ended.
+    let ended_cleanly = matches!(driven, Some(Ok(())));
+    let framed = driven.unwrap_or(Ok(()));
+    let upgrade = pending_socket.borrow_mut().take();
     // `rule:concurrency/a-connection-is-a-root-isolate`'s hand-over, at the first moment both halves exist: the
     // `101` is on the wire, `hyper` has stopped framing, and the descriptor
     // under it is nobody's until this line takes it. `hyper` ends a connection
     // it answered `101` on without shutting the socket down, which is what
     // makes the same bytes a WebSocket from here.
     //
-    // A connection that upgraded nothing never reaches this: `into_parts` is
-    // asked for only where a request filled the slot, so the ordinary path
-    // still drops the whole connection here and closes it.
-    if let Some(upgrade) = pending_socket.borrow_mut().take() {
+    // A connection that upgraded nothing never reaches this, and is closed by
+    // [`close_after_the_response`] once its connection isolate is joined.
+    let mut closing = None;
+    if let Some(upgrade) = upgrade {
         let parts = connection.into_parts();
         // What `hyper` read past the request head travels with the stream:
         // `crate::socket`'s docs § *What `hyper` had already read* is the home
@@ -2447,6 +2471,8 @@ where
         } else {
             peer.refuse();
         }
+    } else if ended_cleanly {
+        closing = Some(connection.into_parts().io);
     }
     // The connection isolate outlives every request on this socket, so this is
     // where it is waited for: `hyper` has no more requests to frame, and a
@@ -2461,7 +2487,41 @@ where
     if let Some(running) = connection_isolate.borrow_mut().take() {
         drop(running.join(&mut ctx.borrow_mut()));
     }
+    if let Some(io) = closing {
+        let mut until = Instant::now() + LINGER;
+        if draining.is_draining() {
+            until = until.min(drain_seen.period_ends(drain_period));
+        }
+        close_after_the_response(io, until);
+    }
     framed
+}
+
+/// Closes a connection whose last response is written, so that its peer can
+/// read that response: `rule:http-server/a-response-is-not-lost-to-an-unread-body`.
+///
+/// A socket closed while the peer's bytes are still unread in it is reset, not
+/// closed, and a reset can discard a response the peer has received and not yet
+/// read. A program that does not read a request body leaves that body unread,
+/// and so does a `413`. So the FIN goes out first, and what the peer still
+/// sends is read and discarded until it closes its side, its socket fails, or
+/// `until` passes. Nothing read here reaches a program or `hyper`, so it is not
+/// counted against `upload_total`: `until` is the whole bound.
+///
+/// What it spends: one [`crate::io::SCRATCH`] buffer of this coroutine's stack
+/// while it reads, and the connection's coroutine for up to [`LINGER`] past
+/// its last response. A peer that closes once it has the response ends it at
+/// that read.
+fn close_after_the_response(io: ConnectionIo, until: Instant) {
+    let mut stream = io.into_stream();
+    if stream.shutdown_write().is_err() {
+        return;
+    }
+    stream.set_deadline(Some(until));
+    let mut scratch = [0_u8; crate::io::SCRATCH];
+    while let Ok(read) = stream.read(&mut scratch)
+        && read > 0
+    {}
 }
 
 /// The response one finished request is.
@@ -6102,6 +6162,120 @@ pub(crate) mod tests {
                 None,
             )
         })
+    }
+
+    /// A handler whose program answers `ok` and never reads the body it was
+    /// given, which is the program `rule:http-server/a-response-is-not-lost-to-an-unread-body` is about.
+    fn ignore_the_body() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin| {
+            let (inbound, supply) = carrying(request);
+            let program: Program = Box::new(|child: &mut Ctx, _args| {
+                child.write_output(b"ok").expect("a buffer");
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                supply,
+                None,
+            )
+        })
+    }
+
+    /// Writes `request` down one socket from a client that reads nothing until
+    /// all of it is written, then reads until the server closes, and answers
+    /// what it read. A failed write or read is in the answer, so a reset is a
+    /// message the case prints and not a panic in the client thread.
+    fn written_whole_then_read(addr: std::net::SocketAddr, request: Vec<u8>) -> String {
+        let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+        socket
+            .set_read_timeout(Some(CLIENT_PATIENCE))
+            .expect("a read timeout");
+        let mut answer = String::new();
+        if let Err(failed) = socket.write_all(&request) {
+            answer.push_str(&format!("[the write failed: {failed}]"));
+        }
+        let mut read = Vec::new();
+        if let Err(failed) = socket.read_to_end(&mut read) {
+            answer.push_str(&format!("[the read failed: {failed}]"));
+        }
+        answer.insert_str(0, &String::from_utf8_lossy(&read));
+        answer
+    }
+
+    /// A POST whose program never reads its body is still answered, and the
+    /// connection ends with a close and not a reset.
+    ///
+    /// The client is the hardest one for the server: it writes the whole
+    /// 4 MiB body and a request behind it before it reads anything, so most of
+    /// the body is still unread in the server's socket when the response is
+    /// written. A socket closed with bytes unread in it is reset, and on the
+    /// loopback the reset takes the response the client has not read yet.
+    /// `hyper` stops reading a body nobody wants and closes the connection, so
+    /// the pipelined `GET` is not answered.
+    ///
+    /// The control row is the same pair with an empty POST body, which leaves
+    /// nothing unread: both requests are answered, so the case counts
+    /// responses.
+    #[test]
+    fn a_post_whose_body_is_never_read_is_still_answered() {
+        const UNREAD: usize = 4 << 20;
+        let behind = b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+        for (length, answered) in [(0, 2), (UNREAD, 1)] {
+            let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+                .expect("the OS refused a port");
+            let addr = listener
+                .local_addr()
+                .expect("a bound listener had no address");
+            let mut request =
+                format!("POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: {length}\r\n\r\n")
+                    .into_bytes();
+            request.resize(request.len() + length, b'a');
+            request.extend_from_slice(behind);
+            let client = std::thread::spawn(move || written_whole_then_read(addr, request));
+            let answer = served_by(listener, &ignore_the_body(), client);
+            assert_eq!(
+                answer.matches("HTTP/1.1 200 OK\r\n").count(),
+                answered,
+                "a {length}-byte unread body: {answer}"
+            );
+            assert!(
+                answer.ends_with("ok") && !answer.contains("[the"),
+                "a {length}-byte unread body did not end in a clean close: {answer}"
+            );
+        }
+    }
+
+    /// `rule:http-server/a-request-head-has-at-most-100-header-lines`: a head
+    /// with [`MAX_HEADER_LINES`] lines, `Host` among them, is answered, and one
+    /// more line is `431` and a close.
+    #[test]
+    fn a_request_head_is_answered_up_to_its_header_line_limit() {
+        for (lines, status) in [
+            (MAX_HEADER_LINES, "HTTP/1.1 200 OK\r\n"),
+            (
+                MAX_HEADER_LINES + 1,
+                "HTTP/1.1 431 Request Header Fields Too Large\r\n",
+            ),
+        ] {
+            let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+                .expect("the OS refused a port");
+            let addr = listener
+                .local_addr()
+                .expect("a bound listener had no address");
+            let mut request =
+                String::from("GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n");
+            for line in 2..lines {
+                request.push_str(&format!("X-Line-{line}: v\r\n"));
+            }
+            request.push_str("\r\n");
+            let client =
+                std::thread::spawn(move || written_whole_then_read(addr, request.into_bytes()));
+            let answer = served_by(listener, &ignore_the_body(), client);
+            assert!(
+                answer.starts_with(status),
+                "a head of {lines} header lines: {answer}"
+            );
+        }
     }
 
     /// A body reaches the program in full, and the pull that read it parked.
