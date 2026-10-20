@@ -1202,6 +1202,90 @@ pub struct InlineSnapshot {
     pub owner: Option<String>,
 }
 
+/// `Core\Test::assertThrows`'s `$expected` is a `C::class` written at the
+/// call, and `C` is a class of the `Throwable` tree
+/// ([`code::E_ASSERT_THROWS_CLASS`], `rule:testing/assertions-are-typed`).
+///
+/// The parameter stays a `string`, since `C::class` is one
+/// (`rule:types/class-reference`), so the check is here, at the written
+/// argument, beside [`note_inline_snapshot`]. A string or a variable is
+/// refused because a misspelt name would fail only when the test runs. A
+/// class outside the tree is refused because nothing throws it. A
+/// `static::class` is refused too, since its class is known only at run time.
+/// A side that does not resolve was already reported by
+/// `crate::expr::members::check_class_name_const`.
+pub(crate) fn reject_unwritten_thrown_class(
+    owner: &QName,
+    member: &str,
+    args: &nvs_syntax::ast::CallArgs,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if member != "assertThrows"
+        || !owner.is_core()
+        || owner.segments().len() != 2
+        || owner.short_name() != "Test"
+    {
+        return;
+    }
+    let nvs_syntax::ast::CallArgs::List(list) = args else {
+        return;
+    };
+    let named = list.iter().find(|arg| {
+        arg.name
+            .is_some_and(|name| span_text(env.src, name).trim_end_matches(':').trim() == "expected")
+    });
+    let positional = || list.iter().filter(|arg| arg.name.is_none()).nth(1);
+    let Some(arg) = named.or_else(positional) else {
+        return;
+    };
+    let class = match &arg.value.kind {
+        nvs_syntax::ast::ExprKind::ClassNameConst { class }
+            if !arg.spread && !matches!(class.kind, nvs_syntax::ast::ExprKind::StaticExpr) =>
+        {
+            class
+        }
+        _ => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_ASSERT_THROWS_CLASS,
+                    "`Core\\Test::assertThrows` needs the error class written as `C::class`",
+                )
+                .with_primary(arg.value.span, "this is not a written `::class`")
+                .with_help(
+                    "write the class you expect, such as `RuntimeError::class`. The compiler \
+                     then checks that the class exists and is an error class",
+                ),
+            );
+            return;
+        }
+    };
+    let Some(qname) = crate::expr::resolve_class_expr(class, ctx, env) else {
+        return;
+    };
+    // A name that is declared nowhere is `nvs_hir`'s `E0303` already.
+    let declared = env.graph.get(&qname).is_some()
+        || env.symbols.get(&qname).is_some()
+        || qname.is_reserved_global_interface();
+    if !declared || crate::expr::quals::is_throwable_shaped(&qname, env.graph) {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ASSERT_THROWS_CLASS,
+            format!("`{qname}` is not an error class, so it is never thrown"),
+        )
+        .with_primary(
+            arg.value.span,
+            "`assertThrows` can never pass with this class",
+        )
+        .with_help(
+            "name `Throwable` or a class that extends it, such as `RuntimeError::class` or \
+             `LogicError::class`",
+        ),
+    );
+}
+
 /// Records `rule:testing/inline-snapshots`'s row for a `Core\Test::assertMatchesInline` whose `$expected`
 /// is a written literal, and does nothing for every other call.
 ///

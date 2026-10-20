@@ -500,6 +500,10 @@ pub(crate) fn infer_static_call(
         // Records rather than refuses, like every other hook here that reads a
         // written argument. See [`crate::testing::note_inline_snapshot`].
         crate::testing::note_inline_snapshot(owner, name, args, env);
+        // `rule:testing/assertions-are-typed`'s `assertThrows` takes a written
+        // `C::class` of the `Throwable` tree. See
+        // [`crate::testing::reject_unwritten_thrown_class`].
+        crate::testing::reject_unwritten_thrown_class(owner, name, args, ctx, env);
         // `rule:security/optional-capability-degrades`'s roster, over the one member whose argument names a
         // capability — static-only, like the member. See
         // [`crate::capability`], which replaces nothing.

@@ -30,7 +30,7 @@ final class AtlasAttackTest
     {
         uint $i = 0;
         while ($i < 100) {
-            Test::assertThrows(fn() => Atlas::status('tiles.example.com'), 'RuntimeError');
+            Test::assertThrows(fn() => Atlas::status('tiles.example.com'), RuntimeError::class);
             $i = $i + 1;
         }
         echo "every connect failed\n";

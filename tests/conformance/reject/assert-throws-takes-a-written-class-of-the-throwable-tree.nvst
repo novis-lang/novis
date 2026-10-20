@@ -1,0 +1,41 @@
+--TEST--
+`Core\Test::assertThrows`'s second argument is a `C::class` written at the call, and `C` is a class of the `Throwable` tree. A string, a variable and a class outside the tree do not compile — `rule:testing/assertions-are-typed`
+--FILE--
+<?nvs
+final class Order {}
+
+interface Retryable {}
+
+final class Busy extends RuntimeError implements Retryable {}
+
+callable(): mixed $body = fn (): void => { throw new Busy("busy"); };
+string $name = "RuntimeError";
+
+// Refused: a string is checked only when the test runs.
+Core\Test::assertThrows($body, "RuntimeError");
+// Refused: a variable is the same.
+Core\Test::assertThrows($body, $name);
+// Refused: by name too.
+Core\Test::assertThrows($body, expected: "RuntimeError");
+// Refused: `Order` does not extend `Throwable`, so nothing throws it.
+Core\Test::assertThrows($body, Order::class);
+// Refused: an interface is not a class of the tree.
+Core\Test::assertThrows($body, Retryable::class);
+
+// Accepted: a class of the tree, its own or built in.
+Core\Test::assertThrows($body, Busy::class);
+Core\Test::assertThrows($body, RuntimeError::class);
+Core\Test::assertThrows($body, expected: Throwable::class);
+--EXPECTF-ERROR--
+error[E0865]: `Core\Test::assertThrows` needs the error class written as `C::class`
+%A
+error[E0865]: `Core\Test::assertThrows` needs the error class written as `C::class`
+%A
+error[E0865]: `Core\Test::assertThrows` needs the error class written as `C::class`
+%A
+error[E0865]: `Order` is not an error class, so it is never thrown
+%A
+error[E0865]: `Retryable` is not an error class, so it is never thrown
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

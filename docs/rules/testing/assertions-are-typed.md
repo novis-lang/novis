@@ -12,6 +12,12 @@ identity. `assertEquals` compares values — scalars natively, objects only thro
 a property walk: a comparison that quietly changes meaning when a class gains a field is a bug found
 years later.
 
+`assertThrows`'s second argument is a `C::class` written at the call, and `C` is a class of the
+`Throwable` tree (`E0865`). A string, a variable and a class outside the tree do not compile: a
+misspelt name would otherwise fail only when the test runs, and a class nothing throws makes an
+assertion that can never pass. The parameter stays a `string`, since `C::class` is one
+(`rule:types/class-reference`), so the check is made at the argument.
+
 The roster is wide on purpose. Ranking the right member by the subject's type at the call site is
 the language server's job, and not a reason to reshape the API into a chain.
 
