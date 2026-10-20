@@ -2,7 +2,7 @@
 // Measures building one entry for a cache fill to hand back. A program does
 // this once for every secret it fetches from somewhere else.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {
