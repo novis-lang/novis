@@ -1,0 +1,30 @@
+--TEST--
+A `<` after a built-in type that takes no type argument is `E0441` at the `<`, in a return type and in a parameter type
+--FILE--
+<?nvs
+class Numbers {
+    public static function count(iterable<int> $all): int {
+        return 0;
+    }
+
+    public static function first(int<int> $x): int {
+        return $x;
+    }
+
+    public static function each(): Iterator<int> {
+        yield 1;
+    }
+}
+
+foreach (Numbers::each() as int $n) {
+    echo $n, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0441]: `iterable` takes no type arguments
+%A
+error[E0441]: `int` takes no type arguments
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
