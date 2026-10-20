@@ -40,16 +40,18 @@ lands it on.
 Under `nvs.check.scope = open` only the open documents are surveyed, so a map is lent once the file that
 declares it, or the entry that requires it, is open too.
 
-`nvs check <file>` borrows by the same test, and searches only when it must. It walks the file first; when
-that walk found no declaration of the file's own program and reported `E0303` or `E0306`, it walks the
-`.nvs` files under the project root — the directory of the first `--config` file, else the working
-directory, skipping what the server skips — in path order, stops at the first lender that owns the
-file, else takes the nearest that holds it, and checks the file again with that lender's declarations
-behind its own. A file that declares a
+`nvs check <file>` borrows by the same test, and searches only when it must. It checks the file first;
+when the walk found no declaration of the file's own program, and the walk or the type phase after it
+reported `E0303` or `E0306`, it walks the `.nvs` files under the project root — the directory of the
+first `--config` file, else the working directory, skipping what the server skips — in path order,
+stops at the first lender that owns the file, else takes the nearest that holds it, and checks the file
+again with that lender's declarations behind its own. The type phase counts because it is where a
+name written in a type, in `new` or before `::class` is reported: a class file that names a class of
+its own namespace without a `use` reports nothing until then. A file that declares a
 map, or names nothing undeclared, is checked once and searches nothing; a file no lender reaches keeps
-the first walk's diagnostics, and so does a file checked from a directory outside its project. `E0303`
+the first check's diagnostics, and so does a file checked from a directory outside its project. `E0303`
 and `E0306` are the two diagnostics a borrowed map can change, so no other finding starts a search.
-The second walk starts from a fresh source map, and its diagnostics are the ones reported, in the same
+The second check starts from a fresh source map, and its diagnostics are the ones reported, in the same
 text and `--json` formats; since a borrowed declaration reports nothing, every diagnostic is about a
 file the check read for the checked file. `nvs_hir::lenders` is the one implementation of what a lender
 is and whom it lends to, for the server and the command both, so the two cannot disagree.
@@ -59,7 +61,7 @@ just edited, and that file is most often a class file under an `autoload` root; 
 command it was told to trust reports `E0303` and `E0306` on a program that builds clean, and the false
 error sends the agent to fix code that is correct. For such a file the command costs one read of each
 `.nvs` file under the root, one name-resolution walk per file holding `autoload` or `require` up to the
-lender, and a second walk of the checked file; a program's entry point pays nothing new.
+lender, and a second check of the checked file; a program's entry point pays nothing new.
 
 Nothing is configured for this. Where two lenders own one file, or hold it from one directory, the first
 in entry-path order lends, and nothing says which. The survey costs one read of each file under the root at startup,
@@ -89,6 +91,9 @@ map for the length of one command.
 - **A test layout the editor already handles, recommended in place of the usual one.** An entry that
   requires each test file and then the bootstrap is the layout the testing reference describes, and a
   test file that uses a class is the ordinary case.
+- **Deciding the search after the name-resolution walk alone.** It saves one type phase for a file
+  that borrows, and a same-namespace class named only in a type, in `new` or before `::class` kept a
+  false `E0303`, the error this search exists to remove.
 - **The first holder in entry-path order.** A program at the root sorts before `tests/bootstrap.nvs`,
   and its map lacks every root the bootstrap adds, so a test file that builds clean reported `E0306`.
 - **Surveying by parsing every file.** The keyword search excludes almost every file for the cost of a
