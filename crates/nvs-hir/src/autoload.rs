@@ -544,6 +544,56 @@ impl AutoloadMap {
         probe
     }
 
+    /// Adds to each `E0303` for a name this map could have loaded a note naming
+    /// where `autoload` looked, so a wrong root in a program's declarations reads
+    /// differently from a typo in the class name.
+    ///
+    /// A name under a prefix gets the files probed for it, in probe order. A
+    /// name no prefix covers gets the prefixes there are. A map with no entries
+    /// adds nothing, and neither does a name under `Core`, which no root can
+    /// declare. Paths are shown relative to `base`, the entry point's directory,
+    /// which is what `autoload`'s literals are written against.
+    ///
+    /// It probes the filesystem again for each such name: one `canonicalize` per
+    /// root, on a failed compile only. It goes through [`Self::resolve`], so the
+    /// cache key's trace does not change.
+    pub fn note_searched_roots(&self, diags: &mut Diagnostics, base: &Path) {
+        if self.entries.is_empty() {
+            return;
+        }
+        let base = base.canonicalize().unwrap_or_else(|_| base.to_path_buf());
+        for diagnostic in diags.iter_mut() {
+            let Some(name) = crate::hierarchy::undeclared_subject(diagnostic) else {
+                continue;
+            };
+            if name.is_core() || name.segments().len() < 2 {
+                continue;
+            }
+            let probe = self.resolve(&name);
+            let note = if probe.tried.is_empty() {
+                let mut prefixes: Vec<String> = self
+                    .entries
+                    .iter()
+                    .map(|entry| format!("`{}`", entry.segments.join("\\")))
+                    .collect();
+                prefixes.sort();
+                prefixes.dedup();
+                format!(
+                    "no `autoload` prefix covers `{name}`. The prefixes are {}",
+                    prefixes.join(", ")
+                )
+            } else {
+                let files: Vec<String> = probe
+                    .tried
+                    .iter()
+                    .map(|path| format!("`{}`", show(path, &base)))
+                    .collect();
+                format!("`autoload` looked for `{name}` in {}", files.join(", "))
+            };
+            diagnostic.notes.push(note);
+        }
+    }
+
     /// [`Self::resolve`], keeping what it probed in this map's [`ProbeTrace`].
     ///
     /// The graph walk resolves through this one; every other caller through the

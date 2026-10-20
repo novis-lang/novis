@@ -1,0 +1,42 @@
+--TEST--
+`E0303` for a name an `autoload` prefix covers lists every file it looked in, and for a name no prefix covers lists the prefixes — `rule:programs/autoload`
+--FILE--
+<?nvs
+// `Shop\Cart` is under the `Shop` prefix, so both of its roots were searched,
+// in the order they are written. `Blog\Post` is under no prefix at all.
+autoload 'Shop' from './lib', './vendor/shop';
+echo Shop\Cart::total(), "\n";
+echo Blog\Post::title(), "\n";
+--FILE lib/Order.nvs--
+<?nvs
+namespace Shop;
+
+class Order
+{
+}
+--FILE vendor/shop/Item.nvs--
+<?nvs
+namespace Shop;
+
+class Item
+{
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0303]: `Shop\Cart` is not declared
+  --> case.nvs:5:6
+  |
+5 | echo Shop\Cart::total(), "\n";
+  |      ^^^^^^^^^ no matching declaration
+  = note: `autoload` looked for `Shop\Cart` in `lib/Cart.nvs`, `vendor/shop/Cart.nvs`
+
+error[E0303]: `Blog\Post` is not declared
+  --> case.nvs:6:6
+  |
+6 | echo Blog\Post::title(), "\n";
+  |      ^^^^^^^^^ no matching declaration
+  = note: no `autoload` prefix covers `Blog\Post`. The prefixes are `Shop`
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
