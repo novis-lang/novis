@@ -142,7 +142,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::expr::{
     check_array_key_type, check_condition, check_expr, check_expr_stmt, check_return,
     check_unset_target, int_literal_digits, is_assignable, reject_finish_marker_arm,
-    reject_secret_output, report_mismatch, require_stringable,
+    reject_secret_output, reject_uncatchable_arm, report_mismatch, require_stringable,
 };
 use crate::expr_table::ExprInfo;
 pub(crate) use crate::live::Live;
@@ -1741,6 +1741,7 @@ pub(crate) fn check_stmt(
                 // clause that binds nothing names one just as loudly.
                 let ty = lower_type(&catch.ty, ctx, env);
                 reject_finish_marker_arm(ty, catch.ty.span, env);
+                reject_uncatchable_arm(ty, catch.ty.span, env);
                 if let Some(var) = catch.var {
                     let name = strip_sigil(span_text(env.src, var)).to_owned();
                     declare_binding(scope, &name, ty, var, false, env);

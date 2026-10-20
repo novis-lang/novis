@@ -893,4 +893,16 @@ codes! {
          runs on its own and reads the value the property is declared with. Return the value \
          from a `#[Fixture]` method instead.",
     );
+    /// A `catch` clause or arm naming a type no `Throwable` can be — a scalar,
+    /// an array, an enum, or a class outside the `Throwable` tree —
+    /// `rule:errors/throwable-hierarchy`. Such a clause never runs.
+    ///
+    /// An interface is allowed, since a class under `Throwable` may implement
+    /// it, and so are `object` and `mixed`. [`E_THROW_OPERAND_NOT_THROWABLE`]
+    /// is the same check at `throw`.
+    pub const E_CATCH_TYPE_NOT_THROWABLE: Code = Code::new("E0864").card(
+        "A `catch` works only with `Throwable`, a class that extends it, or an interface. This \
+         type is none of them, so the `catch` never runs. Name the error class you expect, such \
+         as `RuntimeError`.",
+    );
 }
