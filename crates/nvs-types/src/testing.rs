@@ -1149,7 +1149,8 @@ fn check_option_values(fields: &[AnonObjectField], env: &mut Env<'_>) {
     for field in fields {
         let option = span_text(env.src, field.name).to_owned();
         let (fault, help) = match option.as_str() {
-            "skip" | "because" => match crate::defaults::literal_default(&field.value, string, env) {
+            "skip" | "because" => match crate::defaults::literal_default(&field.value, string, env)
+            {
                 Some(crate::defaults::ConstArg::Str(text)) if text.trim().is_empty() => (
                     "is empty, so it gives no reason",
                     "write the reason in the text, such as `\"needs a network\"`",

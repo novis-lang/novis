@@ -613,6 +613,9 @@ every time: write the row against the parameter list. A field naming no paramete
 not a literal of that parameter's declared type, a row omitting a field its siblings supply, and the
 marker written on a method that is no test at all.
 
+`null` is a literal of a parameter whose type has `null` in it, such as `?int`, and the row fills
+that parameter with `null`. At a parameter whose type has no `null`, it is the same refusal.
+
 Where a row and a fixture could both answer one parameter, the **row** wins: it was written against
 this method's own parameter list, while a fixture answers every method of the class at once. Each
 row's values are folded to constants in parameter order rather than in written order, because that
@@ -976,8 +979,9 @@ A test that asserts nothing fails — the ledger already knows the count, and
 `Core\Test::assertDoesNotThrow(callable)` is how a test states "this must merely not throw",
 explicitly.
 
-A skip states a reason: `skip: true` is a compile error and a written sentence is not. A retry
-states one too — `retries:` with no `because:` beside it is refused where it is written — and a test
+A skip states a reason: `skip: true` is a compile error and a written sentence is not, and an empty
+or blank one is `E0880`. A retry states one too — `retries:` with no `because:` beside it is refused
+where it is written, a blank `because:` is `E0880`, and so is a `retries:` below 1 — and a test
 that passed on a later attempt is its own verdict, `flaky`, never green: its own mark, its own count
 in every summary, and the element CI systems already read as "passed, but it flaked". It carries the
 **last failed** attempt's message, the attempt that passed having produced nothing to report. Only a

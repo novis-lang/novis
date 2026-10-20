@@ -41,8 +41,8 @@ final class EdgeTest
         Test::assertSame(EdgeTest::$attempts, 0);
     }
 
-    #[Test(skip: "")]
-    public function theReasonIsEmpty(): void
+    #[Test(skip: "x")]
+    public function theReasonIsOneLetter(): void
     {
         int $big = 9223372036854775807;
         Test::assertSame($big + 1, 0);
@@ -154,7 +154,7 @@ try {
     echo 'retry: ', Core\Str::slice($never->message, 0, 60), "\n";
 }
 try {
-    $direct->theReasonIsEmpty();
+    $direct->theReasonIsOneLetter();
 } catch (Throwable $overflow) {
     echo 'skip: ', Core\Str::slice($overflow->message, 0, 60), "\n";
 }

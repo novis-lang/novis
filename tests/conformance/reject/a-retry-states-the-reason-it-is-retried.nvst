@@ -36,9 +36,9 @@ final class AcceptedTest {
         Test::assertSame(1, 1);
     }
 
-    // Refused too, and for the same reason: an allowance of zero is still a
-    // written `retries:`, and the option is what the rule is about.
-    #[Test(skip: "a skip is not a reason to retry", retries: 0)]
+    // Refused too, and for the same reason: a `skip:` beside the retry is
+    // not a reason for it.
+    #[Test(skip: "a skip is not a reason to retry", retries: 1)]
     public function aRetryBesideAnUnrelatedOption(): void {
         Test::assertSame(1, 1);
     }
