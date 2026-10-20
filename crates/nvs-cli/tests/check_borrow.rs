@@ -6,7 +6,8 @@
 //! undeclared. These cases hold that the command finds the program that lends
 //! the map, that a real mistake in the class file is still reported, that the
 //! first program in path order lends, that a program naming the file's root
-//! outranks one that only holds it by directory, that a file no program lends
+//! outranks one that only holds it by directory, that the nearest of those that
+//! hold it by directory lends, that a file no program lends
 //! to is checked as before, and that a file declaring its own map never
 //! borrows.
 //!
@@ -218,6 +219,38 @@ fn a_program_that_names_the_files_root_outranks_one_at_the_root() {
     );
 
     let checked = project.check(&["src/GroupedPoint.nvs"]);
+    assert_eq!(checked.status.code(), Some(0), "{}", stderr(&checked));
+}
+
+/// A test directory's bootstrap requires the project's map and a second one.
+/// A program at the root sorts first and holds the test file by the directory
+/// test too, but the bootstrap's directory is nearer, so its map lends, and the
+/// class only the second map reaches resolves.
+#[test]
+fn the_nearest_program_that_holds_a_test_file_lends() {
+    let project = Project::new("nearest-holder");
+    project.write("autoload.nvs", "<?nvs\nautoload 'Shop' from './src';\n");
+    project.write(
+        "examples/autoload.nvs",
+        "<?nvs\nautoload 'Shop\\Examples' from './src';\n",
+    );
+    project.write(
+        "examples/src/Example.nvs",
+        "<?nvs\nnamespace Shop\\Examples;\n\ninterface Example {\n    \
+         public function title(): string;\n}\n",
+    );
+    project.write(
+        "tests/bootstrap.nvs",
+        "<?nvs\nrequire '../autoload.nvs';\nrequire '../examples/autoload.nvs';\n",
+    );
+    project.write(
+        "tests/ExampleTest.nvs",
+        "<?nvs\nuse Shop\\Examples\\Example;\n\nfinal class ExampleTest {\n    \
+         public function titleOf(Example $example): string {\n        \
+         return $example->title();\n    }\n}\n",
+    );
+
+    let checked = project.check(&["tests/ExampleTest.nvs"]);
     assert_eq!(checked.status.code(), Some(0), "{}", stderr(&checked));
 }
 
