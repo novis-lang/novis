@@ -6,6 +6,7 @@ import type { Command } from "./cli.ts";
 import { checkCommand } from "./check.ts";
 import { claimsCommand } from "./claims.ts";
 import { cleanCommand } from "./clean.ts";
+import { decisionCommand } from "./decision.ts";
 import { doctorCommand } from "./doctor.ts";
 import { eventCommand } from "./event.ts";
 import { execCommand } from "./exec.ts";
@@ -60,6 +61,7 @@ export const commands: readonly Command[] = [
   affectedCommand,
   checkCommand,
   loopCommand,
+  decisionCommand,
   statusCommand,
   logCommand,
   wrapCommand,

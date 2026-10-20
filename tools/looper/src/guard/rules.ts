@@ -32,7 +32,7 @@ const CMDLET = /\b(?:set-content|add-content|out-file)\b|\[(?:system\.)?io\.file
 const SLEEP = new RegExp(String.raw`${START}(?:sleep\s|start-sleep\b|timeout\s+/t\b)|\b(?:do|then)\s+sleep\s`, "i");
 const POLL = new RegExp(String.raw`\bwhile\s+(?:true|:)(?:\s|;|$)|\bwhile\s*\(\s*\$true\s*\)|${START}until\s|\}\s*until\s*\(`, "i");
 const INSTALL = new RegExp(
-  String.raw`${START}(?:&\s*)?(?:\S*[\\/])?(?:looper(?:\.exe)?|cargo\s+run\b[^\n;&|]*\s--)\s+(?:self-update|service\s+(?:install|update))\b`,
+  String.raw`${START}(?:&\s*)?(?:\S*[\\/])?(?:looper(?:\.exe)?|cargo\s+run\b[^\n;&|]*\s--)\s+(?:self-update|service\s+install)\b`,
   "i",
 );
 /** Where a command ends: `&&`, `||`, `;`, `|` or a line break. */
@@ -84,7 +84,7 @@ export function shell(cmd: string, scratch: (target: string) => boolean): string
     return "a kill by process name, which can end another session's process. Stop your own background command with TaskStop, and another job with `looper exec kill <id>`, which `looper exec list` names.";
   }
   if (INSTALL.test(bare)) {
-    return "a session never installs or updates looper (docs/findings.md § loop-controls). The user does, or a project's after_retire hook.";
+    return "a session never installs looper or builds it in its own job (docs/findings.md § loop-controls). Run `looper service update --wait`, which the server runs outside the session.";
   }
   // A test run too wide to start at all is named before how its output is cut.
   for (const c of bare.split(SEGMENT)) {

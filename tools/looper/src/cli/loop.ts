@@ -4,7 +4,7 @@
 // (`../loop/worker.ts`) is the home of what a loop does with each control.
 //
 // - `loop run` is the loop's worker in the foreground, until its run ends. It exits 4 when another
-//   worker runs the loop. The hidden `--stand-in <script>` replaces the agent with the stand-in.
+//   worker runs the loop. It drops `LOOPER_ASKER`, so a session it runs asks as `agent`. The hidden `--stand-in <script>` replaces the agent with the stand-in.
 // - `loop add` adds the project's main loop, idle. `loop add --side <slug> [--from <ref>]` adds the side
 //   loop `side-<slug>` in a lane, or waiting for one. `../loop/lanes.ts` is the home of both. A loop
 //   that exists already is refused.
@@ -84,7 +84,7 @@ const SETTINGS: Record<string, [string, boolean]> = {
 };
 
 /** The words of `args` with `--loop <name>` taken out, and the name, `main` by default. */
-function loopName(args: string[]): { name: string; named: boolean; rest: string[] } {
+export function loopName(args: string[]): { name: string; named: boolean; rest: string[] } {
   const rest: string[] = [];
   let name = "main";
   let named = false;
@@ -101,7 +101,7 @@ function loopName(args: string[]): { name: string; named: boolean; rest: string[
 }
 
 /** The value of option `flag` in `args`, which it takes out, as `--flag <value>` or `--flag=<value>`. */
-function option(args: string[], flag: string): string | undefined {
+export function option(args: string[], flag: string): string | undefined {
   for (let i = 0; i < args.length; i++) {
     const a = args[i] as string;
     if (a === flag) {
@@ -119,7 +119,7 @@ function option(args: string[], flag: string): string | undefined {
 }
 
 /** Whether `args` holds `flag`, which it takes out. */
-function flag(args: string[], name: string): boolean {
+export function flag(args: string[], name: string): boolean {
   const at = args.indexOf(name);
   if (at < 0) return false;
   args.splice(at, 1);
@@ -127,12 +127,12 @@ function flag(args: string[], name: string): boolean {
 }
 
 /** A whole number of at least `min` from option `name`'s `value`. */
-function whole(name: string, value: string, min: number): number {
+export function whole(name: string, value: string, min: number): number {
   if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < min) throw usage(`\`${name}\` takes a whole number of at least ${min}`);
   return Number(value);
 }
 
-function noMore(args: string[], what: string): void {
+export function noMore(args: string[], what: string): void {
   if (args.length > 0) throw usage(`\`${what}\` does not take \`${args[0]}\``);
 }
 
@@ -238,6 +238,8 @@ function sideOf(root: string, record: LoopRecord): Side {
 async function runLoop(root: string, name: string, args: string[]): Promise<Report> {
   const script = option(args, "--stand-in");
   noMore(args, "loop run");
+  // The asker of the `start` is on record. A session, a check or a hook the worker runs asks as itself.
+  delete process.env.LOOPER_ASKER;
   const dir = join(loopsDir(root), name);
   mkdirSync(dir, { recursive: true });
   const record = loopRecord(root, dir);
