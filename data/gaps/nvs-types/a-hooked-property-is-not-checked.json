@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/ctor_init.rs",
-  "title": "A hooked property is not checked for initialization, and a read of it can crash.",
-  "text": "A plain property with no default and no constructor that assigns it is `E0409`, but a property with a `set` hook is not checked at all. `public A $a { set (A $v) { $this->a = $v; } }` in a class with no constructor compiles, and `$c->a->n` exits 5 with no output. A `set` hook that never stores, such as `set (string $v) { }`, does the same after the constructor writes the property: an `int` reads `0`, and a `string` or an object exits 5. `rule:classes/property-hooks` says a `set` hook that commits a value discharges the obligation as a plain assignment does, so a hook that does not commit should not. It closes when a hooked property that a path can leave unwritten is `E0409` or `E0428`, with a conformance case for each form.",
-  "goal": "compiler-holes"
-}

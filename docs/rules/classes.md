@@ -253,11 +253,18 @@ Without it, the mistake surfaces at whichever read happens to hit the unset prop
 constructor that forgot it. One analysis over two binding kinds turns that into a refusal at the
 cause.
 
-Two exemptions are declared rather than implicit: a `lateinit` property ([`classes/lateinit`](classes.md#classes-lateinit)), and
-a property with a hook. A virtual property with a `get` hook and no backing slot has nothing to
-initialize, and the check has no model of a `set` hook's body, so it cannot tell whether the hook
-commits a value; it never refuses a hook that does. Neither
-copy depth reopens the gap — `clone` starts from a live object and cannot produce a less initialized
+A constructor also reads a property through `$this->` only where every path has assigned it, and an
+inherited one only after `parent::constructor(...)`; an earlier read is refused at the read, since it
+would see the zeroed slot.
+
+A hooked property carries the obligation when its backing slot is read: by a plain read, because it
+has no `get` hook, or by a hook that names `$this->prop` other than as the target of `=`. Each `set`
+hook of such a property stores the property on every path that does not throw, or is refused at the
+hook, and every write in the constructor then counts as an assignment. A property whose hooks compute
+its value from other properties reads no slot and owes nothing.
+
+One exemption is declared rather than implicit: a `lateinit` property ([`classes/lateinit`](classes.md#classes-lateinit)).
+Neither copy depth reopens the gap — `clone` starts from a live object and cannot produce a less initialized
 one, and the graph copy either copies a live source or refuses a payload missing a declared property
 ([`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format)).
 
@@ -613,6 +620,11 @@ Each hook body compiles to its own function, with the receiver in the ordinary p
 a hooked access costs no new instruction, no new calling convention and no dispatch-table entry.
 Inside a hook the property names its own backing slot, which is what makes a `set` hook that
 transforms the value it stores terminate rather than recurse.
+
+A `set` hook's parameter may leave its type out, which gives it the property's type. A written type
+accepts the property's type without a conversion, or the hook does not compile (`E0401`): every write
+is checked against the property's type and handed to the hook unchanged, so `set (float $v)` on an
+`int` property would read the `int` as a `float`. A wider type such as `?int` or `mixed` compiles.
 
 Novis keeps the backing slot for every hooked property, so there is no split between virtual and
 backed properties. That spends one slot on a property whose `get` computes its answer, and buys one
@@ -1017,6 +1029,12 @@ already defines ([`types/ordering`](types.md#types-ordering)). A sort written wi
 that are not both known to be that same class is a diagnostic even when both classes implement
 `Comparable` independently — there is no cross-class overload and no implicit widening from a
 subclass's `compareTo` to an ancestor's.
+
+The static types are not the whole check. Two operands typed `Comparable`, or typed at a class that is
+not `final`, may hold instances of different classes, and `compareTo` would then read the other
+operand as a class it is not. So the ordering compares the two run-time classes first and throws a
+`LogicError` when they differ, before `compareTo` runs. That costs one class comparison per object
+ordering. A static refusal instead would refuse every ordering over a class that is not `final`.
 
 The alternative is a resolution question with no non-arbitrary answer: which of two classes' methods
 decides the order of a mixed pair, and what a program should conclude when they disagree. Fixing the
