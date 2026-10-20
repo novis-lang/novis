@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-ir/src/lower/expr.rs",
-  "title": "An integer literal passed where a `?uint` is declared carries the `int` tag.",
-  "text": "`rule:types/arithmetic` makes a literal take the integer type its position declares. At a `?uint` parameter the position is tagged, and the literal is lowered as an `int` and tagged as one. So `class Shop { public static function take(?uint $limit): string { return $limit is uint ? \"uint\" : \"not uint\"; } } echo Shop::take(1);` prints `not uint`. The checked build stops at the parameter (`NOVIS_CHECK_TYPES=1`, the `spreadsheet-*` reader cases, through `Reader::with`'s `$limit`). Closing it lowers the literal at the union's integer member when the union has `uint` and not `int`, with a conformance case for the parameter, a property and a return.",
-  "goal": "compiler-holes"
-}

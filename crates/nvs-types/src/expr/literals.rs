@@ -431,6 +431,16 @@ pub(crate) fn infer_int_literal(
         check_decimal_int_literal(span, report_span, env);
         return record_decimal_placement(report_span, env);
     }
+    // A `?uint` position is a tagged one in the lowering, which has no `uint`
+    // to place the literal at. So the placement is recorded at the literal, as
+    // a `decimal` one is, and `nvs-ir` lowers the digits as a `uint`.
+    if wants_uint
+        && parsed.is_ok()
+        && expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Union(_)))
+    {
+        let uint = env.interner.uint();
+        env.exprs.record_type(report_span, uint);
+    }
     match parsed {
         Ok(n) if i64::try_from(n).is_ok() => {
             if wants_uint {
