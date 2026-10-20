@@ -166,6 +166,9 @@ pub struct Parser<'src, 'd> {
     /// [`Modifier`](crate::ast::Modifier) alone and would otherwise pay an
     /// allocation per declaration for positions it never asks about.
     modifiers: Option<Vec<Vec<WrittenModifier>>>,
+    /// Whether the modifier list just read had a `covariant` in front of one
+    /// of its modifiers, which [`Self::eat_covariant`] takes and clears.
+    covariant_before_modifier: bool,
 }
 
 /// How deep [`Parser::enter_recursive`] lets recursive-descent parsing go
@@ -244,6 +247,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             in_finally: false,
             finally_breakables: 0,
             modifiers: None,
+            covariant_before_modifier: false,
         }
     }
 
