@@ -29,6 +29,7 @@
     "classes/property-guard-runs-before-the-write",
     "classes/an-override-keeps-its-parents-signature",
     "classes/a-redeclared-property-keeps-its-parents-type",
+    "classes/a-covariant-type-is-checked-where-a-value-enters",
     "classes/member-conflict-is-an-error",
     "classes/no-traits",
     "classes/interface-default-methods",
