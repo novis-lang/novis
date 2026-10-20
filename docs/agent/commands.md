@@ -605,6 +605,8 @@ blocks back in the order you asked for them.
 ```sh
 bun nv sweep [--keep-runs <n>]                        # sweeps the disk, reads nightly CI: looper's after_session hook
 bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
+bun nv ci --push                                      # looper's after_retire: pushes main and starts the full CI run
+bun nv ci --watch | --status | --rerun                # the `ci-green` goal's: waits for a failed job, lists them, reruns them
 bun nv debt [--goal <slug>]                           # pays the floor debt: the floor check `floor-debt`
 
 bun nv legs [--goal <slug>] [--full]                  # the WSL leg and the valgrind sweep over a goal's fixtures
@@ -615,10 +617,12 @@ bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or comp
 ```
 
 Each exits 0 green, 1 red and 2 on a usage error, except `bun nv sweep`, which always exits 0 and writes
-what was red into `.loop/last-sweep.md`, below the lines looper's own sweep wrote there. `--goal` and
+what was red into `.loop/last-sweep.md`, below the lines looper's own sweep wrote there, and `bun nv ci
+--watch`, which also exits 3 when nothing failed within `--max-min`. `--goal` and
 `--stage` win over `LOOPER_GOAL` and `LOOPER_STAGE`, which win over the live goal and its handoff's next
-stage. looper runs the first three on its own: `looper.toml` wires `bun nv side --prepare --hook` as
-`[hooks] before_run` and `bun nv sweep` as `[hooks] after_session`, whose comments there say why each
+stage. looper runs four on its own: `looper.toml` wires `bun nv side --prepare --hook` as
+`[hooks] before_run`, `bun nv sweep` as `[hooks] after_session` and `bun nv ci --push` as `[hooks]
+after_retire`, whose comments there say why each
 timeout and `on_fail` are what they are, and `docs/goals/README.md`'s floor runs `bun nv debt` as
 `floor-debt`. A person runs the rest. Each command's `--help` and module doc own its flags.
 
@@ -627,6 +631,12 @@ looper makes its lane, the worktree `.agent-tmp/worktrees/lane-<n>` on branch `s
 `bun nv side --prepare --hook` readies it. A side loop whose `.agent-tmp/worktrees/side/<slug>` exists
 keeps that worktree. Once its goal is reached and its file deleted, the loop lands its branch: it
 merges `main` in, runs verify, pauses the other loops and fast-forwards `main`. It never pushes.
+
+**`main` reaches GitHub through `bun nv ci --push` alone.** looper's `after_retire` hook runs it at
+every goal end. The goal `ci-green` is the one side goal that runs in the root, added with `looper loop
+add --side ci-green --in-root`. It is never reached: its loop watches every CI run on `main`, fixes
+each failure, commits and pushes. No other session pushes or cancels a run. The goal file is its
+procedure, and `tools/nv/cmd/ci.ts` the command's.
 
 ## Disk
 
