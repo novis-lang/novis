@@ -30,6 +30,7 @@ class Stone {}
 class Parent1 {
     public static function m(): Animal { return new Animal(); }
     public static function viaStatic(string $at): void { echo $at, Show::of(static::m()), "\n"; }
+    public static function viaCallable(string $at): void { var $f = static::m(...); echo $at, Show::of($f()), "\n"; }
 }
 class Child1 extends Parent1 {
     public static function m(): Animal { return new Dog(); }
@@ -37,10 +38,14 @@ class Child1 extends Parent1 {
 Child1::viaStatic("same static: ");
 echo "same child-name: ", Show::of(Child1::m()), "\n";
 echo "same parent-name: ", Show::of(Parent1::m()), "\n";
+Parent1 $v1x3 = new Child1();
+echo "same parent-variable: ", Show::of($v1x3->m()), "\n";
+Child1::viaCallable("same callable: ");
 
 class Parent2 {
     public static function m(): Animal { return new Animal(); }
     public static function viaStatic(string $at): void { echo $at, Show::of(static::m()), "\n"; }
+    public static function viaCallable(string $at): void { var $f = static::m(...); echo $at, Show::of($f()), "\n"; }
 }
 class Child2 extends Parent2 {
     public static function m(): Dog { return new Puppy(); }
@@ -48,10 +53,14 @@ class Child2 extends Parent2 {
 Child2::viaStatic("subclass static: ");
 echo "subclass child-name: ", Show::of(Child2::m()), "\n";
 echo "subclass parent-name: ", Show::of(Parent2::m()), "\n";
+Parent2 $v2x3 = new Child2();
+echo "subclass parent-variable: ", Show::of($v2x3->m()), "\n";
+Child2::viaCallable("subclass callable: ");
 
 class Parent5 {
     public static function m(): int|string { return "p"; }
     public static function viaStatic(string $at): void { echo $at, Show::of(static::m()), "\n"; }
+    public static function viaCallable(string $at): void { var $f = static::m(...); echo $at, Show::of($f()), "\n"; }
 }
 class Child5 extends Parent5 {
     public static function m(): int { return 2; }
@@ -59,10 +68,14 @@ class Child5 extends Parent5 {
 Child5::viaStatic("int-under-int-string static: ");
 echo "int-under-int-string child-name: ", Show::of(Child5::m()), "\n";
 echo "int-under-int-string parent-name: ", Show::of(Parent5::m()), "\n";
+Parent5 $v5x3 = new Child5();
+echo "int-under-int-string parent-variable: ", Show::of($v5x3->m()), "\n";
+Child5::viaCallable("int-under-int-string callable: ");
 
 class Parent8 {
     public static function m(): ?Animal { return new Animal(); }
     public static function viaStatic(string $at): void { echo $at, Show::of(static::m()), "\n"; }
+    public static function viaCallable(string $at): void { var $f = static::m(...); echo $at, Show::of($f()), "\n"; }
 }
 class Child8 extends Parent8 {
     public static function m(): Animal { return new Dog(); }
@@ -70,10 +83,14 @@ class Child8 extends Parent8 {
 Child8::viaStatic("t-under-nullable static: ");
 echo "t-under-nullable child-name: ", Show::of(Child8::m()), "\n";
 echo "t-under-nullable parent-name: ", Show::of(Parent8::m()), "\n";
+Parent8 $v8x3 = new Child8();
+echo "t-under-nullable parent-variable: ", Show::of($v8x3->m()), "\n";
+Child8::viaCallable("t-under-nullable callable: ");
 
 class Parent10 {
     public static function m(): Animal|Plant { return new Plant(); }
     public static function viaStatic(string $at): void { echo $at, Show::of(static::m()), "\n"; }
+    public static function viaCallable(string $at): void { var $f = static::m(...); echo $at, Show::of($f()), "\n"; }
 }
 class Child10 extends Parent10 {
     public static function m(): Animal { return new Dog(); }
@@ -81,19 +98,32 @@ class Child10 extends Parent10 {
 Child10::viaStatic("member-under-union static: ");
 echo "member-under-union child-name: ", Show::of(Child10::m()), "\n";
 echo "member-under-union parent-name: ", Show::of(Parent10::m()), "\n";
+Parent10 $v10x3 = new Child10();
+echo "member-under-union parent-variable: ", Show::of($v10x3->m()), "\n";
+Child10::viaCallable("member-under-union callable: ");
 --EXPECT--
 same static: Dog
 same child-name: Dog
 same parent-name: Animal
+same parent-variable: Dog
+same callable: Dog
 subclass static: Puppy
 subclass child-name: Puppy
 subclass parent-name: Animal
+subclass parent-variable: Puppy
+subclass callable: Puppy
 int-under-int-string static: int 2
 int-under-int-string child-name: int 2
 int-under-int-string parent-name: string p
+int-under-int-string parent-variable: int 2
+int-under-int-string callable: int 2
 t-under-nullable static: Dog
 t-under-nullable child-name: Dog
 t-under-nullable parent-name: Animal
+t-under-nullable parent-variable: Dog
+t-under-nullable callable: Dog
 member-under-union static: Dog
 member-under-union child-name: Dog
 member-under-union parent-name: Plant
+member-under-union parent-variable: Dog
+member-under-union callable: Dog

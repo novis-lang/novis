@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-ir/src/lower/call.rs",
-  "title": "A static method called through an instance runs the variable's declared class's body, not the object's.",
-  "text": "`rule:statements/static-is-a-member-modifier` says a static method binds late to the called class. `Base $b = new Child(); $b->m();` runs `Base::m` where `Child` overrides the static `m`. The rule does not say which class an instance call names, and the matrix reads it as the object's run-time class, the way `$this->m()` and `static::m()` bind. The soundness matrix's `static-method-param/*/parent-variable` and `static-method-return/*/parent-variable` cells pin it (`tools/nv/soundness/open.json`). Closing it writes that reading into the rule and dispatches the call on the receiver's class, or makes the call a compile error at the site and drops the cells, if the rule chooses that instead.",
-  "goal": "compiler-holes"
-}

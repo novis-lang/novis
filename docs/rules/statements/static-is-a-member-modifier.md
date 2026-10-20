@@ -1,6 +1,9 @@
 `static` is a class-member modifier and a class-relative type. Static methods, `static::`, `new
 static()` and `: static` all bind late, to the called class, and `new static()` compiled as `new
-self()` would return the wrong class rather than fail to compile. A static property does not:
+self()` would return the wrong class rather than fail to compile. A static method called through an
+instance, `$base->m()`, names the object's run-time class, as `$this->m()` does: a `Child` held in a
+`Base` variable runs `Child::m`, which reads `Child` as `static`. A callable taken with `static::m(...)`
+keeps the frame's called class and runs that class's `m`. A static property does not:
 its storage is fixed where the access is written, so `static::$prop` is refused (`E0499`). For a
 subclass that redeclares the property it would silently name the parent's storage, while a reader
 expects the called class's. `self::$prop` and a written class name say which storage is meant.

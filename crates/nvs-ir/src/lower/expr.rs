@@ -3277,6 +3277,8 @@ impl<'a> Lowering<'a> {
     /// `rule:expressions/method-reference`'s `$cls::f(...)` over a `class<T>`
     /// class side: [`Self::lower_method_ref`]'s object, with the descriptor
     /// `$cls` holds when the reference is made stored in [`FCC_DESC`].
+    /// `static::f(...)` over a static `f` is the same object, with this
+    /// frame's called class as `desc`.
     ///
     /// The thunk dispatches on that descriptor with `call`'s label as the
     /// fallback, the same [`InstKind::CallVirtual`]
@@ -3288,14 +3290,12 @@ impl<'a> Lowering<'a> {
     fn lower_method_ref_on_a_class_reference(
         &mut self,
         call: &ResolvedCall,
-        class_side: &Expr,
+        desc: ValueId,
         expr: &Expr,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let class = format!("{}$fcc{}", self.fn_label, self.callables.len());
-        // The class side is written first and evaluated first, as at the call.
-        let (desc, _) = self.lower_expr(class_side, Some(Ty::ClassDesc), env, cur);
         let params: Vec<Ty> = call
             .param_tys
             .iter()
@@ -4475,16 +4475,21 @@ impl<'a> Lowering<'a> {
         // question once (`ResolvedCall::overridden`), so the ordinary
         // case — a method nothing overrides — still binds straight to
         // a label and pays nothing. A `static` method reached through
-        // an instance is never virtual: PHP resolves it on the
-        // written class, and its slot 0 carries a descriptor rather
-        // than a receiver.
-        let late_bound = !call.has_body || (call.overridden && !is_static);
+        // an instance binds the same way, to the object's class
+        // (`rule:statements/static-is-a-member-modifier`), and its slot 0
+        // carries that class's descriptor rather than a receiver.
+        let late_bound = !call.has_body || call.overridden;
         let kind = if late_bound {
-            let (lsb, _) = self.emit(
-                *cur,
-                Ty::ClassDesc,
-                InstKind::ClassDescOf { object: object_v },
-            );
+            let lsb = if is_static {
+                receiver_v
+            } else {
+                self.emit(
+                    *cur,
+                    Ty::ClassDesc,
+                    InstKind::ClassDescOf { object: object_v },
+                )
+                .0
+            };
             InstKind::CallVirtual {
                 lsb,
                 method: call.method.clone(),
@@ -4538,7 +4543,16 @@ impl<'a> Lowering<'a> {
         if let Some(ExprInfo::CallableRef(call)) = self.exprs.lookup(expr.span) {
             let call = call.clone();
             if !nvs_types::is_written_class_side(class) {
-                return self.lower_method_ref_on_a_class_reference(&call, class, expr, env, cur);
+                // The class side is written first and evaluated first, as at the call.
+                let (desc, _) = self.lower_expr(class, Some(Ty::ClassDesc), env, cur);
+                return self.lower_method_ref_on_a_class_reference(&call, desc, expr, env, cur);
+            }
+            // `static::m(...)` over a static `m` binds late, as `static::m()`
+            // does: the callable keeps this frame's called class and runs that
+            // class's `m` (`rule:types/callable-values`).
+            if matches!(class.kind, ExprKind::StaticExpr) && call.is_static {
+                let desc = self.lsb();
+                return self.lower_method_ref_on_a_class_reference(&call, desc, expr, env, cur);
             }
             return self.lower_method_ref(&call, None, expr, env, cur);
         }

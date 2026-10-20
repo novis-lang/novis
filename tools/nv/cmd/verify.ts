@@ -16,8 +16,8 @@
 // `nv links`, `nv layout --check` and `nv release --check`), `bun nv selftest`,
 // the fuzz workspace's lock brought back in step, `cargo build`, `nvs fmt` over the `.nvs` files this
 // working tree added or changed, `cargo test`, the `.nvst` trees, `bun nv reference` (every chapter
-// example), `bun nv soundness --check --allow-open` (the generated soundness cases are current, and each
-// open cell still fails on the binary `build` left), `cargo clippy --all-targets -- -D warnings`, and the
+// example), `bun nv soundness --check` (the generated soundness cases are current), `cargo clippy
+// --all-targets -- -D warnings`, and the
 // VS Code extension's headless suites.
 // Green prints one line per step; a failure prints that step's output and nothing else. The full output
 // of every step is written to `.agent-tmp/verify-<step>.log`. This command judges nothing: a step's own
@@ -928,10 +928,10 @@ export const summaries: Record<string, (out: string) => string> = {
     return m ? `${m[1]} of ${m[2]} examples hold` : "ran, but printed no `N of M examples hold` line -- check the log";
   },
   soundness(out) {
-    const m = /(\d+) file\(s\) current, (\d+) cell\(s\) written, (\d+) open/.exec(out);
-    if (m) return `${m[2]} cell(s) in ${m[1]} file(s) current, ${m[3]} open`;
+    const m = /(\d+) file\(s\) current, (\d+) cell\(s\) written/.exec(out);
+    if (m) return `${m[2]} cell(s) in ${m[1]} file(s) current`;
     const bad = (out.match(/^nv soundness: /gm) ?? []).length;
-    return bad ? `${bad} finding(s) -- run \`bun nv soundness --check --allow-open\`` : NO_SUMMARY;
+    return bad ? `${bad} finding(s) -- run \`bun nv soundness --check\`` : NO_SUMMARY;
   },
   lints(out) {
     let m = /lints: (\d+) generated tables current/.exec(out);
@@ -1090,10 +1090,8 @@ function stepsFor(opts: Opts, r: () => Run, built = existsSync(covwsNvs())): Ste
         if (existsSync(join(ROOT, "tests", tree))) steps.push(step(tree, ["test", "--cases", "<the selected cases>", `tests/${tree}`], summaries.cases!, { exe: nvs, runner: (s) => runCases(r(), s) }));
       }
       steps.push(bunStep(r, "reference", ["nv", "reference"], () => {}, () => ({ NVS_BIN: nvs })));
-      // After `build`, because an open cell is run on the binary it left. `--allow-open` is used only
-      // while goal `compiler-holes` runs: it lets the cells `tools/nv/soundness/open.json` files as gaps
-      // stay out of the written cases.
-      steps.push(bunStep(r, "soundness", ["nv", "soundness", "--check", "--allow-open"], () => {}, () => ({ NVS_BIN: nvs })));
+      // The cells themselves run as `tests/conformance/soundness/` in the `.nvst` step above.
+      steps.push(bunStep(r, "soundness", ["nv", "soundness", "--check"], () => {}, () => ({})));
     }
     steps.push(
       step("clippy", ["clippy", "--all-targets", ...target, "--", "-D", "warnings"], summaries.clippy!, {
