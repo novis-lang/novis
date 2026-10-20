@@ -98,7 +98,7 @@ array<int> $sizes = [3, 1, 2];
 echo count($sizes), "\n";
 ```
 ```output
-the built-ins live under the reserved `Core` namespace
+The built-in functions are in the `Core` namespace
 ```
 
 `nvs agent find` with the name of the task is the next call.
@@ -309,7 +309,7 @@ string $name = "Zoë";
 echo strlen($name), "\n";
 ```
 ```output
-the built-ins live under the reserved `Core` namespace
+The built-in functions are in the `Core` namespace
 ```
 
 Either way it arrives at one program, and `nvs check` accepts it:
