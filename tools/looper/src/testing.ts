@@ -4,14 +4,17 @@
 // an environment variable this file can set. Under a plain console the line appears twice.
 //
 // Loading this file deletes `LOOPER_ASKER` from `process.env`, so a kit command a test runs asks as
-// the test's own `LOOPER_AGENT` or user. A check looper's service runs would pass its `ui` on. A
-// `Bun.spawn` without `env` gives its child the process's first environment, so a test passes it.
+// the test's own `LOOPER_AGENT` or user. A check looper's service runs would pass its `ui` on. It
+// deletes `LOOPER_SIDE_GOAL` too, so a test run by a side loop in the root reads each scratch
+// project's own live goal. A `Bun.spawn` without `env` gives its child the process's first
+// environment, so a test passes it.
 
 import { test as bunTest } from "bun:test";
 
 export { expect } from "bun:test";
 
 delete process.env.LOOPER_ASKER;
+delete process.env.LOOPER_SIDE_GOAL;
 
 /** A test named `name`. `timeout` is in ms, bun:test's 5 s without one. */
 export function test(name: string, body: () => void | Promise<void>, timeout?: number): void {

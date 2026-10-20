@@ -72,6 +72,8 @@ export interface LaunchOptions {
   root?: string;
   /** The goal the session works on, passed as `LOOPER_GOAL`. */
   goal?: string;
+  /** The goal of a side loop in the project root, passed as `LOOPER_SIDE_GOAL`, so every command the session runs reads it as live. */
+  sideGoal?: string;
 }
 
 /** One normalized stream event. */

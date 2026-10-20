@@ -19,6 +19,10 @@
 //   Its `waiting` names why, and it cannot start until it has a lane.
 // - **A side loop whose own worktree, `<root>/<scratch>/worktrees/side/<slug>`, exists keeps it** and
 //   takes no lane. That worktree must be this repository's, on `side/<slug>`, holding the goal file.
+// - **A side loop in the root (`inRoot`) works its goal in the project root,** on the branch checked
+//   out there, beside the main loop. It makes no branch and no worktree, takes no lane, and takes no
+//   `from`. The root must hold the goal file. Its worker sets `LOOPER_SIDE_GOAL`, which makes the goal
+//   live for it alone, and it never lands.
 // - **`handBack` frees a loop's lane** once `git status --porcelain` in it is empty. The lane switches to
 //   a detached `HEAD` at the main branch, and goes to the side loop that has waited longest.
 // - **A landed side loop keeps its folder, with `landed` in `loop.json`** (`markLanded`), and leaves the
@@ -56,6 +60,8 @@ export interface LoopRecord {
   laneWait: number | null;
   /** When a side loop landed, in ms since the Unix epoch. Left out until it lands. */
   landed?: number;
+  /** True for a side loop that works in the project root. Left out for every other loop. */
+  inRoot?: true;
 }
 
 /** Why a loop waits for the user, and since when. */
@@ -69,11 +75,12 @@ export interface Named extends LoopRecord {
   name: string;
 }
 
-/** What `addLoop` is asked to add: a main loop named `name`, or a side loop on goal `side`. */
+/** What `addLoop` is asked to add: a main loop named `name`, or a side loop on goal `side`, in the project root with `inRoot`. */
 export interface NewLoop {
   name?: string;
   side?: string;
   from?: string;
+  inRoot?: boolean;
 }
 
 /** The folder that holds the loops of the project at `root`. */
@@ -118,15 +125,21 @@ export async function locked<T>(root: string, body: () => T): Promise<T> {
 
 /** Adds the loop `want` asks for to the project at `root`, idle or waiting for a lane, and gives it. */
 export function addLoop(root: string, want: NewLoop): Promise<Named> {
-  return locked(root, () => (want.side === undefined ? addMain(root, want) : addSide(root, want.side, want.from, want.name)));
+  return locked(root, () => {
+    if (want.side === undefined) {
+      if (want.inRoot === true) throw new Refused("only a side loop takes `--in-root`: name its goal with `--side`");
+      return addMain(root, want);
+    }
+    return want.inRoot === true ? addInRoot(root, want.side, want.from, want.name) : addSide(root, want.side, want.from, want.name);
+  });
 }
 
 function write(root: string, name: string, record: LoopRecord): Named {
   const dir = join(loopsDir(root), name);
   mkdirSync(dir, { recursive: true });
-  const { kind, branch, worktree, goal, lane, laneWait, landed } = record;
-  writeState(join(dir, LOOP_FILE), { kind, branch, worktree, goal, lane, laneWait, landed });
-  return { name, kind, branch, worktree, goal, lane, laneWait, landed };
+  const { kind, branch, worktree, goal, lane, laneWait, landed, inRoot } = record;
+  writeState(join(dir, LOOP_FILE), { kind, branch, worktree, goal, lane, laneWait, landed, inRoot });
+  return { name, kind, branch, worktree, goal, lane, laneWait, landed, inRoot };
 }
 
 /** Marks side loop `name` of the project at `root` landed, so it leaves the list and a new side loop may take its name. */
@@ -148,19 +161,35 @@ function addMain(root: string, want: NewLoop): Named {
   return write(root, name, { kind: "main", branch, worktree: root, goal: null, lane: null, laneWait: null });
 }
 
-function addSide(root: string, slug: string, from: string | undefined, asked: string | undefined): Named {
-  const cfg = loadConfig(root);
-  const goals = join(root, cfg.project.goals_dir);
+/**
+ * The name of a new side loop on goal `slug` of the project at `root`, whose goal file the root holds.
+ * A landed loop of that name is renamed out of the way first. A name other than `asked`, or a loop that
+ * holds it already, is refused.
+ */
+function sideName(root: string, goals: string, slug: string, asked: string | undefined): string {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(slug) || !existsSync(goalPath(goals, slug))) throw new Refused(`this project has no goal ${slug}`);
   const name = `side-${slug}`;
   if (asked !== undefined && asked !== name) throw new Refused(`a side loop on ${slug} is named ${name}, not ${asked}`);
-  let all = loops(root);
-  const old = all.find((l) => l.name === name);
+  const old = loops(root).find((l) => l.name === name);
   if (old?.landed !== undefined) {
     // A landed loop keeps its folder under a name no loop takes, which frees its own.
     renameSync(join(loopsDir(root), name), join(loopsDir(root), `${name}@landed-${old.landed}`));
-    all = loops(root);
   } else if (old !== undefined) throw new Refused(`this project has the loop ${name} already`);
+  return name;
+}
+
+function addInRoot(root: string, slug: string, from: string | undefined, asked: string | undefined): Named {
+  if (from !== undefined) throw new Refused("a side loop in the root works the root's branch, so it takes no `--from`");
+  const name = sideName(root, join(root, loadConfig(root).project.goals_dir), slug, asked);
+  const branch = git(root, ["rev-parse", "--abbrev-ref", "HEAD"]).trim();
+  return write(root, name, { kind: "side", branch, worktree: root, goal: slug, lane: null, laneWait: null, inRoot: true });
+}
+
+function addSide(root: string, slug: string, from: string | undefined, asked: string | undefined): Named {
+  const cfg = loadConfig(root);
+  const goals = join(root, cfg.project.goals_dir);
+  const name = sideName(root, goals, slug, asked);
+  const all = loops(root);
   const worktrees = join(root, cfg.project.scratch, "worktrees");
   const own = join(worktrees, "side", slug);
   const branch = `side/${slug}`;

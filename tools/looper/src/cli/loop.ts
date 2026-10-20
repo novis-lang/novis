@@ -6,11 +6,14 @@
 // - `loop run` is the loop's worker in the foreground, until its run ends. It exits 4 when another
 //   worker runs the loop. It drops `LOOPER_ASKER`, so a session it runs asks as `agent`. The hidden `--stand-in <script>` replaces the agent with the stand-in.
 // - `loop add` adds the project's main loop, idle. `loop add --side <slug> [--from <ref>]` adds the side
-//   loop `side-<slug>` in a lane, or waiting for one. `../loop/lanes.ts` is the home of both. A loop
-//   that exists already is refused.
-// - `loop run` works in the loop's worktree: the root for a main loop, its lane or own worktree for a
-//   side loop. A side loop that waits for a lane refuses `run` and `start`.
-// - A side loop's worker lands its branch on the main loop's branch, or the root's when there is none,
+//   loop `side-<slug>` in a lane, or waiting for one. `loop add --side <slug> --in-root` adds it in the
+//   project root instead, on the root's branch. `../loop/lanes.ts` is the home of all three. A loop that
+//   exists already is refused.
+// - `loop run` works in the loop's worktree: the root for a main loop and a side loop in the root, its
+//   lane or own worktree for any other side loop. A side loop that waits for a lane refuses `run` and
+//   `start`. A side loop in the root runs with `LOOPER_SIDE_GOAL` naming its goal, and every other loop
+//   without it.
+// - A side loop's worker in a lane lands its branch on the main loop's branch, or the root's when there is none,
 //   after a catch-up that runs the kit's own `verify` (`../loop/landing.ts`). The loop it hands its lane
 //   to starts with the same agent. A landed loop leaves `status` and refuses `run`. A worker that starts
 //   past its landing's fast-forward only finishes it.
@@ -37,7 +40,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "../goal/config.ts";
-import { Refused } from "../goal/model.ts";
+import { Refused, SIDE_GOAL_VAR } from "../goal/model.ts";
 import { looperHome } from "../jobs/slots.ts";
 import type { AgentAdapter } from "../loop/adapter.ts";
 import { Claude } from "../loop/claude.ts";
@@ -173,7 +176,7 @@ function line(v: LoopView): string {
   const ended = !v.running && v.ended !== null ? `, ended: ${v.ended}` : "";
   const paused = v.state === "paused" && v.pausedBy ? ` by ${v.pausedBy}` : "";
   const why = v.waiting === null ? "" : `: ${v.waiting.why}`;
-  const lane = v.lane === null ? "" : ` in lane-${v.lane}`;
+  const lane = v.lane !== null ? ` in lane-${v.lane}` : v.inRoot === true ? " in the root" : "";
   return `${v.name}  ${v.state}${paused}${why}${lane}  (${worker}${ended})`;
 }
 
@@ -195,10 +198,13 @@ function existing(root: string, name: string): string {
 async function add(root: string, name: string | undefined, args: string[]): Promise<Report> {
   const side = option(args, "--side");
   const from = option(args, "--from");
+  const inRoot = flag(args, "--in-root");
   noMore(args, "loop add");
+  if (inRoot && side === undefined) throw usage("`--in-root` takes `--side <slug>`");
+  if (inRoot && from !== undefined) throw usage("`--in-root` takes no `--from`: the loop works the root's branch");
   let added: Awaited<ReturnType<typeof addLoop>>;
   try {
-    added = await addLoop(root, { name, side, from });
+    added = await addLoop(root, { name, side, from, inRoot });
   } catch (e) {
     throw new Refusal((e as Error).message);
   }
@@ -244,7 +250,12 @@ async function runLoop(root: string, name: string, args: string[]): Promise<Repo
   mkdirSync(dir, { recursive: true });
   const record = loopRecord(root, dir);
   if (record.landed !== undefined) throw new Refusal(`loop ${name} has landed`);
-  const side = record.kind === "side" ? sideOf(root, record) : undefined;
+  // A side loop in the root makes its goal live through the environment, for this process and every
+  // process it starts. Every other loop's worker drops the variable, so it never works another's goal.
+  const ownGoal = record.kind === "side" && record.inRoot === true ? (record.goal ?? undefined) : undefined;
+  if (ownGoal !== undefined) process.env[SIDE_GOAL_VAR] = ownGoal;
+  else delete process.env[SIDE_GOAL_VAR];
+  const side = record.kind === "side" && ownGoal === undefined ? sideOf(root, record) : undefined;
   // The side loop the landing hands its lane to starts with this worker's agent.
   const lander = side && new Lander({ name, worktree: record.worktree, side, start: (next) => void startWorker(root, next, script, "looper").catch(report) });
   try {
@@ -259,7 +270,7 @@ async function runLoop(root: string, name: string, args: string[]): Promise<Repo
         // A stand-in's walls are shared only with the service of a home `LOOPER_HOME` names, never the installed one.
         const shared = script === undefined || (process.env.LOOPER_HOME ?? "") !== "" ? looperHome() : null;
         const walls = new Walls(join(root, ".looper", "walls.json"), shared);
-        worker = new Worker({ root: worktree, dir, adapter: adapter(root, script), walls, loopName: name, side, lander });
+        worker = new Worker({ root: worktree, dir, adapter: adapter(root, script), walls, loopName: name, side, lander, ownGoal });
       } catch (e) {
         throw e instanceof Refusal ? e : new Refusal((e as Error).message);
       }
@@ -348,7 +359,7 @@ async function control(root: string, name: string, verb: string, args: string[])
 
 export const loopCommand: Command = {
   name: "loop",
-  about: "Runs, starts and controls this project's loops: `loop add|run|start|stop|pause|resume|say|…`.",
+  about: "Runs, starts and controls this project's loops: `loop add [--side <slug> [--from <ref> | --in-root]]|run|start|stop|pause|resume|say|…`.",
   json: true,
   run: (argv) => {
     const { name, named, rest } = loopName(argv);
