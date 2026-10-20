@@ -2,5 +2,5 @@
   "module": "crates/nvs-ir/src/lower/generator.rs",
   "title": "A generator of a nullable or union element type panics the compiler on a `yield` of a literal.",
   "text": "`public static function g(): Iterator<?int> { yield 2; }` passes the checker, and the build then panics in `nvs-ir` (\"a `yield` operand lowered to Int where the declared `Iterator<T>` gives Tagged\"). So do `yield null;` in an `Iterator<?int>` or an `Iterator<?string>`, and `yield 1;` in an `Iterator<int|string>`. A `yield $x;` of a `?int` variable works. Every `yield` the checker accepts compiles and gives its value to the loop. It closes when that is so, with a conformance case for each element type.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

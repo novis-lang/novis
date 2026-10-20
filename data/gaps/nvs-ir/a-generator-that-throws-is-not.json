@@ -2,5 +2,5 @@
   "module": "crates/nvs-ir/src/lower/generator.rs",
   "title": "A generator that throws is not finished, and its `finally` runs twice.",
   "text": "After a throw from a generator's body is caught, the next `advance()` on the same generator runs the body again from its last `yield` and throws again; a second `foreach` over it does the same. A throw that leaves a `try … finally` around a `yield` runs the `finally` when the throw passes through it, and a second time when the generator is freed: `1[closed][closed]caught`. A generator whose body throws is finished, so a later `advance()` returns `false`, and its `finally` runs once. It closes when that is so, with a conformance case for each.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

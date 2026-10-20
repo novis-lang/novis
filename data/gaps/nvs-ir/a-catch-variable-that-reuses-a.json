@@ -2,5 +2,5 @@
   "module": "crates/nvs-ir/src/lower/expr.rs",
   "title": "A catch variable that reuses an earlier local's name panics the compiler.",
   "text": "`LogicError $e = new LogicError(\"a\"); try { throw new LogicError(\"b\"); } catch (LogicError $e) { } echo $e->message;` passes `nvs_types::check_program`, which accepts a `catch` variable that redeclares a local of the same type, and then `nvs run` panics in lowering with \"undeclared local `$e`\" (`lower/expr.rs:235`), at the top level and inside a method alike. Two `catch` clauses that share a name and a type compile and run; only a plain local declared before the clause breaks. It closes when the checker and the lowering agree: either the clause reuses the local's slot, or the checker gives `E0406` as it does for a clause of another type, with a conformance case for each shape.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

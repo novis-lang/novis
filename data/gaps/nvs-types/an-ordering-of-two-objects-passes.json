@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/expr/operators.rs",
   "title": "An ordering of two objects passes the checker on their static class alone, and `compareTo` gets an object of another class as `self`.",
   "text": "`rule:classes/comparable-is-same-class-only` fixes `compareTo(self $other)`'s operand to the implementing class, and `object_comparison_result` checks only that both static types name the same class. Two operands typed `Comparable` pass, so `$a < $b` with a `V` and a `W` runs `V::compareTo` on the `W`, and `$o->n` reads `W`'s `string` property as an `int`. Two operands typed `V` pass too, and when the left one is a subclass `V2` that overrides `compareTo(self $o)`, the method gets a plain `V` as a `V2`: reading a property only `V2` declares exits 5 with no output. That is a type confusion in safe code. It closes when an ordering whose operands may be of different run-time classes is a diagnostic, or the call checks the run-time class and throws, with a conformance case for the interface-typed pair and the subclass override.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

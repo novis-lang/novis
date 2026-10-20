@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/attributes.rs",
   "title": "A compiler-read attribute on a site where it means nothing compiles and does nothing.",
   "text": "`#[Core\\Command(...)]` above a class or a property, `#[Core\\Route(...)]` above a property, `#[Core\\Api(...)]` above a class and `#[Core\\Json\\Derive]` above a method each pass `nvs check`, and the compiler builds no command, route or codec for them. Its options are still checked (`E0454`). `rule:attributes/attach-sites-and-forms` says a recognized attribute takes only the sites where it means something, and a `#[Command]` on an instance method is already `E0789`. Separately, `#[Core\\Json\\Derive()]` with an empty list, or with an unknown option such as `colour: 1`, compiles and the class gets no codec, so `Core\\Json::encode` throws `LogicError` at run time; `#[Core\\Json\\Derive]` without a list works. It closes when a recognized attribute at a site its rule does not name is a checker error, and `Derive` with a list is either the same attribute or an error, with a conformance case for each.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

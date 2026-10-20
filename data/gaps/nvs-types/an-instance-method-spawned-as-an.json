@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/expr/isolate.rs",
   "title": "An instance method spawned as a `spawn script` entry compiles, and `$this` inside it is not an object.",
   "text": "`class Job { public int $n = 7; public function run(): int { return $this->n; } }` and `spawn script Job::run(...)` pass `nvs check`, and the awaited result is `ok` with the value `1`, not `7`: the child calls the method with no receiver and reads `$this->n` from whatever the slot has. `rule:security/isolate-shares-nothing` allows a static method only, but `check_entry` accepts any `Class::method(...)` reference without looking at `static`. That is a read of memory that is not the object, in safe code. It closes when a non-static method at a spawn site is a diagnostic naming the static form, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

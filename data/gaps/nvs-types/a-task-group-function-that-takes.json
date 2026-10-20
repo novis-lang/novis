@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/expr/assign.rs",
   "title": "A Core\\Task::all field whose function takes a parameter compiles, and the call stops with an internal error.",
   "text": "`Core\\Task::all({a: fn(int $x): int => $x})` passes `nvs check`, and the run ends with `FATAL: internal error: a `callable` declaring 1 parameters was called with only 0 available`. A parameter with a default (`fn(int $x = 4)`) fails the same way. The `ShapeOfCallables` arm of the assignability check accepts any `CallableSig` field without looking at its parameters, while the runtime calls each field with none. It closes when a field function with a parameter is a diagnostic at the field, or one whose parameters all have defaults runs with them, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

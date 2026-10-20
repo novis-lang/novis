@@ -2,5 +2,5 @@
   "module": "crates/nvs-server/src/body.rs",
   "title": "A POST body the program does not read can lose the response.",
   "text": "Over a raw socket against `nvs serve`, on a program that echoes `ok` and never calls `Core\\Request::body`: up to 8 KB of unread body the connection stays open and a request pipelined behind the POST is answered. From 16 KB the POST is answered and the server closes the connection, so the pipelined request gets nothing, and at 512 KB some POSTs get a clean close and no response at all. So the close can come before the response is written when much of the body is unread. Where the close is decided, in this module's `Supply` or in `hyper`'s connection, is not checked. It is closed when an unread body never costs the response: the body is drained up to a bound or the connection closes only after the response is flushed, with a case that pipelines a request behind a large unread POST.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

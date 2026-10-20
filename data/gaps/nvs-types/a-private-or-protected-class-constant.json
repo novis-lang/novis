@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/expr/members.rs",
   "title": "A private or protected class constant can be read from outside its class.",
   "text": "`class A { private const int P = 7; protected const int Q = 8; }` and then `echo A::P;` at the top level, or `A::Q` in a method of a class unrelated to `A`, both compile and print the value. `infer_class_const` checks no visibility, while a private property read the same way is `E0471`. The chapter and the syntax page write a constant as `visibility const T NAME = value;`, so the visibility is accepted and has no effect. It closes when a read of a `private` constant outside its class, and of a `protected` one outside the class and its subclasses, is a diagnostic with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

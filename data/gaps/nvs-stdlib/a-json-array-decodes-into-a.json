@@ -2,5 +2,5 @@
   "module": "crates/nvs-stdlib/src/json.rs",
   "title": "A JSON array decodes into a `#[Core\\Json\\Derive]` class as an object with no keys.",
   "text": "`Core\\Json::decodeAs<A>(\"[1]\")` for a class with a `string $city` field throws one issue, `city: required field missing`, where a number or `null` at the same place gives `a \\`A\\` decodes from a JSON object` with an empty path. The decoder's object test is `document.array_ptr()`, and a decoded JSON list is an array too, so a list passes it and is walked as a map with integer keys. A field renamed with `#[Core\\Json\\Field(name: \"0\")]` is filled from a list: `decodeAs<A>(\"[\\\"paris\\\"]\")` builds an `A` whose field is `paris`. It closes when a JSON list where an object is expected gives the object issue, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

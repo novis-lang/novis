@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/testing.rs",
   "title": "A `null` value in a `#[TestWith]` row compiles, and the test fails with an internal error.",
   "text": "`#[TestWith(n: null)]` above `public function a(?int $n): void` passes `nvs check`. Under `nvs test` the row fails with `internal error: \\`T::a\\` has no value for parameter 0` (`crates/nvs-cli/src/runner.rs`), and the method never runs. Every other row of the method still runs. A class constant, an enum case and an array literal are `E0738`, so `null` is the one value the checker lets through and the runner cannot pass. It closes when a `null` row fills a `?T` parameter with `null`, or is `E0738`, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

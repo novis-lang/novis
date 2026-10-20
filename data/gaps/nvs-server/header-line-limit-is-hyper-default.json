@@ -2,5 +2,5 @@
   "module": "crates/nvs-server/src/serve.rs",
   "title": "The limit on a request's header lines is `hyper`'s default, which no setting or rule names.",
   "text": "A request with 100 or more header lines is answered `431 Request Header Fields Too Large` and closed, and 96 plus `Host` are answered. The status is correct, but no limit is set under `crates/`: `serve_connection` builds `http1::Builder::new()` with no `max_headers`, so the bound is the HTTP layer's and moves with its version. The `benches/scaling/request/headers.nvs` ladder stays below it. It is closed when the limit is set explicitly in `serve_connection`, stated by a rule beside the other request-head limits, and pinned by a case at the bound and one past it.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

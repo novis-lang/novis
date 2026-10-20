@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/signatures.rs",
   "title": "A `static` constructor compiles, and `new` calls it.",
   "text": "`public static function constructor(int $n) { … }` passes `nvs check`, and `new A(3)` runs its body with no object. A static method has no `$this`, so such a constructor cannot assign a property, and a class whose properties all have defaults hides that. It closes when `static` on a `constructor` is a diagnostic, with a conformance case.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

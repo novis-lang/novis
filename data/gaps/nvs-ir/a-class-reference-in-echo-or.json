@@ -2,5 +2,5 @@
   "module": "crates/nvs-ir/src/lower/expr.rs",
   "title": "A class reference in echo or concatenation panics the compiler.",
   "text": "`class<Animal> $b = 'Animal' as class<Animal>; echo $b;` and `\"a \" . $b` pass `nvs_types::check_program`, and then `nvs run` panics in lowering with \"a `ClassDesc` operand reached the implicit `string` conversion\" (`lower/expr.rs:1146`). The arm's comment says `Ty::ClassDesc` is never a source expression's type, but a `class<T>` variable is one. `$b as string` compiles and prints the class name. It closes when the two agree: either `require_stringable` refuses a `class<T>` operand with a diagnostic naming `as string`, or the lowering converts it as `as string` does, with a conformance case for `echo` and for `.`.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }

@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/expr/mod.rs",
   "title": "`E0303` for a class no `autoload` root has names no root it searched.",
   "text": "A program that names a class its `autoload` roots cannot load gets `E0303`, and the message names none of the roots. The reader is not told which roots were searched, so a wrong root in `nvs.toml` looks the same as a typo in the class name. It closes when `E0303` lists the roots it searched for the class, with a case that pins the text.",
-  "goal": "release-hardening"
+  "goal": "compiler-holes"
 }
