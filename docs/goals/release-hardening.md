@@ -66,7 +66,7 @@ stages:
     context: [SECURITY.md, .github/workflows/release.yml]
   - id: 10
     title: "the pushed `main` has a green CI run"
-    status: open
+    status: done
     context: [.github/workflows/ci.yml]
 checks: []
 ---
@@ -347,8 +347,9 @@ asked for this loop, and it repeats until CI is green:
 
 - [x] `main` is pushed and a full CI run is started on it. `f7eaecd7e` was pushed, and run
   39229718066 dispatched on it.
-- [ ] Every failure the runs showed is fixed at its cause and committed.
-- [ ] One full CI run on the pushed `main` is green on every job, and the handoff names its id.
+- [x] Every failure the runs showed is fixed at its cause and committed.
+- [x] One full CI run on the pushed `main` is green on every job, and the handoff names its id.
+  Run 39345560526 on `f534cf5ee` passed all 52 jobs.
 
 A push or `gh` call the loop's permissions refuse is not retried in another form: the status line
 is `BLOCKED` and names the call.
@@ -357,51 +358,24 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 9 are done. Stage 10 waits on full run 39278827562 on `2dfe330c6`, the first run
-with the redis-windows step, and on a GitHub Actions outage.
+Every stage is done. Full run 39345560526 on `f534cf5ee` passed all 52 jobs. Its two Windows
+`test` halves took 33 and 36 minutes of 120, and the zip attack passed on `proofs /
+windows-x86_64`. `bun nv verify --doc` is green.
 
-- **GitHub Actions is down, and this goal waits behind `fewer-allocations`.** githubstatus.com
-  opened "Degraded availability for GitHub Actions, GitHub Pages and Webhooks" at 15:49 UTC on
-  2026-10-19. At 16:08 the run had jobs in progress and most queued. Its `A Redis server
-  (Windows)` step had passed, and `test / windows-x86_64` was building. Push run 39278545350 shows
-  `in_progress`, but every job in it is already cancelled. The user said to cancel and dispatch
-  nothing more during the outage, and moved this goal behind `fewer-allocations`.
-- **The Windows Redis step no longer uses Chocolatey or Memurai.** On run 39276660114 (`94ff16d2f`)
-  the feed answered 503 again, and `choco` printed "installed 0/0 packages" but exited 0, so the
-  retry loop never retried. At the user's request, the step now downloads Redis 8.10.2, the version
-  `tests/db/compose.yaml` pins, from the redis-windows/redis-windows GitHub release. It checks a
-  pinned SHA256, unzips it and starts `redis-server` on 16379 (`.github/workflows/ci.yml:187`).
-  A retry loop that checked for `memurai.exe` was pushed first as `3d8e54c48`, and the commit
-  after it replaces that loop. Runs 39276660114, 39278545350 and 39278568537 are cancelled.
-- The user gave the push-and-watch loop to this loop alone.
-- **Run 39272328614 (`067fae174`) failed two jobs in its first 15 minutes. It was cancelled, and
-  both are fixed:**
-  - `asan`: a stack-buffer-overflow in `nvs-stdlib`'s `html_later`, right after ASan warned it was
-    ignoring `__asan_handle_no_return` on a stack it did not know. A panic unwinding on a task's
-    coroutine stack left stale poison that a later task hit. The previous run was green on the same
-    code. `corosensei`'s own `sanitizer` feature reports each switch and unpoisons a stack before
-    reuse. `nvs-host/asan` forwards it, and the ASan step turns it on (`2ad211bb6`,
-    `crates/nvs-host/Cargo.toml:31`, `.github/workflows/ci.yml:1290`). Under WSL, nine `html_later`
-    runs and the whole step had no ASan report. Its four failures there check file modes and Unix
-    sockets, which `/mnt/e` lacks.
-  - `test / windows-x86_64`: its Redis step failed. The step is replaced, as the first bullet says.
-  - So that run checked neither the Windows `test` leg's time nor the zip attack.
-- **Run 39258294723 (`f115f6791`) was green on every job but two, and both are fixed:**
-  - `proofs / windows-x86_64`: the `Core\Zip::extract` attack printed its last line and was still
-    running at its 30 s limit. Step 6c created 19,200 folders (300 files, 64 deep), 6.7 s of the
-    program's 8.7 s locally, all of it the file system. It now writes 100 files and runs in 3.5 s
-    (`b99670cc9`). The exit sweep of its folders costs about 0.6 s.
-  - `test / windows-x86_64` was cut off at 90 minutes in its last step: a cold 37-minute build, 31
-    minutes of tests and 17 of the shared-worker conformance suite. macOS took 78. The `test` legs
-    now have 120 minutes, with the reason beside the number (`067fae174`, `.github/workflows/ci.yml:127`).
-- **Stage 8 is done on that run.** All 14 `miri units` shards were green in 9 to 21 minutes of 45.
-  The slowest tests were `regex`'s flag test (218 s), `every_registered_member_has_an_implementation_address`
-  (213 s) and the transport's compressed replies (203 s), each under the 300 s limit. The `Serve
-  soak` step passed on all three `cost guards` legs, and the shared-worker `Conformance suite`
-  step passed on all four `test` legs.
-- **Its run ran to the end on purpose.** The proofs failure came early. Cancelling then would have
-  lost the Miri, soak and shared-worker results stage 8 waited on, so the session fixed it while
-  the run went on.
+- **One gate is red, and it needs the user: `bun nv owners --closes release-hardening` lists 69 gap
+  records.** Sessions that wrote the examples' `details.md` pages recorded compiler, runtime and
+  library bugs and gave each to this goal. Most are checker or lowering holes: a panic, an internal
+  error, or a program that compiles and should not. Only `bigint-gcd-and-modular-power-grow-quadratically`
+  was handed over on purpose. None is one of this goal's stages.
+- **The session's recommendation:** a new goal, `compiler-holes`, next on the chain, takes all 69.
+  Its twelve stages group them by the file they share: visibility and unset reads first, then the
+  lowering panics, generators and `finally`, class conformance, declarations, hooks and attributes,
+  operators, locals, calls, derived codecs and routes, tests and help text, and the server with
+  `Core\BigInt` last. `bun nv owners --hand-over release-hardening compiler-holes` moves every
+  record once its file exists (`tools/nv/cmd/owners.ts:1`). Writing that goal file was refused by
+  the loop's permissions, so it was not retried. The other choice adds those stages to this goal.
+- The three nightly Miri failures on run 39339578238 were the two BigInt by-halves sweeps at the
+  300 s limit, fixed by `f534cf5ee`. Shard 12 was cancelled only when that run was replaced.
 - **The installed `looper` has no `verify` command.** `bun tools/looper/main.ts verify` runs it.
 - **What earlier sessions found that still holds:**
   - The `proofs` legs reach the examples on all three runners. Windows' Docker runs Windows
@@ -422,15 +396,11 @@ with the redis-windows step, and on a GitHub Actions outage.
 
 ### Next
 
-Stage 10's push-and-watch loop over `.github/workflows/ci.yml`:
-- [x] Run 39258294723: every failure is fixed at its cause and committed (`b99670cc9`, `067fae174`), and stage 8 is done. `docs/goals/release-hardening.md:263`
-- [x] `main` is pushed at `067fae174`, and full run 39272328614 is dispatched. `docs/goals/release-hardening.md:332`
-- [x] Run 39272328614: the `asan` and Windows Redis failures are fixed at their causes and committed (`2ad211bb6`, `94ff16d2f`), and `main` is pushed with full run 39276660114 dispatched. `.github/workflows/ci.yml:1290`
-- [x] Run 39276660114: the Windows Redis step is replaced by a pinned GitHub release download, and `main` is pushed with a new full run dispatched. `.github/workflows/ci.yml:187`
-- [x] Run 39278827562 on `2dfe330c6`: `A Redis server (Windows)` passed. `.github/workflows/ci.yml:187`
-- [ ] When this goal is live again, check run 39278827562 at step level. If it is gone, cancelled by the outage or red, fix any failure at its cause, push `main` and dispatch a new full run, and watch it with the watch script the State describes, under Monitor. `docs/goals/release-hardening.md:336`
-- [ ] Check `test / windows-x86_64`'s total time against its new 120 minutes, and the zip attack on `proofs / windows-x86_64`. `.github/workflows/ci.yml:127`
-- [ ] When one run is green on every job, tick stage 10's two open items with its id, set stage 10 done, run the goal-end gates (`bun nv verify --doc`, `bun nv owners --closes release-hardening`), and write `DONE`. `docs/goals/release-hardening.md:351`
+The goal-end gate, once the user has decided where the 69 gap records go:
+- [x] Run 39345560526 on `f534cf5ee` is green on every job, and stage 10 is done. `docs/goals/release-hardening.md:351`
+- [x] `bun nv verify --doc` is green. `docs/goals/release-hardening.md:356`
+- [ ] The 69 gap records have the owner the user chose, through `bun nv owners --hand-over` or new stages here, and `bun nv owners --closes release-hardening` passes. `tools/nv/cmd/owners.ts:1`
+- [ ] The goal's file is deleted after its decisions that only its prose holds move to a rule or a module doc, and the status line is `DONE`. `docs/goals/release-hardening.md:1`
 
 ### Backlog
 
@@ -439,7 +409,6 @@ Stage 10's push-and-watch loop over `.github/workflows/ci.yml`:
   built-in extension's manifest on every start) and the TOML parse of `default.toml` (4.4 M).
   Precomputing the manifests at build time is the plainest cut (`crates/nvs-ext/src/load.rs:704`).
 - `nvs-runtime`'s pool hands a block back through a pointer narrowed to its last owner's size. Exposing each block's provenance and rebuilding the pointer in `push` and the same-class `realloc` removed the report, but no unit test reproduced it, and the user chose the `sanitizer` feature instead (`crates/nvs-runtime/src/alloc.rs:176`).
-- `test / linux-aarch64` and every `test` and `cost guards` leg passed on run 39206993876, macOS included. Check the unoptimised suite step's log on that leg before stage 10 relies on it (`.github/workflows/ci.yml:131`).
 - The suite's probes-on run is still owed: the coverage flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:2394`, `rule:testing/probes-on-is-a-tested-configuration`).
 - `NvsStr::new` takes any `&[u8]`, so the UTF-8 invariant rests on every caller, and the HTTP Garden bug was one that forgot. A checked constructor for bytes from outside, with `new` kept for payloads already text, closes the class (`crates/nvs-runtime/src/string.rs:462`).
 - Two more unchecked `string`s: a MySQL column name (`crates/nvs-stdlib/src/db/column.rs:67`, also `db/execute.rs:835`, `db/stream.rs:345`), and a signed cookie's plaintext, opened with empty AAD (`crates/nvs-stdlib/src/signed_cookie.rs:309`).
@@ -458,5 +427,5 @@ Stage 10's push-and-watch loop over `.github/workflows/ci.yml`:
 - `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed (`tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`).
 - Three Miri tests ran 203 to 218 s on run 39258294723, against a 300 s limit: `regex`'s flag test (32 s locally), `every_registered_member_has_an_implementation_address` and the transport's compressed replies. A slower runner day could reach the limit (`crates/nvs-stdlib/src/regex.rs`, `crates/nvs-stdlib/src/lib.rs`).
 - The shared-worker run added about 6 minutes to each `test` leg's conformance step (11 to 17 minutes on Windows). It runs every eligible case a second time (`crates/nvs-cli/src/shared.rs`).
-- This goal owns the gap record `bigint-gcd-and-modular-power-grow-quadratically`, handed over by `fewer-allocations`. `Core\BigInt`'s `gcd`, `lcm` and odd-modulus `powMod` are quadratic in an operand's width, and only the memory ceiling bounds that width, so request text reaches the quadratic cost. `nv scaling` never accepts `complexity quadratic`. Close it with a half-gcd and a Montgomery step over Karatsuba, or with a width cap on the three members, before this goal's `owners --closes` gate (`crates/nvs-stdlib/src/bigint.rs:68`, `data/gaps/nvs-stdlib/bigint-gcd-and-modular-power-grow-quadratically.json`).
+- `bigint-gcd-and-modular-power-grow-quadratically`, one of the 69: `Core\BigInt`'s `gcd`, `lcm` and odd-modulus `powMod` are quadratic in an operand's width, and request text reaches that cost. A half-gcd and a Montgomery step close it with no new limit (`crates/nvs-stdlib/src/bigint.rs:68`).
 - `Core\BigInt::parse`'s `ParseError` message repeats the whole text, so a long bad text a request sent gives a message as long. `nvs_runtime::helpers` bounds a failed conversion's operand to a head, and this message could do the same. It is a message change, so it is held to `AGENTS.md` § *Text an end user reads* (`crates/nvs-stdlib/src/bigint.rs:438`).
