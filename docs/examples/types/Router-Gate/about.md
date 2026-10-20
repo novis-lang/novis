@@ -14,4 +14,7 @@ When `allows` returns `false`, the status is `403` and `dispatch` calls `refused
 Before `dispatch` calls `refused` or `failed`, it sets the status of the response. Your method writes
 the body. It can also set another status with `Core\Response::setStatus`.
 
-**Good to know:** if `refused` or `failed` throws an error, `dispatch` throws the same error.
+**Good to know:** if `refused` or `failed` throws an error, `dispatch` throws the same error. A
+`Gate` does not use the value that a route method returns. Implement `Core\Router\Responder` to send
+that value. `nvs check` gives a warning when a route method returns a value and the gate is not a
+`Responder`.
