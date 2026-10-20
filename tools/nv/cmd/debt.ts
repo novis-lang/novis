@@ -231,6 +231,9 @@ export async function payDebt(slug: string | undefined, s: DebtSeams): Promise<D
   if (before.length > 0) {
     s.voice.step(`floor debt: paid ${paid.length}${paid.length > 0 ? ` (${byKind(paid)})` : ""} in ${minutes(s.now() - started)}; left ${left.length}${left.length > 0 ? ` (${byKind(left)})` : ""}`);
   }
+  // An atom left is named, so the next step is to run it, not to query the store for it. A proof stays
+  // owed when its recording run diverged, and `nv proofs --id <feature> --run` prints why.
+  if (left.length > 0) s.voice.step(`floor debt: still owed: ${left.slice(0, 5).map((a) => a.id).join(", ")}${left.length > 5 ? `, and ${left.length - 5} more` : ""}`);
   // An atom paid without a recorded run ends now, and one still owed ends skipped.
   const after = new Set(left.map((a) => a.id));
   for (const id of planned) end(id, after.has(id) ? { result: "skipped", why: "its runner did not run it, so it stays owed" } : {});
