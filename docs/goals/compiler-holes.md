@@ -331,8 +331,6 @@ Stage 2 follows on `crates/nvs-types/src/conformance.rs`.
 
 ### Backlog
 
-- Four LDAP examples print several entries in the server's order and pass on CI only by that order: `Ldap-Entry/dn/01`, `Ldap-Changes/cookie/01`, `Ldap-Entries/references/02` and `types/Ldap-Connection-Scope/01`. Carried from `release-hardening`, whose file is deleted when it is reached; sorting them is not decided.
-
 The bullets below were carried from `release-hardening`'s backlog when it was reached.
 
 - A warm baseline run is 30.6 M instructions, and 61% is the front end. The largest parts are `build_signatures` (10 M), `seed_natives` (6.5 M), `builtin_manifests` (4.5 M, which parses every built-in extension's manifest on every start) and the TOML parse of `default.toml` (4.4 M). Precomputing the manifests at build time is the plainest cut (`crates/nvs-ext/src/load.rs:704`).
