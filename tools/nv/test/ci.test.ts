@@ -104,6 +104,37 @@ describe("bun nv ci --watch", () => {
     expect(w.slept).toEqual([POLL_IDLE_MS, POLL_IDLE_MS, POLL_IDLE_MS]);
   });
 
+  test("`--past` passes over a failed job it names, and the watch goes on for the others", async () => {
+    const w = seams("past", (p) => ({
+      runs: [runOf(14, "CI", "in_progress", null)],
+      jobs: {
+        14: [
+          jobOf(6, "proofs / linux-x86_64", "completed", "failure", "Feature proofs"),
+          jobOf(7, "test", p === 0 ? "in_progress" : "completed", p === 0 ? null : "failure", p === 0 ? "" : "nextest"),
+        ],
+      },
+    }));
+    expect(await ci(["--watch", "--past", "proofs"], w.s)).toBe(1);
+    expect(w.slept).toEqual([POLL_BUSY_MS]);
+    expect(w.said.filter((l) => l.startsWith("  passing over FAILED CI / proofs / linux-x86_64"))).toHaveLength(1);
+    expect(w.said.some((l) => l.startsWith('FAILED CI / test / step "nextest"'))).toBe(true);
+    expect(w.said.some((l) => l.startsWith("FAILED CI / proofs"))).toBe(false);
+  });
+
+  test("a watched run that ends red only in `--past` jobs exits 4, and an old one is waited past", async () => {
+    const w = seams("past-ends", (p) => ({
+      runs: [runOf(15, "CI", p < 2 ? "in_progress" : "completed", p < 2 ? null : "failure")],
+      jobs: { 15: [jobOf(8, "proofs / linux-x86_64", "completed", "failure", "Feature proofs"), jobOf(9, "test", p < 2 ? "in_progress" : "completed", p < 2 ? null : "success")] },
+    }));
+    expect(await ci(["--watch", "--past", "proofs"], w.s)).toBe(4);
+    const old = seams("past-old", () => ({
+      runs: [runOf(16, "CI", "completed", "failure")],
+      jobs: { 16: [jobOf(10, "proofs / linux-x86_64", "completed", "failure", "Feature proofs")] },
+    }));
+    expect(await ci(["--watch", "--past", "proofs", "--max-min", "2"], old.s)).toBe(3);
+    expect(old.slept).toEqual([POLL_IDLE_MS, POLL_IDLE_MS]);
+  });
+
   test("a `gh` that keeps failing ends the watch with exit 2, and one failure does not", async () => {
     const w = seams("gh-down", () => "fail");
     expect(await ci(["--watch"], w.s)).toBe(2);
