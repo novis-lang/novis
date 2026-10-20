@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/router.rs, docs/rules/routing/a-gate-answers-aro
 stages:
   - id: 1
     title: "`Core\\Router\\Responder` is a contract, and `dispatch` hands a returned value to `respond`"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/registry.rs, crates/nvs-types/src/core_lib.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-ir/src/ir.rs, crates/nvs-codegen/src/lib.rs, docs/rules/routing/matching-is-not-dispatching.md, tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst]
     extra:
       context:
@@ -151,17 +151,17 @@ examples print what stages 1 and 2 do. Stages 1 and 2 may run as one group if th
 **Does:** a gate that implements `Responder` receives the value of every route method that returns
 one, and its `respond` writes the response. The motivating page answers with its markup.
 
-- [ ] `CoreContract` gains `parents`; `GATE` sets it empty (`rule:routing/a-gate-answers-around-every-handler`). `crates/nvs-stdlib/src/registry.rs:2730`, `crates/nvs-stdlib/src/router.rs:909`
-- [ ] `RESPONDER` with `respond`, its class card and member card in the plain voice, added to `CONTRACTS`, and the registry's contract tests cover a parent (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/router.rs:945`, `crates/nvs-stdlib/src/registry.rs:2757`, `crates/nvs-stdlib/src/registry.rs:5921`
-- [ ] `core_lib` seeds each parent edge, and `nvs meta` writes the parents. `crates/nvs-types/src/core_lib.rs:179`, `crates/nvs-types/src/signatures.rs:821`, `crates/nvs-cli/src/meta.rs:298`
-- [ ] The route row's `returns_value` bit, from the checker's row through the crossing to the runtime row. `crates/nvs-types/src/routes.rs:373`, `crates/nvs-cli/src/main.rs:1403`, `crates/nvs-runtime/src/routes.rs:477`
-- [ ] The descriptor's `Responder` bit, carried as `is_callable` is. `crates/nvs-ir/src/ir.rs:410`, `crates/nvs-ir/src/lower/mod.rs:966`, `crates/nvs-codegen/src/lib.rs:1639`, `crates/nvs-runtime/src/object.rs:2179`
-- [ ] `call_handler` hands the value back for a `returns_value` row, and `dispatch_matched` calls `respond` when the gate's descriptor has the bit, then releases the value; `dispatch`'s doc says the new step in its order. `crates/nvs-stdlib/src/router.rs:2717`, `crates/nvs-stdlib/src/router.rs:2601`, `crates/nvs-stdlib/src/router.rs:2483`
-- [ ] `DISPATCH_DOC`'s `ret` says the value goes to `respond` when the gate is a `Responder`. `crates/nvs-stdlib/src/router.rs:522`
-- [ ] Rust tests beside the router's: a `Responder` gets the value, a `void` method does not call `respond`, a throwing method calls `failed` and not `respond`, a throwing `respond` is thrown by `dispatch`, a plain gate drops the value. `crates/nvs-stdlib/src/router.rs:4100`
-- [ ] A conformance case: a returned `Core\Html\Markup` reaches the body through `respond`, with the status `200`. `tests/conformance/core/router-dispatch-hands-a-returned-value-to-respond.nvst:1`
-- [ ] The discard case stays the plain-gate half; if its expectation pins check output, it gains stage 2's warning there. `tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst:1`
-- [ ] The two rule passages rewritten, with the trade-offs, and the new case in `guardedBy`. `docs/rules/routing/a-gate-answers-around-every-handler.md:15`, `docs/rules/routing/a-gate-answers-around-every-handler.md:81`, `docs/rules/routing/matching-is-not-dispatching.md:45`, `data/rules/routing/a-gate-answers-around-every-handler.json:13`
+- [x] `CoreContract` gains `parents`; `GATE` sets it empty (`rule:routing/a-gate-answers-around-every-handler`). `crates/nvs-stdlib/src/registry.rs:2730`, `crates/nvs-stdlib/src/router.rs:909`
+- [x] `RESPONDER` with `respond`, its class card and member card in the plain voice, added to `CONTRACTS`, and the registry's contract tests cover a parent (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/router.rs:945`, `crates/nvs-stdlib/src/registry.rs:2757`, `crates/nvs-stdlib/src/registry.rs:5921`
+- [x] `core_lib` seeds each parent edge, and `nvs meta` writes the parents. `crates/nvs-types/src/core_lib.rs:179`, `crates/nvs-types/src/signatures.rs:821`, `crates/nvs-cli/src/meta.rs:298`
+- [x] The route row's `returns_value` bit, from the checker's row through the crossing to the runtime row. `crates/nvs-types/src/routes.rs:373`, `crates/nvs-cli/src/main.rs:1403`, `crates/nvs-runtime/src/routes.rs:477`
+- [x] The descriptor's `Responder` bit, carried as `is_callable` is. `crates/nvs-ir/src/ir.rs:410`, `crates/nvs-ir/src/lower/mod.rs:966`, `crates/nvs-codegen/src/lib.rs:1639`, `crates/nvs-runtime/src/object.rs:2179`
+- [x] `call_handler` hands the value back for a `returns_value` row, and `dispatch_matched` calls `respond` when the gate's descriptor has the bit, then releases the value; `dispatch`'s doc says the new step in its order. `crates/nvs-stdlib/src/router.rs:2717`, `crates/nvs-stdlib/src/router.rs:2601`, `crates/nvs-stdlib/src/router.rs:2483`
+- [x] `DISPATCH_DOC`'s `ret` says the value goes to `respond` when the gate is a `Responder`. `crates/nvs-stdlib/src/router.rs:522`
+- [x] Rust tests beside the router's: a `Responder` gets the value, a `void` method does not call `respond`, a throwing method calls `failed` and not `respond`, a throwing `respond` is thrown by `dispatch`, a plain gate drops the value. `crates/nvs-stdlib/src/router.rs:4100`
+- [x] A conformance case: a returned `Core\Html\Markup` reaches the body through `respond`, with the status `200`. `tests/conformance/core/router-dispatch-hands-a-returned-value-to-respond.nvst:1`
+- [x] The discard case stays the plain-gate half; if its expectation pins check output, it gains stage 2's warning there. `tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst:1`
+- [x] The two rule passages rewritten, with the trade-offs, and the new case in `guardedBy`. `docs/rules/routing/a-gate-answers-around-every-handler.md:15`, `docs/rules/routing/a-gate-answers-around-every-handler.md:81`, `docs/rules/routing/matching-is-not-dispatching.md:45`, `data/rules/routing/a-gate-answers-around-every-handler.json:13`
 
 ### 2. `nvs check` warns at a `dispatch` whose gate cannot be a `Responder`
 
@@ -205,25 +205,33 @@ files and the website page itself.
 
 ### State
 
-The goal is new, and nothing is built. `dispatch` releases a route method's value in `call_handler`
-(`crates/nvs-stdlib/src/router.rs:2717`), `CoreContract` has no parents, and the checker records only
-that a program calls `dispatch`.
+Stage 1 is done. `Core\Router\Responder` is a second `CoreContract` with `parents: &[GATE_NAME]`
+(`crates/nvs-stdlib/src/router.rs`, `RESPONDER`). `core_lib` seeds the parent edge through
+`seed_implements` and also seeds each parent's members onto the contract (`contract_members`), because
+the class graph lives in `nvs-hir` and cannot hold the edge: `conformance` and method resolution walk
+the graph, and `assign` reads the seeded edge. The descriptor bit is not a new `nvs_ir::ir::Class`
+field: `nvs-codegen` reads `class.conforms` for `RESPONDER_NAME` and calls
+`ClassTable::set_responder` (`crates/nvs-codegen/src/lib.rs:1660`), because `conforms` already crosses.
+The route row carries `returns_value` (`crates/nvs-types/src/routes.rs:372`, `Route::with_returned_value`).
+`dispatch_matched` calls `respond` and then releases the value. The two rules say so, with the
+trade-offs. The discard case pins only run output, so stage 2 adds nothing to it.
 
 ### Next
 
-**Stage 1**, on `crates/nvs-stdlib/src/router.rs`, `crates/nvs-stdlib/src/registry.rs` and
-`crates/nvs-types/src/core_lib.rs`, then the route row and descriptor bits. No gate.
+**Stage 2**, on `crates/nvs-types/src/routes.rs`, `crates/nvs-types/src/expr/calls.rs`,
+`crates/nvs-types/src/check.rs` and `crates/nvs-diagnostics/src/code/warnings.rs`. Start with the
+stage's `Explore` split.
 
-- [ ] `CoreContract` gains `parents`; `GATE` sets it empty (`rule:routing/a-gate-answers-around-every-handler`). `crates/nvs-stdlib/src/registry.rs:2730`, `crates/nvs-stdlib/src/router.rs:909`
-- [ ] `RESPONDER` with its cards, in `CONTRACTS`, and the contract tests cover a parent (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/router.rs:945`, `crates/nvs-stdlib/src/registry.rs:2757`, `crates/nvs-stdlib/src/registry.rs:5921`
-- [ ] `core_lib` seeds each parent edge, and `nvs meta` writes the parents. `crates/nvs-types/src/core_lib.rs:179`, `crates/nvs-cli/src/meta.rs:298`
-- [ ] The route row's `returns_value` bit. `crates/nvs-types/src/routes.rs:373`, `crates/nvs-cli/src/main.rs:1403`, `crates/nvs-runtime/src/routes.rs:477`
-- [ ] The descriptor's `Responder` bit. `crates/nvs-ir/src/ir.rs:410`, `crates/nvs-codegen/src/lib.rs:1639`, `crates/nvs-runtime/src/object.rs:2179`
-- [ ] `dispatch_matched` calls `respond`, `dispatch`'s doc and `DISPATCH_DOC` say so. `crates/nvs-stdlib/src/router.rs:2601`, `crates/nvs-stdlib/src/router.rs:2717`, `crates/nvs-stdlib/src/router.rs:522`
-- [ ] The router's Rust tests for the five cases. `crates/nvs-stdlib/src/router.rs:4100`
-- [ ] The Markup conformance case, and the discard case kept as the plain-gate half. `tests/conformance/core/router-dispatch-hands-a-returned-value-to-respond.nvst:1`, `tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst:1`
-- [ ] The two rule passages rewritten, and `guardedBy`. `docs/rules/routing/a-gate-answers-around-every-handler.md:15`, `docs/rules/routing/matching-is-not-dispatching.md:45`, `data/rules/routing/a-gate-answers-around-every-handler.json:13`
+- [ ] `RouteTable` (`crates/nvs-types/src/routes.rs:656`, beside `dispatches` at 658) records each
+  `dispatch` site's span and whether its gate can be a `Responder`, set at the call
+  (`crates/nvs-types/src/expr/calls.rs:640`).
+- [ ] The warning, the next free `W` code after `W1024` (`crates/nvs-diagnostics/src/code/warnings.rs:248`),
+  raised beside `crate::routes::check_table` (`crates/nvs-types/src/check.rs:240`) from rows with
+  `returns_value`.
+- [ ] The stage's tests, case, fixes and rule sentence. `crates/nvs-types/tests/routes.rs:1`
 
 ### Backlog
 
-- Stage 2's warning follows stage 1, in the same session if it fits. `crates/nvs-types/src/routes.rs`
+- Stage 3's proofs. Its Rust tests are the five `dispatching` cases in `crates/nvs-stdlib/src/router.rs`
+  (`a_responder_is_handed_the_value_a_route_method_returns` onward). `bun nv proofs --id
+  'Core\Router\Responder'` names what it owes.
