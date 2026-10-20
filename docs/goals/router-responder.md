@@ -20,7 +20,7 @@ stages:
         rules: [routing/a-gate-answers-around-every-handler, routing/api-document-is-generated-from-the-route-table]
   - id: 3
     title: "`Core\\Router\\Responder` has its feature proofs, and the pages say what `dispatch` does with a value"
-    status: open
+    status: done
     context: [docs/examples/types/Router-Gate/about.md, docs/examples/core/Router/dispatch/about.md, website/src/content/docs/syntax/attributes/routes.mdx, docs/rules/testing/feature-proofs.md, data/rules/routing/a-gate-answers-around-every-handler.json]
     extra:
       context:
@@ -191,50 +191,35 @@ is the response gets a `Responder` gate.
 with their `.out`, then the bench, then the attack. The session checks each and writes the `about.md`
 files and the website page itself.
 
-- [ ] `about.md` for the feature, held to AGENTS.md § *Text an end user reads*. `docs/examples/types/Router-Responder/about.md:1`
-- [ ] Example 01: a page method returns its markup, and `respond` sends it with `Core\Response::html`. `docs/examples/types/Router-Responder/01-a-page-returns-its-markup.nvs:1`
-- [ ] Example 02: an API method returns an object, and `respond` sends it with `Core\Response::json`. `docs/examples/types/Router-Responder/02-an-api-method-returns-an-object.nvs:1`
-- [ ] Example 03: one `respond` picks the response by the value's type, and a `void` method still writes its own. `docs/examples/types/Router-Responder/03-one-respond-for-pages-and-data.nvs:1`
-- [ ] The bench: pages answered through `respond`, with its growth over the body size. `benches/members/types/Router-Responder.nvs:1`
-- [ ] The attack: a denied request, a method that throws after it built its markup, and a `respond` that throws; none of the value reaches the body, and the last error is thrown by `dispatch` (`rule:testing/hostile-case-contract`). `tests/hostile/types/Router-Responder/a-value-never-skips-allows-or-failed.nvs:1`
-- [ ] The `dispatch` and `Gate` pages say a `Responder` receives the value. `docs/examples/core/Router/dispatch/about.md:12`, `docs/examples/types/Router-Gate/about.md:1`
-- [ ] The website's routes page says the same. `website/src/content/docs/syntax/attributes/routes.mdx:34`
-- [ ] `bun nv proofs --id 'Core\Router\Responder'` prints nothing owed, and its Rust tests are the ones stage 1 wrote. `crates/nvs-stdlib/src/router.rs:4100`
+- [x] `about.md` for the feature, held to AGENTS.md § *Text an end user reads*. `docs/examples/types/Router-Responder/about.md:1`
+- [x] Example 01: a page method returns its markup, and `respond` sends it with `Core\Response::html`. `docs/examples/types/Router-Responder/01-a-page-returns-its-markup.nvs:1`
+- [x] Example 02: an API method returns an object, and `respond` sends it with `Core\Response::json`. `docs/examples/types/Router-Responder/02-an-api-method-returns-an-object.nvs:1`
+- [x] Example 03: one `respond` picks the response by the value's type, and a `void` method still writes its own. `docs/examples/types/Router-Responder/03-one-respond-for-pages-and-data.nvs:1`
+- [x] The bench: pages answered through `respond`, with its growth over the body size. `benches/members/types/Router-Responder.nvs:1`
+- [x] The attack: a denied request, a method that throws after it built its markup, and a `respond` that throws; none of the value reaches the body, and the last error is thrown by `dispatch` (`rule:testing/hostile-case-contract`). `tests/hostile/types/Router-Responder/01-a-value-never-skips-allows-or-failed.nvs:1`
+- [x] The `dispatch` and `Gate` pages say a `Responder` receives the value. `docs/examples/core/Router/dispatch/about.md:12`, `docs/examples/types/Router-Gate/about.md:1`
+- [x] The website's routes page says the same. `website/src/content/docs/syntax/attributes/routes.mdx:34`
+- [x] `bun nv proofs --id 'Core\Router\Responder'` prints nothing owed, and its Rust tests are the ones stage 1 wrote. `crates/nvs-stdlib/src/router.rs:4100`
 
 ## Handoff
 
 ### State
 
-Stages 1 and 2 are done. `W1025` (`W_DISPATCH_IGNORES_RETURNED_VALUE`,
-`crates/nvs-diagnostics/src/code/warnings.rs`) is raised by `crate::routes::check_responders` beside
-`check_table` (`crates/nvs-types/src/check.rs:241`). Each `dispatch` call records a `DispatchSite` on
-the `RouteTable`: the gate argument's span, and `gate_can_respond`'s answer. That answer is
-`nvs_hir::implementors` of `Core\Router\Responder` over the class graph, filtered by the argument's
-static type; a type naming no class of the program (`Core\Router\Gate`, `mixed`) admits every one.
-Pinned by four tests in `crates/nvs-types/tests/routes.rs` (after
-`a_call_to_dispatch_marks_the_unit…`) and by `crates/nvs-cli/tests/check.rs`'s
-`a_dispatch_whose_gate_ignores_a_returned_value_warns`. No conformance case: the harness pins stderr
-only for a run that fails (`crates/nvs-test/src/run.rs:332`). The discard case still warns under
-`nvs check` and still runs green. `website/` was rendered again for stage 1's contract, and the 14
-`Core\Router` and `Core\Router\Match` perf records were recorded again on `router.rs`.
+All three stages are done, and the goal is reached. `bun nv proofs --id 'Core\Router\Responder'`
+prints `complete.`: `about.md`, three examples, the conformance case
+`tests/conformance/core/router-dispatch-hands-a-returned-value-to-respond.nvst` (now `// covers:` the
+interface), the bench `benches/members/types/Router-Responder.nvs` with its `.scale.nvs` sibling and
+one record in `data/perf/members.ndjson`, and the attack
+`tests/hostile/types/Router-Responder/01-a-value-never-skips-allows-or-failed.nvs` (the hostile
+README's `NN-` prefix). The `dispatch` and `Gate` pages and `routes.mdx` say a `Responder` gets the
+value and `nvs check` warns for a plain gate. `bun nv verify --doc` and
+`bun nv owners --closes router-responder` are clean.
 
 ### Next
 
-**Stage 3**, the feature proofs. Follow the stage's `**Split:**` line: writing subagents, one after
-another, write the three examples with their `.out`, then the bench, then the attack.
-
-- [ ] Proofs mirror `Core\Router\Gate`'s, `docs/examples/types/Router-Gate/about.md:1`. Run
-  `bun nv proofs --id 'Core\Router\Responder'` first. Its paths win over the stage's.
-- [ ] Three examples, none printing `W1025`, `crates/nvs-cli/tests/fixtures/check/dispatch-ignores-a-returned-value.nvs:1`
-  being the program that does. Run `nvs check` on each.
-- [ ] The bench and the attack. `benches/members/types/Router-Responder.nvs:1`,
-  `tests/hostile/types/Router-Responder/a-value-never-skips-allows-or-failed.nvs:1`
-- [ ] `about.md` and the pages: `docs/examples/core/Router/dispatch/about.md:12`,
-  `docs/examples/types/Router-Gate/about.md:1`, `website/src/content/docs/syntax/attributes/routes.mdx:34`.
-  Each says that `nvs check` warns when a gate ignores a value.
+Nothing. The driver's acceptance runs `owners-closes`, and then deletes this file.
 
 ### Backlog
 
-- Stage 3's Rust tests are the five `dispatching` cases in `crates/nvs-stdlib/src/router.rs`
-  (`a_responder_is_handed_the_value_a_route_method_returns` onward).
-- Before `DONE`: `bun nv verify --doc` and `bun nv owners --closes router-responder`.
+- `bun nv scaling --budget --write` refuses to write while many benches outside this goal are over
+  `data/perf/bench-budget.json`, so the new bench has no budget share yet. That drift is `ci-green`'s.
