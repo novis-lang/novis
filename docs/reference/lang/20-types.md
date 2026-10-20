@@ -1325,6 +1325,140 @@ error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
 ```
 
+# A member every class of a union declares
+
+A variable of a union of classes, such as `Box|Circle`, is an object of one of those classes. You
+can read a property or call a method of it when every class has that member with the same type. A
+method needs the same parameters and return type. The member must also be visible where you use it.
+
+Use `?->` on a union that may be `null`, such as `?Box|Circle`. A write compiles when no class makes
+the property `readonly` and every class has the same `set` visibility. `isinit` does not compile on
+a property of a union.
+
+If one class does not have the member, the program does not compile. The same is true when the
+types differ, or when the member is not visible in one class. The error is `E0881`, and its message
+names the class. An interface is not allowed in such a union.
+
+**The examples below** read a property of two shipping classes and call a method of two payment
+classes. The last one is a compile error.
+
+## Example 01: a property both classes declare
+
+```nvs
+<?nvs
+// Shows how to read a property that every class of a union declares.
+
+final class Courier {
+    public string $label = "Courier, next day";
+    public function constructor(public int $weight) { }
+}
+
+final class Pickup {
+    public string $label = "Pickup at the shop";
+    public function constructor(public int $weight) { }
+}
+
+final class Order {
+    // Small parcels go by courier. Heavy parcels are picked up at the shop.
+    public static function shipping(int $weight): Courier|Pickup {
+        if ($weight > 20) {
+            return new Pickup($weight);
+        }
+        return new Courier($weight);
+    }
+}
+
+// Both classes declare `string $label` and `int $weight`.
+// So `$ship->label` compiles without a test of the class.
+array<int> $weights = [3, 25];
+foreach ($weights as int $weight) {
+    Courier|Pickup $ship = Order::shipping($weight);
+    echo $ship->weight, " kg: ", $ship->label, "\n";
+}
+
+// `?->` reads a property of a union that may be `null`.
+// Here the variable is `null`, so `??` prints `not chosen`.
+?Courier|Pickup $later = null;
+echo $later?->label ?? "not chosen", "\n";
+
+// A write works too, because `$label` has the same type in both classes.
+Courier|Pickup $gift = new Courier(1);
+$gift->label = "Courier, gift wrapped";
+echo $gift->label, "\n";
+```
+
+```output
+3 kg: Courier, next day
+25 kg: Pickup at the shop
+not chosen
+Courier, gift wrapped
+```
+
+## Example 02: a method both classes declare
+
+```nvs
+<?nvs
+// Shows how to call a method that every class of a union declares.
+
+final class Card {
+    public function constructor(public string $last4) { }
+    public function fee(int $cents): int { return $cents >= 5000 ? 0 : 30; }
+    public function describe(): string { return "card ending " . $this->last4; }
+}
+
+final class Transfer {
+    public function constructor(public string $bank) { }
+    public function fee(int $cents): int { return $cents >= 100000 ? 0 : 50; }
+    public function describe(): string { return "transfer from " . $this->bank; }
+}
+
+// Each call runs `fee` and `describe` of the class the value is.
+// For 10000 cents, the card fee is `0` and the transfer fee is `50`.
+array<Card|Transfer> $payments = [new Card("4242"), new Transfer("City Bank")];
+foreach ($payments as Card|Transfer $payment) {
+    echo $payment->describe(), ": fee ", $payment->fee(10000), " cents\n";
+}
+```
+
+```output
+card ending 4242: fee 0 cents
+transfer from City Bank: fee 50 cents
+```
+
+## Example 03: a member one class lacks
+
+```nvs error
+<?nvs
+// Shows that a property must exist in every class of the union.
+// `Pickup` has no `$tracking`, so this program does not compile.
+// proof: compile-error
+
+final class Courier {
+    public string $tracking = "TR-1001";
+    public function constructor() { }
+}
+
+final class Pickup {
+    public string $shop = "Main Street";
+    public function constructor() { }
+}
+
+Courier|Pickup $ship = new Pickup();
+echo $ship->tracking, "\n";
+```
+
+```output
+error[E0881]: `Pickup` has no property `$tracking`
+   --> main.nvs:17:6
+   |
+17 | echo $ship->tracking, "\n";
+   |      ^^^^^^^^^^^^^^^ used through `Courier|Pickup` here
+   = help: you can use a member through a union only when every class has it with the same type, and it is visible here. Otherwise, test the value with `is` first
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
 # `void`, `never`, `self`, `static`
 
 Four return types say something an ordinary type cannot.

@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a subclass declares the property `$name` again, after a new property of its own.
+// A read through `Box|Circle` should still return the subclass's value, in either order of the union.
+
+class Box
+{
+    public int $size = 4;
+    public string $name = 'box';
+    public function constructor()
+    { }
+}
+
+final class Circle
+{
+    public string $name = 'circle';
+    public function constructor()
+    { }
+}
+
+// `Crate` adds `$label` before it declares `$name` again.
+final class Crate extends Box
+{
+    public string $label = 'label';
+    public string $name = 'crate';
+    public function constructor()
+    { parent::constructor(); }
+}
+
+final class Attack
+{
+    // This function throws an error when the read returns another value.
+    public static function check(string $read, string $expected): void
+    {
+        if ($read != $expected) {
+            throw new LogicError('read ' . $read . ', expected ' . $expected);
+        }
+    }
+}
+
+// 1. Reads `$name` of a `Crate` through `Box|Circle`. `Box` is tested first.
+Box|Circle $first = new Crate();
+Attack::check($first->name, 'crate');
+
+// 2. Reads it through `Circle|Box`. Here `Box` is the last class, so it has no test.
+Circle|Box $last = new Crate();
+Attack::check($last->name, 'crate');
+
+// 3. Writes `$name` through the union, then reads it back many times.
+array<Circle|Box> $shapes = [new Crate(), new Circle(), new Box()];
+uint $round = 0;
+while ($round < 20000) {
+    foreach ($shapes as Circle|Box $shape) {
+        $shape->name = 'round';
+        Attack::check($shape->name, 'round');
+    }
+    $round = $round + 1;
+}
+
+// 4. Reads `$label` of the `Crate` after the writes. It still has its first value.
+Box $box = $last as Box;
+if ($box is Crate) {
+    Attack::check($box->label, 'label');
+}
+echo "every read returned the expected value\n";

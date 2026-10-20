@@ -12,6 +12,7 @@ keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, cl
 # `callable`, classes, `object`, shapes
 # `mixed`
 # Nullable, union, single-value and enum-case types
+# A member every class of a union declares
 # `void`, `never`, `self`, `static`
 # `type` aliases
 # Values written in the code

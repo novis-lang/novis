@@ -1,12 +1,18 @@
 {
   "title": "A union of classes reads and calls a member every class declares with the same type",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "types/unions-and-mixed",
     "types/a-declared-type-answers-before-the-program-runs",
     "types/erased-member-access",
     "types/narrowing"
   ],
-  "guardedBy": [],
-  "goal": "union-shared-members"
+  "guardedBy": [
+    "tests/conformance/lang/a-property-every-class-of-a-union-declares-is-read.nvst",
+    "tests/conformance/lang/a-method-every-class-of-a-union-declares-is-called.nvst",
+    "tests/conformance/lang/a-member-not-shared-by-every-class-of-a-union-is-a-compile-error.nvst",
+    "tests/conformance/lang/a-write-through-a-union-needs-the-same-set-visibility-and-a-set-hook-in-every-class.nvst",
+    "tests/conformance/lang/a-union-where-one-class-hooks-the-property-is-no-inout-argument-and-no-element-write-root.nvst",
+    "tests/conformance/soundness/property-plain.nvst"
+  ]
 }
