@@ -3126,7 +3126,7 @@ nvs_runtime::nvs_helper! {
             Some(document) => Ok(document),
             None => {
                 let octets = held_octets(ctx, "json")?;
-                let document = decoded_body(octets, max, "json")?;
+                let document = decoded_body(octets, max, None, "json")?;
                 if first {
                     #[expect(
                         unsafe_code,
@@ -3220,9 +3220,10 @@ nvs_runtime::nvs_helper! {
         claim_body(ctx, "jsonAs", BodyNeed::Octets)?;
         // The document is read while the octets are borrowed, and the borrow is
         // over before the hydration takes the carrier they came off.
+        let lists = crate::json::Lists::default();
         let document = {
             let octets = held_octets(ctx, "jsonAs")?;
-            decoded_body(octets, max, "jsonAs")?
+            decoded_body(octets, max, Some(&lists), "jsonAs")?
         };
         #[expect(
             unsafe_code,
@@ -3238,14 +3239,16 @@ nvs_runtime::nvs_helper! {
                 // A JSON document spelled its own types, so `"1"` reaching an
                 // `int` field is a document disagreeing with the `T` it was
                 // read as — `crate::json::Reading` owns the fork.
-                crate::json::Reading::Wire,
+                crate::json::Reading::Wire(&lists),
                 "Core\\Request::jsonAs",
             )
         }
     }
 }
 
-/// `octets` as the one JSON document they spell, for `member`.
+/// `octets` as the one JSON document they spell, for `member`. A class
+/// decode passes `lists`, which notes each array the parse built from a JSON
+/// list ([`crate::json::read_marked`]).
 ///
 /// # Errors
 ///
@@ -3256,7 +3259,12 @@ nvs_runtime::nvs_helper! {
 /// document `null`, and the two must not answer alike; `LogicError` is not
 /// available for it either, since a peer must never be able to make a program
 /// report its own defect.
-fn decoded_body(octets: &[u8], max: u32, member: &str) -> Result<Value, Fault> {
+fn decoded_body(
+    octets: &[u8],
+    max: u32,
+    lists: Option<&crate::json::Lists>,
+    member: &str,
+) -> Result<Value, Fault> {
     // `crate::json`'s shape, because this is that member's failure reached
     // through a different door: one issue for a malformed document, so a
     // `catch (ParseError $e)` reads the same whichever door it came through.
@@ -3272,7 +3280,11 @@ fn decoded_body(octets: &[u8], max: u32, member: &str) -> Result<Value, Fault> {
     }
     let text = std::str::from_utf8(octets)
         .map_err(|_| refused("the body is not UTF-8, so it is not a JSON document"))?;
-    crate::json::read(text, max).map_err(|why| refused(&why.to_string()))
+    match lists {
+        Some(lists) => crate::json::read_marked(text, max, lists),
+        None => crate::json::read(text, max),
+    }
+    .map_err(|why| refused(&why.to_string()))
 }
 
 /// This request's octets, held on the carrier: pulled off the wire by the

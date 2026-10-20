@@ -1,0 +1,66 @@
+--TEST--
+`Core\Json::decodeAs` reads a derived class only from a JSON object, and an `array<T>` field only from a JSON list, at the top and inside a field — `rule:core-classes/derive-field-list`
+--FILE--
+<?nvs
+#[Core\Json\Derive]
+final class Address {
+    public function constructor(public string $city) {}
+}
+
+#[Core\Json\Derive]
+final class Slot {
+    public function constructor(
+        #[Core\Json\Field(name: "0")]
+        public string $first,
+    ) {}
+}
+
+#[Core\Json\Derive]
+final class Person {
+    public function constructor(public Address $home, public array<int> $scores) {}
+}
+
+final class Show {
+    public static function issues(string $label, ParseError $bad): void {
+        foreach ($bad->issues as {path: string, message: string} $issue) {
+            echo $label, ": [", $issue->path, "] ", $issue->message, "\n";
+        }
+    }
+}
+
+try {
+    Core\Json::decodeAs<Address>("[1]");
+} catch (ParseError $bad) {
+    Show::issues("list", $bad);
+}
+try {
+    Core\Json::decodeAs<Slot>("[\"x\"]");
+} catch (ParseError $bad) {
+    Show::issues("renamed", $bad);
+}
+echo "object: ", Core\Json::decodeAs<Slot>("{\"0\":\"x\"}")->first, "\n";
+try {
+    Core\Json::decodeAs<Person>("{\"home\":[\"x\"],\"scores\":[1]}");
+} catch (ParseError $bad) {
+    Show::issues("nested", $bad);
+}
+try {
+    Core\Json::decodeAs<Person>("{\"home\":{\"city\":\"x\"},\"scores\":{\"0\":1}}");
+} catch (ParseError $bad) {
+    Show::issues("scores", $bad);
+}
+try {
+    Core\Json::decodeAs<array<Address>>("{\"0\":{\"city\":\"x\"}}");
+} catch (ParseError $bad) {
+    Show::issues("each", $bad);
+}
+var $good = Core\Json::decodeAs<Person>("{\"home\":{\"city\":\"x\"},\"scores\":[1,2]}");
+echo "good: ", $good->home->city, "\n";
+--EXPECT--
+list: [] Core\Json::decodeAs(): a `Address` decodes from a JSON object
+renamed: [] Core\Json::decodeAs(): a `Slot` decodes from a JSON object
+object: x
+nested: [home] expected an object for `Address`, found a list
+scores: [scores] expected an array, found an object
+each: [] Core\Json::decodeAs(): an `array<Address>` decodes from a JSON array
+good: x
