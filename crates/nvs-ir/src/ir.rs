@@ -2078,6 +2078,12 @@ pub enum TestedClass {
     /// by address. Never a null descriptor: `as` is a class reference's only
     /// source and throws rather than yielding one ([`InstKind::ClassDescIn`]).
     Descriptor(ValueId),
+    /// The checked build's class test (`crate::lower::check_types`): the
+    /// named class where the unit or the process has a descriptor for it, and
+    /// `true` where neither has one. A class an extension declares has none,
+    /// since no `is` against it reaches the run time, so its read is not
+    /// tested.
+    IfDeclared(String),
 }
 
 /// What the checker prepared out of one written literal, as
@@ -2225,6 +2231,13 @@ pub enum Helper {
     /// across isolates. `self::NAME` and `Class::NAME` pay nothing: they are
     /// still inlined.
     ClassConstant,
+    /// The checked build's stop (`crate::lower::check_types`): a typed read
+    /// whose value is not its declared type. Two operands: the message the
+    /// lowering wrote, as a `Ty::Str`, and the value read, as a
+    /// `Ty::Tagged`. It always fails, with a `FATAL` that no `catch` sees,
+    /// because the value it names is a compiler bug and never a program's
+    /// error. Only a unit compiled under the switch emits it.
+    TypeCheckFailed,
     /// Whether an `initProperty` call is running in this context, as a
     /// [`Ty::Bool`] (`rule:classes/late-init-initializes-on-the-first-read`).
     /// No arguments. Only a write to a `lateinit` property that was unset, in

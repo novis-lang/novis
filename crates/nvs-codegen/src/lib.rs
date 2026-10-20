@@ -912,6 +912,25 @@ pub fn is_unoptimised() -> bool {
     UNOPTIMISED.load(std::sync::atomic::Ordering::Relaxed)
 }
 
+/// Lowers every unit this process builds after the call with a type test after
+/// each typed read, which stops the process at a value that is not its
+/// declared type (`nvs_ir::lower::check_types`, whose module doc lists the
+/// reads).
+///
+/// It is the checked build of `rule:testing/probes-on-is-a-tested-configuration`
+/// and works like [`compile_unoptimised`]: process-wide and one-way, with the
+/// artifact cache off, since an artifact's key does not cover it. It changes
+/// no program that does not call it: the tests are emitted only after it.
+pub fn compile_checked_types() {
+    nvs_ir::lower::check_types();
+}
+
+/// Whether [`compile_checked_types`] has been called in this process.
+#[must_use]
+pub fn is_checking_types() -> bool {
+    nvs_ir::lower::is_checking_types()
+}
+
 /// Compiles every function in `program` to native code.
 ///
 /// # Errors

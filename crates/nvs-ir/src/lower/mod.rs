@@ -20,6 +20,7 @@
 //! | [`exception`] | `throw`, `try`/`catch`, the landing blocks, the synthesized `Throwable` constructor |
 //! | [`generator`] | `rule:iteration/generators`'s state machine — the frame, the spills, the synthesized methods |
 //! | [`call`] | argument ownership, options-bag flattening, an `inout $x` argument staged and written back |
+//! | [`checked`] | the checked build's type test after each typed read, behind [`check_types`] |
 //! | [`anon_fn`] | `rule:types/anonymous-function`'s anonymous functions, method references and their captured-environment class |
 //!
 //! # Control flow (`if`/`while`)
@@ -118,6 +119,7 @@ macro_rules! guarded_by {
 // further.
 pub(crate) mod anon_fn;
 pub(crate) mod call;
+pub(crate) mod checked;
 pub(crate) mod control;
 pub(crate) mod convert;
 pub(crate) mod exception;
@@ -129,6 +131,7 @@ pub(crate) mod stmt;
 // `call`, `control`, `expr` and `stmt` only add methods to the one
 // `impl Lowering` below, so they export nothing to import. The ones named
 // here also carry free items this module and its siblings call.
+pub use self::checked::{check_types, is_checking_types};
 use self::{anon_fn::*, call::delegation_forward, exception::*, generator::*};
 
 /// A local's current SSA binding: which value it holds, and at what
@@ -1284,6 +1287,8 @@ pub fn lower_method(
     // reason it costs no second parameter and no second call convention. See
     // `nvs_runtime::object`'s module docs, which own the decision.
     let is_static = m.modifiers.contains(&Modifier::Static);
+    // The checked build's tests at entry, emitted once every parameter is bound.
+    let mut entry_checks = Vec::new();
     let recv_ty = if is_static { Ty::ClassDesc } else { Ty::Object };
     let (this_v, _) = low.emit(entry, recv_ty, InstKind::Param(0));
     param_tys.push(recv_ty);
@@ -1323,6 +1328,17 @@ pub fn lower_method(
             ty
         };
         let (v, _) = low.emit(entry, bound_ty, InstKind::Param(index));
+        if !p.inout
+            && !p.variadic
+            && let Some(declared) = exprs.declared_ty(decl_ty.span)
+        {
+            entry_checks.push((
+                (v, bound_ty),
+                declared,
+                format!("parameter `${pname}`"),
+                p.name,
+            ));
+        }
         env.insert(pname, (v, bound_ty));
         param_tys.push(bound_ty);
     }
@@ -1341,6 +1357,10 @@ pub fn lower_method(
         (method == "constructor" && !is_static).then_some(class.to_owned())
     }) {
         promoted_stores(&mut low, entry, &class, m, src, &mut env);
+    }
+
+    for (read, declared, what, span) in entry_checks {
+        low.emit_type_check(read, declared, false, span, &what, &mut env, &mut cur);
     }
 
     let body = m.body.as_ref().expect(

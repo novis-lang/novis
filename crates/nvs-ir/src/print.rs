@@ -295,6 +295,9 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         ),
         InstKind::ClassTest { value, class } => match class {
             TestedClass::Named(class) => format!("class.test v{}, {class}", value.index()),
+            TestedClass::IfDeclared(class) => {
+                format!("class.test.if_declared v{}, {class}", value.index())
+            }
             TestedClass::Descriptor(desc) => {
                 format!("class.test v{}, v{}", value.index(), desc.index())
             }
@@ -545,6 +548,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::BoolToString => "bool_to_string",
         Helper::ClassDescName => "class_desc_name",
         Helper::ClassConstant => "class_constant",
+        Helper::TypeCheckFailed => "type_check_failed",
         Helper::LateInitRunning => "late_init_running",
         Helper::IntTruthy => "int_truthy",
         Helper::UintTruthy => "uint_truthy",

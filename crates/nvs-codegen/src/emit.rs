@@ -2973,6 +2973,15 @@ impl Emitter<'_, '_> {
                 }
                 self.class_desc_value(class)?
             }
+            // The checked build's test passes a class with no descriptor
+            // instead of failing the unit: what it tests is the lowering, and
+            // a class only an extension declares has nothing to compare with.
+            TestedClass::IfDeclared(class) => {
+                if self.classes.desc(class).is_none() && !nvs_stdlib::class_has_instances(class) {
+                    return Ok(self.b.ins().iconst(types::I8, 1));
+                }
+                self.class_desc_value(class)?
+            }
             TestedClass::Descriptor(desc) => self.value(*desc)?.0,
         };
         let (bare, subject_ty) = self.value(value)?;
@@ -4379,6 +4388,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::BoolToString => "nvs_bool_to_string",
         Helper::ClassDescName => "nvs_class_desc_name",
         Helper::ClassConstant => "nvs_class_constant",
+        Helper::TypeCheckFailed => "nvs_type_check_failed",
         Helper::LateInitRunning => "nvs_late_init_running",
         Helper::IntTruthy => "nvs_int_truthy",
         Helper::UintTruthy => "nvs_uint_truthy",

@@ -5940,7 +5940,7 @@ fn same_shape(current: Value, value: Value, seen: &mut Vec<(usize, usize)>) -> R
 }
 
 /// "an object of class `Animal`" or "a string": what a refused write names.
-fn describe_written(value: Value) -> String {
+pub(crate) fn describe_written(value: Value) -> String {
     with_class(value, |class| {
         format!("an object of class `{}`", class.name())
     })

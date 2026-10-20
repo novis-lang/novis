@@ -171,6 +171,22 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
+    /// `nvs_ir::Helper::TypeCheckFailed`: the checked build's stop. It always
+    /// returns a `FATAL`, which no `catch` sees, made of the lowering's message
+    /// and what the value read is: its class for an object, its tag otherwise.
+    fn nvs_type_check_failed(_ctx, args: [2]) {
+        let Some(message) = args[0].as_str_bytes() else {
+            return Err(wrong_tag("nvs_type_check_failed", Tag::Str, args[0]));
+        };
+        Err(Fault::fatal(format!(
+            "{}, but the value is {}",
+            String::from_utf8_lossy(message),
+            crate::object::describe_written(args[1])
+        )))
+    }
+}
+
+crate::nvs_helper! {
     /// `nvs_ir::Helper::LateInitRunning`: whether an `initProperty` call is
     /// running in this context, as a `bool`.
     fn nvs_late_init_running(ctx, args: [0]) {
@@ -3418,6 +3434,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_bool_to_string", address(nvs_bool_to_string)),
         ("nvs_class_desc_name", address(nvs_class_desc_name)),
         ("nvs_class_constant", address(nvs_class_constant)),
+        ("nvs_type_check_failed", address(nvs_type_check_failed)),
         ("nvs_late_init_running", address(nvs_late_init_running)),
         ("nvs_int_truthy", address(nvs_int_truthy)),
         ("nvs_uint_truthy", address(nvs_uint_truthy)),

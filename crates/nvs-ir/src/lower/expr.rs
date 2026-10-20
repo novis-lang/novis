@@ -74,11 +74,15 @@ impl<'a> Lowering<'a> {
         // the `int` → `float` row. Such a union is tagged, so the position's
         // own `Self::coerce` would tag the integer as an integer; the
         // conversion happens here instead, for every position at once.
+        // The checked build's test runs on the value as it was read, before
+        // the widening below, since the read's own type is what it is tested
+        // against.
+        let read = self.lower_expr_kind(expr, expected, env, cur);
+        self.check_read(expr, read, env, cur);
         if self.exprs.widens_to_float(expr.span) {
-            let (v, ty) = self.lower_expr_kind(expr, expected, env, cur);
-            return self.widen_marked_to_float(v, ty, env, *cur);
+            return self.widen_marked_to_float(read.0, read.1, env, *cur);
         }
-        self.lower_expr_kind(expr, expected, env, cur)
+        read
     }
 
     /// The `int` or `uint` value `v` converted to a `float`, for a value
@@ -6459,7 +6463,7 @@ impl<'a> Lowering<'a> {
     /// many members read it, so nothing in this walk retains it. A row that
     /// retains something of its own releases it in the block it emitted it
     /// into, which is what lets a chain branch away between two members.
-    fn emit_test_shape(
+    pub(super) fn emit_test_shape(
         &mut self,
         shape: TestShape,
         value: ValueId,
@@ -6565,6 +6569,17 @@ impl<'a> Lowering<'a> {
                 },
             ),
             TestShape::Class(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
+            // The checked build's row, which [`super::checked`] puts where a
+            // class row was. Only the label differs.
+            TestShape::IfDeclared(name) if matches!(subject, Ty::Object | Ty::Tagged) => self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::ClassTest {
+                    value,
+                    class: TestedClass::IfDeclared(name),
+                },
+            ),
+            TestShape::IfDeclared(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
             // A class nothing is an instance of answers without reading the
             // subject at all, which is the one class row that reaches no
             // descriptor.
@@ -7164,12 +7179,16 @@ enum TypeTestPlan {
 /// [`Lowering::lower_type_test`] decides — see `rule:types/type-test`'s own
 /// table, which states these costs because a reader has to see them before
 /// writing a test inside a loop.
-enum TestShape {
+pub(super) enum TestShape {
     /// One tag comparison, against the tag this representation carries.
     Tag(Ty),
     /// The descriptor walk [`InstKind::ClassTest`] performs, against this
     /// class or interface label. Never a second walk of its own.
     Class(String),
+    /// [`Self::Class`] for the checked build, which [`super::checked`] puts in
+    /// its place: [`TestedClass::IfDeclared`]'s test, which passes a class
+    /// with no descriptor.
+    IfDeclared(String),
     /// A class no value is ever an instance of, which is a `Core` namespace
     /// class and nothing else (`nvs_types::expr::testable_core_class`): the
     /// answer is `false` with the subject unread, and there is no descriptor
@@ -7312,7 +7331,7 @@ enum TestShape {
 /// element, a shape field. The `None` keeps it that way rather than a fallback
 /// to [`CALLABLE_MARKER`](super::CALLABLE_MARKER), which would answer `true` for
 /// a callable of any signature at all.
-fn test_shape(
+pub(super) fn test_shape(
     tested: TypeId,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
