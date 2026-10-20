@@ -4,12 +4,11 @@
  * the reference data at build time, a snippet passed in the default slot, and
  * rows of class names that link to their reference pages.
  *
- * The rows slide sideways as the page scrolls past them, the middle one the
- * other way, and stop while the pointer or the keyboard focus is on them.
- * Each row is drawn twice, so it is never cut short; the copy is hidden from
- * assistive technology and from the tab order. With reduced motion, or where
- * the browser runs no scroll-driven animations, the rows wrap and the copy is
- * not shown.
+ * The rows scroll sideways while the reader allows motion and they are on
+ * screen (`data-motion`), and stop while the pointer or the keyboard focus is
+ * on them. Each row is drawn twice for a
+ * seamless loop; the copy is hidden from assistive technology and from the
+ * tab order. With reduced motion the rows wrap and the copy is not shown.
  */
 import { Icon } from '@astrojs/starlight/components'
 import Section from './Section.astro'
@@ -53,10 +52,10 @@ const rows = Array.from({ length: rowCount }, (_, r) => top.filter((_, i) => i %
     </div>
   </div>
 
-  <div class="marquee" role="group" aria-label="Classes of the standard library">
+  <div class="marquee" role="group" aria-label="Classes of the standard library" data-motion>
     {
       rows.map((row, r) => (
-        <div class:list={['row', { reverse: r % 2 === 1 }]}>
+        <div class:list={['row', { reverse: r % 2 === 1 }]} style={`--duration: ${row.length * 3.2}s`}>
           <div class="track">
             <ul role="list">
               {row.map((c) => (
@@ -197,41 +196,19 @@ const rows = Array.from({ length: rowCount }, (_, r) => top.filter((_, i) => i %
       translate: -50% 0;
     }
   }
-  /* Longhands only: the minified build drops a timeline written into the
-     `animation` shorthand. */
   @media (prefers-reduced-motion: no-preference) {
-    @supports (animation-timeline: view()) {
-      .track {
-        animation-name: slide;
-        animation-timing-function: linear;
-        animation-fill-mode: both;
-        animation-timeline: view();
-      }
-      .reverse .track {
-        animation-direction: reverse;
-      }
-      .marquee:hover .track,
-      .marquee:focus-within .track {
-        animation-play-state: paused;
-      }
+    .track {
+      animation: slide var(--duration) linear infinite;
+    }
+    .reverse .track {
+      animation-direction: reverse;
+    }
+    .marquee:hover .track,
+    .marquee:focus-within .track {
+      animation-play-state: paused;
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .marquee {
-      -webkit-mask-image: none;
-      mask-image: none;
-    }
-    .track {
-      width: auto;
-    }
-    .track ul {
-      flex-wrap: wrap;
-    }
-    .copy {
-      display: none;
-    }
-  }
-  @supports not (animation-timeline: view()) {
     .marquee {
       -webkit-mask-image: none;
       mask-image: none;

@@ -115,7 +115,7 @@ const steps: Step[] = [
 
     <figure class="session">
       <figcaption>
-        <span class="pulse" aria-hidden="true"></span>
+        <span class="pulse" aria-hidden="true" data-motion></span>
         A coding agent at work
       </figcaption>
       <ol role="list">
@@ -474,17 +474,9 @@ const steps: Step[] = [
       box-shadow: 0 0 0 0.5rem transparent;
     }
   }
-  /* The dot pulses a few times while the panel scrolls through the view, and
-     is still while the page is still. Longhands only: the minified build
-     drops a timeline written into the `animation` shorthand. */
   @media (prefers-reduced-motion: no-preference) {
-    @supports (animation-timeline: view()) {
-      .pulse {
-        animation-name: pulse;
-        animation-timing-function: var(--nv-ease);
-        animation-iteration-count: 5;
-        animation-timeline: view();
-      }
+    .pulse {
+      animation: pulse 2s var(--nv-ease) infinite;
     }
   }
 

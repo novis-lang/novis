@@ -20,6 +20,9 @@
  * backdrop beside the column is drawn between the two. Starlight's theme
  * script comes right after it in the head and sets `data-theme` before the
  * browser first paints, so the second rule picks a reader's light theme.
+ *
+ * The script marks the animated regions that are on screen, so their loops
+ * run only while a reader can see them (src/scripts/on-screen.ts).
  */
 import Default from '@astrojs/starlight/components/Head.astro'
 import sansLatin from '@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2?url'
@@ -40,3 +43,6 @@ import { withBase } from '~/lib/base'
 <link rel="preload" href={sansLatin} as="font" type="font/woff2" crossorigin />
 <link rel="preload" href={monoLatin} as="font" type="font/woff2" crossorigin />
 <link rel="apple-touch-icon" sizes="180x180" href={withBase('/apple-touch-icon.png')} />
+<script>
+  import '~/scripts/on-screen'
+</script>

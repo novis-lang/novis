@@ -1,14 +1,18 @@
 // Two checks over the website's styles, which `bun nv site --check structure` runs.
 //
-// **No endless loop while the reader does nothing.** An animation that repeats forever runs on every
-// frame for as long as the page is open, and one that repaints, such as a gradient clipped to text,
-// took a fifth of every page's main thread. An animation plays once, follows the scroll, or loops
-// only in a state the reader started and ends: a rule whose selector has `:hover`, `:focus`,
-// `:focus-within`, `:focus-visible`, `:active`, or a script's `[data-...-state=...]`, such as a replay
-// that is playing.
+// **A loop runs only while a reader can see it.** An animation that repeats forever runs on every
+// frame, on screen or off it, and one that repaints, such as a gradient clipped to text, took a fifth
+// of every page's main thread. So a loop lives in a `data-motion` region: custom.css pauses every
+// animation inside one that `src/scripts/on-screen.ts` has not marked `data-on-screen`. A file with a
+// loop names `data-motion`, on the root it renders or in the comment that says where its root gets
+// it. A loop that runs only in a state the reader started needs no region: a rule whose selector has
+// `:hover`, `:focus`, `:focus-within`, `:focus-visible`, `:active`, or a script's
+// `[data-...-state=...]`. A region that is always on screen, such as the header, gets no loop at all:
+// it would run for as long as the page is open.
 //
-// **A timeline survives the minifier.** The build minifies CSS with lightningcss, which folds an `animation-timeline` into the `animation`
-// shorthand of the same rule: `animation: grow linear both; animation-timeline: view()` is built as
+// **A timeline survives the minifier.** The build minifies CSS with lightningcss, which folds an
+// `animation-timeline` into the `animation` shorthand of the same rule:
+// `animation: grow linear both; animation-timeline: view()` is built as
 // `animation: linear both grow view()`. Browsers do not accept a timeline in the shorthand, so they
 // drop the whole declaration and the scroll-driven animation never runs, while the dev server, which
 // does not minify, shows it working. A rule with a timeline therefore names its animation with
@@ -35,9 +39,13 @@ export function foldedTimelines(text: string): number[] {
 /** A selector that only matches while the reader hovers, focuses or presses, or while a script's state lasts. */
 const READER_STATE = /:(?:hover|focus|focus-within|focus-visible|active)\b|\[data-[\w-]+-state\s*=/;
 
-/** The rules in `text` that repeat an animation forever outside a state the reader started, as 1-based lines. */
+/**
+ * The rules in `text` that repeat an animation forever outside a state the reader started, as 1-based
+ * lines, or none when the file names `data-motion`, so its loops pause off screen.
+ */
 export function endlessLoops(text: string): number[] {
   const lines: number[] = [];
+  if (text.includes("data-motion")) return lines;
   for (const m of text.matchAll(/([^{};]*)\{([^{}]*)\}/g)) {
     const [, selector = "", block = ""] = m;
     if (!/animation(?:-iteration-count)?\s*:[^;}]*\binfinite\b/.test(block) || READER_STATE.test(selector)) continue;
@@ -65,7 +73,7 @@ export function styleProblems(root: string): string[] {
       (line) => `${path}:${line}: a rule sets \`animation\` and \`animation-timeline\`; the minified build drops it, so name the animation with longhands`,
     ),
     ...endlessLoops(text).map(
-      (line) => `${path}:${line}: an animation repeats forever while the reader does nothing; play it once, tie it to the scroll, or loop it only on hover or focus`,
+      (line) => `${path}:${line}: an animation repeats forever, on screen or off; put data-motion on the root that holds it, so it pauses off screen`,
     ),
   ]);
 }

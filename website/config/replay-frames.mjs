@@ -340,7 +340,7 @@ export function replayMarkup({ replay, recording, title, install, where, colours
   const label = playLabel(data.asks)
   const json = JSON.stringify({ start: data.start, asks: data.asks, frames: data.frames, poster: data.poster, paint }).replace(/</g, '\\u003c')
   return [
-    '<figure class="nv-replay not-content" data-replay>',
+    '<figure class="nv-replay not-content" data-replay data-motion>',
     '<figcaption class="nv-replay-head">',
     `<span class="nv-replay-icon">${ICONS.editor}</span>`,
     '<span class="nv-replay-heading"><span class="nv-replay-title">How it looks in your editor</span>',
