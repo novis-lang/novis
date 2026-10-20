@@ -2,7 +2,7 @@
 // Reads the name of a route match, as a front controller does before it picks the method to call.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Shop {

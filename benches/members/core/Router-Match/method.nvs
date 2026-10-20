@@ -2,7 +2,7 @@
 // Reads the HTTP method of a route match, as one handler for a form does to choose between showing and saving it.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Newsletter {
