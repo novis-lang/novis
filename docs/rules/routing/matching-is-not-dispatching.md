@@ -42,8 +42,9 @@ routing is not a case that forces `rule:types/grammar`'s deferral. Signing a rou
 - **An invocable match.** Dispatch is a call the program makes, and the match it reads stays data
   (`rule:routing/a-match-is-not-invocable`).
 - **A controller convention.** No base class, naming rule or directory layout.
-- **A return-value-to-response rule.** What a handler sends is what it writes, and `dispatch` discards
-  what it returns.
+- **A built-in return-value-to-response rule.** A returned value reaches the response only through the
+  program's own `Core\Router\Responder::respond`, so the program decides what each value sends
+  (`rule:routing/a-gate-answers-around-every-handler`).
 - **Middleware, filters, groups or a route-level rate limit.** The gate is the one place around every
   handler, and what a program checks there is its own, which is why
   `rule:core-classes/ratelimit-two-members` declines to decide what a limit does for a route.

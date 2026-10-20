@@ -368,6 +368,12 @@ pub struct Route {
     /// runtime has no other way to tell the two apart: a class descriptor's
     /// method row does not say.
     pub static_handler: bool,
+    /// Whether [`Self::handler`]'s declared return type is neither `void` nor
+    /// `never`. `rule:routing/a-gate-answers-around-every-handler`'s `dispatch`
+    /// hands such a method's value to a gate that implements
+    /// `Core\Router\Responder`, and the runtime cannot read the return type
+    /// off a class descriptor's method row.
+    pub returns_value: bool,
     /// Every parameter this route declares: § 2's path captures in path order
     /// first, then `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` parameters in declaration order.
     ///
@@ -753,6 +759,7 @@ pub(crate) fn check_class_routes(
             label: &handler,
             doc: doc.as_ref(),
             returns: returns.as_deref(),
+            returns_value: returns_value(m, class, env),
             api: api.as_ref(),
         };
         for attr in routes {
@@ -1585,6 +1592,7 @@ fn collect_route(
         label: handler,
         doc,
         returns,
+        returns_value,
         api,
     } = *handler;
     let path = folded_str(attr, PATH, env);
@@ -1647,6 +1655,7 @@ fn collect_route(
         name,
         handler: handler.to_owned(),
         static_handler: m.modifiers.contains(&nvs_syntax::ast::Modifier::Static),
+        returns_value,
         params,
         access,
         csrf,
@@ -1686,6 +1695,8 @@ struct Handler<'a> {
     doc: Option<&'a Doc>,
     /// The document's response body: the declared return type, rendered.
     returns: Option<&'a str>,
+    /// [`Route::returns_value`], read once for the method.
+    returns_value: bool,
     /// `#[Api]`'s four values as [`check_api`] read them, or `None` where the method
     /// carries no `#[Api]` — borrowed rather than owned for this struct's own
     /// reason: they are a fact about the method, and each row copies out the
@@ -1751,6 +1762,21 @@ fn declared_return(m: &MethodMember, class: &QName, env: &Env<'_>) -> Option<Str
         .and_then(|sig| sig.methods.get(method))
         .map(|sig| sig.return_ty)?;
     Some(env.interner.describe(ty))
+}
+
+/// Whether the method's declared return type is neither `void` nor `never`,
+/// read off the same signature row [`declared_return`] reads.
+fn returns_value(m: &MethodMember, class: &QName, env: &Env<'_>) -> bool {
+    let method = span_text(env.src, m.name);
+    env.signatures
+        .get(class)
+        .and_then(|sig| sig.methods.get(method))
+        .is_some_and(|sig| {
+            !matches!(
+                env.interner.get(sig.return_ty),
+                crate::ty::Ty::Void | crate::ty::Ty::Never
+            )
+        })
 }
 
 /// The doc-comment split, over the run's prose.

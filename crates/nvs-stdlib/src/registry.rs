@@ -2732,7 +2732,13 @@ pub struct CoreContract {
     pub name: &'static str,
     /// The interface's reference card — `rule:core-api/reference-card`.
     pub doc: Option<&'static ClassDoc>,
-    /// Every member an implementing class must declare.
+    /// The name of each contract this one extends, as source writes it.
+    /// `nvs_types::core_lib` seeds the edge to each, so a value of this
+    /// contract is accepted where a parent is, and seeds each parent's members
+    /// onto this one, so an implementing class owes them too.
+    pub parents: &'static [&'static str],
+    /// The members this contract declares itself. An implementing class must
+    /// declare these and every member of each of [`Self::parents`].
     pub members: &'static [ContractMethod],
 }
 
@@ -2754,7 +2760,7 @@ pub struct ContractMethod {
 }
 
 /// Every [`CoreContract`].
-pub const CONTRACTS: &[CoreContract] = &[crate::router::GATE];
+pub const CONTRACTS: &[CoreContract] = &[crate::router::GATE, crate::router::RESPONDER];
 
 /// Looks a [`CoreContract`] up by its fully-qualified name.
 #[must_use]
@@ -5965,6 +5971,13 @@ mod tests {
                 "{} is not a name an `implements` clause resolves",
                 contract.name
             );
+            for parent in contract.parents {
+                assert!(
+                    parent != &contract.name && super::contract(parent).is_some(),
+                    "{} extends {parent}, which is not another contract",
+                    contract.name
+                );
+            }
             for member in contract.members {
                 let what = format!("{}::{}", contract.name, member.name);
                 assert_eq!(member.names.len(), member.params.len(), "{what}");

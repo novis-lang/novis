@@ -7,14 +7,25 @@ interface Core\Router\Gate {
     public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void;
     public function failed(?Core\Router\Match $route, ?Throwable $error): void;
 }
+
+interface Core\Router\Responder extends Core\Router\Gate {
+    public function respond(Core\Router\Match $route, mixed $value): void;
+}
 ```
 
 The compiler generates the jump from the route table it already builds, one entry per route, indexed
 by the matched row, so no program writes or keeps a list of its routes. The jump is code in the unit
 and never a value: the handler's `Class::method` label still does not cross into the program, and the
 match stays not invocable (`rule:routing/a-match-is-not-invocable`). **A handler may declare any return
-type, and `dispatch` discards the value:** what a handler sends is what it writes, and the declared type
-is what `nvs build --openapi` describes as the response body
+type, and a returned value reaches the response only through the program's own `respond`.** When the
+handler's declared return type is neither `void` nor `never` and the gate implements
+`Core\Router\Responder`, `dispatch` calls `$gate->respond($route, $value)` once the handler returns,
+then releases the value; a `?T` handler that returns `null` still reaches `respond` with `null`. The
+gate writes the response, as `Core\Response::html` does for a `Core\Html\Markup`. A plain gate drops
+the value, and so does a gate that declares a `respond` method without implementing `Responder`: the
+name alone never decides it. A handler that throws reaches `failed` and never `respond`, a refused
+request reaches neither the handler nor `respond`, and an error `respond` throws is thrown by
+`dispatch`. Either way the declared type is what `nvs build --openapi` describes as the response body
 (`rule:routing/api-document-is-generated-from-the-route-table`). A handler is a static method or a
 method of a class with a no-argument constructor; any other `#[Route]` method is a compile error at its
 attribute, because the jump has no arguments to build an instance with.
@@ -67,7 +78,12 @@ run, so their pages, when they exist, are static and come from the configuration
 - **Memory:** one generated jump entry per route, per program. Nothing per request beyond the isolate
   the request already has; a refused request that reaches the gate costs what any request costs. A
   dispatching program's request keeps its head until its run ends, which the door held anyway, and
-  a run a limit stopped pays for one more isolate under the same ceiling.
+  a run a limit stopped pays for one more isolate under the same ceiling. `respond` adds one bit per
+  route row and one per class descriptor, per compiled unit, and nothing per request.
+- **Latency:** `respond` is one more method call, only for a request whose handler returns a value and
+  whose gate is a `Responder`. A `void` handler or a plain gate pays one bit test.
+- **Usability and simplicity:** a page is a method that returns its markup, and a test calls it as one,
+  for one more interface. Security is unchanged, because `allows` still runs before the handler.
 
 **Declined:**
 - **A dispatch `switch` every program writes.** It repeats every `#[Route]`, nothing checks it, and an
@@ -78,7 +94,9 @@ run, so their pages, when they exist, are static and come from the configuration
   call it is served exactly as before (`rule:routing/the-servers-match-dispatches-nothing`).
 - **Refusal mode for every program.** A hand-written dispatcher would read a refused request as an
   ordinary request with no route.
-- **A return-value-to-response rule and constructor injection.** Each is a framework opinion, and a
-  handler that writes its own response from a no-argument constructor needs neither.
+- **A built-in return-value-to-response rule.** Which value becomes which response is a framework
+  opinion, so `dispatch` hands the value to the program's own `respond` and decides nothing about it.
+- **Constructor injection.** It is a framework opinion, and a handler built by a no-argument
+  constructor needs none.
 - **Every handler returns `void`.** The OpenAPI document reads a route's response schema and its
   `#[Api]` example from the return type, so the rule would remove both from every document.

@@ -60,8 +60,8 @@
 //! rosters declared outside the registry's own class table: `exceptions`
 //! ([`nvs_hir::errors::TREE`]), `interfaces`
 //! ([`nvs_hir::interfaces::RESERVED`], then
-//! [`nvs_stdlib::registry::CONTRACTS`] with their cards and their `members`
-//! in a class member's shape), `attributes`
+//! [`nvs_stdlib::registry::CONTRACTS`] with their cards, the contracts each
+//! `extends` and their `members` in a class member's shape), `attributes`
 //! ([`nvs_types::derive::ATTRIBUTES`]), `directives`
 //! ([`nvs_config::DIRECTIVES`]) and `capabilities`
 //! ([`nvs_stdlib::registry::CAPABILITIES`]). Each is a table already, so this
@@ -287,9 +287,10 @@ fn exception_json(row: &(&str, Option<&str>)) -> Value {
     Value::Object(out)
 }
 
-/// One `Core` interface a program's class implements: its name, its members
-/// in the shape a class's instance members have, and its class card's `short`
-/// as its `doc`, as a class carries it.
+/// One `Core` interface a program's class implements: its name, the contracts
+/// it extends as `extends` when it has any, its own members in the shape a
+/// class's instance members have, and its class card's `short` as its `doc`,
+/// as a class carries it.
 ///
 /// Each member goes through [`member_json`] as a `CoreMethod` with no defaults
 /// and no symbol, so its `signature`, `params`, `returns` and `doc` are
@@ -314,6 +315,9 @@ fn contract_json(contract: &nvs_stdlib::registry::CoreContract) -> Value {
         .collect();
     let mut out = Map::new();
     out.insert("name".into(), Value::from(contract.name));
+    put_list(&mut out, "extends", contract.parents, |parent| {
+        Value::from(*parent)
+    });
     out.insert("members".into(), Value::Array(members));
     if let Some(doc) = contract.doc {
         let mut card = Map::new();

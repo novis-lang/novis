@@ -1,0 +1,68 @@
+--TEST--
+`Core\Router::dispatch` hands the value a route method returns to the gate's `respond` when the gate implements `Core\Router\Responder`: a returned `Core\Html\Markup` is the body with the status `200`, a returned `null` still reaches `respond`, and a `void` method never does — `rule:routing/a-gate-answers-around-every-handler`
+--FILE--
+<?nvs
+// A route method returns its page.
+// The gate implements `Core\Router\Responder`, so its `respond` method sends the page.
+
+class Pages {
+    #[Core\Route(path: "/home", method: Core\Http\Method::Get, name: "home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function home(): Core\Html\Markup {
+        string $name = "<Ann>";
+        return html`<h1>Hello {$name}</h1>`;
+    }
+
+    // `null` is a value too, so `respond` gets it.
+    #[Core\Route(path: "/maybe", method: Core\Http\Method::Get, name: "maybe")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function maybe(): ?Core\Html\Markup {
+        return null;
+    }
+
+    // A `void` method returns no value, so `respond` does not run.
+    #[Core\Route(path: "/plain", method: Core\Http\Method::Get, name: "plain")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function plain(): void {
+        echo "plain ran";
+    }
+}
+
+class Gate implements Core\Router\Responder {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed";
+    }
+
+    public function respond(Core\Router\Match $route, mixed $value): void {
+        if ($value is Core\Html\Markup) {
+            Core\Response::html($value);
+        } else {
+            echo "respond got null for ", $route->name();
+        }
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    var $home = Core\Test::request(Core\Http\Method::Get, "/home");
+    echo $home->status(), " ", $home->body(), "\n";
+
+    var $maybe = Core\Test::request(Core\Http\Method::Get, "/maybe");
+    echo $maybe->status(), " ", $maybe->body(), "\n";
+
+    var $plain = Core\Test::request(Core\Http\Method::Get, "/plain");
+    echo $plain->status(), " ", $plain->body(), "\n";
+}
+--EXPECT--
+200 <h1>Hello &lt;Ann&gt;</h1>
+200 respond got null for maybe
+200 plain ran

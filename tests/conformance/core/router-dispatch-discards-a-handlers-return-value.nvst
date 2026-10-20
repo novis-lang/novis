@@ -1,9 +1,10 @@
 --TEST--
-`Core\Router::dispatch` discards the value a route method returns: the response is only what the method wrote, the status stays `200`, and the gate's `failed` does not run — `rule:routing/a-gate-answers-around-every-handler`
+`Core\Router::dispatch` discards the value a route method returns when the gate is not a `Core\Router\Responder`: the response is only what the method wrote, the status stays `200`, and the gate's `failed` does not run — `rule:routing/a-gate-answers-around-every-handler`
 --FILE--
 <?nvs
 // A route method may declare any return type.
-// `dispatch` ignores the value, so only what the method writes is sent.
+// This gate does not implement `Core\Router\Responder`.
+// So `dispatch` ignores the value, and only what the method writes is sent.
 
 class Item {
     public string $title = "";

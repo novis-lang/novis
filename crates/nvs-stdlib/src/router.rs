@@ -520,9 +520,11 @@ const DISPATCH_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "Nothing. The route method or the gate writes the response, for example with `echo` \
-          or `Core\\Response::html`. `dispatch` does not send the value that a route method \
-          returns. Each value captured from the path goes to the method parameter with the same \
-          name. An error that `refused()` or `failed()` throws is thrown by `dispatch`.",
+          or `Core\\Response::html`. When the gate implements `Core\\Router\\Responder`, \
+          `dispatch` passes the value that a route method returns to `$gate->respond()`. \
+          Otherwise `dispatch` does not send that value. Each value captured from the path goes \
+          to the method parameter with the same name. An error that `refused()`, `failed()` or \
+          `respond()` throws is thrown by `dispatch`.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "When the program has no `#[Route]`. When the program is not answering a request, \
@@ -909,6 +911,7 @@ const THROWABLE_OR_NULL: CoreTy = CoreTy::Nullable(&CoreTy::Instance("Throwable"
 pub(crate) const GATE: crate::registry::CoreContract = crate::registry::CoreContract {
     name: GATE_NAME,
     doc: Some(&GATE_CARD),
+    parents: &[],
     members: &[
         crate::registry::ContractMethod {
             name: GATE_ALLOWS,
@@ -940,6 +943,68 @@ pub(crate) const GATE_ALLOWS: &str = "allows";
 pub(crate) const GATE_REFUSED: &str = "refused";
 /// The member `dispatch` calls when the handler threw.
 pub(crate) const GATE_FAILED: &str = "failed";
+
+/// `Core\Router\Responder`'s fully-qualified name. Public because
+/// `nvs-codegen` sets a class descriptor's `Responder` bit off it
+/// (`nvs_runtime::ClassDesc::is_responder`).
+pub const RESPONDER_NAME: &str = r"Core\Router\Responder";
+
+/// `rule:routing/a-gate-answers-around-every-handler`'s `Core\Router\Responder`:
+/// a [`GATE`] that is also handed the value of every route method that returns
+/// one, and writes the response from it.
+///
+/// Its own member is [`RESPONDER_RESPOND`] alone, and [`GATE`] is its parent,
+/// so `nvs_types::core_lib` seeds the three gate members onto it as well and
+/// an implementing class owes all four. `dispatch` calls `respond` only when
+/// the gate's descriptor carries the bit `nvs-codegen` sets for a class that
+/// names this interface, so a class that declares a `respond` method of its
+/// own and implements only [`GATE`] is never called through it.
+pub(crate) const RESPONDER: crate::registry::CoreContract = crate::registry::CoreContract {
+    name: RESPONDER_NAME,
+    doc: Some(&RESPONDER_CARD),
+    parents: &[GATE_NAME],
+    members: &[crate::registry::ContractMethod {
+        name: RESPONDER_RESPOND,
+        names: &["route", "value"],
+        params: &[CoreTy::Instance(MATCH_NAME), CoreTy::Mixed],
+        return_ty: CoreTy::Void,
+        doc: Some(&RESPONDER_RESPOND_DOC),
+    }],
+};
+
+/// The member `dispatch` hands a route method's returned value to.
+pub(crate) const RESPONDER_RESPOND: &str = "respond";
+
+/// `Core\Router\Responder`'s class card — `rule:core-api/reference-card`.
+const RESPONDER_CARD: ClassDoc = ClassDoc {
+    short: "The interface your class implements to write the response from the value that a \
+            route method returns. It extends `Core\\Router\\Gate`, so your class also declares \
+            `allows()`, `refused()` and `failed()`.",
+};
+
+/// `Core\Router\Responder::respond`'s reference card — `rule:core-api/reference-card`.
+const RESPONDER_RESPOND_DOC: MethodDoc = MethodDoc {
+    short: "Writes the response from the value that the route method returned. \
+            `Core\\Router::dispatch` calls it when the method returns, if its return type is not \
+            `void` or `never`. For example, send a `Core\\Html\\Markup` with \
+            `Core\\Response::html()`.",
+    params: &[
+        ParamDoc {
+            name: "route",
+            desc: "The route that the request matched.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The value that the route method returned. It is `null` when the method \
+                   returned `null`.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. If this method throws an error, `dispatch` throws the same error. When the \
+          route method throws an error, `dispatch` calls `failed()` and not this method.",
+    errors: &[],
+};
 
 /// `Core\Router\Gate`'s class card — `rule:core-api/reference-card`.
 const GATE_CARD: ClassDoc = ClassDoc {
@@ -2491,8 +2556,12 @@ nvs_runtime::nvs_helper! {
     /// it converts every capture, so a capture that throws while it converts
     /// is the `400`, and `refused` is told `null` for the route, because there
     /// is no match to hand it. Then `allows`, then the handler, then `failed`
-    /// with the handler's throw. Every hook is called after its status is set,
-    /// and whatever a hook throws is thrown by `dispatch`.
+    /// with the handler's throw. A handler that returns instead hands its value
+    /// to `respond` when its row says it returns one
+    /// ([`nvs_runtime::routes::Route::returns_value`]) and the gate's class
+    /// implements [`RESPONDER`] ([`nvs_runtime::ClassDesc::is_responder`]);
+    /// every other value is released unread. Every hook is called after its
+    /// status is set, and whatever a hook throws is thrown by `dispatch`.
     ///
     /// # Parameters are bound by name, from the captures only
     ///
@@ -2575,8 +2644,8 @@ fn dispatch(ctx: &mut nvs_runtime::Ctx, gate: Value) -> Result<(), Fault> {
     outcome
 }
 
-/// `allows`, the handler and `failed`, over the [`MATCH`] `route` the caller
-/// still owns.
+/// `allows`, the handler, and then `failed` or `respond`, over the [`MATCH`]
+/// `route` the caller still owns.
 fn dispatch_matched(
     ctx: &mut nvs_runtime::Ctx,
     gate: Value,
@@ -2598,13 +2667,52 @@ fn dispatch_matched(
     if !allowed {
         return refuse(ctx, gate, refusal::DENIED, route);
     }
-    let Err(fault) = call_handler(ctx, row, route)? else {
-        return Ok(());
+    let value = match call_handler(ctx, row, route)? {
+        Ok(value) => value,
+        Err(fault) => {
+            let error = caught(ctx, fault)?;
+            let answered = fail(ctx, gate, route, error.as_value());
+            drop(error);
+            return answered;
+        }
     };
-    let error = caught(ctx, fault)?;
-    let answered = fail(ctx, gate, route, error.as_value());
-    drop(error);
+    let answered = if row.returns_value() && is_responder(gate) {
+        respond(ctx, gate, route, value)
+    } else {
+        Ok(())
+    };
+    release(value);
     answered
+}
+
+/// Whether `gate`'s class implements [`RESPONDER`].
+fn is_responder(gate: Value) -> bool {
+    let Some(object) = gate.obj_ptr() else {
+        return false;
+    };
+    #[expect(
+        unsafe_code,
+        reason = "`dispatch`'s caller owns the gate for the whole call, so the allocation and \
+                  its descriptor are live"
+    )]
+    unsafe { nvs_runtime::NvsObj::class_of(object).as_ref() }
+        .is_some_and(nvs_runtime::ClassDesc::is_responder)
+}
+
+/// Calls `respond` with `route` and `value`, each a value the caller owns.
+fn respond(
+    ctx: &mut nvs_runtime::Ctx,
+    gate: Value,
+    route: Value,
+    value: Value,
+) -> Result<(), Fault> {
+    match nvs_runtime::call_method(ctx, gate, RESPONDER_RESPOND, &[route, value], DISPATCH)? {
+        Some(answer) => {
+            release(answer);
+            Ok(())
+        }
+        None => Err(no_gate_member(RESPONDER_RESPOND)),
+    }
 }
 
 /// Sets `500` and calls `failed` with `route` and `error`, each `null` or a
@@ -2643,13 +2751,13 @@ fn refuse(
 /// captures.
 ///
 /// The outer `Result` is what `dispatch` throws: an engine fault, or a
-/// parameter no capture fills. The inner one is the handler's own outcome,
-/// which `failed` is told.
+/// parameter no capture fills. The inner one is the handler's own outcome:
+/// the value it returned, which the caller owns, or the fault `failed` is told.
 fn call_handler(
     ctx: &mut nvs_runtime::Ctx,
     row: &nvs_runtime::routes::Route,
     route: Value,
-) -> Result<Result<(), Fault>, Fault> {
+) -> Result<Result<Value, Fault>, Fault> {
     let label = row.handler();
     // Unreachable from source: the compiler writes every label as the method
     // it read the `#[Route]` off, and that method is in the unit's own table.
@@ -2714,7 +2822,7 @@ fn call_handler(
             Err(fault) => Err(fault),
         }
     };
-    Ok(answered.map(release))
+    Ok(answered)
 }
 
 /// Releases a value a call handed this frame.
@@ -3914,6 +4022,8 @@ mod tests {
             static ALLOWS: Cell<Allows> = const { Cell::new(Allows::Yes) };
             /// Whether a handler throws on this thread.
             static HANDLER_THROWS: Cell<bool> = const { Cell::new(false) };
+            /// Whether the gate's `respond` throws on this thread.
+            static RESPOND_THROWS: Cell<bool> = const { Cell::new(false) };
         }
 
         fn heard(line: String) {
@@ -4000,7 +4110,29 @@ mod tests {
             OK
         }
 
+        #[expect(
+            unsafe_code,
+            reason = "compiled code's own signature: three live values and a live result slot"
+        )]
+        unsafe extern "C" fn gate_respond(
+            ctx: *mut Ctx,
+            args: *const Value,
+            out: *mut Value,
+        ) -> i32 {
+            let (route, value) = unsafe { (*args.add(1), *args.add(2)) };
+            heard(format!("respond {} {:?}", shape(route), value.as_int()));
+            unsafe { release_all(args, 3) };
+            if RESPOND_THROWS.get() {
+                unsafe { (*ctx).set_pending("the page cannot be drawn") };
+                return THROWN;
+            }
+            unsafe { *out = Value::null() };
+            OK
+        }
+
         /// One handler body, logged under `name` with the capture it was given.
+        /// It returns the capture plus one, whatever its row says, so a case
+        /// can tell a value `dispatch` released from one it handed on.
         #[expect(
             unsafe_code,
             reason = "compiled code's own signature: two live values and a live result slot"
@@ -4013,7 +4145,7 @@ mod tests {
                 unsafe { (*ctx).set_pending("the shop is closed") };
                 return THROWN;
             }
-            unsafe { *out = Value::null() };
+            unsafe { *out = Value::int(id.as_int().unwrap_or_default() + 1) };
             OK
         }
 
@@ -4082,15 +4214,30 @@ mod tests {
                     }],
                 )
                 .with_static_handler(),
+                Route::new("Get", "/value/{id}", None, "App\\Shop::show", None, id())
+                    .with_static_handler()
+                    .with_returned_value(),
             ])
         }
 
         /// A context answering `verb path` with the door's match, plus the
         /// gate to hand `dispatch`. `HEARD` starts empty and `allows` says yes.
+        /// The gate declares a `respond` method and does not implement
+        /// `Core\Router\Responder`.
         fn serving(verb: &str, path: &str) -> (Ctx, Value) {
+            serving_with(verb, path, false)
+        }
+
+        /// [`serving`], with a gate that implements `Core\Router\Responder`.
+        fn responding(verb: &str, path: &str) -> (Ctx, Value) {
+            serving_with(verb, path, true)
+        }
+
+        fn serving_with(verb: &str, path: &str, responder: bool) -> (Ctx, Value) {
             HEARD.with_borrow_mut(Vec::clear);
             ALLOWS.set(Allows::Yes);
             HANDLER_THROWS.set(false);
+            RESPOND_THROWS.set(false);
             let mut classes = ClassTable::new();
             let error = classes.define(
                 "RuntimeError",
@@ -4106,8 +4253,12 @@ mod tests {
                     row("allows", gate_allows, &["route"]),
                     row("refused", gate_refused, &["reason", "route"]),
                     row("failed", gate_failed, &["route", "error"]),
+                    row("respond", gate_respond, &["route", "value"]),
                 ],
             );
+            if responder {
+                classes.set_responder(gate);
+            }
             classes.set_methods(
                 shop,
                 vec![
@@ -4232,6 +4383,70 @@ mod tests {
                 ["allows object", "show null Some(7)", "failed object object"]
             );
             assert_eq!(status, Some(500));
+        }
+
+        #[test]
+        fn a_responder_is_handed_the_value_a_route_method_returns() {
+            let (mut ctx, gate) = responding("GET", "/value/7");
+            let (outcome, heard, status) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            assert_eq!(
+                heard,
+                [
+                    "allows object",
+                    "show null Some(7)",
+                    "respond object Some(8)"
+                ]
+            );
+            assert_eq!(status, None, "`respond` sets its own status");
+        }
+
+        #[test]
+        fn a_void_route_method_never_reaches_respond() {
+            let (mut ctx, gate) = responding("GET", "/shop/7");
+            let (outcome, heard, _) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            assert_eq!(heard, ["allows object", "show null Some(7)"]);
+        }
+
+        #[test]
+        fn a_route_method_that_throws_reaches_failed_and_not_respond() {
+            let (mut ctx, gate) = responding("GET", "/value/7");
+            HANDLER_THROWS.set(true);
+            let (outcome, heard, status) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            assert_eq!(
+                heard,
+                ["allows object", "show null Some(7)", "failed object object"]
+            );
+            assert_eq!(status, Some(500));
+        }
+
+        #[test]
+        fn an_error_respond_throws_is_thrown_by_dispatch() {
+            let (mut ctx, gate) = responding("GET", "/value/7");
+            RESPOND_THROWS.set(true);
+            let (outcome, heard, _) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Err("the page cannot be drawn".to_owned()));
+            assert_eq!(
+                heard,
+                [
+                    "allows object",
+                    "show null Some(7)",
+                    "respond object Some(8)"
+                ]
+            );
+        }
+
+        /// The gate declares `respond`, and the name alone never decides that
+        /// `dispatch` calls it.
+        #[test]
+        fn a_gate_that_is_not_a_responder_drops_the_value() {
+            let (mut ctx, gate) = serving("GET", "/value/7");
+            let (outcome, heard, status) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            assert_eq!(heard, ["allows object", "show null Some(7)"]);
+            assert_eq!(status, None);
         }
 
         #[test]

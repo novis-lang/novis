@@ -157,12 +157,16 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     // own class implements. Each member is bodiless, as a reserved global
     // interface's are (`crate::iter_lib`), so `crate::conformance` requires it
     // of every implementing class and a call on the interface dispatches on the
-    // value's class. The edges come from the program's own `implements`
-    // clauses, so none is seeded here.
+    // value's class. The edges to a program's class come from its own
+    // `implements` clauses. A contract's own edge to each parent is seeded
+    // here, which `crate::expr::assign` reads to accept it where the parent is
+    // expected. The class graph cannot hold that edge, because `nvs-hir`
+    // cannot see this roster, so the parents' members are seeded onto the
+    // contract too: `crate::conformance` and a call on the contract then find
+    // them without walking the graph.
     for contract in nvs_stdlib::registry::CONTRACTS {
-        let methods = contract
-            .members
-            .iter()
+        let methods = contract_members(contract)
+            .into_iter()
             .map(|member| {
                 let params = member
                     .params
@@ -176,8 +180,35 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
                 )
             })
             .collect();
-        table.seed_class(QName::parse(contract.name), FxHashMap::default(), methods);
+        let qname = QName::parse(contract.name);
+        table.seed_class(qname.clone(), FxHashMap::default(), methods);
+        for parent in contract.parents {
+            table.seed_implements(qname.clone(), QName::parse(parent), Vec::new());
+        }
     }
+}
+
+/// Every member `contract` declares, then every member of each of its parents,
+/// transitively. A member a nearer contract declares wins over a parent's of
+/// the same name.
+fn contract_members(
+    contract: &'static nvs_stdlib::registry::CoreContract,
+) -> Vec<&'static nvs_stdlib::registry::ContractMethod> {
+    let mut members: Vec<&'static nvs_stdlib::registry::ContractMethod> = Vec::new();
+    let mut pending = vec![contract];
+    while let Some(next) = pending.pop() {
+        for member in next.members {
+            if !members.iter().any(|seen| seen.name == member.name) {
+                members.push(member);
+            }
+        }
+        pending.extend(
+            next.parents
+                .iter()
+                .filter_map(|parent| nvs_stdlib::registry::contract(parent)),
+        );
+    }
+    members
 }
 
 /// The classes that implement the `Core` interface `qname`, or `None` when

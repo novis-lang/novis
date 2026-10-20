@@ -1657,6 +1657,17 @@ impl Classes {
         if class.is_callable {
             self.table.set_callable(id);
         }
+        // `rule:routing/a-gate-answers-around-every-handler`'s `Responder`
+        // bit, read off the supertype set the front end resolved. The edge
+        // above skips the label, because a `Core` contract has no descriptor,
+        // so this is the one place the fact reaches the runtime.
+        if class
+            .conforms
+            .iter()
+            .any(|label| label == nvs_stdlib::router::RESPONDER_NAME)
+        {
+            self.table.set_responder(id);
+        }
         if !class.defaults.is_empty() {
             self.table.set_defaults(id, class.defaults.clone());
         }

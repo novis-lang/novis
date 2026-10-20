@@ -355,6 +355,7 @@ pub struct Route {
     opted_out: bool,
     slotted: bool,
     static_handler: bool,
+    returns_value: bool,
     captures: Vec<Capture>,
     segments: Vec<Seg>,
     rank: Vec<u8>,
@@ -408,6 +409,7 @@ impl Route {
             opted_out: false,
             slotted: false,
             static_handler: false,
+            returns_value: false,
             captures,
             segments,
             rank,
@@ -483,6 +485,22 @@ impl Route {
     #[must_use]
     pub fn static_handler(&self) -> bool {
         self.static_handler
+    }
+
+    /// The same row with its handler recorded as returning a value: its
+    /// declared return type is neither `void` nor `never`. A builder for
+    /// [`Self::with_slotted`]'s reason.
+    #[must_use]
+    pub fn with_returned_value(mut self) -> Self {
+        self.returns_value = true;
+        self
+    }
+
+    /// Whether [`Self::handler`] returns a value, which `Core\Router::dispatch`
+    /// hands to a gate that implements `Core\Router\Responder`.
+    #[must_use]
+    pub fn returns_value(&self) -> bool {
+        self.returns_value
     }
 
     /// The `Core\Http\Method` case this route is declared under, by its own
