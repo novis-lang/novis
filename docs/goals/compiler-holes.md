@@ -311,9 +311,9 @@ type today, so this stage runs right after stage 3.
 **Does:** a `private` or `protected` member is reached from where its visibility allows and nowhere
 else, and every write of a property runs the same guard and observer pipeline.
 
-- [ ] An erased read or write through `object` or `mixed` of a property not visible at the access site throws, as a missing name does. `rule:types/erased-member-access` says so. `crates/nvs-runtime/src/object.rs:1`, `data/gaps/nvs-runtime/a-private-or-protected-property-is.json:1`
-- [ ] A read of a `private` class constant outside its class, or of a `protected` one outside the class and its subclasses, is a diagnostic. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-private-or-protected-class-constant.json:1`
-- [ ] `Core\Program::implementing` and `implementingWith` over a class with a `private` or `protected` constructor is a diagnostic at the call. `crates/nvs-types/src/program.rs:1`, `data/gaps/nvs-types/core-program-implementing-calls-a-private.json:1`
+- [x] An erased read or write through `object` or `mixed` of a property not visible at the access site throws, as a missing name does. `rule:types/erased-member-access` says so. `crates/nvs-runtime/src/object.rs:1`, `data/gaps/nvs-runtime/a-private-or-protected-property-is.json:1`
+- [x] A read of a `private` class constant outside its class, or of a `protected` one outside the class and its subclasses, is a diagnostic. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-private-or-protected-class-constant.json:1`
+- [x] `Core\Program::implementing` and `implementingWith` over a class with a `private` or `protected` constructor is a diagnostic at the call. `crates/nvs-types/src/program.rs:1`, `data/gaps/nvs-types/core-program-implementing-calls-a-private.json:1`
 - [ ] A promoted constructor parameter is stored through the same pipeline as `$this->x = $x;`, with a case for the guard and the observer. `crates/nvs-ir/src/lower/mod.rs:1`, `data/gaps/nvs-ir/a-promoted-constructor-parameter-runs-no.json:1`
 - [ ] A `??=` that keeps the property's value calls no guard. `crates/nvs-ir/src/lower/mod.rs:1`, `data/gaps/nvs-ir/a-coalescing-assignment-to-a-property.json:1`
 
@@ -478,31 +478,32 @@ another goal.
 
 ### State
 
-Stages 1, 2, 3 and 16 are done. Stage 16's two gap records are deleted in the working tree and not
-yet committed: the live interactive session `1b75a201` claims both files, so the guard refused to
-stage them. Once that claim is gone, commit the two deletions
-(`data/gaps/nvs-types/a-property-redeclared-at-a-narrower-type.json` and
-`a-static-constant-read-of-a-narrowed-redeclaration.json`). Commit `686c2b292` also carries
-`website/src/content/docs/in-depth/falls-behind.mdx`'s deletion, which another session had staged
-in the shared index.
+Stages 1, 2, 3 and 16 are done, and stage 16's two gap records are deleted and committed. Stage 4's
+three visibility items are done, each with its gap record deleted; the two `nvs-ir` pipeline items
+are left.
 
-- A redeclared instance property is checked by `check_property_redeclarations` in
-  `crates/nvs-types/src/conformance.rs`, called from `check.rs` beside the constant check. It is the
-  new `E0866`: the type must fit both ways under `field_fits` (no `int` → `float` row), and a
-  `readonly` on either declaration is refused. Only `extends` is walked, since an interface declares
-  no property. A static property on either side is skipped. A promoted constructor parameter is a
-  declaration too. `rule:classes/a-redeclared-property-keeps-its-parents-type` states it.
-- `ExprInfo::ClassConstLate` now carries the declaring class's `ty`, and `nvs-ir` types the
-  `static::` load with `erase_checked_ty(ty)`, so a union reads the helper's tagged value whole.
-  `E0833` uses `field_fits` instead of `is_assignable`, so `int` over `float` is refused.
+- An erased property access reaches `public` properties only, as a call through `mixed` does. The
+  compiled entry points in `crates/nvs-runtime/src/object.rs` (`nvs_object_slot_get`, its optional
+  twin, `nvs_object_slot_set`, the two keyed ones and `nvs_object_slot_probe`) pass `Reach::Public`.
+  `Core\Reflect\ClassInfo`'s `read_erased_property_owned` and `write_erased_property` pass
+  `Reach::Checked`, since reflect asks `Ctx::field_is_visible_from` from its own site first. A `??`
+  over a hidden property throws, and `is` with a shape naming it gives `false`.
+  `rule:types/erased-member-access` states it. A shape class is never hidden (`hidden` checks
+  `is_shape`), because the shapes `Core` members mint natively are never told their public bits.
+- `ConstSig` carries the constant's `visibility`, and `infer_class_const` runs
+  `check_member_visibility` on it, so a hidden constant read is `E0471`.
+  `rule:core-api/written-visibility` no longer says the levels are enforced later.
+- `constructors_of` in `crates/nvs-types/src/program.rs` runs `check_method_visibility` on each
+  listed constructor, reports every hidden one at the call (`E0471`) and refuses the enumeration.
+  `implementingWith` returns `mixed` after any refusal, so a wrapping call adds a second `E0401`.
+  That was already so for `E0744`.
 
 ### Next
 
-**Stage 4.**
+**Stage 4's last two items, both in `nvs-ir`.**
 
-- [ ] Stage 4: an erased read or write of a property that is not visible throws. `crates/nvs-runtime/src/object.rs:1`, `data/gaps/nvs-runtime/a-private-or-protected-property-is.json:1`
-- [ ] Stage 4: a `private` or `protected` class constant read from outside is a diagnostic. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-private-or-protected-class-constant.json:1`
-- [ ] Stage 4: `Core\Program::implementing` over a non-public constructor is a diagnostic. `crates/nvs-types/src/program.rs:1`, `data/gaps/nvs-types/core-program-implementing-calls-a-private.json:1`
+- [ ] Stage 4: a promoted constructor parameter is stored through the `$this->x = $x;` pipeline, guard and observer included. `crates/nvs-ir/src/lower/mod.rs:1403` (`promoted_stores`), `data/gaps/nvs-ir/a-promoted-constructor-parameter-runs-no.json:1`
+- [ ] Stage 4: a `??=` that keeps the property's value calls no guard. `crates/nvs-ir/src/lower/mod.rs:1`, `data/gaps/nvs-ir/a-coalescing-assignment-to-a-property.json:1`
 
 ### Backlog
 

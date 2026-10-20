@@ -1,0 +1,48 @@
+--TEST--
+`Core\Program::implementing` and `implementingWith` refuse a listed class whose `private` or `protected` constructor the call cannot reach, as a written `new` there is refused (`rule:programs/implementing`)
+--FILE--
+<?nvs
+// `Open` has a public constructor and is accepted. `Hidden` and `Guarded` hide
+// their constructors, so each call that lists them is refused where it is
+// written: two classes for `implementing` and one for `implementingWith`.
+interface Plugin {
+    public function name(): string;
+}
+
+class Open implements Plugin {
+    public function constructor() { }
+    public function name(): string { return "open"; }
+}
+
+class Hidden implements Plugin {
+    private function constructor() { }
+    public function name(): string { return "hidden"; }
+}
+
+class Guarded implements Plugin {
+    protected function constructor() { }
+    public function name(): string { return "guarded"; }
+}
+
+interface Single {
+    public function name(): string;
+}
+
+class Lonely implements Single {
+    private function constructor() { }
+    public function name(): string { return "lonely"; }
+}
+
+echo Core\Arr::count(Core\Program::implementing<Plugin>()), "\n";
+var $rows = Core\Program::implementingWith<Single, {order: int}>();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0471]: `Guarded::constructor()` is `protected`, so only `Guarded` and the classes that extend it reach it
+%A
+error[E0471]: `Hidden::constructor()` is `private`, so only `Hidden`'s own bodies reach it
+%A
+error[E0471]: `Lonely::constructor()` is `private`, so only `Lonely`'s own bodies reach it
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

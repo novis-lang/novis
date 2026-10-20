@@ -272,7 +272,9 @@ in the program for which `$c is T` holds, **sorted by fully-qualified name**, so
 on filesystem enumeration. `T` may be an interface or a class, abstract or not, and a concrete `T` is in
 its own list. Each listed class needs a no-argument constructor; a diagnostic names any that does not,
 and a class whose constructor takes arguments is enumerated through [`programs/constructors`](programs.md#programs-constructors)
-instead. Because the expansion is ordinary `new` evaluated at the call site, the instances are
+instead. Each `new` faces the visibility a written one faces at the call, so a listed class with a
+`private` or `protected` constructor the call cannot reach is `E0471` there, for `implementingWith`
+too. Because the expansion is ordinary `new` evaluated at the call site, the instances are
 per-request like every other object and nothing crosses an isolate boundary.
 
 The selector is a type rather than an attribute because a type is what gives the loop body something to
