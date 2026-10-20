@@ -2,6 +2,7 @@
 `Core\Router::dispatch` hands the value a route method returns to the gate's `respond` when the gate implements `Core\Router\Responder`: a returned `Core\Html\Markup` is the body with the status `200`, a returned `null` still reaches `respond`, and a `void` method never does — `rule:routing/a-gate-answers-around-every-handler`
 --FILE--
 <?nvs
+// covers: Core\Router\Responder
 // A route method returns its page.
 // The gate implements `Core\Router\Responder`, so its `respond` method sends the page.
 

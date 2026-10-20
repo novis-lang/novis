@@ -1,0 +1,93 @@
+<?nvs
+// Attack: route methods return secret markup, and try to have it sent anyway.
+// The gate refuses one route, one method throws, and one `respond` throws.
+// The markup should never be in a response body.
+
+use Core\Http\Method;
+use Core\Router\Refusal;
+
+class Shop
+{
+    #[Core\Route(path: "/shop/admin", method: Core\Http\Method::Get, name: "Shop::admin")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function admin(): Core\Html\Markup
+    {
+        return html`<p>secret-admin-page</p>`;
+    }
+
+    #[Core\Route(path: "/shop/broken", method: Core\Http\Method::Get, name: "Shop::broken")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function broken(): Core\Html\Markup
+    {
+        var $page = html`<p>secret-broken-page</p>`;
+        if (Core\Request::path() == '/shop/broken') {
+            throw new RuntimeError('the method failed');
+        }
+        return $page;
+    }
+}
+
+class Blog
+{
+    #[Core\Route(path: "/blog", method: Core\Http\Method::Get, name: "Blog::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function index(): Core\Html\Markup
+    {
+        return html`<p>secret-blog-page</p>`;
+    }
+}
+
+// This gate refuses the admin page. Its `respond` writes `respond ran` before the page.
+// For the blog, `respond` throws an error before it writes anything.
+class Gate implements Core\Router\Responder
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return $route->name() != 'Shop::admin';
+    }
+
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'refused';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed';
+    }
+
+    public function respond(Core\Router\Match $route, mixed $value): void
+    {
+        if ($route->name() == 'Blog::index') {
+            throw new RuntimeError('respond failed');
+        }
+        echo 'respond ran';
+        if ($value is Core\Html\Markup) {
+            Core\Response::html($value);
+        }
+    }
+}
+
+class Report
+{
+    // This method prints the status, the body, and whether the body has any secret markup.
+    public static function print(string $step, Core\Test\Response $response): void
+    {
+        string $body = $response->body();
+        bool $leaked = Core\Str::contains($body, 'secret');
+        echo $step, ': ', $response->status(), ' ', $body, ' leaked=', $leaked ? 'yes' : 'no', "\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // 1. The gate refuses this route. The status should be 403, and the body `refused`.
+    Report::print('1', Core\Test::request(Method::Get, '/shop/admin'));
+
+    // 2. The method builds its page, then throws. The status should be 500, and the body `failed`.
+    Report::print('2', Core\Test::request(Method::Get, '/shop/broken'));
+
+    // 3. The gate's `respond` throws. The status should be 500, and the body empty.
+    Report::print('3', Core\Test::request(Method::Get, '/blog'));
+}
