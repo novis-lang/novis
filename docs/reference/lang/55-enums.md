@@ -1503,7 +1503,7 @@ error[E0212]: an import cannot name a member of a class
   |
 8 | use Shop\Order::Status;
   |               ^^^^^^^^ a member of a class
-  = help: import the class with `use Shop\Order;` and write `Order::Status` (`rule:enums/class-scoped-enum`)
+  = help: import the class with `use Shop\Order;` and write `Order::Status`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
