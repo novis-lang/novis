@@ -46,7 +46,7 @@ stages:
     context: [crates/nvs-stdlib/src/bigint.rs]
   - id: 9
     title: "what waits for a measured wall is a stated bound, and the cross-engine suite is gone"
-    status: open
+    status: done
     context: [tools/nv/cmd/bench.ts, benches/proxied/README.md, docs/agent/commands.md]
 checks:
   - id: markup-ladder
@@ -266,57 +266,36 @@ and those hits stay.
 - [x] `virtual-dispatch-resolves-by-name-not`, `nothing-inlines` and `a-switch-terminator-lowers-to-a-compare-chain` are stated bounds in their module docs, each naming its cost and what closes it, and their records are deleted. So is any record an earlier stage stopped on: stage 8 stopped on `bigint-gcd-and-modular-power-grow-quadratically`. Its three benches declare `complexity quadratic`, which `nv scaling` accepts only under a gap marker, so a stated bound for them needs a way for a bench to declare a bounded quadratic cost, or the record keeps another owner. `data/gaps/nvs-ir/virtual-dispatch-resolves-by-name-not.json:1`, `data/gaps/nvs-runtime/nothing-inlines.json:1`, `data/gaps/nvs-codegen/a-switch-terminator-lowers-to-a-compare-chain.json:1`
 - [x] `benches/userland/` and `data/perf/userland.ndjson` are deleted. `bun nv bench` keeps `--warm-start` alone, which CI runs (`.github/workflows/ci.yml:393`). `--serve-vs-fpm` goes with the suite. `benches/serve/hello.php` stays, because `benches/proxied/`'s PHP arm mounts `benches/serve/` and serves it, and `benches/serve/echo.nvs` stays for `bun nv bench-load`. `tools/nv/cmd/bench.ts:1`
 - [x] The rules `testing/userland-benchmarks` and `tooling/bench-engine-list-is-data` are retired, and nothing cites them. `docs/rules/tooling/python-claims.md:21`, `docs/rules/testing/member-perf-ledger.md:68`, `docs/goals/mutation-testing.md:27`
-- [ ] Every other mention is rewritten or removed. Done: `Cargo.toml`, `CONTRIBUTING.md`, `tools/nv/proofs/perf.ts`, `tools/nv/test/rules.test.ts`, `docs/setup.md`, `docs/agent/commands.md`, `docs/examples/README.md`, `benches/members/README.md`, `benches/serve/hello.nvs`, `benches/serve/echo.nvs`, `crates/nvs-codegen/src/emit.rs`, `crates/nvs-runtime/src/lib.rs` and the `arr-sort` case. Left: `benches/proxied/` names the deleted `--serve-vs-fpm` leg as its sibling. `benches/proxied/README.md:4`, `benches/proxied/README.md:9`, `benches/proxied/README.md:23`, `benches/proxied/compose.nvs.yaml:35`, `benches/proxied/compose.php.yaml:26`, `benches/serve/hello.php:6`
+- [x] Every other mention is rewritten or removed. Done: `Cargo.toml`, `CONTRIBUTING.md`, `tools/nv/proofs/perf.ts`, `tools/nv/test/rules.test.ts`, `docs/setup.md`, `docs/agent/commands.md`, `docs/examples/README.md`, `benches/members/README.md`, `benches/serve/hello.nvs`, `benches/serve/echo.nvs`, `crates/nvs-codegen/src/emit.rs`, `crates/nvs-runtime/src/lib.rs` and the `arr-sort` case. Left: `benches/proxied/` names the deleted `--serve-vs-fpm` leg as its sibling. `benches/proxied/README.md:4`, `benches/proxied/README.md:9`, `benches/proxied/README.md:23`, `benches/proxied/compose.nvs.yaml:35`, `benches/proxied/compose.php.yaml:26`, `benches/serve/hello.php:6`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 8, 10 and 11 are done, and stage 9 has three of its four items. This session:
+Every stage is done. This session:
 
-- The three backend records are stated bounds, and their records are deleted:
-  `nvs_ir`'s § *A virtual call looks its method up by name* (`crates/nvs-ir/src/lib.rs`),
-  `nvs_codegen`'s § *A `Terminator::Switch` is a compare chain* (`crates/nvs-codegen/src/lib.rs`)
-  and `decimal`'s § *Every operator is a helper call* (`crates/nvs-runtime/src/decimal.rs`). Each
-  names its cost and what closes it. The codegen and decimal modules lost their `Known gaps` block,
-  because `owners` refuses a block no record names.
-- The BigInt record now names `release-hardening`, with a Backlog bullet there. `nv scaling` never
-  accepts `complexity quadratic`, and a bounded-quadratic declaration would loosen that user rule, so
-  the safe option was another owner. An algorithmic cost on request text is the bug class that goal
-  closes. `bun nv owners --closes fewer-allocations` is green.
-- `benches/userland/`, `data/perf/userland.ndjson` and the two rules are deleted, and the rulebook is
-  re-rendered. `bun nv bench` is the warm-start figure alone (`tools/nv/cmd/bench.ts`, 898 lines from
-  1505). Its empty program is `WARM_START_PROGRAM`, written to `target/nv-bench/warm-start.nvs`. It
-  keeps every export `bench-proxied`, `bench-load`, `bench-compare`, `bench-docker` and `scaling` import.
-- `benches/serve/hello.php` stays: `benches/proxied/`'s PHP arm mounts `benches/serve/` and serves it.
-- Two playbook bullets whose anchors were in the deleted code are deleted.
-- The nightly run 39338638244's one red job, `asan`, was `conformance_coverage` on
-  `format.rs:143`, which `70e08835a` fixed after its commit. Every other job was cancelled beside it.
-
-The `looper` on PATH has no `verify`; `bun tools/looper/main.ts verify` runs it.
+- `benches/proxied/` no longer names the deleted `--serve-vs-fpm` leg. The README's opening and
+  § *One artifact, and no arithmetic across legs* are rewritten, and `bun nv bench-load` is the
+  other server leg it names. `benches/serve.json`, that leg's artifact, is deleted, and the one
+  `bench-proxied` caveat that compared against it is gone.
+- Stage 7's leftover is measured. The benches with a duration literal that declare a count were
+  re-recorded. Five declared `calls 0` and made 1 (`Core\Bytes::startsWith`,
+  `Core\Cache\SecretEntry::of`, `Core\Cache\Store::getSecret`, `Core\Cache\Store::putSecret`,
+  `Core\Validate::isMac`), and now declare 1. No declaration over-states. The rest declare no count,
+  so a count that fell cannot over-state one.
+- The `ParseError` message bullet moved to `release-hardening`'s Backlog.
+- The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes fewer-allocations`
+  and `bun nv rules --check`.
+- The nightly run 39338638244's one red job, `asan`, was fixed by `70e08835a` before this session.
+  Every other job was cancelled beside it.
 
 ### Next
 
-**Stage 9's last item:** `benches/proxied/` still names the deleted `--serve-vs-fpm` leg as its
-sibling. The anchors are on the item under § *Stages*. The README's opening and § *Two artifacts*
-compare against that leg, so rewrite them as a whole. Then run the goal-end gates (`bun nv verify
---doc`, `bun nv owners --closes fewer-allocations`), set stage 9 done and write `DONE`.
-
-Before `DONE`, one leftover of stage 7: about 25 benches outside `CoreTimeDuration` write a duration
-literal (`CoreJwt`, `CoreNet*`, `CoreRateLimit*`, `CoreCache-Store`, `CoreTime-Instant`
-and others; `grep -rlE "[0-9]+(ms|s|m|h|d|w)" benches/members`). Their figures are keyed on
-other files, so a count that fell is not seen. Re-measure them with `bun nv proofs --record-perf
---force --group <group>`, and lower any declaration that now over-states. Expect some to fail on a
-`calls` line, as the BigInt group did.
+Nothing. The goal is reached, and the next goal on the chain is `release-hardening`.
 
 ### Backlog
 
-- A string literal used as an array key hashes on every lookup, because its header is in the unit's
-  read-only data. It is a stated bound in `crates/nvs-runtime/src/string.rs` § *The cached digest*.
-  Closing it needs a writable digest word per literal, which is a codegen layout change.
-
-- `Core\BigInt::parse`'s `ParseError` message repeats the whole text, so a long bad text gives a
-  message as long. `nvs_runtime::helpers` bounds a failed conversion's operand to a head, and this
-  message could do the same. It is a message change, so it is outside this goal.
+- A string literal used as an array key hashes on every lookup. It is a stated bound in
+  `crates/nvs-runtime/src/string.rs` § *The cached digest*.
 
 - `nvs lsp` grows close to quadratically with the open document's size. It is tooling, not the request path, and goal `editor-fixes` owns its record. `data/gaps/nvs-lsp/open-document-analysis-grows-quadratically.json`
