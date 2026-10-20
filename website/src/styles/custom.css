@@ -151,6 +151,16 @@
   --nv-warn: var(--sl-color-orange);
   --nv-danger: var(--sl-color-red);
 
+  /* The six tones a diagram draws its groups in (components/diagrams/).
+     Each one clears 3:1 for a line and a dot on the page and on a card;
+     the text beside a tone stays gray-1. */
+  --nv-tone-violet: var(--sl-color-accent);
+  --nv-tone-crimson: var(--nv-crimson-text);
+  --nv-tone-orange: color-mix(in oklab, var(--nv-crimson-text) 50%, var(--nv-gold-text));
+  --nv-tone-gold: var(--nv-gold-text);
+  --nv-tone-green: var(--nv-ok);
+  --nv-tone-blue: var(--sl-color-blue);
+
   /* The ground under a code block and inline code, wired into Expressive
      Code by astro.config.ts: the surface of a framed list such as a method's
      parameters, so code and those lists read as one style. */
@@ -237,6 +247,7 @@
   --nv-ok: var(--sl-color-green-high);
   --nv-warn: var(--sl-color-orange-high);
   --nv-danger: var(--sl-color-red-high);
+  --nv-tone-blue: var(--sl-color-blue-high);
 
   --nv-code-bg: var(--nv-surface);
   --nv-selection: color-mix(in oklab, var(--nv-violet) 22%, var(--nv-fog));
