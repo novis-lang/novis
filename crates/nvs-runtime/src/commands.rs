@@ -150,16 +150,19 @@ pub enum ArgConv {
         /// order and a message has to read the same on two builds.
         cases: Vec<(String, CaseValue)>,
     },
+    /// `array<string>` on the last positional parameter: every positional
+    /// word left once the arguments before it are filled, and an empty array
+    /// when none is left
+    /// (`rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`).
+    Words,
     /// A parameter whose declared type reaches no conversion — a type `rule:tooling/commands-are-compiled` does
     /// not admit, or a union naming cases of two different enums, which leaves
     /// no enum for a word to be a case of.
     ///
-    /// An `#[Option]` declared at one is refused where it is written, so what
-    /// crosses here is a *positional* argument's: `rule:tooling/commands-are-compiled`'s compile error follows
-    /// the marker, and `nvs_types::commands::ArgConv::Unconverted` is the home
-    /// of that split. `Core\Command::run` answers such a row as a `LogicError`
-    /// naming the parameter, which is what a mistake in the *program* is — the
-    /// table is fixed when it is compiled and no command line can change it.
+    /// The compiler refuses such a parameter where it is written, an
+    /// `#[Option]` and a positional alike, so a row carrying this is a table
+    /// the compiler did not check. `Core\Command::run` answers it as an engine
+    /// fault, before any word is matched.
     Unconverted,
 }
 

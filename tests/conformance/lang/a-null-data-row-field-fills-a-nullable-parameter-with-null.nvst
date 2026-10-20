@@ -1,0 +1,36 @@
+--TEST--
+A `null` field in a `#[TestWith]` row fills a `?T` parameter with `null`, and the row runs like any other — `rule:testing/data-rows`
+--RUN--
+test
+--FILE--
+<?nvs
+use Core\Test;
+use Core\Test\TestWith;
+
+final class NullRowTest {
+    #[TestWith(n: null, name: null, empty: true)]
+    #[TestWith(n: 4, name: "ada", empty: false)]
+    #[Test]
+    public function itTakesNull(?int $n, ?string $name, bool $empty): void {
+        Test::assertSame($n == null, $empty);
+        Test::assertSame($name == null, $empty);
+    }
+
+    // The second row fails, so the `null` in the first row is checked.
+    #[TestWith(n: null)]
+    #[TestWith(n: 0)]
+    #[Test]
+    public function onlyTheNullRowPasses(?int $n): void {
+        Test::assertTrue($n == null);
+    }
+}
+--EXPECTF--
+  NullRowTest
+    ✓ itTakesNull#0                    %f ms
+    ✓ itTakesNull#1                    %f ms
+    ✓ onlyTheNullRowPasses#0           %f ms
+    ✗ onlyTheNullRowPasses#1           %f ms
+      %s
+
+  1 failed, 3 passed, 0 skipped, 0 flaky in %d ms
+--EXPECTF-ERROR--

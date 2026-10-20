@@ -1,0 +1,26 @@
+--TEST--
+A `...` or a default on an anonymous function's parameter is `E0877` at the parameter, because a call through `callable` passes one argument for each parameter — `rule:types/anonymous-function`
+--FILE--
+<?nvs
+callable $count = fn(int ...$xs): int => Core\Arr::count($xs) as int;
+callable $three = fn(int $x = 3): int => $x;
+callable(int): int $twice = fn(int $x): int => $x * 2;
+
+echo $twice(4), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0877]: the anonymous function's parameter `$xs` takes exactly one argument
+%A
+2 | callable $count = fn(int ...$xs): int => Core\Arr::count($xs) as int;
+  |                             ^^^ declared with `...` here
+  = help: remove the `...`. To pass many values, declare an `array<T>` parameter and pass one array
+
+error[E0877]: the anonymous function's parameter `$x` takes exactly one argument
+%A
+3 | callable $three = fn(int $x = 3): int => $x;
+  |                               ^ a default value here
+  = help: remove the default, and pass the value in every call
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

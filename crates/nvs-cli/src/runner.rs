@@ -2716,7 +2716,8 @@ struct Invocation<'a> {
 /// The roster is exactly what `nvs_types::defaults::literal_default` folds a
 /// row field to — the scalars and a `string` — because `rule:testing/data-rows` matches a
 /// field against its parameter's *declared* type, and that is the closed list
-/// of literals such a parameter can be declared at. Anything else answers
+/// of literals such a parameter can be declared at, plus `null` for a `?T`
+/// one. Anything else answers
 /// `None` and is reported as the internal inconsistency it would be, rather
 /// than materialized as something plausible.
 fn materialize(
@@ -2729,6 +2730,9 @@ fn materialize(
         ConstArg::Uint(value) => row.uint(*value),
         ConstArg::Float(value) => row.float(*value),
         ConstArg::Str(text) => row.str(text),
+        // A `null` row field, which the checker admits only at a parameter
+        // whose type has `null` in it. It carries no reference.
+        ConstArg::Null => nvs_runtime::Value::null(),
         _ => return None,
     })
 }

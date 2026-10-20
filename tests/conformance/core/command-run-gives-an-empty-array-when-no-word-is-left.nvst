@@ -1,0 +1,18 @@
+--TEST--
+A trailing `array<string>` parameter of a `#[Command]` method is an empty array when the command line has no word left for it — `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`
+--FILE--
+<?nvs
+class Copier {
+    #[Core\Command(name: "copy")]
+    public static function copy(string $target, array<string> $files): uint {
+        echo $target, ": ", Core\Arr::count($files), " file(s)\n";
+        return 0;
+    }
+}
+
+uint $status = Core\Command::run();
+--ARGS--
+copy
+backup
+--EXPECT--
+backup: 0 file(s)

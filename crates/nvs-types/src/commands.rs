@@ -233,20 +233,24 @@ pub enum ArgConv {
         /// message has to read the same on two builds.
         cases: Vec<(String, crate::enums::EnumValue)>,
     },
+    /// `array<string>` — `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`'s
+    /// trailing variadic: every positional word left once the arguments before
+    /// it are filled, each one its own text, and an empty array when none is
+    /// left. [`check_positional`] admits it on the last positional parameter
+    /// alone. An array has no constant default (`E0451`), so the value is
+    /// always the words.
+    Words,
     /// A parameter whose declared type reaches no conversion at all: a type
     /// `rule:tooling/commands-are-compiled` does not admit, a union of cases of two different enums — which
     /// leaves no enum for a word to be a case *of*
     /// (`crate::routes::admitted_cases`) — or an enum name the program declares
     /// nothing for.
     ///
-    /// **Where the parameter carries `#[Option]` this row never reaches a
-    /// running program**: `rule:tooling/commands-are-compiled`'s third compile error is [`check_convertible`],
-    /// asked of the same [`converts_from_string`] that decides this arm, so the
-    /// declaration is refused where it is written. A *positional* parameter is
-    /// the one that crosses, because that error follows the marker rather than
-    /// the type, and `Core\Command::run` answers it as a `LogicError` naming
-    /// the parameter — a mistake in the program, since no command line can
-    /// change what the row declares.
+    /// **This row never reaches a running program**: [`check_convertible`]
+    /// asks the same [`converts_from_string`] that decides this arm, of an
+    /// `#[Option]` and of a positional parameter alike, so the declaration is
+    /// refused where it is written. `Core\Command::run` answers a row carrying
+    /// one as an engine fault.
     ///
     /// [`conversion_of`] is total rather than fallible so those two questions —
     /// *is this type admitted* and *what does its text become* — stay
@@ -290,6 +294,9 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         // off the declaration rather than off the type. [`ArgConv::Enum`] owns
         // both decisions that took — which word, and what it becomes.
         Ty::Enum(name, _) => cases_of(name, env),
+        Ty::Array(elem) if matches!(env.interner.get(*elem), Ty::String | Ty::TaintedString) => {
+            ArgConv::Words
+        }
         _ => ArgConv::Unconverted,
     }
 }
@@ -546,6 +553,12 @@ fn collect_command(attr: &Attribute, handler: &str, args: &[CommandArg], env: &m
         }
         return;
     };
+    // A name no command line can type builds no row, so the table reports
+    // nothing more about it.
+    if !is_word(&name) {
+        report_spelling("name", &name, "is empty or has a space", name_span, env);
+        return;
+    }
     let about = folded_option(attr, "about", env).map(|(about, _)| about);
     env.commands.rows.push(Command {
         name,
@@ -651,6 +664,10 @@ fn check_options(
     // dashes a command line writes and so cannot collide across forms.
     let mut taken: Vec<(String, Span)> = Vec::new();
     let mut args: Vec<CommandArg> = Vec::with_capacity(m.params.len());
+    // The one parameter a trailing `array<string>` may be (`ArgConv::Words`).
+    let last_positional = m.params.iter().rposition(|param| {
+        crate::testing::attribute_named(&param.attributes, crate::derive::OPTION, ctx, env).is_none()
+    });
     for (index, param) in m.params.iter().enumerate() {
         let name = strip_sigil(span_text(env.src, param.name)).to_owned();
         // Read for every parameter and not only for an `#[Option]`: a positional
@@ -673,6 +690,11 @@ fn check_options(
         else {
             // `rule:tooling/commands-are-compiled`'s positional argument: no attribute, no spelling, and its
             // place in this list is the place a command line fills it from.
+            // Its type is held to the same roster an option's is.
+            if let Some(ty) = declared {
+                let last = last_positional == Some(index);
+                check_positional(param, &method, ty, &conv, last, env);
+            }
             args.push(CommandArg {
                 param: name,
                 spellings: Vec::new(),
@@ -684,7 +706,7 @@ fn check_options(
         };
         let attr = attr.clone();
         if let Some(ty) = declared {
-            check_convertible(param, &method, ty, env);
+            check_convertible(param, &method, ty, false, env);
         }
         let about = folded_option(&attr, "about", env).map(|(about, _)| about);
         let mut claimed: Vec<String> = Vec::with_capacity(2);
@@ -773,12 +795,27 @@ fn default_text(
 /// Rendered with the `-`/`--` a command line writes them with, which is what
 /// makes one list of both forms correct: `-n` and `--n` are two spellings, and
 /// a bare `n` compared against a bare `n` would call them one.
+///
+/// A `short:` or `long:` no command line can type is [`report_spelling`]'s,
+/// and claims nothing, so it is not also reported as a collision.
 fn spellings(attr: &Attribute, param: &Param, env: &mut Env<'_>) -> Vec<(String, Span)> {
     let mut claimed = Vec::with_capacity(2);
     if let Some((short, span)) = folded_option(attr, "short", env) {
-        claimed.push((format!("-{short}"), span));
+        let mut chars = short.chars();
+        let one = matches!(
+            (chars.next(), chars.next()),
+            (Some(c), None) if c.is_ascii_alphanumeric()
+        );
+        if one {
+            claimed.push((format!("-{short}"), span));
+        } else {
+            report_spelling("short", &short, "is not one letter or one digit", span, env);
+        }
     }
     match folded_option(attr, "long", env) {
+        Some((long, span)) if !is_word(&long) => {
+            report_spelling("long", &long, "is empty or has a space", span, env);
+        }
         Some((long, span)) => claimed.push((format!("--{long}"), span)),
         // The parameter's own name is the default long spelling, so an option
         // that writes nothing still claims one — the collision this catches is
@@ -790,6 +827,28 @@ fn spellings(attr: &Attribute, param: &Param, env: &mut Env<'_>) -> Vec<(String,
         )),
     }
     claimed
+}
+
+/// Whether `text` is one word a command line can type: not empty, and with no
+/// white space in it.
+fn is_word(text: &str) -> bool {
+    !text.is_empty() && !text.chars().any(char::is_whitespace)
+}
+
+/// One [`code::E_COMMAND_SPELLING`]: the `field` option wrote `text`, which
+/// `fault` says no command line can type.
+fn report_spelling(field: &str, text: &str, fault: &str, span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_COMMAND_SPELLING,
+            format!("`{field}: \"{text}\"` cannot be typed on a command line"),
+        )
+        .with_primary(span, format!("this {fault}"))
+        .with_help(
+            "a command name and a `long:` name are one word with no space, and a `short:` name \
+             is one letter or one digit",
+        ),
+    );
 }
 
 /// Whether the payload wrote `option` at all, whatever it wrote there — which
@@ -821,24 +880,69 @@ fn folded_option(attr: &Attribute, option: &str, env: &mut Env<'_>) -> Option<(S
     }
 }
 
-/// `rule:tooling/commands-are-compiled`'s compile error about a parameter's type: the parameter an `#[Option]`
-/// is attached to must have a type an argument's text can be converted to.
-fn check_convertible(param: &Param, method: &str, ty: TypeId, env: &mut Env<'_>) {
+/// [`check_convertible`] for a positional parameter, plus the one type only a
+/// positional may have: a trailing `array<string>` ([`ArgConv::Words`]),
+/// which must be the last positional parameter.
+fn check_positional(
+    param: &Param,
+    method: &str,
+    ty: TypeId,
+    conv: &ArgConv,
+    last: bool,
+    env: &mut Env<'_>,
+) {
+    if *conv != ArgConv::Words {
+        check_convertible(param, method, ty, true, env);
+        return;
+    }
+    let name = span_text(env.src, param.name).to_owned();
+    if !last {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_OPTION_TYPE_HAS_NO_CONVERSION,
+                format!("`{name}` of `{method}` is an `array<string>` and is not the last argument"),
+            )
+            .with_primary(param.span, "an `array<string>` gets all the remaining words")
+            .with_help(
+                "only the last parameter without `#[Option]` can be an `array<string>`. Move it \
+                 to the end, or give it another type",
+            ),
+        );
+    }
+}
+
+/// `rule:tooling/commands-are-compiled`'s compile error about a parameter's type: a `#[Command]`
+/// method's parameter must have a type an argument's text can be converted to.
+/// `positional` words the message for a parameter with no `#[Option]`, which
+/// may also be the trailing `array<string>`.
+fn check_convertible(param: &Param, method: &str, ty: TypeId, positional: bool, env: &mut Env<'_>) {
     if converts_from_string(ty, env) {
         return;
     }
     let described = env.interner.describe(ty);
-    env.diags.report(
-        Diagnostic::error(
-            code::E_OPTION_TYPE_HAS_NO_CONVERSION,
-            format!("`{described}` is not a type an option of `{method}` can be given at"),
+    let (kind, help) = if positional {
+        (
+            "an argument",
+            "an argument arrives as text and its type comes from the parameter, so it declares \
+             `string`, `int`, `uint`, `decimal`, `bool`, an enum, a set of allowed values like \
+             `'a'|'b'`, or a class implementing `Parses`. The last argument can also be \
+             `array<string>`",
         )
-        .with_primary(param.span, "no conversion from an argument's text")
-        .with_help(
+    } else {
+        (
+            "an option",
             "an argument arrives as text and its type comes from the parameter, so an option \
              declares `string`, `int`, `uint`, `decimal`, `bool`, an enum, a set of allowed \
              values like `'a'|'b'`, or a class implementing `Parses`",
-        ),
+        )
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_OPTION_TYPE_HAS_NO_CONVERSION,
+            format!("`{described}` is not a type {kind} of `{method}` can be given at"),
+        )
+        .with_primary(param.span, "no conversion from an argument's text")
+        .with_help(help),
     );
 }
 

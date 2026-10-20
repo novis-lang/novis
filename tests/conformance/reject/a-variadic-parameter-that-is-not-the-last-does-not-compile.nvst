@@ -1,5 +1,5 @@
 --TEST--
-A `...` on any parameter but the last is `E0107` at that parameter, in a method and an anonymous function alike
+A `...` on any parameter but the last is `E0107` at that parameter, in a method and an anonymous function alike, and an anonymous function's `...` is also `E0877`
 --FILE--
 <?nvs
 class Sum {
@@ -40,5 +40,10 @@ error[E0107]: only the last parameter can be variadic
 %A
 20 | callable(int, int): int $f = fn(int ...$xs, int $y): int => $y;
 %A
-error: aborting due to 3 errors
+error[E0877]: the anonymous function's parameter `$xs` takes exactly one argument
+%A
+20 | callable(int, int): int $f = fn(int ...$xs, int $y): int => $y;
+   |                                        ^^^ declared with `...` here
+%A
+error: aborting due to 4 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

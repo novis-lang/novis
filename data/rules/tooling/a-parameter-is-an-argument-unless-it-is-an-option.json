@@ -10,7 +10,9 @@
   "guardedBy": [
     "tests/conformance/core/command-run-fills-an-unwritten-option-from-its-declared-default.nvst",
     "tests/conformance/core/command-run-converts-an-enum-argument-by-its-case-name.nvst",
-    "tests/conformance/core/command-run-throws-for-a-parameter-no-argument-converts-into.nvst",
+    "tests/conformance/reject/a-positional-command-parameter-of-a-type-with-no-conversion-does-not-compile.nvst",
+    "tests/conformance/core/command-run-collects-the-remaining-words-into-a-trailing-array-of-strings.nvst",
+    "tests/conformance/core/command-run-gives-an-empty-array-when-no-word-is-left.nvst",
     "tests/conformance/reject/an-option-marker-outside-a-command-method-supplies-nothing.nvst"
   ]
 }

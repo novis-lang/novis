@@ -1,0 +1,39 @@
+--TEST--
+A command `name:` or an option `long:` that is empty or has a space, and a `short:` that is not one letter or digit, are `E0879` at the field — `rule:tooling/commands-are-compiled`
+--FILE--
+<?nvs
+class Tool {
+    #[Core\Command(name: "")]
+    public static function nothing(): void {}
+
+    #[Core\Command(name: "do it")]
+    public static function twoWords(): void {}
+
+    #[Core\Command(name: "build")]
+    public static function build(
+        #[Core\Option(short: "ab")] bool $all,
+        #[Core\Option(short: "-")] bool $dash,
+        #[Core\Option(long: "")] bool $empty,
+        #[Core\Option(long: "dry run")] bool $dryRun,
+        #[Core\Option(short: "q", long: "quiet")] bool $silent,
+    ): void {}
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0879]: `name: ""` cannot be typed on a command line
+%A
+error[E0879]: `name: "do it"` cannot be typed on a command line
+%A
+error[E0879]: `short: "ab"` cannot be typed on a command line
+%A
+error[E0879]: `short: "-"` cannot be typed on a command line
+%A
+error[E0879]: `long: ""` cannot be typed on a command line
+%A
+error[E0879]: `long: "dry run"` cannot be typed on a command line
+%A
+   |                       ^^^^^^^^^^^^^^^ this is empty or has a space
+%A
+error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

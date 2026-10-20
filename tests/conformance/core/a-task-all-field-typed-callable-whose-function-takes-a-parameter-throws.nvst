@@ -1,0 +1,16 @@
+--TEST--
+A `Core\Task::all` field typed bare `callable` whose function takes a parameter throws a `LogicError` before any field runs — `rule:concurrency/all-answers-a-typed-shape`
+--FILE--
+<?nvs
+type Page = {user: mixed, orders: mixed};
+
+callable $user = fn(int $id): int => $id;
+callable $orders = fn(): int => 3;
+try {
+    Page $page = Core\Task::all({user: $user, orders: $orders});
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+Core\Task::all calls each field's function with no arguments, and one of them has 1 parameter(s)

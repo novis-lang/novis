@@ -1,0 +1,33 @@
+--TEST--
+A trailing `array<string>` parameter of a `#[Command]` method gets every positional word left, and an empty array when none is left — `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`
+--FILE--
+<?nvs
+// An option written between the words is still matched as an option.
+class Copier {
+    #[Core\Command(name: "copy")]
+    public static function copy(
+        string $target,
+        #[Core\Option(short: "v")] bool $verbose,
+        array<string> $files,
+    ): uint {
+        echo $target, ": ", Core\Arr::count($files), " file(s)", $verbose ? ", verbose" : "", "\n";
+        foreach ($files as string $file) {
+            echo "  ", $file, "\n";
+        }
+        return 0;
+    }
+}
+
+uint $status = Core\Command::run();
+echo "status: ", $status, "\n";
+--ARGS--
+copy
+backup
+a.txt
+-v
+b.txt
+--EXPECT--
+backup: 2 file(s), verbose
+  a.txt
+  b.txt
+status: 0

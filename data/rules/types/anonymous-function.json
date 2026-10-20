@@ -9,6 +9,7 @@
   "guardedBy": [
     "tests/conformance/lang/a-callable-is-called-through-the-variable-holding-it.nvst",
     "tests/conformance/lang/an-argument-to-an-anonymous-function-is-checked-against-its-parameter-type.nvst",
+    "tests/conformance/reject/an-anonymous-function-parameter-with-a-variadic-or-a-default-does-not-compile.nvst",
     "crates/nvs-syntax/src/parser/tests/expr.rs"
   ]
 }

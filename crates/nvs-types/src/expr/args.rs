@@ -1696,6 +1696,11 @@ pub(crate) fn check_generic_args(
                 compared = unsecret(compared, env.interner);
             }
         }
+        if matches!(env.interner.get(declared), Ty::ShapeOfCallables(_))
+            && super::assign::report_task_fields_with_parameters(&arg.value, actual, env)
+        {
+            continue;
+        }
         if is_assignable(compared, declared, env.interner, env.graph, env.signatures) {
             note_float_widening(&arg.value, compared, declared, env);
         } else {

@@ -1,0 +1,21 @@
+--TEST--
+A `Core\Task::all` field whose function declares a parameter is `E0878` at that field, because each field is called with no arguments — `rule:concurrency/all-answers-a-typed-shape`
+--FILE--
+<?nvs
+type Page = {user: int, orders: int};
+
+Page $page = Core\Task::all({
+    user: fn(int $id): int => $id,
+    orders: fn(): int => 3,
+});
+echo $page->orders, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0878]: the function in field `user` has 1 parameter(s)
+%A
+5 |     user: fn(int $id): int => $id,
+  |           ^^^^^^^^^^^^^^^^^^^^^^^ `Core\Task::all` calls this with no arguments
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

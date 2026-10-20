@@ -172,8 +172,7 @@ pub(crate) fn check_expr(
         );
         if wants_callable && report_non_callable_value_if_applicable(expr, env) {
             return actual;
-        }
-        if is_assignable(actual, expected_id, env.interner, env.graph, env.signatures) {
+        }        if is_assignable(actual, expected_id, env.interner, env.graph, env.signatures) {
             assign::note_float_widening(expr, actual, expected_id, env);
         } else {
             report_mismatch(expr.span, expected_id, actual, env);

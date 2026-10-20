@@ -11,8 +11,12 @@ public static function deploy(
 `rule:routing/routes-are-compiled-not-registered` uses for the route table
 (`rule:programs/implementing`). The three errors every run-time argument parser discovers at the
 worst moment are **compile errors** here: a duplicate command name, two options of one command sharing
-a short or long spelling, and an `#[Option]` on a parameter whose declared type has no conversion from
-`string`. A `#[Command]` method is static and returns `void` (exit status 0) or `uint`.
+a short or long spelling, and a parameter whose declared type has no conversion from `string`. That
+last one holds for an `#[Option]` and a positional parameter alike (`E0746`). A `#[Command]` method is
+static and returns `void` (exit status 0) or `uint`.
+
+A spelling no command line can type is `E0879` at the field: a `name:` or a `long:` that is empty or
+holds white space, and a `short:`, the one-letter spelling, that is not one ASCII letter or digit.
 
 A program with no `#[Command]` builds no table, runs no scan and pays nothing. Nobody writes usage
 text and nobody lets it rot, because help and completions are read off the table

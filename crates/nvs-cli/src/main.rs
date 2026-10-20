@@ -1328,6 +1328,9 @@ fn runtime_commands(
                                         .collect(),
                                 }
                             }
+                            nvs_types::commands::ArgConv::Words => {
+                                nvs_runtime::commands::ArgConv::Words
+                            }
                             nvs_types::commands::ArgConv::Unconverted => {
                                 nvs_runtime::commands::ArgConv::Unconverted
                             }

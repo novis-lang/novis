@@ -1013,4 +1013,37 @@ codes! {
          every value that no other arm matches, so a second `default` never runs. Remove one \
          of them.",
     );
+    /// A `...` or a default on a `fn` anonymous function's parameter
+    /// (`rule:types/anonymous-function`). A call through `callable` passes
+    /// one argument for each declared parameter, so a variadic parameter never
+    /// collects a list, and a default is never used.
+    pub const E_ANON_FN_PARAM_SHAPE: Code = Code::new("E0877").card(
+        "A parameter of an anonymous function cannot have `...` or a default value. A call \
+         to an anonymous function passes exactly one argument for each parameter. Remove the \
+         `...` or the default. To pass many values, declare an `array<T>` parameter.",
+    );
+    /// A `Core\Task::all` field whose function declares a parameter
+    /// (`rule:concurrency/all-answers-a-typed-shape`). Each field's function
+    /// is called with no arguments.
+    pub const E_TASK_FIELD_TAKES_PARAMETERS: Code = Code::new("E0878").card(
+        "`Core\\Task::all` calls the function in each field with no arguments, so the function \
+         cannot have parameters. Remove the parameters. The function can read a variable from \
+         the code around it, so a value it needs can come from there.",
+    );
+    /// A `#[Command]` `name:` or an `#[Option]` `long:` that is empty or has
+    /// white space in it, or a `short:` that is not one letter or digit
+    /// (`rule:tooling/commands-are-compiled`). No command line can type one.
+    pub const E_COMMAND_SPELLING: Code = Code::new("E0879").card(
+        "A command name and a `long:` option name cannot be empty, and they cannot contain a \
+         space. A `short:` option name is one letter or one digit. Change the name, so that a \
+         person can type it on a command line.",
+    );
+    /// A `#[Test]` `skip:` or `because:` that is empty, or a `retries:` below
+    /// 1 (`rule:testing/runner-is-strict`). The first states no reason, and the
+    /// second retries nothing.
+    pub const E_TEST_OPTION_VALUE: Code = Code::new("E0880").card(
+        "A `skip:` or `because:` in `#[Test]` must give a reason, so it cannot be empty. \
+         `retries:` is how many more times a failed test runs, so it must be 1 or more. Write a \
+         reason, or a number of 1 or more.",
+    );
 }
