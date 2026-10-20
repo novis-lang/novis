@@ -9,7 +9,7 @@ a `#[Test]` method that is `static`, that is not `public`, that returns anything
 // `void`, or that has no body — and they share one code because they are
 // one question: the runner constructs the class and calls the member with
 // no arguments and no result. The fifth, two `#[Test]` methods sharing one
-// name, is the `E0304` an option written twice already draws.
+// name, is the `E0304` that any method declared twice gives.
 use Core\Test;
 
 // The accepted half first, so a position that stops being accepted fails
@@ -82,8 +82,8 @@ error[E0733]: the `#[Test]` method `everyShapeAtOnce` is not `public`
 error[E0733]: the `#[Test]` method `everyShapeAtOnce` returns `string`
    --> case.nvs:41:29
 %A
-error[E0304]: `Refused` declares two `#[Test]` methods named `twiceOver`
-   --> case.nvs:48:21
+error[E0304]: `Refused` declares the method `twiceOver()` twice
+   --> case.nvs:45:21
 %A
 error[E0733]: the `#[Test]` method `aTestHasABody` has no body
    --> case.nvs:54:30

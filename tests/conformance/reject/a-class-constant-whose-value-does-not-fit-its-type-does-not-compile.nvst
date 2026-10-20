@@ -1,0 +1,44 @@
+--TEST--
+A class constant whose value does not have its declared type is `E0401` at the value, where it is declared, whether or not anything reads it
+--FILE--
+<?nvs
+// The first class shows values that fit: `3` in a `float`, `null` in a
+// nullable type, and a member of a union.
+class Accepted {
+    public const float RATE = 3;
+    public const ?int NONE = null;
+    public const int|string KEY = "id";
+    public const array<float> STEPS = [1, 2.5];
+}
+
+class Wrong {
+    public const uint WIDTH = -1;
+    public const int SIZE = "a";
+    public const array<int> IDS = [1, "b"];
+    public const bool ON = 1;
+}
+
+echo Accepted::RATE, " ", Accepted::KEY, " ", Accepted::STEPS[1], "\n";
+echo Wrong::SIZE, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: the value of the constant `WIDTH` does not have its declared type `uint`
+%A
+12 |     public const uint WIDTH = -1;
+   |                               ^^ this value is not of type `uint`
+%A
+error[E0401]: the value of the constant `SIZE` does not have its declared type `int`
+%A
+13 |     public const int SIZE = "a";
+%A
+error[E0401]: the value of the constant `IDS` does not have its declared type `array<int>`
+%A
+14 |     public const array<int> IDS = [1, "b"];
+%A
+error[E0401]: the value of the constant `ON` does not have its declared type `bool`
+%A
+15 |     public const bool ON = 1;
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

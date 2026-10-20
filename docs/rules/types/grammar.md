@@ -20,7 +20,7 @@ field        := identifier ':' type
 
 Unions are canonicalised — flattened, de-duplicated, order-insensitive — so `int|string` and
 `string|int|int` are one type. `array` with no argument is exactly `array<mixed>`. `void` and `never`
-are return-only. `array<T>` is parsed **only in type position**, where a `<` is unambiguously a
+are return-only: either on a parameter, a local or a property is `E0742`, since no value has it. `array<T>` is parsed **only in type position**, where a `<` is unambiguously a
 type-argument list; two expression positions also admit one, a call site's own `<...>` and a `new`
 target's, both settled by a checkpointed trial parse that commits only when the list parses cleanly
 and a `(` follows, so `new Foo < $x` stays a comparison. Only a compiler-owned generic declaration may

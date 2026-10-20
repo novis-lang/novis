@@ -1,0 +1,85 @@
+--TEST--
+A second property, method, constructor or constant of one name in one class is `E0304` at the second declaration, and a promoted constructor parameter is a property declaration
+--FILE--
+<?nvs
+// Properties, methods and constants have separate names, so the first class
+// compiles. Each class after it declares one name twice.
+class Accepted {
+    public int $count = 0;
+    public const int COUNT = 1;
+
+    public function count(): int {
+        return $this->count + self::COUNT;
+    }
+}
+
+class TwoProperties {
+    public int $x = 1;
+    public string $x = "a";
+}
+
+class TwoMethods {
+    public function f(): int {
+        return 1;
+    }
+
+    public function f(): int {
+        return 2;
+    }
+}
+
+class TwoConstructors {
+    public function constructor() {}
+
+    public function constructor(int $n) {}
+}
+
+class PromotedAfter {
+    public int $id = 0;
+
+    public function constructor(public int $id) {}
+}
+
+class PromotedBefore {
+    public function constructor(private string $name) {}
+
+    private string $name = "";
+}
+
+class TwoConstants {
+    public const int N = 1;
+    public const int N = 2;
+}
+
+echo (new Accepted())->count(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0304]: `TwoProperties` declares the property `$x` twice
+%A
+15 |     public string $x = "a";
+   |                   ^^ declared again here
+%A
+error[E0304]: `TwoMethods` declares the method `f()` twice
+%A
+23 |     public function f(): int {
+   |                     ^ declared again here
+%A
+error[E0304]: `TwoConstructors` declares the method `constructor()` twice
+%A
+31 |     public function constructor(int $n) {}
+%A
+error[E0304]: `PromotedAfter` declares the property `$id` twice
+%A
+37 |     public function constructor(public int $id) {}
+%A
+error[E0304]: `PromotedBefore` declares the property `$name` twice
+%A
+43 |     private string $name = "";
+%A
+error[E0304]: `TwoConstants` declares the constant `N` twice
+%A
+48 |     public const int N = 2;
+%A
+error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

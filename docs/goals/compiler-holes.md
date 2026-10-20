@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-ir/src/lower/generator.rs, crates/nvs-syntax/src/parser/stmt.rs]
   - id: 7
     title: "a class declaration is checked where it is written"
-    status: open
+    status: done
     context: [crates/nvs-types/src/signatures.rs, crates/nvs-syntax/src/parser/decl.rs, crates/nvs-types/src/expr/members.rs]
   - id: 8
     title: "enums, type arguments and property hooks are checked where they are written"
@@ -344,12 +344,12 @@ is kept as § *Standing decisions* says.
 
 **Does:** each of the six declarations below is a diagnostic at the declaration.
 
-- [ ] A second property, method or constructor of one name in one class, a promoted parameter included, is a diagnostic at the second one. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-class-member-declared-twice-passes.json:1`
-- [ ] `static` on a `constructor` is a diagnostic. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-static-constructor-compiles-and-new.json:1`
-- [ ] A `...` on any parameter but the last is a diagnostic at that parameter. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-variadic-parameter-that-is-not.json:1`
-- [ ] A `void` or `never` property is `E0742`. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-void-or-never-property-passes.json:1`
-- [ ] `final` on a class constant is `E0106`. `crates/nvs-syntax/src/parser/decl.rs:1`, `data/gaps/nvs-syntax/final-on-a-class-constant-is.json:1`
-- [ ] A class constant's value is checked against its declared type at the declaration. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-class-constant-whose-value-does.json:1`
+- [x] A second property, method or constructor of one name in one class, a promoted parameter included, is a diagnostic at the second one. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-class-member-declared-twice-passes.json:1`
+- [x] `static` on a `constructor` is a diagnostic. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-static-constructor-compiles-and-new.json:1`
+- [x] A `...` on any parameter but the last is a diagnostic at that parameter. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-variadic-parameter-that-is-not.json:1`
+- [x] A `void` or `never` property is `E0742`. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-void-or-never-property-passes.json:1`
+- [x] `final` on a class constant is `E0106`. `crates/nvs-syntax/src/parser/decl.rs:1`, `data/gaps/nvs-syntax/final-on-a-class-constant-is.json:1`
+- [x] A class constant's value is checked against its declared type at the declaration. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-class-constant-whose-value-does.json:1`
 
 ### 8. enums, type arguments and property hooks are checked where they are written
 
@@ -478,45 +478,55 @@ another goal.
 
 ### State
 
-Stages 1, 2, 3, 16, 4, 5 and 6 are done, and every gap record they owned is deleted. Stage 7 is next.
+Stages 1, 2, 3, 16, 4, 5, 6 and 7 are done, and every gap record they owned is deleted. Stage 8 is
+next.
 
-Stage 6 closed its four gap records, each with a conformance case:
+Stage 7 closed its six gap records, each with a case under `tests/conformance/reject/`:
 
-- `lower_yield` (`crates/nvs-ir/src/lower/generator.rs`) converts the operand to `T` through
-  `Lowering::coerce`, as a `return` does, so `yield 2;` in an `Iterator<?int>` is tagged. Case:
-  `tests/conformance/iter/a-generator-yields-a-literal-into-a-nullable-or-union-element.nvst`.
-- `lower_generator_advance` parks `GEN_DONE` before its entry switch, and each `yield` parks its
-  own index. So a throw out of the body leaves the generator finished, and `gen#unwind` finds
-  nothing suspended, which also removes the second `finally`. One field store per `advance()`.
-  Case: `tests/conformance/iter/a-generator-that-throws-is-finished-and-runs-its-finally-once.nvst`.
-- A `yield` in a `finally` is the new `E0255` (`E_YIELD_IN_A_FINALLY`,
-  `crates/nvs-diagnostics/src/code/rejected_php.rs`), reported by `parse_yield` on the parser's
-  `in_finally` flag. `yield from` keeps `E0448` alone. Case:
-  `tests/conformance/reject/a-yield-inside-a-finally-does-not-compile.nvst`.
-- `Lowering::lower_finally_in_flight` (`crates/nvs-ir/src/lower/exception.rs`) lowers a
-  `finally` on both fault paths (unmatched dispatch, and a `catch` body that throws) under a frame
-  whose handler stores the error in flight in the new error's `previous` when that is `null`, and
-  releases it otherwise. Before, the error in flight leaked as well as being lost. Case:
-  `tests/conformance/error/an-error-leaving-a-finally-keeps-the-one-in-flight-as-previous.nvst`.
-- `rule:statements/no-return-leaves-a-finally` states `E0255` and the chaining bound, and
-  `rule:iteration/generators` states the finished-on-throw behaviour. The `try-catch-finally`
-  `details.md` says the same to a reader, and `docs/reference/lang/70-errors.md` is re-rendered.
-- Four `nvs-ir` lowering snapshots were re-recorded: three for the `GEN_DONE` store, one for the
-  chain block.
+- A second property, method, constructor or constant of one name in one member list is
+  `E0304` (`E_DUPLICATE_DECLARATION`), from `reject_members_declared_twice` in
+  `crates/nvs-types/src/signatures.rs`. `crates/nvs-types/src/testing.rs` no longer reports a
+  second `E0304` for two `#[Test]` methods of one name. A promoted
+  `constructor` parameter is a property at its own position. Case:
+  `a-class-member-declared-twice-does-not-compile.nvst`.
+- `static` on `constructor` is `E0106`, from the parser's `refuse_static_constructor`
+  (`crates/nvs-syntax/src/parser/decl.rs`), which drops the modifier. Case:
+  `a-static-constructor-does-not-compile.nvst`.
+- A `...` on any parameter but the last is `E0107`, in `parse_param_list`
+  (`crates/nvs-syntax/src/parser/expr.rs`), so a method and an anonymous function both get it.
+  `E0107`'s card now covers both. Case:
+  `a-variadic-parameter-that-is-not-the-last-does-not-compile.nvst`.
+- A `void` or `never` property is `E0742` (`reject_void_or_never_property`). The default and
+  the initialization obligation are skipped for it, so no `E0409` or `E0472` follows. Case:
+  `a-void-or-never-property-does-not-compile.nvst`.
+- `ModifierSite::Constant` no longer takes `final`, so it is `E0106`. The modifier case
+  `a-repeated-or-misplaced-modifier-does-not-compile.nvst` pins it.
+- A typed constant whose value folds untyped but not at its type is `E0401` at the value
+  (`reject_const_value_of_another_type`). `ConstSig::refused` keeps the read from adding
+  `E0792`. A shape value is left to the read. Case:
+  `a-class-constant-whose-value-does-not-fit-its-type-does-not-compile.nvst`.
+- `rule:types/declaration` states the member-once, variadic-last, constant-value and no-`final`
+  rules, with `final` on a constant in its Declined list. `rule:types/grammar` names a property
+  for `E0742`, and `rule:classes/constructor-is-a-method-named-constructor` says it is never
+  `static`.
 - The installed `looper` has no `verify` subcommand, so this session ran `bun nv affected --run`.
 
 ### Next
 
-**Stage 7: a class declaration is checked where it is written.** Each item is a diagnostic at the
-declaration, in `nvs-types`'s signature pass except `final` on a constant, which is the parser's.
-§ *Standing decisions* makes `final` on a class constant `E0106`.
+**Stage 8: enums, type arguments and property hooks are checked where they are written.** Each
+item is a diagnostic at the form. § *Standing decisions* makes a constructor reference to an enum
+and a user attribute on an enum, an enum case or a class constant compile errors.
 
-- [ ] Stage 7: a second property, method or constructor of one name in one class, a promoted parameter included, is a diagnostic at the second one. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-class-member-declared-twice-passes.json:1`
-- [ ] Stage 7: `static` on a `constructor` is a diagnostic. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-static-constructor-compiles-and-new.json:1`
-- [ ] Stage 7: a `...` on any parameter but the last is a diagnostic at that parameter. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-variadic-parameter-that-is-not.json:1`
-- [ ] Stage 7: a `void` or `never` property is `E0742`. `crates/nvs-types/src/signatures.rs:1`, `data/gaps/nvs-types/a-void-or-never-property-passes.json:1`
-- [ ] Stage 7: `final` on a class constant is `E0106`. `crates/nvs-syntax/src/parser/decl.rs:1`, `data/gaps/nvs-syntax/final-on-a-class-constant-is.json:1`
-- [ ] Stage 7: a class constant's value is checked against its declared type at the declaration. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/a-class-constant-whose-value-does.json:1`
+- [ ] Stage 8: a second case of one name in one enum is a diagnostic at the second one. `crates/nvs-types/src/enums.rs:1`, `data/gaps/nvs-types/an-enum-case-declared-twice-compiles.json:1`
+- [ ] Stage 8: `new` naming an enum is one checker error that says a case is written `M::Case`. `crates/nvs-types/src/enums.rs:1`, `data/gaps/nvs-types/new-on-an-enum-passes-the.json:1`
+- [ ] Stage 8: a constructor reference to an enum, and a user attribute on an enum, an enum case or a class constant, are checker errors. `crates/nvs-types/src/attributes.rs:1`, `data/gaps/nvs-types/a-constructor-reference-to-an-enum.json:1`
+- [ ] Stage 8: a `<` after a built-in type name is an error at the `<` that names the generic types. `crates/nvs-syntax/src/parser/ty.rs:1`, `data/gaps/nvs-syntax/type-arguments-after-a-built-in-type.json:1`
+- [ ] Stage 8: a hook on a `static` property is a diagnostic, as one on a `readonly` property is `E0843`. `crates/nvs-types/src/check.rs:1`, `data/gaps/nvs-types/a-hook-on-a-static-property.json:1`
+- [ ] Stage 8: a second hook of one kind on one property is a diagnostic at the second hook. `crates/nvs-types/src/check.rs:1`, `data/gaps/nvs-types/a-property-with-two-get-hooks.json:1`
+
+A note for stage 11: its `...` on an anonymous function's parameter will also reach the anonymous
+function in `a-variadic-parameter-that-is-not-the-last-does-not-compile.nvst`, whose expected
+block then needs that error too.
 
 ### Backlog
 
