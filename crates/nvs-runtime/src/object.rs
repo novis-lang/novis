@@ -627,6 +627,17 @@ pub struct ClassDesc {
     /// code building a callable for a `Core` member to call answers. **Cost:**
     /// one `bool` per class, once per process, not per instance.
     is_callable: bool,
+    /// Whether the class implements `Core\Router\Responder`, so that
+    /// `Core\Router::dispatch` hands it a route method's returned value.
+    ///
+    /// Carried for [`Self::is_callable`]'s reason: a class may declare a
+    /// `respond` method without implementing the interface, and the name alone
+    /// never decides that `dispatch` calls it. And a `Core` contract has no
+    /// descriptor for [`ClassDesc::conforms_to_name`] to find, so the walk
+    /// cannot answer either. `nvs_ir::ir::Class::is_responder` carries the bit
+    /// down and `nvs-codegen` hands it to [`ClassTable::set_responder`].
+    /// **Cost:** one `bool` per class, once per process, not per instance.
+    is_responder: bool,
     /// Whether an instance of this class holds a **host handle** — a key into
     /// one [`Ctx`]'s own table of the open files, sockets, readers, database
     /// connections and children that request opened, which is what
@@ -1452,6 +1463,14 @@ impl ClassDesc {
         self.is_callable
     }
 
+    /// Whether the class implements `Core\Router\Responder` — the bit
+    /// [`ClassTable::set_responder`] writes, and the one answer
+    /// `Core\Router::dispatch` asks before it hands a returned value on.
+    #[must_use]
+    pub fn is_responder(&self) -> bool {
+        self.is_responder
+    }
+
     /// Whether an instance of this class holds a host handle — the bit
     /// [`ClassTable::set_host_handle`] writes, and the second of the two marks
     /// `rule:classes/graph-copy`'s walk refuses a value on.
@@ -2158,6 +2177,7 @@ impl ClassTable {
             compare: std::ptr::null(),
             unwind: std::ptr::null(),
             is_callable: false,
+            is_responder: false,
             holds_host_handle: false,
         }));
         id
@@ -2182,6 +2202,21 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.is_callable = true;
+    }
+
+    /// Marks `id` as a class that implements `Core\Router\Responder` — see
+    /// [`ClassDesc::is_responder()`]. A setter on [`ClassTable::set_callable`]'s
+    /// terms, called by `nvs-codegen` and by a test building a gate by hand.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_responder(&mut self, id: ClassId) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.is_responder = true;
     }
 
     /// Marks `id` as a class whose instances hold a host handle — see

@@ -1432,6 +1432,11 @@ pub(crate) fn runtime_routes(exprs: &nvs_types::ExprTypeTable) -> nvs_runtime::r
                 } else {
                     route
                 };
+                let route = if row.returns_value {
+                    route.with_returned_value()
+                } else {
+                    route
+                };
                 if row.slotted {
                     route.with_slotted()
                 } else {

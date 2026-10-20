@@ -14,6 +14,7 @@
     "tests/conformance/core/router-dispatch-calls-the-matched-method.nvst",
     "tests/conformance/core/router-dispatch-refusals-reach-the-gate.nvst",
     "tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst",
+    "tests/conformance/core/router-dispatch-hands-a-returned-value-to-respond.nvst",
     "crates/nvs-types/tests/routes.rs",
     "crates/nvs-cli/tests/gate.rs"
   ]
