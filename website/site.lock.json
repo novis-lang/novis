@@ -7,20 +7,20 @@
   },
   "syntax/attributes/commands-and-discovery.mdx": {
     "lang:attributes/core-command-and-core-option-the-command-table": "c261a283869e05c2",
-    "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "97a082f94ea9def0",
-    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "1162999e15a831b1"
+    "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "f4e2f20868cbadb2",
+    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "94a4314639c860bb"
   },
   "syntax/attributes/json.mdx": {
-    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "8314ec449faea2ef"
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "298588792ebc8e35"
   },
   "syntax/attributes/routes.mdx": {
-    "Core\\Router::dispatch": "7be54fafddfab7ed",
+    "Core\\Router::dispatch": "70a8f50d45e32dc4",
     "lang:attributes/core-api-and-the-openapi-document": "2e4f7c61e1540361",
     "lang:attributes/core-route-and-core-access-the-route-table": "3eec894eda7abb0a"
   },
   "syntax/attributes/writing-and-reading.mdx": {
-    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "16660869aa600ce5",
-    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "36add69025991400",
+    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "621447a4dee53bbe",
+    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "85ff698a88cdf9f1",
     "lang:attributes/the-names-the-compiler-acts-on": "ba5d9be8a59562f9"
   },
   "syntax/basics/comments.mdx": {
@@ -28,7 +28,7 @@
     "lang:programs/doc-comments": "961c75d9ab2f2c38"
   },
   "syntax/basics/constants.mdx": {
-    "lang:classes/constants-and-class": "587efa59c2432e9c"
+    "lang:classes/constants-and-class": "6f846cf55f127fcf"
   },
   "syntax/basics/files-and-statements.mdx": {
     "lang:programs/a-program-is-a-file-of-top-level-statements": "b65244c6d8e65a10",
@@ -39,34 +39,34 @@
     "lang:types/every-binding-has-a-type": "0de6214e0f854eca"
   },
   "syntax/classes/anonymous-objects.mdx": {
-    "lang:expressions/anonymous-objects": "619b565f4d6f50c6"
+    "lang:expressions/anonymous-objects": "d50be13c13f2e985"
   },
   "syntax/classes/declaring.mdx": {
     "lang:classes/declaring-a-class": "1c1899c154545430"
   },
   "syntax/classes/interfaces.mdx": {
-    "lang:classes/interfaces": "8adc2c2f927ef576"
+    "lang:classes/interfaces": "e95781d7968bfd61"
   },
   "syntax/classes/methods-and-inheritance.mdx": {
-    "lang:classes/inheritance": "d373b61ef07e71f4",
+    "lang:classes/inheritance": "ce756bd8ea3a6e67",
     "lang:classes/methods-self-static-and-parent": "29fe0990aa85b135"
   },
   "syntax/classes/objects.mdx": {
     "lang:classes/nullable-objects-and": "f9ae914d52ac7a3e",
-    "lang:classes/object-the-top-of-every-class-type": "d4a7a1564849e39e",
+    "lang:classes/object-the-top-of-every-class-type": "25b98f29bef19784",
     "lang:classes/objects-are-handles": "c51efd16ad9ef05f",
-    "lang:classes/what-a-class-cannot-declare": "4384fe7427038d9e",
-    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "8daabf2408a3ca60",
-    "lang:types/callable-classes-object-shapes": "1c5f52d22fd7124e"
+    "lang:classes/what-a-class-cannot-declare": "1133372eaa198962",
+    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "bd41c17e73b40e74",
+    "lang:types/callable-classes-object-shapes": "5f0e2fb27334d147"
   },
   "syntax/classes/properties.mdx": {
     "lang:classes/lateinit": "1d7877bafebe6771",
-    "lang:classes/properties": "9a08161c4c821fc5",
+    "lang:classes/properties": "8a3bd52c08135be7",
     "lang:types/properties-and-constants": "1da42ad2c3c6d547",
     "LateInit": "573915c0c25ce2a0"
   },
   "syntax/classes/property-hooks.mdx": {
-    "lang:classes/property-hooks": "6a9aaaf6a389d6d2",
+    "lang:classes/property-hooks": "3947ede2719cc0ad",
     "lang:classes/propertyguard": "fa8dc9193507f102",
     "lang:classes/propertyobserver": "f34f221fdfdb1503",
     "PropertyGuard": "763425ca905233c2",
@@ -80,7 +80,7 @@
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "391e6f137abae931",
     "lang:classes/comparable": "78271a960888d3b3",
-    "lang:classes/parses": "d75c1802ac6a856a",
+    "lang:classes/parses": "2f816c8d9dec9f89",
     "lang:classes/stringable": "3b2b2753f126d15d",
     "Parses": "76732b35d3fe313a",
     "Stringable": "2a07d08fab1b1475"
@@ -111,7 +111,7 @@
     "lang:iteration/core-collections-are-iterable": "09b7ed884770e0a2",
     "lang:iteration/materialising-a-sequence-core-arr-from": "2f637a6dcf60d1b5",
     "lang:iteration/what-foreach-walks": "1c7eb67e91ea3e60",
-    "lang:statements/foreach": "22dc7665e8295303"
+    "lang:statements/foreach": "a6d172b7c4e0bb8b"
   },
   "syntax/control-flow/if.mdx": {
     "lang:statements/expression-statements-blocks-and-declarations": "3e8e239daa712934",
@@ -120,20 +120,20 @@
   "syntax/control-flow/iterators.mdx": {
     "Iterable": "00f00c8752d0a6b8",
     "Iterator": "c3226424f53707ac",
-    "lang:iteration/generators": "d89f4450c35416f5",
-    "lang:iteration/the-two-interfaces": "a20486c3174998f5",
-    "lang:iteration/what-does-not-exist": "8d6ee969bf0d3fc6"
+    "lang:iteration/generators": "b00d8c7d26aa9c37",
+    "lang:iteration/the-two-interfaces": "940eb8374741f208",
+    "lang:iteration/what-does-not-exist": "fe11a953698904a1"
   },
   "syntax/control-flow/loops.mdx": {
-    "lang:statements/for": "4a7d1d2ac564331b",
+    "lang:statements/for": "2f8dcdf948ccafab",
     "lang:statements/while-and-do-while": "7e75b2f5e47fac94"
   },
   "syntax/control-flow/match.mdx": {
     "lang:expressions/match": "3ca8c9c04a14457d"
   },
   "syntax/control-flow/other-statements.mdx": {
-    "lang:statements/echo-print-unset-exit-yield": "cf7acc38e7371052",
-    "lang:statements/statement-forms-that-do-not-parse": "37eabecee4eca6b6"
+    "lang:statements/echo-print-unset-exit-yield": "4b70bcaab6cd5a11",
+    "lang:statements/statement-forms-that-do-not-parse": "1fc61299464f02cc"
   },
   "syntax/control-flow/switch.mdx": {
     "lang:statements/switch": "397949ed68e08320"
@@ -186,18 +186,18 @@
     "lang:types/void-never-self-static": "1b22643452dcbb04"
   },
   "syntax/functions/parameters.mdx": {
-    "lang:types/parameters": "e6ba137a5665cd13"
+    "lang:types/parameters": "6f290c7e853418ef"
   },
   "syntax/operators/arithmetic.mdx": {
     "lang:expressions/arithmetic": "a880f19b388604f1",
     "lang:expressions/assignment": "fe616c8c1233f94d"
   },
   "syntax/operators/comparison.mdx": {
-    "lang:expressions/comparison-and-equality": "d16e53e2bbb81ebe",
+    "lang:expressions/comparison-and-equality": "67eb403b27887deb",
     "lang:expressions/logical-operators-and-truth": "c967a863da3946a1"
   },
   "syntax/operators/null-coalescing.mdx": {
-    "lang:expressions/and-the-ternary": "818317979e881b92"
+    "lang:expressions/and-the-ternary": "900d6869fc80a8fb"
   },
   "syntax/operators/pipeline.mdx": {
     "lang:expressions/the-pipeline-operator": "ac0b0202a18bcccd"
@@ -223,7 +223,7 @@
   },
   "syntax/start-here.mdx": {
     "lang:programs/a-complete-program-annotated": "1a63ca5eeaf4b108",
-    "lang:types/what-does-not-exist": "aed971e2e73d53fd"
+    "lang:types/what-does-not-exist": "cb3e39ac53ce8b7f"
   },
   "syntax/testing/fixtures-and-assertions.mdx": {
     "lang:testing/assertions": "ec2f23328e72af12",
@@ -235,14 +235,14 @@
     "lang:testing/a-test-is-a-method-marked-test": "731d088faeddbce0",
     "lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup": "6bf09d50dafb3c47",
     "lang:testing/running-tests-nvs-test": "e561581eb653ccbc",
-    "lang:testing/test-options": "f4471759e8c51eec"
+    "lang:testing/test-options": "d5d300749ce5980a"
   },
   "syntax/values/arrays.mdx": {
-    "lang:expressions/arrays-in-expressions": "a6a1a70929c22ad7",
+    "lang:expressions/arrays-in-expressions": "03df4bc942f8347e",
     "lang:types/array-t": "c22e6b4921484d16"
   },
   "syntax/values/as.mdx": {
-    "lang:types/the-conversion-operator-as": "b0bca81e6a879d6d",
+    "lang:types/the-conversion-operator-as": "3d6ef1ee1803ae54",
     "lang:types/widening-without-as": "bb526cbe50ca94d0"
   },
   "syntax/values/bool-and-null.mdx": {
@@ -283,13 +283,13 @@
     "Core\\Time\\DateTime::Weekday": "6c3793ac2f62eab3",
     "Core\\Unit": "eb68c4e10f572009",
     "Core\\Xml\\Node::Kind": "f35464494f865164",
-    "lang:enums/a-case-is-its-integer": "04f8987f6309f33c",
+    "lang:enums/a-case-is-its-integer": "6d306556a72b5bbc",
     "lang:enums/a-union-of-cases-is-a-narrower-type": "054a6546b50bd8b1",
     "lang:enums/an-enum-as-a-type": "118d1732396527ff",
-    "lang:enums/an-enum-inside-a-class": "a8018ffe0db2bf61",
+    "lang:enums/an-enum-inside-a-class": "9f8cadb336e47a52",
     "lang:enums/comparing-cases": "33be3b5f0aa99d29",
     "lang:enums/core-enums": "f0d860f1e9f1ee4d",
-    "lang:enums/declaring-an-enum": "29f66bd9d3f39cf9",
+    "lang:enums/declaring-an-enum": "b15b1da1008b7bdc",
     "lang:enums/from-an-integer-back-to-a-case": "d3d62f16fcfe52cb",
     "lang:enums/match-and-switch-over-an-enum": "7bba53184f1d374e",
     "lang:enums/what-an-enum-does-not-have": "5057c794e207f2dd"
@@ -312,6 +312,6 @@
   },
   "syntax/values/union-types.mdx": {
     "lang:types/mixed": "f0166b554154806a",
-    "lang:types/type-aliases": "999337f25c447189"
+    "lang:types/type-aliases": "e4ce699292166c6d"
   }
 }
