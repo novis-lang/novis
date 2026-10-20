@@ -20,7 +20,7 @@ stages:
         rules: [types/one-mistake-reports-once]
   - id: 3
     title: "an unresolved `use` reports once, and the cases pin every root"
-    status: open
+    status: done
     context: [crates/nvs-hir/src/resolve.rs, crates/nvs-hir/src/hierarchy.rs, tests/conformance/lang/a-class-name-constant-needs-a-class-the-compiler-resolves.nvst]
     extra:
       context:
@@ -156,21 +156,41 @@ cases pin one diagnostic per mistake.
 **Split:** after the code lands, one writing subagent writes the `.nvst` cases below, one after
 another. The session reads each expected output against this goal's decisions.
 
-- [ ] The checker reads `Import::resolved == false` and gives the error type with no `E0303` at each use. `crates/nvs-hir/src/resolve.rs:31`, `crates/nvs-hir/src/resolve.rs:278`, `crates/nvs-types/src/lower.rs:1116`
-- [ ] `nvs-hir` reports no `E0303` for a name an unresolved `use` brought in. `crates/nvs-hir/src/hierarchy.rs:651`, `crates/nvs-hir/src/hierarchy.rs:766`
-- [ ] A parameter typed with an undeclared class, then used as a `string`, gives `E0303` alone. `tests/conformance/lang/an-undeclared-parameter-type-reports-once.nvst:1`
-- [ ] A function declared `string` returns such a value, and gives `E0303` alone. `tests/conformance/lang/a-returned-value-of-an-undeclared-type-reports-once.nvst:1`
-- [ ] `Core\Program::implementing<Undeclared>()` gives `E0303` alone. `tests/conformance/lang/an-undeclared-program-type-argument-reports-once.nvst:1`
-- [ ] A `use` that names nothing, then its short name in three places, gives `E0306` alone. `tests/conformance/lang/an-unresolved-use-reports-once.nvst:1`
-- [ ] `new Undeclared()`, then a member read and a call on the result, give `E0303` alone. `tests/conformance/lang/a-new-of-an-undeclared-class-reports-once.nvst:1`
-- [ ] A value written as `mixed`, used as a `string` and returned as one, still gives `E0401` and `E0403`. `tests/conformance/lang/a-written-mixed-keeps-its-errors.nvst:1`
-- [ ] The rule `shipped` with every case above in `guardedBy`, and `bun nv owners --closes one-error-per-mistake` passes. `data/rules/types/one-mistake-reports-once.json:1`
+- [x] The checker reads `Import::resolved == false` and gives the error type with no `E0303` at each use. `crates/nvs-hir/src/resolve.rs:31`, `crates/nvs-hir/src/resolve.rs:291`, `crates/nvs-hir/src/symbol.rs:181`, `crates/nvs-types/src/lower.rs:1120`
+- [x] `nvs-hir` reports no `E0303` for a name an unresolved `use` brought in. `crates/nvs-hir/src/hierarchy.rs:638`, `crates/nvs-hir/src/hierarchy.rs:673`
+- [x] A parameter typed with an undeclared class, then used as a `string`, gives `E0303` alone. The stage 1 case pins it (`string $text = $item;`). `tests/conformance/lang/a-name-that-does-not-resolve-reports-once-and-a-written-mixed-keeps-its-error.nvst:16`
+- [x] A function declared `string` returns such a value, and gives `E0303` alone. The stage 1 case pins it too. `tests/conformance/lang/a-name-that-does-not-resolve-reports-once-and-a-written-mixed-keeps-its-error.nvst:25`
+- [x] `Core\Program::implementing<Undeclared>()` gives `E0303` alone. `tests/conformance/lang/an-undeclared-program-type-argument-reports-once.nvst:1`
+- [x] A `use` that names nothing, then its short name in five places, gives `E0306` alone. `tests/conformance/lang/an-unresolved-use-reports-once.nvst:1`
+- [x] `new Undeclared()`, then a member read and a call on the result, give `E0303` alone. `tests/conformance/lang/a-new-of-an-undeclared-class-reports-once.nvst:1`
+- [x] A static call or static property on an undeclared class, or a missing static member, gives its `E0303` or `E0309` alone. `crates/nvs-types/src/expr/calls.rs:695`, `crates/nvs-types/src/expr/mod.rs:724`, `tests/conformance/lang/a-static-member-of-an-undeclared-class-reports-once.nvst:1`
+- [x] A value written as `mixed`, used as a `string` and returned as one, still gives `E0401` and `E0403`. `tests/conformance/lang/a-written-mixed-keeps-its-errors.nvst:1`
+- [x] The rule `shipped` with every case above in `guardedBy`, and `bun nv owners --closes one-error-per-mistake` passes. `data/rules/types/one-mistake-reports-once.json:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 and 2 are done. `Ty::Error` is the error type (`ty.rs`'s module doc says why it is a variant).
+Every stage is done, and the goal is reached: `bun nv verify` is 22 of 22 green, and `bun nv verify
+--doc` and `bun nv owners --closes one-error-per-mistake` pass. The rule is `shipped`, and its six cases
+are in `guardedBy`.
+
+Stage 3:
+
+- An unresolved `use` reports `E0306` at its line and nothing at any use of its short name.
+  `resolve_imports` records the target with `SymbolTable::note_unresolved_import`.
+  `undeclared_name` and `undeclared_name_at` (`hierarchy.rs`) return `Option<Diagnostic>`, and give
+  `None` for a short name an unresolved `use` brought in. Each caller reports only `Some`, so the
+  skip lives in one function. `Undeclared` carries the `imports` map for it. A `use Core\Bogus;` is
+  quiet the same way, and a short name with no `use` still reports its `E0303`.
+- A static call whose written class side resolves no signature types as the error type
+  (`infer_static_call`, `calls.rs`). Its one error is the `E0303` or `E0309` from `nvs_hir::members`,
+  or the `Core` unknown-member report. A static property's two fallbacks do the same (`expr/mod.rs`).
+  The case-writing subagent found this, as `CoreArr::count()` giving `E0303` and then `E0403`.
+- The stage's parameter and return cases are the stage 1 case's lines 16 and 25, so they were not
+  written twice.
+
+Stages 1 and 2: `Ty::Error` is the error type (`ty.rs`'s module doc says why it is a variant).
 It prints as `mixed`, is assignable both ways, and absorbs a union or an intersection it is in. Every
 recovery site returns it, and every report site that would name it as a value's type is quiet. Every
 `E0401` goes through `type_mismatch()` (`assign.rs`). The stage 1 conformance case
@@ -196,24 +216,21 @@ Stage 2's last group, found by probe programs through `nvs check`:
 - A check a declaration fails whatever its types are still reports, such as a `#[BeforeClass]` method
   that declares a parameter. The rule now says so.
 
-`Missing::Red` in a type position gives one `E0405` ("`Missing` has no constant named `Red`") and
-no `E0303`. That is one error, but the message names the wrong mistake. Stage 3 may reword it while
-it is in `nvs-hir`.
+The nightly CI failures the sweep named (run 39462919214) were fixed on main before stage 3. CI run
+39487313208 on `67e83f008` passed every `proofs` job and the chapter examples.
 
-The nightly CI failures the sweep named (run 39462919214) were fixed on main before this session: CI
-run 39487313208 on `67e83f008` passed every `proofs` job that finished and the chapter examples.
-Miri runs nightly only, and was cancelled with that run.
+During verify, two `nvs-cli` timing tests failed under load once and passed alone:
+`parallel_tests_overlap_on_more_than_one_core` and
+`serve_arms_a_fleet_entry_when_the_shared_tier_can_take_a_lease`. The next full run was green.
 
 ### Next
 
-**Stage 3, first group**, on `nvs-hir` and `nvs-types`. Probe first: a `use App\Missing;` and the short
-name `Missing` written in a parameter, a `new` and a static call, through `target/debug/nvs.exe check`.
-
-- [ ] The checker reads `Import::resolved == false` and gives the error type with no `E0303`. `crates/nvs-hir/src/resolve.rs:31`, `crates/nvs-hir/src/resolve.rs:278`, `crates/nvs-types/src/lower.rs:1037`
-- [ ] `nvs-hir` reports no `E0303` for a name an unresolved `use` brought in. `crates/nvs-hir/src/hierarchy.rs:675`, `crates/nvs-hir/src/hierarchy.rs:765`, `crates/nvs-hir/src/hierarchy.rs:786`
-- [ ] Then the stage's cases, through one writing subagent, one after another. `tests/conformance/lang/an-unresolved-use-reports-once.nvst:1`
+None. The goal is reached, and the driver retires it once its acceptance check passes.
 
 ### Backlog
 
-- Stage 3's cases `an-undeclared-parameter-type-reports-once` and `a-written-mixed-keeps-its-errors`
-  overlap the stage 1 case above. Extend that case or write the two, whichever reads better.
+- `Missing::Red` in a type position gives one `E0405` ("`Missing` has no constant named `Red`") and
+  no `E0303`. That is one error, but the message names the wrong mistake. A goal that touches
+  `nvs-hir`'s alias reads can reword it. `crates/nvs-hir/src/members.rs:1515`
+- `check_class_name_const` asks `symbols.get` where `nvs-hir` asks `symbols.contains`, so `X::class`
+  on an extension's class may report `E0303`. Not probed. `crates/nvs-types/src/expr/members.rs:1655`
