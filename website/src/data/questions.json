@@ -984,7 +984,7 @@
   },
   "/reference/cli/a-worked-session/": {
     "feature": "tools:agents/a-worked-session",
-    "hash": "aa1d565b73566d99",
+    "hash": "093a792588b4a7d2",
     "questions": [
       "How does an AI coding assistant find the right Novis method?",
       "Example of an AI agent looking up a function step by step",
@@ -1007,7 +1007,7 @@
   },
   "/reference/cli/nvs-agent/": {
     "feature": "tools:agents/nvs-agent",
-    "hash": "d5f687a1bb080581",
+    "hash": "12fc348312b173df",
     "questions": [
       "How can an AI assistant look up the language from the command line?",
       "Search the standard library by keyword in the terminal",
@@ -1141,7 +1141,7 @@
   },
   "/reference/cli/nvs-ext-test/": {
     "feature": "tools:cli/nvs-ext-test",
-    "hash": "3155c288bdbe2e80",
+    "hash": "4b2c70bd23f81fa8",
     "questions": [
       "How do I run unit tests for my extension?",
       "Test an extension with folder and network permissions",
@@ -1570,7 +1570,7 @@
   },
   "/reference/config/the-blocks-the-binary-accepts/": {
     "feature": "tools:config/the-blocks-the-binary-accepts",
-    "hash": "2f82fc8df501d41c",
+    "hash": "c6652914feedccd6",
     "questions": [
       "Which sections can I write in the configuration file?",
       "Why do I get an unknown key error at startup?",
@@ -12267,7 +12267,7 @@
   },
   "/reference/core/router/dispatch/": {
     "feature": "Core\\Router::dispatch",
-    "hash": "7be54fafddfab7ed",
+    "hash": "70a8f50d45e32dc4",
     "questions": [
       "How do I call the right handler for each request?",
       "Run a login check before every route",
@@ -13762,7 +13762,7 @@
   },
   "/reference/core/test/assertthrows/": {
     "feature": "Core\\Test::assertThrows",
-    "hash": "577fde6c4b5022cd",
+    "hash": "b62afa096a600bca",
     "questions": [
       "How do I test that code throws an exception?",
       "Check that an invalid payment gives an error",
@@ -16613,7 +16613,7 @@
   },
   "/reference/types/router-gate/": {
     "feature": "Core\\Router\\Gate",
-    "hash": "24727b096a03ddec",
+    "hash": "3a8c6965d2282969",
     "questions": [
       "How do I check permissions before every route runs?",
       "Write a custom 404 page for the router",
@@ -16631,6 +16631,17 @@
       "Return a 413 page when the request body is too large",
       "What happens when a path value cannot be converted?",
       "Respond to a failed CSRF check with my own page"
+    ]
+  },
+  "/reference/types/router-responder/": {
+    "feature": "Core\\Router\\Responder",
+    "hash": "fed83b52080d7deb",
+    "questions": [
+      "How do I send the value a route method returns?",
+      "Return HTML markup from a route method instead of using echo",
+      "Send an object from an API route as JSON",
+      "Why does nvs check warn that my route's return value is not used?",
+      "One place that turns every route result into a response"
     ]
   },
   "/reference/types/runtimeerror/": {
@@ -16802,7 +16813,7 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "833ffe887ee893c5",
+    "hash": "352491430dfdec2c",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",

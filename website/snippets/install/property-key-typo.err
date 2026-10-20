@@ -3,7 +3,7 @@ error[E0405]: `User` has no public property `$emial`
   |
 8 | property<User> $key = 'emial' as property<User>;
   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^ converted here
-  = help: `rule:types/property-key` decides a written-out operand where it is written, and a key's values are `User`'s public declared properties: `$email`, `$name`
+  = help: a property name written in the code is checked when the program compiles. The public properties of `User` are: `$email`, `$name`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
