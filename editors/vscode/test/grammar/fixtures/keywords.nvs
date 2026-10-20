@@ -21,6 +21,10 @@ final class Order extends Base implements Iterable by $rows {
 
     public string $name { get => $this->raw; set { } }
     public private(set) bool $open;
+    public covariant ?Dog $pet;
+
+    public function feed(inout covariant Dog $a): void {}
+    public function covariant(): void {}
 }
 
 interface Reader {}

@@ -157,4 +157,11 @@ describe("the contextual spellings, each beside what makes it one", () => {
   it("colours await before an operand", () => {
     coloured("await", CONTROL);
   });
+
+  it("colours covariant before a type, and leaves a method of that name alone", () => {
+    const found = spans.filter((s) => s.text === "covariant");
+    const modifiers = found.filter((s) => s.scopes.includes(MODIFIER));
+    assert.equal(modifiers.length, 2, "covariant before a type is not a modifier");
+    assert.equal(found.length - modifiers.length, 1, "the method named covariant is coloured as one");
+  });
 });

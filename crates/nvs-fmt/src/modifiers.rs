@@ -16,6 +16,11 @@
 //! that would change what the declaration means, which
 //! `rule:core-api/written-visibility` leaves to the author and to a diagnostic.
 //!
+//! `covariant` is not in a list. The parser reads it only between the last
+//! modifier and the type
+//! (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`), so it is
+//! already after every other modifier and nothing here moves it.
+//!
 //! Where each modifier was written is
 //! [`nvs_syntax::Parsed`]'s to say: the parse collects one entry per list, in
 //! source order, from the single loop every declaration's modifiers go through.

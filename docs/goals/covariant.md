@@ -6,7 +6,7 @@ context: [docs/rules/classes/an-override-keeps-its-parents-signature.md, docs/ru
 stages:
   - id: 1
     title: "the rule, and `covariant` parses, formats and is highlighted"
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/token.rs, crates/nvs-syntax/src/ast.rs, crates/nvs-syntax/src/parser/expr.rs, crates/nvs-syntax/src/parser/decl.rs, crates/nvs-fmt/src/modifiers.rs]
   - id: 2
     title: "the checker takes a covariant parameter, and refuses every other narrowing"
@@ -150,11 +150,11 @@ both types.
 **Does:** the rule exists as `designed`, and `covariant` is part of a parameter and a property in the
 syntax tree. Nothing checks it yet.
 
-- [ ] The rule fragment with its reasons and Declined list, and its record `designed` with `goal: covariant`. `docs/rules/classes/a-covariant-type-is-checked-where-a-value-enters.md:1`, `data/rules/classes/a-covariant-type-is-checked-where-a-value-enters.json:1`
-- [ ] `covariant` is contextual and recognised only before a parameter's or a property's type. `crates/nvs-syntax/src/token.rs:84`, `crates/nvs-syntax/src/parser/expr.rs:2021`, `crates/nvs-syntax/src/parser/decl.rs:287`, `crates/nvs-syntax/src/parser/decl.rs:1379`
-- [ ] `Param` and `PropertyMember` carry a `covariant` flag, and a parser test reads each form: plain, `inout`, variadic, promoted, property, and `covariant` as a method name. `crates/nvs-syntax/src/ast.rs:666`, `crates/nvs-syntax/src/ast.rs:1817`
-- [ ] `nvs fmt` writes `covariant` after every other modifier. `crates/nvs-fmt/src/modifiers.rs:87`
-- [ ] Both grammars highlight it where the modifiers are. `editors/vscode/syntaxes/nvs.tmLanguage.json:169`, `website/config/novis.tmLanguage.json:268`
+- [x] The rule fragment with its reasons and Declined list, and its record `designed` with `goal: covariant`. `docs/rules/classes/a-covariant-type-is-checked-where-a-value-enters.md:1`, `data/rules/classes/a-covariant-type-is-checked-where-a-value-enters.json:1`
+- [x] `covariant` is contextual and recognised only before a parameter's or a property's type. `crates/nvs-syntax/src/token.rs:84`, `crates/nvs-syntax/src/parser/expr.rs:2021`, `crates/nvs-syntax/src/parser/decl.rs:287`, `crates/nvs-syntax/src/parser/decl.rs:1379`
+- [x] `Param` and `PropertyMember` carry a `covariant` flag, and a parser test reads each form: plain, `inout`, variadic, promoted, property, and `covariant` as a method name. `crates/nvs-syntax/src/ast.rs:666`, `crates/nvs-syntax/src/ast.rs:1817`
+- [x] `nvs fmt` writes `covariant` after every other modifier. `crates/nvs-fmt/src/modifiers.rs:87`
+- [x] Both grammars highlight it where the modifiers are. `editors/vscode/syntaxes/nvs.tmLanguage.json:169`, `website/config/novis.tmLanguage.json:268`
 
 ### 2. the checker takes a covariant parameter, and refuses every other narrowing
 
@@ -233,15 +233,24 @@ AGENTS.md § *Text an end user reads*.
 
 ### State
 
-The goal is new and nothing is built. Compiler-holes stage 16 makes a redeclared property keep its
-parent's exact type first, and this goal relaxes that with `covariant`.
+Stage 1 is done. The rule is `designed`, and `Param::covariant` and `PropertyMember::covariant`
+are set by `eat_covariant` (`crates/nvs-syntax/src/parser/decl.rs:361`). It reads `covariant` only
+when the next token starts a type, so `covariant $x` keeps the word as a type name. A `covariant`
+written in front of a modifier or `inout` is `E_BAD_MODIFIER` and still sets the flag, so the
+checker must not report it again. Nothing reads either flag yet. The two shipped neighbour rules do
+not name `covariant` yet: stage 6 adds that sentence when the rule ships, and drops the
+property rule's Declined line about a checked narrower type.
 
 ### Next
 
-**Stage 1, one group**, on the syntax crate and the formatter. No gate.
+**Stage 2, one group**, on `nvs-types` and the diagnostics. Start with the `Explore` subagent the
+stage's `**Split:**` line names.
 
-- [ ] The rule fragment and its `designed` record. `docs/rules/classes/a-covariant-type-is-checked-where-a-value-enters.md:1`, `data/rules/classes/a-covariant-type-is-checked-where-a-value-enters.json:1`
-- [ ] The contextual keyword, the parser and the two AST flags. `crates/nvs-syntax/src/token.rs:84`, `crates/nvs-syntax/src/parser/expr.rs:2021`, `crates/nvs-syntax/src/parser/decl.rs:287`, `crates/nvs-syntax/src/ast.rs:666`, `crates/nvs-syntax/src/ast.rs:1817`
-- [ ] The formatter and the two grammars. `crates/nvs-fmt/src/modifiers.rs:87`, `editors/vscode/syntaxes/nvs.tmLanguage.json:169`, `website/config/novis.tmLanguage.json:268`
+- [ ] `check_method_overrides` accepts a narrower parameter with `covariant`, measured against the topmost declaration, and keeps the qualifier check. `crates/nvs-types/src/conformance.rs:610`
+- [ ] `E0404`'s help names `covariant`, and every signature printer writes it. `crates/nvs-types/src/conformance.rs:610`
+- [ ] Three new codes at the end of the E08 band. `crates/nvs-diagnostics/src/code/types_e08.rs:1062`
+- [ ] The reject case and the Rust tests. `tests/conformance/reject/a-covariant-parameter-is-written-only-where-it-narrows.nvst:1`, `crates/nvs-types/tests/covariant.rs:1`
 
 ### Backlog
+
+- The property side of the redeclaration check is stage 4. `crates/nvs-types/src/conformance.rs:155`
