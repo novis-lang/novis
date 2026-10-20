@@ -42,6 +42,7 @@
     "packaging/a-vendor-resolves-from-one-registry",
     "packaging/a-git-dependency-is-root-only",
     "packaging/the-registry-is-a-novis-program",
+    "packaging/registry-hosting-is-configuration",
     "packaging/a-registry-account-is-a-passkey",
     "packaging/an-account-stays-active-by-proof-not-by-token",
     "packaging/an-owner-is-notified-without-email",

@@ -4,6 +4,7 @@
   "seeAlso": [
     "packaging/the-registry-builds-the-archive-from-git",
     "packaging/the-registry-keeps-an-append-only-log",
+    "packaging/registry-hosting-is-configuration",
     "packaging/only-a-major-may-break-the-api",
     "packaging/package-toml-is-a-tool-input",
     "core-classes/passkey-verifies-a-webauthn-ceremony",

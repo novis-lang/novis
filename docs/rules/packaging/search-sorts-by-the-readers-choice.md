@@ -16,10 +16,12 @@ capabilities each version requests and what changed from the version before, the
 the commit each version was built from, the owners and their history, advisories, `supersedes`, and the
 facts behind the ranking.
 
-**Downloads are counted without storing an address.** The service serves archives itself and counts
-per version per day. One count per address per day goes through a hash with a daily salt, and the salt
-is deleted when the day ends, so no address and no lasting hash of one is kept. Copies from mirrors and
-from `vendor/` are not counted.
+**Downloads are counted without storing an address.** A download is counted per version per day, from
+the access lines of the hosts that serve the archives, or as the service serves one itself
+(`rule:packaging/registry-hosting-is-configuration`); both go through one function. Only a request
+whose user agent is `nvs` counts. One count per address per day goes through a hash with a daily salt,
+and the salt is deleted when the day ends, so no address and no lasting hash of one is kept. Copies
+from mirrors and from `vendor/` are not counted.
 
 A ranking a publisher can write into a repository is a ranking a publisher can fake. Facts the registry
 observed itself cannot be backdated, and showing every one of them lets a reader judge the default

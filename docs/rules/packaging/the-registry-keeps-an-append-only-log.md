@@ -23,6 +23,28 @@ checkpoint is a hard error that names the registry and says the log was forked, 
 and nothing is fetched. `nvs pkg audit` also compares the checkpoint with a second published copy
 of it.
 
+**Every index file is signed, and its age is bounded.** The root file and each package's index file are
+signed notes under the log key, written by `nvs registry index sign`. The note's text is the file's
+JSON, which carries the time it was signed and the size and root hash of the checkpoint it was signed
+with. The service signs every index file again each day. The client refuses an index file whose
+signature does not verify, whose checkpoint is not consistent with the stored one, or whose time is
+more than an hour ahead of the client's clock, and tries the next file host
+(`rule:packaging/registry-hosting-is-configuration`). A validly signed checkpoint that is not
+consistent stays the fork error, and no other host is tried. `nvs pkg add`, `nvs pkg update` and
+`nvs pkg outdated` refuse an index file signed more than seven days ago and name the registry and the
+time. A build from the lock and `nvs pkg fetch --locked` select nothing, need only digests and
+inclusion, and work through any outage.
+
+The index is what tells a client which version is released, pending, retracted or withheld. A host
+that could change it could skip the seven-day window or show a withheld version as released, and one
+that could serve an old copy could hide a fix for as long as it liked. The signature stops the first,
+the age bound limits the second to seven days, and the lock keeps every build working while the
+service is down.
+
+**The registry's verifier key is pinned, never learned.** The default registry's key is a constant in
+`nvs`. A vendor that `package.toml` maps to another registry names that registry's key beside its URL,
+in the C2SP note verifier-key form (`rule:packaging/a-vendor-resolves-from-one-registry`).
+
 A registry that serves one client different bytes than another must therefore fork the log, which the
 next client that checks consistency detects, or sign a statement that contradicts one it already made.
 Compromising the registry stops being silent, and the lockfile
@@ -37,13 +59,24 @@ The C2SP formats are what make that true, and they are what other transparency l
 The byte work is `nvs registry log append` and `nvs registry log verify`, the commands the service calls
 (`rule:packaging/the-registry-is-a-novis-program`).
 
-**Memory:** a stored checkpoint is a few hundred bytes per registry. A fetch holds one inclusion proof
-per archive and one consistency proof per checkpoint while it runs.
+**Memory:** a stored checkpoint and the last root file are a few hundred bytes per registry. A fetch
+holds one inclusion proof per archive and one consistency proof per checkpoint while it runs. The
+daily signing writes every index file again, one small file per package per store per day.
 
 **Declined:**
 - **A log format of the registry's own.** It would work, and it would shut out every witness and
   verifier that already reads C2SP.
 - **Witnesses required from the start.** The format leaves room for them; requiring them now would
   make the registry depend on parties that do not exist yet.
+- **Unsigned index files.** Only the archive would be checked, and whoever serves the files would
+  decide every version's state.
+- **A snapshot file listing every index file's hash.** It stops the rollback of one file, but every
+  client downloads a file that grows with the number of packages. A daily signature on each file
+  bounds a rollback with nothing extra to download.
+- **Refusing every command on an old index.** A long outage would then break every build, while the
+  lock already holds what a build needs.
+- **A time line of the registry's own in the checkpoint.** The checkpoint stays C2SP's, and the time
+  is in the index file, whose format is the registry's.
+- **The key the registry serves.** Whoever controls the files would then also choose the key.
 
 **Not on disk.** There is no registry and no log.

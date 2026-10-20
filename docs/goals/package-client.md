@@ -24,7 +24,7 @@ stages:
     context: [docs/rules/packaging/resolution-takes-the-highest-minimum.md, docs/rules/packaging/the-lockfile-holds-every-digest.md]
     extra:
       context:
-        rules: [packaging/resolution-takes-the-highest-minimum, packaging/the-lockfile-holds-every-digest, packaging/a-vendor-resolves-from-one-registry]
+        rules: [packaging/resolution-takes-the-highest-minimum, packaging/the-lockfile-holds-every-digest, packaging/a-vendor-resolves-from-one-registry, packaging/registry-hosting-is-configuration]
   - id: 7
     title: "a root git dependency is cloned inside fixed limits and packed, and one below the root is refused"
     status: open
@@ -90,8 +90,15 @@ and every other vendor resolves from `https://registry.novis-lang.org`. The clie
 registry for a name the first one lacks. A registry URL is `https:` or `file:`; `file:` is how the
 tests and an offline mirror read a directory.
 
-**The client defines the static index, and the service writes it.** The index is one JSON file per
-package and one archive per digest, under the registry's URL. Each version carries its digest, its
+**The client defines the static index, and the service writes it.** The registry's URL serves one root
+file, `registry.json`, which lists the file hosts in order; the index is one JSON file per package and
+one archive per digest, under each file host (`rule:packaging/registry-hosting-is-configuration`). A
+root file with no file host means the files are under the registry's URL itself, as a `file:` registry
+has them. The client reads from the first file host that answers, tries the next on a network failure
+or a digest mismatch, and keeps the last root file it read under `<data>/registry/`, so it still finds
+the file hosts when the registry's URL does not answer. Why: the files can then move to a CDN, or gain
+a second host, by a change to the root file and no `nvs` release. Goal `registry-log` signs the root
+file and the index files and bounds their age. Each version carries its digest, its
 state (pending with the time it becomes selectable, released, unlisted, retracted with reason and
 fixed-in version, or withheld), its dependencies, its requested capabilities, its repository URL and
 commit, and the package's owners. The schema has a version field. Stage 3 writes the schema into
@@ -196,6 +203,8 @@ dependencies, registries and requested capabilities are read from it.
 **Does:** the client reads a fixture registry on disk, resolves the graph and writes `package.lock`.
 
 - [ ] The index reader, its schema written into `rule:packaging/a-package-is-its-digest`'s fragment, and a fixture registry built at test time. `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-cli/tests/fixtures/registry/README.md:1`
+- [ ] The root file `registry.json`: its file hosts tried in order, the next one on a network failure or a digest mismatch, and the last root file kept under `<data>/registry/` (`rule:packaging/registry-hosting-is-configuration`). `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-config/src/data.rs:163`
+- [ ] Tests: a fixture registry whose first file host is a missing directory reads from the second, and a registry URL that does not answer reads through the kept root file. `crates/nvs-cli/tests/package_client.rs:1`
 - [ ] Minimal version selection across majors, with the crossing reported (`rule:packaging/resolution-takes-the-highest-minimum`). `crates/nvs-cli/src/package/resolve.rs:1`
 - [ ] The lock, `--locked` that fetches nothing outside it, and a digest mismatch as a hard error naming the package (`rule:packaging/the-lockfile-holds-every-digest`). `crates/nvs-cli/src/package/lock.rs:1`
 - [ ] Tests: a graph across majors, a `--locked` run with a missing entry, and an edited digest. `crates/nvs-cli/tests/package_client.rs:1`

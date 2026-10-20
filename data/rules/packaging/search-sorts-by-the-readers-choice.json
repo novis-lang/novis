@@ -3,6 +3,7 @@
   "status": "designed",
   "seeAlso": [
     "packaging/the-registry-is-a-novis-program",
+    "packaging/registry-hosting-is-configuration",
     "packaging/only-a-major-may-break-the-api"
   ],
   "guardedBy": [],
