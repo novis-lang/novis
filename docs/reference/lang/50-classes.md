@@ -1280,7 +1280,7 @@ error[E0449]: `Blob` does not declare `area`, which `Shape` requires
    |
 10 | class Blob extends Shape {
    |       ^^^^ this class implements `Shape`
-   = help: declare `area` here, or give `Shape` a default body for it (`rule:classes/interface-default-methods`)
+   = help: declare `area` here, or give `Shape` a default body for it
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -1370,7 +1370,7 @@ error[E0783]: `Sealed` is `final`, so no class extends it
   |
 8 | class Widened extends Sealed {}
   |                       ^^^^^^ `Widened` names it as its superclass
-  = help: drop the `final` from `Sealed`'s own declaration if it was meant to be a base class, or hold a `Sealed` in a property of `Widened` and forward to it — `implements … by $field` (`rule:classes/delegation-by-field`) writes the forwards for you
+  = help: remove `final` from the declaration of `Sealed` if other classes may extend it. Or store a `Sealed` in a property of `Widened`, and write `implements … by $field` to forward the calls to it
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -1811,7 +1811,7 @@ error[E0449]: `Empty` does not declare `count`, which `Counts` requires
    |
 10 | class Empty implements Counts {
    |       ^^^^^ this class implements `Counts`
-   = help: declare `count` here, or give `Counts` a default body for it (`rule:classes/interface-default-methods`)
+   = help: declare `count` here, or give `Counts` a default body for it
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -1844,7 +1844,7 @@ error[E0720]: `$voice` is `null|Greets`, which cannot satisfy `Greets`
    |
 10 | class Maybe implements Greets by $voice {
    |                                  ^^^^^^ a delegate is dispatched on at every forwarded call, so it may not be nullable
-   = help: declare `$voice` as `Greets`, or as a non-nullable class that implements it (`rule:classes/delegation-by-field`)
+   = help: declare `$voice` as `Greets`, or as a class that implements it. The type cannot be nullable
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -3352,7 +3352,7 @@ error[E0752]: `Tag` is not a type `{tag}` can arrive at
 ...
 13 |     public function show(Tag $tag): string {
    |                          ^^^^^^^^ no conversion from a path segment
-   = help: a segment is converted to the parameter's declared type, so a capture binds `string`, `int`, `uint`, `decimal`, an enum, a set of allowed values like `'a'|'b'`, or a class implementing `Parses` — and never a regex (`rule:routing/a-capture-narrows-to-a-closed-set`)
+   = help: a segment is converted to the parameter's declared type, so a capture binds `string`, `int`, `uint`, `decimal`, an enum, a set of allowed values like `'a'|'b'`, or a class implementing `Parses`. It is never a regex
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

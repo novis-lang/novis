@@ -446,7 +446,7 @@ one line each. The other lists every citation of `lang:statements/try-catch-fina
 - [ ] No diagnostic's message or help prints a `rule:` id or a form of "refuse", and a test scans the help texts. `crates/nvs-types/src/expr/members.rs:1`, `data/gaps/nvs-types/diagnostic-help-prints-rule-ids.json:1`
   - [x] `crates/nvs-syntax/src/` and `crates/nvs-hir/src/`: every message, label, help and note is rewritten, and each expectation that pins one is re-recorded
   - [x] `crates/nvs-types/src/expr/`
-  - [ ] the rest of `crates/nvs-types/src/`
+  - [x] the rest of `crates/nvs-types/src/`
   - [ ] `crates/nvs-config/src/`, `crates/nvs-diagnostics/src/code/config.rs` and the `eprintln!` lines in `crates/nvs-cli/src/`
   - [ ] a test scans every help text and card, and the gap record is deleted
 - [ ] The two `lang:statements/` features are merged into their `lang:errors/` twins. `tools/nv/proofs/roster.ts:1`, `data/gaps/nv/two-lang-features-are-one-syntax.json:1`
@@ -520,17 +520,20 @@ single-help items landed, and their four gap records are deleted:
   headline `undeclared_name_at` writes. The editor (`crates/nvs-lsp/src/document.rs`) does not run
   it yet.
 
-The fifth item's first two crate groups landed. No message, label, help or note under
-`crates/nvs-syntax/src/`, `crates/nvs-hir/src/` or `crates/nvs-types/src/expr/` prints a `rule:`
-id or a form of "refuse": 54 texts in the first group, and 79 in `expr/`. The second group
-re-recorded 31 conformance cases, 18 example `.out` files, six `docs/reference/lang/` chapters and
-`llms-full.txt`. The secret-crossing help (`quals.rs`'s `reject_secret_crossing`) now joins its two
-halves as two sentences, and `E0708`'s `class<T>` help names both classes.
+The fifth item's first three crate groups landed. No message, label, help or note under
+`crates/nvs-syntax/src/`, `crates/nvs-hir/src/` or `crates/nvs-types/src/` prints a `rule:` id or
+a form of "refuse": 54 texts in the first group, 79 in `expr/`, and 94 in the rest of
+`nvs-types`. The third group re-recorded 4 conformance cases, 11 example `.out` files, three
+`docs/reference/lang/` chapters and `llms-full.txt`. `lower.rs`'s `E_TYPE_ARGS_NOT_GENERIC` help
+now ends "Remove the type arguments", as `expr/args.rs`'s does. What is left of the grep in
+`nvs-types` is test text: `core_lib.rs`'s registry asserts, `program.rs`'s and `conformance.rs`'s
+test messages, and `#[expect(reason)]` strings in `defaults.rs`. The scan test (item 4 below) has
+to skip those.
 
 **`nvs test` cannot re-record a `.nvst` case**: `--update` is for inline snapshots only. Copy each
 changed `= help:` line from the failing run's `actual:` block into the case. A scratch script did it
-for this group: run the case, pair the `expected:` and `actual:` help lines in order, and replace
-each changed one in the file. An example's `.out` is `bun nv proofs --bless <file.nvs>`, then
+for each group: run the whole suite into a log, then for each `FAIL` block pair the `expected:` and
+`actual:` help lines in order, and replace each changed one in the file. An example's `.out` is `bun nv proofs --bless <file.nvs>`, then
 `bun nv render` writes the reference chapters and `bun nv render --website` writes `llms-full.txt`.
 The fragment search must split each old source line at its `\` escapes: a fragment with `\\` or
 `\"` in it matches no expectation, and eight `.out` files were found only that way. Then run the
@@ -541,8 +544,8 @@ The tree holds uncommitted work this goal does not own: `docs/rules/ide.md`,
 `tools/nv/test/core-type-links.test.ts`. Leave them out of this goal's commits. `docs/rules/ide.md`
 differs from what `bun nv rules --render` writes, so `bun nv verify` stops at `rules-render` until
 that work lands. This group's gate was therefore `bun nv verify --fast -p` over `nvs-types`,
-`nvs-lsp`, `nvs-cli` and `nvs-diagnostics`, all green, and the whole conformance suite, 3025 cases,
-all green. `bun nv verify --fast` takes one `-p`: given several, it runs only the last, so run it
+`nvs-cli` and `nvs-lsp`, `cargo test --test examples`, and the whole conformance suite, 3025
+cases. All were green. `bun nv verify --fast` takes one `-p`: given several, it runs only the last, so run it
 once per crate.
 
 ### Next
@@ -557,11 +560,8 @@ expectation that pins an old text: put a distinctive fragment of each into a fil
 
 1. Done: `crates/nvs-syntax/src/` and `crates/nvs-hir/src/`.
 2. Done: `crates/nvs-types/src/expr/`.
-3. the rest of `crates/nvs-types/src/` (about 90): `derive.rs`, `routes.rs`, `testing.rs`,
-   `program.rs`, `retrieval.rs`, `conformance.rs`, `lower.rs` (its `E_TYPE_ARGS_NOT_GENERIC` help
-   near `lower.rs:959` should match the one `expr/args.rs` now writes), `links.rs`, `check.rs`,
-   `enums.rs`.
-4. `crates/nvs-config/src/` (about 50), `crates/nvs-diagnostics/src/code/config.rs:298`, and six
+3. Done: the rest of `crates/nvs-types/src/`.
+4. Next: `crates/nvs-config/src/` (about 50), `crates/nvs-diagnostics/src/code/config.rs:298`, and six
    `eprintln!` lines in `crates/nvs-cli/src/{bundle,queue,schema}.rs`. Then the test that scans
    every help text and card, and delete `data/gaps/nvs-types/diagnostic-help-prints-rule-ids.json`.
 

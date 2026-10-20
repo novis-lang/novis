@@ -63,35 +63,35 @@ error[E0731]: this attribute satisfies the retrieved shape, but holds a value wi
    |
 20 | #[{code: Limits::RELAY}]
    |          ^^^^^^^^^^^^^ no constant form
-   = help: `rule:attributes/retrieval-folds-while-checking` replaces the retrieval with the payload itself, so every value in it has to be materializable — a class constant, `Foo::class` and an enum case all are, so what is left is a constant whose own declaration folds to nothing (`E0792`): write the value out here, or give that constant a foldable one
+   = help: the compiler replaces the call with the attribute's value, so every part of the value must be a constant. A constant here has no value the compiler can compute (`E0792`). Write the value here, or give that constant a literal value
 
 error[E0728]: `Twice::constructor` has 2 attribute payloads that match this shape
    --> case.nvs:30:21
    |
 30 | ?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor(...));
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
-   = help: `rule:attributes/retrieval-folds-while-checking`: an attached-attribute list is static, so this is decided here rather than by a test run — write `Core\Attributes::all<T>(…)`, which answers every match
+   = help: write `Core\Attributes::all<T>(…)`, which returns every match
 
 error[E0729]: `Core\Attributes::get` retrieves a shape, and `int` is not one
    --> case.nvs:33:16
    |
 33 | ?int $scalar = Core\Attributes::get<int>(Twice::constructor(...));
    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `int` written here
-   = help: `rule:attributes/structural-retrieval`: retrieval matches by shape. An attribute's payload object matches exactly when it satisfies `T` under `rule:types/shape-type`'s width subtyping, so `T` is an inline `{...}` or a `type` alias naming one
+   = help: an attribute matches when its value has every field of the shape `T`. Write `T` as a shape `{...}`, or as a `type` alias of a shape
 
 error[E0730]: a `Core\Attributes` retrieval names no declaration
    --> case.nvs:38:48
    |
 38 | ?Route $computed = Core\Attributes::get<Route>($fn);
    |                                                ^^^ this is not a declaration reference
-   = help: `rule:attributes/structural-retrieval`: the target is a method reference, and it is read where it is written: `Foo::bar(...)` for a method, and `Foo::constructor(...)` for the class itself, plus a property or parameter name written in quotes
+   = help: write a method reference: `Foo::bar(...)` for a method, or `Foo::constructor(...)` for the class itself. A property or parameter name in quotes can follow it
 
 error[E0798]: a `Core\Attributes` retrieval names `$path`, which `Twice` does not declare
    --> case.nvs:49:75
    |
 49 | ?Route $misspelled = Core\Attributes::get<Route>(Twice::constructor(...), "path");
    |                                                                           ^^^^^^ no parameter or property of that name
-   = help: `rule:attributes/structural-retrieval`: a *written* member name is checked against the target's real declarations here, because the answer a misspelling would fold to — `null`, or the empty array — is the same one a correct retrieval of an absent attribute gives, and nothing later can tell them apart; only a computed `$member` falls back to that empty result
+   = help: a misspelled name would give `null` or an empty array. A correct name with no attribute gives the same result, so the name is checked here. Correct the name
 
 error: aborting due to 6 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

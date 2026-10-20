@@ -317,7 +317,7 @@ fn resolve_enum(
                         "this case's auto-incremented value runs past its enum's backing type",
                     )
                     .with_primary(case.span, "no value left to auto-increment into")
-                    .with_help("give this case an explicit value (`rule:enums/declaration`)"),
+                    .with_help("give this case a value, such as `Name = 42`"),
                 );
                 None
             }),
@@ -393,7 +393,7 @@ fn backing_of(ty: Option<&Type>, diags: &mut nvs_diagnostics::Diagnostics) -> En
                 )
                 .with_primary(ty.span, "not an integer type")
                 .with_help(
-                    "use `: int` or `: uint`, or omit the clause (`rule:enums/one-backing-type`)",
+                    "use `: int` or `: uint`, or remove the backing type",
                 ),
             );
             EnumBacking::Int
@@ -450,7 +450,7 @@ fn not_a_literal(span: Span, diags: &mut nvs_diagnostics::Diagnostics) -> Option
             "an enum case's value must be a whole number written directly in the code",
         )
         .with_primary(span, "not a number like `42`")
-        .with_help("`rule:enums/declaration`: a case is a compile-time integer constant"),
+        .with_help("write a whole number, such as `Name = 42`"),
     );
     None
 }

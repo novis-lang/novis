@@ -678,10 +678,9 @@ fn report_not_a_shape(span: Span, what: &str, env: &mut Env<'_>) {
             "this names no shape to check the payload against",
         )
         .with_help(
-            "`rule:attributes/attach-sites-and-forms`: a named attribute instantiates nothing — the name is only ever an \
-             existing alias like `type Route = {path: string, method: string};`, and the \
-             payload is checked against it. An attribute with no shape to satisfy is written \
-             bare, `#[{field: value}]`",
+            "an attribute's name is a `type` alias of a shape, such as \
+             `type Route = {path: string, method: string};`. The payload is checked against \
+             that shape. An attribute with no shape is written without a name: `#[{field: value}]`",
         ),
     );
 }
@@ -734,9 +733,8 @@ fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Payload {
         )
         .with_primary(expr.span, "this is computed when the program runs")
         .with_help(
-            "`rule:attributes/payload-is-a-compile-time-constant`: an attribute payload is a value written directly in the code, a class constant or \
-             an enum case — it lives in the constant pool, so there is no point at which a variable, \
-             a call or a `new` could be evaluated",
+            "an attribute's value is a literal, a class constant or an enum case. It is fixed \
+             when the program compiles, so it cannot be a variable, a call or a `new`",
         ),
     );
     Payload {

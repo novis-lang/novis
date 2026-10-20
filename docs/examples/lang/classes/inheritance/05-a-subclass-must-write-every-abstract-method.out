@@ -3,7 +3,7 @@ error[E0449]: `Blob` does not declare `area`, which `Shape` requires
    |
 10 | class Blob extends Shape {
    |       ^^^^ this class implements `Shape`
-   = help: declare `area` here, or give `Shape` a default body for it (`rule:classes/interface-default-methods`)
+   = help: declare `area` here, or give `Shape` a default body for it
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -224,7 +224,7 @@ error[E0725]: an attribute's field value is not a compile-time constant
    |
 10 |     #[Cache(key: "host-" . $host)]
    |                  ^^^^^^^^^^^^^^^ this is computed when the program runs
-   = help: `rule:attributes/payload-is-a-compile-time-constant`: an attribute payload is a value written directly in the code, a class constant or an enum case — it lives in the constant pool, so there is no point at which a variable, a call or a `new` could be evaluated
+   = help: an attribute's value is a literal, a class constant or an enum case. It is fixed when the program compiles, so it cannot be a variable, a call or a `new`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -433,7 +433,7 @@ error[E0728]: `Engine::constructor` has 2 attribute payloads that match this sha
    |
 12 | ?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor(...));
    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
-   = help: `rule:attributes/retrieval-folds-while-checking`: an attached-attribute list is static, so this is decided here rather than by a test run — write `Core\Attributes::all<T>(…)`, which answers every match
+   = help: write `Core\Attributes::all<T>(…)`, which returns every match
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -908,7 +908,7 @@ error[E0460]: `$name` is a `#[Json\Derive]` field with no constructor parameter
   |
 8 |     public string $name;
   |                   ^^^^^ nothing decodes into this
-  = help: `rule:core-classes/derive-field-list`: a decode is an ordinary `new`, so every field needs a same-named constructor parameter — add one, or write `#[Json\Field(skip: true)]`
+  = help: the decoder builds the object with `new`, so every field needs a constructor parameter with the same name. Add one, or write `#[Json\Field(skip: true)]`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -2073,7 +2073,7 @@ error[E0744]: `SmtpSender` is a `Sender` and its constructor takes 1 required ar
    |
 24 | foreach (Core\Program::implementing<Sender>() as Sender $sender) {
    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this enumeration would write `new SmtpSender()`
-   = help: `rule:programs/implementing`: every class the enumeration instantiates needs a no-argument constructor, and dependencies arrive through `Sender`'s own methods instead — give `SmtpSender` a zero-argument `constructor`, or list the classes with `Core\Program::constructors<Sender, callable(...): Sender>()`, which passes the arguments you give it (`rule:programs/constructors`)
+   = help: every class in the result is created with no arguments. Give `SmtpSender` a `constructor` with no required parameters. Or use `Core\Program::constructors<Sender, callable(...): Sender>()`, which passes the arguments you give it
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -2277,7 +2277,7 @@ error[E0798]: `Core\Program::implementingWith` names `rows`, which `Archive` doe
    |
 20 | var $rows = Core\Program::implementingWith<Report, Label>("rows");
    |                                                           ^^^^^^ no method, parameter or property of that name
-   = help: `rule:programs/implementing-with`: the member is read on every class listed for `Report`, so it is checked against each one's real declarations — name a member `Report` declares, or the empty string for the class's own attributes
+   = help: the name is checked against every class that implements `Report`. Write a method or property that `Report` declares. Write an empty string for the attributes of the class itself
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

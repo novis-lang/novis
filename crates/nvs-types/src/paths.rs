@@ -294,10 +294,9 @@ fn report_join(join: &Expr, env: &mut Env<'_>) {
         )
         .with_primary(join.span, "not a relative path in quotes")
         .with_help(
-            "the folder is joined while compiling \
-             (`rule:programs/relative-paths-resolve-from-their-file`): write a relative path \
-             in quotes, such as `'data'`, or `Core\\Path::join(Core\\Path::thisDir(), $part)` for a path \
-             the program builds",
+            "the folder is joined while the program compiles. Write a relative path in quotes, \
+             such as `'data'`. For a path the program builds, write \
+             `Core\\Path::join(Core\\Path::thisDir(), $part)`",
         ),
     );
 }
@@ -482,9 +481,8 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             )
             .with_primary(attr.span, "a path is a `string`")
             .with_help(
-                "`#[Core\\Path]` says a string in quotes passed here is a file path \
-                 (`rule:programs/relative-paths-resolve-from-their-file`): declare the parameter \
-                 `string` or `?string`, or delete the marker",
+                "`#[Core\\Path]` says that a string in quotes passed here is a file path. \
+                 Declare the parameter `string` or `?string`, or delete the attribute",
             ),
         );
     }
@@ -504,9 +502,8 @@ fn report_stray(groups: &[AttributeGroup], site: &str, ctx: &Ctx<'_>, env: &mut 
             )
             .with_primary(attr.span, "nothing is passed here")
             .with_help(
-                "`#[Core\\Path]` marks a method parameter that takes a file path \
-                 (`rule:programs/relative-paths-resolve-from-their-file`): move it to that \
-                 parameter, or delete it",
+                "`#[Core\\Path]` goes on a method parameter that takes a file path. Move it to \
+                 that parameter, or delete it",
             ),
         );
     }

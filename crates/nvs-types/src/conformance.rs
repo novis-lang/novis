@@ -129,10 +129,9 @@ pub(crate) fn check_constant_redeclarations(
                 )
                 .with_primary(constant.name, "redeclared at another type")
                 .with_help(format!(
-                    "`rule:statements/static-is-a-member-modifier`: a `static::{name}` read is typed `{want}` where \
-                     `{owner}` declares it and answers whichever class the call was made on, \
-                     so every redeclaration keeps a type assignable to `{want}` — declare it \
-                     `{want}` here, or a subtype of it"
+                    "a `static::{name}` read in `{owner}` has the type `{want}`. It can read the \
+                     constant of any subclass, so each subclass must keep a type that fits \
+                     `{want}`. Declare it `{want}` here, or a subtype of `{want}`"
                 )),
             );
         }
@@ -305,8 +304,7 @@ pub(crate) fn check_class_conformance(decl: &ClassDecl, qname: &QName, env: &mut
                 format!("this class implements `{interface}`"),
             )
             .with_help(format!(
-                "declare `{method}` here, or give `{interface}` a default body for it \
-                 (`rule:classes/interface-default-methods`)"
+                "declare `{method}` here, or give `{interface}` a default body for it"
             )),
         );
     }
@@ -423,8 +421,7 @@ pub(crate) fn check_member_conflicts(decl: &ClassDecl, qname: &QName, env: &mut 
                 format!("`{qname}` does not declare `{method}`"),
             )
             .with_help(format!(
-                "declare `{method}` in `{qname}`; its body can call {} \
-                 (`rule:classes/member-conflict-is-an-error`)",
+                "declare `{method}` in `{qname}`. Its body can call {}",
                 calls.join(" or ")
             )),
         );
@@ -552,9 +549,9 @@ pub(crate) fn check_class_finality(decl: &ClassDecl, qname: &QName, env: &mut En
                 format!("`{qname}` names it as its superclass"),
             )
             .with_help(format!(
-                "drop the `final` from `{parent}`'s own declaration if it was meant to be a base \
-                 class, or hold a `{parent}` in a property of `{qname}` and forward to it — \
-                 `implements … by $field` (`rule:classes/delegation-by-field`) writes the forwards for you"
+                "remove `final` from the declaration of `{parent}` if other classes may extend it. \
+                 Or store a `{parent}` in a property of `{qname}`, and write \
+                 `implements … by $field` to forward the calls to it"
             )),
         );
     }
@@ -1084,8 +1081,8 @@ fn resolve_delegations(
                     )
                     .with_primary(field_span, why.to_owned())
                     .with_help(format!(
-                        "write `{method}` on `{qname}` by hand — `rule:classes/delegation-by-field` already lets an own \
-                         method stand in for a delegated one"
+                        "write `{method}` in `{qname}` yourself. A method the class declares \
+                         replaces the forwarded one"
                     )),
                 );
                 covered.insert(method);
@@ -1138,7 +1135,7 @@ fn check_delegate_field(
                 "no property of this name is declared".to_owned(),
             )
             .with_help(format!(
-                "declare a property `${field}` typed `{interface}` (`rule:classes/delegation-by-field`)"
+                "declare a property `${field}` of type `{interface}`"
             )),
         );
         return false;
@@ -1164,8 +1161,8 @@ fn check_delegate_field(
         )
         .with_primary(field_span, why.to_owned())
         .with_help(format!(
-            "declare `${field}` as `{interface}`, or as a non-nullable class that implements it \
-             (`rule:classes/delegation-by-field`)"
+            "declare `${field}` as `{interface}`, or as a class that implements it. The type \
+             cannot be nullable"
         )),
     );
     false
@@ -1256,9 +1253,9 @@ pub(crate) fn check_double_answers(
             )
             .with_primary(call_span, format!("`{interface}` written here"))
             .with_help(
-                "`rule:testing/doubles`: a double is an object whose fields are callables, so it can \
-                 replace an interface's methods and nothing else. A class also has its own state \
-                 and method bodies, and a double has neither",
+                "a test double is an object whose fields are callables. It can replace the \
+                 methods of an interface, and nothing else. A class also has properties and \
+                 method bodies, and a double has neither",
             ),
         );
         return;
@@ -1284,8 +1281,7 @@ pub(crate) fn check_double_answers(
             )
             .with_primary(call_span, format!("this stands in for `{interface}`"))
             .with_help(format!(
-                "drop the `{name}:` field, or declare `{name}` on `{interface}` \
-                 (`rule:testing/doubles`)"
+                "remove the `{name}:` field, or declare `{name}` in `{interface}`"
             )),
         );
     }
@@ -1314,9 +1310,8 @@ pub(crate) fn check_double_answers(
             )
             .with_primary(call_span, format!("this stands in for `{interface}`"))
             .with_help(format!(
-                "give the shape a `{name}:` field that is a callable for this method, or build a \
-                 `Core\\Test::partial` and delegate it to a real implementation \
-                 (`rule:testing/doubles`)"
+                "add a `{name}:` field whose value is a callable for this method. Or use \
+                 `Core\\Test::partial` with a real implementation"
             )),
         );
     }
@@ -1379,10 +1374,9 @@ fn check_answer_signatures(
             )
             .with_primary(call_span, format!("`{declaring}::{name}` is `{wanted}`"))
             .with_help(format!(
-                "write the field as a callable that the interface's own call sites can use: it may \
-                 declare fewer parameters than `{name}`, but each one it does declare has to \
-                 accept what they pass, and its result has to satisfy what they were promised \
-                 (`rule:testing/doubles`)"
+                "the field must be a callable that a caller of `{name}` can use. It may declare \
+                 fewer parameters than `{name}`. Each parameter it declares must accept the \
+                 method's argument, and its return type must fit the method's return type"
             )),
         );
     }

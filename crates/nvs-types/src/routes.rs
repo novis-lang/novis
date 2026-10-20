@@ -218,9 +218,8 @@ pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
             )
             .with_primary(value.span, "this names nothing that could resolve")
             .with_help(
-                "`rule:security/access-is-checked-for-presence-not-meaning` never asks what a decision means, so what it asks instead is that \
-                 the name resolves: an enum case or a class constant, as `Role::Admin` or \
-                 `Audience::Public`",
+                "the compiler checks that the name exists, and not what it means. Write an enum \
+                 case or a class constant, such as `Role::Admin` or `Audience::Public`",
             ),
         );
     }
@@ -259,9 +258,8 @@ pub(crate) fn check_one_access(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &m
             .with_primary(attr.span, "a second `#[Access]`")
             .with_secondary(declared, "the decision this method already declares")
             .with_help(
-                "two decisions are two readings — every one of them, or any one of them — and \
-                 `rule:attributes/access-payload` refuses to choose between them silently: write the one decision \
-                 the method makes, and let whatever reads it interpret one name",
+                "two decisions can mean that all of them apply, or that any one of them applies. \
+                 Write one `#[Access]` with the one decision this method makes",
             ),
         );
     }
@@ -333,9 +331,8 @@ pub(crate) fn check_stray_query(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'
             )
             .with_primary(attr.span, "nothing reads this marker")
             .with_help(
-                "`rule:routing/a-query-parameter-is-declared-like-a-capture` gives `#[Query]` its meaning on a `#[Route]` method's parameter, \
-                 where the key it binds by is the parameter's own name — anywhere else nothing \
-                 binds it: write the `#[Route]` this parameter serves, or delete the marker",
+                "`#[Query]` works only on a parameter of a `#[Route]` method. Add `#[Route]` to \
+                 this method, or remove `#[Query]`",
             ),
         );
     }
@@ -1015,9 +1012,8 @@ pub(crate) fn check_stray_api(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>
         )
         .with_primary(attr.span, "the method carries no `#[Route]`")
         .with_help(
-            "`rule:attributes/api-adds-and-cannot-contradict`'s `#[Api]` supplies what a route's own types cannot say, so away from a \
-             `#[Route]` there is nothing for it to say it about — add the `#[Route]`, or move the \
-             `#[Api]` to the method that has one",
+            "`#[Api]` describes a route, so it works only on a `#[Route]` method. Add the \
+             `#[Route]`, or move the `#[Api]` to the method that has one",
         ),
     );
 }
@@ -1061,9 +1057,8 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
         )
         .with_primary(attr.span, "the method carries no `#[Route]`")
         .with_help(
-            "`rule:attributes/access-is-a-required-sibling` makes `#[Access]` a `#[Route]`'s required sibling, and § 2 keeps the \
-             compiler from reading what `allow` names — so the route table is the only thing that \
-             ever asks this decision: add the `#[Route]` it guards, or delete it",
+            "`#[Access]` is read only for a route, so it works only on a `#[Route]` method. \
+             Add the `#[Route]`, or delete the `#[Access]`",
         ),
     );
 }
@@ -1148,8 +1143,7 @@ fn check_string_list(api: &Attribute, option: &str, env: &mut Env<'_>) -> Vec<St
             span,
             "written as a single value",
             format!(
-                "`rule:attributes/api-adds-and-cannot-contradict` writes `{option}` as an array, because an operation may carry more \
-                 than one — write `{option}: [...]` even for a list of one"
+                "`{option}` is always an array. Write `{option}: [...]`, even for one entry"
             ),
             env,
         );
@@ -1186,8 +1180,8 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
             "`errors` is not a list".to_owned(),
             span,
             "written as a single value",
-            "`rule:attributes/api-adds-and-cannot-contradict` writes `errors` as an array of `{status: …, type: …}` entries — write \
-             `errors: [{...}]` even for one",
+            "`errors` is always an array of `{status: …, type: …}` entries. Write \
+             `errors: [{...}]`, even for one entry",
             env,
         );
         return Vec::new();
@@ -2007,9 +2001,8 @@ fn check_captures(
                 )
                 .with_primary(path_span, "this capture names no parameter")
                 .with_help(
-                    "a capture is the parameter it is named after and the comparison is exact \
-                     (`rule:core-api/identifier-casing`) — the reverse is fine, and a parameter the path does not name \
-                     is simply not the router's",
+                    "a capture fills the parameter with exactly the same name, and upper and \
+                     lower case must match. A parameter that is not in the path is allowed",
                 ),
             );
             continue;
@@ -2073,8 +2066,8 @@ fn check_captures(
                 _ => {
                     "a segment is converted to the parameter's declared type, so a capture \
                      binds `string`, `int`, `uint`, `decimal`, an enum, a set of allowed \
-                     values like `'a'|'b'`, or a class implementing `Parses` — and never a regex \
-                       (`rule:routing/a-capture-narrows-to-a-closed-set`)"
+                     values like `'a'|'b'`, or a class implementing `Parses`. It is never a \
+                     regex"
                 }
             }),
         );
@@ -2258,10 +2251,9 @@ fn ambiguous_case_value(
         )
         .with_primary(span, "this capture admits two cases at one spelling")
         .with_help(
-            "`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`: a \
-             subset whose every case wrote its value is spelled by those values, and an alias \
-             leaves the match nothing to convert to — narrow the capture to one of the two, or \
-             let a case count its value on so the whole subset is spelled by name",
+            "the capture matches each case by its written value, and these two cases have the \
+             same value. Allow only one of the two cases. Or remove a written value, so the \
+             capture matches the case names",
         ),
     );
 }
@@ -2312,10 +2304,10 @@ fn query_params(
                 )
                 .with_primary(param.span, "no conversion from a query value")
                 .with_help(
-                    "a query value arrives as text and its type comes from the parameter, so a \
-                     `#[Query]` declares the same list a capture does (`rule:routing/a-query-parameter-is-declared-like-a-capture`): `string`, \
-                     `int`, `uint`, `decimal`, an enum, a set of allowed values like `'a'|'b'`, or \
-                     a class implementing `Parses`",
+                    "a query value is text, and it is converted to the parameter's type. A \
+                     `#[Query]` parameter has the same types as a capture: `string`, `int`, \
+                     `uint`, `decimal`, an enum, a set of allowed values like `'a'|'b'`, or a \
+                     class implementing `Parses`",
                 ),
             );
         }

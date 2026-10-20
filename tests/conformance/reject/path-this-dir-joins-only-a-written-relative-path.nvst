@@ -13,7 +13,7 @@ error[E0837]: `Core\Path::thisDir($part)` needs a relative path written in quote
   |
 4 | echo Core\Path::thisDir($part), "\n";
   |                         ^^^^^ not a relative path in quotes
-  = help: the folder is joined while compiling (`rule:programs/relative-paths-resolve-from-their-file`): write a relative path in quotes, such as `'data'`, or `Core\Path::join(Core\Path::thisDir(), $part)` for a path the program builds
+  = help: the folder is joined while the program compiles. Write a relative path in quotes, such as `'data'`. For a path the program builds, write `Core\Path::join(Core\Path::thisDir(), $part)`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

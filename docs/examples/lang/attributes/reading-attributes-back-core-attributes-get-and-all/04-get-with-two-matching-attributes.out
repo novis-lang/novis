@@ -3,7 +3,7 @@ error[E0728]: `Engine::constructor` has 2 attribute payloads that match this sha
    |
 12 | ?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor(...));
    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
-   = help: `rule:attributes/retrieval-folds-while-checking`: an attached-attribute list is static, so this is decided here rather than by a test run — write `Core\Attributes::all<T>(…)`, which answers every match
+   = help: write `Core\Attributes::all<T>(…)`, which returns every match
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

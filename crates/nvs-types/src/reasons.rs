@@ -122,10 +122,9 @@ pub(crate) fn check_call(
         )
         .with_primary(span, "written here")
         .with_help(
-            "`rule:core-classes/html-to-source`: this is an escape hatch, and what makes it safe is that it is rare, \
-             greppable and carries a justification a reader can see — a reason that can be \
-             computed is a reason nobody wrote. A `const` that contains the text is also written \
-             directly in the code, so it compiles",
+            "the reason explains to a reader why this unchecked call is safe. A person must \
+             write it, so it cannot be computed. A `const` that contains the text is also \
+             written in the code, so it compiles",
         ),
     );
 }

@@ -1087,9 +1087,9 @@ fn report_query(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_>) {
         )
         .with_primary(span, "read while compiling, because it is a constant")
         .with_help(
-            "the compiler binds a query written directly in the code with the same rewriter the request would have \
-             used, so this is the `LogicError` the first call would have thrown — `?` and \
-             `:name` are `rule:core-classes/db-parameters`'s two spellings and one statement uses one of them",
+            "the compiler checks a query written in the code. The first call would throw a \
+             `LogicError` for the same reason. A query uses `?` or `:name` for its \
+             parameters, and one query uses only one of the two",
         ),
     );
 }
@@ -1111,9 +1111,9 @@ fn report_ungranted(span: nvs_diagnostics::Span, host: &str, env: &mut Env<'_>) 
         )
         .with_primary(span, "read while compiling, because it is a constant")
         .with_help(
-            "`rule:core-classes/db-capabilities`'s `db.open` lists the hosts a program-supplied `Db\\Settings` may \
-             reach, and it denies by default — add this host to `[capabilities] db.open` in \
-             `nvs.toml`, or name a `[db.<name>]` block and open it with `Core\\Db::connect`",
+            "`db.open` lists the hosts that a `Db\\Settings` from the program may connect to. \
+             A host that is not listed is not allowed. Add this host to `[capabilities] db.open` \
+             in `nvs.toml`, or write a `[db.<name>]` block and open it with `Core\\Db::connect`",
         ),
     );
 }
@@ -1135,9 +1135,9 @@ fn report_ungranted_queue(span: nvs_diagnostics::Span, queue: &str, env: &mut En
         )
         .with_primary(span, "read while compiling, because it is a constant")
         .with_help(
-            "`rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `queue.purge` lists the queues a program may \
-             remove rows from, and it denies by default — add this queue to `[app.capabilities.queue] purge` in \
-             `nvs.toml`, or leave the removal to the entry that already holds the name",
+            "`queue.purge` lists the queues that a program may delete rows from. A queue that \
+             is not listed is not allowed. Add this queue to `[app.capabilities.queue] purge` \
+             in `nvs.toml`",
         ),
     );
 }

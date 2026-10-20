@@ -155,9 +155,8 @@ pub(crate) fn expand_with(
             )
             .with_primary(call.span, format!("`{found}` written here"))
             .with_help(
-                "`rule:attributes/structural-retrieval`: retrieval matches by shape. An attribute's payload \
-                 object matches exactly when it satisfies `T` under `rule:types/shape-type`'s width subtyping, so \
-                 the second type argument is an inline `{...}` or a `type` alias naming one",
+                "an attribute matches when its value has every field of the shape `T`. Write \
+                 the second type argument as a shape `{...}`, or as a `type` alias of a shape",
             ),
         );
         return env.interner.mixed();
@@ -201,10 +200,9 @@ pub(crate) fn expand_with(
                         )
                         .with_primary(span, "no method, parameter or property of that name")
                         .with_help(format!(
-                            "`rule:programs/implementing-with`: the member is read on every class listed \
-                             for `{selector}`, so it is checked against each one's real declarations — \
-                             name a member `{selector}` declares, or the empty string for the \
-                             class's own attributes"
+                            "the name is checked against every class that implements \
+                             `{selector}`. Write a method or property that `{selector}` declares. \
+                             Write an empty string for the attributes of the class itself"
                         )),
                     );
                     return env.interner.mixed();
@@ -232,9 +230,8 @@ pub(crate) fn expand_with(
                     )
                     .with_primary(call.span, "each row's `attribute` holds at most one")
                     .with_help(format!(
-                        "`rule:programs/implementing-with`: an attached-attribute list is static, so this is \
-                         decided here rather than by a test run — narrow the shape until only one payload on \
-                         `{class}` matches it, or read that class with `Core\\Attributes::all<T>(…)`"
+                        "change the shape so that only one attribute of `{class}` matches it. Or \
+                         read that class with `Core\\Attributes::all<T>(…)`"
                     )),
                 );
                 return env.interner.mixed();
@@ -334,9 +331,8 @@ pub(crate) fn expand_constructors(
                 )
                 .with_primary(call.span, format!("`{found}` written here"))
                 .with_help(format!(
-                    "`rule:programs/constructors`: each row's `make` takes the parameters this \
-                     type names and returns a new `{selector}` — write it as \
-                     `callable(<the constructor's parameters>): {selector}`"
+                    "each row's `make` takes the parameters of this type and returns a new \
+                     `{selector}`. Write it as `callable(<the constructor's parameters>): {selector}`"
                 )),
             );
             return answer;
@@ -364,10 +360,9 @@ pub(crate) fn expand_constructors(
                     )
                     .with_note(reason)
                     .with_help(format!(
-                        "`rule:programs/constructors`: each row's `make` is \
-                         `fn(<{shown}'s parameters>): {selector} => new {class}(<the same \
-                         arguments>)`, checked as that anonymous function would be here — change \
-                         `{class}`'s constructor, or the parameters `{shown}` names",
+                        "each row's `make` works like `fn(<{shown}'s parameters>): {selector} => \
+                         new {class}(<the same arguments>)`. Change the constructor of `{class}`, \
+                         or the parameters of `{shown}`",
                     )),
                 );
                 refused = true;
@@ -499,9 +494,8 @@ fn selector_of(call: &Expr, member: &str, want: TypeId, env: &mut Env<'_>) -> Op
             )
             .with_primary(call.span, format!("`{found}` written here"))
             .with_help(
-                "`rule:programs/implementing`: the type argument is what gives the enumerated instances \
-                 a static type — `object` is opaque and a shape describes data rather than methods, \
-                 so an array of anything else is one nothing can be called on",
+                "the type argument is the type of each object in the result. Write an interface \
+                 or a class, so that you can call its methods on each object",
             ),
         );
     }
@@ -560,12 +554,10 @@ fn constructors_of(
                     format!("this enumeration would write `new {class}()`"),
                 )
                 .with_help(format!(
-                    "`rule:programs/implementing`: every class the enumeration instantiates needs a \
-                     no-argument constructor, and dependencies arrive through \
-                     `{selector}`'s own methods instead — give `{class}` a \
-                     zero-argument `constructor`, or list the classes with \
+                    "every class in the result is created with no arguments. Give `{class}` a \
+                     `constructor` with no required parameters. Or use \
                      `Core\\Program::constructors<{selector}, callable(...): {selector}>()`, \
-                     which passes the arguments you give it (`rule:programs/constructors`)",
+                     which passes the arguments you give it",
                 )),
             );
             return None;

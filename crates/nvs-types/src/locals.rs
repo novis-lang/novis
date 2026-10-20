@@ -2192,8 +2192,8 @@ fn report_inout_leaf(span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "this would alias the element it was read from")
         .with_help(
-            "drop the `inout` — the leaf is a copy, exactly as an element of an array written with `[...]` is; \
-             to share one mutable cell, put it in an object (`rule:types/implicit-capture`)",
+            "remove the `inout`. The variable is a copy of the element. To share one value \
+             between two places, put it in an object",
         ),
     );
 }
