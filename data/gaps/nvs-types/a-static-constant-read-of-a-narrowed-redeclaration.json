@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/conformance.rs",
-  "title": "A `static::` read of a constant a subclass redeclared at a narrower type reads the value as the wrong type.",
-  "text": "`rule:statements/static-is-a-member-modifier` lets a redeclared constant keep any type assignable to the ancestor's (`E0833`), and a `static::NAME` read is typed where the constant is declared. Two narrowings read wrong. `Base` declares `const int|string CODE = \"x\"` and `Child` redeclares `const int CODE = 7`: `int|string $c = static::CODE;` in a `Base` method, called as `Child::describe()`, takes the `7` for a string's address, and the debug build panics with a misaligned pointer dereference at `crates/nvs-runtime/src/string.rs:1741`. `Base` declares `const float RATE = 1.5` and `Child` redeclares `const int RATE = 2`: `Child::rate()` returns `9.8813129168249E-324`, the `int`'s bits read as a `float`. A `bool` redeclared over `int|bool` reads right. It closes when every `static::` read gives the value at the type the read is typed with, whichever class's table it comes from, and the `int` to `float` row is not part of a constant's redeclaration, as it is not part of an override's (`rule:classes/an-override-keeps-its-parents-signature`). A conformance case covers a scalar union, `float` over `int`, and a redeclaration through an interface.",
-  "goal": "compiler-holes"
-}
