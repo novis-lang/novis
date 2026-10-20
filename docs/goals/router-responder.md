@@ -215,11 +215,20 @@ README's `NN-` prefix). The `dispatch` and `Gate` pages and `routes.mdx` say a `
 value and `nvs check` warns for a plain gate. `bun nv verify --doc` and
 `bun nv owners --closes router-responder` are clean.
 
+The refused DONE's `floor-debt` red was one owed proof,
+`tests/hostile/core/Session/get/01-read-strange-keys-and-large-values.nvs`: its recording run on the
+covws debug build passed the default 30 s request CPU limit in step 4 (50,000 Redis reads) and exited 1,
+so it diverged from the judged run and stayed owed. Step 4 now reads 10 rounds, and both runs agree. `bun
+nv debt` names each atom it leaves (`tools/nv/cmd/debt.ts`), and the store owes nothing but the two
+Linux legs, which wait for a goal that names a fixture.
+
 ### Next
 
-Nothing. The driver's acceptance runs `owners-closes`, and then deletes this file.
+Nothing. The driver's acceptance runs `owners-closes` and the floor, and then deletes this file.
 
 ### Backlog
 
 - `bun nv scaling --budget --write` refuses to write while many benches outside this goal are over
   `data/perf/bench-budget.json`, so the new bench has no budget share yet. That drift is `ci-green`'s.
+- Nightly run 39462919214's `proofs` jobs on all three platforms and the chapter-examples job are red,
+  and `miri` was cancelled. None is this goal's, and `ci-green` owns them.
