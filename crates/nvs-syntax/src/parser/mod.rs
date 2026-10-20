@@ -105,6 +105,10 @@ pub struct Parser<'src, 'd> {
     /// [`Self::parse_postfix`]'s loop must not consume a bare one — see
     /// [`Self::parse_expr_no_top_as`].
     suppress_as: bool,
+    /// Set while parsing the type after `as`, where a `<` after a built-in
+    /// type is a comparison (`$n as int < 10`), so
+    /// [`Self::reject_builtin_type_args`] leaves it alone.
+    in_as_target: bool,
     /// How many nested recursive-descent entries deep the parser currently
     /// is, across every kind of nesting (expressions, types, statements,
     /// destructuring targets) — one shared counter, since they all draw on
@@ -229,6 +233,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             lookahead: VecDeque::new(),
             last_span: start,
             suppress_as: false,
+            in_as_target: false,
             depth: 0,
             depth_exceeded: false,
             docs_attached: Vec::new(),

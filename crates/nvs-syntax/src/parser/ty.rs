@@ -326,6 +326,41 @@ impl<'src, 'd> Parser<'src, 'd> {
         (args, name_span.to(close))
     }
 
+    /// `E0441` at a `<` written after a built-in type that takes no type
+    /// argument, such as `int<int>` or `iterable<int>` (`rule:types/grammar`).
+    /// The list is parsed and dropped, so the rest of the signature still
+    /// parses and the atom stays the one written before the `<`.
+    fn reject_builtin_type_args(&mut self, atom: Span) {
+        if self.in_as_target {
+            return;
+        }
+        let Some(lt) = self.eat(TokenKind::Lt) else {
+            return;
+        };
+        let name = self.ident_text(atom).to_owned();
+        let help = if name == "iterable" {
+            "remove the `<...>` part, or write `Iterator<T>` or `Iterable<T>`. The types that \
+             take type arguments are `array<T>`, `Iterator<T>`, `Iterable<T>`, `class<T>`, \
+             `property<T>` and `string<K>`"
+        } else {
+            "remove the `<...>` part. The types that take type arguments are `array<T>`, \
+             `Iterator<T>`, `Iterable<T>`, `class<T>`, `property<T>` and `string<K>`"
+        };
+        self.parse_type_union();
+        while self.eat(TokenKind::Comma).is_some() {
+            self.parse_type_union();
+        }
+        self.expect_type_close_angle();
+        self.diags.report(
+            Diagnostic::error(
+                code::E_TYPE_ARGS_NOT_GENERIC,
+                format!("`{name}` takes no type arguments"),
+            )
+            .with_primary(lt, "a type argument list starts here")
+            .with_help(help),
+        );
+    }
+
     /// `self`, `static` and `parent` are whole atoms in type position, so a
     /// `::` after one is `E0135` rather than the `expected ';'` a bare atom
     /// followed by a stray token would otherwise produce
@@ -371,6 +406,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         macro_rules! atom {
             ($variant:ident) => {{
                 self.bump();
+                self.reject_builtin_type_args(start);
                 Type {
                     kind: TypeKind::Atom(TypeAtom::$variant),
                     span: start,

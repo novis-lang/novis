@@ -1065,6 +1065,12 @@ compiler owns — a `Core` member, and a user class implementing a compiler-owne
 concrete type ([`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements)). A user-declared name written with type
 arguments, as a type or at a call, is refused where it is written.
 
+A built-in type takes type arguments only where its grammar writes them: `array<T>`, `string<K>`,
+`class<T>`, `property<T>` and the reserved `Iterable<T>` and `Iterator<T>`. A `<` after any other
+built-in type, such as `int<int>` or `iterable<int>`, is `E0441` at the `<`, and the list is dropped
+so the rest of the signature still parses. After `as`, a `<` is a comparison: `$n as int < 10`
+compares the converted value.
+
 Application code does not reach for one. A typed collection is `array<T>` with `Core\Arr`, a result
 that may fail is `?T` and a throw, and an envelope is a structurally checked shape such as
 `{items: array<User>, total: uint}` ([`types/shape-type`](types.md#types-shape-type)). The boundaries where a caller's type

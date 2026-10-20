@@ -1072,7 +1072,11 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
                 TokenKind::Keyword(Keyword::As) if !self.suppress_as => {
                     self.bump();
+                    // A `<` after `as int` is a comparison, as in
+                    // `$n as int < 10`, so no type argument check runs here.
+                    let outer = std::mem::replace(&mut self.in_as_target, true);
                     let ty = self.parse_type();
+                    self.in_as_target = outer;
                     let span = e.span.to(ty.span);
                     e = Expr {
                         span,
