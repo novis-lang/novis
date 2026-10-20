@@ -16,7 +16,9 @@
 // `nv links`, `nv layout --check` and `nv release --check`), `bun nv selftest`,
 // the fuzz workspace's lock brought back in step, `cargo build`, `nvs fmt` over the `.nvs` files this
 // working tree added or changed, `cargo test`, the `.nvst` trees, `bun nv reference` (every chapter
-// example), `cargo clippy --all-targets -- -D warnings`, and the VS Code extension's headless suites.
+// example), `bun nv soundness --check --allow-open` (the generated soundness cases are current, and each
+// open cell still fails on the binary `build` left), `cargo clippy --all-targets -- -D warnings`, and the
+// VS Code extension's headless suites.
 // Green prints one line per step; a failure prints that step's output and nothing else. The full output
 // of every step is written to `.agent-tmp/verify-<step>.log`. This command judges nothing: a step's own
 // exit status is the whole verdict.
@@ -141,7 +143,7 @@ const TAIL_LINES = 60;
 const STEP_TIMEOUT_MS = 60 * 60 * 1000;
 
 /** The steps that use what `build` leaves on disk. */
-const NEEDS_BINARY = new Set(["nvs-fmt", "test", "conformance", "reference", "extension"]);
+const NEEDS_BINARY = new Set(["nvs-fmt", "test", "conformance", "reference", "soundness", "extension"]);
 /** Whether step `name`, listed after `build`, uses what it leaves on disk: a script step is listed there
  * only when it does and the binary is not built yet (`stepsFor`). */
 const usesBinary = (name: string) => NEEDS_BINARY.has(name) || BESIDE_BUILD.has(name);
@@ -169,7 +171,7 @@ const EXE = process.platform === "win32" ? ".exe" : "";
 /** The doc-tests, one atom: rustdoc builds and runs each in a directory it deletes. */
 const DOC_TESTS = "step:doc-tests";
 /** Every step's atom, whether or not this run's options walk it. */
-const STEP_ATOMS = ["fmt", "lints", "directives", "template", "owners", ...DOC_CHECKS.map(([n]) => n), "nv", "fuzz-lock", "build", "reference", "clippy", "extension", "doc"].map((n) => `step:${n}`).concat(DOC_TESTS);
+const STEP_ATOMS = ["fmt", "lints", "directives", "template", "owners", ...DOC_CHECKS.map(([n]) => n), "nv", "fuzz-lock", "build", "reference", "soundness", "clippy", "extension", "doc"].map((n) => `step:${n}`).concat(DOC_TESTS);
 
 const RESULT_RE = /test result: \w+\. (\d+) passed; (\d+) failed/g;
 const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/g;
@@ -925,6 +927,12 @@ export const summaries: Record<string, (out: string) => string> = {
     const m = /(\d+) of (\d+) examples hold/.exec(out);
     return m ? `${m[1]} of ${m[2]} examples hold` : "ran, but printed no `N of M examples hold` line -- check the log";
   },
+  soundness(out) {
+    const m = /(\d+) file\(s\) current, (\d+) cell\(s\) written, (\d+) open/.exec(out);
+    if (m) return `${m[2]} cell(s) in ${m[1]} file(s) current, ${m[3]} open`;
+    const bad = (out.match(/^nv soundness: /gm) ?? []).length;
+    return bad ? `${bad} finding(s) -- run \`bun nv soundness --check --allow-open\`` : NO_SUMMARY;
+  },
   lints(out) {
     let m = /lints: (\d+) generated tables current/.exec(out);
     if (m) return `${m[1]} generated lint tables current`;
@@ -1082,6 +1090,10 @@ function stepsFor(opts: Opts, r: () => Run, built = existsSync(covwsNvs())): Ste
         if (existsSync(join(ROOT, "tests", tree))) steps.push(step(tree, ["test", "--cases", "<the selected cases>", `tests/${tree}`], summaries.cases!, { exe: nvs, runner: (s) => runCases(r(), s) }));
       }
       steps.push(bunStep(r, "reference", ["nv", "reference"], () => {}, () => ({ NVS_BIN: nvs })));
+      // After `build`, because an open cell is run on the binary it left. `--allow-open` is used only
+      // while goal `compiler-holes` runs: it lets the cells `tools/nv/soundness/open.json` files as gaps
+      // stay out of the written cases.
+      steps.push(bunStep(r, "soundness", ["nv", "soundness", "--check", "--allow-open"], () => {}, () => ({ NVS_BIN: nvs })));
     }
     steps.push(
       step("clippy", ["clippy", "--all-targets", ...target, "--", "-D", "warnings"], summaries.clippy!, {

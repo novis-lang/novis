@@ -1,0 +1,20 @@
+{
+  "static-method-param/same/callable": "data/gaps/nvs-ir/a-static-method-reference-binds-the-declaring-class.json",
+  "static-method-param/same/parent-variable": "data/gaps/nvs-ir/a-static-method-called-through-an-instance-binds-the-variables-type.json",
+  "static-method-param/superclass/callable": "data/gaps/nvs-ir/a-static-method-reference-binds-the-declaring-class.json",
+  "static-method-param/superclass/parent-variable": "data/gaps/nvs-ir/a-static-method-called-through-an-instance-binds-the-variables-type.json",
+  "static-method-param/nullable-over-t/callable": "data/gaps/nvs-ir/a-static-method-reference-binds-the-declaring-class.json",
+  "static-method-param/nullable-over-t/parent-variable": "data/gaps/nvs-ir/a-static-method-called-through-an-instance-binds-the-variables-type.json",
+  "static-method-param/wider-union/callable": "data/gaps/nvs-ir/a-static-method-reference-binds-the-declaring-class.json",
+  "static-method-param/wider-union/parent-variable": "data/gaps/nvs-ir/a-static-method-called-through-an-instance-binds-the-variables-type.json",
+  "static-method-return/same/callable": "data/gaps/nvs-ir/a-static-method-reference-binds-the-declaring-class.json",
+  "static-method-return/same/parent-variable": "data/gaps/nvs-ir/a-static-method-called-through-an-instance-binds-the-variables-type.json",
+  "static-method-return/subclass/callable": "data/gaps/nvs-ir/a-static-method-reference-binds-the-declaring-class.json",
+  "static-method-return/subclass/parent-variable": "data/gaps/nvs-ir/a-static-method-called-through-an-instance-binds-the-variables-type.json",
+  "static-method-return/int-under-int-string/callable": "data/gaps/nvs-ir/a-static-method-reference-binds-the-declaring-class.json",
+  "static-method-return/int-under-int-string/parent-variable": "data/gaps/nvs-ir/a-static-method-called-through-an-instance-binds-the-variables-type.json",
+  "static-method-return/t-under-nullable/callable": "data/gaps/nvs-ir/a-static-method-reference-binds-the-declaring-class.json",
+  "static-method-return/t-under-nullable/parent-variable": "data/gaps/nvs-ir/a-static-method-called-through-an-instance-binds-the-variables-type.json",
+  "static-method-return/member-under-union/callable": "data/gaps/nvs-ir/a-static-method-reference-binds-the-declaring-class.json",
+  "static-method-return/member-under-union/parent-variable": "data/gaps/nvs-ir/a-static-method-called-through-an-instance-binds-the-variables-type.json"
+}

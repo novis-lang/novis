@@ -62,7 +62,7 @@ stages:
     context: [crates/nvs-types/src/expr/members.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/expr/isolate.rs, crates/nvs-types/src/locals.rs, tools/nv/proofs/roster.ts]
   - id: 17
     title: "a generated matrix pins every redeclaration a subclass can write"
-    status: open
+    status: done
     context: [tools/nv/cmd/verify.ts, crates/nvs-types/src/conformance.rs, docs/rules/classes/an-override-keeps-its-parents-signature.md, docs/rules/statements/static-is-a-member-modifier.md]
   - id: 18
     title: "a checked build stops at a read whose value is not its declared type"
@@ -459,11 +459,11 @@ verdict its rule gives, and each cell either passes or is skipped by an open gap
 **Split:** a writing subagent writes the generator and its table from § *Standing decisions*; the
 session checks the table row by row against the rules it cites, then runs it and files the gaps.
 
-- [ ] `bun nv soundness --write` and `--check`, with the oracle table in its module doc. `tools/nv/cmd/soundness.ts:1`
-- [ ] The generated files, one per member kind. `tests/conformance/soundness/properties.nvst:1`
-- [ ] `open.json`, and `--check` fails on a listed cell that passes or whose gap is gone. `tools/nv/soundness/open.json:1`
-- [ ] `bun nv verify` runs `bun nv soundness --check --allow-open` while the goal runs. `tools/nv/cmd/verify.ts:167`
-- [ ] A gap record for each failing cell, listed in `open.json`, and an item for it in stage 19. `tools/nv/soundness/open.json:1`
+- [x] `bun nv soundness --write` and `--check`, with the oracle table in its module doc. `tools/nv/cmd/soundness.ts:1`
+- [x] The generated files, one per member kind. `tests/conformance/soundness/property-plain.nvst:1`
+- [x] `open.json`, and `--check` fails on a listed cell that passes or whose gap is gone. `tools/nv/soundness/open.json:1`
+- [x] `bun nv verify` runs `bun nv soundness --check --allow-open` while the goal runs. `tools/nv/cmd/verify.ts:167`
+- [x] A gap record for each failing cell, listed in `open.json`, and an item for it in stage 19. `tools/nv/soundness/open.json:1`
 
 ### 18. a checked build stops at a read whose value is not its declared type
 
@@ -483,6 +483,8 @@ gone, and CI runs the suite under the checked build on every leg. Nothing they f
 another goal.
 
 - [ ] Each finding of stages 17 and 18 gets one item here, added by the session that files it, and is fixed in this goal. `tools/nv/soundness/open.json:1`
+- [ ] A callable taken with `static::m(...)` calls the called class's `m`, and its nine `*/callable` cells pass. `data/gaps/nvs-ir/a-static-method-reference-binds-the-declaring-class.json:1`, `crates/nvs-ir/src/lower/expr.rs:4055`
+- [ ] A static method called through an instance runs the object's class's body, the rule says so, and its nine `*/parent-variable` cells pass. `data/gaps/nvs-ir/a-static-method-called-through-an-instance-binds-the-variables-type.json:1`, `docs/rules/statements/static-is-a-member-modifier.md:1`
 - [ ] `open.json`, the `--allow-open` flag and its use in `verify.ts` are deleted, and every matrix cell is in the written files and passes. `tools/nv/cmd/soundness.ts:1`, `tools/nv/cmd/verify.ts:167`
 - [ ] The CI step after "Conformance suite, unoptimised", with `NOVIS_CHECK_TYPES=1`. `.github/workflows/ci.yml:292`
 - [ ] `rule:testing/probes-on-is-a-tested-configuration` names the checked run, and a rule fragment states what the matrix guarantees, `shipped` with the matrix files in `guardedBy`. `docs/rules/testing/probes-on-is-a-tested-configuration.md:14`, `docs/rules/testing/redeclaration-matrix.md:1`, `data/rules/testing/redeclaration-matrix.json:1`
@@ -505,30 +507,29 @@ another goal.
 
 ### State
 
-Stages 1 to 13 and 16 are done, and every gap record they owned is deleted. Stage 13's last item
-merged `lang:statements/throw` and `lang:statements/try-catch-finally` into `lang:errors/throw` and
-`lang:errors/try-catch-finally`:
+Stages 1 to 13, 16 and 17 are done. Stage 17 landed `bun nv soundness`
+(`tools/nv/cmd/soundness.ts`, whose module doc is the oracle table):
 
-- The statements chapter lost its two headings. The examples that said something new moved:
-  `throw`'s 04 and `try-catch-finally`'s 06 to 08. The rest were the same as an `errors` example and
-  are deleted. Both attacks moved to `tests/hostile/lang/errors/*/02-*`, and both benches are deleted.
-- The `statements` facts are in the kept `about.md` and `details.md` files, and each `covers:` line,
-  the website page, its stamps and the perf ledger name only the `errors` ids. The page now has one
-  section per feature. `bun nv proofs --id` owes nothing for either feature.
-- `data/perf/members.md` was regenerated whole, so it also picked up ledger records other commits
-  appended without regenerating it.
-- `bun nv affected --run` stopped at `rules-render` on `docs/rules/ide.md`, so the session ran
-  what the change reaches by hand: `layout`, `release`, `render` and `owners --check`, both
-  features' `proofs --run`, the four `error/` cases, and `nvs-cli`'s `ast`, `bundle` and
-  `compile_cache` tests. All are green. The gate's `fmt` step also formatted
-  `crates/nvs-config/tests/resolve.rs`, which the last group left unformatted, and that is its own
-  commit.
-
-`crates/nvs-diagnostics/tests/no_diagnostic_text_cites_a_rule.rs` holds stage 13's other line: no
-printed diagnostic text under `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-config` or
-`nvs-diagnostics/src` cites a `rule:` id or says "refuse". `nvs-config`'s `audit.rs` is left out by
-name, because `nvs config dump` prints a rule id on purpose. The editor
-(`crates/nvs-lsp/src/document.rs`) does not run `E0303`'s `note_searched_roots` yet.
+- 397 cells over 16 member kinds, written as 31 files under `tests/conformance/soundness/`:
+  `<member>.nvst` for the cells that run and `<member>.errors.nvst` for the compile errors. The
+  module doc lists which combinations are not cells, and why.
+- The session checked every row against its rule. Override parameters are contravariant and returns
+  covariant (`E0404`), instance properties are exact (`E0866`), a `readonly` property is never
+  redeclared, constants are assignable (`E0833`), and none of these has the `int` to `float` row.
+  `compareTo`'s parameter follows the general contravariant rule. A wider parameter compiles.
+- The session added one path the subagent had left out: a static method called through a
+  variable of the parent's type. It expects the object's class's body, because a static method
+  binds late to the called class.
+- `--probe` runs each cell alone. 18 cells fail, all static methods, and two gap records under
+  `data/gaps/nvs-ir/` own them. `static::m(...)` binds the declaring class, and `$base->m()` on a
+  static `m` runs the variable's class. `tools/nv/soundness/open.json` lists all 18, and stage 19 has
+  an item for each record.
+- `bun nv verify` runs `soundness --check --allow-open` after `reference`, with `NVS_BIN` set to the
+  covws `nvs`.
+- `bun nv affected --run` stopped at `rules-render` on `docs/rules/ide.md` again. So the session ran
+  by hand what the change reaches: `layout`, `links`, `release`, `owners --check`, `tsc`, the `bun
+  test` files for verify, reads, surfaces and proof growth, `nvs test tests/conformance/soundness`
+  (31 passed), and `nvs-cli`'s `ast`, `bundle` and `compile_cache` tests. All are green.
 
 The tree holds uncommitted work this goal does not own: `docs/rules/ide.md`,
 `website/src/lib/core.ts`, `website/src/data/numbers.json` and
@@ -539,14 +540,17 @@ run it once per crate.
 
 ### Next
 
-**Stage 17** is next. Follow its `**Split:**` line: one writing subagent writes
-`tools/nv/cmd/soundness.ts` (registered in `tools/nv/main.ts`) and its oracle table from
-§ *Standing decisions*' three lists. The session then checks each row against the rule it cites
-(`docs/rules/classes/an-override-keeps-its-parents-signature.md`,
-`docs/rules/statements/static-is-a-member-modifier.md`, and the `E0833` redeclaration rule), runs
-`--write`, and files a gap record for each failing cell in `tools/nv/soundness/open.json`.
-`tools/nv/cmd/verify.ts:167` is where `--check --allow-open` joins verify. The conformance runner
-for the generated files is `crates/nvs-types/src/conformance.rs`.
+**Stage 18** is next: the `NOVIS_CHECK_TYPES` switch. Its items name the anchors: the switch beside
+`NOVIS_NO_OPTIMISE` (`crates/nvs-cli/src/main.rs:209`, `crates/nvs-codegen/src/lib.rs:905`), the
+type tests in the lowering (`crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/lower/mod.rs`),
+and the stopping helper (`crates/nvs-runtime/src/helpers.rs`). Each case the checked suite stops
+gets a gap record with neutral names and an item in stage 19. Stage 19 may also take the
+two stage 17 records first, since they are small and in `nvs-ir` (`lower/expr.rs:4055` for
+`static::m(...)`, `lower/call.rs` for an instance call of a static method). The second one also
+writes its reading into `rule:statements/static-is-a-member-modifier`.
+
+`bun nv soundness --probe` reruns every cell alone on the covws `nvs`, and `--write` after any
+change to the table. Never edit a generated file by hand.
 
 The installed `looper` binary has no `verify` subcommand, so these sessions run
 `bun nv affected --run` as the gate. The next free diagnostic code is `E0881`
