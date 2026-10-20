@@ -13,3 +13,7 @@ from a negative one.
 
 Two cases may carry the same value. Nothing forbids the alias, because equality over an enum is
 value equality and there is no identity for two names to collide on.
+
+Two cases never carry the same name. A second case of a name the enum already declares is `E0304` at
+the second one, as a class member declared twice is (`rule:types/declaration`), and the first case
+keeps its value.

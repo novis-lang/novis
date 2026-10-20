@@ -1,0 +1,23 @@
+--TEST--
+A second case of one name in one enum is `E0304` at the second case, and two cases of one value compile
+--FILE--
+<?nvs
+enum Size {
+    Small = 1,
+    Tiny = 1,
+}
+
+enum Suit {
+    Hearts,
+    Spades,
+    Hearts = 5,
+}
+
+echo Size::Small as int, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0304]: the enum `Suit` declares the case `Hearts` twice
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
