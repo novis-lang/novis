@@ -1257,7 +1257,15 @@ jobs:
   # The `nvs-runtime` and `nvs-stdlib` unit tests under Miri, through nextest's `miri` profile
   # (`.config/nextest.toml`). Each test is a process of its own, so a test Miri cannot run fails
   # alone and the run still lists every other result. A test Miri can never run carries
-  # `#[cfg_attr(miri, ignore = "<the reason>")]` on itself, and this job keeps no skip list.
+  # `#[cfg_attr(miri, ignore = "<the reason>")]` on itself, and this job keeps no skip list. A test
+  # that is only slow under Miri runs a smaller input under `cfg!(miri)`, checked natively at that
+  # size. It is ignored only when its input is a floor or a constant that has no smaller size (the
+  # PBKDF2 and Argon2 floors, the JSON depth ceiling, the multipart part cap).
+  #
+  # Miri keeps its default model, Stacked Borrows. It reports the pool allocator reusing a block
+  # through a pointer that covers only its last owner's size. Tree Borrows accepts that, and a fix in
+  # the pool would cost Miri its precision on every recycled block, so `sanitizer` below is the
+  # answer instead.
   #
   # Each crate runs as `--partition` shards, so every shard ends inside `timeout-minutes` and the
   # job is green or red, never cancelled. When a crate's tests outgrow its shards, raise `of` for

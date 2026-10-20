@@ -360,7 +360,8 @@ is `BLOCKED` and names the call.
 
 Every stage is done. Full run 39345560526 on `f534cf5ee` passed all 52 jobs. Its two Windows
 `test` halves took 33 and 36 minutes of 120, and the zip attack passed on `proofs /
-windows-x86_64`. `bun nv verify --doc` is green.
+windows-x86_64`. `bun nv verify --doc` is green. The goal-end gate is done: the backlog is in
+`compiler-holes`, and `bun nv debt` pays the atoms its own run owes, which turned `floor-debt` red.
 
 - **The 69 gap records belong to `compiler-holes` now**, the goal after this one on the chain. The
   user took the recommendation: an interactive session wrote `docs/goals/compiler-holes.md` and ran
@@ -392,7 +393,10 @@ The goal-end gate. Only the last item is left:
 - [x] Run 39345560526 on `f534cf5ee` is green on every job, and stage 10 is done. `docs/goals/release-hardening.md:351`
 - [x] `bun nv verify --doc` is green. `docs/goals/release-hardening.md:356`
 - [x] The 69 gap records belong to `compiler-holes`, and `bun nv owners --closes release-hardening` passes. `tools/nv/cmd/owners.ts:1`
-- [ ] Each backlog bullet below that is still true moves to `compiler-holes`' `### Backlog`, except the `bigint-gcd-…` one, which is its stages 14 and 15. Each decision only this file's prose holds moves to a rule or a module doc. Then the status line is `DONE`, and looper deletes this file. Never delete it by hand. `docs/goals/compiler-holes.md:1`
+- [x] Each backlog bullet below that is still true moves to `compiler-holes`' `### Backlog`, except the `bigint-gcd-…` one, which is its stages 14 and 15. Each decision only this file's prose holds moves to a rule or a module doc. Then the status line is `DONE`, and looper deletes this file. Never delete it by hand. `docs/goals/compiler-holes.md:332`
+  - [x] Every bullet below moved, but the `spec_registry_coverage.rs` one: that test file is gone.
+  - [x] Stage 8's Miri choices that only this file held, a smaller input before an ignore and Stacked Borrows kept, are in the `miri-units` comment of `.github/workflows/ci.yml`.
+  - [x] `floor-debt` was red because the debt's own tree move owed 5 atoms after it planned its turns. `bun nv debt` now pays those in a further round (`tools/nv/cmd/debt.ts`).
 
 ### Backlog
 
