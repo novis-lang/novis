@@ -2327,6 +2327,19 @@
     },
     {
       "area": "types",
+      "slug": "router-responder",
+      "url": "/reference/types/router-responder/",
+      "title": "Core\\Router\\Responder",
+      "group": "Interfaces",
+      "intro": {
+        "id": "Core\\Router\\Responder",
+        "title": "Core\\Router\\Responder",
+        "examples": "types/Router-Responder"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
       "slug": "iterable",
       "url": "/reference/types/iterable/",
       "title": "Iterable",
