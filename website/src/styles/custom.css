@@ -1555,7 +1555,9 @@ main:has(.home-hero) > .content-panel {
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
     .nv-reveal {
-      animation: nv-reveal linear both;
+      animation-name: nv-reveal;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
       animation-timeline: view();
       animation-range: entry 0% entry 55%;
     }
