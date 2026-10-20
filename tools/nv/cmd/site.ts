@@ -693,7 +693,7 @@ export const IN_DEPTH_SECTIONS: [slug: string, least: number][] = [
   ["how-novis-is-written", 0],
   ["design-principles", 0],
   ["concepts", 5],
-  ["falls-behind", 0],
+  ["new", 0],
   ["questions", 0],
   ["roadmap", 0],
   ["what-changed", 0],

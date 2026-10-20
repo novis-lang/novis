@@ -1,0 +1,37 @@
+---
+title: Novis is new
+covers: []
+description: What a new language costs you today, and what it makes possible.
+---
+
+Novis is a new language. Some things are missing today, and they get fewer as time goes by. Being new
+also has benefits that an older language cannot add later. This page lists both, so you can decide
+whether Novis fits your project.
+
+## What is missing today
+
+Novis has one implementation, and it has had no independent security audit yet. No large site runs on
+Novis today. Older languages have had many years to find their bugs. Novis has not had that time yet.
+
+When you search for an error message, you often find no answer online. An error message in Novis says
+what is wrong, where it is and what you can do about it.
+
+## Every package is new
+
+Novis has few packages so far. Its standard library is large, so most programs need less from outside.
+If an existing package already solves your problem in another language, that language can be the
+better choice today.
+
+Every package for Novis is new, and none of them is older than the safety checks. No package has to
+stay compatible with code that was written without them. Each package is Novis code, so the compiler checks it
+the same way it checks your code. A registry for packages is [on the roadmap](/in-depth/roadmap/).
+
+## Strict from the first version
+
+The compiler checks types, [tainted input](/in-depth/concepts/tainted-input/) and conversions. An
+older language cannot make checks like these the default later, because a lot of existing code would
+stop working. Novis has had them from its first version, so no code depends on skipping them.
+
+The cost is more code in a short script. A script that reads a number from a form needs a check that
+another language skips. So the first version of a program takes longer to write. The check finds the
+mistake before a user of your program finds it.

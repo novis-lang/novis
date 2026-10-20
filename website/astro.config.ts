@@ -686,7 +686,7 @@ export default defineConfig({
                 { label: 'Strings are UTF-8', link: '/in-depth/concepts/utf8-strings/' },
               ],
             },
-            { label: 'Where Novis is weaker', link: '/in-depth/falls-behind/' },
+            { label: 'Novis is new', link: '/in-depth/new/' },
             { label: 'Novis, PHP, Bun and Go compared', link: '/in-depth/compare/' },
             { label: 'Coming from PHP', link: '/in-depth/coming-from-php/' },
             { label: 'All questions', link: '/in-depth/questions/' },
