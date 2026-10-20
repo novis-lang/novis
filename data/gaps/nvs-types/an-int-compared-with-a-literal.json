@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/locals.rs",
-  "title": "An `int` compared with a literal loses its arithmetic inside the branch.",
-  "text": "`int $n = 100; if ($n == 100) { int $m = $n + 1; }` is `E0401` (\"expected `int`, found `mixed`\"), and `return $n + 1;` in such a branch of an `int` method is `E0403`. The comparison narrows `$n` to the single value `100`, and arithmetic on that type gives `mixed`. Copying it first (`int $m = $n; $m + 1`) compiles and prints `101`. `rule:types/narrowing` names a comparison against a value of a single-value type as a narrowing, but an `int` local is not such a type. It closes when arithmetic on a narrowed number keeps its number type, or `==` against a plain number does not narrow an `int`, with a conformance case.",
-  "goal": "compiler-holes"
-}

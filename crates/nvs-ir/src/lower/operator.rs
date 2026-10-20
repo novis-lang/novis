@@ -432,6 +432,19 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        // A negated digit run is never placed at `uint`: no `uint` is
+        // negative, and the checker types `-1` beside a `uint` as an `int`
+        // (`rule:types/ordering`). Placing the `1` there would negate a
+        // `uint` and throw.
+        let expected = match expected {
+            Some(Ty::Uint)
+                if op == AstUnaryOp::Neg
+                    && matches!(inner.unparenthesized().kind, ExprKind::Int(_)) =>
+            {
+                None
+            }
+            other => other,
+        };
         let (v, ty) = self.lower_expr(inner, expected, env, cur);
         // `rule:types/decimal`'s scalar has no machine negate: like every other
         // operator over one it is a helper call. It cannot fail --

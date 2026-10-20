@@ -27,8 +27,9 @@ annotation like any method ([`types/anonymous-function`](types.md#types-anonymou
 
 A binding is declared **once**. A later assignment is bare, and is legal only where the name is
 already declared in the enclosing function; re-declaring a live name is a diagnostic naming the first
-declaration, and there is no shadowing. A `foreach` or destructuring binding may reuse a live name at
-the same type. A `catch` variable may reuse only a name another `catch` declared, at the same type,
+declaration, and there is no shadowing. A `foreach` binding may reuse a live name at the same type. A
+destructuring leaf declares its variable as a local does, so a name already declared, or written twice
+in one pattern, is `E0406` at the leaf. A `catch` variable may reuse only a name another `catch` declared, at the same type,
 because its binding ends with its clause: a parameter or a local of that name is `E0406` at the
 clause. A class member is declared once too: a second property, method or constant of one name in one
 member list is `E0304` at the second declaration, and a promoted constructor parameter is a property
@@ -706,6 +707,9 @@ Assignability and conversion:
 | base type or `mixed` → a single-value type or a set of allowed values | **checked.** Throws unless the value equals one of the named values |
 | a wider set of allowed values → a narrower one | needs a guard or a checked `as` — ordinary narrowing ([`types/narrowing`](types.md#types-narrowing)) |
 
+An operator takes a single-value operand as a value of its base type. `int $n = 100; if ($n == 100)
+{ int $m = $n + 1; }` compiles, because the narrowed `$n` is the `int` `100` and `$n + 1` is an `int`.
+
 **Zero additional runtime representation.** A single-value type shares its base type's tag and payload
 exactly; that only the one value is allowed is enforced by the checker wherever the static type is
 known. The only place it costs anything is where a value arrives through `mixed` or an isolate boundary,
@@ -1094,7 +1098,8 @@ code is the real consumer, and `Core` is already parametric.
 `rule:types/property-key`
 
 `property<T>` is a type atom, written in every position a type is written, whose **values** are the
-names of `T`'s public declared properties — its own and its ancestors' — and nothing else. What is
+names of `T`'s public declared instance properties — its own and its ancestors' — and nothing else. A
+`static` property belongs to the class and to no object, so it is not one of the names. What is
 carried at run time is that name, a string in the representation but **not** in the type.
 
 `T` names one **class**. An interface, an enum, a scalar, a `class<...>` — anything that is not a

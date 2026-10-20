@@ -16,8 +16,9 @@ annotation like any method (`rule:types/anonymous-function`).
 
 A binding is declared **once**. A later assignment is bare, and is legal only where the name is
 already declared in the enclosing function; re-declaring a live name is a diagnostic naming the first
-declaration, and there is no shadowing. A `foreach` or destructuring binding may reuse a live name at
-the same type. A `catch` variable may reuse only a name another `catch` declared, at the same type,
+declaration, and there is no shadowing. A `foreach` binding may reuse a live name at the same type. A
+destructuring leaf declares its variable as a local does, so a name already declared, or written twice
+in one pattern, is `E0406` at the leaf. A `catch` variable may reuse only a name another `catch` declared, at the same type,
 because its binding ends with its clause: a parameter or a local of that name is `E0406` at the
 clause. A class member is declared once too: a second property, method or constant of one name in one
 member list is `E0304` at the second declaration, and a promoted constructor parameter is a property

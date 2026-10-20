@@ -16,6 +16,9 @@ Assignability and conversion:
 | base type or `mixed` → a single-value type or a set of allowed values | **checked.** Throws unless the value equals one of the named values |
 | a wider set of allowed values → a narrower one | needs a guard or a checked `as` — ordinary narrowing (`rule:types/narrowing`) |
 
+An operator takes a single-value operand as a value of its base type. `int $n = 100; if ($n == 100)
+{ int $m = $n + 1; }` compiles, because the narrowed `$n` is the `int` `100` and `$n + 1` is an `int`.
+
 **Zero additional runtime representation.** A single-value type shares its base type's tag and payload
 exactly; that only the one value is allowed is enforced by the checker wherever the static type is
 known. The only place it costs anything is where a value arrives through `mixed` or an isolate boundary,

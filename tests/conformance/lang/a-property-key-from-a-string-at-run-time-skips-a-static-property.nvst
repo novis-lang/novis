@@ -1,0 +1,17 @@
+--TEST--
+A run-time conversion to a property key gives `null` for the name of a `static` property, and a key for an instance property
+--FILE--
+<?nvs
+class Visitor {
+    public static int $count = 0;
+    public string $name = "a";
+}
+
+array<string> $names = ["count", "name"];
+foreach ($names as string $text) {
+    ?property<Visitor> $key = $text as ?property<Visitor>;
+    echo $text, ": ", $key == null ? "null" : "key", "\n";
+}
+--EXPECT--
+count: null
+name: key

@@ -97,7 +97,9 @@ pub(crate) use self::{
         can_hold_an_object, check_unset_target, is_this_receiver, reject_finish_marker_arm,
         reject_uncatchable_arm, resolve_class_expr,
     },
-    operators::{reject_carrier_as_text, reject_disjoint_equality, require_stringable},
+    operators::{
+        reject_carrier_as_text, reject_disjoint_equality, reject_second_default, require_stringable,
+    },
     quals::{reject_secret_attribute_constant, reject_secret_output},
 };
 
@@ -856,6 +858,12 @@ pub(crate) fn infer(
         ExprKind::Fn(fn_expr) => check_anon_fn(expr, fn_expr, expected, live, scope, ctx, env),
         ExprKind::Match { subject, arms } => {
             let subject_ty = check_expr(subject, None, live, scope, ctx, env);
+            operators::reject_second_default(
+                arms.iter()
+                    .filter(|a| a.conditions.is_none())
+                    .map(|a| a.span),
+                env,
+            );
             // `rule:types/unions-and-mixed`'s fourth narrowing spelling: under `match (true)` a
             // label is a condition rather than a value, so the arm body is
             // checked under exactly what `crate::locals::narrow` installs for

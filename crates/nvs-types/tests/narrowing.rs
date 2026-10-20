@@ -181,12 +181,13 @@ fn refused_at(src: &str, diags: &Diagnostics, read: &str, code: nvs_diagnostics:
     })
 }
 
-/// Every way to write `$n` inside a loop, each one a statement.
+/// Every way to write `$n` inside a loop, each one a statement. A
+/// destructuring leaf is not one: it declares its variable, so `[?Node $n]`
+/// over the declared `$n` is `E0406`.
 const WRITES_OF_N: &[&str] = &[
     "$n = null;",
     "$n ??= new Node();",
     "T::reset(inout $n);",
-    "[?Node $n] = $all;",
     "foreach ($all as ?Node $n) {\n}",
     "try {\n  echo \"x\";\n} catch (Throwable $caught) {\n  $n = null;\n}",
     "while (true) {\n  $n = null;\n}",

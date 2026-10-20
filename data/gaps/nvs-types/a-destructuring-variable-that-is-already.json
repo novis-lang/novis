@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/locals.rs",
-  "title": "A destructuring variable that is already declared with the same type compiles and overwrites it.",
-  "text": "`int $a = 0; [int $a, int $b] = $pair;` compiles and assigns the first element to `$a`, at the top level and in a method. `[int $a, int $a] = $pair;` compiles too, and `$a` is the second element. A plain `int $a = 0; int $a = 1;` is `E0406`, and so is the destructuring when the earlier `$a` has another type. It closes when a destructuring variable already declared in scope, or written twice in one pattern, is `E0406`, with a conformance case.",
-  "goal": "compiler-holes"
-}

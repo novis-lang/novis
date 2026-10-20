@@ -863,6 +863,9 @@ pub(crate) fn check_assign(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
+    if reject_this_write(target, env) {
+        return infer(value, None, live, scope, ctx, env);
+    }
     if let Some(binop) = op.binary_op() {
         return check_compound_assign(
             binop,
@@ -927,6 +930,24 @@ pub(crate) fn check_assign(
         }
         target_ty
     }
+}
+
+/// `rule:classes/this-is-not-assignable`: `$this = …` and `$this ⊕= …` are
+/// `E0875` at the target. Answers whether it reported, and the caller then
+/// checks the value alone, so nothing rebinds the receiver.
+fn reject_this_write(target: &Expr, env: &mut Env<'_>) -> bool {
+    let ExprKind::Variable(name) = &target.unparenthesized().kind else {
+        return false;
+    };
+    if strip_sigil(span_text(env.src, *name)) != "this" {
+        return false;
+    }
+    env.diags.report(
+        Diagnostic::error(code::E_THIS_ASSIGNED, "`$this` cannot be assigned")
+            .with_primary(target.span, "this is the object the method was called on")
+            .with_help("to work with another object, declare a new variable for it"),
+    );
+    true
 }
 
 /// `rule:types/var-inference`: a write that does not fit a local whose type

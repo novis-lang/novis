@@ -1255,8 +1255,12 @@ fn collect_public_properties(
     }
     if let Some(sig) = env.signatures.get(qname) {
         for name in sig.properties.keys() {
-            if crate::signatures::property_visibility(qname, name, env.signatures)
-                == nvs_syntax::ast::Visibility::Public
+            // A `static` property is the class's and never an object's, so
+            // `$object->$key` has nothing to read for it.
+            let is_static = sig.static_properties.iter().any(|(s, _)| s == name);
+            if !is_static
+                && crate::signatures::property_visibility(qname, name, env.signatures)
+                    == nvs_syntax::ast::Visibility::Public
             {
                 names.push(name.clone());
             }

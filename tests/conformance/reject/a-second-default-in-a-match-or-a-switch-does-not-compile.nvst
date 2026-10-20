@@ -1,0 +1,33 @@
+--TEST--
+A second `default` is `E0876` at its keyword, as a `match` arm and as a `switch` label
+--FILE--
+<?nvs
+class Labels {
+    public static function name(int $n): string {
+        switch ($n) {
+            default:
+                return "many";
+            case 1:
+                return "one";
+            default:
+                return "never";
+        }
+    }
+
+    public static function short(int $n): string {
+        return match ($n) { default => "many", 1 => "one", default => "never" };
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0876]: this is a second `default`
+  --> case.nvs:5:13
+%A
+error[E0876]: this is a second `default`
+   --> case.nvs:15:29
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

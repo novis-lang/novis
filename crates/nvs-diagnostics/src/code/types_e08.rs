@@ -997,4 +997,20 @@ codes! {
          some declarations, such as `#[Core\\Route]` on a method. Move the attribute, or \
          remove it.",
     );
+    /// An assignment to `$this`, plain or compound
+    /// (`rule:classes/this-is-not-assignable`). `$this` is the object the
+    /// method was called on, and a write to it would change only the local
+    /// name, never that object.
+    pub const E_THIS_ASSIGNED: Code = Code::new("E0875").card(
+        "`$this` cannot be assigned. `$this` is always the object the method was called on. \
+         To work with another object, declare a new variable for it.",
+    );
+    /// A second `default` arm in a `match`, or a second `default:` label in
+    /// a `switch` (`rule:expressions/a-match-has-at-least-one-arm`). The first one
+    /// runs for every value no other arm matches, so the second never runs.
+    pub const E_SECOND_DEFAULT: Code = Code::new("E0876").card(
+        "A `match` or a `switch` can have only one `default`. The first `default` runs for \
+         every value that no other arm matches, so a second `default` never runs. Remove one \
+         of them.",
+    );
 }

@@ -17,6 +17,7 @@
     "classes/lateinit-restrictions",
     "classes/isinit-reads-nothing",
     "classes/readonly-is-written-once",
+    "classes/this-is-not-assignable",
     "classes/lateinit-read-before-write",
     "classes/late-init-initializes-on-the-first-read",
     "classes/no-dynamic-properties",

@@ -1,0 +1,11 @@
+{
+  "title": "`$this` is not assignable",
+  "status": "shipped",
+  "seeAlso": [
+    "statements/static-is-a-member-modifier",
+    "types/declaration"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/an-assignment-to-this-does-not-compile.nvst"
+  ]
+}

@@ -1,0 +1,32 @@
+--TEST--
+A destructuring variable already declared with the same type, or written twice in one pattern, is `E0406` at the second one, at the top level and in a method
+--FILE--
+<?nvs
+array<int> $pair = [1, 2];
+int $first = 0;
+[int $first, int $second] = $pair;
+[int $left, int $left] = $pair;
+
+class Pairs {
+    public static function split(array<int> $pair): int {
+        int $a = 0;
+        [int $a, int $b] = $pair;
+        return $a + $b;
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0406]: `$first` is already declared
+  --> case.nvs:3:5
+%A
+error[E0406]: `$left` is already declared
+  --> case.nvs:5:6
+%A
+error[E0406]: `$a` is already declared
+   --> case.nvs:9:13
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
