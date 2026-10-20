@@ -4,7 +4,7 @@
 //! A class file under an `autoload` root may not declare `autoload` itself, so
 //! checked as its own entry point every name its program autoloads would be
 //! undeclared. These cases hold that the command finds the program that lends
-//! the map, that a real mistake in the class file is still reported, that the
+//! the map, also for a name only the type phase reports, that a real mistake in the class file is still reported, that the
 //! first program in path order lends, that a program naming the file's root
 //! outranks one that only holds it by directory, that the nearest of those that
 //! hold it by directory lends, that a file no program lends
@@ -102,6 +102,26 @@ fn a_class_file_checks_through_the_map_of_the_program_that_autoloads_it() {
     let document: serde_json::Value =
         serde_json::from_slice(&json.stdout).expect("`--json` writes one document");
     assert_eq!(document["diagnostics"], serde_json::json!([]));
+}
+
+/// A class file names a class of its own namespace without a `use`, only in a
+/// type, in `new` and in `::class`. Name resolution reports nothing there, so
+/// the undeclared name comes from the type phase, and it still starts the
+/// search.
+#[test]
+fn a_name_only_the_type_phase_reports_still_finds_the_lender() {
+    let project = Project::new("type-phase");
+    site(&project);
+    project.write(
+        "site/app/Outbox.nvs",
+        "<?nvs\nnamespace App;\n\nclass Outbox {\n    \
+         public function mailer(Mailer $mailer): Mailer {\n        return $mailer;\n    }\n\n    \
+         public function fresh(): Mailer {\n        return new Mailer();\n    }\n\n    \
+         public function name(): string {\n        return Mailer::class;\n    }\n}\n",
+    );
+
+    let checked = project.check(&["site/app/Outbox.nvs"]);
+    assert_eq!(checked.status.code(), Some(0), "{}", stderr(&checked));
 }
 
 /// A mistake in the class file is reported, and the names the program

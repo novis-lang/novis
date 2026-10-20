@@ -881,12 +881,14 @@ fn front_end_synthesized(
 /// `autoload` map** (`rule:ide/an-autoloaded-file-borrows-its-programs-map`).
 /// A file a program autoloads may not declare `autoload`, so checked as its
 /// own entry point every autoloaded name in it is undeclared. When the walk
-/// below found no declaration of the entry's own and reported an undeclared
-/// name, the `.nvs` files under `survey` are searched in path order for the
-/// program that lends to this file ([`nvs_hir::lenders::choose`]), and the
-/// walk runs again with that program's declarations behind the file's own. A
-/// file that declares its own map, or names nothing undeclared, is checked
-/// exactly once and nothing is searched. A file no program lends to keeps the first walk's diagnostics.
+/// below found no declaration of the entry's own, and the walk or the type
+/// phase after it reported an undeclared name, the `.nvs` files under `survey`
+/// are searched in path order for the program that lends to this file
+/// ([`nvs_hir::lenders::choose`]), and the walk and the type phase run again
+/// with that program's declarations behind the file's own. A file that
+/// declares its own map, or names nothing undeclared, is checked exactly once
+/// and nothing is searched. A file no program lends to keeps the first
+/// check's diagnostics.
 #[expect(
     clippy::too_many_arguments,
     reason = "one parameter per front-end question its four callers answer differently; a struct would be a second spelling of those callers"
@@ -934,39 +936,27 @@ fn front_end_in(
         imports: &imports,
     };
     let plain = nvs_hir::lenders::is_plain(map.file(id).text());
-    let (mut diags, mut module, mut loaded, mut autoload) =
-        resolve_entry(&mut map, id, roster, strict_docs, &[], &classes);
-    if let Some(root) = survey
-        && autoload.sites().is_empty()
-        && diags.iter().any(names_an_undeclared_type)
-        && let Some(lender) = nvs_hir::lenders::first_lender(root, path, plain)
-    {
-        map = SourceMap::new();
-        id = match map.load(path) {
-            Ok(id) => id,
-            Err(err) => {
-                report_unreadable(path, &err, sink);
-                return Err(ExitCode::FAILURE);
-            }
-        };
-        (diags, module, loaded, autoload) =
-            resolve_entry(&mut map, id, roster, strict_docs, lender.sites(), &classes);
-    }
+    let mut lent: Option<nvs_hir::lenders::Lender> = None;
+    let (mut diags, module, loaded, autoload, interner, exprs, enums, layouts) = loop {
+        let borrowed = lent
+            .as_ref()
+            .map_or(&[][..], nvs_hir::lenders::Lender::sites);
+        let (mut diags, module, loaded, autoload) =
+            resolve_entry(&mut map, id, roster, strict_docs, borrowed, &classes);
 
-    let mut interner = nvs_types::TypeInterner::new();
-    let mut exprs = nvs_types::ExprTypeTable::new();
-    // The one edge only the walk above knows — which file each written
-    // `require` resolved to — carried across to `nvs-ir`, which calls that
-    // file's script frame at the site. This function is where both phases
-    // are in hand; see `ExprTypeTable::record_require_target` for why it
-    // rides in that table rather than in a second argument to
-    // `lower_program`.
-    for file in &loaded {
-        for &(span, target) in &file.requires {
-            exprs.record_require_target(span, target);
+        let mut interner = nvs_types::TypeInterner::new();
+        let mut exprs = nvs_types::ExprTypeTable::new();
+        // The one edge only the walk above knows — which file each written
+        // `require` resolved to — carried across to `nvs-ir`, which calls that
+        // file's script frame at the site. This function is where both phases
+        // are in hand; see `ExprTypeTable::record_require_target` for why it
+        // rides in that table rather than in a second argument to
+        // `lower_program`.
+        for file in &loaded {
+            for &(span, target) in &file.requires {
+                exprs.record_require_target(span, target);
+            }
         }
-    }
-    let (enums, layouts) = {
         let files: Vec<nvs_types::ProgramFile<'_>> = loaded
             .iter()
             .map(|file| nvs_types::ProgramFile {
@@ -984,20 +974,48 @@ fn front_end_in(
             &mut diags,
         );
 
-        if let Some(looked) = looked {
-            looked.take(&map, Some(&autoload));
+        // Both phases report an undeclared name: name resolution for a `use`,
+        // an `extends` or the left of `::`, the type phase for a written type,
+        // `new` and `::class`. So the search is decided once both have run.
+        if lent.is_none()
+            && let Some(root) = survey
+            && autoload.sites().is_empty()
+            && diags.iter().any(names_an_undeclared_type)
+            && let Some(lender) = nvs_hir::lenders::first_lender(root, path, plain)
+        {
+            drop(files);
+            lent = Some(lender);
+            map = SourceMap::new();
+            id = match map.load(path) {
+                Ok(id) => id,
+                Err(err) => {
+                    report_unreadable(path, &err, sink);
+                    return Err(ExitCode::FAILURE);
+                }
+            };
+            continue;
         }
-        if diags.has_errors() {
-            autoload.note_searched_roots(
-                &mut diags,
-                path.parent()
-                    .filter(|dir| !dir.as_os_str().is_empty())
-                    .unwrap_or_else(|| std::path::Path::new(".")),
-            );
-            emit_diagnostics(&mut diags, &map, sink);
-            return Err(ExitCode::FAILURE);
-        }
-        (enums, nvs_types::build_class_layouts(&files, &module.graph))
+
+        let layouts =
+            (!diags.has_errors()).then(|| nvs_types::build_class_layouts(&files, &module.graph));
+        drop(files);
+        break (
+            diags, module, loaded, autoload, interner, exprs, enums, layouts,
+        );
+    };
+
+    if let Some(looked) = looked {
+        looked.take(&map, Some(&autoload));
+    }
+    let Some(layouts) = layouts else {
+        autoload.note_searched_roots(
+            &mut diags,
+            path.parent()
+                .filter(|dir| !dir.as_os_str().is_empty())
+                .unwrap_or_else(|| std::path::Path::new(".")),
+        );
+        emit_diagnostics(&mut diags, &map, sink);
+        return Err(ExitCode::FAILURE);
     };
     emit_diagnostics(&mut diags, &map, sink);
 
