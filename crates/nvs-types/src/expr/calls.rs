@@ -80,6 +80,18 @@ pub(crate) fn infer_method_call(
     {
         return nullsafe_result(nullsafe, object_ty, ty, env);
     }
+    if let MemberName::Ident(name_span) = method
+        && let Some(classes) = union_classes(receiver_ty, env)
+    {
+        let call = UnionCall {
+            span: object.span.to(*name_span),
+            name: span_text(env.src, *name_span).to_owned(),
+            union: receiver_ty,
+            classes,
+        };
+        let ty = infer_union_method_call(expr, &call, type_args, args, live, scope, ctx, env);
+        return nullsafe_result(nullsafe, object_ty, ty, env);
+    }
     let resolved = match (class_qname_of(receiver_ty, env.interner), method) {
         (Some(qname), MemberName::Ident(name_span)) => {
             let name = span_text(env.src, *name_span).to_owned();
@@ -260,6 +272,174 @@ pub(crate) fn infer_method_call(
         returned
     };
     nullsafe_result(nullsafe, object_ty, returned, env)
+}
+
+/// A method call through a union of classes, as [`infer_method_call`] found
+/// it: the receiver and the method name, the union, and its classes in order.
+struct UnionCall {
+    span: Span,
+    name: String,
+    union: TypeId,
+    classes: Vec<QName>,
+}
+
+/// `rule:types/a-member-every-class-of-a-union-declares` at a call: `$u->m()`
+/// through a union of classes compiles when every class declares or inherits
+/// `m`, makes it visible here and gives it the same signature
+/// ([`same_signature`]). The arguments are checked once against that one
+/// signature, and [`ExprInfo::UnionMember`] records the call each class alone
+/// makes, as an [`ExprInfo::Call`] or, for `$u->m(...)`, an
+/// [`ExprInfo::CallableRef`]. The first class that breaks the test is
+/// `E_UNION_MEMBER_NOT_SHARED`, and the call gives the error type after its
+/// arguments are checked.
+///
+/// The checks a `Core` member makes of its arguments run once per class,
+/// and stop at the first class that reports, so one mistake is reported once.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the four-part checking context every function in this module \
+              threads, plus the call, the union it goes through, and the two \
+              parts of the syntax it checks"
+)]
+fn infer_union_method_call(
+    expr: &Expr,
+    call: &UnionCall,
+    type_args: &[Type],
+    args: &CallArgs,
+    live: &mut Live,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let name = call.name.as_str();
+    let mut owners = Vec::with_capacity(call.classes.len());
+    let mut shared: Option<(&QName, MethodSig)> = None;
+    let mut problem = None;
+    for qname in &call.classes {
+        let Some((owner, sig)) = resolve_method(qname, name, env.signatures, env.graph) else {
+            problem = Some(format!("`{qname}` has no method `{name}()`"));
+            break;
+        };
+        if sig.interface_private
+            || !crate::signatures::is_visible_from(
+                sig.visibility,
+                &owner,
+                ctx.current_class,
+                env.graph,
+            )
+        {
+            let level = visibility_word(sig.visibility);
+            problem = Some(format!(
+                "`{owner}::{name}()` is {level}, so it is not visible here"
+            ));
+            break;
+        }
+        match &shared {
+            Some((first, first_sig)) if !same_signature(first_sig, &sig) => {
+                problem = Some(format!(
+                    "`{first}::{name}()` and `{qname}::{name}()` do not have the same parameters \
+                     and return type"
+                ));
+                break;
+            }
+            Some(_) => {}
+            None => shared = Some((qname, sig)),
+        }
+        owners.push((qname.clone(), owner));
+    }
+    let shared = match (problem, shared) {
+        (None, Some((_, sig))) => sig,
+        (problem, _) => {
+            if let Some(message) = problem {
+                let described = env.interner.describe(call.union);
+                report_union_member_not_shared(call.span, &described, message, env);
+            }
+            check_args_typed(args, None, expr.span, live, scope, ctx, env);
+            return env.interner.error();
+        }
+    };
+    // `rule:statements/static-is-a-member-modifier`: `static` is the class the
+    // receiver holds, and here that is one of the union's classes.
+    let shared = match shared.binds_static() {
+        true => shared.bound_to(&owners[0].1, call.union, env.interner),
+        false => shared,
+    };
+    let label = format!("{}::{name}", owners[0].1);
+    let (sig, written) =
+        check_written_type_args(type_args, Some(shared), Some(&label), expr.span, ctx, env);
+    let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    let Some(sig) = sig else {
+        return env.interner.error();
+    };
+    let before = env.diags.len();
+    for (_, owner) in &owners {
+        crate::intrinsics::check_call(owner, name, expr.span, args, &arg_types, &slots, env);
+        crate::reasons::check_call(owner, name, args, &slots, ctx, env);
+        reject_secret_cached_argument(owner, name, args, &arg_types, &slots, env);
+        if env.diags.len() != before {
+            break;
+        }
+    }
+    let method_ref = matches!(args, CallArgs::MethodRef);
+    if method_ref && reject_unforwardable_method_ref(&owners[0].1, name, &sig, expr.span, env) {
+        return env.interner.callable();
+    }
+    let mut arms = Vec::with_capacity(owners.len());
+    for (class, owner) in owners {
+        let mut resolved = resolved_call(
+            owner.clone(),
+            name.to_owned(),
+            &sig,
+            slots.clone(),
+            env.signatures,
+        );
+        if let Some((target, list)) =
+            written_class_of(&owner, name, &written, type_args, expr.span, env)
+        {
+            target.record_on(&mut resolved, list);
+        }
+        resolved.written_enum = written_enum_of(&owner, name, &written, type_args, expr.span, env);
+        resolved.route_attributes =
+            crate::match_attribute::fold(&owner, name, &written, expr.span, env);
+        let info = match method_ref {
+            true => ExprInfo::CallableRef(resolved),
+            false => ExprInfo::Call(resolved),
+        };
+        arms.push((class, info));
+    }
+    env.exprs.record(expr.span, ExprInfo::UnionMember { arms });
+    if method_ref {
+        let held = method_ref_type(&sig, env);
+        env.exprs.record_callable_value(expr.span, held);
+        return held;
+    }
+    match carries_contagion(&sig, &slots, &arg_types, env.interner) {
+        true => tainted_result(sig.return_ty, env.interner),
+        false => sig.return_ty,
+    }
+}
+
+/// Whether two methods have the same signature in
+/// `rule:types/a-member-every-class-of-a-union-declares`'s sense: the same
+/// parameters with their names, types, qualifiers, `inout`, defaults and
+/// variadic, the same type parameters, the same return type, and the same
+/// `static` and generator kind. The written text of a parameter is not
+/// compared, because two classes may write the same type two ways.
+fn same_signature(a: &MethodSig, b: &MethodSig) -> bool {
+    a.params == b.params
+        && a.param_names == b.param_names
+        && a.param_quals == b.param_quals
+        && a.inout == b.inout
+        && a.variadic == b.variadic
+        && a.defaults == b.defaults
+        && a.type_params == b.type_params
+        && a.type_bounds == b.type_bounds
+        && a.return_ty == b.return_ty
+        && a.returns_static == b.returns_static
+        && a.params_bind_static == b.params_bind_static
+        && a.return_binds_static == b.return_binds_static
+        && a.is_static == b.is_static
+        && a.generator == b.generator
 }
 
 /// `rule:packaging/a-components-engine-class-is-internal`: a call of a built-in component's

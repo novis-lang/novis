@@ -1,5 +1,5 @@
 --TEST--
-A method call is refused wherever the receiver's type names no class — a union, a scalar, an `array<T>`, a `void` call — and a receiver that may be `null` is still one mistake — `rule:types/grammar`, `rule:types/erased-member-access`
+A method call is refused wherever the receiver's type names no class — a union with a member that is not a class, a scalar, an `array<T>`, a `void` call — and a receiver that may be `null` is still one mistake — `rule:types/grammar`, `rule:types/erased-member-access`
 --FILE--
 <?nvs
 final class Dog {
@@ -26,11 +26,11 @@ if ($narrowed is Cat) {
     echo $narrowed->speak(), "\n";
 }
 
-// A method is resolved against a class, and a union names several or none —
-// there is no one signature to check the argument list against, and no one
-// return type for the call's position to take. `is` and `as` are both
-// in the help because both already lower.
-Dog|Cat $u = new Dog();
+// A method is resolved against a class, and a union with a member that is
+// not a class has no one signature to check the argument list against. A
+// union of classes that all declare `speak()` is not here: it calls it
+// (`rule:types/a-member-every-class-of-a-union-declares`).
+Dog|int $u = new Dog();
 echo $u->speak(), "\n";
 
 // A type that can hold no object at all has nothing to narrow to, so the help
@@ -51,7 +51,7 @@ echo V::nothing()->speak(), "\n";
 ?Dog $maybe = null;
 echo $maybe->speak(), "\n";
 --EXPECTF-ERROR--
-error[E0477]: `Dog|Cat` names no class, so it has no method `speak`
+error[E0477]: `int|Dog` names no class, so it has no method `speak`
    --> %s:31:6
    |
 31 | echo $u->speak(), "\n";

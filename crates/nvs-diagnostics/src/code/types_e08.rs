@@ -1047,4 +1047,16 @@ codes! {
          `retries:` is how many more times a failed test runs, so it must be 1 or more. Write a \
          reason, or a number of 1 or more.",
     );
+    /// A property or a method reached through a union of classes that the
+    /// classes do not all share: one class lacks it, two give it different
+    /// types or signatures, one hides it from the access, or a write meets a
+    /// class where the property is not writable
+    /// (`rule:types/a-member-every-class-of-a-union-declares`).
+    pub const E_UNION_MEMBER_NOT_SHARED: Code = Code::new("E0881").card(
+        "You can use a property or a method through a union of classes, such as `Box|Circle`, \
+         only when every class in the union has it. The type must be the same in every class, \
+         and the member must be visible here. A write also needs the property to be writable \
+         in every class. Otherwise, test the value with `is` first, and use the member of that \
+         one class.",
+    );
 }

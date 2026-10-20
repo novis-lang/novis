@@ -4276,6 +4276,14 @@ impl<'a> Lowering<'a> {
             let call = call.clone();
             return self.lower_method_ref(&call, Some(object), expr, env, cur);
         }
+        if let Some(ExprInfo::UnionMember { .. }) = self.exprs.lookup(expr.span) {
+            panic!(
+                "nvs-ir: the method call at {:?} goes through a union of classes, and no \
+                 lowering takes `ExprInfo::UnionMember` yet \
+                 (`rule:types/a-member-every-class-of-a-union-declares`)",
+                expr.span
+            );
+        }
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
             panic!(
                 "nvs-ir: an instance method call at {:?} has no resolved target \
@@ -5299,6 +5307,12 @@ impl<'a> Lowering<'a> {
                 observer,
                 ..
             }) => (class, name, *ty, get.clone(), observer.clone(), None),
+            Some(ExprInfo::UnionMember { .. }) => panic!(
+                "nvs-ir: the property access at {:?} goes through a union of classes, and no \
+                 lowering takes `ExprInfo::UnionMember` yet \
+                 (`rule:types/a-member-every-class-of-a-union-declares`)",
+                expr.span
+            ),
             // Every shape a `PropertyAccess` takes is handled above,
             // `rule:types/property-key-access`'s keyed one included, so this arm is the
             // consistency claim it reads as and not a lowering still owed.

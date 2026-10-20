@@ -1210,7 +1210,7 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
         root = base.unparenthesized();
         through_subscript = true;
     }
-    if reject_readonly_write(root, ctx, env) {
+    if reject_union_write(root, env) || reject_readonly_write(root, ctx, env) {
         return;
     }
     if matches!(root.kind, ExprKind::PropertyAccess { nullsafe: true, .. }) {
@@ -1282,6 +1282,77 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
         }
         _ => {}
     }
+}
+
+/// `rule:types/a-member-every-class-of-a-union-declares`'s write: a property
+/// written through a union of classes must be writable in every class. A
+/// class where it is `readonly`, or has a `get` hook and no `set` hook, is
+/// `E_UNION_MEMBER_NOT_SHARED`, and so are two classes whose `(set)` halves
+/// differ. The read already proved the one type, so the value is checked once
+/// against it. Answers whether it reported, as [`reject_readonly_write`] does.
+///
+/// A `readonly` property is refused in every class, the declaring class's own
+/// constructor included: that constructor writes through `$this`, whose type
+/// is one class and never a union.
+fn reject_union_write(root: &Expr, env: &mut Env<'_>) -> bool {
+    let Some(ExprInfo::UnionMember { arms }) = env.exprs.lookup(root.span) else {
+        return false;
+    };
+    let arms = arms.clone();
+    let described = arms
+        .iter()
+        .map(|(qname, _)| qname.to_string())
+        .collect::<Vec<_>>()
+        .join("|");
+    let mut first_set: Option<(QName, Option<nvs_syntax::ast::Visibility>)> = None;
+    for (qname, arm) in &arms {
+        let (name, no_set_hook) = match arm {
+            ExprInfo::Property { name, .. } => (name, false),
+            ExprInfo::HookedProperty { name, set, .. } => (name, set.is_none()),
+            _ => continue,
+        };
+        let Some((owner, _)) =
+            crate::signatures::resolve_property_owned(qname, name, env.signatures, env.graph)
+        else {
+            continue;
+        };
+        let problem = if crate::signatures::property_is_readonly(&owner, name, env.signatures) {
+            Some(format!(
+                "`{owner}::${name}` is `readonly`, so it cannot be written here"
+            ))
+        } else if no_set_hook {
+            Some(format!(
+                "`{owner}::${name}` has a `get` hook and no `set` hook, so it cannot be written"
+            ))
+        } else {
+            let set = crate::signatures::property_set_visibility(&owner, name, env.signatures);
+            match &first_set {
+                Some((first, first_level)) if *first_level != set => {
+                    let word = |level: Option<nvs_syntax::ast::Visibility>| {
+                        level.map_or("no `(set)` visibility".to_owned(), |level| {
+                            format!("`{}(set)`", super::members::visibility_word(level))
+                        })
+                    };
+                    Some(format!(
+                        "`{first}::${name}` has {}, and `{owner}::${name}` has {}, so the \
+                         property cannot be written through one check",
+                        word(*first_level),
+                        word(set)
+                    ))
+                }
+                Some(_) => None,
+                None => {
+                    first_set = Some((owner.clone(), set));
+                    None
+                }
+            }
+        };
+        if let Some(message) = problem {
+            super::members::report_union_member_not_shared(root.span, &described, message, env);
+            return true;
+        }
+    }
+    false
 }
 
 /// `rule:classes/lateinit-restrictions`'s contract for `readonly`, at the one place it can be broken:

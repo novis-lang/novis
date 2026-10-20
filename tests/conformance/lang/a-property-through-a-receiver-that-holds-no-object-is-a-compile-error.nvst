@@ -1,5 +1,5 @@
 --TEST--
-`->` on a receiver whose declared type can never hold an object is `E0495` where it is written, and a union naming no single class takes the same code — `rule:types/a-declared-type-answers-before-the-program-runs`
+`->` on a receiver whose declared type can never hold an object is `E0495` where it is written, and a union with a member that is not a class takes the same code — `rule:types/a-declared-type-answers-before-the-program-runs`
 --FILE--
 <?nvs
 // PHP warns and yields `null` for every receiver below. A declared type
@@ -18,9 +18,9 @@ echo $text->length, "\n";
 array<string> $rows = ["k" => "v"];
 echo $rows->k, "\n";
 
-// A union naming no single class has no one property set to resolve
-// against, so it is the same refusal rather than a second one.
-Box|Circle $either = new Box();
+// A union with a member that is not a class has no one property set to
+// resolve against, so it is the same refusal rather than a second one.
+Box|int $either = new Box();
 echo $either->name, "\n";
 
 // `mixed` is deliberately *not* here: it is `rule:types/conversion`'s one unchecked
@@ -49,7 +49,7 @@ error[E0495]: a property cannot be reached through `array<string>`
    |      ^^^^^^^^ this receiver's type declares no properties
    = help: only an object has properties. Test the value with `$x is Box` first. Or declare it `mixed`, and a missing property throws an error when the program runs
 
-error[E0495]: a property cannot be reached through `Box|Circle`
+error[E0495]: a property cannot be reached through `int|Box`
    --> %s:21:6
    |
 21 | echo $either->name, "\n";

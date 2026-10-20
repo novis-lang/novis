@@ -2157,6 +2157,11 @@ pub(crate) fn check_property_member(
         _ => {}
     }
 
+    if let Some(classes) = union_classes(object_ty, env) {
+        let span = object.span.to(*name_span);
+        return check_union_property(span, object_ty, &name, &classes, is_unset, ctx, env);
+    }
+
     match class_qname_of(object_ty, env.interner) {
         Some(qname) => match crate::signatures::resolve_property_owned(
             &qname,
@@ -2197,53 +2202,11 @@ pub(crate) fn check_property_member(
                     );
                     return ty;
                 }
-                // `rule:classes/property-hooks`: a hooked property's access is a call to its
-                // accessor, not a field touch — except inside that property's
-                // own hooks, where `$this->p` is the backing slot (see
-                // `Ctx::current_hook`). `is_unset` never reaches here with a
-                // hook in play without also having been refused above, so
-                // there is no third case.
-                let hooks = crate::signatures::hooks_of(&owner, &name, env.signatures);
                 let inside_own_hook =
                     ctx.current_hook == Some(name.as_str()) && is_this_receiver(object, env.src);
-                // An access inside the property's own hooks is the *backing
-                // slot* — which is `rule:classes/property-observer-pipeline`'s first step, the one the
-                // access that called this hook is already running the second
-                // step for. Observing it here would report one write twice,
-                // so this is the one property access on an observing class
-                // that carries no observer. The guard is skipped there for the
-                // same reason: it already ran before the hook was called.
-                let observer = (!inside_own_hook)
-                    .then(|| observer_calls(&qname, env))
-                    .flatten();
-                let guard = (!inside_own_hook)
-                    .then(|| guard_calls(&qname, env))
-                    .flatten();
-                if hooks != crate::signatures::PropertyHooks::default() && !inside_own_hook {
-                    env.exprs.record(
-                        object.span.to(*name_span),
-                        ExprInfo::HookedProperty {
-                            class: qname.clone(),
-                            name: name.clone(),
-                            ty,
-                            get: hooks.get.then(|| {
-                                crate::signatures::hook_label(
-                                    &owner,
-                                    &name,
-                                    nvs_syntax::ast::PropertyHookKind::Get,
-                                )
-                            }),
-                            set: hooks.set.then(|| {
-                                crate::signatures::hook_label(
-                                    &owner,
-                                    &name,
-                                    nvs_syntax::ast::PropertyHookKind::Set,
-                                )
-                            }),
-                            observer,
-                            guard,
-                        },
-                    );
+                let mut record = property_record(&qname, &owner, &name, ty, inside_own_hook, env);
+                if matches!(record, ExprInfo::HookedProperty { .. }) {
+                    env.exprs.record(object.span.to(*name_span), record);
                     return ty;
                 }
                 // `nvs-ir` needs this access's resolved declaring class to
@@ -2260,17 +2223,10 @@ pub(crate) fn check_property_member(
                 // answers the narrowed type, and records it for `nvs-ir`'s
                 // checked read — `crate::locals`' narrowing section.
                 let narrowed = crate::locals::narrowed_property(object, &owner, &name, scope, env);
-                env.exprs.record(
-                    object.span.to(*name_span),
-                    ExprInfo::Property {
-                        class: qname.clone(),
-                        name: name.clone(),
-                        ty,
-                        observer,
-                        guard,
-                        narrowed,
-                    },
-                );
+                if let ExprInfo::Property { narrowed: slot, .. } = &mut record {
+                    *slot = narrowed;
+                }
+                env.exprs.record(object.span.to(*name_span), record);
                 narrowed.unwrap_or(ty)
             }
             None => {
@@ -2306,11 +2262,13 @@ pub(crate) fn check_property_member(
         // erased arm above, because deferring is what `rule:types/conversion` makes it
         // for.
         None => {
-            // A nullable receiver whose non-`null` half *is* a class already
-            // took `E_NULLABLE_RECEIVER` on the way in
-            // ([`strip_nullsafe_receiver`]) and is one mistake, not two.
+            // A nullable receiver whose non-`null` half *is* a class, or a
+            // union of classes, already took `E_NULLABLE_RECEIVER` on the way
+            // in ([`strip_nullsafe_receiver`]) and is one mistake, not two.
             let non_null = env.interner.without_null(object_ty);
-            if class_qname_of(non_null, env.interner).is_none() {
+            if class_qname_of(non_null, env.interner).is_none()
+                && union_classes(non_null, env).is_none()
+            {
                 let described = env.interner.describe(object_ty);
                 env.diags.report(
                     Diagnostic::error(
@@ -2331,6 +2289,190 @@ pub(crate) fn check_property_member(
             env.interner.mixed()
         }
     }
+}
+
+/// The record an access to `owner`'s property `name` through a receiver of
+/// class `qname` makes: [`ExprInfo::HookedProperty`] when the property has a
+/// hook and the access is not inside one of its own hooks, and
+/// [`ExprInfo::Property`] with nothing narrowed otherwise. A read through one
+/// class and each arm of a read through a union of classes
+/// ([`check_union_property`]) both build theirs here, so an arm is exactly
+/// the access that class alone makes.
+fn property_record(
+    qname: &QName,
+    owner: &QName,
+    name: &str,
+    ty: TypeId,
+    inside_own_hook: bool,
+    env: &Env<'_>,
+) -> ExprInfo {
+    // `rule:classes/property-hooks`: a hooked property's access is a call to
+    // its accessor, not a field touch — except inside that property's own
+    // hooks, where `$this->p` is the backing slot (see `Ctx::current_hook`).
+    //
+    // That backing slot is `rule:classes/property-observer-pipeline`'s first
+    // step, the one the access that called this hook is already running the
+    // second step for. Observing it here would report one write twice, so this
+    // is the one property access on an observing class that carries no
+    // observer. The guard is skipped there for the same reason: it already ran
+    // before the hook was called.
+    let observer = (!inside_own_hook)
+        .then(|| observer_calls(qname, env))
+        .flatten();
+    let guard = (!inside_own_hook)
+        .then(|| guard_calls(qname, env))
+        .flatten();
+    let hooks = crate::signatures::hooks_of(owner, name, env.signatures);
+    if hooks != crate::signatures::PropertyHooks::default() && !inside_own_hook {
+        let label = |kind| crate::signatures::hook_label(owner, name, kind);
+        return ExprInfo::HookedProperty {
+            class: qname.clone(),
+            name: name.to_owned(),
+            ty,
+            get: hooks
+                .get
+                .then(|| label(nvs_syntax::ast::PropertyHookKind::Get)),
+            set: hooks
+                .set
+                .then(|| label(nvs_syntax::ast::PropertyHookKind::Set)),
+            observer,
+            guard,
+        };
+    }
+    ExprInfo::Property {
+        class: qname.clone(),
+        name: name.to_owned(),
+        ty,
+        observer,
+        guard,
+        narrowed: None,
+    }
+}
+
+/// The classes of a receiver whose type is a union of classes, in the union's
+/// order, or `None` when `ty` is not a union or has a member that is not a
+/// class. An interface is not a class here, and neither is an enum or `null`:
+/// `rule:types/a-member-every-class-of-a-union-declares` reads a fixed offset
+/// per class, and none of those has one.
+pub(crate) fn union_classes(ty: TypeId, env: &Env<'_>) -> Option<Vec<QName>> {
+    let Ty::Union(members) = env.interner.get(ty) else {
+        return None;
+    };
+    members
+        .iter()
+        .map(|&member| match env.interner.get(member) {
+            Ty::Class(qname, _)
+                if env.symbols.get(qname).map(|symbol| symbol.kind)
+                    != Some(nvs_hir::SymbolKind::Interface) =>
+            {
+                Some(qname.clone())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// `rule:types/a-member-every-class-of-a-union-declares` at a property: the
+/// read of `name` through a union of `classes` compiles when every class
+/// declares or inherits it as an instance property, makes it visible here and
+/// gives it the same type. It records [`ExprInfo::UnionMember`] with each
+/// class's own record and answers that one type. The first class that breaks
+/// the test is `E_UNION_MEMBER_NOT_SHARED`, and the access gives the error
+/// type. Whether a *write* is allowed is [`super::assign::check_write_target`]'s
+/// question, asked of the arms recorded here.
+fn check_union_property(
+    span: Span,
+    union: TypeId,
+    name: &str,
+    classes: &[QName],
+    is_unset: bool,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let union = &env.interner.describe(union);
+    let mut arms = Vec::with_capacity(classes.len());
+    let mut shared: Option<(&QName, TypeId)> = None;
+    for qname in classes {
+        let Some((owner, ty)) =
+            crate::signatures::resolve_property_owned(qname, name, env.signatures, env.graph)
+        else {
+            let message = format!("`{qname}` has no property `${name}`");
+            report_union_member_not_shared(span, union, message, env);
+            return env.interner.error();
+        };
+        let level = crate::signatures::property_visibility(&owner, name, env.signatures);
+        if !crate::signatures::is_visible_from(level, &owner, ctx.current_class, env.graph) {
+            let level = visibility_word(level);
+            let message = format!("`{owner}::${name}` is {level}, so it is not visible here");
+            report_union_member_not_shared(span, union, message, env);
+            return env.interner.error();
+        }
+        if env
+            .signatures
+            .get(&owner)
+            .is_some_and(|sig| sig.static_properties.iter().any(|(n, _)| n == name))
+        {
+            let message = format!("`{owner}::${name}` is static, so an object does not have it");
+            report_union_member_not_shared(span, union, message, env);
+            return env.interner.error();
+        }
+        match shared {
+            Some((first, first_ty)) if first_ty != ty => {
+                let (a, b) = (env.interner.describe(first_ty), env.interner.describe(ty));
+                let message = format!(
+                    "`{first}::${name}` is `{a}`, and `{qname}::${name}` is `{b}`, so the property \
+                     has no one type"
+                );
+                report_union_member_not_shared(span, union, message, env);
+                return env.interner.error();
+            }
+            Some(_) => {}
+            None => shared = Some((qname, ty)),
+        }
+        arms.push((
+            qname.clone(),
+            property_record(qname, &owner, name, ty, false, env),
+        ));
+    }
+    let Some((first, ty)) = shared else {
+        return env.interner.error();
+    };
+    // `rule:classes/unset-is-refused-on-a-property` refuses it through one
+    // class, so it is refused through the union, once.
+    if is_unset {
+        report_unset_on_property(span, first, name, env);
+    }
+    env.exprs.record(span, ExprInfo::UnionMember { arms });
+    ty
+}
+
+/// The keyword a visibility level is written with.
+pub(crate) fn visibility_word(level: nvs_syntax::ast::Visibility) -> &'static str {
+    match level {
+        nvs_syntax::ast::Visibility::Public => "public",
+        nvs_syntax::ast::Visibility::Protected => "protected",
+        nvs_syntax::ast::Visibility::Private => "private",
+    }
+}
+
+/// `E_UNION_MEMBER_NOT_SHARED` at an access through the union written
+/// `described`, with `message` naming the class that breaks the test or the
+/// two types that differ. The property read, the write and the method call
+/// share it.
+pub(crate) fn report_union_member_not_shared(
+    span: Span,
+    described: &str,
+    message: String,
+    env: &mut Env<'_>,
+) {
+    env.diags.report(
+        Diagnostic::error(code::E_UNION_MEMBER_NOT_SHARED, message)
+            .with_primary(span, format!("used through `{described}` here"))
+            .with_help(
+                "you can use a member through a union only when every class has it with the \
+                 same type, and it is visible here. Otherwise, test the value with `is` first",
+            ),
+    );
 }
 
 /// `unset()`'s operand, which `rule:classes/unset-is-refused-on-a-property` narrows to exactly one shape:

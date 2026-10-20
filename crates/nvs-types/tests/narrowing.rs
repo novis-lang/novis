@@ -678,3 +678,103 @@ fn a_write_to_the_root_variable_drops_a_property_narrowing() {
     );
     assert!(refuses_nullable_receiver(&path), "{path:?}");
 }
+
+/// Declares `Box` with `box_members` and `Circle` with `circle_members`, and
+/// checks `body` inside a method taking `$s` of type `receiver`. The fixtures
+/// of `rule:types/a-member-every-class-of-a-union-declares` are written over it.
+fn check_union(box_members: &str, circle_members: &str, receiver: &str, body: &str) -> Diagnostics {
+    check_src(&format!(
+        "<?nvs\ninterface Shape {{\n  function label(): string;\n}}\n\
+         class Box {{\n{box_members}\n}}\nclass Circle {{\n{circle_members}\n}}\n\
+         class T {{\n  function m({receiver} $s): void {{\n{body}\n  }}\n}}\n"
+    ))
+}
+
+/// The codes `diags` reports, in order, so a fixture can say there is one.
+fn codes(diags: &Diagnostics) -> Vec<&'static str> {
+    diags
+        .iter()
+        .filter_map(|d| d.code.map(|c| c.as_str()))
+        .collect()
+}
+
+const SHARED: &str = "  public string $name = \"x\";\n  function label(): string { return \"x\"; }";
+
+#[test]
+fn a_member_every_class_of_a_union_declares_is_read_written_and_called() {
+    let body = "    echo $s->name;\n    $s->name = \"y\";\n    echo $s->label();";
+    let diags = check_union(SHARED, SHARED, "Box|Circle", body);
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_nullable_union_is_read_with_the_nullsafe_operator() {
+    let body = "    echo $s?->name ?? \"none\";\n    echo $s?->label() ?? \"none\";";
+    let diags = check_union(SHARED, SHARED, "?Box|Circle", body);
+    assert!(!diags.has_errors(), "{diags:?}");
+    let arrow = check_union(SHARED, SHARED, "?Box|Circle", "    echo $s->name;");
+    assert_eq!(codes(&arrow), [code::E_NULLABLE_RECEIVER.as_str()]);
+}
+
+#[test]
+fn a_class_that_lacks_the_member_is_one_error() {
+    let read = check_union(
+        SHARED,
+        "  public int $size = 1;",
+        "Box|Circle",
+        "    echo $s->name;",
+    );
+    assert_eq!(codes(&read), [code::E_UNION_MEMBER_NOT_SHARED.as_str()]);
+    let call = check_union(
+        SHARED,
+        "  public int $size = 1;",
+        "Box|Circle",
+        "    echo $s->label();",
+    );
+    assert_eq!(codes(&call), [code::E_UNION_MEMBER_NOT_SHARED.as_str()]);
+}
+
+#[test]
+fn two_types_that_differ_are_one_error() {
+    let circle = "  public ?string $name = null;\n  function label(): ?string { return null; }";
+    let read = check_union(SHARED, circle, "Box|Circle", "    echo $s->name ?? \"\";");
+    assert_eq!(codes(&read), [code::E_UNION_MEMBER_NOT_SHARED.as_str()]);
+    let call = check_union(
+        SHARED,
+        circle,
+        "Box|Circle",
+        "    echo $s->label() ?? \"\";",
+    );
+    assert_eq!(codes(&call), [code::E_UNION_MEMBER_NOT_SHARED.as_str()]);
+}
+
+#[test]
+fn a_member_private_in_one_class_is_one_error() {
+    let circle =
+        "  private string $name = \"x\";\n  private function label(): string { return \"x\"; }";
+    let read = check_union(SHARED, circle, "Box|Circle", "    echo $s->name;");
+    assert_eq!(codes(&read), [code::E_UNION_MEMBER_NOT_SHARED.as_str()]);
+    let call = check_union(SHARED, circle, "Box|Circle", "    echo $s->label();");
+    assert_eq!(codes(&call), [code::E_UNION_MEMBER_NOT_SHARED.as_str()]);
+}
+
+#[test]
+fn a_write_needs_the_property_writable_in_every_class() {
+    let circle =
+        "  public readonly string $name;\n  function constructor() { $this->name = \"x\"; }";
+    let diags = check_union(SHARED, circle, "Box|Circle", "    $s->name = \"y\";");
+    assert_eq!(codes(&diags), [code::E_UNION_MEMBER_NOT_SHARED.as_str()]);
+    let read = check_union(SHARED, circle, "Box|Circle", "    echo $s->name;");
+    assert!(!read.has_errors(), "{read:?}");
+}
+
+#[test]
+fn an_interface_in_the_union_keeps_its_error() {
+    let read = check_union(SHARED, SHARED, "Box|Shape", "    echo $s->name;");
+    assert_eq!(codes(&read), [code::E_RECEIVER_HAS_NO_PROPERTIES.as_str()]);
+    let call = check_union(SHARED, SHARED, "Box|Shape", "    echo $s->label();");
+    assert!(
+        !codes(&call).contains(&code::E_UNION_MEMBER_NOT_SHARED.as_str()) && call.has_errors(),
+        "{call:?}"
+    );
+}
