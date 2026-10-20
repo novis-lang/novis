@@ -522,6 +522,12 @@ Every stage is done, and the goal is reached. `bun nv owners --closes compiler-h
 gap, `bun nv soundness --check` writes all 397 cells with none skipped, and `bun nv verify --doc`
 finds every link.
 
+- The first `floor-debt` run paid 5510 atoms and left one red:
+  `tests/hostile/core/Ldap-Connection/setPassword/01-strange-accounts-and-passwords.nvs`, which
+  missed its socket deadline under the full run's load. `bun nv proofs --run --id
+  'Core\Ldap\Connection::setPassword'` ran it alone green and recorded the atom green, so no debt
+  is left.
+
 - Stage 15 landed in `b3a4202df`: `pow_mod` runs Montgomery multiplication over the library's
   Karatsuba and Toom-3 products above `MONTGOMERY_LEAF_BITS` (10240). The two steps were equal at
   9216 bits, and the new one is 1.7 times faster at 32768 bits. `powMod.nvs` declares
