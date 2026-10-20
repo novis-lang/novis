@@ -559,15 +559,11 @@ else.
 - `bun nv affected --run` stopped at `rules-render` on `docs/rules/ide.md` again. So the session ran
   `cargo clippy --all-targets -- -D warnings`, `bun nv verify --fast -p` for `nvs-types`, `nvs-ir`,
   `nvs-stdlib` and `nvs-codegen`, the whole conformance suite both ways, `bun test tools/nv/test`,
-  `soundness --check`, `owners --check`, `links` and `layout`. `bun nv rules --render` rewrites
-  `docs/rules/ide.md` too, so copy it aside and put it back around a render.
+  `soundness --check`, `owners --check`, `links` and `layout`.
 
-The tree holds uncommitted work this goal does not own: `docs/rules/ide.md`,
-`website/src/lib/core.ts`, `website/src/data/numbers.json` and
-`tools/nv/test/core-type-links.test.ts`. Leave them out of this goal's commits. `docs/rules/ide.md`
-differs from what `bun nv rules --render` writes, so `bun nv verify` stops at `rules-render` until
-that work lands. `bun nv verify --fast` takes one `-p`: given several, it runs only the last, so
-run it once per crate.
+`docs/rules/ide.md` is committed as `bun nv rules --render` writes it, so `bun nv verify` no longer
+stops at `rules-render`, and a render needs no copy aside. `bun nv verify --fast` takes one `-p`:
+given several, it runs only the last, so run it once per crate.
 
 ### Next
 
