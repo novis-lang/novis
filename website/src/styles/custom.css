@@ -1564,6 +1564,22 @@ main:has(.home-hero) > .content-panel {
   }
 }
 
+/* [data-motion]: a region whose animations run only while it is on screen.
+   src/scripts/on-screen.ts marks it with data-on-screen; until then, and
+   while it is off screen, every animation in it is paused. A paused
+   animation costs nothing, and it goes on from the same frame when the
+   region comes back into view. A component that loops an animation puts
+   data-motion on its root; `bun nv site --check structure` fails on a loop
+   in a file that does not. */
+[data-motion]:not([data-on-screen]),
+[data-motion]:not([data-on-screen])::before,
+[data-motion]:not([data-on-screen])::after,
+[data-motion]:not([data-on-screen]) *,
+[data-motion]:not([data-on-screen]) *::before,
+[data-motion]:not([data-on-screen]) *::after {
+  animation-play-state: paused !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

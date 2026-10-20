@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 import { endlessLoops, foldedTimelines, styleProblems } from "../lib/site-css.ts";
 
@@ -30,6 +32,13 @@ describe("site css", () => {
       "}",
     ].join("\n");
     expect(endlessLoops(css)).toEqual([1, 7]);
+    expect(endlessLoops(`<div data-motion></div>\n${css}`)).toEqual([]);
+  });
+
+  test("custom.css pauses every animation in a region that is not on screen", () => {
+    const css = readFileSync(join(ROOT, "website/src/styles/custom.css"), "utf8");
+    expect(css).toContain("[data-motion]:not([data-on-screen]) *::before");
+    expect(css).toMatch(/\[data-motion\]:not\(\[data-on-screen\]\) \*::after \{\s*animation-play-state: paused !important;/);
   });
 
   test("the website's styles keep every timeline and loop nothing forever", () => {

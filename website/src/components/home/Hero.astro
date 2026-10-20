@@ -33,7 +33,8 @@
  * The bar under the name grows from its centre on load, and a glow behind it
  * breathes slowly. The three color fields behind the title drift and swell.
  * All of this motion is transform and opacity alone, and none of it runs when
- * the reader asks for less motion.
+ * the reader asks for less motion. The hero is a `data-motion` region, so its
+ * loops pause while it is off screen (src/scripts/on-screen.ts).
  */
 import { Icon } from '@astrojs/starlight/components'
 import { INSTALL } from '@config/site.mjs'
@@ -62,7 +63,7 @@ const phrases = [
 ] as const
 ---
 
-<section class="home-hero not-content" aria-labelledby="_top">
+<section class="home-hero not-content" aria-labelledby="_top" data-motion>
   <div class="backdrop" aria-hidden="true">
     <i class="field field-violet"></i>
     <i class="field field-crimson"></i>
@@ -226,9 +227,8 @@ const phrases = [
 
   // Turns the slogan's drum one phrase at a time. Without this script the slogan stays as
   // it is. The drum turns by itself only when the reader allows motion, and it waits while
-  // the hero is off-screen or the tab is hidden. It turns through every phrase once and
-  // rests on the first again, so an open page does not keep turning it. A click turns it
-  // one phrase on and ends the turning by itself.
+  // the hero is off-screen or the tab is hidden. A click turns it one phrase on and ends
+  // the turning by itself.
   const HOLD = 3400
   for (const root of document.querySelectorAll<HTMLElement>('[data-slogan]')) {
     const drum = root.querySelector<HTMLElement>('[data-drum]')
@@ -238,7 +238,6 @@ const phrases = [
     const motion = matchMedia('(prefers-reduced-motion: no-preference)')
     let turn = 0
     let clicked = false
-    let round = false
     let onScreen = true
     let timer = 0
     let frame = 0
@@ -287,8 +286,7 @@ const phrases = [
         frame = window.requestAnimationFrame(() => {
           frame = 0
           step()
-          round = turn % phrases.length === 0
-          if (!round) schedule()
+          schedule()
         })
       }, HOLD)
     }
@@ -297,7 +295,7 @@ const phrases = [
       const active = motion.matches || clicked
       if (!active && turn !== 0) place(0)
       root.toggleAttribute('data-running', active)
-      const rotate = motion.matches && !clicked && !round && onScreen && !document.hidden
+      const rotate = motion.matches && !clicked && onScreen && !document.hidden
       if (!rotate) stop()
       else if (timer === 0 && frame === 0) schedule()
     }
@@ -312,7 +310,6 @@ const phrases = [
     document.addEventListener('visibilitychange', update)
     new IntersectionObserver((entries) => {
       onScreen = entries.some((entry) => entry.isIntersecting)
-      hero.toggleAttribute('data-offscreen', !onScreen)
       update()
     }).observe(hero)
 
@@ -379,8 +376,8 @@ const phrases = [
   :global([data-theme='light']) .field-gold {
     --glow: color-mix(in oklab, var(--nv-gold) 14%, transparent);
   }
-  /* The fields drift and swell once when the page opens, each at its own
-     pace, and then rest where they ended, so an open page runs no animation.
+  /* The fields drift and swell slowly. The three durations share no
+     common beat, so the picture never repeats in a way the eye can follow.
      Only transform and opacity change. */
   @keyframes drift-violet {
     0% {
@@ -420,13 +417,13 @@ const phrases = [
   }
   @media (prefers-reduced-motion: no-preference) {
     .field-violet {
-      animation: drift-violet 9s ease-in-out both;
+      animation: drift-violet 23s ease-in-out infinite alternate;
     }
     .field-crimson {
-      animation: drift-crimson 11s ease-in-out both;
+      animation: drift-crimson 29s ease-in-out -7s infinite alternate;
     }
     .field-gold {
-      animation: drift-gold 7s ease-in-out both;
+      animation: drift-gold 17s ease-in-out -4s infinite alternate;
     }
   }
   .backdrop::after {
@@ -529,7 +526,7 @@ const phrases = [
     opacity: 0.55;
   }
   /* On load the bar grows from its centre, and the glow behind it then
-     breathes out and in once. */
+     breathes slowly while the hero is on screen. */
   @keyframes bar-in {
     from {
       transform: scaleX(0);
@@ -565,11 +562,7 @@ const phrases = [
     .brand::before {
       animation:
         glow-in 900ms cubic-bezier(0.16, 1, 0.3, 1) 150ms both,
-        glow-breathe 1.8s ease-in-out 1050ms 2 alternate;
-    }
-    .home-hero[data-offscreen] .field,
-    .home-hero[data-offscreen] .brand::before {
-      animation-play-state: paused;
+        glow-breathe 1.8s ease-in-out 1050ms infinite alternate;
     }
   }
   @media (forced-colors: active) {

@@ -152,7 +152,7 @@
 // Install and Sponsoring, each area is one sidebar group, no retired page or generator is on disk, the
 // footer has no prev/next, the Astro config has no redirect, no page or sidebar entry links to a URL
 // `builtUrls` does not list, no style rule pairs `animation` with `animation-timeline`, which the
-// minified build drops, and no animation loops forever while the reader does nothing:
+// minified build drops, and no animation loops outside a region that pauses it off screen:
 // `lib/site-css.ts`), `snippets` (no handwritten page has an
 // inline Novis fence, every `<Snippet src="..."/>` names a file under `website/snippets/`, every snippet
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and has the files § *A snippet*
