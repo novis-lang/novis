@@ -150,8 +150,9 @@
 //
 // The parts of `--check`: `structure` (the nav is the four areas from `website/config/site.mjs`, then
 // Install and Sponsoring, each area is one sidebar group, no retired page or generator is on disk, the
-// footer has no prev/next, the Astro config has no redirect, and no page or sidebar entry links to a URL
-// `builtUrls` does not list), `snippets` (no handwritten page has an
+// footer has no prev/next, the Astro config has no redirect, no page or sidebar entry links to a URL
+// `builtUrls` does not list, and no style rule pairs `animation` with `animation-timeline`, which the
+// minified build drops: `lib/site-css.ts`), `snippets` (no handwritten page has an
 // inline Novis fence, every `<Snippet src="..."/>` names a file under `website/snippets/`, every snippet
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and has the files § *A snippet*
 // names, each matching), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `questions` (see `questionProblems`),`reference` (see
@@ -174,6 +175,7 @@ import { rel, ROOT } from "../lib/paths.ts";
 import { parseReplay, recordReplay } from "../lib/replay.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
+import { foldedTimelineProblems } from "../lib/site-css.ts";
 import { diagramProblems } from "../lib/site-diagrams.ts";
 import { commentProblems } from "../proofs/collect.ts";
 import { dockerAbsent, servicesFor } from "../proofs/run.ts";
@@ -1650,7 +1652,7 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
   let w: World | null = null;
   for (const part of parts) {
     let problems: string[];
-    if (part === "structure") problems = structureProblems();
+    if (part === "structure") problems = structureProblems().concat(foldedTimelineProblems(ROOT));
     else if (part === "guides") problems = guidesProblems();
     else if (part === "in-depth") problems = inDepthProblems();
     else if (part === "prose") {

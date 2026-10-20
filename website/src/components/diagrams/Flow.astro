@@ -270,34 +270,40 @@ const at = (i: number) => START + ((END - START) * i) / Math.max(1, n - 1)
     from {
       opacity: 0.45;
       translate: 0 0.4rem;
-      filter: saturate(0);
     }
     to {
       opacity: 1;
       translate: 0 0;
-      filter: none;
     }
   }
   @media (prefers-reduced-motion: no-preference) {
     @supports (animation-timeline: view()) {
       .dot {
         display: block;
-        animation: run linear both;
+        animation-name: run;
+        animation-timing-function: linear;
+        animation-fill-mode: both;
         animation-timeline: --dg-flow;
         animation-range: cover var(--start) cover var(--end);
       }
       .fill {
-        animation: fill linear both;
+        animation-name: fill;
+        animation-timing-function: linear;
+        animation-fill-mode: both;
         animation-timeline: --dg-flow;
         animation-range: cover var(--start) cover var(--end);
       }
       .steps > li {
-        animation: light ease-out both;
+        animation-name: light;
+        animation-timing-function: ease-out;
+        animation-fill-mode: both;
         animation-timeline: --dg-flow;
         animation-range: cover calc(var(--at) - 6%) cover var(--at);
       }
       .steps > li::before {
-        animation: drop linear both;
+        animation-name: drop;
+        animation-timing-function: linear;
+        animation-fill-mode: both;
         animation-timeline: --dg-flow;
         animation-range: cover var(--at) cover var(--next);
       }
