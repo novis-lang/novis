@@ -8,7 +8,7 @@
 import data from '../data/numbers.json'
 import { CASE_TEXT, record } from './compare'
 
-/** The counts, each rounded down to its first two digits except the two crate counts. */
+/** The counts, each rounded down to its first two digits except the crate and fuzz-target counts. */
 export const counts = data as {
   attacks: number
   languageTests: number
@@ -18,10 +18,20 @@ export const counts = data as {
   editorTests: number
   crates: number
   cratesWithoutUnsafe: number
+  fuzzTargets: number
 }
+
+export type Count = keyof typeof counts
+
+/** The counts written as they are, which are not rounded down. */
+const EXACT: readonly Count[] = ['crates', 'cratesWithoutUnsafe', 'fuzzTargets']
 
 /** A rounded-down count as text: `at least 1,400`. */
 export const atLeast = (n: number) => `at least ${n.toLocaleString('en-US')}`
+
+/** A count as a short label: `1,400+` for a rounded-down count, `15` for an exact one. */
+export const shortCount = (key: Count) =>
+  `${counts[key].toLocaleString('en-US')}${EXACT.includes(key) ? '' : '+'}`
 
 /** The case the front page shows. */
 const CASE = 'json-api'
