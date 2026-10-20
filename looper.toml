@@ -84,6 +84,10 @@ after_session = [{ run = ["bun", "nv", "sweep"], timeout = 900, on_fail = "pause
 # files and seeds the selection store, each only when it is missing; in any other loop it does nothing.
 # The timeout covers its own 600-second cap on `bun install` and the copies.
 before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 900, on_fail = "pause" }]
+# `tools/nv/cmd/ci.ts`: once a goal is retired, it pushes `main` and starts the full CI run on it, which
+# the `ci-green` goal's loop watches. A failed push only warns, so the next goal still starts, and the
+# next retirement pushes again. The timeout covers the push and the wait for the runs to show up.
+after_retire = [{ run = ["bun", "nv", "ci", "--push"], timeout = 600, on_fail = "warn" }]
 
 # `scope` is the words looper writes into `docs/agent/prose.md`. The files the prose check reads and its
 # rules are `tools/nv/cmd/prose.ts`'s.
