@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/conformance.rs",
+  "title": "A property redeclared at a narrower type compiles, and a write through the parent puts the wrong class in it.",
+  "text": "`class Shelter { public Animal $pet; }` and `class DogShelter extends Shelter { public Dog $pet; }` pass `nvs check`. `Shelter $s = new DogShelter(); $s->pet = new Animal();` compiles, and `DogShelter` then reads the `Animal` as a `Dog`: a method of `Dog` that reads its own property prints a number from memory that is not that property. Every instance property form does it: a plain property, a promoted constructor parameter, `lateinit`, a hooked property (`set (Animal $v)` redeclared as `set (Dog $v)`), and `array<Animal>` redeclared as `array<Dog>`. A redeclared `readonly` property is written twice, once by each constructor. No rule covers a redeclared property. It closes when a redeclared instance property keeps its parent's exact type, a hooked one included, and anything else is a diagnostic at the redeclaration, with a conformance case for each of the five forms. A narrower type with a check on each write is goal `covariant`'s, never this record's.",
+  "goal": "compiler-holes"
+}
