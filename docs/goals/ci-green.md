@@ -96,16 +96,15 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `dbef3c67b`. Its CI run,
-https://github.com/novis-lang/novis/actions/runs/39593379567, and its Website run,
-https://github.com/novis-lang/novis/actions/runs/39593379682, are green. The nightly deep lane on
-`afbb1edc2` had turned the `proofs` stale guard red on every platform. `5d6d69097` restamped the four syntax
-pages and eleven question sets the class-property wording left stale. Its push then turned `docs` red,
-because `078f54e91` changed rule fragments without rendering their chapters. `dbef3c67b` committed the
-rendered `docs/rules/errors.md`, `docs/rules/types.md` and `docs/ground-rules.md`. Both fixes were checked
-in a scratch worktree at `HEAD`, so the main loop's uncommitted edits stayed out. The push lane on
-`dbef3c67b` ran few jobs, so the next nightly deep lane is the first full check of this tree. No red is
-handed to the main loop, so no watch passes `--past`.
+`origin/main` is at `b7ce5a074`. Its CI run,
+https://github.com/novis-lang/novis/actions/runs/39633333828, and its Website run,
+https://github.com/novis-lang/novis/actions/runs/39633333727, are green. The main loop's push of
+`fcf671105` was red in `docs`, `proofs`, the website render and `rustfmt`. The local `main` already
+carried the main loop's fixes for all four, so pushing it was the fix. That run then showed two reds.
+`7daec7687` fixed a race in `nvs run`'s wall clock. A `Core\Time::sleep` that ends at the deadline runs
+the `onLimit` handler, and the clock's later raise stopped that handler on Windows. Both sides now claim
+the stop under `TreeState::wall_stop`. `b7ce5a074` restamped the `/in-depth/compare/` questions after the
+main loop reordered that page. No red is handed to the main loop, so no watch passes `--past`.
 
 ### Next
 
@@ -117,7 +116,9 @@ handed to the main loop, so no watch passes `--past`.
   reread and a `--stamp`. Under Git Bash, a URL argument needs `MSYS_NO_PATHCONV=1`. Check a site or
   render red against committed `HEAD` in a scratch worktree with `--nvs E:/mwl/target/debug/nvs.exe`,
   because the root holds the main loop's uncommitted edits. A `git cherry-pick` into the root fails on
-  its staged changes, so apply the diff with `git apply` and commit by pathspec.
+  its staged changes, so apply the diff with `git apply` and commit by pathspec. Before fixing a red,
+  run `git log origin/main..HEAD`: the main loop may have committed the fix already, and then a push
+  is the fix. Remove a scratch worktree from the root, never from inside it.
 
 ### Backlog
 
