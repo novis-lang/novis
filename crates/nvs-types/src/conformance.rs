@@ -709,7 +709,7 @@ pub(crate) fn check_class_finality(decl: &ClassDecl, qname: &QName, env: &mut En
             .with_help(format!(
                 "remove `final` from the declaration of `{parent}` if other classes may extend it. \
                  Or store a `{parent}` in a property of `{qname}`, and write \
-                 `implements … by $field` to forward the calls to it"
+                 `implements … by $property` to forward the calls to it"
             )),
         );
     }

@@ -787,8 +787,8 @@ impl Format {
     const fn no_mapping_help(self) -> &'static str {
         match self {
             Self::Json => {
-                "a field is a scalar, an enum, a shape, an `array<T>` or `?T` of one of those, \
-                 or a class that has its own `#[Json\\Derive]`. Write \
+                "the property's type must be a scalar, an enum, a shape, an `array<T>` or `?T` \
+                 of one of those, or a class that has its own `#[Json\\Derive]`. Write \
                  `#[Json\\Field(skip: true)]` to leave the property out"
             }
             Self::Db => {
@@ -2084,8 +2084,8 @@ fn check_class_format(
             )
             .with_primary(attribute, "this attribute needs a constructor")
             .with_help(
-                "A decoder creates the object with `new`, and passes each field to the \
-                 constructor. Write a `constructor` with one parameter for each field.",
+                "A decoder creates the object with `new`, and passes each property to the \
+                 constructor. Write a `constructor` with one parameter for each property.",
             ),
         );
     }
@@ -2146,12 +2146,12 @@ fn check_class_format(
         env.diags.report(
             Diagnostic::error(
                 code::E_DERIVE_NO_FIELDS,
-                format!("`{class}` derives {contract} with no fields in it"),
+                format!("`{class}` derives {contract} with no properties in it"),
             )
             .with_primary(attribute, "no declared property reaches the wire contract")
             .with_help(
-                "the fields are the class's own instance properties, declared in the class or in \
-                 the `constructor`. Declare a property, or delete the attribute",
+                "the attribute converts the class's own instance properties, declared in the class \
+                 or in the `constructor`. Declare a property, or delete the attribute",
             ),
         );
     }
@@ -2176,12 +2176,12 @@ fn check_unique_key(
     env.diags.report(
         Diagnostic::error(
             code::E_DERIVE_DUPLICATE_KEY,
-            format!("two fields have the key `{key}`"),
+            format!("two properties have the key `{key}`"),
         )
-        .with_primary(at, format!("this field's key is `{key}`"))
-        .with_secondary(*first, "this field has the same key")
+        .with_primary(at, format!("this property's key is `{key}`"))
+        .with_secondary(*first, "this property has the same key")
         .with_help(format!(
-            "Each field needs its own key. Give one field another key with `{field}`'s \
+            "Each property needs its own key. Give one property another key with `{field}`'s \
              `name`, or leave it out with `skip: true`."
         )),
     );
@@ -2320,7 +2320,7 @@ fn codec_field(
         env.diags.report(
             Diagnostic::error(
                 code::E_DERIVE_LATEINIT_FIELD,
-                format!("`${name}` is `lateinit`, so it cannot be a `{derive}` field"),
+                format!("`${name}` is `lateinit`, so `{derive}` cannot convert it"),
             )
             .with_primary(p.name, "assigned after the constructor, not by it")
             .with_help(format!(
@@ -2337,7 +2337,7 @@ fn codec_field(
         env.diags.report(
             Diagnostic::error(
                 code::E_DERIVE_SECRET_FIELD,
-                format!("`${name}` is `secret`, so it cannot be a `{derive}` field"),
+                format!("`${name}` is `secret`, so `{derive}` cannot convert it"),
             )
             .with_primary(p.name, "a `secret` value has no wire form")
             .with_help(format!(
@@ -2427,11 +2427,11 @@ fn check_constructor_parameter(
         env.diags.report(
             Diagnostic::error(
                 code::E_DERIVE_FIELD_NOT_A_PARAMETER,
-                format!("`${name}` is a `{derive}` field with no constructor parameter"),
+                format!("`${name}` has no constructor parameter, so `{derive}` cannot decode it"),
             )
             .with_primary(at, "nothing decodes into this")
             .with_help(format!(
-                "the decoder builds the object with `new`, so every field needs a constructor \
+                "the decoder builds the object with `new`, so every property needs a constructor \
                  parameter with the same name. Add one, or write `{skip}`"
             )),
         );

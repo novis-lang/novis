@@ -14121,7 +14121,7 @@ error[E0783]: `Sealed` is `final`, so no class extends it
   |
 8 | class Widened extends Sealed {}
   |                       ^^^^^^ `Widened` names it as its superclass
-  = help: remove `final` from the declaration of `Sealed` if other classes may extend it. Or store a `Sealed` in a property of `Widened`, and write `implements … by $field` to forward the calls to it
+  = help: remove `final` from the declaration of `Sealed` if other classes may extend it. Or store a `Sealed` in a property of `Widened`, and write `implements … by $property` to forward the calls to it
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -14865,7 +14865,7 @@ error[E0227]: traits do not exist
  6 | trait Greets {
    | ^^^^^^^^^^^^^^... not supported
    | (continues to line 10)
-   = help: for shared methods, write a default or private method in an interface. For shared state, write `implements Interface by $field;`
+   = help: for shared methods, write a default or private method in an interface. For shared state, write `implements Interface by $property;`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -25662,12 +25662,12 @@ class User {
 ```
 
 ```output
-error[E0460]: `$name` is a `#[Json\Derive]` field with no constructor parameter
+error[E0460]: `$name` has no constructor parameter, so `#[Json\Derive]` cannot decode it
   --> main.nvs:8:19
   |
 8 |     public string $name;
   |                   ^^^^^ nothing decodes into this
-  = help: the decoder builds the object with `new`, so every field needs a constructor parameter with the same name. Add one, or write `#[Json\Field(skip: true)]`
+  = help: the decoder builds the object with `new`, so every property needs a constructor parameter with the same name. Add one, or write `#[Json\Field(skip: true)]`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

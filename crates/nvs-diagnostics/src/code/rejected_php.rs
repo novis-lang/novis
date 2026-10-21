@@ -170,7 +170,7 @@ codes! {
     /// [`E_INTERFACE_MEMBER_CONFLICT`].
     pub const E_TRAIT_NOT_SUPPORTED: Code = Code::new("E0227").card(
         "Traits do not exist in Novis. For shared methods, give an interface a default method. \
-         For shared state, write `implements Interface by $field;` in the class.",
+         For shared state, write `implements Interface by $property;` in the class.",
     );
     /// `die`, in any position `exit` is also accepted: Novis keeps exactly one
     /// process-termination keyword. See `rule:statements/exit-is-the-only-termination-keyword`.

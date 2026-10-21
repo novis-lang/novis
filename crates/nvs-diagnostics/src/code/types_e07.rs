@@ -434,8 +434,8 @@ codes! {
     /// [`E_INTERFACE_METHOD_MISSING`] entirely; with it, the field is judged
     /// here and every member the delegation does not supply is judged there.
     pub const E_DELEGATE_TYPE_MISMATCH: Code = Code::new("E0720").card(
-        "In `implements I by $field`, `$field` must be a property of this class. Its type must be \
-         a class or interface that implements `I`, and it cannot be nullable.",
+        "In `implements I by $property`, `$property` must be a property of this class. Its type \
+         must be a class or interface that implements `I`, and it cannot be nullable.",
     );
     /// A member of a delegated interface whose shape `rule:classes/delegation-by-field`'s
     /// synthesized forward cannot express: a `static` member, a variadic
@@ -456,8 +456,8 @@ codes! {
     /// write the member on the class by hand, which § 4 already allows and
     /// which the forward would have lost to.
     pub const E_DELEGATE_MEMBER_NOT_FORWARDABLE: Code = Code::new("E0721").card(
-        "`implements I by $field` cannot forward a `static` method, or a method with a `...` or \
-         `inout` parameter. Write that method on the class yourself.",
+        "`implements I by $property` cannot forward a `static` method, or a method with a `...` \
+         or `inout` parameter. Write that method on the class yourself.",
     );
     /// A visibility keyword on a parameter of a method that is not the
     /// `constructor` — `rule:classes/delegation-by-field`'s own backlog line.

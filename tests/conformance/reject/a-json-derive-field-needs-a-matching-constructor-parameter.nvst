@@ -17,7 +17,7 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0460]: `$name` is a `#[Json\Derive]` field with no constructor parameter
+error[E0460]: `$name` has no constructor parameter, so `#[Json\Derive]` cannot decode it
   --> case.nvs:5:19
 %A
 error[E0461]: `$age` is declared `int` but its constructor parameter is `string`

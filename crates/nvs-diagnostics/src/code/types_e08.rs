@@ -847,7 +847,7 @@ codes! {
     pub const E_INTERFACE_MEMBER_CONFLICT: Code = Code::new("E0859").card(
         "This class gets a method from two of its interfaces, and it does not declare the method \
          itself. Declare the method in the class. Its body can call one interface's default with \
-         `InterfaceName::method()`, or a delegate with `$this->field->method()`.",
+         `InterfaceName::method()`, or a delegate with `$this->property->method()`.",
     );
     /// `string<K>` whose `K` is not a `property<T>`, a `propertyPath<T>` or a
     /// set of string values — `rule:types/string-holes`. Reported only where
@@ -985,9 +985,9 @@ codes! {
     /// field's identity, so the encoder would write it twice and the decoder
     /// would fill both properties from one value.
     pub const E_DERIVE_DUPLICATE_KEY: Code = Code::new("E0873").card(
-        "Two fields of a class with `#[Json\\Derive]` or `#[Db\\Derive]` have the same key. \
-         Each field needs its own key. Change one key with `#[Json\\Field(name: \"...\")]` or \
-         `#[Db\\Field(name: \"...\")]`, or leave one field out with `skip: true`.",
+        "Two properties of a class with `#[Json\\Derive]` or `#[Db\\Derive]` have the same key. \
+         Each property needs its own key. Change one key with `#[Json\\Field(name: \"...\")]` or \
+         `#[Db\\Field(name: \"...\")]`, or leave one property out with `skip: true`.",
     );
     /// A compiler-recognized attribute on a declaration where the compiler
     /// builds nothing from it (`rule:attributes/attach-sites-and-forms`), such
