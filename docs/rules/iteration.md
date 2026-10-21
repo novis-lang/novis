@@ -244,7 +244,13 @@ live ones cost ten thousand small objects, not ten thousand stacks, and suspensi
 of I/O rather than of ordinary control flow.
 
 A `finally` the generator is suspended inside still runs when the consumer abandons it, and
-definite assignment reasons across resumption edges exactly as it does across a linear body. A
+definite assignment reasons across resumption edges exactly as it does across a linear body.
+Every write that drops a generator stores the new value first and releases the old one after, so a
+`finally` that reads the property, static or reference its generator was cleared from reads the new
+value. A `finally` that keeps a reference to its own generator keeps it alive: the generator is
+finished, a later `advance()` returns `false`, and the release that frees it runs no `finally`
+again. A suspended generator freed by the in-flight cycle collector runs no `finally`, because the
+collector clears every slot of the cycle before it frees any member. A
 generator whose body throws is finished: the error reaches the `advance()` that resumed it, a later
 `advance()` returns `false`, and each `finally` the throw passed through has already run, so
 abandoning it runs none again. A `yield` inside a `finally` does not compile

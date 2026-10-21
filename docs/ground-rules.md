@@ -281,7 +281,7 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 - **Ambiguous input is refused whole, never repaired** — An input is **ambiguous** when two conforming readers can disagree about what it says. ([`errors/ambiguous-input-refused`](rules/errors.md#errors-ambiguous-input-refused))
 - **The closed list of what makes an HTTP message ambiguous** — Refused on a request Novis receives **and on a response Novis's outbound client receives**:… ([`errors/http-message-defects`](rules/errors.md#errors-http-message-defects))
 - **A cookie name is bytes, and a prefix is enforced once** — `Core\Request::cookie(name)` matches **byte for byte**. ([`errors/cookie-name-bytes`](rules/errors.md#errors-cookie-name-bytes))
-- **A multipart body is capped by part count, not only by size** — `[limits] max_multipart_parts` defaults to **1000**, beside a per-part field-name length and a per-part size. ([`errors/multipart-part-count`](rules/errors.md#errors-multipart-part-count))
+- **A multipart body is capped by part count, not only by size** — `[limits] max_multipart_parts` defaults to **1000** and counts every part, field parts included. ([`errors/multipart-part-count`](rules/errors.md#errors-multipart-part-count))
 - **A path component that does not spell what it resolves to is refused, on every platform** — `Core\IO::within` — the launderer, and the one place the base directory is known — refuses a component that… ([`errors/path-component-refusals`](rules/errors.md#errors-path-component-refusals))
 
 ## Tooling

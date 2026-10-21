@@ -27,7 +27,7 @@ stages:
         rules: [errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself, http-server/request-body-and-upload-total-are-two-caps]
   - id: 4
     title: "a multipart body is read in linear time, a failed reader fails again, and `max_multipart_parts` is a `[limits]` row"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/multipart.rs, crates/nvs-server/src/body.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-config/src/app.rs, crates/nvs-config/src/defaults.rs, crates/nvs-config/src/default.toml, docs/rules/errors/multipart-part-count.md]
     extra:
       context:
@@ -265,14 +265,14 @@ again by the next read, and the part count is configuration.
 card, website configuration page, `nvs` help) as `file:line`. That text follows AGENTS.md § *Text an end
 user reads*.
 
-- [ ] The header search resumes three bytes before the old end of the buffer, and the admission of the quadratic cost is deleted. `crates/nvs-stdlib/src/multipart.rs:453`, `crates/nvs-stdlib/src/multipart.rs:51`
-- [ ] `Multipart` keeps its first error and returns it to every later call. `crates/nvs-stdlib/src/multipart.rs:295`, `crates/nvs-stdlib/src/multipart.rs:480`
-- [ ] `Pull` and `whole_body` keep a wire error and return it again rather than parking. `crates/nvs-server/src/body.rs:182`, `crates/nvs-server/src/body.rs:283`, `crates/nvs-stdlib/src/request.rs:3343`
-- [ ] `[limits] max_multipart_parts`, default 1000, ceiling 10000, read where `MAX_PARTS` is (`rule:config/ceilings-are-their-own-directives`). `crates/nvs-config/src/app.rs:493`, `crates/nvs-config/src/app.rs:546`, `crates/nvs-config/src/defaults.rs:80`, `crates/nvs-config/src/default.toml:77`, `crates/nvs-stdlib/src/multipart.rs:68`
-- [ ] The head's byte cap is set in Novis code beside `MAX_HEADER_LINES`, at hyper's current default. `crates/nvs-server/src/serve.rs:2364`
-- [ ] Rust tests: 1000 parts in 1-byte chunks scan each header block once; a second `post()` after a caught throw throws the same error; a read after a wire error returns it. `crates/nvs-stdlib/src/multipart.rs:1`, `crates/nvs-server/src/body.rs:1`
-- [ ] The rule names the real bounds and says a breach is a throw from the reading call (`rule:errors/multipart-part-count`). `docs/rules/errors/multipart-part-count.md:1`
-- [ ] The user-facing `[limits]` documentation gains the row. `crates/nvs-config/src/default.toml:63`
+- [x] The header search resumes three bytes before the old end of the buffer, and the admission of the quadratic cost is deleted. `crates/nvs-stdlib/src/multipart.rs:492`, `crates/nvs-stdlib/src/multipart.rs:51`
+- [x] `Multipart` keeps its first error and returns it to every later call. `crates/nvs-stdlib/src/multipart.rs:365`
+- [x] `Pull` and `whole_body` keep a wire error and return it again rather than parking. `crates/nvs-server/src/body.rs:283`, `crates/nvs-stdlib/src/request.rs:3365`, `crates/nvs-runtime/src/ctx/inbound.rs:996`
+- [x] `[limits] max_multipart_parts`, default 1000, ceiling 10000, read where `MAX_PARTS` is (`rule:config/ceilings-are-their-own-directives`). `crates/nvs-config/src/app.rs:545`, `crates/nvs-config/src/defaults.rs:87`, `crates/nvs-config/src/default.toml:82`, `crates/nvs-runtime/src/ctx/limits.rs:1147`
+- [x] The head's byte cap is set in Novis code beside `MAX_HEADER_LINES`, at hyper's current default. `crates/nvs-server/src/serve.rs:238`
+- [x] Rust tests: 1000 parts in 1-byte chunks scan each header block once; a second `post()` after a caught throw throws the same error; a read after a wire error returns it. `crates/nvs-stdlib/src/multipart.rs:1162`, `crates/nvs-stdlib/src/request.rs:5394`, `crates/nvs-server/src/body.rs:361`
+- [x] The rule names the real bounds and says a breach is a throw from the reading call (`rule:errors/multipart-part-count`). `docs/rules/errors/multipart-part-count.md:1`
+- [x] The user-facing `[limits]` documentation gains the row. `crates/nvs-config/src/default.toml:63`, `docs/reference/tools/20-config.md:127`
 
 ### 5. a panic on the safepoint path is a `FATAL`, never a process abort
 
@@ -362,32 +362,51 @@ name before its value. `a_name_nested_past_the_memory_limit_stops_inside_one_par
 `a_field_part_is_buffered_against_the_in_memory_bound`. The rule says what is true. Build and
 clippy are green.
 
+Stage 4 is done. `Multipart::headers` (`crates/nvs-stdlib/src/multipart.rs:492`) keeps how much of
+the block it has searched and resumes three bytes before the old end. A `cfg(test)` counter holds
+1000 parts of 16 KiB headers read a byte at a time to at most four looks per byte. `Multipart::keep`
+(`crates/nvs-stdlib/src/multipart.rs:365`) stores the first error, and `next_part` and `next_chunk`
+return it again. `Pull` clones its wire failure instead of taking it. `whole_body` was a second hole
+the stage named only by its line: an over-`request_body` throw left the wire mid-body, so a caught
+`body()` then returned the rest of the body. `Inbound::fail_body`
+(`crates/nvs-runtime/src/ctx/inbound.rs:996`) keeps the class and message, and every later
+buffering read throws them under its own member's name. `[limits] max_multipart_parts` and its
+`[limits.hard]` row are in `tree.rs`, `value.rs`, `defaults.rs`, both `app.rs` arrays,
+`body_caps` (ceiling default 10000), `schedule.rs`'s `sub_cap`, all five `default.toml` blocks and
+`docs/reference/tools/20-config.md`. `Ctx::multipart_parts_limit`
+(`crates/nvs-runtime/src/ctx/limits.rs:1147`) reads it, and `false` or a malformed value reads as
+1000. `MAX_HEAD_BYTES` (`crates/nvs-server/src/serve.rs:238`) is hyper 1.12's
+`8192 + 4096 * 100`, passed to `max_buf_size`. The six new or rewritten tests pass by name. Build and
+clippy are green. `bun nv rules --render` also wrote the `iteration.md` and `security.md` chapters
+that stages 1 and 2 left unrendered.
+
 **The acceptance sweep's red was stale again.** `bun nv proofs --gate --only "Core\Env::secret"`
-exits 0 at HEAD. The nightly `proofs` jobs in run 39567373487 ran at `afbb1edc2`, which is many
-commits back; the stage 2 handoff already named their cause as fixed.
+exits 0 at HEAD. The nightly `proofs` jobs in run 39567373487 ran at `afbb1edc2`. They failed on
+`site snippets`, `site stale` and `site questions` for the covariant and union-types pages, which
+`b3ed92165` fixed. `bun nv site --questions --status` shows 0 owed and 0 stale at HEAD.
 
 **Expected red at the gate:** any `nvs-ir` lowering snapshot or IR-dump test that pins a property,
 static or reference-cell write. The release of the old value now follows the store instead of
 preceding it. Update the expected order; it is not a regression. Also any `nvs-host` or
 `nvs-server` test that relied on a child task inheriting its creator's arming: a task now runs under
 the ceiling of its own context alone. Also any `nvs-stdlib` multipart test that buffers a field
-value of exactly `request_body`: the field's name now counts too.
+value of exactly `request_body`: the field's name now counts too. Also any `nvs-config` test
+that lists every `[limits]` or `[limits.hard]` key or counts `Request::all`'s rows
+(`crates/nvs-config/tests/request.rs:724`, `crates/nvs-config/tests/directives.rs:3729`): the new
+row adds one. `bun nv directives --check-template` has not run over the new `default.toml` lines.
 
 ### Next
 
-**Stage 4, one group: the multipart body.** No gate. Its files are
-`crates/nvs-stdlib/src/multipart.rs`, `crates/nvs-server/src/body.rs`,
-`crates/nvs-stdlib/src/request.rs` and `crates/nvs-config/src/{app,defaults}.rs` with
-`default.toml`. Run the stage's Explore split for the user-facing `[limits]` docs first.
+**Stage 5, one group: the safepoint path.** No gate. Its files are
+`crates/nvs-runtime/src/ctx/safepoint.rs`, `crates/nvs-runtime/src/abi.rs` and the residue rule.
 
-- [ ] The header search resumes three bytes before the old end, and the admission is deleted. `crates/nvs-stdlib/src/multipart.rs:51`, `crates/nvs-stdlib/src/multipart.rs:285`
-- [ ] `Multipart` keeps its first error and returns it again. `crates/nvs-stdlib/src/multipart.rs:285`, `crates/nvs-stdlib/src/multipart.rs:498`
-- [ ] `Pull` and `whole_body` keep a wire error. `crates/nvs-server/src/body.rs:182`, `crates/nvs-server/src/body.rs:283`
-- [ ] `[limits] max_multipart_parts` replaces `MAX_PARTS`. `crates/nvs-stdlib/src/multipart.rs:68`, `crates/nvs-config/src/app.rs:493`
-- [ ] The Rust tests, the rule and the user docs the stage names. `docs/rules/errors/multipart-part-count.md:1`
+- [ ] The slow branches of `nvs_safepoint` run inside `catch_unwind`, and the "nothing here can panic" reasons are rewritten. `crates/nvs-runtime/src/ctx/safepoint.rs:773`, `crates/nvs-runtime/src/ctx/safepoint.rs:934`
+- [ ] `run_helper`'s memory pre-check and collection run inside the same `catch_unwind` as the body. `crates/nvs-runtime/src/abi.rs:445`, `crates/nvs-runtime/src/abi.rs:466`
+- [ ] Rust test: a panic forced in the collection branch is a `FATAL` and the context drops cleanly. `crates/nvs-runtime/src/ctx/safepoint.rs:1`
+- [ ] The residue rule says a Rust panic is never part of the residue. `docs/rules/http-server/the-residue-is-one-named-fault-class.md:1`
 
-Stage 5 may run beside stage 4, because it touches only the safepoint path
-(`crates/nvs-runtime/src/ctx/safepoint.rs`, `crates/nvs-runtime/src/abi.rs`).
+Stage 6's attack "a program catches the body-limit error and reads the form again" now has the
+runtime behaviour it needs (`crates/nvs-stdlib/src/request.rs:3365`).
 
 ### Backlog
 
