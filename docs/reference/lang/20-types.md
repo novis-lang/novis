@@ -4786,7 +4786,7 @@ echo Core\Json::encode($token), "\n";
 error[E0790]: `echo` cannot print a `secret` value
   --> main.nvs:7:6
   |
-7 | echo "Bearer {$token}\n";
+7 | echo "Bearer {******}\n";
   |      ^^^^^^^^^^^^^^^^^^^ this value is `secret`
   = help: Output is read by people and saved in logs. To print the value anyway, call `Core\Secret::reveal($value, "reason")` first. Joining it into a longer string does not help. The result is `secret` too.
 
