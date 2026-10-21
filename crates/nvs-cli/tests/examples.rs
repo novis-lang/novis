@@ -26,6 +26,7 @@ const STATUS: &[(&str, i32)] = &[("limits.nvs", 1), ("uncaught.nvs", 1)];
 
 /// The examples that need a server `tests/db/compose.yaml` starts, and the address it publishes.
 const SERVERS: &[(&str, &str)] = &[
+    ("cache.nvs", "127.0.0.1:16379"),
     ("cache-shared-tls.nvs", "127.0.0.1:16380"),
     ("db.nvs", "127.0.0.1:15432"),
     ("pool.nvs", "127.0.0.1:15432"),
