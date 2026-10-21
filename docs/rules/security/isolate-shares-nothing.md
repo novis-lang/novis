@@ -31,12 +31,22 @@ reuses the machinery a request already has: the capped arena, the fresh request 
 overlay, the task tree and the shared compiled-unit cache, so a second isolate of the same script pays no
 compilation at all.
 
+**Every per-task value the allocator reads travels with the task.** A core interleaves requests and
+isolates at every wait, and the allocator reads thread-locals, so a value left on the thread would
+hold the next task to another's limits. The armed memory ceiling with its safepoint word, the sticky
+refusal and the limit handler's reserve are taken off the thread when a task suspends and put back
+when it resumes, and every task starts under none of them. A context is made on its creator's stack
+and run on its task's: `Ctx::leave_this_stack` gives the creator back what it had armed, and
+`Ctx::arm_on_this_stack` arms the context's own on the stack that runs it. The live balance is still
+the thread's, and a request is charged its difference since its context was made.
+
 - **Memory:** per in-flight isolate, one context, one pooled task stack and the values the child
   allocates, held until it ends and charged to the root's budget. Concurrent isolates each hold their
   own arena, so a tree's peak is the sum over its live isolates, under the root's cap. A finished
   isolate's arena is released wholesale, so nothing grows with the number of isolates ever spawned.
   A crossing holds one hash-map entry per distinct object in the graph being copied, for the length
-  of that one copy. Compiled code costs nothing per isolate: ten thousand isolates of one file
+  of that one copy. Each parked task keeps four words of armed state, and each switch moves them.
+  Compiled code costs nothing per isolate: ten thousand isolates of one file
   compile it once.
 
 **Declined:**

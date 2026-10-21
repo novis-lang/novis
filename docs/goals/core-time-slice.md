@@ -139,10 +139,13 @@ reactor core the yield fires a wake and parks, as `yield_turn` does
 request a thread runs at a time" (`crates/nvs-runtime/src/budget.rs:27`). An await already interleaves
 requests, and a slice makes it common. At every switch, the change in the balance since the turn began
 is added to the running request's own count, and the memory limit reads that count. O(1) per switch,
-no allocation. The armed ceiling, its refusal and its reserve already travel with the task, because
-`failure-paths-hold` stage 2 swaps them in `yield_on`, so this stage moves the balance only. Safe
-default if the ceiling check cannot read a per-request count on its hot path: swap the balance cells
-`LIVE`, `PEAK` and `WRITTEN` in `yield_on` beside that state (`crates/nvs-host/src/scheduler.rs:1599`).
+no allocation. The armed ceiling, its refusal and its reserve already travel with the task:
+`budget::ArmedStack` is swapped in `yield_on` (`crates/nvs-host/src/scheduler.rs:1623`) and around
+every `Task::resume` (`crates/nvs-host/src/scheduler.rs:656`), and a spawned context reaches its own
+stack through `Ctx::leave_this_stack` and `Ctx::arm_on_this_stack`. The state-bleed suite's
+interleaved memory row pins it. So this stage moves the balance only. Safe default if the ceiling
+check cannot read a per-request count on its hot path: swap the balance cells `LIVE`, `PEAK` and
+`WRITTEN` in `yield_on` beside that state (`crates/nvs-host/src/scheduler.rs:1630`).
 
 **A deadline now stops a task that never waits.** Its timer is on the core's reactor, and a slice
 hands the core back, so the timer fires at the next slice
@@ -203,7 +206,7 @@ again.
 **Does:** two requests that take turns on one core are each charged only their own allocations, and the
 memory limit stops the one that crossed it.
 
-- [ ] Charge the balance's change per turn to the running request, and read that count at the ceiling (`rule:security/isolate-shares-nothing`, `rule:errors/on-limit`). `crates/nvs-runtime/src/budget.rs:216`, `crates/nvs-runtime/src/budget.rs:450`, `crates/nvs-runtime/src/ctx/limits.rs:244`, `crates/nvs-host/src/scheduler.rs:1552`
+- [ ] Charge the balance's change per turn to the running request, and read that count at the ceiling (`rule:security/isolate-shares-nothing`, `rule:errors/on-limit`). `crates/nvs-runtime/src/budget.rs:216`, `crates/nvs-runtime/src/budget.rs:450`, `crates/nvs-runtime/src/ctx/limits.rs:244`, `crates/nvs-host/src/scheduler.rs:1582`
 - [ ] The budget module's header says the count is per request across switches. `crates/nvs-runtime/src/budget.rs:27`
 - [ ] Rust tests: two interleaved requests that allocate are each charged their own bytes, and only the one over its limit stops. `crates/nvs-runtime/src/budget.rs:1`
 - [ ] Rust test: CPU time is still charged per switch with slices on, beside `a_thread_charges_each_published_request_only_for_the_time_it_runs_it`. `crates/nvs-host/src/watchdog.rs:2026`
