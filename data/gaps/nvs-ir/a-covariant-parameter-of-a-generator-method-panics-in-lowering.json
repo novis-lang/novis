@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-ir/src/lower/generator.rs",
+  "title": "A `covariant` parameter of a generator method panics in lowering.",
+  "text": "The generator factory stores the parameters in the state object without the entry test that `emit_covariant_check` (`crates/nvs-ir/src/lower/mod.rs`) gives an ordinary method, and the lowering asserts there. The factory needs the same test before it stores each covariant parameter, or the checker must report the form as a compile error until it does.",
+  "goal": "diagnostic-records"
+}
