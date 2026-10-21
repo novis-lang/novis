@@ -16,7 +16,9 @@ that was handed no configuration at all takes neither default: it has no tree to
 after `[app.limits]` folded into it, or the default above — so a program narrows its own limit with
 `Core\Config::set` and raises it only once the operator writes a ceiling above the start
 (`rule:config/ceilings-are-their-own-directives`). Under `nvs run` an unwritten `cpu_time` has no
-start value, so nothing bounds a set of it either.
+start value, so nothing bounds a set of it either. **An unwritten `[limits.hard] memory` is no ceiling
+on a CLI run**, so a CLI program's own code raises its memory limit freely; in server work it is the
+start value, as every other key is.
 
 **Every built-in default has one home: the config crate's table of defaults.** Each key the shipped
 `nvs.toml` marks `# default` has its value there, and every piece of code that enforces the value

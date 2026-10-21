@@ -20,7 +20,7 @@
 //! ([`crate::mode::DERIVED`], which stays their one home), `[server] dispatch`, `static` and
 //! `[opcache] settle` from the mode the run started in, `[mode] ceiling` from that mode itself,
 //! `[server] workers` from this machine, an unwritten `[limits.hard]` key from the `[limits]` value
-//! it bounds, and a data-folder path from the data folder. A key whose unwritten state is "no
+//! it bounds (`memory`'s only for server work), and a data-folder path from the data folder. A key whose unwritten state is "no
 //! value" — `wall_time`, `memory_high_water`, every `# example` key — has no row.
 //!
 //! **A row has a [`Scope`].** A key in a named block (`[db.<name>]`) has its default only where that
@@ -300,6 +300,10 @@ pub enum Value {
     Cores,
     /// The value the file writes for another key, or else that key's default.
     Inherit(&'static str),
+    /// [`Inherit`](Self::Inherit) for server work, and nothing for a CLI program or a test. It is
+    /// `[limits.hard] memory`'s, so a CLI run's own code may raise its memory limit freely until
+    /// the operator writes a ceiling (`rule:config/ceilings-are-their-own-directives`).
+    InheritServing(&'static str),
     /// A path in the data folder, and nothing where there is no data folder.
     DataFolder(fn(&Folder) -> PathBuf),
 }
@@ -454,7 +458,7 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("limits.disconnect_grace", Value::Time(LIMITS_DISCONNECT_GRACE)),
     row!("limits.request_body", Value::Size(LIMITS_REQUEST_BODY)),
     row!("limits.upload_total", Value::Size(LIMITS_UPLOAD_TOTAL)),
-    row!("limits.hard.memory", Value::Inherit("limits.memory")),
+    row!("limits.hard.memory", Value::InheritServing("limits.memory")),
     row!("limits.hard.cpu_time", Value::Inherit("limits.cpu_time")),
     row!("limits.hard.wall_time", Value::Inherit("limits.wall_time")),
     row!("limits.hard.max_tasks", Value::Inherit("limits.max_tasks")),
@@ -631,6 +635,10 @@ pub fn render(value: &Value, key: &str, at: &At<'_>) -> Option<String> {
         Value::Inherit(other) => value_at(at.table, other)
             .and_then(crate::request::as_text)
             .or_else(|| in_force(other, at)),
+        Value::InheritServing(other) => at
+            .serving
+            .then(|| render(&Value::Inherit(other), key, at))
+            .flatten(),
         Value::DataFolder(path) => {
             crate::data::current().map(|folder| path(folder).display().to_string())
         }

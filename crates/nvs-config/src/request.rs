@@ -18,7 +18,7 @@
 //! name no [`Directive`](crate::directive::Directive) row governs, a name a row governs that is not
 //! a leaf key the file may write (`log`, `log.x`), a `System` one, a value that
 //! does not spell its unit, a value above its ceiling (`[limits.hard]`, or where that is not
-//! written the `[limits]` value the run started with), a
+//! written the `[limits]` value the run started with, except `memory` on a CLI run), a
 //! [`RuntimeTighten`](Class::RuntimeTighten) one that does not narrow, an assignment that would
 //! leave this request holding one of `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`'s meaningless `[http]` pairs, and a mode
 //! outside `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`'s ceiling — a name that is not one of the two modes being outside every
@@ -390,7 +390,8 @@ impl Request {
     /// value this run started with: the one the file wrote, after the `[app.limits]` blocks folded
     /// into it, or else that key's own default. So a program cannot raise its own limit unless the
     /// operator wrote a ceiling above it. A limit with neither a written value nor a default has no
-    /// ceiling, which is `cpu_time` under `nvs run`.
+    /// ceiling, which is `cpu_time` under `nvs run`. `memory` has no default ceiling on a CLI run,
+    /// so a CLI program raises its own memory limit freely until `[limits.hard] memory` is written.
     ///
     /// The bounded limits are the rows of [`app::ceilings`](crate::app::ceilings), which is the
     /// one table naming them — another one is a row there and not a new place to forget.

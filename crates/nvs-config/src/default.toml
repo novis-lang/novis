@@ -124,9 +124,10 @@
 # The ceiling a request may not raise itself past, for the `Runtime` keys that have one. A key that
 # is not written here is the value the run started with in `[limits]`, so a program can lower its
 # limit and cannot raise it. Where that value is not written and has no default, there is no
-# ceiling. `false` removes the ceiling for that key. A request that asks for more gets `false` back
-# from `Core\Config::set` and keeps the value it had.
-#memory = "1G"                        # default: the [limits] value
+# ceiling. `nvs run` and `nvs test` have no `memory` ceiling unless it is written here. `false`
+# removes the ceiling for that key. A request that asks for more gets `false` back from
+# `Core\Config::set` and keeps the value it had.
+#memory = "1G"                        # default: the [limits] value, none under nvs run and nvs test
 #cpu_time = "120s"                    # default: the [limits] value
 #wall_time = "300s"                   # default: the [limits] value
 #max_tasks = 64                       # default: the [limits] value

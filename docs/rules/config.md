@@ -332,7 +332,9 @@ that was handed no configuration at all takes neither default: it has no tree to
 after `[app.limits]` folded into it, or the default above — so a program narrows its own limit with
 `Core\Config::set` and raises it only once the operator writes a ceiling above the start
 ([`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives)). Under `nvs run` an unwritten `cpu_time` has no
-start value, so nothing bounds a set of it either.
+start value, so nothing bounds a set of it either. **An unwritten `[limits.hard] memory` is no ceiling
+on a CLI run**, so a CLI program's own code raises its memory limit freely; in server work it is the
+start value, as every other key is.
 
 **Every built-in default has one home: the config crate's table of defaults.** Each key the shipped
 `nvs.toml` marks `# default` has its value there, and every piece of code that enforces the value
@@ -1060,6 +1062,16 @@ A ceiling is sized to stop a runaway, not to shape ordinary code: a script that 
 than the ceiling gets `false`. A `[limits.hard]` key the file does not write is the `[limits]` value
 the run started with, written or default, so a request may raise a limit only once its operator
 writes a ceiling above the start ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)).
+**`memory` on a CLI run is the one exception**: `nvs run`, a `#[Command]` method and `nvs test` have
+no `[limits.hard] memory` unless one is written, so the program's own code raises its memory limit
+with `Core\Config::set('memory', ...)` as far as it needs. The 128 MiB start still stops a runaway
+loop, and a CLI run serves no other request that a raise could take memory from. A package may only
+lower its limits ([`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time)).
+
+The memory-limit error names both ways to raise the limit: the `memory` line under `[limits]`, and the
+`Core\Config::set` call with twice the ceiling as its value. It calls the run "the program" on a CLI
+run and "the request" in server work, and says "up to `[limits.hard] memory`" wherever a ceiling bounds
+the call.
 `[limits.hard] memory = false` removes a ceiling explicitly, for a trusted single-tenant host — and
 `false` is the only spelling of "no ceiling" anywhere in the tree.
 
@@ -1080,6 +1092,11 @@ reader learns once; a third would need its own argument.
 - **No ceiling directives at all**, so that a request may raise any limit without bound. A process
   serves many requests at once, so one script that removes its own memory limit would take the host
   from every request beside it. The ceiling is what makes the freedom to widen affordable.
+- **No memory limit at all on a CLI run.** The 128 MiB start is what stops a script with a runaway
+  loop before it takes the machine's memory, and raising it is one call where a program needs more.
+- **The CLI exception for every limit, not only `memory`.** `cpu_time` already has no CLI start
+  value, and the other limits bound one read or one response, which a program sizes by writing
+  `[limits]`.
 
 <sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`errors/on-limit`](errors.md#errors-on-limit), [`programs/memory-priority`](programs.md#programs-memory-priority), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling).</sub>
 
