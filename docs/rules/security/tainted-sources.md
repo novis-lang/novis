@@ -24,6 +24,14 @@ is `?tainted bytes`. The list of sources being **enumerable** is what lets the q
 automatically, and is exactly what `secret` has no equivalent of
 (`rule:security/secret-has-no-ambient-source`).
 
+**`Core\Env::secret` is the environment's one read that is not `tainted`.** It answers `?secret
+string` (`rule:security/secret-has-no-ambient-source`). `tainted` stops a value at a sink that would
+read it as an instruction: a URL, a path, a query, markup. A `secret` reaches none of those, because
+every output and instruction sink already refuses it, and it does reach the two places a credential
+belongs, an outbound header and a database password, which refuse `tainted`. Carrying both bits would
+make the member unusable for its one purpose. The operator who started the process chose the value,
+as they chose `nvs.toml`; `Core\Env::get` stays `tainted` because its value may reach any sink.
+
 No `Core` member names a qualifier, and the taint diagnosis has no opt-out. A `taintedPostAs` would
 make every other member's name read as a claim it does not make. A caller who finds the diagnosis
 verbose writes `tainted {…}` over the shape.

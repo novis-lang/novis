@@ -8,10 +8,24 @@ whether or not their content happens to be a credential.
 type, property or local. A helper that loads an API key is expected to declare its own return type
 `secret string`; the language gives no free ride.
 
-**One member originates the qualifier**, and it is the exception that proves the rule: reading a
-password at a terminal prompt with echo disabled answers `secret tainted string`, because the
-*member's contract* is confidentiality and there is no reading of its result that is not a credential.
-That is a declared return type, not an ambient grant.
+**Two members originate the qualifier**, and each is a member whose *contract* is confidentiality,
+so there is no reading of its result that is not a credential. Each is a declared return type, not
+an ambient grant.
+
+- **`Core\Cli::secret`** reads a password at a terminal prompt with echo disabled and answers
+  `secret tainted string`: the person at the keyboard is outside the program.
+- **`Core\Env::secret('NAME')`** answers `?secret string`, `null` where nothing set the variable. It
+  reads the variable `Core\Env::get` reads, and a program calls it instead of `get` to say that the
+  value is a credential. Its name is a sink, as `get`'s is, so a request cannot choose which
+  credential it reads. The value is not `tainted`, for `rule:security/tainted-sources`' reason.
+
+**Declined:**
+- **`Core\Env::get` answering `secret` for a name that looks like a credential** (`*_KEY`,
+  `*_PASSWORD`). A guess about a name is the ambient grant this rule refuses, and it would be wrong in
+  both directions.
+- **`Core\Env::secret` answering `secret tainted string`**, as the prompt does. An outbound header and
+  a database password refuse `tainted`, so every credential read from the environment would need
+  `Core\Taint::assertTrusted` before it reached the one place it is for.
 
 The cost is stated: `secret` protects only what a developer remembers to annotate. That is a real
 coverage gap relative to `tainted`, not an oversight.
