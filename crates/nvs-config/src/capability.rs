@@ -29,7 +29,8 @@
 //!
 //! - **A bare `*` is not a spelling.** `true` is already "every host" — `Grant::Everything` — and
 //!   a grant reachable two ways is what `rule:core-api/shape-rules` R17 forbids. `*` alone therefore matches no host
-//!   at all, including a host literally named `*`, and so does `*.` with nothing after it.
+//!   at all, including a host literally named `*`, and so does `*.` with nothing after it — and
+//!   [`validate`] refuses both at load, so a tree that wrote one is told rather than denied.
 //! - **The wildcard is `db.open`'s and `ldap.open`'s alone**, which is [`Cap::takes_host_wildcard`]. `net.connect`'s
 //!   grant is asked of a *name* and then `rule:http-server/allow-url-pins-the-address`
 //!   's door pins the address that name resolved to; a pattern there would widen the set of
@@ -44,6 +45,8 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+
+use nvs_diagnostics::{Diagnostic, code};
 
 use crate::resolve::{Files, Origin};
 use crate::tree::{Capabilities, Config, Setting};
@@ -472,6 +475,29 @@ impl Cap {
     #[must_use]
     pub const fn takes_host_wildcard(self) -> bool {
         matches!(self, Self::DbOpen | Self::LdapOpen)
+    }
+
+    /// Whether this capability's grant is a list of **hosts**, compared by [`host_granted`] against
+    /// the bare host a call names — so an entry carrying a port or a scheme matches nothing, and
+    /// [`validate`] refuses one.
+    ///
+    /// `db.open` is here and also takes an absolute SQLite path, which [`validate`] tells apart by
+    /// its separator.
+    #[must_use]
+    pub const fn is_host_scoped(self) -> bool {
+        matches!(
+            self,
+            Self::NetConnect
+                | Self::NetConnectTo
+                | Self::NetDowngrade
+                | Self::TlsAnchors
+                | Self::TlsPin
+                | Self::TlsAnyName
+                | Self::TlsInsecure
+                | Self::DbOpen
+                | Self::LdapOpen
+                | Self::LdapCleartext
+        )
     }
 
     /// Whether `true` is a spelling this capability's grant has at all — every capability's but the
@@ -982,6 +1008,255 @@ fn anchor_root(root: &mut String, base: &Path) {
             .to_string_lossy()
             .into_owned();
     }
+}
+
+/// `rule:config/check-and-dump-audit-the-tree-offline`'s refusal of a grant entry that grants
+/// nothing however it is asked, in the global `[capabilities]` block, every `[[app]]` block's and
+/// every `[[schedule]]`'s `grants`.
+///
+/// Each of these used to read as [`Grant::Nothing`] or as an entry no argument can equal, so the
+/// deployment that wrote it was denied with no word about why: a host with a port or a scheme
+/// ([`host_granted`] compares the bare host), a `*` (no grant takes a pattern but `*.` on
+/// [`Cap::takes_host_wildcard`]'s two), `true` where [`Cap::takes_true_spelling`] says no, a
+/// relative SQLite path under `db.open` (the argument is canonical and the entry is not anchored),
+/// a `net.listen` entry that is not an endpoint, and a `net.internal` entry that is not an address
+/// ([`Capabilities::address_refused`]). The message names the entry and the file, and its help is
+/// the line that grants what was meant.
+///
+/// Runs after [`anchor`], so a path-scoped entry is already absolute here, and over the merged tree
+/// for that function's reason. `nvs config check` and the boot both resolve through it.
+///
+/// # Errors
+///
+/// `E0601` for the first such entry.
+pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    validate_block(config.capabilities.as_ref(), "capabilities", origins)?;
+    for (index, app) in config.app.iter().enumerate() {
+        let prefix = format!("app.{index}.capabilities");
+        validate_block(app.capabilities.as_ref(), &prefix, origins)?;
+    }
+    for (index, schedule) in config.schedule.iter().enumerate() {
+        let prefix = format!("schedule.{index}.grants");
+        validate_block(schedule.grants.as_ref(), &prefix, origins)?;
+    }
+    Ok(())
+}
+
+/// [`validate`] for one block, `prefix` being the dotted key it was merged under.
+fn validate_block(
+    caps: Option<&Capabilities>,
+    prefix: &str,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<(), Diagnostic> {
+    let Some(caps) = caps else {
+        return Ok(());
+    };
+    // `[capabilities.fs]`, `[app.capabilities.fs]` or `[schedule.grants.fs]`: the header the
+    // operator writes, which carries no index.
+    let table = |family: &str| {
+        let block: Vec<&str> = prefix
+            .split('.')
+            .filter(|part| part.parse::<usize>().is_err())
+            .collect();
+        format!("[{}.{family}]", block.join("."))
+    };
+    let refuse = |key: &str, found: Silent, family: &str| {
+        let mut refused = Diagnostic::error(code::E_BAD_DIRECTIVE, found.headline)
+            .with_note(found.note.to_string());
+        if let Some(origin) = origins.get(key) {
+            refused = refused.with_note(format!("It is written in `{}`.", origin.path.display()));
+        }
+        refused.with_help(format!("write `{}` under `{}`", found.line, table(family)))
+    };
+    for cap in Cap::ALL.iter().copied() {
+        let Some(setting) = cap.grant(caps) else {
+            continue;
+        };
+        let key = format!("{prefix}.{}", cap.name());
+        if let Some(found) = silent(cap, setting, crate::db::written_in(origins, &key)) {
+            return Err(refuse(&key, found, cap.family()));
+        }
+    }
+    if let Some(setting) = caps.net.as_ref().and_then(|net| net.internal.as_ref()) {
+        let key = format!("{prefix}.net.internal");
+        if let Some(found) = silent_internal(setting) {
+            return Err(refuse(&key, found, "net"));
+        }
+    }
+    Ok(())
+}
+
+/// One entry [`validate`] refuses: what the message says, the one sentence below it, and the line
+/// to write instead.
+struct Silent {
+    headline: String,
+    note: &'static str,
+    line: String,
+}
+
+impl Silent {
+    fn new(headline: String, note: &'static str, line: String) -> Self {
+        Self {
+            headline,
+            note,
+            line,
+        }
+    }
+}
+
+/// What is wrong with `setting` as a grant of `cap`, or `None` when every entry in it can grant
+/// something. `base` is the folder of the file that wrote it.
+fn silent(cap: Cap, setting: &Setting, base: &Path) -> Option<Silent> {
+    let name = cap.name();
+    let key = name.split_once('.').map_or(name, |(_, key)| key);
+    let entries = match setting {
+        Setting::Bool(true) if !cap.takes_true_spelling() => {
+            return Some(Silent::new(
+                format!("`{name}` does not accept `true`"),
+                "This setting needs a list of hosts.",
+                grant_list(key, "api.example.com"),
+            ));
+        }
+        Setting::Text(one) => std::slice::from_ref(one),
+        Setting::List(many) => many.as_slice(),
+        Setting::Bool(_) | Setting::Integer(_) | Setting::Float(_) => return None,
+    };
+    entries
+        .iter()
+        .find_map(|entry| silent_entry(cap, key, entry, base))
+}
+
+/// [`silent`] for one entry of a list.
+fn silent_entry(cap: Cap, key: &str, entry: &str, base: &Path) -> Option<Silent> {
+    let name = cap.name();
+    let pattern = || format!("the `{name}` entry `{entry}` is a pattern, so it matches nothing");
+    if cap.is_path_scoped() {
+        // Anchored already, so the folder in front of the pattern is the one the operator meant,
+        // cut from the entry as written so its separators stay theirs.
+        let star = entry.find('*')?;
+        let folder = entry[..star]
+            .rfind(['/', '\\'])
+            .map_or("./", |end| &entry[..=end]);
+        return Some(Silent::new(
+            pattern(),
+            "A folder entry allows every file below it.",
+            grant_list(key, folder),
+        ));
+    }
+    if entry == "*" || entry == "*." {
+        return Some(if cap.takes_true_spelling() {
+            Silent::new(
+                pattern(),
+                "`true` allows every value.",
+                format!("{key} = true"),
+            )
+        } else {
+            Silent::new(
+                pattern(),
+                "This setting needs a list of hosts.",
+                grant_list(key, "api.example.com"),
+            )
+        });
+    }
+    if cap == Cap::DbOpen && entry.contains(['/', '\\']) {
+        if Path::new(entry).has_root() {
+            return None;
+        }
+        let absolute = crate::resolve::absolute(base, Path::new(entry));
+        return Some(Silent::new(
+            format!("the `db.open` entry `{entry}` is a relative path, so it matches no file"),
+            "A database file entry is the full path.",
+            grant_list(key, &absolute.to_string_lossy()),
+        ));
+    }
+    if cap.is_host_scoped() {
+        if entry.starts_with('*') && !cap.takes_host_wildcard() {
+            return Some(Silent::new(
+                format!("the `{name}` entry `{entry}` is a pattern, so it matches no host"),
+                "Only `db.open` and `ldap.open` accept an entry that starts with `*.`.",
+                grant_list(key, "api.example.com"),
+            ));
+        }
+        if let Some(host) = bare_host(entry) {
+            return Some(Silent::new(
+                format!(
+                    "the `{name}` entry `{entry}` has a port or a scheme, so it matches no host"
+                ),
+                "An entry is the host alone, and it allows every port.",
+                grant_list(key, &host),
+            ));
+        }
+    }
+    if cap == Cap::NetListen && entry.parse::<std::net::SocketAddr>().is_err() {
+        return Some(Silent::new(
+            format!(
+                "the `net.listen` entry `{entry}` is not an IP address and a port, so it matches \
+                 nothing"
+            ),
+            "A host name is not allowed here.",
+            grant_list(key, "127.0.0.1:8080"),
+        ));
+    }
+    None
+}
+
+/// [`silent`] for `net.internal`, which is not a [`Cap`] and takes IP addresses alone.
+fn silent_internal(setting: &Setting) -> Option<Silent> {
+    const NOTE: &str = "This setting needs a list of IP addresses.";
+    let line = || grant_list("internal", "10.0.0.5");
+    let entries = match setting {
+        Setting::Bool(true) => {
+            return Some(Silent::new(
+                "`net.internal` does not accept `true`".to_string(),
+                NOTE,
+                line(),
+            ));
+        }
+        Setting::Text(one) => std::slice::from_ref(one),
+        Setting::List(many) => many.as_slice(),
+        Setting::Bool(_) | Setting::Integer(_) | Setting::Float(_) => return None,
+    };
+    let entry = entries
+        .iter()
+        .find(|entry| entry.parse::<std::net::IpAddr>().is_err())?;
+    Some(Silent::new(
+        format!("the `net.internal` entry `{entry}` is not an IP address, so it matches nothing"),
+        NOTE,
+        line(),
+    ))
+}
+
+/// The host a host-list entry names when it also carries a scheme, a user, a path or a port, or
+/// `None` when the entry is a host alone.
+///
+/// An IPv6 address is a host alone without brackets, and keeps its brackets when a port follows them.
+fn bare_host(entry: &str) -> Option<String> {
+    let rest = entry.split_once("://").map_or(entry, |(_, rest)| rest);
+    let rest = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    let rest = rest.rsplit_once('@').map_or(rest, |(_, host)| host);
+    let host = if rest.parse::<std::net::IpAddr>().is_ok() {
+        rest
+    } else if let Some(end) = rest.strip_prefix('[').and_then(|inner| inner.find(']')) {
+        &rest[..end + 2]
+    } else {
+        match rest.rsplit_once(':') {
+            Some((host, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => {
+                host
+            }
+            _ => rest,
+        }
+    };
+    (host != entry && !host.is_empty()).then(|| host.to_string())
+}
+
+/// `key = ["value"]`, the value written as a TOML basic string.
+fn grant_list(key: &str, value: &str) -> String {
+    format!("{key} = [{}]", toml_string(value))
+}
+
+/// `value` as a TOML basic string, so a Windows path pastes back as the path it is.
+fn toml_string(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 fn canonical_root(root: &mut String, files: &dyn Files) {

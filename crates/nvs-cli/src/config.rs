@@ -1175,10 +1175,9 @@ mod tests {
     /// The reminder the boot writes: one line per `[capabilities.tls]` grant and host, in the
     /// spelling the operator granted it under.
     ///
-    /// The `insecure = true` entry is the case worth asserting from here rather than from
-    /// `nvs-config`'s own tests. It is the spelling these grants do not have
-    /// (`nvs_config::Cap::takes_true_spelling`) and it fails closed, so a boot printing a line for
-    /// it would be telling an operator a weakening is in force that no call can actually reach.
+    /// `insecure = true` is not here: it is the spelling these grants do not have
+    /// (`nvs_config::Cap::takes_true_spelling`), and the resolve refuses it before a boot could
+    /// report it (`nvs_config::capability::validate`).
     #[test]
     fn the_boot_reports_one_line_per_relaxed_tls_grant_and_host() {
         let dir = scratch("relaxed");
@@ -1186,7 +1185,7 @@ mod tests {
         fs::write(
             dir.join("nvs.toml"),
             "[capabilities.tls]\nanchors = [\"corp.internal\"]\n\
-             any_name = [\"a.example\", \"b.example\"]\ninsecure = true\n",
+             any_name = [\"a.example\", \"b.example\"]\n",
         )
         .expect("a scratch directory takes a file");
 
@@ -1201,7 +1200,7 @@ mod tests {
                 "note: [capabilities.tls] tls.any_name relaxes outbound TLS verification for a.example",
                 "note: [capabilities.tls] tls.any_name relaxes outbound TLS verification for b.example",
             ],
-            "one line per grant and host, in roster order, and `insecure = true` names no host"
+            "one line per grant and host, in roster order"
         );
     }
 

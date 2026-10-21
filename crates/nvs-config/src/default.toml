@@ -154,8 +154,9 @@
 #write = ["storage/"]                 # example
 
 [capabilities.net]
-# The hosts an outbound connection may reach.
-#connect = ["api.example.com:443"]    # example
+# The hosts an outbound connection may reach. Write the host alone, with no port and no `https://`:
+# an entry allows every port, and an entry with a port is refused at boot.
+#connect = ["api.example.com"]        # example
 # The hosts a call may name its own address for with `connectTo`
 # (`rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`). The address written is
 # judged by the policy below exactly as a resolved one is and the certificate is still checked
@@ -217,8 +218,9 @@
 #connect = ["main"]                   # example
 #schema = ["main"]                    # example
 # Which hosts a program-supplied `Db\Settings` may reach. These stay subject to the address policy,
-# which is why they are named as hosts and the two keys above are named as blocks.
-#open = ["db.example.com:5432"]       # example
+# which is why they are named as hosts and the two keys above are named as blocks. Write the host
+# alone, with no port, as for `net.connect`.
+#open = ["db.example.com"]            # example
 
 [capabilities.ldap]
 # Which `[ldap.<name>]` blocks a program may open by name. A block named here was written by an
@@ -871,7 +873,7 @@
 #[schedule.grants.net]
 # Where this entry may reach, bind, or step outside the denied ranges to, and the two hosts lists a
 # call needs before it may pick its own address or follow a hop down to plaintext.
-#connect = ["api.example.com:443"]    # example
+#connect = ["api.example.com"]        # example
 #connect_to = ["api.example.com"]     # example
 #downgrade = ["legacy.example.com"]   # example
 #internal = ["10.0.0.5"]              # example
@@ -899,7 +901,7 @@
 # its own.
 #connect = ["main"]                   # example
 #schema = ["main"]                    # example
-#open = ["db.example.com:5432"]       # example
+#open = ["db.example.com"]            # example
 
 #[schedule.grants.ldap]
 # Which `[ldap.<name>]` blocks this entry may open, which hosts it may reach with settings of its
@@ -1045,7 +1047,7 @@
 #[app.capabilities.net]
 # Where this application may reach, bind, or step outside the denied ranges to, and the two host
 # lists a call needs before it may pick its own address or follow a hop down to plaintext.
-#connect = ["api.example.com:443"]    # example
+#connect = ["api.example.com"]        # example
 #connect_to = ["api.example.com"]     # example
 #downgrade = ["legacy.example.com"]   # example
 #internal = ["10.0.0.5"]              # example
@@ -1073,7 +1075,7 @@
 # of its own.
 #connect = ["main"]                   # example
 #schema = ["main"]                    # example
-#open = ["db.example.com:5432"]       # example
+#open = ["db.example.com"]            # example
 
 #[app.capabilities.ldap]
 # Which `[ldap.<name>]` blocks this application may open, which hosts it may reach with settings of
