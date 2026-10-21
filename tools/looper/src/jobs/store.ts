@@ -9,7 +9,8 @@
 // - the log, as `log.ts` says;
 // - `exit`, the `JobExit`, written when the command ended. It is the only sign a job ended;
 // - `killed`, the `Killed`, written by `Store.kill` before it ends the job;
-// - `events.ndjson`, the job's progress events, which `docs/progress-format.md` defines.
+// - `events.ndjson`, the job's progress events, which `docs/progress-format.md` defines;
+// - `waiting`, the reason a process of the job waits on purpose, which the hang watch reads (`hang.ts`).
 //
 // Each file is written through tmp+rename (`../store/state.ts`), so a reader sees all of it or none.
 // The job's Job Object is named after its id (`jobName`), so `Store.kill` reaches it from any process.
@@ -59,6 +60,8 @@ export const WINDOWS_VAR = "LOOPER_WINDOWS";
 
 /** The exit code a job ended by `Store.kill` gets. */
 export const KILLED_CODE = 1;
+/** The exit code a Bash call's job gets when the hang watch kills it (`hang.ts`): 124, as GNU `timeout` gives. */
+export const HUNG_CODE = 124;
 
 /** A folder with no record older than this is a runner that died before its command started: 1 day. */
 const ORPHAN_MS = 24 * 60 * 60 * 1000;

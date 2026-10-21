@@ -28,7 +28,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Config } from "../goal/config.ts";
-import { writeFile } from "../goal/edit.ts";
+import { withGateStage, writeFile } from "../goal/edit.ts";
 import { issueText, lintGoal } from "../goal/lint.ts";
 import { type Chain, type Goal, goalPath, normalize, parseChain, parseGoal, README, Refused } from "../goal/model.ts";
 import { parsePlaybook, playbookSection } from "../goal/playbook.ts";
@@ -70,6 +70,8 @@ export function readImport(kind: Kind, root: string, cfg: Config): Import {
     physics: () => readPhysics(root),
   };
   const read = readers[kind]();
+  // A source format has no gate stage, so each goal gets the one `goal new` writes.
+  read.goals = read.goals.map(withGateStage);
   if (read.generated.length > 0) {
     read.notes.push(
       `the old tool generated ${read.generated.join(", ")}: the import overwrites the one it writes the same path as; ` +

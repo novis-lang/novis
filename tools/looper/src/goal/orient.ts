@@ -18,7 +18,18 @@ import { readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import type { Config } from "./config.ts";
 import { expand as expandGlob, isGlob } from "./glob.ts";
-import { type Chain, type Check, type Goal, liveGoal, liveStage, loadChain, loadGoal, sideGoalOf, type Stage } from "./model.ts";
+import {
+  type Chain,
+  type Check,
+  type Goal,
+  gateStage,
+  liveGoal,
+  liveStage,
+  loadChain,
+  loadGoal,
+  sideGoalOf,
+  type Stage,
+} from "./model.ts";
 import { bulletPaths, loadPlaybook, type Playbook } from "./playbook.ts";
 import { anchors as anchorsIn, items, names, section, sectionsOf } from "./sections.ts";
 
@@ -212,6 +223,11 @@ export interface Live {
   full: boolean;
   /** THE LIVE STAGE's section, or ALL STAGES with `full`. */
   stages: string | null;
+  /**
+   * The line under the stages that says how the live stage is checked: a build alone, or `looper verify`
+   * in the gate stage. Null when the goal has no gate stage or no stage is live.
+   */
+  check: string | null;
   /** CONTEXT, the head of each file. */
   context: { path: string; head: string }[];
   /** ACCEPTANCE, one line per check of the goal. */
@@ -253,6 +269,8 @@ export function loadPack(root: string, cfg: Config, full: boolean, stage: number
 
   const marks = anchors(goal);
   const stages = full ? (text("Stages") ?? "") : live === undefined ? null : stageSection(goal, live.id);
+  const gate = gateStage(goal);
+  const atGate = live !== undefined && live === gate;
   const stageContext = full ? front.stages.flatMap((s) => s.context ?? []) : (live?.context ?? []);
   const playbook = loadPlaybook(root, cfg);
   const traps =
@@ -269,12 +287,13 @@ export function loadPack(root: string, cfg: Config, full: boolean, stage: number
       stage: live === undefined ? null : { id: live.id, title: live.title },
       full,
       stages,
+      check: live === undefined || gate === undefined ? null : checkLineOf(atGate, gate.id),
       context: expand(root, [...front.context, ...stageContext]).map((path) => ({ path, head: headOf(root, path) })),
       acceptance: front.checks.map(checkLine),
       floor: chain.floor.length,
       traps,
       extra: [...extra],
-      done: doneSteps(file, cfg.project.scratch),
+      done: doneSteps(file, cfg.project.scratch, atGate),
     },
   };
 }
@@ -313,6 +332,7 @@ export function packText(pack: Pack): string {
     h(`THE LIVE STAGE: ${live.stage.id}. ${live.stage.title}`);
     out.push(live.stages);
   }
+  if (live.check !== null) out.push(`\n${live.check}`);
 
   if (live.context.length > 0) {
     h("CONTEXT (the head of each file the goal names)");
@@ -387,14 +407,26 @@ function trapsOf(playbook: Playbook, marks: Anchor[], bound: number, cfg: Config
   return out.length === 0 ? "(empty)" : out.join("\n");
 }
 
-/** The steps that finish a session on the goal file `file`, with the commit message in the project's scratch directory `scratch`. */
-function doneSteps(file: string, scratch: string): string {
+/** The line that says how the live stage is checked: `atGate` when it is the gate stage `gateId`. */
+function checkLineOf(atGate: boolean, gateId: number): string {
+  return atGate
+    ? `This is the goal's gate stage: run \`${TOOL} verify\` over the whole goal.`
+    : `This stage checks with a build alone; stage ${gateId} verifies the goal.`;
+}
+
+/**
+ * The steps that finish a session on the goal file `file`, with the commit message in the project's
+ * scratch directory `scratch`. `atGate` says the live stage is the goal's gate stage.
+ */
+function doneSteps(file: string, scratch: string, atGate: boolean): string {
   return [
-    `1. \`${TOOL} verify\`, once, at the end of the group.`,
-    `2. Overwrite ## Handoff in ${file} (### State, ### Next with anchors, ### Backlog); tick finished items; set a stage's status to done in the front matter when its items are done and its checks pass.`,
+    atGate
+      ? `1. \`${TOOL} verify\` over the whole goal; fix every failure it names in one pass, then run it once more.`
+      : "1. A build alone checks the work. No test and no verify runs, except a test you wrote, run once by name, and a run an item names.",
+    `2. Overwrite ## Handoff in ${file} (### State, ### Next with anchors, ### Backlog), naming the tests you expect to go red; tick finished items; set a stage's status to done in the front matter when its items are done and its checks pass.`,
     "3. A playbook bullet if a trap cost you time.",
-    `4. One commit per slice: \`git add <the slice's paths>\` then \`git commit -F ${scratch}/msg.txt\`.`,
-    `5. Write .loop/status.txt with one line: CONTINUE <what landed> | DONE <goal reached> | BLOCKED <the decision only the user can make>. A decision that leaves other work to do goes to \`${TOOL} decision ask\` instead of BLOCKED. Then stop.`,
+    `4. One commit per slice, once its build is green${atGate ? " and verify is green" : ""}: \`git add <the slice's paths>\` then \`git commit -F ${scratch}/msg.txt\`.`,
+    `5. Write .loop/status.txt with one line: CONTINUE <what landed> | DONE <goal reached> | BLOCKED <the decision only the user can make>. Before BLOCKED, file that decision with \`${TOOL} decision ask --parked\`, its options and your recommendation. A decision that leaves other work to do goes to \`${TOOL} decision ask\` instead of BLOCKED. Then stop.`,
   ].join("\n");
 }
 

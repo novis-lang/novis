@@ -24,6 +24,7 @@ import {
   goalPath,
   loadChain,
   loadGoal,
+  neverReached,
   normalize,
   parseGoal,
   README,
@@ -230,27 +231,55 @@ export function saveGoal(goalsDir: string, slug: string, version: string, change
   return `${slug}: saved`;
 }
 
-/** A new goal file with every section and one open stage, on the chain's end unless `onChain` is false. */
+/** The title of the gate stage `newGoal` writes as a goal's last stage. */
+export const GATE_TITLE = "the goal is verified once, and every failure is fixed";
+
+/** The items of the gate stage `newGoal` writes, as the lines under its heading. */
+export const GATE_ITEMS = [
+  "- [ ] Run `looper verify` over the whole goal.",
+  "- [ ] Fix every failure it names in one pass, never deleting or loosening a test.",
+  "- [ ] Run `looper verify` once more, and it is green.",
+].join("\n");
+
+/**
+ * The goal with the gate stage `GATE_TITLE` added after its last stage, its heading and items before
+ * `## Handoff`. A goal that has a gate stage or is never reached comes back as it is.
+ */
+export function withGateStage(g: Goal): Goal {
+  const stages = g.front.stages;
+  if (neverReached(g) || stages.some((s) => s.gate === true)) return g;
+  const id = Math.max(0, ...stages.map((s) => s.id)) + 1;
+  const stage = `### ${id}. ${GATE_TITLE}\n\n${GATE_ITEMS}\n\n`;
+  const at = g.body.search(/^## Handoff$/m);
+  const body = at < 0 ? `${g.body.trimEnd()}\n\n${stage}` : g.body.slice(0, at) + stage + g.body.slice(at);
+  const gate = { id, title: GATE_TITLE, status: "open" as const, gate: true, context: undefined, extra: undefined };
+  return { ...g, front: { ...g.front, stages: [...stages, gate] }, body };
+}
+
+/**
+ * A new goal file with every section, one open stage and the gate stage after it, on the chain's end
+ * unless `onChain` is false.
+ */
 export function newGoal(goalsDir: string, slug: string, title: string, summary: string, stage: string, onChain: boolean): string {
   if (!isSlug(slug)) throw new Refused(`${slug} is not a kebab-case slug`);
   const path = goalPath(goalsDir, slug);
   if (existsSync(path)) throw new Refused(`${path} exists already`);
   const chain = loadChain(goalsDir);
-  const goal: Goal = {
+  const goal = withGateStage({
     slug,
     front: {
       looper: FORMAT,
       title,
       summary,
       context: [],
-      stages: [{ id: 1, title: stage, status: "open", context: undefined, extra: undefined }],
+      stages: [{ id: 1, title: stage, status: "open", gate: undefined, context: undefined, extra: undefined }],
       checks: [],
       settings: undefined,
       extra: undefined,
     },
     body: `\n# ${title}\n\n## Why\n\n## Standing decisions\n\n## Stages\n\n### 1. ${stage}\n\n## Handoff\n\n### State\n\n### Next\n\n### Backlog\n`,
     body_line: 0,
-  };
+  });
   const text = goalText(goal);
   const issues = lintGoal(parseGoal(slug, path, text), "").map((i) => i.message);
   if (issues.length > 0) throw new Refused(`${slug}: the new goal would not lint: ${issues.join("; ")}`);

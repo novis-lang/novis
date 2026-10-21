@@ -124,7 +124,7 @@ export const BACKGROUND_WAIT = 125 * 60_000;
 
 /** Injected once at the hard budget. */
 export const HANDOFF_PROMPT =
-  "looper here: your context is past the hand-off budget. Stop taking new work now. Finish or revert the edit you are in the middle of, then hand off: overwrite the live goal's ## Handoff with where the work stands and the next group with anchors, commit what is finished (one commit per slice), write the status line, and stop. Do not run the full verify if it was not already green.";
+  "looper here: your context is past the hand-off budget. Stop taking new work now. Finish or revert the edit you are in the middle of, then hand off: overwrite the live goal's ## Handoff with where the work stands and the next group with anchors, commit what is finished and builds (one commit per slice), write the status line, and stop. Do not start a verify run.";
 
 /** An operator's action on the running session. */
 export type Control =

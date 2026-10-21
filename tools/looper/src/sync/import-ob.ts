@@ -175,7 +175,7 @@ function goal(slug: string, g: GoalJson, handoff: HandoffJson | undefined, notes
   for (const st of g.stages) {
     stagesText += `### ${st.id}. ${st.title}\n\n**Does:** ${st.does.trim()}\n\n`;
     if (st.details.length > 0) stagesText += `${bullets(st.details)}\n\n`;
-    stages.push({ id: st.id, title: st.title, status: st.status === "done" ? "done" : "open", context: undefined, extra: undefined });
+    stages.push({ id: st.id, title: st.title, status: st.status === "done" ? "done" : "open", gate: undefined, context: undefined, extra: undefined });
     checks.push(...st.checks.map((c) => obCheck(c, st.id, owner, notes)));
   }
   const why = g.why.map((p) => p.trim()).join("\n\n");

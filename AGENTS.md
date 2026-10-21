@@ -257,7 +257,7 @@ What a loop session owes on top of the block's § *Session workflow*:
   the home, and the header of `tools/nv/cmd/lints.ts` the reasoning.
 - **`package.json` takes its dependencies at caret ranges,** and the committed `bun.lock` pins each one.
 
-<!-- looper:begin agents v3 -->
+<!-- looper:begin agents v4 -->
 ## Where to look
 
 | You are | Run or read |
@@ -298,8 +298,8 @@ rule is its home.
 2. **One shell call runs one command.** Use `&&` between dependent steps (commands.md).
 3. **Read a big file in the region you need.** Read a file under about 400 lines whole, and Grep for
    the anchor of a bigger one (commands.md).
-4. **Test only what a change can affect, through one `looper verify` at the end** (testing.md,
-   commands.md).
+4. **A goal is verified once, at its end.** Its last stage, the gate stage, runs `looper verify`, and
+   every other stage checks with a build alone (testing.md, commands.md).
 5. **A session finishes in one pass,** as *Session workflow* below says.
 6. **A comment says what the code does now, and is rewritten as a whole** (conventions.md).
 7. **Docs describe the present only.** They carry no dates and no "previously" (doc-style.md).
@@ -322,8 +322,10 @@ rule is its home.
 - Work that will not fit is split across subagents before it starts.
   - The session keeps the decisions, the check of each result and the wrap.
   - Each subagent gets one narrow deliverable and a brief that names its ceiling.
-  - Read-only subagents go out together. Ones that write run one after another, unless each has its
-    own worktree.
+  - Read-only subagents go out together.
+  - Writing subagents whose files are disjoint run side by side in the same tree. None of them builds,
+    and the session builds once they all end. Writing subagents that share a file run one after
+    another, or each in its own worktree.
   - A subagent's report is a pointer to check, not evidence.
 - **Wide work goes to subagents, whatever its size.** A search across many files, the list a sweep
   covers and a CI log go to read-only subagents. A batch of similar files, such as pages, examples or
@@ -340,13 +342,16 @@ Every session runs the same steps, in this order, and **stops**:
    120k with the previous one committed. Before you take an item, write two to six checkpoints under it
    in the goal file, each a step you can tick alone. Tick each as you reach it, and the item once all are
    ticked. Tick on from checkpoints an earlier session left.
-3. **Verify what you touched, once, at the end of the group:** `looper verify`. While you work, a build
-   is the only check, and no test runs between slices. Fix every failure verify names in one pass, then
-   run it once more.
+3. **Check with a build, and verify only in the gate stage.** A goal is verified once, in its last
+   stage. In every other stage a build is the only check. No test and no verify runs there, except a
+   test the session wrote, run once by name, and a run an item requires. A slice whose change breaks
+   an existing test updates that test as it goes. The gate stage runs `looper verify` over the whole
+   goal, fixes every failure in one pass, and runs it once more.
 4. **Write the handoff once for the whole group.** Overwrite the live goal's `## Handoff` with where the
-   work stands and the next group with its anchors. Tick what you finished. Add a playbook bullet if a
-   trap cost you time.
-5. **Commit, one commit per slice, after step 3 is green.** Stage each slice's own files.
+   work stands and the next group with its anchors. Name the tests you expect to go red. Tick what you
+   finished. Add a playbook bullet if a trap cost you time.
+5. **Commit, one commit per slice, once its build is green,** and in the gate stage once verify is
+   green. Stage each slice's own files.
 6. **In the loop, write the status line** the prompt names: `CONTINUE <what landed>`,
    `DONE <goal reached>` or `BLOCKED <the decision only the user can make>`.
 
@@ -368,6 +373,7 @@ Every session runs the same steps, in this order, and **stops**:
 - **Conventional Commits:** `type(scope): what is now true`. The shape is
   [conventions.md](docs/agent/conventions.md) § *A commit message*.
 - **No trailers, ever.** The `commit-msg` hook in `tools/git-hooks/` rejects them.
-- **One commit per slice, after verify is green.** Commit with `git commit -F <file>`.
+- **One commit per slice, once its build is green,** and in the gate stage once verify is green.
+  Commit with `git commit -F <file>`.
 - **Never `--no-verify`, and no force operations.**
 <!-- looper:end agents -->

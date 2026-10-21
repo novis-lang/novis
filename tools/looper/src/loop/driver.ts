@@ -65,7 +65,10 @@
 //      turn would, since the goal file is gone. It never catches up or lands;
 //    - reached, but the retirement failed (such as a `commit-msg` hook that refused its commit): hold
 //      with git's reason, with the goal put back and still live;
-//    - `BLOCKED`: hold with the session's reason;
+//    - `BLOCKED`, from any kind of session (`Driver.blocked`): each open parked decision the session
+//      asked becomes a blocker (`block` in `decisions.ts`), and the loop holds on their ids with the
+//      session's reason. A line with none is retried once, told to file one, and the second such line
+//      in a row holds on the reason alone;
 //    - `DONE` while a decision stands, open or answered: a retry handed why, and a `decisions` hold
 //      on the second such claim in a row;
 //    - `DONE` refused: a retry handed the reasons, up to `done_retries`, then a `done-claim` repair;
@@ -116,7 +119,7 @@ import { acceptance, named, type Progress, type Project, runReported, unreported
 import { storeDir } from "../verify/select.ts";
 import type { AgentAdapter, ExitClass } from "./adapter.ts";
 import { catchUp, type Side } from "./catch-up.ts";
-import { packSection, standing } from "./decisions.ts";
+import { block, packSection, readDecisions, standing } from "./decisions.ts";
 import { type HookEvent, runHooks } from "./hooks.ts";
 import { type Controls, type Limits, type Live, limitsFrom, NOTES_MAX, type Served, type Stats, serve, sessionEnd, WRITTEN_MAX } from "./session.ts";
 import { git, interrupted, lastSweep, notReached, retire, sweep, WRITTEN_LIST, wrapped } from "./turn.ts";
@@ -128,15 +131,23 @@ export const RESUME_PROMPT =
 
 /** The opening prompt of an ordinary session. `{status}` stands for the status file's path. */
 export const SESSION_PROMPT =
-  "You are one session of a looper loop working on this project. The orientation pack below names the live goal, its live stage, the last session's handoff and the traps. Take the next group of work from the handoff, verify it, commit it, and overwrite the goal's ## Handoff with where the work stands. Then write one line to {status}: `CONTINUE <what landed>`, `DONE <the goal reached>` or `BLOCKED <the decision only the user can make>`. Then stop.";
+  "You are one session of a looper loop working on this project. The orientation pack below names the live goal, its live stage, the last session's handoff and the traps. Take the next group of work from the handoff, check it as AGENTS.md § *Session workflow* says, commit it, and overwrite the goal's ## Handoff with where the work stands. Then write one line to {status}: `CONTINUE <what landed>`, `DONE <the goal reached>` or `BLOCKED <the decision only the user can make>`. Before BLOCKED, file that decision with `looper decision ask --parked`, its options and your recommendation. Then stop.";
 
 /** The opening prompt of a repair session, which the verdict follows. `{status}` as in `SESSION_PROMPT`. */
 export const REPAIR_PROMPT =
-  "You are a repair session of a looper loop. The loop stopped making progress for the reason below. Fix exactly that and commit the fix. Then write one line to {status}: `CONTINUE <what you fixed>` or `BLOCKED <the decision only the user can make>`, and stop.";
+  "You are a repair session of a looper loop. The loop stopped making progress for the reason below. Fix exactly that and commit the fix. Then write one line to {status}: `CONTINUE <what you fixed>` or `BLOCKED <the decision only the user can make>`, and stop. Before BLOCKED, file that decision with `looper decision ask --parked`, its options and your recommendation.";
 
 /** The opening prompt of a landing session, which the verdict follows. `{status}` as in `SESSION_PROMPT`. */
 export const LANDING_PROMPT =
-  "You are a landing session of a looper loop. This side branch's goal is reached and retired, and merging the main branch into it failed for the reason below. Merge the main branch as the reason says, keep the work of both sides in each conflict, make `looper verify` green, and commit the merge. Then write one line to {status}: `CONTINUE <what you merged>` or `BLOCKED <the decision only the user can make>`, and stop.";
+  "You are a landing session of a looper loop. This side branch's goal is reached and retired, and merging the main branch into it failed for the reason below. Merge the main branch as the reason says, keep the work of both sides in each conflict, make `looper verify` green, and commit the merge. Then write one line to {status}: `CONTINUE <what you merged>` or `BLOCKED <the decision only the user can make>`, and stop. Before BLOCKED, file that decision with `looper decision ask --parked`, its options and your recommendation.";
+
+/** The prompt of a decision's advisor, which the decision, its thread and the loop's orientation pack follow. */
+export const ADVISOR_PROMPT =
+  "You advise the user on one decision a session of a looper loop asked them. The decision, its discussion so far and the loop's orientation pack follow. You may read the tree, and you change nothing. Answer the user's last message in at most 1500 bytes of plain prose: recommend one option and say why, in the terms of the priority ordering in AGENTS.md. When the discussion shows better options or a better recommendation, end your reply with a fenced code block whose info string is `options`, holding `{\"options\": [\"...\", \"...\"], \"recommend\": n}`, with two to four options of at most 200 bytes each and `recommend` numbering one from 1. On a decision the session built on an option, that block holds only `recommend`.";
+
+/** What the session after a `BLOCKED` line that filed no parked decision is told, after its prompt. */
+export const UNFILED_BLOCK =
+  "## Your BLOCKED filed no decision\n\nThe last session wrote BLOCKED, but filed no parked decision for the user. If the work is still blocked, run `looper decision ask <question> --option <text>… --recommend <n> --parked` first, then write BLOCKED again.";
 
 /** The file in a session's folder that records it. */
 export const SESSION_FILE = "session.json";
@@ -236,6 +247,8 @@ export interface RunState {
   doneClaims: number;
   /** The `DONE` claims refused because a decision for the user stood. */
   decisionClaims: number;
+  /** The `BLOCKED` lines in a row that filed no parked decision. */
+  blockedClaims: number;
   /** Counts of the same thing in a row. */
   stalls: number;
   failures: number;
@@ -274,6 +287,7 @@ export function newRunState(): RunState {
     repairs: 0,
     doneClaims: 0,
     decisionClaims: 0,
+    blockedClaims: 0,
     stalls: 0,
     failures: 0,
     overloads: 0,
@@ -528,6 +542,7 @@ export class Driver {
         prompt = `${this.prompts.landing}\n\`\`\`\n${s.verdict}\n\`\`\`\n`;
         break;
     }
+    if (s.blockedClaims > 0) prompt += `\n${UNFILED_BLOCK}\n`;
     if (s.notes.length > 0) {
       prompt += "\nNotes from the operator, given while no session could receive them:\n";
       for (const n of s.notes) prompt += `- ${n}\n`;
@@ -902,13 +917,12 @@ export class Driver {
     e.record.commits = commits;
     // A catch-up finishes a merge a landing session left, or holds on its conflicts.
     if (s.catchingUp !== null) {
-      if (!status?.startsWith("BLOCKED")) return this.catchUp(slug);
-      s.mode = "work";
-      s.verdict = "";
-      return this.hold(`the landing session is BLOCKED: ${status.slice("BLOCKED".length).trim()}`);
+      if (status?.startsWith("BLOCKED")) return this.blocked("the landing session", status, e.record.started);
+      s.blockedClaims = 0;
+      return this.catchUp(slug);
     }
     if (merging) return this.hold(MERGE_HOLD);
-    const outcome = await this.judge(slug, status, commits);
+    const outcome = await this.judge(slug, status, commits, e.record.started);
     const claimed = status?.startsWith("DONE") ?? false;
     return this.cfg.loop.sweep === "every" && !claimed ? this.sweepEvery(slug, outcome) : outcome;
   }
@@ -965,8 +979,8 @@ export class Driver {
     return counted;
   }
 
-  /** Steps 7 and 8 for a session that ended with `commits` since its base and wrote `status`. */
-  private async judge(slug: string, statusLine: string | null, commits: number): Promise<Outcome> {
+  /** Steps 7 and 8 for a session that started at `started`, ended with `commits` since its base and wrote `status`. */
+  private async judge(slug: string, statusLine: string | null, commits: number, started: number): Promise<Outcome> {
     const goalsDir = this.goalsDir();
     let chain: ReturnType<typeof loadChain>;
     let goal: Goal;
@@ -1003,11 +1017,8 @@ export class Driver {
       }
     }
     s.stalls = commits === 0 ? s.stalls + 1 : 0;
-    if (status.startsWith("BLOCKED")) {
-      s.mode = "work";
-      s.verdict = "";
-      return this.hold(`the session is BLOCKED: ${status.slice("BLOCKED".length).trim()}`);
-    }
+    if (status.startsWith("BLOCKED")) return this.blocked("the session", status, started);
+    s.blockedClaims = 0;
     if (waits !== null) {
       s.decisionClaims++;
       if (s.decisionClaims > 1) {
@@ -1092,6 +1103,30 @@ export class Driver {
     s.mode = "work";
     s.verdict = "";
     return this.hold(verdict.split("\n")[0] ?? "");
+  }
+
+  /**
+   * Step 8 for the `BLOCKED` line `status` of `who`, a session that started at `started`. Each open parked
+   * decision it asked becomes a blocker, and the loop holds on their ids. A line with none is retried
+   * once in the same mode, told to file one, and the second in a row holds on the reason alone.
+   */
+  private async blocked(who: string, status: string, started: number): Promise<Outcome> {
+    const s = this.state;
+    let ids: string[] = [];
+    try {
+      const asked = readDecisions(this.dir).decisions.filter((x) => x.answer === null && x.builtOn === null && x.at >= started);
+      if (asked.length > 0) ids = (await block(this.dir, asked.map((x) => x.id))).map((x) => x.id);
+    } catch {}
+    if (ids.length === 0 && s.blockedClaims === 0) {
+      s.blockedClaims = 1;
+      s.held = null;
+      return { kind: "continue" };
+    }
+    s.blockedClaims = 0;
+    s.mode = "work";
+    s.verdict = "";
+    const on = ids.length === 0 ? "" : ` on decision${ids.length > 1 ? "s" : ""} ${ids.join(", ")}`;
+    return this.hold(`${who} is BLOCKED${on}: ${status.slice("BLOCKED".length).trim()}`);
   }
 
   /** Holds with `why`, or ends the run when the last hold had the same verdict. */

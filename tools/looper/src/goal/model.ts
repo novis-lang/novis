@@ -65,6 +65,11 @@ export interface Stage {
   id: number;
   title: string;
   status: Status;
+  /**
+   * Whether this is the goal's gate stage: the last stage, the one that runs `looper verify` over the
+   * whole goal. Every other stage checks with a build alone.
+   */
+  gate: boolean | undefined;
   /** Files added to the goal's context while this stage is live. */
   context: string[] | undefined;
   /** Project data laid over the goal's `extra` while this stage is live. */
@@ -236,10 +241,11 @@ const stage = table<Stage>(
     id: u32,
     title: text,
     status: variants<Status>(["open", "done"]),
+    gate: opt(flag),
     context: opt(texts),
     extra: opt(mapping),
   },
-  () => ({ id: 0, title: "", status: "open", context: undefined, extra: undefined }),
+  () => ({ id: 0, title: "", status: "open", gate: undefined, context: undefined, extra: undefined }),
   ["id", "status"],
 );
 
@@ -437,6 +443,20 @@ export function loadChain(goalsDir: string): Chain {
 /** The live stage: the first one that is not done. */
 export function liveStage(g: Goal): Stage | undefined {
   return g.front.stages.find((s) => s.status !== "done");
+}
+
+/**
+ * Whether the goal is a standing one that is never reached, such as a side goal that keeps CI green. Its
+ * `summary` starts with "Never reached", and it needs no gate stage.
+ */
+export function neverReached(g: Goal): boolean {
+  return g.front.summary.trimStart().toLowerCase().startsWith("never reached");
+}
+
+/** The goal's gate stage: its last stage, when that one has `gate: true`. */
+export function gateStage(g: Goal): Stage | undefined {
+  const last = g.front.stages.at(-1);
+  return last?.gate === true ? last : undefined;
 }
 
 /**
