@@ -1,0 +1,29 @@
+--TEST--
+`Core\Db::open` over § 2's SQLite arm asks `fs.read` about the path and never `db.open`, which is about hosts — `rule:core-classes/db-capabilities`, `rule:core-api/shape-parameter`, `rule:core-api/shape-arms-are-disjoint` and `rule:core-api/shape-flattens-at-the-abi`
+--FILE--
+<?nvs
+// `rule:core-classes/db-capabilities` gives a SQLite file the file rule alone:
+// `fs.read`, and `fs.write` for a connection that writes. This run's
+// configuration grants a `db.open` host and no file, so the open throws naming
+// `fs.read` and the path. A `db.open` grant does not open a local file.
+try {
+    var $db = Core\Db::open({driver: Core\Db\Driver::Sqlite, path: "secrets.db"});
+    echo "opened", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// `rule:security/denial-is-a-runtime-error`: a denial is the world refusing a call, not the program dying.
+echo "still running", "\n";
+--FILE nvs.toml--
+# A host grant, which a SQLite path never asks, and no file at all: a CLI run
+# reads every file unless `read` is written.
+[capabilities.db]
+open = ["*.tenants.internal"]
+
+[capabilities.fs]
+read = []
+--EXPECTF--
+Core\Db::open needs the capability `fs.read` for %s%esecrets.db, which is not granted
+help: add `read = ["%s"]` under `[capabilities.fs]` in nvs.toml
+still running

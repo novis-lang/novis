@@ -28,10 +28,10 @@ try {
 // `Core\Db::connect` judges its options before it consults the grant.
 
 // The other arm of `Db\Settings`, which takes a `path` and declares no `host`
-// at all. It type-checks, which is what makes it an arm, and it opens -- so
-// what refuses it here is the same thing that refused the arm above: this
-// deployment grants no `db.open` at all. `rule:core-classes/db-capabilities` asks that grant about the
-// *path* on this arm, there being no host to ask it about.
+// at all. It type-checks, which is what makes it an arm, and what refuses it
+// here is this deployment's file rule: `rule:core-classes/db-capabilities`
+// asks `fs.read` about the path on this arm, there being no host to ask
+// `db.open` about.
 try {
     var $file = Core\Db::open({
         driver: Core\Db\Driver::Sqlite,
@@ -43,8 +43,12 @@ try {
 }
 
 echo "still running", "\n";
---EXPECT--
+--FILE nvs.toml--
+# A CLI run reads every file unless `read` is written.
+[capabilities.fs]
+read = []
+--EXPECTF--
 Core\Db::open: `tls` asks for `Tls::Disabled`, and this runtime opens every TCP connection at `Tls::VerifyFull` — `rule:core-classes/db-capabilities` has no spelling for verifying less. A private certificate authority is a `tls_ca_file` on a `[db.<name>]` block, which changes whose certificates are believed and not whether they are checked
-Core\Db::open needs the capability `db.open` for /srv/shop/shop.db, which is not granted
-help: add `open = ["/srv/shop/shop.db"]` under `[capabilities.db]` in nvs.toml
+Core\Db::open needs the capability `fs.read` for %sshop.db, which is not granted
+help: add `read = ["%s"]` under `[capabilities.fs]` in nvs.toml
 still running

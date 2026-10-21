@@ -1292,7 +1292,7 @@ fn anchor_root(root: &mut String, base: &Path) {
 /// deployment that wrote it was denied with no word about why: a host with a port or a scheme
 /// ([`host_granted`] compares the bare host), a `*` (no grant takes a pattern but `*.` on
 /// [`Cap::takes_host_wildcard`]'s two), `true` where [`Cap::takes_true_spelling`] says no, a
-/// relative SQLite path under `db.open` (the argument is canonical and the entry is not anchored),
+/// SQLite path under `db.open` (a SQLite file asks `fs.read` and `fs.write` alone),
 /// a `net.listen` entry that is not an endpoint, and a `net.internal` entry that is not an address
 /// ([`Capabilities::address_refused`]). The message names the entry and the file, and its help is
 /// the line that grants what was meant.
@@ -1340,6 +1340,7 @@ fn validate_block(
         if let Some(origin) = origins.get(key) {
             refused = refused.with_note(format!("It is written in `{}`.", origin.path.display()));
         }
+        let family = found.family.unwrap_or(family);
         refused.with_help(format!("write `{}` under `{}`", found.line, table(family)))
     };
     for cap in Cap::ALL.iter().copied() {
@@ -1366,6 +1367,8 @@ struct Silent {
     headline: String,
     note: &'static str,
     line: String,
+    /// The family whose table `line` goes under, where it is not the refused capability's own.
+    family: Option<&'static str>,
 }
 
 impl Silent {
@@ -1374,6 +1377,15 @@ impl Silent {
             headline,
             note,
             line,
+            family: None,
+        }
+    }
+
+    /// This refusal, with `line` written under `family`'s table.
+    fn under(self, family: &'static str) -> Self {
+        Self {
+            family: Some(family),
+            ..self
         }
     }
 }
@@ -1433,15 +1445,19 @@ fn silent_entry(cap: Cap, key: &str, entry: &str, base: &Path) -> Option<Silent>
         });
     }
     if cap == Cap::DbOpen && entry.contains(['/', '\\']) {
-        if Path::new(entry).has_root() {
-            return None;
-        }
+        // A SQLite file asks the file rule alone (`rule:core-classes/db-capabilities`), so a
+        // path here grants nothing. The line to write is its folder under `fs.write`, which a
+        // database needs for its journal.
         let absolute = crate::resolve::absolute(base, Path::new(entry));
-        return Some(Silent::new(
-            format!("the `db.open` entry `{entry}` is a relative path, so it matches no file"),
-            "A database file entry is the full path.",
-            grant_list(key, &absolute.to_string_lossy()),
-        ));
+        let folder = absolute.parent().unwrap_or(&absolute);
+        return Some(
+            Silent::new(
+                format!("the `db.open` entry `{entry}` is a file path, so it matches nothing"),
+                "A SQLite file needs `fs.read` and `fs.write`, not `db.open`.",
+                grant_list("write", &folder.to_string_lossy()),
+            )
+            .under("fs"),
+        );
     }
     if cap.is_host_scoped() {
         if entry.starts_with('*') && !cap.takes_host_wildcard() {

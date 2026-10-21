@@ -1564,11 +1564,16 @@ fn a_grant_entry_that_allows_nothing_is_refused_naming_the_line_to_write() {
             "`tls.pin` does not accept `true`",
             "write `pin = [\"api.example.com\"]` under `[capabilities.tls]`",
         ),
-        // A relative SQLite path is never equal to the canonical path a program opens.
+        // A SQLite file asks the file rule, so a path under `db.open` is never asked about.
         (
             "[capabilities.db]\nopen = [\"data/app.sqlite\"]\n",
-            "is a relative path, so it matches no file",
-            "app.sqlite\"]` under `[capabilities.db]`",
+            "is a file path, so it matches nothing",
+            "data\"]` under `[capabilities.fs]`",
+        ),
+        (
+            "[capabilities.db]\nopen = [\"/srv/data/app.sqlite\"]\n",
+            "is a file path, so it matches nothing",
+            "data\"]` under `[capabilities.fs]`",
         ),
         (
             "[capabilities.net]\nlisten = [\"localhost:8080\"]\n",
@@ -1619,7 +1624,7 @@ fn a_grant_entry_that_can_allow_something_loads() {
         "[capabilities.net]\nconnect = [\"api.example.com\", \"10.0.0.1\", \"::1\", \"[::1]\"]\n",
         "[capabilities.net]\nconnect = true\nlisten = [\"127.0.0.1:9000\", \"[::1]:9000\"]\n",
         "[capabilities.net]\ninternal = [\"10.0.0.5\", \"fd00::1\"]\n",
-        "[capabilities.db]\nopen = [\"*.tenants.internal\", \"db.example.com\", \"/srv/data/app.sqlite\"]\n",
+        "[capabilities.db]\nopen = [\"*.tenants.internal\", \"db.example.com\"]\n",
         "[capabilities.fs]\nread = [\"/srv/app/\"]\nwrite = false\n",
         "[capabilities.tls]\npin = []\n",
         "[capabilities.process]\nexec = true\n",

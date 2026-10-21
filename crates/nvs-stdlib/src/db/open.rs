@@ -921,20 +921,53 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// Asks the grants a program-supplied SQLite `path` needs, and gives whether it
+/// opens read-only: `true` where `fs.read` is granted and `fs.write` is not.
+///
+/// # Errors
+///
+/// The thrown refusal of the first grant that is missing.
+fn sqlite_read_only(ctx: &nvs_runtime::Ctx, path: &str) -> Result<bool, Fault> {
+    let scope = nvs_config::capability::Scope::Path(std::path::Path::new(path));
+    if path.is_empty() || path == ":memory:" {
+        return Ok(false);
+    }
+    if path.starts_with("file:") {
+        // A URI is not a path, so the refusal of a relative path does not apply
+        // to it, and every grant is asked.
+        for cap in [
+            nvs_config::Cap::DbOpen,
+            nvs_config::Cap::FsRead,
+            nvs_config::Cap::FsWrite,
+        ] {
+            if let Some(message) = nvs_runtime::capability::refusal(ctx, cap, scope, OPEN) {
+                return Err(Fault::thrown(message));
+            }
+        }
+        return Ok(false);
+    }
+    nvs_runtime::capability::require(ctx, nvs_config::Cap::FsRead, scope, OPEN)?;
+    Ok(!nvs_runtime::capability::granted(
+        ctx,
+        nvs_config::Cap::FsWrite,
+        scope,
+    ))
+}
+
 /// § 2's `open` over the SQLite arm of `rule:core-api/shape-parameter`'s union: a file, § 13's
 /// pool around it, and none of the address machinery the server arm is.
 ///
-/// **§ 3's grants are three and not one.** That section puts a *config-written*
-/// path under `db.connect` and says a program-supplied one "additionally needs
-/// `fs.read`/`fs.write` and is a path sink", so this asks `db.open` for the
-/// path, then both filesystem grants, before it has looked at whether the file
-/// exists. `db.open`'s scope is the path rather than a host — the capability is
-/// "which dynamic settings may be reached" and a grant list holds host patterns
-/// for the four drivers that have a host and path prefixes for the one that has
-/// a file, each matched by `nvs_config::capability::Scope`'s own rule for what
-/// it is. `fs.write` is asked of a read-only workload too, because SQLite
-/// writes its journal beside the database and a connection that cannot is one
-/// that fails at the first statement rather than at `open`.
+/// **A file asks the file rule alone.** `rule:core-classes/db-capabilities` puts a
+/// *config-written* path under `db.connect`, and a program-supplied one under
+/// `fs.read` and `fs.write`, each with its default for the run. `fs.read` is
+/// required. Where `fs.write` is not granted, the file opens with SQLite's
+/// read-only flag, so server work reads a database in its app folder and a write
+/// throws SQLite's read-only error. The two opens are two pool keys, so a
+/// read-only request never gets a pooled connection that can write.
+///
+/// `:memory:` and the empty path are a database private to this connection,
+/// with no file, and ask nothing. A `file:` URI can name any file and any mode,
+/// so it asks `db.open`, `fs.read` and `fs.write`, as before.
 ///
 /// **`rule:http-server/allow-url-pins-the-address`'s address table is not consulted**, and that is not an omission:
 /// there is no address. The reason § 3 subjects `open`'s host to it — a
@@ -955,7 +988,7 @@ nvs_runtime::nvs_helper! {
 ///
 /// # Errors
 ///
-/// The three capability refusals, `nvs_db::BlockError`'s for a `path` that is
+/// The capability refusals, `nvs_db::BlockError`'s for a `path` that is
 /// not one, and a thrown `Io` for a file that did not open.
 pub(super) fn sqlite_settings(
     ctx: &mut nvs_runtime::Ctx,
@@ -971,25 +1004,7 @@ pub(super) fn sqlite_settings(
         ))
     })?;
 
-    let file = std::path::Path::new(path);
-    // SQLite's names for a database with no file of its own — `:memory:`, the
-    // empty string, a `file:` URI — are not paths, so the refusal of a
-    // relative path does not apply to them; the grants are asked as before.
-    let named = path.is_empty() || path == ":memory:" || path.starts_with("file:");
-    for cap in [
-        nvs_config::Cap::DbOpen,
-        nvs_config::Cap::FsRead,
-        nvs_config::Cap::FsWrite,
-    ] {
-        let scope = nvs_config::capability::Scope::Path(file);
-        if named {
-            if let Some(message) = nvs_runtime::capability::refusal(ctx, cap, scope, OPEN) {
-                return Err(Fault::thrown(message));
-            }
-        } else {
-            nvs_runtime::capability::require(ctx, cap, scope, OPEN)?;
-        }
-    }
+    let read_only = sqlite_read_only(ctx, path)?;
 
     // § 9's declared zone, and § 13's key hashes it for [`nvs_core_db_open`]'s
     // reason: a pooled connection is in the zone the request that opened it
@@ -1004,12 +1019,18 @@ pub(super) fn sqlite_settings(
     // The path stands where a host stands, and the three credential fields are
     // empty because this arm declares none — two settings objects naming
     // different files are two keys, which is all § 13 asks of it.
-    let memo = settings_key(
+    let keyed = settings_key(
         &[path, "", "", "", driver.matrix_name()],
         None,
         zone,
         statement_cache,
     );
+    let bounds = crate::db::pool::settings_bounds(ctx, &keyed);
+    let memo = if read_only {
+        format!("{keyed}:read-only")
+    } else {
+        keyed
+    };
     if shared && let Some(key) = ctx.memoized_connection(&memo) {
         return Ok(crate::instance::build(
             &CONNECTION,
@@ -1017,10 +1038,7 @@ pub(super) fn sqlite_settings(
         ));
     }
 
-    let ticket = nvs_runtime::pool::Ticket::for_settings(
-        memo.clone(),
-        crate::db::pool::settings_bounds(ctx, &memo),
-    );
+    let ticket = nvs_runtime::pool::Ticket::for_settings(memo.clone(), bounds);
     let max = ticket.bounds.max;
     let full = |waited: &str| {
         Fault::thrown_as(
@@ -1060,6 +1078,7 @@ pub(super) fn sqlite_settings(
                 Fault::thrown(format!("{OPEN}: {}", refusal.refusal("<settings>")))
             })?;
             target.time_zone = zone;
+            target.read_only = read_only;
             let conn = nvs_db::sqlite::open(&target).map_err(|err| {
                 Fault::thrown_as(
                     ThrownClass::Io,
@@ -1863,26 +1882,19 @@ mod tests {
         );
     }
 
-    /// § 3's three grants are asked **before** [`sqlite_settings`] looks at the
-    /// path at all, and `db.open` is the first of the three.
+    /// `fs.read` is asked **before** [`sqlite_settings`] looks at the path at
+    /// all, and a file asks no `db.open`.
     ///
-    /// **Only Rust can ask this.** A program is answered by the first refusal
-    /// and by nothing after it, so a `.nvst` case cannot separate *asked in this
-    /// order* from *asked at all*, nor *asked before the file was opened* from
-    /// *asked after a failed open was swallowed*. The context here grants
-    /// nothing and the `path` names a directory that is not there: a refusal
-    /// naming `db.open` is the evidence, because an `Io` throw would mean the
-    /// open ran first and had handed an ungranted program the answer to *is
-    /// this file there* — the oracle `rule:security/capability-check-at-the-door`
-    /// exists to close.
-    ///
-    /// This is also why the five programs proving this member are granted
-    /// `true` rather than a list of paths. The check is a
-    /// [`nvs_config::capability::Scope::Path`], which canonicalizes an entry
-    /// before it compares, and `:memory:` is a path no filesystem has.
+    /// **Only Rust can ask this.** A program cannot separate *asked before the
+    /// file was opened* from *asked after a failed open was swallowed*. The
+    /// context here has no configuration, so it grants nothing, and the `path`
+    /// names a directory that is not there: a refusal naming `fs.read` is the
+    /// evidence, because an `Io` throw would mean the open ran first and had
+    /// handed an ungranted program the answer to *is this file there*, the
+    /// oracle `rule:security/capability-check-at-the-door` exists to close.
     // covers: Core\Db::open
     #[test]
-    fn a_sqlite_open_asks_db_open_before_it_reads_the_path() {
+    fn a_sqlite_open_asks_fs_read_before_it_reads_the_path() {
         let mut ctx = Ctx::buffered();
         let absent = "/no-such-directory-here/notes.sqlite";
         let mut args = [Value::null(); 12];
@@ -1903,17 +1915,84 @@ mod tests {
              `RuntimeError`, so a program may degrade instead of ending"
         );
         assert!(
-            message.contains("db.open"),
-            "the first grant asked is the one that gates the settings themselves: {message}"
-        );
-        assert!(
-            !message.contains("fs.read") && !message.contains("fs.write"),
-            "the two filesystem grants are asked after it, so neither can be the \
-             refusal a program without `db.open` sees: {message}"
+            message.contains("fs.read") && !message.contains("db.open"),
+            "a file asks the file rule alone: {message}"
         );
         assert!(
             message.contains(absent),
             "a scoped refusal names the argument that fell outside the grant: {message}"
+        );
+    }
+
+    /// A context for server work in `folder`, with nothing written under
+    /// `[capabilities]`.
+    fn serving_in(folder: &std::path::Path) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(""));
+        ctx.set_run_kind(nvs_runtime::RunKind::Job);
+        ctx.set_app_folder(std::sync::Arc::from(folder));
+        ctx
+    }
+
+    /// `rule:core-classes/db-capabilities`' SQLite defaults. `:memory:` and the
+    /// empty path need no grant in server work. A file in the app folder opens
+    /// read-only there, a file outside it is refused naming `fs.read`, and a
+    /// CLI run opens the same file read-write. A `file:` URI still asks
+    /// `db.open`.
+    // covers: Core\Db::open
+    #[test]
+    fn a_sqlite_file_asks_the_file_rule_and_opens_read_only_where_it_is_not_writable() {
+        let app = nvs_repo::scratch("db-open-app");
+        use nvs_config::resolve::Files as _;
+        let canonical = |dir: &std::path::Path| {
+            nvs_config::resolve::Disk
+                .canonical(dir)
+                .expect("the scratch folder exists")
+        };
+        let app_dir = canonical(&app);
+        let outside = nvs_repo::scratch("db-open-outside");
+        let outside_dir = canonical(&outside);
+        let inside = app_dir.join("notes.sqlite");
+        std::fs::write(&inside, b"").expect("the case writes its database file");
+        let elsewhere = outside_dir.join("notes.sqlite");
+        std::fs::write(&elsewhere, b"").expect("the case writes its database file");
+
+        let server = serving_in(&app_dir);
+        for private in ["", ":memory:"] {
+            assert!(
+                matches!(sqlite_read_only(&server, private), Ok(false)),
+                "`{private}` needs no grant"
+            );
+        }
+        assert!(
+            matches!(
+                sqlite_read_only(&server, &inside.to_string_lossy()),
+                Ok(true)
+            ),
+            "a file in the app folder is read and not written"
+        );
+        let Err(Fault::Thrown(_, message)) =
+            sqlite_read_only(&server, &elsewhere.to_string_lossy())
+        else {
+            panic!("a file outside the app folder is refused");
+        };
+        assert!(message.contains("fs.read"), "{message}");
+        let Err(Fault::Thrown(_, message)) =
+            sqlite_read_only(&server, "file:notes.sqlite?mode=rwc")
+        else {
+            panic!("a URI asks every grant");
+        };
+        assert!(message.contains("db.open"), "{message}");
+
+        let mut cli = Ctx::buffered();
+        cli.set_config(crate::tests::granting(""));
+        cli.set_app_folder(std::sync::Arc::from(app_dir.as_path()));
+        assert!(
+            matches!(
+                sqlite_read_only(&cli, &elsewhere.to_string_lossy()),
+                Ok(false)
+            ),
+            "a CLI run reads and writes any file"
         );
     }
 

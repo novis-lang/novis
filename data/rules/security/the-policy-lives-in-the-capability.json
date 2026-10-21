@@ -8,6 +8,6 @@
   ],
   "guardedBy": [
     "tests/conformance/core/an-outbound-url-is-judged-before-the-capability-is-consulted.nvst",
-    "tests/conformance/core/db-open-asks-the-grant-about-a-sqlite-path-and-not-a-host.nvst"
+    "tests/conformance/core/db-open-asks-the-file-rule-about-a-sqlite-path-and-not-db-open.nvst"
   ]
 }

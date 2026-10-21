@@ -156,6 +156,11 @@ pub struct SqliteTarget<'a> {
     /// `rusqlite` owns the cache itself — see [`open`] — so this is the number
     /// handed to it and not the size of a structure written here.
     pub statement_cache: usize,
+    /// Whether [`open`] opens the file with SQLite's read-only flag, so a write
+    /// throws SQLite's read-only error. A block always opens read-write; `nvs-stdlib`
+    /// sets this for a program-supplied path its run may read but not write
+    /// (`rule:core-classes/db-capabilities`).
+    pub read_only: bool,
 }
 
 impl<'a> SqliteTarget<'a> {
@@ -220,6 +225,7 @@ impl<'a> SqliteTarget<'a> {
             path: Path::new(path),
             time_zone,
             statement_cache: statement_cache_for(block),
+            read_only: false,
         })
     }
 }
@@ -683,6 +689,9 @@ fn lost_walk() -> io::Error {
 ///   re-runs a callable on. A timeout set here would block a pool thread inside C
 ///   for the duration and hide the conflict from the mechanism written to handle
 ///   it.
+/// - **[`SqliteTarget::read_only`] opens with `SQLITE_OPEN_READ_ONLY`**, beside the
+///   URI and no-mutex flags `rusqlite`'s default carries, and never creates the
+///   file.
 ///
 /// # Errors
 ///
@@ -696,9 +705,20 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
     let filling = Arc::clone(&inserted);
     let interrupt = Arc::new(Interrupt::default());
     let watching = Arc::clone(&interrupt);
+    let read_only = target.read_only;
 
     let handle = nvs_host::blocking::run(move || -> rusqlite::Result<rusqlite::Connection> {
-        let connection = rusqlite::Connection::open(path)?;
+        let connection = if read_only {
+            use rusqlite::OpenFlags;
+            rusqlite::Connection::open_with_flags(
+                path,
+                OpenFlags::SQLITE_OPEN_READ_ONLY
+                    | OpenFlags::SQLITE_OPEN_URI
+                    | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )?
+        } else {
+            rusqlite::Connection::open(path)?
+        };
         connection.set_prepared_statement_cache_capacity(capacity);
         connection.execute_batch("PRAGMA foreign_keys = ON;")?;
         connection.update_hook(Some(
@@ -2446,6 +2466,39 @@ mod tests {
     /// `SQLITE_BUSY`, and § 8 maps both to the same kind precisely so a caller
     /// never has to know which lock it lost. That is the claim `{retries: n}`
     /// rests on, and it is the one this pins.
+    #[test]
+    fn a_read_only_target_reads_the_file_and_a_write_is_refused() {
+        let dir = nvs_repo::scratch("nvs-db-read-only");
+        let file = dir.join("notes.sqlite");
+        let block = Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(file.to_string_lossy().into_owned()),
+            ..Database::default()
+        };
+        let mut target = SqliteTarget::resolve(&block).expect("the block resolves");
+        let writer = open(&target).expect("a read-write handle creates the file");
+        writer
+            .query("create table t (v integer)", Vec::new())
+            .expect("the schema applies");
+        writer
+            .query("insert into t (v) values (1)", Vec::new())
+            .expect("the row is written");
+        drop(writer);
+
+        target.read_only = true;
+        let reader = open(&target).expect("a read-only handle opens");
+        reader
+            .query("select v from t", Vec::new())
+            .expect("a read-only handle reads");
+        let refused = reader
+            .query("insert into t (v) values (2)", Vec::new())
+            .expect_err("a read-only handle does not write");
+        assert!(
+            refused.to_string().contains("readonly") || refused.to_string().contains("read-only"),
+            "{refused}"
+        );
+    }
+
     #[test]
     fn a_lock_another_connection_holds_is_section_8s_deadlock_kind() {
         let block = shared("nvs-db-lock-conflict");
