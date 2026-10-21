@@ -20,7 +20,7 @@ stages:
         rules: [security/capability-question-is-grant-and-scope, config/no-configuration-file-is-a-complete-configuration, config/an-application-is-its-entry-file-path, security/isolate-shares-nothing, expressions/preparation-preserves-behaviour]
   - id: 3
     title: a CLI run reads and writes files freely, and server work reads its app folder and writes only its own temporary directories
-    status: open
+    status: done
     context: [docs/rules/security/path-scope-canonicalise-then-prefix.md, docs/rules/core-classes/temporary-dir-sweep.md, tests/hostile/README.md, nvs.toml]
     extra:
       context:
@@ -394,11 +394,11 @@ narrowing.
 `fs.read` or `fs.write` refusal with no grant written. After the defaults land, one writing subagent
 adds the narrowing lines.
 
-- [ ] A CLI run's `fs.read` and `fs.write` default to everything, and server work's `fs.read` to the app folder, without dot-file components below it and without `nvs.toml` (`rule:config/no-configuration-file-is-a-complete-configuration`, `rule:security/path-scope-canonicalise-then-prefix`). `crates/nvs-config/src/capability.rs:694`, `crates/nvs-config/src/defaults.rs:370`
-- [ ] Server work writes and reads the directories `Core\IO::temporaryDir` made for this run with no grant (`rule:core-classes/temporary-dir-sweep`). `crates/nvs-runtime/src/capability.rs:1273`
-- [ ] The boot log's shipped-defaults line names the app folder a server reads. `crates/nvs-cli/src/serve.rs:220`
-- [ ] The `[[app]] root = "tests/hostile"` block writes `read = []` and `write = []`, and each listed case writes its own narrowing. `nvs.toml:19`
-- [ ] Tests: a server reads a file in its app folder, and is refused `.env`, `.git/config`, `nvs.toml`, a symlink out of the folder, a sibling folder and any write; a CLI run reads and writes outside its folder; one request cannot reach another's temporary directory. `crates/nvs-runtime/src/capability.rs:2271`
+- [x] A CLI run's `fs.read` and `fs.write` default to everything, and server work's `fs.read` to the app folder, without dot-file components below it and without `nvs.toml` (`rule:config/no-configuration-file-is-a-complete-configuration`, `rule:security/path-scope-canonicalise-then-prefix`). `crates/nvs-config/src/capability.rs:694`, `crates/nvs-config/src/defaults.rs:370`
+- [x] Server work writes and reads the directories `Core\IO::temporaryDir` made for this run with no grant (`rule:core-classes/temporary-dir-sweep`). `crates/nvs-runtime/src/capability.rs:1273`
+- [x] The boot log's shipped-defaults line names the app folder a server reads. `crates/nvs-cli/src/serve.rs:220`
+- [x] The `[[app]] root = "tests/hostile"` block writes `read = []` and `write = []`, and each listed case writes its own narrowing. `nvs.toml:19`
+- [x] Tests: a server reads a file in its app folder, and is refused `.env`, `.git/config`, `nvs.toml`, a symlink out of the folder, a sibling folder and any write; a CLI run reads and writes outside its folder; one request cannot reach another's temporary directory. `crates/nvs-runtime/src/capability.rs:2271`
 
 ### 4. the application's own code reaches public hosts, and loopback on a CLI run and in development
 
@@ -505,11 +505,36 @@ capability default. Then one writing subagent edits them, held to § *Text an en
 
 ### State
 
-Stages 1 and 2 are done. Stage 2 is verified: tests, clippy, `reference` and all 3084 conformance
-cases are green. Its rustfmt fixes and the rendered `docs/rules/security.md` landed in their own
-commit. The last verify run went red at `nv selftest` only, in `tools/nv/test/bench-compare.test.ts`.
-The cause is the user's uncommitted deploy-chart work in `tools/nv/cmd/bench-compare.ts` and
-`benches/compare/`. It is not this goal's, so no file of it was touched.
+Stages 1, 2 and 3 are done, and stage 3's verify is green. The bench-compare work was committed
+with a `tsc` error in `tools/nv/test/bench-compare.test.ts` (a fixture typed narrower than
+`DeployLoad`), which stopped every verify at `nv selftest`. It is fixed in its own commit.
+
+**Stage 3 (files):**
+
+- `nvs_config::defaults::capability` (`crates/nvs-config/src/defaults.rs:364`) returns
+  `Granted::Everything` for `fs.read`/`fs.write` on a CLI run, and `Granted::AppFolder` (read) /
+  `Granted::Temporary` (write) in server work. `Authority` applies them in `allows`,
+  `allows_resolved`, `allows_host`, `allows_name` and `holds`. `holds` gives `Grant::Nothing` for a
+  folder-shaped default, so an extension gets no files by default in server work.
+- `Run` gained `temporary: &[PathBuf]` (the context's canonical temporary dirs) and
+  `Run::reads_by_default` / `writes_by_default` (`crates/nvs-config/src/capability.rs`), and
+  `Authority::with_temporary`. The runtime's `granted_with` and `allow`
+  (`crates/nvs-runtime/src/capability.rs`) pass `ctx.temporary_dirs()`. `temp_dir` canonicalizes
+  the root and asks with its list plus the new entry, so server work can create one.
+- `nvs serve` prints one boot line per app folder whose tree writes no `fs.read`
+  (`default_reads` in `crates/nvs-cli/src/serve.rs`).
+- `nvs.toml` has the `[[app]] root = "tests/hostile"` block with `read = []` and `write = []`.
+  Every case that relied on deny-all now writes the empty key: 16 `.nvst` cases, 3 hostile
+  `nvs.toml`s, 4 example `nvs.toml`s/blocks, and the `io.rs` and `tests/capability.rs` helpers in
+  `nvs-stdlib`. `docs/reference/tools/20-config.md` (the agent primer) states the new defaults.
+- Tests: `server_work_reads_its_app_folder_and_writes_only_its_temporary_directories`
+  (`crates/nvs-config/tests/capability.rs`) and
+  `server_work_writes_its_own_temporary_dirs_and_not_another_requests`
+  (`crates/nvs-runtime/src/capability.rs`).
+- Rules updated: `config/no-configuration-file-is-a-complete-configuration`,
+  `security/capability-question-is-grant-and-scope` and `core-classes/temporary-dir-sweep`.
+
+**From stage 2:**
 
 - **The app folder** is `nvs_config::app::folder(entry, keys)` (`crates/nvs-config/src/app.rs:699`):
   the most specific matching block key that is not the entry itself, else the entry's folder. An
@@ -525,8 +550,7 @@ The cause is the user's uncommitted deploy-chart work in `tools/nv/cmd/bench-com
   (`shared.rs`), a served request from its mount entry (`crates/nvs-cli/src/serve.rs`, both the
   run and the rerun), a scheduled fire, and a job (`worker.rs` `configure`).
 - **The defaults function** is `nvs_config::capability::Authority` (`capability.rs:303`) over a
-  `Run` (`:258`), reading `nvs_config::defaults::capability` (`defaults.rs:364`), which returns
-  `Granted::Nothing` for every capability. A written key replaces the default whole, and a header
+  `Run` (`:258`), reading `nvs_config::defaults::capability` (`defaults.rs:364`). A written key replaces the default whole, and a header
   with no key leaves it. `Request::authority` builds one. `Run::default()` is server work with no
   folder, the narrowest run.
 - **Every asker goes through it**: `capability::granted` and the resolved-path door `allow`, the
@@ -544,22 +568,19 @@ The cause is the user's uncommitted deploy-chart work in `tools/nv/cmd/bench-com
   `crates/nvs-ext/tests/{grants,files,http}.rs` build their `Caller` with `Authority`.
 - `rule:security/capability-question-is-grant-and-scope` now names the run as an input.
 
-The nightly's proofs failures (run on `afbb1edc2`) were stale page questions. Stage 1's new refusal
-help line changed 22 Core cards' example output, and the compare page and
-`Novis\Spreadsheet\Template::open` moved too. Each page was reread and restamped, and so was
-`syntax/errors/limits.mdx`. `bun nv site --check structure snippets stale questions prose` is green.
-The `lang:errors` perf figures were re-recorded after stage 1's change to `70-errors.md`.
+The nightly's proofs failures on `afbb1edc2` were stale page questions, fixed in `b1c9527b9`.
+`bun nv site --check structure snippets stale questions prose` is green on HEAD.
 
 ### Next
 
-**Stage 3**, files: a CLI run reads and writes freely, and server work reads its app folder
-(no dot-file, no `nvs.toml`) and writes only its own temporary directories. The default goes in
-`crates/nvs-config/src/defaults.rs:364` (a new `Granted` variant per shape) and is applied in
-`Authority::allows` / `allows_resolved` / `holds` (`crates/nvs-config/src/capability.rs:303`).
-Add `[[app]] root = "tests/hostile"` with `[app.capabilities.fs] read = []` and `write = []` to
-`nvs.toml` in the same change, as the standing decision says. The temporary directories live on
-the context (`crates/nvs-runtime/src/capability.rs:1273`), so stage 3 has to decide how the
-`Authority` sees them: they are not in the pure procedure today.
+**Stage 4**, outbound hosts. `net.connect` gets a default in `defaults::capability`
+(`crates/nvs-config/src/defaults.rs:364`): `Granted::Everything` on both run kinds. The address
+table still applies through `Authority::address_refused` (`crates/nvs-config/src/capability.rs`).
+Then do CIDR in `Capabilities::address_refused`, and loopback as a startup row
+(`crates/nvs-config/src/defaults.rs:291`). The startup row needs the mode on `Run`. Add
+`connect = []` under `[app.capabilities.net]` in the hostile block (`nvs.toml:38`). Follow the
+stage's split: an `Explore` subagent lists every case that expects a `net.connect` refusal with no
+grant, as stage 3's did for files.
 
 ### Backlog
 
