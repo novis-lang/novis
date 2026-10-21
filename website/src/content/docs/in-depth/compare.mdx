@@ -50,7 +50,8 @@ result. In the deploy chart, the place counts inside each box.
 
 The deploy test copies a new version of 200 source files into a running server. Requests arrive
 the whole time. A failed request is a request that gets an error instead of the page. A mixed page
-is built partly from old files and partly from new files. Less is better.
+is built partly from old files and partly from new files. Each bar is every request a server got
+during the test. The number at the end is the share of complete pages.
 
 <FaultCharts chart="deploy" />
 

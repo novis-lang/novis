@@ -11,9 +11,12 @@
  * it, and a line of text under it, smaller. A bar with `best` takes the
  * accent colour. A row with an empty label continues the peer named above
  * it, and a bar with `above` prints its text above it, so two bars of one
- * peer sit together between their two lines.
+ * peer sit together between their two lines. A bar with `parts` is stacked,
+ * one colour per part, and `legend` names the colours above the chart.
  */
 export interface Props {
+  /** The colours of a stacked bar's parts and what each means, shown above the chart. */
+  legend?: { kind: 'ok' | 'failed' | 'mixed'; label: string }[]
   groups: {
     /** The box's heading. Without it the group is not boxed. */
     title?: string
@@ -34,17 +37,36 @@ interface Bar {
   best: boolean
   /** The figure printed at the end of the bar. */
   value: string
-  /** The line of text printed under the bar, or above it with `above`. */
+  /** The line of text printed under the bar, or above it with `above`. An empty one prints nothing. */
   figures: string
+  /**
+   * One stacked bar in place of a bar of length `share`: its parts fill the track together, in order.
+   * A part above zero is drawn at least `MIN_PART` wide, so a few failed requests among many are seen.
+   */
+  parts?: { kind: 'ok' | 'failed' | 'mixed'; share: number }[]
   above?: boolean
   /** The text beside the value. Without it, the bar's length as a percentage. */
   compared?: string
 }
 
-const { groups } = Astro.props
+const { groups, legend } = Astro.props
 const percent = (share: number) => `${Math.round(share * 100)}%`
+/** The narrowest a part of a stacked bar is drawn, so a part above zero is never invisible. */
+const MIN_PART = '4px'
 ---
 
+{
+  legend && (
+    <p class="compare-bars legend">
+      {legend.map((l) => (
+        <span class="key">
+          <span class:list={['swatch', l.kind]} />
+          {l.label}
+        </span>
+      ))}
+    </p>
+  )
+}
 <div class="compare-bars">
   {
     groups.map((g) => (
@@ -58,7 +80,7 @@ const percent = (share: number) => `${Math.round(share * 100)}%`
         <ul>
           {g.bars.map((b) => (
             <li class:list={{ best: b.best, paired: b.above }}>
-              {b.above && <span class="figures above">{b.figures}</span>}
+              {b.above && b.figures && <span class="figures above">{b.figures}</span>}
               <span class="place">
                 {b.place !== undefined && (
                   <span class="badge" title={`Place ${b.place}`}>
@@ -69,10 +91,16 @@ const percent = (share: number) => `${Math.round(share * 100)}%`
               <span class="peer">{b.label}</span>
               <span class="percent">{b.compared ?? percent(b.share)}</span>
               <span class="track">
-                <span class="bar" style={`width: ${(Math.min(b.share, 1) * 100).toFixed(1)}%`} />
+                {b.parts ? (
+                  b.parts
+                    .filter((p) => p.share > 0)
+                    .map((p) => <span class:list={['part', p.kind]} style={`flex: ${p.share} 0 ${MIN_PART}`} />)
+                ) : (
+                  <span class="bar" style={`width: ${(Math.min(b.share, 1) * 100).toFixed(1)}%`} />
+                )}
               </span>
               <span class="value">{b.value}</span>
-              {!b.above && <span class="figures">{b.figures}</span>}
+              {!b.above && b.figures && <span class="figures">{b.figures}</span>}
             </li>
           ))}
         </ul>
@@ -180,6 +208,45 @@ const percent = (share: number) => `${Math.round(share * 100)}%`
   }
   .compare-bars .best .bar {
     background: var(--sl-color-accent);
+  }
+  .compare-bars .track:has(.part) {
+    display: flex;
+    gap: 1px;
+  }
+  .compare-bars .part {
+    display: block;
+    height: 100%;
+  }
+  .compare-bars.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin-bottom: 0.75rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+  }
+  .compare-bars .key {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .compare-bars .swatch {
+    display: inline-block;
+    width: 0.9rem;
+    height: 0.9rem;
+    border-radius: 0.2rem;
+  }
+  .compare-bars .part.ok,
+  .compare-bars .swatch.ok {
+    background: var(--sl-color-gray-3);
+  }
+  .compare-bars .part.failed,
+  .compare-bars .swatch.failed {
+    background: var(--sl-color-red);
+  }
+  .compare-bars .part.mixed,
+  .compare-bars .swatch.mixed {
+    background: var(--sl-color-orange);
   }
   .compare-bars .value {
     font-variant-numeric: tabular-nums;
