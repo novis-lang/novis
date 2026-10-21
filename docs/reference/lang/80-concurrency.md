@@ -958,8 +958,9 @@ error.
 
 A path written in quotes starts at the folder of the file that contains it. A path you
 build while the program runs must be a full path, or `spawn script` throws `RuntimeError`. Build one
-with `Core\Path::join`. You can also start a static method, written `Class::method(...)`. You need the `script.spawn` capability to start either
-one. One handle can be awaited once. A second `await` of the same handle throws `LogicError`.
+with `Core\Path::join`. You can also start a static method, written `Class::method(...)`. A static method and a file inside your
+application folder start with no capability. A file outside that folder needs the `script.spawn`
+capability. One handle can be awaited once. A second `await` of the same handle throws `LogicError`.
 
 **The examples below** show one file started and collected, two files running at the same time, a
 page written while a report is built next to it, a child's output printed at `await`, and values
@@ -1073,12 +1074,6 @@ return 5;
 echo "the child says hello\n";
 ```
 
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
-```
-
 ```nvs
 <?nvs
 // Shows how to run another file and collect its result. `spawn script` starts
@@ -1168,12 +1163,6 @@ return 5;
 echo "the child says hello\n";
 ```
 
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
-```
-
 ```nvs
 <?nvs
 // Shows two files running at the same time. Start both first, then wait for
@@ -1255,12 +1244,6 @@ return 5;
 ```nvs file=jobs/say-hello.nvs
 <?nvs
 echo "the child says hello\n";
-```
-
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
 ```
 
 ```nvs
@@ -1347,12 +1330,6 @@ return 5;
 echo "the child says hello\n";
 ```
 
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
-```
-
 ```nvs
 <?nvs
 // Shows `output: "inherit"`. The child's output is printed when you `await` it.
@@ -1437,12 +1414,6 @@ return 5;
 echo "the child says hello\n";
 ```
 
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
-```
-
 ```nvs
 <?nvs
 // Shows how to give a child a value with `args:`. A file reads it with
@@ -1499,12 +1470,6 @@ the parent's variables. A child that uses `$x` without declaring it does not com
 
 ## Example 01: the script cannot change your data
 
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
-```
-
 ```nvs file=scripts/count-orders.nvs
 <?nvs
 // The examples in the folder above start this script. It prints the number it
@@ -1560,12 +1525,6 @@ after: 7
 ```
 
 ## Example 02: keep what the script prints or show it
-
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
-```
 
 ```nvs file=scripts/count-orders.nvs
 <?nvs
@@ -1663,12 +1622,6 @@ final class Report {
 echo "one session is older than a year\n";
 Report::$problems = Report::$problems + 1;
 return Report::$problems;
-```
-
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
 ```
 
 ```nvs file=scripts/count-orders.nvs
@@ -1814,12 +1767,6 @@ throw new RuntimeError("row 3 has no price");
 echo "sent 2 receipts\n";
 ```
 
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
-```
-
 ```nvs
 <?nvs
 // Shows what you get when a script you started fails. `await` returns a result
@@ -1869,12 +1816,6 @@ throw new RuntimeError("row 3 has no price");
 // for each invoice it was given.
 
 echo "sent 2 receipts\n";
-```
-
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
 ```
 
 ```nvs
@@ -1934,12 +1875,6 @@ throw new RuntimeError("row 3 has no price");
 // for each invoice it was given.
 
 echo "sent 2 receipts\n";
-```
-
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
 ```
 
 ```nvs
@@ -2011,11 +1946,8 @@ echo "sent 2 receipts\n";
 ```
 
 ```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
-
 # Example 04 may not start a script. It shows the error a program gets then.
+# Without these lines, it may start any script in this folder.
 [[app]]
 entry = "main.nvs"
 
@@ -2026,7 +1958,7 @@ spawn = false
 ```nvs
 <?nvs
 // Shows what happens when this program may not start scripts. Its `nvs.toml`
-// does not grant `script.spawn`, so `spawn script` throws `RuntimeError`.
+// sets `spawn = false`, so `spawn script` throws a `RuntimeError`.
 
 // The path starts at the folder of this file. The script never runs.
 try {
@@ -2076,21 +2008,6 @@ Their help names a `static` property, a constant or a parameter.
 
 ## Example 01: core task in place of async and promises
 
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
-```
-
-```nvs file=scripts/count-orders.nvs
-<?nvs
-// The examples in the folder above start this file with `spawn script`. It counts
-// the orders it was given and returns the number.
-
-echo "counted the orders\n";
-return 1200;
-```
-
 ```nvs
 <?nvs
 // Shows the replacement for `async` and a promise. `Core\Task::all` takes a set of
@@ -2124,12 +2041,6 @@ Orders: 7 (ready)
 ```
 
 ## Example 02: spawn script in place of fork and threads
-
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
-```
 
 ```nvs file=scripts/count-orders.nvs
 <?nvs
@@ -2178,21 +2089,6 @@ report: sales for 7 days
 
 ## Example 03: three shops priced at the same time
 
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
-```
-
-```nvs file=scripts/count-orders.nvs
-<?nvs
-// The examples in the folder above start this file with `spawn script`. It counts
-// the orders it was given and returns the number.
-
-echo "counted the orders\n";
-return 1200;
-```
-
 ```nvs
 <?nvs
 // Shows a real use: a product page needs a price from three shops before it can be
@@ -2225,21 +2121,6 @@ west: 680
 ```
 
 ## Example 04: there is no fiber class
-
-```toml file=nvs.toml
-# The examples may start the scripts in this folder.
-[capabilities.script]
-spawn = true
-```
-
-```nvs file=scripts/count-orders.nvs
-<?nvs
-// The examples in the folder above start this file with `spawn script`. It counts
-// the orders it was given and returns the number.
-
-echo "counted the orders\n";
-return 1200;
-```
 
 ```nvs error
 <?nvs

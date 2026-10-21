@@ -652,8 +652,10 @@ fn a_refusal_is_reported_with_the_reading_it_was_refused_at_and_its_ask() {
         message.contains(&format!("— {reading} bytes held against a ceiling of ")),
         "the breach does not name the reading the refusal was made at: {message}",
     );
+    // The first line is the breach; the `help:` line after it names how to raise the limit.
+    let breach = message.lines().next().unwrap_or_default();
     assert!(
-        message.ends_with(&format!(", when an allocation of {ask} bytes was refused")),
+        breach.ends_with(&format!(", when an allocation of {ask} bytes was refused")),
         "the breach does not name what the refused allocation asked for: {message}",
     );
 }

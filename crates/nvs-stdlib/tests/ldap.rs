@@ -18,7 +18,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use nvs_config::tree::{CapLdap, Capabilities, Config, LdapDirectory, Setting};
+use nvs_config::tree::{CapLdap, CapNet, Capabilities, Config, LdapDirectory, Setting};
 use nvs_ldap::ber::{self, Writer, tag};
 use nvs_ldap::{Dn, Filter, Scope, SearchRequest};
 use nvs_runtime::HeldConnection as _;
@@ -257,13 +257,24 @@ fn open_needs_the_ldap_open_grant_and_passes_the_address_policy() {
 
     // The host is granted by name, and its address is still loopback, which
     // `rule:security/net-address-policy` denies to a program-supplied target.
-    let granted = snapshot(
-        Vec::new(),
-        CapLdap {
-            open: list(&["127.0.0.1"]),
-            ..CapLdap::default()
+    // `internal = []` closes the loopback a test run otherwise reaches by default.
+    let granted = Arc::new(nvs_config::Snapshot {
+        config: Config {
+            capabilities: Some(Capabilities {
+                ldap: Some(CapLdap {
+                    open: list(&["127.0.0.1"]),
+                    ..CapLdap::default()
+                }),
+                net: Some(CapNet {
+                    internal: Some(Setting::List(Vec::new())),
+                    ..CapNet::default()
+                }),
+                ..Capabilities::default()
+            }),
+            ..Config::default()
         },
-    );
+        ..nvs_config::Snapshot::default()
+    });
     let denied = ldap::open(&mut ctx_over(&granted), &settings)
         .expect_err("a granted host at a denied address does not open");
     assert!(

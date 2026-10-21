@@ -627,7 +627,10 @@ mod tests {
         };
         let small = "[limits]\nmemory = \"1M\"\n";
         let command = breach(configured(small));
-        assert!(command.starts_with("the program exceeded its memory limit"), "{command}");
+        assert!(
+            command.starts_with("the program exceeded its memory limit"),
+            "{command}"
+        );
         assert!(
             command.ends_with(
                 "help: raise `memory` under `[limits]` in nvs.toml, or call \
@@ -637,7 +640,10 @@ mod tests {
         );
 
         let request = breach(serving(small));
-        assert!(request.starts_with("the request exceeded its memory limit"), "{request}");
+        assert!(
+            request.starts_with("the request exceeded its memory limit"),
+            "{request}"
+        );
         assert!(
             request.ends_with("in the request, up to `[limits.hard] memory`"),
             "{request}"

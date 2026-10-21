@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 
 use nvs_config::capability::{Cap, Scope};
 use nvs_config::resolve::{Disk, Files};
-use nvs_config::tree::{CapFs, Capabilities, Setting};
+use nvs_config::tree::{CapFs, CapNet, CapProcess, CapScript, Capabilities, Setting};
 
 /// The capabilities a test grants: `fs.read` under `roots` and nothing else at all. `write` is
 /// written empty, because a context with a configuration and no run kind writes every file when
@@ -141,7 +141,11 @@ fn a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match() {
 /// way [`nvs_config::tree::Capabilities::canonicalize`] does when a real snapshot is built — a root
 /// still spelled the way this file typed it is a comparison against the wrong thing.
 fn ctx_reading(roots: &[&str]) -> nvs_runtime::Ctx {
-    let mut caps = reading(roots);
+    ctx_with(reading(roots))
+}
+
+/// A context granting `caps`, canonicalized as [`ctx_reading`] says.
+fn ctx_with(mut caps: Capabilities) -> nvs_runtime::Ctx {
     caps.canonicalize(&Disk);
     let mut ctx = nvs_runtime::Ctx::buffered();
     ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
@@ -864,6 +868,8 @@ fn has(ctx: &mut nvs_runtime::Ctx, capability: &str) -> bool {
 /// The query answers `true` for exactly the names the grant table holds, counted over the whole
 /// roster rather than read off one line: a member reporting the *block* rather than the key, or
 /// falling back to a default, agrees with one line here and with no arrangement of all of them.
+/// The keys a default opens with nothing written (`script.spawn`, `net.connect` and
+/// `process.exec`) are written empty, so the one written grant is the only `true`.
 ///
 /// The second half is the arm no `.nvst` case can reach. A **written** name outside the roster is
 /// `E0616` before the program runs, so what arrives at run time is a computed one, and a program
@@ -873,7 +879,16 @@ fn has(ctx: &mut nvs_runtime::Ctx, capability: &str) -> bool {
 // covers: Core\Cap::has
 #[test]
 fn a_capability_query_answers_true_for_exactly_the_granted_names() {
-    let mut ctx = ctx_reading(&["."]);
+    let none = || Some(Setting::List(Vec::new()));
+    let mut ctx = ctx_with(Capabilities {
+        script: Some(CapScript { spawn: none() }),
+        net: Some(CapNet {
+            connect: none(),
+            ..CapNet::default()
+        }),
+        process: Some(CapProcess { exec: none() }),
+        ..reading(&["."])
+    });
     let granted: Vec<&str> = Cap::ALL
         .iter()
         .filter(|cap| has(&mut ctx, cap.name()))

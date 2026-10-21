@@ -29,8 +29,8 @@ if (Core\Cap::has("net.connect")) {
     echo "net.connect: not granted\n";
 }
 
-// A block nobody wrote at all — the deny-by-default answer, and the one every
-// capability gives on a host with no configuration.
+// Written as an empty list, because a command-line run starts any program
+// when the key is not written: the deny answer for a grant written as nothing.
 if (Core\Cap::has("process.exec")) {
     echo "process.exec: granted\n";
 } else {
@@ -46,6 +46,9 @@ write = []
 
 [capabilities.net]
 connect = ["example.test"]
+
+[capabilities.process]
+exec = []
 --EXPECT--
 fs.read: granted
 fs.write: not granted

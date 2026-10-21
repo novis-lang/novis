@@ -1724,10 +1724,11 @@ mod tests {
         const HOST: &str = "127.0.0.1";
 
         // What the operator wrote: this program may open a database at that
-        // host, and nothing excepts any address from § 3's table.
+        // host, and nothing excepts any address from § 3's table. `internal = []`
+        // closes the loopback a test run otherwise reaches by default.
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_config(crate::tests::granting(
-            "[capabilities.db]\nopen = [\"127.0.0.1\"]\n",
+            "[capabilities.db]\nopen = [\"127.0.0.1\"]\n[capabilities.net]\ninternal = []\n",
         ));
 
         nvs_runtime::capability::require(

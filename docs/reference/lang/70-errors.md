@@ -1779,8 +1779,9 @@ stopped on order A-1002, limit: memory
 A call your program is not allowed to make throws a `RuntimeError`.
 
 Reading a file, writing a file and starting another script each need a capability. A capability is
-permission to do one kind of thing. The person who runs the server grants it in `nvs.toml`, and
-nothing is granted by default.
+permission to do one kind of thing. The person who runs the server grants it in `nvs.toml`. A
+program you start from the command line may read and write any file. A server program may read its
+application folder and write only its own temporary folders.
 
 A call without the grant throws before it does any work. The message names the method, the capability
 it needed and the path it was given. A `help:` line under it says where to write the grant. This is an

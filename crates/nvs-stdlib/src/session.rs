@@ -1486,9 +1486,8 @@ fn send_at_end(ctx: &mut Ctx) {
         None => return,
         Some(open) => {
             let lifetime = ttl(ctx);
-            opened(ctx, SENDER, ", which is where this session's record lives").and_then(
-                |store| put(&store, "the write-back", &open.id, &open.record, lifetime),
-            )
+            opened(ctx, SENDER, ", which is where this session's record lives")
+                .and_then(|store| put(&store, "the write-back", &open.id, &open.record, lifetime))
         }
     };
     if let Err(why) = sent {

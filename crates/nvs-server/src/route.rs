@@ -358,8 +358,7 @@ pub fn csrf_in_body(
         }
     }
     let session = cookie(inbound, session_cookie).unwrap_or("");
-    let passed =
-        field(&read, TOKEN_FIELD).is_some_and(|presented| key.verify(&presented, session));
+    let passed = field(&read, TOKEN_FIELD).is_some_and(|presented| key.verify(&presented, session));
     inbound.set_buffered_body(read);
     if passed { Csrf::Passed } else { Csrf::Refused }
 }
@@ -775,17 +774,26 @@ mod tests {
 
         let host = ("host", "app.example.com");
         let riding = ("cookie", "nvsid=sid-ada");
-        let form = ("content-type", "Application/X-WWW-Form-Urlencoded; charset=UTF-8");
+        let form = (
+            "content-type",
+            "Application/X-WWW-Form-Urlencoded; charset=UTF-8",
+        );
         let upload = ("content-type", "multipart/form-data; boundary=x");
         let query = format!("page=2&_csrf={}", escaped(&token));
 
         assert_eq!(door(&arrived("", &[host, riding, form])), Csrf::InBody);
         assert_eq!(door(&arrived("", &[host, riding, upload])), Csrf::Refused);
         assert_eq!(
-            door(&arrived("", &[host, riding, upload, ("x-csrf-token", &token)])),
+            door(&arrived(
+                "",
+                &[host, riding, upload, ("x-csrf-token", &token)]
+            )),
             Csrf::Passed
         );
-        assert_eq!(door(&arrived(&query, &[host, riding, upload])), Csrf::Passed);
+        assert_eq!(
+            door(&arrived(&query, &[host, riding, upload])),
+            Csrf::Passed
+        );
         assert_eq!(
             door(&arrived(
                 &format!("_csrf={}", escaped(&elsewhere)),
@@ -849,7 +857,10 @@ mod tests {
         assert_eq!(run(false), (None, Some(403)));
         assert_eq!(
             run(true),
-            (Some((Some(nvs_runtime::routes::Refusal::Csrf), false)), None)
+            (
+                Some((Some(nvs_runtime::routes::Refusal::Csrf), false)),
+                None
+            )
         );
     }
 
