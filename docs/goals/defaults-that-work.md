@@ -83,7 +83,7 @@ stages:
         rules: [config/no-configuration-file-is-a-complete-configuration, security/an-unmatched-namespace-holds-the-application]
   - id: 12
     title: the website says what the defaults are, and every rule this goal changed says what is true
-    status: open
+    status: done
     context: [website/src/content/docs/guides/how-to-use/configuration.mdx, website/src/content/docs/guides/production/security-checklist.mdx]
     extra:
       context:
@@ -505,10 +505,10 @@ second the examples, held to § *Text an end user reads* in `AGENTS.md`.
 capability default. Then one writing subagent edits them, held to § *Text an end user reads* in
 `AGENTS.md`.
 
-- [ ] The configuration page and the security checklist say what each run kind may do with no `nvs.toml`, and how to narrow it. `website/src/content/docs/guides/how-to-use/configuration.mdx:1`, `website/src/content/docs/guides/production/security-checklist.mdx:1`
-- [ ] Every other listed page. `website/src/content/docs/guides/cookbook/upload-file.mdx:1`
-- [ ] `rule:security/an-unmatched-namespace-holds-the-application` and `rule:security/package-authority-is-granted-one-line-at-a-time` say a default never reaches a package and the audit warning is the mitigation for hand-vendored code. `docs/rules/security/an-unmatched-namespace-holds-the-application.md:1`, `docs/rules/security/package-authority-is-granted-one-line-at-a-time.md:1`
-- [ ] Each rule this goal changed says what is true and lists its declined relaxations, and `bun nv rules --check` passes: `config/no-configuration-file-is-a-complete-configuration`, `security/capability-question-is-grant-and-scope`, `security/net-address-policy`, `config/a-startup-default-is-never-flipped`, `core-classes/db-capabilities`, `security/script-spawn-capability`, `http-server/no-session-block-means-the-data-folder-store`, `config/ceilings-are-their-own-directives`. `docs/rules/config/no-configuration-file-is-a-complete-configuration.md:1`
+- [x] The configuration page and the security checklist say what each run kind may do with no `nvs.toml`, and how to narrow it. `website/src/content/docs/guides/how-to-use/configuration.mdx:1`, `website/src/content/docs/guides/production/security-checklist.mdx:1`
+- [x] Every other listed page. `website/src/content/docs/guides/cookbook/upload-file.mdx:1`
+- [x] `rule:security/an-unmatched-namespace-holds-the-application` and `rule:security/package-authority-is-granted-one-line-at-a-time` say a default never reaches a package and the audit warning is the mitigation for hand-vendored code. `docs/rules/security/an-unmatched-namespace-holds-the-application.md:1`, `docs/rules/security/package-authority-is-granted-one-line-at-a-time.md:1`
+- [x] Each rule this goal changed says what is true and lists its declined relaxations, and `bun nv rules --check` passes: `config/no-configuration-file-is-a-complete-configuration`, `security/capability-question-is-grant-and-scope`, `security/net-address-policy`, `config/a-startup-default-is-never-flipped`, `core-classes/db-capabilities`, `security/script-spawn-capability`, `http-server/no-session-block-means-the-data-folder-store`, `config/ceilings-are-their-own-directives`. `docs/rules/config/no-configuration-file-is-a-complete-configuration.md:1`
 
 ### 13. the goal's one gate is green
 
@@ -528,12 +528,39 @@ to a writing subagent, one after another. Then the gate runs once more.
 
 ### State
 
-Stages 1 to 11 are done. Stage 4 is committed without a green gate: its gate was stopped after a
-test hung. Stage 12 checks with a build alone, and stage 13, the gate stage, verifies the goal.
+Stages 1 to 12 are done. Stage 4 is committed without a green gate: its gate was stopped after a
+test hung. Stage 13, the gate stage, verifies the goal.
 
 **The last sweep's reds were already fixed.** The `env-secret-proofs` log is from 22:32, before
-`target/release/nvs.exe` was rebuilt at 22:40; the check is green at HEAD. The nightly run
-`39567373487` is the same `afbb1edc2` run the earlier handoff covered.
+`target/release/nvs.exe` was rebuilt at 22:40; `bun nv proofs --gate --only 'Core\Env::secret'`
+was rerun this session and is green. The nightly run `39567373487` is the same `afbb1edc2` run
+the earlier handoff covered.
+
+**Stage 12 (the website and the rules), `15d319bfd` and `feac65032`:**
+
+- Rules: `config/no-configuration-file-is-a-complete-configuration` and
+  `security/capability-question-is-grant-and-scope` no longer say every other capability defaults
+  to nothing; they name the `net.connect`, `net.internal`, `process.exec` and `script.spawn`
+  defaults. The former gained a **Declined** list: the grants kept strict, a writable `storage/`,
+  and loopback in production. The two package rules say a default never reaches a package and the
+  audit warning covers hand-vendored code. The other six rules the stage lists were rewritten in
+  their own stages and were reread. `bun nv rules --check` is green, and `bun nv rules --render`
+  rewrote `docs/rules/config.md` and `security.md`.
+- Website: `configuration.mdx` has a section *What a program may do with no nvs.toml* (a table per
+  run kind, and a block that narrows). The security checklist names the server defaults. The
+  guides drop the grants a default gives: `csv-report` and `file-watcher` lost their snippet
+  `nvs.toml`, `schedule-job` and `scheduled-job` lost `[capabilities.script]`, and `upload-file`
+  lost `read`. `page-db-rows` keeps `[capabilities.db] connect`, since a named `[db.*]` block keeps
+  no default. The six changed snippets were rerun with `--bless`, and no `.out` changed. The
+  `Core\Net::connect` and `Net\Datagram::send` about pages say a public host needs no line.
+- `website/src/data/core.json` and `llms-full.txt` were regenerated (`bun nv render --website`).
+  111 pages' questions were reread and stamped, `Core\Env::secret`'s were written, and 4 syntax
+  pages were restamped in `site.lock.json`. `bun nv site --check` passes `structure`,
+  `snippets`, `stale`, `questions`, `guides`, `in-depth` and `prose`.
+- **Expected red at stage 13:** `bun nv site --check reference` names
+  `/reference/core/env/secret/` as not in the built site, until the site is built. `site --check
+  syntax` lists 43 uncovered enum and router types (`Novis\Intl\*`, `Novis\Spreadsheet\*`,
+  `Core\Router\Gate`); this goal did not add them, so check whether the gate runs that part.
 
 **Stage 11 (the files show the defaults), `6d9340431` and `c775ff1cc`:**
 
@@ -847,17 +874,14 @@ questions of the capabilities and trust pages. They are restamped in this group.
 
 ### Next
 
-**No gate until stage 13.** Check with `cargo build` and `cargo clippy --all-targets -- -D
-warnings`, commit each slice, and name in the handoff the tests and cases you expect to go red.
-
-**Stage 12**: the website and the rules. Follow the stage's `**Split:**` line. The website pages
-first: `website/src/content/docs/guides/how-to-use/configuration.mdx` and
-`website/src/content/docs/guides/production/security-checklist.mdx`, then the other listed pages,
-held to § *Text an end user reads*. Regenerate `website/src/data/core.json` (the
-`Core\Csrf::issue` text at about `:7504`) with the website's data command, and reread and stamp
-the six reference pages with stale questions (`bun nv site --questions --stamp <page>`). Then the
-two package rules and the eight rules the stage lists, and `bun nv rules --check`. The examples
-under `docs/examples/` already say what is true, so a website page can follow their wording.
+**Stage 13, the gate.** Run `bun nv affected --run` once over the whole goal, with
+`run_in_background`, and group its failures by cause. The *Expected red* lines under each stage
+above name what is likely: `crates/nvs-stdlib/tests/capability.rs:868`, tests and cases that
+expect a CLI run refused with nothing written, a CLI memory raise refused, `Core\Session::start`
+throwing with no `[session]` block, and examples or attacks that relied on a removed grant. A
+test whose expectation a new default changed writes the narrowing it relied on. Fix every failure
+in one pass, then run the gate once more. Last, `bun nv verify --doc` and
+`bun nv owners --closes defaults-that-work`.
 
 **Proofs use the release binary.** `bun nv proofs --gate` reads the roster from
 `target/release/nvs.exe`. After adding a `Core` member, pass `--nvs target/debug/nvs.exe` or run
@@ -868,8 +892,7 @@ under `docs/examples/` already say what is true, so a website page can follow th
 - `crates/nvs-stdlib/src/` holds many `default_*.profraw` coverage files from some earlier run. Find what writes them there and delete them. `crates/nvs-stdlib/src/csrf.rs:1`
 - `Core\Queue::push`'s `grants` refusal still says ``help: grant it in nvs.toml under ...``: it is about the request's own grants list, not a missing grant line, and may adopt `grant_line` when stage 2 touches queue grants. `crates/nvs-stdlib/src/queue.rs:3085`
 - `nvs-stdlib test ldap` failed 9 Samba cases in one full verify run. The cause was a TLS handshake that passed its 30s deadline, with the binary taking 205s, and it passed alone in 5s twice. If it repeats, find what loads Samba during verify. `crates/nvs-stdlib/tests/ldap.rs:49`
-- Stage 12: six reference pages have stale questions (see *State*). `bun nv site --questions --stamp <page>` after a reread. `website/src/content/docs/guides/how-to-use/configuration.mdx:1`
-- Stage 12: a website page that says a session needs a configured store, or that `start` throws with no `[session]` block, now says what is not true. `website/src/content/docs/guides/how-to-use/configuration.mdx:1`
+- `bun nv site --questions --stamp` takes URLs that start with `/`, and Git Bash turns them into `C:/Program Files/Git/...`. Run it with `MSYS_NO_PATHCONV=1`, or make the tool accept a URL without its leading slash. `tools/nv/cmd/site.ts:20`
 - The editor offers file names at a `ParamText::Path` argument and not at `ParamText::Program`, so `Core\Process::run`'s first argument lost path completion, hover and links. `crates/nvs-lsp/src/completion.rs:743`
 - The examples' IO folders' own `nvs.toml` files were not checked for keys a default now gives. `docs/examples/core/IO/read/about.md:1`
 - `tools/config/network-grants-the-addresses-and-endpoints-they-reach/nvs.toml` lists `127.0.0.2` under `connect`, which passes only because its written `internal` replaces the loopback default. Check that its comment says so. `docs/examples/tools/config/network-grants-the-addresses-and-endpoints-they-reach/nvs.toml:1`
