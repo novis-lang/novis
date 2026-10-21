@@ -306,14 +306,10 @@ The nightly sweep's failures are on `6544156`, which the previous session found 
 `PATHS`, `propertyPiece` and `methodPiece` and the oracle before you write anything. It is about
 700 lines, so budget for it.
 
-- [ ] Add a `covariant` method parameter and a `covariant` property as member rows. Their verdict is
-  `ok` for `subclass`, `int-under-int-string`, `t-under-nullable` and `member-under-union`, `E0882`
-  for `same`, `superclass`, `nullable-over-t` and `wider-union`, and `E0404` or `E0866` for `unrelated`. Check each against `covariant_property_problem` and `check_covariant_params`. `tools/nv/cmd/soundness.ts:142`
-- [ ] The oracle: a path that passes the parent's wider value prints the `LogicError` message. A
-  path through the child's type passes the child's value. `tools/nv/cmd/soundness.ts:546`
-- [ ] `bun nv soundness --write`, then `NVS_BIN=E:/mwl/target/debug/nvs.exe bun nv soundness --probe`
-  and every cell green. `tests/conformance/soundness/`
-- [ ] Mark stage 5 done. Then stage 6, the feature proofs.
+- [ ] Add a `covariant` method parameter and a `covariant` property as member rows: `ok` for `subclass`, `int-under-int-string`, `t-under-nullable` and `member-under-union`, `E0882` for `same`, `superclass`, `nullable-over-t` and `wider-union`, `E0404` or `E0866` for `unrelated`; check each against `covariant_property_problem` and `check_covariant_params`. `tools/nv/cmd/soundness.ts:142`
+- [ ] The oracle: a path that passes the parent's wider value prints the `LogicError` message, and a path through the child's type passes the child's value. `tools/nv/cmd/soundness.ts:546`
+- [ ] `bun nv soundness --write`, then `NVS_BIN=E:/mwl/target/debug/nvs.exe bun nv soundness --probe` with every cell green. `tools/nv/cmd/soundness.ts:1`
+- [ ] Mark stage 5 done in the front matter. Then stage 6, the feature proofs. `docs/goals/covariant.md:1`
 
 ### Backlog
 
