@@ -30,7 +30,8 @@ license = "OFL-1.1"
   before the file is renamed into place, and a mismatch tries the next URL. After the last one, the fetch
   fails naming the package, the path and what each URL returned.
 - **Nothing is unpacked and nothing runs** (`rule:packaging/nothing-runs-before-the-program`). A zip
-  arrives as a zip, and the package's own code reads it.
+  arrives as a zip, and the package's own code reads it, with no grant
+  (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`).
 - **A cache keyed by SHA-256** under the data folder, behind the ownership check the artifact cache
   uses, holds each file once across projects and versions.
 - **`nvs pkg provide <file>`** puts a file obtained any other way into that cache, when its hash and

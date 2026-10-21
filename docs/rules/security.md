@@ -998,7 +998,9 @@ introduced rather than discoverable by audit later.
 What this buys, stated plainly: a fully malicious package that reaches the compiler cannot open a
 socket, read a file, spawn a process, reach a database or spawn a script unless a human wrote its name
 in a grant line. The compromise of a transitive dependency degrades from *arbitrary action with the
-process's authority* to *arbitrary computation with no authority at all*.
+process's authority* to *arbitrary computation with no authority at all*. The one read that needs no
+line is a package reading its own listed files, whose bytes its digest already fixes
+([`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists)).
 
 Grant lines are friction, and the friction is the point. Some users will grant everything without
 reading, the way some run containers as root; the design cannot prevent that, only make it visible and

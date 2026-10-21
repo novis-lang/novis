@@ -52,7 +52,7 @@ stages:
     context: [docs/rules/packaging/an-external-file-is-pinned-by-url-sha256-and-size.md, crates/nvs-config/src/capability.rs, crates/nvs-stdlib/src/http/transport.rs]
     extra:
       context:
-        rules: [packaging/an-external-file-is-pinned-by-url-sha256-and-size, packaging/a-package-carries-only-its-source-and-what-it-lists, packaging/nothing-runs-before-the-program, security/net-address-policy, programs/relative-paths-resolve-from-their-file]
+        rules: [packaging/an-external-file-is-pinned-by-url-sha256-and-size, packaging/a-package-carries-only-its-source-and-what-it-lists, packaging/nothing-runs-before-the-program, security/net-address-policy, programs/relative-paths-resolve-from-their-file, security/package-authority-is-granted-one-line-at-a-time, security/path-scope-canonicalise-then-prefix]
   - id: 6
     title: "`package.toml`, `nvs pkg add` and `nvs pkg fetch` have their feature proofs"
     status: open
@@ -151,9 +151,12 @@ reads a `[[download]]` entry, fetches it through the same pinned and checked con
 renames it into place once size and hash match (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`).
 SHA-256 comes from the workspace's `sha2` row (`Cargo.toml:649`). Its tests run against loopback TLS listeners as the clone's do.
 A package reads its listed or downloaded file through a relative string literal
-(`rule:programs/relative-paths-resolve-from-their-file`). If that read needs a filesystem grant, stage
-9 decides whether a package's own directory is readable without one, records it in
-`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`, and says why in the handoff.
+(`rule:programs/relative-paths-resolve-from-their-file`) with no grant line: code under a package's
+namespace may read exactly its own archive and download files, checked by canonical path
+(`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`). Stage 9 adds that check
+beside the grant lookup goal `namespace-grants` builds (`crates/nvs-config/src/grants.rs`), reading
+each package's file set from where `nvs pkg fetch` records it, and names that place in the rule's
+**Not on disk** line when it ships.
 
 **Resolution takes the highest minimum across majors too.** A graph is never unsolvable. A break that
 matters is a compile error naming the package, the member and both versions, because the whole
@@ -277,7 +280,9 @@ placed at its path, and the two commands write an entry and fill the cache.
 - [ ] The `[[download]]` reader and its form checks, shared with the registry's build (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`). `crates/nvs-cli/src/package/manifest.rs:1`
 - [ ] The download: HTTPS only, each redirect hop checked and at most five, the read stopped one byte past the size, the hash checked before the rename, the next URL on a mismatch, and the SHA-256 cache under the ownership check. `crates/nvs-cli/src/package/download.rs:1`, `crates/nvs-cli/src/cache.rs:1258`
 - [ ] `nvs pkg fetch` and `nvs pkg vendor` place each file at its path, and `nvs pkg add` and `nvs pkg update` print each file's host, size and license, the total, and a host new since the lock, which records the hosts. `crates/nvs-cli/src/package/fetch.rs:1`, `crates/nvs-cli/src/package/report.rs:1`, `crates/nvs-cli/src/package/lock.rs:1`
-- [ ] `nvs pkg download <url> --to <path>` writes an entry, `nvs pkg provide <file>` fills the cache only for a matching entry, and a package reads its downloaded file through a relative path, with the grant question settled as the standing decision says. `crates/nvs-cli/src/package/download.rs:1`
+- [ ] `nvs pkg download <url> --to <path>` writes an entry, `nvs pkg provide <file>` fills the cache only for a matching entry, and a package reads its downloaded file through a relative path. `crates/nvs-cli/src/package/download.rs:1`
+- [ ] The read check: `nvs pkg fetch` records each package's file set, and a read-only `Core` door called from a package's namespace passes for a file in that set with no grant line (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`). `crates/nvs-config/src/grants.rs:1`, `crates/nvs-cli/src/package/fetch.rs:1`
+- [ ] Tests: a package reads its own listed file and its downloaded file with an empty grant line, and is refused a write to it, a read through `..` or a symlink out of the set, an unlisted file placed in its folder, and another package's file. `crates/nvs-cli/tests/package_client.rs:1`
 - [ ] Tests against loopback TLS listeners: a wrong hash, a body past its size, a redirect to an internal address, an `http:` URL, a dead first URL served by the second, a provided file, and an archive that stays unpacked. `crates/nvs-cli/tests/package_download.rs:1`
 
 ### 6. `package.toml`, `nvs pkg add` and `nvs pkg fetch` have their feature proofs

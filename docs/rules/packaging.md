@@ -1691,7 +1691,7 @@ held after the digest is recorded.
 
 <a id="packaging-a-package-carries-only-its-source-and-what-it-lists"></a>
 
-## A package archive carries its `src/` source, `package.toml`, its license and readme, and the files `files` names, within 16 MiB and 5,000 files whose paths work on every platform  *(designed — owned by goal package-client)*
+## A package archive carries its `src/` source, `package.toml`, its license and readme, and the files `files` names, within 16 MiB and 5,000 files whose paths work on every platform, and the package reads them without a grant  *(designed — owned by goal package-client)*
 
 `rule:packaging/a-package-carries-only-its-source-and-what-it-lists`
 
@@ -1717,6 +1717,13 @@ at the package root, and exactly the files `package.toml`'s `files` list names, 
   is fetched into.
 - **`nvs pkg publish --dry-run` and `nvs pkg pack` print every file with its size, and the total,** so
   the publisher sees exactly what ships before it ships.
+- **A package reads its own files without a grant.** Code under a package's namespace may read, with
+  any `Core` door that only reads, exactly the files its archive carries and its `[[download]]`
+  entries placed ([`packaging/an-external-file-is-pinned-by-url-sha256-and-size`](packaging.md#packaging-an-external-file-is-pinned-by-url-sha256-and-size)). The path is
+  canonicalized and then compared with that set, so `..` and a symlink do not reach past it
+  ([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)). Writing, listing a folder, and reading any
+  other file, including another package's, still need a grant line
+  ([`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time)).
 
 An allowlist fails closed. With an ignore list, every new file in a repository is published until
 somebody remembers to exclude it, which is how keys, `.env` files and database dumps reach a registry,
@@ -1725,6 +1732,13 @@ Documentation, tests, examples, CI files and agent instruction files are for the
 package, not for the program that runs it. The license file is the exception the law makes: MIT and
 BSD require their text with every copy, and Apache-2.0 also its `NOTICE`. The readme is the one other
 exception, because it is small and a vendored or offline copy then says what it is.
+
+The read gives a package nothing it does not already have. The digest or the hash fixes those bytes,
+and the package could carry the same bytes as a string constant in its source. A grant for it would
+name a folder that changes with every version, and an application author asked for one on every
+package with a font or a template learns to grant broad file access, which is the habit the grant
+lines exist to prevent. The set is the listed files and not the package's folder, because an
+application may put its own files there.
 
 The limits are counted on the files, not on a compressed archive: compression is the transport's
 ([`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git)), source compresses five to ten times while
@@ -1738,7 +1752,8 @@ the two limits allow, before the digest is checked, so a hostile mirror cannot f
 with an archive the digest would have refused afterwards.
 
 **Memory:** the pack and the fetch stream the archive to and from disk, so memory does not grow with
-it. Nothing is held per request.
+it. The read check holds one set of paths per fetched package for the life of the process, and
+nothing per request.
 
 **Declined:**
 - **An ignore list** (`.npmignore`, `exclude`). It fails open.
@@ -1750,12 +1765,17 @@ it. Nothing is held per request.
   whole history again. The package page links the commit each version was built from.
 - **A limit on the compressed size.** It gives source a hidden five- to tenfold allowance over assets,
   and no publisher can predict it exactly.
+- **A grant line for a package to read its own files.** It is friction with no security in it, and
+  it trains authors to grant more than that.
+- **The whole package folder readable without a grant.** An application's own files placed there
+  would become readable by the package.
 - **A larger limit raised per package on request.** It needs a person to decide each request, and the
   operator only withholds ([`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds)).
 
-**Not on disk.** There is no `nvs pkg pack` and no reader for `files`.
+**Not on disk.** There is no `nvs pkg pack`, no reader for `files`, and no read check for a
+package's own files.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/an-external-file-is-pinned-by-url-sha256-and-size`](packaging.md#packaging-an-external-file-is-pinned-by-url-sha256-and-size), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/an-external-file-is-pinned-by-url-sha256-and-size`](packaging.md#packaging-an-external-file-is-pinned-by-url-sha256-and-size), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
 
 <a id="packaging-an-external-file-is-pinned-by-url-sha256-and-size"></a>
 
@@ -1795,7 +1815,8 @@ license = "OFL-1.1"
   before the file is renamed into place, and a mismatch tries the next URL. After the last one, the fetch
   fails naming the package, the path and what each URL returned.
 - **Nothing is unpacked and nothing runs** ([`packaging/nothing-runs-before-the-program`](packaging.md#packaging-nothing-runs-before-the-program)). A zip
-  arrives as a zip, and the package's own code reads it.
+  arrives as a zip, and the package's own code reads it, with no grant
+  ([`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists)).
 - **A cache keyed by SHA-256** under the data folder, behind the ownership check the artifact cache
   uses, holds each file once across projects and versions.
 - **`nvs pkg provide <file>`** puts a file obtained any other way into that cache, when its hash and
