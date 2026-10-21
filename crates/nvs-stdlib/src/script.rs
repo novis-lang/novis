@@ -810,24 +810,7 @@ pub(crate) fn grants_of(value: &Value) -> Result<Option<Vec<String>>, Fault> {
         ))
     })?;
     let mut names = Vec::new();
-    let mut from = 0_usize;
-    loop {
-        #[expect(
-            unsafe_code,
-            reason = "a Tag::Array argument owns a reference to a live allocation, \
-                      so it is live for the length of this call, and `from` only \
-                      ever advances past a slot this same cursor reported"
-        )]
-        let (slot, entry) = unsafe {
-            let slot = nvs_runtime::nvs_array_next_slot(array, from);
-            let Ok(slot) = usize::try_from(slot) else {
-                break;
-            };
-            let mut entry = Value::null();
-            nvs_runtime::nvs_array_value_at(array, slot, &raw mut entry);
-            (slot, entry)
-        };
-        from = slot + 1;
+    for entry in crate::str::Elements::of(array) {
         let name = entry.as_text().ok_or_else(|| {
             // Unreachable from source: the option is checked against
             // `array<string>`, so a non-string element is `E_TYPE_MISMATCH` at
