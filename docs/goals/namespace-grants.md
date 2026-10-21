@@ -154,6 +154,7 @@ granted it, intersected with the operator's configuration.
 - [ ] The enclosing namespace is the call's authority: file-scope code is not exempt, an anonymous function keeps the namespace it was declared in, and a `use` import transfers nothing (`rule:security/authority-is-the-enclosing-namespace`). `crates/nvs-types/src/expr/calls.rs:506`
 - [ ] A namespace granted nothing holds nothing, and an empty grant line is how that is written (`rule:security/package-authority-is-granted-one-line-at-a-time`). `crates/nvs-types/src/capability.rs:49`
 - [ ] A required capability not granted is a compile error naming the namespace, the capability and the line that fixes it. `crates/nvs-diagnostics/src/code/config.rs:822`
+- [ ] A `Core\Config::set` call under a package's namespace may lower a limit and never raise one, while the application's own code on a CLI run may raise its memory limit (goal `defaults-that-work`, decision 11), with a conformance case for each. `crates/nvs-stdlib/src/config.rs:209`
 - [ ] Conformance cases: each item above, and a program with no `[grants]` table compiling as before (`rule:security/an-unmatched-namespace-holds-the-application`). `tests/conformance/cap/grants-a-namespace-holds-only-what-it-is-granted.nvst:1`
 
 ### 5. a package file stays under its package's namespace, and a package path cannot escape the package
