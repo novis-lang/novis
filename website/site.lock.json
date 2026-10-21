@@ -92,9 +92,9 @@
     "lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks": "c46a28c083c0647f"
   },
   "syntax/concurrency/isolates.mdx": {
-    "lang:concurrency/a-child-s-failure-is-a-value": "f8783123d57abb89",
-    "lang:concurrency/a-child-shares-nothing": "e44e22f6d34cd0ff",
-    "lang:concurrency/isolates-spawn-script-and-await": "abe64b237d45db05"
+    "lang:concurrency/a-child-s-failure-is-a-value": "b4f7de2c03b1096a",
+    "lang:concurrency/a-child-shares-nothing": "7bcd6f5fc2a0f807",
+    "lang:concurrency/isolates-spawn-script-and-await": "37de3dfc0bab8012"
   },
   "syntax/concurrency/limits-and-errors.mdx": {
     "lang:concurrency/a-child-s-throw": "808605947c8ef8cf",
@@ -104,7 +104,7 @@
     "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "847d539495a53cd8",
     "lang:concurrency/core-task-map-one-task-per-element": "c5e612959175fd93",
     "lang:concurrency/no-colouring-i-o-just-waits": "74b80432d965b4b6",
-    "lang:concurrency/what-does-not-exist": "cf4a9c95a8d8e1a8"
+    "lang:concurrency/what-does-not-exist": "4aeb6452491a9379"
   },
   "syntax/control-flow/break-continue-return.mdx": {
     "lang:statements/break-and-continue": "45f8b87e93408554",
@@ -167,7 +167,7 @@
     "TimeoutError": "4c638020de9e7f10"
   },
   "syntax/errors/limits.mdx": {
-    "lang:errors/capability-denials-are-catchable": "44a76d49192c3ba0",
+    "lang:errors/capability-denials-are-catchable": "a2b0f9b9764d58a7",
     "lang:errors/fatal-errors-limits-no-catch-sees": "330a110d0295b275",
     "lang:errors/recursion-depth": "da4039577910015b"
   },
@@ -215,7 +215,7 @@
   },
   "syntax/programs/file-paths-and-exit.mdx": {
     "lang:programs/ending-a-program": "305e33cff6fa9b57",
-    "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file": "4f1eccbc61377aae"
+    "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file": "8f84e64b84e7b61f"
   },
   "syntax/programs/namespaces.mdx": {
     "lang:programs/autoload-find-a-class-by-its-namespace": "95ee5a6c8715d356",

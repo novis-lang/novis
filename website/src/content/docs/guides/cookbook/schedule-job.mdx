@@ -18,12 +18,10 @@ name = "weekly-report"
 cron = "0 7 * * 1"
 script = "schedule-job.nvs"
 scope = "host"
-
-[capabilities.script]
-spawn = ["."]
 ```
 
-`nvs serve` reads this file and runs the job at that time. `0 7 * * 1` means minute 0 of hour 7,
+`nvs serve` reads this file and runs the job at that time. The script is in the app folder, so it
+needs no permission to start. `0 7 * * 1` means minute 0 of hour 7,
 on day 1 of the week, which is Monday. To run the job once by hand, use `nvs run schedule-job.nvs`.
 
 [A scheduled job](/guides/simple-programs/scheduled-job/) is a longer example. Read

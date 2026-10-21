@@ -32,7 +32,7 @@
   },
   "/guides/cookbook/": {
     "feature": "guides/cookbook/index.mdx",
-    "hash": "be11fe998d122190",
+    "hash": "67c69e379a1ac887",
     "questions": [
       "Short recipes for common web tasks in Novis",
       "Copy and paste examples for everyday server tasks",
@@ -92,12 +92,13 @@
   },
   "/guides/cookbook/schedule-job/": {
     "feature": "guides/cookbook/schedule-job.mdx",
-    "hash": "8d2644a2481ea2d4",
+    "hash": "0088c0a4cde03ce3",
     "questions": [
       "How do I run a program every Monday morning?",
       "Example of a weekly report that runs by itself",
       "What does the cron line 0 7 * * 1 mean?",
-      "Run a scheduled program once by hand to try it"
+      "Run a scheduled program once by hand to try it",
+      "Does a scheduled script need a permission before the server starts it?"
     ]
   },
   "/guides/cookbook/signed-cookie/": {
@@ -122,12 +123,13 @@
   },
   "/guides/cookbook/upload-file/": {
     "feature": "guides/cookbook/upload-file.mdx",
-    "hash": "370dc9d948cb5bd5",
+    "hash": "3d26573810ea87ad",
     "questions": [
       "Store user uploads safely on the server",
       "Example of a file upload to a folder on the server",
       "Set a maximum size for files that users upload",
-      "Why should I not use the file name the client sends?"
+      "Why should I not use the file name the client sends?",
+      "Why can my request not save a file in the uploads folder?"
     ]
   },
   "/guides/cookbook/validate-form/": {
@@ -220,13 +222,13 @@
   },
   "/guides/how-to-use/configuration/": {
     "feature": "guides/how-to-use/configuration.mdx",
-    "hash": "a95e777420cdb4ef",
+    "hash": "5f325d67fdcb9a42",
     "questions": [
       "How should I set up the configuration of a new project?",
       "How do I create a new configuration file with every setting?",
       "Use different settings for one folder or script",
       "Why does my program have no permission to read files?",
-      "Where does nvs look for its configuration file?",
+      "What may my program do when there is no nvs.toml?",
       "Can environment variables change a setting?"
     ]
   },
@@ -242,11 +244,11 @@
   },
   "/guides/how-to-use/limits/": {
     "feature": "guides/how-to-use/limits.mdx",
-    "hash": "cfbb72aabd53ad6c",
+    "hash": "a322d3327a06a739",
     "questions": [
       "How do I give one large report more memory than other pages?",
       "Difference between processor time and total request time",
-      "Starting limit and maximum limit for each request",
+      "Can a command line script raise its own memory limit?",
       "What are the default memory and time limits of a request?",
       "Why does raising a limit in my code return false?",
       "How many requests can run at the same time with my memory?"
@@ -295,7 +297,7 @@
   },
   "/guides/production/docker/": {
     "feature": "guides/production/docker.mdx",
-    "hash": "6f4b2e0166ca4aa1",
+    "hash": "667148ccfb568ce9",
     "questions": [
       "How do I run a Novis app in a Docker container?",
       "Which tag of the official Novis image should I deploy?",
@@ -343,27 +345,30 @@
   },
   "/guides/production/security-checklist/": {
     "feature": "guides/production/security-checklist.mdx",
-    "hash": "a32cb8aa6ab8379c",
+    "hash": "eaa4d328680a8d94",
     "questions": [
       "What should I check before my server goes live?",
       "Security checklist for deploying a Novis web app",
       "How do I make my production server secure?",
-      "Common security mistakes before the first request"
+      "Common security mistakes before the first request",
+      "What can my server read and connect to without a config file?",
+      "Where should I keep secret files so web requests cannot read them?"
     ]
   },
   "/guides/simple-programs/": {
     "feature": "guides/simple-programs/index.mdx",
-    "hash": "59841f514553e220",
+    "hash": "121bee5ba89b27d2",
     "questions": [
       "Small complete Novis programs I can copy and run",
       "Where can I find example scripts for common everyday tasks?",
       "Programs that read files, call web services and handle forms",
-      "Short programs in one file each, with their output"
+      "Short programs in one file each, with their output",
+      "Does a script I run from the terminal need a config file?"
     ]
   },
   "/guides/simple-programs/csv-report/": {
     "feature": "guides/simple-programs/csv-report.mdx",
-    "hash": "e1da7fb2633465af",
+    "hash": "09cec9a3c8e188d9",
     "questions": [
       "How do I add up sales per product from a spreadsheet file?",
       "Example of reading a CSV file and printing totals",
@@ -374,7 +379,7 @@
   },
   "/guides/simple-programs/file-watcher/": {
     "feature": "guides/simple-programs/file-watcher.mdx",
-    "hash": "388e637392b0a5b6",
+    "hash": "a772b8331e8ab285",
     "questions": [
       "How do I print something every time a file changes?",
       "Example of a program that watches a file for changes",
@@ -407,23 +412,26 @@
   },
   "/guides/simple-programs/scheduled-job/": {
     "feature": "guides/simple-programs/scheduled-job.mdx",
-    "hash": "b1779d30ab9cf814",
+    "hash": "59b7c5391808cb86",
     "questions": [
       "How do I delete old log files every night?",
       "Example of a job that runs at 3 in the morning",
       "Keep only the newest three files in a folder",
-      "Run a cleanup job on only one of my servers"
+      "Run a cleanup job on only one of my servers",
+      "Allow a nightly job to delete files on the server",
+      "Start a scheduled script that is in another folder"
     ]
   },
   "/guides/simple-programs/scraper/": {
     "feature": "guides/simple-programs/scraper.mdx",
-    "hash": "f5c2976df3659bd8",
+    "hash": "2283b6a5bc405145",
     "questions": [
       "How do I download a web page and list its links?",
       "Example of a web scraper in Novis",
       "How do I find every link in an HTML page?",
       "Why is the text of a downloaded page tainted?",
-      "Walk through all nodes of an HTML tree recursively"
+      "Walk through all nodes of an HTML tree recursively",
+      "Let my scraper connect only to certain websites"
     ]
   },
   "/guides/testing/": {
@@ -755,7 +763,7 @@
   },
   "/in-depth/compare/": {
     "feature": "in-depth/compare.mdx",
-    "hash": "bb7dae5152cab9f2",
+    "hash": "644c251c8f895756",
     "questions": [
       "How do Novis, PHP, Bun and Go compare in requests per second and memory?",
       "Can one request split its work over several CPU cores?",
@@ -1339,7 +1347,7 @@
   },
   "/reference/config/capabilities/": {
     "feature": "tools:config/capabilities",
-    "hash": "aaf53d7b64a533e7",
+    "hash": "38929a5a738ed7b9",
     "questions": [
       "How do I allow a program to read files from a folder?",
       "Why does writing a file throw a permission error?",
@@ -1460,7 +1468,7 @@
   },
   "/reference/config/limits/": {
     "feature": "tools:config/limits-and-limits-hard",
-    "hash": "cb8bb56da8b1bbd2",
+    "hash": "e495576b0f093e9f",
     "questions": [
       "How do I limit how much memory a request can use?",
       "Stop a slow request after a few seconds",
@@ -1505,13 +1513,14 @@
   },
   "/reference/config/network-grants-the-addresses-and-endpoints-they-reach/": {
     "feature": "tools:config/network-grants-the-addresses-and-endpoints-they-reach",
-    "hash": "31cbed5758c30257",
+    "hash": "e99bd2564a3e7a12",
     "questions": [
       "Which hosts may my program connect to?",
       "Why is my connection to a private IP address blocked?",
       "Allow a connection to an internal service on my network",
       "Let my program open a listening port",
-      "Protect against server-side request forgery to internal addresses"
+      "Protect against server-side request forgery to internal addresses",
+      "Allow a whole private address range such as 172.18.0.0/16"
     ]
   },
   "/reference/config/opcache/": {
@@ -1539,13 +1548,14 @@
   },
   "/reference/config/reading-and-changing-it-from-a-program-core-config/": {
     "feature": "tools:config/reading-and-changing-it-from-a-program-core-config",
-    "hash": "7d5ea1adb7fbb58e",
+    "hash": "588f53203ea4411f",
     "questions": [
       "How do I read a setting from my program?",
       "Change a setting for the current request only",
       "Undo a setting change made earlier in the request",
       "List every setting in effect from my code",
-      "Why does changing a setting from code return false?"
+      "Why does changing a setting from code return false?",
+      "What value do I get for a setting the file does not set?"
     ]
   },
   "/reference/config/schedule/": {
@@ -1605,7 +1615,7 @@
   },
   "/reference/config/the-file-and-where-it-is-read-from/": {
     "feature": "tools:config/the-file-and-where-it-is-read-from",
-    "hash": "9b683382545aabe3",
+    "hash": "70be4dd088abf951",
     "questions": [
       "Where does Novis look for its configuration file?",
       "Use a different configuration file for one command",
@@ -3485,13 +3495,14 @@
   },
   "/reference/core/config/set/": {
     "feature": "Core\\Config::set",
-    "hash": "157566d75d32dc39",
+    "hash": "aef8f189be49f560",
     "questions": [
       "How do I change a configuration setting at runtime?",
       "Raise the memory limit for one request",
       "Override a config value for this request only",
       "Increase the time limit for a slow job",
-      "Why did changing a setting return false?"
+      "Why did changing a setting return false?",
+      "Can a command-line script raise its own memory limit?"
     ]
   },
   "/reference/core/crypto/": {
@@ -3699,12 +3710,14 @@
   },
   "/reference/core/csrf/issue/": {
     "feature": "Core\\Csrf::issue",
-    "hash": "f93f0e23dd5000d2",
+    "hash": "c24cf314f57d5880",
     "questions": [
       "How do I create a CSRF token for a form?",
       "Generate an anti-forgery token for a session",
       "Put a hidden security token in my form",
-      "Make a token to send in a request header"
+      "Make a token to send in a request header",
+      "Which form field name should the CSRF token use?",
+      "Send a CSRF token in a link as a query parameter"
     ]
   },
   "/reference/core/csrf/verify/": {
@@ -3804,13 +3817,14 @@
   },
   "/reference/core/db/open/": {
     "feature": "Core\\Db::open",
-    "hash": "79682fc0a9a46cf8",
+    "hash": "5e39c72dcb69aeda",
     "questions": [
       "How do I connect to a database with host and password?",
       "Open a SQLite database file",
       "Connect to a database chosen at runtime",
       "Database connection for each customer or tenant",
-      "Connect to PostgreSQL with my own settings"
+      "Connect to PostgreSQL with my own settings",
+      "Do I need a permission to open a SQLite file?"
     ]
   },
   "/reference/core/db/quoteidentifier/": {
@@ -4764,7 +4778,7 @@
   },
   "/reference/core/env/": {
     "feature": "Core\\Env",
-    "hash": "59169da2e9260fed",
+    "hash": "423cace343247847",
     "questions": [
       "How do I read settings from the environment?",
       "Check if the app runs in production or development",
@@ -4816,6 +4830,17 @@
       "Show detailed errors only during development",
       "Where do I set the application environment?",
       "Load test data only in development"
+    ]
+  },
+  "/reference/core/env/secret/": {
+    "feature": "Core\\Env::secret",
+    "hash": "0b9f95138cb0168c",
+    "questions": [
+      "How do I read an API key from an environment variable?",
+      "Keep a password from the environment out of my logs",
+      "Use a token from the environment in an HTTP header",
+      "Why does printing a secret value not compile?",
+      "Read a database password without showing it by mistake"
     ]
   },
   "/reference/core/fatal/": {
@@ -5093,13 +5118,14 @@
   },
   "/reference/core/http/allowurl/": {
     "feature": "Core\\Http::allowUrl",
-    "hash": "a3a752207d2c0a4f",
+    "hash": "24617229a1a27bbf",
     "questions": [
       "Send a request to a URL the user gave",
       "How do I protect against server-side request forgery?",
       "Check a webhook URL before calling it",
       "Block requests to private and internal addresses",
-      "Validate a URL from user input before fetching it"
+      "Validate a URL from user input before fetching it",
+      "Is a localhost URL allowed from the command line?"
     ]
   },
   "/reference/core/http/methodname/": {
@@ -5135,7 +5161,7 @@
   },
   "/reference/core/http-client/delete/": {
     "feature": "Core\\Http\\Client::delete",
-    "hash": "e75b61e047abee2d",
+    "hash": "0987cd490bb7b6d8",
     "questions": [
       "How do I send a DELETE request?",
       "Remove a record through a REST API",
@@ -5145,7 +5171,7 @@
   },
   "/reference/core/http-client/get/": {
     "feature": "Core\\Http\\Client::get",
-    "hash": "1bf49a9cdb8fb260",
+    "hash": "549cfadb6661531b",
     "questions": [
       "How do I fetch a URL?",
       "Download data from an API",
@@ -5157,7 +5183,7 @@
   },
   "/reference/core/http-client/head/": {
     "feature": "Core\\Http\\Client::head",
-    "hash": "3b2b4b10e51e0d4c",
+    "hash": "0a59ebd9bba59323",
     "questions": [
       "Check if a URL exists without downloading it",
       "How do I get the size of a remote file?",
@@ -5168,17 +5194,18 @@
   },
   "/reference/core/http-client/opensocket/": {
     "feature": "Core\\Http\\Client::openSocket",
-    "hash": "179211f50c97b6ab",
+    "hash": "5b3eccb0e89e145c",
     "questions": [
       "How do I connect to a WebSocket server?",
       "Receive live messages from another server",
       "Keep a connection open to send and receive messages",
-      "Limit how long a WebSocket stays open"
+      "Limit how long a WebSocket stays open",
+      "Connect to a WebSocket on localhost while developing"
     ]
   },
   "/reference/core/http-client/patch/": {
     "feature": "Core\\Http\\Client::patch",
-    "hash": "b9be63034c9ecd6b",
+    "hash": "287e7fe6d0ad66a4",
     "questions": [
       "How do I update only some fields of a record?",
       "Send a PATCH request with JSON",
@@ -5188,18 +5215,19 @@
   },
   "/reference/core/http-client/post/": {
     "feature": "Core\\Http\\Client::post",
-    "hash": "502b221597c1d92d",
+    "hash": "a79c1cdc0a76d39e",
     "questions": [
       "How do I send JSON to an API?",
       "Submit form data to another server",
       "Send a POST request",
       "Retry a payment request without charging twice",
-      "Upload data with a POST request"
+      "Upload data with a POST request",
+      "Can my program call any public API without configuration?"
     ]
   },
   "/reference/core/http-client/put/": {
     "feature": "Core\\Http\\Client::put",
-    "hash": "ba8c028dc88f52ad",
+    "hash": "eba3a86c660daf83",
     "questions": [
       "How do I replace a whole record with an API call?",
       "Send a PUT request",
@@ -5339,13 +5367,13 @@
   },
   "/reference/core/http-part/file/": {
     "feature": "Core\\Http\\Part::file",
-    "hash": "f6cb4a6d5ea954d3",
+    "hash": "cd5873bc7e1988aa",
     "questions": [
       "How do I upload a file from disk?",
       "Send a large file as the request body",
       "Stream a file upload without reading it all first",
       "Change the file name and content type of an upload",
-      "Why does uploading a file need read permission?"
+      "Which files can a server program upload without a permission?"
     ]
   },
   "/reference/core/http-response/": {
@@ -5570,13 +5598,14 @@
   },
   "/reference/core/http-stream/saveto/": {
     "feature": "Core\\Http\\Stream::saveTo",
-    "hash": "d63f9725f5c1c931",
+    "hash": "b30457e846623ef7",
     "questions": [
       "How do I save a download straight to a file?",
       "Download a file larger than memory",
       "Limit the size of a downloaded file",
       "Save an HTTP reply to disk without replacing files",
-      "What happens to a partial file when a download fails?"
+      "What happens to a partial file when a download fails?",
+      "Which folders may a server save a download into?"
     ]
   },
   "/reference/core/http-stream/status/": {
@@ -5701,7 +5730,7 @@
   },
   "/reference/core/io/append/": {
     "feature": "Core\\IO::append",
-    "hash": "b92e2cfb03f465d4",
+    "hash": "9b01523186a8c498",
     "questions": [
       "How do I add text to the end of a file?",
       "Add a line to a log file",
@@ -5712,7 +5741,7 @@
   },
   "/reference/core/io/canonicalize/": {
     "feature": "Core\\IO::canonicalize",
-    "hash": "2894b8c303f96d6e",
+    "hash": "fe7110a67996eb45",
     "questions": [
       "How do I get the full absolute path of a file?",
       "Resolve symbolic links and dots in a path",
@@ -5723,7 +5752,7 @@
   },
   "/reference/core/io/copy/": {
     "feature": "Core\\IO::copy",
-    "hash": "8e7a0146e90213de",
+    "hash": "ba8758696f742b6d",
     "questions": [
       "How do I copy a file?",
       "Make a duplicate of a file with a new name",
@@ -5734,7 +5763,7 @@
   },
   "/reference/core/io/exists/": {
     "feature": "Core\\IO::exists",
-    "hash": "754bd1ab50b3bb8f",
+    "hash": "afc4542cbad11320",
     "questions": [
       "How do I check if a file exists?",
       "Does a file or folder exist at this path?",
@@ -5744,7 +5773,7 @@
   },
   "/reference/core/io/isdir/": {
     "feature": "Core\\IO::isDir",
-    "hash": "cd88a195db619e46",
+    "hash": "22b96065f89a1f59",
     "questions": [
       "How do I check if a path is a folder?",
       "Is this path a directory or a file?",
@@ -5754,7 +5783,7 @@
   },
   "/reference/core/io/isfile/": {
     "feature": "Core\\IO::isFile",
-    "hash": "e142ef98fe7b8c76",
+    "hash": "9818ddcf8c79b147",
     "questions": [
       "How do I check if a path is a regular file?",
       "Make sure a path is a file and not a folder",
@@ -5764,7 +5793,7 @@
   },
   "/reference/core/io/isreadable/": {
     "feature": "Core\\IO::isReadable",
-    "hash": "3b68f4c656ffe78c",
+    "hash": "b742dda3bb30f860",
     "questions": [
       "How do I check if my program can read a file?",
       "Test read permission on a file",
@@ -5774,7 +5803,7 @@
   },
   "/reference/core/io/iswritable/": {
     "feature": "Core\\IO::isWritable",
-    "hash": "fa582847e6536982",
+    "hash": "fec1f58d7f304bff",
     "questions": [
       "How do I check if I can write to a file?",
       "Test write permission on a folder before creating a file",
@@ -5784,7 +5813,7 @@
   },
   "/reference/core/io/lines/": {
     "feature": "Core\\IO::lines",
-    "hash": "2f867e1c33bb92a4",
+    "hash": "ea70d5bb0ed79c9d",
     "questions": [
       "How do I read a file line by line?",
       "Loop over each line of a text file",
@@ -5795,18 +5824,19 @@
   },
   "/reference/core/io/list/": {
     "feature": "Core\\IO::list",
-    "hash": "5bac40941ba6ea55",
+    "hash": "98e3409cd14a0457",
     "questions": [
       "How do I list the files in a folder?",
       "Get the names of everything in a directory",
       "Show the contents of one folder",
       "List directory entries in alphabetical order",
-      "Read folder contents without the dot entries"
+      "Read folder contents without the dot entries",
+      "Can my web server list folders outside its app folder?"
     ]
   },
   "/reference/core/io/makedir/": {
     "feature": "Core\\IO::makeDir",
-    "hash": "06029952b4b5b528",
+    "hash": "15b3e7d906f28637",
     "questions": [
       "How do I create a folder?",
       "Create a directory and all missing parent folders",
@@ -5816,7 +5846,7 @@
   },
   "/reference/core/io/modifiedat/": {
     "feature": "Core\\IO::modifiedAt",
-    "hash": "d622842e25752b6c",
+    "hash": "56a19f25f5665a14",
     "questions": [
       "How do I get the last modified time of a file?",
       "When was this file last changed?",
@@ -5827,7 +5857,7 @@
   },
   "/reference/core/io/move/": {
     "feature": "Core\\IO::move",
-    "hash": "9f71b2f3e61fe38f",
+    "hash": "54047046f36e6bce",
     "questions": [
       "How do I rename a file?",
       "Move a file to another folder",
@@ -5838,7 +5868,7 @@
   },
   "/reference/core/io/open/": {
     "feature": "Core\\IO::open",
-    "hash": "f207c777b9a39b1d",
+    "hash": "75630bec3b7fd3cf",
     "questions": [
       "How do I open a file for reading and writing?",
       "Get a file handle to read part of a file",
@@ -5849,18 +5879,19 @@
   },
   "/reference/core/io/read/": {
     "feature": "Core\\IO::read",
-    "hash": "77c45205a7405904",
+    "hash": "83627a0d68fde411",
     "questions": [
       "How do I read a whole file into a string?",
       "Load the contents of a text file",
       "Get all the text from a file at once",
       "Why does reading a file fail for invalid UTF-8?",
-      "Read a small file into memory"
+      "Read a small file into memory",
+      "Why can my server not read a file whose name starts with a dot?"
     ]
   },
   "/reference/core/io/readtext/": {
     "feature": "Core\\IO::readText",
-    "hash": "0070192bc9092a99",
+    "hash": "54c6098467cb31f0",
     "questions": [
       "How do I read a file saved in Latin-1 or Windows-1252?",
       "Read a text file with a different character encoding",
@@ -5871,7 +5902,7 @@
   },
   "/reference/core/io/remove/": {
     "feature": "Core\\IO::remove",
-    "hash": "0710f1addf66969a",
+    "hash": "a543adaa8d8dbffb",
     "questions": [
       "How do I delete a file?",
       "Remove one file from the disk",
@@ -5881,7 +5912,7 @@
   },
   "/reference/core/io/removedir/": {
     "feature": "Core\\IO::removeDir",
-    "hash": "f749d887775dfb06",
+    "hash": "363add0f6be6a09f",
     "questions": [
       "How do I delete an empty folder?",
       "Remove a directory from the disk",
@@ -5891,7 +5922,7 @@
   },
   "/reference/core/io/size/": {
     "feature": "Core\\IO::size",
-    "hash": "1dd9deba6e3e9cd3",
+    "hash": "84339dc1f9d26a1a",
     "questions": [
       "How do I get the size of a file?",
       "How many bytes is this file?",
@@ -5901,7 +5932,7 @@
   },
   "/reference/core/io/stat/": {
     "feature": "Core\\IO::stat",
-    "hash": "a96d9a67c0c932f2",
+    "hash": "6d752640f404d0f1",
     "questions": [
       "Get file size, change time and type in one call",
       "How do I read the metadata of a file?",
@@ -5922,17 +5953,18 @@
   },
   "/reference/core/io/temporarydir/": {
     "feature": "Core\\IO::temporaryDir",
-    "hash": "29ece9d6c5d57cb6",
+    "hash": "5ec6fd4af15fe94b",
     "questions": [
       "How do I create a temporary folder?",
       "Where should I put temporary files?",
       "Get a private scratch directory that is deleted at the end",
-      "Make a temp directory that cleans itself up"
+      "Make a temp directory that cleans itself up",
+      "Where can my web server save files without any setting?"
     ]
   },
   "/reference/core/io/walk/": {
     "feature": "Core\\IO::walk",
-    "hash": "03074ee3a1eadb4c",
+    "hash": "1d05fa0112f1da94",
     "questions": [
       "How do I list all files in a folder and its subfolders?",
       "Go through a directory tree recursively",
@@ -5943,7 +5975,7 @@
   },
   "/reference/core/io/within/": {
     "feature": "Core\\IO::within",
-    "hash": "3b6b015b072e41d4",
+    "hash": "9d938c891cf28430",
     "questions": [
       "How do I stop path traversal attacks?",
       "Make sure a user file name stays inside a folder",
@@ -5954,18 +5986,19 @@
   },
   "/reference/core/io/write/": {
     "feature": "Core\\IO::write",
-    "hash": "8753614514d6ff46",
+    "hash": "7995bb47b08f800b",
     "questions": [
       "How do I write a string to a file?",
       "Save text to a file and replace old content",
       "Create a new file with some content",
       "Overwrite a file completely",
-      "Why does writing a file fail when the folder is missing?"
+      "Why does writing a file fail when the folder is missing?",
+      "Why does writing a file fail on my server but not from the command line?"
     ]
   },
   "/reference/core/io/writestream/": {
     "feature": "Core\\IO::writeStream",
-    "hash": "0d98a4c409d62eb4",
+    "hash": "991470a36a82539f",
     "questions": [
       "How do I save a large upload to disk without using much memory?",
       "Write a file from chunks of data",
@@ -8040,7 +8073,7 @@
   },
   "/reference/core/net/binddatagram/": {
     "feature": "Core\\Net::bindDatagram",
-    "hash": "8117a0da63192a93",
+    "hash": "4298381a850652ea",
     "questions": [
       "How do I open a UDP socket?",
       "Receive UDP messages on a port",
@@ -8051,18 +8084,18 @@
   },
   "/reference/core/net/connect/": {
     "feature": "Core\\Net::connect",
-    "hash": "6424fb168d58cf50",
+    "hash": "a42f0d6cd3e75304",
     "questions": [
       "How do I connect to a TCP server?",
       "Open a socket to a host and port",
       "Connect to a server with a timeout",
-      "Why does connecting to 127.0.0.1 fail even when the host is allowed?",
+      "Why does my production server fail to connect to 127.0.0.1?",
       "Talk to a remote service over raw TCP"
     ]
   },
   "/reference/core/net/connectlocal/": {
     "feature": "Core\\Net::connectLocal",
-    "hash": "e43cd6601459f55f",
+    "hash": "98797991b80e6128",
     "questions": [
       "How do I connect to a Unix socket file?",
       "Connect to a local database through a socket path",
@@ -8073,7 +8106,7 @@
   },
   "/reference/core/net/listen/": {
     "feature": "Core\\Net::listen",
-    "hash": "347bf894c44e8c4e",
+    "hash": "439eb51cdb24ae0f",
     "questions": [
       "How do I start a TCP server?",
       "Wait for clients on a port",
@@ -8084,7 +8117,7 @@
   },
   "/reference/core/net/listenlocal/": {
     "feature": "Core\\Net::listenLocal",
-    "hash": "9ab609a5ef14f023",
+    "hash": "696dd1f3b75af559",
     "questions": [
       "How do I create a Unix socket server?",
       "Listen on a socket file instead of a port",
@@ -8106,7 +8139,7 @@
   },
   "/reference/core/net-datagram/close/": {
     "feature": "Core\\Net\\Datagram::close",
-    "hash": "b2fd7736289ba4ec",
+    "hash": "3fff6e6cc67eb02a",
     "questions": [
       "How do I close a UDP socket?",
       "Free a UDP port when I am done",
@@ -8116,7 +8149,7 @@
   },
   "/reference/core/net-datagram/port/": {
     "feature": "Core\\Net\\Datagram::port",
-    "hash": "a8647e3f836752e5",
+    "hash": "09930c0ff077d6ca",
     "questions": [
       "Which port did the system pick for my UDP socket?",
       "Find the local port of a UDP socket",
@@ -8126,7 +8159,7 @@
   },
   "/reference/core/net-datagram/receive/": {
     "feature": "Core\\Net\\Datagram::receive",
-    "hash": "0bc795c9fd0e4707",
+    "hash": "039e5cb52fc41cb4",
     "questions": [
       "How do I wait for a UDP message?",
       "Read one datagram with a timeout",
@@ -8137,7 +8170,7 @@
   },
   "/reference/core/net-datagram/send/": {
     "feature": "Core\\Net\\Datagram::send",
-    "hash": "159503bee2702b9d",
+    "hash": "3264bc06de4ce287",
     "questions": [
       "How do I send one UDP message to a host?",
       "Does UDP check that my message arrived?",
@@ -8158,7 +8191,7 @@
   },
   "/reference/core/net-datagram-message/host/": {
     "feature": "Core\\Net\\Datagram\\Message::host",
-    "hash": "3f0ef57b6d4fd83f",
+    "hash": "e6fc4944f8745533",
     "questions": [
       "Get the IP address that sent a UDP message",
       "How do I reply to the sender of a datagram?",
@@ -8168,7 +8201,7 @@
   },
   "/reference/core/net-datagram-message/payload/": {
     "feature": "Core\\Net\\Datagram\\Message::payload",
-    "hash": "d9ec65cd9eb932b1",
+    "hash": "bb003b6524675828",
     "questions": [
       "How do I read the bytes of a UDP message?",
       "Get the content of a received datagram",
@@ -8178,7 +8211,7 @@
   },
   "/reference/core/net-datagram-message/port/": {
     "feature": "Core\\Net\\Datagram\\Message::port",
-    "hash": "07a3546efddd1668",
+    "hash": "f38a6b74c845f9b7",
     "questions": [
       "Which port did a UDP message come from?",
       "Tell apart two senders on the same machine",
@@ -8199,7 +8232,7 @@
   },
   "/reference/core/net-listener/accept/": {
     "feature": "Core\\Net\\Listener::accept",
-    "hash": "c70561eb32f6d5db",
+    "hash": "8620647c17117a14",
     "questions": [
       "How do I wait for the next client to connect?",
       "Accept a client connection with a timeout",
@@ -8209,7 +8242,7 @@
   },
   "/reference/core/net-listener/close/": {
     "feature": "Core\\Net\\Listener::close",
-    "hash": "7497df0d023f441c",
+    "hash": "16ab29f952a3b2db",
     "questions": [
       "How do I stop a TCP server?",
       "Stop accepting new clients",
@@ -8219,7 +8252,7 @@
   },
   "/reference/core/net-listener/port/": {
     "feature": "Core\\Net\\Listener::port",
-    "hash": "983e56b9a86f385e",
+    "hash": "5f2768dd7df609ad",
     "questions": [
       "Which port is my TCP server listening on?",
       "Find the port the system chose for my server",
@@ -8239,7 +8272,7 @@
   },
   "/reference/core/net-stream/close/": {
     "feature": "Core\\Net\\Stream::close",
-    "hash": "8f2a943767ca0e38",
+    "hash": "2feadefd0fd060d8",
     "questions": [
       "How do I close a TCP connection?",
       "Tell the other side I am done sending",
@@ -8249,7 +8282,7 @@
   },
   "/reference/core/net-stream/read/": {
     "feature": "Core\\Net\\Stream::read",
-    "hash": "fc79fc5d661cd71f",
+    "hash": "1515372b689f9ba3",
     "questions": [
       "How do I read data from a TCP connection?",
       "Read until the other side closes the connection",
@@ -8260,7 +8293,7 @@
   },
   "/reference/core/net-stream/write/": {
     "feature": "Core\\Net\\Stream::write",
-    "hash": "63676603512b0b80",
+    "hash": "d55eb6462d19f30a",
     "questions": [
       "How do I send data over a TCP connection?",
       "Make sure the whole message is sent",
@@ -9492,17 +9525,18 @@
   },
   "/reference/core/novis-spreadsheet-export/save/": {
     "feature": "Novis\\Spreadsheet\\Export::save",
-    "hash": "221aff9b363b08ef",
+    "hash": "6ec3c5bebe39441c",
     "questions": [
       "Save a spreadsheet to a file path",
       "Write an xlsx file to disk",
       "Why does saving a spreadsheet fail without fs.write?",
-      "Get row counts and file size after saving"
+      "Get row counts and file size after saving",
+      "Can a command-line script save a spreadsheet to any folder?"
     ]
   },
   "/reference/core/novis-spreadsheet-export/to/": {
     "feature": "Novis\\Spreadsheet\\Export::to",
-    "hash": "3bb37a7ba2337332",
+    "hash": "6a41e21c8300fcc4",
     "questions": [
       "Write a spreadsheet to an open file",
       "Export into a file I already opened",
@@ -9910,7 +9944,7 @@
   },
   "/reference/core/novis-spreadsheet-template/open/": {
     "feature": "Novis\\Spreadsheet\\Template::open",
-    "hash": "0e275369e36aa910",
+    "hash": "654c2a96d46444b4",
     "questions": [
       "Open an xlsx template",
       "Fill the same template for each customer",
@@ -9951,7 +9985,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createforfile/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForFile",
-    "hash": "5cbf5f547090acb4",
+    "hash": "daff3e1e97f7de85",
     "questions": [
       "Write an Excel file to a path row by row",
       "Replace an existing spreadsheet file",
@@ -9961,7 +9995,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createforstream/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForStream",
-    "hash": "bdb4052c287c2f93",
+    "hash": "e83ab578e40de0b8",
     "questions": [
       "Stream rows into a file I opened myself",
       "Write two exports into one file",
@@ -10001,7 +10035,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/fromrows/": {
     "feature": "Novis\\Spreadsheet\\Workbook::fromRows",
-    "hash": "9f616c7b03b340e1",
+    "hash": "083870aa14cead35",
     "questions": [
       "Export an array of rows to Excel in one call",
       "Quick CSV export from a list",
@@ -10506,18 +10540,19 @@
   },
   "/reference/core/process/run/": {
     "feature": "Core\\Process::run",
-    "hash": "b821d303efdc91d6",
+    "hash": "6a00d1aef67b57ed",
     "questions": [
       "How do I run another program and read its output?",
       "Run a command and wait until it finishes",
       "Get the output of a system tool as text",
       "Stop a program that runs longer than a time limit",
-      "Set environment variables and working folder for a program I start"
+      "Set environment variables and working folder for a program I start",
+      "Why can my script run git but my web server cannot?"
     ]
   },
   "/reference/core/process/spawn/": {
     "feature": "Core\\Process::spawn",
-    "hash": "f08d3bea6392514c",
+    "hash": "51786748abe1ec2a",
     "questions": [
       "How do I start a program in the background and keep going?",
       "Read a program's output while it is still running",
@@ -10538,7 +10573,7 @@
   },
   "/reference/core/process-handle/kill/": {
     "feature": "Core\\Process\\Handle::kill",
-    "hash": "9b33867f3626937f",
+    "hash": "495810c739fe6f3f",
     "questions": [
       "How do I stop a program that never ends?",
       "Kill a running program",
@@ -10549,7 +10584,7 @@
   },
   "/reference/core/process-handle/readstderr/": {
     "feature": "Core\\Process\\Handle::readStderr",
-    "hash": "b3d51f88b5e6d6c0",
+    "hash": "74ac7f18a13a8197",
     "questions": [
       "How do I read warnings from a running program?",
       "Read error messages while the program is still running",
@@ -10559,7 +10594,7 @@
   },
   "/reference/core/process-handle/readstdout/": {
     "feature": "Core\\Process\\Handle::readStdout",
-    "hash": "8afb6672c9cce5d8",
+    "hash": "348aa0a6ce942397",
     "questions": [
       "How do I read output line by line as it arrives?",
       "Stream a program's output to my own output",
@@ -10569,7 +10604,7 @@
   },
   "/reference/core/process-handle/wait/": {
     "feature": "Core\\Process\\Handle::wait",
-    "hash": "bc156626a179199a",
+    "hash": "855664d95601c647",
     "questions": [
       "How do I wait for a started program to finish?",
       "Get the exit code of a background program",
@@ -10579,7 +10614,7 @@
   },
   "/reference/core/process-handle/writestdin/": {
     "feature": "Core\\Process\\Handle::writeStdin",
-    "hash": "a4854eb88631625c",
+    "hash": "f8764072d3954bde",
     "questions": [
       "How do I send input to a running program?",
       "Write lines to the standard input of a command",
@@ -10599,7 +10634,7 @@
   },
   "/reference/core/process-result/exitcode/": {
     "feature": "Core\\Process\\Result::exitCode",
-    "hash": "42d90ef039ac6c8b",
+    "hash": "8aa529a746c3c4b5",
     "questions": [
       "How do I check if a command succeeded?",
       "Read the exit code of a program",
@@ -10610,7 +10645,7 @@
   },
   "/reference/core/process-result/stderr/": {
     "feature": "Core\\Process\\Result::stderr",
-    "hash": "54a9730755004cd2",
+    "hash": "ba251265edee207d",
     "questions": [
       "How do I get the error message of a failed command?",
       "Read what a program wrote to standard error",
@@ -10620,7 +10655,7 @@
   },
   "/reference/core/process-result/stdout/": {
     "feature": "Core\\Process\\Result::stdout",
-    "hash": "bf0b7789350b8de9",
+    "hash": "8dbbabbcaf910d5a",
     "questions": [
       "How do I get the text a command printed?",
       "Read the standard output of a finished program",
@@ -12054,7 +12089,7 @@
   },
   "/reference/core/request-part/filename/": {
     "feature": "Core\\Request\\Part::filename",
-    "hash": "833320f5cf526672",
+    "hash": "7170de5906d8a04d",
     "questions": [
       "How do I get the original name of an uploaded file?",
       "Is the uploaded file name safe to use as a path?",
@@ -12086,13 +12121,14 @@
   },
   "/reference/core/request-part/saveto/": {
     "feature": "Core\\Request\\Part::saveTo",
-    "hash": "6049f98c168b7abb",
+    "hash": "2dd02d8083f33ea9",
     "questions": [
       "How do I save an uploaded file to disk?",
       "Store a large upload in a file without using much memory",
       "Limit the size of an upload written to disk",
       "Replace an existing file when saving an upload",
-      "Save each upload under a safe name in an uploads folder"
+      "Save each upload under a safe name in an uploads folder",
+      "Where may a request save an upload without a permission?"
     ]
   },
   "/reference/core/request-partcontent/": {
@@ -12170,13 +12206,14 @@
   },
   "/reference/core/response/sendfile/": {
     "feature": "Core\\Response::sendFile",
-    "hash": "2b688ff398a5b6a7",
+    "hash": "8c73f025fb6d6ef5",
     "questions": [
       "How do I send a file from disk to the browser?",
       "Offer a file for download",
       "Serve a large file without loading it into memory",
       "Give a downloaded file its own name",
-      "Does sending a file support partial range requests?"
+      "Does sending a file support partial range requests?",
+      "Which files may a request send without a permission?"
     ]
   },
   "/reference/core/response/setheader/": {
@@ -12212,7 +12249,7 @@
   },
   "/reference/core/response/stream/": {
     "feature": "Core\\Response::stream",
-    "hash": "15b6252280dae301",
+    "hash": "fb93db159bb9909c",
     "questions": [
       "How do I send a response in parts?",
       "Stream a large CSV export to the browser",
@@ -12262,7 +12299,7 @@
   },
   "/reference/core/response-stream/offset/": {
     "feature": "Core\\Response\\Stream::offset",
-    "hash": "0c6f78c9c7db2765",
+    "hash": "da1c2766b021956c",
     "questions": [
       "Where should I start writing for a Range request?",
       "Support video seeking in a streamed response",
@@ -12643,13 +12680,14 @@
   },
   "/reference/core/session/": {
     "feature": "Core\\Session",
-    "hash": "c3afbe55dc93fc50",
+    "hash": "4738ccfce53e419a",
     "questions": [
       "How do I remember a visitor between page loads?",
       "Store user data across requests",
       "Keep a user signed in with a session cookie",
       "Where are session values stored?",
-      "Server-side sessions for a web application"
+      "Server-side sessions for a web application",
+      "Do sessions need a database or a cache server?"
     ]
   },
   "/reference/core/session/clear/": {
@@ -12664,7 +12702,7 @@
   },
   "/reference/core/session/destroy/": {
     "feature": "Core\\Session::destroy",
-    "hash": "5c789472c973f81b",
+    "hash": "3b319b5d027fc922",
     "questions": [
       "How do I log a user out?",
       "End the session completely and delete its data",
@@ -12696,7 +12734,7 @@
   },
   "/reference/core/session/regenerate/": {
     "feature": "Core\\Session::regenerate",
-    "hash": "5d72fa87a7a903de",
+    "hash": "8a5aca2dad0eafb5",
     "questions": [
       "How do I change the session id after login?",
       "Prevent session fixation attacks",
@@ -12738,7 +12776,7 @@
   },
   "/reference/core/session/start/": {
     "feature": "Core\\Session::start",
-    "hash": "faf624d78aefd948",
+    "hash": "07fa64de36d36776",
     "questions": [
       "How do I begin using sessions on a page?",
       "Open the session before reading or writing values",
@@ -13056,7 +13094,7 @@
   },
   "/reference/core/storage/delete/": {
     "feature": "Core\\Storage::delete",
-    "hash": "34f6ab917a33b94b",
+    "hash": "6bc87fbd630308d0",
     "questions": [
       "How do I remove a saved file from storage?",
       "Delete an uploaded file by its name",
@@ -13066,7 +13104,7 @@
   },
   "/reference/core/storage/get/": {
     "feature": "Core\\Storage::get",
-    "hash": "ecf3d9a91fa4a6f6",
+    "hash": "7d703b1b0ba26184",
     "questions": [
       "How do I read a saved file back from storage?",
       "Load the contents of a stored file by name",
@@ -13076,7 +13114,7 @@
   },
   "/reference/core/storage/list/": {
     "feature": "Core\\Storage::list",
-    "hash": "aaebf4b70c0c5cf1",
+    "hash": "001329f374320c69",
     "questions": [
       "How do I see which files are in storage?",
       "Get the names of all saved files on a disk",
@@ -13086,13 +13124,14 @@
   },
   "/reference/core/storage/put/": {
     "feature": "Core\\Storage::put",
-    "hash": "d72b4711f281c5a5",
+    "hash": "c704dcf0a61526be",
     "questions": [
       "How do I save bytes as a file?",
       "Write an uploaded file to disk under a safe name",
       "Save a file only if the name is not used yet",
       "Can a user choose the file name of an upload safely?",
-      "Replace a stored file with new contents"
+      "Replace a stored file with new contents",
+      "Do I need a permission to save files from a command-line script?"
     ]
   },
   "/reference/core/str/": {
@@ -13879,7 +13918,7 @@
   },
   "/reference/core/test/serverurl/": {
     "feature": "Core\\Test::serverUrl",
-    "hash": "a9cd8a94c35c4e5d",
+    "hash": "6e115ed870457c64",
     "questions": [
       "How do I start a real web server in a test?",
       "Get the address of the local test server",
@@ -15726,12 +15765,13 @@
   },
   "/reference/core/zip/extract/": {
     "feature": "Core\\Zip::extract",
-    "hash": "d47fe22b9b0b8dfe",
+    "hash": "fe90556808ff817e",
     "questions": [
       "How do I unzip an archive into a folder?",
       "Unpack all files from a zip upload",
       "Protect against zip bombs when unpacking",
-      "Install themes that users upload as zip files"
+      "Install themes that users upload as zip files",
+      "Where can a server unpack a zip without a permission?"
     ]
   },
   "/reference/core/zip/read/": {
@@ -17188,7 +17228,7 @@
   },
   "/syntax/errors/limits/": {
     "feature": "syntax/errors/limits.mdx",
-    "hash": "cb10709d7d1e7011",
+    "hash": "8edd98fdc946be54",
     "questions": [
       "What happens when a function calls itself too many times?",
       "Why does reading a file fail without a permission?",
@@ -17332,7 +17372,7 @@
   },
   "/syntax/programs/file-paths-and-exit/": {
     "feature": "syntax/programs/file-paths-and-exit.mdx",
-    "hash": "67c81d8328cd4901",
+    "hash": "6ae0fe111af10f71",
     "questions": [
       "Where does a relative file path start in Novis?",
       "Why does my program read a different file from another folder?",
@@ -17367,7 +17407,7 @@
   },
   "/syntax/start-here/": {
     "feature": "syntax/start-here.mdx",
-    "hash": "804b947d98864af3",
+    "hash": "1dff53ff1dfa95f1",
     "questions": [
       "What does a first Novis program look like?",
       "What is different in Novis if I know PHP?",

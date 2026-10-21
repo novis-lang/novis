@@ -113,8 +113,8 @@ The three languages split the work in different ways:
   that another part reads.
 
 PHP is not in this chart. PHP-FPM runs one request on one core, and PHP has no built-in way to split
-it. Novis needs one setting for this: `spawn = true` in the `[capabilities.script]` table. This
-setting is off by default for security. A program can start only the scripts that you allow.
+it. Novis needs no setting for this. A program may start the scripts in its own app folder. A
+script in another folder needs that folder in `[capabilities.script] spawn`.
 
 ## When something goes wrong
 

@@ -6709,7 +6709,7 @@
       ],
       "slug": "config",
       "url": "/reference/core/config/",
-      "summaryHtml": "<p>Reads the settings of <code>nvs.toml</code> for the current request. You can change some settings for this request only, and reset them again.</p>\n<p><code>Core\\Config</code> reads and moves the configuration in force for the current request. Every value crosses as a <code>string</code>, spelled as <code>nvs.toml</code> would spell it (<code>&quot;512M&quot;</code>, <code>&quot;30s&quot;</code>); a directive is named with dots (<code>log.level</code>), and a bare limit name — <code>memory</code>, <code>cpu_time</code>, <code>wall_time</code>, <code>max_tasks</code>, <code>max_output</code> — is the <code>[limits]</code> entry. <code>set</code> changes a directive for this request alone and answers <code>false</code>, leaving the value in place, for anything it may not do: a directive only the file may set, an unknown name, a value of the wrong shape, or a value above the <code>[limits.hard]</code> ceiling the operator kept. When <code>[limits.hard]</code> does not set a limit, its ceiling is the value the request started with, so a program cannot raise it. <code>restore</code> puts the file's value back, or the built-in default when the file does not write the key. <code>get</code> and <code>all</code> give the built-in default of every key the file does not write, such as <code>128M</code> for <code>memory</code>. A key with no default, such as <code>wall_time</code>, is <code>null</code>.</p>\n<pre><code class=\"language-toml\">[limits]\nmemory = &quot;256M&quot;\n\n[limits.hard]\nmemory = &quot;512M&quot;</code></pre>\n<pre><code class=\"language-nvs\">&lt;?nvs\necho &quot;memory=&quot;, Core\\Config::get(&quot;memory&quot;) ?? &quot;unset&quot;, &quot;\\n&quot;;\n\necho Core\\Config::set(&quot;memory&quot;, &quot;512M&quot;) ? &quot;raised to the ceiling&quot; : &quot;refused&quot;, &quot;\\n&quot;;\necho Core\\Config::set(&quot;memory&quot;, &quot;1G&quot;) ? &quot;raised past it&quot; : &quot;refused past the ceiling&quot;, &quot;\\n&quot;;\necho &quot;now=&quot;, Core\\Config::get(&quot;limits.memory&quot;) ?? &quot;unset&quot;, &quot;\\n&quot;;\n\nCore\\Config::restore(&quot;memory&quot;);\necho &quot;restored=&quot;, Core\\Config::get(&quot;memory&quot;) ?? &quot;unset&quot;, &quot;\\n&quot;;\n\necho Core\\Config::set(&quot;no.such.directive&quot;, &quot;1&quot;) ? &quot;set&quot; : &quot;unknown name refused&quot;, &quot;\\n&quot;;</code></pre>\n<pre class=\"output\"><code>memory=256M\nraised to the ceiling\nrefused past the ceiling\nnow=512M\nrestored=256M\nunknown name refused</code></pre>"
+      "summaryHtml": "<p>Reads the settings of <code>nvs.toml</code> for the current request. You can change some settings for this request only, and reset them again.</p>\n<p><code>Core\\Config</code> reads and moves the configuration in force for the current request. Every value crosses as a <code>string</code>, spelled as <code>nvs.toml</code> would spell it (<code>&quot;512M&quot;</code>, <code>&quot;30s&quot;</code>); a directive is named with dots (<code>log.level</code>), and a bare limit name — <code>memory</code>, <code>cpu_time</code>, <code>wall_time</code>, <code>max_tasks</code>, <code>max_output</code> — is the <code>[limits]</code> entry. <code>set</code> changes a directive for this request alone and answers <code>false</code>, leaving the value in place, for anything it may not do: a directive only the file may set, an unknown name, a value of the wrong shape, or a value above the <code>[limits.hard]</code> ceiling the operator kept. When <code>[limits.hard]</code> does not set a limit, its ceiling is the value the request started with, so a program cannot raise it. A program you start from the command line is the one exception: with no <code>[limits.hard] memory</code>, it may raise <code>memory</code> to any value. <code>restore</code> puts the file's value back, or the built-in default when the file does not write the key. <code>get</code> and <code>all</code> give the built-in default of every key the file does not write, such as <code>128M</code> for <code>memory</code>. A key with no default, such as <code>wall_time</code>, is <code>null</code>.</p>\n<pre><code class=\"language-toml\">[limits]\nmemory = &quot;256M&quot;\n\n[limits.hard]\nmemory = &quot;512M&quot;</code></pre>\n<pre><code class=\"language-nvs\">&lt;?nvs\necho &quot;memory=&quot;, Core\\Config::get(&quot;memory&quot;) ?? &quot;unset&quot;, &quot;\\n&quot;;\n\necho Core\\Config::set(&quot;memory&quot;, &quot;512M&quot;) ? &quot;raised to the ceiling&quot; : &quot;refused&quot;, &quot;\\n&quot;;\necho Core\\Config::set(&quot;memory&quot;, &quot;1G&quot;) ? &quot;raised past it&quot; : &quot;refused past the ceiling&quot;, &quot;\\n&quot;;\necho &quot;now=&quot;, Core\\Config::get(&quot;limits.memory&quot;) ?? &quot;unset&quot;, &quot;\\n&quot;;\n\nCore\\Config::restore(&quot;memory&quot;);\necho &quot;restored=&quot;, Core\\Config::get(&quot;memory&quot;) ?? &quot;unset&quot;, &quot;\\n&quot;;\n\necho Core\\Config::set(&quot;no.such.directive&quot;, &quot;1&quot;) ? &quot;set&quot; : &quot;unknown name refused&quot;, &quot;\\n&quot;;</code></pre>\n<pre class=\"output\"><code>memory=256M\nraised to the ceiling\nrefused past the ceiling\nnow=512M\nrestored=256M\nunknown name refused</code></pre>"
     },
     {
       "id": "Crypto",
@@ -7501,7 +7501,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Answers a CSRF token bound to <code>$session</code> under <code>$key</code>. Put it in the form or the header the next request will carry, and hand it back to <code>verify</code> with the same session and key.",
+            "shortHtml": "Returns a CSRF token bound to <code>$session</code> under <code>$key</code>. Send it in a form field named <code>_csrf</code>, in the <code>x-csrf-token</code> header or in a <code>_csrf</code> query parameter. A form that uploads files must use the header or the query parameter. With <code>[http] csrf_key</code> set, the server checks the token before the handler runs. <code>verify</code> checks it with the same session and key.",
             "params": [
               {
                 "name": "session",
@@ -11462,6 +11462,45 @@
           "slug": "get",
           "url": "/reference/core/env/get/",
           "examples": "core/Env/get"
+        },
+        {
+          "id": "Env.secret",
+          "name": "secret",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "secret(string $name): ?secret string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "?secret string",
+          "doc": {
+            "shortHtml": "Returns the value of the environment variable <code>$name</code> as a <code>secret string</code>. Use it for a password or an API key. The value can go into an outbound HTTP header, a form field or a database password. <code>echo</code>, a log and a response body do not accept it.",
+            "params": [
+              {
+                "name": "name",
+                "descHtml": "The variable's name. It may not be <code>tainted</code>, so a request cannot choose which secret the program reads."
+              }
+            ],
+            "returnHtml": "The value as a <code>secret string</code>, or <code>null</code> if the variable is not set.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The variable contains bytes that are not valid UTF-8, so its value is not a <code>string</code>. The message names the variable and not its value."
+              }
+            ]
+          },
+          "slug": "secret",
+          "url": "/reference/core/env/secret/",
+          "examples": "core/Env/secret"
         },
         {
           "id": "Env.all",
@@ -37806,7 +37845,7 @@
     {
       "id": "Session",
       "name": "Core\\Session",
-      "summary": "Keeps values for one visitor from one request to the next. Call `start()` first, then use `get()` and `set()`. The values are saved in the store that `[session] backend` names.",
+      "summary": "Keeps values for one visitor from one request to the next. Call `start()` first, then use `get()` and `set()`. By default, the values are saved in a SQLite file in the data folder. `[session] backend = \"shared\"` saves them in the shared cache instead.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -37846,7 +37885,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "This request already called <code>start()</code>. It is also thrown when <code>[session] backend</code> is not set, or is <code>db</code>, which this version does not support. It is also thrown when <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability. The same happens when <code>[session] cookie</code> is not a valid cookie name."
+                "descHtml": "This request already called <code>start()</code>. It is also thrown when the server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, it is thrown when <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability. The same happens when <code>[session] cookie</code> is not a valid cookie name."
               },
               {
                 "error": "IOError",
@@ -38047,7 +38086,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "This request has not called <code>start()</code>, or it called <code>destroy()</code>. It is also thrown when <code>[cache.shared] url</code> is not set, when the program does not have the <code>cache.shared</code> capability, or when <code>[session] cookie</code> is not a valid cookie name."
+                "descHtml": "This request has not called <code>start()</code>, or it called <code>destroy()</code>. With <code>[session] backend = &quot;shared&quot;</code>, it is also thrown when <code>[cache.shared] url</code> is not set or the program does not have the <code>cache.shared</code> capability. It is also thrown when <code>[session] cookie</code> is not a valid cookie name."
               },
               {
                 "error": "IOError",
@@ -38075,7 +38114,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "This request has not called <code>start()</code>, or it already called <code>destroy()</code>. It is also thrown when <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "This request has not called <code>start()</code>, or it already called <code>destroy()</code>. With <code>[session] backend = &quot;shared&quot;</code>, it is also thrown when <code>[cache.shared] url</code> is not set or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -38220,7 +38259,7 @@
       ],
       "slug": "session",
       "url": "/reference/core/session/",
-      "summaryHtml": "<p>Keeps values for one visitor from one request to the next. Call <code>start()</code> first, then use <code>get()</code> and <code>set()</code>. The values are saved in the store that <code>[session] backend</code> names.</p>"
+      "summaryHtml": "<p>Keeps values for one visitor from one request to the next. Call <code>start()</code> first, then use <code>get()</code> and <code>set()</code>. By default, the values are saved in a SQLite file in the data folder. <code>[session] backend = &quot;shared&quot;</code> saves them in the shared cache instead.</p>"
     },
     {
       "id": "Signal",

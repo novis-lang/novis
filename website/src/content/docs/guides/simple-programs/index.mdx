@@ -17,7 +17,8 @@ your own work. The output is shown below each program.
   HTML page.
 - [A scheduled job](/guides/simple-programs/scheduled-job/) deletes old log files every night.
 
-A Novis program may only do what its configuration allows. A program that reads or writes files
-needs an `nvs.toml` file in the same folder. Each page shows that file when the program needs one.
+A program you start with `nvs run` may read and write files and connect to other servers with no
+`nvs.toml`. Work that the server runs may do less, so a page shows an `nvs.toml` when the program
+needs one. To allow a program less, read [Configuration](/guides/how-to-use/configuration/).
 
 If you are new to Novis, start with [A Tour of Novis](/guides/tour/) first.

@@ -17,6 +17,6 @@ give in `nvs.toml` throws `RuntimeError`. You can catch both. The program then c
 ## Do and don't
 
 - Do catch `RecursionError` where deep input can reach a recursive function.
-- Do give each permission in `nvs.toml` for only the folders that need it.
+- Do limit each permission in `nvs.toml` to the folders and hosts your server needs.
 - Do use `Core\Fatal::onLimit` to log which limit stopped the program.
 - Don't use `catch` to handle the memory limit. It is never caught.

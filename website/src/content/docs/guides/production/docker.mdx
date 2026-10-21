@@ -170,8 +170,8 @@ project is found without `--config`.
 
 If you pass `--config` with a file, `nvs` reads only that file. It does not read `/app/nvs.toml`.
 
-A program needs the same capabilities in a container as outside one. The container does not grant
-any, even when it runs as root. Grant them in `nvs.toml`, as
+A program has the same capabilities in a container as outside one. The container does not grant
+more, even when it runs as root. Change them in `nvs.toml`, as
 [Configuration](/guides/how-to-use/configuration/) shows.
 
 Keep secrets out of the image. Docker Compose can mount a secret as a file, and `nvs.toml` reads it

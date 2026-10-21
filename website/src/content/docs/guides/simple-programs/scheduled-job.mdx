@@ -20,9 +20,6 @@ cron = "0 3 * * *"
 script = "scheduled-job.nvs"
 scope = "host"
 
-[capabilities.script]
-spawn = ["."]
-
 [capabilities.fs]
 read = true
 write = true
@@ -39,7 +36,7 @@ example to test it, use `nvs run scheduled-job.nvs`.
 `cron` sets when the job runs. `0 3 * * *` means minute 0 of hour 3, on every day. `scope = "host"`
 runs the job on every server. Use `scope = "fleet"` to run it once, on one of your servers.
 
-`script.spawn` lists the folders the server may start scripts from. A scheduled script must be in
-one of them.
+The server may start a script in the app folder with no setting. A script in another folder needs
+that folder in `[capabilities.script] spawn`.
 
 Read [schedule](/reference/config/schedule/) for every setting of a `[[schedule]]` entry.
