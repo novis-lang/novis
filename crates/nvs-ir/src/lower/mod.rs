@@ -1305,15 +1305,9 @@ pub fn lower_method(
         let decl_ty = p.ty.as_ref().unwrap_or_else(|| {
             panic!("`rule:types/declaration`: every parameter has a declared type")
         });
-        // A promoted parameter is a property, whose write is checked by the
-        // property's own test, which no lowering emits yet.
-        assert!(
-            !(p.covariant && p.is_promoted()),
-            "nvs-ir: the promoted parameter `{}` is `covariant`, and no lowering emits a \
-             covariant property's test yet \
-             (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`)",
-            span_text(src, p.name)
-        );
+        // A promoted `covariant` parameter is tested on entry like any other,
+        // before the store into its property below: a `new static(...)` in
+        // the parent can pass the parent's wider type.
         let covariant = p.covariant.then(|| {
             exprs.declared_ty(decl_ty.span).unwrap_or_else(|| {
                 panic!("nvs-ir: the checker records the type of every `covariant` parameter")
@@ -1385,20 +1379,23 @@ pub fn lower_method(
         low.emit_deprecation_checks(entry, std::slice::from_ref(check), &env);
     }
 
+    // Before the promoted stores, so a property only ever receives a value
+    // that passed.
+    for check in covariant_checks {
+        low.emit_covariant_check(check, name, &mut env, &mut cur);
+    }
+
     // PHP 8's constructor promotion: the parameter *is* the property, so the
     // store the author did not write is emitted here, before the body, in
     // declaration order. See `promoted_stores`.
     if let Some(class) = name.rsplit_once("::").and_then(|(class, method)| {
         (method == "constructor" && !is_static).then_some(class.to_owned())
     }) {
-        promoted_stores(&mut low, entry, &class, m, src, &mut env);
+        promoted_stores(&mut low, cur, &class, m, src, &mut env);
     }
 
     for (read, declared, what, span) in entry_checks {
         low.emit_type_check(read, declared, false, span, &what, &mut env, &mut cur);
-    }
-    for check in covariant_checks {
-        low.emit_covariant_check(check, name, &mut env, &mut cur);
     }
 
     let body = m.body.as_ref().expect(
@@ -1619,6 +1616,13 @@ fn promoted_stores(
                 calls.set.clone(),
                 env,
             );
+        }
+        // A subclass that declares the property `covariant` reaches this
+        // store through `parent::constructor(...)`. The parameter is this
+        // frame's own, so the test is handed it as not fresh.
+        if low.exprs.is_covariant_write(p.name) {
+            let mut at = entry;
+            low.emit_covariant_property_check(this, &field, (v, ty, false), env, &mut at);
         }
         if ty.is_refcounted() {
             low.emit_retain(entry, v);

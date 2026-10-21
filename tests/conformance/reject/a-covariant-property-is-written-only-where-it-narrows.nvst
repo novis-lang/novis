@@ -1,0 +1,66 @@
+--TEST--
+`covariant` is written only on a property that narrows the topmost declaration's type, with a type `is` tests in constant time, that keeps its qualifier and fits its parent's narrowed type, and a property narrower than the topmost declaration's without it names `covariant` in its help — `rule:classes/a-covariant-type-is-checked-where-a-value-enters`
+--FILE--
+<?nvs
+class Animal {}
+class Dog extends Animal {}
+class Cat extends Animal {}
+
+class Home {
+    public Animal $pet;
+    public array<mixed> $list = [];
+    public tainted string $name = "";
+    public function constructor() { $this->pet = new Dog(); }
+}
+
+class SameHome extends Home {
+    public covariant Animal $pet;
+}
+
+class ListHome extends Home {
+    public covariant array<int> $list = [];
+}
+
+class CleanHome extends Home {
+    public covariant string $name = "";
+}
+
+class PlainDogHome extends Home {
+    public Dog $pet;
+}
+
+class DogHome extends Home {
+    public covariant Dog $pet;
+}
+
+class CatHome extends DogHome {
+    public covariant Cat $pet;
+}
+
+class RepeatHome extends DogHome {
+    public Dog $pet;
+}
+
+class Stray {
+    public covariant Dog $pet;
+    public function constructor() { $this->pet = new Dog(); }
+}
+--EXPECTF-ERROR--
+error[E0882]: `covariant` has no effect here, because `$pet` is not narrower than in `Home`
+%A
+error[E0883]: a `covariant` property cannot have the type `array<int>`
+%A
+error[E0866]: `CleanHome::$name` is `string`, and `Home::$name` is `tainted string`. `covariant` keeps the `tainted` qualifier
+%A
+error[E0866]: `PlainDogHome::$pet` is `Dog`, and `Home::$pet` is `Animal`
+%A
+   = help: both classes use the same property, and `Home` writes it as `Animal`. To take a narrower type, write `covariant` before it. Each value is then tested when it is written
+%A
+error[E0866]: `CatHome::$pet` is `Cat`, which is not narrower than `Dog` in `DogHome`
+%A
+error[E0866]: `RepeatHome::$pet` is `Dog`, and `Home::$pet` is `Animal`
+%A
+error[E0882]: `covariant` has no effect here, because no parent class of `Stray` declares `$pet`
+%A
+error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

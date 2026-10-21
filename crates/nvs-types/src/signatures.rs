@@ -707,6 +707,11 @@ pub struct SignatureTable {
     base: Option<&'static FxHashMap<QName, ClassSignature>>,
     by_class: FxHashMap<QName, ClassSignature>,
     property_default_types: Vec<(Span, TypeId)>,
+    /// The name of every instance property some class declares `covariant`.
+    /// A write to a property whose name is not here is never tested, which
+    /// keeps the test's class walk off every other write. See
+    /// [`Self::is_narrowed`].
+    narrowed_properties: FxHashSet<String>,
 }
 
 impl SignatureTable {
@@ -782,6 +787,19 @@ impl SignatureTable {
     /// editor asked for.
     pub fn property_default_types(&self) -> &[(Span, TypeId)] {
         &self.property_default_types
+    }
+
+    /// Whether some class declares an instance property named `property`
+    /// `covariant` (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+    #[must_use]
+    pub fn is_narrowed(&self, property: &str) -> bool {
+        self.narrowed_properties.contains(property)
+    }
+
+    /// Records that some class declares the instance property `property`
+    /// `covariant`.
+    pub(crate) fn record_narrowed(&mut self, property: String) {
+        self.narrowed_properties.insert(property);
     }
 
     /// Whether `owner`'s own declaration of `method` can be reached by a
@@ -1204,6 +1222,8 @@ fn collect_members(
                     report_misplaced_covariant(p.ty.span, "a static property", env);
                 } else if p.covariant && p.modifiers.contains(&Modifier::Readonly) {
                     report_misplaced_covariant(p.ty.span, "a `readonly` property", env);
+                } else if p.covariant {
+                    table.record_narrowed(name.clone());
                 }
                 let is_lateinit = p.modifiers.contains(&Modifier::Lateinit);
                 if is_lateinit {
@@ -1369,6 +1389,10 @@ fn collect_members(
                             );
                         } else if p.modifiers.contains(&Modifier::Readonly) {
                             report_misplaced_covariant(p.span, "a `readonly` property", env);
+                        } else {
+                            table.record_narrowed(
+                                strip_sigil(span_text(env.src, p.name)).to_owned(),
+                            );
                         }
                     }
                     record_promoted_properties(&m.params, &params, qname, table, env);

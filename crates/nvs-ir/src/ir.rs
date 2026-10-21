@@ -2244,6 +2244,14 @@ pub enum Helper {
     /// that failed, as a borrowed `Ty::Tagged`. It always throws a `LogicError`
     /// made of the message and what the value is.
     CovariantRejected,
+    /// Tests a value written to a property that a subclass declares
+    /// `covariant` against the type the receiver's run-time class gives it
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+    /// Three operands: the receiver as a borrowed `Ty::Object`, the
+    /// property's name as a `Ty::Str`, and the value as a borrowed
+    /// `Ty::Tagged`. It gives `null`, or throws a `LogicError` that names the
+    /// class, the property, its type and what the value is.
+    CovariantPropertyChecked,
     /// Whether an `initProperty` call is running in this context, as a
     /// [`Ty::Bool`] (`rule:classes/late-init-initializes-on-the-first-read`).
     /// No arguments. Only a write to a `lateinit` property that was unset, in

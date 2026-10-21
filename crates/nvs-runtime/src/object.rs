@@ -5993,6 +5993,51 @@ pub(crate) fn describe_written(value: Value) -> String {
 
 /// What `value` is, for a message a program reads: "an object of class `Cat`",
 /// "`null`", or "a value of type `string`".
+/// Tests `value`, about to be written to `receiver`'s property `name`,
+/// against the type `receiver`'s own class gives that property
+/// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+///
+/// A subclass that declares the property `covariant` has its narrower type
+/// in its own descriptor, so this is [`ClassDesc::check_slot`] asked of the
+/// run-time class. Costs a scan of the class's field names and one tag or
+/// class test, on each write the compiler could not prove.
+///
+/// # Errors
+///
+/// A `LogicError` naming the class, the property, its type and what the
+/// value is, when the value does not fit.
+pub(crate) fn check_covariant_write(receiver: Value, name: &str, value: Value) -> Result<(), Fault> {
+    let Some(ptr) = receiver.obj_ptr().filter(|ptr| !ptr.is_null()) else {
+        return Err(Fault::fatal(format!(
+            "internal error: a `covariant` test of `{name}` reached a value that is not an object"
+        )));
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns a reference to this object, so the allocation \
+                  is live and its descriptor is too"
+    )]
+    let desc = unsafe { &*NvsObj::class_of(ptr) };
+    let Some(index) = desc.field_slot(name, 0) else {
+        return Err(Fault::fatal(format!(
+            "internal error: `{}` has no slot for the `covariant` property `{name}`",
+            desc.name()
+        )));
+    };
+    if desc.check_slot(index, name, value).is_ok() {
+        return Ok(());
+    }
+    let declared = desc.field_type(index).unwrap_or("its declared type");
+    Err(Fault::thrown_as(
+        crate::ThrownClass::Logic,
+        format!(
+            "The property `${name}` of `{}` has the type `{declared}`. The value is {}.",
+            desc.name(),
+            describe_argument(value)
+        ),
+    ))
+}
+
 pub(crate) fn describe_argument(value: Value) -> String {
     with_class(value, |class| {
         format!("an object of class `{}`", class.name())

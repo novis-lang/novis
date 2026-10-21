@@ -321,8 +321,14 @@ fn added_on_every_way(ways: Vec<Added>) -> Option<Added> {
 /// arm calls this, since only a class is ever instantiated through a
 /// constructor.
 pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
-    let required = own_required_properties(qname, env.signatures, env.graph);
+    let mut required = own_required_properties(qname, env.signatures, env.graph);
     check_set_hooks_commit(decl, qname, &required, env);
+    // A property declared again over an ancestor's that has no default is
+    // the ancestor's to assign, in the constructor this class inherits or
+    // calls with `parent::constructor(...)`. A `covariant` one is tested when
+    // that constructor writes it.
+    let inherited = ancestors_assigned(qname, env);
+    required.retain(|(name, _)| !inherited.contains(name));
 
     let ctor = decl.members.iter().find_map(|m| match &m.kind {
         ClassMemberKind::Method(method) if span_text(env.src, method.name) == "constructor" => {
@@ -453,6 +459,40 @@ fn parent_declares_constructor(qname: &QName, env: &Env<'_>) -> bool {
 }
 
 /// The required properties of every class `qname` extends, nearest first.
+/// Every instance property an ancestor of `qname` declares with no default
+/// and not `lateinit`, a promoted constructor parameter included. The
+/// ancestor's own constructor assigns each one, which its own check of this
+/// rule holds it to.
+fn ancestors_assigned(qname: &QName, env: &Env<'_>) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut seen = rustc_hash::FxHashSet::default();
+    let mut next = env
+        .graph
+        .get(qname)
+        .and_then(|links| links.extends.first().cloned());
+    while let Some(ancestor) = next {
+        if !seen.insert(ancestor.clone()) {
+            break;
+        }
+        if let Some(sig) = env.signatures.get(&ancestor) {
+            names.extend(
+                sig.properties
+                    .keys()
+                    .filter(|name| {
+                        !sig.lateinit_properties.contains(*name)
+                            && !sig.property_defaults.iter().any(|(n, _)| n == *name)
+                    })
+                    .cloned(),
+            );
+        }
+        next = env
+            .graph
+            .get(&ancestor)
+            .and_then(|links| links.extends.first().cloned());
+    }
+    names
+}
+
 fn ancestors_required(qname: &QName, env: &Env<'_>) -> Vec<String> {
     let mut names = Vec::new();
     let mut seen: Vec<&QName> = Vec::new();

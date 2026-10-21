@@ -1245,6 +1245,43 @@ impl<'a> Lowering<'a> {
             None => self.lower_store(target, &Stored::Expr(value), true, env, cur),
         }
     }
+
+    /// Tests `value`, about to be written to `object`'s property `name`,
+    /// against the type the receiver's run-time class gives the property, and
+    /// throws a `LogicError` when it does not fit
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`). The
+    /// checker records which writes need it. `value` is `(value, its type,
+    /// whether this frame owns it)`, and an owned one is released if the test
+    /// throws.
+    ///
+    /// Costs one helper call per such write. The narrower type is in the
+    /// receiver's class descriptor, so the test does not depend on which
+    /// subclass narrows the property.
+    pub(crate) fn emit_covariant_property_check(
+        &mut self,
+        object: ValueId,
+        name: &str,
+        (value, ty, owned): (ValueId, Ty, bool),
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
+        let mark = self.temporaries_mark();
+        if owned && ty.is_refcounted() {
+            self.own_temporary(value);
+        }
+        let tagged = self.coerce(*cur, value, ty, Ty::Tagged, env);
+        let (name, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(name.to_owned()));
+        self.emit_fallible(
+            *cur,
+            Ty::Tagged,
+            InstKind::HelperCall {
+                helper: Helper::CovariantPropertyChecked,
+                args: vec![object, name, tagged],
+            },
+            env,
+        );
+        self.forget_temporaries_since(mark);
+    }
     /// The write half of [`Self::lower_reassignment`]: everything about
     /// *where* the value lands, with what lands there left to [`Stored`].
     ///
@@ -1508,6 +1545,15 @@ impl<'a> Lowering<'a> {
                     // into a `mixed` field arrives as its own `Int`/`Float`/
                     // `Bool` until this widens it.
                     let v = self.coerce(*cur, v, vty, field_ty, env);
+                    if self.exprs.is_covariant_write(target.span) {
+                        self.emit_covariant_property_check(
+                            object_v,
+                            &field_name,
+                            (v, field_ty, !aliasing),
+                            env,
+                            cur,
+                        );
+                    }
                     // `rule:classes/late-init-initializes-on-the-first-read`'s
                     // plain write stores into the backing slot and calls no
                     // guard, no hook and no observer. Only a `lateinit`
@@ -1625,6 +1671,15 @@ impl<'a> Lowering<'a> {
                     let (v, vty, aliasing) = self.lower_stored(stored, Some(field_ty), env, cur);
                     // Coerce first, retain second — the arm above says why.
                     let v = self.coerce(*cur, v, vty, field_ty, env);
+                    if self.exprs.is_covariant_write(target.span) {
+                        self.emit_covariant_property_check(
+                            object_v,
+                            &field_name,
+                            (v, field_ty, !aliasing),
+                            env,
+                            cur,
+                        );
+                    }
                     // `rule:classes/late-init-initializes-on-the-first-read`'s
                     // plain write is told apart by the slot's state before the
                     // store, so only a guarded or observed `lateinit` write

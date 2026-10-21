@@ -20,9 +20,11 @@ A static property is outside the rule. Each class names its own storage, and `st
 `rule:statements/static-is-a-member-modifier`'s `E0833` is the same hazard for a constant, and it
 allows any assignable type there because a constant is only read, never written through the parent.
 
-Declined: a narrower property type with a check on each write through the parent. It is sound, but
-it is a second mechanism with a run-time check on every write of a redeclared property.
-Declined too: PHP's rule, which allows the same as this one, except that PHP keeps the parent's
+A narrower type is allowed only where the redeclaration writes `covariant`, and then each write
+that can reach it with a wider value is tested
+(`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+
+Declined: PHP's rule, which allows the same as this one, except that PHP keeps the parent's
 `private` property as a separate slot. Novis gives a redeclared name one slot whatever its
 visibility, so a `private` redeclaration is held to the same type.
 
