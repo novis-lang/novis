@@ -755,7 +755,7 @@
   },
   "/in-depth/compare/": {
     "feature": "in-depth/compare.mdx",
-    "hash": "427418c62e9b35d0",
+    "hash": "61eb07c5a1added6",
     "questions": [
       "How do Novis, PHP, Bun and Go compare in requests per second and memory?",
       "Can one request split its work over several CPU cores?",
