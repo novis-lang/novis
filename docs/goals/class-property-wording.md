@@ -22,11 +22,11 @@ stages:
     context: [crates/nvs-diagnostics/src/code/types.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/conformance.rs]
   - id: 6
     title: "the Core reference cards and runtime errors say property"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/db/row.rs]
   - id: 7
     title: "every expectation a changed message pins is re-recorded"
-    status: open
+    status: done
     context: [website/snippets/guides/why-novis/typed-json.out]
   - id: 5
     title: "the two rule ids say property"
@@ -178,8 +178,8 @@ property.
 
 **Does:** every `Core` reference card and runtime error says property for a class property.
 
-- [ ] The `Json`, `Http`, `Jwt`, `Request`, `Test` and `Db` reference cards say property. `crates/nvs-stdlib/src/json.rs:448`, `crates/nvs-stdlib/src/http.rs:1917`, `crates/nvs-stdlib/src/jwt.rs:737`, `crates/nvs-stdlib/src/request.rs:750`, `crates/nvs-stdlib/src/test.rs:1332`, `crates/nvs-stdlib/src/db/registry.rs:2329`
-- [ ] The runtime errors say property, and the decode message says "N value(s) of `T` did not match". `crates/nvs-stdlib/src/db/row.rs:305`, `crates/nvs-stdlib/src/json.rs:2527`, `crates/nvs-stdlib/src/json.rs:2800`, `crates/nvs-codegen/src/emit.rs:3275`
+- [x] The `Json`, `Http`, `Jwt`, `Request`, `Test` and `Db` reference cards say property. `crates/nvs-stdlib/src/json.rs:448`, `crates/nvs-stdlib/src/http.rs:1917`, `crates/nvs-stdlib/src/jwt.rs:737`, `crates/nvs-stdlib/src/request.rs:750`, `crates/nvs-stdlib/src/test.rs:1332`, `crates/nvs-stdlib/src/db/registry.rs:2329`
+- [x] The runtime errors say property, and the decode message says "N value(s) of `T` did not match". `crates/nvs-stdlib/src/db/row.rs:305`, `crates/nvs-stdlib/src/json.rs:2527`, `crates/nvs-stdlib/src/json.rs:2800`, `crates/nvs-codegen/src/emit.rs:3275`
 
 ### 7. every expectation a changed message pins is re-recorded
 
@@ -192,10 +192,10 @@ and `website/snippets/**/*.out` for each old text, and returns `path:line` and t
 each. Writing subagents then edit the `tests/` expectations one directory after
 another. The session runs the blesses and the render.
 
-- [ ] The Explore subagent's list of every expectation that pins a changed message. `tests/conformance/core/json-derive-decodes-and-reports-every-field.nvst:1`
-- [ ] Each `.nvst`, `.lspt` and `.err` on the list says the new text. `tests/conformance/core/json-derive-decodes-and-reports-every-field.nvst:1`
-- [ ] Each snippet and example `.out` on the list is re-blessed. `website/snippets/guides/why-novis/typed-json.out:2`
-- [ ] `bun nv render --website` writes the reference data again. `website/src/data/core.json:1`
+- [x] The Explore subagent's list of every expectation that pins a changed message. `tests/conformance/core/json-derive-decodes-and-reports-every-field.nvst:1`
+- [x] Each `.nvst`, `.lspt` and `.err` on the list says the new text. `tests/conformance/core/json-derive-decodes-and-reports-every-field.nvst:1`
+- [x] Each snippet and example `.out` on the list is re-blessed. `website/snippets/guides/why-novis/typed-json.out:2`
+- [x] `bun nv render --website` writes the reference data again. `website/src/data/core.json:1`
 
 ### 5. the two rule ids say property
 
@@ -213,31 +213,34 @@ session renames them with one script under `.agent-tmp/`, deletes the script, an
 
 ### State
 
-Stages 1 to 4 are done. The cards live under `crates/nvs-diagnostics/src/code/`, not in `lib.rs`.
-Stage 4 re-recorded what its own messages pin, so stage 7 covers stage 6's messages only: three
-`tests/conformance/reject/` cases, three example `.out` files, `docs/reference/lang/50-classes.md`,
-`docs/reference/lang/90-attributes.md` and `website/public/llms-full.txt`. The derive messages for
-`lateinit`, `secret` and a missing parameter now say "`{derive}` cannot convert it" or "cannot decode
-it". A `$field` in a program or a doc comment stays.
+Stages 1, 2, 3, 4, 6 and 7 are done. Stage 6 changed the `Json`, `Http`, `Jwt`, `Request`, `Test`
+and `Db` cards, the decode count message (now "N value(s) of `T` did not match"), the `queryAs` row
+issues in `crates/nvs-stdlib/src/db/row.rs`, and two class-only internal messages. Stage 7 re-recorded
+the two `tests/conformance/core/` cases, two example `.out` files, the typed JSON snippet,
+`docs/reference/lang/70-errors.md`, the `verifyIssued` `about.md` and the website's reference data.
 
-The nightly's proofs jobs failed because stages 1 and 2 edited `docs/reference/lang/20-types.md` and
-`50-classes.md`, and a `lang:` feature's perf `impl_hash` hashes its reference chapter. Those records
-were measured again with `bun nv proofs --record-perf`. Its website job failed on a stale
-`llms-full.txt`, which stage 2's commit had already rendered again.
+The nightly run named in the sweep ran on a commit before the last two sessions. At this commit
+`bun nv proofs --gate` and `bun nv render --website --check` pass locally. An edit to a stdlib source
+file makes its members' perf records stale too, so the 4 `Core\Json` records and the 10
+`lang:errors/*` records were measured again. `nv site --bless` runs `target/release/nvs` first, which
+was stale here, so the snippet was blessed with `--nvs target/debug/nvs.exe`.
 
 Left as "field" after reading in context: form, CSV, JSON, header, attribute, date, shape and
 anonymous-object fields, the `?field=` query names, a test double's fields, E0820's document field,
-and step 4 of `errors/properties-not-accessors/01` (the paths of a shape's issues).
+step 4 of `errors/properties-not-accessors/01`, and the `Request` `queryAs`/`postAs` cards (a `T`
+there may be a shape). The `decodeAs` internal faults that name "`T`'s `k` field" stay, because a
+shape reaches them too. "required field missing" names the JSON key, and stays.
 
 ### Next
 
-**Stage 6: the `Core` reference cards and runtime errors**, in `crates/nvs-stdlib/` and
-`crates/nvs-codegen/src/emit.rs`. Then stage 7 re-records what stage 6's messages pin. An edit to a
-reference chapter under `docs/reference/lang/` makes its features' perf records stale, so run `bun nv
-proofs --record-perf` after one.
+**Stage 5: the two rule ids say property.** Rename `rule:classes/delegation-by-field` and
+`rule:core-classes/derive-field-list` with one script under `.agent-tmp/`, delete it, then run `bun nv
+rules --check`. The runtime messages in `crates/nvs-stdlib/src/json.rs` and `db/row.rs` cite the second
+id, so the rename changes text they print: grep `tests/` and `docs/examples/` for the old id after it.
+Then the goal-end gates and `DONE`.
 
-- [ ] The `Json`, `Http`, `Jwt`, `Request`, `Test` and `Db` reference cards say property. `crates/nvs-stdlib/src/json.rs:448`
-- [ ] The runtime errors say property, and the decode message says "N value(s) of `T` did not match". `crates/nvs-stdlib/src/json.rs:2527`
+- [ ] `rule:classes/delegation-by-field` becomes `classes/delegation-by-property`. `docs/rules/classes/delegation-by-field.md:1`
+- [ ] `rule:core-classes/derive-field-list` becomes `core-classes/derive-property-list`. `docs/rules/core-classes/derive-field-list.md:1`
 
 ### Backlog
 
