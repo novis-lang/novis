@@ -96,14 +96,16 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `afbb1edc2`. Its CI run,
-https://github.com/novis-lang/novis/actions/runs/39534370379, and its Website run,
-https://github.com/novis-lang/novis/actions/runs/39534370421, are green. The push of `e0f330164` turned
-`supply chain` red on two new advisories, RUSTSEC-2026-0382 and RUSTSEC-2026-0381. `a3b109dcb` raised
-`rustls-webpki` to 0.103.16 and `webpki-roots` to 1.0.10 in `Cargo.lock`. `afbb1edc2` wrote
-`THIRD-PARTY-LICENSES.txt` again, because a lockfile bump also needs `bun nv gen-attribution`. No red is
-handed to the main loop, so no watch passes `--past`. `cargo deny` still warns that `deny.toml`'s ignore of
-RUSTSEC-2026-0206 matches no crate. It is only a warning.
+`origin/main` is at `dbef3c67b`. Its CI run,
+https://github.com/novis-lang/novis/actions/runs/39593379567, and its Website run,
+https://github.com/novis-lang/novis/actions/runs/39593379682, are green. The nightly deep lane on
+`afbb1edc2` had turned the `proofs` stale guard red on every platform. `5d6d69097` restamped the four syntax
+pages and eleven question sets the class-property wording left stale. Its push then turned `docs` red,
+because `078f54e91` changed rule fragments without rendering their chapters. `dbef3c67b` committed the
+rendered `docs/rules/errors.md`, `docs/rules/types.md` and `docs/ground-rules.md`. Both fixes were checked
+in a scratch worktree at `HEAD`, so the main loop's uncommitted edits stayed out. The push lane on
+`dbef3c67b` ran few jobs, so the next nightly deep lane is the first full check of this tree. No red is
+handed to the main loop, so no watch passes `--past`.
 
 ### Next
 
@@ -112,7 +114,10 @@ RUSTSEC-2026-0206 matches no crate. It is only a warning.
 - [ ] Watch with `bun nv ci --watch`, which waits for the next push. `tools/nv/cmd/ci.ts:224`
 - [ ] Fix and push each red job. `.github/workflows/ci.yml:1`
   A stale guard red is fixed by `bun nv site --stale` and `bun nv site --questions --owed`, then a
-  reread and a `--stamp`. Under Git Bash, a URL argument needs `MSYS_NO_PATHCONV=1`.
+  reread and a `--stamp`. Under Git Bash, a URL argument needs `MSYS_NO_PATHCONV=1`. Check a site or
+  render red against committed `HEAD` in a scratch worktree with `--nvs E:/mwl/target/debug/nvs.exe`,
+  because the root holds the main loop's uncommitted edits. A `git cherry-pick` into the root fails on
+  its staged changes, so apply the diff with `git apply` and commit by pathspec.
 
 ### Backlog
 
