@@ -1570,6 +1570,7 @@ pub(crate) fn resolved_call(
         param_tys: sig.params.clone(),
         param_names: sig.param_names.clone(),
         inout: sig.inout.clone(),
+        covariant: sig.covariant.clone(),
         variadic: sig.variadic,
         defaults: sig.defaults.clone(),
         is_static: sig.is_static,
@@ -2561,6 +2562,13 @@ pub(crate) fn check_anon_fn(
     };
     let mut params = Vec::with_capacity(f.params.len());
     for (i, param) in f.params.iter().enumerate() {
+        if param.covariant {
+            crate::signatures::report_misplaced_covariant(
+                param.span,
+                "a parameter of an anonymous function",
+                env,
+            );
+        }
         let ty = match &param.ty {
             Some(_) => lower_optional_type(param.ty.as_ref(), ctx, env),
             None => {

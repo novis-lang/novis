@@ -267,6 +267,7 @@ pub(crate) fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -
     );
     MethodSig {
         inout: vec![false; params.len()],
+        covariant: Vec::new(),
         // A reserved interface is declared by its own rule, not by a registry
         // row, so nothing classified it — see `MethodSig::param_quals`.
         param_quals: Vec::new(),

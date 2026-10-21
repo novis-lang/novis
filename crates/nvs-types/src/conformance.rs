@@ -710,6 +710,7 @@ fn compare_override(
         Visibility::Protected => 1,
         Visibility::Private => 0,
     };
+    let mut narrower = false;
     let problem: Option<(Span, String)> = if own.is_static != parent.is_static {
         let (is, was) = if parent.is_static {
             ("is not `static`", "is")
@@ -779,28 +780,59 @@ fn compare_override(
             ),
         ))
     } else {
-        parent_params_problem(qname, owner, name, own, &parent, name_at, env)
+        parent_params_problem(qname, owner, name, own, &parent, name_at, env).map(
+            |(span, message, is_narrower)| {
+                narrower = is_narrower;
+                (span, message)
+            },
+        )
     };
     let Some((span, message)) = problem else {
         return;
     };
+    report_incompatible_override(qname, owner, name, span, message, narrower, env);
+}
+
+/// One `E0404` for `qname`'s method `name`, which a call through `owner`
+/// cannot use. `narrower` is set where a parameter takes a narrower type than
+/// `owner`'s, and the help then names `covariant`.
+fn report_incompatible_override(
+    qname: &QName,
+    owner: &QName,
+    name: &str,
+    span: Span,
+    message: String,
+    narrower: bool,
+    env: &mut Env<'_>,
+) {
+    let mut help = format!(
+        "a call through `{owner}` passes what `{owner}::{name}` takes and reads what it \
+         returns. Keep its parameters, its `static` and its visibility. Each parameter may \
+         accept a wider type, and the return type may be narrower"
+    );
+    if narrower {
+        help.push_str(
+            ". To take a narrower type, write `covariant` before it. Each value is then tested \
+             when the method is called",
+        );
+    }
     env.diags.report(
         Diagnostic::error(
             code::E_INCOMPATIBLE_OVERRIDE,
             format!("`{qname}::{name}` cannot replace `{owner}::{name}`"),
         )
         .with_primary(span, message)
-        .with_help(format!(
-            "a call through `{owner}` passes what `{owner}::{name}` takes and reads what it \
-             returns. Keep its parameters, its `static` and its visibility. Each parameter may \
-             accept a wider type, and the return type may be narrower"
-        )),
+        .with_help(help),
     );
 }
 
 /// The first parameter of `parent` that `own` cannot take as a call through
 /// `owner` passes it: a type that does not fit in place, or `inout` written on
-/// one side only.
+/// one side only. The flag is set where `own`'s type is narrower.
+///
+/// A `covariant` parameter's type is [`check_covariant_params`]'s, which
+/// measures it against the topmost declaration once rather than once for each
+/// ancestor.
 fn parent_params_problem(
     qname: &QName,
     owner: &QName,
@@ -809,7 +841,7 @@ fn parent_params_problem(
     parent: &crate::signatures::MethodSig,
     name_at: Span,
     env: &mut Env<'_>,
-) -> Option<(Span, String)> {
+) -> Option<(Span, String, bool)> {
     // Only `Comparable`'s own `compareTo` takes `self`. A class that narrows
     // it again in a subclass is refused like any other override: a direct
     // `$price->compareTo($other)` through the parent passes the parent's
@@ -827,19 +859,371 @@ fn parent_params_problem(
             return Some((
                 name_at,
                 format!("`${param}` differs from `{owner}::{name}` in `inout`"),
+                false,
             ));
+        }
+        if own.is_covariant(index) {
+            continue;
         }
         if !crate::expr::assign::field_fits(passed, taken, env.interner, env.graph, env.signatures)
         {
             let have = env.interner.describe(taken);
             let want = env.interner.describe(passed);
+            let narrower = crate::expr::assign::field_fits(
+                taken,
+                passed,
+                env.interner,
+                env.graph,
+                env.signatures,
+            );
             return Some((
                 name_at,
                 format!("`${param}` is `{have}`, and a call to `{owner}::{name}` passes `{want}`"),
+                narrower,
             ));
         }
     }
     None
+}
+
+/// `rule:classes/a-covariant-type-is-checked-where-a-value-enters`, at the
+/// declaration: each parameter of `members`' methods is measured against the
+/// topmost declaration of its method, the first ancestor that declares it.
+///
+/// A `covariant` parameter needs a method that replaces one (`E0882`), a
+/// type `is` tests in constant time (`E0883`), a type strictly narrower than
+/// the topmost one's that keeps its `tainted` and `secret` (`E0882` where it
+/// is not narrower, `E0404` where it is unrelated or drops a qualifier), and
+/// it must accept the default the topmost declaration gives it (`E0884`),
+/// since a call through that declaration fills it. A parameter without the
+/// keyword that is narrower than the topmost declaration's is `E0404`, also
+/// when it only repeats its parent's narrowed type. A narrower type is tested
+/// on every call, so each level writes the keyword where the test runs.
+///
+/// A constructor's parameter is not an override, and a promoted one declares
+/// a property: [`crate::signatures`] reports one that is not promoted.
+pub(crate) fn check_covariant_params(members: &[ClassMember], qname: &QName, env: &mut Env<'_>) {
+    let ancestors: Vec<QName> = env.graph.get(qname).map_or_else(Vec::new, |links| {
+        links
+            .extends
+            .iter()
+            .chain(links.implements.iter())
+            .cloned()
+            .collect()
+    });
+    let own_sigs = env.signatures.get(qname).map(|sig| sig.methods.clone());
+    for member in members {
+        let ClassMemberKind::Method(m) = &member.kind else {
+            continue;
+        };
+        let name = span_text(env.src, m.name).to_owned();
+        if name == "constructor" {
+            continue;
+        }
+        let Some(own) = own_sigs.as_ref().and_then(|sigs| sigs.get(&name)).cloned() else {
+            continue;
+        };
+        let mut nearest = Vec::new();
+        let mut roots = Vec::new();
+        let mut seen = FxHashSet::default();
+        for ancestor in &ancestors {
+            let Some((owner, parent)) = resolve_method(ancestor, &name, env.signatures, env.graph)
+            else {
+                continue;
+            };
+            if parent.interface_private || owner == *qname {
+                continue;
+            }
+            topmost_declarations(&owner, &parent, &name, env, &mut seen, &mut roots);
+            nearest.push(bind_interface_args(qname, &owner, &parent, env));
+        }
+        if roots.is_empty() {
+            for p in m.params.iter().filter(|p| p.covariant) {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_COVARIANT_MISPLACED,
+                        format!(
+                            "`covariant` has no effect here, because `{qname}::{name}` \
+                             replaces no method"
+                        ),
+                    )
+                    .with_primary(p.span, "`covariant` is written here")
+                    .with_help(
+                        "`covariant` is for a parameter of a method that replaces a method of a \
+                         parent class or an interface. Remove it",
+                    ),
+                );
+            }
+            continue;
+        }
+        let roots: Vec<(QName, crate::signatures::MethodSig)> = roots
+            .into_iter()
+            .map(|(owner, sig)| {
+                let sig = bind_interface_args(qname, &owner, &sig, env);
+                (owner, sig)
+            })
+            .collect();
+        for (index, p) in m.params.iter().enumerate() {
+            let Some(&taken) = own.params.get(index) else {
+                continue;
+            };
+            let at = p.ty.as_ref().map_or(p.span, |ty| ty.span);
+            if p.covariant && !testable_in_constant_time(taken, env) {
+                let have = env.interner.describe(taken);
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_COVARIANT_TYPE_NOT_TESTABLE,
+                        format!("a `covariant` parameter cannot have the type `{have}`"),
+                    )
+                    .with_primary(at, "each call would test every element of this value")
+                    .with_help(
+                        "use the parent's type for this parameter, and test the value in the \
+                         method body",
+                    ),
+                );
+                continue;
+            }
+            for (root, sig) in &roots {
+                if sig.params.len() != own.params.len() {
+                    continue;
+                }
+                let top = if name == "compareTo"
+                    && *root == QName::parse(nvs_hir::interfaces::COMPARABLE)
+                {
+                    env.interner.class(qname.clone())
+                } else {
+                    sig.params[index]
+                };
+                let reported = if p.covariant {
+                    covariant_param_problem(qname, root, &name, p, taken, top, sig, index, env)
+                } else {
+                    let nearest_fits = nearest.iter().all(|parent| {
+                        parent
+                            .params
+                            .get(index)
+                            .is_none_or(|&passed| fits(passed, taken, env))
+                    });
+                    if nearest_fits && !fits(top, taken, env) {
+                        let have = env.interner.describe(taken);
+                        let want = env.interner.describe(top);
+                        let param = strip_sigil(span_text(env.src, p.name)).to_owned();
+                        let narrower = fits(taken, top, env);
+                        report_incompatible_override(
+                            qname,
+                            root,
+                            &name,
+                            at,
+                            format!(
+                                "`${param}` is `{have}`, and a call to `{root}::{name}` passes `{want}`"
+                            ),
+                            narrower,
+                            env,
+                        );
+                        true
+                    } else {
+                        false
+                    }
+                };
+                if reported {
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/// Reports what is wrong with the `covariant` parameter `p` of `qname`'s
+/// method `name`, of type `taken`, measured against `top`, the type `root`'s
+/// declaration `sig` gives it. Whether it reported anything.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each argument is one fact about the parameter the diagnostics name"
+)]
+fn covariant_param_problem(
+    qname: &QName,
+    root: &QName,
+    name: &str,
+    p: &nvs_syntax::ast::Param,
+    taken: TypeId,
+    top: TypeId,
+    sig: &crate::signatures::MethodSig,
+    index: usize,
+    env: &mut Env<'_>,
+) -> bool {
+    let at = p.ty.as_ref().map_or(p.span, |ty| ty.span);
+    let param = strip_sigil(span_text(env.src, p.name)).to_owned();
+    let have = env.interner.describe(taken);
+    let want = env.interner.describe(top);
+    if fits(top, taken, env) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_COVARIANT_MISPLACED,
+                format!(
+                    "`covariant` has no effect here, because `${param}` is not narrower than in \
+                     `{root}::{name}`"
+                ),
+            )
+            .with_primary(at, format!("`{have}` accepts every `{want}`"))
+            .with_help("remove `covariant`. The parameter already takes every value a call passes"),
+        );
+        return true;
+    }
+    let drops_tainted = crate::expr::quals::carries_tainted(top, env.interner)
+        && !crate::expr::quals::carries_tainted(taken, env.interner);
+    let drops_secret = crate::expr::quals::carries_secret(top, env.interner)
+        && !crate::expr::quals::carries_secret(taken, env.interner);
+    if !fits(taken, top, env) || drops_tainted || drops_secret {
+        let message = if drops_tainted || drops_secret {
+            let qualifier = if drops_tainted { "tainted" } else { "secret" };
+            format!(
+                "`${param}` is `{have}`, and `{root}::{name}` takes `{want}`. `covariant` keeps \
+                 the `{qualifier}` qualifier"
+            )
+        } else {
+            format!(
+                "`${param}` is `{have}`, which is not narrower than `{want}` in `{root}::{name}`"
+            )
+        };
+        report_incompatible_override(qname, root, name, at, message, false, env);
+        return true;
+    }
+    let Some(Some(default)) = sig.defaults.get(index) else {
+        return false;
+    };
+    if default_passes(default, top, taken, env) {
+        return false;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_COVARIANT_DEFAULT_REJECTED,
+            format!("`${param}` does not accept the default value that `{root}::{name}` gives it"),
+        )
+        .with_primary(at, format!("`{have}` does not accept the default"))
+        .with_help(format!(
+            "a call through `{root}` that leaves out `${param}` passes this default. Use a type \
+             that accepts it, or change the default in `{root}`"
+        )),
+    );
+    true
+}
+
+/// Whether the default `value` of a parameter declared `top` passes the
+/// narrower `taken`. A case of an enum keeps only its backing value here, so
+/// it passes when `taken` takes every enum `top` names.
+fn default_passes(
+    value: &crate::defaults::ConstArg,
+    top: TypeId,
+    taken: TypeId,
+    env: &mut Env<'_>,
+) -> bool {
+    use crate::defaults::ConstArg;
+    let ty = match value {
+        ConstArg::Null => env.interner.null(),
+        ConstArg::Bool(true) => env.interner.true_ty(),
+        ConstArg::Bool(false) => env.interner.false_ty(),
+        ConstArg::Int(n) => env.interner.single_value_int(*n),
+        ConstArg::Uint(_) => env.interner.uint(),
+        ConstArg::Float(_) => env.interner.float(),
+        ConstArg::Decimal { .. } => env.interner.decimal(),
+        ConstArg::Str(text) => env.interner.single_value_string(text.clone()),
+        ConstArg::Bytes(_) => env.interner.bytes(),
+        ConstArg::EnumInt(_) | ConstArg::EnumUint(_) => {
+            let enums: Vec<TypeId> = env
+                .interner
+                .union_members(top)
+                .into_iter()
+                .filter(|&member| matches!(env.interner.get(member), Ty::Enum(..)))
+                .collect();
+            return enums.into_iter().all(|member| fits(member, taken, env));
+        }
+        _ => return true,
+    };
+    fits(ty, taken, env)
+}
+
+/// Whether a value of type `from` is a `to` as it is, which is
+/// [`crate::expr::assign::field_fits`].
+fn fits(from: TypeId, to: TypeId, env: &mut Env<'_>) -> bool {
+    crate::expr::assign::field_fits(from, to, env.interner, env.graph, env.signatures)
+}
+
+/// Whether `is` tests a value against `ty` in constant time: a class, an
+/// interface, an enum, a scalar, `null`, or a union or an intersection of
+/// those. A generic class, an array, a shape and a callable are not, since
+/// their test reads the value's contents.
+fn testable_in_constant_time(ty: TypeId, env: &Env<'_>) -> bool {
+    match env.interner.get(ty) {
+        Ty::Class(_, args) => args.is_empty(),
+        Ty::Union(members) | Ty::Intersection(members) => members
+            .iter()
+            .all(|&member| testable_in_constant_time(member, env)),
+        Ty::Null
+        | Ty::Bool
+        | Ty::True
+        | Ty::False
+        | Ty::Int
+        | Ty::Uint
+        | Ty::Float
+        | Ty::Decimal
+        | Ty::String
+        | Ty::Bytes
+        | Ty::TaintedString
+        | Ty::TaintedBytes
+        | Ty::SecretString
+        | Ty::SecretBytes
+        | Ty::SecretTaintedString
+        | Ty::SecretTaintedBytes
+        | Ty::SingleValueString(_)
+        | Ty::SingleValueInt(_)
+        | Ty::EnumCase(..)
+        | Ty::Enum(..)
+        | Ty::Object
+        | Ty::Mixed
+        | Ty::Error => true,
+        _ => false,
+    }
+}
+
+/// Pushes onto `out` each topmost declaration of the method `name`, which
+/// `owner` declares as `sig`: `owner` itself when no ancestor of it declares
+/// `name`, and otherwise the topmost declarations of each ancestor's.
+/// `Comparable::compareTo` is a root only for a class that names `Comparable`
+/// itself, because a subclass's `compareTo` is measured against the class
+/// that wrote the first one.
+fn topmost_declarations(
+    owner: &QName,
+    sig: &crate::signatures::MethodSig,
+    name: &str,
+    env: &Env<'_>,
+    seen: &mut FxHashSet<QName>,
+    out: &mut Vec<(QName, crate::signatures::MethodSig)>,
+) {
+    let comparable = QName::parse(nvs_hir::interfaces::COMPARABLE);
+    let ancestors: Vec<QName> = env.graph.get(owner).map_or_else(Vec::new, |links| {
+        links
+            .extends
+            .iter()
+            .chain(links.implements.iter())
+            .cloned()
+            .collect()
+    });
+    let mut found = false;
+    for ancestor in &ancestors {
+        let Some((next, parent)) = resolve_method(ancestor, name, env.signatures, env.graph) else {
+            continue;
+        };
+        if parent.interface_private || next == *owner {
+            continue;
+        }
+        if name == "compareTo" && next == comparable {
+            continue;
+        }
+        found = true;
+        topmost_declarations(&next, &parent, name, env, seen, out);
+    }
+    if !found && seen.insert(owner.clone()) {
+        out.push((owner.clone(), sig.clone()));
+    }
 }
 
 /// `sig` with the type variables of a generic `owner` bound to the arguments

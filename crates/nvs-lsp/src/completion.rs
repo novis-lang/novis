@@ -3358,8 +3358,9 @@ fn signature(file: &SourceFile, method: &MethodMember) -> (String, Option<String
         .map(|param| {
             let name = text_of(file, param.name);
             let dots = if param.variadic { "..." } else { "" };
+            let covariant = if param.covariant { "covariant " } else { "" };
             match &param.ty {
-                Some(ty) => format!("{} {dots}{name}", text_of(file, ty.span)),
+                Some(ty) => format!("{covariant}{} {dots}{name}", text_of(file, ty.span)),
                 None => format!("{dots}{name}"),
             }
         })

@@ -35,7 +35,8 @@ codes! {
     pub const E_INCOMPATIBLE_OVERRIDE: Code = Code::new("E0404").card(
         "This method replaces a method of a parent class or an interface, and a call through the \
          parent cannot use it. Keep the parameters, `static` and the visibility. A parameter may \
-         accept a wider type, and the return type may be narrower.",
+         accept a wider type, and the return type may be narrower. A parameter with a narrower \
+         type needs `covariant` before its type.",
     );
     /// A property or method access on a type that has no such member.
     pub const E_UNKNOWN_MEMBER: Code = Code::new("E0405").card(

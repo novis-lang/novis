@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-syntax/src/token.rs, crates/nvs-syntax/src/ast.rs, crates/nvs-syntax/src/parser/expr.rs, crates/nvs-syntax/src/parser/decl.rs, crates/nvs-fmt/src/modifiers.rs]
   - id: 2
     title: "the checker takes a covariant parameter, and refuses every other narrowing"
-    status: open
+    status: done
     context: [crates/nvs-types/src/conformance.rs, crates/nvs-diagnostics/src/code/types_e08.rs]
   - id: 3
     title: "a covariant parameter is checked when the method is entered"
@@ -164,12 +164,12 @@ compile error where it is written.
 **Split:** at stage start, an `Explore` subagent lists every place a parameter's signature is printed
 (hover, `nvs agent show`, a diagnostic), so the flag is printed everywhere at once.
 
-- [ ] `check_method_overrides` accepts a narrower parameter type with `covariant`, measured against the topmost declaration, and keeps the `tainted` and `secret` check. `crates/nvs-types/src/conformance.rs:484`, `crates/nvs-types/src/conformance.rs:706`
-- [ ] `E0404`'s help names `covariant` where the parameter is narrower. `crates/nvs-types/src/conformance.rs:712`
-- [ ] Three new codes at the end of the E08 band: a misplaced `covariant`, a type `is` cannot test in constant time, and a topmost default the narrower type refuses. `crates/nvs-diagnostics/src/code/types_e08.rs:913`
-- [ ] Every signature printer writes `covariant`. `crates/nvs-types/src/conformance.rs:712`
-- [ ] Reject cases: each misplaced form, an array, a shape and a callable, a default that fails, a grandchild that drops the keyword, and a qualifier dropped. `tests/conformance/reject/a-covariant-parameter-is-written-only-where-it-narrows.nvst:1`
-- [ ] Rust tests beside the override check. `crates/nvs-types/tests/covariant.rs:1`
+- [x] `check_method_overrides` accepts a narrower parameter type with `covariant`, measured against the topmost declaration, and keeps the `tainted` and `secret` check. `crates/nvs-types/src/conformance.rs:905`, `crates/nvs-types/src/conformance.rs:1042`
+- [x] `E0404`'s help names `covariant` where the parameter is narrower. `crates/nvs-types/src/conformance.rs:799`
+- [x] Three new codes at the end of the E08 band: a misplaced `covariant`, a type `is` cannot test in constant time, and a topmost default the narrower type refuses. `crates/nvs-diagnostics/src/code/types_e08.rs:1068`
+- [x] Every signature printer writes `covariant`. `crates/nvs-cli/src/meta.rs:1161`, `crates/nvs-lsp/src/completion.rs:3354`, `crates/nvs-lsp/src/hover.rs:764`
+- [x] Reject cases: each misplaced form, an array, a shape and a callable, a default that fails, a grandchild that drops the keyword, and a qualifier dropped. `tests/conformance/reject/a-covariant-parameter-is-written-only-where-it-narrows.nvst:1`
+- [x] Rust tests beside the override check. `crates/nvs-types/tests/covariant.rs:1`
 
 ### 3. a covariant parameter is checked when the method is entered
 
@@ -233,24 +233,36 @@ AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stage 1 is done. The rule is `designed`, and `Param::covariant` and `PropertyMember::covariant`
-are set by `eat_covariant` (`crates/nvs-syntax/src/parser/decl.rs:361`). It reads `covariant` only
-when the next token starts a type, so `covariant $x` keeps the word as a type name. A `covariant`
-written in front of a modifier or `inout` is `E_BAD_MODIFIER` and still sets the flag, so the
-checker must not report it again. Nothing reads either flag yet. The two shipped neighbour rules do
-not name `covariant` yet: stage 6 adds that sentence when the rule ships, and drops the
-property rule's Declined line about a checked narrower type.
+Stages 1 and 2 are done. `MethodSig::covariant` carries the flag, empty for every signature that
+declares none (`crates/nvs-types/src/signatures.rs:90`), and `ResolvedCall::covariant` copies it.
+`check_covariant_params` (`crates/nvs-types/src/conformance.rs:905`) measures each parameter against
+its topmost declarations, found by `topmost_declarations`. `parent_params_problem` skips a covariant
+parameter's type, so the nearest-ancestor check never reports it twice. The codes are `E0882`
+misplaced, `E0883` not testable in constant time, and `E0884` a topmost default the narrower type
+rejects. The rule fragment names them. The constructor, static and `readonly` property forms are
+reported in `crates/nvs-types/src/signatures.rs` by `report_misplaced_covariant`, and the anonymous
+function form in `check_anon_fn`. A covariant instance property is still not checked: that is stage 4.
+
+**`lower_method` asserts that no parameter is `covariant`** (`crates/nvs-ir/src/lower/mod.rs:1308`).
+A program with a covariant method type-checks and does not compile until stage 3 emits the entry
+test. Without the assert, a body would read a wider value at the narrower type. Stage 3 replaces
+the assert with the test.
+
+The nightly CI failures in the sweep are fixed. The website and Miri failures were already fixed
+on `main` (`51e0534f6` split Miri). The proofs gate owed 21 stale `lang:types` perf records,
+because `docs/reference/lang/20-types.md` changed. They are re-recorded.
 
 ### Next
 
-**Stage 2, one group**, on `nvs-types` and the diagnostics. Start with the `Explore` subagent the
-stage's `**Split:**` line names.
+**Stage 3, one group**, on `nvs-ir`.
 
-- [ ] `check_method_overrides` accepts a narrower parameter with `covariant`, measured against the topmost declaration, and keeps the qualifier check. `crates/nvs-types/src/conformance.rs:610`
-- [ ] `E0404`'s help names `covariant`, and every signature printer writes it. `crates/nvs-types/src/conformance.rs:610`
-- [ ] Three new codes at the end of the E08 band. `crates/nvs-diagnostics/src/code/types_e08.rs:1062`
-- [ ] The reject case and the Rust tests. `tests/conformance/reject/a-covariant-parameter-is-written-only-where-it-narrows.nvst:1`, `crates/nvs-types/tests/covariant.rs:1`
+- [ ] Replace the assert in `lower_method` with one type test per covariant parameter before the body, an `inout` one on its pointee, and each element of a variadic one. The test is the one `lower_type_test` emits. `crates/nvs-ir/src/lower/mod.rs:1302`, `crates/nvs-ir/src/lower/expr.rs:6523`
+- [ ] A failure throws a `LogicError` that names the method, the parameter, the type and the class it got, the way `emit_same_class_check` throws. `crates/nvs-ir/src/lower/operator.rs:262`
+- [ ] The stage's case. `tests/conformance/class/a-covariant-parameter-is-checked-when-the-method-is-entered.nvst:1`
 
 ### Backlog
 
 - The property side of the redeclaration check is stage 4. `crates/nvs-types/src/conformance.rs:155`
+- The rule measures a covariant type against the topmost declaration only. A grandchild `covariant Cat`
+  under a parent's `covariant Dog` compiles, and every call through the parent throws. Stage 6 may add
+  a sentence to the rule if that should be an error. `crates/nvs-types/src/conformance.rs:905`

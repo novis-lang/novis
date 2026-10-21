@@ -127,6 +127,10 @@ pub struct ResolvedCall {
     /// decides whether to stage a one-slot temporary and copy back — see
     /// `nvs_ir::ir::InstKind::RefSlot`.
     pub inout: Vec<bool>,
+    /// Which parameters are declared `covariant`, positional, and empty when
+    /// none is — [`crate::signatures::MethodSig::covariant`]. Read by the
+    /// editor's signature row.
+    pub covariant: Vec<bool>,
     /// Whether the last parameter is variadic — [`crate::signatures::MethodSig::variadic`].
     pub variadic: bool,
     /// Each parameter's evaluated default, positional —

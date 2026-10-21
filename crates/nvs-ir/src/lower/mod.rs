@@ -1303,6 +1303,14 @@ pub fn lower_method(
         let decl_ty = p.ty.as_ref().unwrap_or_else(|| {
             panic!("`rule:types/declaration`: every parameter has a declared type")
         });
+        // The body reads the parameter at its narrower type, so it runs only
+        // behind the entry test, which no lowering emits yet.
+        assert!(
+            !p.covariant,
+            "nvs-ir: the parameter `{}` is `covariant`, and no lowering emits its entry test \
+             yet (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`)",
+            span_text(src, p.name)
+        );
         // `...$rest`'s declared type is what each trailing *argument* is
         // checked against; the slot itself receives the one array
         // `Lowering::lower_variadic_tail` collected them into, which is what

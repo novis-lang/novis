@@ -416,6 +416,7 @@ pub(crate) fn check_stmts(
                     &qname,
                     env,
                 );
+                crate::conformance::check_covariant_params(&decl.members, &qname, env);
                 crate::conformance::check_abstract_members(decl, &qname, env);
                 crate::derive::check_class_derive(decl, &qname, &ctx, env);
                 crate::testing::check_class_tests(decl, &qname, &ctx, env);
@@ -435,6 +436,7 @@ pub(crate) fn check_stmts(
                     &qname,
                     env,
                 );
+                crate::conformance::check_covariant_params(&decl.members, &qname, env);
                 let ctx = Ctx {
                     namespace: &current_ns,
                     imports: &current_imports,
@@ -468,6 +470,7 @@ pub(crate) fn check_stmts(
                     in_anon_fn: false,
                 };
                 check_members(&decl.members, &ctx, env);
+                crate::conformance::check_covariant_params(&decl.members, &qname, env);
                 crate::attributes::check_declaration(
                     crate::deprecated::Decl::Enum,
                     &decl.attributes,

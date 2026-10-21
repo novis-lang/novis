@@ -11,7 +11,7 @@ like `spawn` and `type`, so a method or a variable named `covariant` keeps compi
 
 **Where it is allowed.** On a parameter of a method that overrides a class's method or implements an
 interface's, a static method and `Comparable::compareTo` included, and on an instance property that
-redeclares a superclass's. Anywhere else it is a compile error with one code of its own: a method
+redeclares a superclass's. Anywhere else it is a compile error with one code of its own, `E0882`: a method
 that replaces nothing, a constructor parameter that is not promoted, an anonymous function, a static
 property, a constant and a `readonly` property. A static property needs no keyword, because each
 class names its own storage. A constant needs none, because it is only read. A `readonly` property is
@@ -20,18 +20,20 @@ passes the narrower value to the parent's constructor and adds a method with a n
 
 **Which types it takes.** Every type `is` tests in constant time: a class, an interface, an enum, a
 scalar, and a nullable or a union of those. An `array<T>`, a shape, a callable, a `class<T>` and a
-`property<T>` are refused with a code of their own, because their test walks the value and each call
+`property<T>` are refused with a code of their own, `E0883`, because their test walks the value and each call
 would cost its size. The help says to take the wider type and test inside the body.
 
 **Narrower is measured against the topmost declaration, and the keyword is written at every level.**
 A parameter or property whose type is narrower than the first ancestor that declares it needs
 `covariant`, also in a grandchild that only repeats its parent's narrowed type. Without it the
 override is `E0404` and the property is `E0866`, and both helps name `covariant`. A `covariant` whose
-type is not narrower than the topmost declaration's is the misplaced-keyword code, because it would
-cost a test that tests nothing. A `tainted` or `secret` qualifier is kept: the keyword narrows the
-type, never a qualifier. A default the topmost declaration gives a parameter must pass the narrower
-type, or the override does not compile, with a code of its own, since a call through the ancestor
-fills that default.
+type the topmost declaration's type fits is `E0882`, because it would cost a test that tests
+nothing, and one that is unrelated to it is `E0404`. A `tainted` or `secret` qualifier is kept: the
+keyword narrows the type, never a qualifier, and dropping one is `E0404`. A default the topmost
+declaration gives a parameter must pass the narrower type, or the override is `E0884`, since a call
+through the ancestor fills that default. `Comparable::compareTo` takes the class that names
+`Comparable` (`rule:classes/comparable`), so that class's `compareTo` is the topmost one a
+subclass narrows.
 
 **A parameter is tested when the method is entered, on every call.** Each covariant parameter gets
 one type test before the body runs: an `inout` one on entry, and a variadic one on each element. The
