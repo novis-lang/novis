@@ -30,7 +30,7 @@ stages:
     context: [docs/rules/testing/feature-proofs.md, docs/examples/lang/classes/inheritance/about.md, benches/members/lang/classes/inheritance.nvs]
   - id: 7
     title: "the website explains `covariant` on a page of its own"
-    status: open
+    status: done
     context: [website/src/content/docs/syntax/classes/methods-and-inheritance.mdx, website/src/content/docs/syntax/classes/properties.mdx, website/astro.config.ts]
 checks:
   - id: owners-closes
@@ -225,9 +225,9 @@ problem, the keyword and what happens to a wrong value.
 **Split:** a writing subagent writes the page after stage 6 has landed; the session reads it against
 AGENTS.md § *Text an end user reads*.
 
-- [ ] The page: the problem a narrower parameter solves, the `E0404` without the keyword, the keyword, what a wrong value throws, a narrower property, why a return type needs no keyword, when a separate method is the better design, and a "Do and don't" list. It embeds the feature's examples with `<FeatureSection examples="lang/classes/covariant">`. `website/src/content/docs/syntax/classes/covariant.mdx:1`
-- [ ] The sidebar lists it after "Methods and inheritance". `website/astro.config.ts:605`
-- [ ] The inheritance page and the properties page each link to it in one sentence. `website/src/content/docs/syntax/classes/methods-and-inheritance.mdx:13`, `website/src/content/docs/syntax/classes/properties.mdx:1`
+- [x] The page: the problem a narrower parameter solves, the `E0404` without the keyword, the keyword, what a wrong value throws, a narrower property, why a return type needs no keyword, when a separate method is the better design, and a "Do and don't" list. It embeds the feature's examples with `<FeatureSection examples="lang/classes/covariant">`. `website/src/content/docs/syntax/classes/covariant.mdx:1`
+- [x] The sidebar lists it after "Methods and inheritance". `website/astro.config.ts:603`
+- [x] The inheritance page and the properties page each link to it in one sentence. `website/src/content/docs/syntax/classes/methods-and-inheritance.mdx:13`, `website/src/content/docs/syntax/classes/properties.mdx:1`
 
 ## Handoff
 
@@ -335,27 +335,31 @@ and did not use the Split line's subagents, because each is short. What landed:
 - The binary shows the section as `nvs agent show 'classes#covariant'`. A bare `covariant` lists that
   section as the nearest match, the same way every `lang:` feature works.
 
+Stage 7 is done and verified, and so every stage is done. The page
+`website/src/content/docs/syntax/classes/covariant.mdx` was written by a subagent, as the Split line
+says, and read against AGENTS.md § *Text an end user reads*. The session rewrote the "separate method"
+section and two Do bullets. The sidebar lists "Covariant parameters and properties" after "Methods and
+inheritance" (`website/astro.config.ts:603`). The inheritance and properties pages each link to it in
+one sentence. `bun nv verify --doc` is green, and `bun nv owners --closes covariant` reports nothing.
+
+The installed `looper` has no `verify` subcommand, so the end-of-group gate was `bun nv affected
+--run`, which is green.
+
+The nightly sweep's failures on run `39462919214` are the ones already fixed on `main`, as above.
+The latest push runs on `main` (`39506154898` CI and `39506154943` Website, on `691cbcd`) are green.
+
 ### Next
 
-**Stage 7, the website page.** Follow its `**Split:**` line: one writing subagent writes the page,
-and the session reads it against AGENTS.md § *Text an end user reads*. The page embeds the examples
-with `<FeatureSection examples="lang/classes/covariant">`. Model it on the inheritance page. After
-it, the goal-end gates: `bun nv verify --doc`, and `bun nv owners --closes covariant`.
-
-- [ ] The page. `website/src/content/docs/syntax/classes/covariant.mdx:1`
-- [ ] The sidebar entry after "Methods and inheritance". `website/astro.config.ts:602`
-- [ ] One linking sentence each in the inheritance and properties pages. `website/src/content/docs/syntax/classes/methods-and-inheritance.mdx:13`
+Nothing. The goal is reached and its file is ready to be retired. Every decision its prose held is in
+`rule:classes/a-covariant-type-is-checked-where-a-value-enters`.
 
 ### Backlog
 
-- `nvs_runtime::object::check_covariant_write` finds the slot by a scan of the field names. The slot
-  index is fixed for the whole hierarchy, so a hint from codegen would make it one compare.
-- A parent default that the narrower type rejects (`?int $n = null` under `covariant int $n`) is safe
-  only because the subclass must then assign the property itself: the property has no default of its
-  own, so `ctor_init` still requires it. Keep that in mind when changing `ancestors_assigned`.
+The goal's open items moved to gap records owned by `diagnostic-records`:
 
-- A covariant parameter of a generator method panics in lowering. The factory would need the
-  entry test before it stores the parameters in the state object. `crates/nvs-ir/src/lower/generator.rs:709`
-- The rule measures a covariant type against the topmost declaration only. A grandchild `covariant Cat`
-  under a parent's `covariant Dog` compiles, and every call through the parent throws. A sentence in
-  the rule could make that an error. `crates/nvs-types/src/conformance.rs:905`
+- `data/gaps/nvs-ir/a-covariant-parameter-of-a-generator-method-panics-in-lowering.json`
+- `data/gaps/nvs-types/a-grandchild-covariant-type-unrelated-to-its-parents-compiles.json`
+- `data/gaps/nvs-runtime/a-covariant-write-finds-its-slot-by-a-name-scan.json`
+
+The note on a parent default the narrower type rejects is now the doc comment of `ancestors_assigned`
+(`crates/nvs-types/src/ctor_init.rs:461`).
