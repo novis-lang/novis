@@ -68,11 +68,13 @@ Each is here because not knowing it exists is the entire cost. The file named af
   questions in one call, and `--locate <symbol> ...` gives `file:line` anchors alone. One patch edits
   any number of files, all of it or none of it ([commands.md](docs/agent/commands.md) § *One shell call
   runs one command, and its exit status is the last one's*).
-- **While you work, the only check is `cargo build`.** No test runs between slices. The full gate runs
-  once, at the end of the group, and every failure it names is fixed in one pass before it runs again.
+- **A goal is verified once, in its last stage.** Every other stage checks with `cargo build` and
+  `cargo clippy --all-targets -- -D warnings` alone. A test you wrote may run once, by name, and a run
+  a stage's item names as its requirement runs too; nothing else does. The gate stage runs the full
+  gate, and every failure it names is fixed in one pass before it runs again.
   `bun nv verify --fast -p <crate>` is for that fix pass, to rerun one crate's tests
   ([commands.md](docs/agent/commands.md) § *Verifying*).
-- **The end-of-group gate is `bun nv affected --run`.** It runs `bun nv verify` over what the change
+- **The goal's gate is `bun nv affected --run`.** It runs `bun nv verify` over what the change
   reaches, then the acceptance checks it reaches that are not green yet. In the loop, `looper verify`
   runs `bun nv verify` and joins a run already going ([commands.md](docs/agent/commands.md)
   § *Verifying*).
@@ -227,8 +229,8 @@ What a loop session owes on top of the block's § *Session workflow*:
   never a write, a file you are about to edit, a design question, whether a check passed, or the wrap.
   Its prompt is the question, the place to look and the answer's shape (`file.rs:NN` and one line each,
   no excerpts), never the project, because it reads its own copy of this file.
-- **Start `looper verify` with `run_in_background` before you write the handoff, then end your turn
-  to wait.** Its report starts your next turn, and nothing polls. It joins the tree's verify run if
+- **In the gate stage, start `looper verify` with `run_in_background` before you write the handoff,
+  then end your turn to wait.** Its report starts your next turn, and nothing polls. It joins the tree's verify run if
   another session started one, so never wait for or kill another session's verify.
 - **`BLOCKED` is for a decision expensive to reverse with no safe default.** Otherwise take the safe
   option and say so in the handoff.
