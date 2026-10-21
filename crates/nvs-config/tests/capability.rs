@@ -1451,3 +1451,142 @@ fn an_exception_for_a_generated_address_excepts_two_spellings_and_no_wider_one()
         }
     }
 }
+
+/// What [`nvs_config::capability::validate`] says about `text`, read as a whole tree with no file
+/// named for any key.
+fn validated(text: &str) -> Result<(), nvs_diagnostics::Diagnostic> {
+    let config: nvs_config::tree::Config =
+        toml::from_str(text).unwrap_or_else(|err| panic!("refused: {err}"));
+    nvs_config::capability::validate(&config, &std::collections::BTreeMap::new())
+}
+
+/// `rule:config/check-and-dump-audit-the-tree-offline`: an entry that allows nothing however it is
+/// asked is refused at load, and the help is the line that allows what the entry meant, under the
+/// table it belongs in.
+// covers: tools:config/capabilities
+#[test]
+fn a_grant_entry_that_allows_nothing_is_refused_naming_the_line_to_write() {
+    for (text, says, help) in [
+        // A host list compares the bare host, so a port or a scheme matches nothing.
+        (
+            "[capabilities.net]\nconnect = [\"api.example.com:443\"]\n",
+            "has a port or a scheme",
+            "write `connect = [\"api.example.com\"]` under `[capabilities.net]`",
+        ),
+        (
+            "[capabilities.net]\nconnect = [\"https://user@api.example.com/v1\"]\n",
+            "has a port or a scheme",
+            "write `connect = [\"api.example.com\"]` under `[capabilities.net]`",
+        ),
+        (
+            "[capabilities.db]\nopen = [\"db.example.com:5432\"]\n",
+            "has a port or a scheme",
+            "write `open = [\"db.example.com\"]` under `[capabilities.db]`",
+        ),
+        (
+            "[capabilities.db]\nopen = [\"[::1]:5432\"]\n",
+            "has a port or a scheme",
+            "write `open = [\"[::1]\"]` under `[capabilities.db]`",
+        ),
+        (
+            "[capabilities.ldap]\ncleartext = [\"dc.example.com:389\"]\n",
+            "has a port or a scheme",
+            "write `cleartext = [\"dc.example.com\"]` under `[capabilities.ldap]`",
+        ),
+        // `*` is a pattern no grant takes; `true` is the spelling for every host where there is one.
+        (
+            "[capabilities.net]\nconnect = [\"*\"]\n",
+            "is a pattern, so it matches nothing",
+            "write `connect = true` under `[capabilities.net]`",
+        ),
+        (
+            "[capabilities.tls]\ninsecure = [\"*\"]\n",
+            "is a pattern, so it matches nothing",
+            "write `insecure = [\"api.example.com\"]` under `[capabilities.tls]`",
+        ),
+        (
+            "[capabilities.db]\nopen = [\"*.\"]\n",
+            "is a pattern, so it matches nothing",
+            "write `open = true` under `[capabilities.db]`",
+        ),
+        (
+            "[capabilities.net]\nconnect = [\"*.example.com\"]\n",
+            "is a pattern, so it matches no host",
+            "write `connect = [\"api.example.com\"]` under `[capabilities.net]`",
+        ),
+        (
+            "[capabilities.fs]\nread = [\"/srv/app/*\"]\n",
+            "is a pattern, so it matches nothing",
+            "write `read = [\"/srv/app/\"]` under `[capabilities.fs]`",
+        ),
+        // `true` on a grant with no such spelling.
+        (
+            "[capabilities.net]\nconnect_to = true\n",
+            "`net.connect_to` does not accept `true`",
+            "write `connect_to = [\"api.example.com\"]` under `[capabilities.net]`",
+        ),
+        (
+            "[capabilities.tls]\npin = true\n",
+            "`tls.pin` does not accept `true`",
+            "write `pin = [\"api.example.com\"]` under `[capabilities.tls]`",
+        ),
+        // A relative SQLite path is never equal to the canonical path a program opens.
+        (
+            "[capabilities.db]\nopen = [\"data/app.sqlite\"]\n",
+            "is a relative path, so it matches no file",
+            "app.sqlite\"]` under `[capabilities.db]`",
+        ),
+        (
+            "[capabilities.net]\nlisten = [\"localhost:8080\"]\n",
+            "is not an IP address and a port",
+            "write `listen = [\"127.0.0.1:8080\"]` under `[capabilities.net]`",
+        ),
+        (
+            "[capabilities.net]\ninternal = true\n",
+            "`net.internal` does not accept `true`",
+            "write `internal = [\"10.0.0.5\"]` under `[capabilities.net]`",
+        ),
+        (
+            "[capabilities.net]\ninternal = [\"10.0.0.5\", \"db.internal\"]\n",
+            "the `net.internal` entry `db.internal` is not an IP address",
+            "write `internal = [\"10.0.0.5\"]` under `[capabilities.net]`",
+        ),
+        // The table is the one the entry was written in.
+        (
+            "[[app]]\nentry = \"shop.nvs\"\n[app.capabilities.net]\nconnect = [\"a.example.com:443\"]\n",
+            "has a port or a scheme",
+            "write `connect = [\"a.example.com\"]` under `[app.capabilities.net]`",
+        ),
+    ] {
+        let refused = validated(text).expect_err(text);
+        assert!(
+            refused.message.contains(says),
+            "{text}: `{}` does not say {says:?}",
+            refused.message
+        );
+        assert!(
+            refused.notes.iter().any(|line| line.contains(help)),
+            "{text}: {:?} does not end with {help:?}",
+            refused.notes
+        );
+    }
+}
+
+/// The spellings beside the refused ones above, each of which can allow something, load as before.
+// covers: tools:config/capabilities
+#[test]
+fn a_grant_entry_that_can_allow_something_loads() {
+    for text in [
+        "[capabilities.net]\nconnect = [\"api.example.com\", \"10.0.0.1\", \"::1\", \"[::1]\"]\n",
+        "[capabilities.net]\nconnect = true\nlisten = [\"127.0.0.1:9000\", \"[::1]:9000\"]\n",
+        "[capabilities.net]\ninternal = [\"10.0.0.5\", \"fd00::1\"]\n",
+        "[capabilities.db]\nopen = [\"*.tenants.internal\", \"db.example.com\", \"/srv/data/app.sqlite\"]\n",
+        "[capabilities.fs]\nread = [\"/srv/app/\"]\nwrite = false\n",
+        "[capabilities.tls]\npin = []\n",
+        "[capabilities.process]\nexec = true\n",
+    ] {
+        if let Err(refused) = validated(text) {
+            panic!("{text}: refused with `{}`", refused.message);
+        }
+    }
+}

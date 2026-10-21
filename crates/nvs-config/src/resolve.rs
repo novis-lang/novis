@@ -461,6 +461,9 @@ pub fn resolve(
     // relative root means the directory of the file that wrote it, and only the merge knows which
     // file that was. Before the `[[app]]` roster below, which keys `app.<n>` on the same indexes.
     crate::capability::anchor(&mut resolved.config, &mut resolved.table, &origins);
+    // A grant entry that allows nothing however it is asked — a host with a port, a `*`, a `true`
+    // the grant has no spelling for — is refused where it was written, naming the line it meant.
+    crate::capability::validate(&resolved.config, &origins)?;
     // `[[schedule]] script` and `[log] handler`, by the same rule: each names a script an isolate
     // runs, and a fire or an escalation must run the file beside the configuration that named it.
     crate::schedule::anchor(&mut resolved.config, &mut resolved.table, &origins);

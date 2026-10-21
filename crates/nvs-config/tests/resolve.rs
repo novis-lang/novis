@@ -427,6 +427,28 @@ fn an_empty_array_entry_is_still_an_entry() {
     assert_eq!(diagnostic.code, Some(code::E_BAD_APP_BLOCK));
 }
 
+/// `rule:config/check-and-dump-audit-the-tree-offline`: a grant entry that allows nothing stops the
+/// resolve that `nvs config check` and the boot both run, and names the file that wrote it.
+#[test]
+fn a_grant_entry_that_allows_nothing_stops_the_resolve() {
+    let fs = Fake::with(&[(
+        "etc/nvs.toml",
+        "[capabilities.net]\nconnect = [\"api.example.com:443\"]\n",
+    )]);
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_BAD_DIRECTIVE));
+    assert!(
+        diagnostic
+            .notes
+            .iter()
+            .any(|note| note.contains("nvs.toml")),
+        "{:?} names no file",
+        diagnostic.notes
+    );
+}
+
 /// Resolves `root` in `fs` with the source map kept, so a case can read which file and line a
 /// warning points at.
 fn tree_and_sources(fs: &Fake, root: &str) -> (Resolved, SourceMap) {
