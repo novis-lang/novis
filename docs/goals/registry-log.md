@@ -43,6 +43,10 @@ stages:
     title: the log has its feature proofs, and its rule is shipped
     status: open
     context: [docs/reference/tools/35-packages.md]
+  - id: 7
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: log-proofs
     stage: 4
@@ -217,6 +221,19 @@ attack. Both follow AGENTS.md § *Text an end user reads*.
 - [ ] `about.md` and the examples the proofs command lists. `docs/examples/tools/packages/the-transparency-log/about.md:1`
 - [ ] The attacks: a registry serves a rewritten log to a client that saw the old one, and a file host marks a pending release as released. `tests/hostile/tools/packages/the-transparency-log/01-a-forked-log.nvs:1`, `tests/hostile/tools/packages/the-transparency-log/02-a-changed-index.nvs:1`
 - [ ] The rule is `shipped` with the stage 1, 5, 2, 3 and 6 tests in its `guardedBy`, and `bun nv owners --closes registry-log` passes. `data/rules/packaging/the-registry-keeps-an-append-only-log.json:1`
+
+### 7. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

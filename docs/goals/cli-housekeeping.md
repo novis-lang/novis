@@ -39,6 +39,10 @@ stages:
     extra:
       context:
         rules: [tooling/nvs-code-answers-about-the-project, tooling/fmt-check-writes-nothing, testing/a-directory-of-programs-is-one-test-program, statements/require-is-the-only-inclusion-construct, programs/relative-paths-resolve-from-their-file]
+  - id: 6
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: cache-help
     stage: 1
@@ -279,6 +283,19 @@ A `require` that cannot be followed, its own group:
 - [ ] The dynamic fallback reports it at the `require`, and its module doc says so. `crates/nvs-hir/src/requires.rs:8`, `crates/nvs-hir/src/requires.rs:1837`
 - [ ] A conformance case: a `require` of a call joined with a literal is the new error, and the literal form compiles. `tests/conformance/lang/a-require-whose-path-is-not-statically-known-is-a-compile-error.nvst:1`
 - [ ] The gap record deleted, and `bun nv owners --closes cli-housekeeping` passes. `data/gaps/nvs-hir/a-require-path-that-is-not-static-reports-nothing.json:1`
+
+### 6. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

@@ -39,6 +39,10 @@ stages:
     extra:
       context:
         rules: [ide/the-debug-adapter-does-not-wait-for-an-editor, ide/the-extension-builds-no-ui-the-editor-already-has, ide/the-debugger-ui-is-as-deep-as-the-adapter, ide/every-feature-is-staged-behind-its-dependency, testing/feature-proofs]
+  - id: 6
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: owners-closes
     stage: 4
@@ -204,6 +208,19 @@ an end user reads*.
 - [ ] A `# nvs dap` section after `# nvs lsp-test` in the editor chapter (`rule:testing/feature-proofs`). `docs/reference/tools/40-editor.md:229`
 - [ ] `about.md`, three examples and the attack, a program that prints a protocol frame; `bun nv proofs --id 'tools:editor/nvs-dap'` prints nothing owed (`rule:testing/feature-proofs`). `docs/examples/tools/editor/nvs-dap/about.md:1`, `tests/hostile/tools/editor/nvs-dap/01-a-program-prints-a-protocol-frame.nvs:1`
 - [ ] The four rules this goal owns `shipped`, and `bun nv owners --closes debugger-adapter` passes (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`, `rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`, `rule:ide/the-extension-builds-no-ui-the-editor-already-has`, `rule:ide/every-feature-is-staged-behind-its-dependency`). `data/rules/ide/the-debug-adapter-does-not-wait-for-an-editor.json:3`, `data/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.json:3`, `data/rules/ide/the-extension-builds-no-ui-the-editor-already-has.json:3`, `data/rules/ide/every-feature-is-staged-behind-its-dependency.json:3`
+
+### 6. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

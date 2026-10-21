@@ -81,6 +81,10 @@ stages:
     extra:
       context:
         rules: [packaging/the-registry-is-a-novis-program]
+  - id: 12
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: registry-tests
     stage: 10
@@ -420,6 +424,19 @@ attacks. All follow AGENTS.md § *Text an end user reads*.
 - [ ] `about.md` and examples for `nvs pkg retract and nvs pkg unlist`. `docs/examples/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/about.md:1`
 - [ ] The attacks: a stolen token publishing outside its scope, a publish of an internal repository URL, and a token-only retraction trying to skip the wait. `tests/hostile/tools/packages/nvs-pkg-publish/01-a-token-outside-its-scope.nvs:1`
 - [ ] `rule:packaging/the-registry-is-a-novis-program` is `shipped`, and `bun nv owners --closes registry-service` passes. `data/rules/packaging/the-registry-is-a-novis-program.json:1`
+
+### 12. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

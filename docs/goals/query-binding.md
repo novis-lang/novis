@@ -25,6 +25,10 @@ stages:
     extra:
       context:
         rules: [testing/feature-proofs, routing/a-bad-query-value-is-a-400, testing/hostile-case-contract]
+  - id: 4
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: owners-closes
     stage: 3
@@ -108,6 +112,19 @@ session checks both and writes the rule flip.
 - [ ] The attack: a request sends a repeated key, an overlong number and a bad escape to a typed query parameter, and each is a `400` with the handler not run (`rule:testing/hostile-case-contract`). `tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/a-query-value-that-does-not-convert.nvs:1`
 - [ ] The reference's `#[Core\Query]` paragraph says the value is bound and a bad one is a `400`. `docs/reference/lang/90-attributes.md:997`
 - [ ] The rule's "path half is built" paragraph rewritten to the present, and the record `shipped` (`rule:routing/a-bad-query-value-is-a-400`). `docs/rules/routing/a-bad-query-value-is-a-400.md:20`, `data/rules/routing/a-bad-query-value-is-a-400.json:3`
+
+### 4. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

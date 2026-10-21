@@ -60,6 +60,10 @@ stages:
     extra:
       context:
         rules: [testing/feature-proofs, observability/speedscope-timeline-export, testing/member-perf-ledger]
+  - id: 9
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: owners-closes
     stage: 8
@@ -238,6 +242,19 @@ speedscope file, so it runs beside stages 1 to 4.
 - [ ] `about.md` and three examples (`rule:testing/feature-proofs`). `docs/examples/tools/cli/profiling/about.md:1`
 - [ ] An attack: a request cannot write a profile without the grant (`rule:testing/feature-proofs`). `tests/hostile/tools/cli/profiling/01-a-profile-without-the-grant.nvs:1`
 - [ ] `bun nv proofs --id 'tools:cli/profiling'` prints nothing owed, and `bun nv owners --closes trace-timeline` passes. `tools/nv/proofs/roster.ts:209`
+
+### 9. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

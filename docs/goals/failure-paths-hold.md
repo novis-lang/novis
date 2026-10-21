@@ -46,6 +46,10 @@ stages:
     extra:
       context:
         rules: [testing/hostile-case-contract, errors/multipart-part-count]
+  - id: 7
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: runtime-tests
     stage: 1
@@ -295,6 +299,19 @@ end user reads*.
 - [ ] Attack: a `finally` keeps the generator that is being freed. `tests/hostile/lang/iteration/generators/02-a-finally-that-keeps-its-own-generator.nvs:1`
 - [ ] Rust tests: a chunked body over `request_body` and one over `upload_total`, read by `post()`. `crates/nvs-cli/tests/request.rs:342`
 - [ ] `bun nv rules --check` and `bun nv owners --closes failure-paths-hold` are green, and every rule fragment touched above is in the present tense. `docs/rules/errors/multipart-part-count.md:1`
+
+### 7. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

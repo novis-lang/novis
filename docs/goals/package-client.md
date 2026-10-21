@@ -61,6 +61,10 @@ stages:
     title: the other client commands have their feature proofs, and the rules are shipped
     status: open
     context: [docs/reference/tools/35-packages.md]
+  - id: 10
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: client-proofs
     stage: 8
@@ -313,6 +317,19 @@ in `AGENTS.md`.
 - [ ] `rule:packaging/resolution-takes-the-highest-minimum` and `rule:packaging/the-lockfile-holds-every-digest` are `shipped`. `data/rules/packaging/resolution-takes-the-highest-minimum.json:3`, `data/rules/packaging/the-lockfile-holds-every-digest.json:3`
 - [ ] `rule:packaging/a-git-dependency-is-root-only`, `rule:packaging/a-fetched-package-is-an-autoload-line` and `rule:packaging/nothing-runs-before-the-program` are `shipped`. `data/rules/packaging/a-git-dependency-is-root-only.json:3`, `data/rules/packaging/a-fetched-package-is-an-autoload-line.json:3`, `data/rules/packaging/nothing-runs-before-the-program.json:3`
 - [ ] `rule:packaging/a-package-carries-only-its-source-and-what-it-lists` and `rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size` are `shipped`, and `bun nv owners --closes package-client` passes. `data/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.json:3`, `data/rules/packaging/an-external-file-is-pinned-by-url-sha256-and-size.json:3`
+
+### 10. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

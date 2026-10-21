@@ -91,6 +91,7 @@ stages:
   - id: 13
     title: the goal's one gate is green
     status: open
+    gate: true
     context: [tools/nv/cmd/verify.ts]
 checks:
   - id: config-tests
@@ -343,17 +344,9 @@ nothing from stages 1 to 6, touch disjoint files, and may run as side goals in a
 after 1 to 10, then stage 12, and stage 13 last. `crates/nvs-cli/src/runner.rs` is touched only by
 stage 8.
 
-**One gate, at the goal's end** (the user's call). Every stage changes the capability defaults that
-nearly every test binary, case and bench passes through, so each `bun nv affected --run` selects
-almost the whole tree and takes an hour or more. So stages 5 to 12 run no gate: no `looper verify`, no
-`bun nv verify` and no `bun nv affected --run`. This replaces § *Session workflow* step 3 of
-`AGENTS.md` for this goal, and step 5 commits once the build is green. A session's checks are
-`cargo build`, `cargo clippy --all-targets -- -D warnings` (which compiles the tests too), and
-`bun nv rules --check` when it changed a rule. It may run a test it wrote, by name, once:
-`cargo test --test <name> <filter>` or `cargo test --lib <filter>`. Where a changed default breaks
-an existing test or case, the slice updates it as it goes, writing the narrowing the test relied on,
-as stages 3 and 4 did. The handoff names every test and case the session expects to go red, and the
-status line is `CONTINUE`. Stage 13 runs the one gate and fixes everything it names.
+**Stage 13 is the gate stage**, as every goal's last stage is (`AGENTS.md` § *Session workflow*).
+Where a changed default breaks an existing test or case, the slice writes the narrowing the test
+relied on, as stages 3 and 4 did, and runs `bun nv rules --check` when it changed a rule.
 
 **Gates on other goals.** None to start. Stage 10's package check waits on goal `namespace-grants`:
 `crates/nvs-config/src/grants.rs` exists. Until it does, stage 10 records the duty in the rule, and
@@ -519,7 +512,7 @@ capability default. Then one writing subagent edits them, held to § *Text an en
 
 ### 13. the goal's one gate is green
 
-**Does:** stages 5 to 12 ran no gate (§ *Standing decisions*, *One gate*), so this stage verifies
+**Does:** stages 5 to 12 checked with a build alone, so this stage verifies
 the whole goal once and fixes every failure in one pass.
 
 **Split:** the session starts `bun nv affected --run` with `run_in_background` and ends its turn to
@@ -536,8 +529,7 @@ to a writing subagent, one after another. Then the gate runs once more.
 ### State
 
 Stages 1 to 5 are done. Stage 4 is committed without a green gate: its gate was stopped after a
-test hung. Stages 5 to 12 run no gate, and stage 13 runs the goal's one gate (§ *Standing
-decisions*, *One gate*).
+test hung. Stages 5 to 12 check with a build alone, and stage 13, the gate stage, verifies the goal.
 
 **Expected red at stage 13** (found, not fixed):
 
@@ -673,9 +665,6 @@ questions of the capabilities and trust pages. They are restamped in this group.
 - `rule:security/capability-question-is-grant-and-scope` now names the run as an input.
 
 ### Next
-
-**No gate until stage 13.** Check with `cargo build` and `cargo clippy --all-targets -- -D
-warnings`, commit each slice, and name in the handoff the tests and cases you expect to go red.
 
 **Stage 6**, programs and scripts (decisions 6 and 7). `defaults::capability`
 (`crates/nvs-config/src/defaults.rs:364`) gives `process.exec` `Granted::Everything` on a CLI run.

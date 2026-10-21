@@ -46,6 +46,10 @@ stages:
     extra:
       context:
         rules: [testing/a-debugged-program-is-compiled-with-a-debug-switch, config/an-edit-reaches-the-next-request-without-a-restart]
+  - id: 7
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: owners-closes
     stage: 4
@@ -174,6 +178,19 @@ in the last item. The session reviews them.
 - [ ] A request already running finishes on the unit it started on, with that unit's sites (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). `crates/nvs-host/src/debug.rs:1`
 - [ ] A Rust test that edits a fixture under a served program and stops at the same breakpoint in the new unit. `crates/nvs-cli/src/script.rs:1500`
 - [ ] Both rules `shipped`, and `bun nv owners --closes debugger-core` passes (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`, `rule:testing/a-stop-pauses-the-whole-task-tree`). `data/rules/testing/a-debugged-program-is-compiled-with-a-debug-switch.json:3`, `data/rules/testing/a-stop-pauses-the-whole-task-tree.json:3`
+
+### 7. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

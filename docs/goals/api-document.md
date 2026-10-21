@@ -46,6 +46,10 @@ stages:
     extra:
       context:
         rules: [routing/api-document-is-generated-from-the-route-table, routing/api-diff-fails-a-breaking-change, ide/completion-offers-only-what-the-compiler-derived]
+  - id: 7
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: owners-closes
     stage: 4
@@ -189,6 +193,19 @@ enum response, and a body.
 - [ ] `.lspt` cases for both completions. `tests/lsp/completion/an-api-attribute-offers-its-fields.lspt:1`
 - [ ] `nvs api diff`'s module doc is rewritten: the document now carries `responses` and `requestBody`. `crates/nvs-cli/src/api_diff.rs:33`
 - [ ] `bun nv owners --closes api-document` passes. `data/rules/routing/a-security-scheme-is-declared-in-code.json:3`
+
+### 7. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

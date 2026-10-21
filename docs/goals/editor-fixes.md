@@ -64,6 +64,10 @@ stages:
     title: "the open document's analysis grows linearly"
     status: open
     context: [crates/nvs-lsp/src/document.rs, benches/scaling/lsp/classes.nvs, data/gaps/nvs-lsp/open-document-analysis-grows-quadratically.json]
+  - id: 10
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: owners-closes
     stage: 9
@@ -254,6 +258,19 @@ as `file:line`, and which of them walks the whole document per declaration.
 - [ ] `bun nv scaling` passes `benches/scaling/lsp/classes.nvs`, which already declares `expect linear`. `benches/scaling/lsp/classes.nvs:6`
 - [ ] The record deleted. `data/gaps/nvs-lsp/open-document-analysis-grows-quadratically.json:1`
 - [ ] `bun nv owners --closes editor-fixes` passes. `data/rules/ide/a-quick-fix-is-a-diagnostics-own-suggestion.json:3`
+
+### 10. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

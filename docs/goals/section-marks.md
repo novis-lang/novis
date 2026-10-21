@@ -60,6 +60,10 @@ stages:
     title: "the check refuses every bare mark"
     status: open
     context: [tools/nv/cmd/rules.ts]
+  - id: 15
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: rules
     stage: 1
@@ -275,6 +279,19 @@ or `tests/conformance/`.
 
 - [ ] `tools/data/bare-section-marks.json` and `--record-marks` are deleted, and the check refuses every bare mark. `tools/nv/cmd/rules.ts:120`
 - [ ] The cases in `rules.test.ts` pin the refusal. `tools/nv/test/rules.test.ts:29`
+
+### 15. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
