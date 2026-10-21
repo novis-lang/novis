@@ -14,7 +14,7 @@ stages:
     context: [docs/examples/core/Json/decodeAs/about.md, docs/examples/core/Request/jsonAs/about.md, docs/examples/lang/types/property-paths/about.md, website/src/lib/feature.ts]
   - id: 3
     title: "the attacks and benchmarks say property"
-    status: open
+    status: done
     context: [tests/hostile/README.md, benches/members/README.md, tests/hostile/lang/types/property-keys/02-a-write-that-could-reach-a-readonly-field.nvs]
   - id: 4
     title: "the compiler's cards and messages say property"
@@ -160,10 +160,10 @@ property. Directive lines stay exactly as they are.
 **Split:** one writing subagent takes the attacks (first two items), then one takes the benchmarks
 (third). The session decides the rename of the last item.
 
-- [ ] The database error and property key attacks say property. `tests/hostile/types/Db-RolledBack/01-a-flood-of-rollbacks-and-a-reason-too-big-to-keep.nvs:28`, `tests/hostile/types/Db-DbError/01-a-flood-of-refusals-and-a-statement-too-big-to-log.nvs:24`, `tests/hostile/lang/types/property-keys/01-request-names-that-reach-for-hidden-fields.nvs:2`, `tests/hostile/lang/types/property-keys/02-a-write-that-could-reach-a-readonly-field.nvs:2`, `tests/hostile/lang/types/property-keys/03-a-tainted-value-written-through-a-key.nvs:2`
-- [ ] The error, JSON body and `Core\Program` attacks say property, and the sort attack says "the property to sort by". `tests/hostile/lang/errors/properties-not-accessors/01-properties-read-off-a-throw-under-pressure.nvs:4`, `tests/hostile/core/Request/jsonAs/01-a-chain-of-objects-six-hundred-deep.nvs:95`, `tests/hostile/lang/attributes/core-program-implementing-i-every-class-that-is-an-i/01-every-implementation-asked-for-again-and-again.nvs:7`, `tests/hostile/lang/types/property-paths/01-a-sort-field-from-a-request.nvs:2`
-- [ ] The property path, observer, guard, `lateinit` and JSON codec benchmarks say property. `benches/members/lang/types/property-paths.nvs:2`, `benches/members/lang/classes/propertyobserver.nvs:3`, `benches/members/lang/classes/propertyguard.nvs:3`, `benches/members/lang/classes/lateinit.nvs:3`, `benches/members/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec.scale.nvs:2`
-- [ ] The attack file names that say field are renamed if the website shows them, with their proof records. `tests/hostile/lang/types/property-keys/02-a-write-that-could-reach-a-readonly-field.nvs:1`
+- [x] The database error and property key attacks say property. `tests/hostile/types/Db-RolledBack/01-a-flood-of-rollbacks-and-a-reason-too-big-to-keep.nvs:28`, `tests/hostile/types/Db-DbError/01-a-flood-of-refusals-and-a-statement-too-big-to-log.nvs:24`, `tests/hostile/lang/types/property-keys/01-request-names-that-reach-for-hidden-fields.nvs:2`, `tests/hostile/lang/types/property-keys/02-a-write-that-could-reach-a-readonly-field.nvs:2`, `tests/hostile/lang/types/property-keys/03-a-tainted-value-written-through-a-key.nvs:2`
+- [x] The error, JSON body and `Core\Program` attacks say property, and the sort attack says "the property to sort by". `tests/hostile/lang/errors/properties-not-accessors/01-properties-read-off-a-throw-under-pressure.nvs:4`, `tests/hostile/core/Request/jsonAs/01-a-chain-of-objects-six-hundred-deep.nvs:95`, `tests/hostile/lang/attributes/core-program-implementing-i-every-class-that-is-an-i/01-every-implementation-asked-for-again-and-again.nvs:7`, `tests/hostile/lang/types/property-paths/01-the-property-to-sort-by-from-a-request.nvs:2`
+- [x] The property path, observer, guard, `lateinit` and JSON codec benchmarks say property. `benches/members/lang/types/property-paths.nvs:2`, `benches/members/lang/classes/propertyobserver.nvs:3`, `benches/members/lang/classes/propertyguard.nvs:3`, `benches/members/lang/classes/lateinit.nvs:3`, `benches/members/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec.scale.nvs:2`
+- [x] The attack file names that say field are renamed if the website shows them, with their proof records. `tests/hostile/lang/types/property-keys/02-a-write-that-could-reach-a-readonly-field.nvs:1`
 
 ### 4. the compiler's cards and messages say property
 
@@ -212,35 +212,29 @@ session renames them with one script under `.agent-tmp/`, deletes the script, an
 
 ### State
 
-Stages 1 and 2 are done. Stage 2 changed about 60 files under `docs/examples/`. Their prose says
-property for a class property, and five outputs were re-blessed: the three sort examples,
-`hasProperty/03` ("unknown property:") and `PropertyObserver/01` ("properties changed").
+Stages 1, 2 and 3 are done, and no printed output of the binary has changed yet. Stage 3 changed
+nine attacks and five benchmarks under `tests/hostile/` and `benches/members/`. A hostile case pins
+no output, so the sort attack's echo now says "paths" without a re-record.
 
-`website/src/lib/feature.ts:163` titles an example from its file name, so nine examples whose name
-meant a class property were renamed, with their `.out` and `.nvsr`. No proof record names an
-example file, so nothing else moved. Names that mean a form, JSON, record, date, shape or attribute
-field stay, such as `isPublic/03-list-the-fields-an-api-returns` (the JSON an API sends).
+The website shows an attack only through a GitHub link, so only the linked one was renamed:
+`property-paths/01-the-property-to-sort-by-from-a-request` with its `.nvsr`, and the link in
+`website/src/content/docs/in-depth/concepts/checked-property-names.mdx:68`. The `property-keys`
+attacks keep their names, because no page shows them. A perf record's `impl_hash` hashes the
+implementing file and not the bench, so the bench comments moved no record.
 
-Decided on the way, read in context:
-- `Spreadsheet\Style` keeps "fields": its `fields` property is an anonymous object of style fields,
-  so "two styles with equal fields" is about that object.
-- `postAs`, `queryAs` and `Http-Response/jsonAs` read into "a class or a shape", so their
-  sentences mean both together and keep "field". So does `lang/types/mixed/details.md:11` (`->`
-  on any object).
-- A JSON issue ("one entry for each wrong field") names a key of the document, and stays.
-
-The nightly run 39462919214 the sweep named is the one already fixed on `main` by `21e82d4e6`.
+Left as "field" after reading in context: form, CSV, JSON, header, attribute, date, shape and
+anonymous-object fields, the `?field=` query names, and step 4 of
+`errors/properties-not-accessors/01` (the paths of a shape's issues).
 
 ### Next
 
-**Stage 3: the attacks and benchmarks**, one file set: `tests/hostile/` and `benches/members/`. No
-gate. Every item follows AGENTS.md § *Text an end user reads*, and a title is the file name as in
-stage 2.
+**Stage 4: the compiler's cards and messages**, one file set: `crates/nvs-diagnostics/src/lib.rs`,
+`crates/nvs-types/src/derive.rs`, `crates/nvs-types/src/conformance.rs` and the parser. Each change
+prints a new message, so stage 7 re-records what pins it. `cargo build` is the only check until the
+group ends.
 
-- [ ] The database error and property key attacks say property. `tests/hostile/lang/types/property-keys/01-request-names-that-reach-for-hidden-fields.nvs:2`
-- [ ] The error, JSON body and `Core\Program` attacks say property, and the sort attack says "the property to sort by". `tests/hostile/lang/types/property-paths/01-a-sort-field-from-a-request.nvs:2`
-- [ ] The benchmarks say property. `benches/members/lang/types/property-paths.nvs:2`
-- [ ] The attack file names that say field are renamed, with their records. `tests/hostile/lang/types/property-keys/02-a-write-that-could-reach-a-readonly-field.nvs:1`
+- [ ] The error cards E0460 to E0463 and the `implements I by $property` cards say property. `crates/nvs-diagnostics/src/lib.rs:1722`
+- [ ] The derive, conformance and parser messages say property. `crates/nvs-types/src/derive.rs:2223`
 
 ### Backlog
 
