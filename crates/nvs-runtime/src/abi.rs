@@ -437,33 +437,38 @@ where
     // What it costs an uncapped request — every context with no configuration,
     // which is every test's — is one compare against a zero field and one
     // thread-local load: see [`Ctx::over_memory_limit`].
-    #[expect(
-        unsafe_code,
-        reason = "the caller guarantees `ctx` is valid for this call; this \
-                  borrow ends before the Rust closure below takes its own"
-    )]
-    let breach = unsafe { &*ctx }.memory_breach();
-    if let Some(fault) = breach {
-        #[expect(unsafe_code, reason = "same contract, and the borrow above has ended")]
-        let ctx = unsafe { &mut *ctx };
-        // The ceiling's second chance, and it is asked only here — on the one
-        // path that was about to stop the request — so a member call under the
-        // ceiling pays nothing for the collector's existence. What was asked
-        // for is a walk of this context's cyclic garbage
-        // (`crate::object::collect`), and the counter is read again after it:
-        // bytes a dead cycle was holding are the request's again, and the
-        // member's body runs. `Ctx::collect_if_asked` owns why the ask can
-        // only have come from a crossing of this very ceiling.
-        let breach = if ctx.collect_if_asked() {
-            ctx.memory_breach()
-        } else {
-            Some(fault)
-        };
+    //
+    // The check, the collection and the limit handler run inside the same
+    // `catch_unwind` as the body. Each is Rust that can panic, and an unwind
+    // out of this frame into the JIT frame above would abort the process.
+    // `Err` carries a status already recorded on the context.
+    let outcome = panic::catch_unwind(AssertUnwindSafe(|| -> Result<Value, i32> {
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees `ctx` is valid for this call; this \
+                      borrow ends before the next one below is taken"
+        )]
+        let breach = unsafe { &*ctx }.memory_breach();
         if let Some(fault) = breach {
-            return report_memory_breach(ctx, fault);
+            #[expect(unsafe_code, reason = "same contract, and the borrow above has ended")]
+            let ctx = unsafe { &mut *ctx };
+            // The ceiling's second chance, and it is asked only here — on the one
+            // path that was about to stop the request — so a member call under the
+            // ceiling pays nothing for the collector's existence. What was asked
+            // for is a walk of this context's cyclic garbage
+            // (`crate::object::collect`), and the counter is read again after it:
+            // bytes a dead cycle was holding are the request's again, and the
+            // member's body runs. `Ctx::collect_if_asked` owns why the ask can
+            // only have come from a crossing of this very ceiling.
+            let breach = if ctx.collect_if_asked() {
+                ctx.memory_breach()
+            } else {
+                Some(fault)
+            };
+            if let Some(fault) = breach {
+                return Err(report_memory_breach(ctx, fault));
+            }
         }
-    }
-    let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         #[expect(
             unsafe_code,
             reason = "the caller guarantees `ctx` is valid for this call and \
@@ -488,15 +493,20 @@ where
             !ctx.take_armed_helper_panic(),
             "internal error: injected helper panic (--fault-inject=helper-panic)"
         );
-        body(ctx, args)
+        body(ctx, args).map_err(|fault| match ctx.memory_breach() {
+            // A member that failed *while* the request crossed its ceiling
+            // reports the ceiling and not its own error. A refused allocation
+            // is what a fallible producer reads as "no room", and one that
+            // words that as a throw would otherwise hand the program a `catch`
+            // to carry on from — which is the whole of what
+            // `rule:errors/escalation-ladder` puts a resource limit above. The
+            // question is asked on this arm and not on the `Ok` one for the
+            // reason the comment ahead of the body gives: there is no result
+            // `Value` to release here.
+            Some(breach) => report_memory_breach(ctx, breach),
+            None => record_fault(ctx, fault),
+        })
     }));
-
-    #[expect(
-        unsafe_code,
-        reason = "same contract as above; the borrow taken inside the Rust closure \
-                  has ended, so this one cannot alias it"
-    )]
-    let ctx = unsafe { &mut *ctx };
 
     match outcome {
         Ok(Ok(value)) => {
@@ -509,37 +519,67 @@ where
             }
             OK
         }
-        Ok(Err(fault)) => match ctx.memory_breach() {
-            // A member that failed *while* the request crossed its ceiling
-            // reports the ceiling and not its own error. A refused allocation
-            // is what a fallible producer reads as "no room", and one that
-            // words that as a throw would otherwise hand the program a `catch`
-            // to carry on from — which is the whole of what
-            // `rule:errors/escalation-ladder` puts a resource limit above. The
-            // question is asked on this arm and not on the `Ok` one for the
-            // reason the comment ahead of the body gives: there is no result
-            // `Value` to release here.
-            Some(breach) => report_memory_breach(ctx, breach),
-            None => record_fault(ctx, fault),
-        },
+        Ok(Err(status)) => status,
         Err(payload) => {
-            if Teardown::in_progress() {
-                // Not a helper bug: this thread is tearing a task's stack down
-                // and the unwind belongs to it. A helper is on that stack
-                // whenever a member *parks* — `Core\Time::sleep` through
-                // [`crate::host::Host::sleep`] is one — and a cancelled
-                // task is resumed into a forced unwind rather than into its
-                // body, so the unwind passes through this frame on its way out.
-                // Containing it here would hand `FATAL` back to the frames
-                // above, which would run on during a teardown. See
-                // [`Teardown`], and `run_task` below, which makes the same test
-                // for the same reason.
-                panic::resume_unwind(payload);
-            }
-            ctx.set_pending(panic_message(&*payload));
-            FATAL
+            #[expect(
+                unsafe_code,
+                reason = "same contract as above; the borrow taken inside the Rust \
+                          closure has ended, so this one cannot alias it"
+            )]
+            let ctx = unsafe { &mut *ctx };
+            contained_panic(ctx, payload)
         }
     }
+}
+
+/// Runs `slow` inside `catch_unwind`, and turns a panic into the request's
+/// `FATAL`.
+///
+/// For the slow paths compiled code branches to outside the helper ABI:
+/// `crate::nvs_safepoint` and `crate::nvs_stack_check`. Both are `extern "C"`,
+/// so an unwind out of them would abort the process. `rule:errors/helper-abi`
+/// is why a panic stops one request and never the worker.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned, and valid for the duration of the call.
+#[expect(
+    unsafe_code,
+    reason = "discharges the slow paths' pointer contract, the way `run_helper` \
+              discharges the helper ABI's"
+)]
+pub(crate) unsafe fn contain_panic(ctx: *mut Ctx, slow: impl FnOnce(&mut Ctx) -> i32) -> i32 {
+    let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
+        #[expect(unsafe_code, reason = "the caller guarantees `ctx` is valid for this call")]
+        slow(unsafe { &mut *ctx })
+    }));
+    outcome.unwrap_or_else(|payload| {
+        #[expect(
+            unsafe_code,
+            reason = "same contract; the borrow taken inside the closure has ended"
+        )]
+        contained_panic(unsafe { &mut *ctx }, payload)
+    })
+}
+
+/// The status a panic caught under a JIT frame becomes: the panic's message as
+/// the request's pending `FATAL`.
+fn contained_panic(ctx: &mut Ctx, payload: Box<dyn std::any::Any + Send>) -> i32 {
+    if Teardown::in_progress() {
+        // Not a helper bug: this thread is tearing a task's stack down
+        // and the unwind belongs to it. A helper is on that stack
+        // whenever a member *parks* — `Core\Time::sleep` through
+        // [`crate::host::Host::sleep`] is one — and a cancelled
+        // task is resumed into a forced unwind rather than into its
+        // body, so the unwind passes through this frame on its way out.
+        // Containing it here would hand `FATAL` back to the frames
+        // above, which would run on during a teardown. See
+        // [`Teardown`], and `run_task` below, which makes the same test
+        // for the same reason.
+        panic::resume_unwind(payload);
+    }
+    ctx.set_pending(panic_message(&*payload));
+    FATAL
 }
 
 /// Runs `rule:errors/on-limit`'s handler for `breach` and answers the status
