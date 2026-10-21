@@ -221,7 +221,7 @@ rules describe a core that is shared by slices.
 - [ ] The attack: one request loops on a one-worker server while another is answered, named in the rule's `guardedBy` (`rule:testing/hostile-case-contract`). `crates/nvs-cli/src/serve.rs:5466`
 - [ ] `bench-compare --expect <peer>=<result>` and its test. `tools/nv/cmd/bench-compare.ts:1494`, `tools/nv/test/bench-compare.test.ts:1`
 - [ ] The comparison re-recorded from a detached worktree, the cases first and then the rows. Novis's `hello` stays within 3% of 28,207, or the slice becomes 20 ms. `benches/compare.json:1`
-- [ ] The page's loop paragraph says what the new run measured. `website/src/content/docs/in-depth/compare.mdx:87`
+- [ ] The page's loop paragraph says what the new run measured. `website/src/content/docs/in-depth/compare.mdx:166`
 
 ## Handoff
 

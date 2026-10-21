@@ -13,15 +13,13 @@ import FaultCharts from '@components/compare/FaultCharts.astro'
 This page compares Novis with PHP, Bun and Go. Each language runs the same small web programs. One
 command measures all four on one machine, and anybody can run it.
 
-The four servers take a new version of a program in two different ways:
+The page has four parts:
 
-- **Live deploy:** Novis and PHP. You copy the new source files to the server, and the next request
-  uses them. There is no build, no restart and no reload.
-- **Build and restart:** Bun and Go. The server loads new code only when it restarts. Go also needs
-  a new build first.
-
-The deploy test measures what each way costs, so its chart shows the two groups in separate boxes.
-Every other test runs one program that does not change. Those charts rank all four servers together.
+- **Speed and memory**: how many requests each server answers, and how much memory it uses.
+- **More than one CPU core**: how each server uses more cores.
+- **When something goes wrong**: what happens to requests during a deploy, or when one request runs
+  away.
+- **Features**: a table of things a web server needs, and which server has each one.
 
 ## How the test works
 
@@ -34,79 +32,31 @@ cores, and only one server runs at a time.
 - Bun runs with `Bun.serve`.
 - Go runs with the `net/http` package.
 
-When a server stops, Docker starts it again. Servers in production run the same way.
+Each server runs with its default settings. When a setting is needed for a test, the page says which
+one. When a server stops, Docker starts it again. Servers in production run the same way.
 
 Each program is written the way the documentation of its language shows. Before a test is timed, the
 four servers must return the same answer for the same request. A server that returns a different
 answer gets no number.
 
-## When something goes wrong
+This is the machine and the run:
 
-These tests send steady requests to each server while something goes wrong. The charts show what
-happened to those requests. The number in the circle is the server's place, and place 1 is the best
-result. In the deploy chart, the place counts inside each box.
+<Machine />
 
-### Deploying a new version
-
-The deploy test copies a new version of 200 source files into a running server. Requests arrive
-the whole time. A failed request is a request that gets an error instead of the page. A mixed page
-is built partly from old files and partly from new files. Each bar is every request a server got
-during the test. The number at the end is the share of complete pages.
-
-<FaultCharts chart="deploy" />
-
-Novis uses the new files with no reload and no restart, and every request got a complete page. PHP
-checks for changed files by default, so this test runs no reload for PHP. PHP had no failed request
-and no mixed page in this run. PHP checks each file on its own, so a page can mix old and new files
-while they are copied. By default, Bun needs a restart to use the new files,
-and Go needs a new build and a restart. In this test, both failed requests during the restart.
-
-### Runaway requests
-
-A runaway request is a request that never ends, or one that uses more and more memory. Each test
-first sends steady requests for 15 seconds. Then it sends the same steady requests again, together
-with one runaway request. Each chart shows how many requests the server answered in the second part,
-as a share of the first part. More is better. A fast server does not get a better result only
-because it is fast.
-
-Every server runs with its default settings. By default, Novis and PHP stop a request at 128 MB of
-memory or 30 seconds of CPU time. In Novis, these limits are in the `[limits]` table. In PHP, they
-are `memory_limit` and `max_execution_time`. Bun and Go have no limit for one request.
-
-#### A request that uses too much memory
-
-<FaultCharts chart="memory" />
-
-Novis and PHP stopped the runaway request, and every other request was answered. Bun and Go have no
-memory limit for one request. The container's memory limit stopped the whole server, so the open
-requests failed. Docker then started the server again.
-
-#### A request that never ends
-
-<FaultCharts chart="loop" />
-
-Each server has one CPU core in this test. Novis stopped the runaway request after 30 seconds of CPU
-time. Until then, the runaway request used the only core, and some other requests waited more than
-five seconds. PHP runs each request in its own process, so the system shares the core between them.
-Go also shares the core, but the other requests were answered more slowly. Bun and Go never stopped
-the runaway request.
-
-## Speed and memory
+### How to read the charts
 
 The absolute numbers depend on the machine. A faster machine gives bigger numbers for all four. The
 result is the relation between the four servers.
 
-Each server has two bars in each test. The first
-bar is requests per second, and the fastest server has the full bar. The second bar is peak memory,
-and the server that used the most memory has the full bar. The coloured bars are the best results:
-the most requests and the least memory.
+The number in the circle before a bar is the server's place, and place 1 is the best result. The
+coloured bars are the best results. The margin of error is about 3%. Two results closer than that
+get the same place, and the next place is skipped.
 
-The number in the circle before each bar is the server's place. Two results closer than 3% get the
-same place, and the next place is skipped.
+## Speed and memory
 
-This is the machine and the run:
-
-<Machine />
+Each server has two bars in each test. The first bar is requests per second, and the fastest server
+has the full bar. The second bar is peak memory, and the server that used the most memory has the
+full bar. The best results are the most requests and the least memory.
 
 <CaseCharts />
 
@@ -114,9 +64,9 @@ This is the machine and the run:
 server's container used during the test. Memory matters as much as speed when you pay for a server,
 because less memory per server means more servers on one machine.
 
-The margin of error is about 3%. Two results closer than that are the same speed. When servers in
-different languages reach about the same speed, the language is probably not the limit. The limit is
-then the rest of the setup: the nginx proxy, HTTPS and the network between the containers.
+When servers in different languages reach about the same speed, the language is probably not the
+limit. The limit is then the rest of the setup: the nginx proxy, HTTPS and the network between the
+containers.
 
 ## More than one CPU core
 
@@ -160,6 +110,65 @@ PHP is not in this chart. PHP-FPM runs one request on one core, and PHP has no b
 it. Novis needs one setting for this: `spawn = true` in the `[capabilities.script]` table. This
 setting is off by default for security. A program can start only the scripts that you allow.
 
+## When something goes wrong
+
+These tests send steady requests to each server while something goes wrong. The charts show what
+happened to those requests.
+
+### Deploying a new version
+
+The four servers take a new version of a program in two different ways:
+
+- **Live deploy:** Novis and PHP. You copy the new source files to the server, and the next request
+  uses them. There is no build, no restart and no reload.
+- **Build and restart:** Bun and Go. The server loads new code only when it restarts. Go also needs
+  a new build first.
+
+The chart shows the two groups in separate boxes, and the place counts inside each box.
+
+The test copies a new version of 200 source files into a running server. Requests arrive the whole
+time. A failed request is a request that gets an error instead of the page. A mixed page is built
+partly from old files and partly from new files. Each bar is every request a server got during the
+test. The number at the end is the share of complete pages.
+
+<FaultCharts chart="deploy" />
+
+Novis uses the new files with no reload and no restart, and every request got a complete page. PHP
+checks for changed files by default, so this test runs no reload for PHP. PHP had no failed request
+and no mixed page in this run. PHP checks each file on its own, so a page can mix old and new files
+while they are copied. By default, Bun needs a restart to use the new files, and Go needs a new
+build and a restart. In this test, both failed requests during the restart.
+
+### Runaway requests
+
+A runaway request is a request that never ends, or one that uses more and more memory. Each test
+first sends steady requests for 15 seconds. Then it sends the same steady requests again, together
+with one runaway request. Each chart shows how many requests the server answered in the second part,
+as a share of the first part. More is better. A fast server does not get a better result only
+because it is fast.
+
+By default, Novis and PHP stop a request at 128 MB of memory or 30 seconds of CPU time. In Novis,
+these limits are in the `[limits]` table. In PHP, they are `memory_limit` and `max_execution_time`.
+Bun and Go have no limit for one request.
+
+#### A request that uses too much memory
+
+<FaultCharts chart="memory" />
+
+Novis and PHP stopped the runaway request, and every other request was answered. Bun and Go have no
+memory limit for one request. The container's memory limit stopped the whole server, so the open
+requests failed. Docker then started the server again.
+
+#### A request that never ends
+
+<FaultCharts chart="loop" />
+
+Each server has one CPU core in this test. Novis stopped the runaway request after 30 seconds of CPU
+time. Until then, the runaway request used the only core, and some other requests waited more than
+five seconds. PHP runs each request in its own process, so the system shares the core between them.
+Go also shares the core, but the other requests were answered more slowly. Bun and Go never stopped
+the runaway request.
+
 ## Features
 
 Each row tests one thing a web server needs. A small program for each language tries it, and the
@@ -194,8 +203,8 @@ template, and the values in it are still escaped. To print raw HTML, the program
 
 Outside data is every value that comes from outside the program. Examples are the request, the
 session, environment variables and command line arguments. A reply from another server and values
-read from a database are outside data too. Novis calls these values tainted. A tainted value in an SQL string is a compile error, so
-the program never runs with it.
+read from a database are outside data too. Novis calls these values tainted. A tainted value in an
+SQL string is a compile error, so the program never runs with it.
 
 ### Many waiting requests
 
@@ -209,8 +218,8 @@ Novis checks for edited source files while it runs. No setting turns this check 
 edited files by default, with `opcache.validate_timestamps`. Every test on this page runs PHP with
 this check on. Both servers use their default and check every 2 seconds.
 
-Bun shows an edit only when it
-runs with `bun --hot`. Go compiles the program, so you must build and start it again.
+Bun shows an edit only when it runs with `bun --hot`. Go compiles the program, so you must build and
+start it again.
 
 ## Run it yourself
 
