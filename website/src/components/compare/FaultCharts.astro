@@ -1,9 +1,11 @@
 ---
 /**
  * The comparison page's charts for a server under load while something goes
- * wrong, from rows of the feature table. `deploy` is the requests that failed
- * or got a mixed page while a new version was copied in, against the most in
- * the chart, and less is better. It is split into the two groups `grouped`
+ * wrong, from rows of the feature table. `deploy` is one stacked bar per
+ * server: every request its load sent while a new version was copied in, as
+ * complete pages, failed requests and mixed pages, with the share of complete
+ * pages at its end. Its place counts the failed and mixed ones, fewer being
+ * better. It is split into the two groups `grouped`
  * gives, each in its own box with its note, because how a server takes a new
  * version is what the test measures. `memory` and `loop` are the requests
  * answered while one runaway request ran beside the load, over the requests
@@ -21,26 +23,39 @@ export interface Props {
 
 const { chart } = Astro.props
 const number = (n: number) => Math.round(n).toLocaleString('en-US')
+const DEPLOY_LEGEND = [
+  { kind: 'ok' as const, label: 'Complete page' },
+  { kind: 'failed' as const, label: 'Failed request' },
+  { kind: 'mixed' as const, label: 'Mixed page' },
+]
 
 const groups = (() => {
   if (chart === 'deploy') {
     const wrong = deploys.map((d) => d.failed + d.mixed)
-    const most = Math.max(...wrong)
     const place = groupPlaces(
       deploys.map((d) => d.peer),
       wrong,
       true,
     )
-    const bars = deploys.map((d, i) => ({
-      peer: d.peer,
-      label: d.label,
-      place: place[i]!,
-      share: most > 0 ? wrong[i]! / most : 0,
-      best: place[i] === 1,
-      value: number(wrong[i]!),
-      compared: '',
-      figures: `${number(d.failed)} failed, ${number(d.mixed)} mixed. Less is better.`,
-    }))
+    const bars = deploys.map((d, i) => {
+      const ok = Math.max(0, d.requests - d.failed - d.mixed)
+      const of = (n: number) => (d.requests > 0 ? n / d.requests : 0)
+      return {
+        peer: d.peer,
+        label: d.label,
+        place: place[i]!,
+        share: 1,
+        best: place[i] === 1,
+        value: ok === d.requests ? '100%' : `${(Math.floor((ok / d.requests) * 1000) / 10).toFixed(1)}%`,
+        compared: '',
+        parts: [
+          { kind: 'ok' as const, share: of(ok) },
+          { kind: 'failed' as const, share: of(d.failed) },
+          { kind: 'mixed' as const, share: of(d.mixed) },
+        ],
+        figures: `${number(d.requests)} requests: ${number(ok)} complete, ${number(d.failed)} failed, ${number(d.mixed)} mixed`,
+      }
+    })
     return grouped(bars).map((g) => ({ title: g.title, group: g.group, note: g.note, bars: g.items }))
   }
   const runs = runaways(chart)
@@ -68,7 +83,7 @@ const groups = (() => {
 
 {
   record?.scenarios && groups.length > 0 ? (
-    <Bars groups={groups} />
+    <Bars groups={groups} legend={chart === 'deploy' ? DEPLOY_LEGEND : undefined} />
   ) : (
     <p class="compare-empty">No run of the feature table is recorded yet.</p>
   )

@@ -310,6 +310,8 @@ function evidenceOf(row: string): { peer: string; label: string; evidence: Recor
 export interface Deploy {
   peer: string
   label: string
+  /** Every request the load sent while the new version was copied in. */
+  requests: number
   failed: number
   /** Replies built partly from the old files and partly from the new ones. */
   mixed: number
@@ -318,6 +320,7 @@ export interface Deploy {
 export const deploys: Deploy[] = evidenceOf('deploy').map(({ peer, label, evidence: e }) => ({
   peer,
   label,
+  requests: e.requests as number,
   failed: e.failed_requests as number,
   mixed: e.mixed_replies as number,
 }))
