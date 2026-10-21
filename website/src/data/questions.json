@@ -5369,7 +5369,7 @@
   },
   "/reference/core/http-response/jsonas/": {
     "feature": "Core\\Http\\Response::jsonAs",
-    "hash": "9f4d0f7afae4a656",
+    "hash": "f330c0363340783a",
     "questions": [
       "How do I decode a JSON API reply into a class?",
       "Turn a JSON response into typed objects",
@@ -6147,7 +6147,7 @@
   },
   "/reference/core/json/decodeas/": {
     "feature": "Core\\Json::decodeAs",
-    "hash": "518d8a65b8fb0596",
+    "hash": "8c3a89b3c0416266",
     "questions": [
       "How do I read JSON straight into my own class?",
       "Fill an object from a JSON document",
@@ -6158,7 +6158,7 @@
   },
   "/reference/core/json/encode/": {
     "feature": "Core\\Json::encode",
-    "hash": "96892a4502aa024d",
+    "hash": "88a325852d15cfd1",
     "questions": [
       "How do I convert an array to a JSON string?",
       "Write an object as JSON text",
@@ -9344,7 +9344,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/column/": {
     "feature": "Novis\\Spreadsheet\\Chart::column",
-    "hash": "52e75e6f980c4416",
+    "hash": "0638e6e7ba6f15b9",
     "questions": [
       "Column chart of monthly sales",
       "Add axis titles to an Excel chart",
@@ -9366,7 +9366,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/constructor/": {
     "feature": "Novis\\Spreadsheet\\Chart::constructor",
-    "hash": "2b275f7b6452aa1c",
+    "hash": "279aa6ccea2aab48",
     "questions": [
       "Make a chart with new Chart",
       "Read the kind and series of a chart object",
@@ -10037,7 +10037,7 @@
   },
   "/reference/core/objectmap/count/": {
     "feature": "Core\\ObjectMap::count",
-    "hash": "5df53c896870d9ed",
+    "hash": "9ba596f5f97fe364",
     "questions": [
       "How many entries are in my object map?",
       "Get the number of objects used as keys",
@@ -10047,7 +10047,7 @@
   },
   "/reference/core/objectmap/get/": {
     "feature": "Core\\ObjectMap::get",
-    "hash": "7744c9f5f0809e96",
+    "hash": "495f1c4bb09b5c36",
     "questions": [
       "How do I read the value stored for an object?",
       "Look up a value by object key with a default",
@@ -10057,7 +10057,7 @@
   },
   "/reference/core/objectmap/has/": {
     "feature": "Core\\ObjectMap::has",
-    "hash": "762a5202727f33a9",
+    "hash": "3e2d70d7d57adf4f",
     "questions": [
       "How do I check if an object is a key in the map?",
       "Tell a missing key apart from a key with a null value",
@@ -10087,7 +10087,7 @@
   },
   "/reference/core/objectmap/remove/": {
     "feature": "Core\\ObjectMap::remove",
-    "hash": "71f654d4c25f03eb",
+    "hash": "8cc4d41fadd9d5b7",
     "questions": [
       "How do I delete one object from an object map?",
       "Stop tracking a job after it finishes",
@@ -10097,7 +10097,7 @@
   },
   "/reference/core/objectmap/set/": {
     "feature": "Core\\ObjectMap::set",
-    "hash": "c451e39b3df2aca7",
+    "hash": "33f309b0ce0bdc5a",
     "questions": [
       "How do I store a value for an object key?",
       "Replace the value for an object that is already in the map",
@@ -10127,7 +10127,7 @@
   },
   "/reference/core/objectset/add/": {
     "feature": "Core\\ObjectSet::add",
-    "hash": "0f80aa471772a7a8",
+    "hash": "ce05baa3624df36f",
     "questions": [
       "How do I put an object into a set?",
       "Add an item only if it is not already there",
@@ -10147,7 +10147,7 @@
   },
   "/reference/core/objectset/count/": {
     "feature": "Core\\ObjectSet::count",
-    "hash": "20ccfc165d737c8d",
+    "hash": "c433668f281f3b63",
     "questions": [
       "How many distinct objects are in my set?",
       "Get the size of an object set",
@@ -10167,7 +10167,7 @@
   },
   "/reference/core/objectset/has/": {
     "feature": "Core\\ObjectSet::has",
-    "hash": "a4a42fb68951427c",
+    "hash": "cbaf83538b01b664",
     "questions": [
       "How do I check if an object is in a set?",
       "Skip a job that was already done",
@@ -10177,7 +10177,7 @@
   },
   "/reference/core/objectset/intersect/": {
     "feature": "Core\\ObjectSet::intersect",
-    "hash": "4a9091182629f408",
+    "hash": "cd73a8ba06e0858b",
     "questions": [
       "How do I find objects that are in both sets?",
       "Common values of two object sets",
@@ -10197,7 +10197,7 @@
   },
   "/reference/core/objectset/remove/": {
     "feature": "Core\\ObjectSet::remove",
-    "hash": "9d49b4c29319d794",
+    "hash": "657ce170809863de",
     "questions": [
       "How do I take an object out of a set?",
       "Remove a user from the online list when they log out",
@@ -10207,7 +10207,7 @@
   },
   "/reference/core/objectset/union/": {
     "feature": "Core\\ObjectSet::union",
-    "hash": "86e3bf5d11bd9f00",
+    "hash": "e605b0ea263c8ce6",
     "questions": [
       "How do I combine two sets of objects into one?",
       "Merge two lists of people without duplicates",
@@ -11091,7 +11091,7 @@
   },
   "/reference/core/reflect/steps/": {
     "feature": "Core\\Reflect::steps",
-    "hash": "9857472f5f356e84",
+    "hash": "ff1c3ecaad59cfe9",
     "questions": [
       "How do I get the property for each part of a dotted field path?",
       "How can a query builder know which tables a field path joins?",
@@ -11252,7 +11252,7 @@
   },
   "/reference/core/reflect-classinfo/hasproperty/": {
     "feature": "Core\\Reflect\\ClassInfo::hasProperty",
-    "hash": "91607e2b5370fb9b",
+    "hash": "773bd96c439a244e",
     "questions": [
       "How do I check if a class has a property?",
       "Does this property exist on an object?",
@@ -11816,7 +11816,7 @@
   },
   "/reference/core/request/jsonas/": {
     "feature": "Core\\Request::jsonAs",
-    "hash": "3062bc6c09562ec6",
+    "hash": "55824cad13f03f97",
     "questions": [
       "How do I turn a JSON body into an object of my class?",
       "Validate incoming JSON fields and types",
@@ -11880,7 +11880,7 @@
   },
   "/reference/core/request/postas/": {
     "feature": "Core\\Request::postAs",
-    "hash": "76571dfcd08b626a",
+    "hash": "a386716408efd426",
     "questions": [
       "How do I read a whole form into a class?",
       "Validate a sign-up form and list every wrong field",
@@ -11912,7 +11912,7 @@
   },
   "/reference/core/request/queryas/": {
     "feature": "Core\\Request::queryAs",
-    "hash": "f4d05433940acb7d",
+    "hash": "0a7bfb23ee3cfb6c",
     "questions": [
       "How do I read all URL parameters into a class?",
       "Validate search filters from the address",
@@ -13526,7 +13526,7 @@
   },
   "/reference/core/taint/asserttrustedbytes/": {
     "feature": "Core\\Taint::assertTrustedBytes",
-    "hash": "22c474294bcf7b21",
+    "hash": "6333629f3cd84531",
     "questions": [
       "Turn tainted bytes into plain bytes after my own check",
       "Why does decode not accept tainted bytes?",
@@ -13993,7 +13993,7 @@
   },
   "/reference/core/test-response/jsonas/": {
     "feature": "Core\\Test\\Response::jsonAs",
-    "hash": "9e4398ec49f4b629",
+    "hash": "9021b5c49db779e9",
     "questions": [
       "How do I turn an API reply into a class in a test?",
       "Read a JSON list from my endpoint into objects",
@@ -16082,7 +16082,7 @@
   },
   "/reference/types/lateinit/": {
     "feature": "LateInit",
-    "hash": "800199799a4d8ccf",
+    "hash": "c40aca0f7c898731",
     "questions": [
       "How do I give a property its value the first time it is read?",
       "Lazy loading a class property on first access",
@@ -16536,7 +16536,7 @@
   },
   "/reference/types/propertyobserver/": {
     "feature": "PropertyObserver",
-    "hash": "a277a7ee5406e3d6",
+    "hash": "9d9c44734e58e316",
     "questions": [
       "How do I get notified when a property is read or changed?",
       "Track every change to the properties of an object",

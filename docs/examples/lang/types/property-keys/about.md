@@ -9,6 +9,6 @@ writes the named property.
 **Good to know:** a `private` or `protected` property never converts to a key. A write through a key
 does not compile when the class has a public `readonly` property.
 
-**The examples below** sort a table by a column from the web address and update the fields a list of
+**The examples below** sort a table by a column from the web address and update the properties a list of
 changes names. Then they show a write of the wrong
 type and a key of a parent class used on a child class.

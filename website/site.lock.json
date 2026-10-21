@@ -11,7 +11,7 @@
     "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "94a4314639c860bb"
   },
   "syntax/attributes/json.mdx": {
-    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "298588792ebc8e35"
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "fd9bcb9cc4a66cce"
   },
   "syntax/attributes/routes.mdx": {
     "Core\\Router::dispatch": "70a8f50d45e32dc4",
@@ -48,7 +48,7 @@
     "lang:classes/declaring-a-class": "1c1899c154545430"
   },
   "syntax/classes/interfaces.mdx": {
-    "lang:classes/interfaces": "e95781d7968bfd61"
+    "lang:classes/interfaces": "6442559f99e487d9"
   },
   "syntax/classes/methods-and-inheritance.mdx": {
     "lang:classes/inheritance": "ce756bd8ea3a6e67",
@@ -66,23 +66,23 @@
     "lang:classes/lateinit": "1d7877bafebe6771",
     "lang:classes/properties": "8a3bd52c08135be7",
     "lang:types/properties-and-constants": "1da42ad2c3c6d547",
-    "LateInit": "573915c0c25ce2a0"
+    "LateInit": "132b497fd133e189"
   },
   "syntax/classes/property-hooks.mdx": {
     "lang:classes/property-hooks": "3947ede2719cc0ad",
     "lang:classes/propertyguard": "fa8dc9193507f102",
     "lang:classes/propertyobserver": "f34f221fdfdb1503",
     "PropertyGuard": "763425ca905233c2",
-    "PropertyObserver": "80600e979a7d8483"
+    "PropertyObserver": "3195e184baf840bf"
   },
   "syntax/classes/property-names.mdx": {
-    "lang:types/property-keys": "7fe395fe2d7cc9f0",
-    "lang:types/property-paths": "2850a50e6227dc56",
-    "lang:types/strings-with-holes": "5a299e0fa16ea838"
+    "lang:types/property-keys": "cc49d4eaa7aec3b2",
+    "lang:types/property-paths": "4475a88849f164a6",
+    "lang:types/strings-with-holes": "5455d1a22f64dbcc"
   },
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "391e6f137abae931",
-    "lang:classes/comparable": "78271a960888d3b3",
+    "lang:classes/comparable": "765563a26dfbfc7c",
     "lang:classes/parses": "2f816c8d9dec9f89",
     "lang:classes/stringable": "3b2b2753f126d15d",
     "Parses": "76732b35d3fe313a",
@@ -97,7 +97,7 @@
     "lang:concurrency/isolates-spawn-script-and-await": "abe64b237d45db05"
   },
   "syntax/concurrency/limits-and-errors.mdx": {
-    "lang:concurrency/a-child-s-throw": "dccd97feadb4edea",
+    "lang:concurrency/a-child-s-throw": "808605947c8ef8cf",
     "lang:concurrency/limit-and-deadline": "97675d25ca3e8481"
   },
   "syntax/concurrency/tasks.mdx": {
@@ -298,7 +298,7 @@
     "lang:enums/what-an-enum-does-not-have": "5057c794e207f2dd"
   },
   "syntax/values/is.mdx": {
-    "lang:types/narrowing": "bb9355a14436f2e0"
+    "lang:types/narrowing": "4ae6307aed4f20e4"
   },
   "syntax/values/nullable.mdx": {
     "lang:types/nullable-union-single-value-and-enum-case-types": "091dbb9c70e45efb"

@@ -1,5 +1,5 @@
 <?nvs
-// Updates only the fields that a list of changes names, and skips every other name.
+// Updates only the properties that a list of changes names, and skips every other name.
 
 class Profile {
     public string $name = "Ada";
@@ -14,7 +14,7 @@ class Profile {
 
 Profile $profile = new Profile();
 
-// The changes to make, with the field names as keys.
+// The changes to make, with the property names as keys.
 array<string> $changes = ["city" => "Paris", "role" => "admin", "phone" => "555"];
 
 foreach ($changes as string $field => string $value) {

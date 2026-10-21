@@ -1,5 +1,5 @@
 <?nvs
-// Shows an order that reads two fields, and how a program branches on the
+// Shows an order that reads two properties, and how a program branches on the
 // number `<=>` returns.
 
 final class Release implements Comparable {

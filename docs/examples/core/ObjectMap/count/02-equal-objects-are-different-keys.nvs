@@ -17,7 +17,7 @@ Point $second = new Point(1, 2);
 Core\ObjectMap<Point, string> $labels = new Core\ObjectMap<Point, string>();
 $labels->set($first, "start");
 $labels->set($second, "end");
-// `$first` and `$second` have the same fields, but they are different objects. This prints 2.
+// `$first` and `$second` have the same property values, but they are different objects. This prints 2.
 echo $labels->count(), "\n";
 
 // `$first` is the same object as before, so this replaces its value. This prints 2 again.

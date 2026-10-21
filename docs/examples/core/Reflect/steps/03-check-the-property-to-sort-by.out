@@ -1,4 +1,4 @@
 total: ok
 customer.name: ok
 lines.quantity: goes through an array
-customer.passwordHash: not a field
+customer.passwordHash: not a property path

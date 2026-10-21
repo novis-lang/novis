@@ -1,5 +1,5 @@
 <?nvs
-// Shows that two objects with equal fields are two different members of a set.
+// Shows that two objects with equal property values are two different members of a set.
 
 final class Point {
     public int $x;

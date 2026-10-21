@@ -1,7 +1,7 @@
 Reads the query string of the request into a class or a shape that you write. The query string is
 the part of the address after the `?`, such as `q=shoes&page=2`. You write the type between `<` and
 `>`: `Core\Request::queryAs<Search>()`. A class needs the `#[Core\Json\Derive]` attribute, and each
-public field reads the parameter with the same name. The address comes from the client, so every
+public property reads the parameter with the same name. The address comes from the client, so every
 string field must be `tainted string`.
 
 Every value in a query string is text. A field of another type, such as `uint`, converts the text

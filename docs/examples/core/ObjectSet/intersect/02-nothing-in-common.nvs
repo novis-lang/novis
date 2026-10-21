@@ -15,7 +15,7 @@ $first->add(new Tag("sale"));
 Core\ObjectSet<Tag> $second = new Core\ObjectSet<Tag>();
 $second->add(new Tag("sale"));
 
-// The two "sale" tags have equal fields, but they are two different objects.
+// The two "sale" tags have equal property values, but they are two different objects.
 // So the sets share nothing, and the result is an empty set.
 Core\ObjectSet<Tag> $shared = $first->intersect($second);
 // This prints 0.

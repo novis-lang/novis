@@ -1,5 +1,5 @@
 <?nvs
-// Shows `implements I by $field`. A class that holds an object which already
+// Shows `implements I by $property`. A class that holds an object which already
 // does the work passes every method of the interface on to it.
 
 interface SendsMail {

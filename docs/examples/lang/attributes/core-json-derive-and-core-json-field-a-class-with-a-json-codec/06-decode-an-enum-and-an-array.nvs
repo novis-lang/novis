@@ -1,5 +1,5 @@
 <?nvs
-// Shows a decode of an enum field and an array field. An enum case is
+// Shows a decode of an enum property and an array property. An enum case is
 // written in JSON as its number.
 
 enum Level { Low, High }

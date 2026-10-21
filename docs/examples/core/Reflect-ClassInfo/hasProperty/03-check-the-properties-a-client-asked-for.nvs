@@ -1,5 +1,5 @@
 <?nvs
-// Shows how an API checks the field names a client asked for before it reads them.
+// Shows how an API checks the property names a client asked for before it reads them.
 
 class Product {
     public string $sku = "A-100";
@@ -12,9 +12,9 @@ class Fields {
         var $info = Core\Reflect::forObject($product);
         tainted string $out = "";
         foreach ($asked as string $field) {
-            // A field the class does not have is reported to the client, and nothing is read.
+            // A property the class does not have is reported to the client, and nothing is read.
             if (!$info->hasProperty($field)) {
-                $out = $out . "unknown field: " . $field . "\n";
+                $out = $out . "unknown property: " . $field . "\n";
                 continue;
             }
             $out = $out . $field . "=" . ($info->get($product, $field) as string) . "\n";

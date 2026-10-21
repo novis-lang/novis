@@ -4606,7 +4606,7 @@ writes the named property.
 **Good to know:** a `private` or `protected` property never converts to a key. A write through a key
 does not compile when the class has a public `readonly` property.
 
-**The examples below** sort a table by a column from the web address and update the fields a list of
+**The examples below** sort a table by a column from the web address and update the properties a list of
 changes names. Then they show a write of the wrong
 type and a key of a parent class used on a child class.
 
@@ -4686,7 +4686,7 @@ Chair 85
 Desk 120
 ```
 
-#### Example 02: a function that takes a field name
+#### Example 02: a function that takes a property name
 
 ```nvs
 <?nvs
@@ -4709,7 +4709,7 @@ class Page {
     public static function field(User $user, property<User>|string $name): string {
         ?property<User> $key = $name as ?property<User>;
         if ($key == null) {
-            return "no field named " . ($name as string);
+            return "no property named " . ($name as string);
         }
         return ($key as string) . ": " . $user->$key;
     }
@@ -4729,15 +4729,15 @@ echo Page::field($user, $key), "\n";
 
 ```output
 email: ada@example.com
-no field named passwordHash
+no property named passwordHash
 name: Ada
 ```
 
-#### Example 03: update the fields a list of changes names
+#### Example 03: update the properties a list of changes names
 
 ```nvs
 <?nvs
-// Updates only the fields that a list of changes names, and skips every other name.
+// Updates only the properties that a list of changes names, and skips every other name.
 
 class Profile {
     public string $name = "Ada";
@@ -4752,7 +4752,7 @@ class Profile {
 
 Profile $profile = new Profile();
 
-// The changes to make, with the field names as keys.
+// The changes to make, with the property names as keys.
 array<string> $changes = ["city" => "Paris", "role" => "admin", "phone" => "555"];
 
 foreach ($changes as string $field => string $value) {
@@ -4935,7 +4935,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 ### Property paths
 
-A property path is a value that names a field across related objects, such as `customer.address.city`.
+A property path is a value that names a property across related objects, such as `customer.address.city`.
 
 The type `propertyPath<Order>` contains paths that start at the class `Order`. Each name in a path is a
 public property of the class that the name before it reaches. That property can be an object, a
@@ -4947,7 +4947,7 @@ and throws an error if a name is wrong. `as ?propertyPath<Order>` gives `null` i
 the same class, such as `parent.parent.name`.
 
 **The examples below** go from an order to its customer, address and lines, and sort a list by a
-field from the web address. Then they show the errors for a wrong path.
+property that the web address names. Then they show the errors for a wrong path.
 
 Every name in a path but the last must be a property whose type is a class `C`, a `?C` or an
 `array<C>`. The next name is a property of `C`. The last name can be any public property.
@@ -5025,11 +5025,11 @@ sorted by lines.sku
 sorted by total
 ```
 
-#### Example 02: a sort field from the address
+#### Example 02: the property to sort by from the address
 
 ```nvs skip
 <?nvs
-// Shows a list of orders sorted by a field that the web address names.
+// Shows a list of orders sorted by a property that the web address names.
 
 class Customer {
     public string $name;
@@ -5056,7 +5056,7 @@ class Table {
         // If one name is wrong, the result is `null`.
         ?propertyPath<Order> $path = $field as ?propertyPath<Order>;
         if ($path == null) {
-            return "unknown field, sorted by total";
+            return "not a property path, sorted by total";
         }
         return "sorted by " . ($path as string);
     }
@@ -5071,7 +5071,7 @@ echo Table::sortBy(Core\Request::query("other")), "\n";
 
 ```text
 sorted by customer.name
-unknown field, sorted by total
+not a property path, sorted by total
 ```
 
 #### Example 03: a path that starts at the calling class
@@ -5211,7 +5211,7 @@ any other string while the program runs, and throws an error if a hole is wrong.
 (text from outside the program) stays tainted after `as string<K>`, so a condition from a request
 cannot be the text of a database query. `Core\Str::parts` splits the string into its text and holes.
 
-**The examples below** check the fields in a query condition, fill a message template, check a
+**The examples below** check the property paths in a query condition, fill a message template, check a
 condition built while the program runs, and show a wrong hole that does not compile.
 
 `K` is `property<T>`, `propertyPath<T>` or a set of strings, such as `'asc'|'desc'`. Any other `K`,
@@ -5239,11 +5239,11 @@ typed `string<K>` does not take it (`E0401`).
 text is equal. A string written in the code and a string converted from a variable are equal when
 the text is the same.
 
-#### Example 01: a condition with checked fields
+#### Example 01: a condition with checked property paths
 
 ```nvs
 <?nvs
-// Shows a query condition whose field names are checked when the program compiles.
+// Shows a query condition whose property names are checked when the program compiles.
 
 class Customer {
     public string $name = "Ada";
@@ -5592,7 +5592,7 @@ something else
 <?nvs
 // A job's settings are a mode, which is one of three words, and a mailbox that may be `null`.
 // Checking a property such as `$job->mode` does not change its type.
-// Checking a local variable does. So `plan` copies each field to a variable first.
+// Checking a local variable does. So `plan` copies each property to a variable first.
 
 class Job
 {
@@ -14646,7 +14646,7 @@ Hello, the shop! How can we help?
 
 ```nvs
 <?nvs
-// Shows `implements I by $field`. A class that holds an object which already
+// Shows `implements I by $property`. A class that holds an object which already
 // does the work passes every method of the interface on to it.
 
 interface SendsMail {
@@ -15980,11 +15980,11 @@ the limit is within itself
 -1
 ```
 
-#### Example 02: an order built from two fields
+#### Example 02: an order built from two properties
 
 ```nvs
 <?nvs
-// Shows an order that reads two fields, and how a program branches on the
+// Shows an order that reads two properties, and how a program branches on the
 // number `<=>` returns.
 
 final class Release implements Comparable {
@@ -23073,7 +23073,7 @@ error, the whole group stops.
 
 The first error wins. The other tasks are cancelled, and none of them is still running when your
 `catch` runs. The error you catch is the one the task threw. It has the same class, the same message,
-and your own fields if you wrote your own error class. Nothing wraps it.
+and your own properties if you wrote your own error class. Nothing wraps it.
 
 A cancelled task runs nothing more. Its own `catch` does not run, and neither do the lines after it.
 
@@ -23145,7 +23145,7 @@ caught: the price list is empty
 ```nvs
 <?nvs
 // Shows an error class of your own crossing out of a task. The class and the
-// fields you gave it are still there in the `catch`.
+// properties you gave it are still there in the `catch`.
 
 class ImportFailed extends RuntimeError {
     public int $row;
@@ -25387,7 +25387,7 @@ accepts instances of that class, and `Core\Json::decodeAs` builds one from JSON 
 the attribute is not allowed at either call.
 
 The fields of the document are the class's declared properties, in the order they are written. Each
-field is also a constructor parameter of the same name and type, because a decode calls your
+of these properties is also a constructor parameter of the same name and type, because a decode calls your
 constructor. `#[Core\Json\Field]` changes one property. `name:` writes it under a different key, and
 `skip: true` leaves it out of the document.
 
@@ -25396,40 +25396,41 @@ type, or is `null` where that is not allowed, the decode throws a `ParseError`. 
 bad field at once.
 
 The examples show a class encoded as JSON, a renamed key and a skipped property, and a request body
-read into an object. Then they show each check of a decode, a field with no constructor parameter,
+read into an object. Then they show each check of a decode, a property with no constructor parameter,
 and an enum and an array in a decode.
 
-The fields are the instance properties that the class itself declares. A `private` or `protected`
-property is a field too. A property promoted in the `constructor` is a field in the place where it is
-written. A `static` property is not a field, and neither is a property the class inherits. A
-`readonly` property is a field. A class with no fields at all is `E0758`.
+The document has one key for each instance property that the class itself declares. A `private` or
+`protected` property has a key too. A property promoted in the `constructor` has its key in the place
+where it is written. A `static` property has no key, and neither does a property the class inherits.
+A `readonly` property has a key. A class with no such property is `E0758`.
 
-A field may be a number, a `string`, a `bool`, an enum, an inline shape, an `array<T>` of these, or
+A property may be a number, a `string`, a `bool`, an enum, an inline shape, an `array<T>` of these, or
 `?T` of these. It may also be another class with `#[Core\Json\Derive]`. A class without the attribute
 is `E0756`. An enum case is written in JSON as its number. A `float` is written with a fraction, so
-`2` in a `float` field encodes as `2.0`.
+`2` in a `float` property encodes as `2.0`.
 
-A `secret` property cannot be a field, and is `E0462`. A `lateinit` property is `E0463`. Both work
-with `#[Core\Json\Field(skip: true)]`. A field with no constructor parameter of the same name is
+A `secret` property is not allowed in the document, and is `E0462`. A `lateinit` property is `E0463`.
+Both work with `#[Core\Json\Field(skip: true)]`. A property with no constructor parameter of the same name is
 `E0460`. A parameter of another type is `E0461`. `#[Core\Json\Field]` has the options `name` and
 `skip` only, and any other option is `E0464`. `skip: false` is the same as no `skip`.
 
-A constructor parameter that is not a field is `E0820` at the `Core\Json::decodeAs` call. This is
+A constructor parameter that does not match a property in the document is `E0820` at the `Core\Json::decodeAs` call. This is
 true even when the parameter has a default value. `Core\Json::decodeAs` on a class without the
 attribute does not compile, and is `E0821`. `Core\Json::encode` of such an object throws a
 `LogicError` when it runs.
 
-A `?T` field that is `null` is written as `null`. It is never left out of the document. A `?T` field
-is always required in a decode too. A missing key is the issue `required field missing`, as for any
-other field. Only its value may be `null`.
+A `?T` property that is `null` is written as `null`. It is never left out of the document. A `?T`
+property is always required in a decode too. A missing key is the issue `required field missing`, as
+for any other property. Only its value may be `null`.
 
 A key in the document that the class does not have is ignored.
 
 The `ParseError` has every problem in its `issues`. Each issue has a `path` and a `message`.
 
-A decode checks each value's type and does not convert it. `1.5` and `2.0` in an `int` field are
-issues, and so is `-1` in a `uint` field. A number in a `string` or `bool` field is an issue, and
-so is a string in a `float` field. An `int` in a `float` field is accepted. An enum field takes the
+A decode checks each value's type and does not convert it. `1.5` and `2.0` in an `int` property are
+issues, and so is `-1` in a `uint` property. A number in a `string` or `bool` property is an issue,
+and so is a string in a `float` property. An `int` in a `float` property is accepted. An enum
+property takes the
 number of a case. Any other number, or a string, is the issue `expected a declared enum case`.
 
 The path of an issue joins the keys with `.`. A field of a nested object is `address.city`, and an
@@ -25457,7 +25458,7 @@ class Point {
     public int $x;
     public int $y;
 
-    // Every field is a constructor parameter of the same name and type.
+    // Every property is a constructor parameter of the same name and type.
     public function constructor(int $x, int $y) {
         $this->x = $x;
         $this->y = $y;
@@ -25479,7 +25480,7 @@ class Line {
     }
 }
 
-// A field whose type is another class with the attribute is encoded inside the
+// A property whose type is another class with the attribute is encoded inside the
 // same document. This prints {"from":{"x":0,"y":0},"to":{"x":3,"y":4}}.
 echo Json::encode(new Line(new Point(0, 0), new Point(3, 4))), "\n";
 ```
@@ -25508,8 +25509,8 @@ class Article {
     #[Field(name: "published_at")]
     public string $publishedAt;
 
-    // A skipped property is not a field. It needs no constructor parameter, and
-    // it never appears in the document.
+    // A skipped property needs no constructor parameter, and it never appears
+    // in the document.
     #[Field(skip: true)]
     public uint $viewCount;
 
@@ -25601,8 +25602,8 @@ address.city: required field missing
 
 ```nvs
 <?nvs
-// Shows what a decode checks for each field. A `?int` field takes `null`.
-// A `bool` field does not, so `null` there is an issue.
+// Shows what a decode checks for each property. A `?int` property takes `null`.
+// A `bool` property does not, so `null` there is an issue.
 
 #[Core\Json\Derive]
 class Row {
@@ -25640,11 +25641,11 @@ rank: expected int, found a string
 is_live: null is not permitted
 ```
 
-#### Example 05: a field needs a constructor parameter
+#### Example 05: a property needs a constructor parameter
 
 ```nvs error
 <?nvs
-// Shows that every field needs a constructor parameter with the same name.
+// Shows that every property needs a constructor parameter with the same name.
 // The constructor has no `$name` parameter, so this program does not compile.
 // proof: compile-error
 
@@ -25676,7 +25677,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 ```nvs
 <?nvs
-// Shows a decode of an enum field and an array field. An enum case is
+// Shows a decode of an enum property and an array property. An enum case is
 // written in JSON as its number.
 
 enum Level { Low, High }

@@ -1,5 +1,5 @@
 <?nvs
-// Shows that every field needs a constructor parameter with the same name.
+// Shows that every property needs a constructor parameter with the same name.
 // The constructor has no `$name` parameter, so this program does not compile.
 // proof: compile-error
 

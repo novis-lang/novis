@@ -1,6 +1,6 @@
 <?nvs
 // A customer record that logs every change made to it. The logging code is in one method.
-// Every field change adds an entry, and a field you add later is logged too.
+// Every change to a property adds an entry. A property you add later is logged too.
 
 // The entries are stored outside the record. So adding an entry is not a
 // change to the customer.
@@ -32,7 +32,7 @@ $ada->email = "ada@example.com";
 $ada->email = "ada.lovelace@example.com";
 $ada->orders = $ada->orders + 1;
 
-echo "fields changed, oldest first:\n";
+echo "properties changed, oldest first:\n";
 foreach (Audit::$entries as tainted string $field) {
     echo "  ", $field, "\n";
 }

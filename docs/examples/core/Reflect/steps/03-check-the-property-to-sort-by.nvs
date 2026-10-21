@@ -1,5 +1,5 @@
 <?nvs
-// Shows how to check a sort field that a request sends, before it is used in a query.
+// Shows how to check the property to sort by that a request sends, before it is used in a query.
 
 class Customer {
     public string $name = "";
@@ -21,9 +21,9 @@ class Sort {
         // `as ?propertyPath<Order>` gives `null` when the text is not a path of public properties.
         ?propertyPath<Order> $path = $field as ?propertyPath<Order>;
         if ($path == null) {
-            return "not a field";
+            return "not a property path";
         }
-        // A path through an array has many values for one order, so it cannot be a sort field.
+        // A path through an array has many values for one order, so it cannot be the property to sort by.
         foreach (Core\Reflect::steps($path) as var $step) {
             if (Core\Str::startsWith($step->type() ?? "", "array<")) {
                 return "goes through an array";

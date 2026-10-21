@@ -1,5 +1,5 @@
 <?nvs
-// Shows a query condition whose field names are checked when the program compiles.
+// Shows a query condition whose property names are checked when the program compiles.
 
 class Customer {
     public string $name = "Ada";

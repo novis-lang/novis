@@ -9,4 +9,4 @@ outside its class. `get` throws a `RuntimeError` for a private property and a `L
 name that does not exist, so `hasProperty` is how a program tells the two cases apart.
 
 **The examples below** check a few names, tell a private property from a missing one, and check
-the field names a client asked for before the program reads them.
+the property names a client asked for before the program reads them.

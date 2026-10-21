@@ -9,5 +9,5 @@ The type tells you how the path reaches the next part. A type like `Customer` is
 like `?Customer` is an object or `null`. A type like `array<Line>` is an array of objects. A library
 can use this to build a database join for each part of the path.
 
-**The examples below** show each part of a path, a join built for each part, and a check of a sort
-field that a request sends.
+**The examples below** show each part of a path, a join built for each part, and a check of the property to
+sort by that a request sends.
