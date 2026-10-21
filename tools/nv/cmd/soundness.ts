@@ -19,9 +19,10 @@
 // the verdict of every relation that is a cell. The sets, explicitly:
 //
 // - members: `method-param`, `method-return`, `interface-method-param`, `interface-method-return`,
-//   `static-method-param`, `static-method-return`, `compare-to-param`, `property-plain`,
-//   `property-promoted`, `property-lateinit`, `property-hooked`, `property-array`, `property-readonly`,
-//   `static-property`, `class-constant` and `interface-constant`.
+//   `static-method-param`, `static-method-return`, `compare-to-param`, `covariant-method-param`,
+//   `property-plain`, `property-promoted`, `property-lateinit`, `property-hooked`, `property-array`,
+//   `property-covariant`, `property-readonly`, `static-property`, `class-constant` and
+//   `interface-constant`.
 // - relations, child's declared type over the parent's (`PAIRS`): `same` (`Animal` over `Animal`),
 //   `subclass` (`Dog` over `Animal`), `superclass` (`Animal` over `Dog`), `unrelated` (`Plant` over
 //   `Animal`), `int-under-int-string` (`int` over `int|string`), `int-over-float` (`int` over `float`),
@@ -44,6 +45,10 @@
 // - `compare-to-param`'s parent declares `compareTo(self $other)`, a class that is neither a scalar,
 //   nullable nor a union, so only `same` (the parent's name), `subclass` (`self`, which is the child),
 //   `superclass` (the parent's own superclass), `unrelated` and `nullable-over-t` are cells.
+// - `covariant-method-param` and `property-covariant` write `covariant` in the child, so a relation compiles
+//   only where the child's type is narrower. Each path but the child's own type passes a value the parent's
+//   type takes and the child's does not (`WIDER`), and prints the `LogicError` the test throws. The child's
+//   type passes the child's value. The property's parent constructor stores the value the child passes it.
 //
 // And some paths are not cells:
 //
@@ -150,6 +155,8 @@ interface Member {
   /** The relations this member kind writes with other types than `PAIRS`. */
   pairs?: Partial<Record<Rel, [string, string]>>;
   paths: PathRow[];
+  /** The child writes `covariant`, so a path through a wider type passes `WIDER`'s value and reads the throw. */
+  covariant?: boolean;
 }
 
 const OVERRIDE = "rule:classes/an-override-keeps-its-parents-signature";
@@ -158,6 +165,7 @@ const STATIC = "rule:statements/static-is-a-member-modifier";
 const CALLABLE = "rule:types/callable-values";
 const ERASED = "rule:types/erased-member-access";
 const UNION = "rule:types/a-member-every-class-of-a-union-declares";
+const COVARIANT = "rule:classes/a-covariant-type-is-checked-where-a-value-enters";
 
 /** A parameter is contravariant: the child's type accepts the parent's, without `int` to `float`. */
 const PARAM: Partial<Record<Rel, string>> = {
@@ -189,6 +197,30 @@ const RETURN: Partial<Record<Rel, string>> = {
 };
 /** An instance property keeps the exact type. */
 const EXACT: Partial<Record<Rel, string>> = Object.fromEntries(RELATIONS.map((r) => [r, r === "same" ? "ok" : "E0866"]));
+/**
+ * A `covariant` type is narrower than the parent's, without `int` to `float`. One the parent's type fits is
+ * `E0882`, and one unrelated to it is the member kind's own code.
+ */
+const covariantVerdicts = (unrelated: string): Partial<Record<Rel, string>> => ({
+  same: "E0882",
+  subclass: "ok",
+  superclass: "E0882",
+  unrelated,
+  "int-under-int-string": "ok",
+  "int-over-float": unrelated,
+  "float-over-int": unrelated,
+  "t-under-nullable": "ok",
+  "nullable-over-t": "E0882",
+  "member-under-union": "ok",
+  "wider-union": "E0882",
+});
+/** For each relation a `covariant` row compiles, a value the parent's type takes and the child's does not. */
+const WIDER: Partial<Record<Rel, string>> = {
+  subclass: "new Animal()",
+  "int-under-int-string": '"p"',
+  "t-under-nullable": "null",
+  "member-under-union": "new Plant()",
+};
 
 const INSTANCE_PATHS: PathRow[] = [
   { id: "parent-variable", verdict: "ok", rule: OVERRIDE },
@@ -271,6 +303,15 @@ export const MEMBERS: Member[] = [
       { id: "callable", verdict: "ok", rule: CALLABLE },
     ],
   },
+  {
+    id: "covariant-method-param",
+    title: "a `covariant` method parameter",
+    family: "method",
+    rule: COVARIANT,
+    verdicts: covariantVerdicts("E0404"),
+    paths: INSTANCE_PATHS.map((p) => ({ ...p, rule: COVARIANT })),
+    covariant: true,
+  },
   { id: "property-plain", title: "a plain instance property", family: "property", rule: PROPERTY, verdicts: EXACT, paths: PROPERTY_PATHS },
   { id: "property-promoted", title: "a promoted constructor parameter", family: "property", rule: PROPERTY, verdicts: EXACT, paths: PROPERTY_PATHS },
   { id: "property-lateinit", title: "a `lateinit` property", family: "property", rule: PROPERTY, verdicts: EXACT, paths: PROPERTY_PATHS },
@@ -283,6 +324,15 @@ export const MEMBERS: Member[] = [
     verdicts: EXACT,
     pairs: Object.fromEntries(RELATIONS.map((r) => [r, [`array<${PAIRS[r][0]}>`, `array<${PAIRS[r][1]}>`]])),
     paths: PROPERTY_PATHS,
+  },
+  {
+    id: "property-covariant",
+    title: "a `covariant` instance property",
+    family: "property",
+    rule: COVARIANT,
+    verdicts: covariantVerdicts("E0866"),
+    paths: PROPERTY_PATHS.map((p) => ({ ...p, rule: COVARIANT })),
+    covariant: true,
   },
   {
     id: "property-readonly",
@@ -382,6 +432,19 @@ function describe(e: string): string {
   throw new Error(`soundness: cannot describe ${e}`);
 }
 
+/** What a `covariant` test's `LogicError` says the value is, for a value expression. */
+function describeArgument(e: string): string {
+  const m = /^new (\w+)\(\)$/.exec(e);
+  if (m) return `an object of class \`${m[1]}\``;
+  if (e === "null") return "`null`";
+  return `a value of type \`${describe(e).split(" ")[0]}\``;
+}
+
+/** Statements that run `stmt` and print the message of the `LogicError` it throws, after the label. */
+function printsLogicError(at: string, stmt: string, e: string): string {
+  return `try { ${stmt} } catch (LogicError ${e}) { echo ${at}, ${e}->message, "\\n"; }`;
+}
+
 const PRELUDE = [
   "class Show {",
   "    public static function of(mixed $v): tainted string {",
@@ -449,7 +512,7 @@ function methodPiece(c: Ctx): Piece {
   const childName = `Child${n}`;
   const mod = kind === "static" ? "public static function" : "public function";
   const arg = value(c.parent, 0);
-  const sig = (t: string) => (param ? `m(${t} $a): void` : `m(): ${t}`);
+  const sig = (t: string, covariant = false) => (param ? `m(${covariant ? "covariant " : ""}${t} $a): void` : `m(): ${t}`);
   const body = (cls: string, t: string, side: 0 | 1) => (param ? `{ echo "${cls}.m ", Show::of($a), "\\n"; }` : `{ return ${value(t, side)}; }`);
   /** The statements one call makes: `at` is the label expression, `call` the receiver and member. */
   const stmt = (at: string, call: string): string =>
@@ -467,11 +530,15 @@ function methodPiece(c: Ctx): Piece {
   }
   decl.push(`class ${childName} ${kind === "interface" ? "implements" : "extends"} ${parentName} {`);
   const declSite = decl.length + 1;
-  decl.push(`    ${mod} ${sig(c.child)} ${body(childName, c.child, 1)}`, "}");
+  decl.push(`    ${mod} ${sig(c.child, c.member.covariant)} ${body(childName, c.child, 1)}`, "}");
 
   const uses: Use[] = [];
   const child = ran(childName, 1, c.child);
   c.paths.forEach((path, k) => {
+    if (c.member.covariant) {
+      uses.push(covariantCall(c, path, k, parentName, childName));
+      return;
+    }
     const v = `$v${n}x${k}`;
     const at = q(label(c, path));
     const typed = (type: string): string[] => [`${type} ${v} = new ${childName}();`, stmt(at, `${v}->m`)];
@@ -508,6 +575,28 @@ function methodPiece(c: Ctx): Piece {
     uses.push({ path, lines, expect: `${label(c, path)}${out}` });
   });
   return { decl, declSite, setup: [], uses };
+}
+
+/**
+ * One path's call of a `covariant` parameter. Through the child's type it passes the child's value, which the
+ * body prints. Every other path passes the parent's wider value, and the entry test throws a `LogicError`.
+ */
+function covariantCall(c: Ctx, path: string, k: number, parentName: string, childName: string): Use {
+  const n = c.n;
+  const v = `$v${n}x${k}`;
+  const at = q(label(c, path));
+  if (path === "child-variable") {
+    const cv = value(c.child, 1);
+    return { path, lines: [`${childName} ${v} = new ${childName}();`, `echo ${at}; ${v}->m(${cv});`], expect: `${label(c, path)}${childName}.m ${describe(cv)}` };
+  }
+  const wide = WIDER[c.rel];
+  if (!wide) throw new Error(`soundness: no wider value for ${c.rel}`);
+  const lines = [`${path === "mixed" ? "mixed" : parentName} ${v} = new ${childName}();`];
+  if (path === "callable") lines.push(`var $f${n}x${k} = ${v}->m(...);`, printsLogicError(at, `$f${n}x${k}(${wide});`, `$e${n}x${k}`));
+  else if (path === "parent-variable" || path === "mixed") lines.push(printsLogicError(at, `${v}->m(${wide});`, `$e${n}x${k}`));
+  else throw new Error(`soundness: no path ${path} for ${c.member.id}`);
+  const message = `The parameter \`$a\` of \`${childName}::m\` has the type \`${c.child}\`. The argument is ${describeArgument(wide)}.`;
+  return { path, lines, expect: `${label(c, path)}${message}` };
 }
 
 function compareToPiece(c: Ctx): Piece {
@@ -582,6 +671,13 @@ function propertyPiece(c: Ctx): Piece {
       decl.push(`    public readonly ${P} $x;`, parentCtor);
       childDecl = `    public readonly ${C} $x;`;
       break;
+    case "covariant":
+      // The parent's constructor stores what the child passes, since its own value would not pass the test.
+      // A refused relation passes the parent's value, so the call adds no second error.
+      decl.push(`    public ${P} $x;`, `    public function constructor(${P} $v) { $this->x = $v; }`);
+      childDecl = `    public covariant ${C} $x;`;
+      childCtor = `    public function constructor() { parent::constructor(${c.member.verdicts[c.rel] === "ok" ? cv : pv}); }`;
+      break;
     default:
       throw new Error(`soundness: no property form ${form}`);
   }
@@ -608,11 +704,38 @@ function propertyPiece(c: Ctx): Piece {
       "union-fallthrough": `Other${n}|Parent${n}`,
     };
     const lines = [`${recvType[path]} ${v} = ${make};`];
+    if (form === "covariant") return covariantWrite(c, path, k, lines);
     if (path === "property-key") lines.push(`property<Parent${n}> $k${n}x${k} = "x" as property<Parent${n}>;`, `echo ${at}, Show::of(${v}->$k${n}x${k}), "\\n";`);
     else lines.push(`echo ${at}, Show::of(${v}->x), "\\n";`);
     return { path, lines, expect: `${label(c, path)}${describe(cv)}` };
   });
   return { decl, declSite, setup: [], uses };
+}
+
+/**
+ * One path's write of a `covariant` property, after `lines` made the receiver. Through the child's type it
+ * writes the child's value and reads it back. Every other path writes the parent's wider value, and the
+ * write's test throws a `LogicError`.
+ */
+function covariantWrite(c: Ctx, path: string, k: number, lines: string[]): Use {
+  const n = c.n;
+  const v = `$v${n}x${k}`;
+  const at = q(label(c, path));
+  if (path === "child-variable") {
+    const cv = value(c.child, 1);
+    lines.push(`${v}->x = ${cv};`, `echo ${at}, Show::of(${v}->x), "\\n";`);
+    return { path, lines, expect: `${label(c, path)}${describe(cv)}` };
+  }
+  const wide = WIDER[c.rel];
+  if (!wide) throw new Error(`soundness: no wider value for ${c.rel}`);
+  const stored = `echo ${at}, Show::of(${v}->x), "\\n";`;
+  if (path === "property-key") {
+    lines.push(`property<Parent${n}> $k${n}x${k} = "x" as property<Parent${n}>;`, printsLogicError(at, `${v}->$k${n}x${k} = ${wide}; ${stored}`, `$e${n}x${k}`));
+  } else {
+    lines.push(printsLogicError(at, `${v}->x = ${wide}; ${stored}`, `$e${n}x${k}`));
+  }
+  const message = `The property \`$x\` of \`Child${n}\` has the type \`${c.child}\`. The value is ${describeArgument(wide)}.`;
+  return { path, lines, expect: `${label(c, path)}${message}` };
 }
 
 function staticPropertyPiece(c: Ctx): Piece {
