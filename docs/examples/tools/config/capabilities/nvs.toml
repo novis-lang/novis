@@ -1,5 +1,5 @@
-# Programs may read files in the `data` directory beside this file.
-# Nothing else is granted, so writing a file and reading any other file both fail.
+# These lines allow reading only the files in the `data` directory beside this file, and no
+# writing. Without them, a program run with `nvs run` may read and write any file.
 [capabilities.fs]
 read = ["data"]
 write = []

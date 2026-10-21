@@ -1,6 +1,6 @@
 Writes one uploaded file to a file on disk. It reads the upload in small pieces and writes each piece
-at once, so even a very large file uses little memory. The program needs the `fs.write` capability for
-the path.
+at once, so even a very large file uses little memory. A request may write only in the folders that
+`Core\IO::temporaryDir` made for it. Any other path needs the `fs.write` capability.
 
 `{max: …}` sets the largest size in bytes. Without it, there is no limit. A larger file throws a
 `RuntimeError`, and the part that was already written is deleted. `saveTo` does not replace a file

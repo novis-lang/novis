@@ -7,8 +7,9 @@ The server chooses the content type from the end of the file name: `.html` is se
 jump to any point in a video, and resume a download that stopped. If the file changed in the
 meantime, the browser gets the whole new file.
 
-The path must be allowed by `fs.read` in `nvs.toml`. A path that is not allowed throws a
-`RuntimeError`, a missing file throws an `IOError`, and a folder throws a `LogicError`. A path that
+A request may send the files in its application folder, except `nvs.toml` and names that start
+with `.`. Any other path needs the `fs.read` capability in `nvs.toml`. A path that is not allowed
+throws a `RuntimeError`, a missing file throws an `IOError`, and a folder throws a `LogicError`. A path that
 comes from the request is tainted, and does not compile here.
 
 The examples show a saved page, a file that does not exist, a manual that the visitor chooses

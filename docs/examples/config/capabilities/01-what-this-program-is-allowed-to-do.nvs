@@ -1,7 +1,6 @@
 <?nvs
-// `[capabilities]` says what a program may do. By default, a program may do nothing.
-// It may open a file, connect to an address or use a database only if a block allows it.
-// The server running this program has these settings, for this program only:
+// `[capabilities]` says what a program may do. A line you write replaces the default.
+// This program runs with these settings, for this program only:
 //
 //     [app.capabilities.fs]
 //     read = true
@@ -11,8 +10,8 @@
 
 echo 'read files:  ', Core\Config::get('capabilities.fs.read') ?? '(nothing)', "\n";
 
-// No block allows writing files, so `Core\Config::get` returns `null`.
-// A right that no block gives is not allowed.
+// No block writes `write`, so `Core\Config::get` returns `null`.
+// The default still applies: a program run with `nvs run` may write any file.
 echo 'write files: ', Core\Config::get('capabilities.fs.write') ?? '(nothing)', "\n";
 
 // A block can also take a right away. A wider block lets every program run scripts.

@@ -6,8 +6,9 @@ ready, so a large export does not have to fit in memory. `finish` writes the end
 closes it. The `Written` it returns has the number of rows of each sheet and the size of the file.
 Its `bytes` is `null`, because the file is on the disk.
 
-**Good to know:** writing a file needs the `fs.write` capability in `nvs.toml`. Without it,
-`createForFile` throws an error and writes nothing.
+**Good to know:** a program you start from the command line may write any path. On a server, a
+program needs the `fs.write` capability in `nvs.toml` for the path. Without it, `createForFile`
+throws an error and writes nothing.
 
 **The examples below** save an Excel file and read it back, save a CSV file, and save two sheets with
 the summary as the first tab.

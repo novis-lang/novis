@@ -11,5 +11,6 @@ content to a temporary file first, and then moves it over the real file.
 `Core\IO::copy` and then `Core\IO::remove` for that. `move` also throws an `IOError` when there is
 no file at the first path, or when the folder of the second path does not exist.
 
-The program needs the `fs.write` capability for both paths. Without it, `move` throws a
-`RuntimeError`.
+A program you start from the command line may move any file. On a server, a program may write
+only in the folders that `Core\IO::temporaryDir` made for it. Any other path needs the `fs.write`
+capability, for both paths. Without it, `move` throws a `RuntimeError`.

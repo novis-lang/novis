@@ -10,5 +10,6 @@ through a large file one line at a time, use `Core\IO::lines`.
 a `RuntimeError` when the file is not valid UTF-8, or when the file is larger than the
 `[limits] max_output` setting allows.
 
-The program needs the `fs.read` capability for the path. Without it, `read` throws a
-`RuntimeError`.
+A program you start from the command line may read any path. On a server, a program may read only
+the files in its application folder, except `nvs.toml` and names that start with `.`. Any other
+path needs the `fs.read` capability. Without it, `read` throws a `RuntimeError`.

@@ -5,7 +5,7 @@
 // Each check is a shell test. `test` ends with `0` when the test is true.
 array<string> $checks = [
     "the examples folder exists" => "test -d docs/examples",
-    "the settings file exists" => "test -f docs/examples/core/Process-Result/exitCode/nvs.toml",
+    "the settings file exists" => "test -f nvs.toml",
     "the backup folder exists" => "test -d /no-such-backup-folder",
 ];
 

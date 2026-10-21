@@ -5,8 +5,10 @@ the data with one option: `json` sends a value as JSON, `form` sends fields the 
 does, and `body` sends bytes exactly as you give them. The result is a `Core\Http\Response`, and
 `status()` gives the status code the server sent.
 
-The URL is checked before anything is sent. The host must be allowed by `net.connect` in
-`[capabilities.net]` in `nvs.toml`, and an address inside your own network throws a `RuntimeError`.
+The URL is checked before anything is sent. Any public host is allowed, unless `net.connect` in
+`[capabilities.net]` in `nvs.toml` lists the allowed hosts. An address inside your own network
+throws a `RuntimeError`. Loopback (`127.0.0.1`) is allowed only from the command line and in
+development mode.
 A `POST` that is sent twice can create two orders. So `retryAttempts` on a `POST` also needs
 `retryIdempotencyKey`, and without it the program does not compile. The key is sent with every
 attempt, and the server uses it to recognise a repeated request.

@@ -12,5 +12,6 @@ returns an empty array.
 `list` throws an `IOError` when the path does not exist, when it is a file, or when the operating
 system does not allow the program to read the folder.
 
-The program needs the `fs.read` capability for the path. Without it, `list` throws a
-`RuntimeError`.
+A program you start from the command line may read any path. On a server, a program may read only
+the files in its application folder, except `nvs.toml` and names that start with `.`. Any other
+path needs the `fs.read` capability. Without it, `list` throws a `RuntimeError`.

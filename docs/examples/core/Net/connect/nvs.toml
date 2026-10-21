@@ -1,6 +1,6 @@
 # The examples open a server on this computer and connect to it.
-# These lines allow that, and nothing else.
+# These lines allow a server only at `127.0.0.1`, and connections only to `127.0.0.1`.
+# Without the `connect` line, a program run with `nvs run` may connect to any public host.
 [capabilities.net]
 listen = ["127.0.0.1:0"]
 connect = ["127.0.0.1"]
-internal = ["127.0.0.1"]

@@ -8,8 +8,9 @@ error.
 
 A path written in quotes starts at the folder of the file that contains it. A path you
 build while the program runs must be a full path, or `spawn script` throws `RuntimeError`. Build one
-with `Core\Path::join`. You can also start a static method, written `Class::method(...)`. You need the `script.spawn` capability to start either
-one. One handle can be awaited once. A second `await` of the same handle throws `LogicError`.
+with `Core\Path::join`. You can also start a static method, written `Class::method(...)`. A static method and a file inside your
+application folder start with no capability. A file outside that folder needs the `script.spawn`
+capability. One handle can be awaited once. A second `await` of the same handle throws `LogicError`.
 
 **The examples below** show one file started and collected, two files running at the same time, a
 page written while a report is built next to it, a child's output printed at `await`, and values

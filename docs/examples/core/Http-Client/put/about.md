@@ -4,8 +4,10 @@ A `PUT` request sends a whole record to a server, and the server saves it at tha
 is already there, the new one replaces it. You give the record with one body option: `json`, `form`,
 `body` or `multipart`. The result is a `Core\Http\Response`, and `status()` gives the status code.
 
-The URL is checked before anything is sent. The host must be allowed by `net.connect` in
-`[capabilities.net]` in `nvs.toml`, and an address inside your own network throws a `RuntimeError`.
+The URL is checked before anything is sent. Any public host is allowed, unless `net.connect` in
+`[capabilities.net]` in `nvs.toml` lists the allowed hosts. An address inside your own network
+throws a `RuntimeError`. Loopback (`127.0.0.1`) is allowed only from the command line and in
+development mode.
 A `PUT` request sent twice gives the same result, so `retryAttempts` can try it again with no other
 option. `retryBackoff` is the wait between two tries.
 

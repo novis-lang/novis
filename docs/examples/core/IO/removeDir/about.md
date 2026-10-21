@@ -12,5 +12,6 @@ folder itself.
 at the path, when the path is a file, or when the operating system does not allow the deletion. In
 each case, nothing is deleted.
 
-Deleting a folder changes the disk, so the program needs the `fs.write` capability for the path.
-Without it, `removeDir` throws a `RuntimeError`.
+A program you start from the command line may delete any folder. On a server, a program may delete
+folders only inside the folders that `Core\IO::temporaryDir` made for it. Any other path needs the
+`fs.write` capability. Without it, `removeDir` throws a `RuntimeError`.

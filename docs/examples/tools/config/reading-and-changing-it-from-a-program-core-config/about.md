@@ -15,4 +15,5 @@ in effect, sorted by name.
 **Good to know:** each setting has a class that says who may change it. A program may raise a
 `Runtime` setting up to its ceiling and may only make a `RuntimeTighten` setting stricter. Only
 the file sets a `System` setting. When `[limits.hard]` does not set a limit, its ceiling is the
-value in `[limits]`, so a program cannot raise it.
+value in `[limits]`, so a program cannot raise it. A program you start from the command line may
+still raise its `memory` limit, unless `[limits.hard]` sets `memory`.

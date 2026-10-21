@@ -5,5 +5,6 @@ other path makes an Excel file (xlsx). `save` returns a `Written`: its `rows` ha
 of each sheet, and its `size` is the length of the file in bytes. Its `bytes` is `null`, because the
 file is on the disk.
 
-**Good to know:** your program needs the `fs.write` capability in `nvs.toml` for the folder of the
-path. Without it, `save` throws an error and writes nothing.
+**Good to know:** a program you start from the command line may save to any path. On a server, a
+program needs the `fs.write` capability in `nvs.toml` for the folder of the path. Without it, `save`
+throws an error and writes nothing.

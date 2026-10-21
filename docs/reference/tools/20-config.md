@@ -116,7 +116,9 @@ now 90
 
 `[limits]` states what a request **starts with**; `[limits.hard]` states the **ceiling** it may
 raise itself to with `Core\Config::set`. When `[limits.hard]` does not set a key, the ceiling is the
-value the request started with. So a program can lower that limit, and it cannot raise it.
+value the request started with. So a program can lower that limit, and it cannot raise it. One
+exception: a command-line run (`nvs run`, a command, `nvs test`) with no `[limits.hard] memory`
+may raise its own `memory` to any value. Server work never goes past `[limits.hard]`.
 
 When `[limits] memory` is not set, every program may hold 128M. When `[limits] cpu_time` is not
 set, a request, a connection, a scheduled script and a queued job may use 30s of processor time.
@@ -197,8 +199,8 @@ allows `development`, and returns `false` otherwise. `set("mode.ceiling", …)` 
 <!-- primer -->
 # `[capabilities]`
 
-A program can do nothing outside its own memory unless the configuration allows it. Every effect is
-guarded by a named capability: reading a file, writing one, starting another script.
+Every effect outside a program's own memory is guarded by a named capability: reading a file,
+writing one, starting another script. Some capabilities have a default by run kind, below.
 
 Files have their own defaults. A command-line run (`nvs run`, `nvs test`) may read and write every
 file. Server work may read the files in its app folder, but no dot-file (such as `.env`) and no

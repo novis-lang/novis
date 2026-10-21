@@ -10,5 +10,8 @@ The conversion is exact. When a byte in the file is not valid in that character 
 throws a `RuntimeError`. The message gives the position of that byte. No character is replaced or
 left out.
 
-`readText` throws an `IOError` when the file does not exist or cannot be read. The program needs
-the `fs.read` capability for the path. Without it, `readText` throws a `RuntimeError`.
+`readText` throws an `IOError` when the file does not exist or cannot be read.
+
+A program you start from the command line may read any path. On a server, a program may read only
+the files in its application folder, except `nvs.toml` and names that start with `.`. Any other
+path needs the `fs.read` capability. Without it, `readText` throws a `RuntimeError`.
