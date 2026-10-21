@@ -3344,6 +3344,7 @@ dependencies = [
  "anstyle",
  "insta",
  "nvs-footprint",
+ "nvs-render",
  "nvs-repo",
 ]
 

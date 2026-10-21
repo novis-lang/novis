@@ -534,12 +534,14 @@ builds the trace as the throw unwinds — so those three parts are the whole of 
 object a record of a throw carries is the throw itself, whose declared properties are walked like
 any other value and redact like any other value.
 
-**Partly on disk.** `Core\Log::write`, `Core\Debug::dump` and an uncaught `Throwable` build the
-record (`crates/nvs-stdlib/src/log.rs`, `crates/nvs-stdlib/src/debug.rs`,
-`crates/nvs-runtime/src/floor.rs`), and a frame is `nvs_render::Node::Frame`. A test result and a
-compiler diagnostic do not, and are goal `diagnostic-records`'s gaps
-`data/gaps/nvs-render/test-result-is-not-a-producer.json` and
-`data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json`.
+**Partly on disk.** `Core\Log::write`, `Core\Debug::dump`, an uncaught `Throwable` and a compiler
+diagnostic build the record (`crates/nvs-stdlib/src/log.rs`, `crates/nvs-stdlib/src/debug.rs`,
+`crates/nvs-runtime/src/floor.rs`, `crates/nvs-diagnostics/src/record.rs`), and a frame is
+`nvs_render::Node::Frame`. A compiler diagnostic's terminal text renders from its record, while
+`nvs check --json` still builds its own document and a snippet does not redact a `secret`: goal
+`diagnostic-records`'s gap `data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json`. A test
+result does not build the record, and is that goal's gap
+`data/gaps/nvs-render/test-result-is-not-a-producer.json`.
 
 **Declined:**
 - **Logs and dumps only, with throws, test results and diagnostics outside.** It is the smallest

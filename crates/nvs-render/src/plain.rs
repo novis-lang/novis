@@ -230,8 +230,14 @@ fn write_node(out: &mut String, node: &Node, depth: usize, colour: Colour) {
         Node::Redacted => colour.paint(out, ink::MARKER, "[redacted]"),
         Node::Elided(elision) => write_elision(out, elision, colour),
         Node::Cycle { id } => colour.paint(out, ink::MARKER, &format!("[cycle -> #{id}]")),
-        Node::Span { file, line, label } => {
-            out.push_str(&format!("{file}:{line}: {}", label.as_str()));
+        Node::Span {
+            file,
+            line,
+            column,
+            label,
+            ..
+        } => {
+            out.push_str(&format!("{file}:{line}:{column}: {}", label.as_str()));
         }
         Node::Frame {
             depth,

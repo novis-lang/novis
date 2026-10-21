@@ -15,26 +15,26 @@ echo <<<'TEXT'
 error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
   --> %s:3:7
   |
-3 | echo "[31mred", "\n";
+3 | echo "␛[31mred", "\n";
   |       ^ writes the `ESC` character
 
 error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
   --> %s:4:7
   |
-4 | echo '[1mbold', "\n";
+4 | echo '␛[1mbold', "\n";
   |       ^ writes the `ESC` character
 
 error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
   --> %s:6:1
   |
-6 |     [4munder
+6 |     ␛[4munder
   | ^^^^^^^^^^^^^... writes the `ESC` character
   | (continues to line 7)
 
 error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
   --> %s:9:5
   |
-9 |     [0mplain
+9 |     ␛[0mplain
   |     ^ writes the `ESC` character
 
 error: aborting due to 4 errors

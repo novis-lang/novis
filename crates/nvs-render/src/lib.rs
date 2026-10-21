@@ -372,13 +372,29 @@ pub enum Node {
         id: usize,
     },
     /// A source range with a label — what a compiler diagnostic is made of.
+    ///
+    /// It carries the text of its first line as well as the range, so a
+    /// rendering draws the snippet from the record alone and the source line
+    /// passes through the same transformations as every other text in it.
     Span {
         /// The file the range is in.
         file: String,
         /// Its one-based first line.
         line: u32,
-        /// What the range is being pointed at for.
+        /// Its one-based first column, counted in characters.
+        column: u32,
+        /// Its one-based last line, the same as [`Self::Span::line`] for a range on one line.
+        end_line: u32,
+        /// The one-based column its range ends before, counted in characters.
+        end_column: u32,
+        /// Whether this is the range the diagnostic is about, rather than one
+        /// that gives it context.
+        primary: bool,
+        /// What the range is being pointed at for, empty where nothing is said.
         label: Rendered,
+        /// The text of [`Self::Span::line`] without its line ending, absent
+        /// where the source has no such line.
+        source: Option<Rendered>,
     },
     /// One frame of a `Throwable`'s backtrace — `rule:errors/record-producers`'s
     /// throw producer carries one of these per frame, rather than one string

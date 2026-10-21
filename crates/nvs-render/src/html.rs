@@ -311,11 +311,17 @@ fn write_node(out: &mut String, node: &Node) {
                 "<a class=\"nvs-cycle\" href=\"#{ANCHOR}{id}\">[cycle -&gt; #{id}]</a>"
             ));
         }
-        Node::Span { file, line, label } => {
+        Node::Span {
+            file,
+            line,
+            column,
+            label,
+            ..
+        } => {
             span(
                 out,
                 "nvs-span",
-                &format!("{file}:{line}: {}", label.as_str()),
+                &format!("{file}:{line}:{column}: {}", label.as_str()),
             );
         }
         Node::Frame {
