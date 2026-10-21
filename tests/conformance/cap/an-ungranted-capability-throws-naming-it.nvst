@@ -14,9 +14,11 @@ try {
 --FILE nvs.toml--
 # A configuration that grants a *different* capability, so what the refusal
 # names is the one the member needed and not the absence of a file: the tree
-# resolves, `fs.write` is granted, and `fs.read` still is not.
+# resolves, `fs.write` is granted, and `fs.read` is written
+# empty, so it is not.
 [capabilities.fs]
 write = ["./out"]
+read = []
 --FILE data/note.txt--
 note
 --EXPECTF--

@@ -118,14 +118,18 @@ fn the_worked_program_shows_a_typed_local_a_foreach_binding_and_an_options_bag()
     }
 }
 
-/// A program that reads a file does not run without a grant, and the primer is
-/// where an agent that has read nothing else learns it.
+/// Files have a default that differs between a command-line run and server work,
+/// every other capability is denied until granted, and the primer is where an
+/// agent that has read nothing else learns it.
 // covers: tools:agents/nvs-agent-primer
 #[test]
 fn the_primer_names_the_capability_model_and_the_smallest_grant() {
     let primer = primer();
     for wanted in [
-        "default for every one of them is **denied**",
+        "A command-line run (`nvs run`, `nvs test`) may read and write every",
+        "Server work may read the files in its app folder, but no dot-file",
+        "It may write only in the directories `Core\\IO::temporaryDir` made for it.",
+        "The default for every other capability is **denied** until a grant is written.",
         "`fs.read`",
         "[capabilities.fs]",
         "read = [\"data\"]",

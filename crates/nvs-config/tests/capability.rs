@@ -1660,8 +1660,9 @@ fn the_line_a_refusal_prints_loads_and_grants_what_was_refused() {
 }
 
 /// [`Authority`] is the written grant where a key is written, and the default where it is not.
-/// Every default grants nothing on every kind of run, so an unwritten key, an absent block and a
-/// tree with no `[capabilities]` all deny, and a written key answers as [`Capabilities`] does.
+/// Outside the two file keys every default grants nothing on every kind of run, so an unwritten
+/// key, an absent block and a tree with no `[capabilities]` all deny, and a written key answers as
+/// [`Capabilities`] does. The file keys' defaults are the run's.
 #[test]
 fn an_authority_answers_the_written_key_and_the_default_for_the_rest() {
     let disk = Disk::of(&["/srv/app", "/srv/app/job.nvs", "/srv/app/data"]);
@@ -1698,7 +1699,8 @@ fn an_authority_answers_the_written_key_and_the_default_for_the_rest() {
             Authority::new(None, run),
             Authority::new(Some(&headers), run),
         ] {
-            for cap in Cap::ALL.iter().copied() {
+            let files = [Cap::FsRead, Cap::FsWrite];
+            for cap in Cap::ALL.iter().copied().filter(|cap| !files.contains(cap)) {
                 assert!(
                     !authority.allows(cap, Scope::Unscoped, &disk),
                     "{}",
@@ -1710,10 +1712,106 @@ fn an_authority_answers_the_written_key_and_the_default_for_the_rest() {
                     cap.name()
                 );
             }
-            assert!(!authority.allows_resolved(Cap::FsRead, &job));
+            // A CLI run reads and writes every file, and server work reads the app folder alone.
+            for cap in files {
+                assert_eq!(
+                    authority.allows(cap, Scope::Unscoped, &disk),
+                    !run.serving,
+                    "{} on {run:?}",
+                    cap.name()
+                );
+            }
+            assert_eq!(
+                authority.allows_resolved(Cap::FsRead, &job),
+                !run.serving || run.folder.is_some(),
+                "{run:?}"
+            );
+            assert_eq!(
+                authority.allows_resolved(Cap::FsWrite, &job),
+                !run.serving,
+                "{run:?}"
+            );
             assert!(!authority.allows_host(Cap::NetConnect, "api.example.com"));
             assert!(!authority.allows_name(Cap::QueuePurge, "mail"));
             assert!(authority.address_refused(ip("127.0.0.1")).is_some());
         }
     }
+}
+
+/// Server work reads its app folder and nothing else, and writes only the temporary directories its
+/// context made, while a CLI run reads and writes outside its folder
+/// (`rule:config/no-configuration-file-is-a-complete-configuration`). Every refused path is one an
+/// application keeps beside its code: a dot-file, a dot-folder, `nvs.toml`, a link out of the folder,
+/// and a sibling folder whose name starts with the app folder's.
+#[test]
+fn server_work_reads_its_app_folder_and_writes_only_its_temporary_directories() {
+    let disk = Disk::of(&[
+        "/srv/app",
+        "/srv/app/index.nvs",
+        "/srv/app/public/logo.svg",
+        "/srv/app/.env",
+        "/srv/app/.git/config",
+        "/srv/app/nvs.toml",
+        "/srv/app/conf/NVS.TOML",
+        "/srv/app-old/index.nvs",
+        "/etc/passwd",
+        "/var/nvs/tmp/nvs-1-a",
+        "/var/nvs/tmp/nvs-1-b",
+    ])
+    .linking("/srv/app/escape", "/etc/passwd");
+    let folder = p("/srv/app");
+    let mine = [p("/var/nvs/tmp/nvs-1-a")];
+    let server = Authority::new(None, Run::server(Some(&folder)).with_temporary(&mine));
+    let reads = |authority: &Authority<'_>, path: &str| {
+        authority.allows(Cap::FsRead, Scope::Path(&p(path)), &disk)
+    };
+    let writes = |authority: &Authority<'_>, path: &str| {
+        authority.allows(Cap::FsWrite, Scope::Path(&p(path)), &disk)
+    };
+
+    assert!(reads(&server, "/srv/app/index.nvs"));
+    assert!(reads(&server, "/srv/app/public/logo.svg"));
+    assert!(
+        reads(&server, "/var/nvs/tmp/nvs-1-a/upload.bin"),
+        "its own temporary directory"
+    );
+    for refused in [
+        "/srv/app/.env",
+        "/srv/app/.git/config",
+        "/srv/app/nvs.toml",
+        "/srv/app/conf/NVS.TOML",
+        "/srv/app/escape",
+        "/srv/app-old/index.nvs",
+        "/etc/passwd",
+        "/var/nvs/tmp/nvs-1-b/upload.bin",
+    ] {
+        assert!(!reads(&server, refused), "server work read {refused}");
+    }
+    assert!(writes(&server, "/var/nvs/tmp/nvs-1-a/upload.bin"));
+    for refused in [
+        "/srv/app/index.nvs",
+        "/srv/app/cache/page.html",
+        "/var/nvs/tmp/nvs-1-b/upload.bin",
+        "/var/nvs/tmp/nvs-1-c",
+    ] {
+        assert!(!writes(&server, refused), "server work wrote {refused}");
+    }
+
+    // Another request's directory is in the same root, and only its own context lists it.
+    let theirs = [p("/var/nvs/tmp/nvs-1-b")];
+    let other = Authority::new(None, Run::server(Some(&folder)).with_temporary(&theirs));
+    assert!(writes(&other, "/var/nvs/tmp/nvs-1-b/upload.bin"));
+    assert!(!reads(&other, "/var/nvs/tmp/nvs-1-a/upload.bin"));
+
+    let cli = Authority::new(None, Run::cli(Some(&folder)));
+    for path in ["/etc/passwd", "/srv/app/.env", "/srv/app-old/index.nvs"] {
+        assert!(reads(&cli, path), "a CLI run reads {path}");
+        assert!(writes(&cli, path), "a CLI run writes {path}");
+    }
+
+    // A written key replaces its default whole, and leaves the other key at its default.
+    let narrowed = granting("[fs]\nread = []\n", &disk);
+    let written = Authority::new(Some(&narrowed), Run::cli(Some(&folder)));
+    assert!(!reads(&written, "/srv/app/index.nvs"));
+    assert!(writes(&written, "/etc/passwd"));
 }

@@ -64,6 +64,7 @@ kept
 --FILE nvs.toml--
 [capabilities.fs]
 read = ["."]
+write = []
 --EXPECT--
 seed.txt: readable
 paths: 2, refused: 2, naming fs.write: 2

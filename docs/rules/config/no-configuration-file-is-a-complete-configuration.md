@@ -1,7 +1,7 @@
 When no `--config` is given and neither `./nvs.toml` nor the data folder's `nvs.toml` exists, the host
 runs on the **shipped defaults**, and
-those are a complete and valid configuration rather than a failure to find one: capabilities
-deny-all, `[mode] default = "production"`, and every limit at its documented default. The boot log says
+those are a complete and valid configuration rather than a failure to find one: every capability at
+its default, `[mode] default = "production"`, and every limit at its documented default. The boot log says
 so in one line. They stay the configuration whenever a project command could not write the data
 folder's `nvs.toml` (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`).
 
@@ -45,10 +45,24 @@ that block is written. `set` and `restore` behave as on any host: `set` is bound
 at all — a test context, an embedder that has not built a snapshot — has no tree and no defaults:
 `get` is `null`, `all` is empty, `set` is `false` and `restore` does nothing.
 
+**An unwritten `fs.read` or `fs.write` is every path on a CLI run.** In server work an unwritten
+`fs.read` is the app folder, less every path with a component below it that starts with `.` (`.env`,
+`.git/config`) and every file named `nvs.toml`, and an unwritten `fs.write` is the directories
+`Core\IO::temporaryDir` made for this context, which it also reads. A written key replaces its
+default whole, so `read = []` reads nothing and leaves writing at its default. Every other
+capability defaults to nothing (`rule:security/capability-question-is-grant-and-scope`). `nvs serve`
+names, in one boot line per app folder whose tree writes no `fs.read`, the folder its requests read.
+
+- **Memory:** the app folder is one path per context, and the temporary directories are the list
+  the context already keeps for its sweep (`rule:core-classes/temporary-dir-sweep`). It buys
+  **Simplicity**: a first program reads and writes its files with no `nvs.toml`, while a server
+  never writes beside code it would run, never reads its own secrets, and one request cannot reach
+  another's directory.
+
 The one distinction the shipped defaults keep is between *no tree* and *a tree that grants nothing*:
 a program checked outside any project root has no configuration to be measured against, while a tree
-that was read and says nothing about capabilities is an operator's written `no`. The offline audit
-reports the first as a tree of zero files.
+that was read and writes a capability's key as `[]` is an operator's written `no`. A context handed
+no configuration at all grants nothing. The offline audit reports the first as a tree of zero files.
 
 **A `[block]` header with no key under it says nothing, and the resolver drops it before the tree is
 typed**, at any depth and for a named block as much as a fixed one: `[metrics]` alone is no

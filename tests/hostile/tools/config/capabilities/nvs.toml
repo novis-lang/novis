@@ -1,3 +1,4 @@
 # The attack may read files in the `data` directory beside this file, and nothing else.
 [capabilities.fs]
 read = ["data"]
+write = []

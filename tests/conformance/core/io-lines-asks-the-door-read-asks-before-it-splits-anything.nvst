@@ -76,6 +76,12 @@ echo "lines seen: ", $linesSeen as string, "\n";
 one
 two
 three
+--FILE nvs.toml--
+# Both file keys are written empty, so nothing is granted. A command-line run
+# reads and writes every file when the keys are not written.
+[capabilities.fs]
+read = []
+write = []
 --EXPECT--
 paths: 3
 refused: 6

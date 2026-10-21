@@ -11,6 +11,10 @@ The decision procedure is pure — a snapshot, a capability, an argument and the
 The run is whether this is server work and its app folder, the folder of the entry file it started
 from or the `root` of the most specific `[[app]]` block over that file. A key the snapshot writes is
 the whole grant. A key it does not write takes its default for that run, from the configuration
-crate's table of defaults. Every default grants nothing. The procedure takes no
+crate's table of defaults. On a CLI run `fs.read` and `fs.write` default to every path. In server
+work `fs.read` defaults to the app folder, less every path with a component below it that starts
+with `.` and every `nvs.toml`, and `fs.write` to the directories `Core\IO::temporaryDir` made for
+this context, which the context hands the procedure with the run; both of those read too. Every
+other default grants nothing. The procedure takes no
 context, throws nothing, and is therefore testable without a compiler in front of it. Holding a
 capability is not a promise about any one argument; the scope is asked every time.

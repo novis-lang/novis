@@ -1792,7 +1792,8 @@ fn a_changed_included_file_reaches_the_next_request() {
 const READ_GRANT: &str = "[capabilities.fs]\nread = [\"data\"]\n";
 
 /// `[capabilities]` reloads: a call a grant allowed fails in the next request
-/// once a reload removes the grant.
+/// once a reload removes the grant. The reloaded tree writes `read` empty,
+/// because server work reads its app folder when the key is not written.
 #[test]
 fn a_grant_a_reload_removes_fails_the_next_call() {
     let server = Server::start(
@@ -1810,7 +1811,11 @@ fn a_grant_a_reload_removes_fails_the_next_call() {
         answer.status == 200 && answer.body == "hello"
     });
 
-    server.reload("");
+    server.reload(
+        "[capabilities.fs]
+read = []
+",
+    );
     let refused = server.awaits("/", "the read failing without the grant", |answer| {
         answer.status != 200
     });

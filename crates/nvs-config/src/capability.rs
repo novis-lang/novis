@@ -261,6 +261,9 @@ pub struct Run<'a> {
     pub serving: bool,
     /// The app folder, or `None` where the run has no entry file to take one from.
     pub folder: Option<&'a Path>,
+    /// The directories `Core\IO::temporaryDir` made for this context, canonical. Empty for an
+    /// asker with no context, which then meets the narrower default.
+    pub temporary: &'a [PathBuf],
 }
 
 impl<'a> Run<'a> {
@@ -270,6 +273,7 @@ impl<'a> Run<'a> {
         Self {
             serving: false,
             folder,
+            temporary: &[],
         }
     }
 
@@ -279,7 +283,39 @@ impl<'a> Run<'a> {
         Self {
             serving: true,
             folder,
+            temporary: &[],
         }
+    }
+
+    /// This run, with `temporary` as the directories its context made.
+    #[must_use]
+    pub fn with_temporary(self, temporary: &'a [PathBuf]) -> Self {
+        Self { temporary, ..self }
+    }
+
+    /// Whether the canonical `path` is one [`crate::defaults::Granted::AppFolder`] covers: inside
+    /// the app folder with no component below it that starts with `.` and none named `nvs.toml`,
+    /// or inside one of this run's temporary directories.
+    ///
+    /// The name is compared without case, so `NVS.TOML` on a filesystem that ignores case is
+    /// refused too. Refusing it on one that does not is the safe direction.
+    fn reads_by_default(&self, path: &Path) -> bool {
+        let inside = self
+            .folder
+            .and_then(|folder| path.strip_prefix(folder).ok())
+            .is_some_and(|below| {
+                below.components().all(|part| {
+                    let part = part.as_os_str().to_string_lossy();
+                    !part.starts_with('.') && !part.eq_ignore_ascii_case("nvs.toml")
+                })
+            });
+        inside || self.writes_by_default(path)
+    }
+
+    /// Whether the canonical `path` is inside one of this run's temporary directories:
+    /// [`crate::defaults::Granted::Temporary`].
+    fn writes_by_default(&self, path: &Path) -> bool {
+        self.temporary.iter().any(|dir| path.starts_with(dir))
     }
 }
 
@@ -312,26 +348,62 @@ impl<'a> Authority<'a> {
         Self { written, run }
     }
 
+    /// This authority, with `temporary` as the directories its context made: what a door with a
+    /// context in hand asks, so [`crate::defaults::Granted::Temporary`] covers them.
+    #[must_use]
+    pub fn with_temporary(self, temporary: &'a [PathBuf]) -> Self {
+        Self {
+            run: self.run.with_temporary(temporary),
+            ..self
+        }
+    }
+
     /// The default of `cap`, or `None` where `cap`'s key is written and the written grant answers.
     fn default_of(&self, cap: Cap) -> Option<crate::defaults::Granted> {
         let written = self.written.and_then(|caps| cap.grant(caps)).is_some();
         (!written).then(|| crate::defaults::capability(cap, self.run))
     }
 
+    /// Whether the default `granted` covers the canonical `path`.
+    fn default_covers(&self, granted: crate::defaults::Granted, path: &Path) -> bool {
+        use crate::defaults::Granted;
+
+        match granted {
+            Granted::Nothing => false,
+            Granted::Everything => true,
+            Granted::AppFolder => self.run.reads_by_default(path),
+            Granted::Temporary => self.run.writes_by_default(path),
+        }
+    }
+
     /// [`Capabilities::allows`], with the default where `cap` is not written.
     #[must_use]
     pub fn allows(&self, cap: Cap, scope: Scope<'_>, files: &dyn Files) -> bool {
-        match (self.default_of(cap), self.written) {
-            (Some(crate::defaults::Granted::Nothing), _) | (None, None) => false,
-            (None, Some(caps)) => caps.allows(cap, scope, files),
+        use crate::defaults::Granted;
+
+        match (self.default_of(cap), self.written, scope) {
+            (Some(Granted::Everything), _, _) => true,
+            (Some(granted), _, Scope::Path(path)) => {
+                resolved(path, files).is_some_and(|path| self.default_covers(granted, &path))
+            }
+            (Some(_), _, _) | (None, None, _) => false,
+            (None, Some(caps), _) => caps.allows(cap, scope, files),
         }
     }
 
     /// [`Capabilities::holds`], with the default where `cap` is not written.
+    ///
+    /// A default that covers part of the filesystem ([`crate::defaults::Granted::AppFolder`] and
+    /// [`crate::defaults::Granted::Temporary`]) has no list of written roots to give, so it holds
+    /// [`Grant::Nothing`] here. The caller is an extension's grant, which then gets no files by
+    /// default in server work.
     #[must_use]
     pub fn holds(&self, cap: Cap) -> Grant<'a> {
+        use crate::defaults::Granted;
+
         match (self.default_of(cap), self.written) {
-            (Some(crate::defaults::Granted::Nothing), _) | (None, None) => Grant::Nothing,
+            (Some(Granted::Everything), _) => Grant::Everything,
+            (Some(_), _) | (None, None) => Grant::Nothing,
             (None, Some(caps)) => caps.holds(cap),
         }
     }
@@ -340,7 +412,8 @@ impl<'a> Authority<'a> {
     #[must_use]
     pub fn allows_resolved(&self, cap: Cap, path: &Path) -> bool {
         match (self.default_of(cap), self.written) {
-            (Some(crate::defaults::Granted::Nothing), _) | (None, None) => false,
+            (Some(granted), _) => self.default_covers(granted, path),
+            (None, None) => false,
             (None, Some(caps)) => caps.allows_resolved(cap, path),
         }
     }
@@ -349,7 +422,8 @@ impl<'a> Authority<'a> {
     #[must_use]
     pub fn allows_host(&self, cap: Cap, host: &str) -> bool {
         match (self.default_of(cap), self.written) {
-            (Some(crate::defaults::Granted::Nothing), _) | (None, None) => false,
+            (Some(granted), _) => granted == crate::defaults::Granted::Everything,
+            (None, None) => false,
             (None, Some(caps)) => caps.allows_host(cap, host),
         }
     }
@@ -358,7 +432,8 @@ impl<'a> Authority<'a> {
     #[must_use]
     pub fn allows_name(&self, cap: Cap, name: &str) -> bool {
         match (self.default_of(cap), self.written) {
-            (Some(crate::defaults::Granted::Nothing), _) | (None, None) => false,
+            (Some(granted), _) => granted == crate::defaults::Granted::Everything,
+            (None, None) => false,
             (None, Some(caps)) => caps.allows_name(cap, name),
         }
     }

@@ -197,10 +197,15 @@ allows `development`, and returns `false` otherwise. `set("mode.ceiling", …)` 
 <!-- primer -->
 # `[capabilities]`
 
-A program can do nothing outside its own memory unless the configuration says so. Every effect —
-reading a file, writing one, starting another script — is guarded by a named capability, and the
-default for every one of them is **denied**: an absent block, a `false`, and an empty list all
-deny. The roster is closed:
+A program can do nothing outside its own memory unless the configuration allows it. Every effect is
+guarded by a named capability: reading a file, writing one, starting another script.
+
+Files have their own defaults. A command-line run (`nvs run`, `nvs test`) may read and write every
+file. Server work may read the files in its app folder, but no dot-file (such as `.env`) and no
+`nvs.toml`. It may write only in the directories `Core\IO::temporaryDir` made for it.
+
+The default for every other capability is **denied** until a grant is written. A written key
+replaces its default, so `false` and an empty list both deny. The roster is closed:
 
 | Capability | Guards | Scope of a grant |
 |---|---|---|
@@ -225,7 +230,7 @@ A grant is spelled one of three ways, and a dotted key is the same as a nested b
 ```toml
 [capabilities.fs]
 read = ["data", "/var/app/uploads"]   # these roots, resolved against this file's directory
-write = false                         # denied (the same as leaving it out)
+write = false                         # denied (the same as an empty list)
 
 [capabilities]
 script.spawn = true                   # unrestricted
@@ -241,6 +246,7 @@ and the argument — so a program can catch it and carry on, unlike a limit brea
 ```toml file=nvs.toml
 [capabilities.fs]
 read = ["data"]
+write = []
 ```
 ```txt file=data/greeting.txt
 hello from data

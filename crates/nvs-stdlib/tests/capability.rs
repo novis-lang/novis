@@ -30,12 +30,14 @@ use nvs_config::capability::{Cap, Scope};
 use nvs_config::resolve::{Disk, Files};
 use nvs_config::tree::{CapFs, Capabilities, Setting};
 
-/// The capabilities a test grants: `fs.read` under `roots` and nothing else at all.
+/// The capabilities a test grants: `fs.read` under `roots` and nothing else at all. `write` is
+/// written empty, because a context with a configuration and no run kind writes every file when
+/// the key is not written.
 fn reading(roots: &[&str]) -> Capabilities {
     Capabilities {
         fs: Some(CapFs {
             read: Some(Setting::List(roots.iter().map(|&r| r.to_owned()).collect())),
-            write: None,
+            write: Some(Setting::List(Vec::new())),
         }),
         ..Capabilities::default()
     }

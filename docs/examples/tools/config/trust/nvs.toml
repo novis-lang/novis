@@ -2,3 +2,7 @@
 # Only the account that runs the server may be able to change it.
 [limits]
 memory = "128M"
+
+# The program may not write any file.
+[capabilities.fs]
+write = []

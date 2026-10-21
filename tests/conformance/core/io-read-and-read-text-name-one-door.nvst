@@ -85,6 +85,12 @@ echo "naming fs.read: ", $namingFsRead as string, "\n";
 echo "refused by the conversion instead: ", $refusedByTheConversion as string, "\n";
 --FILE note.txt--
 café
+--FILE nvs.toml--
+# Both file keys are written empty, so nothing is granted. A command-line run
+# reads and writes every file when the keys are not written.
+[capabilities.fs]
+read = []
+write = []
 --EXPECT--
 paths: 3
 refused: 9
