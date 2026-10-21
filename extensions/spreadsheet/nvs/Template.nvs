@@ -24,15 +24,17 @@ final class Template
 
     private function constructor(
         private readonly Filling $filling,
-        private readonly tainted bytes|Core\IO\File $source,
+        private readonly bytes|Core\IO\File $source,
         private readonly ?Core\Time\Zone $zone,
     ) {
         $this->first = Core\Bytes::fill(0, 0);
     }
 
     /// `Template::open` opens the template in `$source`, the bytes of an xlsx or xlsm file or a file your program opened.
+    /// The filled file copies the formulas, links and sheets of the template without any change. For this reason, `$source` cannot be `tainted`, such as an uploaded file.
+    /// To fill an uploaded template, call `Core\Taint::assertTrusted` on its bytes first, with the reason you trust it.
     /// `zone` is the time zone for an `Instant`, such as `'Europe/Berlin'`. Without `zone`, an `Instant` throws an error.
-    public static function open(tainted bytes|Core\IO\File $source, Options $options = null): Template
+    public static function open(bytes|Core\IO\File $source, Options $options = null): Template
     {
         ?Core\Time\Zone $zone = null;
         ?string $zoneName = $options?->zone ?? null;

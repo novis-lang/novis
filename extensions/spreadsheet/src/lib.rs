@@ -90,9 +90,6 @@
 //! - Engine exports (`guest`): the reader exports do not check that `source` is the file
 //!   `readerOpen` read. `readerRows` with `max` 0 returns `done: false`. Each `readerProperties`
 //!   call counts against the reading's byte bound.
-//! - Extension contagion does not reach a shape's fields (`crates/nvs-types/src/expr/quals.rs`,
-//!   `rule:security/extension-contagion`), which is why `nvs/Reader.nvs` writes its `tainted`
-//!   types by hand. That is a compiler fix.
 //! - Cost: `Template::open` costs about 2.6 ms and 1.1 MB on a tiny template, and one `set` about
 //!   1.3 ms and 600 KB. 20,000 merges take about 15 s in a debug build. A request keeps every
 //!   extension resource until it ends (`crates/nvs-ext/src/call.rs`), so some hundreds of

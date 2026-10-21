@@ -17,7 +17,7 @@ final class Reader
     type Table = {table: tainted string, name: tainted string, sheet: tainted string};
     type Image = {at: tainted string, image: tainted bytes, format: tainted string, link: ?tainted string};
     type Properties = {title: ?tainted string, subject: ?tainted string, author: ?tainted string, company: ?tainted string, keywords: ?tainted string, created: ?Core\Time\Instant};
-    type Read = {text: string}|{integer: int}|{number: float}|{boolean: bool}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{error: CellError};
+    type Read = {text: tainted string}|{integer: int}|{number: float}|{boolean: bool}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{error: CellError};
     type Asked = {sheet: string, headerRow: ?uint, from: ?uint, limit: ?uint, columns: array<string>, text: array<string>, textAll: bool, formulas: bool, keepEmptyRows: bool, fillMerged: bool, skipHidden: bool, locale: string};
 
     // `$reader` is `null` for a CSV file. `$csv` is the text of CSV bytes, and `$skip` is the length of a byte order mark at the start of a CSV file.
@@ -477,7 +477,7 @@ final class Reader
         throw new LogicError("The option `{$option}` is `'{$usual}'` or `'{$other}'`, not `'{$given}'`.");
     }
 
-    private static function value(?Read $value, ?string $formula, ?tainted string $display, bool $formulas, Core\Time\Zone $zone): mixed
+    private static function value(?Read $value, ?tainted string $formula, ?tainted string $display, bool $formulas, Core\Time\Zone $zone): mixed
     {
         if ($display != null) {
             return $display;
@@ -497,7 +497,7 @@ final class Reader
 
     private static function plain(?Read $value, Core\Time\Zone $zone): mixed
     {
-        if ($value is tainted {text: string}) {
+        if ($value is {text: tainted string}) {
             return $value->text;
         }
         if ($value is {integer: int}) {

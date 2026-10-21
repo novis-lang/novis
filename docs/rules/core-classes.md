@@ -5084,7 +5084,11 @@ columns, and references to other sheets — and leaves every other character of 
 **`->set('Summary!B2', $value)`** fills one cell by address, by the same write table, before `fill`.
 `fill` returns an `Export`, so the target is the last call: `->download($name)`, `->save($path)`,
 `->to($file)` or `->bytes()`. The source is a `Core\IO\File` or `bytes`, read as
-[`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream) reads one. **An xlsm template gives xlsx**: the
+[`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream) reads one. **The source is never `tainted`:** the
+filled file carries the template's own formulas, links and sheets unescaped, so filling is safe only
+with a template the program trusts. A program filling an upload says so with
+`Core\Taint::assertTrusted($bytes, $reason)` itself, and with a plain source no taint reaches the
+written file, so the `Export` stays plain `bytes`. **An xlsm template gives xlsx**: the
 `vbaProject` part and its relationship are dropped, and the content type is the xlsx one
 ([`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert)). Two fills of equal input are byte-equal.
 
@@ -5111,6 +5115,9 @@ shared formula (`<f t="shared">`) in a repeated row is copied as it is, so its c
   text substituted into a formula is the injection the formula rule closes.
 - **`umya-spreadsheet` as the filler.** It loads the whole workbook into an editable model, which is
   the memory a template with a long list must not cost.
+- **`Template::open` taking `tainted bytes`.** An uploaded template's formulas and external links
+  reach the filled file as written, and taint flowing through the engine would make every export
+  `tainted bytes`; the one explicit `assertTrusted` at the upload is the honest place for the trust.
 - **Keeping the macros of an xlsm template.** The writer emits no executable content
   ([`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert)).
 

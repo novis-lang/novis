@@ -24,8 +24,7 @@
 //!   other parameter is [`Qual::Contagious`] (`rule:security/extension-contagion`): a `tainted`
 //!   argument is accepted, and every `string` and `bytes` in the result is `tainted`, the fields
 //!   of a shape included ([`MethodSig::contagious_return`]). A result with neither in it refuses
-//!   the argument, as a `Core` row's does. A built-in component's engine keeps a `Core` row's
-//!   reach, which stops at a shape.
+//!   the argument, as a `Core` row's does. A built-in component's engine is no exception.
 //! - A method with `"source": true` returns its type made `tainted`, the fields of a shape
 //!   included, so its result is `tainted` whatever its arguments are.
 //! - A `secret` argument is refused at every parameter, sink or not, because neither mark is
@@ -330,10 +329,7 @@ fn method_sig(
         type_params: Vec::new(),
         type_bounds: Vec::new(),
         return_ty: if method.source { tainted } else { returns },
-        // A built-in component's engine is called only from that component's own Novis source
-        // (`rule:packaging/a-components-engine-class-is-internal`), whose public signatures say
-        // what is `tainted`, so its contagion stays `tainted_result`'s, which stops at a shape.
-        contagious_return: (manifest.builtin.is_none() && tainted != returns).then_some(tainted),
+        contagious_return: (tainted != returns).then_some(tainted),
         // An extension declares one class of `static` methods and nothing else
         // (`rule:classes/no-free-functions-or-constants`).
         is_static: true,
