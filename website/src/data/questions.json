@@ -1347,10 +1347,10 @@
   },
   "/reference/config/capabilities/": {
     "feature": "tools:config/capabilities",
-    "hash": "38929a5a738ed7b9",
+    "hash": "55f5bc1647755c6d",
     "questions": [
       "How do I allow a program to read files from a folder?",
-      "Why does writing a file throw a permission error?",
+      "Why does writing a file throw a RuntimeError about a capability?",
       "Let a script connect only to certain hosts",
       "Allow running another program or starting a subprocess",
       "Restrict which directories a script may write to",
@@ -1513,7 +1513,7 @@
   },
   "/reference/config/network-grants-the-addresses-and-endpoints-they-reach/": {
     "feature": "tools:config/network-grants-the-addresses-and-endpoints-they-reach",
-    "hash": "e99bd2564a3e7a12",
+    "hash": "7932e7f19e4197f5",
     "questions": [
       "Which hosts may my program connect to?",
       "Why is my connection to a private IP address blocked?",
@@ -1548,14 +1548,14 @@
   },
   "/reference/config/reading-and-changing-it-from-a-program-core-config/": {
     "feature": "tools:config/reading-and-changing-it-from-a-program-core-config",
-    "hash": "588f53203ea4411f",
+    "hash": "883f64551488f063",
     "questions": [
       "How do I read a setting from my program?",
       "Change a setting for the current request only",
       "Undo a setting change made earlier in the request",
       "List every setting in effect from my code",
       "Why does changing a setting from code return false?",
-      "What value do I get for a setting the file does not set?"
+      "What value do I get for a setting the file does not have?"
     ]
   },
   "/reference/config/schedule/": {
@@ -3495,7 +3495,7 @@
   },
   "/reference/core/config/set/": {
     "feature": "Core\\Config::set",
-    "hash": "aef8f189be49f560",
+    "hash": "d6ef455e704012c1",
     "questions": [
       "How do I change a configuration setting at runtime?",
       "Raise the memory limit for one request",
@@ -5215,13 +5215,13 @@
   },
   "/reference/core/http-client/post/": {
     "feature": "Core\\Http\\Client::post",
-    "hash": "a79c1cdc0a76d39e",
+    "hash": "59f48aa4f7548aef",
     "questions": [
       "How do I send JSON to an API?",
       "Submit form data to another server",
       "Send a POST request",
       "Retry a payment request without charging twice",
-      "Upload data with a POST request",
+      "Send raw bytes as the body of a POST request",
       "Can my program call any public API without configuration?"
     ]
   },
@@ -5998,13 +5998,14 @@
   },
   "/reference/core/io/writestream/": {
     "feature": "Core\\IO::writeStream",
-    "hash": "991470a36a82539f",
+    "hash": "0f4349e2a31d3393",
     "questions": [
       "How do I save a large upload to disk without using much memory?",
       "Write a file from chunks of data",
       "Stream a download straight into a file",
       "Limit the maximum size of a file being written",
-      "Avoid half-written files when a write fails"
+      "Avoid half-written files when a write fails",
+      "Which folders may a server program stream a file into?"
     ]
   },
   "/reference/core/io-file/": {
@@ -10552,13 +10553,13 @@
   },
   "/reference/core/process/spawn/": {
     "feature": "Core\\Process::spawn",
-    "hash": "51786748abe1ec2a",
+    "hash": "ad8f64f47af622ba",
     "questions": [
       "How do I start a program in the background and keep going?",
       "Read a program's output while it is still running",
       "Start a long-running program and talk to it",
       "Send lines to a program and read them back",
-      "Start a program without waiting for it to end"
+      "Why does starting a program on my server throw an error?"
     ]
   },
   "/reference/core/process-handle/": {
@@ -12206,13 +12207,13 @@
   },
   "/reference/core/response/sendfile/": {
     "feature": "Core\\Response::sendFile",
-    "hash": "8c73f025fb6d6ef5",
+    "hash": "6d92f00bf13e1228",
     "questions": [
       "How do I send a file from disk to the browser?",
       "Offer a file for download",
       "Serve a large file without loading it into memory",
       "Give a downloaded file its own name",
-      "Does sending a file support partial range requests?",
+      "Let a browser resume a download or jump inside a video",
       "Which files may a request send without a permission?"
     ]
   },
