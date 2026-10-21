@@ -22,7 +22,7 @@ traps = 8                 # the most playbook bullets the pack prints, nearest t
 
 [loop]
 min_free_gb = 10          # `nv disk`'s MIN_FREE_GB
-sweep = "every"
+sweep = "done"           # a goal is verified once, at its end, so its checks run only on a DONE claim
 
 [verify]
 run = [["bun", "nv", "verify"]]
