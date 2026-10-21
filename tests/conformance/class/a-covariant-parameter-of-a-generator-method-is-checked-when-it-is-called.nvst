@@ -1,0 +1,85 @@
+--TEST--
+A `covariant` parameter of a generator method is tested when the method is called, before it returns its iterator, and a value of the wider type throws a `LogicError` — for a plain, a variadic and a static parameter — `rule:classes/a-covariant-type-is-checked-where-a-value-enters`
+--FILE--
+<?nvs
+class Animal {}
+class Dog extends Animal {
+    public function name(): string { return "dog"; }
+}
+class Cat extends Animal {}
+
+class Shelter {
+    public function each(Animal $a): Iterator<string> { yield "animal"; }
+    public function all(Animal ...$all): Iterator<string> {
+        foreach ($all as Animal $a) {
+            yield "animal";
+        }
+    }
+    public static function one(Animal $a): Iterator<string> { yield "animal"; }
+    public static function call(Animal $a): Iterator<string> { return static::one($a); }
+}
+
+class DogShelter extends Shelter {
+    public function each(covariant Dog $a): Iterator<string> {
+        yield $a->name();
+        yield "again";
+    }
+    public function all(covariant Dog ...$all): Iterator<string> {
+        foreach ($all as Dog $a) {
+            yield $a->name();
+        }
+    }
+    public static function one(covariant Dog $a): Iterator<string> { yield $a->name(); }
+}
+
+// A `Dog` runs the generator, and its body reads the parameter as a `Dog`.
+Shelter $s = new DogShelter();
+foreach ($s->each(new Dog()) as string $x) {
+    echo $x, "\n";
+}
+
+// 1. A `Cat` through the parent's type throws at the call, before the first element.
+try {
+    Iterator<string> $it = $s->each(new Cat());
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo "1: ", $e->message, "\n";
+}
+
+// 2. A variadic parameter tests each argument.
+foreach ($s->all(new Dog(), new Dog()) as string $x) {
+    echo $x, "\n";
+}
+try {
+    foreach ($s->all(new Dog(), new Cat()) as string $x) {
+        echo $x, "\n";
+    }
+} catch (LogicError $e) {
+    echo "2: ", $e->message, "\n";
+}
+
+// 3. A static method, called through `static::` in the parent.
+try {
+    foreach (DogShelter::call(new Cat()) as string $x) {
+        echo $x, "\n";
+    }
+} catch (LogicError $e) {
+    echo "3: ", $e->message, "\n";
+}
+
+// 4. A variadic generator without `covariant` receives every argument.
+Shelter $plain = new Shelter();
+foreach ($plain->all(new Cat(), new Dog()) as string $x) {
+    echo $x, "\n";
+}
+// covers: lang:classes/covariant
+--EXPECT--
+dog
+again
+1: The parameter `$a` of `DogShelter::each` has the type `Dog`. The argument is an object of class `Cat`.
+dog
+dog
+2: The parameter `$all` of `DogShelter::all` has the type `Dog`. One of the arguments is an object of class `Cat`.
+3: The parameter `$a` of `DogShelter::one` has the type `Dog`. The argument is an object of class `Cat`.
+animal
+animal
