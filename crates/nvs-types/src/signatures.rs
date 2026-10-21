@@ -158,11 +158,10 @@ pub struct MethodSig {
     /// parameter carried `tainted`, when the signature says so itself; `None`
     /// answers `crate::expr::quals::tainted_result` of [`Self::return_ty`].
     ///
-    /// Only a method of an extension the configuration loads writes one
-    /// (`rule:security/extension-contagion`), and a built-in component's engine
-    /// does not: its declared return with `tainted` on every `string` and
-    /// `bytes`, the fields of a shape included, which `tainted_result` does not
-    /// reach into.
+    /// Only an extension method writes one, a built-in component's engine
+    /// included (`rule:security/extension-contagion`): its declared return with
+    /// `tainted` on every `string` and `bytes`, the fields of a shape included,
+    /// which `tainted_result` does not reach into.
     /// `crate::ext_lib` owns why a shape is reached there and nowhere else, and
     /// leaves it `None` for a return with no `string` or `bytes` in it, which
     /// refuses a `tainted` argument as every such signature does. A `Some`

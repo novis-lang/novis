@@ -1,5 +1,5 @@
 <?nvs
-// Attack: a request uploads a file that is not an Excel workbook, or a workbook that is cut short or changed.
+// Attack: the template is a file that is not an Excel workbook, or a workbook that is cut short or changed.
 // `Template::open` or the first write should throw an error, and the program should keep running.
 use Novis\Spreadsheet\Template;
 use Novis\Spreadsheet\Workbook;

@@ -18,8 +18,9 @@ reaches into a shape's fields, which a `Core` row's does not: an extension's rec
 call, so every field of it is the call's output. Each method's `MethodSig::contagious_return` is
 that tainted result, and a result with no `string` or `bytes` in it refuses a `tainted` argument
 rather than dropping the bit (`crates/nvs-types/tests/extensions.rs`). A built-in component's
-engine keeps the `Core` reach: only its own source calls it
-(`rule:packaging/a-components-engine-class-is-internal`), so its fields stay plain.
+engine is no exception, so a component's own source types what an upload's records carry as
+`tainted`: the cells `Novis\Spreadsheet\Reader` reads from a `tainted bytes` workbook are
+(`tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst`).
 
 **Declined:**
 - **Stripping qualifiers at the boundary.** Nothing to design and nothing to freeze into the extension
