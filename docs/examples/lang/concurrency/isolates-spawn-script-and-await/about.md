@@ -2,16 +2,13 @@
 `await $handle` waits for that file and returns its result.
 
 The result has four fields. `ok` is true when the file finished without an error. `value` is what the
-file returned, which you convert with `as`. `output` is what the file printed, when you asked to keep it
-with `output: "capture"`. `error` has the class name and the message when the file stopped with an
-error.
+file returned, and you convert it with `as`. `output` is what the file printed, when you wrote
+`output: "capture"`. `error` has the class name and the message when the file stopped with an error.
 
-A path written in quotes starts at the folder of the file that contains it. A path you
-build while the program runs must be a full path, or `spawn script` throws `RuntimeError`. Build one
-with `Core\Path::join`. You can also start a static method, written `Class::method(...)`. A static method and a file inside your
-application folder start with no capability. A file outside that folder needs the `script.spawn`
-capability. One handle can be awaited once. A second `await` of the same handle throws `LogicError`.
+A path in quotes starts at the folder of the file that contains it. A path you build at run time
+must be a full path, or `spawn script` throws `RuntimeError`. Build one with `Core\Path::join`. You
+can also start a static method, written `Class::method(...)`.
 
-**The examples below** show one file started and collected, two files running at the same time, a
-page written while a report is built next to it, a child's output printed at `await`, and values
-given to a child with `args:`.
+A static method and a file inside your application folder need no capability. A file outside that
+folder needs the `script.spawn` capability. You can await one handle once. A second `await` of the
+same handle throws `LogicError`.
