@@ -8312,7 +8312,7 @@
               },
               {
                 "error": "ParseError",
-                "descHtml": "A row did not match <code>T</code>: a column missing, a column of another type than the field declares, a SQL NULL in a field that is not <code>?T</code>, or a field whose declared type has no column mapping at all. Every bad column of the row is reported at once, in <code>issues</code>, each <code>path</code> the column's name."
+                "descHtml": "A row did not match <code>T</code>: a column missing, a column of another type than the property declares, a SQL NULL in a property that is not <code>?T</code>, or a property whose declared type has no column mapping at all. Every bad column of the row is reported at once, in <code>issues</code>, each <code>path</code> the column's name."
               }
             ]
           },
@@ -8580,7 +8580,7 @@
               },
               {
                 "error": "ParseError",
-                "descHtml": "A row did not match <code>T</code>: a column missing, a column of another type than the field declares, a SQL NULL in a field that is not <code>?T</code>, or a field whose declared type has no column mapping at all. Every bad column of that row is reported at once, in <code>issues</code>, each <code>path</code> the column's name — and the walk ends there, since the connection is left holding an unread portal."
+                "descHtml": "A row did not match <code>T</code>: a column missing, a column of another type than the property declares, a SQL NULL in a property that is not <code>?T</code>, or a property whose declared type has no column mapping at all. Every bad column of that row is reported at once, in <code>issues</code>, each <code>path</code> the column's name — and the walk ends there, since the connection is left holding an unread portal."
               },
               {
                 "error": "Core\\Db\\DbError",
@@ -9912,7 +9912,7 @@
               },
               {
                 "error": "ParseError",
-                "descHtml": "A row did not match <code>T</code>: a column missing, a column of another type than the field declares, a SQL NULL in a field that is not <code>?T</code>, or a field whose declared type has no column mapping at all. Every bad column of the row is reported at once, in <code>issues</code>, each <code>path</code> the column's name."
+                "descHtml": "A row did not match <code>T</code>: a column missing, a column of another type than the property declares, a SQL NULL in a property that is not <code>?T</code>, or a property whose declared type has no column mapping at all. Every bad column of the row is reported at once, in <code>issues</code>, each <code>path</code> the column's name."
               }
             ]
           },
@@ -10180,7 +10180,7 @@
               },
               {
                 "error": "ParseError",
-                "descHtml": "A row did not match <code>T</code>: a column missing, a column of another type than the field declares, a SQL NULL in a field that is not <code>?T</code>, or a field whose declared type has no column mapping at all. Every bad column of that row is reported at once, in <code>issues</code>, each <code>path</code> the column's name — and the walk ends there, since the connection is left holding an unread portal."
+                "descHtml": "A row did not match <code>T</code>: a column missing, a column of another type than the property declares, a SQL NULL in a property that is not <code>?T</code>, or a property whose declared type has no column mapping at all. Every bad column of that row is reported at once, in <code>issues</code>, each <code>path</code> the column's name — and the walk ends there, since the connection is left holding an unread portal."
               },
               {
                 "error": "Core\\Db\\DbError",
@@ -14655,7 +14655,7 @@
                 "descHtml": "How deep the document may nest. A deeper document throws an error. A scalar document is depth 1."
               }
             ],
-            "returnHtml": "A new <code>T</code> built from the document's fields, or one <code>T</code> per element for an <code>array&lt;T&gt;</code>. Every text field of <code>T</code> has to declare <code>tainted</code>, because these are octets another host chose and the field is where they land.",
+            "returnHtml": "A new <code>T</code> built from the document's fields, or one <code>T</code> per element for an <code>array&lt;T&gt;</code>. Every text property of <code>T</code> has to declare <code>tainted</code>, because these are octets another host chose and the property is where they land.",
             "errors": [
               {
                 "error": "LogicError",
@@ -17179,7 +17179,7 @@
           ],
           "returnType": "T",
           "doc": {
-            "shortHtml": "Parses the JSON object <code>$json</code> into an instance of <code>T</code>, a class carrying <code>#[Json\\Derive]</code>, reading every declared field and running the constructor only when all of them matched; write <code>array&lt;T&gt;</code> to read a JSON array as one instance per element instead. It replaces hand-written hydration.",
+            "shortHtml": "Parses the JSON object <code>$json</code> into an instance of <code>T</code>, a class carrying <code>#[Json\\Derive]</code>, reading every declared property and running the constructor only when all of them matched; write <code>array&lt;T&gt;</code> to read a JSON array as one instance per element instead. It replaces hand-written hydration.",
             "params": [
               {
                 "name": "json",
@@ -17877,7 +17877,7 @@
                 "descHtml": "How old the token's <code>auth_time</code> may be. A token carrying none is refused when this is named."
               }
             ],
-            "returnHtml": "An instance of the written type, decoded from the payload as <code>Core\\Json::decodeAs</code> decodes a document. Its text fields must be declared <code>tainted</code>, which the call site is held to: a signature proves who wrote a claim, not that it is safe for any sink.",
+            "returnHtml": "An instance of the written type, decoded from the payload as <code>Core\\Json::decodeAs</code> decodes a document. Its text properties must be declared <code>tainted</code>, which the call site is held to: a signature proves who wrote a claim, not that it is safe for any sink.",
             "errors": [
               {
                 "error": "LogicError",
@@ -35493,7 +35493,7 @@
                 "descHtml": "How deep the document may nest. The default is 512, and the value must be from 1 to 1024. A document with no array or object in it has depth 1."
               }
             ],
-            "returnHtml": "A new <code>T</code> with its fields read from the body, or one <code>T</code> for each element for an <code>array&lt;T&gt;</code>. Every call creates new objects, so two callers never get the same object.",
+            "returnHtml": "A new <code>T</code> with its properties read from the body, or one <code>T</code> for each element for an <code>array&lt;T&gt;</code>. Every call creates new objects, so two callers never get the same object.",
             "errors": [
               {
                 "error": "LogicError",
@@ -43344,7 +43344,7 @@
                 "descHtml": "How deep the document may nest. The default is 512, and the value must be from 1 to 1024. A document with no array or object in it has depth 1."
               }
             ],
-            "returnHtml": "A new <code>T</code> with its fields read from the body, or one <code>T</code> for each element for an <code>array&lt;T&gt;</code>. Every call creates new objects.",
+            "returnHtml": "A new <code>T</code> with its properties read from the body, or one <code>T</code> for each element for an <code>array&lt;T&gt;</code>. Every call creates new objects.",
             "errors": [
               {
                 "error": "LogicError",

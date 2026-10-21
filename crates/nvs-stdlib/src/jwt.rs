@@ -742,7 +742,7 @@ const VERIFY_ISSUED_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "An instance of the written type, decoded from the payload as `Core\\Json::decodeAs` \
-          decodes a document. Its text fields must be declared `tainted`, which the call site is \
+          decodes a document. Its text properties must be declared `tainted`, which the call site is \
           held to: a signature proves who wrote a claim, not that it is safe for any sink.",
     errors: &[
         ErrorDoc {

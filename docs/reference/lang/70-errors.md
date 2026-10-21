@@ -307,7 +307,7 @@ try {
 ```
 
 ```output
-Core\Arr::shapeAs(): 2 field(s) of `$shape{active,age,name}` did not match
+Core\Arr::shapeAs(): 2 value(s) of `$shape{active,age,name}` did not match
   active: expected bool, found a string
   age: expected int, found a string
 ```

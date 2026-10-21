@@ -1950,8 +1950,8 @@ const JSON_AS_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "A new `T` built from the document's fields, or one `T` per element for an `array<T>`. \
-          Every text field of `T` has to declare `tainted`, because these are octets another host \
-          chose and the field is where they land.",
+          Every text property of `T` has to declare `tainted`, because these are octets another \
+          host chose and the property is where they land.",
     errors: &[
         ErrorDoc {
             error: "LogicError",

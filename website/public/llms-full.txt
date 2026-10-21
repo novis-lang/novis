@@ -20634,7 +20634,7 @@ try {
 ```
 
 ```output
-Core\Arr::shapeAs(): 2 field(s) of `$shape{active,age,name}` did not match
+Core\Arr::shapeAs(): 2 value(s) of `$shape{active,age,name}` did not match
   active: expected bool, found a string
   age: expected int, found a string
 ```
@@ -32630,7 +32630,7 @@ Parses the JSON text `$json` into a value. A JSON object becomes a string-keyed 
 Core\Json::decodeAs<T>(string $json, {maxDepth?: uint}): T
 ```
 
-Parses the JSON object `$json` into an instance of `T`, a class carrying `#[Json\Derive]`, reading every declared field and running the constructor only when all of them matched; write `array<T>` to read a JSON array as one instance per element instead. It replaces hand-written hydration.
+Parses the JSON object `$json` into an instance of `T`, a class carrying `#[Json\Derive]`, reading every declared property and running the constructor only when all of them matched; write `array<T>` to read a JSON array as one instance per element instead. It replaces hand-written hydration.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -38899,7 +38899,7 @@ Reads the body of the answer as one JSON object and returns a new instance of th
 |---|---|---|
 | `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest. The default is 512, and the value must be from 1 to 1024. A document with no array or object in it has depth 1. |
 
-**Returns** `T` — A new `T` with its fields read from the body, or one `T` for each element for an `array<T>`. Every call creates new objects.
+**Returns** `T` — A new `T` with its properties read from the body, or one `T` for each element for an `array<T>`. Every call creates new objects.
 
 **Throws** `LogicError` — `T` has no `#[Core\Json\Derive]` attribute. Or `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON object, or it nests deeper than `maxDepth`. An empty body throws this error too. It is also thrown when a field is missing or has the wrong type. The `issues` list has one entry for each wrong field. The `Content-Type` header is not checked.; `RecursionError` — The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep body within `maxDepth` does not throw this error.
 
@@ -40735,7 +40735,7 @@ Reads the request body as one JSON object and returns a new instance of the clas
 |---|---|---|
 | `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest. The default is 512, and the value must be from 1 to 1024. A document with no array or object in it has depth 1. |
 
-**Returns** `T` — A new `T` with its fields read from the body, or one `T` for each element for an `array<T>`. Every call creates new objects, so two callers never get the same object.
+**Returns** `T` — A new `T` with its properties read from the body, or one `T` for each element for an `array<T>`. Every call creates new objects, so two callers never get the same object.
 
 **Throws** `LogicError` — The program is not answering a request. Or `bodyStream` or `files` already read the body, and those two do not keep it. Or `T` has no `#[Core\Json\Derive]` attribute. Or `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON object, or it nests deeper than `maxDepth`. An empty body throws this error too. It is also thrown when a field is missing or has the wrong type. The `issues` list has one entry for each wrong field. The `Content-Type` header is not checked.; `RecursionError` — The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep body within `maxDepth` does not throw this error.; `RuntimeError` — The body is larger than `[limits] request_body`. The bytes past that limit are never stored.; `IOError` — The connection failed while the body arrived, or the client sent fewer bytes than its `Content-Length` said.
 
@@ -43399,7 +43399,7 @@ Verifies a token another party issued and answers its claims as the written type
 | `{nonce: …}` | `string` (default `null`, neutral) | The value the token's `nonce` claim must equal, compared in constant time. A token carrying none is refused when this is named. |
 | `{maxAge: …}` | `Core\Time\Duration` (default `null`) | How old the token's `auth_time` may be. A token carrying none is refused when this is named. |
 
-**Returns** `T` — An instance of the written type, decoded from the payload as `Core\Json::decodeAs` decodes a document. Its text fields must be declared `tainted`, which the call site is held to: a signature proves who wrote a claim, not that it is safe for any sink.
+**Returns** `T` — An instance of the written type, decoded from the payload as `Core\Json::decodeAs` decodes a document. Its text properties must be declared `tainted`, which the call site is held to: a signature proves who wrote a claim, not that it is safe for any sink.
 
 **Throws** `LogicError` — `leeway` is negative or wider than 5 minutes; the written type is a list, which no token's payload is; or the key is an `X25519` one, which verifies nothing.; `RuntimeError` — The token is not one this issuer's key signed, its header carries a parameter a verifier may not honour, or no key was found for it — one sentence for every way of not being verifiable; or it is authentic, and is outside its validity window or carries a registered claim that is not what was asked for, which names the claim.
 
@@ -44871,7 +44871,7 @@ The reply's body hydrated into an instance of `T` — `Core\Json::decodeAs` over
 |---|---|---|
 | `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest. A deeper document throws an error. A scalar document is depth 1. |
 
-**Returns** `T` — A new `T` built from the document's fields, or one `T` per element for an `array<T>`. Every text field of `T` has to declare `tainted`, because these are octets another host chose and the field is where they land.
+**Returns** `T` — A new `T` built from the document's fields, or one `T` per element for an `array<T>`. Every text property of `T` has to declare `tainted`, because these are octets another host chose and the property is where they land.
 
 **Throws** `LogicError` — `T` carries no `#[Json\Derive]` codec to decode into, or a `maxDepth` outside 1..=1024 was asked for.; `ParseError` — The body is not one whole JSON document at that depth — which includes a reply with no body at all and one that is not UTF-8 — or it is not the object `T` decodes from, or its fields are missing or of the wrong type. Every failed field is one issue on the error, at its own path. What the reply declared as its `Content-Type` is not consulted either way.
 
@@ -46977,7 +46977,7 @@ Runs one statement as `query` does and returns each row as an object of the clas
 
 **Returns** `Core\Db\Rows<T>` — A `Core\Db\Rows<T>` holding one `T` per row, in the server's order. A row is built when it is handed out — by `all`, by `first` or by a `foreach` — so a result that is only counted constructs nothing.
 
-**Throws** `LogicError` — The type argument is an `array<...>`, which a result set already is one row per row of; or `T` carries no `#[Db\Derive]`, so there is no column mapping to build it from. Both are properties of the call site and would be compile-time diagnostics if either type band had a code left.; `ParseError` — A row did not match `T`: a column missing, a column of another type than the field declares, a SQL NULL in a field that is not `?T`, or a field whose declared type has no column mapping at all. Every bad column of the row is reported at once, in `issues`, each `path` the column's name.
+**Throws** `LogicError` — The type argument is an `array<...>`, which a result set already is one row per row of; or `T` carries no `#[Db\Derive]`, so there is no column mapping to build it from. Both are properties of the call site and would be compile-time diagnostics if either type band had a code left.; `ParseError` — A row did not match `T`: a column missing, a column of another type than the property declares, a SQL NULL in a property that is not `?T`, or a property whose declared type has no column mapping at all. Every bad column of the row is reported at once, in `issues`, each `path` the column's name.
 
 <a id="core-core-db-connection-execute"></a>
 #### `Core\Db\Connection->execute`
@@ -47053,7 +47053,7 @@ Reads a result one row at a time as `stream` does, and builds each row into an o
 
 **Returns** `Core\Db\Stream<T>` — A walk over the statement's rows, each one built into `T`, in the server's order. Nothing has been read when this returns and the connection is busy from here, exactly as `stream` leaves it — and one `T` is held at a time, which is the whole difference from `queryAs`.
 
-**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it. A `T` that carries no `#[Db\Derive]` is refused here too, as the backstop under the compile-time diagnostic that already names it.; `ParseError` — A row did not match `T`: a column missing, a column of another type than the field declares, a SQL NULL in a field that is not `?T`, or a field whose declared type has no column mapping at all. Every bad column of that row is reported at once, in `issues`, each `path` the column's name — and the walk ends there, since the connection is left holding an unread portal.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight — or `timeout` passed with the walk still open — which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it. A `T` that carries no `#[Db\Derive]` is refused here too, as the backstop under the compile-time diagnostic that already names it.; `ParseError` — A row did not match `T`: a column missing, a column of another type than the property declares, a SQL NULL in a property that is not `?T`, or a property whose declared type has no column mapping at all. Every bad column of that row is reported at once, in `issues`, each `path` the column's name — and the walk ends there, since the connection is left holding an unread portal.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight — or `timeout` passed with the walk still open — which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-connection-transaction"></a>
 #### `Core\Db\Connection->transaction`
@@ -47175,7 +47175,7 @@ Runs one statement as `query` does and returns each row as an object of the clas
 
 **Returns** `Core\Db\Rows<T>` — A `Core\Db\Rows<T>` holding one `T` per row, in the server's order. A row is built when it is handed out — by `all`, by `first` or by a `foreach` — so a result that is only counted constructs nothing.
 
-**Throws** `LogicError` — The type argument is an `array<...>`, which a result set already is one row per row of; or `T` carries no `#[Db\Derive]`, so there is no column mapping to build it from. Both are properties of the call site and would be compile-time diagnostics if either type band had a code left.; `ParseError` — A row did not match `T`: a column missing, a column of another type than the field declares, a SQL NULL in a field that is not `?T`, or a field whose declared type has no column mapping at all. Every bad column of the row is reported at once, in `issues`, each `path` the column's name.
+**Throws** `LogicError` — The type argument is an `array<...>`, which a result set already is one row per row of; or `T` carries no `#[Db\Derive]`, so there is no column mapping to build it from. Both are properties of the call site and would be compile-time diagnostics if either type band had a code left.; `ParseError` — A row did not match `T`: a column missing, a column of another type than the property declares, a SQL NULL in a property that is not `?T`, or a property whose declared type has no column mapping at all. Every bad column of the row is reported at once, in `issues`, each `path` the column's name.
 
 <a id="core-core-db-transaction-execute"></a>
 #### `Core\Db\Transaction->execute`
@@ -47251,7 +47251,7 @@ Reads a result one row at a time as `stream` does, and builds each row into an o
 
 **Returns** `Core\Db\Stream<T>` — A walk over the statement's rows, each one built into `T`, in the server's order. Nothing has been read when this returns and the connection is busy from here, exactly as `stream` leaves it — and one `T` is held at a time, which is the whole difference from `queryAs`.
 
-**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it. A `T` that carries no `#[Db\Derive]` is refused here too, as the backstop under the compile-time diagnostic that already names it.; `ParseError` — A row did not match `T`: a column missing, a column of another type than the field declares, a SQL NULL in a field that is not `?T`, or a field whose declared type has no column mapping at all. Every bad column of that row is reported at once, in `issues`, each `path` the column's name — and the walk ends there, since the connection is left holding an unread portal.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight — or `timeout` passed with the walk still open — which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it. A `T` that carries no `#[Db\Derive]` is refused here too, as the backstop under the compile-time diagnostic that already names it.; `ParseError` — A row did not match `T`: a column missing, a column of another type than the property declares, a SQL NULL in a property that is not `?T`, or a property whose declared type has no column mapping at all. Every bad column of that row is reported at once, in `issues`, each `path` the column's name — and the walk ends there, since the connection is left holding an unread portal.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight — or `timeout` passed with the walk still open — which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-transaction"></a>
 #### `Core\Db\Transaction->transaction`

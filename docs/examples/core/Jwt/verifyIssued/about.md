@@ -9,7 +9,7 @@ All signature failures give the same message, so an attacker learns nothing from
 returns an empty or false value.
 
 The claims come back as the type between `<` and `>`, in the same way as `Core\Json::decodeAs`.
-Its text fields must be `tainted`. A valid signature proves who wrote a claim, not that it is safe
+Its text properties must be `tainted`. A valid signature proves who wrote a claim, not that it is safe
 to use in HTML or SQL.
 
 **The examples below** read the claims of a token, show a token for another application being
