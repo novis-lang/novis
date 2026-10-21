@@ -777,7 +777,7 @@
   },
   "/in-depth/concepts/checked-property-names/": {
     "feature": "in-depth/concepts/checked-property-names.mdx",
-    "hash": "9ee98cf4063df33e",
+    "hash": "d13c1ceefb9437f5",
     "questions": [
       "Can the compiler find a typo in a property name inside a string?",
       "How are dotted property names like customer.name checked?",
@@ -3945,7 +3945,7 @@
   },
   "/reference/core/db-connection/queryas/": {
     "feature": "Core\\Db\\Connection::queryAs",
-    "hash": "47e40f59f298df2c",
+    "hash": "c655a9eb5a6cbb9e",
     "questions": [
       "How do I map query rows to objects of my class?",
       "Read database rows straight into typed objects",
@@ -3978,7 +3978,7 @@
   },
   "/reference/core/db-connection/streamas/": {
     "feature": "Core\\Db\\Connection::streamAs",
-    "hash": "74d7051c79e3acee",
+    "hash": "1f89962423f7dacf",
     "questions": [
       "How do I read a large table as objects one row at a time?",
       "Stream query results into typed objects without loading them all",
@@ -4422,7 +4422,7 @@
   },
   "/reference/core/db-transaction/queryas/": {
     "feature": "Core\\Db\\Transaction::queryAs",
-    "hash": "d250e34c20f44f51",
+    "hash": "469f55d157d2019c",
     "questions": [
       "How do I read rows as objects inside a transaction?",
       "Load typed objects from a query in a transaction",
@@ -4454,7 +4454,7 @@
   },
   "/reference/core/db-transaction/streamas/": {
     "feature": "Core\\Db\\Transaction::streamAs",
-    "hash": "71bb8fba0ae051c7",
+    "hash": "1ab1094f4ee8c11e",
     "questions": [
       "How do I read a large result as objects in a transaction?",
       "Build one object per row without loading every row",
@@ -5394,7 +5394,7 @@
   },
   "/reference/core/http-response/jsonas/": {
     "feature": "Core\\Http\\Response::jsonAs",
-    "hash": "f330c0363340783a",
+    "hash": "f6115f9c0d98a737",
     "questions": [
       "How do I decode a JSON API reply into a class?",
       "Turn a JSON response into typed objects",
@@ -6172,7 +6172,7 @@
   },
   "/reference/core/json/decodeas/": {
     "feature": "Core\\Json::decodeAs",
-    "hash": "8c3a89b3c0416266",
+    "hash": "8081e42802773c19",
     "questions": [
       "How do I read JSON straight into my own class?",
       "Fill an object from a JSON document",
@@ -6329,7 +6329,7 @@
   },
   "/reference/core/jwt/verifyissued/": {
     "feature": "Core\\Jwt::verifyIssued",
-    "hash": "7f31664cba811b5b",
+    "hash": "fcb9c07d0b2bbc1e",
     "questions": [
       "How do I check a token from a login provider?",
       "Validate an access token from another service",
@@ -9910,12 +9910,13 @@
   },
   "/reference/core/novis-spreadsheet-template/open/": {
     "feature": "Novis\\Spreadsheet\\Template::open",
-    "hash": "412a9a541c2e97d9",
+    "hash": "0e275369e36aa910",
     "questions": [
       "Open an xlsx template",
       "Fill the same template for each customer",
       "Write a date and time with a time zone into a template",
-      "Does an xlsm template keep its macros?"
+      "Does an xlsm template keep its macros?",
+      "Can I open a template that a user uploaded?"
     ]
   },
   "/reference/core/novis-spreadsheet-template/set/": {
@@ -11841,7 +11842,7 @@
   },
   "/reference/core/request/jsonas/": {
     "feature": "Core\\Request::jsonAs",
-    "hash": "55824cad13f03f97",
+    "hash": "3e3ccdf1e57094d0",
     "questions": [
       "How do I turn a JSON body into an object of my class?",
       "Validate incoming JSON fields and types",
@@ -14018,7 +14019,7 @@
   },
   "/reference/core/test-response/jsonas/": {
     "feature": "Core\\Test\\Response::jsonAs",
-    "hash": "9021b5c49db779e9",
+    "hash": "597cb8508dd34ecb",
     "questions": [
       "How do I turn an API reply into a class in a test?",
       "Read a JSON list from my endpoint into objects",

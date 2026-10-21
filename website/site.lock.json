@@ -11,7 +11,7 @@
     "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "94a4314639c860bb"
   },
   "syntax/attributes/json.mdx": {
-    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "fd9bcb9cc4a66cce"
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "766700383dcf52c1"
   },
   "syntax/attributes/routes.mdx": {
     "Core\\Router::dispatch": "70a8f50d45e32dc4",
@@ -48,10 +48,10 @@
     "lang:classes/declaring-a-class": "1c1899c154545430"
   },
   "syntax/classes/interfaces.mdx": {
-    "lang:classes/interfaces": "6442559f99e487d9"
+    "lang:classes/interfaces": "9f4b1a281095a243"
   },
   "syntax/classes/methods-and-inheritance.mdx": {
-    "lang:classes/inheritance": "ce756bd8ea3a6e67",
+    "lang:classes/inheritance": "e8c5fdb27428c9c5",
     "lang:classes/methods-self-static-and-parent": "29fe0990aa85b135"
   },
   "syntax/classes/objects.mdx": {
@@ -157,7 +157,7 @@
     "Core\\Script\\Finished": "d67e0a8d12713160",
     "IOError": "dcea56a0ab16c5c1",
     "lang:errors/constructing-and-subclassing": "a5bcb56442e41c11",
-    "lang:errors/properties-not-accessors": "d3130c9131ae73e4",
+    "lang:errors/properties-not-accessors": "26871e5d7b36a59d",
     "lang:errors/the-throwable-tree": "b3b80ca14f3b0a41",
     "LogicError": "cd5f4e4f9909071d",
     "ParseError": "745c7b0b84cecbaf",
