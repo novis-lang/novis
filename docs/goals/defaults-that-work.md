@@ -69,7 +69,7 @@ stages:
         rules: [security/secret-has-no-ambient-source, security/tainted-sources, core-api/reference-card, testing/feature-proofs]
   - id: 10
     title: a CLI run's own code may raise its memory limit, and the limit error names how
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/config.rs, crates/nvs-config/src/request.rs, crates/nvs-runtime/src/ctx/limits.rs, docs/rules/config/ceilings-are-their-own-directives.md]
     extra:
       context:
@@ -477,10 +477,10 @@ the bench, then a second writes the attack, each held to § *Text an end user re
 
 **Does:** decision 11 is on.
 
-- [ ] On a CLI run with no `[limits.hard] memory` written, `Core\Config::set('memory', ...)` raises the limit; server work is unchanged (`rule:config/ceilings-are-their-own-directives`). `crates/nvs-config/src/request.rs:359`, `crates/nvs-stdlib/src/config.rs:209`
-- [ ] A package may only lower its limit: recorded in `rule:security/package-authority-is-granted-one-line-at-a-time`. The check is goal `namespace-grants`' stage 3 checkpoint, unless `crates/nvs-config/src/grants.rs` already exists, in which case this stage adds it and ticks that checkpoint. `crates/nvs-stdlib/src/config.rs:209`
-- [ ] The memory-limit error names the program on a CLI run, `[limits] memory` and the `Core\Config::set` call (`rule:config/no-configuration-file-is-a-complete-configuration`). `crates/nvs-runtime/src/ctx/limits.rs:450`
-- [ ] Tests: a CLI raise past 128M, a server raise refused, and a written hard ceiling bounding a CLI raise. `crates/nvs-stdlib/src/config.rs:530`
+- [x] On a CLI run with no `[limits.hard] memory` written, `Core\Config::set('memory', ...)` raises the limit; server work is unchanged (`rule:config/ceilings-are-their-own-directives`). `crates/nvs-config/src/request.rs:359`, `crates/nvs-stdlib/src/config.rs:209`
+- [x] A package may only lower its limit: recorded in `rule:security/package-authority-is-granted-one-line-at-a-time`. The check is goal `namespace-grants`' stage 3 checkpoint, unless `crates/nvs-config/src/grants.rs` already exists, in which case this stage adds it and ticks that checkpoint. `crates/nvs-stdlib/src/config.rs:209`
+- [x] The memory-limit error names the program on a CLI run, `[limits] memory` and the `Core\Config::set` call (`rule:config/no-configuration-file-is-a-complete-configuration`). `crates/nvs-runtime/src/ctx/limits.rs:450`
+- [x] Tests: a CLI raise past 128M, a server raise refused, and a written hard ceiling bounding a CLI raise. `crates/nvs-stdlib/src/config.rs:530`
 
 ### 11. the repository's `nvs.toml`, the shipped `nvs.toml` and the examples show the new defaults
 
@@ -528,10 +528,44 @@ to a writing subagent, one after another. Then the gate runs once more.
 
 ### State
 
-Stages 1 to 9 are done. Stage 4 is committed without a green gate: its gate was stopped after a
-test hung. Stages 10 to 12 check with a build alone, and stage 13, the gate stage, verifies the goal.
+Stages 1 to 10 are done. Stage 4 is committed without a green gate: its gate was stopped after a
+test hung. Stages 11 and 12 check with a build alone, and stage 13, the gate stage, verifies the goal.
 
-**Stage 9 (`Core\Env::secret`), `a77e38609` and this session's commit:**
+**The last sweep's reds are green at HEAD.** `env-secret-proofs` passes when run now; the sweep's
+run found the roster without the member, which is the stale release binary again. The nightly's
+three `proofs` jobs ran on `afbb1edc2`, and their `site snippets` and `site stale` failures pass at
+HEAD. Its `site questions` reds are stage 12's.
+
+**Stage 10 (CLI memory), `1d56487ff`:**
+
+- `limits.hard.memory`'s row in `crates/nvs-config/src/defaults.rs` is the new
+  `Value::InheritServing("limits.memory")`: the `[limits]` value in server work, and nothing on a
+  CLI run. So `Request::ceiling` (`request.rs`) finds no bound and a CLI `set` checks only the
+  unit. `Core\Config::get('limits.hard.memory')` is `null` on a CLI run.
+- `Ctx::memory_breach` (`crates/nvs-runtime/src/ctx/limits.rs`) says "the program" or "the
+  request" (`memory_run`), and adds a line from `memory_help`: ``help: raise `memory` under
+  `[limits]` in nvs.toml, or call `Core\Config::set('memory', '<2x ceiling>M')` in the program``,
+  plus ``, up to `[limits.hard] memory` `` where a ceiling bounds the call.
+- The repository's `nvs.toml` writes `[limits.hard] memory = "512M"`, so attacks and examples keep
+  their bound, and the hostile block needs no new key.
+- Tests, each passed once: `a_cli_run_raises_its_memory_freely_until_a_hard_ceiling_is_written`
+  and `the_memory_limit_error_names_the_run_and_how_to_raise_it` (`crates/nvs-stdlib/src/config.rs`);
+  `an_unwritten_hard_ceiling_is_the_value_the_run_started_with` now runs as a request. Two tests in
+  `crates/nvs-config/tests/request.rs` were updated, and that file passes. Ten memory-ceiling
+  `.nvst` cases expect the new error with its help line, and
+  `config-unconfigured-host-answers-as-an-empty-configuration.nvst` shows `raise=ok`. All eleven
+  pass, as do the other eight cases that call `Core\Config::set('memory', ...)`.
+- Rules: `config/ceilings-are-their-own-directives` (the exception, the error text, two Declined
+  lines), `config/no-configuration-file-is-a-complete-configuration`, and
+  `security/package-authority-is-granted-one-line-at-a-time` (a package may only lower its limits;
+  the check stays `namespace-grants`' stage 3 checkpoint, since `crates/nvs-config/src/grants.rs`
+  does not exist). The shipped file's `[limits.hard]` comment says the same.
+- **Expected red at stage 13:** a Rust test or `.nvst` case outside those above that expects
+  `the request exceeded its memory limit` from a CLI run, or a CLI `set('memory', ...)` above the
+  start refused with no `[limits.hard]` written. `crates/nvs-host/src/group.rs:1343` uses the text
+  as an opaque string and is not affected.
+
+**Stage 9 (`Core\Env::secret`), `a77e38609` and the next commits:**
 
 - The member, its card, the rules and three `.nvst` cases landed in `a77e38609`. The WIP commit
   `54bbc5fd0` (the about page, three examples, the bench and the Rust test
@@ -788,15 +822,16 @@ questions of the capabilities and trust pages. They are restamped in this group.
 **No gate until stage 13.** Check with `cargo build` and `cargo clippy --all-targets -- -D
 warnings`, commit each slice, and name in the handoff the tests and cases you expect to go red.
 
-**Stage 10**, CLI memory (decision 11). On a CLI run with no `[limits.hard] memory` written, the
-application's own code may raise `memory` with `Core\Config::set`: the bound is in
-`crates/nvs-stdlib/src/config.rs:209`. The memory-limit error at
-`crates/nvs-runtime/src/ctx/limits.rs:450` names the program on a CLI run, `[limits] memory` and
-the `Core\Config::set` call. Record in `rule:config/ceilings-are-their-own-directives` that a
-package may only lower its limit, a checkpoint of goal `namespace-grants`' stage 3.
-
-**Stage 11** follows: the repository's `nvs.toml`, the shipped `nvs.toml`
-(`crates/nvs-config/src/default.toml:147`) and the examples show the new defaults.
+**Stage 11**: the repository's `nvs.toml`, the shipped `nvs.toml`
+(`crates/nvs-config/src/default.toml:147`) and the examples show the new defaults. Follow the
+stage's `**Split:**` line: an `Explore` subagent lists first, then two writing subagents. Besides
+the capability defaults, the list includes every page that says a program cannot raise its own
+memory limit or quotes `the request exceeded its memory limit`. These state it now:
+`docs/examples/config/limits/about.md`, `docs/examples/config/limits-hard/about.md`,
+`docs/examples/core/Config/set/about.md`,
+`docs/examples/tools/config/limits-and-limits-hard/` (its about page and example `01`),
+`docs/examples/tools/config/reading-and-changing-it-from-a-program-core-config/about.md`,
+`docs/reference/core/Config.md` and `docs/reference/tools/20-config.md`.
 
 **Proofs use the release binary.** `bun nv proofs --gate` reads the roster from
 `target/release/nvs.exe`. After adding a `Core` member, pass `--nvs target/debug/nvs.exe` or run
