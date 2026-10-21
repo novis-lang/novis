@@ -38,8 +38,10 @@
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
+use crate::capability::{Authority, Run};
 use crate::defaults;
 use crate::directive::{Class, lookup};
 use crate::mode;
@@ -62,18 +64,51 @@ pub struct Request {
     /// [`defaults::LIMITS_CPU_TIME`] or nothing ([`defaults::Value::Serving`]). `false` until
     /// [`serve`](Self::serve), and a clone carries it, so a child of server work is server work.
     serving: bool,
+    /// The app folder of the entry file this run started from ([`crate::app::folder`]), which a
+    /// capability default reads. `None` until [`set_folder`](Self::set_folder), and a clone carries
+    /// it, so an isolate takes its tree's folder. **What it spends:** one shared path per run.
+    folder: Option<Arc<Path>>,
 }
 
 impl Request {
     /// The view a request starts with: `base`, and nothing set. It is not server work until
-    /// [`serve`](Self::serve) says so.
+    /// [`serve`](Self::serve) says so, and has no app folder until
+    /// [`set_folder`](Self::set_folder).
     #[must_use]
     pub fn new(base: Arc<Snapshot>) -> Self {
         Self {
             base,
             overlay: BTreeMap::new(),
             serving: false,
+            folder: None,
         }
+    }
+
+    /// Stores the app folder of the entry file this run started from.
+    pub fn set_folder(&mut self, folder: Arc<Path>) {
+        self.folder = Some(folder);
+    }
+
+    /// The app folder, shared, for a host that carries it into a configuration it builds next.
+    #[must_use]
+    pub fn folder(&self) -> Option<&Arc<Path>> {
+        self.folder.as_ref()
+    }
+
+    /// The run a capability is asked for: whether it is server work, and its app folder.
+    #[must_use]
+    pub fn run(&self) -> Run<'_> {
+        Run {
+            serving: self.serving,
+            folder: self.folder.as_deref(),
+        }
+    }
+
+    /// What this run may do: the snapshot's `[capabilities]` and the default for every key it
+    /// does not write. Every door asks this.
+    #[must_use]
+    pub fn authority(&self) -> Authority<'_> {
+        Authority::new(self.base.config.capabilities.as_ref(), self.run())
     }
 
     /// Marks this run as server work. It never goes back: nothing a server run starts is a CLI

@@ -98,6 +98,19 @@ impl Ctx {
         }
     }
 
+    /// Stores the app folder of the entry file this run started from
+    /// ([`nvs_config::app::folder`]), which a capability default reads beside
+    /// whether the run is server work. Written once by the host, after
+    /// [`Self::set_config`] and before the program runs. It lives on the
+    /// configuration, as server work does, so every isolate of the tree takes
+    /// it with the configuration it copies. A context with no configuration
+    /// stores nothing: it grants nothing either.
+    pub fn set_app_folder(&mut self, folder: std::sync::Arc<std::path::Path>) {
+        if let Some(config) = self.config.as_mut() {
+            config.set_folder(folder);
+        }
+    }
+
     /// Moves `rule:concurrency/a-connection-is-a-root-isolate`
     /// 's socket onto the connection isolate's own context.
     ///
@@ -1374,6 +1387,44 @@ mod tests {
         #[expect(unsafe_code, reason = "the child is dropped before its parent")]
         let task = unsafe { request.child() };
         assert_eq!(task.run_kind(), RunKind::Request);
+    }
+
+    /// Every way a context makes another one carries its tree's app folder
+    /// and server work, which is what a capability default reads. A
+    /// configuration that replaces the one a context has keeps the folder.
+    #[test]
+    fn an_isolate_takes_its_trees_app_folder_and_run() {
+        let folder: std::sync::Arc<std::path::Path> =
+            std::path::Path::new("/srv/www/shop").into();
+        let mut job = Ctx::buffered();
+        job.set_config(std::sync::Arc::new(nvs_config::Snapshot::default()));
+        job.set_app_folder(std::sync::Arc::clone(&folder));
+        job.set_run_kind(RunKind::Job);
+        let wanted = nvs_config::capability::Run::server(Some(&folder));
+        let run_of = |ctx: &Ctx| ctx.config().map(|config| config.run().serving);
+        let folder_of = |ctx: &Ctx| ctx.config().and_then(nvs_config::Request::folder).cloned();
+        for child in [
+            job.isolate(OutputSink::Sink),
+            job.method_isolate(OutputSink::Sink),
+            job.handler_isolate(OutputSink::Sink),
+            job.placed_isolate().build(OutputSink::Sink),
+        ] {
+            assert_eq!(run_of(&child), Some(wanted.serving));
+            assert_eq!(folder_of(&child).as_deref(), wanted.folder);
+        }
+        // SAFETY: `task` is dropped at the end of this scope, before `job`,
+        // and nothing runs on it.
+        #[expect(unsafe_code, reason = "the child is dropped before its parent")]
+        let task = unsafe { job.child() };
+        assert_eq!(folder_of(&task).as_deref(), wanted.folder);
+        drop(task);
+
+        job.set_config(std::sync::Arc::new(nvs_config::Snapshot::default()));
+        assert_eq!(
+            job.config().map(nvs_config::Request::run),
+            Some(wanted),
+            "a new snapshot keeps the run's folder and server work"
+        );
     }
 
     #[test]

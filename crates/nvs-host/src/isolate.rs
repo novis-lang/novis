@@ -129,6 +129,10 @@ pub struct Isolate {
     /// `None` for every isolate whose context keeps the kind its constructor
     /// gave it.
     kind: Option<nvs_runtime::RunKind>,
+    /// The app folder of the entry file this run starts from —
+    /// [`Isolate::in_folder`], and `None` for every isolate whose context takes
+    /// its parent's.
+    folder: Option<std::sync::Arc<std::path::Path>>,
     /// The origin the door that accepted this request resolved for it —
     /// [`Isolate::at_origin`], and `None` for every isolate whose context takes
     /// its parent's answer.
@@ -218,6 +222,7 @@ impl Isolate {
             inbound: None,
             recording: None,
             kind: None,
+            folder: None,
             origin: None,
             peer: None,
             event_stream: None,
@@ -373,6 +378,19 @@ impl Isolate {
     #[must_use]
     pub fn running_as(mut self, kind: nvs_runtime::RunKind) -> Self {
         self.kind = Some(kind);
+        self
+    }
+
+    /// Runs this isolate with `folder` as its app folder, for a host that
+    /// starts it from an entry file: a request, a scheduled fire or a job.
+    ///
+    /// Stored on the child's configuration beside its kind of run, before its
+    /// program runs, so a capability default reads the folder of this entry
+    /// and not the one the parent's configuration carried
+    /// (`nvs_runtime::Ctx::set_app_folder`).
+    #[must_use]
+    pub fn in_folder(mut self, folder: std::sync::Arc<std::path::Path>) -> Self {
+        self.folder = Some(folder);
         self
     }
 
@@ -617,6 +635,7 @@ impl Isolate {
             inbound,
             recording,
             kind,
+            folder,
             origin,
             peer,
             event_stream,
@@ -715,6 +734,9 @@ impl Isolate {
         // regardless.
         if let Some(kind) = kind {
             isolate_ctx.set_run_kind(kind);
+        }
+        if let Some(folder) = folder {
+            isolate_ctx.set_app_folder(folder);
         }
         // The spawn site's own narrowings, on the child and before its first
         // statement — `rule:security/isolate-budget-is-the-trees`. Against

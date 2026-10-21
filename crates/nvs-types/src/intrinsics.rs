@@ -67,7 +67,9 @@
 //!   `None`, this pass says nothing about a host at all — the door is still
 //!   `nvs_runtime::capability::require` and § 4 holds either way. Which
 //!   commands hand one over, and why `nvs run` is deliberately not one of
-//!   them, is `nvs-cli`'s `front_end_granted`.
+//!   them, is `nvs-cli`'s `front_end_granted`. The grants are asked through
+//!   [`nvs_config::capability::Authority`] as a CLI run, the widest kind of
+//!   run, so the check refuses only a host that no run is granted.
 //! * **A refusal underlines the offset inside the pattern, where the grammar
 //!   that read it says where it was.** § 3 asks for the exact offset, and a
 //!   literal's own span cannot give it: that span covers the quotes and the
@@ -101,7 +103,7 @@
 //!   the answer a parsed CLDR pattern or a bound SQL statement would carry is
 //!   built at each call, and joining the roster is what would change that.
 
-use nvs_config::capability::Cap;
+use nvs_config::capability::{Authority, Cap, Run};
 use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{Arg, CallArgs, Expr, ExprKind};
@@ -668,7 +670,7 @@ pub(crate) fn check_call(
         // why an absent configuration says nothing instead of denying.
         Grammar::Host => {
             if let Some(grants) = env.grants
-                && !grants.allows_host(Cap::DbOpen, &text)
+                && !Authority::new(Some(grants), Run::cli(None)).allows_host(Cap::DbOpen, &text)
             {
                 report_ungranted(span, &text, env);
             }
@@ -678,7 +680,8 @@ pub(crate) fn check_call(
         // rather than denying.
         Grammar::QueueName => {
             if let Some(grants) = env.grants
-                && !grants.allows_name(Cap::QueuePurge, &text)
+                && !Authority::new(Some(grants), Run::cli(None))
+                    .allows_name(Cap::QueuePurge, &text)
             {
                 report_ungranted_queue(span, &text, env);
             }

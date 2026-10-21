@@ -7,6 +7,10 @@ runs and immutable for the request's whole life. Nothing on the request path re-
 configuration tree, so two checks in one request cannot disagree, and a reload between a program's
 first syscall and its second cannot widen or narrow what that program may do halfway through.
 
-The decision procedure is pure — a snapshot, a capability, an argument, a boolean. It takes no
+The decision procedure is pure — a snapshot, a capability, an argument and the run, then a boolean.
+The run is whether this is server work and its app folder, the folder of the entry file it started
+from or the `root` of the most specific `[[app]]` block over that file. A key the snapshot writes is
+the whole grant. A key it does not write takes its default for that run, from the configuration
+crate's table of defaults. Every default grants nothing. The procedure takes no
 context, throws nothing, and is therefore testable without a compiler in front of it. Holding a
 capability is not a promise about any one argument; the scope is asked every time.

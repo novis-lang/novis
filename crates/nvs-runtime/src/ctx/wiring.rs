@@ -413,6 +413,9 @@ impl Ctx {
     /// the CPU ceiling an unwritten `[limits] cpu_time` gives
     /// ([`nvs_config::Request::serves`]).
     ///
+    /// The app folder the configuration it replaces carried stays, for the same reason
+    /// ([`Self::set_app_folder`]).
+    ///
     /// The same answer decides the probes (`rule:testing/debug-mode-directive`). A context that is
     /// not server work arms the [`DebugFlags`] `[debug] mode` names, and drops the ones the
     /// configuration it replaces armed; a bit its host turned on itself stays on. Server work arms
@@ -426,6 +429,9 @@ impl Ctx {
         let mut config = nvs_config::Request::new(snapshot);
         if serving {
             config.serve();
+        }
+        if let Some(folder) = self.config.as_ref().and_then(nvs_config::Request::folder) {
+            config.set_folder(std::sync::Arc::clone(folder));
         }
         let replaced = self.config.as_ref().map_or(DebugFlags::empty(), armed_by);
         self.debug = (self.debug - replaced) | armed_by(&config);

@@ -21,6 +21,7 @@ use std::task::{Context, Poll, Waker};
 use std::thread;
 use std::time::Duration;
 
+use nvs_config::capability::{Authority, Run};
 use nvs_config::extension::Granted;
 use nvs_ext::call::{Answer, Budget, Host, Incoming, Level, Outbound, Outgoing, Unsent};
 use nvs_ext::grants::Caller;
@@ -230,7 +231,10 @@ impl Budget for Sending {
 
     fn caller(&self) -> Caller<'_> {
         Caller {
-            capabilities: self.snapshot.config.capabilities.as_ref(),
+            authority: Some(Authority::new(
+                self.snapshot.config.capabilities.as_ref(),
+                Run::default(),
+            )),
             narrowed: None,
         }
     }

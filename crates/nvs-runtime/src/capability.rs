@@ -244,14 +244,13 @@ pub fn granted(ctx: &Ctx, cap: Cap, scope: Scope<'_>) -> bool {
     // and beside the overlay rather than instead of it: the list a spawn site
     // wrote can only ever subtract, so a capability this context's own
     // configuration does not hold is not granted by being named in one.
+    // The configuration's authority adds the default for an unwritten key,
+    // read for this run's kind and app folder.
     ctx.grants_allow(cap)
         && ctx.config().is_some_and(|config| {
             config
-                .snapshot()
-                .config
-                .capabilities
-                .as_ref()
-                .is_some_and(|caps| caps.allows(cap, scope, &nvs_config::resolve::Disk))
+                .authority()
+                .allows(cap, scope, &nvs_config::resolve::Disk)
         })
 }
 
@@ -537,10 +536,7 @@ pub fn pinned_addresses(
     // skip the question.
     for &address in &addresses {
         let refused = match ctx.config() {
-            Some(config) => match config.snapshot().config.capabilities.as_ref() {
-                Some(caps) => caps.address_refused(address),
-                None => nvs_config::capability::denied_by_default(address),
-            },
+            Some(config) => config.authority().address_refused(address),
             None => nvs_config::capability::denied_by_default(address),
         };
         if let Some(range) = refused {
@@ -780,14 +776,9 @@ fn allow(
     };
     for &cap in caps {
         let allowed = ctx.grants_allow(cap)
-            && ctx.config().is_some_and(|config| {
-                config
-                    .snapshot()
-                    .config
-                    .capabilities
-                    .as_ref()
-                    .is_some_and(|grants| grants.allows_resolved(cap, &at))
-            });
+            && ctx
+                .config()
+                .is_some_and(|config| config.authority().allows_resolved(cap, &at));
         if !allowed {
             return Err(Fault::thrown(denial(cap, Scope::Path(path), member)));
         }

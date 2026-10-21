@@ -421,13 +421,14 @@ impl Drop for Calls {
 /// `Core\IO\File` is read through `nvs_stdlib::extension_file_range`. So a source is never copied
 /// whole as it crosses, and only the ranges the guest reads leave the program's memory.
 ///
-/// What it spends: one `Arc` of the request's snapshot, the `grants:` list of the isolate that
+/// What it spends: one copy of the request's configuration, which is an `Arc` of its snapshot and
+/// the few keys the request set for itself, the `grants:` list of the isolate that
 /// made the request, each logged line until the call that wrote it returns, each outbound
 /// request until it is sent, and each read until it is served.
 pub(crate) struct Spent {
     tree: SafepointView,
     started: Instant,
-    snapshot: Option<Arc<nvs_config::Snapshot>>,
+    config: Option<nvs_config::Request>,
     narrowed: Option<Vec<nvs_config::capability::Cap>>,
     clock: Mutex<Option<i128>>,
     seed: Mutex<Option<u64>>,
@@ -442,7 +443,7 @@ impl Spent {
         Self {
             tree: ctx.safepoint_view(),
             started: Instant::now(),
-            snapshot: ctx.config().map(|config| Arc::clone(config.snapshot())),
+            config: ctx.config().cloned(),
             narrowed: ctx.grant_filter().map(<[_]>::to_vec),
             clock: Mutex::new(None),
             seed: Mutex::new(None),
@@ -624,8 +625,9 @@ impl Budget for Spent {
     /// The value at `ext.<block>.<key>` in the request's snapshot, as JSON.
     fn setting(&self, block: &str, key: &str) -> Option<serde_json::Value> {
         let value = self
-            .snapshot
+            .config
             .as_ref()?
+            .snapshot()
             .table
             .get("ext")?
             .get(block)?
@@ -637,10 +639,7 @@ impl Budget for Spent {
     /// isolate whose context made the request.
     fn caller(&self) -> Caller<'_> {
         Caller {
-            capabilities: self
-                .snapshot
-                .as_ref()
-                .and_then(|snapshot| snapshot.config.capabilities.as_ref()),
+            authority: self.config.as_ref().map(nvs_config::Request::authority),
             narrowed: self.narrowed.as_deref(),
         }
     }

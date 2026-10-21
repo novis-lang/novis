@@ -629,6 +629,11 @@ pub(crate) fn run(
     // every grant, which would leave a `#[Test(server: true)]` unable to connect
     // to its own listener. It spends one copy of the snapshot per run.
     ctx.set_config(std::sync::Arc::new(snapshot.clone()));
+    // The run's app folder is the tested file's, or the `root` of an
+    // `[[app]]` block over it, and every test's context takes it.
+    if let Some(folder) = snapshot.folder() {
+        ctx.set_app_folder(folder.into());
+    }
 
     // Read out before `checked` is moved into the suite's task, which is where
     // it is dropped: the rows are the compiler's and the run cannot produce
@@ -1109,6 +1114,10 @@ fn run_suite(
         // else. `UnderTest` builds its own for `rule:testing/in-process-request`'s first mechanism.
         routes: Arc::new(crate::runtime_routes(&checked.exprs)),
         config: ctx.config().map(|config| Arc::clone(config.snapshot())),
+        folder: ctx
+            .config()
+            .and_then(nvs_config::Request::folder)
+            .map(Arc::clone),
         coverage: hits
             .as_ref()
             .map(|hits| (hits.counts().len(), hits.edge_counts().len())),
@@ -1230,6 +1239,9 @@ struct Shared {
     /// The suite's configuration snapshot, which each test's own parent
     /// context is given, or `None` for a suite nobody configured.
     config: Option<Arc<nvs_config::Snapshot>>,
+    /// The suite's app folder, which each test's context is given beside
+    /// [`Self::config`].
+    folder: Option<Arc<std::path::Path>>,
     /// The sizes of the run's coverage table, statements then edges, or `None`
     /// for a run with no coverage flag.
     coverage: Option<(usize, usize)>,
@@ -1359,6 +1371,9 @@ impl Job {
         unit.install_in(&mut ctx);
         if let Some(config) = &shared.config {
             ctx.set_config(Arc::clone(config));
+        }
+        if let Some(folder) = &shared.folder {
+            ctx.set_app_folder(Arc::clone(folder));
         }
         let hits = shared.coverage.map(|(stmts, edges)| {
             let hits = Arc::new(nvs_runtime::StmtHits::with_edges(stmts, edges));

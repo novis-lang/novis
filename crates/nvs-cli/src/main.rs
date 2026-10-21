@@ -1902,7 +1902,13 @@ fn run_run(
     // (`script`'s module doc). The compiler itself is built where it is
     // installed, below.
     let for_compiler = std::sync::Arc::clone(&snapshot);
+    // A CLI run's app folder is its entry file's, or the `root` of an
+    // `[[app]]` block over it.
+    let folder = snapshot.folder();
     ctx.set_config(snapshot);
+    if let Some(folder) = folder {
+        ctx.set_app_folder(folder.into());
+    }
     // `rule:tooling/commands-are-compiled`: `Core\Command`'s members are generated from the table the
     // front end already built, so the rows cross here — once, before the program
     // starts, like everything else this context is handed.

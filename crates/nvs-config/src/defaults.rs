@@ -344,6 +344,28 @@ pub struct At<'a> {
     pub started: &'a str,
 }
 
+/// What a capability grants where its key is not written: the capability half of this table.
+///
+/// A capability is not a [`DEFAULTS`] row, because a grant is not a value `get` renders or `set`
+/// writes. [`capability`] is its one home instead, and
+/// [`Authority`](crate::capability::Authority) is the one reader, so every asker meets the same
+/// default.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Granted {
+    /// Nothing: the capability is denied until a line grants it.
+    Nothing,
+}
+
+/// The default of `cap` on `run`, read only where `cap`'s key is not written. A written key
+/// replaces it whole, `[]` included.
+///
+/// Every capability defaults to [`Granted::Nothing`] on every kind of run.
+#[must_use]
+pub fn capability(cap: crate::Cap, run: crate::capability::Run<'_>) -> Granted {
+    let _ = (cap, run);
+    Granted::Nothing
+}
+
 /// One [`Builtin`] row: the key and the value, with [`Scope::Always`] unless a scope is given.
 macro_rules! row {
     ($key:literal, $value:expr) => {

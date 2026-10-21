@@ -157,6 +157,15 @@ impl Snapshot {
         Self::folded(resolved, Some(entry), files)
     }
 
+    /// The app folder of the entry this snapshot was built for ([`app::folder`]), or `None` for a
+    /// snapshot built for no entry file.
+    #[must_use]
+    pub fn folder(&self) -> Option<PathBuf> {
+        self.entry
+            .as_deref()
+            .map(|entry| app::folder(entry, &self.blocks))
+    }
+
     /// Builds the snapshot of the host itself: the global tree with **no `[[app]]` block folded**,
     /// because no entry file was named for one to match.
     ///
@@ -442,6 +451,10 @@ struct Resolutions {
     entries: HashMap<PathBuf, Arc<Snapshot>>,
     /// By the indices [`app::matching`] gave, least-specific first. Never holds an empty chain.
     chains: HashMap<Vec<usize>, Arc<Snapshot>>,
+    /// Each entry's app folder, by the path a host asked with. A host asks with the paths it
+    /// holds — a mount's entry, a schedule's script, a worker's entry — so this grows with the
+    /// configuration and never with requests.
+    folders: HashMap<PathBuf, Arc<Path>>,
 }
 
 impl Published {
@@ -502,6 +515,36 @@ impl Published {
         std::iter::once(Arc::clone(&self.host))
             .chain(resolved.chains.values().cloned())
             .collect()
+    }
+
+    /// The app folder of `entry` in this publish ([`app::folder`]), which a host stores on the
+    /// context it builds ([`Request::set_folder`](crate::Request::set_folder)).
+    ///
+    /// Worked out once per path and kept, so a request whose entry is known pays one map lookup.
+    /// An entry that cannot be examined has the folder its path names: the run that starts from
+    /// it fails at its own read of the file.
+    ///
+    /// # Panics
+    ///
+    /// If a thread panicked while holding the lock, which nothing under it can do.
+    pub fn folder(&self, entry: &Path, files: &dyn Files) -> Arc<Path> {
+        let lock = "the publish's resolutions are never poisoned";
+        if let Some(found) = self.resolved.read().expect(lock).folders.get(entry) {
+            return Arc::clone(found);
+        }
+        let canonical = files
+            .canonical(entry)
+            .unwrap_or_else(|_| entry.to_path_buf());
+        let matched = app::matching(&self.blocks.apps, &canonical, files).unwrap_or_default();
+        let keys = app::keys(&self.blocks.apps, &matched);
+        let folder: Arc<Path> = app::folder(&canonical, &keys).into();
+        let mut resolved = self.resolved.write().expect(lock);
+        Arc::clone(
+            resolved
+                .folders
+                .entry(entry.to_path_buf())
+                .or_insert(folder),
+        )
     }
 
     /// The snapshot `entry` runs under in this publish.

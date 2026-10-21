@@ -684,6 +684,38 @@ pub fn matching(apps: &[App], entry: &Path, files: &dyn Files) -> Result<Vec<usi
     Ok(matched)
 }
 
+/// The app folder of the canonical `entry`: the `root` of the most specific block that covers it,
+/// or else the folder `entry` is in. A capability default reads it ([`crate::capability::Run`]).
+///
+/// `keys` are the keys of the blocks that match `entry`, least-specific first, as [`matching`]
+/// orders them and [`Snapshot::blocks`](crate::Snapshot::blocks) records them. A block keyed on
+/// `entry` itself names no folder, so it is passed over for the next `root`: a block that sets
+/// one file's limits does not shrink the application that file belongs to. An entry in `public/`
+/// under `root = "/srv/www/shop"` has the folder `/srv/www/shop`.
+///
+/// This is the one place the app folder is decided. Pure: `entry` and `keys` are canonical
+/// already, so nothing here reads the disk.
+#[must_use]
+pub fn folder(entry: &Path, keys: &[PathBuf]) -> PathBuf {
+    keys.iter()
+        .rev()
+        .map(PathBuf::as_path)
+        .find(|key| *key != entry)
+        .or_else(|| entry.parent())
+        .unwrap_or(entry)
+        .to_path_buf()
+}
+
+/// The keys of the blocks [`matching`] named, in its order: what [`folder`] reads.
+#[must_use]
+pub fn keys(apps: &[App], matched: &[usize]) -> Vec<PathBuf> {
+    matched
+        .iter()
+        .filter_map(|index| apps.get(*index).and_then(key_of))
+        .map(Path::to_path_buf)
+        .collect()
+}
+
 /// Records that the caller uses every `[[app]]` block of `config`, which must have come through
 /// [`canonicalize`]: the whole roster, and the path each block is keyed on, since a key whose path
 /// is gone refuses the boot. A reader that prints or compares the roster calls this, and so does
