@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-ir/src/lower/mod.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/operator.rs]
   - id: 4
     title: "a covariant property is checked by every typed write"
-    status: open
+    status: done
     context: [crates/nvs-types/src/conformance.rs, crates/nvs-types/src/layout.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/mod.rs, docs/rules/classes/a-redeclared-property-keeps-its-parents-type.md]
   - id: 5
     title: "an erased, dynamic or hooked write of a covariant property is checked"

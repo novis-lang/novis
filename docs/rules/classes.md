@@ -247,6 +247,9 @@ checked by the same flow analysis that already proves definite assignment for lo
 constructor parameter satisfies its obligation by construction; an inline default satisfies it before
 the body runs; a subclass discharges what it inherits by calling `parent::constructor(...)` on every
 path, and that call is trusted rather than re-derived, exactly as a callee is trusted everywhere else.
+The same call discharges a property the subclass declares again when a superclass declares it with
+no default and not `lateinit`, since the superclass's constructor assigns it. One the superclass gives
+a default is still the subclass's to assign, unless the subclass's declaration gives one too.
 A class that declares no constructor and a non-nullable property with no default is refused at the
 property's own declaration, since there is no constructor body to attach the diagnostic to. Inheriting
 one is not declaring one: a subclass that writes no constructor of its own runs the parent's
@@ -889,9 +892,11 @@ A static property is outside the rule. Each class names its own storage, and `st
 [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier)'s `E0833` is the same hazard for a constant, and it
 allows any assignable type there because a constant is only read, never written through the parent.
 
-Declined: a narrower property type with a check on each write through the parent. It is sound, but
-it is a second mechanism with a run-time check on every write of a redeclared property.
-Declined too: PHP's rule, which allows the same as this one, except that PHP keeps the parent's
+A narrower type is allowed only where the redeclaration writes `covariant`, and then each write
+that can reach it with a wider value is tested
+([`classes/a-covariant-type-is-checked-where-a-value-enters`](classes.md#classes-a-covariant-type-is-checked-where-a-value-enters)).
+
+Declined: PHP's rule, which allows the same as this one, except that PHP keeps the parent's
 `private` property as a separate slot. Novis gives a redeclared name one slot whatever its
 visibility, so a `private` redeclaration is held to the same type.
 

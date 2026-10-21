@@ -247,10 +247,19 @@ pub(crate) fn check_property_redeclarations(decl: &ClassDecl, qname: &QName, env
             }
             let (root, top) = topmost_property(&owner, inherited, &name, env);
             if let Some(at) = narrows {
-                covariant_property_problem(qname, &name, at, own, (&owner, inherited), (&root, top), env);
+                covariant_property_problem(
+                    qname,
+                    &name,
+                    at,
+                    own,
+                    (&owner, inherited),
+                    (&root, top),
+                    env,
+                );
                 continue;
             }
-            let exact = |a: TypeId, b: TypeId, env: &mut Env<'_>| fits(a, b, env) && fits(b, a, env);
+            let exact =
+                |a: TypeId, b: TypeId, env: &mut Env<'_>| fits(a, b, env) && fits(b, a, env);
             if exact(own, inherited, env) && exact(own, top, env) {
                 continue;
             }
@@ -296,9 +305,7 @@ pub(crate) fn check_property_redeclarations(decl: &ClassDecl, qname: &QName, env
                     ),
                 )
                 .with_primary(at, "`covariant` is written here")
-                .with_help(
-                    "`covariant` is for a property that a parent class declares. Remove it",
-                ),
+                .with_help("`covariant` is for a property that a parent class declares. Remove it"),
             );
         }
     }
@@ -356,7 +363,9 @@ fn covariant_property_problem(
                 format!("a `covariant` property cannot have the type `{have}`"),
             )
             .with_primary(at, "each write would test every element of this value")
-            .with_help("use the parent's type for this property, and test the value where you read it"),
+            .with_help(
+                "use the parent's type for this property, and test the value where you read it",
+            ),
         );
         return;
     }
@@ -394,7 +403,9 @@ fn covariant_property_problem(
     } else if fits(own, top, env) && fits(own, inherited, env) {
         return;
     } else {
-        format!("`{qname}::${name}` is `{have}`, which is not narrower than `{want}` in `{against}`")
+        format!(
+            "`{qname}::${name}` is `{have}`, which is not narrower than `{want}` in `{against}`"
+        )
     };
     env.diags.report(
         Diagnostic::error(code::E_PROPERTY_REDECLARED_AT_ANOTHER_TYPE, message)
