@@ -18,8 +18,8 @@ stages:
     context: [tests/hostile/README.md, benches/members/README.md, tests/hostile/lang/types/property-keys/02-a-write-that-could-reach-a-readonly-field.nvs]
   - id: 4
     title: "the compiler's cards and messages say property"
-    status: open
-    context: [crates/nvs-diagnostics/src/lib.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/conformance.rs]
+    status: done
+    context: [crates/nvs-diagnostics/src/code/types.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/conformance.rs]
   - id: 6
     title: "the Core reference cards and runtime errors say property"
     status: open
@@ -170,8 +170,9 @@ property. Directive lines stay exactly as they are.
 **Does:** every diagnostic card and compiler message the binary prints says property for a class
 property.
 
-- [ ] The error cards E0460 to E0463 and the `implements I by $property` cards E0227, E0720 and E0859 say property. `crates/nvs-diagnostics/src/lib.rs:1722`, `crates/nvs-diagnostics/src/lib.rs:666`, `crates/nvs-diagnostics/src/lib.rs:3457`, `crates/nvs-diagnostics/src/lib.rs:5563`
-- [ ] The derive, conformance and parser messages say property. `crates/nvs-types/src/derive.rs:2223`, `crates/nvs-types/src/derive.rs:2332`, `crates/nvs-types/src/derive.rs:733`, `crates/nvs-types/src/conformance.rs:427`, `crates/nvs-syntax/src/parser/decl.rs:995`
+- [x] The error cards E0460 to E0463, E0873 and the `implements I by $property` cards E0227, E0720, E0721 and E0859 say property. `crates/nvs-diagnostics/src/code/types.rs:513`, `crates/nvs-diagnostics/src/code/rejected_php.rs:171`, `crates/nvs-diagnostics/src/code/types_e07.rs:436`, `crates/nvs-diagnostics/src/code/types_e08.rs:847`
+- [x] The derive, conformance and parser messages say property. `crates/nvs-types/src/derive.rs:2179`, `crates/nvs-types/src/derive.rs:2323`, `crates/nvs-types/src/derive.rs:790`, `crates/nvs-types/src/conformance.rs:712`, `crates/nvs-syntax/src/parser/decl.rs:1000`
+- [x] The conformance cases, example outputs and reference chapters that pin these messages say the new text. `tests/conformance/reject/a-json-derive-refuses-a-secret-or-lateinit-field.nvst:26`, `docs/reference/lang/90-attributes.md:907`
 
 ### 6. the Core reference cards and runtime errors say property
 
@@ -212,29 +213,31 @@ session renames them with one script under `.agent-tmp/`, deletes the script, an
 
 ### State
 
-Stages 1, 2 and 3 are done, and no printed output of the binary has changed yet. Stage 3 changed
-nine attacks and five benchmarks under `tests/hostile/` and `benches/members/`. A hostile case pins
-no output, so the sort attack's echo now says "paths" without a re-record.
+Stages 1 to 4 are done. The cards live under `crates/nvs-diagnostics/src/code/`, not in `lib.rs`.
+Stage 4 re-recorded what its own messages pin, so stage 7 covers stage 6's messages only: three
+`tests/conformance/reject/` cases, three example `.out` files, `docs/reference/lang/50-classes.md`,
+`docs/reference/lang/90-attributes.md` and `website/public/llms-full.txt`. The derive messages for
+`lateinit`, `secret` and a missing parameter now say "`{derive}` cannot convert it" or "cannot decode
+it". A `$field` in a program or a doc comment stays.
 
-The website shows an attack only through a GitHub link, so only the linked one was renamed:
-`property-paths/01-the-property-to-sort-by-from-a-request` with its `.nvsr`, and the link in
-`website/src/content/docs/in-depth/concepts/checked-property-names.mdx:68`. The `property-keys`
-attacks keep their names, because no page shows them. A perf record's `impl_hash` hashes the
-implementing file and not the bench, so the bench comments moved no record.
+The nightly's proofs jobs failed because stages 1 and 2 edited `docs/reference/lang/20-types.md` and
+`50-classes.md`, and a `lang:` feature's perf `impl_hash` hashes its reference chapter. Those records
+were measured again with `bun nv proofs --record-perf`. Its website job failed on a stale
+`llms-full.txt`, which stage 2's commit had already rendered again.
 
 Left as "field" after reading in context: form, CSV, JSON, header, attribute, date, shape and
-anonymous-object fields, the `?field=` query names, and step 4 of
-`errors/properties-not-accessors/01` (the paths of a shape's issues).
+anonymous-object fields, the `?field=` query names, a test double's fields, E0820's document field,
+and step 4 of `errors/properties-not-accessors/01` (the paths of a shape's issues).
 
 ### Next
 
-**Stage 4: the compiler's cards and messages**, one file set: `crates/nvs-diagnostics/src/lib.rs`,
-`crates/nvs-types/src/derive.rs`, `crates/nvs-types/src/conformance.rs` and the parser. Each change
-prints a new message, so stage 7 re-records what pins it. `cargo build` is the only check until the
-group ends.
+**Stage 6: the `Core` reference cards and runtime errors**, in `crates/nvs-stdlib/` and
+`crates/nvs-codegen/src/emit.rs`. Then stage 7 re-records what stage 6's messages pin. An edit to a
+reference chapter under `docs/reference/lang/` makes its features' perf records stale, so run `bun nv
+proofs --record-perf` after one.
 
-- [ ] The error cards E0460 to E0463 and the `implements I by $property` cards say property. `crates/nvs-diagnostics/src/lib.rs:1722`
-- [ ] The derive, conformance and parser messages say property. `crates/nvs-types/src/derive.rs:2223`
+- [ ] The `Json`, `Http`, `Jwt`, `Request`, `Test` and `Db` reference cards say property. `crates/nvs-stdlib/src/json.rs:448`
+- [ ] The runtime errors say property, and the decode message says "N value(s) of `T` did not match". `crates/nvs-stdlib/src/json.rs:2527`
 
 ### Backlog
 
