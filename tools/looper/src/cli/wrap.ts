@@ -52,7 +52,8 @@
 // wrap names it.
 //
 // Once every check passes and before it writes anything, wrap waits for the tree's verify run when one
-// is going, and says `waiting for verify job <id>` (`awaitGoing`). It does not join the run.
+// is going, and says `waiting for verify job <id>` (`awaitGoing`). It does not join the run. While it
+// waits it tells the hang watch so (`../jobs/hang.ts`).
 //
 // When a step fails after writing began (a handoff that would not parse, a failed apply or wrap check,
 // a commit a hook refuses), wrap moves `HEAD` back with `git reset --soft`. The commits it made are
@@ -75,6 +76,7 @@ import { bulletPath, loadPlaybook, parsePlaybook, playbookSection, shape } from 
 import { sectionsOf } from "../goal/sections.ts";
 import { subjectProblems, TRAILER_KEYS } from "../gates/commit-msg.ts";
 import { envOf, note, runCommand } from "../verify/accept.ts";
+import { waitOnPurpose } from "../jobs/hang.ts";
 import { awaitGoing } from "../verify/shared.ts";
 import { type Command, type Context, type Report, usage } from "./cli.ts";
 import { goalVars } from "./orient.ts";
@@ -242,7 +244,8 @@ export async function wrap(root: string, file: string, status: string, ctx: Cont
   }
   if (problems.length > 0) throw new Refused(`wrap refused, nothing written:\n  ${problems.join("\n  ")}`);
 
-  await awaitGoing(root, ctx.line);
+  const waiting = waitOnPurpose("wrap waits for the tree's verify run");
+  await awaitGoing(root, ctx.line).finally(waiting);
   const bullets: [string, string][] = bulletFiles.map(([p, b]) => [join(root, p), b]);
   const files = [join(goalsDir, README), ...(live === undefined ? [] : [goalPath(goalsDir, live)]), t.playbookPath, ...bullets.map((b) => b[0])];
   const kept = snapshot(root, files, w.sections);

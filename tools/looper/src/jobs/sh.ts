@@ -17,8 +17,25 @@
 //    screen (`spawn.ts`). A project whose `[jobs] hide_windows` is false runs bash with
 //    `LOOPER_WINDOWS=show` instead, and a wrapper that inherits that hides nothing.
 // 3. It copies bash's output to its own stdout as it arrives, and the job's log keeps it too.
-// 4. Once bash exits the job ends, and every process bash left is killed. A job `Store.kill` ended
+// 4. It watches the job for a hang (`hang.ts`), as below.
+// 5. Once bash exits the job ends, and every process bash left is killed. A job `Store.kill` ended
 //    prints who asked on stderr. The lease is given back.
+//
+// # The hang watch
+//
+// A call that took a pending entry is watched, unless `hang.ts`'s `exempt` names its command or both of
+// `[jobs] hang_stall_s` and `hang_spin_s` are 0. The entry is what tells a Bash call from a Monitor
+// call: both reach the wrapper with the same invocation, and the guard sees only Bash calls. A call
+// in the background is watched too, and a server it starts is held by its listening port.
+//
+// Every `EVERY_MS` the watch reads the job's CPU time, I/O bytes and process count in one query, and the
+// bytes bash printed. A job that waits with no CPU for `hang_stall_s`, or spins with no output for
+// `hang_spin_s`, is killed through its own Job Object with `HUNG_CODE`. The job's `killed` names the
+// hang watch. The report goes to `<scratch>/hangs/`, and its first line and its path to stderr.
+//
+// What it costs per call: one timer, one job query every `EVERY_MS`, and the last `TAIL_BYTES` of the
+// output. The watch runs only where the kit's OS module runs, Windows. Elsewhere `startJob` throws, so
+// the call runs plain and is not watched.
 //
 // The wrapper reads the start of the Claude Code process `CLAUDE_PID` names once, before it asks or
 // starts anything. While it waits or runs, it reads that process again every `CLAUDE_EVERY_MS`. When the
@@ -32,20 +49,25 @@
 //
 // - The output moves through the job's pipe one chunk at a time (`spawn.ts`).
 // - The log keeps its own bound of three parts (`log.ts`).
+// - The hang watch keeps the last `TAIL_BYTES` of the output, and `hangs/` the newest `MAX_REPORTS`.
 //
 // # Known gaps
 //
 // - bash's stderr reaches the wrapper's stdout, because a job's tree has one pipe for both.
+// - A call whose pending entry was lost, as two calls of one session can lose one, is not watched.
+// - The units of a `verify` run are not watched: its supervisor runs outside the call's job.
 
 import { existsSync, statSync, writeSync } from "node:fs";
 import { delimiter, dirname, join, resolve } from "node:path";
-import { defaultConfig, type Jobs, loadConfig } from "../goal/config.ts";
+import { type Config, defaultConfig, loadConfig } from "../goal/config.ts";
 import { sameProcess, started } from "../os/index.ts";
+import { writeState } from "../store/state.ts";
+import { exempt, Printed, watch, type Watching } from "./hang.ts";
 import { take as heavy } from "./heavy.ts";
 import { pendingDir, sweep as sweepPending, take as takePending } from "./pending.ts";
 import { type Lease, looperHome, SLOT_VAR, takeSlots } from "./slots.ts";
 import { startJob } from "./spawn.ts";
-import { KILLED_CODE, storeOf, WINDOWS_VAR } from "./store.ts";
+import { HUNG_CODE, KILLED, KILLED_CODE, type Killed, storeOf, WINDOWS_VAR } from "./store.ts";
 
 /** How often the wrapper reads whether Claude Code still runs. */
 export const CLAUDE_EVERY_MS = 250;
@@ -186,15 +208,18 @@ function watchClaude(claude: Claude, gone: () => void): () => void {
   return () => clearInterval(timer);
 }
 
-/** The project's `[jobs]`, or the defaults with the reason on stderr. */
-function jobsOf(root: string): Jobs {
+/** The project's config, or the defaults with the reason on stderr. */
+function configOf(root: string): Config {
   try {
-    return loadConfig(root).jobs;
+    return loadConfig(root);
   } catch (e) {
-    process.stderr.write(`looper sh: only the built-in heavy commands: ${(e as Error).message}\n`);
-    return defaultConfig().jobs;
+    process.stderr.write(`looper sh: only the built-in heavy commands and hang bounds: ${(e as Error).message}\n`);
+    return defaultConfig();
   }
 }
+
+/** Who a hang kill names in the job's `killed`. */
+export const HANG_KILLER = "looper's hang watch";
 
 /** Writes `bytes` to this process's stdout. A harness that stopped reading costs only the copy. */
 export function out(bytes: Uint8Array): void {
@@ -213,7 +238,8 @@ export async function runSh(args: readonly string[], env: Env = process.env, cwd
   const command = "command" in call ? call.command : invocation;
 
   const claude = claudeOf(env);
-  const jobs = jobsOf(root);
+  const cfg = configOf(root);
+  const jobs = cfg.jobs;
   let lease: Lease | null = null;
   if (env[SLOT_VAR] === undefined || env[SLOT_VAR] === "") {
     const asking = takeSlots(looperHome(env), heavy(command, jobs), { kind: "bash", project: root, command }, (line) =>
@@ -228,7 +254,7 @@ export async function runSh(args: readonly string[], env: Env = process.env, cwd
   const jobEnv = { ...env, ...(lease === null ? {} : { [SLOT_VAR]: lease.id }), ...(jobs.hide_windows ? {} : { [WINDOWS_VAR]: "show" }) };
   const hide = jobEnv[WINDOWS_VAR]?.toLowerCase() !== "show";
   try {
-    return await recorded(root, bash, args, command, jobEnv, cwd, lease, hide, claude);
+    return await recorded(root, bash, args, command, jobEnv, cwd, lease, hide, claude, cfg);
   } catch (e) {
     process.stderr.write(`looper sh: not recorded: ${(e as Error).message}\n`);
     return plain(bash, args, jobEnv, cwd);
@@ -238,11 +264,12 @@ export async function runSh(args: readonly string[], env: Env = process.env, cwd
 }
 
 /** Runs the call as a job of the project at `root`, and gives bash's exit code. Throws, having started nothing, when the job cannot start. */
-async function recorded(root: string, bash: string, args: readonly string[], command: string, env: Env, cwd: string, lease: Lease | null, hide: boolean, claude: Claude): Promise<number> {
+async function recorded(root: string, bash: string, args: readonly string[], command: string, env: Env, cwd: string, lease: Lease | null, hide: boolean, claude: Claude, cfg: Config): Promise<number> {
   const store = storeOf(root);
   if (store.sweepDue() !== null) sweepPending(pendingDir(root));
   const session = env.CLAUDE_CODE_SESSION_ID || null;
   const entry = session === null ? null : takePending(pendingDir(root), session, command);
+  const printed = new Printed();
   const job = startJob(store, {
     kind: "bash",
     argv: [bash, "-c", ...args],
@@ -253,7 +280,10 @@ async function recorded(root: string, bash: string, args: readonly string[], com
     session,
     agent: entry?.agent_id ?? null,
     tool_use: entry?.tool_use_id ?? null,
-    onOutput: out,
+    onOutput: (chunk) => {
+      printed.add(chunk);
+      out(chunk);
+    },
     hide,
   });
   await lease?.hold(job.id);
@@ -262,7 +292,34 @@ async function recorded(root: string, bash: string, args: readonly string[], com
       job.tree.kill(KILLED_CODE);
     } catch {}
   });
-  const code = await job.done.finally(stop);
+  const { hang_stall_s, hang_spin_s, hang_exempt } = cfg.jobs;
+  // The job runs from here on, so a watch that cannot start leaves it unwatched and never throws.
+  let watching: Watching | null = null;
+  try {
+    if (entry !== null && !exempt(command, hang_exempt)) {
+      watching = watch(job.tree, printed, {
+        command,
+        jobDir: job.dir,
+        reportDir: join(root, cfg.project.scratch, "hangs"),
+        stallMs: hang_stall_s * 1000,
+        spinMs: hang_spin_s * 1000,
+        killing: () => {
+          try {
+            writeState(join(job.dir, KILLED), { by: HANG_KILLER, at: Date.now() } satisfies Killed);
+          } catch {}
+        },
+      });
+    }
+  } catch {}
+  const code = await job.done.finally(() => {
+    stop();
+    watching?.stop();
+  });
+  const hung = watching?.hung ?? null;
+  if (hung !== null) {
+    process.stderr.write(`${hung.split("\n").filter((l) => l.startsWith("HANG: ") || l.startsWith("report: ")).join("\n")}\n`);
+    return HUNG_CODE;
+  }
   const killed = store.killed(job.id);
   if (killed) process.stderr.write(`looper: job ${job.id} was killed by ${killed.by}\n`);
   return code;

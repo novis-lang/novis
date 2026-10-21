@@ -5,7 +5,7 @@
 // - `verify [--all]` asks for a verify of the tree and waits for its one run, which it starts or joins
 //   (`../verify/shared.ts`). It prints the run's lines as they come, and exits as the run does: 1 after
 //   the first red step, and with `--all` when any is red. With `--json` the lines go to stderr, and it
-//   prints the run's `Verified`.
+//   prints the run's `Verified`. While it waits it tells the hang watch so (`../jobs/hang.ts`).
 // - `verify --status` prints the progress items of the tree's newest run without joining it, as `exec
 //   progress` prints them. A tree with no run says so, and exits 0.
 // - `verify --supervise <run folder> [--all]` is the run's supervisor, which a request spawns. It has
@@ -25,6 +25,7 @@
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { type Config, loadConfig } from "../goal/config.ts";
+import { waitOnPurpose } from "../jobs/hang.ts";
 import { compare, explain, peek, type Selection, Tree, type UnitDef, unitDef, reason as reasonOf, type Store } from "../verify/select.ts";
 import { request, statusJob, SUPERVISOR_LOG, supervise } from "../verify/shared.ts";
 import type { Build } from "../verify/cargo.ts";
@@ -126,7 +127,9 @@ export const verifyCommand: Command = {
       return status(root);
     }
     stepsOf(config(root));
-    const ended = await request(root, all, ctx.line);
+    // The run goes on outside this call's job, so a quiet step is not a hang of this call.
+    const waiting = waitOnPurpose("verify waits for the tree's run");
+    const ended = await request(root, all, ctx.line).finally(waiting);
     if (ended.error !== null) throw new Refusal(ended.error);
     return { code: ended.code, doc: ended.report ?? {} };
   },

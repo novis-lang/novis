@@ -7,7 +7,8 @@
 //   text of `<home>/looper.port`.
 // - `takeSlots` asks `POST /api/slots/take` on `127.0.0.1` every `ASK_EVERY_MS` until the service
 //   grants a lease of one slot. A job never asks for more than one (decision 0029). While it waits it
-//   hands the service's waiting line to `onWait` once.
+//   hands the service's waiting line to `onWait` once, and tells the hang watch of the job it runs in
+//   that it waits on purpose (`hang.ts`).
 // - The lease is held while the asking process runs. `Lease.hold` names the job that holds it, and
 //   `Lease.release` gives it back. The service frees the lease of a process that ended, so no crash
 //   leaks one.
@@ -28,6 +29,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { started } from "../os/index.ts";
+import { waitOnPurpose } from "./hang.ts";
 import type { Take } from "./heavy.ts";
 import type { Kind } from "./store.ts";
 
@@ -131,25 +133,29 @@ export async function takeSlots(home: string | null, take: Take, asker: Asker, o
   const port = portOf(home);
   if (typeof port === "string") return { absent: port };
   const body = { pid: process.pid, started: started(process.pid), ...asker };
-  let told = false;
-  for (;;) {
-    let answer: unknown;
-    try {
-      answer = await post(port, "/api/slots/take", body);
-    } catch (e) {
-      return e instanceof Absent ? { absent: e.message } : { failed: (e as Error).message };
+  let waiting: (() => void) | null = null;
+  try {
+    for (;;) {
+      let answer: unknown;
+      try {
+        answer = await post(port, "/api/slots/take", body);
+      } catch (e) {
+        return e instanceof Absent ? { absent: e.message } : { failed: (e as Error).message };
+      }
+      const a = answer as { lease?: unknown; slots?: unknown; waiting?: unknown };
+      if (typeof a.lease === "string") {
+        const slots = Array.isArray(a.slots) ? a.slots.filter((s): s is number => typeof s === "number") : [];
+        return { lease: lease(port, a.lease, slots) };
+      }
+      if (a.lease !== null) return { failed: "the service's answer names no lease" };
+      if (waiting === null) {
+        onWait(typeof a.waiting === "string" ? a.waiting : "looper: waiting for a heavy slot");
+        waiting = waitOnPurpose("a heavy slot");
+      }
+      await Bun.sleep(ASK_EVERY_MS);
     }
-    const a = answer as { lease?: unknown; slots?: unknown; waiting?: unknown };
-    if (typeof a.lease === "string") {
-      const slots = Array.isArray(a.slots) ? a.slots.filter((s): s is number => typeof s === "number") : [];
-      return { lease: lease(port, a.lease, slots) };
-    }
-    if (a.lease !== null) return { failed: "the service's answer names no lease" };
-    if (!told) {
-      onWait(typeof a.waiting === "string" ? a.waiting : "looper: waiting for a heavy slot");
-      told = true;
-    }
-    await Bun.sleep(ASK_EVERY_MS);
+  } finally {
+    waiting?.();
   }
 }
 
