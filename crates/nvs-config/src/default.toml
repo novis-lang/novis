@@ -1,9 +1,10 @@
 # Novis reads this file as `./nvs.toml`. When the working directory has none, Novis reads
 # `nvs.toml` in its data folder, `.nvsdata` next to the `nvs` program. Every key the runtime parses
 # is in it, commented out, so that what a host can be told to do is something an operator reads
-# rather than something they have to go and find. A file in which no key is uncommented is exactly a host with no file at all:
-# capabilities grant nothing, `[mode] default` is `production`, and every other key is whatever the
-# code that enforces it ships (`rule:config/no-configuration-file-is-a-complete-configuration`).
+# rather than something they have to go and find. A file in which no key is uncommented is exactly a host with no file at all.
+# `[mode] default` is `production`. Each capability has the default its comment states. Every other
+# key is whatever the code that enforces it ships
+# (`rule:config/no-configuration-file-is-a-complete-configuration`).
 #
 # To set a key, remove the `#` in front of it. Under a `[header]` that is the whole edit: the
 # headers are already live, and a header with no key under it says nothing and is read as though it
@@ -140,24 +141,37 @@
 
 
 # ----------------------------------------------------------------------------------------------
-# [capabilities] — deny-by-default grants. A block with no key written grants nothing, and that
-# is the whole of what an unconfigured host may do.
+# [capabilities] — what a program may do. Some keys have a default, and it depends on the kind of
+# run. A CLI run is `nvs run`, a `#[Command]` method or `nvs test`. Server work is a request, a
+# connection, a scheduled run or a queued job. The app folder is the folder of the file the run
+# started from, or the `root` of the `[[app]]` block for that file.
+#
+# A key you write replaces its default completely. `[]` grants nothing. A key with no default
+# grants nothing until you write it.
 # ----------------------------------------------------------------------------------------------
 
 [capabilities.script]
-# The roots a `spawn script` target may live under. Being able to read a file is not permission to
+# The folders a `spawn script` target may be in. Being able to read a file is not permission to
 # run it, so this does not follow from `fs.read` (`rule:security/script-spawn-capability`).
-#spawn = ["scripts/"]                 # example
+# When the key is not written, a script inside the app folder can start on every kind of run.
+# A script outside the app folder needs a line here.
+#spawn = ["scripts/"]                 # default: scripts in the app folder
 
 [capabilities.fs]
-# The roots readable and the roots writable, each a path prefix.
-#read = ["public/", "storage/"]       # example
-#write = ["storage/"]                 # example
+# The folders a program may read, and the folders it may write. Each entry is a path prefix.
+# When `read` is not written, a CLI run reads any file. Server work reads the app folder. It does
+# not read a file or folder whose name starts with `.`, or a file named `nvs.toml`.
+#read = ["public/", "storage/"]       # default: any file on a CLI run, the app folder in server work
+# When `write` is not written, a CLI run writes any file. Server work writes only the temporary
+# folders that `Core\IO::temporaryDir` made for that run.
+#write = ["storage/"]                 # default: any file on a CLI run, its temporary folders in server work
 
 [capabilities.net]
-# The hosts an outbound connection may reach. Write the host alone, with no port and no `https://`:
-# an entry allows every port, and an entry with a port is refused at boot.
-#connect = ["api.example.com"]        # example
+# The hosts an outbound connection may reach. Write the host alone, with no port and no `https://`.
+# An entry allows every port. If an entry has a port, the configuration does not load.
+# When the key is not written, a program may reach any public host. The address rules below still
+# apply. A list you write allows only the hosts in it.
+#connect = ["api.example.com"]        # default: any public host
 # The hosts a call may name its own address for with `connectTo`
 # (`rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`). The address written is
 # judged by the policy below exactly as a resolved one is and the certificate is still checked
@@ -169,11 +183,15 @@
 # directly needs nothing here; what this names is a server stripping a call's TLS with one
 # `Location` header. `true` is not a spelling it has.
 #downgrade = ["legacy.example.com"]   # example
-# The addresses inside `rule:security/net-address-policy`'s denied ranges this deployment reaches
-# anyway — written as IP addresses and never as hostnames, because the policy is asked of a resolved
-# address and a name can resolve anywhere. It widens nothing on its own: an address named here is
-# still reachable only under a host `connect` grants, and `true` is not a spelling it has.
-#internal = ["10.0.0.5"]              # example
+# The private and loopback addresses a program may reach. Without a line here, a connection to such
+# an address throws an error (`rule:security/net-address-policy`). An entry is an IP address or a
+# range such as `172.18.0.0/16`. A hostname is not allowed, because a name can resolve to any
+# address. `true` is not allowed either.
+# This key adds nothing on its own. The host must also be allowed by `connect`.
+# When the key is not written, a CLI run reaches loopback (`127.0.0.0/8` and `::1`). Server work
+# reaches loopback too when `[mode] default` is `development`. In production, server work needs a
+# line here for every private or loopback address.
+#internal = ["10.0.0.5"]              # default: loopback on a CLI run and in development mode
 # The endpoints a program may bind, as `address:port` literals matched exactly
 # (`rule:security/net-listen-is-a-separate-grant-from-net-connect`). `true` is every endpoint this
 # process may bind, and an entry that does not parse as an endpoint matches nothing.
@@ -203,8 +221,10 @@
 #insecure = ["staging.example.com"]   # example
 
 [capabilities.process]
-# Whether a subprocess may be started — `true`, or the list of programs it may be.
-#exec = ["/usr/bin/convert"]          # example
+# The programs a program may run, as `true` or a list. An entry is a path, or a bare name such as
+# `git`. A bare name is looked up on `PATH` once, when the configuration loads.
+# When the key is not written, a CLI run may run any program. Server work runs no program.
+#exec = ["/usr/bin/convert"]          # default: any program on a CLI run, none in server work
 
 [capabilities.debug]
 # Where a trace and where a profile may be written (`rule:testing/debug-probes`).
@@ -212,15 +232,17 @@
 #profile = ["storage/profile/"]       # example
 
 [capabilities.db]
-# Which `[db.<name>]` blocks a program may open, and which it may issue DDL to. A block named here
-# was written by an operator, so it is pre-approved against the denied address ranges. Opening a
-# connection is not permission to change what is behind it, so `schema` does not follow from
-# `connect` (`rule:core-classes/schema-apply-capability`).
+# Which `[db.<name>]` blocks a program may open, and which it may change the tables of. An operator
+# wrote each block, so its address needs no `net.internal` line. Opening a connection is not
+# permission to change the tables, so `schema` does not follow from `connect`
+# (`rule:core-classes/schema-apply-capability`).
 #connect = ["main"]                   # example
 #schema = ["main"]                    # example
-# Which hosts a program-supplied `Db\Settings` may reach. These stay subject to the address policy,
-# which is why they are named as hosts and the two keys above are named as blocks. Write the host
-# alone, with no port, as for `net.connect`.
+# Which hosts a program-supplied `Db\Settings` may reach over the network. These hosts are still
+# checked against the address rules, so they are written as hosts. The two keys above name blocks.
+# Write the host alone, with no port, as for `net.connect`.
+# SQLite does not use this key. `:memory:` and an empty path need no grant. A SQLite file needs
+# only `[capabilities.fs]` to allow its path.
 #open = ["db.example.com"]            # example
 
 [capabilities.ldap]
@@ -852,7 +874,7 @@
 #[schedule.limits]
 # This entry's ceilings, which are `[limits.hard]`'s keys with no ceiling nested under them. `false`
 # removes one. A key not written here leaves the entry at the `[limits]` value it runs with.
-#memory = "1G"                        # default: the [limits] value
+#memory = "1G"                        # default: the [limits] value, none under nvs run and nvs test
 #cpu_time = "300s"                    # default: the [limits] value
 #wall_time = "600s"                   # default: the [limits] value
 #max_tasks = 16                       # default: the [limits] value
@@ -862,22 +884,23 @@
 #upload_total = "2G"                  # default
 
 #[schedule.grants.script]
-# This entry's grants, key for key the same as `[capabilities.*]` above and read the same way: what
-# is not named is not granted. Each block's comment there is the one that explains the key.
-#spawn = ["scripts/"]                 # example
+# This entry's grants. Each key is the same as in `[capabilities.*]` above and works the same way.
+# The comment there explains the key and what it gives when it is not written. A scheduled run is
+# server work.
+#spawn = ["scripts/"]                 # default: scripts in the app folder
 
 #[schedule.grants.fs]
-# The roots readable and writable while this entry runs.
-#read = ["storage/"]                  # example
-#write = ["storage/reports/"]         # example
+# The folders this entry may read and write while it runs.
+#read = ["storage/"]                  # default: any file on a CLI run, the app folder in server work
+#write = ["storage/reports/"]         # default: any file on a CLI run, its temporary folders in server work
 
 #[schedule.grants.net]
-# Where this entry may reach, bind, or step outside the denied ranges to, and the two hosts lists a
-# call needs before it may pick its own address or follow a hop down to plaintext.
-#connect = ["api.example.com"]        # example
+# The hosts this entry may reach, the endpoints it may bind, and the private addresses it may reach.
+# Also the two host lists a call needs to choose its own address or to follow a redirect to `http`.
+#connect = ["api.example.com"]        # default: any public host
 #connect_to = ["api.example.com"]     # example
 #downgrade = ["legacy.example.com"]   # example
-#internal = ["10.0.0.5"]              # example
+#internal = ["10.0.0.5"]              # default: loopback on a CLI run and in development mode
 #listen = ["127.0.0.1:9100"]          # example
 #local = ["/run/novis/"]              # example
 
@@ -889,8 +912,8 @@
 #insecure = ["staging.example.com"]   # example
 
 #[schedule.grants.process]
-# Whether this entry may start a subprocess, and which.
-#exec = ["/usr/bin/convert"]          # example
+# The programs this entry may run.
+#exec = ["/usr/bin/convert"]          # default: any program on a CLI run, none in server work
 
 #[schedule.grants.debug]
 # Where this entry's trace and profile may be written.
@@ -1026,7 +1049,7 @@
 #[app.limits.hard]
 # This application's ceilings; `false` removes one. A key not written here is the `[limits.hard]`
 # ceiling, and where that is not written either, the value the run started with.
-#memory = "1G"                        # default: the [limits] value
+#memory = "1G"                        # default: the [limits] value, none under nvs run and nvs test
 #cpu_time = "120s"                    # default: the [limits] value
 #wall_time = "300s"                   # default: the [limits] value
 #max_tasks = 64                       # default: the [limits] value
@@ -1036,22 +1059,23 @@
 #upload_total = "2G"                  # default
 
 #[app.capabilities.script]
-# This application's grants, key for key `[capabilities.*]`'s and read the same way: what is not
-# named is not granted, and the block's comment up there is the one that explains the key.
-#spawn = ["apps/shop/scripts/"]       # example
+# This application's grants. Each key is the same as in `[capabilities.*]` above and works the same
+# way. The comment there explains the key and what it gives when it is not written.
+#spawn = ["apps/shop/scripts/"]       # default: scripts in the app folder
 
 #[app.capabilities.fs]
-# The roots this application may read and write.
-#read = ["apps/shop/public/", "storage/shop/"]  # example
-#write = ["storage/shop/"]            # example
+# The folders this application may read and write.
+#read = ["apps/shop/public/", "storage/shop/"]  # default: any file on a CLI run, the app folder in server work
+#write = ["storage/shop/"]            # default: any file on a CLI run, its temporary folders in server work
 
 #[app.capabilities.net]
-# Where this application may reach, bind, or step outside the denied ranges to, and the two host
-# lists a call needs before it may pick its own address or follow a hop down to plaintext.
-#connect = ["api.example.com"]        # example
+# The hosts this application may reach, the endpoints it may bind, and the private addresses it may
+# reach. Also the two host lists a call needs to choose its own address or to follow a redirect to
+# `http`.
+#connect = ["api.example.com"]        # default: any public host
 #connect_to = ["api.example.com"]     # example
 #downgrade = ["legacy.example.com"]   # example
-#internal = ["10.0.0.5"]              # example
+#internal = ["10.0.0.5"]              # default: loopback on a CLI run and in development mode
 #listen = ["127.0.0.1:9000"]          # example
 #local = ["/run/novis/"]              # example
 
@@ -1063,8 +1087,8 @@
 #insecure = ["staging.example.com"]   # example
 
 #[app.capabilities.process]
-# Whether this application may start a subprocess, and which.
-#exec = ["/usr/bin/convert"]          # example
+# The programs this application may run.
+#exec = ["/usr/bin/convert"]          # default: any program on a CLI run, none in server work
 
 #[app.capabilities.debug]
 # Where this application's trace and profile may be written.
