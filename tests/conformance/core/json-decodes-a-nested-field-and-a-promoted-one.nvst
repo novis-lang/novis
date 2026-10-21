@@ -1,8 +1,8 @@
 --TEST--
-`Core\Json::decodeAs<T>` decodes a field whose type is another derived class, and a promoted constructor parameter is a field like any other — `rule:core-classes/derive-attribute`, `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`
+`Core\Json::decodeAs<T>` decodes a field whose type is another derived class, and a promoted constructor parameter is a field like any other — `rule:core-classes/derive-attribute`, `rule:core-classes/derive-property-list` and `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
-// `rule:core-classes/derive-field-list`: a field is "another class that itself has a codec". `Address` is
+// `rule:core-classes/derive-property-list`: a field is "another class that itself has a codec". `Address` is
 // written the long way and `Person` the way `rule:core-classes/derive-attribute`'s own example is — promoted
 // constructor parameters — so one document exercises both spellings of a
 // declaration, which the derive pass reads through one view.

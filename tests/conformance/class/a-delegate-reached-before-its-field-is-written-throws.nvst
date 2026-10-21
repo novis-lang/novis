@@ -1,8 +1,8 @@
 --TEST--
-A delegated call whose `by $field` slot was never written throws where the call is written — `rule:classes/delegation-by-field` bullet 2, `rule:classes/an-unwritten-property-read-throws`
+A delegated call whose `by $field` slot was never written throws where the call is written — `rule:classes/delegation-by-property` bullet 2, `rule:classes/an-unwritten-property-read-throws`
 --FILE--
 <?nvs
-// `rule:classes/delegation-by-field` bullet 2: "calling a delegated method before `$field` is
+// `rule:classes/delegation-by-property` bullet 2: "calling a delegated method before `$field` is
 // written throws". The forward reads the field and dispatches on whatever
 // class the value's own header names, so an unwritten slot is not a
 // null-receiver bug one call down — it is `rule:classes/an-unwritten-property-read-throws`'s storage state

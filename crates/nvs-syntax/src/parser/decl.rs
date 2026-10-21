@@ -13,7 +13,7 @@
 //! parse-time rejected (`E_TRAIT_NOT_SUPPORTED`,
 //! [`Parser::report_trait_not_supported`]) rather than built into any AST node
 //! — `rule:classes/no-traits`. A class's `implements` list instead grows an optional `by
-//! $field` suffix per entry ([`Parser::parse_implements_clause`], `rule:classes/delegation-by-field`). A top-level `function`/`const` is the same shape of reject, one layer
+//! $field` suffix per entry ([`Parser::parse_implements_clause`], `rule:classes/delegation-by-property`). A top-level `function`/`const` is the same shape of reject, one layer
 //! out: `rule:classes/no-free-functions-or-constants` makes every function a method and every constant a class
 //! constant, so both are parsed and diagnosed rather than left to fail.
 //!
@@ -970,7 +970,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `implements`'s comma-separated list, each entry optionally suffixed
-    /// with `by $field` (`rule:classes/delegation-by-field`) — the class-only extension of
+    /// with `by $field` (`rule:classes/delegation-by-property`) — the class-only extension of
     /// [`Self::parse_name_list`], which every other `extends`/`implements`
     /// list (an interface's `extends`, an enum's rejected `implements`, an
     /// anonymous class's `implements`) still uses unchanged, since

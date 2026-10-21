@@ -1,7 +1,7 @@
 `trait`, a class-body `use Trait, ...;` and `insteadof` are not in the grammar. Each is a parse-time
 diagnostic naming the replacement: an interface method with a body for shared behaviour
 (`rule:classes/interface-default-methods`, `rule:classes/interface-private-methods`), and
-`implements I by $field;` for shared state (`rule:classes/delegation-by-field`).
+`implements I by $field;` for shared state (`rule:classes/delegation-by-property`).
 
 A trait bundles two unrelated things — sharing behaviour and sharing state — under one flattening
 mechanism, and gives the reused code no type identity at all: a class using `Greets` is not a

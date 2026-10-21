@@ -21,7 +21,7 @@ pub(super) const OPEN: &str = r"Core\Db::open";
 pub(super) const QUERY: &str = r"Core\Db\Connection::query";
 
 /// `Core\Db\Connection::queryAs`, as its own refusals spell it — under
-/// `rule:classes/delegation-by-field`'s
+/// `rule:classes/delegation-by-property`'s
 /// delegation, a call through a `Core\Db\Transaction` names the connection's
 /// member here exactly as [`QUERY`] does.
 pub(super) const QUERY_AS: &str = r"Core\Db\Connection::queryAs";

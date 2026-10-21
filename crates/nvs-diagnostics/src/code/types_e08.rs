@@ -334,7 +334,7 @@ codes! {
     /// whose codec fills fewer constructor parameters than the constructor
     /// declares.
     ///
-    /// `rule:core-classes/derive-field-list` sanctions `#[Json\Field(skip: true)]`
+    /// `rule:core-classes/derive-property-list` sanctions `#[Json\Field(skip: true)]`
     /// on a property, and a skipped property that stayed a constructor
     /// parameter is the one way to leave a position no key fills. The class is
     /// well formed for every other purpose it has — it still encodes, and the
@@ -981,7 +981,7 @@ codes! {
          an object is read or written. Remove `static`, or remove the hooks.",
     );
     /// Two fields of one `#[Json\Derive]` or `#[Db\Derive]` class with the
-    /// same wire key (`rule:core-classes/derive-field-list`). The key is a
+    /// same wire key (`rule:core-classes/derive-property-list`). The key is a
     /// field's identity, so the encoder would write it twice and the decoder
     /// would fill both properties from one value.
     pub const E_DERIVE_DUPLICATE_KEY: Code = Code::new("E0873").card(

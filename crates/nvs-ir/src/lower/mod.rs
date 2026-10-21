@@ -1082,7 +1082,7 @@ pub fn lower_program(
         }
         true
     });
-    // `rule:classes/delegation-by-field`'s `implements I by $field;` forwards: one synthesized
+    // `rule:classes/delegation-by-property`'s `implements I by $field;` forwards: one synthesized
     // method each, and one row each in the delegating class's method table,
     // which is what a receiver typed as the *interface* dispatches through.
     // `nvs_types::Delegation` is where every one of these was decided; this
@@ -4715,7 +4715,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // not representation questions, so they live there and not here.
         CheckedTy::Never => Ty::Void,
         // A type variable reaches a lowering through exactly one door, and it
-        // is not a call: `rule:classes/delegation-by-field`'s synthesized
+        // is not a call: `rule:classes/delegation-by-property`'s synthesized
         // forward declares the *interface's* own parameter and return types
         // (`crate::lower::call::delegation_forward`), and where that interface
         // is one of `rule:iteration/two-interfaces`' compiler-owned generics

@@ -210,7 +210,7 @@ pub(super) unsafe fn hydrate(
             ),
         ));
     }
-    // `rule:core-classes/derive-field-list`'s skipped field, exactly as
+    // `rule:core-classes/derive-property-list`'s skipped field, exactly as
     // `Core\Json::decodeAs` meets it: a field the mapping carries is filled from
     // its own default above, and a property `skip: true` removed from the
     // mapping leaves a parameter no field names, so there is no field here to

@@ -4,7 +4,7 @@
   "seeAlso": [
     "classes/constructor-is-a-method-named-constructor",
     "classes/definite-property-initialization",
-    "classes/delegation-by-field"
+    "classes/delegation-by-property"
   ],
   "guardedBy": [
     "tests/conformance/class/a-visibility-keyword-promotes-only-in-the-constructor.nvst",

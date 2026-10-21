@@ -1567,7 +1567,7 @@ pub struct LocalBinding {
 }
 
 /// One synthesized `implements I by $field;` forward —
-/// `rule:classes/delegation-by-field`'s "the compiler synthesizes, for every method the interface requires, a
+/// `rule:classes/delegation-by-property`'s "the compiler synthesizes, for every method the interface requires, a
 /// one-line forward", resolved here and emitted in `nvs_ir::lower`.
 ///
 /// It is resolved in this crate for the reason every other entry in this table

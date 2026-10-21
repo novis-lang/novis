@@ -7,7 +7,7 @@ document alone: it needs resolution applied to every occurrence, not to one. Cod
 the reference count, a type's implementors, and the methods a method overrides and is overridden by; it is
 gated on `nvs.codeLens.enable` (default `true`), because a lens is a request per visible declaration and a
 large file is where it is least welcome. `textDocument/typeHierarchy` shows supertypes and subtypes,
-including `rule:classes/interface-default-methods` and `rule:classes/delegation-by-field`, which is
+including `rule:classes/interface-default-methods` and `rule:classes/delegation-by-property`, which is
 where a reader most needs to see the shape rather than reconstruct it.
 
 The fifth is **unused-member dimming**: a private member, constant or `use` with no reference anywhere in

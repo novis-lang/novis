@@ -471,7 +471,7 @@ pub(crate) struct Env<'a> {
     /// filling that table is this one. See [`crate::links`] for why the lookup
     /// cannot be made where the call is written.
     pub links: &'a mut Vec<crate::links::LinkSite>,
-    /// `rule:core-classes/derive-field-list`'s codec-reachable question, one entry per field the derive
+    /// `rule:core-classes/derive-property-list`'s codec-reachable question, one entry per field the derive
     /// pass keeps, asked after the walk rather than where the property is
     /// declared.
     ///

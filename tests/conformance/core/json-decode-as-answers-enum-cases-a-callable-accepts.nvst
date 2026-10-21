@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs<T>` and `Core\Arr::shapeAs<T>` give an enum field the case itself, so an `array<Enum>` element reaches a callable declaring the enum, a nullable field is still a case, and a case backed by `0` is truthy, on both backings — `rule:enums/representation`, `rule:enums/truthiness` and `rule:core-classes/derive-field-list`
+`Core\Json::decodeAs<T>` and `Core\Arr::shapeAs<T>` give an enum field the case itself, so an `array<Enum>` element reaches a callable declaring the enum, a nullable field is still a case, and a case backed by `0` is truthy, on both backings — `rule:enums/representation`, `rule:enums/truthiness` and `rule:core-classes/derive-property-list`
 --FILE--
 <?nvs
 // covers: Core\Json::decodeAs, Core\Arr::shapeAs

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs<T>` decodes an enum field as a membership test over its declared cases, on both backings and inside an `array<T>`, and refuses every other integer — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`, `rule:enums/one-backing-type` and `rule:enums/representation`
+`Core\Json::decodeAs<T>` decodes an enum field as a membership test over its declared cases, on both backings and inside an `array<T>`, and refuses every other integer — `rule:core-classes/derive-property-list` and `rule:core-classes/derive-reports-every-field`, `rule:enums/one-backing-type` and `rule:enums/representation`
 --FILE--
 <?nvs
 // A case is its backing integer under the enum tag (`rule:enums/representation`),
@@ -28,7 +28,7 @@ class Account {
         // `rule:core-api/required-optional-and-nullable`'s second column: `?T` is nullable, which is a fact
         // about the type and says nothing about the case set.
         public ?Weight $weight,
-        // `rule:core-classes/derive-field-list`'s list field over an enum element — the roster rides on the
+        // `rule:core-classes/derive-property-list`'s list field over an enum element — the roster rides on the
         // field exactly as a class element's label does.
         public array<Role> $seen,
     ) {}

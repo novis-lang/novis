@@ -390,7 +390,7 @@ pub struct ClassDesc {
     /// every class with no codec.
     ///
     /// Carried beside [`Self::codec`] rather than derived from it because a
-    /// skipped field (`rule:core-classes/derive-field-list`) leaves a parameter no field names, and a decoder that silently
+    /// skipped field (`rule:core-classes/derive-property-list`) leaves a parameter no field names, and a decoder that silently
     /// shortened its argument list would call the constructor with the wrong
     /// arity.
     ctor_arity: usize,
@@ -736,7 +736,7 @@ pub struct MethodRow {
     /// by construction. Answered at the declaration by `nvs_types::layout` and
     /// carried down; a row nothing told is public, which is what keeps a
     /// synthesized method (an exception constructor, a generator's state
-    /// machine, an `rule:classes/delegation-by-field` forward) callable.
+    /// machine, an `rule:classes/delegation-by-property` forward) callable.
     pub public: bool,
     /// Whether the member is `protected` — [`Self::public`]'s neighbour, and
     /// the bit that makes the level readable rather than just the
@@ -906,7 +906,7 @@ impl FieldDefault {
 }
 
 /// What one [`CodecField`] decodes to: the closed set of runtime
-/// representations `rule:core-classes/derive-field-list`'s
+/// representations `rule:core-classes/derive-property-list`'s
 /// codec-reachable types collapse to once the checker's qualifiers and
 /// nominal identity are erased.
 ///
@@ -949,7 +949,7 @@ pub enum CodecTy {
     /// `mixed` — whatever the document held, unchecked
     /// (`rule:types/declaration`).
     Mixed,
-    /// Another class that carries a codec of its own — `rule:core-classes/derive-field-list`'s "another
+    /// Another class that carries a codec of its own — `rule:core-classes/derive-property-list`'s "another
     /// class that itself has a codec", decoded by running that class's own
     /// field list over the nested JSON object.
     ///
@@ -958,7 +958,7 @@ pub enum CodecTy {
     /// [`CodecField::class`] and the descriptor it resolves to on
     /// [`ClassDesc::codec_class`].
     Class,
-    /// An `array<T>` of one of the wire types above — `rule:core-classes/derive-field-list`'s list
+    /// An `array<T>` of one of the wire types above — `rule:core-classes/derive-property-list`'s list
     /// field, decoded by running the *element's* wire type once per position.
     ///
     /// The element rides on [`CodecField::element`] rather than inside this
@@ -968,7 +968,7 @@ pub enum CodecTy {
     /// itself and a list element is itself a `List` as often as the
     /// declaration says.
     List,
-    /// An enum — `rule:core-classes/derive-field-list`'s enum field, decoded as a membership test
+    /// An enum — `rule:core-classes/derive-property-list`'s enum field, decoded as a membership test
     /// rather than as a construction: a case at run time is the integer behind
     /// it under the enum tag (`rule:enums/representation`), so what a decode
     /// produces is that integer, written with [`Value::enum_int`] or
@@ -992,7 +992,7 @@ pub enum CodecTy {
     /// A declared type no wire type describes — a `callable`, an `object`, a
     /// union of two non-`null` arms.
     ///
-    /// `rule:core-classes/derive-field-list`'s reachable test refuses such a
+    /// `rule:core-classes/derive-property-list`'s reachable test refuses such a
     /// field at the declaration that wrote it, so this is what the erasure
     /// answers *while* that refusal is still being collected rather than a
     /// decoder's missing case: nothing the reachable set admits erases here,
@@ -1260,7 +1260,7 @@ pub struct CodecField {
     pub key: String,
     /// The field slot an encode reads and a decode's `new` ends up writing.
     pub slot: usize,
-    /// This field's position in the constructor's parameter list — `rule:core-classes/derive-field-list`'s "every field is a same-named constructor parameter", resolved to
+    /// This field's position in the constructor's parameter list — `rule:core-classes/derive-property-list`'s "every field is a same-named constructor parameter", resolved to
     /// an index so a decoder needs no name lookup.
     pub param: usize,
     /// What a decode has to produce for this field.
@@ -1824,7 +1824,7 @@ impl ClassDesc {
     ///
     /// Declaration order is the encode order, which is what makes an encoded
     /// document byte-deterministic across runs and machines
-    /// (`rule:core-classes/derive-field-list`).
+    /// (`rule:core-classes/derive-property-list`).
     #[must_use]
     pub fn codec(&self) -> &[CodecField] {
         &self.codec
@@ -2538,7 +2538,7 @@ impl ClassTable {
     /// Separate from [`ClassTable::define`] because the two facts come from
     /// two different `nvs-ir` tables, and — unlike [`ClassTable::set_defaults`]
     /// — because `classes` names descriptors this table may not have defined
-    /// yet: `rule:core-classes/derive-field-list`'s nested field admits a class of the unit's own
+    /// yet: `rule:core-classes/derive-property-list`'s nested field admits a class of the unit's own
     /// making, its own type included, so `nvs-codegen` calls this in a second
     /// pass over classes it has all defined rather than while defining one.
     ///

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs` reads a derived class only from a JSON object, and an `array<T>` field only from a JSON list, at the top and inside a field — `rule:core-classes/derive-field-list`
+`Core\Json::decodeAs` reads a derived class only from a JSON object, and an `array<T>` field only from a JSON list, at the top and inside a field — `rule:core-classes/derive-property-list`
 --FILE--
 <?nvs
 #[Core\Json\Derive]

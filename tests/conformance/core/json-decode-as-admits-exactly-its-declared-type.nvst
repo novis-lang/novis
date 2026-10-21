@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs<T>` admits exactly the wire spellings a field's declared type names, and `uint` ⊂ `int` ⊂ `float` ⊂ `mixed` is strict at one named spelling each — `rule:core-classes/derive-field-list`, `rule:core-api/required-optional-and-nullable`, `rule:types/conversion`
+`Core\Json::decodeAs<T>` admits exactly the wire spellings a field's declared type names, and `uint` ⊂ `int` ⊂ `float` ⊂ `mixed` is strict at one named spelling each — `rule:core-classes/derive-property-list`, `rule:core-api/required-optional-and-nullable`, `rule:types/conversion`
 --FILE--
 <?nvs
 // `rule:core-api/required-optional-and-nullable`'s table read as a *bound*: one class per codec type, each with

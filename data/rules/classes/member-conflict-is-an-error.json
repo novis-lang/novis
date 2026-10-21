@@ -4,7 +4,7 @@
   "seeAlso": [
     "classes/no-traits",
     "classes/interface-default-methods",
-    "classes/delegation-by-field"
+    "classes/delegation-by-property"
   ],
   "guardedBy": [
     "crates/nvs-types/tests/interface_defaults.rs",

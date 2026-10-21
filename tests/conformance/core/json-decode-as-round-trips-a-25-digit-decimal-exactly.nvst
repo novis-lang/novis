@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs` reads a `decimal` field from the JSON string it crosses as, keeping digits a `float` would lose, and `Core\Json::encode` writes that same spelling back — `rule:types/decimal`, `rule:core-classes/derive-field-list`, `rule:core-classes/derive-generates-what-is-missing`
+`Core\Json::decodeAs` reads a `decimal` field from the JSON string it crosses as, keeping digits a `float` would lose, and `Core\Json::encode` writes that same spelling back — `rule:types/decimal`, `rule:core-classes/derive-property-list`, `rule:core-classes/derive-generates-what-is-missing`
 --FILE--
 <?nvs
 // `rule:types/decimal` is exact to roughly 29 significant digits, and JSON has one

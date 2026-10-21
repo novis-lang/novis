@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs<array<T>>` reads a JSON array as one `T` per element, with the element's position on every issue it reports — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`, `rule:types/grammar`
+`Core\Json::decodeAs<array<T>>` reads a JSON array as one `T` per element, with the element's position on every issue it reports — `rule:core-classes/derive-property-list` and `rule:core-classes/derive-reports-every-field`, `rule:types/grammar`
 --FILE--
 <?nvs
 #[Core\Json\Derive]
@@ -14,7 +14,7 @@ class Point {
     }
 }
 
-// `rule:core-classes/derive-field-list`: a decode is an ordinary `new`, so a list decode is that `new` run once
+// `rule:core-classes/derive-property-list`: a decode is an ordinary `new`, so a list decode is that `new` run once
 // per element — the type argument names the element's class and the result is
 // an `array<Point>`, not the `array<mixed>` a plain `decode` answers with.
 var $points = Core\Json::decodeAs<array<Point>>(

@@ -1660,7 +1660,7 @@ pub enum InstKind {
     /// A [`crate::ty::Ty::Object`] operand is admitted too, and is the same
     /// compare one representation down: an object is a bare pointer and a
     /// null one *is* `null` (`nvs_runtime::object`'s own decision). Its one
-    /// producer is `rule:classes/delegation-by-field`'s forward
+    /// producer is `rule:classes/delegation-by-property`'s forward
     /// (`nvs_ir::lower::call::delegation_forward`), whose delegate field is a
     /// non-nullable object, so a null pointer there is a `lateinit` field that
     /// was never written.

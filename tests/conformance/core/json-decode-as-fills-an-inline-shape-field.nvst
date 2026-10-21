@@ -1,8 +1,8 @@
 --TEST--
-`Core\Json::decodeAs` fills an inline shape reached as a field, pinning `rule:core-classes/derive-field-list` and `rule:types/shape-type`
+`Core\Json::decodeAs` fills an inline shape reached as a field, pinning `rule:core-classes/derive-property-list` and `rule:types/shape-type`
 --FILE--
 <?nvs
-// `rule:core-classes/derive-field-list` makes an inline shape a codec-reachable
+// `rule:core-classes/derive-property-list` makes an inline shape a codec-reachable
 // field type. It is the one wire type a decode needs two resolved pointers for:
 // the class a literal of those same field names builds, and the contract
 // holding the per-field wire types that class's label cannot carry.

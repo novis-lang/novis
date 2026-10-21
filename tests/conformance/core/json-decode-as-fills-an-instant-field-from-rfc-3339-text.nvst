@@ -1,8 +1,8 @@
 --TEST--
-`Core\Json::decodeAs` reads a `Core\Time\Instant` field from the RFC 3339 text `Core\Json::encode` writes it as, and refuses every other spelling of the same moment — `rule:core-classes/derive-field-list`, `rule:core-classes/derive-generates-what-is-missing`
+`Core\Json::decodeAs` reads a `Core\Time\Instant` field from the RFC 3339 text `Core\Json::encode` writes it as, and refuses every other spelling of the same moment — `rule:core-classes/derive-property-list`, `rule:core-classes/derive-generates-what-is-missing`
 --FILE--
 <?nvs
-// JSON has no timestamp type, so `rule:core-classes/derive-field-list`'s `Core`
+// JSON has no timestamp type, so `rule:core-classes/derive-property-list`'s `Core`
 // value type crosses as the one text every reader of a document already agrees
 // a moment looks like: RFC 3339, which is what `$at->toIso()` renders. The two
 // `int` slots an `Instant` is stored in are this runtime's business and no part

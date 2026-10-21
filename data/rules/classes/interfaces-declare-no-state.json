@@ -4,7 +4,7 @@
   "seeAlso": [
     "classes/no-traits",
     "classes/interface-default-methods",
-    "classes/delegation-by-field",
+    "classes/delegation-by-property",
     "statements/static-is-a-member-modifier"
   ],
   "guardedBy": [

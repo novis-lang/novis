@@ -5,7 +5,7 @@
     "ide/check-scope-defaults-to-the-workspace",
     "classes/no-traits",
     "classes/interface-default-methods",
-    "classes/delegation-by-field",
+    "classes/delegation-by-property",
     "ide/contributions-are-frozen-and-only-ever-added",
     "ide/every-feature-is-staged-behind-its-dependency"
   ],

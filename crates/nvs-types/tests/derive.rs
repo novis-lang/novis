@@ -1,4 +1,4 @@
-//! `rule:core-classes/derive-field-list` and `rule:core-classes/derive-generates-what-is-missing`'s three refusals: a field whose declared type has no
+//! `rule:core-classes/derive-property-list` and `rule:core-classes/derive-generates-what-is-missing`'s three refusals: a field whose declared type has no
 //! wire form, a class that hand-writes both codec halves, and a class whose
 //! derive would generate an empty contract.
 //!
@@ -50,7 +50,7 @@ class Handle {
         "{diags:?}"
     );
 
-    // The same file with one attribute added: `rule:core-classes/derive-field-list`'s "another class that itself
+    // The same file with one attribute added: `rule:core-classes/derive-property-list`'s "another class that itself
     // has a codec", still declared second.
     let diags = check_src(
         "<?nvs
@@ -104,7 +104,7 @@ class Blob {
         "{diags:?}"
     );
 
-    // The scalars, `?T` of one, and an `array<T>` of one: `rule:core-classes/derive-field-list`'s list, none of
+    // The scalars, `?T` of one, and an `array<T>` of one: `rule:core-classes/derive-property-list`'s list, none of
     // which this refusal may reach. A `?int` is reachable exactly when `int`
     // is, which is what makes the check ask the null-stripped type.
     let diags = check_src(
@@ -198,7 +198,7 @@ class Row {
 
 #[test]
 fn a_derive_on_a_class_with_no_declared_properties_is_refused() {
-    // `rule:core-classes/derive-field-list`'s field list is the declared property list, so no property is an
+    // `rule:core-classes/derive-property-list`'s field list is the declared property list, so no property is an
     // empty wire contract.
     let diags = check_src("<?nvs\n#[Core\\Json\\Derive]\nclass Marker {}\n");
     assert!(reported(&diags, code::E_DERIVE_NO_FIELDS), "{diags:?}");
@@ -286,7 +286,7 @@ class Qualified {
     );
     assert!(!diags.has_errors(), "{diags:?}");
 
-    // The refusals of `rule:core-classes/derive-field-list` and
+    // The refusals of `rule:core-classes/derive-property-list` and
     // `rule:core-classes/derive-generates-what-is-missing` reach the second format unchanged: a class
     // with no declared property derives an empty row mapping.
     let diags = check_src("<?nvs\n#[Core\\Db\\Derive]\nclass Marker {}\n");
@@ -317,7 +317,7 @@ fn a_db_derive_field_whose_type_has_no_column_mapping_is_refused_where_declared(
     // `rule:core-classes/db-column-types`'s type map has no row for an object: a row is a flat list
     // of columns, so a nested class is refused at the property that declared
     // it even when that class carries a `#[Db\Derive]` of its own. This is
-    // where the two formats' maps first disagree — `rule:core-classes/derive-field-list` admits exactly this
+    // where the two formats' maps first disagree — `rule:core-classes/derive-property-list` admits exactly this
     // field for JSON.
     let nested = "<?nvs
 #[Core\\{0}\\Derive]
@@ -365,7 +365,7 @@ class Row {
     );
 
     // The refusal is at the declaration and not at the `queryAs<T>` that would
-    // later run, so `rule:core-classes/derive-field-list`'s escape hatch takes the same property off the mapping
+    // later run, so `rule:core-classes/derive-property-list`'s escape hatch takes the same property off the mapping
     // and the file compiles — with the *row* attribute, not the JSON one.
     let diags = check_src(
         "<?nvs
@@ -452,7 +452,7 @@ class Late {
         "{named:?}"
     );
 
-    // `rule:core-classes/derive-field-list`'s option roster reaches the second format too, and the message names
+    // `rule:core-classes/derive-property-list`'s option roster reaches the second format too, and the message names
     // the attribute the reader wrote.
     let diags = check_src(
         "<?nvs
@@ -578,7 +578,7 @@ class People {
 
 #[test]
 fn query_as_over_a_class_with_an_opaque_field_is_refused_at_the_call() {
-    // `rule:core-classes/derive-field-list`'s escape hatch takes a property off the mapping, and the
+    // `rule:core-classes/derive-property-list`'s escape hatch takes a property off the mapping, and the
     // class stays well formed — `a_db_derive_field_with_no_column_mapping…`
     // above is that refusal, made at the declaration. What it cannot say is
     // that the constructor still demands the parameter, so a row arrives one
@@ -936,7 +936,7 @@ class Row {
     // erases to a wire type carrying **both** resolved pointers a decode needs
     // — the class a literal of those same field names builds, and the per-field
     // list that class's label cannot carry, since a shape class is keyed on
-    // field names alone (`rule:core-classes/derive-field-list`).
+    // field names alone (`rule:core-classes/derive-property-list`).
     let (diags, exprs) = check_src_table(
         "<?nvs
 #[Core\\Json\\Derive]

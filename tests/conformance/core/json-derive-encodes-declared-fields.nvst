@@ -1,5 +1,5 @@
 --TEST--
-#[Core\Json\Derive] makes a class encodable from its declared properties, private ones included, in declaration order, with per-field renaming and skipping — `rule:core-classes/derive-attribute` and `rule:core-classes/derive-field-list`
+#[Core\Json\Derive] makes a class encodable from its declared properties, private ones included, in declaration order, with per-field renaming and skipping — `rule:core-classes/derive-attribute` and `rule:core-classes/derive-property-list`
 --FILE--
 <?nvs
 // covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
@@ -25,14 +25,14 @@ class Address {
 class User {
     public string $name;
     public int $age;
-    // `rule:core-classes/derive-field-list`: `name` renames one field's key; there is no whole-class policy.
+    // `rule:core-classes/derive-property-list`: `name` renames one field's key; there is no whole-class policy.
     #[Field(name: "is_admin")]
     public bool $isAdmin;
-    // `rule:core-classes/derive-field-list`: `skip` removes the field entirely, and exempts it from `rule:core-classes/derive-field-list`'s
+    // `rule:core-classes/derive-property-list`: `skip` removes the field entirely, and exempts it from `rule:core-classes/derive-property-list`'s
     // constructor-parameter requirement.
     #[Field(skip: true)]
     public int $cachedHash;
-    // `rule:core-classes/derive-field-list`: another class with a codec is a codec-reachable field type, and a
+    // `rule:core-classes/derive-property-list`: another class with a codec is a codec-reachable field type, and a
     // `?T` one always emits, `null` included (`rule:core-api/required-optional-and-nullable`'s "no omit-when-null").
     public Address $address;
     public ?int $score;
@@ -48,7 +48,7 @@ class User {
 }
 
 // Declaration order is the encode order, which is what makes the document
-// byte-deterministic across runs and machines (`rule:core-classes/derive-field-list`).
+// byte-deterministic across runs and machines (`rule:core-classes/derive-property-list`).
 echo Json::encode(new User("ada", 36, true, new Address("london"), null)), "\n";
 echo Json::encode(new User("bob", 7, false, new Address("rome"), 12)), "\n";
 
@@ -57,7 +57,7 @@ echo Json::encode(new User("bob", 7, false, new Address("rome"), 12)), "\n";
 var $grace = new User("grace", 45, false, new Address("nyc"), 1);
 echo Json::encode($grace) == Json::encode($grace) ? "stable" : "varies", "\n";
 
-// `rule:core-classes/derive-field-list`: the field list is visibility-blind — a `protected` or `private` property
+// `rule:core-classes/derive-property-list`: the field list is visibility-blind — a `protected` or `private` property
 // is a field like any other. Visibility is an access-control decision, and a
 // codec that dropped a field the day it gained a `private` would be exactly the
 // silent break `rule:core-classes/derive-attribute`'s written opt-in is paying to remove. Decode is blind to it

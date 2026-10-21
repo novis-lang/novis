@@ -1,5 +1,5 @@
 --TEST--
-A partial answers the methods its shape names and delegates every other one to the real implementation, receiver and arguments unchanged — `rule:testing/doubles`, `rule:classes/delegation-by-field`
+A partial answers the methods its shape names and delegates every other one to the real implementation, receiver and arguments unchanged — `rule:testing/doubles`, `rule:classes/delegation-by-property`
 --FILE--
 <?nvs
 // covers: Core\Test::partial, Core\Test::double

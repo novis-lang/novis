@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs<T>` runs the class's own constructor, and one failed decode reports every bad field at once — `rule:core-classes/derive-field-list`, `rule:core-api/required-optional-and-nullable`, `rule:core-classes/derive-reports-every-field`
+`Core\Json::decodeAs<T>` runs the class's own constructor, and one failed decode reports every bad field at once — `rule:core-classes/derive-property-list`, `rule:core-api/required-optional-and-nullable`, `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
 // covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
@@ -19,7 +19,7 @@ class Row {
     }
 }
 
-// `rule:core-classes/derive-field-list`: a decode is an ordinary `new`, so the decoded object is the one the
+// `rule:core-classes/derive-property-list`: a decode is an ordinary `new`, so the decoded object is the one the
 // constructor built and encodes back to the document it came from.
 var $row = Core\Json::decodeAs<Row>("{\"name\":\"ada\",\"rank\":1,\"is_live\":true}");
 echo "name=", $row->name, "\n";

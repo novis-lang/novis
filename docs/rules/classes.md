@@ -209,7 +209,7 @@ inherited, initialized by the binding itself
 ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)), namable by an `implements ... by $field` clause, and
 carrying whatever qualifiers its type does.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field).</sub>
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/delegation-by-property`](classes.md#classes-delegation-by-property).</sub>
 
 <a id="classes-constructor-compatibility"></a>
 
@@ -1001,7 +1001,7 @@ What is one source and not two:
 
 `crates/nvs-types/src/conformance.rs`'s `check_member_conflicts` is the check.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field).</sub>
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-property`](classes.md#classes-delegation-by-property).</sub>
 
 <a id="classes-no-traits"></a>
 
@@ -1012,7 +1012,7 @@ What is one source and not two:
 `trait`, a class-body `use Trait, ...;` and `insteadof` are not in the grammar. Each is a parse-time
 diagnostic naming the replacement: an interface method with a body for shared behaviour
 ([`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods)), and
-`implements I by $field;` for shared state ([`classes/delegation-by-field`](classes.md#classes-delegation-by-field)).
+`implements I by $field;` for shared state ([`classes/delegation-by-property`](classes.md#classes-delegation-by-property)).
 
 A trait bundles two unrelated things — sharing behaviour and sharing state — under one flattening
 mechanism, and gives the reused code no type identity at all: a class using `Greets` is not a
@@ -1035,7 +1035,7 @@ silently copied per consuming class — has no destination at all.
   construct for a job interfaces already do, which is more surface to teach for nothing an existing
   construct lacks ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)).
 
-<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`types/no-legacy-cast`](types.md#types-no-legacy-cast).</sub>
+<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/delegation-by-property`](classes.md#classes-delegation-by-property), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`types/no-legacy-cast`](types.md#types-no-legacy-cast).</sub>
 
 <a id="classes-interface-default-methods"></a>
 
@@ -1105,7 +1105,7 @@ The two things such a property is reached for are already in the interface. A va
 supplies is a bodiless method. A value that is a constant per implementor is a typed constant the
 implementor overrides, read as `static::NAME` from a default method, which
 [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier) binds to the implementor's class. Shared state is
-`implements I by $field;` ([`classes/delegation-by-field`](classes.md#classes-delegation-by-field)), never a slot the interface owns: an
+`implements I by $field;` ([`classes/delegation-by-property`](classes.md#classes-delegation-by-property)), never a slot the interface owns: an
 interface names a contract, and its implementors hold the values.
 
 **Declined:**
@@ -1117,13 +1117,13 @@ interface names a contract, and its implementors hold the values.
 - **Refusing it in the checker.** The checker sees the same declaration one pass later with nothing
   more to say about it, and the parser is where the enum body's refusal of a method already sits.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier).</sub>
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-property`](classes.md#classes-delegation-by-property), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier).</sub>
 
-<a id="classes-delegation-by-field"></a>
+<a id="classes-delegation-by-property"></a>
 
 ## `implements I by $field` forwards every member `I` requires to that property
 
-`rule:classes/delegation-by-field`
+`rule:classes/delegation-by-property`
 
 Each entry in a class's `implements` list may carry a `by $field;` suffix. The compiler then
 synthesizes, for every method that interface requires, a one-line forward to the named property. The

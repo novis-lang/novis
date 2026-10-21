@@ -1,5 +1,5 @@
 --TEST--
-A property's `#[Json\Field]` overrides are one attribute, and a second is reported at itself — `rule:core-classes/derive-field-list`
+A property's `#[Json\Field]` overrides are one attribute, and a second is reported at itself — `rule:core-classes/derive-property-list`
 --FILE--
 <?nvs
 #[Core\Json\Derive]

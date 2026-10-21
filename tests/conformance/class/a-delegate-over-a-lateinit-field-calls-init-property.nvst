@@ -1,5 +1,5 @@
 --TEST--
-A delegated call whose `lateinit` field is uninitialized, in a class that implements `LateInit`, calls `initProperty` first and then forwards — `rule:classes/late-init-initializes-on-the-first-read`, `rule:classes/delegation-by-field`
+A delegated call whose `lateinit` field is uninitialized, in a class that implements `LateInit`, calls `initProperty` first and then forwards — `rule:classes/late-init-initializes-on-the-first-read`, `rule:classes/delegation-by-property`
 --FILE--
 <?nvs
 // covers: lang:classes/lateinit

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::jsonAs<T>()` hydrates the request body into a declared type, keeps nothing of what it built, and leaves the octets to the readers after it `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`, `rule:core-classes/derive-field-list`
+`Core\Request::jsonAs<T>()` hydrates the request body into a declared type, keeps nothing of what it built, and leaves the octets to the readers after it `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`, `rule:core-classes/derive-property-list`
 --HEADERS--
 Content-Type: application/json
 --POST_RAW--

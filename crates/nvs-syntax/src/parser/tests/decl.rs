@@ -122,7 +122,7 @@ fn class_body_use_trait_is_rejected() {
 
 #[test]
 fn implements_by_field_delegation_parses() {
-    // `rule:classes/delegation-by-field`: `by $field` is an optional suffix on one
+    // `rule:classes/delegation-by-property`: `by $field` is an optional suffix on one
     // `implements` entry, recorded but not yet resolved (that's
     // `nvs-hir`'s follow-up job).
     let s = parse_stmt_ok(

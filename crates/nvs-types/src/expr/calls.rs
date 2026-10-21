@@ -1786,7 +1786,7 @@ pub(crate) enum NoParameterList {
 /// anonymous function may declare such a parameter at all (`E_ANON_FN_INOUT_PARAM`), and
 /// an `inout` parameter list is packed and written back at the *call site*,
 /// which a call that learns its callee at run time cannot do — the same limit
-/// [`E_DELEGATE_MEMBER_NOT_FORWARDABLE`] names for `rule:classes/delegation-by-field`'s synthesized
+/// [`E_DELEGATE_MEMBER_NOT_FORWARDABLE`] names for `rule:classes/delegation-by-property`'s synthesized
 /// forward.
 ///
 /// A `...` argument is left alone and lowers: how many arguments it hands over

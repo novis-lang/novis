@@ -681,7 +681,7 @@ impl Named<'_> {
                 for clause in &decl.implements {
                     self.name(&clause.name, Kind::Interface);
                     // `by $field` names a property of this class, which is the
-                    // one thing `rule:classes/delegation-by-field` writes that
+                    // one thing `rule:classes/delegation-by-property` writes that
                     // is not the interface it delegates.
                     if let Some(field) = clause.by_field {
                         self.push(field, Kind::Property);

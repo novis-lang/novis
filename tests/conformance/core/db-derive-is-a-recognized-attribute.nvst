@@ -1,5 +1,5 @@
 --TEST--
-`#[Db\Derive]` and `#[Db\Field]` are compiler-recognized names like their JSON twins, matched after resolution rather than declared as shapes — `rule:core-classes/derive-attribute` and `rule:core-classes/derive-field-list`
+`#[Db\Derive]` and `#[Db\Field]` are compiler-recognized names like their JSON twins, matched after resolution rather than declared as shapes — `rule:core-classes/derive-attribute` and `rule:core-classes/derive-property-list`
 --FILE--
 <?nvs
 // `rule:core-classes/derive-attribute`: a compiler-recognized attribute is matched *nominally*, so the `use`d
@@ -40,7 +40,7 @@ class Row {
 }
 
 // The attribute changes nothing about the class as a class: a decode is an
-// ordinary `new` (`rule:core-classes/derive-field-list`), so an object built by hand is the same object.
+// ordinary `new` (`rule:core-classes/derive-property-list`), so an object built by hand is the same object.
 Account $a = new Account("nobody@example.com", 7);
 echo "email ", $a->email, "\n";
 echo "id ", $a->id, "\n";
