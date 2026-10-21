@@ -1,0 +1,20 @@
+<?nvs
+// One visitor's session, read and written by two kinds of request.
+// `/slow` adds 1 to a counter in the session, then works for 2 seconds.
+// `/fast` only reads the counter. Every other path starts the session.
+
+Core\Session::start();
+string $path = Core\Request::path();
+
+if ($path == "/slow") {
+    int $count = (Core\Session::get("count") ?? 0) as int;
+    Core\Session::set("count", $count + 1);
+    Core\Time::sleep(Core\Time\Duration::seconds(2));
+    Core\Response::text("slow done\n");
+} elseif ($path == "/fast") {
+    int $count = (Core\Session::get("count") ?? 0) as int;
+    Core\Response::text("count: " . $count . "\n");
+} else {
+    Core\Session::set("count", 0);
+    Core\Response::text("started\n");
+}
