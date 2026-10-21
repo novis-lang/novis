@@ -1,6 +1,6 @@
 {
-  "date": "2026-10-11T14:34:18",
-  "commit": "85c850da7",
+  "date": "2026-10-21T14:25:54",
+  "commit": "4fd66f4c6",
   "arm": "fair",
   "backend_cpus": 1,
   "nginx_cpus": 4,
@@ -11,7 +11,7 @@
     "platform": "win32-10.0.26200-x86_64",
     "processor": "AMD Ryzen 7 7800X3D 8-Core Processor           ",
     "cpus": 16,
-    "docker": "29.7.2"
+    "docker": "29.9.1"
   },
   "peers": {
     "nvs": {
@@ -20,19 +20,19 @@
     },
     "php": {
       "label": "PHP",
-      "image": "php:8.5.9-fpm"
+      "image": "php:8.5.11-fpm"
     },
     "bun": {
       "label": "Bun",
-      "image": "oven/bun:1.3.5-slim"
+      "image": "oven/bun:1.4.3-slim"
     },
     "go": {
       "label": "Go",
-      "image": "golang:1.27.2-alpine, run on alpine:3.23.0"
+      "image": "golang:1.27.2-alpine, run on alpine:3.24.2"
     }
   },
   "images": {
-    "nginx": "nginx:1.29.3-alpine",
+    "nginx": "nginx:1.31.7-alpine",
     "oha": "ghcr.io/hatoo/oha@sha256:3ec3dbf549ea197793482d47a6324797411406bbf438c2fe8b91f244ec641a2f"
   },
   "cases": {
@@ -40,16 +40,17 @@
       "concurrency": 64,
       "peers": {
         "nvs": {
-          "requests_per_sec": 34499.9,
-          "median_requests_per_sec": 31459,
-          "p50_ms": 1.6,
-          "p99_ms": 3.703,
+          "requests_per_sec": 28207,
+          "median_requests_per_sec": 26799.6,
+          "p50_ms": 1.477,
+          "p99_ms": 4.901,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 12668928,
-          "memory_peak_bytes": 19947520,
+          "memory_idle_bytes": 13443072,
+          "memory_peak_bytes": 20582400,
           "settings": {
             "server": "nvs serve",
             "workers": "one per visible cpu",
@@ -57,38 +58,41 @@
           }
         },
         "php": {
-          "requests_per_sec": 9779.2,
-          "median_requests_per_sec": 8736.3,
-          "p50_ms": 0.913,
-          "p99_ms": 84.426,
+          "requests_per_sec": 8702.9,
+          "median_requests_per_sec": 8622.2,
+          "p50_ms": 0.98,
+          "p99_ms": 84.632,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 72953856,
-          "memory_peak_bytes": 107118592,
+          "memory_idle_bytes": 71819264,
+          "memory_peak_bytes": 108969984,
           "settings": {
             "server": "php-fpm",
             "pm": "static",
             "pm.max_children": 128,
             "opcache.enable": "1",
             "opcache.memory_consumption": "256",
-            "opcache.validate_timestamps": "0",
+            "opcache.validate_timestamps": "1",
             "opcache.jit": "tracing",
-            "opcache.jit_buffer_size": "128M"
+            "opcache.jit_buffer_size": "128M",
+            "opcache.revalidate_freq": "2"
           }
         },
         "bun": {
-          "requests_per_sec": 41102.5,
-          "median_requests_per_sec": 40024.7,
-          "p50_ms": 0.804,
-          "p99_ms": 4.103,
+          "requests_per_sec": 43928.5,
+          "median_requests_per_sec": 37019.3,
+          "p50_ms": 0.686,
+          "p99_ms": 4.668,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 23937024,
-          "memory_peak_bytes": 33017856,
+          "memory_idle_bytes": 10850304,
+          "memory_peak_bytes": 20004864,
           "settings": {
             "server": "Bun.serve",
             "processes": 1,
@@ -96,16 +100,17 @@
           }
         },
         "go": {
-          "requests_per_sec": 36954.7,
-          "median_requests_per_sec": 35063.9,
-          "p50_ms": 1.515,
-          "p99_ms": 3.653,
+          "requests_per_sec": 30833.3,
+          "median_requests_per_sec": 30128.8,
+          "p50_ms": 1.41,
+          "p99_ms": 5.26,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 7544832,
-          "memory_peak_bytes": 15597568,
+          "memory_idle_bytes": 7749632,
+          "memory_peak_bytes": 14290944,
           "settings": {
             "server": "net/http",
             "GOMAXPROCS": 1
@@ -117,16 +122,17 @@
       "concurrency": 64,
       "peers": {
         "nvs": {
-          "requests_per_sec": 17544.6,
-          "median_requests_per_sec": 17217.4,
-          "p50_ms": 3.535,
-          "p99_ms": 6.571,
+          "requests_per_sec": 14687.6,
+          "median_requests_per_sec": 13524.9,
+          "p50_ms": 4.253,
+          "p99_ms": 8.211,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 14602240,
-          "memory_peak_bytes": 22433792,
+          "memory_idle_bytes": 15179776,
+          "memory_peak_bytes": 23654400,
           "settings": {
             "server": "nvs serve",
             "workers": "one per visible cpu",
@@ -134,38 +140,41 @@
           }
         },
         "php": {
-          "requests_per_sec": 6058,
-          "median_requests_per_sec": 5765.7,
-          "p50_ms": 1.011,
-          "p99_ms": 90.775,
+          "requests_per_sec": 5457.7,
+          "median_requests_per_sec": 5393.7,
+          "p50_ms": 1.072,
+          "p99_ms": 90.537,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 71712768,
-          "memory_peak_bytes": 124866560,
+          "memory_idle_bytes": 72269824,
+          "memory_peak_bytes": 127516672,
           "settings": {
             "server": "php-fpm",
             "pm": "static",
             "pm.max_children": 128,
             "opcache.enable": "1",
             "opcache.memory_consumption": "256",
-            "opcache.validate_timestamps": "0",
+            "opcache.validate_timestamps": "1",
             "opcache.jit": "tracing",
-            "opcache.jit_buffer_size": "128M"
+            "opcache.jit_buffer_size": "128M",
+            "opcache.revalidate_freq": "2"
           }
         },
         "bun": {
-          "requests_per_sec": 31039.9,
-          "median_requests_per_sec": 27626.8,
-          "p50_ms": 1.586,
-          "p99_ms": 6.486,
+          "requests_per_sec": 28042.6,
+          "median_requests_per_sec": 23243,
+          "p50_ms": 2.037,
+          "p99_ms": 6.415,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 24309760,
-          "memory_peak_bytes": 58109952,
+          "memory_idle_bytes": 11542528,
+          "memory_peak_bytes": 25554944,
           "settings": {
             "server": "Bun.serve",
             "processes": 1,
@@ -173,16 +182,17 @@
           }
         },
         "go": {
-          "requests_per_sec": 22421.3,
-          "median_requests_per_sec": 21743,
-          "p50_ms": 2.614,
-          "p99_ms": 6.305,
+          "requests_per_sec": 19246.1,
+          "median_requests_per_sec": 18187.4,
+          "p50_ms": 2.959,
+          "p99_ms": 7.698,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 6844416,
-          "memory_peak_bytes": 15724544,
+          "memory_idle_bytes": 7319552,
+          "memory_peak_bytes": 15323136,
           "settings": {
             "server": "net/http",
             "GOMAXPROCS": 1
@@ -194,16 +204,17 @@
       "concurrency": 64,
       "peers": {
         "nvs": {
-          "requests_per_sec": 8134.8,
-          "median_requests_per_sec": 7991.7,
-          "p50_ms": 8.179,
-          "p99_ms": 17.641,
+          "requests_per_sec": 9652.2,
+          "median_requests_per_sec": 9636.2,
+          "p50_ms": 6.265,
+          "p99_ms": 14.804,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 14745600,
-          "memory_peak_bytes": 22331392,
+          "memory_idle_bytes": 15855616,
+          "memory_peak_bytes": 24092672,
           "settings": {
             "server": "nvs serve",
             "workers": "one per visible cpu",
@@ -211,38 +222,41 @@
           }
         },
         "php": {
-          "requests_per_sec": 5351.7,
-          "median_requests_per_sec": 5291.3,
-          "p50_ms": 1.372,
-          "p99_ms": 90.775,
+          "requests_per_sec": 4753.9,
+          "median_requests_per_sec": 4724.2,
+          "p50_ms": 1.661,
+          "p99_ms": 92.107,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 73584640,
-          "memory_peak_bytes": 139493376,
+          "memory_idle_bytes": 72810496,
+          "memory_peak_bytes": 138780672,
           "settings": {
             "server": "php-fpm",
             "pm": "static",
             "pm.max_children": 128,
             "opcache.enable": "1",
             "opcache.memory_consumption": "256",
-            "opcache.validate_timestamps": "0",
+            "opcache.validate_timestamps": "1",
             "opcache.jit": "tracing",
-            "opcache.jit_buffer_size": "128M"
+            "opcache.jit_buffer_size": "128M",
+            "opcache.revalidate_freq": "2"
           }
         },
         "bun": {
-          "requests_per_sec": 17258.3,
-          "median_requests_per_sec": 17246,
-          "p50_ms": 2.973,
-          "p99_ms": 14.459,
+          "requests_per_sec": 20122.4,
+          "median_requests_per_sec": 17646.5,
+          "p50_ms": 2.652,
+          "p99_ms": 7.937,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 24313856,
-          "memory_peak_bytes": 54902784,
+          "memory_idle_bytes": 11075584,
+          "memory_peak_bytes": 29810688,
           "settings": {
             "server": "Bun.serve",
             "processes": 1,
@@ -250,16 +264,17 @@
           }
         },
         "go": {
-          "requests_per_sec": 3637.5,
-          "median_requests_per_sec": 3633.7,
-          "p50_ms": 17.294,
-          "p99_ms": 36.056,
+          "requests_per_sec": 3398.6,
+          "median_requests_per_sec": 3249,
+          "p50_ms": 18.491,
+          "p99_ms": 41.218,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 8118272,
-          "memory_peak_bytes": 16556032,
+          "memory_idle_bytes": 7655424,
+          "memory_peak_bytes": 15765504,
           "settings": {
             "server": "net/http",
             "GOMAXPROCS": 1
@@ -271,16 +286,17 @@
       "concurrency": 1000,
       "peers": {
         "nvs": {
-          "requests_per_sec": 14001.6,
-          "median_requests_per_sec": 13731.5,
-          "p50_ms": 52.652,
-          "p99_ms": 360.898,
+          "requests_per_sec": 13381.3,
+          "median_requests_per_sec": 13299.9,
+          "p50_ms": 56.07,
+          "p99_ms": 403.485,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 13209600,
-          "memory_peak_bytes": 99827712,
+          "memory_idle_bytes": 14123008,
+          "memory_peak_bytes": 124076032,
           "settings": {
             "server": "nvs serve",
             "workers": "one per visible cpu",
@@ -288,38 +304,41 @@
           }
         },
         "php": {
-          "requests_per_sec": 5019.8,
-          "median_requests_per_sec": 3112.2,
-          "p50_ms": 195.025,
-          "p99_ms": 532.553,
+          "requests_per_sec": 4202.8,
+          "median_requests_per_sec": 3835.8,
+          "p50_ms": 199.807,
+          "p99_ms": 602.719,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 1663463424,
-          "memory_peak_bytes": 2271846400,
+          "memory_idle_bytes": 1666834432,
+          "memory_peak_bytes": 2265829376,
           "settings": {
             "server": "php-fpm",
             "pm": "static",
             "pm.max_children": 2000,
             "opcache.enable": "1",
             "opcache.memory_consumption": "256",
-            "opcache.validate_timestamps": "0",
+            "opcache.validate_timestamps": "1",
             "opcache.jit": "tracing",
-            "opcache.jit_buffer_size": "128M"
+            "opcache.jit_buffer_size": "128M",
+            "opcache.revalidate_freq": "2"
           }
         },
         "bun": {
-          "requests_per_sec": 14057,
-          "median_requests_per_sec": 14040.5,
-          "p50_ms": 50.71,
-          "p99_ms": 394.046,
+          "requests_per_sec": 13898.4,
+          "median_requests_per_sec": 13827.8,
+          "p50_ms": 51.087,
+          "p99_ms": 407.859,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 23384064,
-          "memory_peak_bytes": 155381760,
+          "memory_idle_bytes": 11657216,
+          "memory_peak_bytes": 38367232,
           "settings": {
             "server": "Bun.serve",
             "processes": 1,
@@ -327,16 +346,17 @@
           }
         },
         "go": {
-          "requests_per_sec": 13898,
-          "median_requests_per_sec": 13808.2,
-          "p50_ms": 52.54,
-          "p99_ms": 376.763,
+          "requests_per_sec": 13264.5,
+          "median_requests_per_sec": 13032.4,
+          "p50_ms": 54.117,
+          "p99_ms": 385.746,
           "errors": 0,
+          "error_kinds": {},
           "status_codes": {
             "200": 60000
           },
-          "memory_idle_bytes": 8110080,
-          "memory_peak_bytes": 60338176,
+          "memory_idle_bytes": 9097216,
+          "memory_peak_bytes": 63025152,
           "settings": {
             "server": "net/http",
             "GOMAXPROCS": 1
@@ -346,8 +366,8 @@
     }
   },
   "scenarios": {
-    "date": "2026-10-11T19:12:37",
-    "commit": "b1f0bfbd7",
+    "date": "2026-10-21T14:48:14",
+    "commit": "4fd66f4c6",
     "rows": {
       "escape": {
         "folder": "benches/compare/scenarios/escape",
@@ -454,7 +474,7 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "seconds_to_new_answer": 1,
+              "seconds_to_new_answer": 1.3,
               "restarts": 0
             }
           },
@@ -462,7 +482,7 @@
             "result": "on-by-default",
             "setting": "opcache.validate_timestamps",
             "evidence": {
-              "seconds_to_new_answer": 2.5,
+              "seconds_to_new_answer": 3,
               "restarts": 0
             }
           },
@@ -527,12 +547,12 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "requests": 473734,
+              "requests": 314577,
               "failed_requests": 0,
               "failures": null,
               "mixed_replies": 0,
-              "seconds_to_copy": 3.2,
-              "seconds_to_new_answer": 2.6,
+              "seconds_to_copy": 2.2,
+              "seconds_to_new_answer": 3.3,
               "command": null,
               "restarts": 0,
               "version_checked": true
@@ -541,12 +561,12 @@
           "php": {
             "result": "no",
             "evidence": {
-              "requests": 118440,
+              "requests": 86086,
               "failed_requests": 0,
               "failures": null,
-              "mixed_replies": 65,
-              "seconds_to_copy": 3.4,
-              "seconds_to_new_answer": 0.3,
+              "mixed_replies": 77,
+              "seconds_to_copy": 2.3,
+              "seconds_to_new_answer": 1.4,
               "command": null,
               "restarts": 0,
               "version_checked": true
@@ -555,12 +575,12 @@
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 523097,
-              "failed_requests": 1748,
-              "failures": "502 x1746",
+              "requests": 379842,
+              "failed_requests": 1174,
+              "failures": "502 x1167",
               "mixed_replies": 0,
-              "seconds_to_copy": 3.1,
-              "seconds_to_new_answer": 0.1,
+              "seconds_to_copy": 2.4,
+              "seconds_to_new_answer": 0.2,
               "command": "a restart",
               "restarts": 1,
               "version_checked": true
@@ -569,9 +589,9 @@
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 579211,
-              "failed_requests": 569,
-              "failures": "502 x569",
+              "requests": 475739,
+              "failed_requests": 470,
+              "failures": "502 x470",
               "mixed_replies": 0,
               "seconds_to_copy": 0,
               "seconds_to_new_answer": 0,
@@ -588,9 +608,9 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 9154,
-              "requests_per_sec_4_cpus": 25872,
-              "scaling": 2.83,
+              "requests_per_sec_1_cpu": 9976,
+              "requests_per_sec_4_cpus": 26241,
+              "scaling": 2.63,
               "errors": 0,
               "code": null
             }
@@ -598,9 +618,9 @@
           "php": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 5655,
-              "requests_per_sec_4_cpus": 21996,
-              "scaling": 3.89,
+              "requests_per_sec_1_cpu": 4973,
+              "requests_per_sec_4_cpus": 21698,
+              "scaling": 4.36,
               "errors": 0,
               "code": null
             }
@@ -608,9 +628,9 @@
           "bun": {
             "result": "no",
             "evidence": {
-              "requests_per_sec_1_cpu": 18697,
-              "requests_per_sec_4_cpus": 32708,
-              "scaling": 1.75,
+              "requests_per_sec_1_cpu": 21368,
+              "requests_per_sec_4_cpus": 29804,
+              "scaling": 1.39,
               "errors": 0,
               "code": "a launcher that starts one reusePort process per cpu"
             }
@@ -618,9 +638,9 @@
           "go": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 3865,
-              "requests_per_sec_4_cpus": 12698,
-              "scaling": 3.29,
+              "requests_per_sec_1_cpu": 3450,
+              "requests_per_sec_4_cpus": 11175,
+              "scaling": 3.24,
               "errors": 0,
               "code": null
             }
@@ -671,12 +691,12 @@
             "result": "one-setting",
             "setting": "[limits]",
             "evidence": {
-              "requests": 406174,
+              "requests": 274734,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 0.5,
+              "p99_ms": 0.8,
               "runaway_status": 500,
-              "runaway_seconds": 1.4,
+              "runaway_seconds": 1.3,
               "backend_running": true
             }
           },
@@ -684,22 +704,22 @@
             "result": "on-by-default",
             "setting": "max_execution_time",
             "evidence": {
-              "requests": 99379,
+              "requests": 83337,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 57.2,
+              "p99_ms": 63.8,
               "runaway_status": 200,
-              "runaway_seconds": 38.5,
+              "runaway_seconds": 38.3,
               "backend_running": true
             }
           },
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 46230,
+              "requests": 53465,
               "failed_requests": 16,
               "failures": "timeout x16",
-              "p99_ms": 0.9,
+              "p99_ms": 0.7,
               "runaway_status": null,
               "runaway_seconds": null,
               "backend_running": true
@@ -708,10 +728,10 @@
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 50389,
+              "requests": 33813,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 20.5,
+              "p99_ms": 20.7,
               "runaway_status": null,
               "runaway_seconds": null,
               "backend_running": true
@@ -726,10 +746,10 @@
             "result": "one-setting",
             "setting": "[limits]",
             "evidence": {
-              "requests": 405119,
+              "requests": 291179,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 0.6,
+              "p99_ms": 0.9,
               "runaway_status": 500,
               "runaway_seconds": 0,
               "backend_running": true
@@ -739,36 +759,36 @@
             "result": "on-by-default",
             "setting": "memory_limit",
             "evidence": {
-              "requests": 141770,
+              "requests": 43773,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 0.8,
+              "p99_ms": 45.9,
               "runaway_status": 200,
-              "runaway_seconds": 0.1,
+              "runaway_seconds": 2,
               "backend_running": true
             }
           },
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 58445,
-              "failed_requests": 976,
-              "failures": "502 x960; timeout x16",
-              "p99_ms": 0.8,
+              "requests": 39332,
+              "failed_requests": 345,
+              "failures": "502 x329; timeout x16",
+              "p99_ms": 0.9,
               "runaway_status": 502,
-              "runaway_seconds": 0.3,
+              "runaway_seconds": 1.6,
               "backend_running": false
             }
           },
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 45235,
-              "failed_requests": 540,
-              "failures": "502 x524; timeout x16",
-              "p99_ms": 0.8,
+              "requests": 9247,
+              "failed_requests": 273,
+              "failures": "502 x273",
+              "p99_ms": 400,
               "runaway_status": 502,
-              "runaway_seconds": 0.3,
+              "runaway_seconds": 10.3,
               "backend_running": false
             }
           }
@@ -849,11 +869,12 @@
         "folder": "benches/compare/cases/wait",
         "peers": {
           "nvs": {
-            "result": "no",
+            "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 56.6,
-              "failed_requests": 56318
+              "kib_per_request": 107.3,
+              "failed_requests": 0,
+              "failures": null
             }
           },
           "php": {
@@ -861,24 +882,27 @@
             "setting": "pm.max_children",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 585.9,
-              "failed_requests": 0
+              "kib_per_request": 588.9,
+              "failed_requests": 0,
+              "failures": null
             }
           },
           "bun": {
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 115.4,
-              "failed_requests": 0
+              "kib_per_request": 26,
+              "failed_requests": 0,
+              "failures": null
             }
           },
           "go": {
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 52.2,
-              "failed_requests": 0
+              "kib_per_request": 51.9,
+              "failed_requests": 0,
+              "failures": null
             }
           }
         }
@@ -890,36 +914,36 @@
             "result": "one-setting",
             "setting": "[capabilities.script] spawn",
             "evidence": {
-              "seconds_1_part": 0.646,
-              "seconds_4_parts": 0.679,
-              "speedup": 3.81,
+              "seconds_1_part": 0.716,
+              "seconds_4_parts": 0.724,
+              "speedup": 3.96,
               "way": "spawn script … on: \"worker\""
             }
           },
           "php": {
             "result": "no",
             "evidence": {
-              "seconds_1_part": 0.565,
-              "seconds_4_parts": 2.263,
-              "speedup": 1,
+              "seconds_1_part": 0.616,
+              "seconds_4_parts": 2.354,
+              "speedup": 1.05,
               "way": null
             }
           },
           "bun": {
             "result": "built-in",
             "evidence": {
-              "seconds_1_part": 0.695,
-              "seconds_4_parts": 0.722,
-              "speedup": 3.85,
+              "seconds_1_part": 0.717,
+              "seconds_4_parts": 0.736,
+              "speedup": 3.9,
               "way": "Worker"
             }
           },
           "go": {
             "result": "built-in",
             "evidence": {
-              "seconds_1_part": 0.565,
-              "seconds_4_parts": 0.579,
-              "speedup": 3.9,
+              "seconds_1_part": 0.592,
+              "seconds_4_parts": 0.599,
+              "speedup": 3.95,
               "way": "goroutines"
             }
           }
@@ -931,10 +955,10 @@
           "nvs": {
             "result": "no",
             "evidence": {
-              "requests": 512501,
-              "failed_requests": 16336,
-              "failures": "502 x16336",
-              "p99_ms": 0.7,
+              "requests": 284206,
+              "failed_requests": 2733,
+              "failures": "502 x2733",
+              "p99_ms": 1.4,
               "seconds_to_answer": 0,
               "command": "a restart",
               "restarts": 1
@@ -943,10 +967,10 @@
           "php": {
             "result": "no",
             "evidence": {
-              "requests": 200567,
-              "failed_requests": 4,
-              "failures": "502 x4",
-              "p99_ms": 0.7,
+              "requests": 144014,
+              "failed_requests": 28,
+              "failures": "502 x28",
+              "p99_ms": 26.6,
               "seconds_to_answer": 0,
               "command": "php-fpm reload",
               "restarts": 0
@@ -955,10 +979,10 @@
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 611650,
-              "failed_requests": 1699,
-              "failures": "502 x1699",
-              "p99_ms": 0.7,
+              "requests": 252700,
+              "failed_requests": 505,
+              "failures": "502 x505",
+              "p99_ms": 8.7,
               "seconds_to_answer": 0,
               "command": "a restart",
               "restarts": 1
@@ -967,10 +991,10 @@
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 610523,
-              "failed_requests": 1008,
-              "failures": "502 x1008",
-              "p99_ms": 0.5,
+              "requests": 432245,
+              "failed_requests": 765,
+              "failures": "502 x765",
+              "p99_ms": 0.8,
               "seconds_to_answer": 0,
               "command": "a new image and a restart",
               "restarts": 1
@@ -982,15 +1006,16 @@
   },
   "config_digests": {
     "benches/compare/compose.nvs.yaml": "3eb5f409e1042f57",
-    "benches/compare/compose.php.yaml": "554b3919252ec6d5",
-    "benches/compare/compose.bun.yaml": "5858e56b6ff5f3b8",
+    "benches/compare/compose.php.yaml": "ff0662ad479d030f",
+    "benches/compare/compose.bun.yaml": "b004709a4c5256f1",
     "benches/compare/compose.go.yaml": "741b3956df94af7b",
-    "benches/compare/compose.common.yaml": "9e65277e6978a6f2",
+    "benches/compare/compose.common.yaml": "954c98b9d084da8d",
     "benches/compare/nginx/http.conf": "b8c45517e93f1f12",
     "benches/compare/nginx/fastcgi.conf": "5d5e2e1e4b21dccd",
     "benches/compare/bun/serve.ts": "b2553e0f3f11b0aa",
-    "benches/compare/go/Dockerfile": "3d3681d04b1f91f0",
-    "benches/proxied/php/opcache.ini": "a8291368e09557f4",
+    "benches/compare/go/Dockerfile": "cd9e4481352c9ab5",
+    "benches/proxied/php/opcache.ini": "03426cee699d4bd5",
+    "benches/compare/php/file-check.ini": "45b8e6f71ca9360d",
     "benches/proxied/php/pool.conf.in": "6ae1bbe69dd4cf6d"
   }
 }
