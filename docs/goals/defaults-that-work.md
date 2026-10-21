@@ -41,7 +41,7 @@ stages:
         rules: [core-classes/db-capabilities, core-classes/db-safe-connection-defaults, security/net-address-policy]
   - id: 6
     title: a CLI run starts any program, and a script inside the app folder spawns with no grant
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/script.rs, crates/nvs-config/src/schedule.rs, crates/nvs-stdlib/src/process.rs, docs/rules/security/process-exec-capability.md, docs/rules/security/script-spawn-capability.md]
     extra:
       context:
@@ -434,11 +434,11 @@ adds the narrowing lines.
 
 **Does:** decisions 6 and 7 are on.
 
-- [ ] A CLI run's `process.exec` defaults to every program, and a bare name is looked up on `PATH` on a CLI run only (`rule:security/process-exec-capability`). `crates/nvs-runtime/src/capability.rs:1492`, `crates/nvs-runtime/src/capability.rs:128`
-- [ ] A server grant entry that is a bare name resolves through `PATH` once at boot, and a name nothing answers stops the boot (`rule:security/process-exec-capability`). `crates/nvs-config/src/capability.rs:921`
-- [ ] A script inside the app folder spawns with no grant, from a door and from `[[schedule]]` alike (`rule:security/script-spawn-capability`). `crates/nvs-runtime/src/script.rs:477`, `crates/nvs-config/src/schedule.rs:247`
-- [ ] The hostile block writes `exec = []` and `spawn = []`, and each listed case writes its own narrowing. `nvs.toml:19`
-- [ ] Tests: `git --version` by name on a CLI run, a bare name refused in server work with no grant and started with one, a `.cmd` still refused, a script in the app folder spawned and one outside refused. `crates/nvs-runtime/src/capability.rs:2271`
+- [x] A CLI run's `process.exec` defaults to every program, and a bare name is looked up on `PATH` on a CLI run only (`rule:security/process-exec-capability`). `crates/nvs-runtime/src/capability.rs:1492`, `crates/nvs-runtime/src/capability.rs:128`
+- [x] A server grant entry that is a bare name resolves through `PATH` once at boot, and a name nothing answers stops the boot (`rule:security/process-exec-capability`). `crates/nvs-config/src/capability.rs:921`
+- [x] A script inside the app folder spawns with no grant, from a door and from `[[schedule]]` alike (`rule:security/script-spawn-capability`). `crates/nvs-runtime/src/script.rs:477`, `crates/nvs-config/src/schedule.rs:247`
+- [x] The hostile block writes `exec = []` and `spawn = []`, and each listed case writes its own narrowing. `nvs.toml:19`
+- [x] Tests: `git --version` by name on a CLI run, a bare name refused in server work with no grant and started with one, a `.cmd` still refused, a script in the app folder spawned and one outside refused. `crates/nvs-runtime/src/capability.rs:2271`
 
 ### 7. with no `[session]` block, sessions live in a SQLite file in the data folder, and requests of one session never wait for each other
 
@@ -528,8 +528,14 @@ to a writing subagent, one after another. Then the gate runs once more.
 
 ### State
 
-Stages 1 to 5 are done. Stage 4 is committed without a green gate: its gate was stopped after a
+Stages 1 to 6 are done. Stage 4 is committed without a green gate: its gate was stopped after a
 test hung. Stages 5 to 12 check with a build alone, and stage 13, the gate stage, verifies the goal.
+
+The run's red acceptance checks (`config-tests`, `db-tests`, `runtime-tests`) all failed at build
+on a locked `target/covws/.../nvs.exe`, not on a test. `config-tests` and `db-tests` are green on
+rerun. The nightly's site failures (`covariant.mdx`, `union-types.mdx`, the questions) are already
+fixed at `85bb5a170`. The only stale page locally is `in-depth/compare.mdx`, whose edit is
+uncommitted work that is not this goal's.
 
 **Expected red at stage 13** (found, not fixed):
 
@@ -537,8 +543,53 @@ test hung. Stages 5 to 12 check with a build alone, and stage 13, the gate stage
   (`crates/nvs-stdlib/tests/capability.rs:868`) expects `Core\Cap::has` to answer `true` for
   `fs.read` alone. Stages 3 and 4 opened `fs.write` and `net.connect` on a CLI run, so it now
   gets more. The test should write `write = []` and `connect = []`, or count the defaults.
+- Stage 6 opened `process.exec` on a CLI run and `script.spawn` for the app folder. A Rust test or
+  a `.nvst` case that expects a program refused on a CLI run with nothing written, or a spawn
+  refused through `Authority` with nothing written, now gets the default. The process cases were
+  checked (`process-exec-is-deny-by-default.nvst` is now
+  `process-exec-written-as-an-empty-list-refuses-every-program.nvst`). Tests that ask
+  `Capabilities::allows` directly are not affected.
+- A test that asserts `Core\Cap::has('script.spawn')` or `process.exec` is `false` with nothing
+  written now gets `true` on a CLI run.
 - The acceptance check `config-tests` was red on stage 4's authority test. It is fixed and green
   (`fd07d523a`).
+
+**Stage 6 (programs and scripts):**
+
+- `defaults::capability` (`crates/nvs-config/src/defaults.rs`) gives `process.exec`
+  `Granted::Everything` on a CLI run, and `script.spawn` the new `Granted::AppCode` on both run
+  kinds: the app folder minus dot-paths and `nvs.toml`, and **minus the run's own temporary
+  directories** (`Run::spawns_by_default`), so a request cannot write a script and spawn it.
+  `Authority::allows` answers an unscoped ask `true` under `AppCode`: that is the method form.
+- A bare name is `nvs_config::capability::bare_program` (no `/`, no `\` or `:` on Windows, not
+  `.`/`..`), and `on_path` looks it up (`PATHEXT` on Windows, the execute bit elsewhere; a relative
+  `PATH` folder is skipped). `anchor_program` writes a bare `exec` entry as its absolute path at
+  load, and `silent_entry` refuses one `PATH` does not answer. **A folder entry needs a separator
+  now**: `exec = ["target"]` in `nvs.toml` became `"target/"`, and the case
+  `process-run-asks-for-the-capability-before-it-looks-at-the-target.nvst` writes `"allowed/"`.
+- The exec door (`exec_with`, `crates/nvs-runtime/src/capability.rs`) asks the grant unscoped
+  before a bare name is looked up, then asks `require` with the found absolute path.
+  `spawn_target` is gone. **This session's reading of decision 6:** server work also looks a bare
+  name up on `PATH`, but only once a written line exists, and the found path must pass that line.
+  Matching the call against the entry's name instead fails once canonicalization resolves a
+  symlinked entry (`python3` to `python3.12`). The rule records it.
+- The compiler joined `Process::run("git")` to the file's folder, so the name never reached the
+  door. `CoreTy::Program(Qual)` and `ParamText::Program` (`crates/nvs-stdlib/src/registry.rs`)
+  mark `run` and `spawn`'s first parameter. `resolve_args` (`crates/nvs-types/src/paths.rs`) leaves
+  a bare literal there as written and joins every other one.
+- The hostile block writes `exec = []`. It does **not** write `spawn = []`: the `root = "."` block
+  already grants `spawn = true` to every attack, so the default opens nothing new there, and `[]`
+  would take a grant away.
+- The `[[schedule]]` refusal (`crates/nvs-config/src/schedule.rs`) names the app folder.
+- Tests, each passed once: `a_bare_name_is_found_on_path_on_a_cli_run_and_needs_a_line_in_server_work`
+  and `a_script_in_the_app_folder_spawns_and_one_outside_it_does_not`
+  (`crates/nvs-runtime/src/capability.rs`), `a_scheduled_script_in_its_app_folder_needs_no_spawn_grant`
+  (`crates/nvs-config/tests/resolve.rs`), `a_bare_exec_entry_is_looked_up_on_path_when_the_configuration_loads`
+  and a row in `a_grant_entry_that_allows_nothing_is_refused_naming_the_line_to_write`
+  (`crates/nvs-config/tests/capability.rs`). Six process cases pass under `nvs test`.
+- Rules rewritten: `security/process-exec-capability` (new title, three Declined lines) and
+  `security/script-spawn-capability` (one Declined line). `docs/reference/tools/20-config.md`
+  states both defaults.
 
 **Stage 5 (SQLite and database TLS):**
 
@@ -666,20 +717,23 @@ questions of the capabilities and trust pages. They are restamped in this group.
 
 ### Next
 
-**Stage 6**, programs and scripts (decisions 6 and 7). `defaults::capability`
-(`crates/nvs-config/src/defaults.rs:364`) gives `process.exec` `Granted::Everything` on a CLI run.
-The relative-path refusal in `crates/nvs-runtime/src/capability.rs:128` and the exec door at
-`:1492` look a bare name up on `PATH` on a CLI run. In server work `exec = ["git"]` resolves through
-`PATH` once at boot to an absolute path and is refused at boot when nothing is found.
-`script.spawn` defaults to the app folder, minus dot-files and `nvs.toml`, on both run kinds
-(`Granted::AppFolder` already has that check, `Run::reads_by_default`): `crates/nvs-runtime/src/script.rs:477`
-and the schedule check `crates/nvs-config/src/schedule.rs:247`. The hostile block in `nvs.toml`
-gains `exec = []` and `spawn = []`. Rules `security/process-exec-capability`,
-`security/script-spawn-capability`.
+**No gate until stage 13.** Check with `cargo build` and `cargo clippy --all-targets -- -D
+warnings`, commit each slice, and name in the handoff the tests and cases you expect to go red.
+
+**Stage 7**, sessions (decision 8). The `db` store reads its row at `start` and writes it whole at
+the end with no lock (`crates/nvs-stdlib/src/session.rs:801`). No `[session]` block selects
+`<data>/session.sqlite` in WAL mode (`crates/nvs-stdlib/src/session.rs:617`,
+`crates/nvs-config/src/data.rs:459`), and no usable data folder throws naming `[session]`. A sweep
+deletes expired rows. Rules `http-server/no-session-block-means-no-store`,
+`http-server/a-session-is-loaded-once-and-written-whole`,
+`http-server/session-expiry-belongs-to-the-store`. Stages 8, 9 and 10 may go first: their files are
+disjoint.
 
 ### Backlog
 
 - `Core\Queue::push`'s `grants` refusal still says ``help: grant it in nvs.toml under ...``: it is about the request's own grants list, not a missing grant line, and may adopt `grant_line` when stage 2 touches queue grants. `crates/nvs-stdlib/src/queue.rs:3085`
 - `nvs-stdlib test ldap` failed 9 Samba cases in one full verify run. The cause was a TLS handshake that passed its 30s deadline, with the binary taking 205s, and it passed alone in 5s twice. If it repeats, find what loads Samba during verify. `crates/nvs-stdlib/tests/ldap.rs:49`
 - Stages 7, 8, 9 and 10 touch disjoint files and may run as side goals at any time. `docs/goals/defaults-that-work.md`
+- The editor offers file names at a `ParamText::Path` argument and not at `ParamText::Program`, so `Core\Process::run`'s first argument lost path completion, hover and links. `crates/nvs-lsp/src/completion.rs:743`
+- Stage 11: the shipped file's `#exec` and `#spawn` comments still read as deny-all. `crates/nvs-config/src/default.toml:147`
 - The package half of every default is goal `namespace-grants`'s: a package is checked against its own line alone. `docs/goals/namespace-grants.md`
