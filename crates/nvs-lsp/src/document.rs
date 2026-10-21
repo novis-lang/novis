@@ -589,40 +589,22 @@ impl Analysed {
     /// can be there: a method or an anonymous function ends at a `}` that the frame still
     /// covers. So where no body covers `offset`, the widest body that starts
     /// before it answers, which is that frame.
+    ///
+    /// [`nvs_types::ExprTypeTable::bodies_at`] is the lookup, over the entry.
     pub(crate) fn bodies_at(&self, offset: BytePos) -> Vec<&[LocalBinding]> {
-        let scopes = || {
-            self.exprs
-                .local_scopes()
-                .filter(|(body, _)| body.file == self.entry && body.start <= offset)
-        };
-        let mut bodies: Vec<(Span, &[LocalBinding])> =
-            scopes().filter(|(body, _)| offset < body.end).collect();
-        if bodies.is_empty() {
-            bodies.extend(scopes().max_by_key(|(body, _)| body.end - body.start));
-        }
-        bodies.sort_by_key(|(body, _)| body.end - body.start);
-        bodies.into_iter().map(|(_, locals)| locals).collect()
+        self.exprs.bodies_at(self.entry, offset)
     }
 
     /// The type the binding named at `span` was declared with, `offset` being
-    /// the position whose bodies are in scope.
+    /// the position whose bodies are in scope, which
+    /// [`nvs_types::ExprTypeTable::local_ty`] answers over the entry.
     ///
-    /// Innermost body first, and the first one that declares the name wins: an
-    /// anonymous function's body is inside the body that wrote it and shares none
-    /// of its bindings, so the enclosing body's entry is the right answer for a
-    /// name the function captured and the wrong one for a name it declared itself.
-    ///
-    /// It lives here rather than beside either caller because two features now
-    /// ask it: [`crate::completion`] resolves the members off `$u->`, and
-    /// [`crate::semantic`] reads a qualifier off every use of a name. A local's
-    /// declared type is a fact about [`Analysed`], so this is its one home.
+    /// [`crate::completion`] resolves the members off `$u->` through it, and
+    /// [`crate::semantic`] reads a qualifier off every use of a name.
     pub(crate) fn local_ty(&self, span: Span, offset: BytePos) -> Option<TypeId> {
         let text = self.map.file(self.entry).text();
         let name = text.get(span.range())?.strip_prefix('$')?;
-        self.bodies_at(offset)
-            .into_iter()
-            .find_map(|locals| locals.iter().find(|local| local.name == name))
-            .map(|local| local.ty)
+        self.exprs.local_ty(self.entry, name, offset)
     }
 }
 

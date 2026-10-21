@@ -49,7 +49,7 @@
 //! once per compile rather than per request the compiled code later serves
 //! (`rule:config/an-edit-reaches-the-next-request-without-a-restart`'s cache makes a compile a rare event, not a per-request cost).
 
-use nvs_diagnostics::Span;
+use nvs_diagnostics::{BytePos, SourceId, Span};
 use nvs_hir::QName;
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -1736,6 +1736,39 @@ impl ExprTypeTable {
         self.locals
             .iter()
             .map(|(body, locals)| (*body, locals.as_slice()))
+    }
+
+    /// The locals of every body of `file` that covers `offset`, innermost
+    /// first. When none covers it, the widest body of `file` that starts
+    /// before it, which is the script body an offset past its last statement
+    /// still belongs to.
+    pub fn bodies_at(&self, file: SourceId, offset: BytePos) -> Vec<&[LocalBinding]> {
+        let scopes = || {
+            self.local_scopes()
+                .filter(move |(body, _)| body.file == file && body.start <= offset)
+        };
+        let mut bodies: Vec<(Span, &[LocalBinding])> =
+            scopes().filter(|(body, _)| offset < body.end).collect();
+        if bodies.is_empty() {
+            bodies.extend(scopes().max_by_key(|(body, _)| body.end - body.start));
+        }
+        bodies.sort_by_key(|(body, _)| body.end - body.start);
+        bodies.into_iter().map(|(_, locals)| locals).collect()
+    }
+
+    /// The type the binding `name` of `file` was declared with, `offset` being
+    /// the position whose bodies are in scope.
+    ///
+    /// Innermost body first, and the first one that declares the name wins: an
+    /// anonymous function's body is inside the body that wrote it and shares
+    /// none of its bindings, so the enclosing body's entry is the right answer
+    /// for a name the function captured and the wrong one for a name it
+    /// declared itself.
+    pub fn local_ty(&self, file: SourceId, name: &str, offset: BytePos) -> Option<TypeId> {
+        self.bodies_at(file, offset)
+            .into_iter()
+            .find_map(|locals| locals.iter().find(|local| local.name == name))
+            .map(|local| local.ty)
     }
 
     /// Every [`ExprInfo::AnonFn`] recorded this run, in the order the

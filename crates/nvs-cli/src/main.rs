@@ -1017,6 +1017,7 @@ fn front_end_in(
     if let Some(looked) = looked {
         looked.take(&map, Some(&autoload));
     }
+    conceal_secret_literals(&mut map, &diags, &loaded, &exprs, &interner);
     let Some(layouts) = layouts else {
         autoload.note_searched_roots(
             &mut diags,
@@ -2861,6 +2862,30 @@ fn emit_diagnostics(diags: &mut Diagnostics, map: &SourceMap, sink: Sink) {
         }
         Sink::Hook => agent::keep_errors(diags, map),
     }
+}
+
+/// Hands `map` every `secret` literal of the program, so no diagnostic's
+/// snippet prints one (`rule:security/redaction-reaches-the-tools-own-renderings`).
+///
+/// Only when there is a diagnostic to render: the walk is one tree per loaded
+/// file, and a program that compiles clean prints no snippet to protect.
+fn conceal_secret_literals(
+    map: &mut SourceMap,
+    diags: &Diagnostics,
+    loaded: &[nvs_hir::requires::Loaded],
+    exprs: &nvs_types::ExprTypeTable,
+    interner: &nvs_types::TypeInterner,
+) {
+    if diags.is_empty() {
+        return;
+    }
+    let spans: Vec<_> = loaded
+        .iter()
+        .flat_map(|file| {
+            nvs_types::redaction::secret_literals(map.file(file.id), &file.stmts, exprs, interner)
+        })
+        .collect();
+    map.conceal(spans);
 }
 
 fn render_diagnostics(diags: &mut Diagnostics, map: &SourceMap) {

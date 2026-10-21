@@ -20,8 +20,8 @@ stages:
         rules: [ide/check-json-is-the-diagnostic-record-as-a-document, ide/ast-json-schema-is-frozen]
   - id: 5
     title: "a compiler diagnostic's snippet redacts a `secret`"
-    status: open
-    context: [crates/nvs-diagnostics/src/render.rs, data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json, docs/rules/security/redaction-reaches-the-tools-own-renderings.md]
+    status: done
+    context: [crates/nvs-diagnostics/src/record.rs, crates/nvs-types/src/redaction.rs, docs/rules/security/redaction-reaches-the-tools-own-renderings.md]
     extra:
       context:
         rules: [security/redaction-reaches-the-tools-own-renderings]
@@ -130,12 +130,15 @@ its own value, and one whole document is frozen.
 
 ### 5. a compiler diagnostic's snippet redacts a `secret`
 
-**Does:** a `secret` literal in a snippet's lines prints as the redaction node, in the text and in the
-JSON.
+**Does:** a `secret` literal in a snippet's lines prints masked, in the text and in the JSON.
 
-- [ ] A `secret` literal inside a snippet's lines prints redacted in the text and the JSON, with a test of each (`rule:security/redaction-reaches-the-tools-own-renderings`). `crates/nvs-diagnostics/src/render.rs:107`, `crates/nvs-cli/tests/check.rs:1`
-- [ ] The gap record is deleted. `data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json:1`
-- [ ] `rule:security/redaction-reaches-the-tools-own-renderings` is `shipped`, its "Partly on disk" paragraph rewritten. `data/rules/security/redaction-reaches-the-tools-own-renderings.json:3`, `docs/rules/security/redaction-reaches-the-tools-own-renderings.md:23`
+- [x] A `secret` literal inside a snippet's lines prints redacted in the text and the JSON, with a test of each (`rule:security/redaction-reaches-the-tools-own-renderings`). `crates/nvs-diagnostics/src/record.rs:1`, `crates/nvs-cli/tests/check.rs:1`
+  - [x] The `secret`-literal walk moves from `nvs-lsp` to `nvs_types::redaction`, and the editor's request calls it.
+  - [x] The source map carries the concealed ranges and masks them in a snippet line.
+  - [x] The compile path conceals every loaded file's `secret` literals before it renders.
+  - [x] A test of the map, the record, the text, and `nvs check` with and without `--json`.
+- [x] The gap record is deleted.
+- [x] `rule:security/redaction-reaches-the-tools-own-renderings` is `shipped`, its "Partly on disk" paragraph rewritten. `data/rules/security/redaction-reaches-the-tools-own-renderings.json:3`, `docs/rules/security/redaction-reaches-the-tools-own-renderings.md:12`
 
 ### 2. a `#[Test]` result is a producer
 
@@ -160,38 +163,39 @@ the runner's JSON and JUnit reports render from it.
 
 ### State
 
-Stages 1 and 4 are done. `nvs_diagnostics::record::record` builds a diagnostic's record, and both
+Stages 1, 4 and 5 are done. `nvs_diagnostics::record::record` builds a diagnostic's record, and both
 the terminal text (`Renderer::render_record`) and the `nvs check --json` document
-(`crates/nvs-cli/src/check.rs`'s `diagnostic_json`) render from it. `Node::Span` gained the byte
-`offset` and `end_offset` the document writes as `span`, and the JSON rendering writes them as
-`$span`'s keys. The document's `schemaVersion: 1` shape did not change. A label in a file the map
-does not hold is left out of both renderings, since a diagnostic against a loaded file has none. A
-suggestion with no span writes `null` for `file`, `span`, `start` and `end`. The document's text
-now has the record's control-byte substitution. `tests/fixtures/check/frozen.nvs`'s whole document
-is frozen in `check_json_matches_its_frozen_document`, run from the crate directory so the path in
-it is the same on every machine.
+(`crates/nvs-cli/src/check.rs`'s `diagnostic_json`) render from it. Its frozen document is
+`check_json_matches_its_frozen_document`.
 
-The acceptance sweep's red `cli-tests` was the `spreadsheet_*` tests, failing on the uncommitted
-extension-contagion work in the tree (`crates/nvs-types/src/ext_lib.rs`'s `contagious_return`),
-which is not this goal's. The nightly `proofs` jobs failed on stale perf measurements, and the
-website job on a stale `llms-full.txt` that is current on disk now; the `ci-green` side loop owns
-both.
+A snippet masks a `secret` literal: one `*` per character between its quotes, so carets stay
+aligned. The walk that says which literals are `secret` moved from `nvs-lsp` to
+`nvs_types::redaction::secret_literals`, and `nvs/redactions` calls it. The compile path
+(`crates/nvs-cli/src/main.rs`'s `conceal_secret_literals`) hands every loaded file's ranges to
+`SourceMap::conceal` when there is a diagnostic, and the record takes its line from
+`SourceMap::shown_line`. A suggestion whose span touches a concealed byte is left out of the
+record; `--fix` still applies it. The rule records the mask's trade-off (length visible) and
+declines `[redacted]` in place.
+
+The nightly `proofs` jobs failed on stale perf measurements of `crates/nvs-stdlib/src/bigint.rs`,
+and the website job on `nv render --check`, which is current on disk; the `ci-green` side loop
+owns both. The installed `looper` here has no `verify` subcommand: `bun tools/looper/main.ts verify`
+is the one that runs.
 
 ### Next
 
-**Stage 5: a snippet redacts a `secret`**, one file set: `crates/nvs-diagnostics/src/record.rs`,
-`crates/nvs-diagnostics/src/render.rs`, `crates/nvs-cli/tests/check.rs`. The redaction belongs where
-the record takes the source line (`record.rs:180`), so both renderings inherit it. The
-`check --json` document writes no snippet text, so its half of the item is a test that a label's
-`message` and a note carry no `secret` literal, or a decision written into the rule that the
-document has nothing to redact.
+**Stage 3: an `inout` argument drops a `readonly` path's narrowing**, in `nvs-types` alone. The audit
+says `crates/nvs-types/src/expr/args.rs:183` already calls `note_write` on an `inout` argument, so
+the case below likely passes as written.
 
-- [ ] A `secret` literal inside a snippet's lines prints redacted in the text and the JSON, with a test of each (`rule:security/redaction-reaches-the-tools-own-renderings`). `crates/nvs-diagnostics/src/record.rs:180`, `crates/nvs-diagnostics/src/render.rs:121`, `crates/nvs-cli/tests/check.rs:147`
-- [ ] The gap record is deleted. `data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json:1`
-- [ ] `rule:security/redaction-reaches-the-tools-own-renderings` is `shipped`, its "Partly on disk" paragraph rewritten. `data/rules/security/redaction-reaches-the-tools-own-renderings.json:3`, `docs/rules/security/redaction-reaches-the-tools-own-renderings.md:23`
+- [ ] A conformance case narrows a `readonly` property, passes it as an `inout` argument, and reads it again (`rule:types/narrowing`). `tests/conformance/class/an-inout-argument-drops-a-readonly-propertys-narrowing.nvst:1`, `crates/nvs-types/src/expr/args.rs:181`
+- [ ] If the case fails, `note_write` covers the path. `crates/nvs-types/src/expr/assign.rs:1847`
+- [ ] The record is deleted. `data/gaps/nvs-ir/an-inout-argument-keeps-a-readonly-path-narrowed.json:1`
 
-Stage 3 has no gate, shares no file with stage 5, and fits beside it if the session has room.
+Then **stage 2: a `#[Test]` result is a producer**, `crates/nvs-cli/src/runner.rs` alone, the last
+stage: it flips `rule:errors/record-producers` to `shipped`.
 
 ### Backlog
 
 - A published JSON schema for `check --json` is not planned: `nvs ast --json` publishes none either (`docs/rules/ide/ast-json-schema-is-frozen.md`).
+- A diagnostic's `message`, label or note could quote part of a literal, and the record masks only the snippet line and drops suggestions. No audit of the messages has been done.
