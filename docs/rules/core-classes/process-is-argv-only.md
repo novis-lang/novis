@@ -3,10 +3,11 @@ form anywhere in it and no flag that turns one on, so `exec`, `system`, `shell_e
 `popen`, `proc_open` and backticks all reach one of two members taking a path and an array of
 arguments.
 
-The path and every element of the argument array are plain `string`: a `tainted` value needs a
-checked conversion or an explicit launderer first, exactly like any other sink. A name the program
-did not choose is the whole of what a command injection is, and the array carries no nesting mark of
-its own because `array<tainted string>` is simply not `array<string>`.
+The path is a sink, and it and every element of the argument array are plain `string`: a `tainted`
+value in either needs a checked conversion or an explicit launderer first. A name the program did not
+choose is the whole of what a command injection is, and the array carries no nesting mark of its own
+because `array<tainted string>` is simply not `array<string>`, so the ordinary argument check refuses
+it at compile time (`tests/conformance/core/process-an-argv-element-that-is-tainted-does-not-compile.nvst`).
 
 Running anything at all takes the deny-by-default `process.exec` capability, asked before the target
 is looked at, so an ungranted program cannot even learn whether a binary exists.
