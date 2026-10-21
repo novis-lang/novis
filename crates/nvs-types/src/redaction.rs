@@ -76,7 +76,7 @@ use nvs_diagnostics::{SourceFile, Span};
 use nvs_syntax::ast::Stmt;
 use nvs_syntax::walk::{self, Field, Node};
 
-use crate::expr::quals::is_secret;
+use crate::expr::quals;
 use crate::{ExprInfo, ExprTypeTable, TypeId, TypeInterner};
 
 /// Every range of `file` that is a `secret` value written into the program,
@@ -114,7 +114,7 @@ fn secret_bindings(exprs: &ExprTypeTable, interner: &TypeInterner) -> Vec<Span> 
     exprs
         .local_scopes()
         .flat_map(|(_, locals)| locals.iter())
-        .filter(|local| is_secret(local.ty, interner))
+        .filter(|local| quals::carries_secret(local.ty, interner))
         .map(|local| local.declared)
         .collect()
 }
@@ -202,7 +202,7 @@ impl Concealing<'_> {
             let secret = self
                 .exprs
                 .property_default_ty(first.span)
-                .is_some_and(|ty| is_secret(ty, self.interner));
+                .is_some_and(|ty| quals::carries_secret(ty, self.interner));
             self.node(first, secret);
         }
         for hook in children {
@@ -232,8 +232,8 @@ impl Concealing<'_> {
     ///
     /// A property's type off the entry the checker recorded against the access
     /// itself, and a variable's off the binding it reads. Both end at
-    /// [`is_secret`], so an editor and a compile cannot disagree about what a
-    /// value carries.
+    /// [`quals::carries_secret`], so an editor and a compile cannot disagree
+    /// about what a value carries, a `?secret string` included.
     fn carries_secret(&self, node: &Node) -> bool {
         let recorded = self.exprs.lookup(node.span).and_then(|info| match info {
             ExprInfo::Property { ty, .. }
@@ -244,7 +244,7 @@ impl Concealing<'_> {
         });
         recorded
             .or_else(|| self.local_ty(node))
-            .is_some_and(|ty| is_secret(ty, self.interner))
+            .is_some_and(|ty| quals::carries_secret(ty, self.interner))
     }
 
     /// The declared type of the binding `node` reads, when it reads one.
