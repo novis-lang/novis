@@ -167,9 +167,11 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Csrf::issue`'s reference card — `rule:core-api/reference-card`.
 const ISSUE_DOC: MethodDoc = MethodDoc {
-    short: "Answers a CSRF token bound to `$session` under `$key`. Put it in the form or the \
-            header the next request will carry, and hand it back to `verify` with the same \
-            session and key.",
+    short: "Returns a CSRF token bound to `$session` under `$key`. Send it in a form field \
+            named `_csrf`, in the `x-csrf-token` header or in a `_csrf` query parameter. A form \
+            that uploads files must use the header or the query parameter. With `[http] \
+            csrf_key` set, the server checks the token before the handler runs. `verify` checks \
+            it with the same session and key.",
     params: &[
         ParamDoc {
             name: "session",

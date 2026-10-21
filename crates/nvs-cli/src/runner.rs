@@ -914,9 +914,19 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         // takes it. A unit that does not dispatch is answered as before.
         if self.routes.dispatches() {
             let door = Door::of(ctx);
-            if nvs_server::route::csrf(&inbound, door.key.as_deref(), &door.cookie)
-                == nvs_server::route::Csrf::Refused
+            // A synthetic body is already in memory, so its form field is read
+            // here, where `answer_on_the_wire` leaves it to the request's task.
+            let verdict = match nvs_server::route::csrf(&inbound, door.key.as_deref(), &door.cookie)
             {
+                nvs_server::route::Csrf::InBody => nvs_server::route::csrf_in_body(
+                    &mut inbound,
+                    door.key.as_deref(),
+                    &door.cookie,
+                    ctx.request_body_limit(),
+                ),
+                verdict => verdict,
+            };
+            if verdict == nvs_server::route::Csrf::Refused {
                 inbound.set_refusal(nvs_runtime::routes::Refusal::Csrf);
                 inbound.clear_body();
             }
@@ -2544,14 +2554,18 @@ fn answer_on_the_wire(
     // `rule:testing/in-process-request` has a test's request cross this door the
     // way one off the wire does, so a case that asserts a `403` on a forged write
     // is asserting the server's own answer.
-    if inbound.refusal().is_none()
-        && nvs_server::route::csrf(&inbound, door.key.as_deref(), &door.cookie)
-            == nvs_server::route::Csrf::Refused
-    {
-        if !refusal_mode {
-            return nvs_server::Reply::forbidden();
+    let mut in_body = false;
+    if inbound.refusal().is_none() {
+        match nvs_server::route::csrf(&inbound, door.key.as_deref(), &door.cookie) {
+            nvs_server::route::Csrf::Refused if !refusal_mode => {
+                return nvs_server::Reply::forbidden();
+            }
+            nvs_server::route::Csrf::Refused => {
+                inbound.set_refusal(nvs_runtime::routes::Refusal::Csrf);
+            }
+            nvs_server::route::Csrf::InBody => in_body = true,
+            nvs_server::route::Csrf::Passed => {}
         }
-        inbound.set_refusal(nvs_runtime::routes::Refusal::Csrf);
     }
     let (head, incoming) = request.into_parts();
     let supply = match nvs_server::body::of(&head.headers, incoming, door.upload_total) {
@@ -2591,6 +2605,17 @@ fn answer_on_the_wire(
                 .call(ctx)
                 .unwrap_or_else(|_| nvs_runtime::Value::null())
         });
+    // `crate::serve`'s reason: the door cannot pull the body, so a form token
+    // is read by the request's own task before the program runs.
+    let program = match (in_body, &door.key) {
+        (true, Some(key)) => nvs_server::route::reading_the_form(
+            program,
+            key.clone(),
+            door.cookie.clone(),
+            refusal_mode,
+        ),
+        _ => program,
+    };
     nvs_server::Reply::Run(
         nvs_host::Isolate::new(
             program,
