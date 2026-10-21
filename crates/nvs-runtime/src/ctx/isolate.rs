@@ -1394,8 +1394,7 @@ mod tests {
     /// configuration that replaces the one a context has keeps the folder.
     #[test]
     fn an_isolate_takes_its_trees_app_folder_and_run() {
-        let folder: std::sync::Arc<std::path::Path> =
-            std::path::Path::new("/srv/www/shop").into();
+        let folder: std::sync::Arc<std::path::Path> = std::path::Path::new("/srv/www/shop").into();
         let mut job = Ctx::buffered();
         job.set_config(std::sync::Arc::new(nvs_config::Snapshot::default()));
         job.set_app_folder(std::sync::Arc::clone(&folder));
