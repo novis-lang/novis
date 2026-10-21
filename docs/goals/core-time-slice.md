@@ -135,8 +135,10 @@ reactor core the yield fires a wake and parks, as `yield_turn` does
 request a thread runs at a time" (`crates/nvs-runtime/src/budget.rs:27`). An await already interleaves
 requests, and a slice makes it common. At every switch, the change in the balance since the turn began
 is added to the running request's own count, and the memory limit reads that count. O(1) per switch,
-no allocation. Safe default if the ceiling check cannot read a per-request count on its hot path: swap
-the five budget thread-locals in `yield_on` beside `CurrentStack` (`crates/nvs-host/src/scheduler.rs:1599`).
+no allocation. The armed ceiling, its refusal and its reserve already travel with the task, because
+`failure-paths-hold` stage 2 swaps them in `yield_on`, so this stage moves the balance only. Safe
+default if the ceiling check cannot read a per-request count on its hot path: swap the balance cells
+`LIVE`, `PEAK` and `WRITTEN` in `yield_on` beside that state (`crates/nvs-host/src/scheduler.rs:1599`).
 
 **A deadline now stops a task that never waits.** Its timer is on the core's reactor, and a slice
 hands the core back, so the timer fires at the next slice
@@ -155,6 +157,9 @@ differs. It is how the `loop-row` check stops. It needs Docker and minutes, so i
 
 **Out of scope:** the wasm guest's own epoch yield stays as it is. Unifying the two clocks is a later
 refactor with no user-visible change.
+
+**Gate.** Stage 3 starts after `failure-paths-hold` stage 2 has landed: `budget::ArmedStack` exists in
+`crates/nvs-runtime/src/budget.rs`.
 
 **Lanes.** One lane. Stages 1, 2 and 3 share `crates/nvs-host/src/scheduler.rs` and run in order.
 Stage 4 needs stage 2's yield to observe anything. Stage 5 needs all of them.
