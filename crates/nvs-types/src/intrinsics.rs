@@ -680,8 +680,7 @@ pub(crate) fn check_call(
         // rather than denying.
         Grammar::QueueName => {
             if let Some(grants) = env.grants
-                && !Authority::new(Some(grants), Run::cli(None))
-                    .allows_name(Cap::QueuePurge, &text)
+                && !Authority::new(Some(grants), Run::cli(None)).allows_name(Cap::QueuePurge, &text)
             {
                 report_ungranted_queue(span, &text, env);
             }

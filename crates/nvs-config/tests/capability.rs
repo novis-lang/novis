@@ -1680,17 +1680,30 @@ fn an_authority_answers_the_written_key_and_the_default_for_the_rest() {
     let headers = granting("[fs]\n\n[process]\n", &disk);
     for run in runs {
         let mine = Authority::new(Some(&written), run);
-        assert!(mine.allows(Cap::FsRead, Scope::Path(&job), &disk), "{run:?}");
-        assert!(!mine.allows(Cap::FsWrite, Scope::Path(&job), &disk), "`[]` grants nothing");
+        assert!(
+            mine.allows(Cap::FsRead, Scope::Path(&job), &disk),
+            "{run:?}"
+        );
+        assert!(
+            !mine.allows(Cap::FsWrite, Scope::Path(&job), &disk),
+            "`[]` grants nothing"
+        );
         assert!(mine.allows_host(Cap::NetConnect, "api.example.com"));
         assert!(!mine.allows_host(Cap::NetConnect, "example.com"));
-        assert!(!mine.allows(Cap::ScriptSpawn, Scope::Path(&job), &disk), "unwritten");
+        assert!(
+            !mine.allows(Cap::ScriptSpawn, Scope::Path(&job), &disk),
+            "unwritten"
+        );
         for authority in [
             Authority::new(None, run),
             Authority::new(Some(&headers), run),
         ] {
             for cap in Cap::ALL.iter().copied() {
-                assert!(!authority.allows(cap, Scope::Unscoped, &disk), "{}", cap.name());
+                assert!(
+                    !authority.allows(cap, Scope::Unscoped, &disk),
+                    "{}",
+                    cap.name()
+                );
                 assert!(
                     matches!(authority.holds(cap), nvs_config::capability::Grant::Nothing),
                     "{}",
