@@ -49,10 +49,10 @@ stages:
   - id: 7
     title: with no `[session]` block, sessions live in a SQLite file in the data folder, and requests of one session never wait for each other
     status: open
-    context: [crates/nvs-stdlib/src/session.rs, crates/nvs-config/src/session.rs, crates/nvs-config/src/data.rs, docs/rules/http-server/no-session-block-means-no-store.md]
+    context: [crates/nvs-stdlib/src/session.rs, crates/nvs-config/src/session.rs, crates/nvs-config/src/data.rs, docs/rules/http-server/no-session-block-means-the-data-folder-store.md]
     extra:
       context:
-        rules: [http-server/no-session-block-means-no-store, http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot, http-server/a-session-is-loaded-once-and-written-whole, http-server/session-expiry-belongs-to-the-store]
+        rules: [http-server/no-session-block-means-the-data-folder-store, http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot, http-server/a-session-is-loaded-once-and-written-whole, http-server/session-expiry-belongs-to-the-store]
   - id: 8
     title: the CSRF door reads a `_csrf` field from a urlencoded form
     status: open
@@ -240,7 +240,7 @@ requests of one session never wait for each other, which is the PHP session-lock
 reads its row at `start` and writes it whole at the end in one short statement. Two concurrent
 requests of one session both complete, and the last write wins. Expired rows are deleted by a sweep
 (`rule:http-server/session-expiry-belongs-to-the-store`). This changes
-`rule:http-server/no-session-block-means-no-store`.
+`rule:http-server/no-session-block-means-the-data-folder-store`.
 
 **9. The CSRF form field.** With a `[http] csrf_key`, the door also reads a `_csrf` field from an
 `application/x-www-form-urlencoded` body. `[limits] request_body` already caps that body. A multipart
@@ -445,7 +445,7 @@ adds the narrowing lines.
 **Does:** decision 8 is on.
 
 - [ ] The `db` store reads a row at `start` and writes it whole at the end, with no lock (`rule:http-server/a-session-is-loaded-once-and-written-whole`). `crates/nvs-stdlib/src/session.rs:801`
-- [ ] No `[session]` block selects a SQLite file in the data folder, in WAL mode, and no usable data folder throws naming `[session]` (`rule:http-server/no-session-block-means-no-store`). `crates/nvs-stdlib/src/session.rs:617`, `crates/nvs-config/src/data.rs:459`
+- [ ] No `[session]` block selects a SQLite file in the data folder, in WAL mode, and no usable data folder throws naming `[session]` (`rule:http-server/no-session-block-means-the-data-folder-store`). `crates/nvs-stdlib/src/session.rs:617`, `crates/nvs-config/src/data.rs:459`
 - [ ] Expired rows are deleted by a sweep (`rule:http-server/session-expiry-belongs-to-the-store`). `crates/nvs-stdlib/src/session.rs:1`
 - [ ] Tests: two concurrent requests of one session both complete without waiting on each other and the last write wins; a session survives a second server process on the same data folder; an expired row is swept. `tests/conformance/core/a-session-survives-a-request-on-another-process.nvst:1`, `crates/nvs-stdlib/src/session.rs:2511`
 
@@ -508,7 +508,7 @@ capability default. Then one writing subagent edits them, held to § *Text an en
 - [ ] The configuration page and the security checklist say what each run kind may do with no `nvs.toml`, and how to narrow it. `website/src/content/docs/guides/how-to-use/configuration.mdx:1`, `website/src/content/docs/guides/production/security-checklist.mdx:1`
 - [ ] Every other listed page. `website/src/content/docs/guides/cookbook/upload-file.mdx:1`
 - [ ] `rule:security/an-unmatched-namespace-holds-the-application` and `rule:security/package-authority-is-granted-one-line-at-a-time` say a default never reaches a package and the audit warning is the mitigation for hand-vendored code. `docs/rules/security/an-unmatched-namespace-holds-the-application.md:1`, `docs/rules/security/package-authority-is-granted-one-line-at-a-time.md:1`
-- [ ] Each rule this goal changed says what is true and lists its declined relaxations, and `bun nv rules --check` passes: `config/no-configuration-file-is-a-complete-configuration`, `security/capability-question-is-grant-and-scope`, `security/net-address-policy`, `config/a-startup-default-is-never-flipped`, `core-classes/db-capabilities`, `security/script-spawn-capability`, `http-server/no-session-block-means-no-store`, `config/ceilings-are-their-own-directives`. `docs/rules/config/no-configuration-file-is-a-complete-configuration.md:1`
+- [ ] Each rule this goal changed says what is true and lists its declined relaxations, and `bun nv rules --check` passes: `config/no-configuration-file-is-a-complete-configuration`, `security/capability-question-is-grant-and-scope`, `security/net-address-policy`, `config/a-startup-default-is-never-flipped`, `core-classes/db-capabilities`, `security/script-spawn-capability`, `http-server/no-session-block-means-the-data-folder-store`, `config/ceilings-are-their-own-directives`. `docs/rules/config/no-configuration-file-is-a-complete-configuration.md:1`
 
 ### 13. the goal's one gate is green
 
@@ -724,7 +724,7 @@ warnings`, commit each slice, and name in the handoff the tests and cases you ex
 the end with no lock (`crates/nvs-stdlib/src/session.rs:801`). No `[session]` block selects
 `<data>/session.sqlite` in WAL mode (`crates/nvs-stdlib/src/session.rs:617`,
 `crates/nvs-config/src/data.rs:459`), and no usable data folder throws naming `[session]`. A sweep
-deletes expired rows. Rules `http-server/no-session-block-means-no-store`,
+deletes expired rows. Rules `http-server/no-session-block-means-the-data-folder-store`,
 `http-server/a-session-is-loaded-once-and-written-whole`,
 `http-server/session-expiry-belongs-to-the-store`. Stages 8, 9 and 10 may go first: their files are
 disjoint.
