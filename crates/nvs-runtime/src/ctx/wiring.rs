@@ -180,6 +180,7 @@ impl Ctx {
             grant_filter: None,
             trace_context: crate::trace_context::TraceContext::started(),
             fixed_clock: None,
+            owned_by_test: false,
             random_state: None,
             test_server: None,
             scripted_answers: std::collections::VecDeque::new(),
@@ -588,6 +589,19 @@ impl Ctx {
     /// (`nvs_stdlib::time`), and both callers check it there before calling.
     pub fn set_fixed_clock(&mut self, nanos: i128) {
         self.fixed_clock = Some(nanos);
+    }
+
+    /// Whether a `#[Test]` method owns this context — see
+    /// [`Self::owned_by_test`]'s field docs.
+    #[must_use]
+    pub fn owned_by_test(&self) -> bool {
+        self.owned_by_test
+    }
+
+    /// Marks this context as one `#[Test]` method's isolate, before its
+    /// program runs. The one caller is `nvs_cli::runner`.
+    pub fn set_owned_by_test(&mut self) {
+        self.owned_by_test = true;
     }
 
     /// `rule:testing/in-process-request`'s ephemeral listener, as the base URL a test reaches it

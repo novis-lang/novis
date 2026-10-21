@@ -3860,6 +3860,10 @@ fn failed(ctx: &mut Ctx, member: &'static str, detail: &str, message: Value) -> 
 /// carries both of them, walked into record nodes, so the runner's record of
 /// the failure has `actual` and `expected` beside its message
 /// (`rule:errors/record-producers`).
+///
+/// Outside a test it is [`failed`]: nothing reads the two values there, and
+/// a ledger that is never emptied would keep both trees of every failure a
+/// loop catches.
 fn failed_comparison(
     ctx: &mut Ctx,
     member: &'static str,
@@ -3867,6 +3871,9 @@ fn failed_comparison(
     message: Value,
     (actual, expected): (Value, Value),
 ) -> Fault {
+    if !ctx.owned_by_test() {
+        return failed(ctx, member, detail, message);
+    }
     let text = failure_text(member, detail, message);
     let compared = nvs_runtime::Compared {
         actual: nvs_runtime::record::node(actual),

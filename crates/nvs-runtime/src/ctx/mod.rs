@@ -1068,6 +1068,14 @@ pub struct Ctx {
     /// **What it spends:** two words per request, and nothing at all on the
     /// `Core\Time::now` path beyond one predictable not-taken branch.
     fixed_clock: Option<i128>,
+    /// Whether a `#[Test]` method owns this context: `true` only on the
+    /// isolate `nvs_cli::runner` builds for one test. A failed `Core\Test`
+    /// comparison walks its two values into the ledger only here, because the
+    /// runner is their one reader and outside a test nothing empties the
+    /// ledger (`data/gaps/nvs-runtime/an-assertion-outside-a-test-grows-the-ledger.json`).
+    ///
+    /// **What it spends:** one byte per request.
+    owned_by_test: bool,
     /// `rule:testing/determinism-declared-on-the-test`'s seeded generator, as its **live state** rather than as the seed
     /// it started from, or `None` for a context whose draws come from the
     /// operating system.

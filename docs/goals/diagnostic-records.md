@@ -226,6 +226,13 @@ Verify also found stage 5's mask missing from one reference example's expected o
 its `.out`), and `examples/cache.nvs` running without the cache server (now on the examples test's
 `SERVERS` list).
 
+The first `DONE` was refused on `floor-debt`: the hostile proof
+`tests/hostile/tools/php-differences/the-tools-you-do-not-install/01-assertions-with-very-large-and-very-deep-values.nvs`
+catches a million failed `assertSame` calls under `nvs run`, and stage 2's two nodes per ledger
+entry took it past the memory ceiling. `failed_comparison` now walks the values only when
+`Ctx::owned_by_test` is set, which the runner sets on each test's isolate; outside a test the entry
+is what it was before stage 2.
+
 The nightly `proofs` jobs failed on stale perf measurements (`bigint.rs`, `json.rs`, `router.rs`),
 and the website job on `nv render --check` (`llms-full.txt`), which is current on disk; the
 `ci-green` side loop owns both. The installed `looper` has no `verify` subcommand:

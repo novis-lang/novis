@@ -42,5 +42,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 ## Splitting a file
 
 ## Writing Novis
+- **Every byte added to a `Core\Test` ledger entry is paid once per assertion for the whole of an
+  `nvs run`, because nothing empties the ledger outside a test.** Stage 2 of `diagnostic-records`
+  added two record nodes per failed comparison, and a hostile proof that catches a million failures
+  hit the memory ceiling; only the goal-end `floor-debt` ran it. Keep anything a runner alone reads
+  behind `Ctx::owned_by_test`. See `crates/nvs-runtime/src/ctx/error.rs`.
+  `until: gone data/gaps/nvs-runtime/an-assertion-outside-a-test-grows-the-ledger.json:goal`
 
 ## Divergences

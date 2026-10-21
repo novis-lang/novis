@@ -2129,6 +2129,9 @@ fn run_the_test(
         // the isolate's context deliberately arrives with none, so this call
         // is the whole of why one test does not read back another's static.
         child_unit.install_in(child);
+        // A failed comparison keeps its two values only on a test's own
+        // context (`nvs_runtime::Ctx::owned_by_test`).
+        child.set_owned_by_test();
         // `rule:testing/determinism-declared-on-the-test`'s fixed clock, armed before a line of the test runs and onto the
         // *child's* context, which is the only context a test can observe: a
         // sibling declaring no `at:` still reads the host's clock, because `rule:testing/isolate-per-test`
