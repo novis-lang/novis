@@ -9,5 +9,8 @@ order is the order the operating system gives. The folders are read when you cal
 written later is not in the result.
 
 `walk` throws an `IOError` when the path does not exist, when it is a file, or when a folder cannot
-be read. The program needs the `fs.read` capability for every folder it reads. Without it, `walk`
-throws a `RuntimeError`.
+be read.
+
+A program you start from the command line may read any folder. On a server, a program may read
+only its application folder, except `nvs.toml` and names that start with `.`. Any other folder needs
+the `fs.read` capability. Without it, `walk` throws a `RuntimeError`.

@@ -11,6 +11,7 @@ Server take a host, a user and a password. SQLite takes a file path instead.
 Two calls with the same settings give you the same connection. The `shared` option turns that off,
 and then every call opens a new one.
 
-**Good to know:** the operator still decides what you may reach. A program needs the `db.open`
-capability for the host or the path it asks for, and for a host the address is checked against the
-ranges a program may not connect to.
+**Good to know:** the operator still decides what you may reach. A database on another server needs
+the `db.open` capability for its host, and the host's address is checked like any other connection.
+A SQLite file follows the rules for files, and `:memory:` needs nothing. On a server, a SQLite file
+in the application folder opens read-only, unless `fs.write` includes it.

@@ -11,5 +11,6 @@ deletes each file first.
 the operating system does not allow the deletion. So a program always knows if a file was really
 deleted.
 
-Deleting a file changes it, so the program needs the `fs.write` capability for the path. Without
-it, `remove` throws a `RuntimeError` and the file stays.
+A program you start from the command line may delete any file. On a server, a program may delete
+files only in the folders that `Core\IO::temporaryDir` made for it. Any other path needs the
+`fs.write` capability. Without it, `remove` throws a `RuntimeError` and the file stays.

@@ -10,5 +10,7 @@ file, pass the folder it goes into.
 The answer is true at the moment of the check. A `Core\IO::write` that follows can still throw an
 `IOError`.
 
-The program needs the `fs.write` capability for the path. Without it, `isWritable` throws a
-`RuntimeError`, even when the program may read the path.
+A program you start from the command line may write any path. On a server, a program may write
+only in the folders that `Core\IO::temporaryDir` made for it. Any other path needs the `fs.write`
+capability. Without it, `isWritable` throws a `RuntimeError`, even when the program may read the
+path.

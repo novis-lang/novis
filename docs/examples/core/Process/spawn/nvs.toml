@@ -1,4 +1,4 @@
-# The examples run programs from the system folders `/bin` and `/usr/bin`.
-# These lines allow that, and nothing else.
+# These lines allow only the programs in the system folders `/bin` and `/usr/bin`.
+# Without them, a program run with `nvs run` may run any program.
 [capabilities.process]
 exec = ["/bin", "/usr/bin"]

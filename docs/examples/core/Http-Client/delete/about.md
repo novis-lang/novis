@@ -4,8 +4,10 @@ A `DELETE` request asks a server to remove something, for example an order or a 
 is a `Core\Http\Response`, and `status()` gives the status code the server sent: `204` or `200` when
 it removed the item, `404` when the item was already gone.
 
-The URL is checked before anything is sent. The host must be allowed by `net.connect` in
-`[capabilities.net]` in `nvs.toml`, and an address inside your own network throws a `RuntimeError`.
+The URL is checked before anything is sent. Any public host is allowed, unless `net.connect` in
+`[capabilities.net]` in `nvs.toml` lists the allowed hosts. An address inside your own network
+throws a `RuntimeError`. Loopback (`127.0.0.1`) is allowed only from the command line and in
+development mode.
 Every request has a time limit, `deadline`. A `DELETE` can be sent again safely, so `retryAttempts`
 may try it more than once.
 

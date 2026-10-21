@@ -1,7 +1,6 @@
 # The examples open a server on this computer and connect to it.
-# One example uses the fixed port 47123, and the others let the system pick a free port.
-# These lines allow that, and nothing else.
+# These lines allow a server only at `127.0.0.1`. One example uses the fixed port 47123,
+# and the others use a port the system picks.
+# A program run with `nvs run` may connect to this computer without a grant.
 [capabilities.net]
 listen = ["127.0.0.1:0", "127.0.0.1:47123"]
-connect = ["127.0.0.1"]
-internal = ["127.0.0.1"]

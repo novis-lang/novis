@@ -3,7 +3,9 @@ that a request may raise each limit to, with `Core\Config::set`.
 
 The main keys are `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output` and
 `max_regex_steps`. `cpu_time` counts only computing time. `wall_time` counts waiting too. When
-`[limits.hard]` does not set a key, a program can lower that limit but cannot raise it.
+`[limits.hard]` does not set a key, a program can lower that limit but cannot raise it. A program
+you start from the command line may raise its `memory` limit to any value, unless `[limits.hard]`
+sets `memory`.
 
 By default, `memory` is `128M` and a request has `30s` of `cpu_time`. `nvs run` and `nvs test`
 have no `cpu_time` limit unless you set one. `false` removes a limit.

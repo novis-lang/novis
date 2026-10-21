@@ -13,5 +13,6 @@ there throws an `IOError` and stays as it was.
 When a write fails part of the way through, `writeStream` deletes the file before it throws. So
 the program never finds a file that is only half written.
 
-The program needs the `fs.write` capability for the path. Without it, `writeStream` throws a
-`RuntimeError` before any file is created.
+A program you start from the command line may write any path. On a server, a program may write
+only in the folders that `Core\IO::temporaryDir` made for it. Any other path needs the `fs.write`
+capability. Without it, `writeStream` throws a `RuntimeError` before any file is created.

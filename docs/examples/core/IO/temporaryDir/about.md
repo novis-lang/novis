@@ -9,6 +9,7 @@ When the program ends, Novis deletes each folder it created, with every file in 
 need to delete it yourself, but you can. A file that must still exist after the program ends
 belongs somewhere else.
 
-The program needs the `fs.write` capability for the new folder. Without it,
+A program needs no capability for this, on the command line or on a server. If `nvs.toml` sets
+`[capabilities.fs] write`, that list must include the folder for temporary files. Otherwise
 `temporaryDir` throws a `RuntimeError`. It throws an `IOError` when the folder cannot be created,
 or when Novis has no data folder and `[io] temp_root` is not set.

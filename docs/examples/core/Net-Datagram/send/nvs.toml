@@ -1,6 +1,6 @@
 # The examples open UDP sockets on this computer and send messages between them.
-# These lines allow that, and nothing else.
+# These lines allow a socket only at `127.0.0.1`, and messages only to `127.0.0.1`.
+# Without the `connect` line, a program run with `nvs run` may send to any public host.
 [capabilities.net]
 listen = ["127.0.0.1:0"]
 connect = ["127.0.0.1"]
-internal = ["127.0.0.1"]

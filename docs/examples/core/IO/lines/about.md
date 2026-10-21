@@ -11,5 +11,6 @@ empty file has no lines. You can walk the result more than once.
 `lines` throws an `IOError` when the file does not exist or cannot be read. It throws an error
 when the file is not valid UTF-8 text, because each line is a `string`.
 
-The program needs the `fs.read` capability for the path. Without it, `lines` throws a
-`RuntimeError`.
+A program you start from the command line may read any path. On a server, a program may read only
+the files in its application folder, except `nvs.toml` and names that start with `.`. Any other
+path needs the `fs.read` capability. Without it, `lines` throws a `RuntimeError`.

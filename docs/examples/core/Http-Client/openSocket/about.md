@@ -5,8 +5,10 @@ A normal HTTP request gets one response, and then it is finished. A WebSocket st
 and `sendBytes` write a message, `receive` returns the next message from the other server, and
 `close` ends the connection. When the other server closes it, `receive` returns `null`.
 
-The URL must start with `ws://` or `wss://`. The host must be allowed by `net.connect` in
-`[capabilities.net]` in `nvs.toml`, and an address inside your own network throws a `RuntimeError`.
+The URL must start with `ws://` or `wss://`. Any public host is allowed, unless `net.connect` in
+`[capabilities.net]` in `nvs.toml` lists the allowed hosts. An address inside your own network
+throws a `RuntimeError`. Loopback (`127.0.0.1`) is allowed only from the command line and in
+development mode.
 `idle` is how long the connection may stay quiet, `maxDuration` is how long it may stay open, and
 `maxMessage` is the largest message in bytes.
 

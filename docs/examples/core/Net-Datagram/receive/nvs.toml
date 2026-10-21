@@ -1,6 +1,5 @@
 # The examples open UDP sockets on this computer and send messages between them.
-# These lines allow that, and nothing else.
+# These lines allow a socket only at `127.0.0.1`, on a port the system picks.
+# A program run with `nvs run` may send to this computer without a grant.
 [capabilities.net]
 listen = ["127.0.0.1:0"]
-connect = ["127.0.0.1"]
-internal = ["127.0.0.1"]

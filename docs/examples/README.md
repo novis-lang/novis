@@ -245,14 +245,16 @@ then. A program's `.out` has no such line.
 ## A grant the examples need — `nvs.toml`
 
 An example runs from the repository root under its `nvs.toml`, whose `[[app]] root = "."` block
-grants `script.spawn` and nothing else. A
-feature that cannot be reached without one — a socket bound on `127.0.0.1` — puts the smallest
+makes the repository the app folder and writes `spawn = true`. An example is a CLI run, so it reads
+and writes any file, connects to public hosts and loopback, and runs any program with no grant; one
+with a sibling `.nvsr` is server work and has only server work's defaults. A feature that cannot be
+reached without a grant — a socket bound on `127.0.0.1` — or that shows a refusal puts the smallest
 configuration that grants it in the feature's own directory, and `--bless` and the sweep then run
 every example there with `--config` naming that file alone. It is the one other file a feature
 directory holds, and the reader sees it beside the examples: loopback only, never an address off
 this machine, so an example still runs with no network. That file replaces the root's, so the run
 has the default limits: `128M` of memory, and `Core\Config::set` cannot raise a limit unless the file
-writes `[limits.hard]`. A directory under `tests/hostile/` reads its
+writes `[limits.hard]`, except `memory`, which a CLI run with no `[limits.hard] memory` raises freely. A directory under `tests/hostile/` reads its
 own the same way, and `benches/members/` reads one per class directory.
 
 ## `// proof: exit 1`

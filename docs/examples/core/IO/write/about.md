@@ -13,5 +13,6 @@ creates it.
 exist, the path is a folder, or the disk is read-only. So when the call returns, the text is really
 in the file.
 
-Writing changes a file, so the program needs the `fs.write` capability for the path. Without it,
-`write` throws a `RuntimeError` before any file is created.
+A program you start from the command line may write any path. On a server, a program may write
+only in the folders that `Core\IO::temporaryDir` made for it. Any other path needs the `fs.write`
+capability. Without it, `write` throws a `RuntimeError` before any file is created.

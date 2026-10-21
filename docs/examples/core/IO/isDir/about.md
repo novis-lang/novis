@@ -7,7 +7,8 @@ folder.
 A symbolic link (a name that points to another folder) is followed. So a link to a folder returns
 `true`.
 
-The program needs the `fs.read` capability for the path. Without it, `isDir` throws a
-`RuntimeError`.
+A program you start from the command line may read any path. On a server, a program may read only
+the files in its application folder, except `nvs.toml` and names that start with `.`. Any other
+path needs the `fs.read` capability. Without it, `isDir` throws a `RuntimeError`.
 
 **Good to know:** use `isDir` before `Core\IO::list`, which throws an error for a file.

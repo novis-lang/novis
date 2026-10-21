@@ -9,7 +9,8 @@ keywords: nvs.toml, configuration, setting, read a setting, change a setting at 
 `[limits]` entry. `set` changes a directive for this request alone and answers `false`, leaving the value in
 place, for anything it may not do: a directive only the file may set, an unknown name, a value of the wrong
 shape, or a value above the `[limits.hard]` ceiling the operator kept. When `[limits.hard]` does not
-set a limit, its ceiling is the value the request started with, so a program cannot raise it. `restore` puts the file's value back,
+set a limit, its ceiling is the value the request started with, so a program cannot raise it. A program you
+start from the command line is the one exception: with no `[limits.hard] memory`, it may raise `memory` to any value. `restore` puts the file's value back,
 or the built-in default when the file does not write the key. `get` and `all` give the built-in default of every key the file
 does not write, such as `128M` for `memory`. A key with no default, such as `wall_time`, is `null`.
 

@@ -1,7 +1,8 @@
 Saves bytes as a file with a name, on a disk that `nvs.toml` sets up.
 
 A disk is a `[storage.<name>]` block in `nvs.toml`. Its `root` is the folder that holds the files,
-and the `fs.write` capability must include that folder. The key is the name of the file. It can use
+and on a server the `fs.write` capability must include that folder. A program you start from the
+command line needs no capability. The key is the name of the file. It can use
 ASCII letters, digits, `.`, `-` and `_`, and it is at most 255 bytes long. A key with a `/` or a `\`
 throws an error, so a program cannot write outside the folder.
 

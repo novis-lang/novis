@@ -9,8 +9,11 @@ Use it when a file name comes from a user, for example from a form or a URL. A n
 `../../config.toml` then cannot reach a file outside the folder. The returned path is safe to
 pass to `Core\IO::readText`, `Core\IO::write` and the other file methods.
 
-The program needs the `fs.read` capability for both paths. `within` throws an `IOError` when
-`$base` does not exist.
+`within` throws an `IOError` when `$base` does not exist.
+
+A program you start from the command line may read any path. On a server, a program may read only
+the files in its application folder, except `nvs.toml` and names that start with `.`. Any other
+path needs the `fs.read` capability, for both paths.
 
 **In plain words:** it is a guard at the door of one folder. A name that leads out of the folder
 does not get past it.

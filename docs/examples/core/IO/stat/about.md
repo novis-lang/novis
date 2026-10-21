@@ -11,5 +11,8 @@ because it asks the operating system only once.
 The `Core\IO\Metadata` object does not change. If the file changes after the call, the object
 still has the old values. Call `stat` again to get the new ones.
 
-`stat` throws an `IOError` when there is nothing at the path. The program needs the `fs.read`
-capability for the path. Without it, `stat` throws a `RuntimeError`.
+`stat` throws an `IOError` when there is nothing at the path.
+
+A program you start from the command line may read any path. On a server, a program may read only
+the files in its application folder, except `nvs.toml` and names that start with `.`. Any other
+path needs the `fs.read` capability. Without it, `stat` throws a `RuntimeError`.

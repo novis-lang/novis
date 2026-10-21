@@ -1,6 +1,9 @@
 Writes every file of a zip archive into a folder and returns the number of files it wrote. The
-folder is created if it does not exist, and so is every folder the archive names inside it. The
-program needs the `fs.read` and `fs.write` capabilities for the folder.
+folder is created if it does not exist, and so is every folder the archive names inside it.
+
+A program you start from the command line may extract into any folder. On a server, a program may
+write only in the folders that `Core\IO::temporaryDir` made for it. Any other folder needs the
+`fs.read` and `fs.write` capabilities.
 
 The whole archive is checked before anything is written. An archive with one unsafe name, such as
 `../config.ini` or a file inside more than 64 folders, throws a `ParseError` and writes no file at

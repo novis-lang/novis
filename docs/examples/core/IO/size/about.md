@@ -9,6 +9,8 @@ has four characters and five bytes. To count the characters in a string, use `Co
 When there is no file at the path, `size` throws an `IOError`. Check with `Core\IO::exists` first
 when a missing file is a normal case.
 
-The program needs the `fs.read` capability for the path. Without it, `size` throws a `RuntimeError`.
+A program you start from the command line may read any path. On a server, a program may read only
+the files in its application folder, except `nvs.toml` and names that start with `.`. Any other
+path needs the `fs.read` capability. Without it, `size` throws a `RuntimeError`.
 
 **Good to know:** use `size` to reject a file that is too large before you read it into memory.

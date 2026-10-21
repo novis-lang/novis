@@ -6,7 +6,11 @@ other server decides how large the reply is.
 
 `saveTo()` throws a `RuntimeError` when the body is larger than that limit. It throws an `IOError`
 when a file already exists at the path, so an existing file is never replaced. After a failed save,
-the part already written is deleted. The program needs the `fs.write` capability for the path.
+the part already written is deleted.
+
+A program you start from the command line may save to any path. On a server, a program may write
+only in the folders that `Core\IO::temporaryDir` made for it. Any other path needs the `fs.write`
+capability.
 
 The body of a stream can be read only once. After `saveTo()`, a call to `chunks()`, `lines()`,
 `events()` or `saveTo()` on the same stream throws a `LogicError`.

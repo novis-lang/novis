@@ -11,6 +11,8 @@ that name. A refused change throws no error, so a program that needs to know rea
 
 The ceiling of a limit is in `[limits.hard]`. When `[limits.hard]` does not set a limit, the ceiling
 is the value the request started with. A program can then lower that limit, but it cannot raise it.
+A program you start from the command line may raise its `memory` limit to any value, unless
+`[limits.hard]` sets `memory`.
 
 **Good to know:** `Core\Config::restore` puts the configuration file's own value back. When the file
 does not write the setting, it puts back the built-in default.

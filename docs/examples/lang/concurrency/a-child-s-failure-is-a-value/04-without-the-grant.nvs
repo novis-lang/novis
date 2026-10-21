@@ -1,6 +1,6 @@
 <?nvs
 // Shows what happens when this program may not start scripts. Its `nvs.toml`
-// does not grant `script.spawn`, so `spawn script` throws `RuntimeError`.
+// sets `spawn = false`, so `spawn script` throws a `RuntimeError`.
 
 // The path starts at the folder of this file. The script never runs.
 try {

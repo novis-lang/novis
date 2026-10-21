@@ -1,8 +1,4 @@
 # The examples start servers on socket files and connect to them.
-# These lines allow those socket files, and nothing else.
+# These lines allow only those socket files.
 [capabilities.net]
 local = ["/tmp/novis-greeter.sock", "/tmp/novis-worker.sock"]
-
-# The examples delete their socket files when they are done.
-[capabilities.fs]
-write = ["/tmp/novis-greeter.sock", "/tmp/novis-worker.sock"]

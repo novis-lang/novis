@@ -10,5 +10,6 @@ is how a program finds out whether one file is newer than another, or how old a 
 A folder has a modification time too. When there is nothing at the path, `modifiedAt` throws an
 `IOError`.
 
-The program needs the `fs.read` capability for the path. Without it, `modifiedAt` throws a
-`RuntimeError`.
+A program you start from the command line may read any path. On a server, a program may read only
+the files in its application folder, except `nvs.toml` and names that start with `.`. Any other
+path needs the `fs.read` capability. Without it, `modifiedAt` throws a `RuntimeError`.

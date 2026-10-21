@@ -8,8 +8,10 @@ The answer is true at the moment of the check. Another program can delete or cha
 after it. So a `Core\IO::read` that follows can still throw an `IOError`, and your program should
 still catch it.
 
-The program needs the `fs.read` capability for the path. Without it, `isReadable` throws a
-`RuntimeError`. It does not return `false`.
+A program you start from the command line may read any path. On a server, a program may read only
+the files in its application folder, except `nvs.toml` and names that start with `.`. Any other
+path needs the `fs.read` capability. Without it, `isReadable` throws a `RuntimeError`. It does not
+return `false`.
 
 **Good to know:** use `isReadable` when a missing file is a normal case, such as an optional
 settings file.
