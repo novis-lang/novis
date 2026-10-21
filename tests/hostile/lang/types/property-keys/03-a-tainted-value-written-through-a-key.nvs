@@ -1,6 +1,6 @@
 <?nvs
-// Attack: a request picks the field to write and also sends the value. The key
-// names a plain `string` field, so the program should not compile.
+// Attack: a request picks the property to write and also sends the value. The key
+// names a plain `string` property, so the program should not compile.
 // hostile: expect-refusal
 // covers: lang:types/property-keys
 
@@ -12,7 +12,7 @@ class Profile
 
 Profile $profile = new Profile();
 
-// 1. The field name and the value both come from the web address.
+// 1. The property name and the value both come from the web address.
 ?property<Profile> $key = Core\Request::query('field') as ?property<Profile>;
 ?tainted string $value = Core\Request::query('value');
 if ($key != null && $value != null) {

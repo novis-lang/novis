@@ -21,7 +21,7 @@ final class Flood
             try {
                 $db->execute('insert into one (id) values (?)', [1]);
             } catch (DbError $refused) {
-                // This reads both fields, so the error must really contain them.
+                // This reads both properties, so the error must really contain them.
                 if (Core\Str::length($refused->message) > 0) {
                     $kept = $kept + 1;
                 }

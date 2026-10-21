@@ -1,6 +1,6 @@
 <?nvs
-// Reads a `lateinit` property after `initProperty` has set it. A record that
-// loads a field on first use pays this on every later read.
+// Reads a `lateinit` property after `initProperty` has set it. A class that
+// loads a property on first use has this cost for every later read.
 // bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant

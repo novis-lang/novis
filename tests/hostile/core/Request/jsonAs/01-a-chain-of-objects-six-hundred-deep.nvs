@@ -92,7 +92,7 @@ try {
 }
 echo 'depth 1024: done', "\n";
 
-// 6. Reads the body into a `mixed` field and keeps every copy without end.
+// 6. Reads the body into a `mixed` property and keeps every copy without end.
 // This stops at the memory limit.
 echo "step 6\n";
 array<Loose> $kept = [];

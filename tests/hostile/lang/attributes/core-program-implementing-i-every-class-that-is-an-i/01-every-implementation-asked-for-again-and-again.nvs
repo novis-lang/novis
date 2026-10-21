@@ -4,7 +4,7 @@
 // would need more and more memory. The program should run to its last line.
 // hostile: timeout-ms 30000
 
-// 1. An interface with many implementations. Each object carries a field, so
+// 1. An interface with many implementations. Each object has a property, so
 //    every round of the loop below has something to allocate.
 interface Check
 {

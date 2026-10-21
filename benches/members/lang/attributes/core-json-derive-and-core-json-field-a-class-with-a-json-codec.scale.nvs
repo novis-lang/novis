@@ -1,5 +1,5 @@
 <?nvs
-// Measures encoding one object as JSON when one of its fields is a long string, at growing string lengths.
+// Measures encoding one object as JSON when one of its properties is a long string, at growing string lengths.
 // bench: start 256
 // bench: max 4096
 

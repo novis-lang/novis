@@ -1,6 +1,6 @@
 <?nvs
-// Attack: a request picks the field to write, and the class has a `readonly`
-// field. The program should not compile, because the key could name that field.
+// Attack: a request picks the property to write, and the class has a `readonly`
+// property. The program should not compile, because the key could name that property.
 // hostile: expect-refusal
 // covers: lang:types/property-keys
 
@@ -18,7 +18,7 @@ class Invoice
 
 Invoice $invoice = new Invoice(41);
 
-// 1. The field name comes from the web address. Here it is "id".
+// 1. The property name comes from the web address. Here it is "id".
 ?property<Invoice> $key = Core\Request::query('field') as ?property<Invoice>;
 if ($key != null) {
     $invoice->$key = '99';

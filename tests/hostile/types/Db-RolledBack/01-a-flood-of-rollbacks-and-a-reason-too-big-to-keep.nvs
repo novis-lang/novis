@@ -25,7 +25,7 @@ final class Churn
                     $tx->rollBack('this round keeps nothing');
                 });
             } catch (RolledBack $abandoned) {
-                // This reads both fields, so the error must really contain them.
+                // This reads both properties, so the error must really contain them.
                 if (Core\Str::length($abandoned->reason) > 0) {
                     $read = $read + 1;
                 }
