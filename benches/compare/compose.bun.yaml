@@ -15,6 +15,9 @@ services:
     mem_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
     memswap_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
 
+    # Started again when it exits, as `compose.nvs.yaml` says.
+    restart: unless-stopped
+
     # `bun/serve.ts` starts this many processes, each with `reusePort`. One per CPU of the budget is
     # Bun's own advice for using more than one core.
     environment:

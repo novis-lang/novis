@@ -317,8 +317,8 @@ export interface Probe {
   get(path: string, timeoutMs?: number): Promise<Reply>;
   /** One request with its own method and headers, for a row that is about more than a `GET`. */
   send(method: string, path: string, headers: Record<string, string>): Promise<Reply>;
-  /** Whether the backend container is still running. No stack sets a restart policy, so a crash stays down. */
-  running(): boolean;
+  /** Whether the backend container runs, and how often its restart policy has started it again. */
+  backend(): Backend;
   /** `nvs check` over a file of the row's folder, in a one-off app container: the exit code and what it printed. */
   check(file: string): { code: number; output: string };
   /** A command run in the backend container, as an operator would run it there. */
@@ -336,6 +336,19 @@ export interface Probe {
   /** The host folder the stack serves, which a row that edits the program writes to. */
   dir: string;
 }
+
+/**
+ * The backend container after a row: whether it runs, and how often its restart policy started it again.
+ * Every stack restarts a backend that exits, as a deployment's supervisor does, so a crash costs the
+ * requests in flight and the restart, and the row counts it.
+ */
+export interface Backend {
+  running: boolean;
+  restarts: number;
+}
+
+/** A backend that runs and was never started again. */
+export const survived = (b: Backend) => b.running && b.restarts === 0;
 
 /** What steady load did: the requests answered, the ones that failed or timed out and how, and the slowest 1% in ms. */
 export interface Steady {
@@ -371,16 +384,34 @@ export interface Scenario {
   memory?: string;
   /** The backend's cpus, for a row that needs more than the run's budget. */
   cpus?: number;
+  /** The request a timed row sends to the row's own program, where it does not time a case in `cases/`. */
+  timedCase?: Case;
   /** The result of a peer that has nothing to run for this row, with the documentation that says so. */
   fixed?: Record<string, RowResult>;
   /** A row about requests: sent to one stack the driver brings up. */
   probe?(p: Probe): Promise<RowResult>;
-  /** A row about a figure: times the case in `cases/` named by `case`, each pass on a fresh stack. */
+  /** A row about a figure: times `timedCase`, or else the case in `cases/` named by `case`, each pass on a fresh stack. */
   timed?(t: Timer): Promise<RowResult>;
 }
 
 /** The factor from one cpu to four below which a peer is not using the extra cores. */
 export const CORES_SCALING = 2;
+
+/**
+ * Turns of the parallel program's loop in one request of the cores row: about a millisecond of one core
+ * on every peer, so four cores answer a few thousand requests a second and the TLS front, which answers
+ * tens of thousands, is never what the row measures.
+ */
+export const CORES_TURNS = 300_000;
+
+/** The cores row's request: one part of the parallel program's loop, which every peer runs in the request itself. */
+export const CORES_CASE: Case = {
+  id: "cores",
+  concurrency: 64,
+  timed: { method: "GET", path: `/?parts=1&turns=${CORES_TURNS}` },
+  inputs: [{ method: "GET", path: `/?parts=1&turns=${CORES_TURNS}` }],
+  html: false,
+};
 
 /** The code each peer's program carries only to use more than one core, where it carries any. */
 export const CORES_IN_CODE: Record<string, string> = { bun: "a launcher that starts one reusePort process per cpu" };
@@ -445,39 +476,39 @@ export interface Stopped {
 
 /**
  * Passes when the steady load saw no failed request, the runaway request was stopped by the backend, and
- * the backend still runs, naming the setting that stopped it where the peer has one. Anything else is `no`.
+ * the backend ran throughout, naming the setting that stopped it where the peer has one. Anything else is
+ * `no`. `baseline` is the same load on the same stack with no runaway request, so the page can show the
+ * share of its own throughput each peer kept rather than how fast it is anyway.
  */
-export function runawayResult(load: Steady, runaway: Stopped, running: boolean, setting: Setting | undefined): RowResult {
+export function runawayResult(baseline: Steady, load: Steady, runaway: Stopped, backend: Backend, setting: Setting | undefined): RowResult {
   const stopped = runaway.status !== null && !NGINX_STATUSES.has(runaway.status);
   const evidence = {
+    baseline_requests: baseline.requests,
     requests: load.requests,
     failed_requests: load.failed,
     failures: load.failures,
     p99_ms: load.p99_ms,
     runaway_status: runaway.status,
     runaway_seconds: runaway.seconds,
-    backend_running: running,
+    backend_running: backend.running,
+    backend_restarts: backend.restarts,
   };
-  if (load.failed > 0 || !running || !stopped) return { result: "no", evidence };
+  if (load.failed > 0 || !survived(backend) || !stopped) return { result: "no", evidence };
   return passed(setting, evidence);
 }
 
 /**
- * The limit each peer starts with that stops the loop row's and the memory row's runaway request. PHP's
- * `max_execution_time` and `memory_limit` are on unless an ini turns them off.
+ * The limit each peer starts with that stops the loop row's and the memory row's runaway request. Both
+ * rows run every peer at its defaults. Novis's `[limits]` and PHP's ini stop a request at 128 MB or 30
+ * seconds of CPU time unless a setting turns the limit off. Bun and Go have no such limit.
  */
-export const LOOP_DEFAULT: Record<string, Setting> = { php: { name: "max_execution_time", default: true } };
-export const MEMORY_DEFAULT: Record<string, Setting> = { php: { name: "memory_limit", default: true } };
-
-/**
- * The limits a peer needs set before it stops a runaway request, where its defaults set none: the command
- * that sets them inside the container, and the setting's name in the row. Novis's `[limits]` keys are
- * commented out in its data folder's `nvs.toml`, so the edit uncomments them inside that table. `nvs serve`
- * admits a request while the requests running leave room in the container for it to reach `memory`, so
- * the value is the runaway's ceiling and the room every other request is admitted against.
- */
-export const RUNAWAY_LIMITS: Record<string, TableEdit> = {
-  nvs: { table: "limits", set: { memory: '"16M"', cpu_time: '"1s"' }, name: "[limits]" },
+export const LOOP_DEFAULT: Record<string, Setting> = {
+  nvs: { name: "[limits] cpu_time", default: true },
+  php: { name: "max_execution_time", default: true },
+};
+export const MEMORY_DEFAULT: Record<string, Setting> = {
+  nvs: { name: "[limits] memory", default: true },
+  php: { name: "memory_limit", default: true },
 };
 
 /**
@@ -519,18 +550,18 @@ async function stoppedAt(p: Probe, path: string): Promise<Stopped> {
 }
 
 /**
- * Puts steady load on `/`, sends the runaway request at `path` into it, and judges what both saw. A peer
- * with no limit at its defaults writes `RUNAWAY_LIMITS` first, and one with a limit names it from `defaults`.
+ * Puts steady load on `/` once with nothing else running, then again with the runaway request at `path`
+ * sent into it, and judges what the second saw. A peer with a limit at its defaults names it from
+ * `defaults`.
  */
 async function runawayProbe(p: Probe, path: string, defaults: Record<string, Setting>): Promise<RowResult> {
-  const limits = RUNAWAY_LIMITS[p.peer];
-  if (limits !== undefined) await applyTableEdit(p, limits);
   ok(await p.get("/"), "the first request");
+  const baseline = await p.steady("/", RUNAWAY_LOAD_SECONDS);
   const load = p.steady("/", RUNAWAY_LOAD_SECONDS);
   await Bun.sleep(RUNAWAY_START_MS);
   const runaway = stoppedAt(p, path);
   const steady = await load;
-  return runawayResult(steady, await runaway, p.running(), written(limits) ?? defaults[p.peer]);
+  return runawayResult(baseline, steady, await runaway, p.backend(), defaults[p.peer]);
 }
 
 /** Polls the backend's log until it carries `line`: the seconds it took, or `null` after `CHANGE_WAIT_MS`. */
@@ -543,11 +574,11 @@ async function logUntil(p: Probe, line: string): Promise<number | null> {
   return null;
 }
 
-/** The request after a crash must be answered by a backend that is still up. */
-export function crashResult(crashStatus: number, nextStatus: number, running: boolean): RowResult {
+/** The request after a crash must be answered by a backend that never stopped, not by one its restart policy started again. */
+export function crashResult(crashStatus: number, nextStatus: number, backend: Backend): RowResult {
   return {
-    result: nextStatus === 200 && running ? "built-in" : "no",
-    evidence: { crash_status: crashStatus, next_status: nextStatus, backend_running: running },
+    result: nextStatus === 200 && survived(backend) ? "built-in" : "no",
+    evidence: { crash_status: crashStatus, next_status: nextStatus, backend_running: backend.running, backend_restarts: backend.restarts },
   };
 }
 
@@ -1007,8 +1038,9 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: "cores",
-    tree: "cases",
-    case: "html-page",
+    tree: "scenarios",
+    case: "parallel",
+    timedCase: CORES_CASE,
     timed: async (t) => coresResult(await t.pass(1), await t.pass(4), CORES_IN_CODE[t.peer]),
   },
   {
@@ -1018,7 +1050,7 @@ export const SCENARIOS: Scenario[] = [
     probe: async (p) => {
       const crash = await p.get("/crash");
       const next = await p.get("/");
-      return crashResult(crash.status, next.status, p.running());
+      return crashResult(crash.status, next.status, p.backend());
     },
   },
   {
@@ -1336,6 +1368,15 @@ async function onePass(peer: Peer, c: Case, ctx: PeerCtx, load: Load | null): Pr
   }
 }
 
+/** The backend container's state from `docker inspect`. A container that is gone does not run. */
+function backendOf(stack: string, env: Record<string, string>): Backend {
+  const id = compose(stack, ["ps", "-a", "-q", "app"], env, true).stdout.trim();
+  if (id === "") return { running: false, restarts: 0 };
+  const out = Bun.spawnSync(["docker", "inspect", "-f", "{{.State.Running}} {{.RestartCount}}", id], { stdout: "pipe", stderr: "pipe" });
+  const [running, restarts] = out.stdout.toString().trim().split(" ");
+  return { running: running === "true", restarts: pyInt(restarts ?? "") ?? 0 };
+}
+
 /** One request from the host through nginx, for a scenario's probe. */
 async function replyOf(peer: Peer, path: string, method = "GET", extra: Record<string, string> = {}, timeoutMs = 30_000): Promise<Reply> {
   const res = await fetch(`https://127.0.0.1:${peer.port}${path}`, {
@@ -1394,13 +1435,13 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
   const fixed = s.fixed?.[peer.id];
   if (fixed !== undefined) return fixed;
   if (s.timed !== undefined) {
-    const c = CASES.find((k) => k.id === s.case)!;
+    const c = s.timedCase ?? CASES.find((k) => k.id === s.case)!;
     const loadOf = { ...load, concurrency: c.concurrency };
     return await s.timed({
       peer: peer.id,
       requests: load.requests,
       concurrency: c.concurrency,
-      pass: async (cpus) => (await onePass(peer, c, { ...ctx, cpus, concurrency: c.concurrency, tree: "cases" }, loadOf)).result!,
+      pass: async (cpus) => (await onePass(peer, c, { ...ctx, cpus, concurrency: c.concurrency }, loadOf)).result!,
     });
   }
   if (s.copy === true && peer.compiled !== true) {
@@ -1433,10 +1474,7 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
       logs: () => logsOf(stack, "app", env),
       steady: (path, seconds) => steadyOf(stack, env, path, seconds),
       send: (method, path, headers) => replyOf(peer, path, method, headers),
-      running: () => {
-        const ps = compose(stack, ["ps", "--status", "running", "--services"], env, true);
-        return ps.code === 0 && ps.stdout.split(/\r?\n/).includes("app");
-      },
+      backend: () => backendOf(stack, env),
       check: (file) => {
         const done = compose(stack, ["run", "--rm", "--no-deps", "--build", "app", "check", `/app/${file}`], env, true);
         return { code: done.code, output: done.stdout + done.stderr };

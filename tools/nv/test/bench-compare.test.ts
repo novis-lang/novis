@@ -9,7 +9,11 @@ import {
   CASES,
   COMPARE_DIR,
   CONFIG_CHANGES,
+  CORES_CASE,
+  CORES_TURNS,
   checkResult,
+  LOOP_DEFAULT,
+  MEMORY_DEFAULT,
   comparable,
   configResult,
   coresResult,
@@ -34,7 +38,6 @@ import {
   PARALLEL_GRANT,
   PARALLEL_PARTS,
   parallelResult,
-  RUNAWAY_LIMITS,
   rowLine,
   type RowResult,
   runawayResult,
@@ -172,11 +175,18 @@ describe("the feature scenarios", () => {
     expect(SCENARIOS.map((s) => s.id)).toEqual(["escape", "taint", "secret", "live-edit", "config", "deploy", "cores", "crash", "loop", "memory", "csrf", "headers", "waiting", "parallel", "upgrade"]);
   });
 
-  test("every row either probes a stack or times a case, never both, and a timed row names a case", () => {
+  test("every row either probes a stack or times a case, never both, and a timed row names a case or brings its own", () => {
     for (const s of SCENARIOS) {
       expect(s.probe === undefined).toBe(s.timed !== undefined);
-      if (s.timed !== undefined) expect(CASES.some((c) => c.id === s.case)).toBe(true);
+      if (s.timed !== undefined) expect(s.timedCase !== undefined || CASES.some((c) => c.id === s.case)).toBe(true);
     }
+  });
+
+  test("the cores row times one part of the parallel program, which no peer splits", () => {
+    const cores = SCENARIOS.find((s) => s.id === "cores")!;
+    expect(cores.timedCase).toBe(CORES_CASE);
+    expect(scenarioFolder(cores)).toBe("benches/compare/scenarios/parallel");
+    expect(CORES_CASE.timed.path).toBe(`/?parts=1&turns=${CORES_TURNS}`);
   });
 
   const timed = (rps: number, over: Partial<PeerResult> = {}): PeerResult => ({
@@ -311,21 +321,41 @@ describe("the feature scenarios", () => {
     expect(checkResult(1, "error[E0001]: syntax", "E0401").result).toBe("no");
   });
 
-  test("a runaway is stopped when the backend answers it, the load saw no failure, and the backend still runs", () => {
+  test("a runaway is stopped when the backend answers it, the load saw no failure, and the backend never stopped", () => {
+    const baseline = { requests: 1000, failed: 0, failures: null, p99_ms: 10 };
     const load = { requests: 900, failed: 0, failures: null, p99_ms: 12.5 };
     const stopped = { status: 500, seconds: 1.2 };
-    const limits = { name: "[limits]", default: false };
-    expect(runawayResult(load, stopped, true, undefined).result).toBe("built-in");
-    expect(runawayResult(load, { status: 200, seconds: 30.4 }, true, limits)).toEqual({
-      result: "one-setting",
-      setting: "[limits]",
-      evidence: { requests: 900, failed_requests: 0, failures: null, p99_ms: 12.5, runaway_status: 200, runaway_seconds: 30.4, backend_running: true },
+    const up = { running: true, restarts: 0 };
+    const limits = { name: "[limits] cpu_time", default: true };
+    expect(runawayResult(baseline, load, stopped, up, undefined).result).toBe("built-in");
+    expect(runawayResult(baseline, load, { status: 200, seconds: 30.4 }, up, limits)).toEqual({
+      result: "on-by-default",
+      setting: "[limits] cpu_time",
+      evidence: {
+        baseline_requests: 1000,
+        requests: 900,
+        failed_requests: 0,
+        failures: null,
+        p99_ms: 12.5,
+        runaway_status: 200,
+        runaway_seconds: 30.4,
+        backend_running: true,
+        backend_restarts: 0,
+      },
     });
-    expect(runawayResult(load, stopped, true, { name: "memory_limit", default: true })).toMatchObject({ result: "on-by-default", setting: "memory_limit" });
-    expect(runawayResult(load, { status: null, seconds: null }, true, undefined).result).toBe("no");
-    expect(runawayResult(load, { status: 502, seconds: 3 }, true, undefined).result).toBe("no");
-    expect(runawayResult({ ...load, failed: 1 }, stopped, true, limits).result).toBe("no");
-    expect(runawayResult(load, stopped, false, undefined).result).toBe("no");
+    expect(runawayResult(baseline, load, { status: null, seconds: null }, up, undefined).result).toBe("no");
+    expect(runawayResult(baseline, load, { status: 502, seconds: 3 }, up, undefined).result).toBe("no");
+    expect(runawayResult(baseline, { ...load, failed: 1 }, stopped, up, limits).result).toBe("no");
+    expect(runawayResult(baseline, load, stopped, { running: false, restarts: 0 }, undefined).result).toBe("no");
+    expect(runawayResult(baseline, load, stopped, { running: true, restarts: 1 }, undefined).result).toBe("no");
+  });
+
+  test("the runaway rows run every peer at its defaults: Novis and PHP name the limit they start with", () => {
+    expect(LOOP_DEFAULT).toEqual({ nvs: { name: "[limits] cpu_time", default: true }, php: { name: "max_execution_time", default: true } });
+    expect(MEMORY_DEFAULT).toEqual({ nvs: { name: "[limits] memory", default: true }, php: { name: "memory_limit", default: true } });
+    const shipped = readFileSync(join(import.meta.dir, "..", "..", "..", "crates", "nvs-config", "src", "default.toml"), "utf8");
+    expect(shipped).toContain('#memory = "128M"                      # default');
+    expect(shipped).toContain('#cpu_time = "30s"                     # default: 30s for server work');
   });
 
   test("steady load fails on every status but 200 and every error but the run's own deadline", () => {
@@ -359,7 +389,6 @@ describe("the feature scenarios", () => {
 
   test("a table edit uncomments each key inside its own table and nowhere else", () => {
     const shipped = readFileSync(join(import.meta.dir, "..", "..", "..", "crates", "nvs-config", "src", "default.toml"), "utf8");
-    expect(editedLines(shipped, RUNAWAY_LIMITS.nvs!)).toEqual(['memory = "16M"', 'cpu_time = "1s"']);
     expect(editedLines(shipped, PARALLEL_GRANT.nvs!)).toEqual(["spawn = true"]);
     expect(tableEditCommand(PARALLEL_GRANT.nvs!)[2]).toBe("/^\\[capabilities\\.script\\]$/,/^\\[/{s|^#spawn = .*|spawn = true|}");
   });
@@ -377,11 +406,13 @@ describe("the feature scenarios", () => {
     expect(parallelResult(1, 2.1, "Worker", undefined).result).toBe("no");
   });
 
-  test("a crash is survived when the next request is answered and the backend is still up", () => {
-    expect(crashResult(500, 200, true).result).toBe("built-in");
-    expect(crashResult(502, 200, true).evidence).toEqual({ crash_status: 502, next_status: 200, backend_running: true });
-    expect(crashResult(500, 502, false).result).toBe("no");
-    expect(crashResult(500, 200, false).result).toBe("no");
+  test("a crash is survived when the next request is answered and the backend never stopped", () => {
+    const up = { running: true, restarts: 0 };
+    expect(crashResult(500, 200, up).result).toBe("built-in");
+    expect(crashResult(502, 200, up).evidence).toEqual({ crash_status: 502, next_status: 200, backend_running: true, backend_restarts: 0 });
+    expect(crashResult(500, 502, { running: false, restarts: 0 }).result).toBe("no");
+    expect(crashResult(500, 200, { running: false, restarts: 0 }).result).toBe("no");
+    expect(crashResult(502, 200, { running: true, restarts: 1 }).result).toBe("no");
   });
 
   test("the headers pass only with all three, naming a setting the peer starts with, and the frame policy may come from either header", () => {
