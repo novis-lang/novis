@@ -2727,7 +2727,9 @@ whose whole premise is that state does not outlive a request.
 a name under that namespace to the carried file with no `autoload` line
 (`nvs_hir::ExtensionClass::source`), and `nvs run`, `nvs check` and `nvs test` fill that field
 from the set's manifests
-(`tests/conformance/ext/an-extension-source-class-resolves-with-no-autoload-line.nvst`).
+(`tests/conformance/ext/an-extension-source-class-resolves-with-no-autoload-line.nvst`). `nvs serve`
+fills it from the live set's, which carry each extension's source files
+(`crates/nvs-cli/tests/live_config.rs`).
 
 **Declined:**
 - **The source in a folder beside the `.nvsx`.** It would sit outside the pin, so it could change
