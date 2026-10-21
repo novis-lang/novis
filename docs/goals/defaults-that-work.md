@@ -62,7 +62,7 @@ stages:
         rules: [security/csrf-is-on-by-default, http-server/request-body-and-upload-total-are-two-caps]
   - id: 9
     title: "`Core\\Env::secret` returns a `secret string`, and has its feature proofs"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/env.rs, crates/nvs-stdlib/src/http.rs, docs/rules/security/secret-has-no-ambient-source.md, docs/rules/security/tainted-sources.md]
     extra:
       context:
@@ -466,12 +466,12 @@ adds the narrowing lines.
 **Split:** after the member lands, one writing subagent writes the about page, the three examples and
 the bench, then a second writes the attack, each held to § *Text an end user reads* in `AGENTS.md`.
 
-- [ ] The five edits for `secret`: the row with its name a sink, the card, the body, the `address()` arm and three `.nvst` cases (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/env.rs:124`, `crates/nvs-stdlib/src/env.rs:453`, `tests/conformance/core/env-secret-is-accepted-by-an-outbound-header-and-never-printed.nvst:1`
-- [ ] `rule:security/secret-has-no-ambient-source` names the second originating member, and `rule:security/tainted-sources` says why its value is not `tainted`. `docs/rules/security/secret-has-no-ambient-source.md:1`, `docs/rules/security/tainted-sources.md:1`
-- [ ] The about page and three examples: an API key in an outbound header, a database password, and a missing variable. `docs/examples/core/Env/secret/about.md:1`
-- [ ] The bench. `benches/members/core/Env/secret.nvs:1`
-- [ ] The attack: a program tries to print, log and return the value in a response. `tests/hostile/core/Env/secret/01-print-a-secret-from-the-environment.nvs:1`
-- [ ] `bun nv proofs --id 'Core\Env::secret'` owes nothing (`rule:testing/feature-proofs`). `docs/examples/core/Env/secret/about.md:1`
+- [x] The five edits for `secret`: the row with its name a sink, the card, the body, the `address()` arm and three `.nvst` cases (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/env.rs:124`, `crates/nvs-stdlib/src/env.rs:453`, `tests/conformance/core/env-secret-is-accepted-by-an-outbound-header-and-never-printed.nvst:1`
+- [x] `rule:security/secret-has-no-ambient-source` names the second originating member, and `rule:security/tainted-sources` says why its value is not `tainted`. `docs/rules/security/secret-has-no-ambient-source.md:1`, `docs/rules/security/tainted-sources.md:1`
+- [x] The about page and three examples: an API key in an outbound header, a database password, and a missing variable. `docs/examples/core/Env/secret/about.md:1`
+- [x] The bench. `benches/members/core/Env/secret.nvs:1`
+- [x] The attack: a program tries to print, log and return the value in a response. `tests/hostile/core/Env/secret/01-print-a-secret-from-the-environment.nvs:1`
+- [x] `bun nv proofs --id 'Core\Env::secret'` owes nothing (`rule:testing/feature-proofs`). `docs/examples/core/Env/secret/about.md:1`
 
 ### 10. a CLI run's own code may raise its memory limit, and the limit error names how
 
@@ -528,16 +528,35 @@ to a writing subagent, one after another. Then the gate runs once more.
 
 ### State
 
-Stages 1 to 8 are done. Stage 4 is committed without a green gate: its gate was stopped after a
-test hung. Stages 9 to 12 check with a build alone, and stage 13, the gate stage, verifies the goal.
+Stages 1 to 9 are done. Stage 4 is committed without a green gate: its gate was stopped after a
+test hung. Stages 10 to 12 check with a build alone, and stage 13, the gate stage, verifies the goal.
 
-**This session's fixes.** `server-tests` was red on
+**Stage 9 (`Core\Env::secret`), `a77e38609` and this session's commit:**
+
+- The member, its card, the rules and three `.nvst` cases landed in `a77e38609`. The WIP commit
+  `54bbc5fd0` (the about page, three examples, the bench and the Rust test
+  `secret_reads_the_value_get_reads_and_null_for_a_name_nothing_set`) is kept as it was; the test
+  passed once, and the three examples run green.
+- The attack is `tests/hostile/core/Env/secret/01-print-a-secret-from-the-environment.nvs`
+  (`expect-refusal`): `echo`, `print`, a log record, `Core\Response::text`, an interpolated string
+  and a `tainted` name. Each step is refused at compile time.
+- `env-secret-proofs` was red only because `target/release/nvs.exe` predated the member, so the
+  roster (`nvs meta --json`) did not list it. `--record-perf` rebuilt it, and `bun nv proofs
+  --gate --only 'Core\Env::secret'` is green.
+- The four `Core\Env` benches declared `calls 0` but measured 1 or 2 (the playbook's stale-count
+  trap). `secret` and `context`/`mode` now declare `calls 1`, `get` `calls 2`, and the group's
+  perf is recorded. `Core\Env::all` stays a known gap.
+- The nightly's site failures (`covariant`, `union-types`, `properties`,
+  `methods-and-inheritance`) ran on `afbb1edc2` and pass at HEAD.
+- **Expected red at stage 13 (website questions):** `bun nv site --check questions` names six
+  stale reference pages: `/reference/core/csrf/issue/`, `/reference/core/env/`,
+  `/reference/core/session/`, and `start`, `regenerate` and `destroy` under it. They changed in
+  stages 7 to 9. Stage 12 rereads each, rewrites its questions, and stamps it.
+
+**Earlier fix.** `server-tests` was red on
 `a_schedule_entrys_limits_and_grants_narrow_its_run_and_never_widen_it`
-(`crates/nvs-server/src/schedule.rs:1498`): the test's watcher built its fire's isolate without
-`running_as(RunKind::Schedule)`, which `nvs serve`'s fire writes, so the fire was a CLI run and got
-stage 6's `process.exec` default. It now runs as a scheduled run, and `bun nv verify --fast -p
-nvs-server` is green (`8d18b22c2`). The nightly's proofs failures ran on `afbb1edc2`, before the
-restamps in `85bb5a170` and `6fd9500c1`; nothing new to fix.
+(`crates/nvs-server/src/schedule.rs:1498`): the test's fire now runs as a scheduled run, and
+`bun nv verify --fast -p nvs-server` is green (`8d18b22c2`).
 
 **Stage 8 (the CSRF form field), `3c3140d00`:**
 
@@ -769,22 +788,26 @@ questions of the capabilities and trust pages. They are restamped in this group.
 **No gate until stage 13.** Check with `cargo build` and `cargo clippy --all-targets -- -D
 warnings`, commit each slice, and name in the handoff the tests and cases you expect to go red.
 
-**Stage 9**, `Core\Env::secret` (decision 10). A new `Core\Env` method returning `?secret string`,
-beside `get` in `crates/nvs-stdlib/src/env.rs`, with its name a sink as `get`'s is. It is accepted
-where a credential belongs, such as an outbound header (`crates/nvs-stdlib/src/http.rs:2241`).
-It owes its feature proofs: `bun nv proofs --id 'Core\Env::secret'` lists them and their paths,
-and the acceptance check `env-secret-proofs` runs `bun nv proofs --gate --only Core\Env::secret`.
-Rule `security/secret-has-no-ambient-source` names it as the second confidential source.
+**Stage 10**, CLI memory (decision 11). On a CLI run with no `[limits.hard] memory` written, the
+application's own code may raise `memory` with `Core\Config::set`: the bound is in
+`crates/nvs-stdlib/src/config.rs:209`. The memory-limit error at
+`crates/nvs-runtime/src/ctx/limits.rs:450` names the program on a CLI run, `[limits] memory` and
+the `Core\Config::set` call. Record in `rule:config/ceilings-are-their-own-directives` that a
+package may only lower its limit, a checkpoint of goal `namespace-grants`' stage 3.
 
-**Stage 10**, CLI memory (decision 11): `crates/nvs-stdlib/src/config.rs:209`,
-`crates/nvs-runtime/src/ctx/limits.rs:450`. Stages 9 and 10 touch disjoint files.
+**Stage 11** follows: the repository's `nvs.toml`, the shipped `nvs.toml`
+(`crates/nvs-config/src/default.toml:147`) and the examples show the new defaults.
+
+**Proofs use the release binary.** `bun nv proofs --gate` reads the roster from
+`target/release/nvs.exe`. After adding a `Core` member, pass `--nvs target/debug/nvs.exe` or run
+`--record-perf`, which rebuilds it.
 
 ### Backlog
 
 - `crates/nvs-stdlib/src/` holds many `default_*.profraw` coverage files from some earlier run. Find what writes them there and delete them. `crates/nvs-stdlib/src/csrf.rs:1`
 - `Core\Queue::push`'s `grants` refusal still says ``help: grant it in nvs.toml under ...``: it is about the request's own grants list, not a missing grant line, and may adopt `grant_line` when stage 2 touches queue grants. `crates/nvs-stdlib/src/queue.rs:3085`
 - `nvs-stdlib test ldap` failed 9 Samba cases in one full verify run. The cause was a TLS handshake that passed its 30s deadline, with the binary taking 205s, and it passed alone in 5s twice. If it repeats, find what loads Samba during verify. `crates/nvs-stdlib/tests/ldap.rs:49`
-- Stages 9 and 10 touch disjoint files and may run as side goals at any time. `docs/goals/defaults-that-work.md`
+- Stage 12: six reference pages have stale questions (see *State*). `bun nv site --questions --stamp <page>` after a reread. `website/src/content/docs/guides/how-to-use/configuration.mdx:1`
 - Stage 12: a website page that says a session needs a configured store, or that `start` throws with no `[session]` block, now says what is not true. `website/src/content/docs/guides/how-to-use/configuration.mdx:1`
 - The editor offers file names at a `ParamText::Path` argument and not at `ParamText::Program`, so `Core\Process::run`'s first argument lost path completion, hover and links. `crates/nvs-lsp/src/completion.rs:743`
 - Stage 11: the shipped file's `#exec` and `#spawn` comments still read as deny-all. `crates/nvs-config/src/default.toml:147`
