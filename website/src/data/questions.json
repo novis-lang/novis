@@ -712,7 +712,7 @@
   },
   "/in-depth/": {
     "feature": "in-depth/index.mdx",
-    "hash": "743e2cd5413ceb5d",
+    "hash": "b4e678ad0cff9247",
     "questions": [
       "Why does Novis work the way it does?",
       "Where can I read about the design decisions behind Novis?",
@@ -821,13 +821,14 @@
   },
   "/in-depth/design-principles/": {
     "feature": "in-depth/design-principles.mdx",
-    "hash": "9041101c0e5f2ea2",
+    "hash": "173208d0c3bedb5e",
     "questions": [
       "Why does Novis have only one way to do each job?",
       "What does safe by default mean in Novis?",
       "Why does converting \"12abc\" to int throw an error?",
-      "The main ideas behind the design of the language",
-      "Why are error messages in Novis easy to read?"
+      "Why are error messages in Novis easy to read?",
+      "Why does Novis have no global variables?",
+      "Can I load a C library into a Novis program?"
     ]
   },
   "/in-depth/how-novis-is-tested/": {
@@ -865,13 +866,13 @@
   },
   "/in-depth/never/": {
     "feature": "in-depth/never.mdx",
-    "hash": "ef1ee22d07dc8be4",
+    "hash": "48456d69d9825d44",
     "questions": [
-      "Can I load a C library into a Novis program?",
-      "Why does Novis have no global variables?",
-      "Does Novis run my existing PHP files unchanged?",
-      "Features Novis will never add, and why",
-      "How do extensions work without native code?"
+      "Will Novis always stay a language for web applications?",
+      "Why does the standard library not include everything?",
+      "Is Novis AI slop written by coding agents?",
+      "Does Novis try to be the fastest language?",
+      "Can a person learn Novis without an AI tool?"
     ]
   },
   "/in-depth/new/": {
@@ -918,12 +919,13 @@
   },
   "/in-depth/what-for/": {
     "feature": "in-depth/what-for.mdx",
-    "hash": "4c969bfb0662152a",
+    "hash": "3b7b0b8365cca752",
     "questions": [
       "What kind of programs is Novis made for?",
+      "Can I build a web application with Novis?",
       "Can I use Novis for command-line scripts and scheduled jobs?",
       "Is Novis similar to PHP?",
-      "Why choose Novis for a web server?"
+      "Is security or speed more important in Novis?"
     ]
   },
   "/install/": {

@@ -1,18 +1,37 @@
 ---
 title: What Novis is for
 covers: []
-description: Novis runs web servers and command-line programs, securely and fast.
+description: Novis is made for web applications first, and for command-line scripts too. Security comes first, and it is as fast as possible.
 ---
 
-Novis is a programming language for two kinds of program. The first kind is a web server that
-handles requests. The second kind is a program you start from the command line, such as a script,
-a report or a scheduled job. The syntax is close to PHP, so a PHP programmer can read most Novis
-code without help. [Start here](/syntax/start-here/) shows the differences.
+Novis is a programming language for two kinds of program. Web applications are the main use.
+Command-line scripts are the second use. The syntax is close to PHP, so a PHP programmer can read
+most Novis code without help. [Start here](/syntax/start-here/) shows the differences.
 
-## Secure first, then fast
+## Web applications
 
-Novis has one goal for both kinds of program: run them securely and fast. Security comes first.
-When a design is faster but less safe, Novis takes the safer design.
+Novis is made first for web applications. `nvs serve` runs your application as a web server, so you
+need no other server program. Each request runs on its own, with its own memory and its own limits.
+
+The standard library has what most web applications need. `Core\Router` sends each request to the
+right method, and `Core\Db` queries a database. The server checks each `Post` request for CSRF (a
+request sent from another site) before your code runs.
+[A JSON API](/guides/simple-programs/json-api/) and [A form handler](/guides/simple-programs/form-handler/)
+show a small application from start to end.
+
+## Command-line scripts
+
+Novis also runs programs that you start from the command line. Examples are a script, a report or a
+scheduled job. `nvs run` starts the program. It uses the same language and the same standard library
+as your web application.
+
+[A CSV report](/guides/simple-programs/csv-report/) and [A scheduled job](/guides/simple-programs/scheduled-job/)
+show two small scripts.
+
+## Security first, as fast as possible
+
+Security is the first priority for both kinds of program. When a design is faster but less safe,
+Novis takes the safer design. Within that limit, Novis is as fast as possible.
 
 A web server reads input from people it does not know. So Novis checks the most common mistakes
 before your program runs:

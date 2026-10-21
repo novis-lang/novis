@@ -1,46 +1,58 @@
 ---
 title: What Novis will never be
 covers: []
-description: The things Novis does not do and will not add, and the reason for each.
+description: The direction Novis keeps in every version, and what it will never turn into.
 ---
 
 import { githubFile } from '@config/site.mjs'
 
-Some features make a language easier for one program and less safe for every other program. Novis
-leaves these features out. This page lists them, so you know before you start.
+This page describes the direction of Novis as a whole. Each section names one thing that Novis will
+never become, and the reason. These points are true for every version of Novis.
 
-## A way to load native code
+## A different language later
 
-Your program cannot load a C library into the running process. One bad write in native code can
-damage the memory of every request on the server. One crash in native code stops all of them.
+Novis is a language for web applications and command-line scripts. It will stay that language. A
+new version adds features for these two kinds of program. It does not turn Novis into a language
+for something else, such as games or phone apps.
 
-Extensions run as sandboxed WebAssembly. An extension has its own memory, and it
-reaches only what you allow. <a href={githubFile('docs/rules/packaging/an-extension-is-a-sandboxed-wasm-component.md')}>Read the full reasoning.</a>
+The priorities also stay the same, in the same order. [How we decide](/in-depth/how-we-decide/)
+lists them.
 
-## Global state
+## A standard library for every possible job
 
-Novis has no global variables and no `global` keyword. There is no global time zone and no global
-locale. A function that needs a time zone or a language gets it as an argument.
+Novis does not try to include everything that a web application could ever need. It looks at the
+jobs that almost every web application has, and at the security mistakes that are most common in
+them. Examples are database queries, HTML output, forms, file uploads and passwords.
 
-With global state, one part of a program can change the result of another part. Nothing in the code
-shows this. On a
-server, it can also carry a value from one request into the next.
-<a href={githubFile('docs/rules/core-api/no-ambient-state.md')}>Read the full reasoning.</a>
+For each of these jobs, Novis gives one way that is simple, secure and the same in every program. A
+rare job belongs in your own code. This keeps the standard library easy to learn and easy to keep
+secure.
 
-## PHP that runs unchanged
+## Software that nobody checked
 
-Novis does not run PHP files. Its syntax is close, but it removes the parts that cause bugs, such
-as the `(int)` cast. A Novis program uses `as int` for that, and the
-conversion is checked. [Start here](/syntax/start-here/) lists the differences.
+Novis is written with coding agents. Code that nobody planned and nobody checked is often called
+"AI slop". Novis will never be that kind of software.
 
-## A runtime that uses as little memory as possible
+A feature is finished only when it has tests, examples, a benchmark and an attack. When a mistake
+gets past the checks, we add the missing test. So the proof that Novis works gets stronger with each
+version. [How Novis is written](/in-depth/how-novis-is-written/) and
+[How Novis is tested](/in-depth/how-novis-is-tested/) show every check.
 
-Novis uses memory to make requests safe and fast. Each request has its own memory, and compiled
-code stays in memory. A Novis server can use more memory than a server written in another language. Every
-request still has a memory limit that you set. <a href={githubFile('docs/rules/programs/memory-priority.md')}>Read the full reasoning.</a>
+## The fastest language in every benchmark
 
-## A language with many ways to do one thing
+Speed is important for Novis, but it is the second priority. Security comes first. When a design is
+faster but less safe, Novis takes the safer design. Within that limit, Novis is as fast as possible.
 
-Novis gives each job one way to write it. There is one way to convert a value, one way to query a
-database and one way to receive an uploaded file. A second way would mean a second thing to learn,
-test and keep safe.
+Novis also uses memory to be safe and fast. Each request has its own memory, and compiled code stays
+in memory. So a Novis server can use more memory than a server written in another language. Every
+request still has a memory limit that you set.
+<a href={githubFile('docs/rules/programs/memory-priority.md')}>Read the full reasoning.</a>
+
+## A language that only an AI can use
+
+Novis is made for people. A developer can learn it without an AI tool. Every feature has a page on
+this website, with examples. `nvs` prints help for every command and flag. An error message says
+what is wrong and what you can do about it.
+
+You can use an AI tool to write Novis code. Every design choice still makes sure that a person can
+read that code and understand it.
