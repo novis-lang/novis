@@ -1370,7 +1370,7 @@ error[E0783]: `Sealed` is `final`, so no class extends it
   |
 8 | class Widened extends Sealed {}
   |                       ^^^^^^ `Widened` names it as its superclass
-  = help: remove `final` from the declaration of `Sealed` if other classes may extend it. Or store a `Sealed` in a property of `Widened`, and write `implements … by $field` to forward the calls to it
+  = help: remove `final` from the declaration of `Sealed` if other classes may extend it. Or store a `Sealed` in a property of `Widened`, and write `implements … by $property` to forward the calls to it
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -2114,7 +2114,7 @@ error[E0227]: traits do not exist
  6 | trait Greets {
    | ^^^^^^^^^^^^^^... not supported
    | (continues to line 10)
-   = help: for shared methods, write a default or private method in an interface. For shared state, write `implements Interface by $field;`
+   = help: for shared methods, write a default or private method in an interface. For shared state, write `implements Interface by $property;`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

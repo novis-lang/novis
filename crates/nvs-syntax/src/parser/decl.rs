@@ -997,7 +997,10 @@ impl<'src, 'd> Parser<'src, 'd> {
         let (type_args, mut span) = self.parse_type_args(name.span);
         let by_field = if self.at_contextual("by") {
             self.bump();
-            let field = self.expect(TokenKind::Variable, "the delegated-to property, `$field`");
+            let field = self.expect(
+                TokenKind::Variable,
+                "the delegated-to property, `$property`",
+            );
             span = span.to(field);
             Some(field)
         } else {
@@ -1045,7 +1048,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     .with_help(
                         "declare a method that every class must write instead. You can also \
                          declare a typed constant and read it as `static::NAME` in a default \
-                         method. For shared state, write `implements I by $field;` in the class",
+                         method. For shared state, write `implements I by $property;` in the class",
                     ),
                 );
             }
@@ -1103,7 +1106,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 .with_primary(span, "not supported")
                 .with_help(
                     "for shared methods, write a default or private method in an interface. \
-                     For shared state, write `implements Interface by $field;`",
+                     For shared state, write `implements Interface by $property;`",
                 ),
         );
     }

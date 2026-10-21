@@ -19,10 +19,10 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0873]: two fields have the key `total`
+error[E0873]: two properties have the key `total`
   --> case.nvs:5:20
 %A
-error[E0873]: two fields have the key `id`
+error[E0873]: two properties have the key `id`
    --> case.nvs:9:20
 %A
 error: aborting due to 2 errors

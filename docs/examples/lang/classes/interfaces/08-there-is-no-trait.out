@@ -4,7 +4,7 @@ error[E0227]: traits do not exist
  6 | trait Greets {
    | ^^^^^^^^^^^^^^... not supported
    | (continues to line 10)
-   = help: for shared methods, write a default or private method in an interface. For shared state, write `implements Interface by $field;`
+   = help: for shared methods, write a default or private method in an interface. For shared state, write `implements Interface by $property;`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
