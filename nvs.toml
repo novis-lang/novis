@@ -3,8 +3,12 @@
 # directory and nowhere else. It is TOML (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), and
 # `nvs serve` checks who owns it (`rule:config/ownership-is-the-trust-boundary`).
 #
-# Most blocks below grant one fixture what it needs, and each says why. Changing a value changes
-# that program's expected output, which an exact check in a goal record under `data/goals/` freezes.
+# A CLI run, which every fixture here is unless a `.nvsr` beside it makes it a request, reads and
+# writes any file, reaches public hosts and loopback, and runs any program with nothing written
+# (`rule:config/no-configuration-file-is-a-complete-configuration`). So a block below exists for what
+# a default does not give: a narrowing a fixture shows refused, a grant that stays strict (`db.*`,
+# `cache.shared`, `queue.purge`, `ldap.*`, `net.listen`), or a setting a program prints. Each says
+# why. Changing a value changes that program's expected output.
 
 # An application is its entry file path, and the block naming it is `[[app]]`, an array of tables
 # (`rule:config/an-application-is-its-entry-file-path`). There is no `[app]` table for a global origin
@@ -20,13 +24,12 @@
 root = "."
 origin = "https://example.test"
 
-# The `script.spawn` check sits inside the door `spawn script` resolves a target through
-# (`rule:security/capability-check-at-the-door`), and it denies by default
-# (`rule:security/script-spawn-capability`), so `examples/isolate.nvs` needs this grant to spawn
-# anything at all. `true`
-# rather than a list of roots: every example in this repository is one the
-# checkout already trusts, and narrowing it here would only be a second
-# spelling of "the repository".
+# A script inside the app folder spawns with no grant (`rule:security/script-spawn-capability`), and
+# this block makes the app folder the repository for every entry no deeper `root` covers. `spawn =
+# true` widens that to a script outside the app folder, which an attack under `tests/hostile` (whose
+# app folder is that directory) may spawn. It is also the value
+# `docs/examples/config/app/01-settings-for-one-application.nvs` prints as arriving from this block,
+# and the one `docs/examples/config/capabilities/`'s block takes back with `false`.
 [app.capabilities.script]
 spawn = true
 
@@ -72,95 +75,16 @@ write = []
 [app.capabilities.script]
 spawn = false
 
-# `examples/files.nvs` works inside `Core\IO::temporaryDir()`'s answer, and that
-# path is the *host's* — `C:\Users\…\AppData\Local\Temp\nvs-…` on Windows,
-# `/tmp/nvs-…` under WSL, and neither is a name this repository could write down
-# without pinning the fixture to one machine. `true` is `Grant::Everything` in
-# `nvs_config::capability`, and it is the honest spelling of what the fixture
-# needs: a scratch directory it creates, fills, reads back and removes. Narrowing
-# is what `examples/capability.nvs`'s block above exists to show; this one is
-# about the members.
-[[app]]
-entry = "examples/files.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-# `examples/tempdir.nvs` is the block above with one line fewer of program: it
-# creates a directory, writes into it and stops, leaving the sweep of
-# `rule:core-classes/temporary-dir-sweep` to take it away. The grant is the same `true` for the same
-# reason — the path is the host's and no checkout could write it down — and it stays `write = true`
-# rather than being narrowed to the root, because the member asks the check of the *entry* it is
-# about to create, not of the root it creates under.
-[[app]]
-entry = "examples/tempdir.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-# `examples/upload.nvs` is the same shape for the same reason — it receives a
-# part into a directory `Core\IO::temporaryDir()` chose on the host — so its
-# block is the one above rather than a narrower spelling of it.
-# `rule:http-server/there-is-no-temp-file` makes the *destination* the application's own call, and a
-# grant naming a path this repository invented would be the host picking one after all.
-[[app]]
-entry = "examples/upload.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-# `examples/process.nvs` runs this repository's own `nvs` binary and then asks
-# to run a `.bat`, so its `process.exec` grant has to cover **both** targets:
-# `rule:core-classes/process-refuses-a-shell-target` refuses by target kind and the door asks the
-# capability first, so a grant that named only the binary would make the second call a
-# capability denial and the fixture would still print `refused: no shell form`
-# while proving nothing. Scoped to two directories rather than `true` because
-# that is the whole point of the member being path-scoped: `target`, where
-# every build of the binary the pipeline names in `NVS_BIN` lives, and the
-# fixture's own directory. `target/` ends in a slash because a bare name such as
-# `target` is a program looked up on `PATH`.
-[[app]]
-entry = "examples/process.nvs"
-
-[app.capabilities.fs]
-read = ["target", "examples/process"]
-
-[app.capabilities.process]
-exec = ["target/", "examples/process"]
-
-# `examples/http.nvs` talks to an origin on the loopback, which `rule:security/net-address-policy`
-# denies by default — so this block is where that rule's *other* half is written down: `net.connect`
-# says which names the program may reach, and `net.internal` says which of the denied addresses this
-# deployment reaches anyway. Both
-# names are granted and only one address is excepted, which is what the fixture
-# is for: `169.254.169.254` is granted by name and still refused on its address,
-# so the program's third line proves the policy is asked of the resolved address
-# rather than of the name. An exception is a literal address and never a
-# hostname (`nvs_config::tree::CapNet::internal` owns why), and it widens
-# nothing on its own — an address named here is unreachable until a `connect`
-# grant names the host as well.
-[[app]]
-entry = "examples/http.nvs"
-
-[app.capabilities.net]
-connect = ["127.0.0.1", "169.254.169.254"]
-internal = ["127.0.0.1"]
-
-# `Core\Http::allowUrl`'s examples and attack approve URLs a program was handed, so
-# their grant is the one a production service calling its users' webhooks has:
-# every host, with the address table left whole and `net.internal` written empty,
-# because a CLI run reaches loopback when it is not written. What they show is
-# that table refusing loopback, private and link-local addresses however the URL
-# spells them. Every URL in them names a literal address, so no case waits on a
+# `Core\Http::allowUrl`'s examples and attack approve URLs a program was handed, under the
+# `net.connect` a production service calling its users' webhooks has: every public host, which is
+# the default. `net.internal` is written empty because a CLI run reaches loopback when it is not
+# written. What they show is the address table refusing loopback, private and link-local addresses
+# however the URL spells them. Every URL in them names a literal address, so no case waits on a
 # name server. The bench approves one address and is granted that address alone.
 [[app]]
 root = "docs/examples/core/Http/allowUrl"
 
 [app.capabilities.net]
-connect = true
 internal = []
 
 [[app]]
@@ -175,17 +99,15 @@ entry = "benches/members/core/Http/allowUrl.nvs"
 [app.capabilities.net]
 connect = ["203.0.113.10"]
 
-# `Core\Http\Client`'s examples and attacks get the same grant as `allowUrl`'s
-# above: every host, with the address table left whole. None of them may open a
-# connection, because a figure or an output that depends on a network is not a
-# proof. Each call is refused before a socket is opened, by the address table, an
-# option's bounds or a header with a control byte. The benches need no grant:
-# they are answered from `Core\Test::answerHttp`'s table.
+# `Core\Http\Client`'s examples and attacks run as `allowUrl`'s above: every public host, with
+# loopback closed in the examples and the attacks granted every host. None of them may open a
+# connection, because a figure or an output that depends on a network is not a proof. Each call is
+# refused before a socket is opened, by the address table, an option's bounds or a header with a
+# control byte. The benches need no grant: they are answered from `Core\Test::answerHttp`'s table.
 [[app]]
 root = "docs/examples/core/Http-Client"
 
 [app.capabilities.net]
-connect = true
 internal = []
 
 [[app]]
@@ -194,10 +116,10 @@ root = "tests/hostile/core/Http-Client"
 [app.capabilities.net]
 connect = true
 
-# `Core\Http\Part`'s examples and attacks send parts under the same grant, and
-# none of them opens a connection either. `Part::file` reads files from its own
-# `data/` directory and nowhere else, so one example can show a file outside the
-# grant being refused. The `file` bench builds a part for its own source file.
+# `Core\Http\Part`'s examples and attacks send parts under the same `net` settings, and none of
+# them opens a connection either. `Part::file` reads files from its own `data/` directory and
+# nowhere else, so one example can show a file outside the grant being refused. The `file` bench
+# builds a part for its own source file, which a CLI run reads with no grant.
 [[app]]
 root = "docs/examples/core/Http-Part"
 
@@ -205,7 +127,6 @@ root = "docs/examples/core/Http-Part"
 read = ["docs/examples/core/Http-Part/file/data"]
 
 [app.capabilities.net]
-connect = true
 internal = []
 
 [[app]]
@@ -217,19 +138,13 @@ read = ["tests/hostile/core/Http-Part/file/data"]
 [app.capabilities.net]
 connect = true
 
-[[app]]
-entry = "benches/members/core/Http-Part/file.nvs"
-
-[app.capabilities.fs]
-read = ["benches/members/core/Http-Part/file.nvs"]
-
 # `examples/net-echo.nvs` binds a port and then dials it, and
-# `rule:security/net-listen-is-a-separate-grant-from-net-connect` is why that is three keys rather
-# than one. `net.listen` is the bind, matched against the endpoint exactly; `net.connect` is the dial,
-# matched against the host; and `net.internal` is the exception `rule:security/net-address-policy`
-# allows, because loopback is one of the ranges that policy denies by default and the program supplies
-# that address itself. None of the three widens either of the others, which is
-# the whole of what the fixture demonstrates from the configuration's side.
+# `rule:security/net-listen-is-a-separate-grant-from-net-connect` is why that is two keys rather than
+# one. `net.listen` is the bind, matched against the endpoint exactly, and is never a default.
+# `net.connect` is the dial, matched against the host, and written as the one host the program dials
+# so its last line shows any other host refused. Loopback needs no `net.internal` on a CLI run
+# (`rule:security/net-address-policy`). Neither key widens the other, which is the whole of what
+# the fixture demonstrates from the configuration's side.
 #
 # `listen` is `true` and not an endpoint literal because the program asks for
 # port `0`: the endpoint it binds is picked by the operating system, and there
@@ -241,15 +156,13 @@ entry = "examples/net-echo.nvs"
 [app.capabilities.net]
 listen = true
 connect = ["127.0.0.1"]
-internal = ["127.0.0.1"]
 
 # `examples/cache.nvs` reaches the store `[cache.shared] url` names at the foot of
 # this file, and one line grants it: `cache.shared` names the *store* an operator
 # configured, not the address it is at (`rule:config/cache-shared-is-the-grant-over-the-configured-store`).
-# That the store is on the loopback costs this block nothing — neither the `net.connect` the block
-# above needs for a name nor the `net.internal` it needs for an address in a range
-# `rule:security/net-address-policy` denies, because neither question is asked of an endpoint an
-# operator wrote. Nothing here mentions `Core\Cache::memory()`, which needs no capability at all
+# That the store is on the loopback costs this block nothing: neither `net.connect` nor
+# `net.internal` (`rule:security/net-address-policy`) is asked of an endpoint an operator wrote, on
+# any run kind. Nothing here mentions `Core\Cache::memory()`, which needs no capability at all
 # (`rule:core-api/two-cache-tiers`) — the fixture's first two lines run under this
 # block having said nothing about them, and its last two are
 # `Core\RateLimit::consume` opening the same store through the same grant.
@@ -261,10 +174,10 @@ shared = true
 
 # Tier 3 of `rule:errors/handler-script`, as the operator decision it is: an uncaught throw out of this application
 # runs `examples/logging/handler.nvs` as a `spawn script` isolate, and only if that handler is
-# missing, refused or fails does the tier-4 floor write the record to `stderr` itself. `script.spawn`
-# is the root block's, above — a handler is resolved through the spawn door of
-# `rule:security/capability-check-at-the-door` like any other target, and being named here has never
-# been permission to run.
+# missing, refused or fails does the tier-4 floor write the record to `stderr` itself. A handler is
+# resolved through the spawn door of `rule:security/capability-check-at-the-door` like any other
+# target, and being named here is not permission to run: it spawns because it lies inside the app
+# folder, which `script.spawn` allows with no grant.
 #
 # Keyed on `examples/logging.nvs` and not on the `examples/logging/throws.nvs` that actually throws:
 # the child is an isolate, and an isolate reads the configuration in force where it was *spawned*
@@ -281,9 +194,9 @@ handler = "examples/logging/handler.nvs"
 # `db.connect` is granted by *name* and never by host (`rule:core-classes/db-capabilities`): the
 # endpoint lives in `[db.main]` at the foot of this file, written by the operator, so what a program
 # asks for is permission to open that block and not permission to reach an address. That is also why
-# neither block below says anything about `net` — an operator-written endpoint is pre-approved against
-# the denied ranges of `rule:security/net-address-policy`, which `examples/cache.nvs`'s block above
-# has to ask for explicitly because a program names that store's URL itself.
+# neither block below says anything about `net`: an operator-written endpoint is pre-approved against
+# the denied ranges of `rule:security/net-address-policy`, on a CLI run and in production server work
+# alike.
 #
 # One entry block per fixture rather than one `root = "examples"`: every other fixture in
 # this repository runs with no database grant at all, and that is what makes these evidence
@@ -429,10 +342,10 @@ memory = "64M"
 # opposite of what the block says. `nvs config dump` is where a scoped grant is
 # read, and `crate::audit` is what renders it.
 #
-# `read = true` is granted to a program that opens no file, and `spawn = false`
-# takes back what the `root = "."` block at the top allows — one grant, one
-# refusal and one narrowing, which is the whole of what the block does, with
-# nothing reachable that was not reachable before.
+# `read = true` is written so the program prints `true`: `Core\Config::get` reads what a file wrote,
+# and a default reads back as absent. A CLI run reads any file without it. `spawn = false` takes back
+# what the `root = "."` block at the top allows. One written grant, one absent key and one
+# narrowing, with nothing reachable that was not reachable before.
 [[app]]
 entry = "docs/examples/config/capabilities/01-what-this-program-is-allowed-to-do.nvs"
 
@@ -443,17 +356,13 @@ read = true
 spawn = false
 
 # `Core\Cap::has`'s own page needs a deployment that granted one thing and not
-# another, because a member reporting grants has nothing to report where nothing
-# was granted. Its first example prints `yes` for `fs.read` and `no` for two
-# names it does not grant: `write = []` because a CLI run writes any file when
-# the key is not written. `read = true` rather than a list of roots: the example
-# opens no file, and the member reports the grant and never a path, so roots
-# would only be entries nothing compares.
+# another. Its first example prints `yes` for `fs.read`, which a CLI run has by
+# default, and `no` for two names it does not have: `write = []` because a CLI
+# run writes any file when the key is not written.
 [[app]]
 entry = "docs/examples/core/Cap/has/01-what-this-program-may-do.nvs"
 
 [app.capabilities.fs]
-read = true
 write = []
 
 # The second example is the pair that member cannot make on its own — the grant
@@ -477,18 +386,11 @@ write = []
 
 # The attack written against the same member spends most of its steps on names
 # that merely resemble a granted one, and there is nothing to resemble until one
-# name really is granted.
+# name really is granted. The `tests/hostile` block writes `read = []`, so this
+# block writes it back. The bench for the same member needs no block: a CLI run
+# has `fs.read` by default, which is the longer of the two paths it measures.
 [[app]]
 entry = "tests/hostile/core/Cap/has/01-names-that-try-to-win-a-yes.nvs"
-
-[app.capabilities.fs]
-read = true
-
-# The bench for the same member, granted for the reason the block above is: the
-# figure worth recording is the one a granted capability costs, which is the
-# longer of the two paths through the member.
-[[app]]
-entry = "benches/members/core/Cap/has.nvs"
 
 [app.capabilities.fs]
 read = true
@@ -497,11 +399,11 @@ read = true
 # for an example: `tests/hostile/config/debug-keep_temporary/` exists to make
 # `rule:core-classes/temporary-dir-sweep`'s end-of-script sweep come apart, and a sweep has nothing to
 # walk until the program has been allowed to create the directories it hoards.
-# `write = true` rather than a path, for the reason `examples/files.nvs`' block
-# above is written the same way: `Core\IO::temporaryDir` creates under the host's
-# own temporary directory, and a grant naming `C:\Users\…\AppData\Local\Temp` or
-# `/tmp` would pin the attack to one machine. `read = true` is the half that lets
-# it read back what it left behind.
+# The `tests/hostile` block writes `read = []` and `write = []`, so this block writes both back.
+# `true` rather than a path: `Core\IO::temporaryDir` creates under the host's own temporary
+# directory, and a grant naming `C:\Users\…\AppData\Local\Temp` or `/tmp` would pin the attack to
+# one machine. Every attack below that writes into `Core\IO::temporaryDir()`'s answer is granted
+# `true` for this reason.
 [[app]]
 entry = "tests/hostile/config/debug-keep_temporary/01-hoarding-what-the-sweep-must-delete.nvs"
 
@@ -537,36 +439,10 @@ entry = "tests/hostile/lang/errors/fatal-errors-limits-no-catch-sees/01-a-progra
 [app.limits]
 memory = "16M"
 
-# `Core\Csv::rows` walks a file `Core\IO` has open, so its five proof programs are
-# the first under `docs/examples/`, `tests/hostile/` and `benches/members/` that
-# open one at all. Each writes its document into `Core\IO::temporaryDir()`'s answer
-# and reads it back, which is `examples/files.nvs`'s block above and is granted for
-# that block's reason: the directory is the host's — `C:\Users\…\AppData\Local\Temp`
-# on Windows, `/tmp` under WSL — so no checkout could narrow the grant to a path it
-# writes down here. One block per program rather than a `root` covering the three
-# directories, because every other proof program in them opens nothing and a wider
-# block would grant the filesystem to all of them.
-[[app]]
-entry = "docs/examples/core/Csv/rows/01-read-a-file-one-record-at-a-time.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[[app]]
-entry = "docs/examples/core/Csv/rows/02-name-the-columns-from-the-first-record.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[[app]]
-entry = "docs/examples/core/Csv/rows/03-add-up-a-column-of-a-large-export.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
+# The attacks on the members that open files write into `Core\IO::temporaryDir()`'s answer and
+# read it back, so each is granted `true` for the reason the `debug-keep_temporary` block above
+# gives. Their examples and benches are CLI runs, which read and write any file with no block.
+# `Core\Csv::rows`'s attack is one program, so its block is an `entry`.
 [[app]]
 entry = "tests/hostile/core/Csv/rows/01-a-file-an-upload-form-could-send.nvs"
 
@@ -574,36 +450,9 @@ entry = "tests/hostile/core/Csv/rows/01-a-file-an-upload-form-could-send.nvs"
 read = true
 write = true
 
-[[app]]
-entry = "benches/members/core/Csv/rows.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-# `Core\Serialize::decode`'s third example saves a value in
-# `Core\IO::temporaryDir()`'s answer and reads it back, so it takes the
-# `Core\Csv` block's grant for its reason. The other proofs of the class open no
-# file.
-[[app]]
-entry = "docs/examples/core/Serialize/decode/03-load-saved-jobs-from-a-file.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-# `Core\Http\Stream::saveTo`'s proof programs write a reply's body into
-# `Core\IO::temporaryDir()`'s answer and read it back, so they take the `Core\Csv`
-# block's grant for its reason. A `root` for the example and attack directories,
-# because every program in them opens a file; the reply itself comes from
+# `Core\Http\Stream::saveTo`'s, `Core\IO`'s, `Core\IO\File`'s and `Core\IO\Metadata`'s attacks get a
+# `root` each, because every program in those directories opens a file. A reply comes from
 # `Core\Test::answerHttp`'s table and needs no `net` grant.
-[[app]]
-root = "docs/examples/core/Http-Stream/saveTo"
-
-[app.capabilities.fs]
-read = true
-write = true
-
 [[app]]
 root = "tests/hostile/core/Http-Stream/saveTo"
 
@@ -612,41 +461,7 @@ read = true
 write = true
 
 [[app]]
-entry = "benches/members/core/Http-Stream/saveTo.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-# `Core\IO`'s proof programs create, add to, copy and resolve files under
-# `Core\IO::temporaryDir()`, so they take the `Core\Csv` block's grant for its reason.
-# One `root` per tree rather than an `entry` per program, because every program in
-# these three directories opens a file.
-[[app]]
-root = "docs/examples/core/IO"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[[app]]
 root = "tests/hostile/core/IO"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[[app]]
-root = "benches/members/core/IO"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-# `Core\IO\File`'s proof programs open, lock and close handles on files under
-# `Core\IO::temporaryDir()`, so they take `Core\IO`'s grant above for its reason.
-[[app]]
-root = "docs/examples/core/IO-File"
 
 [app.capabilities.fs]
 read = true
@@ -675,130 +490,22 @@ entry = "tests/hostile/core/IO-File/read/01-huge-limits-cut-characters-and-close
 memory = "16M"
 
 [[app]]
-root = "benches/members/core/IO-File"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-# `Core\IO\Metadata`'s proof programs make the files and folders they `stat` under
-# `Core\IO::temporaryDir()`, so they take `Core\IO`'s grant above for its reason.
-[[app]]
-root = "docs/examples/core/IO-Metadata"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[[app]]
 root = "tests/hostile/core/IO-Metadata"
 
 [app.capabilities.fs]
 read = true
 write = true
 
-[[app]]
-root = "benches/members/core/IO-Metadata"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-# `Core\Db::open`'s five proof programs are the first in this repository to open a
-# database the program itself names rather than a `[db.<name>]` block. Each opens SQLite
-# at `:memory:`, which is what keeps them container-free and their output the same on
-# Windows, under WSL and under valgrind — the reason `[db.schema]` below is that database
-# too. A file under `Core\IO::temporaryDir()` was the other candidate and is measurably
-# worse here: a pooled connection is returned to its pool rather than closed, so the file
-# is still open when the process sweeps its own owned root, and every run of the sweep
-# leaves a directory behind with a warning naming it.
-#
-# Three grants each, and all three written `true`. `sqlite_settings` in
-# `crates/nvs-stdlib/src/db/open.rs` asks `db.open`, `fs.read` and `fs.write` about the
-# `path` as a `Scope::Path`, which canonicalizes an entry before it compares — and
-# `:memory:` is a path no filesystem has, so no list entry can match it and `true` is the
-# only spelling that grants these programs anything. The two filesystem grants are asked
-# of a database with no file on purpose: the alternative is a capability check that knows
-# which path strings SQLite reads as memory, and a check that gets that grammar wrong
-# opens a real file with no grant at all. `db.schema` is not among the three — it gates
-# `Core\Db\Schema` and never a `CREATE TABLE` issued through `execute`.
-[[app]]
-entry = "docs/examples/core/Db/open/01-open-a-database-the-program-names.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[app.capabilities.db]
-open = true
-
-[[app]]
-entry = "docs/examples/core/Db/open/02-the-same-settings-give-the-same-connection.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[app.capabilities.db]
-open = true
-
-[[app]]
-entry = "docs/examples/core/Db/open/03-a-database-for-one-report.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[app.capabilities.db]
-open = true
-
+# `Core\Db::open`'s and `Core\Db::inList`'s proof programs open a database the program itself
+# names, and each opens SQLite at `:memory:`: that keeps them container-free and their output the
+# same on Windows, under WSL and under valgrind. `:memory:` needs no grant on any run kind
+# (`rule:core-classes/db-capabilities`), so the examples and benches have no block. The two
+# attacks keep `db.open` and both `fs` keys at `true`: the `tests/hostile` block closes the file
+# defaults, and an attack is granted what a request that chose its own settings could be granted.
+# `db.schema` is not among them: it gates `Core\Db\Schema` and never a `CREATE TABLE` issued
+# through `execute`.
 [[app]]
 entry = "tests/hostile/core/Db/open/01-settings-a-request-chose.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[app.capabilities.db]
-open = true
-
-[[app]]
-entry = "benches/members/core/Db/open.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[app.capabilities.db]
-open = true
-
-# `Core\Db::inList`'s proof programs, granted for the same reason and in the same three
-# lines: the member itself needs nothing, but a list of bound values is only worth reading
-# beside the statement it expands inside, so each of these opens the same `:memory:`
-# database the block above describes. Its bench is not among them — that one measures the
-# marker alone and opens nothing, so it is granted nothing.
-[[app]]
-entry = "docs/examples/core/Db/inList/01-find-the-rows-a-list-names.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[app.capabilities.db]
-open = true
-
-[[app]]
-entry = "docs/examples/core/Db/inList/02-leave-out-the-values-a-list-names.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[app.capabilities.db]
-open = true
-
-[[app]]
-entry = "docs/examples/core/Db/inList/03-one-query-instead-of-one-per-row.nvs"
 
 [app.capabilities.fs]
 read = true
@@ -877,8 +584,9 @@ entry = "tests/hostile/core/Mail/send/01-headers-hidden-in-every-field.nvs"
 send = ["shop"]
 
 # `Core\Ldap::connect`'s and `Core\Ldap::open`'s proof programs. `connect` is granted
-# `[ldap.corp]`, which dials a closed port. `open` is granted loopback, and `net.internal` lets that
-# address through the outbound policy, so the dial is refused by the closed port and not the policy.
+# `[ldap.corp]`, which dials a closed port. `open` is granted loopback, which a CLI run reaches with
+# no `net.internal`, so the dial is refused by the closed port and not the outbound policy. The
+# attack writes `net.internal` back, because the `tests/hostile` block writes it empty.
 [[app]]
 entry = "docs/examples/core/Ldap/connect/01-sign-in-to-the-company-directory.nvs"
 
@@ -915,26 +623,17 @@ entry = "docs/examples/core/Ldap/open/01-open-a-directory-the-program-names.nvs"
 [app.capabilities.ldap]
 open = ["127.0.0.1"]
 
-[app.capabilities.net]
-internal = ["127.0.0.1"]
-
 [[app]]
 entry = "docs/examples/core/Ldap/open/02-a-host-the-operator-did-not-allow.nvs"
 
 [app.capabilities.ldap]
 open = ["127.0.0.1"]
 
-[app.capabilities.net]
-internal = ["127.0.0.1"]
-
 [[app]]
 entry = "docs/examples/core/Ldap/open/03-plain-text-needs-its-own-grant.nvs"
 
 [app.capabilities.ldap]
 open = ["127.0.0.1"]
-
-[app.capabilities.net]
-internal = ["127.0.0.1"]
 
 [[app]]
 entry = "tests/hostile/core/Ldap/open/01-settings-a-request-chose.nvs"
@@ -1243,16 +942,13 @@ root = "docs/examples/types/Ldap-Entry-AccountType"
 connect = ["corp"]
 
 # `Core\Ldap::Tls`'s example opens the test server's plain `ldap://` port on loopback, so it is granted
-# that one host for `open` and for `cleartext`, and `net.internal` lets the address through.
+# that one host for `open` and for `cleartext`. A CLI run reaches loopback with no `net.internal`.
 [[app]]
 root = "docs/examples/types/Ldap-Tls"
 
 [app.capabilities.ldap]
 open = ["127.0.0.1"]
 cleartext = ["127.0.0.1"]
-
-[app.capabilities.net]
-internal = ["127.0.0.1"]
 
 # `Core\Db\Column`'s proof programs, granted the same way and for the same reason: a description is
 # read off a statement, so every one of these opens `[db.notes]` by name and asks for nothing else.
@@ -3133,13 +2829,6 @@ pool_idle_timeout = "30s"
 min_version = "1.2"
 
 [[app]]
-entry = "benches/members/core/Csv/rows.scale.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
-
-[[app]]
 entry = "benches/members/core/Db-Connection/execute.scale.nvs"
 
 [app.capabilities.db]
@@ -3255,10 +2944,3 @@ entry = "benches/members/core/Http/allowUrl.scale.nvs"
 
 [app.capabilities.net]
 connect = ["203.0.113.10"]
-
-[[app]]
-entry = "benches/members/core/Http-Stream/saveTo.scale.nvs"
-
-[app.capabilities.fs]
-read = true
-write = true
