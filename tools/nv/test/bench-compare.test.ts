@@ -185,6 +185,7 @@ describe("the feature scenarios", () => {
     p50_ms: 1,
     p99_ms: 2,
     errors: 0,
+    error_kinds: {},
     status_codes: { "200": 300 },
     memory_idle_bytes: 10 * 1048576,
     memory_peak_bytes: 20 * 1048576,
@@ -204,10 +205,15 @@ describe("the feature scenarios", () => {
 
   test("waiting fails on any request not answered 200, and its memory is per request in flight", () => {
     const maxChildren = { name: "pm.max_children", default: false };
-    expect(waitingResult(timed(100), 1000, undefined)).toEqual({ result: "built-in", evidence: { in_flight: 1000, kib_per_request: 10.2, failed_requests: 0 } });
+    expect(waitingResult(timed(100), 1000, undefined)).toEqual({
+      result: "built-in",
+      evidence: { in_flight: 1000, kib_per_request: 10.2, failed_requests: 0, failures: null },
+    });
     expect(waitingResult(timed(100), 1000, maxChildren).result).toBe("one-setting");
     expect(waitingResult(timed(100, { status_codes: { "200": 290, "503": 10 } }), 1000, undefined).evidence.failed_requests).toBe(10);
-    expect(waitingResult(timed(100, { errors: 1 }), 1000, maxChildren).result).toBe("no");
+    const lost = waitingResult(timed(100, { errors: 1, error_kinds: { "connection closed": 1 }, status_codes: { "200": 298, "502": 2 } }), 1000, maxChildren);
+    expect(lost.result).toBe("no");
+    expect(lost.evidence.failures).toBe("502 x2; connection closed x1");
     expect(waitingResult(timed(100, { memory_peak_bytes: null }), 1000, undefined).evidence.kib_per_request).toBeNull();
   });
 
@@ -413,6 +419,7 @@ describe("the record shape", () => {
     p50_ms: 1,
     p99_ms: 2,
     errors: 0,
+    error_kinds: {},
     status_codes: { "200": 300 },
     memory_idle_bytes: 1024,
     memory_peak_bytes: 2048,
