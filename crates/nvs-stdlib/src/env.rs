@@ -1,7 +1,7 @@
 //! `Core\Env` — `rule:statements/no-host-populated-variables`'s replacement
 //! for `$_ENV` and `getenv()`.
 //!
-//! Four members — `get`, `all`, `mode` and `context` — and three
+//! Five members — `get`, `secret`, `all`, `mode` and `context` — and three
 //! constants, `EOL`, `OS` and `VERSION`, whose one shared decision is on
 //! [`CONSTANTS`]. `mode` and `context` read no environment variable; the
 //! section on `mode` below says why they sit on this class anyway, and
@@ -25,6 +25,25 @@
 //! outside the program's own text, so a variable holding a URL still has to
 //! reach `Core\Http::allowUrl` and one holding a table name still has to reach
 //! `Core\Db::quoteIdentifier`.
+//!
+//! # `secret` answers `secret string`, and not `tainted`
+//!
+//! `secret` reads the same variable `get` does, and answers its value as a
+//! `secret string`. Its contract is confidentiality: a program calls it for a
+//! credential, so no sink that writes output accepts the value, and the
+//! positions a credential belongs in — an outbound header, a form field, a bound
+//! parameter — do (`rule:security/secret-sinks-refuse`). It is the second
+//! member that originates the qualifier, beside the terminal password prompt
+//! (`rule:security/secret-has-no-ambient-source`).
+//!
+//! The value is **not** `tainted`, and `rule:security/tainted-sources` records
+//! why: an outbound header refuses `tainted`, so a `secret tainted string`
+//! would make every API key read from the environment pass
+//! `Core\Taint::assertTrusted` first, which is the call this member exists to
+//! remove. `get` stays `tainted`: its value may reach a URL, a path or a query.
+//!
+//! Its name is a [`Qual::Sink`] on `get`'s reasoning below, which is stronger
+//! here: a request that chose the name would choose which credential it reads.
 //!
 //! The **name** is a [`Qual::Sink`] and so refuses a `tainted` argument, on
 //! `rule:security/sink-predicate`'s predicate: its content is an instruction naming what the
@@ -133,6 +152,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
             symbol: "nvs_core_env_get",
             doc: Some(&GET_DOC),
+        },
+        CoreMethod {
+            name: "secret",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::SecretStr),
+            symbol: "nvs_core_env_secret",
+            doc: Some(&SECRET_DOC),
         },
         CoreMethod {
             name: "all",
@@ -258,6 +286,25 @@ const GET_DOC: MethodDoc = MethodDoc {
         desc: "The variable is set to bytes that are not valid UTF-8, so its value is not a \
                `string`. `null` is reserved for a variable nothing set, and a lossy repair would \
                hand back text the operator did not write.",
+    }],
+};
+
+/// `Core\Env::secret`'s reference card — `rule:core-api/reference-card`.
+const SECRET_DOC: MethodDoc = MethodDoc {
+    short: "Returns the value of the environment variable `$name` as a `secret string`. Use it \
+            for a password or an API key. The value can go into an outbound HTTP header, a form \
+            field or a database password. `echo`, a log and a response body do not accept it.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The variable's name. It may not be `tainted`, so a request cannot choose which \
+               secret the program reads.",
+        shape: &[],
+    }],
+    ret: "The value as a `secret string`, or `null` if the variable is not set.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The variable contains bytes that are not valid UTF-8, so its value is not a \
+               `string`. The message names the variable and not its value.",
     }],
 };
 
@@ -453,6 +500,7 @@ const CONTEXT_DOC: EnumDoc = EnumDoc {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_env_get" => (nvs_core_env_get as *const ()).cast(),
+        "nvs_core_env_secret" => (nvs_core_env_secret as *const ()).cast(),
         "nvs_core_env_all" => (nvs_core_env_all as *const ()).cast(),
         "nvs_core_env_mode" => (nvs_core_env_mode as *const ()).cast(),
         "nvs_core_env_context" => (nvs_core_env_context as *const ()).cast(),
@@ -526,6 +574,29 @@ nvs_runtime::nvs_helper! {
                 None => Err(Fault::thrown(format!(
                     "Core\\Env::get: `{name}` is set to bytes that are not valid UTF-8, so its \
                      value is not a `string`"
+                ))),
+            },
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Env::secret(string $name): ?secret string` — `get` with the
+    /// confidential answer this module's doc gives the reason for.
+    ///
+    /// The value is read exactly as `get` reads it, so an absent and an
+    /// unrepresentable name are both `null` here too. The qualifier is the
+    /// checker's alone: at run time a `secret string` is the same string, and
+    /// the throw names the variable and never its bytes.
+    fn nvs_core_env_secret(_ctx, args: [1]) {
+        let name = text(&args[0], "secret")?;
+        match nvs_runtime::environment::var(name) {
+            None => Ok(Value::null()),
+            Some(value) => match value.to_str() {
+                Some(text) => Ok(Value::str(NvsStr::new(text.as_bytes()))),
+                None => Err(Fault::thrown(format!(
+                    "Core\\Env::secret: `{name}` is set to bytes that are not valid UTF-8, so \
+                     its value is not a `string`"
                 ))),
             },
         }
