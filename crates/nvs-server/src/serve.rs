@@ -8522,6 +8522,165 @@ pub(crate) mod tests {
         }
     }
 
+    /// The suite's memory row: two requests interleaved on one core, one over
+    /// its memory limit and one under it, each checked against its own.
+    ///
+    /// The tight request arms a small ceiling, is refused an allocation and
+    /// parks on a body three bytes short. The roomy request then runs to its
+    /// end under a large ceiling, and the tight one resumes once the client
+    /// sends the rest. The refusal is sticky and the armed ceiling is the
+    /// thread's, so both have to travel with their task across the switch
+    /// (`rule:security/isolate-shares-nothing`): a refusal that stayed on the
+    /// thread would stop the roomy request, and a ceiling that did not come
+    /// back would let the tight one go on allocating.
+    ///
+    /// The lines come back through `said` and not off the wire, because the
+    /// door answers a request that breached its limit with a response of its own.
+    #[test]
+    fn the_state_bleed_suite_passes_between_two_interleaved_requests() {
+        /// The tight request's `[limits] memory`, far below what it asks for.
+        const TIGHT: usize = 64 << 10;
+        /// The roomy request's, far above it.
+        const ROOMY: usize = 64 << 20;
+        /// The one allocation both requests ask whether they can afford.
+        const ASK: usize = 1 << 20;
+
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let (armed, parked) = std::sync::mpsc::channel::<()>();
+
+        let client = std::thread::spawn(move || {
+            let mut tight = TcpStream::connect(addr).expect("the loopback refused a connection");
+            tight
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            tight
+                .write_all(
+                    b"POST /tight HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\
+                      Connection: close\r\n\r\nx",
+                )
+                .expect("the write failed");
+            parked
+                .recv_timeout(CLIENT_PATIENCE)
+                .expect("the tight request never reached its refusal");
+
+            let mut roomy = TcpStream::connect(addr).expect("the loopback refused a connection");
+            roomy
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            roomy
+                .write_all(b"GET /roomy HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the second write failed");
+            let mut answer = String::new();
+            roomy
+                .read_to_string(&mut answer)
+                .expect("the roomy response could not be read");
+
+            tight.write_all(b"yyy").expect("the rest of the body failed");
+            let mut rest = String::new();
+            tight
+                .read_to_string(&mut rest)
+                .expect("the tight response could not be read");
+            end_the_loop(addr);
+            answer
+        });
+
+        let said = Rc::new(RefCell::new(Vec::<String>::new()));
+        let handler_said = Rc::clone(&said);
+        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+            let tight = request.uri().path() == "/tight";
+            let (inbound, supply) = carrying(request);
+            let said = Rc::clone(&handler_said);
+            let armed = armed.clone();
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                if !tight {
+                    child.set_memory_limit(ROOMY);
+                    said.borrow_mut().push(format!(
+                        "roomy: affords={} over={} breach={}",
+                        nvs_runtime::budget::affords(ASK),
+                        child.over_memory_limit(),
+                        child.memory_breach().is_some(),
+                    ));
+                    return Value::null();
+                }
+                child.set_memory_limit(TIGHT);
+                let ceiling = nvs_runtime::budget::armed_ceiling();
+                said.borrow_mut().push(format!(
+                    "tight before: affords={}",
+                    nvs_runtime::budget::affords(ASK)
+                ));
+                armed.send(()).expect("the client stopped waiting");
+                {
+                    let body = child
+                        .inbound_mut()
+                        .and_then(|inbound| inbound.body())
+                        .expect("the tight request carried no body");
+                    // Reads to the end, which parks until the client sends
+                    // the last three bytes after the roomy request is answered.
+                    while let Ok(Some(_chunk)) = body.next_chunk() {}
+                }
+                said.borrow_mut().push(format!(
+                    "tight after: affords={} over={} breach={} same ceiling={}",
+                    nvs_runtime::budget::affords(ASK),
+                    child.over_memory_limit(),
+                    child.memory_breach().is_some(),
+                    nvs_runtime::budget::armed_ceiling() == ceiling,
+                ));
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                supply,
+                None,
+            )
+        });
+
+        let mut listener = listener;
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        let mut accepted = 0_usize;
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                // Both requests' connections, then the one `end_the_loop` makes.
+                move || {
+                    accepted += 1;
+                    if accepted < 3 {
+                        ControlFlow::Continue(())
+                    } else {
+                        ControlFlow::Break(())
+                    }
+                },
+            )
+            .expect("the accept loop failed");
+        });
+        run_the_core(&mut sched);
+        let answer = client.join().expect("the client thread panicked");
+
+        assert!(
+            answer.starts_with("HTTP/1.1 200"),
+            "the request under its limit was not answered: {answer}"
+        );
+        assert_eq!(
+            said.borrow().as_slice(),
+            [
+                "tight before: affords=false",
+                "roomy: affords=true over=false breach=false",
+                "tight after: affords=false over=true breach=true same ceiling=true",
+            ],
+            "a request's memory ceiling or refusal crossed to the request interleaved with it"
+        );
+    }
+
     /// The same suite, run where the second request lands on **another core**:
     /// a worker of its own, pinned to its own CPU, with its own scheduler, run
     /// queue and handler. The rows are unchanged, which is the point — a third
