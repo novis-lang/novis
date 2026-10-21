@@ -743,6 +743,14 @@ impl Ctx {
     /// found it returns. The safepoint poll's branch, for a helper:
     /// `Core\Time::sleep` is the one caller.
     pub fn wall_time_breach(&mut self) -> crate::Fault {
+        // Claimed before the handler lowers the flag, so the clock's own raise
+        // has either landed already or will not come
+        // ([`crate::SafepointView::stop_at_wall_time`]).
+        *self
+            .tree
+            .wall_stop
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = true;
         self.run_limit_handler(crate::Limit::WallTime);
         crate::Fault::fatal(self.wall_time_message())
     }
