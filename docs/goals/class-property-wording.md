@@ -6,7 +6,7 @@ context: [AGENTS.md, docs/agent/prose.md]
 stages:
   - id: 1
     title: "the website pages, snippets and URLs say property"
-    status: open
+    status: done
     context: [website/src/content/docs/in-depth/concepts/checked-field-names.mdx, website/src/content/docs/guides/why-novis/typed-json.mdx, website/snippets/guides/how-to-use/data-mapper/01-one-field.nvs]
   - id: 2
     title: "the published examples say property"
@@ -118,12 +118,23 @@ URL says field for one.
 **Split:** the session moves the two pages and their links. One writing subagent then rewrites the
 four guides of the second item, by AGENTS.md § *Text an end user reads*.
 
-- [ ] The front page's JSON card says "checks every property". `website/src/components/home/Bento.astro:59`
-- [ ] The typed JSON guide, the JSON body recipe, the form handler and the tainted input guide say property where they mean the class (the form handler keeps "form field"). `website/src/content/docs/guides/why-novis/typed-json.mdx:4`, `website/src/content/docs/guides/cookbook/read-json-body.mdx:16`, `website/src/content/docs/guides/simple-programs/form-handler.mdx:24`, `website/src/content/docs/guides/how-to-use/tainted-input.mdx:43`, `website/snippets/guides/cookbook/read-json-body/read-json-body.nvs:5`
-- [ ] The concept page is *How property name types work*, at `/in-depth/concepts/checked-property-names/`, with its description, headings and text in property, and every link to it updated. `website/src/content/docs/in-depth/concepts/checked-field-names.mdx:2`, `website/src/content/docs/in-depth/concepts/index.mdx:11`, `website/src/lib/core.ts:167`, `website/src/content/docs/guides/how-to-use/checked-field-paths.mdx:95`, `website/src/data/questions.json:755`
-- [ ] The guide *Autocomplete and parsing for class property names in strings* moves to `/guides/how-to-use/checked-property-paths/`, and the how-to index entry links it under that title. `website/src/content/docs/guides/how-to-use/checked-field-paths.mdx:2`, `website/src/content/docs/guides/how-to-use/index.mdx:20`, `website/src/data/questions.json:186`
-- [ ] The data mapper snippets say property in their comments and output, re-blessed. `website/snippets/guides/how-to-use/data-mapper/01-one-field.nvs:2`, `website/snippets/guides/how-to-use/data-mapper/06-a-sort-field-from-a-request.nvs:21`
-- [ ] The places the sweep was unsure of are read and decided one by one. `website/src/content/docs/guides/cookbook/read-json-body.mdx:18`, `website/src/content/docs/guides/how-to-use/requests.mdx:58`, `website/src/content/docs/guides/how-to-use/tainted-input.mdx:34`, `website/src/content/docs/guides/example-apps/notes.mdx:120`, `website/snippets/guides/why-novis/typed-json.nvs:14`
+- [x] The front page's JSON card says "checks every property". `website/src/components/home/Bento.astro:59`
+- [x] The typed JSON guide, the JSON body recipe, the form handler and the tainted input guide say property where they mean the class (the form handler keeps "form field"). `website/src/content/docs/guides/why-novis/typed-json.mdx:4`, `website/src/content/docs/guides/cookbook/read-json-body.mdx:16`, `website/src/content/docs/guides/simple-programs/form-handler.mdx:24`, `website/src/content/docs/guides/how-to-use/tainted-input.mdx:43`, `website/snippets/guides/cookbook/read-json-body/read-json-body.nvs:5`
+  - [x] typed-json.mdx and its snippet's comments say property.
+  - [x] read-json-body.mdx and its snippet say property.
+  - [x] form-handler.mdx and tainted-input.mdx say property for the class.
+- [x] The concept page is *How property name types work*, at `/in-depth/concepts/checked-property-names/`, with its description, headings and text in property, and every link to it updated. `website/src/content/docs/in-depth/concepts/checked-field-names.mdx:2`, `website/src/content/docs/in-depth/concepts/index.mdx:11`, `website/src/lib/core.ts:167`, `website/src/content/docs/guides/how-to-use/checked-field-paths.mdx:95`, `website/src/data/questions.json:755`
+  - [x] The page file is renamed, and its title, description, headings and text say property.
+  - [x] Every link and anchor to it moves: the concepts index, the sidebar, `core.ts`, the guide.
+  - [x] Its questions entry moves to the new path.
+- [x] The guide *Autocomplete and parsing for class property names in strings* moves to `/guides/how-to-use/checked-property-paths/`, and the how-to index entry links it under that title. `website/src/content/docs/guides/how-to-use/checked-field-paths.mdx:2`, `website/src/content/docs/guides/how-to-use/index.mdx:20`, `website/src/data/questions.json:186`
+  - [x] The page file is renamed, and its text says property.
+  - [x] The how-to index, the sidebar and the concept page link the new path.
+  - [x] Its questions entry moves to the new path.
+- [x] The data mapper snippets say property in their comments and output, re-blessed. `website/snippets/guides/how-to-use/data-mapper/01-one-field.nvs:2`, `website/snippets/guides/how-to-use/data-mapper/06-a-sort-field-from-a-request.nvs:21`
+  - [x] The comments and printed text of each snippet say property.
+  - [x] Each changed snippet is re-blessed, and `bun nv site --check snippets` passes.
+- [x] The places the sweep was unsure of are read and decided one by one. `website/src/content/docs/guides/cookbook/read-json-body.mdx:18`, `website/src/content/docs/guides/how-to-use/requests.mdx:58`, `website/src/content/docs/guides/how-to-use/tainted-input.mdx:34`, `website/src/content/docs/guides/example-apps/notes.mdx:120`, `website/snippets/guides/why-novis/typed-json.nvs:14`
 
 ### 2. the published examples say property
 
@@ -201,21 +212,40 @@ session renames them with one script under `.agent-tmp/`, deletes the script, an
 
 ### State
 
-No stage has started. A read-only sweep of the website, `docs/examples/`, `tests/hostile/`,
-`benches/members/` and the user-facing strings in `crates/` found the places listed in the stages.
+Stage 1 is done. The two pages moved to `/in-depth/concepts/checked-property-names/` and
+`/guides/how-to-use/checked-property-paths/`, with the sidebar, `core.ts` anchors and questions.
+The unsure places were decided: `read-json-body.mdx:18` keeps "wrong field" (a key in the JSON body),
+and the other four say property. The guide's heading is *The property to sort by, from a request*.
+
+Decided on the way: a search question in `website/src/data/questions.json` is written in the words
+a visitor types. So the `Core\Reflect\PropertyInfo` pages' questions keep "field" as a search word,
+and no stage changes them.
+
+The same commit pays debt from the covariant and union goals: the covariant page had an inline
+fence that `--check snippets` fails, and five syntax pages owed questions or a stamp. A changed page
+makes its questions stale, so a later stage that edits a page runs `bun nv site --check questions
+stale` and stamps it with `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <url>`.
+
+The nightly's proofs and render failures (run 39462919214, commit 654415619) were already fixed on
+`main`: `21e82d4e6` re-measured the stale perf records, and `bun nv render --website --check` passes. Its miri job hit the 45-minute limit while compiling. The
+supply chain failure of the `e0f330164` push is fixed by `a3b109dcb`.
+
+A whole-tree `looper verify` this session was red on three binaries that passed alone: `nvs-cli
+test live_edit`, `nvs-stdlib` lib and `nvs-stdlib test ldap` (search and add timeouts under load,
+`crates/nvs-stdlib/tests/ldap.rs:504`). They are outside this goal. `bun nv affected --run` over
+this stage's change was green.
 
 ### Next
 
-**Stage 1: the website**, one file set: `website/src/content/docs/`, `website/snippets/`,
-`website/src/data/questions.json`, `website/src/lib/core.ts`. No gate. Every item follows AGENTS.md
-§ *Text an end user reads*.
+**Stage 2: the published examples**, one file set: `docs/examples/`. No gate. Every item follows
+AGENTS.md § *Text an end user reads*. Its **Split:** line says how the batches go.
 
-- [ ] The front page's JSON card says "checks every property". `website/src/components/home/Bento.astro:59`
-- [ ] The four guides and the JSON body snippet say property. `website/src/content/docs/guides/why-novis/typed-json.mdx:4`, `website/snippets/guides/cookbook/read-json-body/read-json-body.nvs:5`
-- [ ] The concept page moves to `/in-depth/concepts/checked-property-names/`, with every link to it. `website/src/content/docs/in-depth/concepts/checked-field-names.mdx:2`, `website/src/lib/core.ts:167`, `website/src/data/questions.json:755`
-- [ ] The guide moves to `/guides/how-to-use/checked-property-paths/`, with its index entry. `website/src/content/docs/guides/how-to-use/checked-field-paths.mdx:2`, `website/src/data/questions.json:186`
-- [ ] The data mapper snippets say property, re-blessed with `bun nv site --bless`. `website/snippets/guides/how-to-use/data-mapper/01-one-field.nvs:2`
-- [ ] The five unsure places are read and decided one by one. `website/src/content/docs/guides/how-to-use/requests.mdx:58`
+- [ ] The JSON, request and response readers say property. `docs/examples/core/Json/decodeAs/about.md:3`
+- [ ] The language feature examples say property. `docs/examples/lang/types/property-paths/about.md:1`
+- [ ] Reflection, taint, `LateInit`, `PropertyObserver` and the chart say property. `docs/examples/types/LateInit/01-one-load-sets-every-field.nvs:2`
+- [ ] `ObjectMap`, `ObjectSet` and `Spreadsheet\Style` say "equal property values". `docs/examples/core/ObjectSet/add/about.md:5`
+- [ ] The sort examples say "not a property path", re-blessed. `docs/examples/lang/types/property-paths/02-a-sort-field-from-the-address.nvs:29`
+- [ ] The file names that say field are renamed if the website shows them as titles. `website/src/lib/feature.ts:1`
 
 ### Backlog
 
