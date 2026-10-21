@@ -88,7 +88,11 @@
 // alone. The documentation gates are the `DOC_CHECKS` steps, which CI's `docs` job runs too.
 //
 // Every process verify starts is killed with the processes it started when it runs out of time, and a
-// test binary or case batch that fails has what it left running killed (`lib/proc.ts`).
+// test binary or case batch that fails has what it left running killed (`lib/proc.ts`). A step's time is
+// `STEP_TIMEOUT_MS`. A test binary's is `testLimitMs` of its last time: ten times that time, never under
+// five minutes and never over the step's, and twenty minutes for a binary with no recorded time. So a test
+// that hangs costs minutes, not the hour. A binary killed for its time is red and is not run again alone,
+// since a hang is not something another binary shares, and its last time is kept for the next run's limit.
 //
 // `.agent-tmp/verify-progress.json` names the step in flight and its process, which is how a person
 // tells a slow run in the background from a stuck one.
@@ -141,6 +145,18 @@ const TEST_TIMES = join(TMP, "verify-test-times.json");
 const TAIL_LINES = 60;
 /** A step is killed past this, so a hung test cannot hold a session forever. */
 const STEP_TIMEOUT_MS = 60 * 60 * 1000;
+/** A test binary's time limit is this many times its last time (`testLimitMs`). */
+const TEST_LIMIT_FACTOR = 10;
+/** The shortest time limit a test binary gets, so a binary of a second still survives a loaded machine. */
+const TEST_FLOOR_MS = 5 * 60 * 1000;
+/** The time limit of a test binary with no recorded time. */
+const TEST_UNKNOWN_MS = 20 * 60 * 1000;
+
+/** The time limit of a test binary whose last run took `seconds`, `Infinity` when it has none recorded. */
+export function testLimitMs(seconds: number): number {
+  if (!Number.isFinite(seconds)) return TEST_UNKNOWN_MS;
+  return Math.min(STEP_TIMEOUT_MS, Math.max(TEST_FLOOR_MS, seconds * 1000 * TEST_LIMIT_FACTOR));
+}
 
 /** The steps that use what `build` leaves on disk. */
 const NEEDS_BINARY = new Set(["nvs-fmt", "test", "conformance", "reference", "soundness", "extension"]);
@@ -198,6 +214,10 @@ interface Job {
   cwd: string;
   env: Record<string, string>;
   rerun: string;
+  /** How long a run of it may take; the step's limit when unset. */
+  limitMs?: number;
+  /** Set once a run of it is killed for its time. */
+  timedOut?: boolean;
 }
 
 interface Step {
@@ -526,8 +546,15 @@ async function buildTestJobs(filters: string[] | null): Promise<[Job[] | null, s
 
 async function runJob(job: Job): Promise<[number, number, string]> {
   const started = performance.now();
-  const [code, out] = await spawnOut(job.argv, job.cwd, job.env, undefined, true);
-  return [(performance.now() - started) / 1000, code, out];
+  const limit = job.limitMs ?? STEP_TIMEOUT_MS;
+  try {
+    const p = await proc(job.argv, { cwd: job.cwd, env: job.env, timeoutMs: limit, reap: true });
+    if (p.timedOut) job.timedOut = true;
+    const killed = p.timedOut ? `\nkilled after ${Math.round(limit / 1000)} seconds, its time limit, so a test in it hangs or is far slower than its last run\n` : "";
+    return [(performance.now() - started) / 1000, p.code, p.stdout + p.stderr + killed];
+  } catch (e) {
+    return [(performance.now() - started) / 1000, -1, `could not run \`${job.argv.join(" ")}\`: ${(e as Error).message}`];
+  }
 }
 
 const RERUN_ALONE_PASSED = (name: string) =>
@@ -571,6 +598,7 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
   // Red last time first, so a binary still red fails at once; then unknown first, since a binary with no
   // recorded time is new and new is as likely to be slow; then the slowest first.
   const time = (j: Job) => (typeof last[j.name] === "number" ? last[j.name]! : Infinity);
+  for (const j of jobs) j.limitMs = testLimitMs(time(j));
   jobs.sort((a, b) => (time(b) > time(a) ? 1 : time(b) < time(a) ? -1 : 0));
   jobs = redFirst(jobs, (j) => r.red.has(jobItem(j)));
   for (const j of jobs) declareItem(jobItem(j), { parent: itemOf(s), name: j.name, kind: j.name === "doc-tests" ? "doc-tests" : "test" });
@@ -636,6 +664,8 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
   await Promise.all(recording);
   const alone = new Map<string, boolean>();
   for (const j of failed) {
+    // A hang is the binary's own, so a second run would only spend its time limit again.
+    if (j.timedOut) continue;
     if (j.name !== "doc-tests") j.env = { ...j.env, ...r.rec.env(recordName(`test:${j.name}`)), ...(await r.rec.cacheDir(recordName(`test:${j.name}`))) };
     else mkdirSync(docDir, { recursive: true });
     // A new attempt of the same item, red whatever it does: the verdict is the first run's.
@@ -658,7 +688,9 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
   }
 
   const times: Record<string, number> = { ...last };
-  for (const [n, res] of results) times[n] = Math.round(res[0] * 100) / 100;
+  // A binary killed for its time keeps its last time, so its next limit does not grow from the kill.
+  const killed = new Set(failed.filter((j) => j.timedOut).map((j) => j.name));
+  for (const [n, res] of results) if (!killed.has(n)) times[n] = Math.round(res[0] * 100) / 100;
   writeQuiet(TEST_TIMES, JSON.stringify(sorted(times), null, 1));
 
   // Passing binaries first, by name, so the tail a red step prints is the failures.
@@ -669,7 +701,10 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
   for (const n of held) out.push(`     Unchanged ${n}\n${testGreen(r.store, n)?.result ?? ""}`);
   for (const n of [...results.keys()].sort()) if (!names.has(n)) out.push(`     Running ${n}\n${results.get(n)![2]}`);
   for (const j of failed) out.push(`     Running ${j.name}  -- FAILED, exit ${results.get(j.name)![1]}\n${results.get(j.name)![2]}`);
-  for (const j of failed) out.push(alone.get(j.name) ? RERUN_ALONE_PASSED(j.name) : `error: \`${j.name}\` failed, alone as well; \`${j.rerun}\` runs it again.`);
+  for (const j of failed) {
+    if (j.timedOut) out.push(`error: \`${j.name}\` ran past its time limit of ${Math.round(j.limitMs! / 1000)} seconds; \`${j.rerun}\` runs it again, and \`--test-threads=1\` on its binary names the test that hangs.`);
+    else out.push(alone.get(j.name) ? RERUN_ALONE_PASSED(j.name) : `error: \`${j.name}\` failed, alone as well; \`${j.rerun}\` runs it again.`);
+  }
   for (const line of wide) out.push(`error: ${line}`);
   return [failed.length || wide.length ? 1 : 0, out.join("\n")];
 }

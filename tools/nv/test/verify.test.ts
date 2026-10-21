@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { CLEAN_LINE } from "../cmd/rules.ts";
-import { stepNames, summaries } from "../cmd/verify.ts";
+import { stepNames, summaries, testLimitMs } from "../cmd/verify.ts";
 import { targetFilters } from "../keys/graph.ts";
 import { wayOut, wideWhy } from "../keys/escape.ts";
 
@@ -112,6 +112,13 @@ describe("the test build", () => {
 
   test("a binary the run did not build is not judged", () => {
     expect(wideWhy({ name: "nvs-ir test refusals", owner: "nvs-ir", exe: "", reads: undefined, known: true })).toBeNull();
+  });
+
+  test("a binary's time limit is ten times its last run, between five minutes and the step's hour", () => {
+    expect(testLimitMs(1.3)).toBe(5 * 60 * 1000);
+    expect(testLimitMs(120)).toBe(20 * 60 * 1000);
+    expect(testLimitMs(900)).toBe(60 * 60 * 1000);
+    expect(testLimitMs(Infinity)).toBe(20 * 60 * 1000);
   });
 });
 
