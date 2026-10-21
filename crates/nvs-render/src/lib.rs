@@ -22,8 +22,9 @@
 //! `Core\Debug::dump` and `Core\Log::write` are producers in `nvs-stdlib` for
 //! the reason § *Where this sits* gives, and an uncaught `Throwable` is one in
 //! `nvs_runtime::floor`, which walks a value through `nvs_runtime::record` and
-//! carries its frames as [`Node::Frame`] nodes. The producers that do not
-//! exist are the block below.
+//! carries its frames as [`Node::Frame`] nodes. A compiler diagnostic is one in
+//! `nvs_diagnostics::record`, and a failed `#[Test]` assertion is one in
+//! `nvs-cli`'s test runner.
 //!
 //! **`rule:errors/log-write`'s
 //! record-and-write helper renders here**, not in `nvs-runtime` beside the
@@ -34,10 +35,6 @@
 //! agree today. The price is the dependency edge below, which
 //! `rule:errors/diagnostic-record` sanctions and
 //! this section prices.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-render/src/lib.rs` lists them.
 //!
 //! # The four transformations, and why they are the model's
 //!

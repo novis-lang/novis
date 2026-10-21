@@ -673,7 +673,7 @@ fn collect(ctx: &mut Ctx, group: &Rc<RefCell<Group>>, ending: Option<Ending>) ->
             let _ = ctx.write_output(&output);
         }
         for assertion in std::mem::take(&mut slot.assertions) {
-            ctx.record_assertion(assertion.member, assertion.failure);
+            ctx.record_entry(assertion);
         }
     }
 

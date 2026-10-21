@@ -8,7 +8,9 @@
 //! Every format renders the same [`Case`] list, and a verdict is decided once
 //! — [`Outcome::verdict`] — rather than per format, so the plaintext mark, the
 //! JSON string and the JUnit element cannot disagree about how a test came
-//! out. The plaintext one is the default and is written in declaration order as
+//! out. Each failure inside a verdict is `rule:errors/record-producers`'
+//! record ([`failure`], [`assertion_record`]), and every format prints the
+//! record's message. The plaintext one is the default and is written in declaration order as
 //! each test is reported, which is what keeps a long suite legible; a machine
 //! format is one document written at the end, because neither JSON nor XML has
 //! a prefix worth streaming. Every line the plaintext report writes goes
@@ -117,6 +119,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use nvs_render::{Level, Node, Record, Rendered, Scalar};
 use nvs_types::defaults::ConstArg;
 
 /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
@@ -305,25 +308,30 @@ enum Outcome {
     Passed,
     /// `rule:testing/runner-is-strict`'s "a skip states a reason", carrying it.
     Skipped(String),
-    /// Why it failed — every failed assertion the ledger recorded, or the one
-    /// message a throw or an empty ledger left. A list rather than the first
-    /// one, because a test that caught its own failures and carried on has
-    /// several, and reporting one of them would hide exactly what `rule:testing/failure-ledger`'s ledger
-    /// exists to keep.
-    Failed(Vec<String>),
+    /// Why it failed — one [`failure`] record per failed assertion the ledger
+    /// recorded, or one for the message a throw or an empty ledger left. A
+    /// list rather than the first one, because a test that caught its own
+    /// failures and carried on has several, and reporting one of them would
+    /// hide exactly what `rule:testing/failure-ledger`'s ledger exists to keep.
+    Failed(Vec<Record>),
     /// `rule:testing/runner-is-strict`'s `retries:`: the test failed and then passed within its
     /// allowance, carrying how many attempts it took and what the last failed
     /// one said. It is neither passed nor failed, which is the whole of that
     /// bullet — see [`run_with_retries`].
     Flaky {
         attempts: usize,
-        failures: Vec<String>,
+        failures: Vec<Record>,
     },
     /// The test called `exit(n)`, which ends the whole run.
     Exited(i64),
 }
 
 impl Outcome {
+    /// A failure with one record, carrying `message` alone.
+    fn failed(message: impl AsRef<str>) -> Self {
+        Self::Failed(vec![failure(message.as_ref())])
+    }
+
     /// The one word every format names this outcome by.
     ///
     /// Each rendering reads its own mark, string or element off *this* rather
@@ -385,9 +393,9 @@ impl Outcome {
     /// the test.
     fn and_failed(self, named: String) -> Self {
         match self {
-            Self::Passed => Self::Failed(vec![named]),
+            Self::Passed => Self::failed(named),
             Self::Failed(mut failures) | Self::Flaky { mut failures, .. } => {
-                failures.push(named);
+                failures.push(failure(&named));
                 Self::Failed(failures)
             }
             settled @ (Self::Skipped(_) | Self::Exited(_)) => settled,
@@ -405,15 +413,57 @@ impl Outcome {
             Self::Failed(reasons)
             | Self::Flaky {
                 failures: reasons, ..
-            } => Some(
-                reasons
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| "it failed".to_owned()),
-            ),
+            } => Some(reasons.first().map_or("it failed", message_of).to_owned()),
             Self::Exited(code) => Some(format!("the test called exit({code})")),
         }
     }
+}
+
+/// `rule:errors/record-producers`' test-result producer: one failure of a
+/// test as `rule:errors/diagnostic-record`'s record, carrying `message`
+/// alone.
+///
+/// The record is at `Error`, and its message is the failure's line. Every
+/// report prints that line from the record, so a control byte in a message a
+/// test wrote is substituted once, here, for all three formats.
+fn failure(message: &str) -> Record {
+    let mut record = Record::at(Level::Error);
+    record.envelope.message = Some(Rendered::new(message));
+    record
+}
+
+/// The record of one failed ledger entry, or `None` for an assertion that
+/// held: no report shows a passing assertion, so it builds nothing.
+///
+/// [`ASSERTION`] names the `Core\Test` method. A failed comparison's two
+/// values are the record's nodes, actual first and expected second, in the
+/// order the method takes them.
+fn assertion_record(entry: nvs_runtime::AssertionOutcome) -> Option<Record> {
+    let mut record = failure(entry.failure.as_deref()?);
+    record.envelope.fields.push((
+        ASSERTION.to_owned(),
+        Node::Scalar(Scalar::Str {
+            text: Rendered::new(entry.member),
+            bytes: entry.member.len(),
+        }),
+    ));
+    if let Some(compared) = entry.compared {
+        let nvs_runtime::Compared { actual, expected } = *compared;
+        record.nodes = vec![actual, expected];
+    }
+    Some(record)
+}
+
+/// The field naming the `Core\Test` method a failed assertion called.
+const ASSERTION: &str = "assertion";
+
+/// The line a failure record prints in every report.
+fn message_of(record: &Record) -> &str {
+    record
+        .envelope
+        .message
+        .as_ref()
+        .map_or("it failed", Rendered::as_str)
 }
 
 /// One test's place in the run: what was called, how it came out, how long it
@@ -1130,7 +1180,7 @@ fn run_suite(
             };
             let decided = match setup.as_ref().or(unbuilt.as_ref()) {
                 Some(FixtureFailure::Threw(message)) if setup.is_some() => {
-                    Some(Outcome::Failed(vec![message.clone()]))
+                    Some(Outcome::failed(message))
                 }
                 // A fixture that would not build is reported against every
                 // test that asked for one, rather than against the class: a
@@ -1138,7 +1188,7 @@ fn run_suite(
                 // a whole class silently is what `rule:testing/runner-is-strict` is written against.
                 Some(FixtureFailure::Exited(code)) => Some(Outcome::Exited(*code)),
                 Some(FixtureFailure::Threw(message)) if !fixtures_needed(case).is_empty() => {
-                    Some(Outcome::Failed(vec![message.clone()]))
+                    Some(Outcome::failed(message))
                 }
                 _ => None,
             };
@@ -1257,17 +1307,17 @@ impl Job {
             // test that asked for it, which is where the name in the message
             // means something, and nothing has run.
             Some(Err(refused)) => {
-                return Err(Outcome::Failed(vec![format!(
+                return Err(Outcome::failed(format!(
                     "`{}::{}` asks for a `#[Fixture]` that cannot cross into its isolate: \
                      {refused}",
                     test.class, case.method
-                )]));
+                )));
             }
             None => {
-                return Err(Outcome::Failed(vec![format!(
+                return Err(Outcome::failed(format!(
                     "internal error: `{}::{}` asks for a `#[Fixture]` that was not built",
                     test.class, case.method
-                )]));
+                )));
             }
         };
         Ok(Self {
@@ -1335,11 +1385,11 @@ impl Job {
                 // Not reachable for bytes encoded against the same unit's
                 // table, and reported rather than unwrapped: nothing has run.
                 Err(refused) => (
-                    Outcome::Failed(vec![format!(
+                    Outcome::failed(format!(
                         "internal error: `{}::{}`'s `#[Fixture]` could not be read on the core \
                          the test runs on: {refused}",
                         test.class, case.method
-                    )]),
+                    )),
                     Vec::new(),
                 ),
             };
@@ -1561,12 +1611,12 @@ impl<'a> Queue<'a> {
                     nvs_host::worker::Answer::Value(ran) => ran,
                     // Contained at the far core's task root, and this test's
                     // failure rather than the run's.
-                    nvs_host::worker::Answer::Panicked(panic) => Ran::decided(Outcome::Failed(
-                        vec![format!("the test's isolate panicked: {panic}")],
+                    nvs_host::worker::Answer::Panicked(panic) => Ran::decided(Outcome::failed(
+                        format!("the test's isolate panicked: {panic}"),
                     )),
-                    nvs_host::worker::Answer::Stopped => Ran::decided(Outcome::Failed(vec![
-                        "the test stopped without reaching a verdict".to_owned(),
-                    ])),
+                    nvs_host::worker::Answer::Stopped => Ran::decided(Outcome::failed(
+                        "the test stopped without reaching a verdict",
+                    )),
                 }
             }
         };
@@ -1995,11 +2045,11 @@ fn run_the_test(
         true => match TestServer::bind(unit, routes, Door::of(ctx), ctx.stmt_hits().cloned()) {
             Ok(server) => Some(server),
             Err(refused) => {
-                return Outcome::Failed(vec![format!(
+                return Outcome::failed(format!(
                     "`{class}::{}` declares `server: true`, and no listener could be bound for \
                      it: {refused}",
                     case.method
-                )]);
+                ));
             }
         },
     };
@@ -2029,17 +2079,17 @@ fn run_the_test(
             // parameter from one roster or the other and refused the
             // declaration outright where it could not (`E0736`), so a hole
             // here is this runner disagreeing with the table it was handed.
-            return Outcome::Failed(vec![format!(
+            return Outcome::failed(format!(
                 "internal error: `{class}::{}` has no value for parameter {position}",
                 case.method
-            )]);
+            ));
         };
         args.push(value);
     }
     // The verdict is decided on the child's own stack and filed into a cell
     // its program captured, because a `Completion` carries a value, bytes and
     // a failure and none of those is `rule:testing/failure-ledger`'s ledger. Nothing about that cell
-    // crosses the heap boundary: an [`Outcome`] is `String`s the runner owns,
+    // crosses the heap boundary: an [`Outcome`] is records the runner owns,
     // built while the child's context is still alive and read after it is
     // gone.
     let filed: Rc<RefCell<Option<Outcome>>> = Rc::new(RefCell::new(None));
@@ -2053,11 +2103,11 @@ fn run_the_test(
     let clock = match fixed_clock(case) {
         Ok(clock) => clock,
         Err(at) => {
-            return Outcome::Failed(vec![format!(
+            return Outcome::failed(format!(
                 "`{class}::{}` declares `at: \"{at}\"`, which is not an RFC 3339 timestamp such \
                  as `2026-01-01T00:00:00Z` from `-9999-01-02T01:59:59Z` to `9999-12-30T22:00:00Z`",
                 case.method
-            )]);
+            ));
         }
     };
     let seed = random_seed(case);
@@ -2118,10 +2168,10 @@ fn run_the_test(
             // second attempt has to unsee its first attempt's writes has
             // written a test the rollback cannot fix.
             Some(name) => match nvs_stdlib::db::begin_test_transaction(child, name) {
-                Err(refused) => Outcome::Failed(vec![format!(
+                Err(refused) => Outcome::failed(format!(
                     "`{class_name}::{method}` declares `db: \"{name}\"`, and no transaction \
                      could be opened on it: {refused}"
-                )]),
+                )),
                 Ok(key) => {
                     let outcome =
                         run_with_retries(&child_unit, child, &attempted, &args, allowance);
@@ -2172,9 +2222,9 @@ fn run_the_test(
         // unwrapped, because a panic in the runner is the one thing a program
         // under test may not be able to cause.
         Err(refused) => {
-            return Outcome::Failed(vec![format!(
+            return Outcome::failed(format!(
                 "internal error: the test's isolate refused its argument: {refused}"
-            )]);
+            ));
         }
     };
     // `rule:testing/isolate-per-test`'s boundary is around the whole test, and a listener is the one thing
@@ -2189,10 +2239,10 @@ fn run_the_test(
         // The child never reached its own verdict — it was cancelled, or a
         // panic inside it was contained (`nvs_host::isolate`'s module doc), so
         // what the boundary carries is all there is to report.
-        Outcome::Failed(vec![completion.error.map_or_else(
+        Outcome::failed(completion.error.map_or_else(
             || "the test's isolate ended without reaching a verdict".to_owned(),
             |failure| format!("{}: {}", failure.class, failure.message),
-        )])
+        ))
     })
 }
 
@@ -2561,10 +2611,10 @@ fn run_case(
     };
     let Some(status) = unit.call_on_new_instance(ctx, &test.class, &test.method, args, &mut after)
     else {
-        return Outcome::Failed(vec![format!(
+        return Outcome::failed(format!(
             "internal error: the compiled unit declares no class `{}`",
             test.class
-        )]);
+        ));
     };
     // No verdict means the method was never called: the constructor threw,
     // so there is no object for the hook to run on.
@@ -2583,14 +2633,17 @@ fn after_each_test(
     attempt: usize,
     outcome: Outcome,
 ) -> Outcome {
-    let failures: &[String] = match &outcome {
-        Outcome::Failed(failures) => failures,
-        Outcome::Passed => &[],
+    let failures: Vec<String> = match &outcome {
+        Outcome::Failed(failures) => failures
+            .iter()
+            .map(|record| message_of(record).to_owned())
+            .collect(),
+        Outcome::Passed => Vec::new(),
         _ => return outcome,
     };
     let argument = hook
         .takes_value
-        .then(|| nvs_stdlib::test_outcome(&test.class, &test.label, attempt, failures));
+        .then(|| nvs_stdlib::test_outcome(&test.class, &test.label, attempt, &failures));
     let thrown = match nvs_runtime::call_hook(ctx, receiver, &hook.method, argument) {
         Ok(()) => None,
         Err(status) if status == nvs_runtime::EXITED => return Outcome::Exited(ctx.exit_code()),
@@ -2629,26 +2682,23 @@ fn judge(ctx: &mut nvs_runtime::Ctx, outcome: Result<(), i32>) -> Outcome {
     // test's (`nvs_runtime::Ctx::take_assertions`), so consuming it here is
     // what keeps an earlier failure from being reported against a later test.
     let ledger = ctx.take_assertions();
-    let failures: Vec<String> = ledger
-        .iter()
-        .filter_map(|entry| entry.failure.clone())
-        .collect();
+    let asserted = !ledger.is_empty();
+    let failures: Vec<Record> = ledger.into_iter().filter_map(assertion_record).collect();
     if !failures.is_empty() {
         return Outcome::Failed(failures);
     }
     if let Some(message) = thrown {
-        return Outcome::Failed(vec![message]);
+        return Outcome::failed(message);
     }
-    if ledger.is_empty() {
+    if !asserted {
         // `rule:testing/runner-is-strict`'s first bullet, with the way out that section names: a test
         // whose whole claim is that nothing threw writes
         // `Core\Test::assertDoesNotThrow(callable)`, which records an entry
         // like any other assertion.
-        return Outcome::Failed(vec![
+        return Outcome::failed(
             "it asserted nothing: `rule:testing/runner-is-strict` fails a test whose ledger is empty — write \
-             `Core\\Test::assertDoesNotThrow` where the claim is that a call completes"
-                .to_owned(),
-        ]);
+             `Core\\Test::assertDoesNotThrow` where the claim is that a call completes",
+        );
     }
     Outcome::Passed
 }
@@ -2800,12 +2850,12 @@ fn report(ctx: &mut nvs_runtime::Ctx, method: &str, outcome: &Outcome, elapsed: 
     match outcome {
         Outcome::Passed => {}
         Outcome::Skipped(reason) => line(&format!("skipped: {reason}")),
-        Outcome::Failed(reasons) => reasons.iter().for_each(|reason| line(reason)),
+        Outcome::Failed(reasons) => reasons.iter().for_each(|reason| line(message_of(reason))),
         Outcome::Flaky { attempts, failures } => {
             line(&format!(
                 "flaky: it passed on attempt {attempts}, having failed with:"
             ));
-            failures.iter().for_each(|reason| line(reason));
+            failures.iter().for_each(|reason| line(message_of(reason)));
         }
         Outcome::Exited(code) => line(&format!("the test called exit({code})")),
     }
@@ -2885,7 +2935,7 @@ fn json_document(
                     if nth > 0 {
                         out.push_str(", ");
                     }
-                    json_string(reason, &mut out);
+                    json_string(message_of(reason), &mut out);
                 }
                 out.push(']');
             }
@@ -3072,7 +3122,7 @@ fn junit_document(cases: &[Case], counts: Counts, total: Duration) -> String {
                     xml_text(&case.outcome.message().unwrap_or_default(), &mut out);
                     out.push_str(&format!("\" attempts=\"{attempts}\">"));
                     for reason in failures {
-                        xml_text(reason, &mut out);
+                        xml_text(message_of(reason), &mut out);
                         out.push('\n');
                     }
                     out.push_str("</flakyFailure>\n    </testcase>\n");
@@ -3087,7 +3137,7 @@ fn junit_document(cases: &[Case], counts: Counts, total: Duration) -> String {
                     // to keep.
                     if let Outcome::Failed(reasons) = &case.outcome {
                         for reason in reasons {
-                            xml_text(reason, &mut out);
+                            xml_text(message_of(reason), &mut out);
                             out.push('\n');
                         }
                     }
@@ -3425,7 +3475,10 @@ mod tests {
             .into_iter()
             .map(|case| {
                 let failures = match &case.outcome {
-                    Outcome::Failed(failures) => failures.clone(),
+                    Outcome::Failed(failures) => failures
+                        .iter()
+                        .map(|record| super::message_of(record).to_owned())
+                        .collect(),
                     _ => Vec::new(),
                 };
                 (case.method, case.outcome.verdict(), failures)
@@ -3596,6 +3649,44 @@ mod tests {
                 "`{attribute}` is the JSON document's, and JUnit has no version to raise: {junit}"
             );
         }
+    }
+
+    /// `rule:errors/record-producers`' test-result producer: a failed
+    /// `assertSame` is a record whose message is the line every report
+    /// prints, and whose two nodes are the actual and expected values.
+    #[test]
+    fn a_failed_comparison_is_a_record_with_actual_and_expected_as_nodes() {
+        use nvs_render::{Node, Scalar};
+
+        let suite = ran("parallel-output.nvs");
+        let Outcome::Failed(failures) = &suite.cases[1].outcome else {
+            panic!("`itFails` failed");
+        };
+        let [record] = failures.as_slice() else {
+            panic!("one failed assertion is one record: {failures:?}");
+        };
+        assert!(
+            super::message_of(record).starts_with("Core\\Test::assertSame failed"),
+            "the message is the failure's line: {record:?}"
+        );
+        assert!(
+            record.envelope.fields.iter().any(|(name, node)| name == super::ASSERTION
+                && matches!(node, Node::Scalar(Scalar::Str { text, .. }) if text.as_str() == "assertSame")),
+            "the record names the method: {record:?}"
+        );
+        assert_eq!(
+            record.nodes,
+            vec![Node::Scalar(Scalar::Int(1)), Node::Scalar(Scalar::Int(2))],
+            "actual first, expected second"
+        );
+        let json = json_document(&suite.cases, suite.counts, std::time::Duration::ZERO, None);
+        assert!(
+            json.contains(&format!(
+                "\"failures\": [\"{}",
+                "Core\\\\Test::assertSame failed"
+            )),
+            "the JSON report prints the record's message: {json}"
+        );
     }
 
     #[test]

@@ -1,0 +1,37 @@
+--TEST--
+Passing a narrowed `readonly` property as an `inout` argument ends its narrowing, so a read after the call has the declared type again — `rule:types/narrowing`
+--FILE--
+<?nvs
+// A null test narrows `$this->label` to `string` inside the block. The call
+// below may write the property, so after it the property is `?string` again,
+// and a function that needs a `string` does not accept it.
+final class Trim
+{
+    public static function inPlace(inout string $s): void
+    {
+        $s = Core\Str::trim($s);
+    }
+}
+
+final class Box
+{
+    public readonly ?string $label;
+
+    public function constructor(?string $label)
+    {
+        $this->label = $label;
+        if ($this->label != null) {
+            echo Core\Str::length($this->label), "\n";
+            Trim::inPlace(inout $this->label);
+            echo Core\Str::length($this->label), "\n";
+        }
+    }
+}
+
+new Box(" hi ");
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `string|null`
+   --> case.nvs:23:35
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -19,6 +19,7 @@
     "tests/conformance/class/a-null-test-narrows-a-readonly-property.nvst",
     "tests/conformance/class/a-null-test-narrows-a-path-of-readonly-properties.nvst",
     "tests/conformance/reject/a-write-to-the-root-variable-widens-a-narrowed-property.nvst",
+    "tests/conformance/class/an-inout-argument-drops-a-readonly-propertys-narrowing.nvst",
     "crates/nvs-ir/tests/narrowed_property_reads.rs",
     "crates/nvs-types/tests/narrowing.rs",
     "tests/conformance/reject/a-null-test-does-not-narrow-a-mutable-property.nvst"
