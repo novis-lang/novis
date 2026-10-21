@@ -1,0 +1,13 @@
+{
+  "title": "A file too large for a package is a `[[download]]` entry pinned by HTTPS URLs, SHA-256 and size, which the fetch downloads, checks and places without running or unpacking anything",
+  "status": "designed",
+  "seeAlso": [
+    "packaging/a-package-carries-only-its-source-and-what-it-lists",
+    "packaging/a-package-is-its-digest",
+    "packaging/nothing-runs-before-the-program",
+    "packaging/the-lockfile-holds-every-digest",
+    "security/net-address-policy"
+  ],
+  "guardedBy": [],
+  "goal": "package-client"
+}

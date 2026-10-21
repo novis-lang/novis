@@ -1,0 +1,13 @@
+{
+  "title": "A package archive carries its `src/` source, `package.toml`, its license and readme, and the files `files` names, within 16 MiB and 5,000 files whose paths work on every platform",
+  "status": "designed",
+  "seeAlso": [
+    "packaging/a-package-is-its-digest",
+    "packaging/the-registry-builds-the-archive-from-git",
+    "packaging/an-external-file-is-pinned-by-url-sha256-and-size",
+    "packaging/a-package-file-stays-under-its-declared-prefix",
+    "packaging/publishing-never-overwrites"
+  ],
+  "guardedBy": [],
+  "goal": "package-client"
+}

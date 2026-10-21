@@ -3,7 +3,7 @@
 
 # Packaging
 
-*27 of 91 rules below are **designed** rather than shipped, and are marked where they appear.*
+*29 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -946,7 +946,7 @@ reads `package.toml`.
 
 **Every package and registry command a user types is a subcommand of `nvs pkg`**: `add`, `fetch`,
 `update`, `outdated`, `vendor`, `audit`, `publish`, `retract`, `unlist`, `login`, `whoami`, `api`,
-`diff` and `pack`. That is the one spelling, short as `nvs ext` is
+`diff`, `pack`, `download` and `provide`. That is the one spelling, short as `nvs ext` is
 ([`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own)): there is no `nvs package` alias and no flat `nvs add`
 or `nvs update`, so a package verb never collides with a toolchain command such as `nvs update-check`.
 The files keep their full names, `package.toml` and `package.lock`. The registry service's own byte work is `nvs registry`
@@ -1654,9 +1654,12 @@ a commit, a version and the package's directory within the repository, and uploa
 - **The directory** defaults to the repository root, and `nvs pkg publish` may name a subdirectory, so
   one repository can hold several packages.
 - **The clone** is `nvs registry build`, which fetches that commit over HTTPS from any git host through
-  `gix`, inside a size and a time limit. Its host's address is checked against the outbound address
-  table, so an internal host is refused.
-- **The archive** is an uncompressed `ustar` tar of the directory's regular files, sorted by path bytes,
+  `gix`, inside a time limit and a 512 MiB size limit. It fetches that commit alone, with no history,
+  so a repository's past never counts against a package. Its host's address is checked against the
+  outbound address table, so an internal host is refused. The clone is larger than the archive limit
+  because one repository may hold several packages and the files around them.
+- **The archive** is an uncompressed `ustar` tar of the files
+  [`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists) names, sorted by path bytes,
   with every time, owner and mode field fixed and no link or special file. Its BLAKE3 digest is the
   package's identity ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)). A transport may compress it.
 - **The repository URL is bound at the package's first publish.** Changing it needs a passkey, is a log
@@ -1684,7 +1687,150 @@ held after the digest is recorded.
 
 **Not on disk.** There is no registry and no `nvs pkg pack`.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only).</sub>
+
+<a id="packaging-a-package-carries-only-its-source-and-what-it-lists"></a>
+
+## A package archive carries its `src/` source, `package.toml`, its license and readme, and the files `files` names, within 16 MiB and 5,000 files whose paths work on every platform  *(designed — owned by goal package-client)*
+
+`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`
+
+A package archive carries every `.nvs` file under `src/`, `package.toml`, the license and readme files
+at the package root, and exactly the files `package.toml`'s `files` list names, and nothing else.
+
+- **The root files** are those whose name, ignoring case, is `README` or `NOTICE` with any extension
+  or none, or starts with `LICENSE` or `COPYING` (`LICENSE-MIT`, `COPYING.txt`). Only the package
+  root is searched. **A package with no license file is refused** by `nvs pkg pack` and at publish.
+- **`files`** is a list of exact paths relative to the package root: no glob, no directory. Each must
+  be a regular file at the commit, or the pack fails naming it. A path ending in `.nvs`, and a path the
+  default set already carries, is refused, so every line of code arrives through the autoload root,
+  where [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix) checks it. A `.nvsx` component,
+  a font, a template or a data table is listed here.
+- **The limits:** the files' sizes add up to at most **16 MiB**, and the archive holds at most
+  **5,000** files. Both are constants of the archive format, shared by `nvs pkg pack`, the registry's
+  build and the fetch, and neither has a setting. A file too large for them is an external download
+  ([`packaging/an-external-file-is-pinned-by-url-sha256-and-size`](packaging.md#packaging-an-external-file-is-pinned-by-url-sha256-and-size)).
+- **Every path works on every platform.** It is UTF-8 in NFC, at most 160 bytes, and no two paths are
+  equal ignoring case. No component is a name Windows reserves (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to
+  `COM9`, `LPT1` to `LPT9`, with any extension), contains a control character or one of `<>:"\|?*`, or
+  ends in a dot or a space. 160 bytes leaves room under the Windows path limit for the folder a package
+  is fetched into.
+- **`nvs pkg publish --dry-run` and `nvs pkg pack` print every file with its size, and the total,** so
+  the publisher sees exactly what ships before it ships.
+
+An allowlist fails closed. With an ignore list, every new file in a repository is published until
+somebody remembers to exclude it, which is how keys, `.env` files and database dumps reach a registry,
+where they can never be deleted. With an allowlist, a new file stays out until a person names it.
+Documentation, tests, examples, CI files and agent instruction files are for the people who work on a
+package, not for the program that runs it. The license file is the exception the law makes: MIT and
+BSD require their text with every copy, and Apache-2.0 also its `NOTICE`. The readme is the one other
+exception, because it is small and a vendored or offline copy then says what it is.
+
+The limits are counted on the files, not on a compressed archive: compression is the transport's
+([`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git)), source compresses five to ten times while
+a font or an image barely compresses, and a publisher predicts the exact figure locally. 16 MiB is
+several times a large framework's source. A limit can be raised but never lowered, because a published
+version is immutable ([`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites)): raising one ships in a client
+release first, and an older client refuses a larger archive with a message naming the update.
+
+**The fetch enforces the same limits while it reads.** It stops at one byte past the largest archive
+the two limits allow, before the digest is checked, so a hostile mirror cannot fill a disk or memory
+with an archive the digest would have refused afterwards.
+
+**Memory:** the pack and the fetch stream the archive to and from disk, so memory does not grow with
+it. Nothing is held per request.
+
+**Declined:**
+- **An ignore list** (`.npmignore`, `exclude`). It fails open.
+- **A glob or a directory in `files`.** Either picks up whatever is added to the repository later, which
+  is the ignore list again.
+- **Every `.md` file by default.** It ships `docs/` trees, contributor guides and agent instruction
+  files to every installer, and a markdown file under `tests/` with them.
+- **A changelog in the default set.** It grows with every release, so every version would ship the
+  whole history again. The package page links the commit each version was built from.
+- **A limit on the compressed size.** It gives source a hidden five- to tenfold allowance over assets,
+  and no publisher can predict it exactly.
+- **A larger limit raised per package on request.** It needs a person to decide each request, and the
+  operator only withholds ([`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds)).
+
+**Not on disk.** There is no `nvs pkg pack` and no reader for `files`.
+
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/an-external-file-is-pinned-by-url-sha256-and-size`](packaging.md#packaging-an-external-file-is-pinned-by-url-sha256-and-size), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites).</sub>
+
+<a id="packaging-an-external-file-is-pinned-by-url-sha256-and-size"></a>
+
+## A file too large for a package is a `[[download]]` entry pinned by HTTPS URLs, SHA-256 and size, which the fetch downloads, checks and places without running or unpacking anything  *(designed — owned by goal package-client)*
+
+`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`
+
+A package names each file too large for its archive in a `[[download]]` table of its `package.toml`,
+pinned by HTTPS URLs, a SHA-256 hash and a size, and `nvs pkg fetch` downloads it, checks it and places
+it at its path in the package, running nothing.
+
+```toml
+[[download]]
+path    = "fonts/NotoSansCJK-Regular.otf"
+urls    = ["https://example.com/fonts/NotoSansCJK-Regular.otf",
+           "https://mirror.example.org/NotoSansCJK-Regular.otf"]
+sha256  = "…"
+size    = 16384000
+license = "OFL-1.1"
+```
+
+- **The package's digest covers each entry,** because `package.toml` is in the archive
+  ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)). A host can withhold a file, never change it, and the
+  registry neither downloads nor stores one.
+- **`nvs pkg download <url> --to <path>`** fetches the file, computes its hash and size, and writes the
+  entry. `nvs pkg publish` and its `--dry-run` download every entry again and refuse one whose bytes do
+  not match. The registry checks only the form: HTTPS URLs, a 64-digit hash, a size above zero, a
+  `license` that is an SPDX identifier when present, and a path that follows the archive's path rules,
+  does not end in `.nvs`, is not under `src/` and is not a file the archive carries
+  ([`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists)).
+- **Files are fetched with the package, never at run time.** `nvs pkg add`, `fetch`, `update` and
+  `vendor` download them, and a `--locked` build with a full cache reaches no network.
+- **Every download is HTTPS, and every redirect hop is checked against the outbound address table,**
+  at most five hops, so a package cannot make an installer reach a private address or the cloud
+  metadata service.
+- **The declared size is a hard ceiling.** The read stops at one byte past it, the hash is checked
+  before the file is renamed into place, and a mismatch tries the next URL. After the last one, the fetch
+  fails naming the package, the path and what each URL returned.
+- **Nothing is unpacked and nothing runs** ([`packaging/nothing-runs-before-the-program`](packaging.md#packaging-nothing-runs-before-the-program)). A zip
+  arrives as a zip, and the package's own code reads it.
+- **A cache keyed by SHA-256** under the data folder, behind the ownership check the artifact cache
+  uses, holds each file once across projects and versions.
+- **`nvs pkg provide <file>`** puts a file obtained any other way into that cache, when its hash and
+  size match an entry of a package in the lock, so a dead URL never strands a user.
+- **Everything is shown.** `nvs pkg add` and `nvs pkg update` print each external file with its host,
+  size and license, and the total. A host the lock did not hold before is printed as new, and the lock
+  records each package's hosts for that comparison. The package page lists every entry.
+
+SHA-256 rather than the BLAKE3 the archive uses: upstream projects publish SHA-256 checksums, and
+`sha256sum` is on every system, so a maintainer or a user compares the entry with the upstream's own
+list. A package that needs a large file has three other ways to get it, and each is worse: an install
+script, which [`packaging/nothing-runs-before-the-program`](packaging.md#packaging-nothing-runs-before-the-program) forbids; a download at run time, which
+puts a third-party host on the request path; or a manual step in a readme, which no hash checks.
+
+The cost is availability. A version whose URLs all stop answering stays unfetchable until a user
+provides the file or the maintainer publishes a patch with a new URL and the same hash. A third-party
+host also sees the address of every installer, which is why the hosts are printed.
+
+**Memory:** a download streams to disk, so memory does not grow with the file. Nothing is held per
+request.
+
+**Declined:**
+- **The registry mirroring external files.** It would host bytes no commit holds and nobody reviewed,
+  and its storage would grow with every large file any package names.
+- **A size cap on an external file.** The declared size, the printed total and the new-host notice do
+  that work, and a cap would bring back the manual step this rule removes.
+- **Unpacking an archive at install.** It brings path traversal, compression bombs and links into the
+  installer, which today only writes one file.
+- **An `http:` URL.** The hash protects the bytes, but anybody on the network sees what an installer
+  downloads and can replace it, so a fetch reads up to the full size before it learns the bytes are
+  wrong.
+
+**Not on disk.** There is no `nvs pkg fetch`, `download` or `provide`, and no reader for `[[download]]`.
+
+<sub>See also [`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/nothing-runs-before-the-program`](packaging.md#packaging-nothing-runs-before-the-program), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/net-address-policy`](security.md#security-net-address-policy).</sub>
 
 <a id="packaging-publishing-never-overwrites"></a>
 
@@ -1705,7 +1851,12 @@ and the registry builds the archive itself from that commit
   from one already taken ([`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name));
 - the archive holds an `nvs.toml` ([`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host));
 - the manifest names a git dependency ([`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only));
-- the repository is over the size limit;
+- the clone is over its size limit ([`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git));
+- the archive breaks [`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists): it is over
+  16 MiB or 5,000 files, has no license file, has a path another platform cannot hold, or `files`
+  names a missing file, a `.nvs` file or one the archive already carries;
+- a `[[download]]` entry is malformed
+  ([`packaging/an-external-file-is-pinned-by-url-sha256-and-size`](packaging.md#packaging-an-external-file-is-pinned-by-url-sha256-and-size));
 - a minor or patch breaks the API of the release before it
   ([`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api));
 - the version was published before, under any circumstance;

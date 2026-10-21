@@ -78,8 +78,10 @@ states it in words. Every package page shows every fact the formula reads, and l
 
 **A package page shows** each version with its state (pending, unlisted, retracted or withheld), the
 capabilities each version requests and what changed from the version before, the API diff per version,
-the commit each version was built from, the owners and their history, advisories, `supersedes`, and the
-facts behind ranking.
+the commit each version was built from, the owners and their history, advisories, `supersedes`, the
+facts behind ranking, the readme from the archive, every file in the archive with its size, and every
+external download with its host, size, SHA-256 and license
+(`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`).
 
 **The account pages** show the account's passkeys, its tokens with scope and expiry, its vendors and
 co-owners, its push devices with the date each last answered, its webhooks, whether each channel is
@@ -134,6 +136,7 @@ capability and API diff sections, then a second writes the test.
 - [ ] Versions and their states, the commit, and `supersedes`. `apps/registry/src/PackagePage.nvs:1`
 - [ ] Requested capabilities and their change per version, and the API diff per version from `nvs pkg diff`. `apps/registry/src/PackagePage.nvs:1`, `crates/nvs-cli/src/package/diff.rs:1`
 - [ ] Owners and their history, advisories, and the ranking facts with the link to `Ranking.nvs`. `apps/registry/src/PackagePage.nvs:1`
+- [ ] The readme, rendered as untrusted markdown, the archive's file list with sizes, and the external downloads per version. `apps/registry/src/PackagePage.nvs:1`
 - [ ] A test: a package with a pending, an unlisted, a retracted and a withheld version shows each state, and every fact `Ranking.nvs` reads is on the page. `apps/registry/src/PackagePageTest.nvs:1`
 
 ### 3. the account pages and the withhold policy page
