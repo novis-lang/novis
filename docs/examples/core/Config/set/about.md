@@ -1,18 +1,15 @@
 Changes one setting for this request.
 
-The change belongs to the request that makes it. No other request sees it, and it is gone when the
-request ends. The name is read the way `Core\Config::get` reads it, and the value is written the way
-a configuration file writes it: `512M`, `30s`, `64`.
+No other request sees the change, and it is gone when the request ends. The name is the same as for
+`Core\Config::get`. The value is written as in a configuration file: `512M`, `30s`, `64`.
 
-The result is `true` when the change was made. It is `false`, with the old value still in force, when
-the change is not allowed: a setting only the server may set, a name that is no setting at all, a
-value that is not written the way the name needs, and a value above the ceiling the server keeps for
-that name. A refused change throws no error, so a program that needs to know reads the result.
+The result is `true` when the change was made. It is `false` when the change is not allowed, and the
+old value stays. This happens for a setting only the server may set, an unknown name, a value in the
+wrong format, or a value above the ceiling. `set` throws no error, so check the result.
 
-The ceiling of a limit is in `[limits.hard]`. When `[limits.hard]` does not set a limit, the ceiling
-is the value the request started with. A program can then lower that limit, but it cannot raise it.
-A program you start from the command line may raise its `memory` limit to any value, unless
-`[limits.hard]` sets `memory`.
+The ceiling of a limit is in `[limits.hard]`. Without it, the ceiling is the starting value, so a
+program can lower that limit but not raise it. A command-line program may raise `memory` to any
+value, unless `[limits.hard]` sets `memory`.
 
-**Good to know:** `Core\Config::restore` puts the configuration file's own value back. When the file
-does not write the setting, it puts back the built-in default.
+**Good to know:** `Core\Config::restore` puts back the value from the configuration file, or the
+built-in default.
