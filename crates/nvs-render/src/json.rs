@@ -243,9 +243,9 @@ impl Serialize for AsNode<'_> {
             Node::Redacted => tagged(ser, "$redacted", &true),
             Node::Elided(elision) => tagged(ser, "$elided", &AsElision(elision)),
             Node::Cycle { id } => tagged(ser, "$cycle", id),
-            Node::Span { file, line, label } => {
+            Node::Span { .. } => {
                 let mut map = ser.serialize_map(Some(1))?;
-                map.serialize_entry("$span", &AsSpan(file, *line, label))?;
+                map.serialize_entry("$span", &AsSpan(self.0))?;
                 map.end()
             }
             Node::Frame {
@@ -279,15 +279,35 @@ impl Serialize for Parameters {
     }
 }
 
-/// A [`Node::Span`]'s three parts.
-struct AsSpan<'a>(&'a str, u32, &'a Rendered);
+/// A [`Node::Span`]'s parts, `source` omitted where the node has none.
+struct AsSpan<'a>(&'a Node);
 
 impl Serialize for AsSpan<'_> {
     fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        let mut map = ser.serialize_map(Some(3))?;
-        map.serialize_entry("file", self.0)?;
-        map.serialize_entry("line", &self.1)?;
-        map.serialize_entry("label", self.2.as_str())?;
+        let Node::Span {
+            file,
+            line,
+            column,
+            end_line,
+            end_column,
+            primary,
+            label,
+            source,
+        } = self.0
+        else {
+            unreachable!("AsSpan is only built over a Node::Span");
+        };
+        let mut map = ser.serialize_map(None)?;
+        map.serialize_entry("file", file)?;
+        map.serialize_entry("line", line)?;
+        map.serialize_entry("column", column)?;
+        map.serialize_entry("end_line", end_line)?;
+        map.serialize_entry("end_column", end_column)?;
+        map.serialize_entry("primary", primary)?;
+        map.serialize_entry("label", label.as_str())?;
+        if let Some(source) = source {
+            map.serialize_entry("source", source.as_str())?;
+        }
         map.end()
     }
 }

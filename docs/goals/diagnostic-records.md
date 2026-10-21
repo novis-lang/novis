@@ -6,7 +6,7 @@ context: [crates/nvs-render/src/lib.rs, docs/rules/errors/record-producers.md, d
 stages:
   - id: 1
     title: "a compiler diagnostic builds the record, and its text renders from it"
-    status: open
+    status: done
     context: [crates/nvs-diagnostics/src/render.rs, crates/nvs-render/src/text.rs]
     extra:
       context:
@@ -81,8 +81,10 @@ goal while a record or a designed rule names it.
 and every snippet `.err` pin the rendered text, so a change of one byte would re-record all of them
 for no gain to a reader. Stage 1 is a refactor: the record is built, and the text renderer prints
 from it exactly what it prints now. A difference the existing tests show is a bug in the stage, not
-an expectation to re-record. The one intended change is stage 5's redaction, which only a snippet
-holding a `secret` literal reaches.
+an expectation to re-record. Two changes are intended. Stage 1's record substitutes a control byte
+in a snippet's source line, as every record does (`rule:errors/record-transformations`), and only
+`tests/conformance/lang/an-esc-byte-in-a-string-literal-does-not-compile.nvst` writes one. Stage 5's
+redaction reaches only a snippet holding a `secret` literal.
 
 **The `check --json` document is frozen byte for byte, beside the comparison tests.**
 `rule:ide/check-json-is-the-diagnostic-record-as-a-document` says the schema is frozen and
@@ -114,8 +116,8 @@ renders from that record, byte for byte as it does now.
 **Split:** at stage start, an `Explore` subagent lists every caller of `Renderer::render` and
 `render_all` outside `nvs-diagnostics`, as `file.rs:NN` and one line each.
 
-- [ ] A compiler diagnostic builds the record (`rule:errors/record-producers`). `crates/nvs-diagnostics/src/render.rs:107`, `crates/nvs-render/src/lib.rs:96`
-- [ ] The terminal renderer prints from the record, and every existing rendering test passes unchanged. `crates/nvs-diagnostics/src/render.rs:269`, `crates/nvs-diagnostics/src/render.rs:383`
+- [x] A compiler diagnostic builds the record (`rule:errors/record-producers`). `crates/nvs-diagnostics/src/render.rs:107`, `crates/nvs-render/src/lib.rs:96`
+- [x] The terminal renderer prints from the record, and every existing rendering test passes unchanged. `crates/nvs-diagnostics/src/render.rs:269`, `crates/nvs-diagnostics/src/render.rs:383`
 
 ### 4. `nvs check --json` renders the same record, and its document is frozen
 
@@ -158,16 +160,29 @@ the runner's JSON and JUnit reports render from it.
 
 ### State
 
-No stage has started. The anchors were checked against the tree when the goal was written.
+Stage 1 is done. `nvs_diagnostics::record::record` builds a diagnostic's record, and
+`Renderer::render` and `render_all` print the terminal text from it through `render_record`. The
+record's shape is the module doc of `crates/nvs-diagnostics/src/record.rs`: the severity and code
+are string fields, each label is a `Node::Span` carrying its first line's text, and the notes and
+suggestions are sequence fields. `Node::Span` gained a column, an end, `primary` and `source`, and the
+JSON rendering writes them as `$span`'s keys. A label in a file the map does not hold is left out of
+the record, as the text always left it out. The one byte the text changed is a control byte in a
+snippet's source line, which now prints as its control picture (`␛` for `ESC`). The E0011 case that
+writes one was re-recorded, because a compiler printing a raw `ESC` to the terminal is the injection
+E0011 exists to stop. `nvs check --json` writes such a label with `null`
+positions, so stage 4 decides whether the record keeps it.
 
 ### Next
 
-**Stage 1: the compiler diagnostic builds the record**, one file set:
-`crates/nvs-diagnostics/src/render.rs`, `crates/nvs-render/src/`. No gate. Stage 3 has no gate either
-and fits beside it if the session has room.
+**Stage 4: `nvs check --json` renders the record**, one file set: `crates/nvs-cli/src/check.rs`,
+`crates/nvs-cli/tests/check.rs`, `crates/nvs-render/src/json.rs`. Its document today has `labels`,
+`notes`, `help` and per-span `utf16` positions that the record does not carry yet.
 
-- [ ] A compiler diagnostic builds the record (`rule:errors/record-producers`). `crates/nvs-diagnostics/src/render.rs:107`, `crates/nvs-render/src/lib.rs:96`
-- [ ] The terminal renderer prints from the record, byte for byte as now. `crates/nvs-diagnostics/src/render.rs:269`
+- [ ] `nvs check --json` renders the record (`rule:ide/check-json-is-the-diagnostic-record-as-a-document`). `crates/nvs-cli/src/check.rs:158`, `crates/nvs-cli/src/check.rs:372`, `crates/nvs-diagnostics/src/record.rs:48`
+- [ ] One fixture's whole `--json` document is frozen byte for byte. `crates/nvs-cli/tests/check.rs:1`, `crates/nvs-cli/tests/ast.rs:184`
+- [ ] The module doc of `crates/nvs-cli/tests/check.rs` says why both kinds of test exist. `crates/nvs-cli/tests/check.rs:6`
+
+Stage 3 has no gate, shares no file with stage 4, and fits beside it if the session has room.
 
 ### Backlog
 

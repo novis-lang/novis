@@ -29,6 +29,7 @@
 pub mod argv;
 mod diagnostic;
 pub mod embedded;
+pub mod record;
 mod render;
 mod source;
 mod span;

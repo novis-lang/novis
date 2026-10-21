@@ -1,5 +1,8 @@
 //! Terminal rendering for diagnostics.
 //!
+//! Every line it prints comes from the diagnostic's record, which
+//! [`record::record`] builds, so the text says nothing the record does not.
+//!
 //! Hand-written rather than delegated to a crate: the output format is part of
 //! a language's user interface and should not shift with a dependency bump;
 //! Novis needs the same layout engine to emit LSP-shaped data; and it keeps the
@@ -8,10 +11,11 @@
 use std::io::{self, Write};
 
 use anstyle::{AnsiColor, Style};
+use nvs_render::{Node, Record, Rendered, Scalar};
 
-use crate::diagnostic::{Diagnostic, Label, LabelStyle, Severity};
+use crate::diagnostic::{Diagnostic, Severity};
+use crate::record;
 use crate::source::SourceMap;
-use crate::span::SourceId;
 
 /// The line a terminal rendering closes with when any diagnostic in it carried
 /// a code: where the reader finds that code's card.
@@ -105,53 +109,59 @@ impl Renderer {
     ///
     /// Propagates any write error from `out`.
     pub fn render(&self, d: &Diagnostic, map: &SourceMap, out: &mut impl Write) -> io::Result<()> {
-        let sev = Self::severity_style(d.severity);
+        self.render_record(&record::record(d, map), out)
+    }
+
+    /// Renders one diagnostic's record, as [`record::record`] builds it,
+    /// including a trailing blank line.
+    ///
+    /// # Errors
+    ///
+    /// Propagates any write error from `out`.
+    pub fn render_record(&self, r: &Record, out: &mut impl Write) -> io::Result<()> {
+        let severity = record::severity(r).unwrap_or(Severity::Error);
+        let sev = Self::severity_style(severity);
         let gutter = Self::gutter_style();
         let bold = Style::new().bold();
 
         // error[E0401]: message
-        let head = match d.code {
-            Some(code) => format!("{}[{code}]", d.severity.label()),
-            None => d.severity.label().to_string(),
+        let head = match record::field_text(r, record::CODE) {
+            Some(code) => format!("{}[{code}]", severity.label()),
+            None => severity.label().to_string(),
         };
         self.paint(sev, &head, out)?;
         self.paint(bold, ": ", out)?;
-        self.paint(bold, &d.message, out)?;
+        let message = r.envelope.message.as_ref().map_or("", Rendered::as_str);
+        self.paint(bold, message, out)?;
         out.write_all(b"\n")?;
 
         // Labels, grouped by file so a diagnostic spanning two files reads
         // as two snippets rather than interleaved lines.
-        let mut files: Vec<SourceId> = Vec::new();
-        for l in &d.labels {
-            if !files.contains(&l.span.file) {
-                files.push(l.span.file);
+        let spans: Vec<SpanView<'_>> = r.nodes.iter().filter_map(SpanView::of).collect();
+        let mut files: Vec<&str> = Vec::new();
+        for s in &spans {
+            if !files.contains(&s.file) {
+                files.push(s.file);
             }
         }
 
-        let width = self.gutter_width(d, map);
+        let width = Self::gutter_width(&spans);
 
-        for (i, file_id) in files.iter().copied().enumerate() {
-            let Some(file) = map.get(file_id) else {
-                continue;
-            };
-            let mut labels: Vec<&Label> =
-                d.labels.iter().filter(|l| l.span.file == file_id).collect();
-            labels.sort_by_key(|l| l.span.start);
+        for (i, file) in files.iter().copied().enumerate() {
+            let mut labels: Vec<&SpanView<'_>> = spans.iter().filter(|s| s.file == file).collect();
+            labels.sort_by_key(|s| (s.line, s.column));
 
             // --> path:line:col, anchored on this file's first label
-            let anchor = labels[0].span;
-            let (line, col) = file.line_col(anchor.start);
+            let anchor = labels[0];
             write!(out, "{:width$}", "")?;
             self.paint(gutter, "--> ", out)?;
-            writeln!(out, "{}:{}:{}", file.name(), line + 1, col + 1)?;
+            writeln!(out, "{file}:{}:{}", anchor.line, anchor.column)?;
 
             self.write_gutter_only(width, out)?;
 
             let mut prev_line: Option<usize> = None;
             for label in labels {
-                let (lo_line, lo_col) = file.line_col(label.span.start);
-                // An empty span at end-of-line still deserves a caret.
-                let (hi_line, hi_col) = file.line_col(label.span.end.max(label.span.start));
+                let lo_line = label.line;
 
                 // A gap in line numbers gets an ellipsis so it is obvious that
                 // lines were skipped rather than that the file is short.
@@ -163,35 +173,32 @@ impl Renderer {
                 }
                 prev_line = Some(lo_line);
 
-                let Some(text) = file.line_text(lo_line) else {
+                let Some(text) = label.source else {
                     continue;
                 };
                 let shown = expand_tabs(text, self.tab_width);
 
                 // 12 | let x = ...
-                let num = format!("{:>w$}", lo_line + 1, w = width.saturating_sub(1));
+                let num = format!("{:>w$}", lo_line, w = width.saturating_sub(1));
                 self.paint(gutter, &num, out)?;
                 self.paint(gutter, " | ", out)?;
                 writeln!(out, "{shown}")?;
 
                 // Underline. A span that runs past this line is clipped to the
                 // line end and marked, rather than drawing an enormous caret.
-                let start_col = display_col(text, lo_col, self.tab_width);
-                let multiline = hi_line > lo_line;
+                let start_col = display_col(text, label.column - 1, self.tab_width);
+                let multiline = label.end_line > lo_line;
                 let end_col = if multiline {
                     display_col(text, text.chars().count(), self.tab_width)
                 } else {
-                    display_col(text, hi_col, self.tab_width)
+                    display_col(text, label.end_column - 1, self.tab_width)
                 };
                 let len = end_col.saturating_sub(start_col).max(1);
 
-                let mark = match label.style {
-                    LabelStyle::Primary => "^",
-                    LabelStyle::Secondary => "-",
-                };
-                let style = match label.style {
-                    LabelStyle::Primary => sev,
-                    LabelStyle::Secondary => gutter,
+                let (mark, style) = if label.primary {
+                    ("^", sev)
+                } else {
+                    ("-", gutter)
                 };
 
                 self.write_gutter_prefix(width, out)?;
@@ -201,15 +208,19 @@ impl Renderer {
                 if multiline {
                     self.paint(style, "...", out)?;
                 }
-                if !label.message.is_empty() {
+                if !label.label.is_empty() {
                     out.write_all(b" ")?;
-                    self.paint(style, &label.message, out)?;
+                    self.paint(style, label.label, out)?;
                 }
                 out.write_all(b"\n")?;
 
                 if multiline {
                     self.write_gutter_prefix(width, out)?;
-                    self.paint(gutter, &format!("(continues to line {})", hi_line + 1), out)?;
+                    self.paint(
+                        gutter,
+                        &format!("(continues to line {})", label.end_line),
+                        out,
+                    )?;
                     out.write_all(b"\n")?;
                 }
             }
@@ -219,36 +230,54 @@ impl Renderer {
             }
         }
 
-        // = note: ...
-        for note in &d.notes {
+        // = note: ... and = help: ...
+        for (kind, note) in sequence(r, record::NOTES).iter().filter_map(|n| match n {
+            Node::Map(entries) => entries.first(),
+            _ => None,
+        }) {
             write!(out, "{:width$}", "")?;
             self.paint(gutter, "= ", out)?;
-            // `with_help` already prefixes "help: "; don't double-label it.
-            if let Some(rest) = note.strip_prefix("help: ") {
+            let note = scalar_text(note).unwrap_or("");
+            if kind.as_str() == "help" {
                 self.paint(Self::severity_style(Severity::Help), "help", out)?;
-                write!(out, ": {rest}")?;
             } else {
                 self.paint(bold, "note", out)?;
-                write!(out, ": {note}")?;
             }
+            write!(out, ": {note}")?;
             out.write_all(b"\n")?;
         }
 
         // Suggestions, with the replacement shown inline.
-        for s in &d.suggestions {
+        for entries in sequence(r, record::SUGGESTIONS)
+            .iter()
+            .filter_map(|n| match n {
+                Node::Map(entries) => Some(entries),
+                _ => None,
+            })
+        {
+            let message = entry(entries, "message")
+                .and_then(scalar_text)
+                .unwrap_or("");
+            let replacement = entry(entries, "replacement")
+                .and_then(scalar_text)
+                .unwrap_or("");
+            let safe = matches!(
+                entry(entries, "safe"),
+                Some(Node::Scalar(Scalar::Bool(true)))
+            );
             write!(out, "{:width$}", "")?;
             self.paint(gutter, "= ", out)?;
-            let tag = if s.safe {
+            let tag = if safe {
                 "suggestion"
             } else {
                 "suggestion (review)"
             };
             self.paint(Self::severity_style(Severity::Help), tag, out)?;
-            write!(out, ": {}", s.message)?;
-            if s.replacement.is_empty() {
+            write!(out, ": {message}")?;
+            if replacement.is_empty() {
                 out.write_all(b" (delete)")?;
-            } else if !s.replacement.contains('\n') {
-                write!(out, ": `{}`", s.replacement)?;
+            } else if !replacement.contains('\n') {
+                write!(out, ": `{replacement}`")?;
             }
             out.write_all(b"\n")?;
         }
@@ -276,13 +305,14 @@ impl Renderer {
         let mut warnings = 0usize;
         let mut coded = false;
         for d in diagnostics {
-            match d.severity {
-                Severity::Error | Severity::Bug => errors += 1,
-                Severity::Warning => warnings += 1,
+            let r = record::record(d, map);
+            match record::severity(&r) {
+                Some(Severity::Error | Severity::Bug) => errors += 1,
+                Some(Severity::Warning) => warnings += 1,
                 _ => {}
             }
-            coded |= d.code.is_some();
-            self.render(d, map, out)?;
+            coded |= record::field_text(&r, record::CODE).is_some();
+            self.render_record(&r, out)?;
         }
 
         if errors > 0 {
@@ -305,13 +335,8 @@ impl Renderer {
     }
 
     /// Width of the line-number gutter, including the trailing space.
-    fn gutter_width(&self, d: &Diagnostic, map: &SourceMap) -> usize {
-        let max_line = d
-            .labels
-            .iter()
-            .filter_map(|l| map.get(l.span.file).map(|f| f.line_col(l.span.end).0 + 1))
-            .max()
-            .unwrap_or(1);
+    fn gutter_width(spans: &[SpanView<'_>]) -> usize {
+        let max_line = spans.iter().map(|s| s.end_line).max().unwrap_or(1);
         // digits + 1 space, minimum 2 so an unlabelled diagnostic still indents.
         decimal_digits(max_line) + 1
     }
@@ -328,6 +353,74 @@ impl Renderer {
     fn write_gutter_prefix(&self, width: usize, out: &mut impl Write) -> io::Result<()> {
         write!(out, "{:w$}", "", w = width.saturating_sub(1))?;
         self.paint(Self::gutter_style(), " | ", out)
+    }
+}
+
+/// One [`Node::Span`] of a diagnostic's record, its numbers widened for the
+/// column arithmetic.
+struct SpanView<'a> {
+    file: &'a str,
+    line: usize,
+    column: usize,
+    end_line: usize,
+    end_column: usize,
+    primary: bool,
+    label: &'a str,
+    source: Option<&'a str>,
+}
+
+impl<'a> SpanView<'a> {
+    /// `node` when it is a span, or `None` when it is any other kind.
+    fn of(node: &'a Node) -> Option<Self> {
+        let Node::Span {
+            file,
+            line,
+            column,
+            end_line,
+            end_column,
+            primary,
+            label,
+            source,
+        } = node
+        else {
+            return None;
+        };
+        // A record's positions are one-based, so a zero is clamped to the first.
+        let widen = |n: u32| usize::try_from(n).unwrap_or(usize::MAX).max(1);
+        Some(Self {
+            file,
+            line: widen(*line),
+            column: widen(*column),
+            end_line: widen(*end_line),
+            end_column: widen(*end_column),
+            primary: *primary,
+            label: label.as_str(),
+            source: source.as_ref().map(Rendered::as_str),
+        })
+    }
+}
+
+/// The entries of the sequence field `name`, empty where the record has none.
+fn sequence<'a>(r: &'a Record, name: &str) -> &'a [Node] {
+    match record::field(r, name) {
+        Some(Node::Sequence(nodes)) => nodes,
+        _ => &[],
+    }
+}
+
+/// The value of `key` in a map node's entries.
+fn entry<'a>(entries: &'a [(Rendered, Node)], key: &str) -> Option<&'a Node> {
+    entries
+        .iter()
+        .find(|(k, _)| k.as_str() == key)
+        .map(|(_, node)| node)
+}
+
+/// The text of a string scalar.
+fn scalar_text(node: &Node) -> Option<&str> {
+    match node {
+        Node::Scalar(Scalar::Str { text, .. }) => Some(text.as_str()),
+        _ => None,
     }
 }
 
