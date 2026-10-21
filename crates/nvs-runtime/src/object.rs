@@ -5991,6 +5991,19 @@ pub(crate) fn describe_written(value: Value) -> String {
     })
 }
 
+/// What `value` is, for a message a program reads: "an object of class `Cat`",
+/// "`null`", or "a value of type `string`".
+pub(crate) fn describe_argument(value: Value) -> String {
+    with_class(value, |class| {
+        format!("an object of class `{}`", class.name())
+    })
+    .unwrap_or_else(|| match value.tag() {
+        Some(Tag::Null) => "`null`".to_owned(),
+        Some(tag) => format!("a value of type `{}`", tag.describe()),
+        None => "a malformed value".to_owned(),
+    })
+}
+
 /// Overwrites field slot `index` on the object at `ptr`, releasing whatever it
 /// held and taking over `value`'s reference —
 /// `nvs_ir::InstKind::FieldSet`'s out-of-line form.

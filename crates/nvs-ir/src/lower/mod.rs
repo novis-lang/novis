@@ -1289,6 +1289,8 @@ pub fn lower_method(
     let is_static = m.modifiers.contains(&Modifier::Static);
     // The checked build's tests at entry, emitted once every parameter is bound.
     let mut entry_checks = Vec::new();
+    // Every build's tests at entry: one per `covariant` parameter.
+    let mut covariant_checks = Vec::new();
     let recv_ty = if is_static { Ty::ClassDesc } else { Ty::Object };
     let (this_v, _) = low.emit(entry, recv_ty, InstKind::Param(0));
     param_tys.push(recv_ty);
@@ -1303,14 +1305,20 @@ pub fn lower_method(
         let decl_ty = p.ty.as_ref().unwrap_or_else(|| {
             panic!("`rule:types/declaration`: every parameter has a declared type")
         });
-        // The body reads the parameter at its narrower type, so it runs only
-        // behind the entry test, which no lowering emits yet.
+        // A promoted parameter is a property, whose write is checked by the
+        // property's own test, which no lowering emits yet.
         assert!(
-            !p.covariant,
-            "nvs-ir: the parameter `{}` is `covariant`, and no lowering emits its entry test \
-             yet (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`)",
+            !(p.covariant && p.is_promoted()),
+            "nvs-ir: the promoted parameter `{}` is `covariant`, and no lowering emits a \
+             covariant property's test yet \
+             (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`)",
             span_text(src, p.name)
         );
+        let covariant = p.covariant.then(|| {
+            exprs.declared_ty(decl_ty.span).unwrap_or_else(|| {
+                panic!("nvs-ir: the checker records the type of every `covariant` parameter")
+            })
+        });
         // `...$rest`'s declared type is what each trailing *argument* is
         // checked against; the slot itself receives the one array
         // `Lowering::lower_variadic_tail` collected them into, which is what
@@ -1329,14 +1337,33 @@ pub fn lower_method(
         // *pointee*: every read of the parameter becomes an
         // `InstKind::RefLoad` at that type and every write an
         // `InstKind::RefStore`. See `Ty::Ref` for the whole representation.
+        //
+        // A plain `covariant` parameter's slot is read at `Ty::Tagged`: a call
+        // through the parent wrote the parent's wider type there, and every
+        // argument slot carries its tag. The entry test untags it once it passed.
         let bound_ty = if p.inout {
             low.ref_locals.insert(pname.clone(), ty);
             Ty::Ref
+        } else if covariant.is_some() && !p.variadic {
+            Ty::Tagged
         } else {
             ty
         };
         let (v, _) = low.emit(entry, bound_ty, InstKind::Param(index));
-        if !p.inout
+        if let Some(declared) = covariant {
+            covariant_checks.push(CovariantParam {
+                name: pname.clone(),
+                declared,
+                narrow: ty,
+                value: v,
+                kind: match (p.inout, p.variadic) {
+                    (true, _) => CovariantKind::Inout,
+                    (false, true) => CovariantKind::Variadic,
+                    (false, false) => CovariantKind::Plain,
+                },
+                span: p.name,
+            });
+        } else if !p.inout
             && !p.variadic
             && let Some(declared) = exprs.declared_ty(decl_ty.span)
         {
@@ -1369,6 +1396,9 @@ pub fn lower_method(
 
     for (read, declared, what, span) in entry_checks {
         low.emit_type_check(read, declared, false, span, &what, &mut env, &mut cur);
+    }
+    for check in covariant_checks {
+        low.emit_covariant_check(check, name, &mut env, &mut cur);
     }
 
     let body = m.body.as_ref().expect(
@@ -1405,6 +1435,129 @@ pub fn lower_method(
         },
         anon_fns,
         classes,
+    }
+}
+
+/// One `covariant` parameter's entry test, collected while [`lower_method`]
+/// binds the parameters and emitted once all of them are bound
+/// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+struct CovariantParam {
+    /// The variable, without its `$`.
+    name: String,
+    /// The narrower type the parameter declares.
+    declared: TypeId,
+    /// What that type lowers to, which the body reads.
+    narrow: Ty,
+    /// The slot: a [`Ty::Tagged`] value, an `inout` cell or a variadic array.
+    value: ValueId,
+    kind: CovariantKind,
+    span: Span,
+}
+
+/// Where a `covariant` parameter's value is, and so what its test reads.
+enum CovariantKind {
+    /// The slot itself, read at [`Ty::Tagged`].
+    Plain,
+    /// The caller's cell, read once on entry.
+    Inout,
+    /// Each element of the array the variadic arguments were collected into.
+    Variadic,
+}
+
+impl Lowering<'_> {
+    /// Tests one `covariant` parameter against its narrower type before the
+    /// body runs, and throws a `LogicError` naming the method, the parameter,
+    /// the type and what the value is when it fails. A plain parameter is
+    /// then untagged to the representation the body reads it at.
+    ///
+    /// Costs one class or tag test per call, and one per element of a
+    /// variadic one. The test only reads the value, so the parameter's own
+    /// release at each exit, the throwing one included, still covers it.
+    fn emit_covariant_check(
+        &mut self,
+        check: CovariantParam,
+        method: &str,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
+        let shape = expr::test_shape(check.declared, self.exprs, self.checked_types, self.enums)
+            .unwrap_or_else(|| {
+                panic!(
+                    "nvs-ir: `E0883` keeps a `covariant` type to one `is` can test, and `{}` \
+                     has no test",
+                    self.checked_types.describe(check.declared)
+                )
+            });
+        let span = check.span;
+        let (holds, got, lead) = match check.kind {
+            CovariantKind::Plain => {
+                let (holds, _) =
+                    self.emit_test_shape(shape, check.value, Ty::Tagged, span, env, cur);
+                (holds, check.value, "The argument is")
+            }
+            CovariantKind::Inout => {
+                let (loaded, _) =
+                    self.emit(*cur, Ty::Tagged, InstKind::RefLoad { slot: check.value });
+                let (holds, _) = self.emit_test_shape(shape, loaded, Ty::Tagged, span, env, cur);
+                (holds, loaded, "The variable passed is")
+            }
+            CovariantKind::Variadic => {
+                let (holds, witness) = self.emit_every_element_with(
+                    shape,
+                    check.value,
+                    Ty::Array,
+                    true,
+                    span,
+                    env,
+                    cur,
+                );
+                let witness = witness.expect("the walk gives a witness when it is asked for one");
+                (holds, witness, "One of the arguments is")
+            }
+        };
+        let failed = self.new_block();
+        let passed = self.new_block();
+        let passed_edge = self.ids.next_edge(span);
+        let failed_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: holds,
+                then_block: passed,
+                then_edge: passed_edge,
+                else_block: failed,
+                else_edge: failed_edge,
+            },
+        );
+        let message = format!(
+            "The parameter `${}` of `{method}` has the type `{}`. {lead}",
+            check.name,
+            self.checked_types.describe(check.declared)
+        );
+        let (message, _) = self.emit(failed, Ty::Str, InstKind::ConstStr(message));
+        self.emit_fallible(
+            failed,
+            Ty::Tagged,
+            InstKind::HelperCall {
+                helper: Helper::CovariantRejected,
+                args: vec![message, got],
+            },
+            env,
+        );
+        // The helper always throws, so this edge is never taken. It seals the
+        // block the way every block is sealed.
+        self.seal(failed, Terminator::Jump(passed));
+        *cur = passed;
+        if matches!(check.kind, CovariantKind::Plain) && check.narrow != Ty::Tagged {
+            let (narrowed, _) = self.emit(
+                passed,
+                check.narrow,
+                InstKind::Untag {
+                    operand: check.value,
+                },
+            );
+            env.insert(check.name, (narrowed, check.narrow));
+        }
     }
 }
 

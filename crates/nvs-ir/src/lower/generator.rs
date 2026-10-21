@@ -703,6 +703,14 @@ pub(crate) fn lower_generator_factory(
              nothing sound to park in the state object — `nvs_types::check` refuses this \
              where it is written, as `E0492`"
         );
+        // The state object would park the wider value at the narrower type.
+        assert!(
+            !p.covariant,
+            "nvs-ir: the generator parameter `{}` is `covariant`, and no lowering emits its \
+             entry test in a generator yet \
+             (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`)",
+            span_text(src, p.name)
+        );
         let decl_ty = p.ty.as_ref().unwrap_or_else(|| {
             panic!("`rule:types/declaration`: every parameter has a declared type")
         });
