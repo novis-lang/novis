@@ -6027,14 +6027,15 @@ pub(crate) fn describe_written(value: Value) -> String {
     })
 }
 
-/// Tests `value`, about to be written to `receiver`'s property `name`,
-/// against the type `receiver`'s own class gives that property
+/// Tests `value`, about to be written to `receiver`'s property in slot
+/// `index`, against the type `receiver`'s own class gives that property
 /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
 ///
 /// A subclass that declares the property `covariant` has its narrower type
 /// in its own descriptor, so this is [`ClassDesc::check_slot`] asked of the
-/// run-time class. Costs a scan of the class's field names and one tag or
-/// class test, on each write the compiler could not prove.
+/// run-time class. A subclass's slots follow its parent's, so the index
+/// codegen took from the declaring class is the receiver's too. Costs one
+/// tag or class test, on each write the compiler could not prove.
 ///
 /// # Errors
 ///
@@ -6042,13 +6043,13 @@ pub(crate) fn describe_written(value: Value) -> String {
 /// value is, when the value does not fit.
 pub(crate) fn check_covariant_write(
     receiver: Value,
-    name: &str,
+    index: usize,
     value: Value,
 ) -> Result<(), Fault> {
     let Some(ptr) = receiver.obj_ptr().filter(|ptr| !ptr.is_null()) else {
-        return Err(Fault::fatal(format!(
-            "internal error: a `covariant` test of `{name}` reached a value that is not an object"
-        )));
+        return Err(Fault::fatal(
+            "internal error: a `covariant` test reached a value that is not an object".to_owned(),
+        ));
     };
     #[expect(
         unsafe_code,
@@ -6056,9 +6057,9 @@ pub(crate) fn check_covariant_write(
                   is live and its descriptor is too"
     )]
     let desc = unsafe { &*NvsObj::class_of(ptr) };
-    let Some(index) = desc.field_slot(name, 0) else {
+    let Some(name) = desc.field_name(index) else {
         return Err(Fault::fatal(format!(
-            "internal error: `{}` has no slot for the `covariant` property `{name}`",
+            "internal error: `{}` has no slot {index} for a `covariant` property",
             desc.name()
         )));
     };

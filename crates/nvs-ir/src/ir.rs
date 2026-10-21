@@ -1055,6 +1055,18 @@ pub enum InstKind {
         /// The field's own name, `$`-sigil not included.
         field: String,
     },
+    /// The slot index `nvs-codegen` gives the field `field` of `class`, as a
+    /// [`crate::ty::Ty::Int`] constant. A subclass's slots follow its
+    /// parent's, so the index is the same in every class of the hierarchy.
+    /// Its one producer is the test of a write to a `covariant` property
+    /// ([`Helper::CovariantPropertyChecked`]), which reads the slot without a
+    /// scan of the field names. `class`/`field` are [`Self::FieldGet`]'s labels.
+    FieldSlot {
+        /// The class that declares the field.
+        class: String,
+        /// The field's own name, `$`-sigil not included.
+        field: String,
+    },
     /// Writes a compile-time-known field on an object — `$obj->prop = expr;`
     /// whose receiver's static type resolved to a known declaring class,
     /// exactly the same [`ExprInfo::Property`](nvs_types::expr_table::ExprInfo::Property)
@@ -2248,9 +2260,10 @@ pub enum Helper {
     /// `covariant` against the type the receiver's run-time class gives it
     /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
     /// Three operands: the receiver as a borrowed `Ty::Object`, the
-    /// property's name as a `Ty::Str`, and the value as a borrowed
-    /// `Ty::Tagged`. It gives `null`, or throws a `LogicError` that names the
-    /// class, the property, its type and what the value is.
+    /// property's slot as a `Ty::Int` from [`InstKind::FieldSlot`], and the
+    /// value as a borrowed `Ty::Tagged`. It gives `null`, or throws a
+    /// `LogicError` that names the class, the property, its type and what the
+    /// value is.
     CovariantPropertyChecked,
     /// Whether an `initProperty` call is running in this context, as a
     /// [`Ty::Bool`] (`rule:classes/late-init-initializes-on-the-first-read`).

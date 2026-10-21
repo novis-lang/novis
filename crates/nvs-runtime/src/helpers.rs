@@ -208,13 +208,14 @@ crate::nvs_helper! {
 crate::nvs_helper! {
     /// `nvs_ir::Helper::CovariantPropertyChecked`: tests a value written to a
     /// property a subclass declares `covariant` against the receiver's own
-    /// class. Gives `null`, or throws a `LogicError`. Every operand is
-    /// borrowed.
+    /// class. The second operand is the property's slot. Gives `null`, or
+    /// throws a `LogicError`. Every operand is borrowed.
     fn nvs_covariant_property_checked(_ctx, args: [3]) {
-        let Some(name) = args[1].as_str_bytes() else {
-            return Err(wrong_tag("nvs_covariant_property_checked", Tag::Str, args[1]));
+        let slot = expect_tag!("nvs_covariant_property_checked", args[1], as_int, Tag::Int);
+        let Ok(slot) = usize::try_from(slot) else {
+            return Err(wrong_tag("nvs_covariant_property_checked", Tag::Int, args[1]));
         };
-        crate::object::check_covariant_write(args[0], &String::from_utf8_lossy(name), args[2])?;
+        crate::object::check_covariant_write(args[0], slot, args[2])?;
         Ok(Value::null())
     }
 }

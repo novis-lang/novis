@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-runtime/src/object.rs",
-  "title": "`check_covariant_write` finds the property's slot by a scan of the field names.",
-  "text": "The slot index of a redeclared property is the same in every class of the hierarchy, so codegen could pass it to `Helper::CovariantPropertyChecked` and the test would be one compare. The scan costs one string compare per field before it on each checked write.",
-  "goal": "diagnostic-records"
-}
