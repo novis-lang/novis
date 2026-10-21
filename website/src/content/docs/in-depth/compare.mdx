@@ -15,13 +15,13 @@ command measures all four on one machine, and anybody can run it.
 
 The four servers take a new version of a program in two different ways:
 
-- **Copy a new file and it is live:** Novis and PHP. You copy the new source files to the server,
-  and the next request uses them.
-- **Build and restart for each change:** Bun and Go. By default, Bun needs a restart for a new
-  version. Go needs a new build and a restart.
+- **Live deploy:** Novis and PHP. You copy the new source files to the server, and the next request
+  uses them. There is no build, no restart and no reload.
+- **Build and restart:** Bun and Go. The server loads new code only when it restarts. Go also needs
+  a new build first.
 
-Each chart shows these two groups apart. The place of a server counts inside its group. All bars in
-a chart use the same scale.
+The deploy test measures what each way costs, so its chart shows the two groups in separate boxes.
+Every other test runs one program that does not change. Those charts rank all four servers together.
 
 ## How the test works
 
@@ -34,6 +34,8 @@ cores, and only one server runs at a time.
 - Bun runs with `Bun.serve`.
 - Go runs with the `net/http` package.
 
+When a server stops, Docker starts it again. Servers in production run the same way.
+
 Each program is written the way the documentation of its language shows. Before a test is timed, the
 four servers must return the same answer for the same request. A server that returns a different
 answer gets no number.
@@ -41,8 +43,8 @@ answer gets no number.
 ## When something goes wrong
 
 These tests send steady requests to each server while something goes wrong. The charts show what
-happened to those requests. The number in the circle is the server's place in its group, and place 1
-is the best result.
+happened to those requests. The number in the circle is the server's place, and place 1 is the best
+result. In the deploy chart, the place counts inside each box.
 
 ### Deploying a new version
 
@@ -53,27 +55,40 @@ is built partly from old files and partly from new files. Less is better.
 <FaultCharts chart="deploy" />
 
 Novis uses the new files with no reload and no restart, and every request got a complete page. PHP
-checks for changed files by default, so this test runs no reload for PHP. PHP had no failed request,
-but some of its pages mixed old and new files. By default, Bun needs a restart to use the new files,
+checks for changed files by default, so this test runs no reload for PHP. PHP had no failed request
+and no mixed page in this run. PHP checks each file on its own, so a page can mix old and new files
+while they are copied. By default, Bun needs a restart to use the new files,
 and Go needs a new build and a restart. In this test, both failed requests during the restart.
 
 ### Runaway requests
 
 A runaway request is a request that never ends, or one that uses more and more memory. Each test
-sends one runaway request while the steady requests run. Each chart shows how many of the steady
-requests were answered during the test. More is better.
+first sends steady requests for 15 seconds. Then it sends the same steady requests again, together
+with one runaway request. Each chart shows how many requests the server answered in the second part,
+as a share of the first part. More is better. A fast server does not get a better result only
+because it is fast.
 
-By default, Novis stops a request at 128 MB of memory or 30 seconds of CPU time. This test sets both
-in the `[limits]` table. PHP stops these requests with `max_execution_time` and `memory_limit`, and
-both are on by default. Bun and Go did not stop the runaway request.
+Every server runs with its default settings. By default, Novis and PHP stop a request at 128 MB of
+memory or 30 seconds of CPU time. In Novis, these limits are in the `[limits]` table. In PHP, they
+are `memory_limit` and `max_execution_time`. Bun and Go have no limit for one request.
 
 #### A request that uses too much memory
 
 <FaultCharts chart="memory" />
 
+Novis and PHP stopped the runaway request, and every other request was answered. Bun and Go have no
+memory limit for one request. The container's memory limit stopped the whole server, so the open
+requests failed. Docker then started the server again.
+
 #### A request that never ends
 
 <FaultCharts chart="loop" />
+
+Each server has one CPU core in this test. Novis stopped the runaway request after 30 seconds of CPU
+time. Until then, the runaway request used the only core, and some other requests waited more than
+five seconds. PHP runs each request in its own process, so the system shares the core between them.
+Go also shares the core, but the other requests were answered more slowly. Bun and Go never stopped
+the runaway request.
 
 ## Speed and memory
 
@@ -82,11 +97,11 @@ result is the relation between the four servers.
 
 Each server has two bars in each test. The first
 bar is requests per second, and the fastest server has the full bar. The second bar is peak memory,
-and the server that used the most memory has the full bar. The coloured bars are the best results
-in each group: the most requests and the least memory.
+and the server that used the most memory has the full bar. The coloured bars are the best results:
+the most requests and the least memory.
 
-The number in the circle before each bar is the server's place in its group. Two results closer
-than 3% get the same place, and the next place is skipped.
+The number in the circle before each bar is the server's place. Two results closer than 3% get the
+same place, and the next place is skipped.
 
 This is the machine and the run:
 
@@ -109,8 +124,12 @@ each on its own core. Or one request can split its own work into parts that run 
 
 ### Many requests at once
 
-This test runs the HTML page test with four cores for each server. Each bar shows a server's requests
-per second as a share of the fastest server.
+In this test, each request runs a loop that takes about one millisecond of CPU time. The test runs
+it with one core and then with four cores for each server. Each bar shows a server's requests per
+second with four cores, as a share of the fastest server.
+
+The HTML page test is not used here. Some servers answer it so fast that nginx becomes the limit
+with four cores. The test would then measure nginx and not the server.
 
 <CoreCharts chart="many-requests" />
 

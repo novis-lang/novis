@@ -1,14 +1,14 @@
 ---
 /**
- * One chart per recorded case on the comparison page, split into the two
- * groups `grouped` gives. Each peer has two bars: its requests per second
- * against the best peer's, and its peak memory against the most any peer
- * used. Each bar has its place in its group for its kind, and every bar in
- * place 1 takes the accent colour: the most requests, and the least memory.
- * A group whose PHP ran with its file check off says so under its heading.
+ * One chart per recorded case on the comparison page, all four peers ranked
+ * together. Each peer has two bars: its requests per second against the best
+ * peer's, and its peak memory against the most any peer used. Each bar has
+ * its place for its kind, and every bar in place 1 takes the accent colour:
+ * the most requests, and the least memory. A case whose PHP ran with its file
+ * check off says so above the bars.
  */
 import Bars from './Bars.astro'
-import { charts, grouped, overLeast, record } from '~/lib/compare'
+import { charts, overLeast, record } from '~/lib/compare'
 
 const number = (n: number) => Math.round(n).toLocaleString('en-US')
 const fileCheckNote = (labels: string[]) =>
@@ -28,12 +28,11 @@ const fileCheckNote = (labels: string[]) =>
             {c.text} {c.concurrency.toLocaleString('en-US')} connections at once.
           </p>
           <Bars
-            groups={grouped(c.bars).map((g) => {
-              const off = g.items.filter((b) => b.fileCheckOff).map((b) => b.label)
+            groups={[c.bars].map((all) => {
+              const off = all.filter((b) => b.fileCheckOff).map((b) => b.label)
               return {
-                title: g.title,
                 note: off.length > 0 ? fileCheckNote(off) : null,
-                bars: g.items.flatMap((b) => [
+                bars: all.flatMap((b) => [
                   {
                     label: b.label,
                     place: b.place,
