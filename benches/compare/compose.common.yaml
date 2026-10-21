@@ -19,7 +19,8 @@ services:
 
     volumes:
       # The peer's entry in `tools/nv/cmd/bench-compare.ts` names which config: `nginx/http.conf` for a
-      # backend that speaks HTTP, `nginx/fastcgi.conf` for PHP-FPM. The driver sets `NGINX_CONF`.
+      # backend that speaks HTTP, `nginx/fastcgi.conf` for PHP-FPM. A row may name its own, as
+      # `deploy-switch` names `nginx/fastcgi-switch.conf` for PHP. The driver sets `NGINX_CONF`.
       - ./nginx/${NGINX_CONF:?the driver sets NGINX_CONF}:/etc/nginx/nginx.conf:ro
       # Self-signed, made by the driver at the first run into this git-ignored folder.
       - ./generated/tls:/etc/nginx/tls:ro

@@ -23,8 +23,10 @@ services:
     restart: unless-stopped
 
     # The Go runtime reads the host's core count, not the container's quota, so the budget is set here.
+    # The deploy program reads its part count from `DEPLOY_PARTS`.
     environment:
       GOMAXPROCS: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
+      DEPLOY_PARTS: ${DEPLOY_PARTS:-}
 
     command: ["/srv/${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}"]
 

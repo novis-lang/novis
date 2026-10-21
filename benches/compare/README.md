@@ -118,7 +118,10 @@ not `no`.
 - `crash` sends one request that throws or panics, then one that does not. The second must answer
   `200` from a backend that is running and was never restarted.
 - `loop` and `memory` each put 15 seconds of steady load on `/` with nothing else running, then 15
-  seconds more with one runaway request sent 3 seconds in: `loop` sends `/loop`, which never ends,
+  seconds more with one runaway request sent 3 seconds in. Five unmeasured seconds of the same load
+  come first, so both loads start on a warm server: the first load on a fresh one pays for opcache,
+  the JITs and new FPM workers, and PHP once answered more requests beside the runaway than without it.
+  Each of the three runs is a fresh stack. In each run, `loop` sends `/loop`, which never ends,
   and `memory` sends `/alloc`, which allocates 1 MiB at a time without end. The first load is the
   peer's own throughput, and the page shows the share of it the second load kept, so a peer that is
   fast anyway does not win the row on speed. Each backend container has a 512 MiB cap in these rows, so
@@ -130,7 +133,12 @@ not `no`.
   `max_execution_time` both stop a request at 128 MB or 30 seconds of CPU time, so both are
   `on-by-default` naming the key their row needs. Thirty seconds is longer than the load, so `loop`
   measures the other requests while the runaway one still runs. Bun and Go have no limit for one
-  request, so their answers are `no`, and the load's p99 stays in the evidence.
+  request, so their answers are `no`, and the load's p99 stays in the evidence. Bun's `loop` is
+  `your-code` (`LOOP_IN_CODE`): `Worker.terminate()` stops a worker that never yields, so a program
+  that runs each request in a worker under a time limit stops it. Bun ignores a worker's
+  `resourceLimits`, measured with `oven/bun:1.4.3-slim` and stated in its Node compatibility page, so
+  `memory` has no such way. No framework on either side stops a goroutine or a blocked event loop: Gin,
+  Echo, Fiber, chi, Hono, Express and Fastify time out the reply and leave the handler running.
 - No row tests whether a request sees a value another request set. A process that keeps state
   between requests is a design choice in Bun and Go, not a failure, and a yes or no cannot say which
   of the two a reader wants.
@@ -167,29 +175,38 @@ not `no`.
   without `--hot`, its default. An edit that never shows is `one-setting` where the peer's
   documentation names a setting it starts without, and the measured `null` stays in the evidence. Go
   compiles its program into the image, so it runs nothing and is `no`.
-- `deploy` serves a copy whose program reads 200 part files, each printing its version, so a reply
-  shows every part's version. The driver writes the parts, and Novis's entry too, because `require`
-  takes only a path written as literal text. PHP runs at its default `opcache.validate_timestamps=1`,
-  as in every case and row. Two seconds into 20 seconds of steady load, it
-  replaces the parts one at a time with a 10 ms pause, then runs the step the peer needs at its
-  defaults: none for Novis and PHP, which check their files, and a restart for Bun and Go. Go
-  compiles its parts into the image, so it only restarts, and its reply is not checked for a
-  version. The row's own requests run the whole time and count replies that mix the two versions.
-  No failed request, no mixed reply and the new version within 20 seconds of the deploy step is
-  `built-in` with no step, `on-by-default` naming PHP's `opcache.validate_timestamps`, or
-  `one-setting` naming the step. Anything else is `no`.
+- `deploy`, `deploy-big` and `deploy-switch` serve a copy whose program reads part files, each
+  printing its version, so a reply shows every part's version. The driver writes the parts, and
+  Novis's entry too, because `require` takes only a path written as literal text. The PHP, Bun and Go
+  programs read the part count from `DEPLOY_PARTS`. PHP runs at its default
+  `opcache.validate_timestamps=1`, as in every case and row. The load is the driver's own: 8 loops of
+  `GET /`, each reply checked, because `oha` never reads a body and a sampler beside it checks a few
+  replies out of many. A reply is failed (an error, or any status but `200`), mixed (more than one
+  version in it) or complete. Two seconds in, the driver writes version 2 one file at a time with a
+  10 ms pause, then runs the step the peer needs at its defaults: none for Novis and PHP, which check
+  their files, and a restart for Bun and Go. The load stops a second after the first reply of the
+  new version, or 20 seconds after the step without one. Go compiles its parts into the image, so it
+  only restarts, and its new version is its first reply to a request sent after the restart.
+  `deploy` replaces 200 parts in place, about 2 seconds of copying, and `deploy-big` 2000, about 20.
+  `deploy-switch` is the deploy PHP's own tools recommend: the folder holds `releases/1/` and a
+  `current` link to it, the driver writes the whole of `releases/2/`, and one rename inside the app
+  container switches the link. Every peer serves from `/app/current`, so its mount is read-write in
+  this row only. PHP's nginx uses `nginx/fastcgi-switch.conf`, which names the script under
+  `$realpath_root`, as Deployer and Laravel Envoyer document, so one request reads one release. That is
+  PHP at its best for a switch, which is the comparison's rule. A mixed reply depends on where PHP's
+  2-second file check lands in the copy, so one copy proves little: each row runs three times on a
+  fresh stack, sums the replies, and keeps the slowest seconds. No failed request, no mixed reply and
+  the new version within 20 seconds of the step in every run is `built-in` with no step,
+  `on-by-default` naming PHP's `opcache.validate_timestamps`, or `one-setting` naming the step.
+  Anything else is `no`.
 - `config` changes one response header in the peer's own config file, inside the container. A bind
   mount shows every file as world-writable, and Novis refuses such a config file, so Novis edits the
   `nvs.toml` its data folder holds. The change applied with no command is `built-in`, after the
   peer's documented reload command is `one-setting` naming it, and only after a restart is `no`.
   Bun and Go have no config file that sets a response header, so they run nothing and are
   `your-code`.
-- `upgrade` replaces the runtime binary two seconds into 20 seconds of steady load. The new file is
-  written beside the old one and renamed over it, since a running binary cannot be written in place.
-  Then the peer's documented step makes the new binary run: `php-fpm reload`, which re-executes
-  PHP-FPM's own binary, and a restart for Novis, Bun and Go. Go's runtime is compiled into the
-  program, so its binary is the program. Every peer needs a step, so no failed request is
-  `one-setting` naming it, and anything else is `no`.
+- No row replaces the runtime itself. Every server needs a restart or a reload for a new runtime
+  version, so such a row says nothing a reader does not already know.
 
 `--row <id>` runs one row, which is how a fix to one probe is checked.
 
@@ -208,7 +225,7 @@ escapes the way its own documentation says to and those spellings mean the same 
 ## Memory
 
 Memory is the backend container's cgroup: `memory.current` before the first request and `memory.peak`
-after the last. Every (case, peer) pair gets a fresh container, so the peak is that arm's alone and
+after the last. Every pass of a (case, peer) pair gets a fresh container, so the peak is that pass's alone and
 never a figure left over from an earlier case. The proxy and the generator are not counted.
 
 ## One record, and no arithmetic with the proxied leg's
@@ -220,6 +237,14 @@ commit, and a case run keeps the rows already there. So the two halves are re-ru
 needs the other's minutes. `--row` records nothing, because a recorded table is one run of every row. It shares the proxied leg's images but none of its
 inputs — TLS, four peers, other cases and concurrencies — so no figure in it is ever divided by one in
 `benches/serve-proxied.json`.
+
+**Every figure is the median of interleaved runs.** A case runs `--reps` passes, five by default, and
+the peers take turns: pass 1 of every peer, then pass 2, each on a fresh stack. The record keeps the
+median pass's throughput and p99, the median of the passes' peaks, and the errors of all of them. The
+runaway rows run three times and keep the median run's load; the deploy rows run three times and sum
+their replies. The host runs other work, and the fastest of three let one lucky pass set a peer's bar,
+while a slow minute fell on whichever peer's block it hit. `cores` and `waiting` take the median of
+their passes too, one peer after another, because a row asks for its passes one budget at a time.
 
 **The numbers are relations.** The absolute figures depend on the machine. The record names the machine
 so the page can say which, and the page shows each peer against the best in each case.

@@ -31,10 +31,12 @@ services:
     # after it measures the restart and not a server left down for the rest of the row.
     restart: unless-stopped
 
+    # Read-only, except in the `deploy-switch` row, whose link is switched inside the container.
     volumes:
-      - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:ro
+      - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:${APP_MOUNT_MODE:?the driver sets APP_MOUNT_MODE}
 
-    command: ["serve", "/app/main.nvs", "--listen", "0.0.0.0:8080"]
+    # `APP_DIR` is `/app`, or `/app/current` in the row that serves a link to a release.
+    command: ["serve", "${APP_DIR:?the driver sets APP_DIR}/main.nvs", "--listen", "0.0.0.0:8080"]
 
     # A TCP connect: not every case has a route at `/`.
     healthcheck:

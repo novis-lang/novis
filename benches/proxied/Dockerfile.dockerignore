@@ -49,6 +49,10 @@ benches/*.json
 benches/proxied/.bin/
 !benches/proxied/.bin/nvs
 
+# The comparison's copies of the programs it serves. Its `deploy-switch` row makes a symlink there from
+# inside a container, which a Windows host cannot open, so sending it fails the whole build.
+benches/compare/generated/
+
 # Documentation, except the pages the build compiles in: `crates/nvs-stdlib/build.rs` reads the
 # `docs/reference/core/` intros, and `crates/nvs-cli/src/agent.rs`
 # `include_str!`s the reference chapters. An edit to any other doc must not invalidate the context

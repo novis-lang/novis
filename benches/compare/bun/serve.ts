@@ -1,12 +1,13 @@
 // Bun's side of every case: one process per CPU of the budget, each serving the case's handler on port
 // 8080 with `reusePort`, so the kernel spreads connections over them.
 //
-// The case's `server.ts` is mounted at `/app` and exports `default { fetch }`. `WORKERS` is the budget.
+// The case's `server.ts` is in `APP_DIR`, which is `/app` unless a row serves a link in it, and exports
+// `default { fetch }`. `WORKERS` is the budget.
 
 const child = process.env.COMPARE_CHILD !== undefined;
 
 if (child) {
-  const app = (await import("/app/server.ts")).default;
+  const app = (await import(`${process.env.APP_DIR ?? "/app"}/server.ts`)).default;
   Bun.serve({ hostname: "0.0.0.0", port: 8080, reusePort: true, fetch: app.fetch });
 } else {
   const workers = Math.max(1, Number(process.env.WORKERS ?? "1"));
