@@ -1,0 +1,29 @@
+<?nvs
+namespace Example\Markdown;
+
+use Core\Html;
+use Core\Html\Markup;
+
+/// Turns text written in Markdown into HTML that a page can show.
+final class Document
+{
+    /// `Document::render` returns `text` as HTML that is safe to put on a page.
+    /// `text` may be `tainted`, for example the text of a form.
+    public static function render(tainted string $text): Markup
+    {
+        return Html::sanitize(Parser::toHtml($text));
+    }
+
+    /// `Document::outline` returns the headings of `text` as an HTML list.
+    /// A heading of level 3 or deeper is left out.
+    public static function outline(tainted string $text): Markup
+    {
+        array<Markup> $items = [];
+        foreach (Parser::headings($text) as var $heading) {
+            if ($heading->level <= 2) {
+                $items[] = html`<li>{$heading->text}</li>`;
+            }
+        }
+        return html`<ul>` + Html::join($items, html``) + html`</ul>`;
+    }
+}

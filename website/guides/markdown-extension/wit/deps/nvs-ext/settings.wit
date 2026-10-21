@@ -1,0 +1,20 @@
+package nvs:ext@1.0.0;
+
+/// Reads the extension's own `[ext.<name>]` block from the request's
+/// configuration. A setting narrows what the component does; it never
+/// grants I/O.
+interface settings {
+    /// One value, in the type the manifest declares for its key.
+    variant setting {
+        %bool(bool),
+        int(s64),
+        uint(u64),
+        float(f64),
+        %string(string),
+        strings(list<string>),
+    }
+
+    /// The value under `key`, or its default. `none` for a key the
+    /// manifest does not declare.
+    get: func(key: string) -> option<setting>;
+}

@@ -1,0 +1,17 @@
+# The manifest of this extension. `nvs ext build` reads it.
+class = "Example\\Markdown\\Parser"
+interface = "example:markdown/api"
+# The wasm file that `cargo build --release --target wasm32-wasip2` writes.
+module = "target/wasm32-wasip2/release/markdown.wasm"
+# The folder of the Novis classes that are packed with the extension.
+source = "nvs"
+
+# One `[[methods]]` table for each function in the `api` interface.
+# The signature is written in Novis.
+[[methods]]
+signature = "toHtml(string $text): string"
+help = "Returns `text`, written in Markdown, as HTML."
+
+[[methods]]
+signature = "headings(string $text): array<{level: int, text: string}>"
+help = "Returns the level and the text of every heading in `text`."

@@ -596,7 +596,9 @@ jobs:
   # ---------------------------------------------------------------------------
   # Both `nvs ext new` templates, as an extension author meets them: written, built for
   # wasm32-wasip2 with their README's commands, run through `nvs ext build`, `verify` and `test`,
-  # and called from a program. Three platforms, because an author builds on any of them.
+  # and called from a program. Then the Markdown example the website's extension guide walks
+  # through, the same steps over `website/guides/markdown-extension/`. Three platforms, because an
+  # author builds on any of them.
   # `tools/nv/cmd/ext-templates.ts` is every step, so a contributor runs the same definition; under
   # CI its C leg fails rather than skipping when wasi-sdk or `wit-bindgen` is missing.
   # ---------------------------------------------------------------------------
@@ -658,6 +660,8 @@ jobs:
         run: bun nv ext-templates --lang rust
       - name: The C template
         run: bun nv ext-templates --lang c
+      - name: The extension guide's Markdown example
+        run: bun nv ext-templates --example
 
   # libwebp's prebuilt wasm library, rebuilt from the source and the wasi-sdk
   # release `extensions/image/libwebp/SOURCE.json` pins, and compared byte for

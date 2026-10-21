@@ -1,0 +1,25 @@
+<?nvs
+// A page with a form. You write Markdown in the box, and the page shows it as HTML.
+// Start it with `nvs serve index.nvs` in this folder, after you build the extension.
+
+use Example\Markdown\Document;
+
+// The text that the form sent. The first time, there is no form, so the page uses an example.
+tainted string $text = Core\Request::post("text") ?? "# Tea\n\nGreen tea is **light**.\n\n## Black tea\n\nIt is *strong*.";
+
+// The outline and the preview are `Core\Html\Markup` values, so the page writes them as HTML.
+// The text in the box is a `string`, so the page escapes it.
+var $outline = Document::outline($text);
+var $preview = Document::render($text);
+
+echo html`<!doctype html>
+<title>Markdown preview</title>
+<form method="post">
+  <textarea name="text" rows="10" cols="60">{$text}</textarea>
+  <button>Show</button>
+</form>
+<h2>Outline</h2>
+{$outline}
+<h2>Preview</h2>
+{$preview}
+`;

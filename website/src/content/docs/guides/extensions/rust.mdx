@@ -1,0 +1,273 @@
+---
+title: Write an extension in Rust
+covers: []
+description: Build a Novis extension in Rust from an empty folder. It converts Markdown to HTML with a Rust library, and a web page uses it.
+---
+
+import ExtensionFile from '@components/ExtensionFile.astro'
+import ExtensionFiles from '@components/ExtensionFiles.astro'
+
+This guide builds an extension from an empty folder. The extension converts Markdown to HTML. It
+uses the Rust library [`pulldown-cmark`](https://crates.io/crates/pulldown-cmark) for the work. At
+the end, a web page uses the extension.
+
+The extension has two classes:
+
+- `Example\Markdown\Parser` is written in Rust. It has two methods: `toHtml` converts Markdown to
+  HTML, and `headings` returns every heading of a document.
+- `Example\Markdown\Document` is written in Novis. It calls `Parser` and makes the HTML safe to show
+  on a page. It is packed into the same file as the Rust code.
+
+The finished project is in the Novis repository, in the folder `website/guides/markdown-extension`. The
+[last section](#get-the-finished-project) shows how to download it.
+
+## What you need
+
+- Novis. See [Install](/install/).
+- Rust, installed with [rustup](https://rustup.rs/).
+- The Rust target `wasm32-wasip2`. It compiles Rust to WebAssembly:
+
+```sh
+rustup target add wasm32-wasip2
+```
+
+## Step 1: Create the project
+
+`nvs ext new` writes a small extension that works. Start from it:
+
+```sh
+nvs ext new --lang rust markdown
+cd markdown
+```
+
+The folder `markdown` now has these files:
+
+| File | What it is |
+|---|---|
+| `Cargo.toml` | The Rust package. |
+| `src/lib.rs` | The Rust code of the extension. |
+| `wit/greeting.wit` | The functions of the extension, written in WIT. |
+| `wit/deps/` | What every extension can use. Do not change these files. |
+| `nvsx.toml` | The manifest: the class name and the Novis signature of each method. |
+| `tests/GreetingTest.nvs` | A Novis test for the extension. |
+
+The template is the class `Example\Greeting` with one method, `hello`. You can build and test it
+now to check that your tools work:
+
+```sh
+cargo build --release --target wasm32-wasip2
+nvs ext build
+nvs ext test
+```
+
+Then delete `wit/greeting.wit`, `tests/GreetingTest.nvs` and the file `greeting.nvsx` that
+`nvs ext build` wrote. The next steps add the files of the Markdown extension.
+
+## Step 2: Describe the functions in WIT
+
+WIT is the language that WebAssembly components use to describe their functions. Novis reads it to
+know what the extension exports. Create `wit/markdown.wit`:
+
+<ExtensionFile path="wit/markdown.wit" />
+
+A few things to know about this file:
+
+- A name in WIT uses dashes. The function `to-html` is `to_html` in Rust and `toHtml` in Novis.
+- Every function returns a `result`: the value, or an `error`. Novis throws an exception for an
+  error. You can see which one in [Errors](#errors).
+- The `world` at the end includes `nvs:ext/extension`. That is what every Novis extension can use.
+
+Each WIT type has one Novis type:
+
+| WIT | Novis |
+|---|---|
+| `bool`, `s64`, `u64`, `f64` | `bool`, `int`, `uint`, `float` |
+| `string` | `string` |
+| `list<u8>` | `bytes` |
+| `list<T>` | `array<T>` |
+| `record` | an anonymous object, such as `{level: int, text: string}` |
+| `option<T>` | `?T` |
+| `enum` | an enum |
+
+The record `heading` is the anonymous object `{level: int, text: string}` in Novis.
+
+## Step 3: Add the library
+
+Open `Cargo.toml`. Change the package name to `markdown`, and add `pulldown-cmark` under
+`[dependencies]`:
+
+<ExtensionFile path="Cargo.toml" />
+
+`crate-type = ["cdylib"]` makes Cargo write one `.wasm` file. The `[workspace]` table at the end
+makes the project build alone, also inside another Cargo workspace.
+
+## Step 4: Write the Rust code
+
+Replace `src/lib.rs`:
+
+<ExtensionFile path="src/lib.rs" />
+
+The macro `wit_bindgen::generate!` reads the WIT files and writes the Rust types for them. The trait
+`Guest` has one method for each function in the WIT file. `Heading` is the WIT record as a Rust
+struct.
+
+`to_html` changes HTML in the Markdown to plain text. Without this, the parser copies a `<script>`
+tag from the text into the result unchanged. Step 6 makes the result safe a second time, in Novis.
+
+If the Rust code panics, the program gets an `ExtensionError`. The request goes on. The next call to
+the extension gets a new copy of it.
+
+## Step 5: Write the manifest
+
+Replace `nvsx.toml`:
+
+<ExtensionFile path="nvsx.toml" />
+
+| Key | What it is |
+|---|---|
+| `class` | The Novis name of the class. |
+| `interface` | The WIT interface the class calls: the package, then the interface name. |
+| `module` | The `.wasm` file that Cargo writes. |
+| `source` | A folder of Novis files to pack with the extension. Step 6 adds one. |
+| `[[methods]]` | One table for each function. `signature` is written in Novis. `help` is a short description. |
+
+The Novis signature and the WIT function must match. If they do not match, `nvs ext build` stops
+with an error that names the method.
+
+## Step 6: Add a Novis class
+
+An extension can contain Novis classes beside its Rust code. They must be in the namespace of the
+manifest's class, here `Example\Markdown`. A program can use them with no `autoload` line. Create
+`nvs/Document.nvs`:
+
+<ExtensionFile path="nvs/Document.nvs" />
+
+`Document::render` passes the HTML to [`Core\Html::sanitize`](/reference/core/html/sanitize/). It
+removes every tag and attribute that is not safe, such as a `javascript:` link. The result is a
+`Core\Html\Markup` value, so a page writes it as HTML. A program that uses `Document` always gets
+safe HTML.
+
+The parameters are `tainted string`, so a method accepts text from a form. When an argument to an
+extension is `tainted`, every string in the result is `tainted` too. The text of each heading is
+`tainted`, so the `html` template in `outline` escapes it.
+
+## Step 7: Build the extension
+
+```sh
+cargo build --release --target wasm32-wasip2
+nvs ext build
+```
+
+`cargo build` writes `target/wasm32-wasip2/release/markdown.wasm`. `nvs ext build` packs it with
+the manifest and the Novis files into one file, `parser.nvsx`. It names the file after the last part
+of the class name. Then it loads the file and checks it, and prints the path and the `sha256` of the
+file.
+
+Run both commands again after each change to the Rust code, the manifest or the Novis files.
+
+## Step 8: Test the extension
+
+Create `tests/MarkdownTest.nvs`:
+
+<ExtensionFile path="tests/MarkdownTest.nvs" />
+
+`nvs ext test` runs every `#[Test]` method in the folder `tests`, with `parser.nvsx` loaded:
+
+```sh
+nvs ext test
+```
+
+```txt
+  MarkdownTest
+    ✓ toHtmlConvertsMarkdown           1.2 ms
+    ✓ htmlInTheMarkdownIsShownAsText   0.2 ms
+    ✓ headingsReturnsLevelAndText      0.4 ms
+    ✓ renderRemovesAnUnsafeLink        0.7 ms
+    ✓ outlineListsTheTopTwoLevels      0.3 ms
+
+  0 failed, 5 passed, 0 skipped, 0 flaky in 4 ms
+```
+
+The tests need no `nvs.toml`. If `parser.nvsx` is older than a file it is built from,
+`nvs ext test` stops and tells you to build it again.
+
+## Step 9: Use the extension in a web page
+
+Create `demo/index.nvs`. It is a page with a form. You write Markdown in the box, and the page shows
+the outline and the HTML:
+
+<ExtensionFile path="demo/index.nvs" />
+
+A program can use an extension only when the configuration file `nvs.toml` lists it.
+`nvs ext pin` prints the entry for a file:
+
+```sh
+cd demo
+nvs ext pin ../parser.nvsx
+```
+
+```toml
+[[extension]]
+path   = "/home/you/markdown/parser.nvsx"
+sha256 = "a09d75a3a0dbc8e46980ebc716f5955705e0ed92c18249cbba4fe070c5b0cf81"
+```
+
+Save the entry as `demo/nvs.toml`. Your path and your `sha256` are different. Then start the
+server:
+
+```sh
+nvs serve index.nvs
+```
+
+Open `http://127.0.0.1:8000/` and click **Show**. Try some unsafe Markdown, too:
+
+```md
+# Hi <script>alert(1)</script>
+
+[click](javascript:alert(1))
+```
+
+The heading shows the `<script>` tag as text. The link has no `href`, so it does nothing.
+
+Each build writes a new `parser.nvsx` with a new `sha256`. A file whose `sha256` is not the one in
+`nvs.toml` does not load. So after each build, run `nvs ext pin` again and replace the entry.
+
+## Errors
+
+The Rust code can fail in three ways. Each one gives the program something different:
+
+| What happens in Rust | What the program gets |
+|---|---|
+| A function returns `Err(Error::Invalid(message))` | a `LogicError` with the message |
+| A function returns `Err(Error::Parse(message))` | a `ParseError` with the message |
+| A function returns `Err(Error::Runtime(message))` | a `RuntimeError` with the message |
+| The code panics | an `ExtensionError` |
+| The code uses more time or memory than the request may use | the request stops, as for any limit |
+
+The Markdown parser accepts every text, so this extension never returns an error. The template's
+`hello` from step 1 shows an error: an empty name returns `Error::Invalid`.
+
+## Files and the network
+
+This extension needs no files and no network. An extension that needs them asks in its manifest,
+with a `[requests]` table. The person who runs the server then allows them in the `[[extension]]`
+entry. The extension gets only what both allow. See
+[the `[[extension]]` entry](/reference/config/extension/).
+
+## All the files
+
+<ExtensionFiles />
+
+## Get the finished project
+
+Download only the folder `website/guides/markdown-extension` of the Novis repository. A sparse clone (a
+clone that checks out only the folders you name) does this:
+
+```sh
+git clone --depth 1 --filter=blob:none --sparse https://github.com/novis-lang/novis.git
+cd novis
+git sparse-checkout set website/guides/markdown-extension
+cd website/guides/markdown-extension
+```
+
+Then build and test it, as in steps 7 and 8.

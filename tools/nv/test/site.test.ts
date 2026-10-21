@@ -270,14 +270,14 @@ describe("nv site --check guides", () => {
     return s;
   }
 
-  test("the eight sections with their counts, snippets and sidebar order pass", () => {
+  test("the nine sections with their counts, snippets and sidebar order pass", () => {
     expect(guidesProblems(guides().root)).toEqual([]);
   });
 
   test("a missing section, a short count, a page with no snippet and a sidebar out of order are named", () => {
     const root = guides(["guides/testing/", "guides/simple-programs/06.mdx"]).root;
     s.put(`${DOCS}/guides/cookbook/01.mdx`, page("No snippet."));
-    s.put("website/astro.config.ts", sidebar(["tour", "why-novis", "simple-programs", "how-to-use", "cookbook", "production", "example-apps"]));
+    s.put("website/astro.config.ts", sidebar(["tour", "why-novis", "simple-programs", "how-to-use", "cookbook", "production", "example-apps", "extensions"]));
     expect(guidesProblems(root)).toEqual([
       `${DOCS}/guides/simple-programs/: 5 page(s) beside its index, and the goal names 6 at least`,
       `${DOCS}/guides/cookbook/01.mdx: shows no <Snippet>`,
