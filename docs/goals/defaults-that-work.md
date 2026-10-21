@@ -6,7 +6,7 @@ context: [crates/nvs-config/src/capability.rs, crates/nvs-runtime/src/capability
 stages:
   - id: 1
     title: a grant entry that grants nothing is an error, and every refusal prints the line to add
-    status: open
+    status: done
     context: [crates/nvs-config/src/default.toml, crates/nvs-cli/src/config.rs, crates/nvs-stdlib/src/db/span.rs, docs/rules/security/denial-is-a-runtime-error.md, docs/rules/security/process-exec-capability.md, docs/rules/core-classes/process-is-argv-only.md]
     extra:
       context:
@@ -357,12 +357,19 @@ the check stays a checkpoint of goal `namespace-grants`' stage 3.
   - [x] `true` refused on the seven grants with no `true` spelling, and on `net.internal`
   - [x] a relative `db.open` path refused with its absolute form as the fix; a non-endpoint `net.listen` entry and a non-address `net.internal` entry refused too
   - [x] the rule says what is refused
-- [ ] Every refusal prints the line to add and its table, and the address-table refusal names `[capabilities.net] internal` (`rule:security/denial-is-a-runtime-error`). `crates/nvs-runtime/src/capability.rs:271`, `crates/nvs-runtime/src/capability.rs:546`, `tests/conformance/cap/a-denial-names-the-file-and-the-table-a-grant-is-written-in.nvst:1`
-- [ ] A conformance case passes a `tainted` argv element, and `rule:core-classes/process-is-argv-only` and `rule:security/process-exec-capability` both say what it shows and drop the current-directory sentence. `docs/rules/security/process-exec-capability.md:16`, `docs/rules/core-classes/process-is-argv-only.md:6`, `crates/nvs-stdlib/src/process.rs:170`
-- [ ] `debug.trace` without its grant writes one warning per run (`rule:testing/debug-mode-directive`). `crates/nvs-stdlib/src/db/span.rs:57`
-- [ ] Tests: each refused spelling, the bare-host message, and a refusal's help line for a path, a host and an address. `crates/nvs-config/tests/capability.rs:1174`
+- [x] Every refusal prints the line to add and its table, and the address-table refusal names `[capabilities.net] internal` (`rule:security/denial-is-a-runtime-error`). `crates/nvs-runtime/src/capability.rs:271`, `crates/nvs-runtime/src/capability.rs:546`, `tests/conformance/cap/a-denial-names-the-file-and-the-table-a-grant-is-written-in.nvst:1`
+  - [x] `nvs_config::capability::grant_line` and `internal_line` build the line; `denial()` and the address refusal print it
+  - [x] every conformance case, example output and reference page that pinned the old text says the new one
+  - [x] the rule says what the help line is
+- [x] A conformance case passes a `tainted` argv element, and `rule:core-classes/process-is-argv-only` and `rule:security/process-exec-capability` both say what it shows and drop the current-directory sentence. `docs/rules/security/process-exec-capability.md:16`, `docs/rules/core-classes/process-is-argv-only.md:6`, `crates/nvs-stdlib/src/process.rs:170`
+  - [x] `process-an-argv-element-that-is-tainted-does-not-compile.nvst` pins `E0401`
+  - [x] both rules say a tainted argument does not compile, and a bare name is refused
+- [x] `debug.trace` without its grant writes one warning per run (`rule:testing/debug-mode-directive`). `crates/nvs-stdlib/src/db/span.rs:57`
+  - [x] `QueryWatch` notes the missing grant and `file` writes one warning per process, naming `trace = true`
+  - [x] the rule says so
+- [x] Tests: each refused spelling, the bare-host message, and a refusal's help line for a path, a host and an address. `crates/nvs-config/tests/capability.rs:1174`
   - [x] each refused spelling and its help line (`a_grant_entry_that_allows_nothing_is_refused_naming_the_line_to_write`), the accepted spellings beside them, and the resolve wiring (`tests/resolve.rs`)
-  - [ ] a refusal's help line for a path, a host and an address
+  - [x] a refusal's help line for a path, a host and an address (`the_line_a_refusal_prints_loads_and_grants_what_was_refused`)
 
 ### 2. the run kind and the app folder reach every capability decision
 
@@ -498,34 +505,33 @@ capability default. Then one writing subagent edits them, held to § *Text an en
 
 ### State
 
-Stage 1 is half done. `nvs_config::capability::validate` runs in `resolve` right after `anchor`,
-so `nvs config check` and the boot both refuse a grant entry that allows nothing: a host with a
-port, scheme, user or path; `*`, `*.` and a path `*`; `*.x` outside `db.open` and `ldap.open`;
-`true` on the seven no-`true` grants and on `net.internal`; a relative `db.open` path; a
-non-endpoint `net.listen` entry; and a non-address `net.internal` entry. Each refusal is `E0601`,
-names the file in a note, and its help is the line to write under its table. The six shipped
-`host:port` examples are fixed, and the rule says what is refused. No tree file used a refused
-spelling. The runtime refusal text is unchanged, so far.
+Stage 1 is done. Besides the load check, every capability refusal now ends with
+``help: add `<line>` under `[capabilities.<family>]` in nvs.toml``, the line built by
+`nvs_config::capability::grant_line` (a file's folder for `fs.*` and `script.spawn`, the path for
+other path grants, the host, name or endpoint itself, `key = true` unscoped). The address refusal
+reads `<member> cannot connect to <addr>: ...` and gives `internal = ["<addr>"]`
+(`internal_line`). Every pinned case, example `.out` and `70-errors.md` follow. A `tainted` argv
+element is pinned as `E0401` and both process rules say so; a bare program name is refused today.
+`debug.trace` missing under `trace` warns once per process at the first query.
 
-The nightly's site failures were already fixed on `main` by `b3ed92165`. The newer stale stamps
-(the compare page's questions, `Template::open`'s reference data, the tainted-and-secret pages) are
-fixed in `1847e8036`.
+The nightly's proofs failures were the site checks, already fixed on `main` by `b3ed92165` and
+`1847e8036`. Locally only `/in-depth/compare/`'s questions are stale, from uncommitted compare-page
+edits in the working tree that are not this goal's.
 
 ### Next
 
-**Stage 1, the rest**, one file set: `crates/nvs-config/src/capability.rs`,
-`crates/nvs-runtime/src/capability.rs`, and the expected outputs listed below. Gate: none.
+**Stage 2**, the run kind and the app folder reach every capability decision. Files:
+`crates/nvs-config/src/capability.rs`, `crates/nvs-runtime/src/capability.rs`,
+`crates/nvs-runtime/src/ctx/isolate.rs`, `crates/nvs-config/src/snapshot.rs`. Gate: none.
+Follow the stage's `**Split:**` line: first an `Explore` list of every caller of `allows*` and `holds`.
 
-- [ ] Every refusal prints the line to add, and the address refusal names `internal` (`rule:security/denial-is-a-runtime-error`). `crates/nvs-runtime/src/capability.rs:271`, `crates/nvs-runtime/src/capability.rs:546`
-  - Put the builder in `nvs_config::capability` beside `grant_list` and `toml_string`, which already quote a value as TOML. `denial()` calls it.
-  - A path's line is its folder as the program wrote it (`read = ["data/"]`); `process.exec` and `net.local` name the path itself; a host, a name and an endpoint name themselves; an unscoped grant is `key = true`.
-  - The help reads ``help: add `read = ["data/"]` under `[capabilities.fs]` in nvs.toml``. The address refusal gets ``help: add `internal = ["10.0.0.5"]` under `[capabilities.net]` in nvs.toml``, and its headline drops "refuses" for "cannot connect to" (the prose rule's vocabulary).
-  - About 51 files pin `help: grant it in nvs.toml`. `Grep` for it lists them: about 35 `.nvst` cases under `tests/conformance/`, about 14 `.out` files under `docs/examples/`, `docs/reference/lang/70-errors.md` and one `details.md`. They are a batch of similar edits for a writing subagent once the code lands. Grep `does not except` for the address refusal's own pins.
-- [ ] The argv `tainted` case, and both process rules made to agree (`rule:core-classes/process-is-argv-only`, `rule:security/process-exec-capability`). `docs/rules/security/process-exec-capability.md:16`, `crates/nvs-stdlib/src/process.rs:170`
-- [ ] `debug.trace` without its grant warns once (`rule:testing/debug-mode-directive`). `crates/nvs-stdlib/src/db/span.rs:57`
-- [ ] Tests: a refusal's help line for a path, a host and an address. `crates/nvs-config/tests/capability.rs:1578`
+- [ ] The app folder, one function, stored on the context beside `RunKind`. `crates/nvs-config/src/snapshot.rs:520`, `crates/nvs-config/src/mount.rs:67`, `crates/nvs-runtime/src/ctx/isolate.rs:63`
+- [ ] The defaults function (all defaults still deny-all). `crates/nvs-config/src/capability.rs:694`, `crates/nvs-config/src/defaults.rs:370`
+- [ ] Every asker goes through it. `crates/nvs-runtime/src/capability.rs:242`, `crates/nvs-config/src/schedule.rs:247`, `crates/nvs-ext/src/grants.rs:69`
+- [ ] Isolates inherit; tests. `crates/nvs-runtime/src/ctx/isolate.rs:63`
 
 ### Backlog
 
+- `Core\Queue::push`'s `grants` refusal still says ``help: grant it in nvs.toml under ...``: it is about the request's own grants list, not a missing grant line, and may adopt `grant_line` when stage 2 touches queue grants. `crates/nvs-stdlib/src/queue.rs:3085`
 - Stages 7, 8, 9 and 10 touch disjoint files and may run as side goals at any time. `docs/goals/defaults-that-work.md`
 - The package half of every default is goal `namespace-grants`'s: a package is checked against its own line alone. `docs/goals/namespace-grants.md`
