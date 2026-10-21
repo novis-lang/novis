@@ -3,8 +3,6 @@
 
 # Errors
 
-*1 of 30 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="errors-throwable-hierarchy"></a>
 
 ## A limit report is not a Throwable, and the type checker knows it
@@ -503,7 +501,7 @@ a kind.
 
 <a id="errors-record-producers"></a>
 
-## Five producers build the one record  *(designed — owned by goal diagnostic-records)*
+## Five producers build the one record
 
 `rule:errors/record-producers`
 
@@ -534,14 +532,24 @@ builds the trace as the throw unwinds — so those three parts are the whole of 
 object a record of a throw carries is the throw itself, whose declared properties are walked like
 any other value and redact like any other value.
 
-**Partly on disk.** `Core\Log::write`, `Core\Debug::dump`, an uncaught `Throwable` and a compiler
-diagnostic build the record (`crates/nvs-stdlib/src/log.rs`, `crates/nvs-stdlib/src/debug.rs`,
-`crates/nvs-runtime/src/floor.rs`, `crates/nvs-diagnostics/src/record.rs`), and a frame is
-`nvs_render::Node::Frame`. A compiler diagnostic's terminal text and its `nvs check --json`
-document both render from its record (`crates/nvs-cli/src/check.rs`), and its snippet masks a
-`secret` literal ([`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings)). A test result does
-not build the record, and is goal `diagnostic-records`'s gap
-`data/gaps/nvs-render/test-result-is-not-a-producer.json`.
+All five build the record: `crates/nvs-stdlib/src/log.rs`, `crates/nvs-stdlib/src/debug.rs`,
+`crates/nvs-runtime/src/floor.rs`, `crates/nvs-diagnostics/src/record.rs` and
+`crates/nvs-cli/src/runner.rs`, and a frame is `nvs_render::Node::Frame`. A compiler diagnostic's
+terminal text and its `nvs check --json` document both render from its record
+(`crates/nvs-cli/src/check.rs`), and its snippet masks a `secret` literal
+([`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings)).
+
+A test result is one record per failed assertion, at `Error`, its message the line every report
+prints and an `assertion` field naming the `Core\Test` method. A failed `assertSame`, `assertEquals`
+or `assertEqualsDeep` carries its two values as the record's nodes, actual then expected, walked by
+`nvs_runtime::record::node` so a `secret` property is redacted. The plaintext, JSON and JUnit
+reports print each record's message, byte for byte what they printed before; a JSON key for the
+two nodes would raise [`testing/report-formats`](testing.md#testing-report-formats)' schema version, and no consumer asks for it
+yet. A passing assertion builds no record, since no report shows one.
+
+- **Memory:** a failed comparison walks both values once into nodes, bounded by the record's caps,
+  and the ledger holds them until the runner reads the test's verdict. A passing assertion costs
+  nothing more than before.
 
 **Declined:**
 - **Logs and dumps only, with throws, test results and diagnostics outside.** It is the smallest

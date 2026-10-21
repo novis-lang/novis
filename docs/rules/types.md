@@ -1707,7 +1707,8 @@ place.
 The subject of every spelling is a **binding**, named, or a **path of `readonly` properties** from
 one — `$this->node`, `$app->config->parent` — where every property on the path is `readonly`. A
 `readonly` property is written once, during construction ([`classes/readonly-is-written-once`](classes.md#classes-readonly-is-written-once)), so a test of it still holds at the next
-read. A write to the path's root binding widens the path again, exactly as it widens the binding.
+read. A write to the path's root binding widens the path again, exactly as it widens the binding,
+and so does passing the path itself as an `inout` argument, which the callee may write.
 The narrowed read of a property keeps a run-time null check, which a narrowed binding does not: a
 write the checker could not see throws a `LogicError` naming the property, and never reads `null` as
 an object. A mutable property, an element or any other place is never the thing narrowed:
