@@ -3301,10 +3301,10 @@ impl Emitter<'_, '_> {
     /// `$obj->prop = expr;`: one store into the receiver's field slot.
     ///
     /// A plain store, with no release of what the slot held:
-    /// `nvs_ir::lower::lower_reassignment` already emitted the `FieldGet` and
-    /// `Release` pair for the previous value, ahead of this instruction. That
-    /// split is why this is not `nvs_runtime::nvs_object_field_set`, which
-    /// releases for its caller.
+    /// `nvs_ir::lower::lower_reassignment` reads the previous value with a
+    /// `FieldGet` ahead of this instruction and releases it after. That split
+    /// is why this is not `nvs_runtime::nvs_object_field_set`, which releases
+    /// for its caller.
     fn emit_field_set(
         &mut self,
         object: ValueId,
@@ -3347,7 +3347,7 @@ impl Emitter<'_, '_> {
 
     /// `Class::$prop = v`: [`Self::emit_static_get`]'s store side, and
     /// [`Self::emit_field_set`]'s policy unchanged — the release of what the
-    /// slot held is the IR's, emitted before this.
+    /// slot held is the IR's, emitted after this.
     fn emit_static_set(
         &mut self,
         class: &str,

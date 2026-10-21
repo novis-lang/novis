@@ -285,10 +285,9 @@ pub enum Ty {
     ///
     /// - [`crate::ir::InstKind::RefSlot`] retains the value it stages, so the
     ///   holder and the slot each own one.
-    /// - [`crate::ir::InstKind::RefStore`] releases what the slot held and
-    ///   stores an owned value in its place — exactly
-    ///   `crate::lower::Lowering::bind_local`'s policy, against a slot instead
-    ///   of an `Env` entry.
+    /// - [`crate::ir::InstKind::RefStore`] stores an owned value, and the
+    ///   lowering then releases what the slot held — the store comes first so
+    ///   code the release runs reads the new value.
     /// - The copy-back releases the *holder's* previous value and transfers
     ///   the slot's reference into it. The two ends balance: the staging
     ///   retain pays for the copy-back release.

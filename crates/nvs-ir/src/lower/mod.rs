@@ -1732,8 +1732,10 @@ pub fn lower_property_hook(
             if prop_ty.is_refcounted() && low.aliasing_read(e) {
                 low.emit_retain(cur, v);
             }
-            if prop_ty.is_refcounted() {
-                let (old_v, _) = low.emit(
+            // Store, then release, so a `finally` the release runs reads the
+            // new value.
+            let old_v = prop_ty.is_refcounted().then(|| {
+                low.emit(
                     cur,
                     prop_ty,
                     InstKind::FieldGet {
@@ -1741,10 +1743,13 @@ pub fn lower_property_hook(
                         class: class.clone(),
                         field: field.clone(),
                     },
-                );
+                )
+                .0
+            });
+            low.emit_field_set(cur, this_v, class, field, v);
+            if let Some(old_v) = old_v {
                 low.emit_release(cur, old_v);
             }
-            low.emit_field_set(cur, this_v, class, field, v);
         }
         Some(PropertyHookBody::Expr(e)) => {
             let (v, ty) = low.lower_expr(e, Some(ret_ty), &mut env, &mut cur);
@@ -3787,8 +3792,9 @@ impl<'a> Lowering<'a> {
             }
         }
     }
-    /// [`Self::write_back_holder`]'s store into one class's slot: the old
-    /// value is released, then `written` is stored.
+    /// [`Self::write_back_holder`]'s store into one class's slot: `written` is
+    /// stored, then the old value is released, so a `finally` the release runs
+    /// reads the new value.
     fn write_back_field(
         &mut self,
         cur: BlockId,
@@ -3798,8 +3804,8 @@ impl<'a> Lowering<'a> {
         written: ValueId,
         ty: Ty,
     ) {
-        if ty.is_refcounted() {
-            let (old_v, _) = self.emit(
+        let old_v = ty.is_refcounted().then(|| {
+            self.emit(
                 cur,
                 ty,
                 InstKind::FieldGet {
@@ -3807,10 +3813,13 @@ impl<'a> Lowering<'a> {
                     class: class.to_owned(),
                     field: field.to_owned(),
                 },
-            );
+            )
+            .0
+        });
+        self.emit_field_set(cur, object, class.to_owned(), field.to_owned(), written);
+        if let Some(old_v) = old_v {
             self.emit_release(cur, old_v);
         }
-        self.emit_field_set(cur, object, class.to_owned(), field.to_owned(), written);
     }
     /// Whether `e` reads storage some durable slot still owns, so a value
     /// taken from it needs a retain before anything else can own it too —

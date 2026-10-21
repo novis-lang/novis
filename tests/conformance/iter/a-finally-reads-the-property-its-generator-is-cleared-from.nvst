@@ -1,0 +1,67 @@
+--TEST--
+A generator dropped by a property write runs its `finally` after the new value is stored, so the `finally` reads the new value and a copy it keeps is that value — `rule:iteration/generators`
+--FILE--
+<?nvs
+class Holder {
+    public ?Iterator<int> $gen = null;
+    public ?Iterator<int> $copy = null;
+
+    // The `finally` copies the property that held this generator.
+    public function numbers(): Iterator<int> {
+        try {
+            yield 1;
+            yield 2;
+        } finally {
+            $this->copy = $this->gen;
+            echo $this->gen == null ? "[gen is null]" : "[gen is set]";
+        }
+    }
+
+    // Suspends a generator inside its `try`. The property is then its only owner.
+    public function start(): void {
+        Iterator<int> $g = $this->numbers();
+        $g->advance();
+        echo $g->current();
+        $this->gen = $g;
+    }
+}
+
+Holder $h = new Holder();
+$h->start();
+$h->gen = null;
+echo "\n";
+echo $h->copy == null ? "copy is null" : "copy is set";
+echo "\n";
+
+// The same shape through a static property.
+class Store {
+    public static ?Iterator<int> $gen = null;
+    public static ?Iterator<int> $copy = null;
+
+    public static function numbers(): Iterator<int> {
+        try {
+            yield 1;
+        } finally {
+            Store::$copy = Store::$gen;
+            echo Store::$gen == null ? "[gen is null]" : "[gen is set]";
+        }
+    }
+
+    public static function start(): void {
+        Iterator<int> $g = Store::numbers();
+        $g->advance();
+        echo $g->current();
+        Store::$gen = $g;
+    }
+}
+
+Store::start();
+Store::$gen = null;
+echo "\n";
+echo Store::$copy == null ? "copy is null" : "copy is set";
+echo "\n";
+--EXPECT--
+1[gen is null]
+copy is null
+1[gen is null]
+copy is null

@@ -1579,9 +1579,10 @@ pub enum InstKind {
     /// keeping [`crate::ty::Ty::Ref`]'s "the slot owns exactly one reference"
     /// invariant is `crate::lower::Lowering`'s job, and it does it the same
     /// way `bind_local` does for an `Env` entry — retain the incoming value
-    /// when it is an aliasing read, then [`InstKind::RefLoad`] the slot's
-    /// previous value and [`InstKind::Release`] it, in that order, so a
-    /// self-assignment never observes a transient zero refcount.
+    /// when it is an aliasing read, [`InstKind::RefLoad`] the slot's previous
+    /// value, store, then [`InstKind::Release`] the previous value. Retain
+    /// first, so a self-assignment never observes a transient zero refcount;
+    /// release last, so code the release runs reads the new value.
     RefStore {
         /// The [`crate::ty::Ty::Ref`] whose cell is written.
         slot: ValueId,
