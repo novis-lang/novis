@@ -585,13 +585,13 @@
 # ----------------------------------------------------------------------------------------------
 # [session] — where a `Core\Session` record lives, what it rides under, and how long an untouched
 # one survives (`rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`).
-# A block with no key written is not a default backend: `Core\Session::start()` throws naming this
-# block, which is the safe answer for a store nobody chose.
+# With no `backend` written, sessions are saved in `session.sqlite` in the data folder.
 # ----------------------------------------------------------------------------------------------
 
 [session]
-# `shared` or `db`. `memory` is not allowed and is `E0626`: the memory cache is kept inside one
-# server process, and a session must be the same in every process that serves this deployment.
+# `db` or `shared`. `db` is the default: a SQLite file in the data folder, which every server
+# process on this machine reads. `shared` saves sessions in `[cache.shared]`, for several machines.
+# `memory` is not allowed and is `E0626`: the memory cache is kept inside one server process.
 #backend = "shared"                   # example
 # How long an untouched record survives, written onto the entry so the store expires it.
 #ttl = "2h"                           # default

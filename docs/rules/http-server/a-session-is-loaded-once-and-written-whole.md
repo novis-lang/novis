@@ -5,7 +5,9 @@ since a hook is user code that may still write — and immediately for `regenera
 that starts a session and reads it makes one round trip, not two.
 
 There is no lock. Two requests writing one session concurrently is last-write-wins over the
-**whole record**, and this is stated rather than repaired. A lock held for the length of a
+**whole record**, and this is stated rather than repaired. On the `db` store each operation is one
+statement in its own transaction, so nothing is held between `start` and the write-back, and two
+requests of one session never wait for each other. A lock held for the length of a
 request is a cross-request channel (`rule:security/closed-doors`), and a request that dies holding
 one wedges every later request for that session until it expires. The cost belongs to a narrow
 case — two concurrent requests that write *different keys* of one session lose one of the two

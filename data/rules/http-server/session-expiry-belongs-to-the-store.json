@@ -1,12 +1,13 @@
 {
-  "title": "`[session] ttl` is written onto the record and the store expires it; there is no sweeper and no probability of one",
+  "title": "`[session] ttl` is written onto the record, an expired record is absent at once, and the SQLite store sweeps by time, never by chance",
   "status": "shipped",
   "seeAlso": [
     "http-server/a-session-store-answers-four-operations",
     "http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot",
-    "concurrency/who-runs-a-job-is-configuration"
+    "http-server/no-session-block-means-the-data-folder-store"
   ],
   "guardedBy": [
-    "crates/nvs-stdlib/src/session.rs"
+    "crates/nvs-stdlib/src/session.rs",
+    "crates/nvs-stdlib/src/session/sqlite.rs"
   ]
 }
