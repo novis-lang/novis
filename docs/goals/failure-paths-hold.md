@@ -34,7 +34,7 @@ stages:
         rules: [errors/multipart-part-count, http-server/the-body-is-read-on-demand-under-two-caps, config/ceilings-are-their-own-directives]
   - id: 5
     title: "a panic on the safepoint path is a `FATAL`, never a process abort"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/abi.rs, crates/nvs-runtime/src/ctx/hooks.rs]
     extra:
       context:
@@ -279,10 +279,10 @@ user reads*.
 **Does:** a panic forced in the limit handler's runtime half or in collection ends that request with a
 `FATAL`, and the next request on the core is answered.
 
-- [ ] The slow branches of `nvs_safepoint` run inside `catch_unwind`, and the "nothing here can panic" reasons are rewritten. `crates/nvs-runtime/src/ctx/safepoint.rs:773`, `crates/nvs-runtime/src/ctx/safepoint.rs:777`, `crates/nvs-runtime/src/ctx/safepoint.rs:934`
-- [ ] `run_helper`'s memory pre-check and collection run inside the same `catch_unwind` as the body. `crates/nvs-runtime/src/abi.rs:445`, `crates/nvs-runtime/src/abi.rs:466`
-- [ ] Rust test: a panic forced in the collection branch is a `FATAL` and the context drops cleanly. `crates/nvs-runtime/src/ctx/safepoint.rs:1`
-- [ ] The residue rule says a Rust panic is never part of the residue. `docs/rules/http-server/the-residue-is-one-named-fault-class.md:1`
+- [x] The slow branches of `nvs_safepoint` run inside `catch_unwind`, and the "nothing here can panic" reasons are rewritten. `crates/nvs-runtime/src/ctx/safepoint.rs:778`, `crates/nvs-runtime/src/ctx/safepoint.rs:937`
+- [x] `run_helper`'s memory pre-check and collection run inside the same `catch_unwind` as the body. `crates/nvs-runtime/src/abi.rs:445`
+- [x] Rust test: a panic forced in the collection branch is a `FATAL` and the context drops cleanly. `crates/nvs-runtime/src/ctx/safepoint.rs:1028`
+- [x] The residue rule says a Rust panic is never part of the residue. `docs/rules/http-server/the-residue-is-one-named-fault-class.md:1`
 
 ### 6. the attacks, and every rule this goal touched says what is true
 
@@ -385,6 +385,18 @@ exits 0 at HEAD. The nightly `proofs` jobs in run 39567373487 ran at `afbb1edc2`
 `site snippets`, `site stale` and `site questions` for the covariant and union-types pages, which
 `b3ed92165` fixed. `bun nv site --questions --status` shows 0 owed and 0 stale at HEAD.
 
+Stage 5 is done. `abi::contain_panic` (`crates/nvs-runtime/src/abi.rs:551`) runs a slow path inside
+`catch_unwind`, and `contained_panic` turns the payload into the request's `FATAL`, with the same
+`Teardown` test `run_helper` makes. `nvs_safepoint` and `nvs_stack_check` are now thin `extern "C"`
+shells over `safepoint_slow_path` and `stack_check_slow_path`. `run_helper`'s closure now returns
+`Result<Value, i32>`: the memory pre-check, the collection, the limit handler and the post-body
+breach check all run inside it, and `Err` carries a status already recorded. A `cfg(test)`
+thread-local `PANIC_IN_COLLECT` in `collect_if_asked` (`crates/nvs-runtime/src/ctx/safepoint.rs:353`)
+forces the panic. `a_panic_in_the_collection_branch_is_a_fatal_and_the_context_drops` passes by
+name. The residue rule says a panic under a context is contained, and names the ctx-less primitives
+as the backlog's exception. Build and clippy are green, and the acceptance sweep's red was stale
+again: the `env-secret-proofs` log shows exit 0.
+
 **Expected red at the gate:** any `nvs-ir` lowering snapshot or IR-dump test that pins a property,
 static or reference-cell write. The release of the old value now follows the store instead of
 preceding it. Update the expected order; it is not a regression. Also any `nvs-host` or
@@ -397,16 +409,20 @@ row adds one. `bun nv directives --check-template` has not run over the new `def
 
 ### Next
 
-**Stage 5, one group: the safepoint path.** No gate. Its files are
-`crates/nvs-runtime/src/ctx/safepoint.rs`, `crates/nvs-runtime/src/abi.rs` and the residue rule.
+**Stage 6, one group: the attacks.** No gate. Follow the stage's `**Split:**` line: one writing
+subagent writes the hostile cases one after another, and the session checks each against
+`rule:testing/hostile-case-contract` and AGENTS.md § *Text an end user reads*.
 
-- [ ] The slow branches of `nvs_safepoint` run inside `catch_unwind`, and the "nothing here can panic" reasons are rewritten. `crates/nvs-runtime/src/ctx/safepoint.rs:773`, `crates/nvs-runtime/src/ctx/safepoint.rs:934`
-- [ ] `run_helper`'s memory pre-check and collection run inside the same `catch_unwind` as the body. `crates/nvs-runtime/src/abi.rs:445`, `crates/nvs-runtime/src/abi.rs:466`
-- [ ] Rust test: a panic forced in the collection branch is a `FATAL` and the context drops cleanly. `crates/nvs-runtime/src/ctx/safepoint.rs:1`
-- [ ] The residue rule says a Rust panic is never part of the residue. `docs/rules/http-server/the-residue-is-one-named-fault-class.md:1`
+- [ ] Attack: a urlencoded form whose names nest past the memory limit stops with the memory error. `tests/hostile/core/Request/post/02-a-form-whose-names-nest-past-the-memory-limit.nvs:1`
+- [ ] Attack: the same shape in a query string. `tests/hostile/core/Request/query/02-a-query-whose-names-nest-past-the-memory-limit.nvs:1`
+- [ ] Attack: more parts than `max_multipart_parts`. `tests/hostile/core/Request/files/02-a-body-of-many-empty-parts.nvs:1`
+- [ ] Attack: a program catches the body-limit error and reads the form again. `tests/hostile/core/Request/post/03-reading-the-form-again-after-its-limit.nvs:1`
+- [ ] Attack: a `finally` keeps the generator that is being freed. `tests/hostile/lang/iteration/generators/02-a-finally-that-keeps-its-own-generator.nvs:1`
+- [ ] Rust tests: a chunked body over `request_body` and one over `upload_total`, read by `post()`. `crates/nvs-cli/tests/request.rs:342`
+- [ ] `bun nv rules --check` and `bun nv owners --closes failure-paths-hold` are green. `docs/rules/errors/multipart-part-count.md:1`
 
-Stage 6's attack "a program catches the body-limit error and reads the form again" now has the
-runtime behaviour it needs (`crates/nvs-stdlib/src/request.rs:3365`).
+The "reads the form again" attack has the runtime behaviour it needs (`Inbound::fail_body`,
+`crates/nvs-runtime/src/ctx/inbound.rs:996`).
 
 ### Backlog
 

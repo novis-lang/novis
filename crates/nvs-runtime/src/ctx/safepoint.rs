@@ -348,6 +348,11 @@ impl Ctx {
             return false;
         }
         self.lower_safepoint(SafepointFlags::COLLECT);
+        #[cfg(test)]
+        assert!(
+            !tests::PANIC_IN_COLLECT.replace(false),
+            "internal error: injected collection panic"
+        );
         // `rule:observability/gc-pause-is-its-own-event`'s event, opened here
         // and not in the poll above it: this side of the flag test is the
         // collector's run and the other side is the hot path. The clock is read
@@ -771,18 +776,20 @@ pub(super) struct TreeShare {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
-    #[expect(
-        unsafe_code,
-        reason = "the caller guarantees `ctx` is valid for this call; nothing \
-                  here can panic, so no `catch_unwind` is needed to keep the \
-                  unwind out of the JIT frame above — the two things reached \
-                  from here that are not a load and a compare are \
-                  `rule:errors/on-limit`'s handler and the collection a \
-                  crossing of its memory ceiling asks for, and every helper \
-                  call either of them makes is contained by `run_helper`"
-    )]
-    let ctx = unsafe { &mut *ctx };
+    // The whole slow path is contained, because it runs Rust that can panic:
+    // the collection, the limit handler's runtime half and the shutdown
+    // handler's. An unwind that reached the JIT frame above would abort the
+    // process, so a panic here ends this one request with a `FATAL`, the way
+    // a panic in a helper body does. The poll's fast path is in compiled code
+    // and pays nothing for it.
+    #[expect(unsafe_code, reason = "the caller's contract, passed on unchanged")]
+    unsafe {
+        crate::abi::contain_panic(ctx, safepoint_slow_path)
+    }
+}
 
+/// [`nvs_safepoint`]'s body, run inside its `catch_unwind`.
+fn safepoint_slow_path(ctx: &mut Ctx) -> i32 {
     if ctx.safepoint_flags().contains(SafepointFlags::CPU_LIMIT) {
         // `rule:errors/on-limit` lists CPU time beside memory, so the ladder is the same
         // two lines the memory branch below carries, in the same order: the
@@ -928,14 +935,16 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_stack_check(ctx: *mut Ctx, sp: u64) -> i32 {
-    #[expect(
-        unsafe_code,
-        reason = "the caller guarantees `ctx` is valid for this call; nothing \
-                  here can panic, so no `catch_unwind` is needed to keep the \
-                  unwind out of the JIT frame above"
-    )]
-    let ctx = unsafe { &mut *ctx };
+    // Contained like `nvs_safepoint`: recording the message allocates, and an
+    // unwind out of this frame into the JIT frame above would abort the process.
+    #[expect(unsafe_code, reason = "the caller's contract, passed on unchanged")]
+    unsafe {
+        crate::abi::contain_panic(ctx, |ctx| stack_check_slow_path(ctx, sp))
+    }
+}
 
+/// [`nvs_stack_check`]'s body, run inside its `catch_unwind`.
+fn stack_check_slow_path(ctx: &mut Ctx, sp: u64) -> i32 {
     // `I64` is the width `nvs-codegen` gives every pointer-shaped value, and
     // this JIT targets 64-bit hosts only; an address that does not fit a
     // `usize` is therefore not this machine's stack pointer, and the safe
@@ -1007,6 +1016,40 @@ pub fn stack_pointer() -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    std::thread_local! {
+        /// Set by a test to make the next [`Ctx::collect_if_asked`] on this
+        /// thread panic once it has lowered the ask.
+        pub(super) static PANIC_IN_COLLECT: std::cell::Cell<bool> =
+            const { std::cell::Cell::new(false) };
+    }
+
+    #[test]
+    fn a_panic_in_the_collection_branch_is_a_fatal_and_the_context_drops() {
+        // The poll's slow path is reached from compiled code, which has no
+        // unwind tables, so a panic here must end the request and never the
+        // process.
+        let mut ctx = Ctx::buffered();
+        ctx.request_safepoint(SafepointFlags::COLLECT);
+        PANIC_IN_COLLECT.set(true);
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        let status = unsafe { nvs_safepoint(&raw mut ctx) };
+        assert_eq!(status, crate::FATAL);
+        assert_eq!(
+            ctx.pending().as_deref(),
+            Some("internal error: injected collection panic")
+        );
+        assert!(!PANIC_IN_COLLECT.get(), "the injection was never reached");
+        drop(ctx);
+
+        // The next request on this thread is answered.
+        let mut next = Ctx::buffered();
+        next.request_safepoint(SafepointFlags::COLLECT);
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        let status = unsafe { nvs_safepoint(&raw mut next) };
+        assert_eq!(status, crate::OK);
+        assert!(next.pending().is_none());
+    }
 
     #[test]
     fn the_deadline_flag_starts_clear_and_is_set_through_a_shared_borrow() {
