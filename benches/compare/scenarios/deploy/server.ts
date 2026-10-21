@@ -1,6 +1,9 @@
-// Returns the version of each of the 200 parts. The driver writes the parts and later replaces them.
+// Returns the version of each part. The driver writes the parts and later replaces them.
+// `DEPLOY_PARTS` is the number of parts, 200 unless the row sets it.
+const count = Number(process.env.DEPLOY_PARTS || 200);
+const digits = String(count - 1).length;
 const parts: { version: string }[] = await Promise.all(
-  Array.from({ length: 200 }, (_, i) => import(`./parts/p${String(i).padStart(3, "0")}.ts`)),
+  Array.from({ length: count }, (_, i) => import(`./parts/p${String(i).padStart(digits, "0")}.ts`)),
 );
 
 export default {

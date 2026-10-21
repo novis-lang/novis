@@ -15,8 +15,9 @@
 //
 // The peers are data: `PEERS` names each one's compose file, nginx config, published port, image and the
 // settings written into its rows, and a fifth peer is a new entry and a compose file. One stack is up at a
-// time, and every (case, peer) pair gets a fresh one, so `memory.peak` is that arm's alone. A full run
-// first brings every pair up only to check that the peers answer alike, and times nothing until they do.
+// time, and every (case, rep, peer) gets a fresh one, so `memory.peak` is that pass's alone. The reps
+// interleave the peers, and a peer's figures are the median rep's (`medianOf`). A full run first brings
+// every pair up only to check that the peers answer alike, and times nothing until they do.
 // `--smoke` is one pass at a few hundred requests that checks the answers and records nothing.
 //
 // `--scenarios` runs the feature rows in `SCENARIOS` instead of the cases. A row brings each peer's stack
@@ -60,6 +61,14 @@ export interface PeerCtx {
   commit: string;
   /** The backend container's memory cap, such as `512m`. Unset is no cap. */
   memory?: string | undefined;
+  /** The folder in the container the backend serves its program from. Unset is `/app`. */
+  appDir?: string | undefined;
+  /** `rw` for a row that changes the served folder from inside the container. Unset is `ro`. */
+  mount?: "ro" | "rw" | undefined;
+  /** The part count of a deploy row, which the PHP, Bun and Go programs read from `DEPLOY_PARTS`. */
+  parts?: number | undefined;
+  /** An nginx config under `nginx/` in place of the peer's own, for a row that serves differently. */
+  nginx?: string | undefined;
 }
 
 export interface Peer {
@@ -137,8 +146,11 @@ export function stackEnv(peer: Peer, ctx: PeerCtx): Record<string, string> {
     CASE: ctx.case,
     BACKEND_CPUS: String(ctx.cpus),
     BACKEND_MEMORY: ctx.memory ?? "0",
-    NGINX_CONF: peer.nginx,
+    APP_DIR: ctx.appDir ?? "/app",
+    APP_MOUNT_MODE: ctx.mount ?? "ro",
+    NGINX_CONF: ctx.nginx ?? peer.nginx,
     NGINX_PORT: String(peer.port),
+    ...(ctx.parts === undefined ? {} : { DEPLOY_PARTS: String(ctx.parts) }),
     ...peer.env(ctx),
   };
 }
@@ -325,6 +337,12 @@ export interface Probe {
   exec(command: string[]): { code: number; output: string };
   /** Restarts the backend container, as a deploy that needs a new process does. */
   restart(): { code: number; output: string };
+  /**
+   * A deploy step, a command in the backend container or its restart, run without blocking. The deploy
+   * rows' own requests come from this process, so a blocking step would pause them over the very window
+   * it is meant to show.
+   */
+  step(run: string[] | "restart"): Promise<{ code: number; output: string }>;
   /** The backend's last log lines. */
   logs(): string;
   /** `oha` against `path` from inside the stack for `seconds`, at the row's connections, while the row sends its own requests. */
@@ -365,7 +383,7 @@ export interface Timer {
   /** Requests each pass sends, and connections the case holds open. */
   requests: number;
   concurrency: number;
-  /** One fresh, timed pass of the row's case at a backend budget of `cpus`, with its memory. */
+  /** The row's case at a backend budget of `cpus`: `--reps` passes, each on a fresh stack, as `medianOf` merges them. */
   pass(cpus: number): Promise<PeerResult>;
 }
 
@@ -386,6 +404,25 @@ export interface Scenario {
   cpus?: number;
   /** The request a timed row sends to the row's own program, where it does not time a case in `cases/`. */
   timedCase?: Case;
+  /** The folder in the container the backend serves, `rw` mounted, and the deploy part count, for a deploy row. */
+  appDir?: string;
+  mount?: "rw";
+  parts?: number;
+  /** An nginx config per peer id in place of the peer's own. */
+  nginx?: Record<string, string>;
+  /**
+   * Shell scripts run over the generated folder in a one-off backend container: `before` the stack comes
+   * up and `after` the probe. They make and remove what the host cannot, such as a symlink on a Windows drive.
+   */
+  before?: string;
+  after?: string;
+  /**
+   * Fresh stacks the row runs against each peer, one probe each, merged by `merge`. The runs interleave
+   * the peers (run 1 of every peer, then run 2), so a slow stretch of the shared host lands on all of them.
+   * `--smoke` runs one.
+   */
+  runs?: number;
+  merge?(peer: string, results: RowResult[]): RowResult;
   /** The result of a peer that has nothing to run for this row, with the documentation that says so. */
   fixed?: Record<string, RowResult>;
   /** A row about requests: sent to one stack the driver brings up. */
@@ -457,6 +494,10 @@ export function waitingResult(r: PeerResult, inFlight: number, setting: Setting 
 
 /** How long the loop and memory rows' steady load runs, and how long after the load starts the runaway request is sent. */
 export const RUNAWAY_LOAD_SECONDS = 15;
+/** How long the unmeasured load before the baseline runs, so the baseline and the runaway load both start warm. */
+export const RUNAWAY_WARMUP_SECONDS = 5;
+/** Fresh stacks each runaway row runs against each peer, each with its own baseline and runaway load. */
+export const RUNAWAY_RUNS = 3;
 export const RUNAWAY_START_MS = 3_000;
 
 /** How long a runaway request may take to be stopped: under nginx's 60-second read timeout, so a reply is the backend's. */
@@ -477,10 +518,12 @@ export interface Stopped {
 /**
  * Passes when the steady load saw no failed request, the runaway request was stopped by the backend, and
  * the backend ran throughout, naming the setting that stopped it where the peer has one. Anything else is
- * `no`. `baseline` is the same load on the same stack with no runaway request, so the page can show the
- * share of its own throughput each peer kept rather than how fast it is anyway.
+ * `no`, or `your-code` naming `inCode` where the peer's own code can stop the request although the
+ * program as its documentation writes it does not. `baseline` is the same load on the same stack with no
+ * runaway request, so the page can show the share of its own throughput each peer kept rather than how
+ * fast it is anyway.
  */
-export function runawayResult(baseline: Steady, load: Steady, runaway: Stopped, backend: Backend, setting: Setting | undefined): RowResult {
+export function runawayResult(baseline: Steady, load: Steady, runaway: Stopped, backend: Backend, setting: Setting | undefined, inCode?: string): RowResult {
   const stopped = runaway.status !== null && !NGINX_STATUSES.has(runaway.status);
   const evidence = {
     baseline_requests: baseline.requests,
@@ -492,9 +535,65 @@ export function runawayResult(baseline: Steady, load: Steady, runaway: Stopped, 
     runaway_seconds: runaway.seconds,
     backend_running: backend.running,
     backend_restarts: backend.restarts,
+    runs: 1,
+    code: inCode ?? null,
   };
-  if (load.failed > 0 || !survived(backend) || !stopped) return { result: "no", evidence };
+  if (load.failed > 0 || !survived(backend) || !stopped) return { result: inCode === undefined ? "no" : "your-code", evidence };
   return passed(setting, evidence);
+}
+
+/** `502 x12; timeout x3` as counts by kind, the inverse of `failureText`. */
+export function failureCounts(text: unknown): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (typeof text !== "string") return counts;
+  for (const part of text.split("; ")) {
+    const m = /^(.*) x(\d+)$/.exec(part);
+    if (m !== null) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + Number(m[2]));
+  }
+  return counts;
+}
+
+/** Counts by kind as `502 x12; timeout x3`, or `null` for none. */
+export const failureText = (counts: Map<string, number>): string | null => [...counts].map(([what, n]) => `${what} x${n}`).join("; ") || null;
+
+/** The `failures` texts of several runs as one, each kind's counts summed. */
+function sumFailures(texts: unknown[]): string | null {
+  const all = new Map<string, number>();
+  for (const text of texts) for (const [what, n] of failureCounts(text)) all.set(what, (all.get(what) ?? 0) + n);
+  return failureText(all);
+}
+
+/** The middle of `values` once sorted, the lower of the two middle ones for an even count, so it is always a measured value. */
+export function medianIndex(values: number[]): number {
+  const order = values.map((_, i) => i).sort((a, b) => values[a]! - values[b]!);
+  return order[Math.floor((order.length - 1) / 2)]!;
+}
+
+/**
+ * The runaway rows' runs as one: the load and the runaway request are the median run's, by the share of
+ * its own baseline the load kept, and the failures and restarts are summed over every run. One run that
+ * is `no` makes the row `no`.
+ */
+export function mergeRunaways(_peer: string, results: RowResult[]): RowResult {
+  const e = results.map((r) => r.evidence);
+  const mid = e[medianIndex(e.map((x) => Number(x.requests) / Math.max(1, Number(x.baseline_requests))))]!;
+  const evidence = {
+    baseline_requests: mid.baseline_requests ?? null,
+    requests: mid.requests ?? null,
+    failed_requests: e.reduce((n, x) => n + Number(x.failed_requests), 0),
+    failures: sumFailures(e.map((x) => x.failures)),
+    p99_ms: mid.p99_ms ?? null,
+    runaway_status: mid.runaway_status ?? null,
+    runaway_seconds: mid.runaway_seconds ?? null,
+    backend_running: e.every((x) => x.backend_running === true),
+    backend_restarts: e.reduce((n, x) => n + Number(x.backend_restarts), 0),
+    runs: e.reduce((n, x) => n + Number(x.runs ?? 1), 0),
+    code: mid.code ?? null,
+  };
+  if (results.some((r) => r.result === "no")) return { result: "no", evidence };
+  if (results.some((r) => r.result === "your-code")) return { result: "your-code", evidence };
+  const first = results[0]!;
+  return first.setting === undefined ? { result: first.result, evidence } : { result: first.result, setting: first.setting, evidence };
 }
 
 /**
@@ -510,6 +609,14 @@ export const MEMORY_DEFAULT: Record<string, Setting> = {
   nvs: { name: "[limits] memory", default: true },
   php: { name: "memory_limit", default: true },
 };
+
+/**
+ * The code a peer's program can carry to stop the loop row's runaway request, where the peer has a way.
+ * Bun's `Worker.terminate()` stops a worker that never yields within milliseconds, so a program that
+ * runs each request in a worker under a time limit stops it. Bun ignores a worker's `resourceLimits`, so
+ * nothing of the kind exists for the memory row, and a goroutine cannot be stopped from outside at all.
+ */
+export const LOOP_IN_CODE: Record<string, string> = { bun: "each request in a Worker, and terminate() after a time limit" };
 
 /**
  * Keys a row sets in one table of the Novis data folder's `nvs.toml`. The shipped file has each key
@@ -550,18 +657,21 @@ async function stoppedAt(p: Probe, path: string): Promise<Stopped> {
 }
 
 /**
- * Puts steady load on `/` once with nothing else running, then again with the runaway request at `path`
- * sent into it, and judges what the second saw. A peer with a limit at its defaults names it from
- * `defaults`.
+ * Puts steady load on `/` for `RUNAWAY_WARMUP_SECONDS` and discards it, then once more with nothing else
+ * running, then again with the runaway request at `path` sent into it, and judges what the last saw. A
+ * peer with a limit at its defaults names it from `defaults`. Without the warm-up the baseline is the
+ * first load a fresh server gets, so it pays for opcache, the JITs and new FPM workers, and a peer could
+ * answer more requests with the runaway request than without it.
  */
-async function runawayProbe(p: Probe, path: string, defaults: Record<string, Setting>): Promise<RowResult> {
+async function runawayProbe(p: Probe, path: string, defaults: Record<string, Setting>, inCode: Record<string, string> = {}): Promise<RowResult> {
   ok(await p.get("/"), "the first request");
+  await p.steady("/", RUNAWAY_WARMUP_SECONDS);
   const baseline = await p.steady("/", RUNAWAY_LOAD_SECONDS);
   const load = p.steady("/", RUNAWAY_LOAD_SECONDS);
   await Bun.sleep(RUNAWAY_START_MS);
   const runaway = stoppedAt(p, path);
   const steady = await load;
-  return runawayResult(baseline, steady, await runaway, p.backend(), defaults[p.peer]);
+  return runawayResult(baseline, steady, await runaway, p.backend(), defaults[p.peer], inCode[p.peer]);
 }
 
 /** Polls the backend's log until it carries `line`: the seconds it took, or `null` after `CHANGE_WAIT_MS`. */
@@ -662,13 +772,33 @@ export const onByDefault = (setting: Setting | undefined): Setting | undefined =
 export const LIVE_EDIT_FROM = "version 1";
 export const LIVE_EDIT_TO = "version 2";
 
-/** The files of the deploy row's tree, and the pause between two of them while the copy replaces it. */
+/** The part files of the `deploy` and `deploy-switch` trees, of the `deploy-big` tree, and the pause between two of them while the copy writes them. */
 export const DEPLOY_PARTS = 200;
+export const DEPLOY_BIG_PARTS = 2_000;
 export const DEPLOY_PAUSE_MS = 10;
 
-/** How long the deploy row's steady load runs, and how long after the load starts the copy begins. */
-export const DEPLOY_LOAD_SECONDS = 20;
+/** How long after the checking load starts the copy begins, and how many requests the load keeps in flight. */
 export const DEPLOY_START_MS = 2_000;
+export const DEPLOY_CLIENTS = 8;
+
+/** How long the checking load runs on after the first reply of the new version, and how long one request may take. */
+export const DEPLOY_AFTER_MS = 1_000;
+export const DEPLOY_REQUEST_MS = 5_000;
+
+/** Fresh stacks each deploy row runs against each peer. Where a mixed reply comes from depends on timing, so one copy proves little. */
+export const DEPLOY_RUNS = 3;
+
+/**
+ * The `deploy-switch` row's link: made before the stack comes up, switched in one rename inside the app
+ * container after the whole of `releases/2/` is written, and removed after the probe. A Windows drive
+ * cannot hold a symlink the containers read, so the container makes it.
+ */
+export const DEPLOY_LINK = "ln -s releases/1 /app/current";
+export const DEPLOY_SWITCH = "ln -s releases/2 /app/next && mv -T /app/next /app/current";
+
+/** The pause between the last file of a release and the link switch to it, in the `deploy-switch` row. */
+export const DEPLOY_SETTLE_MS = 2_000;
+export const DEPLOY_UNLINK = "rm -f /app/current /app/next";
 
 /**
  * How a peer deploys a new version at its defaults once the files are in place: a command run in the
@@ -695,89 +825,257 @@ const PART_TEXT: Record<string, (version: string) => string> = {
   ts: (v) => `export const version = "${v}";\n`,
 };
 
-/** The part files one peer's program reads, by path in the row's folder, at `version`. */
-export function deployParts(version: string, ext: string): Record<string, string> {
+/** A part's file name: its number padded to the digits of the highest one, so `p000` for 200 parts and `p0000` for 2000. */
+const partName = (i: number, count: number) => `p${String(i).padStart(String(count - 1).length, "0")}`;
+
+/** The part files one peer's program reads, by path in the row's folder under `base`, at `version`. */
+export function deployParts(version: string, ext: string, count = DEPLOY_PARTS, base = ""): Record<string, string> {
   const files: Record<string, string> = {};
-  for (let i = 0; i < DEPLOY_PARTS; i++) files[`parts/p${String(i).padStart(3, "0")}.${ext}`] = PART_TEXT[ext]!(version);
+  for (let i = 0; i < count; i++) files[`${base}parts/${partName(i, count)}.${ext}`] = PART_TEXT[ext]!(version);
   return files;
 }
 
 /** Novis's entry: `require` takes a path written as literal text, so it names each part on its own line. */
-export function deployEntry(): string {
-  const lines = ["<?nvs", "// Prints the version of each of the 200 parts. The driver writes this file and the parts."];
-  for (let i = 0; i < DEPLOY_PARTS; i++) lines.push(`require 'parts/p${String(i).padStart(3, "0")}.nvs';`);
+export function deployEntry(count = DEPLOY_PARTS): string {
+  const lines = ["<?nvs", `// Prints the version of each of the ${count} parts. The driver writes this file and the parts.`];
+  for (let i = 0; i < count; i++) lines.push(`require 'parts/${partName(i, count)}.nvs';`);
   lines.push('echo "\\n";', "");
   return lines.join("\n");
 }
 
+/** Each peer's entry program in a release, by the extension of its parts: Novis's is written, the others are the committed ones. */
+const DEPLOY_ENTRY: Record<string, { file: string; text(count: number): string }> = {
+  nvs: { file: "main.nvs", text: deployEntry },
+  php: { file: "index.php", text: () => readFileSync(join(COMPARE_DIR, "scenarios", "deploy", "index.php"), "utf8") },
+  ts: { file: "server.ts", text: () => readFileSync(join(COMPARE_DIR, "scenarios", "deploy", "server.ts"), "utf8") },
+};
+
+/** A whole release of one peer's program under `base`: its entry and its parts at `version`. */
+export function deployRelease(version: string, ext: string, count: number, base: string): Record<string, string> {
+  const entry = DEPLOY_ENTRY[ext]!;
+  return { [`${base}${entry.file}`]: entry.text(count), ...deployParts(version, ext, count, base) };
+}
+
+/** Every peer's release 1 under `base`, for a row whose tree is generated. */
+const allReleases = (count: number, base: string) => Object.assign({}, ...Object.values(DEPLOY_EXT).map((ext) => deployRelease("1", ext, count, base)));
+
 /**
- * What the deploy row's own requests saw while the copy went in: failures, replies with both versions, the
- * seconds the copy took, and the seconds from the copy and its command to the first reply of the new version.
+ * What the deploy rows' checking load saw: every reply, each failed (an exception or a status but
+ * `200`), mixed or complete, and the seconds from the deploy step to the first reply of the new version.
  */
-export interface DeploySample {
-  replies: number;
+export interface DeployLoad {
+  requests: number;
   failed: number;
+  /** Each kind of failure and how often it came: a status, or the error a request threw. */
+  failures: Record<string, number>;
   mixed: number;
-  copy_seconds: number;
+  complete: number;
   seconds: number | null;
 }
 
-/** When the copy and the peer's command finished, which the sampler times the new version from. */
+/** When the copy and the peer's step finished, which the load times the new version from, and whether the row gave up. */
 interface Deploying {
   appliedAt: number | null;
+  stopped?: boolean;
 }
 
-/** A body of part versions has both `1` and `2` in it. */
-export const mixedVersions = (body: string) => body.includes("1") && body.includes("2");
+/** A body of part versions holds more than one version: more than one distinct character once trimmed. */
+export const mixedVersions = (body: string) => new Set(body.trim()).size > 1;
+
+/** The evidence a deploy row records, one run's or the sum of several. */
+export interface DeployEvidence {
+  requests: number;
+  failed_requests: number;
+  failures: string | null;
+  mixed_replies: number;
+  complete_replies: number;
+  seconds_to_copy: number;
+  seconds_to_new_answer: number | null;
+  command: string | null;
+  restarts: number;
+  version_checked: boolean;
+  runs: number;
+  [key: string]: string | number | boolean | null;
+}
+
+/** The step a peer's deploy needs at its defaults, and the setting that checks its files where it starts with one. */
+export const deployStep = (peer: string) => ({ way: DEPLOY_WAYS[peer], setting: onByDefault(LIVE_EDIT_SETTING[peer]) });
 
 /**
- * A deploy with no failed request and no reply that mixes the two versions passes when it needed no
- * command, naming the `setting` that checks the files where the peer has one, and is `one-setting` naming
- * the command or restart it needed. A failed request, a mixed reply or a new version that never showed is
- * `no`. A `compiled` peer's reply cannot show the copy, so its new version is its first reply after the
- * restart.
+ * A deploy with no failed request and no reply that mixes versions passes when it needed no command,
+ * naming the `setting` that checks the files where the peer has one, and is `one-setting` naming the
+ * command or restart it needed. A failed request, a mixed reply or a new version that never showed is `no`.
  */
-export function deployResult(load: Steady, sample: DeploySample, way: DeployWay | undefined, compiled: boolean, setting?: Setting): RowResult {
-  const failed = load.failed + sample.failed;
-  const evidence = {
-    requests: load.requests + sample.replies,
-    failed_requests: failed,
-    failures: load.failures,
-    mixed_replies: sample.mixed,
-    seconds_to_copy: sample.copy_seconds,
-    seconds_to_new_answer: sample.seconds,
-    command: way?.name ?? null,
-    restarts: way?.run === "restart" ? 1 : 0,
-    version_checked: !compiled,
-  };
-  if (failed > 0 || sample.mixed > 0 || sample.seconds === null) return { result: "no", evidence };
+function deployVerdict(evidence: DeployEvidence, way: DeployWay | undefined, setting: Setting | undefined): RowResult {
+  if (evidence.failed_requests > 0 || evidence.mixed_replies > 0 || evidence.seconds_to_new_answer === null) return { result: "no", evidence };
   return way === undefined ? passed(setting, evidence) : { result: "one-setting", setting: way.name, evidence };
 }
 
 /**
- * Sends `/` one request after another until `done` holds for a reply after the deploy was applied, or
- * `CHANGE_WAIT_MS` after that, counting failed replies and mixed ones. An exception and any status but `200`
- * are failures. The copy time is the row's to fill in.
+ * One deploy run's result, by `deployVerdict`. A `compiled` peer's reply cannot show the copy, so its
+ * new version is its first reply to a request sent after the restart.
  */
-async function sampleUntil(p: Probe, deploying: Deploying, done: (body: string) => boolean): Promise<Omit<DeploySample, "copy_seconds">> {
-  const sample: Omit<DeploySample, "copy_seconds"> = { replies: 0, failed: 0, mixed: 0, seconds: null };
-  while (deploying.appliedAt === null || performance.now() - deploying.appliedAt < CHANGE_WAIT_MS) {
-    try {
-      const r = await p.get("/", 5_000);
-      sample.replies++;
-      const applied = deploying.appliedAt;
-      if (r.status !== 200) sample.failed++;
-      else if (mixedVersions(r.body)) sample.mixed++;
-      else if (applied !== null && done(r.body)) {
-        sample.seconds = Number(((performance.now() - applied) / 1000).toFixed(1));
-        return sample;
+export function deployResult(load: DeployLoad, copySeconds: number, way: DeployWay | undefined, compiled: boolean, setting?: Setting): RowResult {
+  const evidence: DeployEvidence = {
+    requests: load.requests,
+    failed_requests: load.failed,
+    failures: failureText(new Map(Object.entries(load.failures))),
+    mixed_replies: load.mixed,
+    complete_replies: load.complete,
+    seconds_to_copy: copySeconds,
+    seconds_to_new_answer: load.seconds,
+    command: way?.name ?? null,
+    restarts: way?.run === "restart" ? 1 : 0,
+    version_checked: !compiled,
+    runs: 1,
+  };
+  return deployVerdict(evidence, way, setting);
+}
+
+/**
+ * Several deploy runs of one peer as one: every count summed, the seconds the slowest run's (`null` when
+ * any run never showed the new version), and the verdict `deployVerdict` gives the sums.
+ */
+export function mergeDeploys(peer: string, results: RowResult[]): RowResult {
+  const e = results.map((r) => r.evidence as DeployEvidence);
+  const sum = (key: keyof DeployEvidence) => e.reduce((n, x) => n + Number(x[key] ?? 0), 0);
+  const slowest = (key: keyof DeployEvidence) => (e.some((x) => x[key] === null) ? null : Math.max(...e.map((x) => Number(x[key]))));
+  const { way, setting } = deployStep(peer);
+  const evidence: DeployEvidence = {
+    requests: sum("requests"),
+    failed_requests: sum("failed_requests"),
+    failures: sumFailures(e.map((x) => x.failures)),
+    mixed_replies: sum("mixed_replies"),
+    complete_replies: sum("complete_replies"),
+    seconds_to_copy: slowest("seconds_to_copy") ?? 0,
+    seconds_to_new_answer: slowest("seconds_to_new_answer"),
+    command: e[0]?.command ?? null,
+    restarts: sum("restarts"),
+    version_checked: e[0]?.version_checked ?? true,
+    runs: sum("runs"),
+  };
+  return deployVerdict(evidence, way, setting);
+}
+
+/** What a request that threw failed with: its error code where it has one, else its name. */
+function failureKind(e: unknown): string {
+  if (!(e instanceof Error)) return String(e);
+  const code = (e as { code?: unknown }).code;
+  return typeof code === "string" && code !== "" ? code : e.name;
+}
+
+/**
+ * The deploy rows' load: `DEPLOY_CLIENTS` loops of `GET /` from this process, each reply checked. It
+ * stops `DEPLOY_AFTER_MS` after the first reply of the new version to a request sent after the deploy
+ * was applied, or `CHANGE_WAIT_MS` after it was applied with none, or when the row gives up.
+ */
+async function checkedLoad(p: Probe, deploying: Deploying, isNew: (body: string) => boolean): Promise<DeployLoad> {
+  const load: DeployLoad = { requests: 0, failed: 0, failures: {}, mixed: 0, complete: 0, seconds: null };
+  let newAt: number | null = null;
+  const fail = (what: string) => {
+    load.failed++;
+    load.failures[what] = (load.failures[what] ?? 0) + 1;
+  };
+  const done = () => {
+    if (deploying.stopped === true) return true;
+    const applied = deploying.appliedAt;
+    if (applied === null) return false;
+    return newAt !== null ? performance.now() - newAt >= DEPLOY_AFTER_MS : performance.now() - applied >= CHANGE_WAIT_MS;
+  };
+  const client = async () => {
+    while (!done()) {
+      const sent = performance.now();
+      load.requests++;
+      try {
+        const r = await p.get("/", DEPLOY_REQUEST_MS);
+        if (r.status !== 200) fail(String(r.status));
+        else if (mixedVersions(r.body)) load.mixed++;
+        else {
+          load.complete++;
+          const applied = deploying.appliedAt;
+          if (newAt === null && applied !== null && sent >= applied && isNew(r.body)) {
+            newAt = performance.now();
+            load.seconds = Number(((newAt - applied) / 1000).toFixed(1));
+          }
+        }
+      } catch (e) {
+        fail(failureKind(e));
       }
-    } catch {
-      sample.failed++;
     }
-    await Bun.sleep(20);
+  };
+  await Promise.all(Array.from({ length: DEPLOY_CLIENTS }, client));
+  return load;
+}
+
+/**
+ * One deploy run. The checking load starts, and `DEPLOY_START_MS` later the driver writes version 2:
+ * the parts over the served ones, or with `release` the whole of `releases/2/` and then the link switch.
+ * Then the peer's own step runs. Go compiles its parts into the image, so it writes nothing and only restarts.
+ */
+async function deployProbe(p: Probe, parts: number, release: boolean): Promise<RowResult> {
+  const { way, setting } = deployStep(p.peer);
+  const first = ok(await p.get("/"), "the first version").body.trim();
+  if (first !== "1".repeat(parts)) throw new Fail(`the first version: body ${pyRepr(first.slice(0, 200))}`);
+  const fresh = "2".repeat(parts);
+  const deploying: Deploying = { appliedAt: null };
+  const load = checkedLoad(p, deploying, (body) => p.compiled || body.trim() === fresh);
+  let copySeconds = 0;
+  try {
+    await Bun.sleep(DEPLOY_START_MS);
+    const copyStart = performance.now();
+    if (!p.compiled) {
+      const ext = DEPLOY_EXT[p.peer]!;
+      const files = release ? deployRelease("2", ext, parts, "releases/2/") : deployParts("2", ext, parts);
+      for (const [name, text] of Object.entries(files)) {
+        mkdirSync(dirname(join(p.dir, name)), { recursive: true });
+        writeFileSync(join(p.dir, name), text);
+        await Bun.sleep(DEPLOY_PAUSE_MS);
+      }
+    }
+    copySeconds = Number(((performance.now() - copyStart) / 1000).toFixed(1));
+    if (release && !p.compiled) {
+      // A deploy tool switches the link once the upload is complete. The pause also lets Docker
+      // Desktop's file sharing show the host's new files to every container before the link points
+      // at them, so a reply that misses a file measures the share and not the server.
+      await Bun.sleep(DEPLOY_SETTLE_MS);
+      const switched = await p.step(["sh", "-c", DEPLOY_SWITCH]);
+      if (switched.code !== 0) throw new Fail(`the link switch: ${switched.output}`);
+    }
+    if (way !== undefined) {
+      const done = await p.step(way.run);
+      if (done.code !== 0) throw new Fail(`${way.name}: ${done.output}`);
+    }
+    deploying.appliedAt = performance.now();
+  } catch (e) {
+    deploying.stopped = true;
+    await load;
+    throw e;
   }
-  return sample;
+  return deployResult(await load, copySeconds, way, p.compiled, setting);
+}
+
+/** One of the three deploy rows: `parts` part files, served from a `current` link to a release with `release`. */
+function deployRow(id: string, parts: number, release: boolean): Scenario {
+  return {
+    id,
+    tree: "scenarios",
+    case: "deploy",
+    copy: true,
+    parts,
+    runs: DEPLOY_RUNS,
+    merge: mergeDeploys,
+    ...(release
+      ? {
+          appDir: "/app/current",
+          mount: "rw" as const,
+          nginx: { php: "fastcgi-switch.conf" },
+          before: DEPLOY_LINK,
+          after: DEPLOY_UNLINK,
+          generate: () => allReleases(parts, "releases/1/"),
+        }
+      : { generate: () => Object.assign({ "main.nvs": deployEntry(parts) }, ...Object.values(DEPLOY_EXT).map((ext) => deployParts("1", ext, parts))) }),
+    probe: (p) => deployProbe(p, parts, release),
+  };
 }
 
 /**
@@ -815,54 +1113,6 @@ export const CONFIG_CHANGES: Record<string, ConfigChange> = {
     reload: { command: ["sh", "-c", "kill -USR2 1"], name: "php-fpm reload" },
   },
 };
-
-/** How long the upgrade row's steady load runs, and how long after the load starts the binary is replaced. */
-export const UPGRADE_LOAD_SECONDS = 20;
-export const UPGRADE_START_MS = 2_000;
-
-/**
- * The runtime binary each peer runs, and the step its documentation gives for a new one to take over.
- * PHP-FPM's reload re-executes its own binary, so the new one runs without a restart. Go's runtime is
- * compiled into the program, so its binary is the program, and a new runtime is a new image.
- */
-export interface UpgradeWay {
-  binary: string;
-  way: DeployWay;
-}
-
-export const UPGRADE_WAYS: Record<string, UpgradeWay> = {
-  nvs: { binary: "/usr/local/bin/nvs", way: { name: "a restart", run: "restart" } },
-  php: { binary: "/usr/local/sbin/php-fpm", way: { name: "php-fpm reload", run: ["sh", "-c", "kill -USR2 1"] } },
-  bun: { binary: "/usr/local/bin/bun", way: DEPLOY_WAYS.bun! },
-  go: { binary: "/srv/cases/hello", way: DEPLOY_WAYS.go! },
-};
-
-/**
- * Replaces `binary` with a copy of itself the way an upgrade does: written beside it, then renamed over
- * it, since a running binary cannot be written in place. The process keeps the old file until it starts again.
- */
-export function upgradeCommand(binary: string): string[] {
-  return ["sh", "-c", `cp "${binary}" "${binary}.new" && mv "${binary}.new" "${binary}"`];
-}
-
-/**
- * An upgrade with no failed request is `one-setting` naming the step that put the new binary in place,
- * since every peer needs one. A failed request, or no answer within `CHANGE_WAIT_MS` of the step, is `no`.
- */
-export function upgradeResult(load: Steady, sample: Omit<DeploySample, "copy_seconds">, way: DeployWay): RowResult {
-  const failed = load.failed + sample.failed;
-  const evidence = {
-    requests: load.requests + sample.replies,
-    failed_requests: failed,
-    failures: load.failures,
-    p99_ms: load.p99_ms,
-    seconds_to_answer: sample.seconds,
-    command: way.name,
-    restarts: way.run === "restart" ? 1 : 0,
-  };
-  if (failed > 0 || sample.seconds === null) return { result: "no", evidence };
-  return { result: "one-setting", setting: way.name, evidence };
-}
 
 /** The parts one request of the parallel row splits its work into, and the backend cpus it has for them. */
 export const PARALLEL_PARTS = 4;
@@ -1004,38 +1254,9 @@ export const SCENARIOS: Scenario[] = [
       return configResult(null, await secondsUntil(p, change.applied), change.reload.name);
     },
   },
-  {
-    id: "deploy",
-    tree: "scenarios",
-    case: "deploy",
-    copy: true,
-    generate: () => Object.assign({ "main.nvs": deployEntry() }, ...Object.values(DEPLOY_EXT).map((ext) => deployParts("1", ext))),
-    probe: async (p) => {
-      const way = DEPLOY_WAYS[p.peer];
-      const first = ok(await p.get("/"), "the first version").body.trim();
-      if (first !== "1".repeat(DEPLOY_PARTS)) throw new Fail(`the first version: body ${pyRepr(first.slice(0, 200))}`);
-      const load = p.steady("/", DEPLOY_LOAD_SECONDS);
-      await Bun.sleep(DEPLOY_START_MS);
-      const fresh = "2".repeat(DEPLOY_PARTS);
-      const deploying: Deploying = { appliedAt: null };
-      const sample = sampleUntil(p, deploying, (body) => p.compiled || body.trim() === fresh);
-      const copyStart = performance.now();
-      if (!p.compiled) {
-        for (const [name, text] of Object.entries(deployParts("2", DEPLOY_EXT[p.peer]!))) {
-          writeFileSync(join(p.dir, name), text);
-          await Bun.sleep(DEPLOY_PAUSE_MS);
-        }
-      }
-      const copySeconds = Number(((performance.now() - copyStart) / 1000).toFixed(1));
-      if (way !== undefined) {
-        const done = way.run === "restart" ? p.restart() : p.exec(way.run);
-        if (done.code !== 0) throw new Fail(`${way.name}: ${done.output}`);
-      }
-      deploying.appliedAt = performance.now();
-      const seen = await sample;
-      return deployResult(await load, { ...seen, copy_seconds: copySeconds }, way, p.compiled, onByDefault(LIVE_EDIT_SETTING[p.peer]));
-    },
-  },
+  deployRow("deploy", DEPLOY_PARTS, false),
+  deployRow("deploy-big", DEPLOY_BIG_PARTS, false),
+  deployRow("deploy-switch", DEPLOY_PARTS, true),
   {
     id: "cores",
     tree: "scenarios",
@@ -1058,13 +1279,17 @@ export const SCENARIOS: Scenario[] = [
     tree: "scenarios",
     case: "runaway",
     memory: RUNAWAY_MEMORY,
-    probe: (p) => runawayProbe(p, "/loop", LOOP_DEFAULT),
+    runs: RUNAWAY_RUNS,
+    merge: mergeRunaways,
+    probe: (p) => runawayProbe(p, "/loop", LOOP_DEFAULT, LOOP_IN_CODE),
   },
   {
     id: "memory",
     tree: "scenarios",
     case: "runaway",
     memory: RUNAWAY_MEMORY,
+    runs: RUNAWAY_RUNS,
+    merge: mergeRunaways,
     probe: (p) => runawayProbe(p, "/alloc", MEMORY_DEFAULT),
   },
   {
@@ -1097,26 +1322,6 @@ export const SCENARIOS: Scenario[] = [
       return parallelResult(one, await fastest(p, PARALLEL_PARTS), PARALLEL_WAY[p.peer], written(grant));
     },
   },
-  {
-    id: "upgrade",
-    tree: "cases",
-    case: "hello",
-    probe: async (p) => {
-      const { binary, way } = UPGRADE_WAYS[p.peer]!;
-      const hello = ok(await p.get("/"), "hello").body;
-      const load = p.steady("/", UPGRADE_LOAD_SECONDS);
-      await Bun.sleep(UPGRADE_START_MS);
-      const upgrading: Deploying = { appliedAt: null };
-      const sample = sampleUntil(p, upgrading, (body) => body === hello);
-      const replaced = p.exec(upgradeCommand(binary));
-      if (replaced.code !== 0) throw new Fail(`replacing ${binary}: ${replaced.output}`);
-      const done = way.run === "restart" ? p.restart() : p.exec(way.run);
-      if (done.code !== 0) throw new Fail(`${way.name}: ${done.output}`);
-      upgrading.appliedAt = performance.now();
-      const seen = await sample;
-      return upgradeResult(await load, seen, way);
-    },
-  },
 ];
 
 /** `built-in`, or `one-setting (limits.memory)` and `on-by-default ([http.headers])` for a result that names its setting. */
@@ -1132,14 +1337,19 @@ export function rowLine(id: string, byPeer: Map<string, RowResult>): string {
 // The record.
 // ---------------------------------------------------------------------------------------------------
 
-/** One peer's figures in one case. Memory is the backend container's cgroup, in bytes. */
+/**
+ * One peer's figures in one case. A recorded one is `medianOf` the reps: throughput and latency from the
+ * median rep, memory the median of the reps', errors and statuses summed. Memory is the backend
+ * container's cgroup, in bytes.
+ */
 export interface PeerResult {
   requests_per_sec: number;
+  /** The same figure as `requests_per_sec`, kept for the readers of older records. */
   median_requests_per_sec: number;
   p50_ms: number | null;
   p99_ms: number | null;
   errors: number;
-  /** Each connection error `oha` saw in the best pass, by its message. */
+  /** Each connection error `oha` saw, by its message. */
   error_kinds: Record<string, number>;
   status_codes: Record<string, number>;
   memory_idle_bytes: number | null;
@@ -1176,9 +1386,39 @@ export function resultOf(arm: Arm, memory: { idle: number | null; peak: number |
   };
 }
 
+/** The median of the values that are not `null`, by `medianIndex`, or `null` when there are none. */
+function medianOrNull(values: (number | null)[]): number | null {
+  const known = values.filter((v): v is number => v !== null);
+  return known.length === 0 ? null : known[medianIndex(known)]!;
+}
+
+/**
+ * One peer's passes of one case as one result. Throughput and latency are the median pass's, by
+ * requests per second, and each memory figure is the median of the passes'. Errors and statuses are
+ * summed over every pass, so a failure in any pass shows.
+ */
+export function medianOf(passes: PeerResult[]): PeerResult {
+  const mid = passes[medianIndex(passes.map((p) => p.requests_per_sec))]!;
+  const errorKinds: Record<string, number> = {};
+  const statusCodes: Record<string, number> = {};
+  for (const p of passes) {
+    for (const [what, n] of Object.entries(p.error_kinds)) errorKinds[what] = (errorKinds[what] ?? 0) + n;
+    for (const [code, n] of Object.entries(p.status_codes)) statusCodes[code] = (statusCodes[code] ?? 0) + n;
+  }
+  return {
+    ...mid,
+    median_requests_per_sec: mid.requests_per_sec,
+    errors: passes.reduce((n, p) => n + p.errors, 0),
+    error_kinds: errorKinds,
+    status_codes: statusCodes,
+    memory_idle_bytes: medianOrNull(passes.map((p) => p.memory_idle_bytes)),
+    memory_peak_bytes: medianOrNull(passes.map((p) => p.memory_peak_bytes)),
+  };
+}
+
 /**
  * The whole record `--record` writes: the machine under `host`, as `bench-proxied`'s record names it,
- * every peer's image, and per case every peer's figures
+ * every peer's image, and per case every peer's figures, the median of `reps` interleaved passes,
  * in `PEERS` order. The scenario rows sit under `scenarios`, from their own run; nothing joins the
  * record to `benches/serve-proxied.json`.
  */
@@ -1266,6 +1506,7 @@ const TUNABLES = [
   join(COMPARE_DIR, "compose.common.yaml"),
   join(COMPARE_DIR, "nginx", "http.conf"),
   join(COMPARE_DIR, "nginx", "fastcgi.conf"),
+  join(COMPARE_DIR, "nginx", "fastcgi-switch.conf"),
   join(COMPARE_DIR, "bun", "serve.ts"),
   join(COMPARE_DIR, "go", "Dockerfile"),
   PHP_INI,
@@ -1436,15 +1677,23 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
   if (fixed !== undefined) return fixed;
   if (s.timed !== undefined) {
     const c = s.timedCase ?? CASES.find((k) => k.id === s.case)!;
-    const loadOf = { ...load, concurrency: c.concurrency };
+    const loadOf = { ...load, concurrency: c.concurrency, reps: 1 };
+    // A timed row asks for its passes one budget at a time, inside one peer's turn, so its reps run one
+    // peer after another and do not interleave as the cases' do. Each is still a fresh stack, and the
+    // median of them is what the row judges.
     return await s.timed({
       peer: peer.id,
       requests: load.requests,
       concurrency: c.concurrency,
-      pass: async (cpus) => (await onePass(peer, c, { ...ctx, cpus, concurrency: c.concurrency }, loadOf)).result!,
+      pass: async (cpus) => {
+        const passes: PeerResult[] = [];
+        for (let i = 0; i < load.reps; i++) passes.push((await onePass(peer, c, { ...ctx, cpus, concurrency: c.concurrency }, loadOf)).result!);
+        return medianOf(passes);
+      },
     });
   }
-  if (s.copy === true && peer.compiled !== true) {
+  const own = s.copy === true && peer.compiled !== true;
+  if (own) {
     rmSync(join(GENERATED, s.case), { recursive: true, force: true });
     cpSync(join(COMPARE_DIR, s.tree, s.case), join(GENERATED, s.case), { recursive: true });
     for (const [path, text] of Object.entries(s.generate?.() ?? {})) {
@@ -1456,7 +1705,12 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
   const env = stackEnv(peer, ctx);
   const stack = stackPath(peer);
   peer.prepare?.(ctx);
+  const shell = (script: string) => compose(stack, ["run", "--rm", "--no-deps", "--entrypoint", "sh", "app", "-c", script], env, true);
   try {
+    if (own && s.before !== undefined) {
+      const done = shell(s.before);
+      if (done.code !== 0) throw new Error(`${s.before}: ${done.stdout}${done.stderr}`);
+    }
     if (s.serves !== false) up(stack, env, "app", "nginx");
     return await s.probe!({
       peer: peer.id,
@@ -1470,6 +1724,7 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
         const done = compose(stack, ["restart", "app"], env, true);
         return { code: done.code, output: done.stdout + done.stderr };
       },
+      step: (run) => composeAsync(stack, run === "restart" ? ["restart", "app"] : ["exec", "-T", "app", ...run], env),
       get: (path, timeoutMs) => replyOf(peer, path, "GET", {}, timeoutMs),
       logs: () => logsOf(stack, "app", env),
       steady: (path, seconds) => steadyOf(stack, env, path, seconds),
@@ -1483,8 +1738,18 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
   } catch (e) {
     throw new Fail(`${peer.label}, row ${s.id}: ${messageOf(e)}\n${peer.id} said:\n${logsOf(stack, "app", env)}`);
   } finally {
+    // A container removes what a container made, since the host may not delete a container's symlink on a
+    // Windows drive. `compose` never throws, so this cannot hide the probe's own error.
+    if (own && s.after !== undefined) shell(s.after);
     down(stack, env);
   }
+}
+
+/** `docker compose` without blocking this process, for a step taken while the row's own requests run. */
+async function composeAsync(stack: string, args: string[], env: Record<string, string>): Promise<{ code: number; output: string }> {
+  const proc = Bun.spawn(["docker", "compose", "-f", stack, ...args], { env: { ...process.env, ...env }, stdout: "pipe", stderr: "pipe" });
+  const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+  return { code, output: out + err };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -1549,7 +1814,8 @@ function help(): string {
     "                        fair: one cpu to each backend. deployed: --backend-cpus to each backend",
     "  --backend-cpus N      the CPU budget of EACH backend container (default 1 for fair, 4 for deployed)",
     "  --requests REQUESTS   requests per timed pass (default 20000, 300 with --smoke)",
-    "  --reps REPS           timed passes per arm, best wins (default 3, 1 with --smoke)",
+    "  --reps REPS           timed passes per arm, each on a fresh stack, the peers taking turns; the",
+    "                        median pass is recorded (default 5, 1 with --smoke)",
     "  --record PATH         write this run to PATH as one JSON object. A case run keeps the scenarios",
     "                        already recorded there",
     "  --row ID              with --scenarios, run only the row ID",
@@ -1571,11 +1837,31 @@ async function scenarios(o: Options, cpus: number, commit: string, load: Load): 
   if (rows.length === 0) throw new Fail(`--row ${o.row}: no such row; the rows are ${SCENARIOS.map((s) => s.id).join(", ")}`);
   const results = new Map<string, Map<string, RowResult>>();
   for (const s of rows) {
-    const byPeer = new Map<string, RowResult>();
-    for (const peer of PEERS) {
-      console.log(`  ${s.id}: ${peer.label} ...`);
-      byPeer.set(peer.id, await scenarioPass(peer, s, { cpus: s.cpus ?? cpus, concurrency: SCENARIO_CONCURRENCY, tree: s.tree, case: s.case, commit, memory: s.memory }, load));
+    const runs = o.smoke ? 1 : (s.runs ?? 1);
+    if (runs > 1 && s.merge === undefined) throw new Fail(`row ${s.id} runs ${runs} times and has no merge`);
+    const passes = new Map<string, RowResult[]>(PEERS.map((p) => [p.id, []]));
+    // Run 1 of every peer, then run 2, so a slow stretch of the shared host lands on every peer.
+    for (let run = 1; run <= runs; run++) {
+      for (const peer of PEERS) {
+        if (run > 1 && s.fixed?.[peer.id] !== undefined) continue;
+        console.log(`  ${s.id}: ${peer.label}${runs > 1 ? `, run ${run} of ${runs}` : ""} ...`);
+        const ctx: PeerCtx = {
+          cpus: s.cpus ?? cpus,
+          concurrency: SCENARIO_CONCURRENCY,
+          tree: s.tree,
+          case: s.case,
+          commit,
+          memory: s.memory,
+          appDir: s.appDir,
+          mount: s.mount,
+          parts: s.parts,
+          nginx: s.nginx?.[peer.id],
+        };
+        passes.get(peer.id)!.push(await scenarioPass(peer, s, ctx, load));
+      }
     }
+    const byPeer = new Map<string, RowResult>();
+    for (const [peer, rs] of passes) byPeer.set(peer, rs.length === 1 ? rs[0]! : s.merge!(peer, rs));
     console.log(rowLine(s.id, byPeer));
     results.set(s.id, byPeer);
     for (const peer of PEERS) {
@@ -1604,7 +1890,7 @@ async function main(o: Options): Promise<number> {
   const cpus = o.backendCpus ?? (o.arm === "fair" ? 1 : 4);
   if (o.arm === "fair" && cpus !== 1) throw new Fail(`--arm fair is one cpu to each backend; --backend-cpus ${cpus} is the deployed arm and must say so`);
   const requests = o.requests ?? (o.smoke ? 300 : 20_000);
-  const reps = o.reps ?? (o.smoke ? 1 : 3);
+  const reps = o.reps ?? (o.smoke ? 1 : 5);
   if (requests < 1 || reps < 1) throw new Fail("--requests and --reps must each be at least 1");
   if (o.smoke && o.record !== null) throw new Fail("--smoke records nothing; drop --record or --smoke");
 
@@ -1628,16 +1914,22 @@ async function main(o: Options): Promise<number> {
 
   const results = new Map<string, Map<string, PeerResult>>();
   for (const c of CASES) {
-    const answers = new Map<string, Answer[]>();
-    const byPeer = new Map<string, PeerResult>();
-    for (const peer of PEERS) {
-      console.log(`  ${c.id}: ${peer.label}, ${requests} requests over ${c.concurrency} connection(s), ${reps} rep(s) ...`);
-      const pass = await onePass(peer, c, ctxOf(c), { requests, concurrency: c.concurrency, reps });
-      answers.set(peer.id, pass.answers);
-      byPeer.set(peer.id, pass.result!);
+    const passes = new Map<string, PeerResult[]>(PEERS.map((p) => [p.id, []]));
+    // Rep 1 of every peer, then rep 2, each on a fresh stack, so a slow stretch of the shared host lands
+    // on every peer and not on one peer's block of reps.
+    for (let rep = 1; rep <= reps; rep++) {
+      const answers = new Map<string, Answer[]>();
+      for (const peer of PEERS) {
+        console.log(`  ${c.id}: ${peer.label}, rep ${rep} of ${reps}, ${requests} requests over ${c.concurrency} connection(s) ...`);
+        const pass = await onePass(peer, c, ctxOf(c), { requests, concurrency: c.concurrency, reps: 1 });
+        answers.set(peer.id, pass.answers);
+        passes.get(peer.id)!.push(pass.result!);
+      }
+      const bad = agreement(c, answers);
+      if (bad !== null) throw new Fail(`DIFF in ${c.id}: ${bad.peer} disagrees on input ${bad.input + 1}: ${bad.why}. No number stands.`);
     }
-    const bad = agreement(c, answers);
-    if (bad !== null) throw new Fail(`DIFF in ${c.id}: ${bad.peer} disagrees on input ${bad.input + 1}: ${bad.why}. No number stands.`);
+    const byPeer = new Map<string, PeerResult>();
+    for (const [peer, rs] of passes) byPeer.set(peer, medianOf(rs));
     results.set(c.id, byPeer);
     if (o.smoke) {
       console.log(`${c.id}: ${PEERS.length} peers agree`);

@@ -13,18 +13,29 @@ import {
   CORES_TURNS,
   checkResult,
   LOOP_DEFAULT,
+  LOOP_IN_CODE,
   MEMORY_DEFAULT,
   comparable,
   configResult,
   coresResult,
   crashResult,
   csrfResult,
+  DEPLOY_BIG_PARTS,
   DEPLOY_EXT,
   DEPLOY_PARTS,
+  DEPLOY_RUNS,
+  DEPLOY_SWITCH,
   DEPLOY_WAYS,
   deployEntry,
   deployParts,
+  deployRelease,
   deployResult,
+  failureCounts,
+  medianIndex,
+  medianOf,
+  mergeDeploys,
+  mergeRunaways,
+  RUNAWAY_RUNS,
   ESCAPE_TERM,
   escapeResult,
   headersResult,
@@ -48,9 +59,7 @@ import {
   steadyResult,
   type TableEdit,
   tableEditCommand,
-  UPGRADE_WAYS,
-  upgradeCommand,
-  upgradeResult,
+
   waitingResult,
 } from "../cmd/bench-compare.ts";
 
@@ -84,10 +93,34 @@ describe("the peer table", () => {
 
   test("a stack's environment carries the case, the budget, the nginx config and the port", () => {
     const go = PEERS.find((p) => p.id === "go")!;
-    expect(stackEnv(go, ctx)).toEqual({ TREE: "cases", CASE: "hello", BACKEND_CPUS: "4", BACKEND_MEMORY: "0", NGINX_CONF: "http.conf", NGINX_PORT: String(go.port) });
+    expect(stackEnv(go, ctx)).toEqual({
+      TREE: "cases",
+      CASE: "hello",
+      BACKEND_CPUS: "4",
+      BACKEND_MEMORY: "0",
+      APP_DIR: "/app",
+      APP_MOUNT_MODE: "ro",
+      NGINX_CONF: "http.conf",
+      NGINX_PORT: String(go.port),
+    });
     expect(stackEnv(go, { ...ctx, memory: "512m" }).BACKEND_MEMORY).toBe("512m");
     const nvs = PEERS.find((p) => p.id === "nvs")!;
     expect(stackEnv(nvs, ctx).NVS_BUILD_COMMIT).toBe("abc1234");
+  });
+
+  test("a row may serve a link read-write, name its part count and give a peer its own nginx config", () => {
+    const php = PEERS.find((p) => p.id === "php")!;
+    const env = stackEnv(php, { ...ctx, appDir: "/app/current", mount: "rw", parts: 2000, nginx: "fastcgi-switch.conf" });
+    expect(env).toMatchObject({ APP_DIR: "/app/current", APP_MOUNT_MODE: "rw", DEPLOY_PARTS: "2000", NGINX_CONF: "fastcgi-switch.conf" });
+    expect(stackEnv(php, ctx).DEPLOY_PARTS).toBeUndefined();
+  });
+
+  test("the switch config differs from the FastCGI one only in the root and the two lines that name the script", () => {
+    const plain = readFileSync(join(COMPARE_DIR, "nginx", "fastcgi.conf"), "utf8").split("\n");
+    const lines = readFileSync(join(COMPARE_DIR, "nginx", "fastcgi-switch.conf"), "utf8").split("\n");
+    const body = (all: string[]) => all.slice(all.findIndex((l) => l.startsWith("worker_processes")));
+    const changed = body(lines).filter((l) => !body(plain).includes(l)).map((l) => l.trim()).filter((l) => l !== "");
+    expect(changed).toEqual(["root /app/current;", "fastcgi_param SCRIPT_FILENAME $realpath_root/index.php;", "fastcgi_param DOCUMENT_ROOT $realpath_root;"]);
   });
 
   test("the settings follow the budget and the concurrency", () => {
@@ -163,16 +196,18 @@ describe("the feature scenarios", () => {
     const files: Record<string, string> = { nvs: "main.nvs", php: "index.php", bun: "server.ts", go: "main.go" };
     for (const s of SCENARIOS) {
       for (const peer of PEERS) {
-        // A row that serves a case serves every peer's program, fixed or not. A generated one is written by the row.
+        // A row that serves a case serves every peer's program, fixed or not. A generated one is written by
+        // the row, at the top of its folder or in the release a link serves.
         const file = files[peer.id]!;
-        const there = existsSync(join(COMPARE_DIR, s.tree, s.case, file)) || s.generate?.()[file] !== undefined;
+        const generated = Object.keys(s.generate?.() ?? {});
+        const there = existsSync(join(COMPARE_DIR, s.tree, s.case, file)) || generated.some((path) => path === file || path === `releases/1/${file}`);
         expect(there).toBe(s.tree === "cases" || s.fixed?.[peer.id] === undefined);
       }
     }
   });
 
   test("the rows run in the goal's order, and each id once", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["escape", "taint", "secret", "live-edit", "config", "deploy", "cores", "crash", "loop", "memory", "csrf", "headers", "waiting", "parallel", "upgrade"]);
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["escape", "taint", "secret", "live-edit", "config", "deploy", "deploy-big", "deploy-switch", "cores", "crash", "loop", "memory", "csrf", "headers", "waiting", "parallel"]);
   });
 
   test("every row either probes a stack or times a case, never both, and a timed row names a case or brings its own", () => {
@@ -257,24 +292,128 @@ describe("the feature scenarios", () => {
     expect(requires[0]).toBe("require 'parts/p000.nvs';");
   });
 
+  test("the big deploy has 2000 parts named with four digits, and Novis's entry requires each one", () => {
+    const parts = deployParts("1", "php", DEPLOY_BIG_PARTS);
+    expect(Object.keys(parts).length).toBe(2000);
+    expect(Object.keys(parts)[0]).toBe("parts/p0000.php");
+    expect(parts["parts/p1999.php"]).toBe('<?php echo "1";\n');
+    const requires = deployEntry(DEPLOY_BIG_PARTS).split("\n").filter((l) => l.startsWith("require "));
+    expect(requires.length).toBe(2000);
+    expect(requires[1999]).toBe("require 'parts/p1999.nvs';");
+    const big = SCENARIOS.find((s) => s.id === "deploy-big")!;
+    expect(big.parts).toBe(2000);
+    expect(Object.keys(big.generate!()).length).toBe(3 * 2000 + 1);
+  });
+
+  test("the switch row generates release 1 under releases/1/, serves the link read-write, and gives PHP its realpath config", () => {
+    const sw = SCENARIOS.find((s) => s.id === "deploy-switch")!;
+    expect(sw).toMatchObject({ appDir: "/app/current", mount: "rw", nginx: { php: "fastcgi-switch.conf" } });
+    const files = sw.generate!();
+    for (const entry of ["main.nvs", "index.php", "server.ts"]) expect(files[`releases/1/${entry}`]).toBeDefined();
+    expect(files["releases/1/parts/p000.ts"]).toBe('export const version = "1";\n');
+    expect(Object.keys(files).every((path) => path.startsWith("releases/1/"))).toBe(true);
+    const release = deployRelease("2", "php", DEPLOY_PARTS, "releases/2/");
+    expect(Object.keys(release).length).toBe(DEPLOY_PARTS + 1);
+    expect(release["releases/2/index.php"]).toBe(readFileSync(join(COMPARE_DIR, "scenarios", "deploy", "index.php"), "utf8"));
+    expect(DEPLOY_SWITCH).toBe("ln -s releases/2 /app/next && mv -T /app/next /app/current");
+  });
+
+  test("every row that runs more than once merges its runs", () => {
+    for (const s of SCENARIOS) if ((s.runs ?? 1) > 1) expect(s.merge).toBeDefined();
+    expect(SCENARIOS.filter((s) => s.id.startsWith("deploy")).every((s) => s.runs === DEPLOY_RUNS)).toBe(true);
+    expect(SCENARIOS.filter((s) => s.id === "loop" || s.id === "memory").every((s) => s.runs === RUNAWAY_RUNS)).toBe(true);
+  });
+
+  const deployLoad = { requests: 940, failed: 0, failures: {}, mixed: 0, complete: 940, seconds: 1.2 };
+
   test("a deploy is built in with no command, one-setting naming its command, and no on a failure, a mixed reply or no new version", () => {
-    const load = { requests: 900, failed: 0, failures: null, p99_ms: 3 };
-    const clean = { replies: 40, failed: 0, mixed: 0, copy_seconds: 2.5, seconds: 1.2 };
     const restart = DEPLOY_WAYS.bun!;
-    expect(deployResult(load, clean, undefined, false)).toEqual({
+    expect(deployResult(deployLoad, 2.5, undefined, false)).toEqual({
       result: "built-in",
-      evidence: { requests: 940, failed_requests: 0, failures: null, mixed_replies: 0, seconds_to_copy: 2.5, seconds_to_new_answer: 1.2, command: null, restarts: 0, version_checked: true },
+      evidence: {
+        requests: 940,
+        failed_requests: 0,
+        failures: null,
+        mixed_replies: 0,
+        complete_replies: 940,
+        seconds_to_copy: 2.5,
+        seconds_to_new_answer: 1.2,
+        command: null,
+        restarts: 0,
+        version_checked: true,
+        runs: 1,
+      },
     });
-    expect(deployResult(load, clean, restart, false)).toMatchObject({ result: "one-setting", setting: "a restart", evidence: { restarts: 1 } });
-    expect(deployResult(load, clean, undefined, false, LIVE_EDIT_SETTING.php)).toMatchObject({ result: "on-by-default", setting: "opcache.validate_timestamps" });
+    expect(deployResult(deployLoad, 2.5, restart, false)).toMatchObject({ result: "one-setting", setting: "a restart", evidence: { restarts: 1 } });
+    expect(deployResult(deployLoad, 2.5, undefined, false, LIVE_EDIT_SETTING.php)).toMatchObject({ result: "on-by-default", setting: "opcache.validate_timestamps" });
     expect(DEPLOY_WAYS.php).toBeUndefined();
-    expect(deployResult({ ...load, failed: 3, failures: "502 x3" }, clean, restart, false).result).toBe("no");
-    expect(deployResult(load, { ...clean, failed: 1 }, undefined, false).evidence.failed_requests).toBe(1);
-    expect(deployResult(load, { ...clean, mixed: 2 }, undefined, false).result).toBe("no");
-    expect(deployResult(load, { ...clean, seconds: null }, undefined, false).result).toBe("no");
-    expect(deployResult(load, clean, DEPLOY_WAYS.go!, true).evidence.version_checked).toBe(false);
+    const failed = deployResult({ ...deployLoad, failed: 3, failures: { "502": 2, ECONNRESET: 1 } }, 2.5, restart, false);
+    expect(failed).toMatchObject({ result: "no", evidence: { failed_requests: 3, failures: "502 x2; ECONNRESET x1" } });
+    expect(deployResult({ ...deployLoad, mixed: 2 }, 2.5, undefined, false).result).toBe("no");
+    expect(deployResult({ ...deployLoad, seconds: null }, 2.5, undefined, false).result).toBe("no");
+    expect(deployResult(deployLoad, 2.5, DEPLOY_WAYS.go!, true).evidence.version_checked).toBe(false);
+  });
+
+  test("a mixed reply holds more than one version, of any number", () => {
     expect(mixedVersions("1121\n")).toBe(true);
     expect(mixedVersions("2222\n")).toBe(false);
+    expect(mixedVersions("3333\n")).toBe(false);
+    expect(mixedVersions("2233\n")).toBe(true);
+    expect(mixedVersions("1233\n")).toBe(true);
+    expect(mixedVersions("\n")).toBe(false);
+  });
+
+  test("deploy runs merge into sums, the slowest seconds, and a verdict on the sums", () => {
+    const run = (over: Partial<typeof deployLoad>, copy = 2.1) => deployResult({ ...deployLoad, ...over }, copy, DEPLOY_WAYS.bun, false);
+    const merged = mergeDeploys("bun", [run({ failures: {} }), run({ failed: 2, failures: { "502": 2 }, seconds: 3.4 }, 2.4), run({ failed: 1, failures: { "502": 1 } })]);
+    expect(merged).toEqual({
+      result: "no",
+      evidence: {
+        requests: 2820,
+        failed_requests: 3,
+        failures: "502 x3",
+        mixed_replies: 0,
+        complete_replies: 2820,
+        seconds_to_copy: 2.4,
+        seconds_to_new_answer: 3.4,
+        command: "a restart",
+        restarts: 3,
+        version_checked: true,
+        runs: 3,
+      },
+    });
+    const clean = (over: Partial<typeof deployLoad>) => deployResult({ ...deployLoad, ...over }, 2.1, undefined, false, LIVE_EDIT_SETTING.php);
+    expect(mergeDeploys("php", [clean({}), clean({}), clean({})])).toMatchObject({ result: "on-by-default", setting: "opcache.validate_timestamps", evidence: { mixed_replies: 0, runs: 3 } });
+    expect(mergeDeploys("php", [clean({}), clean({ mixed: 77 }), clean({})])).toMatchObject({ result: "no", evidence: { mixed_replies: 77 } });
+    expect(mergeDeploys("nvs", [clean({}), clean({ seconds: null }), clean({})]).evidence.seconds_to_new_answer).toBeNull();
+    expect(failureCounts("502 x2; Connection reset x1")).toEqual(new Map([["502", 2], ["Connection reset", 1]]));
+  });
+
+  test("runaway runs merge into the median run's load, summed failures and restarts, and no when any run is no", () => {
+    const up = { running: true, restarts: 0 };
+    const limits = { name: "[limits] cpu_time", default: true };
+    const run = (requests: number, failed = 0, backend = up) =>
+      runawayResult({ requests: 1000, failed: 0, failures: null, p99_ms: 10 }, { requests, failed, failures: failed > 0 ? `502 x${failed}` : null, p99_ms: requests / 100 }, { status: 500, seconds: requests / 1000 }, backend, limits);
+    const merged = mergeRunaways("nvs", [run(900), run(500), run(700)]);
+    expect(merged).toEqual({
+      result: "on-by-default",
+      setting: "[limits] cpu_time",
+      evidence: {
+        baseline_requests: 1000,
+        requests: 700,
+        failed_requests: 0,
+        failures: null,
+        p99_ms: 7,
+        runaway_status: 500,
+        runaway_seconds: 0.7,
+        backend_running: true,
+        backend_restarts: 0,
+        runs: 3,
+        code: null,
+      },
+    });
+    const bad = mergeRunaways("bun", [run(900), run(500, 4, { running: true, restarts: 1 }), run(700)]);
+    expect(bad).toMatchObject({ result: "no", evidence: { failed_requests: 4, failures: "502 x4", backend_restarts: 1 } });
   });
 
   test("a config change is built in without a command, one-setting after a reload, and no otherwise", () => {
@@ -288,20 +427,6 @@ describe("the feature scenarios", () => {
     expect(configResult(null, null, undefined).result).toBe("no");
   });
 
-  test("an upgrade is one-setting naming its step with no failed request, and no otherwise", () => {
-    const load = { requests: 900, failed: 0, failures: null, p99_ms: 3 };
-    const clean = { replies: 40, failed: 0, mixed: 0, seconds: 0.4 };
-    expect(upgradeResult(load, clean, UPGRADE_WAYS.php!.way)).toEqual({
-      result: "one-setting",
-      setting: "php-fpm reload",
-      evidence: { requests: 940, failed_requests: 0, failures: null, p99_ms: 3, seconds_to_answer: 0.4, command: "php-fpm reload", restarts: 0 },
-    });
-    expect(upgradeResult(load, clean, UPGRADE_WAYS.nvs!.way).evidence.restarts).toBe(1);
-    expect(upgradeResult({ ...load, failed: 7, failures: "502 x7" }, clean, UPGRADE_WAYS.nvs!.way).result).toBe("no");
-    expect(upgradeResult(load, { ...clean, seconds: null }, UPGRADE_WAYS.bun!.way).result).toBe("no");
-    expect(Object.keys(UPGRADE_WAYS).sort()).toEqual(PEERS.map((p) => p.id).sort());
-    expect(upgradeCommand("/usr/local/bin/nvs")[2]).toBe('cp "/usr/local/bin/nvs" "/usr/local/bin/nvs.new" && mv "/usr/local/bin/nvs.new" "/usr/local/bin/nvs"');
-  });
 
   test("every peer the config row runs has a change, and every other peer a fixed result", () => {
     const config = SCENARIOS.find((s) => s.id === "config")!;
@@ -341,9 +466,12 @@ describe("the feature scenarios", () => {
         runaway_seconds: 30.4,
         backend_running: true,
         backend_restarts: 0,
+        runs: 1,
+        code: null,
       },
     });
     expect(runawayResult(baseline, load, { status: null, seconds: null }, up, undefined).result).toBe("no");
+    expect(runawayResult(baseline, load, { status: null, seconds: null }, up, undefined, "a Worker")).toMatchObject({ result: "your-code", evidence: { code: "a Worker" } });
     expect(runawayResult(baseline, load, { status: 502, seconds: 3 }, up, undefined).result).toBe("no");
     expect(runawayResult(baseline, { ...load, failed: 1 }, stopped, up, limits).result).toBe("no");
     expect(runawayResult(baseline, load, stopped, { running: false, restarts: 0 }, undefined).result).toBe("no");
@@ -353,6 +481,7 @@ describe("the feature scenarios", () => {
   test("the runaway rows run every peer at its defaults: Novis and PHP name the limit they start with", () => {
     expect(LOOP_DEFAULT).toEqual({ nvs: { name: "[limits] cpu_time", default: true }, php: { name: "max_execution_time", default: true } });
     expect(MEMORY_DEFAULT).toEqual({ nvs: { name: "[limits] memory", default: true }, php: { name: "memory_limit", default: true } });
+    expect(Object.keys(LOOP_IN_CODE)).toEqual(["bun"]);
     const shipped = readFileSync(join(import.meta.dir, "..", "..", "..", "crates", "nvs-config", "src", "default.toml"), "utf8");
     expect(shipped).toContain('#memory = "128M"                      # default');
     expect(shipped).toContain('#cpu_time = "30s"                     # default: 30s for server work');
@@ -492,6 +621,27 @@ describe("the record shape", () => {
     expect(record.cases.hello!.concurrency).toBe(64);
     expect(Object.keys(record.cases.hello!.peers)).toEqual(["nvs", "php", "bun", "go"]);
     expect(record.cases.hello!.peers.go!.requests_per_sec).toBe(4);
+  });
+
+  test("a peer's reps become the median rep's throughput and latency, the median memory, and summed errors", () => {
+    const rep = (rps: number, p99: number, peak: number | null, errors = 0): PeerResult => ({
+      ...result(rps),
+      p99_ms: p99,
+      memory_peak_bytes: peak,
+      errors,
+      error_kinds: errors > 0 ? { reset: errors } : {},
+      status_codes: { "200": 300 },
+    });
+    const m = medianOf([rep(900, 9, 30), rep(1200, 4, 10), rep(1000, 6, 50, 2), rep(800, 12, null), rep(1100, 5, 20)]);
+    expect(m.requests_per_sec).toBe(1000);
+    expect(m.median_requests_per_sec).toBe(1000);
+    expect(m.p99_ms).toBe(6);
+    expect(m.memory_peak_bytes).toBe(20);
+    expect(m.errors).toBe(2);
+    expect(m.error_kinds).toEqual({ reset: 2 });
+    expect(m.status_codes).toEqual({ "200": 1500 });
+    expect(medianOf([rep(5, 1, null)]).memory_peak_bytes).toBeNull();
+    expect(medianIndex([3, 1, 2, 4])).toBe(2);
   });
 
   test("a case that was not run is absent, not empty", () => {

@@ -1,0 +1,7 @@
+# Scoped to this directory's `Dockerfile` alone: BuildKit reads `<dockerfile>.dockerignore` before the
+# context's own. The context is `benches/compare/`, and the image compiles only `cases/` and
+# `scenarios/`.
+#
+# `generated/` holds the copies a row serves. The `deploy-switch` row makes a symlink there from inside
+# a container, which a Windows host cannot open, so sending it fails the whole build.
+generated/

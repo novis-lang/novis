@@ -20,11 +20,16 @@ services:
 
     # `bun/serve.ts` starts this many processes, each with `reusePort`. One per CPU of the budget is
     # Bun's own advice for using more than one core.
+    # `APP_DIR` is the folder `serve.ts` imports the case from, as `compose.nvs.yaml` says. The deploy
+    # programs read their part count from `DEPLOY_PARTS`.
     environment:
       WORKERS: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
+      APP_DIR: ${APP_DIR:?the driver sets APP_DIR}
+      DEPLOY_PARTS: ${DEPLOY_PARTS:-}
 
     volumes:
-      - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:ro
+      # Read-only, as `compose.nvs.yaml` says.
+      - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:${APP_MOUNT_MODE:?the driver sets APP_MOUNT_MODE}
       - ./bun/serve.ts:/srv/serve.ts:ro
 
     command: ["bun", "/srv/serve.ts"]
