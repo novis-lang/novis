@@ -55,7 +55,8 @@ right prefix when the application is mounted under a path such as `/shop`.
 
 - Do write all error pages in one gate class, and call `Core\Router::dispatch` with it.
 - Do give every route a `name`, and build links from the name with `Core\Router::url`.
-- Do read a form or a JSON body into a class with `postAs` or `jsonAs`. Each field is then checked.
+- Do read a form or a JSON body into a class with `postAs` or `jsonAs`. Each property of the class
+  is then checked.
 - Do set a status for every error response, such as `404` or `422`.
 - Don't keep data for the next request in a static property. Each request starts with fresh values.
 - Don't build a link by joining strings. The prefix of a mounted application is then missing.

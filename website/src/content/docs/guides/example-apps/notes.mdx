@@ -117,7 +117,7 @@ public.
 
 `src/Draft.nvs` is a note that is not saved yet. The form and the JSON API both create a `Draft`.
 Its text came from the user, so it is `tainted string`. `problems()` returns one message for each
-field that is not valid.
+property that is not valid.
 
 `src/Store.nvs` runs the SQL. Every value goes to the database as a `?` placeholder. The text of a
 note is never part of the SQL.

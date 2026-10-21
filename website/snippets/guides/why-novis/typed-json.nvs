@@ -11,7 +11,7 @@ class Order {
     }
 }
 
-// `Core\Json::decodeAs` checks every field against the class.
+// `Core\Json::decodeAs` checks the JSON against every property of the class.
 Order $order = Core\Json::decodeAs<Order>('{"item":"tea","count":3}');
 echo $order->item, " x ", $order->count, "\n";
 

@@ -13,7 +13,7 @@ an `Order` object.
 
 The output above is for the body `{"product":"green tea","quantity":3}`.
 
-`#[Core\Json\Derive]` lets Novis fill an `Order` from JSON. Each public field reads the key with
+`#[Core\Json\Derive]` lets Novis fill an `Order` from JSON. Each public property reads the key with
 the same name. If a key is missing, or has the wrong type, `Core\Request::jsonAs` throws a
 `ParseError`. Its `issues` list has one entry for each wrong field.
 

@@ -8,8 +8,7 @@ import Replay from '@components/Replay.astro'
 import Snippet from '@components/Snippet.astro'
 
 `orderBy("customer.email")` names class properties in a string. A property is a variable that
-belongs to a class, also called a field. In Novis, the editor completes these names, and a typo gets
-a red underline.
+belongs to a class. In Novis, the editor completes these names, and a typo gets a red underline.
 
 This works because the string has its own type. `propertyPath<Order>` is a path of property names of
 `Order`. A string with holes, `string<propertyPath<Order>>`, can have several paths in one
@@ -74,11 +73,11 @@ A step also has the property's type, so a library can see if it is an array or c
 Novis does not read the SQL text between the holes. A typo in a column name there is found when
 the query runs. A name in a hole is checked when the program compiles.
 
-## A sort field from a request
+## The property to sort by, from a request
 
 <Snippet src="guides/how-to-use/data-mapper/06-a-sort-field-from-a-request.nvs" />
 
-A field name from a request is a `tainted string`. `as ?propertyPath<Order>` checks each name while
+A property name from a request is a `tainted string`. `as ?propertyPath<Order>` checks each name while
 the program runs. `customer.passwordHash` names a private property, so the result is `null`. A path
 with a wrong name or a brace also gives `null`.
 
@@ -87,9 +86,9 @@ cannot reach the text of a database query.
 
 ## Do and don't
 
-- Do type a parameter `propertyPath<T>` when it takes a field name, so each call is checked.
-- Do convert a field name from a request with `as ?propertyPath<T>`, and handle the `null`.
-- Do pass values in a query as parameters, with `?`. Put only field names in the holes.
+- Do type a parameter `propertyPath<T>` when it takes a property name, so each call is checked.
+- Do convert a property name from a request with `as ?propertyPath<T>`, and handle the `null`.
+- Do pass values in a query as parameters, with `?`. Put only property names in the holes.
 - Don't build a condition from request text. The result is `tainted`, and a query does not accept it.
 
-Read more in [Concepts: field names the compiler checks](/in-depth/concepts/checked-field-names/).
+Read more in [Concepts: how property name types work](/in-depth/concepts/checked-property-names/).
