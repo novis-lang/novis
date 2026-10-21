@@ -5143,7 +5143,7 @@ fn answered(slot: usize, ctx: &mut Ctx, args: &[Value]) -> nvs_runtime::HelperRe
 }
 
 /// What a `partial` does with a method its shape did not override: the same
-/// call on `$real`, which is `rule:classes/delegation-by-field`'s forward
+/// call on `$real`, which is `rule:classes/delegation-by-property`'s forward
 /// reached without a class to declare it on.
 ///
 /// # Errors

@@ -2,7 +2,7 @@
   "title": "One written attribute per format generates a codec, and it is matched by resolved name",
   "status": "shipped",
   "seeAlso": [
-    "core-classes/derive-field-list",
+    "core-classes/derive-property-list",
     "core-classes/derive-generates-what-is-missing",
     "attributes/inert-metadata",
     "attributes/structural-retrieval"

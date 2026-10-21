@@ -30,7 +30,7 @@
 //!
 //! - **An `abstract` class is exempt.** Leaving a member to a subclass is
 //!   what the modifier means.
-//! - **A member `rule:classes/delegation-by-field`'s `by $field` delegation supplies is exempt, one
+//! - **A member `rule:classes/delegation-by-property`'s `by $field` delegation supplies is exempt, one
 //!   member at a time.** Delegation answers a member from a property's own
 //!   type, so a synthesized forward discharges the obligation exactly as a
 //!   written body does — but only for the members that actually get one.
@@ -1526,7 +1526,7 @@ fn collect_obligations(
 }
 
 /// Records one [`Delegation`] per member an `implements I by $field;` clause
-/// makes the compiler synthesize a forward for — `rule:classes/delegation-by-field`.
+/// makes the compiler synthesize a forward for — `rule:classes/delegation-by-property`.
 ///
 /// The obligation set is [`collect_obligations`]', asked of the *interface*
 /// rather than of the class: every bodiless, non-`interface_private` member it
@@ -1645,7 +1645,7 @@ fn resolve_delegations(
     Some(covered)
 }
 
-/// `rule:classes/delegation-by-field` bullet 1: whether `field` can carry `interface`'s members at
+/// `rule:classes/delegation-by-property` bullet 1: whether `field` can carry `interface`'s members at
 /// all — a declared property of `qname` (its own or an inherited one) whose
 /// type is a **non-nullable** class or interface that satisfies `interface`.
 /// Reports one `E0720` and answers `false` where it cannot.

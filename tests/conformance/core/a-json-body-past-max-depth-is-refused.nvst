@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::jsonAs<array<T>>()` reads a JSON array as one `T` per element, and the `maxDepth` that refuses it is the call's bound rather than the request's `rule:core-classes/derive-field-list`, `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+`Core\Request::jsonAs<array<T>>()` reads a JSON array as one `T` per element, and the `maxDepth` that refuses it is the call's bound rather than the request's `rule:core-classes/derive-property-list`, `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
 --POST_RAW--
 [{"name":"ada","tags":2},{"name":"bo","tags":5}]
 --FILE--

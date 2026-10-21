@@ -1473,7 +1473,7 @@ fn collect_members(
 ///
 /// This is the whole of what "a promoted parameter *is* a property" means on
 /// this side: [`resolve_property`] answers it, so a `$this->n` read, an
-/// `$obj->n` access, an `rule:core-api/written-visibility` visibility check and `rule:classes/delegation-by-field`'s
+/// `$obj->n` access, an `rule:core-api/written-visibility` visibility check and `rule:classes/delegation-by-property`'s
 /// `check_delegate_field` all see it with no case of their own.
 /// [`crate::layout`] gives it the slot, and `nvs_ir::lower` emits the store.
 ///
@@ -1730,7 +1730,7 @@ pub(crate) fn report_misplaced_covariant(at: Span, what: &str, env: &mut Env<'_>
 }
 
 /// Refuses a visibility keyword on the parameter of a method that is not the
-/// `constructor` (`E0722`), which is `rule:classes/delegation-by-field`'s own backlog line.
+/// `constructor` (`E0722`), which is `rule:classes/delegation-by-property`'s own backlog line.
 ///
 /// [`record_promoted_properties`] above is only ever reached from a
 /// constructor, so the keyword written anywhere else declared nothing, took no

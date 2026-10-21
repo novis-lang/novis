@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs` reads an `array<array<T>>` at any depth, and the element's class and enum roster answer from the field at every one — `rule:core-classes/derive-field-list`, `rule:core-classes/derive-reports-every-field`
+`Core\Json::decodeAs` reads an `array<array<T>>` at any depth, and the element's class and enum roster answer from the field at every one — `rule:core-classes/derive-property-list`, `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
 #[Core\Json\Derive]

@@ -1,5 +1,5 @@
 --TEST--
-`#[Json\Field]` declares `name` and `skip` and nothing else, and each takes a literal of its own type — `rule:core-classes/derive-field-list`
+`#[Json\Field]` declares `name` and `skip` and nothing else, and each takes a literal of its own type — `rule:core-classes/derive-property-list`
 --FILE--
 <?nvs
 #[Core\Json\Derive]

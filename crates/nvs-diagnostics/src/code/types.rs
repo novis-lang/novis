@@ -507,7 +507,7 @@ codes! {
          when the value is `null`. Or check the value first with `if ($x != null) { ... }`.",
     );
     /// A `#[Json\Derive]` field that is not a same-named constructor parameter.
-    /// `rule:core-classes/derive-field-list` makes a decode an ordinary `new`, so every field the codec
+    /// `rule:core-classes/derive-property-list` makes a decode an ordinary `new`, so every field the codec
     /// reads has to have a parameter to arrive through; `#[Json\Field(skip:
     /// true)]` is the stated way out.
     pub const E_DERIVE_FIELD_NOT_A_PARAMETER: Code = Code::new("E0460").card(
@@ -515,7 +515,7 @@ codes! {
          same name. Add the parameter, or add `#[Json\\Field(skip: true)]` to the property.",
     );
     /// A `#[Json\Derive]` field whose constructor parameter is declared with a
-    /// different type than the property. `rule:core-classes/derive-field-list`: the two lists are one
+    /// different type than the property. `rule:core-classes/derive-property-list`: the two lists are one
     /// declaration for a promoted parameter, so a divergence is always written
     /// by hand and always a mistake.
     pub const E_DERIVE_FIELD_TYPE_MISMATCH: Code = Code::new("E0461").card(
@@ -530,14 +530,14 @@ codes! {
          because a secret value is never written out. Add `skip: true` to the property's \
          `#[Json\\Field(...)]` or `#[Db\\Field(...)]` attribute to leave it out.",
     );
-    /// A `lateinit` property on a class carrying `#[Json\Derive]`. `rule:core-classes/derive-field-list`: `lateinit` (`rule:classes/lateinit`) is by definition not constructor-assigned,
+    /// A `lateinit` property on a class carrying `#[Json\Derive]`. `rule:core-classes/derive-property-list`: `lateinit` (`rule:classes/lateinit`) is by definition not constructor-assigned,
     /// so it can never be a field.
     pub const E_DERIVE_LATEINIT_FIELD: Code = Code::new("E0463").card(
         "A class with `#[Json\\Derive]` or `#[Db\\Derive]` cannot have a `lateinit` property, \
          because every property needs a constructor parameter. Add `skip: true` to the property's \
          `#[Json\\Field(...)]` or `#[Db\\Field(...)]` attribute to leave it out.",
     );
-    /// A `#[Json\Field(...)]` argument that is not one of `rule:core-classes/derive-field-list`'s
+    /// A `#[Json\Field(...)]` argument that is not one of `rule:core-classes/derive-property-list`'s
     /// options, a value that is not a literal of that option's type, or a second field attribute
     /// of one format on one property.
     pub const E_DERIVE_FIELD_ATTRIBUTE: Code = Code::new("E0464").card(

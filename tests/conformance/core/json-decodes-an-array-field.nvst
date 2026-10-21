@@ -1,8 +1,8 @@
 --TEST--
-`Core\Json::decodeAs<T>` decodes an `array<T>` field, of a scalar or of another derived class, and reports a bad element at its own position — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`
+`Core\Json::decodeAs<T>` decodes an `array<T>` field, of a scalar or of another derived class, and reports a bad element at its own position — `rule:core-classes/derive-property-list` and `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
-// `rule:core-classes/derive-field-list` admits an `array<T>` field wherever `T` is codec-reachable. `Author`
+// `rule:core-classes/derive-property-list` admits an `array<T>` field wherever `T` is codec-reachable. `Author`
 // makes the element half a class, so one document exercises both an element
 // that is a scalar and one that runs a whole nested field list.
 #[Core\Json\Derive]

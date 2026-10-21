@@ -417,7 +417,7 @@ codes! {
          return type and `return` a value, or call it as its own statement.",
     );
     /// An `implements I by $field;` clause whose `$field` cannot answer `I` —
-    /// `rule:classes/delegation-by-field` bullet 1.
+    /// `rule:classes/delegation-by-property` bullet 1.
     ///
     /// The delegate has to be a **declared property** of the class, whose
     /// type is a **non-nullable** class or interface that itself satisfies
@@ -437,7 +437,7 @@ codes! {
         "In `implements I by $property`, `$property` must be a property of this class. Its type \
          must be a class or interface that implements `I`, and it cannot be nullable.",
     );
-    /// A member of a delegated interface whose shape `rule:classes/delegation-by-field`'s
+    /// A member of a delegated interface whose shape `rule:classes/delegation-by-property`'s
     /// synthesized forward cannot express: a `static` member, a variadic
     /// parameter list, or an `inout` parameter.
     ///
@@ -460,7 +460,7 @@ codes! {
          or `inout` parameter. Write that method on the class yourself.",
     );
     /// A visibility keyword on a parameter of a method that is not the
-    /// `constructor` — `rule:classes/delegation-by-field`'s own backlog line.
+    /// `constructor` — `rule:classes/delegation-by-property`'s own backlog line.
     ///
     /// `public`/`protected`/`private` on a parameter is PHP 8's constructor
     /// promotion and nothing else: it says where a **property** may be read
@@ -1057,7 +1057,7 @@ codes! {
 
     /// A derived field's declared type is not in its format's type map.
     ///
-    /// `rule:core-classes/derive-field-list`'s codec-reachable set for `#[Json\Derive]` and `rule:core-classes/db-column-types`'s type map for `#[Db\Derive]`, refused at the *declaration* that
+    /// `rule:core-classes/derive-property-list`'s codec-reachable set for `#[Json\Derive]` and `rule:core-classes/db-column-types`'s type map for `#[Db\Derive]`, refused at the *declaration* that
     /// wrote it rather than at the `decodeAs<T>` or `queryAs<T>` that later
     /// runs. The two maps disagree — `bytes` is a `BLOB` column and has no
     /// JSON spelling, a nested class is a JSON object and no column at all —
@@ -1087,7 +1087,7 @@ codes! {
 
     /// A class carrying a derive attribute contributes no field to the codec.
     ///
-    /// `rule:core-classes/derive-field-list`'s field list is the declared property list, so a class
+    /// `rule:core-classes/derive-property-list`'s field list is the declared property list, so a class
     /// that declares no instance property — or skips every one it declares —
     /// derives an empty wire contract. § 7's rule about an attribute with no
     /// effect applies unchanged, and the fix is either a property or no

@@ -1,8 +1,8 @@
 --TEST--
-A `#[Json\Field(skip: true)]` property that is still a constructor parameter leaves a position no key fills, and the call that asks for a whole instance out of a document is refused — `rule:core-classes/derive-field-list`, `rule:core-api/required-optional-and-nullable`
+A `#[Json\Field(skip: true)]` property that is still a constructor parameter leaves a position no key fills, and the call that asks for a whole instance out of a document is refused — `rule:core-classes/derive-property-list`, `rule:core-api/required-optional-and-nullable`
 --FILE--
 <?nvs
-// `rule:core-classes/derive-field-list`: `skip` takes a property off the
+// `rule:core-classes/derive-property-list`: `skip` takes a property off the
 // contract and exempts it from the constructor-parameter requirement. The class
 // stays well formed either way — it still encodes, and the program can still
 // build one itself — so the refusal is of the **call** that asks for one out of

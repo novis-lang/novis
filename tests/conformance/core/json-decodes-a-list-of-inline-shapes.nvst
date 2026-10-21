@@ -1,9 +1,9 @@
 --TEST--
-`Core\Json::decodeAs` fills an `array<T>` of inline shapes, pinning `rule:core-classes/derive-field-list` and `rule:types/shape-type`
+`Core\Json::decodeAs` fills an `array<T>` of inline shapes, pinning `rule:core-classes/derive-property-list` and `rule:types/shape-type`
 --FILE--
 <?nvs
 // An inline shape reached as a list's *element* is the same wire contract it is
-// as a field: `rule:core-classes/derive-field-list` makes both reachable, and
+// as a field: `rule:core-classes/derive-property-list` makes both reachable, and
 // the element's two resolved pointers — the class a literal of those field
 // names builds, and the contract holding the per-field wire types that label
 // cannot carry — ride on the field the same way an element class's label does.

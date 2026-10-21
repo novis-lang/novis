@@ -1,5 +1,5 @@
 --TEST--
-`implements Iterator<int> by $field;` synthesizes the same forward a plain interface gets, and the forwarded class drives a `foreach` — `rule:classes/delegation-by-field`, `rule:iteration/concrete-generic-implements`
+`implements Iterator<int> by $field;` synthesizes the same forward a plain interface gets, and the forwarded class drives a `foreach` — `rule:classes/delegation-by-property`, `rule:iteration/concrete-generic-implements`
 --FILE--
 <?nvs
 // The forward is written against the *interface's* signature, and a

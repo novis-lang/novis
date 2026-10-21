@@ -242,7 +242,7 @@
 //! compiling, over both members. A list type argument, whose form asks for the
 //! plural twice; a `T` carrying no `#[Db\Derive]` codec; a field the erasure
 //! gave no wire type; and a mapping that fills fewer parameters than the
-//! constructor declares, which is `rule:core-classes/derive-field-list`'s
+//! constructor declares, which is `rule:core-classes/derive-property-list`'s
 //! skipped property that stayed one. A field the mapping *carries* brings its
 //! own constant — `nvs_runtime::CodecField::default`, which fills an absent
 //! column for a parameter that declares a default — while a `skip: true` leaves

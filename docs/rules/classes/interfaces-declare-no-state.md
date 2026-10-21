@@ -8,7 +8,7 @@ The two things such a property is reached for are already in the interface. A va
 supplies is a bodiless method. A value that is a constant per implementor is a typed constant the
 implementor overrides, read as `static::NAME` from a default method, which
 `rule:statements/static-is-a-member-modifier` binds to the implementor's class. Shared state is
-`implements I by $field;` (`rule:classes/delegation-by-field`), never a slot the interface owns: an
+`implements I by $field;` (`rule:classes/delegation-by-property`), never a slot the interface owns: an
 interface names a contract, and its implementors hold the values.
 
 **Declined:**

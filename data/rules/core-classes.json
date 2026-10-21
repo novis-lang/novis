@@ -57,7 +57,7 @@
     "core-classes/schema-absence-never-destroys",
     "core-classes/schema-apply-capability",
     "core-classes/derive-attribute",
-    "core-classes/derive-field-list",
+    "core-classes/derive-property-list",
     "core-classes/derive-reports-every-field",
     "core-classes/derive-generates-what-is-missing",
     "core-classes/ldap-capabilities",

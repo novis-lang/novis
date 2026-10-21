@@ -30,5 +30,5 @@ a program that neither carries the attribute nor writes a half pays nothing at a
 - **Validation in the codec.** Checking that a value looks right belongs to `Core\Validate` and user
   code, and folding it in is how a derive attribute grows into a framework.
 - **Omitting a `null` field and a naming policy** are declined where their rules live
-  (`rule:core-api/required-optional-and-nullable`, `rule:core-classes/derive-field-list`). Until either
+  (`rule:core-api/required-optional-and-nullable`, `rule:core-classes/derive-property-list`). Until either
   exists, a payload that needs one takes a hand-written encoder.

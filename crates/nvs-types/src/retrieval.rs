@@ -38,7 +38,7 @@
 //!
 //! The last two overlap, and deliberately: `constructor` plus a `$member` is
 //! both "the property named `$member`" and "the constructor parameter named
-//! `$member`", which are the *same declaration* for an `rule:classes/delegation-by-field` promoted
+//! `$member`", which are the *same declaration* for an `rule:classes/delegation-by-property` promoted
 //! parameter. So both rosters are consulted and their attributes joined, which
 //! is the one arrangement that reads a promoted parameter's attribute once and
 //! an unpromoted one's at all.

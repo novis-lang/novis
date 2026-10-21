@@ -166,7 +166,7 @@ pub struct ClassLayout {
     /// included and the receiver is excluded, so the list is either that
     /// arity long or **empty**, which reads as "no declaration was read for
     /// this row" rather than "the method takes nothing": a synthesized
-    /// exception constructor and a `rule:classes/delegation-by-field` forward
+    /// exception constructor and a `rule:classes/delegation-by-property` forward
     /// are the two such rows, and neither has written parameters to spell.
     /// `Core\Reflect\MethodInfo::parameters` is what reads them back.
     ///

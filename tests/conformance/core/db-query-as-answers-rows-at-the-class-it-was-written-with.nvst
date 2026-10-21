@@ -1,5 +1,5 @@
 --TEST--
-`queryAs<T>` answers a `Core\Db\Rows<T>` at the class its call site wrote, where `query` answers `Rows<Row>` — `rule:core-classes/db-statement-members`, `rule:core-classes/derive-field-list`
+`queryAs<T>` answers a `Core\Db\Rows<T>` at the class its call site wrote, where `query` answers `Rows<Row>` — `rule:core-classes/db-statement-members`, `rule:core-classes/derive-property-list`
 --FILE--
 <?nvs
 // `Rows` is one generic class and not two. `query` fixes its `T` at

@@ -1,4 +1,4 @@
-//! Call lowering: argument ownership, `rule:core-api/shape-rules` R2's options bag flattened at the site, an `inout $x` argument staged and written back, `$fn(...)` through the one helper a `Core` member's callback already takes, and `rule:classes/delegation-by-field`'s `by $field` forward, which is a whole synthesized function rather than a lowered call.
+//! Call lowering: argument ownership, `rule:core-api/shape-rules` R2's options bag flattened at the site, an `inout $x` argument staged and written back, `$fn(...)` through the one helper a `Core` member's callback already takes, and `rule:classes/delegation-by-property`'s `by $field` forward, which is a whole synthesized function rather than a lowered call.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. The methods
@@ -1409,7 +1409,7 @@ impl<'a> Lowering<'a> {
     }
 }
 
-/// One `rule:classes/delegation-by-field` `implements I by $field;` forward, built as a whole
+/// One `rule:classes/delegation-by-property` `implements I by $field;` forward, built as a whole
 /// [`Function`] — the shape `nvs_types::expr_table::Delegation` decided.
 ///
 /// It is a synthesized **method** rather than a rewrite of the call site, and

@@ -1,5 +1,5 @@
 --TEST--
-Every Novis spelling in the classes table of the PHP-differences chapter, and every construct the paragraph under it lists, compiles and runs — `rule:classes/delegation-by-field`, `rule:classes/property-observer-pipeline`
+Every Novis spelling in the classes table of the PHP-differences chapter, and every construct the paragraph under it lists, compiles and runs — `rule:classes/delegation-by-property`, `rule:classes/property-observer-pipeline`
 --FILE--
 <?nvs
 // covers: tools:php-differences/the-short-list

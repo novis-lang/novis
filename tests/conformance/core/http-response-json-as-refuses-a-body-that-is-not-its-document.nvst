@@ -1,5 +1,5 @@
 --TEST--
-`Core\Http\Response::jsonAs<T>()` refuses every reply that is not the document it was asked for — one that carried no body, one whose octets are not text, and one nested past the call's own `maxDepth` — while `array<T>` reads a JSON array as one `T` per element — `rule:errors/ambiguous-input-refused`, `rule:core-classes/derive-field-list`
+`Core\Http\Response::jsonAs<T>()` refuses every reply that is not the document it was asked for — one that carried no body, one whose octets are not text, and one nested past the call's own `maxDepth` — while `array<T>` reads a JSON array as one `T` per element — `rule:errors/ambiguous-input-refused`, `rule:core-classes/derive-property-list`
 --FILE--
 <?nvs
 #[Core\Json\Derive]

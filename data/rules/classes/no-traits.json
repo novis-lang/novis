@@ -4,7 +4,7 @@
   "seeAlso": [
     "classes/interface-default-methods",
     "classes/interface-private-methods",
-    "classes/delegation-by-field",
+    "classes/delegation-by-property",
     "classes/member-conflict-is-an-error",
     "types/no-legacy-cast"
   ],

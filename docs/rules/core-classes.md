@@ -1683,7 +1683,7 @@ as reflected. Only `string` and `bytes` carry the qualifier, so arithmetic on an
 absence; `queryAs<T>` hydrates an inline shape or a `Core\Db\Codec` class, the same split as
 `Json::decode` and `decodeAs<T>`. Field names match column names exactly, so there is no
 snake-to-camel layer; `AS` in the SQL, or a derived codec's per-field `name`
-([`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list)), is the way to rename. SQLite has no date or time types: its mapping
+([`core-classes/derive-property-list`](core-classes.md#core-classes-derive-property-list)), is the way to rename. SQLite has no date or time types: its mapping
 keys off the *declared* column type and throws on a value that does not parse. The declared zone is
 a property of one database, written by the operator who knows what its columns mean, not an ambient
 process or request default ([`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state)).
@@ -2260,13 +2260,13 @@ argued on its own.
   name to be the same string, which is wrong often enough that two attributes would be needed at
   once. A class using both formats with the same rename writes it twice, and that is visible.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval).</sub>
+<sub>See also [`core-classes/derive-property-list`](core-classes.md#core-classes-derive-property-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval).</sub>
 
-<a id="core-classes-derive-field-list"></a>
+<a id="core-classes-derive-property-list"></a>
 
 ## The field list is the declared property list, and every field is a constructor parameter of the same name
 
-`rule:core-classes/derive-field-list`
+`rule:core-classes/derive-property-list`
 
 Fields are the class's own declared properties, in declaration order, private ones included.
 Visibility is an access-control decision and has no business deciding a wire format; declaration
@@ -2357,7 +2357,7 @@ for the same question. `crates/nvs-stdlib/src/db/mod.rs`'s module doc owns why.
   learnable ([`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy)), and what was missing was a field on an existing
   class, not a new class.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy).</sub>
+<sub>See also [`core-classes/derive-property-list`](core-classes.md#core-classes-derive-property-list), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy).</sub>
 
 <a id="core-classes-derive-generates-what-is-missing"></a>
 
@@ -2397,10 +2397,10 @@ a program that neither carries the attribute nor writes a half pays nothing at a
 - **Validation in the codec.** Checking that a value looks right belongs to `Core\Validate` and user
   code, and folding it in is how a derive attribute grows into a framework.
 - **Omitting a `null` field and a naming policy** are declined where their rules live
-  ([`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list)). Until either
+  ([`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`core-classes/derive-property-list`](core-classes.md#core-classes-derive-property-list)). Until either
   exists, a payload that needs one takes a hand-written encoder.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type).</sub>
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-property-list`](core-classes.md#core-classes-derive-property-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type).</sub>
 
 <a id="core-classes-ldap-capabilities"></a>
 

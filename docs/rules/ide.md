@@ -1349,7 +1349,7 @@ document alone: it needs resolution applied to every occurrence, not to one. Cod
 the reference count, a type's implementors, and the methods a method overrides and is overridden by; it is
 gated on `nvs.codeLens.enable` (default `true`), because a lens is a request per visible declaration and a
 large file is where it is least welcome. `textDocument/typeHierarchy` shows supertypes and subtypes,
-including [`classes/interface-default-methods`](classes.md#classes-interface-default-methods) and [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), which is
+including [`classes/interface-default-methods`](classes.md#classes-interface-default-methods) and [`classes/delegation-by-property`](classes.md#classes-delegation-by-property), which is
 where a reader most needs to see the shape rather than reconstruct it.
 
 The fifth is **unused-member dimming**: a private member, constant or `use` with no reference anywhere in
@@ -1387,7 +1387,7 @@ warm index is what keeps references and highlight inside [`ide/a-full-reanalysis
   correct at workspace scope. It would also make the scope a property of the index rather than of the
   query, so the fifth reader would need a second construction site.
 
-<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
+<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-property`](classes.md#classes-delegation-by-property), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-used-by-counts-the-routes-and-tests-that-reach-a-method"></a>
 

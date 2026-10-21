@@ -691,7 +691,7 @@ pub struct Param {
 impl Param {
     /// Whether this parameter declares a property rather than only a binding
     /// — PHP 8's constructor promotion, which
-    /// `rule:classes/delegation-by-field`'s own worked example spells `constructor(private Clock $clock)`.
+    /// `rule:classes/delegation-by-property`'s own worked example spells `constructor(private Clock $clock)`.
     ///
     /// A **visibility** keyword is what promotes, exactly as in PHP: it is
     /// the only modifier that says where the property may be read from, and
@@ -1676,13 +1676,13 @@ pub struct ClassDecl {
     /// The single superclass, if any.
     pub extends: Option<Name>,
     /// The implemented interfaces, in source order, each with its optional
-    /// `by $field` delegation suffix (`rule:classes/delegation-by-field`).
+    /// `by $field` delegation suffix (`rule:classes/delegation-by-property`).
     pub implements: Vec<ImplementsClause>,
     /// The class body's members, in source order.
     pub members: Vec<ClassMember>,
 }
 
-/// One entry of a class's `implements` list (`rule:classes/delegation-by-field`): the interface
+/// One entry of a class's `implements` list (`rule:classes/delegation-by-property`): the interface
 /// named, its `<...>` type arguments if any, plus its optional `by $field`
 /// delegation suffix. `by_field` is recorded as a span and nothing more —
 /// checking that `$field` is a declared property whose type actually

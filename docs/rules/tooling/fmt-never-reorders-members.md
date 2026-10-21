@@ -1,6 +1,6 @@
 Methods, properties, class constants and enum cases keep the order their author wrote. No "group by
 visibility, constants before properties before methods" rule exists, because declaration order is
-observable: `rule:core-classes/derive-field-list` makes a derived codec's encode order the property
+observable: `rule:core-classes/derive-property-list` makes a derived codec's encode order the property
 declaration order, on purpose, for ETags and cached fixtures; and `rule:testing/bench-counters` makes the
 test runner's report order the declaration order of the cases. A formatter that reordered members would
 change what a program prints and sends, and a formatter that changes meaning is not a formatter — the

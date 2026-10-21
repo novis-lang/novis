@@ -22,7 +22,7 @@ as reflected. Only `string` and `bytes` carry the qualifier, so arithmetic on an
 absence; `queryAs<T>` hydrates an inline shape or a `Core\Db\Codec` class, the same split as
 `Json::decode` and `decodeAs<T>`. Field names match column names exactly, so there is no
 snake-to-camel layer; `AS` in the SQL, or a derived codec's per-field `name`
-(`rule:core-classes/derive-field-list`), is the way to rename. SQLite has no date or time types: its mapping
+(`rule:core-classes/derive-property-list`), is the way to rename. SQLite has no date or time types: its mapping
 keys off the *declared* column type and throws on a value that does not parse. The declared zone is
 a property of one database, written by the operator who knows what its columns mean, not an ambient
 process or request default (`rule:core-api/no-ambient-state`).

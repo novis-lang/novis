@@ -140,7 +140,7 @@
 //!
 //! # A value type crosses as text, not as its slots
 //!
-//! `rule:core-classes/derive-field-list` admits the named `Core` value types as
+//! `rule:core-classes/derive-property-list` admits the named `Core` value types as
 //! fields and JSON has a type for none of them. Two of them carry a wire form
 //! here, and both of them are a **string** — written by [`Encodable`] and read
 //! by [`scalar`], so a document this crate writes is one it accepts back.
@@ -1302,7 +1302,7 @@ impl Stack {
         // (`nvs_ir::lower::shape_class_label`) and so has no per-field wire
         // type a `CodecField` could honestly carry: `{n: 1}` and `{n: "s"}` are
         // one class. Key order is that label's, which is sorted, so a shape's
-        // document is byte-deterministic on `rule:core-classes/derive-field-list`'s terms.
+        // document is byte-deterministic on `rule:core-classes/derive-property-list`'s terms.
         if desc.is_shape() {
             sink.open_object();
             self.frames.push(Frame {
@@ -2006,7 +2006,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// `rule:core-classes/derive-field-list`'s decode: the
+/// `rule:core-classes/derive-property-list`'s decode: the
 /// contract checked once, the document read once, and then one instance —
 /// or, for `list`, one per element of a JSON array.
 ///
@@ -2341,7 +2341,7 @@ pub(crate) unsafe fn check_codec(
         ));
     }
     // Checked before the document is even read: an undecoded field is a
-    // declared type `rule:core-classes/derive-field-list`'s reachable test
+    // declared type `rule:core-classes/derive-property-list`'s reachable test
     // already refused, not something the input did, so it is an engine fault
     // rather than an issue in a list a program shows a user.
     if let Some(field) = fields.iter().find(|field| {
@@ -2353,7 +2353,7 @@ pub(crate) unsafe fn check_codec(
     }) {
         return Err(Fault::fatal(format!(
             "{member}(): `{}`'s `{}` field has a declared type no wire type describes — \
-             `rule:core-classes/derive-field-list`'s reachable test refuses that declaration, \
+             `rule:core-classes/derive-property-list`'s reachable test refuses that declaration, \
              so reaching it here is the compiler disagreeing with itself",
             contract.name(),
             field.key
@@ -2496,7 +2496,7 @@ pub(crate) unsafe fn hydrate(
     decoded
 }
 
-/// `rule:core-classes/derive-field-list`'s decode run once per element: a JSON array in, one instance of
+/// `rule:core-classes/derive-property-list`'s decode run once per element: a JSON array in, one instance of
 /// `class` per element out, in the document's own order.
 ///
 /// An element that is not an object, or a field that does not match, refuses
@@ -3002,7 +3002,7 @@ impl<'a> Fields<'a> {
         if !self.issues.is_empty() {
             return Err(DecodeFailure::Issues(std::mem::take(&mut self.issues)));
         }
-        // `rule:core-classes/derive-field-list`'s skipped field is the one shape
+        // `rule:core-classes/derive-property-list`'s skipped field is the one shape
         // that leaves a position unfilled: a field the contract carries took its
         // own default above, and a property `skip: true` removed from the contract
         // leaves a parameter no field names, so there is no field here to read a
@@ -3393,7 +3393,7 @@ unsafe fn convert_field<'a>(
         return issue("null is not permitted".to_owned());
     }
     let converted = match field.ty {
-        // `rule:core-classes/derive-field-list`'s nested class and its inline
+        // `rule:core-classes/derive-property-list`'s nested class and its inline
         // shape, both decoded by running a field list over this key's object —
         // which is why `rule:core-classes/derive-reports-every-field`'s paths are dotted in the first place. What differs
         // is only where that list is read from, which [`Contract`] answers.
@@ -3405,7 +3405,7 @@ unsafe fn convert_field<'a>(
             )]
             return unsafe { decode_nested(ctx, contract, index, found) };
         }
-        // `rule:core-classes/derive-field-list`'s list field, decoded one element at a time under a
+        // `rule:core-classes/derive-property-list`'s list field, decoded one element at a time under a
         // path this key extends — the second nesting `rule:core-classes/derive-reports-every-field`'s dotted path covers.
         CodecTy::List => return decode_list(contract, index, found),
         CodecTy::Mixed
@@ -3424,7 +3424,7 @@ unsafe fn convert_field<'a>(
                 scalar(field.ty, None, found, contract.reading)
             }
         }
-        // `rule:core-classes/derive-field-list`'s enum field: the roster travels with the field and the
+        // `rule:core-classes/derive-property-list`'s enum field: the roster travels with the field and the
         // decode is a membership test over it, so this is a scalar with one
         // more thing in hand rather than a nesting of its own.
         CodecTy::Enum => {
@@ -3443,13 +3443,13 @@ unsafe fn convert_field<'a>(
         // Met only through a *nested* class, whose own fields [`decode_as`]'s
         // pre-check never saw — and unreachable from source even there: an
         // [`undecoded`] wire type is a declaration
-        // `rule:core-classes/derive-field-list`'s reachable test refuses at
+        // `rule:core-classes/derive-property-list`'s reachable test refuses at
         // `E0756`, so it is an engine fault wherever it is met and never an
         // issue in a list a program shows a user.
         CodecTy::Opaque | CodecTy::Bytes => {
             return Step::Done(Err(DecodeFailure::Fault(Fault::fatal(format!(
                 "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type no wire type \
-                 describes — `rule:core-classes/derive-field-list`'s reachable test refuses \
+                 describes — `rule:core-classes/derive-property-list`'s reachable test refuses \
                  that declaration, so reaching it here is the compiler disagreeing with itself",
                 contract.name(),
                 field.key
@@ -3469,7 +3469,7 @@ unsafe fn convert_field<'a>(
     Step::Done(Ok(value))
 }
 
-/// One field of a nested class decoded — `rule:core-classes/derive-field-list`'s "another class that
+/// One field of a nested class decoded — `rule:core-classes/derive-property-list`'s "another class that
 /// itself has a codec", run over the object this key holds.
 ///
 /// The class is the compiler's answer and never the document's: the descriptor
@@ -3593,7 +3593,7 @@ unsafe fn scalar(
 ) -> Option<Value> {
     let coerce = matches!(reading, Reading::Values);
     let kept = match ty {
-        // A `mixed` field is exactly as checked as `mixed` ever is (`rule:core-classes/derive-field-list`), so whatever the document held is the value.
+        // A `mixed` field is exactly as checked as `mixed` ever is (`rule:core-classes/derive-property-list`), so whatever the document held is the value.
         CodecTy::Mixed => Some(found),
         // No row of `rule:types/conversion` lands on `bool` — PHP's truthy
         // table is a *condition*'s answer and not a conversion's — so both
@@ -3725,7 +3725,7 @@ fn cases_of<'a>(
     })
 }
 
-/// One `array<T>` field decoded — `rule:core-classes/derive-field-list`'s list field, every position
+/// One `array<T>` field decoded — `rule:core-classes/derive-property-list`'s list field, every position
 /// read through [`nvs_runtime::CodecField::element`] and **every** bad one
 /// accumulated, so a list reports like an object rather than at its first
 /// failure.
@@ -4648,7 +4648,7 @@ mod tests {
         }
     }
 
-    /// `rule:core-classes/derive-field-list`'s inline shape reached as a
+    /// `rule:core-classes/derive-property-list`'s inline shape reached as a
     /// *field*, which is the one wire type needing **two** resolved pointers: a
     /// shape class is keyed on its field names alone, so the descriptor says
     /// which object to build and says nothing about what goes in it, and the

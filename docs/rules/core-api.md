@@ -1023,7 +1023,7 @@ is evaluated while compiling into a constant that rides on the field itself
 (`nvs_runtime::CodecField::default`), so a decoder fills an absent optional key without being the call
 site that would otherwise emit one. A written `= null` is that constant too
 (`nvs_runtime::FieldDefault::Null`), so `?T $x = null` fills an absent key with `null`. A constructor position **no field names** — a property
-`skip: true` removed from the contract, which [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list) sanctions — has no
+`skip: true` removed from the contract, which [`core-classes/derive-property-list`](core-classes.md#core-classes-derive-property-list) sanctions — has no
 field to carry a constant and is filled by nothing, so the call that asks for an instance out of a
 document is refused while compiling rather than answered with a guess: `E0820` at a document door and
 `E0806` at a row's.

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::queryAs<T>` and `postAs<T>` hydrate a declared class out of a parameter set, and answer what the same call over an inline shape answers — `rule:core-classes/derive-field-list`, `rule:security/derived-codec-qualifiers`
+`Core\Request::queryAs<T>` and `postAs<T>` hydrate a declared class out of a parameter set, and answer what the same call over an inline shape answers — `rule:core-classes/derive-property-list`, `rule:security/derived-codec-qualifiers`
 --GET--
 q=novis&page=2
 --POST--

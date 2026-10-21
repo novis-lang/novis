@@ -1072,7 +1072,7 @@ compile still does not compile after `nvs fmt`, and its author writes the level 
 
 Methods, properties, class constants and enum cases keep the order their author wrote. No "group by
 visibility, constants before properties before methods" rule exists, because declaration order is
-observable: [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list) makes a derived codec's encode order the property
+observable: [`core-classes/derive-property-list`](core-classes.md#core-classes-derive-property-list) makes a derived codec's encode order the property
 declaration order, on purpose, for ETags and cached fixtures; and [`testing/bench-counters`](testing.md#testing-bench-counters) makes the
 test runner's report order the declaration order of the cases. A formatter that reordered members would
 change what a program prints and sends, and a formatter that changes meaning is not a formatter — the
@@ -1088,7 +1088,7 @@ the only reordering anywhere.
   member-ordering rule to defer to, so it would be a rule Novis invents, paid for in output bytes that
   change at every site above.
 
-<sub>See also [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`testing/bench-counters`](testing.md#testing-bench-counters), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/comparable`](classes.md#classes-comparable).</sub>
+<sub>See also [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`core-classes/derive-property-list`](core-classes.md#core-classes-derive-property-list), [`testing/bench-counters`](testing.md#testing-bench-counters), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/comparable`](classes.md#classes-comparable).</sub>
 
 <a id="tooling-fmt-is-idempotent"></a>
 

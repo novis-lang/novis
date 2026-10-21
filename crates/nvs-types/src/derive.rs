@@ -6,10 +6,10 @@
 //!
 //! [`Format`] is the only thing anything below branches on, and it is checked
 //! for each of its two values over the same class. The derive rules
-//! (`rule:core-classes/derive-field-list`, `rule:core-classes/derive-reports-every-field`,
+//! (`rule:core-classes/derive-property-list`, `rule:core-classes/derive-reports-every-field`,
 //! `rule:core-classes/derive-generates-what-is-missing`) are stated once, for
 //! "a derived codec", so they are written here once and asked
-//! of both: the two formats differ in their **type map** — JSON's is `rule:core-classes/derive-field-list`'s
+//! of both: the two formats differ in their **type map** — JSON's is `rule:core-classes/derive-property-list`'s
 //! reachable set, a row's is `rule:core-classes/db-column-types`'s — in the attribute pair that names them, and in nothing else. Two
 //! passes that agreed today would be two passes that disagree the first time
 //! one of those sections is amended.
@@ -38,7 +38,7 @@
 //! [`crate::layout::ClassLayout`]'s and that table is built after checking; the
 //! two are joined in `nvs_ir::lower::lower_file`, which holds both. Each field
 //! also carries the declared type a decoder checks against, erased to
-//! [`nvs_stdlib::CodecTy`], and the *constructor position* it fills — `rule:core-classes/derive-field-list`'s "a decode is an ordinary `new`" resolved to an index, so that nothing
+//! [`nvs_stdlib::CodecTy`], and the *constructor position* it fills — `rule:core-classes/derive-property-list`'s "a decode is an ordinary `new`" resolved to an index, so that nothing
 //! below this line looks a parameter up by name.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
@@ -537,7 +537,7 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
 /// `#[Json\Derive]` — `rule:core-classes/derive-attribute`'s opt-in, on a class.
 pub const DERIVE: &str = r"Core\Json\Derive";
 
-/// `#[Json\Field(name?: string, skip?: bool)]` — `rule:core-classes/derive-field-list`'s per-field
+/// `#[Json\Field(name?: string, skip?: bool)]` — `rule:core-classes/derive-property-list`'s per-field
 /// override, on a property.
 pub const FIELD: &str = r"Core\Json\Field";
 
@@ -548,7 +548,7 @@ pub const FIELD: &str = r"Core\Json\Field";
 /// bound parameters and a generated `INSERT` is the ORM that rule declines.
 pub const DB_DERIVE: &str = r"Core\Db\Derive";
 
-/// `#[Db\Field(name?: string, skip?: bool)]` — `rule:core-classes/derive-field-list`'s per-field
+/// `#[Db\Field(name?: string, skip?: bool)]` — `rule:core-classes/derive-property-list`'s per-field
 /// override, on a property, and a *second* attribute rather than a spelling
 /// shared with [`FIELD`]: a JSON key and a column name are independently
 /// chosen, so forcing them equal would need an escape hatch immediately.
@@ -726,7 +726,7 @@ impl Format {
         }
     }
 
-    /// `rule:core-classes/derive-field-list`'s escape hatch, spelled for this format — the fix half of every
+    /// `rule:core-classes/derive-property-list`'s escape hatch, spelled for this format — the fix half of every
     /// refusal below.
     const fn skip_hint(self) -> &'static str {
         match self {
@@ -735,7 +735,7 @@ impl Format {
         }
     }
 
-    /// `rule:core-classes/derive-field-list`'s signature, spelled for this format.
+    /// `rule:core-classes/derive-property-list`'s signature, spelled for this format.
     const fn field_signature(self) -> &'static str {
         match self {
             Self::Json => r"#[Json\Field(name?: string, skip?: bool)]",
@@ -800,7 +800,7 @@ impl Format {
     }
 }
 
-/// One derived class's field list, in declaration order — `rule:core-classes/derive-field-list`'s
+/// One derived class's field list, in declaration order — `rule:core-classes/derive-property-list`'s
 /// "declaration order fixes encode order, so output is byte-deterministic".
 #[derive(Clone, Debug, Default)]
 pub struct DerivedCodec {
@@ -973,11 +973,11 @@ pub fn shape_class_label(sorted_fields: &[String]) -> String {
 /// `declared`, erased to what a native decoder branches on, with the class
 /// label and the enum roster beside it where the erasure loses one.
 ///
-/// `rule:core-classes/derive-field-list`'s codec-reachable set is wider than
+/// `rule:core-classes/derive-property-list`'s codec-reachable set is wider than
 /// this in one place still: the four `Core` value types of
 /// [`DB_COLUMN_CLASSES`] that are not an `Instant` erase to [`CodecTy::Class`]
 /// and are told from a codec-carrying class by their label alone, which is what
-/// `nvs_stdlib::db::row` reads. `rule:core-classes/derive-field-list`'s compile-time refusal of a genuinely
+/// `nvs_stdlib::db::row` reads. `rule:core-classes/derive-property-list`'s compile-time refusal of a genuinely
 /// unreachable type is [`resolve_field_types`]'s.
 /// An inline shape keeps **both** halves of what it loses — the class a decode
 /// constructs and the contract holding its field types — because a class label
@@ -1005,7 +1005,7 @@ fn codec_ty(
     match nested_of(declared, interner) {
         Nested::Array(elem) => return list_erasure(elem, interner, enums),
         Nested::Shape(names) => {
-            // `rule:core-classes/derive-field-list`'s inline shape reached as a field, keeping both halves the
+            // `rule:core-classes/derive-property-list`'s inline shape reached as a field, keeping both halves the
             // erasure would otherwise drop: the class a decode constructs,
             // named the way a literal of those same fields names it, and the
             // per-field wire types that label cannot carry.
@@ -1040,7 +1040,7 @@ fn codec_ty(
         // and the reachable set is what keeps it out of a JSON document.
         Ty::Bytes | Ty::TaintedBytes => Erased::wire(CodecTy::Bytes),
         Ty::Mixed | Ty::Error => Erased::wire(CodecTy::Mixed),
-        // `rule:core-classes/derive-field-list`'s "another class that itself has a codec", and the one `Core`
+        // `rule:core-classes/derive-property-list`'s "another class that itself has a codec", and the one `Core`
         // value type that is a wire type instead. The label is what
         // `crate::layout` keys on and `nvs_ir::lower::lower_file` joins
         // through, so `nvs-codegen` can resolve it to a descriptor; an
@@ -1064,7 +1064,7 @@ fn codec_ty(
                 shape: None,
             }
         }
-        // `rule:core-classes/derive-field-list`'s enum. What travels is the roster and not the name: a case at
+        // `rule:core-classes/derive-property-list`'s enum. What travels is the roster and not the name: a case at
         // run time is its backing integer under an enum tag that names no enum
         // (`rule:enums/representation`), so a decoder has no name to resolve
         // against. The membership test is therefore the whole of the decode,
@@ -1081,7 +1081,7 @@ fn codec_ty(
     }
 }
 
-/// `rule:core-classes/derive-field-list`'s list field, erased. The element goes through [`codec_ty`] once and
+/// `rule:core-classes/derive-property-list`'s list field, erased. The element goes through [`codec_ty`] once and
 /// comes back as a [`CodecElement`] chain, so a second `List` is one more link
 /// rather than a type this has no room for: `array<array<Tag>>` and
 /// `array<{n: int}>` describe themselves in full.
@@ -1095,7 +1095,7 @@ fn codec_ty(
 ///
 /// An `Opaque` element is the one case that takes the whole field with it: the
 /// terminal type has no wire form, so no depth of list around it has one
-/// either. `rule:core-classes/derive-field-list`'s reachable test refuses that
+/// either. `rule:core-classes/derive-property-list`'s reachable test refuses that
 /// declaration outright ([`resolve_field_types`]).
 fn list_erasure(
     element: TypeId,
@@ -1203,11 +1203,11 @@ fn enum_cases(
     })
 }
 
-/// One field `rule:core-classes/derive-field-list`'s codec-reachable test still owes an answer,
+/// One field `rule:core-classes/derive-property-list`'s codec-reachable test still owes an answer,
 /// recorded as the walk reaches it and resolved by [`resolve_field_types`].
 ///
 /// Carries the *null-stripped* declared type, because `?T` is reachable
-/// exactly when `T` is, and the property's own span, because `rule:core-classes/derive-field-list`'s refusal is
+/// exactly when `T` is, and the property's own span, because `rule:core-classes/derive-property-list`'s refusal is
 /// at the declaration that wrote the field rather than at the `decodeAs<T>`
 /// that would later fail on it.
 #[derive(Debug)]
@@ -1225,7 +1225,7 @@ pub struct CodecFieldSite {
     format: Format,
 }
 
-/// `rule:core-classes/derive-field-list`'s "a field's type must be codec-reachable", once every
+/// `rule:core-classes/derive-property-list`'s "a field's type must be codec-reachable", once every
 /// deriving class in the program has recorded its codec.
 ///
 /// Run after the walk, from [`crate::check::check_program`], for
@@ -1233,7 +1233,7 @@ pub struct CodecFieldSite {
 /// must not depend on which file declared it first.
 ///
 /// **What it refuses is the unreachable set**, and the JSON half of the
-/// erasure now answers for all of it: `rule:core-classes/derive-field-list` lists a `decimal`, an `Instant`, an
+/// erasure now answers for all of it: `rule:core-classes/derive-property-list` lists a `decimal`, an `Instant`, an
 /// enum, an inline shape, an `array<T>` and a nested codec-carrying class as
 /// reachable, and each of those — at any depth of `array<…>`, since
 /// [`list_erasure`]'s chain describes every level — erases to a wire type
@@ -1315,7 +1315,7 @@ impl RowSite {
 /// fixing the same thing in each: the type argument. The two over the class's
 /// *fields* are the ones that cannot move to the declaration, and they are why
 /// this pass exists at all: `#[Db\Field(skip: true)]` is
-/// `rule:core-classes/derive-field-list`'s sanctioned way to take a property off
+/// `rule:core-classes/derive-property-list`'s sanctioned way to take a property off
 /// the mapping, so a class carrying one is well formed and stays well formed,
 /// and a field the erasure gave no wire type is
 /// [`resolve_field_types`]'s undecoded set rather than its unreachable one. It
@@ -1520,7 +1520,7 @@ impl JsonSite {
     }
 }
 
-/// `rule:core-classes/derive-field-list`'s skipped field, asked of the class a
+/// `rule:core-classes/derive-property-list`'s skipped field, asked of the class a
 /// document decoder wrote, once every deriving class in the program has
 /// recorded its fields.
 ///
@@ -1532,7 +1532,7 @@ impl JsonSite {
 /// other door's alone. What the two share is a constructor the contract cannot
 /// fill, and `#[Json\Field(skip: true)]` on a property that stayed a
 /// constructor parameter is the one way to write one: the class is well formed
-/// and stays well formed — `rule:core-classes/derive-field-list` sanctions the
+/// and stays well formed — `rule:core-classes/derive-property-list` sanctions the
 /// skip — so it is the call asking for a whole instance out of a document that
 /// is where there is nothing to fill that position from.
 ///
@@ -1540,7 +1540,7 @@ impl JsonSite {
 /// [`check_decode_sites`]' walk for the same reason: a field typed as another
 /// deriving class is built by the same decode, so its constructor has to be
 /// fillable too. `seen` is what stops the walk on a class holding a field of
-/// its own type, which `rule:core-classes/derive-field-list` admits.
+/// its own type, which `rule:core-classes/derive-property-list` admits.
 ///
 /// **Two conditions, two codes**, which is where this parts company with
 /// [`check_row_sites`]' one. The written class participating at all is asked
@@ -1709,7 +1709,7 @@ impl DecodeSite {
 /// **The reachable set, not the written class's own fields.** A field typed as
 /// another deriving class is filled from the same document, so its text fields
 /// receive the same octets; `seen` is what stops the walk on a class holding a
-/// field of its own type, which `rule:core-classes/derive-field-list` admits.
+/// field of its own type, which `rule:core-classes/derive-property-list` admits.
 ///
 /// One report per property however many sites decode into it: the fix is one
 /// `tainted` on one declaration, and repeating it once per call would report
@@ -1892,7 +1892,7 @@ fn db_reachable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
         | Ty::False
         | Ty::SingleValueString(_)
         | Ty::SingleValueInt(_) => true,
-        // `rule:core-classes/derive-field-list`'s enum, unchanged by the format: what travels is the
+        // `rule:core-classes/derive-property-list`'s enum, unchanged by the format: what travels is the
         // backing value, range-checked on the way back in.
         Ty::Enum(..) | Ty::EnumCase(..) => true,
         // § 9's `array<T>` rows — a PostgreSQL array and a MySQL `SET`. One
@@ -1932,7 +1932,7 @@ const DB_COLUMN_CLASSES: &[&str] = &[
     nvs_stdlib::uuid::NAME,
 ];
 
-/// `rule:core-classes/derive-field-list`'s reachable set, over the interned type — JSON's half of
+/// `rule:core-classes/derive-property-list`'s reachable set, over the interned type — JSON's half of
 /// [`reachable`].
 fn json_reachable(
     ty: TypeId,
@@ -1970,12 +1970,12 @@ fn json_reachable(
         // Everything else: `bytes` has no JSON spelling (`rule:types/bytes` makes it a
         // separate type for that reason), `object`, `callable` and `iterable`
         // name no contract, and a union of two non-`null` arms gives a
-        // decoder nothing to pick between — `rule:core-classes/derive-field-list` lists none of them.
+        // decoder nothing to pick between — `rule:core-classes/derive-property-list` lists none of them.
         _ => false,
     }
 }
 
-/// Whether `class` participates in the JSON wire format at all — `rule:core-classes/derive-field-list`'s "another class that itself has a codec — derived or hand-written".
+/// Whether `class` participates in the JSON wire format at all — `rule:core-classes/derive-property-list`'s "another class that itself has a codec — derived or hand-written".
 fn class_has_codec(
     class: &QName,
     signatures: &crate::signatures::SignatureTable,
@@ -1992,7 +1992,7 @@ fn class_has_codec(
         Some(sig) => {
             sig.methods.contains_key(ENCODE)
                 || sig.methods.contains_key(DECODE)
-                // A `Core` value type — `rule:core-classes/derive-field-list`'s `Instant`, `Duration`, `Uuid`
+                // A `Core` value type — `rule:core-classes/derive-property-list`'s `Instant`, `Duration`, `Uuid`
                 // and their siblings — declares no member for this to find:
                 // which of them has a wire form is `nvs_stdlib::json`'s
                 // roster, not this pass's, and that crate's § *A value type
@@ -2007,7 +2007,7 @@ fn class_has_codec(
 }
 
 /// Records `decl`'s [`DerivedCodec`] for each of [`Format`]'s two values it
-/// opts into, reporting every `rule:core-classes/derive-field-list` and `rule:security/derived-codec-qualifiers` rule it breaks.
+/// opts into, reporting every `rule:core-classes/derive-property-list` and `rule:security/derived-codec-qualifiers` rule it breaks.
 ///
 /// A no-op — not even a walk of the members — for a class with no recognized
 /// attribute, which `rule:core-classes/derive-generates-what-is-missing` requires: "a program with no derive attribute
@@ -2071,7 +2071,7 @@ fn check_class_format(
         return;
     }
     let params = constructor_params(decl, env);
-    // `rule:core-classes/derive-field-list`: a decode is an ordinary `new`, so
+    // `rule:core-classes/derive-property-list`: a decode is an ordinary `new`, so
     // a class with no written constructor has no parameter for any field to
     // arrive through. It is one error at the attribute, whatever defaults the
     // properties declare, and every field is still collected below.
@@ -2099,7 +2099,7 @@ fn check_class_format(
     // Each kept field's wire key and the name it was declared at, for
     // [`check_unique_key`].
     let mut keys: Vec<(String, Span)> = Vec::new();
-    // `rule:core-classes/derive-field-list`'s declaration order, over both spellings of a declaration: the
+    // `rule:core-classes/derive-property-list`'s declaration order, over both spellings of a declaration: the
     // members in the order they are written, and the constructor's promoted
     // parameters at the point the constructor itself appears. Walking the
     // members rather than concatenating two lists is what keeps the encode
@@ -2131,7 +2131,7 @@ fn check_class_format(
             }
         }
     }
-    // `rule:core-classes/derive-field-list`'s field list is the declared property list, so no property is an
+    // `rule:core-classes/derive-property-list`'s field list is the declared property list, so no property is an
     // empty wire contract — `rule:core-classes/derive-generates-what-is-missing`'s rule about an attribute with no effect,
     // reaching the other way a derive can generate nothing. The codec is
     // still recorded: the program does not run with an error reported, and
@@ -2158,7 +2158,7 @@ fn check_class_format(
     env.exprs.record_codec(format, class.to_string(), codec);
 }
 
-/// `rule:core-classes/derive-field-list`'s "the wire key is the field's
+/// `rule:core-classes/derive-property-list`'s "the wire key is the field's
 /// identity": `key`, declared at `at`, is an `E_DERIVE_DUPLICATE_KEY` when a
 /// field before it in `keys` has the same one. The encoder would write the
 /// key twice, and the decoder would fill both properties from one value.
@@ -2240,20 +2240,20 @@ fn attribute_span(
 enum FieldOutcome {
     /// A field, in declaration order, in the wire contract.
     Kept(Box<DerivedField>),
-    /// `rule:core-classes/derive-field-list`'s `#[Json\Field(skip: true)]`.
+    /// `rule:core-classes/derive-property-list`'s `#[Json\Field(skip: true)]`.
     Skipped,
     /// Refused by § 2 or § 6, with the diagnostic already reported.
     Refused,
 }
 
-/// One declaration, as `rule:core-classes/derive-field-list`'s field list reads it.
+/// One declaration, as `rule:core-classes/derive-property-list`'s field list reads it.
 ///
 /// A view rather than an enum over the two AST nodes, because § 2 asks a
 /// property and a promoted constructor parameter exactly the same four
 /// questions — what it is called, what it is declared, what modifiers it
 /// carries and what attributes are on it — and every difference between
 /// `public int $n;` and `constructor(public int $n)` is a difference in where
-/// those four were written, not in what they mean. That is `rule:core-classes/derive-field-list`'s own
+/// those four were written, not in what they mean. That is `rule:core-classes/derive-property-list`'s own
 /// "for a class written with promoted parameters the two lists are literally
 /// the same declaration", made true of this pass rather than assumed by it.
 struct FieldDecl<'a> {
@@ -2313,7 +2313,7 @@ fn codec_field(
     }
     let derive = format.attribute();
     let skip = format.skip_hint();
-    // `rule:core-classes/derive-field-list`: `lateinit` is by definition not constructor-assigned, so
+    // `rule:core-classes/derive-property-list`: `lateinit` is by definition not constructor-assigned, so
     // it can never be a field — reported before the parameter check, which
     // would otherwise report the same declaration twice.
     if p.modifiers.contains(&Modifier::Lateinit) {
@@ -2387,7 +2387,7 @@ fn codec_field(
     }))
 }
 
-/// `rule:core-classes/derive-field-list`'s "every non-skipped field must also be a constructor
+/// `rule:core-classes/derive-property-list`'s "every non-skipped field must also be a constructor
 /// parameter of the same name and the same type".
 ///
 /// Reports and returns a [`FieldParam`]: the parameter's *position*, which is
@@ -2508,7 +2508,7 @@ fn constructor_params<'a>(decl: &'a ClassDecl, env: &Env<'_>) -> Option<&'a [Par
 /// `rule:classes/no-leading-underscore-identifiers`'s one spelling of a constructor.
 const CONSTRUCTOR: &str = "constructor";
 
-/// `rule:core-classes/derive-field-list`'s two per-field options, as written on one property.
+/// `rule:core-classes/derive-property-list`'s two per-field options, as written on one property.
 #[derive(Debug, Default)]
 struct Overrides {
     /// `name: "..."`, if written.
@@ -2518,7 +2518,7 @@ struct Overrides {
 }
 
 /// Reads `#[Json\Field(...)]` off one property, reporting anything that is not
-/// `rule:core-classes/derive-field-list`'s two options with a literal of the right type.
+/// `rule:core-classes/derive-property-list`'s two options with a literal of the right type.
 fn field_overrides(
     groups: &[AttributeGroup],
     format: Format,
@@ -2576,7 +2576,7 @@ pub(crate) fn attribute_is(attr: &Attribute, want: &str, ctx: &Ctx<'_>, env: &En
 
 /// Every field written on the first of `format`'s field attributes in `groups`.
 ///
-/// A property's overrides are one attribute (`rule:core-classes/derive-field-list`), so every
+/// A property's overrides are one attribute (`rule:core-classes/derive-property-list`), so every
 /// later one is an `E_DERIVE_FIELD_ATTRIBUTE` at itself, naming the first. Reading both would
 /// merge two sets of overrides, and choosing one in silence would drop the other.
 fn attribute_fields<'a>(

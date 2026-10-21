@@ -1,8 +1,8 @@
 --TEST--
-`queryAs<T>` names the class a row is built into, so a scalar written there is refused where a `Core\Db\Row` reader would have been the answer — `rule:core-classes/derive-field-list`
+`queryAs<T>` names the class a row is built into, so a scalar written there is refused where a `Core\Db\Row` reader would have been the answer — `rule:core-classes/derive-property-list`
 --FILE--
 <?nvs
-// `rule:core-classes/derive-field-list`: hydrating is an ordinary `new`, so the type argument has to be
+// `rule:core-classes/derive-property-list`: hydrating is an ordinary `new`, so the type argument has to be
 // something there is a constructor for. `queryAs<int>` reads as "one column per
 // row" and is not what this member does — `$rows->column()` and `$row->int()`
 // are the members for reading a column, and both come off the `Rows<Row>` that

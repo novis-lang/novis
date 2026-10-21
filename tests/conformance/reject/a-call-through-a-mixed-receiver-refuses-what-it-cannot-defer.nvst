@@ -25,7 +25,7 @@ $m->value(n: 1);
 
 // An `inout` parameter list is packed and written back at the call site,
 // which a call that learns its callee at run time cannot do — the limit the
-// synthesized forward of `rule:classes/delegation-by-field` already names.
+// synthesized forward of `rule:classes/delegation-by-property` already names.
 int $n = 1;
 $m->value(inout $n);
 
