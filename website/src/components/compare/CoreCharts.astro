@@ -50,6 +50,7 @@ const groups = (() => {
     bars: all.flatMap((s) => [
       {
         label: s.label,
+        peer: s.peer,
         share: s.one / longest,
         best: false,
         value: seconds(s.one),

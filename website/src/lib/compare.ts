@@ -135,6 +135,9 @@ const GROUP_TEXT: Record<Group, { title: string; note: string }> = {
 
 const PEER_GROUP: Record<string, Group> = { nvs: 'files', php: 'files', bun: 'build', go: 'build' }
 
+/** The peer this website is about, whose bars every chart marks. */
+export const HOME_PEER = 'nvs'
+
 export interface Peer {
   id: string
   label: string

@@ -13,7 +13,14 @@
  * it, and a bar with `above` prints its text above it, so two bars of one
  * peer sit together between their two lines. A bar with `parts` is stacked,
  * one colour per part, and `legend` names the colours above the chart.
+ *
+ * A peer's bars are one block: the bar with its label and the unlabelled
+ * ones after it. Blocks are drawn best first, by the first place in the
+ * block, inside each group, so every chart reads from the top down. The
+ * block of `HOME_PEER` has a border, so a reader finds Novis at once.
  */
+import { HOME_PEER } from '~/lib/compare'
+
 export interface Props {
   /** The colours of a stacked bar's parts and what each means, shown above the chart. */
   legend?: { kind: 'ok' | 'failed' | 'mixed'; label: string }[]
@@ -30,6 +37,8 @@ export interface Props {
 
 interface Bar {
   label: string
+  /** The peer's id in the record, which marks the block of `HOME_PEER`. */
+  peer?: string
   /** The bar's place, 1 for the best, or none for a bar that is not ranked. */
   place?: number
   /** The bar's length, from 0 to 1. */
@@ -51,6 +60,17 @@ interface Bar {
 
 const { groups, legend } = Astro.props
 const percent = (share: number) => `${Math.round(share * 100)}%`
+
+/** `bars` as one block per peer, best first: a labelled bar starts a block. The sort is stable, so a tie keeps its order. */
+function blocks(bars: Bar[]): Bar[][] {
+  const out: Bar[][] = []
+  for (const b of bars) {
+    if (b.label !== '' || out.length === 0) out.push([b])
+    else out[out.length - 1]!.push(b)
+  }
+  const key = (block: Bar[]) => block.find((b) => b.place !== undefined)?.place ?? Number.POSITIVE_INFINITY
+  return out.map((block, i) => ({ block, i })).sort((a, b) => key(a.block) - key(b.block) || a.i - b.i).map((x) => x.block)
+}
 /** The narrowest a part of a stacked bar is drawn, so a part above zero is never invisible. */
 const MIN_PART = '4px'
 ---
@@ -78,8 +98,10 @@ const MIN_PART = '4px'
           </header>
         )}
         <ul>
-          {g.bars.map((b) => (
-            <li class:list={{ best: b.best, paired: b.above }}>
+          {blocks(g.bars).map((block) => (
+            <li class:list={['block', { home: block.some((b) => b.peer === HOME_PEER) }]}>
+              {block.map((b) => (
+            <div class:list={['row', { best: b.best, paired: b.above }]}>
               {b.above && b.figures && <span class="figures above">{b.figures}</span>}
               <span class="place">
                 {b.place !== undefined && (
@@ -101,6 +123,8 @@ const MIN_PART = '4px'
               </span>
               <span class="value">{b.value}</span>
               {!b.above && b.figures && <span class="figures">{b.figures}</span>}
+            </div>
+              ))}
             </li>
           ))}
         </ul>
@@ -132,8 +156,22 @@ const MIN_PART = '4px'
     margin: 0;
     row-gap: 0.25rem;
   }
-  .compare-bars li {
+  .compare-bars li.block {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: center;
+    row-gap: 0.25rem;
+    border-radius: 0.4rem;
+  }
+  .compare-bars .row {
     display: contents;
+  }
+  /* Novis's block: an accent border drawn outside the bars, so nothing inside it moves. */
+  .compare-bars li.block.home {
+    outline: 2px solid var(--sl-color-accent);
+    outline-offset: 0.3rem;
+    margin-block: 0.4rem;
   }
   .compare-bars .group.boxed {
     --group-edge: var(--sl-color-gray-4);
