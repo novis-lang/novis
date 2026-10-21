@@ -3,7 +3,9 @@ keeps a signature a call through the ancestor can use. Otherwise it is `E0404`, 
 
 - **The return type is the ancestor's or a subtype of it**, and a `: static` stays `: static`.
 - **Each parameter accepts the ancestor's type of it or a wider one.** A `tainted` or `secret`
-  qualifier is part of the type, so it is kept.
+  qualifier is part of the type, so it is kept. A narrower type is allowed only where the parameter
+  writes `covariant`, and then each argument is tested when the method is entered
+  (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
 - **The parameter count is the ancestor's**, with `inout` and a variadic tail where the ancestor has
   them. A further parameter is refused even with a default, because a call fills a default from the
   signature it resolved, which is the ancestor's: the override would read a parameter nothing passed.

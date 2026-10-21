@@ -1,12 +1,23 @@
 {
   "title": "A covariant parameter or property takes a narrower type, and each value that enters it is tested",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "classes/an-override-keeps-its-parents-signature",
     "classes/a-redeclared-property-keeps-its-parents-type",
     "classes/property-hooks",
     "types/no-user-generics"
   ],
-  "guardedBy": [],
-  "goal": "covariant"
+  "guardedBy": [
+    "crates/nvs-types/tests/covariant.rs",
+    "tests/conformance/reject/a-covariant-parameter-is-written-only-where-it-narrows.nvst",
+    "tests/conformance/reject/a-covariant-property-is-written-only-where-it-narrows.nvst",
+    "tests/conformance/class/a-covariant-parameter-is-checked-when-the-method-is-entered.nvst",
+    "tests/conformance/class/a-covariant-property-is-checked-by-every-write.nvst",
+    "tests/conformance/class/a-covariant-property-is-checked-on-every-write-path.nvst",
+    "tests/conformance/soundness/covariant-method-param.nvst",
+    "tests/conformance/soundness/covariant-method-param.errors.nvst",
+    "tests/conformance/soundness/property-covariant.nvst",
+    "tests/conformance/soundness/property-covariant.errors.nvst",
+    "tests/hostile/lang/classes/covariant/01-a-wider-value-through-every-path.nvs"
+  ]
 }
