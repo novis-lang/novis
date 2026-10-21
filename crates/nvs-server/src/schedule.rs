@@ -1236,7 +1236,12 @@ mod tests {
                     .expect("a buffer");
                 Value::null()
             });
-            Some(Isolate::new(program, Value::null(), Output::Capture))
+            // A scheduled run is server work, as `nvs serve`'s fire says, so a capability default
+            // is the one server work gets.
+            Some(
+                Isolate::new(program, Value::null(), Output::Capture)
+                    .running_as(nvs_runtime::RunKind::Schedule),
+            )
         }
 
         fn ran(&self, entry: &Armed, done: &Completion) {
