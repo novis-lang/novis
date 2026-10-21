@@ -515,8 +515,9 @@ fn a_guest_http_call_to_a_host_the_caller_does_not_hold_fails() {
     assert_eq!(accepted.load(Ordering::Relaxed), 0);
 }
 
-/// All three parties name the host, but the caller's grant writes no exception for the loopback
-/// address, so the client refuses the address it resolves to and connects to nothing.
+/// All three parties name the host, but the caller's grant writes an empty `internal`, which
+/// excepts no address, so the client refuses the loopback address it resolves to and connects to
+/// nothing.
 #[test]
 fn a_guest_http_call_to_a_private_address_fails_under_the_address_policy() {
     let (at, accepted) = listening(origin);
@@ -524,7 +525,7 @@ fn a_guest_http_call_to_a_private_address_fails_under_the_address_policy() {
     let (status, budget) = get(
         &host,
         &extension,
-        "[capabilities.net]\nconnect = [\"127.0.0.1\"]\n",
+        "[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = []\n",
         false,
         &at.to_string(),
     );
@@ -598,7 +599,8 @@ fn a_guest_waiting_on_an_http_response_lets_another_task_on_its_core_run() {
         assert!(call.as_mut().poll(&mut cx).is_pending());
     }
 
-    let other_budget = Sending::new(snapshot(""));
+    // The other caller writes an empty `connect`, so its call is refused before it sends anything.
+    let other_budget = Sending::new(snapshot("[capabilities.net]\nconnect = []\n"));
     let other = host.request(Arc::clone(&other_budget) as Arc<dyn Budget>);
     let out = block_on(other.call(&extension, "get", &args)).expect("the other call returns");
     assert_eq!(returned(&out), DENIED_AT_HANDLE);
