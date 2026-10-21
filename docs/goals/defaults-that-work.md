@@ -13,7 +13,7 @@ stages:
         rules: [security/denial-is-a-runtime-error, config/check-and-dump-audit-the-tree-offline, security/process-exec-capability, core-classes/process-is-argv-only, testing/debug-mode-directive]
   - id: 2
     title: the run kind and the app folder reach every capability decision
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/isolate.rs, crates/nvs-config/src/defaults.rs, crates/nvs-config/src/snapshot.rs, crates/nvs-config/src/mount.rs, docs/rules/security/capability-question-is-grant-and-scope.md]
     extra:
       context:
@@ -505,9 +505,11 @@ capability default. Then one writing subagent edits them, held to § *Text an en
 
 ### State
 
-Stage 2's code is in and the whole tree builds with its tests, but **`looper verify` has not run on
-it**: the session hit the hand-off budget. Its five items are ticked. The stage is not marked done
-until verify is green.
+Stages 1 and 2 are done. Stage 2 is verified: tests, clippy, `reference` and all 3084 conformance
+cases are green. Its rustfmt fixes and the rendered `docs/rules/security.md` landed in their own
+commit. The last verify run went red at `nv selftest` only, in `tools/nv/test/bench-compare.test.ts`.
+The cause is the user's uncommitted deploy-chart work in `tools/nv/cmd/bench-compare.ts` and
+`benches/compare/`. It is not this goal's, so no file of it was touched.
 
 - **The app folder** is `nvs_config::app::folder(entry, keys)` (`crates/nvs-config/src/app.rs:699`):
   the most specific matching block key that is not the entry itself, else the entry's folder. An
@@ -542,15 +544,15 @@ until verify is green.
   `crates/nvs-ext/tests/{grants,files,http}.rs` build their `Caller` with `Authority`.
 - `rule:security/capability-question-is-grant-and-scope` now names the run as an input.
 
-The nightly's proofs failures (run on `afbb1edc2`) were the two unstamped site pages, fixed on
-`main` by `b3ed92165`.
+The nightly's proofs failures (run on `afbb1edc2`) were stale page questions. Stage 1's new refusal
+help line changed 22 Core cards' example output, and the compare page and
+`Novis\Spreadsheet\Template::open` moved too. Each page was reread and restamped, and so was
+`syntax/errors/limits.mdx`. `bun nv site --check structure snippets stale questions prose` is green.
+The `lang:errors` perf figures were re-recorded after stage 1's change to `70-errors.md`.
 
 ### Next
 
-**First, verify stage 2**: `looper verify`, and fix what it names in one pass. Then set stage 2 to
-done in the front matter.
-
-**Then stage 3**, files: a CLI run reads and writes freely, and server work reads its app folder
+**Stage 3**, files: a CLI run reads and writes freely, and server work reads its app folder
 (no dot-file, no `nvs.toml`) and writes only its own temporary directories. The default goes in
 `crates/nvs-config/src/defaults.rs:364` (a new `Granted` variant per shape) and is applied in
 `Authority::allows` / `allows_resolved` / `holds` (`crates/nvs-config/src/capability.rs:303`).
@@ -562,5 +564,6 @@ the context (`crates/nvs-runtime/src/capability.rs:1273`), so stage 3 has to dec
 ### Backlog
 
 - `Core\Queue::push`'s `grants` refusal still says ``help: grant it in nvs.toml under ...``: it is about the request's own grants list, not a missing grant line, and may adopt `grant_line` when stage 2 touches queue grants. `crates/nvs-stdlib/src/queue.rs:3085`
+- `nvs-stdlib test ldap` failed 9 Samba cases in one full verify run. The cause was a TLS handshake that passed its 30s deadline, with the binary taking 205s, and it passed alone in 5s twice. If it repeats, find what loads Samba during verify. `crates/nvs-stdlib/tests/ldap.rs:49`
 - Stages 7, 8, 9 and 10 touch disjoint files and may run as side goals at any time. `docs/goals/defaults-that-work.md`
 - The package half of every default is goal `namespace-grants`'s: a package is checked against its own line alone. `docs/goals/namespace-grants.md`
