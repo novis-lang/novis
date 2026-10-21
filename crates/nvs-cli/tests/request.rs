@@ -366,3 +366,68 @@ fn a_configured_upload_total_bounds_a_streamed_body() {
         "a chunked body past `upload_total` ends with an error"
     );
 }
+
+/// A program that catches `post()`'s body error and calls `post()` again. The
+/// second call throws too, uncaught, so a refused body answers `500`. Were the
+/// wire left mid-body, the second call would parse the rest and answer `200`.
+const POST_TWICE: &str = "<?nvs\ntry {\n    Core\\Request::post('x');\n} catch (Throwable) {\n}\n\
+                          Core\\Request::post('x');\necho \"read\";\n";
+
+/// A urlencoded form of exactly `len` bytes, sent in one chunk with no length
+/// declared, so its size is learnt only as it is read.
+fn chunked_form_of(len: usize) -> Vec<u8> {
+    let mut form = b"x=".to_vec();
+    form.resize(len, b'a');
+    let mut raw = format!(
+        "POST / HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\
+         Content-Type: application/x-www-form-urlencoded\r\nConnection: close\r\n\r\n{len:x}\r\n"
+    )
+    .into_bytes();
+    raw.extend_from_slice(&form);
+    raw.extend_from_slice(b"\r\n0\r\n\r\n");
+    raw
+}
+
+/// `rule:http-server/the-body-is-read-on-demand-under-two-caps`: a chunked form
+/// that crosses `[limits] request_body` mid-stream fails `post()`, and every
+/// later `post()` fails the same way instead of parsing what the wire has left.
+#[test]
+fn a_chunked_form_past_request_body_fails_every_post() {
+    let served = Served::serving(
+        "post-request-body",
+        POST_TWICE,
+        Some("[limits]\nrequest_body = \"1K\"\n"),
+    );
+    assert_eq!(
+        served.status_of(&chunked_form_of(1024)),
+        "HTTP/1.1 200 OK",
+        "a chunked form of exactly `request_body` is parsed"
+    );
+    assert_eq!(
+        served.status_of(&chunked_form_of(1025)),
+        "HTTP/1.1 500 Internal Server Error",
+        "a chunked form past `request_body` fails the caught read and the next one"
+    );
+}
+
+/// `rule:http-server/request-body-and-upload-total-are-two-caps`: a chunked form
+/// that crosses `[limits] upload_total` mid-stream, under a larger
+/// `request_body`, fails `post()` at the wire, and the next `post()` fails too.
+#[test]
+fn a_chunked_form_past_upload_total_fails_every_post() {
+    let served = Served::serving(
+        "post-upload-total",
+        POST_TWICE,
+        Some("[limits]\nrequest_body = \"4K\"\nupload_total = \"1K\"\n"),
+    );
+    assert_eq!(
+        served.status_of(&chunked_form_of(1024)),
+        "HTTP/1.1 200 OK",
+        "a chunked form of exactly `upload_total` is parsed"
+    );
+    assert_eq!(
+        served.status_of(&chunked_form_of(1025)),
+        "HTTP/1.1 500 Internal Server Error",
+        "a chunked form past `upload_total` fails the caught read and the next one"
+    );
+}
