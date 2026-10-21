@@ -387,6 +387,11 @@ pub enum Node {
         end_line: u32,
         /// The one-based column its range ends before, counted in characters.
         end_column: u32,
+        /// The byte offset in [`Self::Span::file`] its range starts at, which
+        /// is what an edit applying a suggestion is written in.
+        offset: u32,
+        /// The byte offset its range ends before.
+        end_offset: u32,
         /// Whether this is the range the diagnostic is about, rather than one
         /// that gives it context.
         primary: bool,

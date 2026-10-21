@@ -381,6 +381,7 @@ impl<'a> SpanView<'a> {
             primary,
             label,
             source,
+            ..
         } = node
         else {
             return None;

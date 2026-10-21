@@ -9,12 +9,13 @@
 //! document exists for CI and for the agents that drive this compiler, which
 //! both want a field rather than a line to parse.
 //!
-//! **The document is the record, not the rendering.** Every field here is one
-//! the `Diagnostic` already carries, and the only thing this module decides is
-//! how to spell it. Nothing is recovered from rendered text and nothing is
-//! computed that the terminal renderer would not also print — a record that
-//! appears here and not there, or the reverse, would be a second diagnostic
-//! surface to keep in step.
+//! **The document is the record, not the rendering.** Each diagnostic is
+//! rendered from the [`nvs_render::Record`] that [`nvs_diagnostics::record`]
+//! builds, the one the terminal text is rendered from, and the only thing this
+//! module decides is how to spell its fields. Nothing is read off the
+//! `Diagnostic` itself, so a field here and not in the text, or the reverse,
+//! would have to be a field of the record. Its text has had the record's
+//! control-byte substitution, as the terminal's has.
 //!
 //! **A position is given twice**, as the byte `span` the compiler works in and
 //! as one-based `line`/`column` pairs, because the two consumers want
@@ -24,12 +25,14 @@
 //! [`nvs_diagnostics::SourceFile::line_col`]'s own decision and the one the
 //! text header is already rendered from, so the two cannot disagree.
 //!
-//! **`help` is its own array** rather than notes a reader has to sort out.
-//! `Diagnostic::with_help` is the only thing that writes the `help: ` prefix
-//! into a note, so splitting on it here recovers the distinction the builder
-//! made rather than guessing at one — and a consumer reading `help` gets the
-//! text without the prefix, since the prefix is the plaintext rendering's and
-//! not the record's.
+//! **`help` is its own array** rather than notes a reader has to sort out. The
+//! record keys each note `note` or `help`, and a consumer reading `help` gets
+//! the text without the `help: ` prefix, since the prefix is the plaintext
+//! rendering's and not the record's.
+//!
+//! A label in a file the source map does not hold is not in the record, so it
+//! is in neither rendering. A diagnostic reported against a file the compiler
+//! loaded has none.
 //!
 //! Every field is always present. An absent code is `null` and an empty list
 //! is `[]`, so nothing downstream has to tell "no suggestions" from "this
@@ -42,9 +45,8 @@
 //! A file in a directory named `vendor` is listed but never denied or written
 //! ([`vendored`]).
 
-use nvs_diagnostics::{
-    BytePos, Diagnostic, Label, LabelStyle, SourceFile, SourceMap, Span, Suggestion,
-};
+use nvs_diagnostics::{Diagnostic, SourceFile, SourceMap, Suggestion, record};
+use nvs_render::{Node, Record, Rendered, Scalar};
 use serde_json::{Map, Value, json};
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -134,10 +136,6 @@ pub(crate) enum Deny {
 /// consumer reading by name is unaffected by one.
 const SCHEMA_VERSION: u64 = 1;
 
-/// What [`Diagnostic::with_help`] writes in front of a note, and the only
-/// marker there is that one was a help line.
-const HELP_PREFIX: &str = "help: ";
-
 /// Every diagnostic as one document, pretty-printed.
 ///
 /// Pretty rather than compact — the opposite of `nvs ast --json`, and for the
@@ -155,7 +153,7 @@ pub(crate) fn document<'a>(
     let document = json!({
         "schemaVersion": SCHEMA_VERSION,
         "diagnostics": diagnostics
-            .map(|diagnostic| diagnostic_json(diagnostic, map))
+            .map(|diagnostic| diagnostic_json(&record::record(diagnostic, map)))
             .collect::<Vec<_>>(),
         "todos": todos
             .iter()
@@ -368,92 +366,121 @@ pub(crate) fn apply(file: &FileEdits) -> std::io::Result<usize> {
     Ok(edits.len())
 }
 
-/// One record: what the terminal renderer prints as one block.
-fn diagnostic_json(diagnostic: &Diagnostic, map: &SourceMap) -> Value {
-    let (help, notes): (Vec<&str>, Vec<&str>) = diagnostic
-        .notes
-        .iter()
-        .map(String::as_str)
-        .partition(|note| note.starts_with(HELP_PREFIX));
+/// One diagnostic's record, as the block the terminal renderer prints from
+/// the same record.
+fn diagnostic_json(record: &Record) -> Value {
+    let notes = match record::field(record, record::NOTES) {
+        Some(Node::Sequence(notes)) => notes.as_slice(),
+        _ => &[],
+    };
+    let note_texts = |kind: &str| {
+        notes
+            .iter()
+            .filter_map(|note| match note {
+                Node::Map(entries) => entries
+                    .iter()
+                    .find(|(key, _)| key.as_str() == kind)
+                    .and_then(|(_, text)| scalar_text(text)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let suggestions = match record::field(record, record::SUGGESTIONS) {
+        Some(Node::Sequence(suggestions)) => suggestions.as_slice(),
+        _ => &[],
+    };
     json!({
         // The same spelling the text head carries, so `severity` and
         // `error[E0401]` name one thing.
-        "severity": diagnostic.severity.label(),
-        "code": diagnostic.code.map(|code| code.as_str()),
-        "message": diagnostic.message,
-        "labels": diagnostic
-            .labels
-            .iter()
-            .map(|label| label_json(label, map))
-            .collect::<Vec<_>>(),
-        "notes": notes,
-        "help": help
-            .iter()
-            .map(|line| &line[HELP_PREFIX.len()..])
-            .collect::<Vec<_>>(),
-        "suggestions": diagnostic
-            .suggestions
-            .iter()
-            .map(|suggestion| suggestion_json(suggestion, map))
-            .collect::<Vec<_>>(),
+        "severity": record::field_text(record, record::SEVERITY),
+        "code": record::field_text(record, record::CODE),
+        "message": record.envelope.message.as_ref().map(Rendered::as_str),
+        "labels": record.nodes.iter().filter_map(label_json).collect::<Vec<_>>(),
+        "notes": note_texts("note"),
+        "help": note_texts("help"),
+        "suggestions": suggestions.iter().filter_map(suggestion_json).collect::<Vec<_>>(),
     })
 }
 
-/// One span with something to say about it.
-fn label_json(label: &Label, map: &SourceMap) -> Value {
-    let mut out = location_json(label.span, map);
+/// One span with something to say about it, or `None` when `node` is not a span.
+fn label_json(node: &Node) -> Option<Value> {
+    let Node::Span { primary, label, .. } = node else {
+        return None;
+    };
+    let mut out = location_json(Some(node));
     out.insert(
         "style".into(),
-        Value::from(match label.style {
-            LabelStyle::Primary => "primary",
-            LabelStyle::Secondary => "secondary",
-        }),
+        Value::from(if *primary { "primary" } else { "secondary" }),
     );
-    out.insert("message".into(), Value::from(label.message.clone()));
-    Value::Object(out)
+    out.insert("message".into(), Value::from(label.as_str()));
+    Some(Value::Object(out))
 }
 
-/// One machine-applicable edit, with the text to put there.
-fn suggestion_json(suggestion: &Suggestion, map: &SourceMap) -> Value {
-    let mut out = location_json(suggestion.span, map);
+/// One machine-applicable edit, with the text to put there, or `None` when
+/// `node` is not a suggestion's map.
+fn suggestion_json(node: &Node) -> Option<Value> {
+    let Node::Map(entries) = node else {
+        return None;
+    };
+    let entry = |name: &str| {
+        entries
+            .iter()
+            .find(|(key, _)| key.as_str() == name)
+            .map(|(_, value)| value)
+    };
+    let flag = |name: &str| matches!(entry(name), Some(Node::Scalar(Scalar::Bool(true))));
+    let mut out = location_json(entry("at"));
     out.insert(
         "replacement".into(),
-        Value::from(suggestion.replacement.clone()),
+        Value::from(entry("replacement").and_then(scalar_text)),
     );
-    out.insert("message".into(), Value::from(suggestion.message.clone()));
-    out.insert("safe".into(), Value::from(suggestion.safe));
-    out.insert("alternative".into(), Value::from(suggestion.alternative));
-    Value::Object(out)
+    out.insert(
+        "message".into(),
+        Value::from(entry("message").and_then(scalar_text)),
+    );
+    out.insert("safe".into(), Value::from(flag("safe")));
+    out.insert("alternative".into(), Value::from(flag("alternative")));
+    Some(Value::Object(out))
 }
 
 /// Where a span is, in both of the two ways a consumer asks.
 ///
-/// `file` and the two positions are `null` together when the map does not hold
-/// the span's file, which a diagnostic reported against a file the compiler
-/// loaded cannot be. The text renderer drops such a label entirely; this keeps
-/// it, because a record missing from the document is the one failure this
-/// surface must not have.
-fn location_json(span: Span, map: &SourceMap) -> Map<String, Value> {
-    let file = map.get(span.file);
+/// `file`, `span` and the two positions are `null` together when the record
+/// has no span: a suggestion in a file the map does not hold, which a
+/// diagnostic reported against a file the compiler loaded cannot be. A label
+/// in such a file is not in the record, and the text leaves it out too.
+fn location_json(span: Option<&Node>) -> Map<String, Value> {
     let mut out = Map::new();
-    out.insert(
-        "file".into(),
-        file.map_or(Value::Null, |file| Value::from(file.name())),
-    );
-    out.insert("span".into(), json!([span.start, span.end]));
-    out.insert(
-        "start".into(),
-        file.map_or(Value::Null, |file| position_json(file, span.start)),
-    );
+    let Some(Node::Span {
+        file,
+        line,
+        column,
+        end_line,
+        end_column,
+        offset,
+        end_offset,
+        ..
+    }) = span
+    else {
+        for key in ["file", "span", "start", "end"] {
+            out.insert(key.into(), Value::Null);
+        }
+        return out;
+    };
+    out.insert("file".into(), Value::from(file.as_str()));
+    out.insert("span".into(), json!([offset, end_offset]));
+    out.insert("start".into(), json!({ "line": line, "column": column }));
     out.insert(
         "end".into(),
-        file.map_or(Value::Null, |file| position_json(file, span.end)),
+        json!({ "line": end_line, "column": end_column }),
     );
     out
 }
 
-/// A byte offset as the one-based line and column the `-->` header shows.
-fn position_json(file: &SourceFile, pos: BytePos) -> Value {
-    let (line, column) = file.line_col(pos);
-    json!({ "line": line + 1, "column": column + 1 })
+/// The text of a string scalar, or `None` for any other node.
+fn scalar_text(node: &Node) -> Option<&str> {
+    match node {
+        Node::Scalar(Scalar::Str { text, .. }) => Some(text.as_str()),
+        _ => None,
+    }
 }

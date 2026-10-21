@@ -13,7 +13,7 @@ stages:
         rules: [errors/record-producers, errors/record-transformations]
   - id: 4
     title: "`nvs check --json` renders the same record, and its document is frozen"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/check.rs, crates/nvs-cli/tests/check.rs, crates/nvs-cli/tests/ast.rs, crates/nvs-render/src/json.rs]
     extra:
       context:
@@ -124,9 +124,9 @@ renders from that record, byte for byte as it does now.
 **Does:** `nvs check --json` renders the record stage 1 builds, so `diagnostic_json` stops building
 its own value, and one whole document is frozen.
 
-- [ ] `nvs check --json` renders the record (`rule:ide/check-json-is-the-diagnostic-record-as-a-document`). `crates/nvs-cli/src/check.rs:158`, `crates/nvs-cli/src/check.rs:372`
-- [ ] One fixture's whole `--json` document is frozen byte for byte, as `ast_json_matches_its_frozen_schema` freezes `ast --json` (`rule:ide/ast-json-schema-is-frozen`). `crates/nvs-cli/tests/check.rs:1`, `crates/nvs-cli/tests/ast.rs:184`
-- [ ] The module doc of `crates/nvs-cli/tests/check.rs` says why both kinds of test exist. `crates/nvs-cli/tests/check.rs:6`
+- [x] `nvs check --json` renders the record (`rule:ide/check-json-is-the-diagnostic-record-as-a-document`). `crates/nvs-cli/src/check.rs:158`, `crates/nvs-cli/src/check.rs:372`
+- [x] One fixture's whole `--json` document is frozen byte for byte, as `ast_json_matches_its_frozen_schema` freezes `ast --json` (`rule:ide/ast-json-schema-is-frozen`). `crates/nvs-cli/tests/check.rs:1`, `crates/nvs-cli/tests/ast.rs:184`
+- [x] The module doc of `crates/nvs-cli/tests/check.rs` says why both kinds of test exist. `crates/nvs-cli/tests/check.rs:6`
 
 ### 5. a compiler diagnostic's snippet redacts a `secret`
 
@@ -160,29 +160,37 @@ the runner's JSON and JUnit reports render from it.
 
 ### State
 
-Stage 1 is done. `nvs_diagnostics::record::record` builds a diagnostic's record, and
-`Renderer::render` and `render_all` print the terminal text from it through `render_record`. The
-record's shape is the module doc of `crates/nvs-diagnostics/src/record.rs`: the severity and code
-are string fields, each label is a `Node::Span` carrying its first line's text, and the notes and
-suggestions are sequence fields. `Node::Span` gained a column, an end, `primary` and `source`, and the
-JSON rendering writes them as `$span`'s keys. A label in a file the map does not hold is left out of
-the record, as the text always left it out. The one byte the text changed is a control byte in a
-snippet's source line, which now prints as its control picture (`␛` for `ESC`). The E0011 case that
-writes one was re-recorded, because a compiler printing a raw `ESC` to the terminal is the injection
-E0011 exists to stop. `nvs check --json` writes such a label with `null`
-positions, so stage 4 decides whether the record keeps it.
+Stages 1 and 4 are done. `nvs_diagnostics::record::record` builds a diagnostic's record, and both
+the terminal text (`Renderer::render_record`) and the `nvs check --json` document
+(`crates/nvs-cli/src/check.rs`'s `diagnostic_json`) render from it. `Node::Span` gained the byte
+`offset` and `end_offset` the document writes as `span`, and the JSON rendering writes them as
+`$span`'s keys. The document's `schemaVersion: 1` shape did not change. A label in a file the map
+does not hold is left out of both renderings, since a diagnostic against a loaded file has none. A
+suggestion with no span writes `null` for `file`, `span`, `start` and `end`. The document's text
+now has the record's control-byte substitution. `tests/fixtures/check/frozen.nvs`'s whole document
+is frozen in `check_json_matches_its_frozen_document`, run from the crate directory so the path in
+it is the same on every machine.
+
+The acceptance sweep's red `cli-tests` was the `spreadsheet_*` tests, failing on the uncommitted
+extension-contagion work in the tree (`crates/nvs-types/src/ext_lib.rs`'s `contagious_return`),
+which is not this goal's. The nightly `proofs` jobs failed on stale perf measurements, and the
+website job on a stale `llms-full.txt` that is current on disk now; the `ci-green` side loop owns
+both.
 
 ### Next
 
-**Stage 4: `nvs check --json` renders the record**, one file set: `crates/nvs-cli/src/check.rs`,
-`crates/nvs-cli/tests/check.rs`, `crates/nvs-render/src/json.rs`. Its document today has `labels`,
-`notes`, `help` and per-span `utf16` positions that the record does not carry yet.
+**Stage 5: a snippet redacts a `secret`**, one file set: `crates/nvs-diagnostics/src/record.rs`,
+`crates/nvs-diagnostics/src/render.rs`, `crates/nvs-cli/tests/check.rs`. The redaction belongs where
+the record takes the source line (`record.rs:180`), so both renderings inherit it. The
+`check --json` document writes no snippet text, so its half of the item is a test that a label's
+`message` and a note carry no `secret` literal, or a decision written into the rule that the
+document has nothing to redact.
 
-- [ ] `nvs check --json` renders the record (`rule:ide/check-json-is-the-diagnostic-record-as-a-document`). `crates/nvs-cli/src/check.rs:158`, `crates/nvs-cli/src/check.rs:372`, `crates/nvs-diagnostics/src/record.rs:48`
-- [ ] One fixture's whole `--json` document is frozen byte for byte. `crates/nvs-cli/tests/check.rs:1`, `crates/nvs-cli/tests/ast.rs:184`
-- [ ] The module doc of `crates/nvs-cli/tests/check.rs` says why both kinds of test exist. `crates/nvs-cli/tests/check.rs:6`
+- [ ] A `secret` literal inside a snippet's lines prints redacted in the text and the JSON, with a test of each (`rule:security/redaction-reaches-the-tools-own-renderings`). `crates/nvs-diagnostics/src/record.rs:180`, `crates/nvs-diagnostics/src/render.rs:121`, `crates/nvs-cli/tests/check.rs:147`
+- [ ] The gap record is deleted. `data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json:1`
+- [ ] `rule:security/redaction-reaches-the-tools-own-renderings` is `shipped`, its "Partly on disk" paragraph rewritten. `data/rules/security/redaction-reaches-the-tools-own-renderings.json:3`, `docs/rules/security/redaction-reaches-the-tools-own-renderings.md:23`
 
-Stage 3 has no gate, shares no file with stage 4, and fits beside it if the session has room.
+Stage 3 has no gate, shares no file with stage 5, and fits beside it if the session has room.
 
 ### Backlog
 
