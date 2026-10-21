@@ -41,6 +41,9 @@
   "syntax/classes/anonymous-objects.mdx": {
     "lang:expressions/anonymous-objects": "d50be13c13f2e985"
   },
+  "syntax/classes/covariant.mdx": {
+    "lang:classes/covariant": "d98acec91a603d14"
+  },
   "syntax/classes/declaring.mdx": {
     "lang:classes/declaring-a-class": "1c1899c154545430"
   },
@@ -311,6 +314,7 @@
     "lang:types/qualifiers-tainted-and-secret": "d3d6e01742783999"
   },
   "syntax/values/union-types.mdx": {
+    "lang:types/a-member-every-class-of-a-union-declares": "124883794c34b9c3",
     "lang:types/mixed": "f0166b554154806a",
     "lang:types/type-aliases": "e4ce699292166c6d"
   }
