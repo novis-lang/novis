@@ -3,7 +3,7 @@ the count is one less. `remove` returns nothing. This replaces `$storage->detach
 `SplObjectStorage`.
 
 A value is matched by identity. `remove` takes out only the same object that was added. An object
-with equal fields is a different object, and the set does not change. If the value is not in the
+with equal property values is a different object, and the set does not change. If the value is not in the
 set, `remove` does nothing and does not throw an error.
 
 The set stops keeping the value alive. An object that nothing else uses is deleted at that point.

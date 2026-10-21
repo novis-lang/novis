@@ -1,6 +1,6 @@
 <?nvs
-// Shows what a decode checks for each field. A `?int` field takes `null`.
-// A `bool` field does not, so `null` there is an issue.
+// Shows what a decode checks for each property. A `?int` property takes `null`.
+// A `bool` property does not, so `null` there is an issue.
 
 #[Core\Json\Derive]
 class Row {

@@ -1,5 +1,5 @@
 <?nvs
-// Shows a user record that loads all its fields on the first read of any one
+// Shows a user record that loads all its properties on the first read of any one
 // of them. `initProperty` runs once and sets three properties.
 
 class User implements LateInit {

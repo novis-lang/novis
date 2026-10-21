@@ -14,8 +14,8 @@ class Article {
     #[Field(name: "published_at")]
     public string $publishedAt;
 
-    // A skipped property is not a field. It needs no constructor parameter, and
-    // it never appears in the document.
+    // A skipped property needs no constructor parameter, and it never appears
+    // in the document.
     #[Field(skip: true)]
     public uint $viewCount;
 

@@ -2785,7 +2785,7 @@ writes the named property.
 **Good to know:** a `private` or `protected` property never converts to a key. A write through a key
 does not compile when the class has a public `readonly` property.
 
-**The examples below** sort a table by a column from the web address and update the fields a list of
+**The examples below** sort a table by a column from the web address and update the properties a list of
 changes names. Then they show a write of the wrong
 type and a key of a parent class used on a child class.
 
@@ -2865,7 +2865,7 @@ Chair 85
 Desk 120
 ```
 
-## Example 02: a function that takes a field name
+## Example 02: a function that takes a property name
 
 ```nvs
 <?nvs
@@ -2888,7 +2888,7 @@ class Page {
     public static function field(User $user, property<User>|string $name): string {
         ?property<User> $key = $name as ?property<User>;
         if ($key == null) {
-            return "no field named " . ($name as string);
+            return "no property named " . ($name as string);
         }
         return ($key as string) . ": " . $user->$key;
     }
@@ -2908,15 +2908,15 @@ echo Page::field($user, $key), "\n";
 
 ```output
 email: ada@example.com
-no field named passwordHash
+no property named passwordHash
 name: Ada
 ```
 
-## Example 03: update the fields a list of changes names
+## Example 03: update the properties a list of changes names
 
 ```nvs
 <?nvs
-// Updates only the fields that a list of changes names, and skips every other name.
+// Updates only the properties that a list of changes names, and skips every other name.
 
 class Profile {
     public string $name = "Ada";
@@ -2931,7 +2931,7 @@ class Profile {
 
 Profile $profile = new Profile();
 
-// The changes to make, with the field names as keys.
+// The changes to make, with the property names as keys.
 array<string> $changes = ["city" => "Paris", "role" => "admin", "phone" => "555"];
 
 foreach ($changes as string $field => string $value) {
@@ -3114,7 +3114,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 # Property paths
 
-A property path is a value that names a field across related objects, such as `customer.address.city`.
+A property path is a value that names a property across related objects, such as `customer.address.city`.
 
 The type `propertyPath<Order>` contains paths that start at the class `Order`. Each name in a path is a
 public property of the class that the name before it reaches. That property can be an object, a
@@ -3126,7 +3126,7 @@ and throws an error if a name is wrong. `as ?propertyPath<Order>` gives `null` i
 the same class, such as `parent.parent.name`.
 
 **The examples below** go from an order to its customer, address and lines, and sort a list by a
-field from the web address. Then they show the errors for a wrong path.
+property that the web address names. Then they show the errors for a wrong path.
 
 Every name in a path but the last must be a property whose type is a class `C`, a `?C` or an
 `array<C>`. The next name is a property of `C`. The last name can be any public property.
@@ -3204,11 +3204,11 @@ sorted by lines.sku
 sorted by total
 ```
 
-## Example 02: a sort field from the address
+## Example 02: the property to sort by from the address
 
 ```nvs skip
 <?nvs
-// Shows a list of orders sorted by a field that the web address names.
+// Shows a list of orders sorted by a property that the web address names.
 
 class Customer {
     public string $name;
@@ -3235,7 +3235,7 @@ class Table {
         // If one name is wrong, the result is `null`.
         ?propertyPath<Order> $path = $field as ?propertyPath<Order>;
         if ($path == null) {
-            return "unknown field, sorted by total";
+            return "not a property path, sorted by total";
         }
         return "sorted by " . ($path as string);
     }
@@ -3250,7 +3250,7 @@ echo Table::sortBy(Core\Request::query("other")), "\n";
 
 ```text
 sorted by customer.name
-unknown field, sorted by total
+not a property path, sorted by total
 ```
 
 ## Example 03: a path that starts at the calling class
@@ -3390,7 +3390,7 @@ any other string while the program runs, and throws an error if a hole is wrong.
 (text from outside the program) stays tainted after `as string<K>`, so a condition from a request
 cannot be the text of a database query. `Core\Str::parts` splits the string into its text and holes.
 
-**The examples below** check the fields in a query condition, fill a message template, check a
+**The examples below** check the property paths in a query condition, fill a message template, check a
 condition built while the program runs, and show a wrong hole that does not compile.
 
 `K` is `property<T>`, `propertyPath<T>` or a set of strings, such as `'asc'|'desc'`. Any other `K`,
@@ -3418,11 +3418,11 @@ typed `string<K>` does not take it (`E0401`).
 text is equal. A string written in the code and a string converted from a variable are equal when
 the text is the same.
 
-## Example 01: a condition with checked fields
+## Example 01: a condition with checked property paths
 
 ```nvs
 <?nvs
-// Shows a query condition whose field names are checked when the program compiles.
+// Shows a query condition whose property names are checked when the program compiles.
 
 class Customer {
     public string $name = "Ada";
@@ -3771,7 +3771,7 @@ something else
 <?nvs
 // A job's settings are a mode, which is one of three words, and a mailbox that may be `null`.
 // Checking a property such as `$job->mode` does not change its type.
-// Checking a local variable does. So `plan` copies each field to a variable first.
+// Checking a local variable does. So `plan` copies each property to a variable first.
 
 class Job
 {

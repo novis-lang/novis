@@ -2,7 +2,7 @@
 
 Bytes that may contain data from outside your program have the type `tainted bytes`.
 `Core\Serialize::decode` does not accept them. `Core\Serialize::encode` also returns `tainted bytes`
-when the value can contain outside text. That is the case for a `mixed` field, for example. When your
+when the value can contain outside text. That is the case for a `mixed` property, for example. When your
 program wrote the bytes itself, you call `assertTrustedBytes()` once, and then `decode()` reads them.
 
 Every call needs a second argument: a short reason that says what was checked. The program never

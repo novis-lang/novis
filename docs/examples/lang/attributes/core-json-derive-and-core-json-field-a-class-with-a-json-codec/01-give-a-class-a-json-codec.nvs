@@ -9,7 +9,7 @@ class Point {
     public int $x;
     public int $y;
 
-    // Every field is a constructor parameter of the same name and type.
+    // Every property is a constructor parameter of the same name and type.
     public function constructor(int $x, int $y) {
         $this->x = $x;
         $this->y = $y;
@@ -31,6 +31,6 @@ class Line {
     }
 }
 
-// A field whose type is another class with the attribute is encoded inside the
+// A property whose type is another class with the attribute is encoded inside the
 // same document. This prints {"from":{"x":0,"y":0},"to":{"x":3,"y":4}}.
 echo Json::encode(new Line(new Point(0, 0), new Point(3, 4))), "\n";

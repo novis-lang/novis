@@ -5,7 +5,7 @@ Each key is counted once. When you call `set` with a key that is already in the 
 replaced and the count stays the same. `remove` makes the count one smaller, and `clear` makes it
 `0`.
 
-A key is found by identity. Two different objects are two keys, even when all their fields are
+A key is found by identity. Two different objects are two keys, even when all their property values are
 equal. The examples show this, and show how to use `count` to limit how many tasks run at the same
 time.
 

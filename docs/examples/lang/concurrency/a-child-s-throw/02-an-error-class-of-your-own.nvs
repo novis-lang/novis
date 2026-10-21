@@ -1,6 +1,6 @@
 <?nvs
 // Shows an error class of your own crossing out of a task. The class and the
-// fields you gave it are still there in the `catch`.
+// properties you gave it are still there in the `catch`.
 
 class ImportFailed extends RuntimeError {
     public int $row;

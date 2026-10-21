@@ -1,7 +1,7 @@
 <?nvs
 // Shows what happens when a reply is not the JSON document the program expects.
 
-// The text in a reply comes from another server, so the text field is `tainted`.
+// The text in a reply comes from another server, so the text property is `tainted`.
 #[Core\Json\Derive]
 class User {
     public tainted string $name;

@@ -3,7 +3,7 @@ accepts instances of that class, and `Core\Json::decodeAs` builds one from JSON 
 the attribute is not allowed at either call.
 
 The fields of the document are the class's declared properties, in the order they are written. Each
-field is also a constructor parameter of the same name and type, because a decode calls your
+of these properties is also a constructor parameter of the same name and type, because a decode calls your
 constructor. `#[Core\Json\Field]` changes one property. `name:` writes it under a different key, and
 `skip: true` leaves it out of the document.
 
@@ -12,5 +12,5 @@ type, or is `null` where that is not allowed, the decode throws a `ParseError`. 
 bad field at once.
 
 The examples show a class encoded as JSON, a renamed key and a skipped property, and a request body
-read into an object. Then they show each check of a decode, a field with no constructor parameter,
+read into an object. Then they show each check of a decode, a property with no constructor parameter,
 and an enum and an array in a decode.

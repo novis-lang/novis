@@ -7,7 +7,7 @@ If a field is missing or has the wrong type, `jsonAs` throws a `ParseError`. The
 entry in `issues` for each wrong field. An empty body throws a `ParseError` too. The `maxDepth`
 option sets how deep the document may nest. The default is 512.
 
-The body is text that your own program wrote. So a `string` field of `T` does not need to be
+The body is text that your own program wrote. So a `string` property of `T` does not need to be
 `tainted`. Each call creates new objects.
 
 **The examples below** show how to read an answer into a class, how to read a list, and what

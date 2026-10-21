@@ -1,8 +1,8 @@
 <?nvs
 // Shows a program that builds the JSON answer of an API request from its own classes.
 
-// `#[Core\Json\Derive]` gives the class a JSON format. Each public field is one key.
-// `#[Core\Json\Field]` sets a different key name for one field.
+// `#[Core\Json\Derive]` gives the class a JSON format. Each public property is one key.
+// `#[Core\Json\Field]` sets a different key name for one property.
 #[Core\Json\Derive]
 class Product {
     public string $name;

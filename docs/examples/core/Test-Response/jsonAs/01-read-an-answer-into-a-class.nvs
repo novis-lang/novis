@@ -4,7 +4,7 @@
 use Core\Http\Method;
 use Core\Test;
 
-// `#[Core\Json\Derive]` gives the class a JSON format. Each public field is one key.
+// `#[Core\Json\Derive]` gives the class a JSON format. Each public property is one key.
 #[Core\Json\Derive]
 class Product {
     public string $sku;

@@ -629,7 +629,7 @@ accepts instances of that class, and `Core\Json::decodeAs` builds one from JSON 
 the attribute is not allowed at either call.
 
 The fields of the document are the class's declared properties, in the order they are written. Each
-field is also a constructor parameter of the same name and type, because a decode calls your
+of these properties is also a constructor parameter of the same name and type, because a decode calls your
 constructor. `#[Core\Json\Field]` changes one property. `name:` writes it under a different key, and
 `skip: true` leaves it out of the document.
 
@@ -638,40 +638,41 @@ type, or is `null` where that is not allowed, the decode throws a `ParseError`. 
 bad field at once.
 
 The examples show a class encoded as JSON, a renamed key and a skipped property, and a request body
-read into an object. Then they show each check of a decode, a field with no constructor parameter,
+read into an object. Then they show each check of a decode, a property with no constructor parameter,
 and an enum and an array in a decode.
 
-The fields are the instance properties that the class itself declares. A `private` or `protected`
-property is a field too. A property promoted in the `constructor` is a field in the place where it is
-written. A `static` property is not a field, and neither is a property the class inherits. A
-`readonly` property is a field. A class with no fields at all is `E0758`.
+The document has one key for each instance property that the class itself declares. A `private` or
+`protected` property has a key too. A property promoted in the `constructor` has its key in the place
+where it is written. A `static` property has no key, and neither does a property the class inherits.
+A `readonly` property has a key. A class with no such property is `E0758`.
 
-A field may be a number, a `string`, a `bool`, an enum, an inline shape, an `array<T>` of these, or
+A property may be a number, a `string`, a `bool`, an enum, an inline shape, an `array<T>` of these, or
 `?T` of these. It may also be another class with `#[Core\Json\Derive]`. A class without the attribute
 is `E0756`. An enum case is written in JSON as its number. A `float` is written with a fraction, so
-`2` in a `float` field encodes as `2.0`.
+`2` in a `float` property encodes as `2.0`.
 
-A `secret` property cannot be a field, and is `E0462`. A `lateinit` property is `E0463`. Both work
-with `#[Core\Json\Field(skip: true)]`. A field with no constructor parameter of the same name is
+A `secret` property is not allowed in the document, and is `E0462`. A `lateinit` property is `E0463`.
+Both work with `#[Core\Json\Field(skip: true)]`. A property with no constructor parameter of the same name is
 `E0460`. A parameter of another type is `E0461`. `#[Core\Json\Field]` has the options `name` and
 `skip` only, and any other option is `E0464`. `skip: false` is the same as no `skip`.
 
-A constructor parameter that is not a field is `E0820` at the `Core\Json::decodeAs` call. This is
+A constructor parameter that does not match a property in the document is `E0820` at the `Core\Json::decodeAs` call. This is
 true even when the parameter has a default value. `Core\Json::decodeAs` on a class without the
 attribute does not compile, and is `E0821`. `Core\Json::encode` of such an object throws a
 `LogicError` when it runs.
 
-A `?T` field that is `null` is written as `null`. It is never left out of the document. A `?T` field
-is always required in a decode too. A missing key is the issue `required field missing`, as for any
-other field. Only its value may be `null`.
+A `?T` property that is `null` is written as `null`. It is never left out of the document. A `?T`
+property is always required in a decode too. A missing key is the issue `required field missing`, as
+for any other property. Only its value may be `null`.
 
 A key in the document that the class does not have is ignored.
 
 The `ParseError` has every problem in its `issues`. Each issue has a `path` and a `message`.
 
-A decode checks each value's type and does not convert it. `1.5` and `2.0` in an `int` field are
-issues, and so is `-1` in a `uint` field. A number in a `string` or `bool` field is an issue, and
-so is a string in a `float` field. An `int` in a `float` field is accepted. An enum field takes the
+A decode checks each value's type and does not convert it. `1.5` and `2.0` in an `int` property are
+issues, and so is `-1` in a `uint` property. A number in a `string` or `bool` property is an issue,
+and so is a string in a `float` property. An `int` in a `float` property is accepted. An enum
+property takes the
 number of a case. Any other number, or a string, is the issue `expected a declared enum case`.
 
 The path of an issue joins the keys with `.`. A field of a nested object is `address.city`, and an
@@ -699,7 +700,7 @@ class Point {
     public int $x;
     public int $y;
 
-    // Every field is a constructor parameter of the same name and type.
+    // Every property is a constructor parameter of the same name and type.
     public function constructor(int $x, int $y) {
         $this->x = $x;
         $this->y = $y;
@@ -721,7 +722,7 @@ class Line {
     }
 }
 
-// A field whose type is another class with the attribute is encoded inside the
+// A property whose type is another class with the attribute is encoded inside the
 // same document. This prints {"from":{"x":0,"y":0},"to":{"x":3,"y":4}}.
 echo Json::encode(new Line(new Point(0, 0), new Point(3, 4))), "\n";
 ```
@@ -750,8 +751,8 @@ class Article {
     #[Field(name: "published_at")]
     public string $publishedAt;
 
-    // A skipped property is not a field. It needs no constructor parameter, and
-    // it never appears in the document.
+    // A skipped property needs no constructor parameter, and it never appears
+    // in the document.
     #[Field(skip: true)]
     public uint $viewCount;
 
@@ -843,8 +844,8 @@ address.city: required field missing
 
 ```nvs
 <?nvs
-// Shows what a decode checks for each field. A `?int` field takes `null`.
-// A `bool` field does not, so `null` there is an issue.
+// Shows what a decode checks for each property. A `?int` property takes `null`.
+// A `bool` property does not, so `null` there is an issue.
 
 #[Core\Json\Derive]
 class Row {
@@ -882,11 +883,11 @@ rank: expected int, found a string
 is_live: null is not permitted
 ```
 
-## Example 05: a field needs a constructor parameter
+## Example 05: a property needs a constructor parameter
 
 ```nvs error
 <?nvs
-// Shows that every field needs a constructor parameter with the same name.
+// Shows that every property needs a constructor parameter with the same name.
 // The constructor has no `$name` parameter, so this program does not compile.
 // proof: compile-error
 
@@ -918,7 +919,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 ```nvs
 <?nvs
-// Shows a decode of an enum field and an array field. An enum case is
+// Shows a decode of an enum property and an array property. An enum case is
 // written in JSON as its number.
 
 enum Level { Low, High }

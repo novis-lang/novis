@@ -1,8 +1,8 @@
 <?nvs
 // Shows how to read a submitted sign-up form into your own class.
 
-// `#[Core\Json\Derive]` lets `postAs` fill the class. Each public field reads the form field with the same name.
-// The form comes from the client, so a string field must be `tainted string`.
+// `#[Core\Json\Derive]` lets `postAs` fill the class. Each public property reads the form field with the same name.
+// The form comes from the client, so a string property must be `tainted string`.
 #[Core\Json\Derive]
 class SignUp {
     public tainted string $name;

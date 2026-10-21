@@ -1,5 +1,5 @@
 <?nvs
-// Shows that two objects with equal fields are two different keys.
+// Shows that two objects with equal property values are two different keys.
 
 final class Point {
     public int $x;

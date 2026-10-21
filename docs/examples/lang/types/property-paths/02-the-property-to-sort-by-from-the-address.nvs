@@ -1,5 +1,5 @@
 <?nvs
-// Shows a list of orders sorted by a field that the web address names.
+// Shows a list of orders sorted by a property that the web address names.
 
 class Customer {
     public string $name;
@@ -26,7 +26,7 @@ class Table {
         // If one name is wrong, the result is `null`.
         ?propertyPath<Order> $path = $field as ?propertyPath<Order>;
         if ($path == null) {
-            return "unknown field, sorted by total";
+            return "not a property path, sorted by total";
         }
         return "sorted by " . ($path as string);
     }

@@ -1895,7 +1895,7 @@ Hello, the shop! How can we help?
 
 ```nvs
 <?nvs
-// Shows `implements I by $field`. A class that holds an object which already
+// Shows `implements I by $property`. A class that holds an object which already
 // does the work passes every method of the interface on to it.
 
 interface SendsMail {
@@ -3218,11 +3218,11 @@ the limit is within itself
 -1
 ```
 
-## Example 02: an order built from two fields
+## Example 02: an order built from two properties
 
 ```nvs
 <?nvs
-// Shows an order that reads two fields, and how a program branches on the
+// Shows an order that reads two properties, and how a program branches on the
 // number `<=>` returns.
 
 final class Release implements Comparable {

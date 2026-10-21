@@ -18,7 +18,7 @@ class Page {
     public static function field(User $user, property<User>|string $name): string {
         ?property<User> $key = $name as ?property<User>;
         if ($key == null) {
-            return "no field named " . ($name as string);
+            return "no property named " . ($name as string);
         }
         return ($key as string) . ": " . $user->$key;
     }

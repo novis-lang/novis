@@ -1,6 +1,6 @@
 Reads a form that a browser sent with `POST` into a class or a shape that you write. You write the
 type between `<` and `>`: `Core\Request::postAs<SignUp>()`. A class needs the
-`#[Core\Json\Derive]` attribute, and each public field reads the form field with the same name. The
+`#[Core\Json\Derive]` attribute, and each public property reads the form field with the same name. The
 form comes from the client, so every string field must be `tainted string`.
 
 Every value in a form is text. A field of another type, such as `uint`, converts the text the same

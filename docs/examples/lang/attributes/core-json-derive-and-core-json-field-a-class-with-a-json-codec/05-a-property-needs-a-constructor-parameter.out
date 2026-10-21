@@ -1,5 +1,5 @@
 error[E0460]: `$name` is a `#[Json\Derive]` field with no constructor parameter
-  --> 05-a-field-needs-a-constructor-parameter.nvs:8:19
+  --> 05-a-property-needs-a-constructor-parameter.nvs:8:19
   |
 8 |     public string $name;
   |                   ^^^^^ nothing decodes into this

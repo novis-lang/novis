@@ -1,8 +1,8 @@
 <?nvs
 // Shows how to read the JSON body of a request straight into an instance of your own class.
 
-// `#[Core\Json\Derive]` gives the class a JSON format. Each public field is one key.
-// The body comes from the client, so a string field must be `tainted string`.
+// `#[Core\Json\Derive]` gives the class a JSON format. Each public property is one key.
+// The body comes from the client, so a string property must be `tainted string`.
 #[Core\Json\Derive]
 class NewUser {
     public tainted string $name;

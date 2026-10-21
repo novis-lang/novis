@@ -2,7 +2,7 @@ Builds a new `Core\ObjectSet` with every value that is in this set, in `$other`,
 that is in both sets is in the result only once. This replaces a loop that copies two
 `SplObjectStorage` objects into a third one.
 
-A value is matched by identity. Two objects with equal fields are two different values, so the
+A value is matched by identity. Two objects with equal property values are two different values, so the
 result has both of them.
 
 The result is a new set. `union` does not change this set or `$other`. The values of this set come
