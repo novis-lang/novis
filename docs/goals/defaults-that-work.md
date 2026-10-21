@@ -76,7 +76,7 @@ stages:
         rules: [config/no-configuration-file-is-a-complete-configuration, config/ceilings-are-their-own-directives, config/ini-set-is-core-config-set]
   - id: 11
     title: the repository's `nvs.toml`, the shipped `nvs.toml` and the examples show the new defaults
-    status: open
+    status: done
     context: [nvs.toml, crates/nvs-config/src/default.toml]
     extra:
       context:
@@ -492,10 +492,10 @@ default now covers, every example and `about.md` under `docs/examples/` that sta
 such a grant, and every conformance case that does. Then one writing subagent edits `nvs.toml`, and a
 second the examples, held to § *Text an end user reads* in `AGENTS.md`.
 
-- [ ] The six `connect = true` blocks and every other covered grant are removed, and the hostile block stays (`rule:config/no-configuration-file-is-a-complete-configuration`). `nvs.toml:137`
-- [ ] The shipped file's `[capabilities]` comments state each default by run kind. `crates/nvs-config/src/default.toml:141`
-- [ ] Every listed example and `about.md` says what is true. `docs/examples/core/Env/get/about.md:1`
-- [ ] Every program in the tree still runs under the trimmed file. `nvs.toml:19`
+- [x] The six `connect = true` blocks and every other covered grant are removed, and the hostile block stays (`rule:config/no-configuration-file-is-a-complete-configuration`). `nvs.toml:137`
+- [x] The shipped file's `[capabilities]` comments state each default by run kind. `crates/nvs-config/src/default.toml:141`
+- [x] Every listed example and `about.md` says what is true. `docs/examples/core/Env/get/about.md:1`
+- [x] Every program in the tree still runs under the trimmed file. `nvs.toml:19`
 
 ### 12. the website says what the defaults are, and every rule this goal changed says what is true
 
@@ -528,13 +528,41 @@ to a writing subagent, one after another. Then the gate runs once more.
 
 ### State
 
-Stages 1 to 10 are done. Stage 4 is committed without a green gate: its gate was stopped after a
-test hung. Stages 11 and 12 check with a build alone, and stage 13, the gate stage, verifies the goal.
+Stages 1 to 11 are done. Stage 4 is committed without a green gate: its gate was stopped after a
+test hung. Stage 12 checks with a build alone, and stage 13, the gate stage, verifies the goal.
 
-**The last sweep's reds are green at HEAD.** `env-secret-proofs` passes when run now; the sweep's
-run found the roster without the member, which is the stale release binary again. The nightly's
-three `proofs` jobs ran on `afbb1edc2`, and their `site snippets` and `site stale` failures pass at
-HEAD. Its `site questions` reds are stage 12's.
+**The last sweep's reds were already fixed.** The `env-secret-proofs` log is from 22:32, before
+`target/release/nvs.exe` was rebuilt at 22:40; the check is green at HEAD. The nightly run
+`39567373487` is the same `afbb1edc2` run the earlier handoff covered.
+
+**Stage 11 (the files show the defaults), `6d9340431` and `c775ff1cc`:**
+
+- `nvs.toml` lost every grant a CLI default now gives: the `examples/{files,tempdir,upload,process,http}.nvs`
+  blocks, the Csv, Serialize, Http-Stream, IO, IO-File, IO-Metadata, Db/open and Db/inList docs
+  roots and benches, `connect = true` on the allowUrl, Http-Client and Http-Part docs, and the
+  loopback `internal` lines of net-echo, Ldap/open and Ldap-Tls. Kept: every `tests/hostile`
+  grant (the `[]` block closes the defaults there), `spawn = true` on `root = "."`
+  (`config/app/01` prints it, `config/capabilities` takes it back), `config/capabilities`'
+  `read = true` (`Core\Config::get` renders only a written key), and the narrowings an example
+  prints. Each comment says what is true.
+- The shipped file's `[capabilities]` banner defines a CLI run, server work and the app folder.
+  `spawn`, `read`, `write`, `connect`, `internal` and `exec` end in `# default: <what unset gives>`,
+  as do their `[schedule.grants.*]` and `[app.capabilities.*]` copies, which
+  `bun nv directives --check-template` requires. `schedule.limits.memory` and
+  `app.limits.hard.memory` now match `limits.hard.memory`'s trailer. `crates/nvs-config/tests/defaults.rs`
+  and `directives.rs` pass.
+- Examples: about pages for IO, Http, Http-Client, Process, Db/open, Storage, Zip, the
+  spreadsheet features and the memory pages say what each run kind may do. 25 per-example
+  `nvs.toml`s are deleted (20 of them landed in `6d9340431`, staged by the examples agent), and the
+  Net ones keep only `listen`/`local`. `Process/{run,spawn}` keep `exec = ["/bin", "/usr/bin"]`,
+  and `Net/connect` and `Net-Datagram/send` keep `connect = ["127.0.0.1"]`, for the refusal their
+  `02` prints. `Process-Result/exitCode/03` now tests for the root `nvs.toml`.
+- Runs: the programs behind every changed block and page (about 150 features, examples and
+  attacks) match their `.out` on the debug binary. Not run: the whole roster (the guard leaves that
+  to the gate), and the `requires: unix` Process-Handle and Process-Result examples whose
+  `nvs.toml` was deleted.
+- **Expected red at stage 13:** an example or attack outside the features above whose output
+  relied on a removed grant, and a Process-Handle or Process-Result example on Linux.
 
 **Stage 10 (CLI memory), `1d56487ff`:**
 
@@ -822,16 +850,14 @@ questions of the capabilities and trust pages. They are restamped in this group.
 **No gate until stage 13.** Check with `cargo build` and `cargo clippy --all-targets -- -D
 warnings`, commit each slice, and name in the handoff the tests and cases you expect to go red.
 
-**Stage 11**: the repository's `nvs.toml`, the shipped `nvs.toml`
-(`crates/nvs-config/src/default.toml:147`) and the examples show the new defaults. Follow the
-stage's `**Split:**` line: an `Explore` subagent lists first, then two writing subagents. Besides
-the capability defaults, the list includes every page that says a program cannot raise its own
-memory limit or quotes `the request exceeded its memory limit`. These state it now:
-`docs/examples/config/limits/about.md`, `docs/examples/config/limits-hard/about.md`,
-`docs/examples/core/Config/set/about.md`,
-`docs/examples/tools/config/limits-and-limits-hard/` (its about page and example `01`),
-`docs/examples/tools/config/reading-and-changing-it-from-a-program-core-config/about.md`,
-`docs/reference/core/Config.md` and `docs/reference/tools/20-config.md`.
+**Stage 12**: the website and the rules. Follow the stage's `**Split:**` line. The website pages
+first: `website/src/content/docs/guides/how-to-use/configuration.mdx` and
+`website/src/content/docs/guides/production/security-checklist.mdx`, then the other listed pages,
+held to § *Text an end user reads*. Regenerate `website/src/data/core.json` (the
+`Core\Csrf::issue` text at about `:7504`) with the website's data command, and reread and stamp
+the six reference pages with stale questions (`bun nv site --questions --stamp <page>`). Then the
+two package rules and the eight rules the stage lists, and `bun nv rules --check`. The examples
+under `docs/examples/` already say what is true, so a website page can follow their wording.
 
 **Proofs use the release binary.** `bun nv proofs --gate` reads the roster from
 `target/release/nvs.exe`. After adding a `Core` member, pass `--nvs target/debug/nvs.exe` or run
@@ -845,5 +871,6 @@ memory limit or quotes `the request exceeded its memory limit`. These state it n
 - Stage 12: six reference pages have stale questions (see *State*). `bun nv site --questions --stamp <page>` after a reread. `website/src/content/docs/guides/how-to-use/configuration.mdx:1`
 - Stage 12: a website page that says a session needs a configured store, or that `start` throws with no `[session]` block, now says what is not true. `website/src/content/docs/guides/how-to-use/configuration.mdx:1`
 - The editor offers file names at a `ParamText::Path` argument and not at `ParamText::Program`, so `Core\Process::run`'s first argument lost path completion, hover and links. `crates/nvs-lsp/src/completion.rs:743`
-- Stage 11: the shipped file's `#exec` and `#spawn` comments still read as deny-all. `crates/nvs-config/src/default.toml:147`
+- The examples' IO folders' own `nvs.toml` files were not checked for keys a default now gives. `docs/examples/core/IO/read/about.md:1`
+- `tools/config/network-grants-the-addresses-and-endpoints-they-reach/nvs.toml` lists `127.0.0.2` under `connect`, which passes only because its written `internal` replaces the loopback default. Check that its comment says so. `docs/examples/tools/config/network-grants-the-addresses-and-endpoints-they-reach/nvs.toml:1`
 - The package half of every default is goal `namespace-grants`'s: a package is checked against its own line alone. `docs/goals/namespace-grants.md`
