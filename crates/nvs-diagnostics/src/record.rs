@@ -14,7 +14,8 @@
 //! * [`CODE`] carries the code, absent when the diagnostic has none.
 //! * Its nodes are one [`Node::Span`] per label whose file the map holds, in
 //!   the order the diagnostic wrote them. Each carries its first line's text,
-//!   so the record renders without the map.
+//!   so the record renders without the map, and its byte offsets, which
+//!   `nvs check --json` writes as a label's `span`.
 //! * [`NOTES`] is one single-key map per note, the key `note` or `help`, in
 //!   the order written, absent when there are none.
 //! * [`SUGGESTIONS`] is one map per suggestion, absent when there are none.
@@ -172,6 +173,8 @@ fn span(at: Span, primary: bool, label: &str, map: &SourceMap) -> Option<Node> {
         column: one_based(column),
         end_line: one_based(end_line),
         end_column: one_based(end_column),
+        offset: at.start,
+        end_offset: at.end.max(at.start),
         primary,
         label: Rendered::new(label),
         source: file.line_text(line).map(Rendered::new),
@@ -216,6 +219,8 @@ mod tests {
                 column: 1,
                 end_line: 2,
                 end_column: 3,
+                offset: 8,
+                end_offset: 10,
                 primary: true,
                 label: Rendered::new("again here"),
                 source: Some(Rendered::new("$a = 2;")),

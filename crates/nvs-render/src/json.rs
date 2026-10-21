@@ -290,6 +290,8 @@ impl Serialize for AsSpan<'_> {
             column,
             end_line,
             end_column,
+            offset,
+            end_offset,
             primary,
             label,
             source,
@@ -303,6 +305,8 @@ impl Serialize for AsSpan<'_> {
         map.serialize_entry("column", column)?;
         map.serialize_entry("end_line", end_line)?;
         map.serialize_entry("end_column", end_column)?;
+        map.serialize_entry("offset", offset)?;
+        map.serialize_entry("end_offset", end_offset)?;
         map.serialize_entry("primary", primary)?;
         map.serialize_entry("label", label.as_str())?;
         if let Some(source) = source {

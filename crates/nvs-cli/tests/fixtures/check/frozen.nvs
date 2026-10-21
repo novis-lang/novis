@@ -1,0 +1,8 @@
+<?nvs
+// The program whose whole `--json` document `check.rs` freezes: a class name
+// with a machine-applicable fix, and `eval` with a help line. Editing it moves
+// the frozen document, so it is written for that test alone.
+class my_class {
+}
+
+eval("return 1;");

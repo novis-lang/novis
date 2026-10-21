@@ -537,8 +537,9 @@ any other value and redact like any other value.
 **Partly on disk.** `Core\Log::write`, `Core\Debug::dump`, an uncaught `Throwable` and a compiler
 diagnostic build the record (`crates/nvs-stdlib/src/log.rs`, `crates/nvs-stdlib/src/debug.rs`,
 `crates/nvs-runtime/src/floor.rs`, `crates/nvs-diagnostics/src/record.rs`), and a frame is
-`nvs_render::Node::Frame`. A compiler diagnostic's terminal text renders from its record, while
-`nvs check --json` still builds its own document and a snippet does not redact a `secret`: goal
+`nvs_render::Node::Frame`. A compiler diagnostic's terminal text and its `nvs check --json`
+document both render from its record (`crates/nvs-cli/src/check.rs`). A snippet does not redact a
+`secret` yet: goal
 `diagnostic-records`'s gap `data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json`. A test
 result does not build the record, and is that goal's gap
 `data/gaps/nvs-render/test-result-is-not-a-producer.json`.

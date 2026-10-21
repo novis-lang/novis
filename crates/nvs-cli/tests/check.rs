@@ -3,11 +3,14 @@
 //! `rule:ide/check-json-is-the-diagnostic-record-as-a-document` promises is
 //! what the *command* prints, the same reason `ast.rs` goes through it.
 //!
-//! Every assertion here is a comparison against the text rendering rather than
-//! against a frozen literal, because the rule's promise is that the two say the
-//! same thing: one record per diagnostic the text renderer prints, with the
-//! same codes, the same positions and the same help. A snapshot could freeze
-//! the document and still let the two surfaces drift apart.
+//! The tests are of two kinds, because the rule makes two promises. Most
+//! compare the document with the text rendering: one record per diagnostic the
+//! text renderer prints, with the same codes, the same positions and the same
+//! help. A snapshot alone could freeze the document and still let the two
+//! surfaces drift apart. One, [`check_json_matches_its_frozen_document`],
+//! freezes a whole document byte for byte, as `ast.rs` freezes `nvs ast
+//! --json`'s, because the schema is frozen: a comparison alone passes a
+//! renamed key or a reshaped value the text never shows.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -132,6 +135,117 @@ fn check_json_emits_one_record_per_diagnostic_the_text_renderer_prints() {
     assert_eq!(clean["diagnostics"], serde_json::json!([]));
     assert_eq!(clean["schemaVersion"], 1);
 }
+
+/// The schema, frozen: `tests/fixtures/check/frozen.nvs`'s whole document,
+/// byte for byte (`rule:ide/check-json-is-the-diagnostic-record-as-a-document`).
+/// The fixture is read by a path relative to this crate, which is the path the
+/// document names, so the literal is the same on every machine. Regenerate it
+/// with `nvs check --json tests/fixtures/check/frozen.nvs` from `crates/nvs-cli`
+/// the day the fixture or a diagnostic it reports is edited, and read what
+/// changed before pasting it: a diff here is that edit or a schema change.
+#[test]
+fn check_json_matches_its_frozen_document() {
+    let data = nvs_repo::scratch_private("nvsdata");
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
+        .args(["check", "--json", "tests/fixtures/check/frozen.nvs"])
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    assert!(!out.status.success(), "the fixture does not compile");
+    assert_eq!(
+        String::from_utf8(out.stdout).expect("the document is UTF-8"),
+        FROZEN,
+        "the frozen document for `tests/fixtures/check/frozen.nvs`"
+    );
+}
+
+/// What `check_json_matches_its_frozen_document` compares against.
+const FROZEN: &str = r#"{
+  "diagnostics": [
+    {
+      "code": "E0110",
+      "help": [],
+      "labels": [
+        {
+          "end": {
+            "column": 15,
+            "line": 5
+          },
+          "file": "tests/fixtures/check/frozen.nvs",
+          "message": "class name must be PascalCase",
+          "span": [
+            232,
+            240
+          ],
+          "start": {
+            "column": 7,
+            "line": 5
+          },
+          "style": "primary"
+        }
+      ],
+      "message": "`my_class` must be PascalCase, e.g. `MyClass`",
+      "notes": [],
+      "severity": "error",
+      "suggestions": [
+        {
+          "alternative": false,
+          "end": {
+            "column": 15,
+            "line": 5
+          },
+          "file": "tests/fixtures/check/frozen.nvs",
+          "message": "rename to `MyClass`",
+          "replacement": "MyClass",
+          "safe": true,
+          "span": [
+            232,
+            240
+          ],
+          "start": {
+            "column": 7,
+            "line": 5
+          }
+        }
+      ]
+    },
+    {
+      "code": "E0201",
+      "help": [
+        "give the code a path: `require` it to share this frame, or `spawn script` it to isolate it"
+      ],
+      "labels": [
+        {
+          "end": {
+            "column": 18,
+            "line": 8
+          },
+          "file": "tests/fixtures/check/frozen.nvs",
+          "message": "Novis compiles ahead of execution",
+          "span": [
+            246,
+            263
+          ],
+          "start": {
+            "column": 1,
+            "line": 8
+          },
+          "style": "primary"
+        }
+      ],
+      "message": "`eval` is not supported",
+      "notes": [],
+      "severity": "error",
+      "suggestions": []
+    }
+  ],
+  "schemaVersion": 1,
+  "todos": []
+}
+"#;
 
 /// Every field `rule:ide/check-json-is-the-diagnostic-record-as-a-document`
 /// names, checked against the source the span points into and against the
