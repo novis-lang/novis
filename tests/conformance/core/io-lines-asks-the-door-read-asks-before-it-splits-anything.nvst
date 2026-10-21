@@ -13,6 +13,16 @@ Core\IO::lines refuses an ungranted path exactly as ::read does, naming `fs.read
 // a door of its own.
 // `Here::path` returns a literal resolved from this file's folder, and each
 // name below is joined onto it, so the door is handed an absolute path.
+// `Grant::help` returns the second line of a refusal for `$path`: the folder of the
+// path, written as a TOML string, under `[capabilities.fs]`.
+class Grant {
+    public static function help(string $key, string $path): string {
+        ?uint $end = Core\Str::lastIndexOf(Core\Str::replaceAll($path, ["\\" => "/"]), "/");
+        string $folder = $end == null ? $path : Core\Str::slice($path, 0, ($end + 1) as int);
+        string $quoted = Core\Str::replaceAll($folder, ["\\" => "\\\\", "\"" => "\\\""]);
+        return "help: add `" . $key . " = [\"" . $quoted . "\"]` under `[capabilities.fs]` in nvs.toml";
+    }
+}
 class Here {
     public static function path(#[Core\Path] string $path): string {
         return $path;
@@ -33,7 +43,7 @@ int $linesSeen = 0;
 int $i = 0;
 for (; $i < $total; $i = $i + 1) {
     string $path = Core\Path::join($dir, $paths[$i]);
-    string $needs = " needs the capability `fs.read` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`";
+    string $needs = " needs the capability `fs.read` for " . $path . ", which is not granted\n" . Grant::help("read", $path);
 
     try {
         string $raw = Core\IO::read($path);

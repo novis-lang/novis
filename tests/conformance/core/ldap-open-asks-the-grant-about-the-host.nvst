@@ -22,6 +22,6 @@ try {
 open = ["*.example.test"]
 --EXPECT--
 Core\Ldap::open needs the capability `ldap.open` for directory.example.net, which is not granted
-help: grant it in nvs.toml under `[capabilities.ldap]`
+help: add `open = ["directory.example.net"]` under `[capabilities.ldap]` in nvs.toml
 Core\Ldap::open needs the capability `ldap.open` for example.test, which is not granted
-help: grant it in nvs.toml under `[capabilities.ldap]`
+help: add `open = ["example.test"]` under `[capabilities.ldap]` in nvs.toml

@@ -1,6 +1,7 @@
 The message has two lines. The first is ``Core\IO::read needs the capability `fs.read` for <path>,
-which is not granted``, with the full path of the file. The second is ``help: grant it in nvs.toml
-under `[capabilities.fs]` ``.
+which is not granted``, with the full path of the file. The second is the line to add to `nvs.toml`:
+``help: add `read = ["<folder>"]` under `[capabilities.fs]` in nvs.toml``. `<folder>` is the
+full path of the folder that contains the file.
 
 `fs.read` covers every call that looks at a file, such as `Core\IO::exists`, and not only
 `Core\IO::read`. `fs.write` is a separate capability. A grant of `read` for a folder does not let your

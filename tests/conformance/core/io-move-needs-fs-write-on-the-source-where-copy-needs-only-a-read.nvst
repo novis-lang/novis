@@ -9,6 +9,16 @@ Core\IO::move asks `fs.write` for the path it takes away, so the exact pair of p
 // passes everything else written about either member and fails here.
 // `Here::path` returns a literal resolved from this file's folder, so both
 // paths held in variables are absolute.
+// `Grant::help` returns the second line of a refusal for `$path`: the folder of the
+// path, written as a TOML string, under `[capabilities.fs]`.
+class Grant {
+    public static function help(string $key, string $path): string {
+        ?uint $end = Core\Str::lastIndexOf(Core\Str::replaceAll($path, ["\\" => "/"]), "/");
+        string $folder = $end == null ? $path : Core\Str::slice($path, 0, ($end + 1) as int);
+        string $quoted = Core\Str::replaceAll($folder, ["\\" => "\\\\", "\"" => "\\\""]);
+        return "help: add `" . $key . " = [\"" . $quoted . "\"]` under `[capabilities.fs]` in nvs.toml";
+    }
+}
 class Here {
     public static function path(#[Core\Path] string $path): string {
         return $path;
@@ -25,7 +35,7 @@ try {
     Core\IO::move($from, $to);
     echo "not reached\n";
 } catch (RuntimeError $denied) {
-    if ($denied->message == "Core\\IO::move needs the capability `fs.write` for " . $from . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
+    if ($denied->message == "Core\\IO::move needs the capability `fs.write` for " . $from . ", which is not granted\n" . Grant::help("write", $from)) {
         echo "move, with the same two paths: refused, naming fs.write for the source\n";
     } else {
         echo "move, with the same two paths: refused, saying ", $denied->message, "\n";

@@ -1,3 +1,5 @@
-not removed: Core\Http\Client::delete refuses 192.168.1.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
-not removed: Core\Http\Client::delete refuses 172.16.0.9: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+not removed: Core\Http\Client::delete cannot connect to 192.168.1.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+help: add `internal = ["192.168.1.20"]` under `[capabilities.net]` in nvs.toml
+not removed: Core\Http\Client::delete cannot connect to 172.16.0.9: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+help: add `internal = ["172.16.0.9"]` under `[capabilities.net]` in nvs.toml
 removed: 0, failed: 2

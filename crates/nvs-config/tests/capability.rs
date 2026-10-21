@@ -1590,3 +1590,71 @@ fn a_grant_entry_that_can_allow_something_loads() {
         }
     }
 }
+
+/// `rule:security/denial-is-a-runtime-error`: the line a refusal prints loads, and once it is written
+/// under its table the refused question is granted — for a file, a host, an endpoint, an unscoped
+/// grant and an address the table refuses.
+// covers: tools:config/capabilities
+#[test]
+fn the_line_a_refusal_prints_loads_and_grants_what_was_refused() {
+    use nvs_config::capability::{grant_line, internal_line};
+
+    let disk = Disk::of(&[
+        "/srv/app/data",
+        "/srv/app/data/note.txt",
+        "/srv/app/bin/tool",
+    ]);
+    let note = p("/srv/app/data/note.txt");
+    let tool = p("/srv/app/bin/tool");
+    let folder = format!(
+        "{}{}",
+        p("/srv/app/data").display(),
+        std::path::MAIN_SEPARATOR
+    );
+    for (cap, scope, line) in [
+        (
+            Cap::FsRead,
+            Scope::Path(note.as_path()),
+            format!("read = [{folder:?}]"),
+        ),
+        (
+            Cap::ProcessExec,
+            Scope::Path(tool.as_path()),
+            format!("exec = [{:?}]", tool.display().to_string()),
+        ),
+        (
+            Cap::NetConnect,
+            Scope::Host("api.example.com"),
+            "connect = [\"api.example.com\"]".to_string(),
+        ),
+        (
+            Cap::NetListen,
+            Scope::Endpoint(ep("[::1]:9000")),
+            "listen = [\"[::1]:9000\"]".to_string(),
+        ),
+        (
+            Cap::CacheShared,
+            Scope::Unscoped,
+            "shared = true".to_string(),
+        ),
+    ] {
+        assert_eq!(grant_line(cap, scope), line, "{}", cap.name());
+        let family = cap.family();
+        if let Err(refused) = validated(&format!("[capabilities.{family}]\n{line}\n")) {
+            panic!("{line}: refused with `{}`", refused.message);
+        }
+        assert!(
+            granting(&format!("[{family}]\n{line}\n"), &disk).allows(cap, scope, &disk),
+            "{line} does not grant what {} refused",
+            cap.name()
+        );
+    }
+
+    let line = internal_line(ip("10.0.0.5"));
+    assert_eq!(line, "internal = [\"10.0.0.5\"]");
+    validated(&format!("[capabilities.net]\n{line}\n")).expect("the address line loads");
+    assert_eq!(
+        granting(&format!("[net]\n{line}\n"), &disk).address_refused(ip("10.0.0.5")),
+        None
+    );
+}

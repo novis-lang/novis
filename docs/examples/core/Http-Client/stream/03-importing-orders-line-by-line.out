@@ -1,2 +1,3 @@
-The export stopped: Core\Http\Client::stream refuses 192.168.4.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+The export stopped: Core\Http\Client::stream cannot connect to 192.168.4.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+help: add `internal = ["192.168.4.20"]` under `[capabilities.net]` in nvs.toml
 imported: 0

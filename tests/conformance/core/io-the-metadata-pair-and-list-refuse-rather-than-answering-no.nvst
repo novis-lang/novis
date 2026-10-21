@@ -14,6 +14,16 @@ With nothing granted, `Core\IO::isFile`, `::isDir`, `::list` and `::canonicalize
 // allowance fails here whatever it printed for the others.
 // `Here::path` returns a literal resolved from this file's folder, and each
 // name below is joined onto it, so the door is handed an absolute path.
+// `Grant::help` returns the second line of a refusal for `$path`: the folder of the
+// path, written as a TOML string, under `[capabilities.fs]`.
+class Grant {
+    public static function help(string $key, string $path): string {
+        ?uint $end = Core\Str::lastIndexOf(Core\Str::replaceAll($path, ["\\" => "/"]), "/");
+        string $folder = $end == null ? $path : Core\Str::slice($path, 0, ($end + 1) as int);
+        string $quoted = Core\Str::replaceAll($folder, ["\\" => "\\\\", "\"" => "\\\""]);
+        return "help: add `" . $key . " = [\"" . $quoted . "\"]` under `[capabilities.fs]` in nvs.toml";
+    }
+}
 class Here {
     public static function path(#[Core\Path] string $path): string {
         return $path;
@@ -46,7 +56,7 @@ for (; $i < $total; $i = $i + 1) {
         // The capability's own name, in the spelling `nvs.toml` grants it
         // under, is what an operator pastes into a file -- so it is counted
         // rather than assumed from the fact that something threw.
-        if ($shut->message == "Core\\IO::isFile needs the capability `fs.read` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
+        if ($shut->message == "Core\\IO::isFile needs the capability `fs.read` for " . $path . ", which is not granted\n" . Grant::help("read", $path)) {
             $named = $named + 1;
         }
     }
@@ -56,7 +66,7 @@ for (; $i < $total; $i = $i + 1) {
         $answered = $answered + 1;
     } catch (RuntimeError $shut) {
         $refused = $refused + 1;
-        if ($shut->message == "Core\\IO::isDir needs the capability `fs.read` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
+        if ($shut->message == "Core\\IO::isDir needs the capability `fs.read` for " . $path . ", which is not granted\n" . Grant::help("read", $path)) {
             $named = $named + 1;
         }
     }
@@ -66,7 +76,7 @@ for (; $i < $total; $i = $i + 1) {
         $answered = $answered + 1;
     } catch (RuntimeError $shut) {
         $refused = $refused + 1;
-        if ($shut->message == "Core\\IO::list needs the capability `fs.read` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
+        if ($shut->message == "Core\\IO::list needs the capability `fs.read` for " . $path . ", which is not granted\n" . Grant::help("read", $path)) {
             $named = $named + 1;
         }
     }
@@ -76,7 +86,7 @@ for (; $i < $total; $i = $i + 1) {
         $answered = $answered + 1;
     } catch (RuntimeError $shut) {
         $refused = $refused + 1;
-        if ($shut->message == "Core\\IO::canonicalize needs the capability `fs.read` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
+        if ($shut->message == "Core\\IO::canonicalize needs the capability `fs.read` for " . $path . ", which is not granted\n" . Grant::help("read", $path)) {
             $named = $named + 1;
         }
     }

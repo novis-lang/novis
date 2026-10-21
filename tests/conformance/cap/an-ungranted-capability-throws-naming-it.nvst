@@ -21,4 +21,4 @@ write = ["./out"]
 note
 --EXPECTF--
 Core\IO::read needs the capability `fs.read` for %s%edata%enote.txt, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
+help: add `read = ["%sdata%s"]` under `[capabilities.fs]` in nvs.toml

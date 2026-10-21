@@ -1,2 +1,3 @@
-not sent: Core\Http\Client::post refuses 192.168.1.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+not sent: Core\Http\Client::post cannot connect to 192.168.1.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+help: add `internal = ["192.168.1.20"]` under `[capabilities.net]` in nvs.toml
 orders in the report: 3

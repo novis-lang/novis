@@ -1,12 +1,12 @@
 --TEST--
-a capability denial carries a `help:` line naming `nvs.toml` and the table the grant is written in, and that table is the refused capability's own family — `rule:security/capability-check-at-the-door`, `rule:tooling/an-agent-asks-the-binary`
+a capability denial carries a `help:` line giving the grant line to add, the table it is written under and `nvs.toml`, and that table is the refused capability's own family — `rule:security/denial-is-a-runtime-error`, `rule:tooling/an-agent-asks-the-binary`
 --FILE--
 <?nvs
-// Whoever reads a refusal is about to write a grant, so the line under it says
-// where: the file, and the block inside it. The table is the family half of the
-// capability's own name, which is why two refusals from two families point at
-// two different blocks rather than at one constant — and why the `[capabilities.fs]`
-// this configuration already has is still the right place for `read`.
+// Whoever reads a refusal is about to write a grant, so the line under it is that
+// grant: the folder of a refused file, or the refused host, and the block and file
+// it goes in. The table is the family half of the capability's own name, which is
+// why two refusals from two families point at two different blocks — and why the
+// `[capabilities.fs]` this configuration already has is still the right place for `read`.
 try {
     echo Core\IO::read("./data/note.txt");
 } catch (RuntimeError $refused) {
@@ -28,6 +28,6 @@ write = ["./out"]
 note
 --EXPECTF--
 Core\IO::read needs the capability `fs.read` for %s%edata%enote.txt, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
+help: add `read = ["%sdata%s"]` under `[capabilities.fs]` in nvs.toml
 Core\Http::allowUrl needs the capability `net.connect` for example.com, which is not granted
-help: grant it in nvs.toml under `[capabilities.net]`
+help: add `connect = ["example.com"]` under `[capabilities.net]` in nvs.toml

@@ -1249,6 +1249,44 @@ fn bare_host(entry: &str) -> Option<String> {
     (host != entry && !host.is_empty()).then(|| host.to_string())
 }
 
+/// The line a refusal of `cap` over `scope` tells the operator to add under
+/// `[capabilities.<family>]` ([`Cap::family`]), so the help under a denial is a line to paste rather
+/// than a name to look up (`rule:security/denial-is-a-runtime-error`).
+///
+/// A file or folder under `fs.read`, `fs.write` or `script.spawn` gives the folder it is in, cut
+/// from the path as the door was handed it so its separators stay the program's; a path under any
+/// other grant, a host, a name and an endpoint give themselves. An unscoped refusal gives
+/// `key = true`, or a host list where [`Cap::takes_true_spelling`] says `true` grants nothing.
+/// Every line it gives is one [`validate`] accepts.
+#[must_use]
+pub fn grant_line(cap: Cap, scope: Scope<'_>) -> String {
+    let name = cap.name();
+    let key = name.split_once('.').map_or(name, |(_, key)| key);
+    match scope {
+        Scope::Unscoped if cap.takes_true_spelling() => format!("{key} = true"),
+        Scope::Unscoped => grant_list(key, "api.example.com"),
+        Scope::Path(path) => {
+            let path = path.to_string_lossy();
+            let entry = match cap {
+                Cap::FsRead | Cap::FsWrite | Cap::ScriptSpawn => {
+                    path.rfind(['/', '\\']).map_or(&*path, |end| &path[..=end])
+                }
+                _ => &path,
+            };
+            grant_list(key, entry)
+        }
+        Scope::Host(host) | Scope::Name(host) => grant_list(key, host),
+        Scope::Endpoint(endpoint) => grant_list(key, &endpoint.to_string()),
+    }
+}
+
+/// The `[capabilities.net]` line that excepts `address` from the address table:
+/// `internal = ["10.0.0.5"]`, which the address refusal prints as its help.
+#[must_use]
+pub fn internal_line(address: std::net::IpAddr) -> String {
+    grant_list("internal", &address.to_string())
+}
+
 /// `key = ["value"]`, the value written as a TOML basic string.
 fn grant_list(key: &str, value: &str) -> String {
     format!("{key} = [{}]", toml_string(value))

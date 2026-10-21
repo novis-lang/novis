@@ -13,6 +13,16 @@ Core\IO::read and Core\IO::write refuse every spelling of a path with no grant b
 // then-prefix rule exists for once a root *is* granted. Each is joined onto this
 // file's folder while the program runs, so the door is handed every form whole
 // and absolute, `..` included.
+// `Grant::help` returns the second line of a refusal for `$path`: the folder of the
+// path, written as a TOML string, under `[capabilities.fs]`.
+class Grant {
+    public static function help(string $key, string $path): string {
+        ?uint $end = Core\Str::lastIndexOf(Core\Str::replaceAll($path, ["\\" => "/"]), "/");
+        string $folder = $end == null ? $path : Core\Str::slice($path, 0, ($end + 1) as int);
+        string $quoted = Core\Str::replaceAll($folder, ["\\" => "\\\\", "\"" => "\\\""]);
+        return "help: add `" . $key . " = [\"" . $quoted . "\"]` under `[capabilities.fs]` in nvs.toml";
+    }
+}
 class Here {
     public static function path(#[Core\Path] string $path): string {
         return $path;
@@ -44,7 +54,7 @@ for (; $i < $total; $i = $i + 1) {
         // The capability's own name, in the spelling `nvs.toml` grants it
         // under, is what an operator pastes into a file -- so it is counted
         // rather than assumed from the fact that something threw.
-        if ($refused->message == "Core\\IO::read needs the capability `fs.read` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
+        if ($refused->message == "Core\\IO::read needs the capability `fs.read` for " . $path . ", which is not granted\n" . Grant::help("read", $path)) {
             $readsNamingFsRead = $readsNamingFsRead + 1;
         }
     }
@@ -53,7 +63,7 @@ for (; $i < $total; $i = $i + 1) {
         Core\IO::write($path, "x");
     } catch (RuntimeError $refused) {
         $writesRefused = $writesRefused + 1;
-        if ($refused->message == "Core\\IO::write needs the capability `fs.write` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
+        if ($refused->message == "Core\\IO::write needs the capability `fs.write` for " . $path . ", which is not granted\n" . Grant::help("write", $path)) {
             $writesNamingFsWrite = $writesNamingFsWrite + 1;
         }
     }

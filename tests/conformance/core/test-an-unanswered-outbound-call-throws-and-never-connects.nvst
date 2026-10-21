@@ -62,7 +62,7 @@ foreach ($sent as Core\Test\SentRequest $call) {
 }
 --EXPECT--
 Core\Http\Client::get needs the capability `net.connect` for api.example.com, which is not granted
-help: grant it in nvs.toml under `[capabilities.net]`
+help: add `connect = ["api.example.com"]` under `[capabilities.net]` in nvs.toml
 204||
 Core\Http\Client::post: this test answers outbound calls from a table and no answer is registered for https://nowhere.invalid/two — `Core\Test::answerHttp` registers one, exactly or as a prefix ending in `*`
 200 an order

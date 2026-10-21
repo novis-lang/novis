@@ -4,6 +4,16 @@ Core\IO::copy asks `fs.read` for its source and `fs.write` for its destination, 
 <?nvs
 // Each path below is a literal, so a refusal names it resolved from this
 // file's folder, and `Here::path` resolves the expected text the same way.
+// `Grant::help` returns the second line of a refusal for `$path`: the folder of the
+// path, written as a TOML string, under `[capabilities.fs]`.
+class Grant {
+    public static function help(string $key, string $path): string {
+        ?uint $end = Core\Str::lastIndexOf(Core\Str::replaceAll($path, ["\\" => "/"]), "/");
+        string $folder = $end == null ? $path : Core\Str::slice($path, 0, ($end + 1) as int);
+        string $quoted = Core\Str::replaceAll($folder, ["\\" => "\\\\", "\"" => "\\\""]);
+        return "help: add `" . $key . " = [\"" . $quoted . "\"]` under `[capabilities.fs]` in nvs.toml";
+    }
+}
 class Here {
     public static function path(#[Core\Path] string $path): string {
         return $path;
@@ -27,7 +37,7 @@ try {
     Core\IO::copy("outside.txt", "scratch/from-outside.txt");
     echo "not reached\n";
 } catch (RuntimeError $denied) {
-    if ($denied->message == "Core\\IO::copy needs the capability `fs.read` for " . Here::path("outside.txt") . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
+    if ($denied->message == "Core\\IO::copy needs the capability `fs.read` for " . Here::path("outside.txt") . ", which is not granted\n" . Grant::help("read", Here::path("outside.txt"))) {
         echo "source outside the read grant: refused, naming fs.read\n";
     } else {
         echo "source outside the read grant: refused, saying ", $denied->message, "\n";
@@ -41,7 +51,7 @@ try {
     Core\IO::copy("source/note.txt", "source/second.txt");
     echo "not reached\n";
 } catch (RuntimeError $denied) {
-    if ($denied->message == "Core\\IO::copy needs the capability `fs.write` for " . Here::path("source/second.txt") . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
+    if ($denied->message == "Core\\IO::copy needs the capability `fs.write` for " . Here::path("source/second.txt") . ", which is not granted\n" . Grant::help("write", Here::path("source/second.txt"))) {
         echo "destination outside the write grant: refused, naming fs.write\n";
     } else {
         echo "destination outside the write grant: refused, saying ", $denied->message, "\n";

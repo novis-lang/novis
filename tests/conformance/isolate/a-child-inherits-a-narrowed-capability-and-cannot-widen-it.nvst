@@ -92,6 +92,6 @@ parent refused
 ok=true
 child read note
 child: Core\IO::read needs the capability `fs.read` for %s%esecret.txt, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
+help: add `read = ["%s"]` under `[capabilities.fs]` in nvs.toml
 child set = false
 child still refused

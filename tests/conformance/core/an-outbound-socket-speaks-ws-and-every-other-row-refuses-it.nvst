@@ -57,5 +57,5 @@ Core\Http\Client::openSocket: the scheme must be `ws` or `wss`, and this URL nam
 Core\Http\Client::get: the scheme must be `http` or `https`, and this URL names `wss`
 Core\Http\Client::stream: the scheme must be `http` or `https`, and this URL names `ws`
 Core\Http::allowUrl needs the capability `net.connect` for gateway.example.test, which is not granted
-help: grant it in nvs.toml under `[capabilities.net]`
+help: add `connect = ["gateway.example.test"]` under `[capabilities.net]` in nvs.toml
 sent=0

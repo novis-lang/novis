@@ -1,1 +1,2 @@
-Core\Http\Client::stream refuses 10.0.0.12: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+Core\Http\Client::stream cannot connect to 10.0.0.12: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+help: add `internal = ["10.0.0.12"]` under `[capabilities.net]` in nvs.toml

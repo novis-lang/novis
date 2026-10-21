@@ -15,6 +15,16 @@ Core\IO::writeStream refuses an ungranted path naming `fs.write`, in every spell
 //
 // `Here::path` returns a literal resolved from this file's folder, so the path
 // held in a variable is absolute when it reaches the door.
+// `Grant::help` returns the second line of a refusal for `$path`: the folder of the
+// path, written as a TOML string, under `[capabilities.fs]`.
+class Grant {
+    public static function help(string $key, string $path): string {
+        ?uint $end = Core\Str::lastIndexOf(Core\Str::replaceAll($path, ["\\" => "/"]), "/");
+        string $folder = $end == null ? $path : Core\Str::slice($path, 0, ($end + 1) as int);
+        string $quoted = Core\Str::replaceAll($folder, ["\\" => "\\\\", "\"" => "\\\""]);
+        return "help: add `" . $key . " = [\"" . $quoted . "\"]` under `[capabilities.fs]` in nvs.toml";
+    }
+}
 class Here {
     public static function path(#[Core\Path] string $path): string {
         return $path;
@@ -23,7 +33,7 @@ class Here {
 array<bytes> $chunks = ["one " as bytes, "two" as bytes];
 array<bytes> $nothing = [];
 string $path = Here::path("stream.bin");
-string $needs = "Core\\IO::writeStream needs the capability `fs.write` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`";
+string $needs = "Core\\IO::writeStream needs the capability `fs.write` for " . $path . ", which is not granted\n" . Grant::help("write", $path);
 
 int $calls = 0;
 int $refused = 0;
