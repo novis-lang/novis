@@ -9,12 +9,8 @@ A class `Shelter` has a method `admit(Animal $a)`. A subclass `DogShelter` wants
 `Dog`. Its version of `admit` needs a narrower parameter type: `Dog` in place of `Animal`.
 
 A narrower parameter type without a keyword does not compile. The error is `E0404`, and its message
-tells you to add `covariant`. You write `covariant` before the type:
-
-```nvs
-public function admit(covariant Dog $a): void {}  // a parameter
-public covariant Dog $pet;                        // a property
-```
+tells you to add `covariant`. You write `covariant` before the type. For a parameter, that is
+`admit(covariant Dog $a)`. For a property, it is `public covariant Dog $pet;`.
 
 <FeatureSection examples="lang/classes/covariant" heading="The covariant keyword" id="the-covariant-keyword" />
 
