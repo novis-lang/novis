@@ -6,7 +6,7 @@ context: [docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-o
 stages:
   - id: 1
     title: "an abandoned generator a `finally` brought back is not freed, and a write stores before it releases"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-runtime/src/release.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-codegen/src/emit.rs, docs/rules/iteration/generators.md]
     extra:
       context:
@@ -221,13 +221,13 @@ ever reached.
 **Split:** an `Explore` subagent lists every site that releases a slot's old value before writing the
 new one, in `crates/nvs-runtime/src` and `crates/nvs-ir/src/lower`, as `file:line` with one line each.
 
-- [ ] `dismantle` unlinks after the unwind, and an object whose count rose during it is relinked and kept, not freed (`rule:iteration/generators`). `crates/nvs-runtime/src/object.rs:4129`, `crates/nvs-runtime/src/object.rs:4106`
-- [ ] Runtime slot writes store, then release. `crates/nvs-runtime/src/object.rs:3814`, `crates/nvs-runtime/src/object.rs:5671`, `crates/nvs-runtime/src/object.rs:6124`
-- [ ] Compiled property, static and reference-cell writes store, then release. `crates/nvs-ir/src/lower/stmt.rs:1385`, `crates/nvs-ir/src/lower/mod.rs:3792`, `crates/nvs-ir/src/lower/mod.rs:3302`, `crates/nvs-codegen/src/emit.rs:3351`
-- [ ] A conformance case: a `finally` reads the property its generator is being cleared from, and keeps what it reads. It prints that the value is `null`. `tests/conformance/lang/iteration/a-finally-reads-the-property-its-generator-is-cleared-from.nvst:1`
-- [ ] Rust test: a dying generator whose unwind keeps a reference stays alive, finished, and is freed once at the last release. `crates/nvs-runtime/src/object.rs:4129`
-- [ ] Rust test: in-flight collection of a suspended generator in a cycle runs no `finally` against a nulled local. `crates/nvs-runtime/src/object.rs:3330`
-- [ ] The rule says what a `finally` run by an abandoned generator sees, and that a generator it keeps stays alive. `docs/rules/iteration/generators.md:12`
+- [x] `dismantle` unlinks after the unwind, and an object whose count rose during it is kept on its list, not freed (`rule:iteration/generators`). `crates/nvs-runtime/src/object.rs:4129`, `crates/nvs-runtime/src/object.rs:4106`
+- [x] Runtime slot writes store, then release. `crates/nvs-runtime/src/object.rs:3814`, `crates/nvs-runtime/src/object.rs:5671`, `crates/nvs-runtime/src/object.rs:6124`
+- [x] Compiled property, static, `set` hook body and reference-cell writes store, then release. `crates/nvs-ir/src/lower/stmt.rs:1385`, `crates/nvs-ir/src/lower/mod.rs:3792`, `crates/nvs-ir/src/lower/mod.rs:1735`, `crates/nvs-ir/src/lower/stmt.rs:1352`, `crates/nvs-codegen/src/emit.rs:3351`
+- [x] A conformance case: a `finally` reads the property its generator is being cleared from, and keeps what it reads. It prints that the value is `null`. `tests/conformance/iter/a-finally-reads-the-property-its-generator-is-cleared-from.nvst:1`
+- [x] Rust test: a dying generator whose unwind keeps a reference stays alive, finished, and is freed once at the last release. `crates/nvs-runtime/src/object.rs:4129`
+- [x] Rust test: in-flight collection of a suspended generator in a cycle runs no `finally` against a nulled local. `crates/nvs-runtime/src/object.rs:3330`
+- [x] The rule says what a `finally` run by an abandoned generator sees, and that a generator it keeps stays alive. `docs/rules/iteration/generators.md:12`
 
 ### 2. the armed memory ceiling, its refusal and its reserve travel with their task
 
@@ -317,19 +317,31 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new. The audit is done, and every finding above was checked in the code. The generator
-use-after-free was reproduced on the debug build with this shape: a class property holds a generator
-suspended inside `try`/`finally`, the `finally` copies that property to a second one, and the program
-sets the first to `null`. The copy then points at a freed object. Nothing is fixed yet.
+Stage 1 is done. `dismantle` runs a dying generator's unwind before it unlinks the object, and keeps
+an object whose count rose during the unwind. Every property, static, `set` hook body and
+reference-cell write stores first and releases after, in the runtime and in lowering. The new
+conformance case prints `[gen is null]` for a property and a static, and both Rust tests in
+`object.rs` pass by name. The Explore sweep found two sites the stage did not name, the
+reference-cell store and the `set => expr;` hook body, and both are fixed. `install_statics`
+(`crates/nvs-runtime/src/ctx/isolate.rs:276`) releases a whole statics store before it installs the
+next one; it runs before any request frame, so it is left as it is.
+
+The acceptance sweep's `env-secret-proofs` and the nightly `proofs` jobs were already green on this
+tree: the gate exits 0, and `bun nv site --check structure snippets stale questions prose` passes.
+
+**Expected red at the gate:** any `nvs-ir` lowering snapshot or IR-dump test that pins a property,
+static or reference-cell write. The release of the old value now follows the store instead of
+preceding it. Update the expected order; it is not a regression.
 
 ### Next
 
-**Stage 1, one group**, on `crates/nvs-runtime/src/object.rs` and `crates/nvs-ir/src/lower/`. No gate.
+**Stage 2, one group**, on `crates/nvs-runtime/src/budget.rs`, `crates/nvs-runtime/src/ctx/` and
+`crates/nvs-host/src/scheduler.rs`. No gate.
 
-- [ ] `dismantle` unlinks after the unwind and keeps an object the unwind brought back (`rule:iteration/generators`). `crates/nvs-runtime/src/object.rs:4129`
-- [ ] Runtime slot writes store, then release. `crates/nvs-runtime/src/object.rs:3814`, `crates/nvs-runtime/src/object.rs:5671`, `crates/nvs-runtime/src/object.rs:6124`
-- [ ] Compiled property, static and reference-cell writes store, then release. `crates/nvs-ir/src/lower/stmt.rs:1385`, `crates/nvs-ir/src/lower/mod.rs:3792`, `crates/nvs-ir/src/lower/mod.rs:3302`
-- [ ] The conformance case and the two Rust tests of stage 1. `crates/nvs-runtime/src/object.rs:4129`
+- [ ] `budget::ArmedStack`, modelled on `CurrentStack`. `crates/nvs-runtime/src/budget.rs:243`, `crates/nvs-runtime/src/ctx/current.rs:107`
+- [ ] `yield_on` takes and restores it. `crates/nvs-host/src/scheduler.rs:1552`, `crates/nvs-host/src/scheduler.rs:1599`
+- [ ] The limit handler runs after the reserve closes, and so does the ladder's handler isolate. `crates/nvs-runtime/src/ctx/hooks.rs:625`, `crates/nvs-host/src/ladder.rs:111`
+- [ ] The Rust test and the state-bleed memory row. `crates/nvs-host/src/scheduler.rs:1615`, `crates/nvs-server/src/serve.rs:8510`
 
 Stages 3 and 4 may run as a side goal beside it, because they touch only `crates/nvs-stdlib`,
 `crates/nvs-server/src/body.rs` and `crates/nvs-config`.
