@@ -2208,20 +2208,34 @@ fn path_of(name: &[u8]) -> Option<(&[u8], Vec<Index<'_>>)> {
 /// a refcount of one and mutates in place rather than separating. That is what
 /// makes the whole parse O(input) — retaining a second reference would make
 /// every descent copy the subtree it descends into.
-fn branch(parent: &mut NvsArray, key: Option<&[u8]>) -> Option<ManuallyDrop<NvsArray>> {
+///
+/// # Errors
+///
+/// [`OverMemory`] where the request cannot afford the fresh array or the
+/// write that places it in `parent`. Each is asked before it is made, and a
+/// refused write frees the fresh array, so a refusal leaves `parent` as it
+/// was.
+fn branch(
+    parent: &mut NvsArray,
+    key: Option<&[u8]>,
+) -> Result<Option<ManuallyDrop<NvsArray>>, OverMemory> {
     if let Some(key) = key
         && let Some(existing) = parent.get(key).and_then(Value::array_ptr)
     {
-        return Some(crate::arr::borrowed(existing));
+        return Ok(Some(crate::arr::borrowed(existing)));
     }
-    let fresh = Value::array(NvsArray::new());
+    let fresh = NvsArray::try_new().ok_or(OverMemory)?;
+    if !parent.affords_write() {
+        return Err(OverMemory);
+    }
+    let fresh = Value::array(fresh);
     let address = fresh.array_ptr().expect("just built from an array");
     match key {
         Some(key) => parent.set(NvsStr::new(key), fresh),
         None => {
             if let Err(fresh) = parent.try_append(fresh) {
                 discard(fresh);
-                return None;
+                return Ok(None);
             }
         }
     }
@@ -2231,7 +2245,22 @@ fn branch(parent: &mut NvsArray, key: Option<&[u8]>) -> Option<ManuallyDrop<NvsA
         1,
         "the array just handed to `parent` is owned by it alone"
     );
-    Some(child)
+    Ok(Some(child))
+}
+
+/// The request's memory limit refused an array a parameter's name opens. The
+/// breach is already recorded, so the parse stops and builds nothing more.
+pub(crate) struct OverMemory;
+
+impl OverMemory {
+    /// The `FATAL` the parse ends with where no context is at hand to word the
+    /// request's own. `rule:errors/on-limit` makes a memory breach a `FATAL`.
+    fn fault(owner: &str, member: &str) -> Fault {
+        Fault::fatal(format!(
+            "{owner}::{member}: the parameters' names open more arrays than the request's memory \
+             limit allows"
+        ))
+    }
 }
 
 /// Writes `value` at `base` + `path` inside `out`, building the arrays the
@@ -2240,26 +2269,52 @@ fn branch(parent: &mut NvsArray, key: Option<&[u8]>) -> Option<ManuallyDrop<NvsA
 /// Iterative rather than recursive on purpose: the path's depth is the
 /// caller's text, so a recursive descent would let a query string choose this
 /// process's stack depth. The arrays it builds are freed through
-/// `nvs_runtime::release`'s worklist, which is iterative for the same reason,
-/// so nesting is bounded by the input's length and by nothing else — PHP's
-/// `max_input_nesting_level` has no equivalent here because it does not need
-/// one.
+/// `nvs_runtime::release`'s worklist, which is iterative for the same reason.
+///
+/// **The memory limit bounds the nesting**, in front of each array: every
+/// [`branch`] asks the ceiling for the array it opens and the write that
+/// places it before it makes either. So a name of any depth stops at the
+/// ceiling inside one parse, and needs no count of its own, which is why
+/// PHP's `max_input_nesting_level` has no equivalent here. What the request
+/// already holds is freed by the caller's release of `out`.
 ///
 /// A pair whose `[]` finds no free integer key is dropped whole, as `parse_str`
 /// drops it: the arrays are built from the caller's text, so an occupied next
 /// key is input, never a broken invariant.
-fn insert(out: &mut NvsArray, base: &[u8], path: &[Index<'_>], value: Value) {
+///
+/// # Errors
+///
+/// [`OverMemory`], with `value` released and `out` holding every array built
+/// before the refusal.
+fn insert(
+    out: &mut NvsArray,
+    base: &[u8],
+    path: &[Index<'_>],
+    value: Value,
+) -> Result<(), OverMemory> {
     let Some((last, descents)) = path.split_last() else {
         out.set(NvsStr::new(base), value);
-        return;
+        return Ok(());
     };
-    let mut current = branch(out, Some(base)).expect("a named key is never refused");
-    for index in descents {
-        let Some(next) = branch(&mut current, index.key()) else {
+    let mut current = match branch(out, Some(base)) {
+        Ok(current) => current.expect("a named key is never refused"),
+        Err(over) => {
             discard(value);
-            return;
-        };
-        current = next;
+            return Err(over);
+        }
+    };
+    for index in descents {
+        match branch(&mut current, index.key()) {
+            Ok(Some(next)) => current = next,
+            Ok(None) => {
+                discard(value);
+                return Ok(());
+            }
+            Err(over) => {
+                discard(value);
+                return Err(over);
+            }
+        }
     }
     match last.key() {
         Some(key) => current.set(NvsStr::new(key), value),
@@ -2269,6 +2324,7 @@ fn insert(out: &mut NvsArray, base: &[u8], path: &[Index<'_>], value: Value) {
             }
         }
     }
+    Ok(())
 }
 
 /// One array [`build`] is walking, and how much of the running name belongs to
@@ -3174,6 +3230,9 @@ nvs_runtime::nvs_helper! {
 ///
 /// # Errors
 ///
+/// A `FATAL` where the arrays the names open would carry the request past its
+/// memory limit, which [`insert`] asks in front of each one.
+///
 /// [`text_from`]'s throw, for a **name** whose escapes decode to octets that
 /// are not UTF-8 — a name is an array key and an array key is a `string`. A
 /// value refuses nothing under [`Values::Octets`] and refuses the same octets
@@ -3203,7 +3262,7 @@ pub(crate) fn parse_query(
                 text_from(octets, owner, member, "the decoded value of a parameter")?.as_bytes(),
             )),
         };
-        place(&mut out, name.as_bytes(), value);
+        place(&mut out, name.as_bytes(), value).map_err(|_| OverMemory::fault(owner, member))?;
     }
     Ok(out)
 }
@@ -3231,10 +3290,17 @@ pub(crate) enum Values {
 /// decode and everything below the decode to share. Two spellings of the
 /// bracket walk is how `a[b]=c` would come to mean one thing in a query string
 /// and another in a form.
-pub(crate) fn place(out: &mut NvsArray, name: &[u8], value: Value) {
+///
+/// # Errors
+///
+/// [`insert`]'s [`OverMemory`], with `value` released.
+pub(crate) fn place(out: &mut NvsArray, name: &[u8], value: Value) -> Result<(), OverMemory> {
     match path_of(name) {
         Some((base, path)) => insert(out, base, &path, value),
-        None => out.set(NvsStr::new(name), value),
+        None => {
+            out.set(NvsStr::new(name), value);
+            Ok(())
+        }
     }
 }
 
@@ -3664,6 +3730,37 @@ mod tests {
         assert_eq!(
             octets(super::nvs_core_uri_decode_form_value, "caf%C3%A9+x"),
             "café x".as_bytes()
+        );
+    }
+
+    /// A name that opens one array per `[]` stops at the memory limit inside
+    /// the parse, in front of the array that would cross it. Under Miri the
+    /// name and the limit are each smaller, so the arrays still outgrow the
+    /// limit many times over.
+    #[test]
+    fn a_name_nested_past_the_memory_limit_stops_inside_one_parse() {
+        let (depth, limit) = if cfg!(miri) {
+            (10_000, 1 << 18)
+        } else {
+            (100_000, 4 << 20)
+        };
+        // Made before the context, so the query is not on its balance.
+        let query = format!("a{}=1", "[]".repeat(depth));
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(limit);
+        let parsed = super::parse_query(&query, "Core\\Uri", "parseQuery", super::Values::Octets);
+        let Err(fault) = parsed else {
+            panic!("the parse stops at the memory limit");
+        };
+        assert!(
+            matches!(fault, nvs_runtime::Fault::Fatal(_)),
+            "a memory breach is a FATAL"
+        );
+        assert!(ctx.over_memory_limit(), "the refusal is recorded on the request");
+        assert!(
+            ctx.memory_peak() <= limit,
+            "the parse held no more than the limit: peak {} against {limit}",
+            ctx.memory_peak()
         );
     }
 

@@ -7,8 +7,14 @@ the caller is ours.
 
 **The refusal is not in the global allocator.** A null there reaches a `Vec`'s or `Box`'s own path
 and `handle_alloc_error`, which aborts the process and every request on it — worse than the breach.
-It sits one level up, in the allocators that make a Novis `string`, `array` or object, and the
-aborting wrappers beside them do not exist: the fallible constructor is the only way to make one.
+It sits one level up, in the allocators that make a Novis `string`, `array` or object.
+
+**An array the input decides to build is refused in front of its header.** A query string's or a
+form's bracket names open one array per `[]`, so their count is the input's. `NvsArray::try_new` asks
+the ceiling for the header, and the parse asks for the write that places it, before it makes either.
+A refusal ends the parse with a `FATAL`, and `Core\Request`'s readers report it as the request's
+memory error. So a name of any depth stops at the ceiling inside one parse, and no nesting or count
+limit exists beside it. `NvsArray::new` stays for arrays whose count the runtime chooses.
 
 **A primitive that carries no `ctx` refuses by returning a degenerate value, and acquires no status
 channel to say so.** `nvs_str_append` answers its target unchanged, which exactly balances the one
