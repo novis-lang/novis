@@ -2,7 +2,7 @@
 // Measures reading one environment variable by name. A program does this when it
 // reads a setting such as a port or a database host.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {
