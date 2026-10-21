@@ -479,7 +479,7 @@ platform Novis builds for, so one may appear that a given build omits.
   rustix                                     1.1.5                          MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   rustls                                     0.23.46                        MIT                             (Apache-2.0 OR ISC OR MIT)
   rustls-pki-types                           1.15.1                         MIT                             (MIT OR Apache-2.0)
-  rustls-webpki                              0.103.15                       ISC
+  rustls-webpki                              0.103.16                       ISC
   rustversion                                1.0.23                         MIT                             (MIT OR Apache-2.0)
   rustybuzz                                  0.20.1                         MIT
   ruzstd                                     0.9.1                          MIT
@@ -623,7 +623,7 @@ platform Novis builds for, so one may appear that a given build omits.
   wast                                       262.0.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wat                                        1.262.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   web_atoms                                  0.3.0                          MIT                             (MIT OR Apache-2.0)
-  webpki-roots                               1.0.9                          CDLA-Permissive-2.0
+  webpki-roots                               1.0.10                         CDLA-Permissive-2.0
   weezl                                      0.1.12                         MIT                             (MIT OR Apache-2.0)
   winapi                                     0.3.9                          MIT                             (MIT/Apache-2.0)
   winapi-i686-pc-windows-gnu                 0.4.0                          MIT                             (MIT/Apache-2.0)
@@ -11247,7 +11247,7 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ==============================================================================
 
 Applies to:
-  rustls-webpki 0.103.15
+  rustls-webpki 0.103.16
 
 ------------------------------------------------------------------------------
 
@@ -11675,7 +11675,7 @@ express Statement of Purpose.
 ==============================================================================
 
 Applies to:
-  webpki-roots 1.0.9
+  webpki-roots 1.0.10
 
 ------------------------------------------------------------------------------
 
