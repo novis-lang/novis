@@ -98,15 +98,21 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `b7ce5a074`. Its CI run,
-https://github.com/novis-lang/novis/actions/runs/39633333828, and its Website run,
-https://github.com/novis-lang/novis/actions/runs/39633333727, are green. The main loop's push of
-`fcf671105` was red in `docs`, `proofs`, the website render and `rustfmt`. The local `main` already
-carried the main loop's fixes for all four, so pushing it was the fix. That run then showed two reds.
-`7daec7687` fixed a race in `nvs run`'s wall clock. A `Core\Time::sleep` that ends at the deadline runs
-the `onLimit` handler, and the clock's later raise stopped that handler on Windows. Both sides now claim
-the stop under `TreeState::wall_stop`. `b7ce5a074` restamped the `/in-depth/compare/` questions after the
-main loop reordered that page. No red is handed to the main loop, so no watch passes `--past`.
+`origin/main` is at `e9c83e4fe`, the push of `defaults-that-work`'s end. Its Website run,
+https://github.com/novis-lang/novis/actions/runs/39690115404, is green. Its CI run,
+https://github.com/novis-lang/novis/actions/runs/39690119898, was red in two jobs, and three local
+commits fix both. They go out with the next goal end's push:
+
+- the chapter examples job's `bun nv render --website --check`: `website/public/llms-full.txt` was
+  stale after the capability-default chapter edits. `539fe48e9` renders it again.
+- `proofs`' `bun nv proofs --verify`: nine `about.md` pages were over 200 words, fixed by
+  `6e529cde4`, and 48 perf records were stale after `process.rs`, `session.rs` and the programs,
+  errors and concurrency chapters changed, measured again by `9d33a9761`. `bun nv proofs --gate` now
+  owes nothing.
+
+The main loop's gate does not run `bun nv proofs --gate`, so a goal that changes a measured member's
+source or lengthens an `about.md` reaches CI red. No red is handed to the main loop, so no watch passes
+`--past`.
 
 ### Next
 
@@ -121,6 +127,10 @@ main loop reordered that page. No red is handed to the main loop, so no watch pa
   its staged changes, so apply the diff with `git apply` and commit by pathspec. Before fixing a red,
   run `git log origin/main..HEAD`: the main loop may have committed the fix already, and then the
   next goal end's push is the fix. Remove a scratch worktree from the root, never from inside it.
+  A stale perf red is fixed by `bun nv proofs --record-perf --group <G>` in a scratch worktree at
+  `HEAD`, after `bun install` and a copy of the root's ignored `tests/db/ca.crt` into it. Each class
+  is its own group: `Core\Process\Result` is not inside `Core\Process`. Copy the ledger back and check
+  with `bun nv proofs --gate` in the root.
 
 ### Backlog
 
