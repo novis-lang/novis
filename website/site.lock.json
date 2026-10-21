@@ -94,7 +94,7 @@
   "syntax/concurrency/isolates.mdx": {
     "lang:concurrency/a-child-s-failure-is-a-value": "b4f7de2c03b1096a",
     "lang:concurrency/a-child-shares-nothing": "7bcd6f5fc2a0f807",
-    "lang:concurrency/isolates-spawn-script-and-await": "37de3dfc0bab8012"
+    "lang:concurrency/isolates-spawn-script-and-await": "15e132bf718a8771"
   },
   "syntax/concurrency/limits-and-errors.mdx": {
     "lang:concurrency/a-child-s-throw": "808605947c8ef8cf",
