@@ -3352,7 +3352,7 @@ nvs_runtime::nvs_helper! {
         if identity::value_identical(args[0], args[1]) {
             return Ok(held(ctx, "assertSame"));
         }
-        Err(failed(
+        Err(failed_comparison(
             ctx,
             "assertSame",
             &format!(
@@ -3361,6 +3361,7 @@ nvs_runtime::nvs_helper! {
                 shown(args[1])
             ),
             args[2],
+            (args[0], args[1]),
         ))
     }
 }
@@ -3373,7 +3374,7 @@ nvs_runtime::nvs_helper! {
         if equals(ctx, args[0], args[1])? {
             return Ok(held(ctx, "assertEquals"));
         }
-        Err(failed(
+        Err(failed_comparison(
             ctx,
             "assertEquals",
             &format!(
@@ -3382,6 +3383,7 @@ nvs_runtime::nvs_helper! {
                 shown(args[1])
             ),
             args[2],
+            (args[0], args[1]),
         ))
     }
 }
@@ -3399,7 +3401,7 @@ nvs_runtime::nvs_helper! {
         } else {
             format!("`$actual{}`", diff.path)
         };
-        Err(failed(
+        Err(failed_comparison(
             ctx,
             "assertEqualsDeep",
             &format!(
@@ -3407,6 +3409,7 @@ nvs_runtime::nvs_helper! {
                 diff.actual, diff.expected
             ),
             args[2],
+            (args[0], args[1]),
         ))
     }
 }
@@ -3848,14 +3851,40 @@ nvs_runtime::nvs_helper! {
 /// there is no edge on which the throw exists and the record does not. That is
 /// the whole of what makes the ledger something a `catch` cannot erase.
 fn failed(ctx: &mut Ctx, member: &'static str, detail: &str, message: Value) -> Fault {
-    let text = match message.as_text() {
+    let text = failure_text(member, detail, message);
+    ctx.record_assertion(member, Some(text.clone()));
+    Fault::thrown_as(ThrownClass::TestFailure, text)
+}
+
+/// [`failed`] for an assertion that compares two values: the entry also
+/// carries both of them, walked into record nodes, so the runner's record of
+/// the failure has `actual` and `expected` beside its message
+/// (`rule:errors/record-producers`).
+fn failed_comparison(
+    ctx: &mut Ctx,
+    member: &'static str,
+    detail: &str,
+    message: Value,
+    (actual, expected): (Value, Value),
+) -> Fault {
+    let text = failure_text(member, detail, message);
+    let compared = nvs_runtime::Compared {
+        actual: nvs_runtime::record::node(actual),
+        expected: nvs_runtime::record::node(expected),
+    };
+    ctx.record_failed_comparison(member, text.clone(), compared);
+    Fault::thrown_as(ThrownClass::TestFailure, text)
+}
+
+/// A failed assertion's message, with the `{message?: string}` option in
+/// front of it where one was given.
+fn failure_text(member: &str, detail: &str, message: Value) -> String {
+    match message.as_text() {
         Some(given) if !given.is_empty() => {
             format!("{given}: Core\\Test::{member} failed: {detail}")
         }
         _ => format!("Core\\Test::{member} failed: {detail}"),
-    };
-    ctx.record_assertion(member, Some(text.clone()));
-    Fault::thrown_as(ThrownClass::TestFailure, text)
+    }
 }
 
 /// [`failed`]'s other half: the entry an assertion that **held** leaves, and

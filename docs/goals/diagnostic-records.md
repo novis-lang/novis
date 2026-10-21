@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: A compiler diagnostic and a test result are records
-summary: "A compiler diagnostic and a test result are producers of the diagnostic record, every rendering of either comes from it, the inout narrowing record is closed, and the checks below pass."
+summary: "A compiler diagnostic and a test result are producers of the diagnostic record, every rendering of either comes from it, the inout narrowing record and the three covariant records are closed, and the checks below pass."
 context: [crates/nvs-render/src/lib.rs, docs/rules/errors/record-producers.md, docs/rules/errors/diagnostic-record.md]
 stages:
   - id: 1
@@ -27,18 +27,25 @@ stages:
         rules: [security/redaction-reaches-the-tools-own-renderings]
   - id: 2
     title: "a `#[Test]` result is a producer"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, data/gaps/nvs-render/test-result-is-not-a-producer.json, docs/rules/testing/report-formats.md]
     extra:
       context:
         rules: [errors/record-producers, testing/report-formats]
   - id: 3
     title: "an `inout` argument drops a `readonly` path's narrowing"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/args.rs, crates/nvs-types/src/expr/assign.rs, data/gaps/nvs-ir/an-inout-argument-keeps-a-readonly-path-narrowed.json]
     extra:
       context:
         rules: [types/narrowing, statements/inout-is-the-by-reference-spelling]
+  - id: 6
+    title: "the covariant backlog's three gap records close"
+    status: open
+    context: [crates/nvs-ir/src/lower/generator.rs, crates/nvs-types/src/conformance.rs, crates/nvs-runtime/src/object.rs, docs/rules/classes/a-covariant-type-is-checked-where-a-value-enters.md]
+    extra:
+      context:
+        rules: [classes/a-covariant-type-is-checked-where-a-value-enters]
 checks:
   - id: diagnostics-tests
     stage: 1
@@ -145,25 +152,40 @@ its own value, and one whole document is frozen.
 **Does:** a test result is a record per assertion, with expected and actual as sibling nodes, and
 the runner's JSON and JUnit reports render from it.
 
-- [ ] A test result builds the record (`rule:errors/record-producers`). `crates/nvs-cli/src/runner.rs:2647`
-- [ ] The JSON report and the JUnit document render from the record, and their output stays byte for byte what `rule:testing/report-formats` pins. `crates/nvs-cli/src/runner.rs:2835`, `crates/nvs-cli/src/runner.rs:3014`
-- [ ] The gap record is deleted. `data/gaps/nvs-render/test-result-is-not-a-producer.json:1`
-- [ ] `rule:errors/record-producers` is `shipped`, its "Partly on disk" paragraph rewritten. `data/rules/errors/record-producers.json:3`, `docs/rules/errors/record-producers.md:28`
+- [x] A test result builds the record (`rule:errors/record-producers`). `crates/nvs-cli/src/runner.rs:2647`
+  - [x] A ledger entry carries a failed comparison's actual and expected as nodes (`nvs_runtime::Compared`).
+  - [x] `assertSame`, `assertEquals` and `assertEqualsDeep` fill them in.
+  - [x] `Outcome::Failed` and `Outcome::Flaky` hold records, built by `failure` and `assertion_record`.
+- [x] The JSON report and the JUnit document render from the record, and their output stays byte for byte what `rule:testing/report-formats` pins. `crates/nvs-cli/src/runner.rs:2835`, `crates/nvs-cli/src/runner.rs:3014`
+- [x] The gap record is deleted. `data/gaps/nvs-render/test-result-is-not-a-producer.json:1`
+- [x] `rule:errors/record-producers` is `shipped`, its "Partly on disk" paragraph rewritten. `data/rules/errors/record-producers.json:3`, `docs/rules/errors/record-producers.md:28`
 
 ### 3. an `inout` argument drops a `readonly` path's narrowing
 
 **Does:** the record's claim is settled by a test. An audit found the checker already counts an
 `inout` argument as a write of its path.
 
-- [ ] A conformance case narrows a `readonly` property, passes it as an `inout` argument, and reads it again: the checker treats the read as the declared type (`rule:types/narrowing`). `tests/conformance/class/an-inout-argument-drops-a-readonly-propertys-narrowing.nvst:1`, `crates/nvs-types/src/expr/args.rs:181`
-- [ ] If the case fails, `note_write` covers the path. `crates/nvs-types/src/expr/assign.rs:1714`
-- [ ] The record is deleted. `data/gaps/nvs-ir/an-inout-argument-keeps-a-readonly-path-narrowed.json:1`
+- [x] A conformance case narrows a `readonly` property, passes it as an `inout` argument, and reads it again: the checker treats the read as the declared type (`rule:types/narrowing`). `tests/conformance/class/an-inout-argument-drops-a-readonly-propertys-narrowing.nvst:1`, `crates/nvs-types/src/expr/args.rs:181`
+- [x] If the case fails, `note_write` covers the path. The case passed as written. `crates/nvs-types/src/expr/assign.rs:1714`
+- [x] The record is deleted. `data/gaps/nvs-ir/an-inout-argument-keeps-a-readonly-path-narrowed.json:1`
+
+### 6. the covariant backlog's three gap records close
+
+**Does:** the three gaps a `covariant` session filed against this goal are built, each with its
+record deleted in the same commit. They share no file with stages 1 to 5.
+
+**Split:** one slice per record, in this order; the third is a perf change and can be struck as a
+stated bound in the rule instead if the codegen change does not fit.
+
+- [ ] A `covariant` parameter of a generator method gets the entry test an ordinary method has, with a conformance case. `crates/nvs-ir/src/lower/generator.rs:708`, `crates/nvs-ir/src/lower/mod.rs:1473`, `data/gaps/nvs-ir/a-covariant-parameter-of-a-generator-method-panics-in-lowering.json:1`
+- [ ] A grandchild's `covariant` type is measured against the nearest declaration, and an unrelated one is `E0404`, with a reject case and a sentence in the rule. `crates/nvs-types/src/conformance.rs:1063`, `crates/nvs-types/src/conformance.rs:1351`, `data/gaps/nvs-types/a-grandchild-covariant-type-unrelated-to-its-parents-compiles.json:1`
+- [ ] A checked covariant write takes its slot index from codegen. `crates/nvs-runtime/src/object.rs:6043`, `crates/nvs-ir/src/ir.rs:2254`, `data/gaps/nvs-runtime/a-covariant-write-finds-its-slot-by-a-name-scan.json:1`
 
 ## Handoff
 
 ### State
 
-Stages 1, 4 and 5 are done. `nvs_diagnostics::record::record` builds a diagnostic's record, and both
+Stages 1 to 5 are done; stage 6 is open. `nvs_diagnostics::record::record` builds a diagnostic's record, and both
 the terminal text (`Renderer::render_record`) and the `nvs check --json` document
 (`crates/nvs-cli/src/check.rs`'s `diagnostic_json`) render from it. Its frozen document is
 `check_json_matches_its_frozen_document`.
@@ -177,25 +199,38 @@ aligned. The walk that says which literals are `secret` moved from `nvs-lsp` to
 record; `--fix` still applies it. The rule records the mask's trade-off (length visible) and
 declines `[redacted]` in place.
 
-The nightly `proofs` jobs failed on stale perf measurements of `crates/nvs-stdlib/src/bigint.rs`,
-and the website job on `nv render --check`, which is current on disk; the `ci-green` side loop
-owns both. The installed `looper` here has no `verify` subcommand: `bun tools/looper/main.ts verify`
-is the one that runs.
+Stage 3 needed no checker change: `note_write` already drops the path, and
+`tests/conformance/class/an-inout-argument-drops-a-readonly-propertys-narrowing.nvst` pins it. An
+`inout` argument is checked at its *narrowed* type (`E0440`), for a local as for a property, so the
+case's callee takes `inout string`.
+
+Stage 2: a ledger entry (`nvs_runtime::AssertionOutcome`) carries `compared`, the actual and
+expected values as nodes, filled by `assertSame`, `assertEquals` and `assertEqualsDeep` through
+`failed_comparison` in `crates/nvs-stdlib/src/test.rs`. The runner's `Outcome::Failed` and `Flaky`
+hold records (`failure`, `assertion_record`), and every report prints `message_of(record)`, byte for
+byte as before. `rule:errors/record-producers` is `shipped`.
+
+The goal is not reached: `bun nv owners --closes diagnostic-records` names three `covariant` gap
+records that commit `ad76cdfe5` filed against this goal. They are stage 6. No goal on the chain
+fits them better.
+
+The nightly `proofs` jobs failed on stale perf measurements (`bigint.rs`, `json.rs`, `router.rs`),
+and the website job on `nv render --check` (`llms-full.txt`), which is current on disk; the
+`ci-green` side loop owns both. The installed `looper` has no `verify` subcommand:
+`bun tools/looper/main.ts verify` is the one that runs.
 
 ### Next
 
-**Stage 3: an `inout` argument drops a `readonly` path's narrowing**, in `nvs-types` alone. The audit
-says `crates/nvs-types/src/expr/args.rs:183` already calls `note_write` on an `inout` argument, so
-the case below likely passes as written.
+**Stage 6: the covariant backlog's three gap records close**, one slice per record. After it,
+`bun nv owners --closes diagnostic-records` passes and the goal is `DONE`.
 
-- [ ] A conformance case narrows a `readonly` property, passes it as an `inout` argument, and reads it again (`rule:types/narrowing`). `tests/conformance/class/an-inout-argument-drops-a-readonly-propertys-narrowing.nvst:1`, `crates/nvs-types/src/expr/args.rs:181`
-- [ ] If the case fails, `note_write` covers the path. `crates/nvs-types/src/expr/assign.rs:1847`
-- [ ] The record is deleted. `data/gaps/nvs-ir/an-inout-argument-keeps-a-readonly-path-narrowed.json:1`
-
-Then **stage 2: a `#[Test]` result is a producer**, `crates/nvs-cli/src/runner.rs` alone, the last
-stage: it flips `rule:errors/record-producers` to `shipped`.
+- [ ] A `covariant` parameter of a generator method gets the entry test an ordinary method has, with a conformance case. `crates/nvs-ir/src/lower/generator.rs:708`, `crates/nvs-ir/src/lower/mod.rs:1473`, `data/gaps/nvs-ir/a-covariant-parameter-of-a-generator-method-panics-in-lowering.json:1`
+- [ ] A grandchild's `covariant` type is measured against the nearest declaration, and an unrelated one is `E0404`. `crates/nvs-types/src/conformance.rs:1063`, `crates/nvs-types/src/conformance.rs:1351`, `data/gaps/nvs-types/a-grandchild-covariant-type-unrelated-to-its-parents-compiles.json:1`
+- [ ] A checked covariant write takes its slot index from codegen. `crates/nvs-runtime/src/object.rs:6043`, `crates/nvs-ir/src/ir.rs:2254`, `data/gaps/nvs-runtime/a-covariant-write-finds-its-slot-by-a-name-scan.json:1`
 
 ### Backlog
+
+- The JSON test report does not carry a failure's `actual` and `expected` nodes. Adding them is a `schemaVersion` raise (`rule:testing/report-formats`), for when a Test Explorer or a diff view reads them.
 
 - A published JSON schema for `check --json` is not planned: `nvs ast --json` publishes none either (`docs/rules/ide/ast-json-schema-is-frozen.md`).
 - A diagnostic's `message`, label or note could quote part of a literal, and the record masks only the snippet line and drops suggestions. No audit of the messages has been done.

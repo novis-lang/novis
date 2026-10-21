@@ -29,6 +29,26 @@ pub struct AssertionOutcome {
     /// `None` where the assertion held; the failure's message where it did
     /// not.
     pub failure: Option<String>,
+    /// The two values a failed comparison compared, or `None` for a passing
+    /// entry and for an assertion that compares nothing.
+    ///
+    /// Boxed so a passing entry stays two words and a pointer.
+    pub compared: Option<Box<Compared>>,
+}
+
+/// The two values a failed `Core\Test` comparison was given, as
+/// `rule:errors/diagnostic-record`'s nodes — what the runner's record of the
+/// failure carries as its sibling nodes (`rule:errors/record-producers`).
+///
+/// They are nodes rather than values because a value belongs to the test's
+/// isolate, and the ledger outlives it. [`crate::record::node`] builds both,
+/// so a `secret` property is already redacted here.
+#[derive(Clone, Debug)]
+pub struct Compared {
+    /// The value the test produced.
+    pub actual: nvs_render::Node,
+    /// The value it was compared with.
+    pub expected: nvs_render::Node,
 }
 
 /// One `Core\Test::assertMatchesInline` that did not hold — the material
@@ -780,7 +800,33 @@ impl Ctx {
     /// `data/gaps/nvs-runtime/an-assertion-outside-a-test-grows-the-ledger.json`
     /// keeps.
     pub fn record_assertion(&mut self, member: &'static str, failure: Option<String>) {
-        self.assertions.push(AssertionOutcome { member, failure });
+        self.assertions.push(AssertionOutcome {
+            member,
+            failure,
+            compared: None,
+        });
+    }
+
+    /// [`Self::record_assertion`] for a failed comparison, with the two values
+    /// it compared. A failure walks both values once, and a passing
+    /// comparison never reaches here.
+    pub fn record_failed_comparison(
+        &mut self,
+        member: &'static str,
+        failure: String,
+        compared: Compared,
+    ) {
+        self.assertions.push(AssertionOutcome {
+            member,
+            failure: Some(failure),
+            compared: Some(Box::new(compared)),
+        });
+    }
+
+    /// Appends an entry another context recorded — a child task's ledger
+    /// joining its parent's.
+    pub fn record_entry(&mut self, entry: AssertionOutcome) {
+        self.assertions.push(entry);
     }
 
     /// How many entries the ledger holds — the mark

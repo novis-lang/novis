@@ -1,11 +1,14 @@
 {
   "title": "Five producers build the one record",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "errors/diagnostic-record",
     "errors/log-write",
     "errors/debug-dump"
   ],
-  "guardedBy": [],
-  "goal": "diagnostic-records"
+  "guardedBy": [
+    "tests/conformance/core/a-dump-renders-one-record-through-one-plaintext-view.nvst",
+    "crates/nvs-cli/tests/check.rs",
+    "crates/nvs-cli/src/runner.rs"
+  ]
 }

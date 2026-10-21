@@ -298,7 +298,7 @@ pub use callable::{
 };
 pub use ctx::{
     AnswerTable, AnsweredTls, AssertionOutcome, BodyNeed, BodySource, CARRIER_CLI_TEXT,
-    CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, CoreClasses, Counted, Ctx, CurrentStack,
+    CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, Compared, CoreClasses, Counted, Ctx, CurrentStack,
     DEADLINE_OFFSET, DEBUG_FLAGS_OFFSET, DEPRECATED_OFFSET, DebugFlags, DeclaredHeader, ErrorClass,
     EventStreamDoor, FaultSite, HOLD_PIECE, HOT_LINE_BYTES, HeldChild, HeldConnection, HeldReader,
     HeldSocket, HeldValue, HttpAnswer, HttpSent, Inbound, InboundSpec, LateInit, LateInitCall,
