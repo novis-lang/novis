@@ -41,7 +41,7 @@ stages:
         rules: [types/narrowing, statements/inout-is-the-by-reference-spelling]
   - id: 6
     title: "the covariant backlog's three gap records close"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/generator.rs, crates/nvs-types/src/conformance.rs, crates/nvs-runtime/src/object.rs, docs/rules/classes/a-covariant-type-is-checked-where-a-value-enters.md]
     extra:
       context:
@@ -177,15 +177,16 @@ record deleted in the same commit. They share no file with stages 1 to 5.
 **Split:** one slice per record, in this order; the third is a perf change and can be struck as a
 stated bound in the rule instead if the codegen change does not fit.
 
-- [ ] A `covariant` parameter of a generator method gets the entry test an ordinary method has, with a conformance case. `crates/nvs-ir/src/lower/generator.rs:708`, `crates/nvs-ir/src/lower/mod.rs:1473`, `data/gaps/nvs-ir/a-covariant-parameter-of-a-generator-method-panics-in-lowering.json:1`
-- [ ] A grandchild's `covariant` type is measured against the nearest declaration, and an unrelated one is `E0404`, with a reject case and a sentence in the rule. `crates/nvs-types/src/conformance.rs:1063`, `crates/nvs-types/src/conformance.rs:1351`, `data/gaps/nvs-types/a-grandchild-covariant-type-unrelated-to-its-parents-compiles.json:1`
-- [ ] A checked covariant write takes its slot index from codegen. `crates/nvs-runtime/src/object.rs:6043`, `crates/nvs-ir/src/ir.rs:2254`, `data/gaps/nvs-runtime/a-covariant-write-finds-its-slot-by-a-name-scan.json:1`
+- [x] A `covariant` parameter of a generator method gets the entry test an ordinary method has, with a conformance case. `crates/nvs-ir/src/lower/generator.rs:708`, `crates/nvs-ir/src/lower/mod.rs:1473`, `data/gaps/nvs-ir/a-covariant-parameter-of-a-generator-method-panics-in-lowering.json:1`
+- [x] A grandchild's `covariant` type is measured against the nearest declaration, and an unrelated one is `E0404`, with a reject case and a sentence in the rule. `crates/nvs-types/src/conformance.rs:1063`, `crates/nvs-types/src/conformance.rs:1351`, `data/gaps/nvs-types/a-grandchild-covariant-type-unrelated-to-its-parents-compiles.json:1`
+- [x] A checked covariant write takes its slot index from codegen. `crates/nvs-runtime/src/object.rs:6043`, `crates/nvs-ir/src/ir.rs:2254`, `data/gaps/nvs-runtime/a-covariant-write-finds-its-slot-by-a-name-scan.json:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done; stage 6 is open. `nvs_diagnostics::record::record` builds a diagnostic's record, and both
+Every stage is done, and `bun nv owners --closes diagnostic-records` passes: the goal is reached.
+`nvs_diagnostics::record::record` builds a diagnostic's record, and both
 the terminal text (`Renderer::render_record`) and the `nvs check --json` document
 (`crates/nvs-cli/src/check.rs`'s `diagnostic_json`) render from it. Its frozen document is
 `check_json_matches_its_frozen_document`.
@@ -210,9 +211,20 @@ expected values as nodes, filled by `assertSame`, `assertEquals` and `assertEqua
 hold records (`failure`, `assertion_record`), and every report prints `message_of(record)`, byte for
 byte as before. `rule:errors/record-producers` is `shipped`.
 
-The goal is not reached: `bun nv owners --closes diagnostic-records` names three `covariant` gap
-records that commit `ad76cdfe5` filed against this goal. They are stage 6. No goal on the chain
-fits them better.
+Stage 6 closed the three `covariant` gap records. A generator method's factory
+(`crates/nvs-ir/src/lower/generator.rs`'s `lower_generator_factory`) binds its parameters and runs
+`emit_covariant_check` before it allocates the state object, so the test throws at the call. The
+factory also binds a variadic parameter as the collected array, which it did not before: any
+variadic generator panicked in lowering. `reject_covariant_unrelated_to_nearest` in
+`crates/nvs-types/src/conformance.rs` reports `E0404` when a `covariant` type has no value in common
+with a nearer declaration's (`types_are_disjoint`). A covariant property write passes
+`InstKind::FieldSlot`, which codegen turns into the slot number, to
+`Helper::CovariantPropertyChecked`; the runtime reads the name back from the descriptor. The cases
+are `tests/conformance/class/a-covariant-parameter-of-a-generator-method-is-checked-when-it-is-called.nvst`
+and `tests/conformance/reject/a-grandchild-covariant-type-shares-a-value-with-its-parents.nvst`.
+Verify also found stage 5's mask missing from one reference example's expected output (fixed in
+its `.out`), and `examples/cache.nvs` running without the cache server (now on the examples test's
+`SERVERS` list).
 
 The nightly `proofs` jobs failed on stale perf measurements (`bigint.rs`, `json.rs`, `router.rs`),
 and the website job on `nv render --check` (`llms-full.txt`), which is current on disk; the
@@ -221,12 +233,8 @@ and the website job on `nv render --check` (`llms-full.txt`), which is current o
 
 ### Next
 
-**Stage 6: the covariant backlog's three gap records close**, one slice per record. After it,
-`bun nv owners --closes diagnostic-records` passes and the goal is `DONE`.
-
-- [ ] A `covariant` parameter of a generator method gets the entry test an ordinary method has, with a conformance case. `crates/nvs-ir/src/lower/generator.rs:708`, `crates/nvs-ir/src/lower/mod.rs:1473`, `data/gaps/nvs-ir/a-covariant-parameter-of-a-generator-method-panics-in-lowering.json:1`
-- [ ] A grandchild's `covariant` type is measured against the nearest declaration, and an unrelated one is `E0404`. `crates/nvs-types/src/conformance.rs:1063`, `crates/nvs-types/src/conformance.rs:1351`, `data/gaps/nvs-types/a-grandchild-covariant-type-unrelated-to-its-parents-compiles.json:1`
-- [ ] A checked covariant write takes its slot index from codegen. `crates/nvs-runtime/src/object.rs:6043`, `crates/nvs-ir/src/ir.rs:2254`, `data/gaps/nvs-runtime/a-covariant-write-finds-its-slot-by-a-name-scan.json:1`
+Nothing: the goal is `DONE`, and the driver's acceptance run decides it. The next goal on the
+chain is `defaults-that-work`.
 
 ### Backlog
 
