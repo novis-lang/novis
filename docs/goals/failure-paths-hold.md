@@ -345,14 +345,10 @@ builds the record and copies it in with `Isolate::start` inside the reserve, clo
 `join`s. `a_task_resumes_under_its_own_memory_ceiling_and_leaves_no_word_armed`
 (`crates/nvs-host/src/scheduler.rs:1735`) passes by name. Build and clippy are green.
 
-**The acceptance sweep's `proofs` failure is not this tree's.** The nightly run was on `afbb1edc2`,
-and HEAD passes `site stale` and `site questions` once the stamps are current. During this session
-someone else was rewriting nine `about.md` files under `docs/examples/` (Config/set, Http-Client/post,
-IO/writeStream, Process/spawn, Response/sendFile, isolates-spawn-script-and-await, and three under
-`tools/config/`). Those rewrites made their pages stale. A subagent re-checked each page's questions
-and stamped them, in `website/src/data/questions.json` and `website/site.lock.json`. Those two files
-and the nine `about.md` files are left **uncommitted** for whoever owns the rewrite.
-`env-secret-proofs` exits 0 here.
+**The acceptance sweep's `proofs` failure is fixed.** Another session committed rewrites of nine
+`about.md` pages (`6e529cde4`), which left one page stale and eight pages' questions unstamped. Each
+page's questions were reread and stamped again (`0439d8ccf`), and `bun nv site --check stale
+questions prose` passes. `env-secret-proofs` exits 0 here.
 
 **Expected red at the gate:** any `nvs-ir` lowering snapshot or IR-dump test that pins a property,
 static or reference-cell write. The release of the old value now follows the store instead of
