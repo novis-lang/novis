@@ -22,7 +22,10 @@
 //!
 //! - A parameter with `"sink": true` is [`Qual::Sink`], which refuses a `tainted` argument. Every
 //!   other parameter is [`Qual::Contagious`] (`rule:security/extension-contagion`): a `tainted`
-//!   argument is accepted, and the result is `tainted`.
+//!   argument is accepted, and every `string` and `bytes` in the result is `tainted`, the fields
+//!   of a shape included ([`MethodSig::contagious_return`]). A result with neither in it refuses
+//!   the argument, as a `Core` row's does. A built-in component's engine keeps a `Core` row's
+//!   reach, which stops at a shape.
 //! - A method with `"source": true` returns its type made `tainted`, the fields of a shape
 //!   included, so its result is `tainted` whatever its arguments are.
 //! - A `secret` argument is refused at every parameter, sink or not, because neither mark is
@@ -284,6 +287,7 @@ fn method_sig(
         Some(ty) => lower(manifest, ty, interner),
         None => interner.void(),
     };
+    let tainted = tainted_output(returns, interner);
     MethodSig {
         params: types
             .params
@@ -325,11 +329,11 @@ fn method_sig(
             .collect(),
         type_params: Vec::new(),
         type_bounds: Vec::new(),
-        return_ty: if method.source {
-            source_result(returns, interner)
-        } else {
-            returns
-        },
+        return_ty: if method.source { tainted } else { returns },
+        // A built-in component's engine is called only from that component's own Novis source
+        // (`rule:packaging/a-components-engine-class-is-internal`), whose public signatures say
+        // what is `tainted`, so its contagion stays `tainted_result`'s, which stops at a shape.
+        contagious_return: (manifest.builtin.is_none() && tainted != returns).then_some(tainted),
         // An extension declares one class of `static` methods and nothing else
         // (`rule:classes/no-free-functions-or-constants`).
         is_static: true,
@@ -390,35 +394,39 @@ fn lower_shape(manifest: &Manifest, fields: &[Field], interner: &mut TypeInterne
     interner.shape(fields)
 }
 
-/// A `"source": true` method's return type: `returns` with `tainted` set on
-/// every `string` and `bytes` in it, the fields of a shape included.
+/// `returns` with `tainted` set on every `string` and `bytes` in it, the fields
+/// of a shape included: a `"source": true` method's return type, and the
+/// [`MethodSig::contagious_return`] of every loaded extension's method whose result has text in it.
 ///
 /// [`crate::expr::quals::tainted_result`] stops at a shape's fields, because
 /// the fields of a value that already exists are qualified where they are
 /// written. An extension's result is a new value the call builds, so every
 /// field of it is the extension's output, and a shape's field types are
 /// invariant ([`crate::expr::assign::shape_satisfied`]): a result typed
-/// `{name: string}` could not be returned at `{name: tainted string}`.
-fn source_result(returns: TypeId, interner: &mut TypeInterner) -> TypeId {
+/// `{name: string}` could not be returned at `{name: tainted string}`. So a
+/// `tainted` argument makes every field `tainted`, and a method returning
+/// `array<{level: int, text: string}>` admits one
+/// (`rule:security/extension-contagion`).
+fn tainted_output(returns: TypeId, interner: &mut TypeInterner) -> TypeId {
     match interner.get(returns).clone() {
         Ty::Shape(fields) => {
             let fields = fields
                 .into_iter()
                 .map(|field| ShapeField {
-                    ty: source_result(field.ty, interner),
+                    ty: tainted_output(field.ty, interner),
                     ..field
                 })
                 .collect();
             interner.shape(fields)
         }
         Ty::Array(elem) => {
-            let elem = source_result(elem, interner);
+            let elem = tainted_output(elem, interner);
             interner.array(elem)
         }
         Ty::Union(members) => {
             let members: Vec<TypeId> = members
                 .iter()
-                .map(|&member| source_result(member, interner))
+                .map(|&member| tainted_output(member, interner))
                 .collect();
             interner.make_union(members)
         }

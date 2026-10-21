@@ -279,6 +279,7 @@ pub(crate) fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -
         type_params: Vec::new(),
         type_bounds: Vec::new(),
         return_ty,
+        contagious_return: None,
         // `rule:iteration/concrete-generic-implements`'s two interfaces answer `T` and `bool`, never the
         // called class — see `MethodSig::returns_static`.
         returns_static: false,

@@ -1,7 +1,9 @@
 //! A loaded extension's class in the checker: `rule:packaging/extension-calls-are-statically-typed`.
 //!
-//! Every test reads the conformance fixture `Shop\Ledger`'s manifest, the one the `.nvst` cases
-//! load, so the checker is held to the same declarations the runtime is.
+//! Every test but one reads the conformance fixture `Shop\Ledger`'s manifest, the one the `.nvst`
+//! cases load, so the checker is held to the same declarations the runtime is. The one is
+//! `rule:security/extension-contagion` over a shape result, which no `Ledger` method returns from
+//! a `string`, and its manifest is written beside it ([`outline`]).
 
 use nvs_diagnostics::{Diagnostics, SourceMap, code};
 use nvs_ext::manifest::Manifest;
@@ -257,5 +259,58 @@ fn an_extension_class_is_unknown_when_the_set_does_not_load_it() {
     assert!(
         codes(&diags).contains(&code::E_UNDEFINED_CLASS.as_str()),
         "a class no extension of the set declares is undeclared: {diags:?}"
+    );
+}
+
+/// A manifest whose methods take a `string` and return shapes, which `Shop\Ledger` has none of:
+/// `headings` returns a list of records with text in them, and `levels` one with none.
+fn outline() -> Manifest {
+    let json = br#"{
+      "manifest": 1, "world": "1.0.0", "class": "Shop\\Outline", "interface": "shop:outline/api",
+      "methods": [
+        {"name": "headings", "params": [{"name": "text", "type": "string"}],
+         "returns": "array<{level: int, text: string}>", "help": "The headings of `text`."},
+        {"name": "levels", "params": [{"name": "text", "type": "string"}],
+         "returns": "array<{level: int}>", "help": "The heading levels of `text`."}
+      ]
+    }"#;
+    Manifest::parse(json).expect("the manifest reads")
+}
+
+#[test]
+fn a_tainted_argument_taints_every_string_in_an_extension_shape_result() {
+    let admitted = check(
+        "tainted string $t = \"# a\";\n\
+         array<{level: int, text: tainted string}> $h = Shop\\Outline::headings($t);",
+        &[outline()],
+    );
+    assert!(
+        !admitted.has_errors(),
+        "a tainted argument is admitted where the result's shape has text: {admitted:?}"
+    );
+    let laundered = check(
+        "tainted string $t = \"# a\";\n\
+         array<{level: int, text: string}> $h = Shop\\Outline::headings($t);",
+        &[outline()],
+    );
+    assert!(
+        laundered.has_errors(),
+        "the text field of the result is tainted, so it is not a plain `string`"
+    );
+    let plain = check(
+        "array<{level: int, text: string}> $h = Shop\\Outline::headings(\"# a\");",
+        &[outline()],
+    );
+    assert!(
+        !plain.has_errors(),
+        "a plain argument gives a plain result: {plain:?}"
+    );
+    let textless = check(
+        "tainted string $t = \"# a\";\narray<{level: int}> $l = Shop\\Outline::levels($t);",
+        &[outline()],
+    );
+    assert!(
+        textless.has_errors(),
+        "a result with no text has nowhere to carry `tainted`, so the argument is refused"
     );
 }

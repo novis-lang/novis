@@ -119,7 +119,7 @@ fn check_arg_list(
         // entries, which is a question this rule does not ask.
         let admitted = match slot {
             ArgSlot::Param(index) => Admitted {
-                tainted: admits_tainted_argument(sig.qual_at(index), sig.return_ty, env.interner),
+                tainted: admits_tainted_argument_at(&sig, index, env.interner),
                 secret: admits_secret_argument(sig.qual_at(index)),
             },
             // A `...` hands over a subject's entries rather than the subject,
@@ -1693,7 +1693,7 @@ pub(crate) fn check_generic_args(
         // is generic and contagious at once.
         let mut compared = actual;
         if let ArgSlot::Param(param) = slots[index] {
-            if admits_tainted_argument(sig.qual_at(param), sig.return_ty, env.interner) {
+            if admits_tainted_argument_at(&sig, param, env.interner) {
                 compared = untainted_entries(compared, declared, env.interner);
             }
             if admits_secret_argument(sig.qual_at(param)) {

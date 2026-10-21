@@ -13,7 +13,13 @@ the request is routinely handed to the internationalization component and comes 
 round trip cleaned it, the standard library would itself be the bypass.
 
 **On disk.** A parameter with no declaration is `Qual::Contagious` in `nvs_types::ext_lib`
-(`tests/conformance/ext/an-extension-result-is-tainted-when-an-argument-was.nvst`).
+(`tests/conformance/ext/an-extension-result-is-tainted-when-an-argument-was.nvst`). The result
+reaches into a shape's fields, which a `Core` row's does not: an extension's record is built by the
+call, so every field of it is the call's output. Each method's `MethodSig::contagious_return` is
+that tainted result, and a result with no `string` or `bytes` in it refuses a `tainted` argument
+rather than dropping the bit (`crates/nvs-types/tests/extensions.rs`). A built-in component's
+engine keeps the `Core` reach: only its own source calls it
+(`rule:packaging/a-components-engine-class-is-internal`), so its fields stay plain.
 
 **Declined:**
 - **Stripping qualifiers at the boundary.** Nothing to design and nothing to freeze into the extension
