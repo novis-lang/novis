@@ -3807,12 +3807,12 @@ impl NvsObj {
             unsafe_code,
             reason = "the bound was just checked; the slot held a well-formed \
                       Value whose reference this object owned, so releasing it \
-                      before overwriting is exactly one release"
+                      once it is out of the slot is exactly one release"
         )]
         unsafe {
-            let slot = field_ptr(self.ptr.as_ptr(), index);
-            (*slot).release();
-            slot.write(value);
+            // Store, then release: a `finally` the release runs reads the new
+            // value, never a freed one.
+            field_ptr(self.ptr.as_ptr(), index).replace(value).release();
         }
     }
 
@@ -4110,13 +4110,23 @@ pub unsafe fn release_graph(root: *mut ObjHeader) {
 ///   0 (`nvs_ir::lower::generator::lower_generator_unwind` owns why), so it
 ///   retains and `advance()` releases on its way out — a pair that would cross
 ///   zero, and re-enter the release path on the allocation already being
-///   dismantled, if it started from the zero this function is handed. The
-///   allocation is freed below whatever the count then reads: nothing else can
-///   observe it, since it reached zero once already.
+///   dismantled, if it started from the zero this function is handed.
 /// - **The context is taken from the thread rather than passed.** A decrement
 ///   carries none — [`crate::ctx::CurrentCtx`] is that decision's home. With
 ///   no compiled frame running there is no context, no unwind runs, and the
 ///   sweep proceeds; that is the shape a Rust test dropping a handle takes.
+///
+/// # A `finally` may keep the generator it runs in
+///
+/// The unwind is user code, and user code can store `$this`, or a property
+/// that still points at the generator, somewhere that outlives the release.
+/// So the count is read again once the unwind returns. Above the one the
+/// resurrection made, somebody kept the object: that one reference is dropped,
+/// the object stays on its context's live list, and nothing is swept or freed.
+/// The generator is finished by then, so a later `advance()` returns `false`,
+/// and the release that next brings it to zero dismantles it again with no
+/// `finally` left to run. The object is unlinked only after that read, which
+/// is why the list never loses a member something still holds.
 ///
 /// # Safety
 ///
@@ -4129,12 +4139,19 @@ pub unsafe fn release_graph(root: *mut ObjHeader) {
 pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::release::Dying>) {
     #[expect(
         unsafe_code,
-        reason = "the count reached zero, so nothing else can observe the \
-                  allocation; every slot was initialized by `new`, and the \
-                  layout is recomputed from the same field count `new` \
-                  allocated with, before the header is freed"
+        reason = "the count reached zero, and an unwind that kept the object \
+                  returns before the sweep, so nothing else can observe the \
+                  allocation once it is swept; every slot was initialized by \
+                  `new`, and the layout is recomputed from the same field \
+                  count `new` allocated with, before the header is freed"
     )]
     unsafe {
+        let class = NvsObj::class_of(ptr);
+        if let Some(target) = (*class).unwind_entry()
+            && unwind_abandoned(ptr, target)
+        {
+            return;
+        }
         // The other end of the pair `NvsObj::alloc` opened: an object leaves
         // its context's live list exactly when it stops existing, so what the
         // list still holds at teardown is what nothing freed. Asserted before
@@ -4142,10 +4159,6 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::releas
         #[cfg(debug_assertions)]
         assert_linked_where_it_says(ptr);
         unlink(ptr);
-        let class = NvsObj::class_of(ptr);
-        if let Some(target) = (*class).unwind_entry() {
-            unwind_abandoned(ptr, target);
-        }
         let field_count = (*class).fields.len();
         for index in 0..field_count {
             if let Some(dying) = crate::release::step_field(*field_ptr(ptr, index)) {
@@ -4157,7 +4170,11 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::releas
 }
 
 /// Runs the unwind entry point at `target` on the dying generator at `ptr` —
-/// [`dismantle`]'s first half, whose doc comment owns both of the rules below.
+/// [`dismantle`]'s first half, whose doc comment owns both of the rules below —
+/// and returns whether the unwind kept the object.
+///
+/// When it did, the resurrection's reference is dropped here and the object
+/// is left alive with the references the unwind gave it.
 ///
 /// # Safety
 ///
@@ -4168,7 +4185,7 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::releas
     reason = "reaching zero, and the address being this class's own, are both \
               the caller's obligations to state"
 )]
-unsafe fn unwind_abandoned(ptr: *mut ObjHeader, target: *const u8) {
+unsafe fn unwind_abandoned(ptr: *mut ObjHeader, target: *const u8) -> bool {
     crate::ctx::with_current(|ctx| {
         // The resurrection: `gen#unwind` retains and `advance()` releases, and
         // that pair must not cross zero.
@@ -4178,7 +4195,23 @@ unsafe fn unwind_abandoned(ptr: *mut ObjHeader, target: *const u8) {
             // borrows for the length of the call.
             let _ = crate::dispatch::call_unwind(ctx, Value::from_obj_ptr(ptr), target);
         });
-    });
+        // Above one, a `finally` stored the object somewhere. Dropping the
+        // resurrection's reference cannot reach zero then, so this is a plain
+        // decrement and never a second release.
+        let kept = refcount(ptr) > 1;
+        if kept {
+            #[expect(
+                unsafe_code,
+                reason = "the resurrection's reference is this function's own, \
+                          and the count is above one, so this is not the last"
+            )]
+            unsafe {
+                drop_one(ptr);
+            }
+        }
+        kept
+    })
+    .unwrap_or(false)
 }
 
 // ---------------------------------------------------------------------------
@@ -5668,8 +5701,8 @@ fn write_property(
         value.retain();
         let slot = field_ptr(ptr, slot);
         let was_unset = (*slot).tag() == Some(Tag::Unset);
-        (*slot).release();
-        slot.write(value);
+        // Store, then release, for `NvsObj::set_field`'s reason.
+        slot.replace(value).release();
         was_unset
     };
     // `rule:classes/late-init-initializes-on-the-first-read`'s plain write: it
@@ -6120,9 +6153,8 @@ pub unsafe extern "C" fn nvs_object_field_set(ptr: *mut ObjHeader, index: usize,
                   in range; the slot held a well-formed Value this object owned"
     )]
     unsafe {
-        let slot = field_ptr(ptr, index);
-        (*slot).release();
-        slot.write(value);
+        // Store, then release, for `NvsObj::set_field`'s reason.
+        field_ptr(ptr, index).replace(value).release();
     }
 }
 
@@ -7235,5 +7267,130 @@ mod tests {
             FieldDefault::Int(0).materialize().exact_tag(),
             Some(Tag::Int)
         );
+    }
+
+    // A stand-in for a compiled generator's `gen#unwind`, on the protocol
+    // `nvs_ir::lower::generator::lower_generator_unwind` emits: slot 0 is the
+    // state, `SUSPENDED` is a state that owes a `finally`, and running that
+    // `finally` leaves the generator finished.
+    const SUSPENDED: i64 = 2;
+    const FINISHED: i64 = -1;
+
+    thread_local! {
+        /// Whether the fake `finally` stores its generator somewhere.
+        static KEEP: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        /// Where the fake `finally` stored it.
+        static KEPT: std::cell::Cell<*mut ObjHeader> =
+            const { std::cell::Cell::new(std::ptr::null_mut()) };
+        /// How many times the fake `finally` ran.
+        static FINALLY_RUNS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        /// What slot 1, the parked local, held each time the unwind was entered.
+        static LOCAL_SEEN: std::cell::RefCell<Vec<Option<Tag>>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    #[expect(
+        unsafe_code,
+        reason = "the release path hands this a live generator in argument 0"
+    )]
+    unsafe extern "C" fn fake_unwind(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        _out: *mut Value,
+    ) -> i32 {
+        #[expect(
+            unsafe_code,
+            reason = "argument 0 is the dying generator, resurrected for this call"
+        )]
+        unsafe {
+            let generator = (*args).obj_ptr().expect("argument 0 is the generator");
+            LOCAL_SEEN.with_borrow_mut(|seen| seen.push((*field_ptr(generator, 1)).tag()));
+            if (*field_ptr(generator, 0)).as_int() != Some(SUSPENDED) {
+                return crate::abi::OK;
+            }
+            FINALLY_RUNS.set(FINALLY_RUNS.get() + 1);
+            field_ptr(generator, 0).replace(Value::int(FINISHED));
+            if KEEP.get() {
+                bump(generator);
+                KEPT.set(generator);
+            }
+        }
+        crate::abi::OK
+    }
+
+    fn generator_table() -> (ClassTable, ClassId) {
+        let mut table = ClassTable::new();
+        let generator = table.define("Gen", &["state", "local"], &[]);
+        table.set_methods(
+            generator,
+            vec![row(
+                GENERATOR_UNWIND_METHOD,
+                (fake_unwind as *const ()).cast(),
+            )],
+        );
+        (table, generator)
+    }
+
+    #[test]
+    fn a_dying_generator_its_unwind_keeps_stays_alive_and_is_freed_once() {
+        let (table, generator) = generator_table();
+        let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        KEEP.set(true);
+        {
+            #[expect(unsafe_code, reason = "the table outlives the object")]
+            let dying = unsafe { NvsObj::new(table.desc(generator)) };
+            dying.set_field(0, Value::int(SUSPENDED));
+            // The last reference: the unwind runs and stores the generator.
+            drop(dying);
+        }
+        KEEP.set(false);
+        assert_eq!(FINALLY_RUNS.get(), 1, "the `finally` ran once");
+        let kept = KEPT.replace(std::ptr::null_mut());
+        assert!(!kept.is_null(), "the unwind kept the generator");
+        assert_eq!(refcount(kept), 1, "the resurrection's reference is gone");
+        assert_eq!(ctx.live_objects(), 1, "the kept object is still on its list");
+        #[expect(unsafe_code, reason = "the unwind kept a live reference")]
+        let kept = unsafe { NvsObj::from_raw(kept) };
+        assert_eq!(kept.field(0).as_int(), Some(FINISHED), "it is finished");
+        // The keeper's reference was the last one: no `finally` runs again.
+        drop(kept);
+        assert_eq!(FINALLY_RUNS.get(), 1, "a finished generator runs no `finally`");
+        assert_eq!(ctx.live_objects(), 0, "and the second release freed it");
+        drop(current);
+    }
+
+    #[test]
+    fn collecting_a_suspended_generator_in_a_cycle_runs_no_finally_against_a_nulled_local() {
+        let (mut table, generator) = generator_table();
+        let holder = table.define("Holder", &["gen"], &[]);
+        let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        {
+            #[expect(unsafe_code, reason = "the table outlives both objects")]
+            let (suspended, boxed) =
+                unsafe { (NvsObj::new(table.desc(generator)), NvsObj::new(table.desc(holder))) };
+            suspended.set_field(0, Value::int(SUSPENDED));
+            // The parked local holds the holder, and the holder holds the
+            // generator: a cycle no release reaches.
+            boxed.set_field(0, Value::object(suspended.clone()));
+            suspended.set_field(1, Value::object(boxed));
+        }
+        assert_eq!(ctx.live_objects(), 2);
+        #[expect(unsafe_code, reason = "the installed context's list is live")]
+        let freed = collect(unsafe { &*crate::ctx::current_live_list() });
+        assert_eq!(freed, 2, "the cycle is garbage");
+        assert_eq!(
+            FINALLY_RUNS.get(),
+            0,
+            "the walk nulls the state slot before the dismantle, so no `finally` runs"
+        );
+        assert_eq!(
+            LOCAL_SEEN.take(),
+            vec![Some(Tag::Null)],
+            "the unwind was entered once, and found no freed local"
+        );
+        assert_eq!(ctx.live_objects(), 0);
+        drop(current);
     }
 }

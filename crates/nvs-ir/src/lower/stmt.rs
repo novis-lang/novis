@@ -1349,11 +1349,14 @@ impl<'a> Lowering<'a> {
                     if pointee.is_refcounted() && extra_owner {
                         self.emit_retain(*cur, v);
                     }
-                    if pointee.is_refcounted() {
-                        let (old_v, _) = self.emit(*cur, pointee, InstKind::RefLoad { slot });
+                    // Store, then release, for the property arm's reason.
+                    let old_v = pointee
+                        .is_refcounted()
+                        .then(|| self.emit(*cur, pointee, InstKind::RefLoad { slot }).0);
+                    self.emit_ref_store(*cur, slot, v);
+                    if let Some(old_v) = old_v {
                         self.emit_release(*cur, old_v);
                     }
-                    self.emit_ref_store(*cur, slot, v);
                     (v, pointee)
                 } else {
                     // A local declared without an initializer has no `Env`
@@ -1392,11 +1395,13 @@ impl<'a> Lowering<'a> {
             // here. Refcounting mirrors `Self::bind_local`'s local-slot policy,
             // adapted to a field with no `Env` entry to consult before the
             // overwrite: retain the new value first (if it's an aliasing read,
-            // same `is_aliasing_read` judgment), *then* read the field's
-            // previous value back with a `FieldGet` and release it — retain
-            // before release, same order `bind_local` uses, so a
-            // self-assignment (`$obj->prop = $obj->prop;`) never observes a
-            // transient zero refcount.
+            // same `is_aliasing_read` judgment), read the field's previous
+            // value back with a `FieldGet`, store, and only then release the
+            // old value. Retain before release, same order `bind_local` uses,
+            // so a self-assignment (`$obj->prop = $obj->prop;`) never observes
+            // a transient zero refcount; store before release, so a `finally`
+            // the release runs in a dying generator reads the new value and
+            // never the freed one.
             ExprKind::PropertyAccess {
                 object,
                 nullsafe,
@@ -1732,8 +1737,8 @@ impl<'a> Lowering<'a> {
                     if field_ty.is_refcounted() && extra_owner {
                         self.emit_retain(*cur, v);
                     }
-                    if field_ty.is_refcounted() {
-                        let (old_v, _) = self.emit(
+                    let old_v = field_ty.is_refcounted().then(|| {
+                        self.emit(
                             *cur,
                             field_ty,
                             InstKind::FieldGet {
@@ -1741,10 +1746,13 @@ impl<'a> Lowering<'a> {
                                 class: class_label.clone(),
                                 field: field_name.clone(),
                             },
-                        );
+                        )
+                        .0
+                    });
+                    self.emit_field_set(*cur, object_v, class_label, field_name, v);
+                    if let Some(old_v) = old_v {
                         self.emit_release(*cur, old_v);
                     }
-                    self.emit_field_set(*cur, object_v, class_label, field_name, v);
                     // `rule:classes/property-observer-pipeline`'s second step. With no `set` hook the slot
                     // store *is* the commit, so `v` is exactly the committed
                     // value and no read-back is owed.
@@ -1774,11 +1782,12 @@ impl<'a> Lowering<'a> {
                     (v, field_ty)
                 }
             }
-            // `Class::$prop = expr;` — the same sequence the field arm below
+            // `Class::$prop = expr;` — the same sequence the field arm above
             // ends with, minus every step that needs a receiver: retain the
             // new value if it is an aliasing read, read the slot's previous
-            // value back and release it, then store. Retain before release,
-            // so `Class::$p = Class::$p;` never observes a transient zero.
+            // value back, store, then release the old value. Retain before
+            // release, so `Class::$p = Class::$p;` never observes a transient
+            // zero; store before release, for the field arm's reason.
             ExprKind::StaticPropertyAccess { .. } => {
                 let (class, name, slot_ty) = self.static_property_of(target);
                 let (v, vty, aliasing) = self.lower_stored(stored, Some(slot_ty), env, cur);
@@ -1790,18 +1799,21 @@ impl<'a> Lowering<'a> {
                 if slot_ty.is_refcounted() && extra_owner {
                     self.emit_retain(*cur, v);
                 }
-                if slot_ty.is_refcounted() {
-                    let (old_v, _) = self.emit(
+                let old_v = slot_ty.is_refcounted().then(|| {
+                    self.emit(
                         *cur,
                         slot_ty,
                         InstKind::StaticGet {
                             class: class.clone(),
                             name: name.clone(),
                         },
-                    );
+                    )
+                    .0
+                });
+                self.emit_static_set(*cur, class, name, v);
+                if let Some(old_v) = old_v {
                     self.emit_release(*cur, old_v);
                 }
-                self.emit_static_set(*cur, class, name, v);
                 (v, slot_ty)
             }
             // `$arr[$i] = expr;` — the element's declared type comes from
