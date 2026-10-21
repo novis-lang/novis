@@ -27,6 +27,16 @@
 // no crate sets it. A coroutine switch is `corosensei`'s, which handles Windows SEH and aarch64, never
 // a hand-rolled one.
 //
+// Tested `unsafe` code is good code, and a lower `unsafe` count is not a goal. Declined: moving a
+// platform call into a wrapper crate such as `nix` or `windows`, which hides the `unsafe` without
+// removing it; the `undocumented_unsafe_blocks` lint, because each block already states its reason in
+// its `#[expect]`; and a safe layer over the helper ABI's raw pointers, which would cost time on every
+// call on the request path. Where the same `unsafe` recurs, it moves behind one safe function that
+// states the reason once, as `nvs-stdlib`'s array walk is `crate::str::Elements` and `Entries`.
+// The Windows-only `unsafe` in `nvs-config` and `nvs-cli` runs under no sanitizer, because every
+// sanitizer job runs on Linux. That is accepted for startup and install code, and stops being
+// accepted if that code grows.
+//
 // Four properties are worth knowing before changing anything here:
 //
 // * **`unsafe_code` is the only permitted delta.** A crate on the roster gets the workspace table with
