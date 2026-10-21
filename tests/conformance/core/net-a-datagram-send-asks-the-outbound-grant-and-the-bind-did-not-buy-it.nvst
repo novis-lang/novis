@@ -30,10 +30,11 @@ try {
 
 $socket->close();
 --FILE nvs.toml--
-# `net.listen` and nothing else — the widest inbound grant a deployment can
-# write, buying no way to reach anything.
+# The widest inbound grant a deployment can write, and `connect` written empty:
+# the bind buys no way to reach anything.
 [capabilities.net]
 listen = true
+connect = []
 --EXPECT--
 bound: 1
 Core\Net\Datagram::send needs the capability `net.connect` for 127.0.0.1, which is not granted

@@ -54,6 +54,10 @@ try {
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";
 }
+--FILE nvs.toml--
+# No host is granted: a CLI run reaches every public host unless `connect` is written.
+[capabilities.net]
+connect = []
 --EXPECT--
 Core\Http::allowUrl: this text is not a URL, so there is no host in it to approve
 Core\Http::allowUrl: the scheme must be `http`, `https`, `ws` or `wss`, and this URL names `ftp`

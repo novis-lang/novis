@@ -49,6 +49,10 @@ try {
 }
 
 echo "sent=", Core\Arr::count(Core\Test::sentSocket()), "\n";
+--FILE nvs.toml--
+# No host is granted: a CLI run reaches every public host unless `connect` is written.
+[capabilities.net]
+connect = []
 --EXPECT--
 plain over plain ws
 protocol=none

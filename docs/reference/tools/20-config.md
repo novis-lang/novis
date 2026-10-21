@@ -204,6 +204,10 @@ Files have their own defaults. A command-line run (`nvs run`, `nvs test`) may re
 file. Server work may read the files in its app folder, but no dot-file (such as `.env`) and no
 `nvs.toml`. It may write only in the directories `Core\IO::temporaryDir` made for it.
 
+Outbound connections have a default too. Every run may connect to any public host. A loopback
+address (`127.0.0.1`, `::1`) is allowed on a command-line run, and in server work when the
+configuration sets `[mode] default = "development"`. Every other private address needs a line.
+
 The default for every other capability is **denied** until a grant is written. A written key
 replaces its default, so `false` and an empty list both deny. The roster is closed:
 
@@ -279,17 +283,21 @@ Core\IO::read needs the capability `fs.read`
 `net.connect` carries a second key, because a granted host is not automatically a reachable address:
 an outbound connection to a loopback, private, link-local or unspecified address is refused whatever
 the grant says, since a hostname an attacker influenced can resolve into one. A deployment that must
-reach an internal service excepts the address it means, one at a time:
+reach an internal service names the addresses or ranges it means:
 
 ```toml
 [capabilities.net]
-connect = ["metrics.internal"]   # the names reachable
-internal = ["10.4.0.9"]          # the denied addresses this deployment reaches anyway
+connect = ["metrics.internal"]          # the names reachable
+internal = ["10.4.0.9", "172.18.0.0/16"] # the denied addresses this deployment reaches anyway
 ```
 
-An `internal` entry is an IP address written out in full — never a hostname, never a range, and `true` is not a
-spelling it has. It grants nothing on its own: an address named there is still only reached under a
-host `connect` grants.
+An `internal` entry is an IP address or a CIDR range. A hostname is not allowed, `true` is not
+allowed, and neither is a range with bits set after its prefix, such as `10.0.0.5/8`. It grants
+nothing on its own: an address named there is still only reached under a host `connect` grants.
+
+With no `internal` written, loopback is allowed on a command-line run and in a `development`
+configuration. A program that changes its own mode to `development` does not get loopback. A
+written `internal` list replaces this default, so it must name loopback too if the program needs it.
 
 `net.listen` has no such key, because the policy's terms invert under a bind: binding loopback is
 the contained case and binding the unspecified address is the exposed one, so `connect`'s denied

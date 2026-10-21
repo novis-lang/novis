@@ -374,6 +374,8 @@ pub enum Granted {
 ///   `.env` or `.git/config` and never `nvs.toml`, and writes only what it made for this run, so
 ///   nothing it writes lands beside code it would run, and one request cannot reach another's
 ///   temporary directory.
+/// - **Outbound hosts:** `net.connect` is [`Granted::Everything`] on every kind of run. The address
+///   table still refuses every address that is not public, with [`internal`] as its exceptions.
 /// - **Every other capability** is [`Granted::Nothing`] on every kind of run.
 ///
 /// **What it spends:** nothing held. The app folder is one path per context, and the temporary
@@ -381,10 +383,31 @@ pub enum Granted {
 #[must_use]
 pub fn capability(cap: crate::Cap, run: crate::capability::Run<'_>) -> Granted {
     match (cap, run.serving) {
-        (crate::Cap::FsRead | crate::Cap::FsWrite, false) => Granted::Everything,
+        (crate::Cap::FsRead | crate::Cap::FsWrite, false) | (crate::Cap::NetConnect, _) => {
+            Granted::Everything
+        }
         (crate::Cap::FsRead, true) => Granted::AppFolder,
         (crate::Cap::FsWrite, true) => Granted::Temporary,
         _ => Granted::Nothing,
+    }
+}
+
+/// The loopback ranges, as `[capabilities.net] internal` entries.
+pub const NET_INTERNAL_LOOPBACK: &[&str] = &["127.0.0.0/8", "::1"];
+
+/// The `[capabilities.net] internal` entries of `run` where that key is not written: a startup row
+/// (`rule:config/a-startup-default-is-never-flipped`).
+///
+/// Loopback ([`NET_INTERNAL_LOOPBACK`]) on a CLI run, and in server work whose configuration names
+/// `development`. Nothing in production server work, where every private and loopback address needs a
+/// written line. The mode is the one the run started in, so a program that flips itself to
+/// `development` gains no loopback.
+#[must_use]
+pub fn internal(run: crate::capability::Run<'_>) -> &'static [&'static str] {
+    if run.serving && !run.development {
+        &[]
+    } else {
+        NET_INTERNAL_LOOPBACK
     }
 }
 

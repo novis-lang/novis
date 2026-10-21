@@ -20,8 +20,9 @@ set — a sixth row cannot appear silently.
 What a mode deliberately does not govern: `[debug] mode`'s probe bits, whose configured value is
 already the default *and* the bound, so a mode that widened it would turn probes on for every
 request rather than make them available, spending request-path latency nobody asked for; the
-revalidation rate cap (`rule:config/opcache-revalidation-is-system-class`); and **anything with no
-directive**. A mode never gates a *behaviour* — no dev toolbar, no source-context injection, no
+revalidation rate cap (`rule:config/opcache-revalidation-is-system-class`); loopback in server
+work, a capability no request could set for itself and so a startup row
+(`rule:config/a-startup-default-is-never-flipped`); and **anything with no directive**. A mode never gates a *behaviour* — no dev toolbar, no source-context injection, no
 watcher. A feature that should differ between modes gets a directive first and a row second, in that
 order.
 

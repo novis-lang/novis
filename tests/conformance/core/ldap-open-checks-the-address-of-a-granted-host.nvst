@@ -13,8 +13,13 @@ try {
     echo $refused->message, "\n";
 }
 --FILE nvs.toml--
+# `internal` written empty, as a production server has it. A CLI run reaches
+# loopback unless it is written.
 [capabilities.ldap]
 open = ["127.0.0.1"]
+
+[capabilities.net]
+internal = []
 --EXPECT--
 Core\Ldap::open cannot connect to 127.0.0.1: it is loopback (127.0.0.0/8), which `net.internal` does not except
 help: add `internal = ["127.0.0.1"]` under `[capabilities.net]` in nvs.toml

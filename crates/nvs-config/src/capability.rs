@@ -264,6 +264,9 @@ pub struct Run<'a> {
     /// The directories `Core\IO::temporaryDir` made for this context, canonical. Empty for an
     /// asker with no context, which then meets the narrower default.
     pub temporary: &'a [PathBuf],
+    /// Whether the configuration names `development` as the mode this run started in. A runtime
+    /// flip does not move it (`rule:config/a-startup-default-is-never-flipped`).
+    pub development: bool,
 }
 
 impl<'a> Run<'a> {
@@ -274,6 +277,7 @@ impl<'a> Run<'a> {
             serving: false,
             folder,
             temporary: &[],
+            development: false,
         }
     }
 
@@ -284,6 +288,16 @@ impl<'a> Run<'a> {
             serving: true,
             folder,
             temporary: &[],
+            development: false,
+        }
+    }
+
+    /// This run, started in `development` where `development` is true.
+    #[must_use]
+    pub fn in_development(self, development: bool) -> Self {
+        Self {
+            development,
+            ..self
         }
     }
 
@@ -439,12 +453,17 @@ impl<'a> Authority<'a> {
     }
 
     /// [`Capabilities::address_refused`] for this run. With no `[capabilities.net] internal`
-    /// written, the table refuses every address it names ([`denied_by_default`]).
+    /// written, the exceptions are [`crate::defaults::internal`]'s: loopback on a CLI run and in
+    /// development, and none in production server work.
     #[must_use]
     pub fn address_refused(&self, address: std::net::IpAddr) -> Option<&'static str> {
         match self.written {
-            Some(caps) => caps.address_refused(address),
-            None => denied_by_default(address),
+            Some(caps) if caps.internal().is_some() => caps.address_refused(address),
+            _ => {
+                let range = denied_by_default(address)?;
+                let defaults = crate::defaults::internal(self.run).iter().copied();
+                (!internal_covers(defaults, address)).then_some(range)
+            }
         }
     }
 }
@@ -533,6 +552,59 @@ fn unmapped(address: std::net::IpAddr) -> std::net::IpAddr {
         },
         held => held,
     }
+}
+
+/// A `net.internal` entry: an address, or a CIDR range such as `172.18.0.0/16`. `None` for anything
+/// else, which [`validate`] refuses at load: a hostname, a prefix longer than the address, and a
+/// range with bits set below its prefix (`10.0.0.5/8`), which reads as one host and grants a block.
+///
+/// An IPv4-mapped entry is taken unmapped, as an address asked of it is.
+fn internal_range(entry: &str) -> Option<(std::net::IpAddr, u8)> {
+    use std::net::IpAddr;
+
+    let (address, prefix) = match entry.split_once('/') {
+        Some((address, prefix)) => (address, Some(prefix)),
+        None => (entry, None),
+    };
+    let address = unmapped(address.parse::<IpAddr>().ok()?);
+    let width = if address.is_ipv4() { 32 } else { 128 };
+    let prefix = match prefix {
+        None => width,
+        Some(digits) if digits.bytes().all(|byte| byte.is_ascii_digit()) => digits.parse().ok()?,
+        Some(_) => return None,
+    };
+    (prefix <= width && masked(address, prefix) == address).then_some((address, prefix))
+}
+
+/// `address` with every bit below its first `prefix` bits cleared.
+fn masked(address: std::net::IpAddr, prefix: u8) -> std::net::IpAddr {
+    use std::net::IpAddr;
+
+    match address {
+        IpAddr::V4(v4) => {
+            let mask = u32::MAX.checked_shl(32 - u32::from(prefix)).unwrap_or(0);
+            IpAddr::V4((u32::from(v4) & mask).into())
+        }
+        IpAddr::V6(v6) => {
+            let mask = u128::MAX.checked_shl(128 - u32::from(prefix)).unwrap_or(0);
+            IpAddr::V6((u128::from(v6) & mask).into())
+        }
+    }
+}
+
+/// Whether one of the `net.internal` `entries` covers `address`. An entry [`internal_range`] cannot
+/// read covers nothing.
+fn internal_covers<'e>(
+    entries: impl IntoIterator<Item = &'e str>,
+    address: std::net::IpAddr,
+) -> bool {
+    let wanted = unmapped(address);
+    entries
+        .into_iter()
+        .filter_map(internal_range)
+        .any(|(network, prefix)| {
+            network.is_ipv4() == wanted.is_ipv4() && masked(wanted, prefix) == network
+        })
 }
 
 /// An IPv6 address that carries an IPv4 address in its low 32 bits, as that IPv4 address; every
@@ -1069,34 +1141,32 @@ impl Capabilities {
     /// addresses a deployment says it reaches anyway. Its shape, each part of it a refusal to widen
     /// further than the rule does:
     ///
-    /// - **An entry is an IP address**, and one that does not parse as an address matches
-    ///   nothing. A hostname there would be read before resolution and so would exempt whatever the
-    ///   name resolved to *afterwards*, which is the rebinding gap
-    ///   `rule:http-server/allow-url-pins-the-address`'s pinning closes.
-    /// - **No ranges.** An operator writing `10.0.0.0/8` would hand back most of the table without
-    ///   naming a single host it meant, and prefix matching here would be a second address-matching
-    ///   implementation beside the table it is meant to except from.
+    /// - **An entry is an IP address or a CIDR range** (`172.18.0.0/16`), and one that does not
+    ///   parse as either matches nothing. A hostname there would be read before resolution and so
+    ///   would exempt whatever the name resolved to *afterwards*, which is the rebinding gap
+    ///   `rule:http-server/allow-url-pins-the-address`'s pinning closes. A range names a container
+    ///   network or a subnet the operator runs, which no list of addresses can follow.
     /// - **`true` grants nothing**, which is the one place a `Setting::Bool(true)` does not mean
     ///   everything. Turning the whole table off is not an exception, and the value of the exception
-    ///   is that a reviewer can see which address a deployment bought back.
+    ///   is that a reviewer can see which addresses a deployment bought back.
     ///
-    /// It is not a widening on its own: the host still has to be inside [`Cap::NetConnect`]'s grant,
-    /// asked separately and first by `nvs_runtime::capability::pin_host`.
+    /// It answers for the written key alone: with no `internal` written, the table refuses every
+    /// address it names. [`Authority::address_refused`] adds the default.
     #[must_use]
     pub fn address_refused(&self, address: std::net::IpAddr) -> Option<&'static str> {
         let range = denied_by_default(address)?;
-        let Some(setting) = self.net.as_ref().and_then(|net| net.internal.as_ref()) else {
+        let Some(setting) = self.internal() else {
             return Some(range);
         };
         let Grant::These(named) = grant_of(setting) else {
             return Some(range);
         };
-        let wanted = unmapped(address);
-        let excepted = named
-            .iter()
-            .filter_map(|entry| entry.parse::<std::net::IpAddr>().ok())
-            .any(|entry| unmapped(entry) == wanted);
-        (!excepted).then_some(range)
+        (!internal_covers(named.iter().map(String::as_str), address)).then_some(range)
+    }
+
+    /// The written `[capabilities.net] internal` key, or `None` where it is not written.
+    fn internal(&self) -> Option<&Setting> {
+        self.net.as_ref().and_then(|net| net.internal.as_ref())
     }
 
     /// § 4's grant side: replaces every path-scoped root with its canonical spelling, once.
@@ -1404,9 +1474,10 @@ fn silent_entry(cap: Cap, key: &str, entry: &str, base: &Path) -> Option<Silent>
     None
 }
 
-/// [`silent`] for `net.internal`, which is not a [`Cap`] and takes IP addresses alone.
+/// [`silent`] for `net.internal`, which is not a [`Cap`] and takes IP addresses and CIDR ranges
+/// alone.
 fn silent_internal(setting: &Setting) -> Option<Silent> {
-    const NOTE: &str = "This setting needs a list of IP addresses.";
+    const NOTE: &str = "This setting needs a list of IP addresses or ranges, such as `10.0.0.0/8`.";
     let line = || grant_list("internal", "10.0.0.5");
     let entries = match setting {
         Setting::Bool(true) => {
@@ -1422,9 +1493,11 @@ fn silent_internal(setting: &Setting) -> Option<Silent> {
     };
     let entry = entries
         .iter()
-        .find(|entry| entry.parse::<std::net::IpAddr>().is_err())?;
+        .find(|entry| internal_range(entry).is_none())?;
     Some(Silent::new(
-        format!("the `net.internal` entry `{entry}` is not an IP address, so it matches nothing"),
+        format!(
+            "the `net.internal` entry `{entry}` is not an IP address or a range, so it matches nothing"
+        ),
         NOTE,
         line(),
     ))

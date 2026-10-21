@@ -1998,7 +1998,7 @@ mod tests {
 
         let mut denied = Ctx::buffered();
         denied.set_config(crate::tests::granting(
-            "[capabilities.net]\nconnect = [\"127.0.0.1\"]\n",
+            "[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = []\n",
         ));
         let args = [
             Value::str(NvsStr::new(HOST.as_bytes())),

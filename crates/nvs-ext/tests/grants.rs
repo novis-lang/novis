@@ -193,7 +193,10 @@ fn a_caller_without_the_grant_narrows_the_extension() {
             read: list(&["/srv/data2"]),
             write: None,
         }),
-        net: None,
+        net: Some(CapNet {
+            connect: list(&[]),
+            ..CapNet::default()
+        }),
         ..Capabilities::default()
     };
     let got = effective(&entry(), &requests(), caller(&sibling), &fake());
@@ -210,6 +213,40 @@ fn a_caller_without_the_grant_narrows_the_extension() {
     let got = effective(&entry(), &requests(), caller(&writes_only), &fake());
     assert!(got.read.is_empty() && got.write.is_empty(), "{got:?}");
     assert_eq!(got.connect, strings(&["tiles.example.com"]));
+}
+
+/// A caller that writes no `connect` reaches every public host by default, and the extension still
+/// gets only the hosts its entry and its manifest both name.
+#[test]
+fn a_callers_default_hosts_are_still_narrowed_by_the_entry_and_the_manifest() {
+    let unwritten = Capabilities::default();
+    for run in [Run::cli(None), Run::server(None)] {
+        let got = effective(
+            &entry(),
+            &requests(),
+            Caller {
+                authority: Some(Authority::new(Some(&unwritten), run)),
+                narrowed: None,
+            },
+            &fake(),
+        );
+        assert_eq!(got.connect, strings(&["tiles.example.com"]), "{run:?}");
+    }
+
+    let no_hosts = Granted {
+        connect: Vec::new(),
+        ..entry()
+    };
+    let got = effective(
+        &no_hosts,
+        &requests(),
+        Caller {
+            authority: Some(Authority::new(Some(&unwritten), Run::cli(None))),
+            narrowed: None,
+        },
+        &fake(),
+    );
+    assert!(got.connect.is_empty(), "{got:?}");
 }
 
 #[test]

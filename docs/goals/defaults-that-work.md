@@ -27,7 +27,7 @@ stages:
         rules: [config/no-configuration-file-is-a-complete-configuration, security/path-scope-canonicalise-then-prefix, core-classes/temporary-dir-sweep, security/capability-costs-nothing-unasked]
   - id: 4
     title: the application's own code reaches public hosts, and loopback on a CLI run and in development
-    status: open
+    status: done
     context: [crates/nvs-config/src/mode.rs, crates/nvs-ext/src/grants.rs, docs/rules/security/net-address-policy.md, docs/rules/config/a-startup-default-is-never-flipped.md]
     extra:
       context:
@@ -404,12 +404,12 @@ adds the narrowing lines.
 
 **Does:** decisions 2 and 3 are on.
 
-- [ ] `net.connect` defaults to every host, with the address table asked of every resolved address as before (`rule:security/net-address-policy`). `crates/nvs-config/src/capability.rs:615`, `crates/nvs-runtime/src/capability.rs:546`
-- [ ] A `net.internal` entry may be a CIDR range, and a hostname, `true` and a malformed range are refused at load (`rule:security/net-address-policy`). `crates/nvs-config/src/capability.rs:856`
-- [ ] Loopback is a startup row: allowed on a CLI run and when the configuration names `development`, never moved by a runtime flip; `rule:config/a-mode-is-five-defaults` points at it (`rule:config/a-startup-default-is-never-flipped`). `crates/nvs-config/src/defaults.rs:291`, `crates/nvs-config/src/mode.rs:69`
-- [ ] An extension's hosts are still the intersection with its `[[extension]] grants` and its manifest (`rule:security/extension-grants-are-an-intersection`). `crates/nvs-ext/src/grants.rs:69`
-- [ ] The hostile block writes `connect = []`, and each listed case writes its own narrowing. `nvs.toml:19`
-- [ ] Tests: a public host with no grant, a private address still refused, a CIDR entry, loopback on a CLI run and in development, loopback refused in production and after a flip to development. `crates/nvs-config/tests/capability.rs:1`
+- [x] `net.connect` defaults to every host, with the address table asked of every resolved address as before (`rule:security/net-address-policy`). `crates/nvs-config/src/capability.rs:615`, `crates/nvs-runtime/src/capability.rs:546`
+- [x] A `net.internal` entry may be a CIDR range, and a hostname, `true` and a malformed range are refused at load (`rule:security/net-address-policy`). `crates/nvs-config/src/capability.rs:856`
+- [x] Loopback is a startup row: allowed on a CLI run and when the configuration names `development`, never moved by a runtime flip; `rule:config/a-mode-is-five-defaults` points at it (`rule:config/a-startup-default-is-never-flipped`). `crates/nvs-config/src/defaults.rs:291`, `crates/nvs-config/src/mode.rs:69`
+- [x] An extension's hosts are still the intersection with its `[[extension]] grants` and its manifest (`rule:security/extension-grants-are-an-intersection`). `crates/nvs-ext/src/grants.rs:69`
+- [x] The hostile block writes `connect = []`, and each listed case writes its own narrowing. `nvs.toml:19`
+- [x] Tests: a public host with no grant, a private address still refused, a CIDR entry, loopback on a CLI run and in development, loopback refused in production and after a flip to development. `crates/nvs-config/tests/capability.rs:1`
 
 ### 5. SQLite needs only the file rule, and Postgres and MySQL reach loopback without TLS
 
@@ -505,9 +505,38 @@ capability default. Then one writing subagent edits them, held to § *Text an en
 
 ### State
 
-Stages 1, 2 and 3 are done, and stage 3's verify is green. The bench-compare work was committed
-with a `tsc` error in `tools/nv/test/bench-compare.test.ts` (a fixture typed narrower than
-`DeployLoad`), which stopped every verify at `nv selftest`. It is fixed in its own commit.
+Stages 1 to 4 are done.
+
+**Stage 4 (outbound hosts):**
+
+- `defaults::capability` (`crates/nvs-config/src/defaults.rs`) gives `net.connect`
+  `Granted::Everything` on both run kinds. `connect_to` and `downgrade` keep `Nothing`.
+- **Loopback is `defaults::internal(run)`**, beside `capability`, with
+  `NET_INTERNAL_LOOPBACK = ["127.0.0.0/8", "::1"]`. It is not a `DEFAULTS` row: `Value::Startup`
+  has no CLI arm, and a capability is not a value `Core\Config::get` renders. The rule's table names
+  it as the fourth startup row. `Run` gained `development: bool` and `Run::in_development`;
+  `Request::run` sets it from `started()`, which ignores the overlay, so a flip moves nothing.
+- `Authority::address_refused` uses the written `internal` key when there is one, and otherwise the
+  default list. A written `internal` replaces the default whole, loopback included.
+- CIDR: `internal_range`, `masked` and `internal_covers` in `crates/nvs-config/src/capability.rs`.
+  A range with host bits set (`10.0.0.5/8`) is refused at load by `silent_internal`. Only `::ffff:`
+  forms are unmapped, so `::7f00:1`, NAT64, 6to4 and Teredo loopback stay refused by the default.
+- The hostile block writes `connect = []` and `internal = []`. The three `docs/examples` Http blocks
+  in `nvs.toml` write `internal = []`, because their outputs show loopback refused. 9 `.nvst` cases,
+  `crates/nvs-cli/tests/fixtures/test-grants/denied.toml`, and the Rust tests in `db/open.rs`,
+  `http.rs` (`GRANTED`), `net.rs` and the runtime's `reaching` write the empty keys.
+- Tests: `a_public_host_needs_no_grant_and_loopback_is_open_on_a_cli_run_and_in_development` and
+  `an_operator_exception_names_addresses_and_ranges_and_widens_nothing_else`
+  (`crates/nvs-config/tests/capability.rs`), `a_flip_to_development_does_not_open_loopback`
+  (`crates/nvs-config/tests/request.rs`), and
+  `a_callers_default_hosts_are_still_narrowed_by_the_entry_and_the_manifest`
+  (`crates/nvs-ext/tests/grants.rs`).
+- Rules updated: `security/net-address-policy` (ranges, the defaults, a Declined line for loopback
+  in production), `config/a-startup-default-is-never-flipped` (the fourth row, nine rows in all),
+  `config/a-mode-is-five-defaults`. `docs/reference/tools/20-config.md` states the net defaults.
+
+The nightly's proofs failures were the stage 3 restamp: `syntax/errors/limits.mdx` and the
+questions of the capabilities and trust pages. They are restamped in this group.
 
 **Stage 3 (files):**
 
@@ -568,19 +597,15 @@ with a `tsc` error in `tools/nv/test/bench-compare.test.ts` (a fixture typed nar
   `crates/nvs-ext/tests/{grants,files,http}.rs` build their `Caller` with `Authority`.
 - `rule:security/capability-question-is-grant-and-scope` now names the run as an input.
 
-The nightly's proofs failures on `afbb1edc2` were stale page questions, fixed in `b1c9527b9`.
-`bun nv site --check structure snippets stale questions prose` is green on HEAD.
-
 ### Next
 
-**Stage 4**, outbound hosts. `net.connect` gets a default in `defaults::capability`
-(`crates/nvs-config/src/defaults.rs:364`): `Granted::Everything` on both run kinds. The address
-table still applies through `Authority::address_refused` (`crates/nvs-config/src/capability.rs`).
-Then do CIDR in `Capabilities::address_refused`, and loopback as a startup row
-(`crates/nvs-config/src/defaults.rs:291`). The startup row needs the mode on `Run`. Add
-`connect = []` under `[app.capabilities.net]` in the hostile block (`nvs.toml:38`). Follow the
-stage's split: an `Explore` subagent lists every case that expects a `net.connect` refusal with no
-grant, as stage 3's did for files.
+**Stage 5**, SQLite and database TLS. `Db::open` (`crates/nvs-stdlib/src/db/open.rs:978`) stops
+asking `db.open` for `:memory:`, the empty path and a SQLite file. A file asks only the file rule
+(`Authority::allows` for `fs.read`/`fs.write`). In server work a readable but not writable file opens
+with SQLite's read-only flag. Postgres (`crates/nvs-db/src/pg.rs:1127`) and MySQL
+(`crates/nvs-db/src/mysql.rs:273`) connect without TLS to a loopback address only. Rules
+`core-classes/db-capabilities` and `core-classes/db-safe-connection-defaults`. Stage 4 opened
+loopback on a CLI run, so a database test on loopback no longer needs `internal`.
 
 ### Backlog
 

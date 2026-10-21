@@ -26,7 +26,10 @@ echo "still running", "\n";
 # A queue whose connection resolves at boot -- `connection` names a block that
 # exists, which is all `nvs_config::queue` checks -- and whose port has nothing
 # behind it. Reaching it would be the failure this case is written to rule out.
-# No `[capabilities]` table at all, which is the deployment granting nothing.
+# `connect` written empty, so the request does not hold `net.connect`.
+[capabilities.net]
+connect = []
+
 [queue]
 connection = "main"
 

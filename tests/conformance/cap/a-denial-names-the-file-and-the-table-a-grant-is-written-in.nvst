@@ -21,10 +21,14 @@ try {
 --FILE nvs.toml--
 # The file the help line names, holding a grant neither call needs: the tree
 # resolves, and both refusals are about a capability that is missing rather
-# than about a configuration that is.
+# than about a configuration that is. A CLI run reads every file and reaches
+# every public host unless a key says otherwise, so both keys are written empty.
 [capabilities.fs]
 write = ["./out"]
 read = []
+
+[capabilities.net]
+connect = []
 --FILE data/note.txt--
 note
 --EXPECTF--

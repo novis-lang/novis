@@ -769,3 +769,28 @@ fn a_named_block_default_is_in_force_only_where_the_block_is_written() {
     );
     assert!(all.keys().all(|key| !key.starts_with("db.other.")));
 }
+
+/// The loopback default of server work follows the mode the configuration names, and a request
+/// that flips itself to `development` gains no loopback
+/// (`rule:config/a-startup-default-is-never-flipped`).
+#[test]
+fn a_flip_to_development_does_not_open_loopback() {
+    let loopback: std::net::IpAddr = "127.0.0.1".parse().expect("an address");
+    let serving = |text: &str| {
+        let mut request = Request::new(snapshot_of(text));
+        request.serve();
+        request
+    };
+
+    let development = serving("[mode]\ndefault = \"development\"\n");
+    assert_eq!(development.authority().address_refused(loopback), None);
+
+    let mut flipped = serving("[mode]\ndefault = \"production\"\nceiling = \"development\"\n");
+    assert!(flipped.authority().address_refused(loopback).is_some());
+    assert!(flipped.set(nvs_config::mode::KEY, "development"));
+    assert_eq!(flipped.mode(), "development");
+    assert!(
+        flipped.authority().address_refused(loopback).is_some(),
+        "a flip opened loopback"
+    );
+}

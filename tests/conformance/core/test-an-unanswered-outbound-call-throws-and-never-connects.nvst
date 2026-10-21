@@ -60,6 +60,10 @@ echo Core\Arr::count($sent), "\n";
 foreach ($sent as Core\Test\SentRequest $call) {
     echo ($call->method() as int), " ", $call->url(), " ", $call->header("x-nothing") ?? "-", " ", Core\Bytes::length($call->body()), "\n";
 }
+--FILE nvs.toml--
+# No host is granted: a CLI run reaches every public host unless `connect` is written.
+[capabilities.net]
+connect = []
 --EXPECT--
 Core\Http\Client::get needs the capability `net.connect` for api.example.com, which is not granted
 help: add `connect = ["api.example.com"]` under `[capabilities.net]` in nvs.toml
