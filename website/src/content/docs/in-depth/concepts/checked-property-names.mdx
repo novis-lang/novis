@@ -1,19 +1,19 @@
 ---
-title: Field names the compiler checks
+title: How property name types work
 covers: []
-description: A field name or a dotted path in a string is checked against your classes when the program compiles, and again when it runs.
+description: A property name or a dotted path in a string is checked against your classes when the program compiles, and again when it runs.
 ---
 
 import { githubFile } from '@config/site.mjs'
 
-Code that works with a database often names fields in strings. A sort order is `"customer.name"`, and
-a condition is `"total = ?"`. In most languages the compiler cannot check these strings. A typo is
-found only when the query runs.
+Code that works with a database often names class properties in strings. A sort order is
+`"customer.name"`, and a condition is `"total = ?"`. In most languages the compiler cannot check
+these strings. A typo is found only when the query runs.
 
 Novis has three types for such strings. Each one is a `string` at run time. The compiler knows which
 names it may contain.
 
-## A field name
+## A property name
 
 `property<Order>` is the name of one public property of the class `Order`. A parameter of this type
 accepts `"total"` when `Order` has a public `$total`. The call `orderBy("totl")` does not compile.
@@ -43,7 +43,7 @@ editor also shows the names you can use, one part of the path at a time.
 
 A string that the program builds while it runs, for example from a request, is checked with `as`.
 `as ?propertyPath<Order>` gives `null` when one of the names is wrong or private. So a request can
-only name fields that your classes make public.
+only name properties that your classes make public.
 
 A string with holes from a request is still `tainted`. Only the holes are checked, and the text
 between them is still the request's text. So it cannot reach the text of a database query. See
@@ -58,14 +58,14 @@ A library splits the values with two functions:
   with its type.
 
 Novis does not read SQL. A typo in a column name inside the SQL text is found when the query runs. A
-field named in a path or a hole is checked against your classes when the program compiles. No plugin
-and no database connection are needed.
+property named in a path or a hole is checked against your classes when the program compiles. No
+plugin and no database connection are needed.
 
 ## Where to go next
 
-- [Guides: autocomplete and parsing for class property names in strings](/guides/how-to-use/checked-field-paths/)
+- [Guides: autocomplete and parsing for class property names in strings](/guides/how-to-use/checked-property-paths/)
   builds a small data mapper step by step.
 - <a href={githubFile('tests/hostile/lang/types/property-paths/01-a-sort-field-from-a-request.nvs')}>The attack</a>
-  sends bad sort fields from a request, and each one fails.
+  sends bad property names to sort by from a request, and each one fails.
 
 <a href={githubFile('docs/rules/types/property-path.md')}>Read the full reasoning.</a>

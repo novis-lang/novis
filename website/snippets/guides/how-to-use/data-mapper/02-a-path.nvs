@@ -1,5 +1,5 @@
 <?nvs
-// This program sorts orders by a field of the customer.
+// This program sorts orders by a property of the customer.
 
 class Customer {
     public string $name = "";

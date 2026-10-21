@@ -181,8 +181,8 @@ const LANGUAGE_TYPES = new Map([
   ['object', '/syntax/classes/objects/#the-object-type'],
   ['Iterable', '/syntax/control-flow/iterators/#iterable-and-iterator'],
   ['Iterator', '/syntax/control-flow/iterators/#iterable-and-iterator'],
-  ['property', '/in-depth/concepts/checked-field-names/#a-field-name'],
-  ['propertyPath', '/in-depth/concepts/checked-field-names/#a-path-through-objects'],
+  ['property', '/in-depth/concepts/checked-property-names/#a-property-name'],
+  ['propertyPath', '/in-depth/concepts/checked-property-names/#a-path-through-objects'],
 ])
 
 /** Every linkable name, fully qualified (`Core\Str`, `Core\Arr::Order`, `Throwable`), to its page. */

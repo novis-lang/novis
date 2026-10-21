@@ -21,7 +21,7 @@ curl -d "name=Ada&email=ada@example.com&message=Hello" http://127.0.0.1:8000/con
 
 ## How it works
 
-`Core\Request::postAs<Contact>()` reads the form fields into a `Contact` object. Each field of
+`Core\Request::postAs<Contact>()` reads the form fields into a `Contact` object. Each property of
 the class reads the form field with the same name.
 
 Text from a form is `tainted string`, because it comes from outside the program. Code that uses a

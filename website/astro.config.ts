@@ -364,7 +364,7 @@ export default defineConfig({
                 },
                 {
                   label: 'Autocomplete and parsing',
-                  link: '/guides/how-to-use/checked-field-paths/',
+                  link: '/guides/how-to-use/checked-property-paths/',
                   attrs: { 'data-subtext': 'For class property names in strings' },
                 },
                 {
@@ -682,7 +682,7 @@ export default defineConfig({
                 { label: 'Overview', link: '/in-depth/concepts/' },
                 { label: 'One request cannot change another', link: '/in-depth/concepts/isolation/' },
                 { label: 'Tainted input', link: '/in-depth/concepts/tainted-input/' },
-                { label: 'Field names the compiler checks', link: '/in-depth/concepts/checked-field-names/' },
+                { label: 'How property name types work', link: '/in-depth/concepts/checked-property-names/' },
                 { label: 'Memory and CPU limits', link: '/in-depth/concepts/limits/' },
                 { label: 'Compiled, never interpreted', link: '/in-depth/concepts/compiled/' },
                 { label: 'Strings are UTF-8', link: '/in-depth/concepts/utf8-strings/' },

@@ -82,7 +82,7 @@
   },
   "/guides/cookbook/read-json-body/": {
     "feature": "guides/cookbook/read-json-body.mdx",
-    "hash": "87f0e842dc7da00d",
+    "hash": "b8057f8874e9b20f",
     "questions": [
       "Example of reading JSON from a POST request into a class",
       "Example of reading an order sent as JSON",
@@ -152,7 +152,7 @@
   },
   "/guides/example-apps/notes/": {
     "feature": "guides/example-apps/notes.mdx",
-    "hash": "8dfbe405e1ff53fd",
+    "hash": "d9b3c1e549156526",
     "questions": [
       "Example web app with SQLite, HTML pages and a JSON API",
       "How do I download and run the Notes example app?",
@@ -175,7 +175,7 @@
   },
   "/guides/how-to-use/": {
     "feature": "guides/how-to-use/index.mdx",
-    "hash": "0026457243e55827",
+    "hash": "187d511016497921",
     "questions": [
       "How do the parts of a Novis application fit together?",
       "Good habits for building a Novis web application",
@@ -183,15 +183,15 @@
       "Overview of configuration, requests, errors and limits"
     ]
   },
-  "/guides/how-to-use/checked-field-paths/": {
-    "feature": "guides/how-to-use/checked-field-paths.mdx",
-    "hash": "afaf55a8cb08e954",
+  "/guides/how-to-use/checked-property-paths/": {
+    "feature": "guides/how-to-use/checked-property-paths.mdx",
+    "hash": "94a424798e03fdff",
     "questions": [
       "How do I build a small query builder with checked column names?",
-      "Check a sort field from the request before a query",
-      "How do I turn a condition with field names in braces into SQL?",
-      "Can one parent class method check field names for each child class?",
-      "Does the editor suggest field names inside a string?",
+      "Check the property to sort by from the request before a query",
+      "How do I turn a condition with property names in braces into SQL?",
+      "Can one parent class method check property names for each child class?",
+      "Does the editor suggest property names inside a string?",
       "Build an ORM that takes class property names in strings"
     ]
   },
@@ -241,7 +241,7 @@
   },
   "/guides/how-to-use/requests/": {
     "feature": "guides/how-to-use/requests.mdx",
-    "hash": "5a3b1d46f3a58f50",
+    "hash": "bce05b4868934e4e",
     "questions": [
       "How does my program find the route for a request?",
       "Read query parameters, form fields and headers in a handler",
@@ -252,7 +252,7 @@
   },
   "/guides/how-to-use/tainted-input/": {
     "feature": "guides/how-to-use/tainted-input.mdx",
-    "hash": "0ed78dbecdef1950",
+    "hash": "0f7f1b832fc5a1a4",
     "questions": [
       "What does tainted string mean?",
       "Why can I not pass request text where a string is needed?",
@@ -362,7 +362,7 @@
   },
   "/guides/simple-programs/form-handler/": {
     "feature": "guides/simple-programs/form-handler.mdx",
-    "hash": "80708369e6bfd226",
+    "hash": "0a6ba35c90e163eb",
     "questions": [
       "How do I handle a contact form and reply with HTML?",
       "Example of reading a POST form into an object",
@@ -682,12 +682,12 @@
   },
   "/guides/why-novis/typed-json/": {
     "feature": "guides/why-novis/typed-json.mdx",
-    "hash": "f3d4f2bfd8736602",
+    "hash": "7720593a14d35c7c",
     "questions": [
       "Why does Novis check JSON against a class?",
       "Safe JSON parsing with types instead of loose arrays",
       "Do I need to write validation code for incoming JSON?",
-      "Can a field be missing after reading JSON into an object?"
+      "Can a property be empty after reading JSON into an object?"
     ]
   },
   "/guides/why-novis/unicode-strings/": {
@@ -744,7 +744,7 @@
   },
   "/in-depth/concepts/": {
     "feature": "in-depth/concepts/index.mdx",
-    "hash": "eaf71155544834c3",
+    "hash": "a81d0f713512d5c2",
     "questions": [
       "Introduction to how Novis runs and protects a web request",
       "Overview of the main ideas in Novis",
@@ -752,14 +752,14 @@
       "Short explanations of request isolation, limits and safe text"
     ]
   },
-  "/in-depth/concepts/checked-field-names/": {
-    "feature": "in-depth/concepts/checked-field-names.mdx",
-    "hash": "00a5f694e0e0ed93",
+  "/in-depth/concepts/checked-property-names/": {
+    "feature": "in-depth/concepts/checked-property-names.mdx",
+    "hash": "9ee98cf4063df33e",
     "questions": [
-      "Can the compiler find a typo in a field name inside a string?",
-      "How are dotted field names like customer.name checked?",
+      "Can the compiler find a typo in a property name inside a string?",
+      "How are dotted property names like customer.name checked?",
       "Why is a column typo in SQL text found only when the query runs?",
-      "Is a string with braces around field names a kind of array?",
+      "Is a string with braces around property names a kind of array?",
       "Can a request sort by a private property?"
     ]
   },
@@ -16890,6 +16890,17 @@
       "Return several values from a method as one object"
     ]
   },
+  "/syntax/classes/covariant/": {
+    "feature": "syntax/classes/covariant.mdx",
+    "hash": "65554bd576a2116b",
+    "questions": [
+      "How do I give a subclass method a narrower parameter type?",
+      "What does the covariant keyword do?",
+      "Fix compile error E0404 about a narrower parameter type",
+      "Why does a call with the wrong subclass throw a LogicError?",
+      "Can a child class property have a narrower type than the parent?"
+    ]
+  },
   "/syntax/classes/declaring/": {
     "feature": "syntax/classes/declaring.mdx",
     "hash": "f9110fdf6c5f7802",
@@ -16916,7 +16927,7 @@
   },
   "/syntax/classes/methods-and-inheritance/": {
     "feature": "syntax/classes/methods-and-inheritance.mdx",
-    "hash": "371fb240104e79fb",
+    "hash": "5685e90b397276fe",
     "questions": [
       "How do I extend a class and replace a method?",
       "Call the parent version of a method",
@@ -16939,7 +16950,7 @@
   },
   "/syntax/classes/properties/": {
     "feature": "syntax/classes/properties.mdx",
-    "hash": "fb552bc67328e895",
+    "hash": "bd700ba3d0fb7e36",
     "questions": [
       "How do I give a property a default value?",
       "Make a property that can only be set once",
@@ -17464,13 +17475,14 @@
   },
   "/syntax/values/union-types/": {
     "feature": "syntax/values/union-types.mdx",
-    "hash": "18f70cf6bd24cd68",
+    "hash": "f7bcaca720e86883",
     "questions": [
       "How do I accept a value of two different types?",
       "Allow only a few fixed strings as a value",
       "How do I give a long type a short name?",
       "What is the mixed type and when should I use it?",
-      "Why can I not pass a mixed value to a typed parameter?"
+      "Why can I not pass a mixed value to a typed parameter?",
+      "Call a method that every class in a union type has"
     ]
   }
 }

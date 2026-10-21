@@ -1,5 +1,5 @@
 <?nvs
-// This program builds a query that sorts orders by one field.
+// This program builds a query that sorts orders by one property.
 
 class Order {
     public int $total = 0;
