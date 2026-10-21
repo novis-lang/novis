@@ -263,16 +263,31 @@ function digests(): Record<string, string> {
   return out;
 }
 
-/** The opcache keys that would move a number, parsed out of the committed ini. `bench-compare` mounts the same ini. */
-export function effectivePhp(): Record<string, string> {
-  const wanted = new Set(["opcache.enable", "opcache.jit", "opcache.jit_buffer_size", "opcache.validate_timestamps", "opcache.memory_consumption"]);
+/** The committed ini this leg mounts. `bench-compare` mounts it too, with its own ini after it. */
+export const PHP_INI = join(BENCH_DIR, "php", "opcache.ini");
+
+/**
+ * The opcache keys that would move a number, parsed out of `inis` in the order PHP reads them, so a key
+ * in a later ini replaces the same key in an earlier one.
+ */
+export function effectivePhp(inis: string[] = [PHP_INI]): Record<string, string> {
+  const wanted = new Set([
+    "opcache.enable",
+    "opcache.jit",
+    "opcache.jit_buffer_size",
+    "opcache.validate_timestamps",
+    "opcache.revalidate_freq",
+    "opcache.memory_consumption",
+  ]);
   const out: Record<string, string> = {};
-  for (const raw of splitlines(readFileSync(join(BENCH_DIR, "php", "opcache.ini"), "utf8"))) {
-    const line = raw.trim();
-    if (line.startsWith(";") || !line.includes("=")) continue;
-    const at = line.indexOf("=");
-    const key = line.slice(0, at).trim();
-    if (wanted.has(key)) out[key] = line.slice(at + 1).trim();
+  for (const ini of inis) {
+    for (const raw of splitlines(readFileSync(ini, "utf8"))) {
+      const line = raw.trim();
+      if (line.startsWith(";") || !line.includes("=")) continue;
+      const at = line.indexOf("=");
+      const key = line.slice(0, at).trim();
+      if (wanted.has(key)) out[key] = line.slice(at + 1).trim();
+    }
   }
   return out;
 }

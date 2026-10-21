@@ -35,11 +35,18 @@ services:
     ports:
       - "127.0.0.1:19000:9000"
 
-    # A TCP connect, which is all a FastCGI responder can answer without a request being framed.
-    # `php -r` rather than a shell's `/dev/tcp` so this does not depend on which shell the image
-    # happens to ship.
+    # Healthy once every child of the static pool runs and the socket takes a TCP connect, which is
+    # all a FastCGI responder can answer without a request being framed. FPM opens its socket before
+    # it forks the children, and a large pool takes seconds to start on one CPU, so a socket that
+    # accepts is not yet a pool that answers. The children are counted in `/proc`, and the connect is
+    # `php -r` rather than a shell's `/dev/tcp`, so neither depends on which tools the image ships.
     healthcheck:
-      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"127.0.0.1\", 9000) ? 0 : 1);'"]
+      test:
+        - CMD-SHELL
+        - >-
+          want=$$(sed -n 's/^pm.max_children = //p' /usr/local/etc/php-fpm.d/zz-bench.conf);
+          [ $$(grep -l '^php-fpm' /proc/[0-9]*/comm | wc -l) -gt "$$want" ]
+          && php -r 'exit(@fsockopen("127.0.0.1", 9000) ? 0 : 1);'
       interval: 1s
       timeout: 3s
       retries: 30

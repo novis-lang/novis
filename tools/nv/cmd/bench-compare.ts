@@ -30,13 +30,16 @@ import { rel, ROOT } from "../lib/paths.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { Fail, grouped, host, stamp, version } from "./bench.ts";
 import { type Arm, compose, down, type Load, logsOf, messageOf, ohaArm, requireDocker, up } from "./bench-docker.ts";
-import { effectivePhp } from "./bench-proxied.ts";
+import { effectivePhp, PHP_INI } from "./bench-proxied.ts";
 
 export const summary = "Novis, PHP-FPM, Bun and Go behind one TLS nginx, in containers: nv bench-compare [--smoke] [--scenarios] [--arm fair|deployed] [--record PATH]";
 
 export const COMPARE_DIR = join(ROOT, "benches", "compare");
 const GENERATED = join(COMPARE_DIR, "generated");
 const TLS_DIR = join(GENERATED, "tls");
+
+/** The ini `compose.php.yaml` mounts after the proxied leg's, which turns PHP's file check back on at its defaults. */
+export const FILE_CHECK_INI = join(COMPARE_DIR, "php", "file-check.ini");
 
 export const NGINX_IMAGE = "nginx:1.31.7-alpine";
 export const OHA_IMAGE = "ghcr.io/hatoo/oha@sha256:3ec3dbf549ea197793482d47a6324797411406bbf438c2fe8b91f244ec641a2f";
@@ -101,7 +104,7 @@ export const PEERS: Peer[] = [
     port: 18442,
     image: "php:8.5.11-fpm",
     env: () => ({}),
-    settings: (ctx) => ({ server: "php-fpm", pm: "static", "pm.max_children": phpChildren(ctx.concurrency), ...effectivePhp() }),
+    settings: (ctx) => ({ server: "php-fpm", pm: "static", "pm.max_children": phpChildren(ctx.concurrency), ...effectivePhp([PHP_INI, FILE_CHECK_INI]) }),
     prepare: (ctx) => renderPool(phpChildren(ctx.concurrency)),
   },
   {
@@ -410,7 +413,13 @@ export const WAITING_SETTING: Record<string, Setting> = { php: { name: "pm.max_c
 export function waitingResult(r: PeerResult, inFlight: number, setting: Setting | undefined): RowResult {
   const failed = r.errors + Object.entries(r.status_codes).reduce((n, [code, count]) => (code === "200" ? n : n + count), 0);
   const kib = r.memory_peak_bytes === null || r.memory_idle_bytes === null ? null : Number(((r.memory_peak_bytes - r.memory_idle_bytes) / inFlight / 1024).toFixed(1));
-  const evidence = { in_flight: inFlight, kib_per_request: kib, failed_requests: failed };
+  const failures = [...Object.entries(r.status_codes).filter(([code]) => code !== "200"), ...Object.entries(r.error_kinds)];
+  const evidence = {
+    in_flight: inFlight,
+    kib_per_request: kib,
+    failed_requests: failed,
+    failures: failures.map(([what, count]) => `${what} x${count}`).join("; ") || null,
+  };
   if (failed > 0) return { result: "no", evidence };
   return passed(setting, evidence);
 }
@@ -617,24 +626,6 @@ export const LIVE_EDIT_SETTING: Record<string, Setting> = {
 
 /** `setting` where the peer starts with it on: the setting a change of files that shows without a step names. */
 export const onByDefault = (setting: Setting | undefined): Setting | undefined => (setting?.default === true ? setting : undefined);
-
-/**
- * The command that puts a peer back on its own defaults before the live-edit and deploy rows, where the
- * speed tests turn one off. They run PHP with `opcache.validate_timestamps=0`, so this writes PHP's default
- * `1` in a later ini and runs `php-fpm reload` to read it, before the row's first request.
- */
-export const DEFAULT_RESTORE: Record<string, string[]> = {
-  php: ["sh", "-c", "echo 'opcache.validate_timestamps=1' > /usr/local/etc/php/conf.d/zz-row.ini && kill -USR2 1"],
-};
-
-/** Runs the peer's `DEFAULT_RESTORE`, if it has one, and waits until it answers again. */
-async function restoreDefaults(p: Probe): Promise<void> {
-  const restore = DEFAULT_RESTORE[p.peer];
-  if (restore === undefined) return;
-  const done = p.exec(restore);
-  if (done.code !== 0) throw new Fail(`${restore.join(" ")}: ${done.output}`);
-  if ((await secondsUntil(p, (r) => r.status === 200)) === null) throw new Fail("no answer after restoring the defaults");
-}
 
 /** The line the live-edit program prints, and the line the driver edits it to. */
 export const LIVE_EDIT_FROM = "version 1";
@@ -956,7 +947,6 @@ export const SCENARIOS: Scenario[] = [
     copy: true,
     fixed: { go: { result: "no", evidence: { compiled_into: "the image", restarts: 1 } } },
     probe: async (p) => {
-      await restoreDefaults(p);
       const before = ok(await p.get("/"), "the first version").body;
       if (!before.includes(LIVE_EDIT_FROM)) throw new Fail(`the first version: body ${pyRepr(before.slice(0, 200))}`);
       for (const name of readdirSync(p.dir)) {
@@ -990,7 +980,6 @@ export const SCENARIOS: Scenario[] = [
     copy: true,
     generate: () => Object.assign({ "main.nvs": deployEntry() }, ...Object.values(DEPLOY_EXT).map((ext) => deployParts("1", ext))),
     probe: async (p) => {
-      await restoreDefaults(p);
       const way = DEPLOY_WAYS[p.peer];
       const first = ok(await p.get("/"), "the first version").body.trim();
       if (first !== "1".repeat(DEPLOY_PARTS)) throw new Fail(`the first version: body ${pyRepr(first.slice(0, 200))}`);
@@ -1118,6 +1107,8 @@ export interface PeerResult {
   p50_ms: number | null;
   p99_ms: number | null;
   errors: number;
+  /** Each connection error `oha` saw in the best pass, by its message. */
+  error_kinds: Record<string, number>;
   status_codes: Record<string, number>;
   memory_idle_bytes: number | null;
   memory_peak_bytes: number | null;
@@ -1137,13 +1128,15 @@ export interface RunInfo {
 
 /** The figures `oha` gave for one arm, in the record's units. */
 export function resultOf(arm: Arm, memory: { idle: number | null; peak: number | null }, settings: PeerResult["settings"]): PeerResult {
-  const errors = Object.values((arm.errors ?? {}) as Record<string, number>).reduce((a, b) => a + b, 0);
+  const kinds = (arm.errors ?? {}) as Record<string, number>;
+  const errors = Object.values(kinds).reduce((a, b) => a + b, 0);
   return {
     requests_per_sec: arm.requests_per_sec,
     median_requests_per_sec: arm.median_requests_per_sec,
     p50_ms: arm.latency_ms?.p50 ?? null,
     p99_ms: arm.latency_ms?.p99 ?? null,
     errors,
+    error_kinds: kinds,
     status_codes: arm.status_codes ?? {},
     memory_idle_bytes: memory.idle,
     memory_peak_bytes: memory.peak,
@@ -1243,7 +1236,8 @@ const TUNABLES = [
   join(COMPARE_DIR, "nginx", "fastcgi.conf"),
   join(COMPARE_DIR, "bun", "serve.ts"),
   join(COMPARE_DIR, "go", "Dockerfile"),
-  join(ROOT, "benches", "proxied", "php", "opcache.ini"),
+  PHP_INI,
+  FILE_CHECK_INI,
   join(ROOT, "benches", "proxied", "php", "pool.conf.in"),
 ];
 

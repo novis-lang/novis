@@ -20,12 +20,23 @@ services:
       - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:ro
       # The proxied leg's opcache settings, shared rather than copied.
       - ../proxied/php/opcache.ini:/usr/local/etc/php/conf.d/zz-opcache.ini:ro
+      # PHP's own file check at its defaults, read after the shared ini. Its header says why.
+      - ./php/file-check.ini:/usr/local/etc/php/conf.d/zzz-file-check.ini:ro
       # Rendered by the driver from `benches/proxied/php/pool.conf.in` before every `up`, sized from the
       # case's concurrency. That template's header is why it is rendered and how it is sized.
       - ./generated/pool.conf:/usr/local/etc/php-fpm.d/zz-bench.conf:ro
 
+    # Healthy once every child of the static pool runs, and not when the socket first accepts. FPM opens
+    # its socket before it forks the children, and 2000 children take seconds to start on one CPU. A
+    # pass that starts earlier queues its connections behind the few children already up, and its
+    # idle memory is read from a pool that is still growing.
     healthcheck:
-      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"127.0.0.1\", 9000) ? 0 : 1);'"]
+      test:
+        - CMD-SHELL
+        - >-
+          want=$$(sed -n 's/^pm.max_children = //p' /usr/local/etc/php-fpm.d/zz-bench.conf);
+          [ $$(grep -l '^php-fpm' /proc/[0-9]*/comm | wc -l) -gt "$$want" ]
+          && php -r 'exit(@fsockopen("127.0.0.1", 9000) ? 0 : 1);'
       interval: 1s
       timeout: 3s
       retries: 60

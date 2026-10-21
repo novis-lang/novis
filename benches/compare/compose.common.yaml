@@ -27,6 +27,16 @@ services:
     ports:
       - "127.0.0.1:${NGINX_PORT:?the driver sets NGINX_PORT}:443"
 
+    # The local ports of nginx's connections to the backend, in this container's network only. The
+    # `wait` case runs 1000 requests at once, and each burst that ends together leaves more idle
+    # connections than `keepalive 16` keeps. nginx closes the rest, each closed port waits out TIME_WAIT,
+    # and a run of passes then fails `connect()` with `Address not available`, which nginx answers
+    # `502`. Reusing a port in TIME_WAIT for a new outgoing connection, over the whole unprivileged
+    # range, is what a reverse proxy under this load is configured with, and it is the same for every peer.
+    sysctls:
+      net.ipv4.tcp_tw_reuse: 1
+      net.ipv4.ip_local_port_range: "1024 65535"
+
     # nginx's own answer, never the backend's: not every case has a route at `/`.
     healthcheck:
       test: ["CMD-SHELL", "wget -q --no-check-certificate -O /dev/null https://127.0.0.1/.nginx-health || exit 1"]

@@ -21,7 +21,9 @@ Python is absent because `rule:tooling/python-claims` forbids the claim such a c
 Each peer uses its standard library only, and is tuned to its own advantage with every setting in git:
 FPM with a static pool, opcache and the JIT; Bun with one process per CPU of the budget sharing the
 port with `reusePort`; Go with `GOMAXPROCS` set to the budget, because the Go runtime reads the host's
-cores and not the container's quota; `nvs serve` with its defaults.
+cores and not the container's quota; `nvs serve` with its defaults. The one exception is PHP's file
+check, which stays on at PHP's defaults (`php/file-check.ini`). The page groups PHP with Novis as a
+server whose copied files are live, and with the check off a copied file is not live until a reload.
 
 ## Why TLS, and why at nginx
 
@@ -155,16 +157,16 @@ not `no`.
   writes `spawn = true` in its `[capabilities.script]` table first and is `one-setting`. Less than
   2x is `no`.
 - `live-edit` serves a copy of its folder under `generated/`, changes `version 1` to `version 2` in
-  the copy, and polls for 20 seconds. Each peer runs at its own defaults. The speed tests set
-  `opcache.validate_timestamps=0` for PHP, so before the first version the row writes PHP's default
-  `1` in a later ini and runs `php-fpm reload`; an edit that then shows is `on-by-default` naming it.
-  Bun runs without `--hot`, its default. An edit that never shows is `one-setting` where the peer's
+  the copy, and polls for 20 seconds. Each peer runs at its own defaults. PHP runs every case and
+  row with `opcache.validate_timestamps=1` and `revalidate_freq=2`, its defaults, from
+  `php/file-check.ini`, so an edit that shows is `on-by-default` naming the setting. Bun runs
+  without `--hot`, its default. An edit that never shows is `one-setting` where the peer's
   documentation names a setting it starts without, and the measured `null` stays in the evidence. Go
   compiles its program into the image, so it runs nothing and is `no`.
 - `deploy` serves a copy whose program reads 200 part files, each printing its version, so a reply
   shows every part's version. The driver writes the parts, and Novis's entry too, because `require`
   takes only a path written as literal text. PHP runs at its default `opcache.validate_timestamps=1`,
-  restored as the `live-edit` row restores it. Two seconds into 20 seconds of steady load, it
+  as in every case and row. Two seconds into 20 seconds of steady load, it
   replaces the parts one at a time with a 10 ms pause, then runs the step the peer needs at its
   defaults: none for Novis and PHP, which check their files, and a restart for Bun and Go. Go
   compiles its parts into the image, so it only restarts, and its reply is not checked for a
