@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   type Answer,
@@ -22,15 +22,14 @@ import {
   crashResult,
   csrfResult,
   DEPLOY_BIG_PARTS,
-  DEPLOY_EXT,
   DEPLOY_PARTS,
   DEPLOY_RUNS,
-  DEPLOY_SWITCH,
+  DEPLOY_SCRIPT,
   DEPLOY_WAYS,
-  deployEntry,
-  deployParts,
-  deployRelease,
+  deployCopyStep,
+  deployInitRun,
   deployResult,
+  deploySwitchStep,
   failureCounts,
   medianIndex,
   medianOf,
@@ -54,6 +53,7 @@ import {
   type RowResult,
   runawayResult,
   SCENARIOS,
+  scenarioCtx,
   scenarioFolder,
   withScenarios,
   stackEnv,
@@ -99,6 +99,7 @@ describe("the peer table", () => {
       CASE: "hello",
       BACKEND_CPUS: "4",
       BACKEND_MEMORY: "0",
+      APP_SOURCE: "./cases/hello",
       APP_DIR: "/app",
       APP_MOUNT_MODE: "ro",
       NGINX_CONF: "http.conf",
@@ -109,11 +110,33 @@ describe("the peer table", () => {
     expect(stackEnv(nvs, ctx).NVS_BUILD_COMMIT).toBe("abc1234");
   });
 
-  test("a row may serve a link read-write, name its part count and give a peer its own nginx config", () => {
+  test("a row may serve the site volume read-write, name its part count and give a peer its own nginx config", () => {
     const php = PEERS.find((p) => p.id === "php")!;
-    const env = stackEnv(php, { ...ctx, appDir: "/app/current", mount: "rw", parts: 2000, nginx: "fastcgi-switch.conf" });
-    expect(env).toMatchObject({ APP_DIR: "/app/current", APP_MOUNT_MODE: "rw", DEPLOY_PARTS: "2000", NGINX_CONF: "fastcgi-switch.conf" });
+    const env = stackEnv(php, { ...ctx, appDir: "/app/current", site: true, parts: 2000, nginx: "fastcgi-switch.conf" });
+    expect(env).toMatchObject({ APP_SOURCE: "site", APP_DIR: "/app/current", APP_MOUNT_MODE: "rw", DEPLOY_PARTS: "2000", NGINX_CONF: "fastcgi-switch.conf" });
     expect(stackEnv(php, ctx).DEPLOY_PARTS).toBeUndefined();
+  });
+
+  test("the deploy rows serve the site volume read-write, and every other row its own folder read-only", () => {
+    for (const s of SCENARIOS) {
+      for (const peer of PEERS) {
+        const env = stackEnv(peer, scenarioCtx(s, peer, 1, "abc1234"));
+        const deploy = s.id.startsWith("deploy");
+        expect(env.APP_SOURCE).toBe(deploy ? "site" : `./${s.tree}/${s.case}`);
+        expect(env.APP_MOUNT_MODE).toBe(deploy ? "rw" : "ro");
+      }
+    }
+  });
+
+  test("every stack that serves a program from /app mounts it from APP_SOURCE, and deploy.sh read-only, and declares the site volume", () => {
+    for (const id of ["nvs", "php", "bun"]) {
+      const text = readFileSync(join(COMPARE_DIR, PEERS.find((p) => p.id === id)!.stack), "utf8");
+      expect(text).toContain("- ${APP_SOURCE:?the driver sets APP_SOURCE}:/app:${APP_MOUNT_MODE:?the driver sets APP_MOUNT_MODE}");
+      expect(text).toContain(`- ./deploy/deploy.sh:${DEPLOY_SCRIPT}:ro`);
+      expect(text).toMatch(/^volumes:\n {2}site: \{\}$/m);
+      expect(text).not.toContain("${TREE");
+    }
+    expect(readFileSync(join(COMPARE_DIR, "compose.php.yaml"), "utf8")).toContain("- ${APP_SOURCE:?the driver sets APP_SOURCE}:/app:ro");
   });
 
   test("the switch config differs from the FastCGI one only in the root and the two lines that name the script", () => {
@@ -197,11 +220,10 @@ describe("the feature scenarios", () => {
     const files: Record<string, string> = { nvs: "main.nvs", php: "index.php", bun: "server.ts", go: "main.go" };
     for (const s of SCENARIOS) {
       for (const peer of PEERS) {
-        // A row that serves a case serves every peer's program, fixed or not. A generated one is written by
-        // the row, at the top of its folder or in the release a link serves.
+        // A row that serves a case serves every peer's program, fixed or not. In a deploy row, `deploy.sh`
+        // writes Novis's entry, and copies the others from the row's folder.
         const file = files[peer.id]!;
-        const generated = Object.keys(s.generate?.() ?? {});
-        const there = existsSync(join(COMPARE_DIR, s.tree, s.case, file)) || generated.some((path) => path === file || path === `releases/1/${file}`);
+        const there = existsSync(join(COMPARE_DIR, s.tree, s.case, file)) || (s.site !== undefined && peer.id === "nvs");
         expect(there).toBe(s.tree === "cases" || s.fixed?.[peer.id] === undefined);
       }
     }
@@ -283,40 +305,96 @@ describe("the feature scenarios", () => {
     expect(liveEditResult(null, undefined).result).toBe("no");
   });
 
-  test("the deploy tree has 200 parts per program, and Novis's entry requires each one by its literal path", () => {
-    for (const ext of Object.values(DEPLOY_EXT)) expect(Object.keys(deployParts("2", ext)).length).toBe(DEPLOY_PARTS);
-    expect(deployParts("2", "nvs")["parts/p199.nvs"]).toBe('<?nvs\necho "2";\n');
-    const generated = SCENARIOS.find((s) => s.id === "deploy")!.generate!();
-    expect(Object.keys(generated).length).toBe(3 * DEPLOY_PARTS + 1);
-    const requires = deployEntry().split("\n").filter((l) => l.startsWith("require "));
-    expect(requires.length).toBe(DEPLOY_PARTS);
-    expect(requires[0]).toBe("require 'parts/p000.nvs';");
+  test("the deploy rows write 200, 2000 and 200 parts, flat, flat and as releases behind a link", () => {
+    const row = (id: string) => SCENARIOS.find((s) => s.id === id)!;
+    expect([row("deploy"), row("deploy-big"), row("deploy-switch")].map((s) => [s.parts, s.site])).toEqual([
+      [DEPLOY_PARTS, "flat"],
+      [DEPLOY_BIG_PARTS, "flat"],
+      [DEPLOY_PARTS, "release"],
+    ]);
+    expect(row("deploy-switch")).toMatchObject({ appDir: "/app/current", nginx: { php: "fastcgi-switch.conf" } });
+    expect(row("deploy").appDir).toBeUndefined();
   });
 
-  test("the big deploy has 2000 parts named with four digits, and Novis's entry requires each one", () => {
-    const parts = deployParts("1", "php", DEPLOY_BIG_PARTS);
-    expect(Object.keys(parts).length).toBe(2000);
-    expect(Object.keys(parts)[0]).toBe("parts/p0000.php");
-    expect(parts["parts/p1999.php"]).toBe('<?php echo "1";\n');
-    const requires = deployEntry(DEPLOY_BIG_PARTS).split("\n").filter((l) => l.startsWith("require "));
-    expect(requires.length).toBe(2000);
-    expect(requires[1999]).toBe("require 'parts/p1999.nvs';");
-    const big = SCENARIOS.find((s) => s.id === "deploy-big")!;
-    expect(big.parts).toBe(2000);
-    expect(Object.keys(big.generate!()).length).toBe(3 * 2000 + 1);
+  test("init runs deploy.sh in a one-off app container with the row's folder at /src, and copy and switch run it in the backend", () => {
+    const source = join(COMPARE_DIR, "scenarios", "deploy");
+    expect(deployInitRun(source, "nvs", 200, "flat")).toEqual(
+      ["run", "--rm", "--no-deps", "--entrypoint", "sh", "-v", `${source}:/src:ro`, "app", "/srv/deploy.sh", "init", "nvs", "200", "flat"],
+    );
+    expect(deployInitRun(source, "php", 200, "release").slice(-5)).toEqual(["/srv/deploy.sh", "init", "php", "200", "release"]);
+    expect(deployCopyStep("ts", 2000, "flat")).toEqual(["sh", "/srv/deploy.sh", "copy", "ts", "2000", "flat", "2", "0.01"]);
+    expect(deployCopyStep("php", 200, "release")).toEqual(["sh", "/srv/deploy.sh", "copy", "php", "200", "release", "2", "0.01"]);
+    expect(deploySwitchStep("nvs", 200)).toEqual(["sh", "/srv/deploy.sh", "switch", "nvs", "200", "release", "2"]);
   });
 
-  test("the switch row generates release 1 under releases/1/, serves the link read-write, and gives PHP its realpath config", () => {
-    const sw = SCENARIOS.find((s) => s.id === "deploy-switch")!;
-    expect(sw).toMatchObject({ appDir: "/app/current", mount: "rw", nginx: { php: "fastcgi-switch.conf" } });
-    const files = sw.generate!();
-    for (const entry of ["main.nvs", "index.php", "server.ts"]) expect(files[`releases/1/${entry}`]).toBeDefined();
-    expect(files["releases/1/parts/p000.ts"]).toBe('export const version = "1";\n');
-    expect(Object.keys(files).every((path) => path.startsWith("releases/1/"))).toBe(true);
-    const release = deployRelease("2", "php", DEPLOY_PARTS, "releases/2/");
-    expect(Object.keys(release).length).toBe(DEPLOY_PARTS + 1);
-    expect(release["releases/2/index.php"]).toBe(readFileSync(join(COMPARE_DIR, "scenarios", "deploy", "index.php"), "utf8"));
-    expect(DEPLOY_SWITCH).toBe("ln -s releases/2 /app/next && mv -T /app/next /app/current");
+  // deploy.sh run by this machine's `sh` in a scratch folder, `APP` and `SRC` in place of `/app` and `/src`.
+  // Git Bash's `ln -s` copies the folder instead of linking it, so on Windows the link and the switch are not checked.
+  const deploySh = join(COMPARE_DIR, "deploy", "deploy.sh");
+  const deploySource = join(COMPARE_DIR, "scenarios", "deploy");
+  const realLinks = process.platform !== "win32";
+  const inScratch = (body: (app: string) => void) => {
+    const root = join(COMPARE_DIR, "..", "..", ".agent-tmp");
+    mkdirSync(root, { recursive: true });
+    const app = mkdtempSync(join(root, "deploy-sh-"));
+    try {
+      body(app);
+    } finally {
+      rmSync(app, { recursive: true, force: true });
+    }
+  };
+  const runSh = (app: string, step: string[]) => {
+    // The driver's own arguments, with the container's script path replaced by this checkout's.
+    const args = step[0] === "sh" ? step.slice(2) : step.slice(1);
+    const done = Bun.spawnSync(["sh", deploySh, ...args], { env: { ...process.env, APP: app, SRC: deploySource } });
+    expect(`${done.stderr.toString()}exit ${done.exitCode}`).toBe("exit 0");
+  };
+  const initArgs = (ext: string, parts: number, layout: "flat" | "release") => deployInitRun(deploySource, ext, parts, layout).slice(-5);
+  const read = (path: string) => readFileSync(path, "utf8");
+
+  test.skipIf(Bun.which("sh") === null)("deploy.sh init empties the volume and writes version 1 flat, with Novis's entry, and copy writes version 2 over it", () => {
+    inScratch((app) => {
+      writeFileSync(join(app, ".stale"), "x");
+      runSh(app, initArgs("nvs", 12, "flat"));
+      expect(existsSync(join(app, ".stale"))).toBe(false);
+      expect(readdirSync(join(app, "parts")).length).toBe(12);
+      expect(read(join(app, "parts", "p11.nvs"))).toBe('<?nvs\necho "1";\n');
+      expect(read(join(app, "index.php"))).toBe(read(join(deploySource, "index.php")));
+      const entry = read(join(app, "main.nvs")).split("\n");
+      expect(entry[0]).toBe("<?nvs");
+      expect(entry.filter((l) => l.startsWith("require "))).toEqual(Array.from({ length: 12 }, (_, i) => `require 'parts/p${String(i).padStart(2, "0")}.nvs';`));
+      expect(entry.slice(-2)).toEqual(['echo "\\n";', ""]);
+      runSh(app, deployCopyStep("nvs", 12, "flat"));
+      expect(readdirSync(join(app, "parts")).length).toBe(12);
+      expect(read(join(app, "parts", "p00.nvs"))).toBe('<?nvs\necho "2";\n');
+    });
+  });
+
+  test.skipIf(Bun.which("sh") === null)("deploy.sh pads 2000 parts to four digits and writes no Novis entry for another peer", () => {
+    inScratch((app) => {
+      runSh(app, initArgs("php", DEPLOY_BIG_PARTS, "flat"));
+      const parts = readdirSync(join(app, "parts")).sort();
+      expect([parts.length, parts[0], parts.at(-1)]).toEqual([2000, "p0000.php", "p1999.php"]);
+      expect(read(join(app, "parts", "p1999.php"))).toBe('<?php echo "1";\n');
+      expect(existsSync(join(app, "main.nvs"))).toBe(false);
+    });
+  });
+
+  test.skipIf(Bun.which("sh") === null)("deploy.sh writes releases behind the current link, and switch points it at release 2", () => {
+    inScratch((app) => {
+      runSh(app, initArgs("ts", 5, "release"));
+      expect(read(join(app, "releases", "1", "server.ts"))).toBe(read(join(deploySource, "server.ts")));
+      expect(read(join(app, "releases", "1", "parts", "p4.ts"))).toBe('export const version = "1";\n');
+      expect(existsSync(join(app, "current", "server.ts"))).toBe(true);
+      runSh(app, deployCopyStep("ts", 5, "release"));
+      expect(readdirSync(join(app, "releases", "2")).sort()).toEqual(readdirSync(join(app, "releases", "1")).sort());
+      expect(read(join(app, "releases", "2", "parts", "p0.ts"))).toBe('export const version = "2";\n');
+      expect(read(join(app, "current", "parts", "p0.ts"))).toBe('export const version = "1";\n');
+      if (!realLinks) return;
+      expect(readlinkSync(join(app, "current"))).toBe("releases/1");
+      runSh(app, deploySwitchStep("ts", 5));
+      expect(readlinkSync(join(app, "current"))).toBe("releases/2");
+      expect(existsSync(join(app, "next"))).toBe(false);
+    });
   });
 
   test("every row that runs more than once merges its runs", () => {

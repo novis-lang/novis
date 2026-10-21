@@ -31,9 +31,13 @@ services:
     # after it measures the restart and not a server left down for the rest of the row.
     restart: unless-stopped
 
-    # Read-only, except in the `deploy-switch` row, whose link is switched inside the container.
+    # `APP_SOURCE` is the case's folder, mounted read-only. The deploy rows mount the `site` volume
+    # read-write instead, and `deploy/deploy.sh` writes the program into it from inside the container.
+    # Docker Desktop's file share reports thousands of changed host files late, so a copy written on the
+    # host would measure the share and not the server. A Linux server has no such share.
     volumes:
-      - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:${APP_MOUNT_MODE:?the driver sets APP_MOUNT_MODE}
+      - ${APP_SOURCE:?the driver sets APP_SOURCE}:/app:${APP_MOUNT_MODE:?the driver sets APP_MOUNT_MODE}
+      - ./deploy/deploy.sh:/srv/deploy.sh:ro
 
     # `APP_DIR` is `/app`, or `/app/current` in the row that serves a link to a release.
     command: ["serve", "${APP_DIR:?the driver sets APP_DIR}/main.nvs", "--listen", "0.0.0.0:8080"]
@@ -54,3 +58,7 @@ services:
 
   oha:
     extends: { file: compose.common.yaml, service: oha }
+
+# The deploy rows' program, written by `deploy/deploy.sh`. `down -v` removes it after every row.
+volumes:
+  site: {}
