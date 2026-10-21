@@ -490,6 +490,7 @@ fn sub_cap(limits: &LimitSet) -> Vec<(String, String)> {
         max_output,
         request_body,
         upload_total,
+        max_multipart_parts,
         max_regex_steps,
     } = limits;
     [
@@ -500,6 +501,7 @@ fn sub_cap(limits: &LimitSet) -> Vec<(String, String)> {
         ("max_output", max_output),
         ("request_body", request_body),
         ("upload_total", upload_total),
+        ("max_multipart_parts", max_multipart_parts),
         ("max_regex_steps", max_regex_steps),
     ]
     .into_iter()

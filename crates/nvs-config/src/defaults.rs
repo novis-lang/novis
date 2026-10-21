@@ -84,6 +84,12 @@ pub const LIMITS_UPLOAD_TOTAL: u64 = 256 * MIB;
 pub const LIMITS_HARD_REQUEST_BODY: u64 = 64 * MIB;
 /// `[limits.hard] upload_total`: the most a request may raise its own `upload_total` to.
 pub const LIMITS_HARD_UPLOAD_TOTAL: u64 = 2048 * MIB;
+/// `[limits] max_multipart_parts`: how many parts a multipart body may hold, field parts included
+/// (`rule:errors/multipart-part-count`). **What it spends:** nothing resident. It bounds the
+/// bookkeeping one walk of a body does.
+pub const LIMITS_MAX_MULTIPART_PARTS: usize = 1000;
+/// `[limits.hard] max_multipart_parts`: the most a request may raise its own part count to.
+pub const LIMITS_HARD_MAX_MULTIPART_PARTS: usize = 10_000;
 
 /// `[log] handler_reserve_memory`: the tier-3 handler's memory reserve.
 pub const LOG_HANDLER_RESERVE_MEMORY: usize = 16 << 20;
@@ -458,6 +464,7 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("limits.disconnect_grace", Value::Time(LIMITS_DISCONNECT_GRACE)),
     row!("limits.request_body", Value::Size(LIMITS_REQUEST_BODY)),
     row!("limits.upload_total", Value::Size(LIMITS_UPLOAD_TOTAL)),
+    row!("limits.max_multipart_parts", Value::Count(LIMITS_MAX_MULTIPART_PARTS as u64)),
     row!("limits.hard.memory", Value::InheritServing("limits.memory")),
     row!("limits.hard.cpu_time", Value::Inherit("limits.cpu_time")),
     row!("limits.hard.wall_time", Value::Inherit("limits.wall_time")),
@@ -465,6 +472,7 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("limits.hard.max_output", Value::Inherit("limits.max_output")),
     row!("limits.hard.request_body", Value::Size(LIMITS_HARD_REQUEST_BODY)),
     row!("limits.hard.upload_total", Value::Size(LIMITS_HARD_UPLOAD_TOTAL)),
+    row!("limits.hard.max_multipart_parts", Value::Count(LIMITS_HARD_MAX_MULTIPART_PARTS as u64)),
     row!("limits.hard.max_regex_steps", Value::Inherit("limits.max_regex_steps")),
     row!("log.handler_reserve_memory", Value::Size(LOG_HANDLER_RESERVE_MEMORY as u64)),
     row!("log.handler_reserve_time", Value::Time(LOG_HANDLER_RESERVE_TIME)),

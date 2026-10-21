@@ -196,6 +196,9 @@ pub struct Limits {
     /// `Runtime` — the total bytes of a streamed request body, consumed and drained alike
     /// (`rule:http-server/request-body-and-upload-total-are-two-caps`).
     pub upload_total: Option<Setting>,
+    /// `Runtime` — how many parts a multipart body may hold, field parts included
+    /// (`rule:errors/multipart-part-count`).
+    pub max_multipart_parts: Option<Setting>,
     /// `Runtime` — how many steps `rule:core-classes/regex-two-tiers`'s backtracking tier may spend
     /// on one subject before it throws. Unset, the budget `crates/nvs-stdlib/src/regex.rs` states,
     /// which is the figure that engine's own adversarial-pattern tests are written against. The
@@ -277,6 +280,8 @@ pub struct LimitSet {
     pub request_body: Option<Setting>,
     /// The ceiling on a streamed body's total bytes.
     pub upload_total: Option<Setting>,
+    /// The ceiling on a multipart body's part count.
+    pub max_multipart_parts: Option<Setting>,
     /// The ceiling on backtracking steps.
     pub max_regex_steps: Option<Setting>,
 }

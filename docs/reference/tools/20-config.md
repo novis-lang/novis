@@ -132,6 +132,7 @@ set, a request, a connection, a scheduled script and a queued job may use 30s of
 | `max_tasks` | count | concurrent tasks |
 | `max_output` | size | bytes written to the response |
 | `max_regex_steps` | count | how many steps the backtracking regex tier may spend on one subject before it throws; the linear tier runs under no budget |
+| `max_multipart_parts` | count | how many parts a multipart form body may have, text fields included (default 1000, ceiling 10000). A body with more parts makes the call that reads the form throw an error |
 | `fatal_reserve_memory` | size | the slice of `memory` kept back for the limit handler (`Core\Fatal::onLimit`); not raisable, no ceiling |
 | `fatal_reserve_time` | duration | the slice of `cpu_time` kept back for the same handler |
 | `max_script_depth` | count | how deep `spawn script` may nest (default 64); not raisable |
@@ -140,7 +141,7 @@ set, a request, a connection, a scheduled script and a queued job may use 30s of
 | `memory_high_water` | ratio | a share of `memory`, between `0` and `1`. A request whose memory peak reaches that share writes one `Warn` to the log when it ends, naming the peak, the ceiling and the route. Unset, nothing is written; not raisable |
 
 `[limits.hard]` takes only the keys a request may raise: `memory`, `cpu_time`, `wall_time`,
-`max_tasks`, `max_output` and `max_regex_steps`. Breaching a limit is **not an exception**: nothing
+`max_tasks`, `max_output`, `max_regex_steps` and `max_multipart_parts`. Breaching a limit is **not an exception**: nothing
 in the program can `catch` it. The request is stopped, the handler registered with
 `Core\Fatal::onLimit` runs out of the reserve if there is one, `FATAL: …` is written to standard
 error, and `nvs run` exits `1`. What was already written to standard output stays written.

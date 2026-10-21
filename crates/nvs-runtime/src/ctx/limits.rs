@@ -1136,6 +1136,31 @@ impl Ctx {
         }
     }
 
+    /// `[limits] max_multipart_parts` in force for this request: the most
+    /// parts, field parts included, one multipart body may hold
+    /// (`rule:errors/multipart-part-count`).
+    ///
+    /// The shipped default where there is no configuration or no usable value,
+    /// for [`Self::request_body_limit`]'s reason. `false` reads as that default
+    /// too: a body of unbounded parts is the shape the rule exists to stop.
+    #[must_use]
+    pub fn multipart_parts_limit(&self) -> usize {
+        let shipped = nvs_config::defaults::LIMITS_MAX_MULTIPART_PARTS;
+        let Some(written) = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("max_multipart_parts"))
+        else {
+            return shipped;
+        };
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("max_multipart_parts", nvs_config::Unit::Count, &setting)
+        {
+            Ok(nvs_config::Quantity::Count(count)) => usize::try_from(count).unwrap_or(usize::MAX),
+            _ => shipped,
+        }
+    }
+
     /// One `[limits]` directive read as a byte count — the arithmetic the
     /// readers above share.
     ///
