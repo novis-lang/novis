@@ -13,7 +13,8 @@ if (child) {
   const procs = Array.from({ length: workers }, () =>
     Bun.spawn(["bun", import.meta.path], { env: { ...process.env, COMPARE_CHILD: "1" }, stdout: "inherit", stderr: "inherit" }),
   );
-  // One process ending stops the container, so a crash shows as a failed stack and never as a slower one.
+  // One process ending stops the container, and its restart policy starts it again. A crash then shows in
+  // the container's restart count, which the feature rows read, and never as a slower stack.
   await Promise.race(procs.map((p) => p.exited));
   for (const p of procs) p.kill();
   process.exit(1);

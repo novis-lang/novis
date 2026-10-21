@@ -15,6 +15,9 @@ services:
     mem_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
     memswap_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
 
+    # Started again when it exits, as `compose.nvs.yaml` says.
+    restart: unless-stopped
+
     working_dir: /app
     volumes:
       - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:ro

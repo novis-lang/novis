@@ -104,29 +104,33 @@ because a safe way that sits beside an unsafe one is a choice the developer has 
 Otherwise the developer chooses the safe way or calls an escaper, so the result is `your-code` and
 not `no`.
 
-- `cores` and `waiting` send no requests of their own. Each times a case the way a full run does, on
-  a fresh stack per pass, with the run's `--requests` and `--reps`.
-- `cores` times html-page at one cpu and at four. Throughput that grows by 2x or more is `built-in`,
-  or `your-code` where the peer's program carries a launcher to use the cores, as Bun's `serve.ts`
-  does. Less than 2x is `no`. nginx and `oha` each have four cpus, and hello reaches their ceiling
-  at four backend cpus with every peer, so the row times the case with the most work per request.
-  A peer whose four-cpu figure still nears that ceiling measures the front, and the evidence keeps
-  both figures so a reader can see it.
+- `cores` and `waiting` send no requests of their own. Each times a request the way a full run does,
+  on a fresh stack per pass, with the run's `--requests` and `--reps`.
+- `cores` times one part of the `parallel` row's loop, about a millisecond of one core, at one cpu
+  and at four. Throughput that grows by 2x or more is `built-in`, or `your-code` where the peer's
+  program carries a launcher to use the cores, as Bun's `serve.ts` does. Less than 2x is `no`. A case
+  in `cases/` cannot measure this: nginx and `oha` each have four cpus, and a peer that answers html-page
+  at 20k requests a second on one cpu meets their ceiling at four, so its scaling would be the front's.
+  Four cpus of a millisecond each answer a few thousand requests a second, far under that ceiling.
+- Every backend has the restart policy `unless-stopped`, because every peer is deployed under a
+  supervisor that starts a server again when it exits. A row reads the container's restart count, so a
+  crash still shows, and the load after it measures the restart rather than a server left down.
 - `crash` sends one request that throws or panics, then one that does not. The second must answer
-  `200` from a backend that is still running. No stack sets a restart policy, so a crashed backend
-  stays down and shows.
-- `loop` and `memory` each put 15 seconds of steady load on `/` and, 3 seconds in, send one runaway
-  request into it: `loop` sends `/loop`, which never ends, and `memory` sends `/alloc`, which
-  allocates 1 MiB at a time without end. Each backend container has a 512 MiB cap in these rows, so
+  `200` from a backend that is running and was never restarted.
+- `loop` and `memory` each put 15 seconds of steady load on `/` with nothing else running, then 15
+  seconds more with one runaway request sent 3 seconds in: `loop` sends `/loop`, which never ends,
+  and `memory` sends `/alloc`, which allocates 1 MiB at a time without end. The first load is the
+  peer's own throughput, and the page shows the share of it the second load kept, so a peer that is
+  fast anyway does not win the row on speed. Each backend container has a 512 MiB cap in these rows, so
   an allocation without end stops at the container and not at the host. The runaway request counts
   as stopped when the backend answers it within 55 seconds, under nginx's 60-second read timeout,
   with any status but nginx's own `502` or `504`. No failed request under load, the runaway stopped
-  and the backend still running is `built-in`. A request `oha` still has open when the load ends is
-  not a failure. Novis sets no limit by default, so it writes `memory = "16M"` and `cpu_time = "1s"`
-  in its `[limits]` table first and is `one-setting`. `nvs serve` admits a request only while the
-  requests already running leave room in the container's memory for it to reach `memory`. PHP's own `max_execution_time` and `memory_limit` are on by
-  default, so PHP is `on-by-default` naming the one its row needs. The other answers are `no`, and
-  the load's p99 stays in the evidence.
+  and the backend never restarted is `built-in`. A request `oha` still has open when the load ends is
+  not a failure. Every peer runs at its defaults. Novis's `[limits]` and PHP's `memory_limit` and
+  `max_execution_time` both stop a request at 128 MB or 30 seconds of CPU time, so both are
+  `on-by-default` naming the key their row needs. Thirty seconds is longer than the load, so `loop`
+  measures the other requests while the runaway one still runs. Bun and Go have no limit for one
+  request, so their answers are `no`, and the load's p99 stays in the evidence.
 - No row tests whether a request sees a value another request set. A process that keeps state
   between requests is a design choice in Bun and Go, not a failure, and a yes or no cannot say which
   of the two a reader wants.
