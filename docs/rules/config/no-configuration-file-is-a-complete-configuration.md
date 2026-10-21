@@ -51,8 +51,16 @@ at all — a test context, an embedder that has not built a snapshot — has no 
 `fs.read` is the app folder, less every path with a component below it that starts with `.` (`.env`,
 `.git/config`) and every file named `nvs.toml`, and an unwritten `fs.write` is the directories
 `Core\IO::temporaryDir` made for this context, which it also reads. A written key replaces its
-default whole, so `read = []` reads nothing and leaves writing at its default. Every other
-capability defaults to nothing (`rule:security/capability-question-is-grant-and-scope`). `nvs serve`
+default whole, so `read = []` reads nothing and leaves writing at its default. An unwritten
+`net.connect` is every public host on both run kinds, and an unwritten `net.internal` is loopback on
+a CLI run and in a run that started in `development` (`rule:security/net-address-policy`,
+`rule:config/a-startup-default-is-never-flipped`). An unwritten `process.exec` is every program on a
+CLI run and none in server work (`rule:security/process-exec-capability`), and an unwritten
+`script.spawn` is the app folder on both, less its temporary directories
+(`rule:security/script-spawn-capability`). Every other capability defaults to nothing
+(`rule:security/capability-question-is-grant-and-scope`). The defaults are the application's own:
+a package is checked against its own grant line alone
+(`rule:security/package-authority-is-granted-one-line-at-a-time`). `nvs serve`
 names, in one boot line per app folder whose tree writes no `fs.read`, the folder its requests read.
 
 - **Memory:** the app folder is one path per context, and the temporary directories are the list
@@ -79,3 +87,15 @@ each of which is the same TOML key as the `pool = false` beside it and cannot be
 --check-template` refuses a key left under a commented-out header when the live header above it has
 a key of the same name, which is the one arrangement where uncommenting the key alone would be
 accepted into the wrong block.
+
+**Declined:**
+- **A default for a grant that turns a check off or reaches what an operator has to name.**
+  `net.listen`, the four `tls.*` relaxations, `ldap.cleartext`, `net.downgrade`, `db.schema`,
+  `queue.purge`, `cache.shared`, `mail.send`, every `debug.*` grant and the named `[db.*]` and
+  `[ldap.*]` blocks keep no default, and so do CORS, the cookie attributes and the security headers.
+  Each one either weakens a protection the program cannot see, or reaches a service only the
+  operator knows, so a default would be a guess with the operator's authority.
+- **A writable `storage/` folder in server work.** A written upload could land beside code the
+  default `script.spawn` would run. A server writes only its own temporary directories until a line
+  says where else.
+- **Loopback in production server work.** `rule:security/net-address-policy` records why.
