@@ -824,6 +824,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     };
     if let Some(class) = ctx.current_class.filter(|_| ctx.in_constructor) {
         crate::expr::members::record_promoted_pipelines(m, class, env);
+        crate::expr::assign::record_promoted_covariant_writes(m, class, env);
     }
 
     let mut scope = LocalScope::new();

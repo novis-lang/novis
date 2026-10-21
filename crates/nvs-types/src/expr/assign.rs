@@ -1229,6 +1229,7 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
     }
     if !through_subscript {
         reject_get_only_hook_write(root, ctx, env);
+        record_covariant_write(root, env);
         return;
     }
     if !is_a_place(&root.kind) {
@@ -1287,6 +1288,105 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
         }
         _ => {}
     }
+}
+
+/// Records the property write at `root` as one that tests its value, when a
+/// subclass of the class the write resolved to declares the property again
+/// at a type the resolved one does not fit
+/// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+///
+/// The checker has already held the value to the resolved class's type, so
+/// a write through the narrowing class itself, or below it, is not tested.
+/// A write through a union of classes is tested when any of its classes
+/// would be. The walk runs only for a name some class declares `covariant`.
+fn record_covariant_write(root: &Expr, env: &mut Env<'_>) {
+    if !matches!(root.kind, ExprKind::PropertyAccess { .. }) {
+        return;
+    }
+    let resolved = |info: &ExprInfo| match info {
+        ExprInfo::Property {
+            class, name, ty, ..
+        }
+        | ExprInfo::HookedProperty {
+            class, name, ty, ..
+        } => Some((class.clone(), name.clone(), *ty)),
+        _ => None,
+    };
+    let writes: Vec<(QName, String, TypeId)> = match env.exprs.lookup(root.span) {
+        Some(ExprInfo::UnionMember { arms }) => {
+            arms.iter().filter_map(|(_, arm)| resolved(arm)).collect()
+        }
+        Some(info) => resolved(info).into_iter().collect(),
+        None => return,
+    };
+    let tested = writes
+        .into_iter()
+        .any(|(class, name, ty)| narrowed_below(&class, &name, ty, env));
+    if tested {
+        env.exprs.record_covariant_write(root.span);
+    }
+}
+
+/// [`record_covariant_write`] for each promoted parameter of `class`'s
+/// constructor `m`, whose store into its property is a write through `$this`
+/// that no source line spells. A subclass's constructor reaches it with
+/// `parent::constructor(...)`.
+pub(crate) fn record_promoted_covariant_writes(
+    m: &nvs_syntax::ast::MethodMember,
+    class: &QName,
+    env: &mut Env<'_>,
+) {
+    for p in m.params.iter().filter(|p| p.is_promoted()) {
+        let name = strip_sigil(span_text(env.src, p.name)).to_owned();
+        let Some(ty) = env
+            .signatures
+            .get(class)
+            .and_then(|sig| sig.properties.get(&name))
+            .copied()
+        else {
+            continue;
+        };
+        if narrowed_below(class, &name, ty, env) {
+            env.exprs.record_covariant_write(p.name);
+        }
+    }
+}
+
+/// Whether a class below `class` declares the property `name` again at a
+/// type that `ty`, the type `class` gives it, does not fit.
+fn narrowed_below(class: &QName, name: &str, ty: TypeId, env: &mut Env<'_>) -> bool {
+    if !env.signatures.is_narrowed(name) {
+        return false;
+    }
+    let below: Vec<TypeId> = env
+        .signatures
+        .iter()
+        .filter(|(other, _)| *other != class && extends_class(other, class, env.graph))
+        .filter_map(|(_, sig)| sig.properties.get(name).copied())
+        .collect();
+    below
+        .into_iter()
+        .any(|narrowed| !field_fits(ty, narrowed, env.interner, env.graph, env.signatures))
+}
+
+/// Whether `class` has `ancestor` on its superclass chain.
+fn extends_class(class: &QName, ancestor: &QName, graph: &ClassGraph) -> bool {
+    let mut seen = FxHashSet::default();
+    let mut next = graph
+        .get(class)
+        .and_then(|links| links.extends.first().cloned());
+    while let Some(parent) = next {
+        if parent == *ancestor {
+            return true;
+        }
+        if !seen.insert(parent.clone()) {
+            return false;
+        }
+        next = graph
+            .get(&parent)
+            .and_then(|links| links.extends.first().cloned());
+    }
+    false
 }
 
 /// `rule:types/a-member-every-class-of-a-union-declares`'s write: a property

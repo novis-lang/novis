@@ -187,10 +187,10 @@ before the body runs, through a class, an interface, a static method and `compar
 **Does:** a subclass redeclares an instance property at a narrower type with `covariant`, and a write
 through a wider type that would store another class throws.
 
-- [ ] The redeclaration check from stage 16 accepts `covariant` with a narrower type, and its help names `covariant`. `crates/nvs-types/src/conformance.rs:1`
-- [ ] The class descriptor carries the narrowed type for each narrowed slot, and the slot stays the topmost declaration's. `crates/nvs-types/src/layout.rs:1004`
-- [ ] A typed write that can reach a narrowed slot with a wider value loads the receiver's type and tests the value, and every other write is unchanged. `crates/nvs-ir/src/lower/stmt.rs:1137`, `crates/nvs-ir/src/lower/mod.rs:3034`
-- [ ] A case for a plain property, a promoted parameter, `lateinit`, the parent's constructor writing a wider value, and a write through the subclass's own type that is not tested. The types include `int` under `int|string` and `int` under `?int`, read back through both classes. `tests/conformance/class/a-covariant-property-is-checked-by-every-write.nvst:1`
+- [x] The redeclaration check from stage 16 accepts `covariant` with a narrower type, and its help names `covariant`. `crates/nvs-types/src/conformance.rs:1`
+- [x] The class descriptor carries the narrowed type for each narrowed slot, and the slot stays the topmost declaration's. `crates/nvs-types/src/layout.rs:1004`
+- [x] A typed write that can reach a narrowed slot with a wider value loads the receiver's type and tests the value, and every other write is unchanged. `crates/nvs-ir/src/lower/stmt.rs:1137`, `crates/nvs-ir/src/lower/mod.rs:3034`
+- [x] A case for a plain property, a promoted parameter, `lateinit`, the parent's constructor writing a wider value, and a write through the subclass's own type that is not tested. The types include `int` under `int|string` and `int` under `?int`, read back through both classes. `tests/conformance/class/a-covariant-property-is-checked-by-every-write.nvst:1`
 
 ### 5. an erased, dynamic or hooked write of a covariant property is checked
 
@@ -253,24 +253,63 @@ calls `Helper::CovariantRejected`, and `nvs_covariant_rejected` throws a `LogicE
 and `describe_argument` (`crates/nvs-runtime/src/object.rs`). The case is
 `tests/conformance/class/a-covariant-parameter-is-checked-when-the-method-is-entered.nvst`.
 
-Two forms still assert in lowering: a promoted covariant constructor parameter, which is a property
-and stage 4's (`crates/nvs-ir/src/lower/mod.rs:1312`), and a covariant parameter of a generator
-method (`crates/nvs-ir/src/lower/generator.rs:709`).
+A covariant parameter of a generator method still asserts in lowering
+(`crates/nvs-ir/src/lower/generator.rs:709`).
 
-The nightly run the sweep named was on `6544156`, 52 commits back. `bun nv proofs --gate` is green
-on `main`: the stale `BigInt`, `Json` and `Router` perf records it named were re-recorded since.
+Stage 4's code and both cases are in one commit, **and `looper verify` has not run on it**: the session
+reached its context budget first. Both cases pass on `target/debug/nvs.exe` through
+`NVS_BIN=target/debug/nvs.exe bun nv try <case>` (plain `bun nv try` runs a stale pipeline build).
+What landed:
+
+- `check_property_redeclarations` (`crates/nvs-types/src/conformance.rs:155`) measures a `covariant`
+  property in `covariant_property_problem` against the topmost declaration (`topmost_property`) and
+  the nearest one, with `E0882`, `E0883` and `E0866`. A plain one is exact against both, and its
+  `E0866` help names `covariant` when it is narrower.
+- `SignatureTable::is_narrowed` indexes every property name some class declares `covariant`.
+  `check_write_target` calls `record_covariant_write` (`crates/nvs-types/src/expr/assign.rs`), which
+  marks a write when a class below the resolved class declares the property at a type the resolved
+  type does not fit. `record_promoted_covariant_writes` does the same for a parent's promoted
+  parameter. `ExprTypeTable::is_covariant_write` carries the mark.
+- `layout::flatten_fields` gives a redeclared slot the subclass's own type spelling, so each class's
+  descriptor already holds its narrowed type (`field_reprs`, `field_classes`, `field_checks` were
+  own-class-first already).
+- `Lowering::emit_covariant_property_check` (`crates/nvs-ir/src/lower/stmt.rs`) calls
+  `Helper::CovariantPropertyChecked` before the guard and the hook in both `lower_store` arms, and in
+  `promoted_stores`. `nvs_runtime::object::check_covariant_write` runs `ClassDesc::check_slot` on the
+  receiver's run-time class and throws the `LogicError`. A promoted covariant parameter now takes the
+  stage 3 entry test, emitted before the promoted stores.
+- **A behaviour change outside the feature:** `ctor_init::check_class_init` no longer requires a class
+  to assign a property it declares again when an ancestor declares it with no default and not
+  `lateinit` (`ancestors_assigned`). The ancestor's constructor assigns it. Without this a subclass
+  that redeclares a property could not use `parent::constructor(...)` to set it.
+- The Declined sentence in `docs/rules/classes/a-redeclared-property-keeps-its-parents-type.md` that
+  refused a checked narrower property now names `covariant` instead.
+
+The nightly sweep's failures are on `6544156`: `bun nv proofs --gate` and
+`bun nv render --website --check` are both green on `main`, and `miri` ran past its 45-minute
+`timeout-minutes` (`.github/workflows/ci.yml:1208`) with no failing test.
 
 ### Next
 
-**Stage 4, one group**, on `nvs-types` and `nvs-ir`. Its gate holds:
-`docs/rules/classes/a-redeclared-property-keeps-its-parents-type.md` exists.
+**First, `looper verify`**, and fix what it names. Likely spots: lowering snapshot tests that print
+`promoted_stores` (the covariant entry test now runs before them), any `E0409` case that relied on a
+redeclared property being required, and `rule:classes/definite-property-initialization`, which needs
+one sentence for the `ancestors_assigned` change. Then mark stage 4 done in the front matter.
 
-- [ ] `check_property_redeclarations` accepts a `covariant` property whose type is narrower than the topmost declaration's, and `E0866`'s help names `covariant`. `crates/nvs-types/src/conformance.rs:155`
-- [ ] The class descriptor carries the narrowed type per narrowed slot. `crates/nvs-types/src/layout.rs:1004`
-- [ ] A typed write that can reach a narrowed slot from a wider type tests the value, and a promoted covariant parameter replaces its assert with that test. `crates/nvs-ir/src/lower/stmt.rs:1137`, `crates/nvs-ir/src/lower/mod.rs:1312`
-- [ ] The stage's case. `tests/conformance/class/a-covariant-property-is-checked-by-every-write.nvst:1`
+**Then stage 5, one group**, on `nvs-runtime` and `nvs-ir`. Its gate holds: `tools/nv/cmd/soundness.ts` exists.
+
+- [ ] The erased write, the `property<T>` key write and the reflected write throw the `LogicError` for a narrowed slot. `write_property` already runs `check_slot` on the receiver's descriptor, so this is mostly the error's class and wording. `crates/nvs-runtime/src/object.rs:5504`
+- [ ] A hooked property: `emit_covariant_property_check` already runs before the `set` hook. Prove it in the case. `crates/nvs-ir/src/lower/stmt.rs:1515`
+- [ ] The case for each path. `tests/conformance/class/a-covariant-property-is-checked-on-every-write-path.nvst:1`
+- [ ] The soundness matrix rows. `tools/nv/cmd/soundness.ts:1`
 
 ### Backlog
+
+- `nvs_runtime::object::check_covariant_write` finds the slot by a scan of the field names. The slot
+  index is fixed for the whole hierarchy, so a hint from codegen would make it one compare.
+- A parent default that the narrower type rejects (`?int $n = null` under `covariant int $n`) is safe
+  only because the subclass must then assign the property itself: the property has no default of its
+  own, so `ctor_init` still requires it. Keep that in mind when changing `ancestors_assigned`.
 
 - A covariant parameter of a generator method panics in lowering. The factory would need the
   entry test before it stores the parameters in the state object. `crates/nvs-ir/src/lower/generator.rs:709`

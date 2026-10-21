@@ -206,6 +206,20 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
+    /// `nvs_ir::Helper::CovariantPropertyChecked`: tests a value written to a
+    /// property a subclass declares `covariant` against the receiver's own
+    /// class. Gives `null`, or throws a `LogicError`. Every operand is
+    /// borrowed.
+    fn nvs_covariant_property_checked(_ctx, args: [3]) {
+        let Some(name) = args[1].as_str_bytes() else {
+            return Err(wrong_tag("nvs_covariant_property_checked", Tag::Str, args[1]));
+        };
+        crate::object::check_covariant_write(args[0], &String::from_utf8_lossy(name), args[2])?;
+        Ok(Value::null())
+    }
+}
+
+crate::nvs_helper! {
     /// `nvs_ir::Helper::LateInitRunning`: whether an `initProperty` call is
     /// running in this context, as a `bool`.
     fn nvs_late_init_running(ctx, args: [0]) {
@@ -3455,6 +3469,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_class_constant", address(nvs_class_constant)),
         ("nvs_type_check_failed", address(nvs_type_check_failed)),
         ("nvs_covariant_rejected", address(nvs_covariant_rejected)),
+        (
+            "nvs_covariant_property_checked",
+            address(nvs_covariant_property_checked),
+        ),
         ("nvs_late_init_running", address(nvs_late_init_running)),
         ("nvs_int_truthy", address(nvs_int_truthy)),
         ("nvs_uint_truthy", address(nvs_uint_truthy)),

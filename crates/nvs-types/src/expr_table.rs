@@ -1475,6 +1475,7 @@ pub struct ExprTypeTable {
     types: FxHashMap<Span, TypeId>,
     float_widened: FxHashSet<Span>,
     guarded_target_reads: FxHashSet<Span>,
+    covariant_writes: FxHashSet<Span>,
     never_stmts: FxHashSet<Span>,
     foreach: FxHashMap<Span, ForeachDrive>,
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
@@ -2634,6 +2635,24 @@ impl ExprTypeTable {
     #[must_use]
     pub fn is_guarded_target_read(&self, span: Span) -> bool {
         self.guarded_target_reads.contains(&span)
+    }
+
+    /// Records that the property write whose target is at `span` can reach a
+    /// slot that a subclass narrows with `covariant`. See
+    /// [`Self::is_covariant_write`].
+    pub(crate) fn record_covariant_write(&mut self, span: Span) {
+        self.covariant_writes.insert(span);
+    }
+
+    /// Whether the property write whose target is at `span` tests the value
+    /// against the type the receiver's run-time class declares
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`). It
+    /// is true when a subclass of the declaring class declares the property
+    /// again at a type the declaring class's type does not fit. One span per
+    /// such write, held for the compile.
+    #[must_use]
+    pub fn is_covariant_write(&self, span: Span) -> bool {
+        self.covariant_writes.contains(&span)
     }
 
     /// Records that the expression statement at `span` is typed `never`.

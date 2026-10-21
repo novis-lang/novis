@@ -550,6 +550,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::ClassConstant => "class_constant",
         Helper::TypeCheckFailed => "type_check_failed",
         Helper::CovariantRejected => "covariant_rejected",
+        Helper::CovariantPropertyChecked => "covariant_property_checked",
         Helper::LateInitRunning => "late_init_running",
         Helper::IntTruthy => "int_truthy",
         Helper::UintTruthy => "uint_truthy",

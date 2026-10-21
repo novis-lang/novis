@@ -151,43 +151,60 @@ pub(crate) fn check_constant_redeclarations(
 /// type (`E0401`). A promoted constructor parameter is a declaration too.
 /// A static property is skipped, since each class names its own storage.
 ///
+/// A `covariant` declaration is the one narrower type allowed
+/// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`). It is
+/// measured against the topmost declaration, the first superclass that
+/// declares the property, and it must also fit the nearest one, so a
+/// grandchild never widens what its parent narrowed. It needs a type `is`
+/// tests in constant time (`E0883`), and one the topmost type does not fit
+/// (`E0882`). A declaration without the keyword is exact against both.
+/// Each write that can reach the narrowed slot with a wider value is tested
+/// where it is written, which `crate::expr::assign` records.
+///
 /// [`field_fits`]: crate::expr::assign::field_fits
 pub(crate) fn check_property_redeclarations(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
     let Some(links) = env.graph.get(qname) else {
         return;
     };
     let parents = links.extends.clone();
-    if parents.is_empty() {
-        return;
-    }
-    let mut declared: Vec<(String, Span, bool)> = Vec::new();
+    let mut declared: Vec<Redeclared> = Vec::new();
     for member in &decl.members {
         match &member.kind {
             ClassMemberKind::Property(p) => {
                 if p.modifiers.contains(&Modifier::Static) {
                     continue;
                 }
-                let readonly = p.modifiers.contains(&Modifier::Readonly);
-                declared.push((
-                    strip_sigil(span_text(env.src, p.name)).to_owned(),
-                    p.name,
-                    readonly,
-                ));
+                declared.push(Redeclared {
+                    name: strip_sigil(span_text(env.src, p.name)).to_owned(),
+                    span: p.name,
+                    readonly: p.modifiers.contains(&Modifier::Readonly),
+                    covariant: p.covariant.then_some(p.ty.span),
+                });
             }
             ClassMemberKind::Method(m) if span_text(env.src, m.name) == "constructor" => {
                 for p in m.params.iter().filter(|p| p.is_promoted()) {
-                    let readonly = p.modifiers.contains(&Modifier::Readonly);
-                    declared.push((
-                        strip_sigil(span_text(env.src, p.name)).to_owned(),
-                        p.name,
-                        readonly,
-                    ));
+                    declared.push(Redeclared {
+                        name: strip_sigil(span_text(env.src, p.name)).to_owned(),
+                        span: p.name,
+                        readonly: p.modifiers.contains(&Modifier::Readonly),
+                        covariant: p
+                            .covariant
+                            .then(|| p.ty.as_ref().map_or(p.span, |ty| ty.span)),
+                    });
                 }
             }
             _ => {}
         }
     }
-    for (name, span, own_readonly) in declared {
+    for Redeclared {
+        name,
+        span,
+        readonly: own_readonly,
+        covariant,
+    } in declared
+    {
+        // `crate::signatures` reports a static or `readonly` one.
+        let narrows = covariant.filter(|_| !own_readonly);
         let Some(own) = env
             .signatures
             .get(qname)
@@ -196,12 +213,14 @@ pub(crate) fn check_property_redeclarations(decl: &ClassDecl, qname: &QName, env
         else {
             continue;
         };
+        let mut replaces = false;
         for parent in &parents {
             let Some((owner, inherited)) =
                 crate::signatures::resolve_property_owned(parent, &name, env.signatures, env.graph)
             else {
                 continue;
             };
+            replaces = true;
             let parent_static = env
                 .signatures
                 .get(&owner)
@@ -226,37 +245,165 @@ pub(crate) fn check_property_redeclarations(decl: &ClassDecl, qname: &QName, env
                 );
                 continue;
             }
-            let fits = crate::expr::assign::field_fits(
-                own,
-                inherited,
-                env.interner,
-                env.graph,
-                env.signatures,
-            ) && crate::expr::assign::field_fits(
-                inherited,
-                own,
-                env.interner,
-                env.graph,
-                env.signatures,
-            );
-            if fits {
+            let (root, top) = topmost_property(&owner, inherited, &name, env);
+            if let Some(at) = narrows {
+                covariant_property_problem(qname, &name, at, own, (&owner, inherited), (&root, top), env);
                 continue;
             }
+            let exact = |a: TypeId, b: TypeId, env: &mut Env<'_>| fits(a, b, env) && fits(b, a, env);
+            if exact(own, inherited, env) && exact(own, top, env) {
+                continue;
+            }
+            // A type narrower than the topmost one is what `covariant` is for.
+            let narrower = fits(own, top, env) && fits(inherited, top, env);
+            let (owner, want_ty) = if exact(own, inherited, env) {
+                (root, top)
+            } else {
+                (owner, inherited)
+            };
             let have = env.interner.describe(own);
-            let want = env.interner.describe(inherited);
+            let want = env.interner.describe(want_ty);
+            let help = if narrower && !fits(top, own, env) {
+                format!(
+                    "both classes use the same property, and `{owner}` writes it as `{want}`. \
+                     To take a narrower type, write `covariant` before it. Each value is then \
+                     tested when it is written"
+                )
+            } else {
+                format!(
+                    "both classes use the same property, and `{owner}` reads and writes it as \
+                     `{want}`. Declare it `{want}` here"
+                )
+            };
             env.diags.report(
                 Diagnostic::error(
                     code::E_PROPERTY_REDECLARED_AT_ANOTHER_TYPE,
                     format!("`{qname}::${name}` is `{have}`, and `{owner}::${name}` is `{want}`"),
                 )
                 .with_primary(span, "declared again with another type")
-                .with_help(format!(
-                    "both classes use the same property, and `{owner}` reads and writes it as \
-                     `{want}`. Declare it `{want}` here"
-                )),
+                .with_help(help),
+            );
+        }
+        if let Some(at) = narrows
+            && !replaces
+        {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_COVARIANT_MISPLACED,
+                    format!(
+                        "`covariant` has no effect here, because no parent class of `{qname}` \
+                         declares `${name}`"
+                    ),
+                )
+                .with_primary(at, "`covariant` is written here")
+                .with_help(
+                    "`covariant` is for a property that a parent class declares. Remove it",
+                ),
             );
         }
     }
+}
+
+/// One instance property `check_property_redeclarations` measures.
+struct Redeclared {
+    /// The name, `$`-sigil not included.
+    name: String,
+    /// Where the name is written.
+    span: Span,
+    /// Whether it is `readonly`.
+    readonly: bool,
+    /// Where its type is written, when it is declared `covariant`.
+    covariant: Option<Span>,
+}
+
+/// The first superclass that declares the property `name`, and its type,
+/// starting from `owner`, which declares it as `ty`.
+fn topmost_property(owner: &QName, ty: TypeId, name: &str, env: &Env<'_>) -> (QName, TypeId) {
+    let mut top = (owner.clone(), ty);
+    let mut seen = FxHashSet::default();
+    while seen.insert(top.0.clone()) {
+        let parent = env
+            .graph
+            .get(&top.0)
+            .and_then(|links| links.extends.first().cloned());
+        let Some(found) = parent.and_then(|parent| {
+            crate::signatures::resolve_property_owned(&parent, name, env.signatures, env.graph)
+        }) else {
+            break;
+        };
+        top = found;
+    }
+    top
+}
+
+/// Reports what is wrong with `qname`'s `covariant` property `name` of type
+/// `own`, written at `at`, against the nearest declaration above it and the
+/// topmost one.
+fn covariant_property_problem(
+    qname: &QName,
+    name: &str,
+    at: Span,
+    own: TypeId,
+    (owner, inherited): (&QName, TypeId),
+    (root, top): (&QName, TypeId),
+    env: &mut Env<'_>,
+) {
+    let have = env.interner.describe(own);
+    if !testable_in_constant_time(own, env) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_COVARIANT_TYPE_NOT_TESTABLE,
+                format!("a `covariant` property cannot have the type `{have}`"),
+            )
+            .with_primary(at, "each write would test every element of this value")
+            .with_help("use the parent's type for this property, and test the value where you read it"),
+        );
+        return;
+    }
+    let want = env.interner.describe(top);
+    if fits(top, own, env) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_COVARIANT_MISPLACED,
+                format!(
+                    "`covariant` has no effect here, because `${name}` is not narrower than in \
+                     `{root}`"
+                ),
+            )
+            .with_primary(at, format!("`{have}` accepts every `{want}`"))
+            .with_help("remove `covariant`. The property already takes every value a write passes"),
+        );
+        return;
+    }
+    let drops_tainted = crate::expr::quals::carries_tainted(top, env.interner)
+        && !crate::expr::quals::carries_tainted(own, env.interner);
+    let drops_secret = crate::expr::quals::carries_secret(top, env.interner)
+        && !crate::expr::quals::carries_secret(own, env.interner);
+    let top_want = want.clone();
+    let (against, want) = if fits(own, top, env) {
+        (owner, env.interner.describe(inherited))
+    } else {
+        (root, want)
+    };
+    let message = if drops_tainted || drops_secret {
+        let qualifier = if drops_tainted { "tainted" } else { "secret" };
+        format!(
+            "`{qname}::${name}` is `{have}`, and `{root}::${name}` is `{top_want}`. `covariant` \
+             keeps the `{qualifier}` qualifier"
+        )
+    } else if fits(own, top, env) && fits(own, inherited, env) {
+        return;
+    } else {
+        format!("`{qname}::${name}` is `{have}`, which is not narrower than `{want}` in `{against}`")
+    };
+    env.diags.report(
+        Diagnostic::error(code::E_PROPERTY_REDECLARED_AT_ANOTHER_TYPE, message)
+            .with_primary(at, "declared again with another type")
+            .with_help(format!(
+                "a `covariant` property takes a type that `{against}::${name}` accepts. Declare it \
+                 `{want}` or narrower"
+            )),
+    );
 }
 
 /// Reports one `E0449` per member of `decl`'s interfaces that nothing

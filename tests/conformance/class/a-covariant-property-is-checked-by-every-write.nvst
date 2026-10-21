@@ -1,0 +1,147 @@
+--TEST--
+A `covariant` property is tested by each write that can reach it with a wider value, and a value of the wider type throws a `LogicError` that names the class, the property, the type and what the value is — a plain property, a promoted parameter, a `lateinit` one, the parent's constructor, `int` under `int|string` and under `?int`, each read back through both classes — `rule:classes/a-covariant-type-is-checked-where-a-value-enters`
+--FILE--
+<?nvs
+class Animal {}
+class Dog extends Animal {}
+class Cat extends Animal {}
+class Puppy extends Dog {}
+
+class Home {
+    public Animal $pet;
+    public int|string $id = 1;
+    public ?int $rooms = null;
+    public function constructor(Animal $pet) { $this->pet = $pet; }
+    public function move(Animal $a): void { $this->pet = $a; }
+}
+
+class DogHome extends Home {
+    public covariant Dog $pet;
+    public covariant int $id = 2;
+    public covariant int $rooms = 3;
+    public function constructor(Animal $pet) { parent::constructor($pet); }
+}
+
+class Shelter {
+    public function constructor(public Animal $pet) {}
+    public function replace(Animal $a): void { $this->pet = $a; }
+}
+
+class DogShelter extends Shelter {
+    public function constructor(public covariant Dog $pet) { parent::constructor($pet); }
+}
+
+class Kennel {
+    public function constructor(public Animal $pet) {}
+}
+
+class DogKennel extends Kennel {
+    public covariant Dog $pet;
+    public function constructor(Animal $a) { parent::constructor($a); }
+}
+
+class Cage {
+    public lateinit Animal $pet;
+}
+
+class DogCage extends Cage {
+    public lateinit covariant Dog $pet;
+}
+
+// A value of the narrower type is written through the parent and read back through both classes.
+Home $h = new DogHome(new Dog());
+DogHome $d = $h as DogHome;
+$h->move(new Puppy());
+echo $h->pet is Puppy ? "a puppy" : "not a puppy", "\n";
+echo $d->pet is Puppy ? "a puppy" : "not a puppy", "\n";
+
+// 1. The parent's constructor writes a `Cat`.
+try {
+    new DogHome(new Cat());
+} catch (LogicError $e) {
+    echo "1: ", $e->message, "\n";
+}
+
+// 2. A method of the parent writes a `Cat`. The old value stays.
+try {
+    $h->move(new Cat());
+} catch (LogicError $e) {
+    echo "2: ", $e->message, "\n";
+}
+echo $d->pet is Puppy ? "still a puppy" : "not a puppy", "\n";
+
+// 3. A write through the parent's type.
+try {
+    $h->pet = new Cat();
+} catch (LogicError $e) {
+    echo "3: ", $e->message, "\n";
+}
+
+// 4. `int` under `int|string`.
+$h->id = 5;
+echo $h->id, " ", $d->id + 1, "\n";
+try {
+    $h->id = "x";
+} catch (LogicError $e) {
+    echo "4: ", $e->message, "\n";
+}
+
+// 5. `int` under `?int`.
+$h->rooms = 4;
+echo $h->rooms ?? 0, " ", $d->rooms + 1, "\n";
+try {
+    $h->rooms = null;
+} catch (LogicError $e) {
+    echo "5: ", $e->message, "\n";
+}
+
+// 6. A promoted parameter, written again by the parent.
+Shelter $s = new DogShelter(new Dog());
+try {
+    $s->replace(new Cat());
+} catch (LogicError $e) {
+    echo "6: ", $e->message, "\n";
+}
+echo $s->pet is Dog ? "a dog" : "not a dog", "\n";
+
+// 7. A `lateinit` property, written through the parent's type.
+Cage $c = new DogCage();
+try {
+    $c->pet = new Cat();
+} catch (LogicError $e) {
+    echo "7: ", $e->message, "\n";
+}
+$c->pet = new Dog();
+echo $c->pet is Dog ? "a dog" : "not a dog", "\n";
+
+// 8. The parent's promoted parameter, reached through `parent::constructor`.
+echo (new DogKennel(new Puppy()))->pet is Puppy ? "a puppy" : "not a puppy", "\n";
+try {
+    new DogKennel(new Cat());
+} catch (LogicError $e) {
+    echo "8: ", $e->message, "\n";
+}
+
+// 9. A write through the class that narrows the property, and a plain `Home`, which takes any animal.
+$d->pet = new Dog();
+Home $plain = new Home(new Cat());
+$plain->pet = new Animal();
+echo $plain->pet is Cat ? "a cat" : "an animal", "\n";
+--EXPECT--
+a puppy
+a puppy
+1: The property `$pet` of `DogHome` has the type `Dog`. The value is an object of class `Cat`.
+2: The property `$pet` of `DogHome` has the type `Dog`. The value is an object of class `Cat`.
+still a puppy
+3: The property `$pet` of `DogHome` has the type `Dog`. The value is an object of class `Cat`.
+5 6
+4: The property `$id` of `DogHome` has the type `int`. The value is a value of type `string`.
+4 5
+5: The property `$rooms` of `DogHome` has the type `int`. The value is `null`.
+6: The property `$pet` of `DogShelter` has the type `Dog`. The value is an object of class `Cat`.
+a dog
+7: The property `$pet` of `DogCage` has the type `Dog`. The value is an object of class `Cat`.
+a dog
+a puppy
+8: The property `$pet` of `DogKennel` has the type `Dog`. The value is an object of class `Cat`.
+an animal

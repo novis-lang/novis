@@ -1008,10 +1008,16 @@ fn flatten_fields<'a>(
             // is the slot's too, for the same reason it is one slot: there is
             // one field, so there is one answer to who may read it, and the
             // narrower one is the safe direction for a question `rule:security/reflection-enforces-visibility`
-            // makes a privilege check, and its declared type is the slot's for
-            // the same reason: one field, one type.
+            // makes a privilege check. The declared type is the subclass's own:
+            // a redeclaration keeps the ancestor's exact type, unless it is
+            // `covariant`, and then this class's instances take only the
+            // narrower one, which a reflective read and an erased write's test
+            // read from this class's descriptor
+            // (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
             if seen.names.insert((slot.0.as_str(), false)) {
                 fields.push(slot.clone());
+            } else if let Some(inherited) = fields.iter_mut().find(|field| field.0 == slot.0) {
+                inherited.4.clone_from(&slot.4);
             }
         }
     }
