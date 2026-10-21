@@ -30,12 +30,25 @@ origin = "https://example.test"
 [app.capabilities.script]
 spawn = true
 
+# The attacks under `tests/hostile` run as CLI runs, and a CLI run reads and writes any file when
+# nothing is written (`rule:config/no-configuration-file-is-a-complete-configuration`). An attack
+# asserts a refusal, so this block writes each key a default opens as `[]`: a written key that grants
+# nothing. A more specific block below grants one attack what it needs, and an attack that tests a
+# default itself writes its own `[[app]] entry` block.
+[[app]]
+root = "tests/hostile"
+
+[app.capabilities.fs]
+read = []
+write = []
+
 # `examples/capability.nvs` is the fixture for `rule:security/capability-check-at-the-door`, so its
 # block is written to be *narrower* than the one above rather than wider: an exact `entry` layers over
 # the `root = "."` block (`rule:config/every-matching-app-block-applies-least-specific-first`), and a
 # block may take a capability away as well as grant one. What it demonstrates is a program
 # meeting one grant and two refusals, so `fs.read` is scoped to the one
-# directory holding its data, `fs.write` is never mentioned, and `script.spawn`
+# directory holding its data, `fs.write` is `[]` because a CLI run writes any file
+# when the key is not written, and `script.spawn`
 # is switched off again — `false` is `Grant::Nothing` in
 # `nvs_config::capability`, which is how a narrowing block says no to something
 # a broader one allowed.
@@ -44,6 +57,7 @@ entry = "examples/capability.nvs"
 
 [app.capabilities.fs]
 read = ["examples/capability"]
+write = []
 
 [app.capabilities.script]
 spawn = false
@@ -416,7 +430,8 @@ spawn = false
 # `Core\Cap::has`'s own page needs a deployment that granted one thing and not
 # another, because a member reporting grants has nothing to report where nothing
 # was granted. Its first example prints `yes` for `fs.read` and `no` for two
-# names nobody wrote. `read = true` rather than a list of roots: the example
+# names it does not grant: `write = []` because a CLI run writes any file when
+# the key is not written. `read = true` rather than a list of roots: the example
 # opens no file, and the member reports the grant and never a path, so roots
 # would only be entries nothing compares.
 [[app]]
@@ -424,6 +439,7 @@ entry = "docs/examples/core/Cap/has/01-what-this-program-may-do.nvs"
 
 [app.capabilities.fs]
 read = true
+write = []
 
 # The second example is the pair that member cannot make on its own — the grant
 # is one directory wide, the answer is still `yes`, and a file outside it is
@@ -434,6 +450,15 @@ entry = "docs/examples/core/Cap/has/02-what-a-yes-does-not-cover.nvs"
 
 [app.capabilities.fs]
 read = ["docs/examples/core/Cap/has/data"]
+
+# The third example takes the other route when writing files is not granted, so
+# its deployment writes `write = []`: a command-line run may write every file by
+# default.
+[[app]]
+entry = "docs/examples/core/Cap/has/03-an-optional-feature.nvs"
+
+[app.capabilities.fs]
+write = []
 
 # The attack written against the same member spends most of its steps on names
 # that merely resemble a granted one, and there is nothing to resemble until one

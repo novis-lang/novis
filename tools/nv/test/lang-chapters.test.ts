@@ -28,7 +28,9 @@ describe("a generated language chapter", () => {
     const text = renderChapter(source("errors"));
     const one = text.indexOf("## Example 01: a call nobody allowed");
     const two = text.indexOf("## Example 02: a grant in nvs toml");
-    expect(text.slice(one, two)).not.toContain("file=nvs.toml");
+    const first = text.slice(one, two);
+    expect(first).toContain('```toml file=nvs.toml\n# Example 01 may not read any file.');
+    expect(first).not.toContain("Example 02 may read");
     const own = text.slice(two, text.indexOf("## Example 03", two));
     expect(own).toContain('```toml file=nvs.toml\n# Example 02 may read the files in the `data` folder.');
     expect(own).toContain('[[app]]\nentry = "main.nvs"\n');

@@ -1,6 +1,21 @@
+# Example 01 may not read any file.
+[[app]]
+entry = "01-a-call-nobody-allowed.nvs"
+
+[app.capabilities.fs]
+read = []
+
 # Example 02 may read the files in the `data` folder. It may not write any file.
 [[app]]
 entry = "02-a-grant-in-nvs-toml.nvs"
 
 [app.capabilities.fs]
 read = ["data"]
+write = []
+
+# Example 03 may not write any file.
+[[app]]
+entry = "03-a-report-when-the-disk-is-closed.nvs"
+
+[app.capabilities.fs]
+write = []

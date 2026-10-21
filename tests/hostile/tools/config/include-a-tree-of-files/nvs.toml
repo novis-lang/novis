@@ -12,3 +12,7 @@ path = "conf.d/../conf.d/10-limits.toml"
 [[include]]
 path = "missing/../../../../nowhere.toml"
 optional = true
+
+# The program may not write any file.
+[capabilities.fs]
+write = []

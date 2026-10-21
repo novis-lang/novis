@@ -28,6 +28,12 @@ try {
 // A denial is known before any work is done and leaves nothing behind, so the
 // program is where it was: the next statement is the one after the `catch`.
 echo "still running\n";
+--FILE nvs.toml--
+# Both file keys are written empty, so nothing is granted. A command-line run
+# reads and writes every file when the keys are not written.
+[capabilities.fs]
+read = []
+write = []
 --EXPECTF--
 Core\IO::read needs the capability `fs.read` for %s%eorders.csv, which is not granted
 help: add `read = ["%s"]` under `[capabilities.fs]` in nvs.toml

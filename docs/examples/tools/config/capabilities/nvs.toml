@@ -2,3 +2,4 @@
 # Nothing else is granted, so writing a file and reading any other file both fail.
 [capabilities.fs]
 read = ["data"]
+write = []

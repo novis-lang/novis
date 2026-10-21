@@ -246,11 +246,19 @@ pub fn granted(ctx: &Ctx, cap: Cap, scope: Scope<'_>) -> bool {
     // configuration does not hold is not granted by being named in one.
     // The configuration's authority adds the default for an unwritten key,
     // read for this run's kind and app folder.
+    granted_with(ctx, cap, scope, ctx.temporary_dirs())
+}
+
+/// [`granted`], with `temporary` as the directories this context made: what server work writes
+/// by default. [`temp_dir`] passes the list with the directory it is about to create.
+fn granted_with(ctx: &Ctx, cap: Cap, scope: Scope<'_>, temporary: &[PathBuf]) -> bool {
     ctx.grants_allow(cap)
         && ctx.config().is_some_and(|config| {
-            config
-                .authority()
-                .allows(cap, scope, &nvs_config::resolve::Disk)
+            config.authority().with_temporary(temporary).allows(
+                cap,
+                scope,
+                &nvs_config::resolve::Disk,
+            )
         })
 }
 
@@ -776,9 +784,12 @@ fn allow(
     };
     for &cap in caps {
         let allowed = ctx.grants_allow(cap)
-            && ctx
-                .config()
-                .is_some_and(|config| config.authority().allows_resolved(cap, &at));
+            && ctx.config().is_some_and(|config| {
+                config
+                    .authority()
+                    .with_temporary(ctx.temporary_dirs())
+                    .allows_resolved(cap, &at)
+            });
         if !allowed {
             return Err(Fault::thrown(denial(cap, Scope::Path(path), member)));
         }
@@ -1231,8 +1242,9 @@ pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
 /// decision here: a member that creates a directory the program never named could plausibly have
 /// been exempt from the grant, or have widened it to cover what it created, and both would make a
 /// capability something a running program can enlarge. So the name is chosen first and asked about
-/// second, exactly as [`write()`] asks about a path that does not exist yet, and an operator grants
-/// the temporary root — or `true` — or the member does not run.
+/// second, exactly as [`write()`] asks about a path that does not exist yet. A written `fs.write`
+/// must cover the temporary root. With none written, a CLI run may write anywhere, and server work's
+/// default covers the new directory because it is asked with this context's list plus that one.
 ///
 /// **Nothing here relies on the name being unpredictable.** The defence is that creating a directory
 /// is atomic: a name an attacker has already taken, including as a symlink, fails with
@@ -1277,12 +1289,29 @@ pub fn temp_dir(ctx: &mut Ctx, member: &str) -> Result<PathBuf, Fault> {
             ),
         ));
     };
+    // Canonical, so the directory it hands back is the spelling a later door's resolved path
+    // starts with, which is how server work's default write finds it.
+    let root = nvs_config::capability::resolved(&root, &nvs_config::resolve::Disk).unwrap_or(root);
     let path = create_entry(
         &root,
         // Asked of the entry rather than of the root, because that is the path the member hands
         // back (§ 2), and before the root is created, so a program the grant refuses leaves
-        // nothing behind.
-        |path| require(ctx, Cap::FsWrite, Scope::Path(path), member),
+        // nothing behind. The entry counts as one of this run's directories, so server work's
+        // default write covers creating it and nothing else under the root.
+        |path| {
+            let mut made = ctx.temporary_dirs().to_vec();
+            made.push(path.to_path_buf());
+            relative_refusal(path, member)?;
+            if granted_with(ctx, Cap::FsWrite, Scope::Path(path), &made) {
+                Ok(())
+            } else {
+                Err(Fault::thrown(denial(
+                    Cap::FsWrite,
+                    Scope::Path(path),
+                    member,
+                )))
+            }
+        },
         |path, err| io_failure(member, path, err),
     )?;
     ctx.track_temporary_dir(path.clone());
@@ -2345,16 +2374,15 @@ mod tests {
             "the list is what the member answered, in the order it answered it"
         );
 
-        // The same root, and a tree that grants nothing: `rule:core-classes/temporary-dir-sweep` chooses the name first and asks about
+        // The same root, and a tree that writes `fs.write` as `[]`: `rule:core-classes/temporary-dir-sweep` chooses the name first and asks about
         // it second, so this reaches the check and stops there.
         let mut refused = Ctx::buffered();
         refused.set_config(snapshot_of(&format!(
-            "[io]\ntemp_root = '{}'\n",
+            "[capabilities.fs]\nwrite = []\n\n[io]\ntemp_root = '{}'\n",
             root.display()
         )));
-        temp_dir(&mut refused, "Core\\IO::temporaryDir").expect_err(
-            "`rule:security/capability-question-is-grant-and-scope` denies `fs.write` by default",
-        );
+        temp_dir(&mut refused, "Core\\IO::temporaryDir")
+            .expect_err("`write = []` is a written key that grants nothing");
         assert!(
             refused.temporary_dirs().is_empty(),
             "a call that created no directory has nothing for the sweep to delete"
@@ -2411,5 +2439,53 @@ mod tests {
             "the owned root itself stays: `rule:core-classes/temporary-dir-orphan-sweep`'s sweeps are what empty it, and the next script \
              creates under it rather than remaking it"
         );
+    }
+
+    /// Server work with nothing written under `[capabilities.fs]`, rooted at `root`.
+    fn serving_at(root: &Path) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(snapshot_of(&format!(
+            "[io]\ntemp_root = '{}'\n",
+            root.display()
+        )));
+        ctx.set_run_kind(crate::ctx::RunKind::Job);
+        ctx
+    }
+
+    /// `rule:core-classes/temporary-dir-sweep`'s directories are the only place server work
+    /// writes with nothing written, and only the context that made one writes or reads it. Two
+    /// requests share the root, and neither reaches the other's directory or anything outside its
+    /// own. A CLI run on the same tree writes outside the root.
+    #[test]
+    fn server_work_writes_its_own_temporary_dirs_and_not_another_requests() {
+        let root = scratch("server-default");
+        let mut mine = serving_at(&root);
+        let mut theirs = serving_at(&root);
+        let made = temp_dir(&mut mine, MEMBER).expect("server work creates its own directory");
+        let other = temp_dir(&mut theirs, MEMBER).expect("and so does the other request");
+
+        write(&mine, &made.join("note.txt"), b"mine", MEMBER).expect("its own directory");
+        open_read(&mine, &made.join("note.txt"), MEMBER).expect("and reads it back");
+        write(&theirs, &other.join("note.txt"), b"theirs", MEMBER).expect("its own directory");
+
+        let refused = write(&mine, &other.join("note.txt"), b"mine", MEMBER)
+            .expect_err("another request's directory");
+        let Fault::Thrown(_, message) = refused else {
+            panic!("a denial is thrown: {refused:?}");
+        };
+        assert!(message.contains("`fs.write`"), "{message}");
+        open_read(&mine, &other.join("note.txt"), MEMBER)
+            .expect_err("another request's directory is not read either");
+        write(&mine, &root.join("beside.txt"), b"x", MEMBER)
+            .expect_err("the root itself is not this request's");
+
+        let mut cli = Ctx::buffered();
+        cli.set_config(snapshot_of(&format!(
+            "[io]\ntemp_root = '{}'\n",
+            root.display()
+        )));
+        write(&cli, &root.join("beside.txt"), b"x", MEMBER)
+            .expect("a CLI run writes outside its temporary directories");
+        temp_dir(&mut cli, MEMBER).expect("and creates one");
     }
 }

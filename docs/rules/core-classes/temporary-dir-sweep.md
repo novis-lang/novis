@@ -2,6 +2,11 @@
 and the program names files inside it. There is no `temporaryFile`, because a program needing one
 temporary file needs somewhere to put the second.
 
+Creating the directory asks `fs.write` of the directory itself. With no `fs.write` written, server
+work creates one and then writes and reads only the directories its own context made, so one
+request cannot reach another's directory under the shared root; a CLI run writes anywhere. A
+written `fs.write` replaces that default, and must then cover the root.
+
 Every directory is created under one root the runtime owns — `[io] temp_root`, else `tmp/` in the
 data folder, which Novis creates private to its account. Exclusive ownership of that root is the
 entire safety argument for the sweeps: the runtime never deletes anything it did not create, because

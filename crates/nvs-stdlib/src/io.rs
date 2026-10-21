@@ -3724,7 +3724,8 @@ nvs_runtime::nvs_helper! {
 mod tests {
     use super::*;
 
-    /// A context granting `fs.write` everywhere and nothing else.
+    /// A context granting `fs.write` everywhere and nothing else: `read` is written empty, because
+    /// a context with a configuration and no run kind reads every file when the key is not written.
     ///
     /// Everywhere rather than under a root because what these cases assert is
     /// on the far side of the door: `rule:security/capability-check-at-the-door`'s own suite
@@ -3737,7 +3738,7 @@ mod tests {
             config: nvs_config::tree::Config {
                 capabilities: Some(nvs_config::tree::Capabilities {
                     fs: Some(nvs_config::tree::CapFs {
-                        read: None,
+                        read: Some(nvs_config::tree::Setting::List(Vec::new())),
                         write: Some(nvs_config::tree::Setting::Bool(true)),
                     }),
                     ..nvs_config::tree::Capabilities::default()
@@ -3882,7 +3883,8 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// A context granting `fs.read` everywhere under one `[limits] max_output`, written as the
+    /// A context granting `fs.read` everywhere and writing `write` empty, under one
+    /// `[limits] max_output`, written as the
     /// TOML an operator writes rather than as the tree it parses into — the ceiling is what
     /// these cases are about, so the spelling that arms it is worth going through.
     ///
@@ -3890,7 +3892,7 @@ mod tests {
     fn reading(ceiling: &str) -> nvs_runtime::Ctx {
         let mut ctx = nvs_runtime::Ctx::buffered();
         ctx.set_config(crate::tests::granting(&format!(
-            "[capabilities.fs]\nread = true\n\n[limits]\nmax_output = \"{ceiling}\"\n"
+            "[capabilities.fs]\nread = true\nwrite = []\n\n[limits]\nmax_output = \"{ceiling}\"\n"
         )));
         ctx
     }
@@ -4122,7 +4124,9 @@ mod tests {
 
         let (_dir, refused_path) = scratch("append-refused.log");
         let mut reading_only = nvs_runtime::Ctx::buffered();
-        reading_only.set_config(crate::tests::granting("[capabilities.fs]\nread = true\n"));
+        reading_only.set_config(crate::tests::granting(
+            "[capabilities.fs]\nread = true\nwrite = []\n",
+        ));
         let refused = call_with(
             nvs_core_io_append,
             &mut reading_only,
@@ -4174,7 +4178,9 @@ mod tests {
 
         let (_dir, fresh) = scratch("copy-refused.txt");
         let mut reading_only = nvs_runtime::Ctx::buffered();
-        reading_only.set_config(crate::tests::granting("[capabilities.fs]\nread = true\n"));
+        reading_only.set_config(crate::tests::granting(
+            "[capabilities.fs]\nread = true\nwrite = []\n",
+        ));
         let refused = call_with(
             nvs_core_io_copy,
             &mut reading_only,

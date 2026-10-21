@@ -439,6 +439,9 @@ pub(crate) fn run(
     // for the fold a reload of `[[app]] origin` asks for (`mounts`'s module doc).
     let mut mounts = written.clone();
     fold_origins(&mut mounts, &published);
+    for line in default_reads(&mounts, &published) {
+        eprintln!("{line}");
+    }
     // `rule:http-server/admission-is-arithmetic-not-a-number`'s numbers, with
     // the largest cap any mounted entry's own snapshot gives a request, because
     // that is what one admitted request may grow to hold.
@@ -2216,6 +2219,41 @@ fn writes_mounts(snapshot: &nvs_config::Snapshot) -> bool {
         .server
         .as_ref()
         .is_some_and(|server| !server.mount.is_empty())
+}
+
+/// The boot lines naming the folder each mounted application reads by default: one per app
+/// folder whose entry's tree writes no `[capabilities.fs] read`
+/// (`rule:config/no-configuration-file-is-a-complete-configuration`). An operator reads here which
+/// files a request reaches before writing a line, and the folders are distinct and in mount order.
+fn default_reads(mounts: &[Mounted], published: &nvs_config::Published) -> Vec<String> {
+    let mut folders: Vec<Arc<Path>> = Vec::new();
+    for mount in mounts {
+        let written = published
+            .entry(&mount.entry, &crate::config::LocalFiles)
+            .ok()
+            .and_then(|snapshot| {
+                snapshot
+                    .config
+                    .capabilities
+                    .as_ref()
+                    .map(|caps| nvs_config::Cap::FsRead.grant(caps).is_some())
+            })
+            .unwrap_or(false);
+        let folder = published.folder(&mount.entry, &crate::config::LocalFiles);
+        if !written && !folders.contains(&folder) {
+            folders.push(folder);
+        }
+    }
+    folders
+        .iter()
+        .map(|folder| {
+            format!(
+                "info: requests read files in {} except dot-files and nvs.toml, and write only \
+                 their own temporary directories, until `[capabilities.fs]` says otherwise",
+                folder.display()
+            )
+        })
+        .collect()
 }
 
 /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s fallback: a row

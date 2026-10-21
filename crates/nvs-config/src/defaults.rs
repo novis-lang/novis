@@ -354,16 +354,38 @@ pub struct At<'a> {
 pub enum Granted {
     /// Nothing: the capability is denied until a line grants it.
     Nothing,
+    /// Every argument, as a written `true` grants.
+    Everything,
+    /// A path inside the run's app folder with no component below it that starts with `.` and
+    /// none named `nvs.toml`, or a path inside a directory `Core\IO::temporaryDir` made for this
+    /// run. Asked of the canonical path.
+    AppFolder,
+    /// A path inside a directory `Core\IO::temporaryDir` made for this run, and nothing else.
+    Temporary,
 }
 
 /// The default of `cap` on `run`, read only where `cap`'s key is not written. A written key
 /// replaces it whole, `[]` included.
 ///
-/// Every capability defaults to [`Granted::Nothing`] on every kind of run.
+/// - **Files, on a CLI run:** `fs.read` and `fs.write` are [`Granted::Everything`], as a command-line
+///   program's own files are in any other language.
+/// - **Files, in server work:** `fs.read` is [`Granted::AppFolder`] and `fs.write` is
+///   [`Granted::Temporary`]. A server reads its own code and assets, never a dot-file such as
+///   `.env` or `.git/config` and never `nvs.toml`, and writes only what it made for this run, so
+///   nothing it writes lands beside code it would run, and one request cannot reach another's
+///   temporary directory.
+/// - **Every other capability** is [`Granted::Nothing`] on every kind of run.
+///
+/// **What it spends:** nothing held. The app folder is one path per context, and the temporary
+/// directories are the list the context keeps for the sweep anyway.
 #[must_use]
 pub fn capability(cap: crate::Cap, run: crate::capability::Run<'_>) -> Granted {
-    let _ = (cap, run);
-    Granted::Nothing
+    match (cap, run.serving) {
+        (crate::Cap::FsRead | crate::Cap::FsWrite, false) => Granted::Everything,
+        (crate::Cap::FsRead, true) => Granted::AppFolder,
+        (crate::Cap::FsWrite, true) => Granted::Temporary,
+        _ => Granted::Nothing,
+    }
 }
 
 /// One [`Builtin`] row: the key and the value, with [`Scope::Always`] unless a scope is given.

@@ -2,8 +2,9 @@
 Core\IO::read and Core\IO::write refuse the same path under their own capability, and a refusal is catchable — being granted a root to read is never permission to write in it, and a denial leaves the program running — `rule:security/capability-check-at-the-door` and `rule:security/denial-is-a-runtime-error`
 --FILE--
 <?nvs
-// Nothing configured this run, so nothing is granted: `rule:security/capability-question-is-grant-and-scope`'s deny-by-
-// default is what both doors answer with here, and the interesting half is
+// The case's nvs.toml writes `read` and `write` empty, so nothing is granted:
+// `rule:security/capability-question-is-grant-and-scope`'s written `[]` is what both
+// doors answer with here, and the interesting half is
 // *which* capability each one names. The path is identical in both calls on
 // purpose -- what differs between the two lines below is the verb, so a door
 // that checked one capability for both effects would print the same name twice.
@@ -35,6 +36,12 @@ try {
 // separates a capability refusal from a limit breach, and it is asserted here
 // rather than in a comment because a `FATAL` would take the line with it.
 echo "still running\n";
+--FILE nvs.toml--
+# Both file keys are written empty, so nothing is granted. A command-line run
+# reads and writes every file when the keys are not written.
+[capabilities.fs]
+read = []
+write = []
 --EXPECTF--
 read: Core\IO::read needs the capability `fs.read` for %s%ereport.txt, which is not granted
 help: add `read = ["%s"]` under `[capabilities.fs]` in nvs.toml

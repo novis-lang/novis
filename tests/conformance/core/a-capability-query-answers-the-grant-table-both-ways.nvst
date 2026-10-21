@@ -13,8 +13,8 @@ if (Core\Cap::has("fs.read")) {
     echo "fs.read: not granted\n";
 }
 
-// The block is present and this key is not, which is the shape a real
-// deployment has: granting one half of the filesystem says nothing about the
+// The block grants `read` and writes this key empty, because a command-line
+// run writes every file when the key is not written. Granting one half of the filesystem says nothing about the
 // other, and a member reading "is there a `[capabilities.fs]` block" rather
 // than the key would answer this one wrong.
 if (Core\Cap::has("fs.write")) {
@@ -42,6 +42,7 @@ if (Core\Cap::has("process.exec")) {
 # these", and `Core\Cap::has` reports the grant rather than the entries.
 [capabilities.fs]
 read = ["."]
+write = []
 
 [capabilities.net]
 connect = ["example.test"]

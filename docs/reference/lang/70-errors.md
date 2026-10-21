@@ -1814,6 +1814,15 @@ capability `script.spawn` ``, and the `help:` line names `[capabilities.script]`
 
 ## Example 01: a call nobody allowed
 
+```toml file=nvs.toml
+# Example 01 may not read any file.
+[[app]]
+entry = "main.nvs"
+
+[app.capabilities.fs]
+read = []
+```
+
 ```nvs
 <?nvs
 // Shows what a program sees when it reads a file and `nvs.toml` does not allow
@@ -1854,6 +1863,7 @@ entry = "main.nvs"
 
 [app.capabilities.fs]
 read = ["data"]
+write = []
 ```
 
 ```nvs
@@ -1878,6 +1888,15 @@ Core\IO::write needs the capability `fs.write`
 ```
 
 ## Example 03: a report when the disk is closed
+
+```toml file=nvs.toml
+# Example 03 may not write any file.
+[[app]]
+entry = "main.nvs"
+
+[app.capabilities.fs]
+write = []
+```
 
 ```nvs
 <?nvs

@@ -95,6 +95,12 @@ for (; $i < $total; $i = $i + 1) {
 echo "asked: ", ($total * 4) as string, "\n";
 echo "refused: ", $refused as string, ", naming fs.read: ", $named as string, "\n";
 echo "answered anyway: ", $answered as string, "\n";
+--FILE nvs.toml--
+# Both file keys are written empty, so nothing is granted. A command-line run
+# reads and writes every file when the keys are not written.
+[capabilities.fs]
+read = []
+write = []
 --EXPECT--
 asked: 16
 refused: 16, naming fs.read: 16
