@@ -314,16 +314,27 @@ impl<'a> Run<'a> {
     /// The name is compared without case, so `NVS.TOML` on a filesystem that ignores case is
     /// refused too. Refusing it on one that does not is the safe direction.
     fn reads_by_default(&self, path: &Path) -> bool {
-        let inside = self
-            .folder
+        self.in_app_folder(path) || self.writes_by_default(path)
+    }
+
+    /// Whether the canonical `path` is one [`crate::defaults::Granted::AppCode`] covers: inside the
+    /// app folder with no component below it that starts with `.` and none named `nvs.toml`, and
+    /// inside none of this run's temporary directories, so a run never spawns a script it wrote.
+    fn spawns_by_default(&self, path: &Path) -> bool {
+        self.in_app_folder(path) && !self.writes_by_default(path)
+    }
+
+    /// Whether the canonical `path` is inside the app folder with no component below it that
+    /// starts with `.` and none named `nvs.toml`.
+    fn in_app_folder(&self, path: &Path) -> bool {
+        self.folder
             .and_then(|folder| path.strip_prefix(folder).ok())
             .is_some_and(|below| {
                 below.components().all(|part| {
                     let part = part.as_os_str().to_string_lossy();
                     !part.starts_with('.') && !part.eq_ignore_ascii_case("nvs.toml")
                 })
-            });
-        inside || self.writes_by_default(path)
+            })
     }
 
     /// Whether the canonical `path` is inside one of this run's temporary directories:
@@ -386,6 +397,7 @@ impl<'a> Authority<'a> {
             Granted::Nothing => false,
             Granted::Everything => true,
             Granted::AppFolder => self.run.reads_by_default(path),
+            Granted::AppCode => self.run.spawns_by_default(path),
             Granted::Temporary => self.run.writes_by_default(path),
         }
     }
@@ -396,7 +408,9 @@ impl<'a> Authority<'a> {
         use crate::defaults::Granted;
 
         match (self.default_of(cap), self.written, scope) {
-            (Some(Granted::Everything), _, _) => true,
+            // An unscoped `script.spawn` is the method form, whose code is already in the unit.
+            (Some(Granted::Everything | Granted::AppCode), _, Scope::Unscoped)
+            | (Some(Granted::Everything), _, _) => true,
             (Some(granted), _, Scope::Path(path)) => {
                 resolved(path, files).is_some_and(|path| self.default_covers(granted, &path))
             }
@@ -1250,9 +1264,13 @@ fn anchor_block(
 ) {
     for cap in Cap::ALL.iter().copied().filter(|cap| cap.is_path_scoped()) {
         let base = crate::db::written_in(origins, &format!("{prefix}.{}", cap.name()));
+        let anchor_one = |one: &mut String| match cap {
+            Cap::ProcessExec => anchor_program(one, base),
+            _ => anchor_root(one, base),
+        };
         match caps.as_deref_mut().and_then(|caps| cap.grant_mut(caps)) {
-            Some(Setting::Text(one)) => anchor_root(one, base),
-            Some(Setting::List(many)) => many.iter_mut().for_each(|one| anchor_root(one, base)),
+            Some(Setting::Text(one)) => anchor_one(one),
+            Some(Setting::List(many)) => many.iter_mut().for_each(&anchor_one),
             _ => {}
         }
         let (family, key) = cap.name().split_once('.').unwrap_or((cap.name(), ""));
@@ -1263,11 +1281,11 @@ fn anchor_block(
             .and_then(toml::Value::as_table_mut)
             .and_then(|family| family.get_mut(key));
         match value {
-            Some(toml::Value::String(one)) => anchor_root(one, base),
+            Some(toml::Value::String(one)) => anchor_one(one),
             Some(toml::Value::Array(many)) => {
                 for one in many.iter_mut() {
                     if let toml::Value::String(one) = one {
-                        anchor_root(one, base);
+                        anchor_one(one);
                     }
                 }
             }
@@ -1282,6 +1300,74 @@ fn anchor_root(root: &mut String, base: &Path) {
             .to_string_lossy()
             .into_owned();
     }
+}
+
+/// [`anchor_root`] for a `process.exec` entry: a bare name such as `git` becomes the program
+/// [`on_path`] finds, once, when the configuration loads
+/// (`rule:security/process-exec-capability`). A name nothing on `PATH` answers stays as written,
+/// and [`validate`] refuses it.
+fn anchor_program(entry: &mut String, base: &Path) {
+    match bare_program(Path::new(entry.as_str())).map(on_path) {
+        Some(Some(found)) => *entry = found.to_string_lossy().into_owned(),
+        Some(None) => {}
+        None => anchor_root(entry, base),
+    }
+}
+
+/// The program name `path` is when it is a bare name such as `git`: no separator anywhere in it,
+/// no drive, and not `.` or `..`. So `bin/` and `./bin` name a folder, and `bin` names a program.
+#[must_use]
+pub fn bare_program(path: &Path) -> Option<&str> {
+    let name = path.to_str()?;
+    let separators: &[char] = if cfg!(windows) {
+        &['/', '\\', ':']
+    } else {
+        &['/']
+    };
+    (!name.is_empty() && name != "." && name != ".." && !name.contains(separators)).then_some(name)
+}
+
+/// The program a shell would start for the bare name `name`: the first match in a folder of the
+/// `PATH` variable, as an absolute path. A folder in `PATH` that does not start at a root is
+/// skipped, because it names a different place for every working directory.
+///
+/// On Windows a name is also tried with each extension of `PATHEXT`, in order. On other systems
+/// the file must be executable.
+///
+/// **Cost:** one `stat` per folder and extension tried. A CLI run asks it once per bare-name
+/// call, and the configuration once per bare-name entry when it loads.
+#[must_use]
+pub fn on_path(name: &str) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path)
+        .filter(|folder| folder.has_root())
+        .find_map(|folder| program_in(&folder, name))
+}
+
+#[cfg(windows)]
+fn program_in(folder: &Path, name: &str) -> Option<PathBuf> {
+    let extensions = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
+    let as_written = Path::new(name)
+        .extension()
+        .map(|_| folder.join(name))
+        .filter(|file| file.is_file());
+    as_written.or_else(|| {
+        extensions
+            .split(';')
+            .filter(|extension| !extension.is_empty())
+            .map(|extension| folder.join(format!("{name}{extension}")))
+            .find(|file| file.is_file())
+    })
+}
+
+#[cfg(not(windows))]
+fn program_in(folder: &Path, name: &str) -> Option<PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let file = folder.join(name);
+    std::fs::metadata(&file)
+        .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
+        .then_some(file)
 }
 
 /// `rule:config/check-and-dump-audit-the-tree-offline`'s refusal of a grant entry that grants
@@ -1416,6 +1502,16 @@ fn silent(cap: Cap, setting: &Setting, base: &Path) -> Option<Silent> {
 fn silent_entry(cap: Cap, key: &str, entry: &str, base: &Path) -> Option<Silent> {
     let name = cap.name();
     let pattern = || format!("the `{name}` entry `{entry}` is a pattern, so it matches nothing");
+    if cap == Cap::ProcessExec
+        && let Some(program) = bare_program(Path::new(entry))
+        && on_path(program).is_none()
+    {
+        return Some(Silent::new(
+            format!("the `process.exec` entry `{entry}` names no program on `PATH`"),
+            "A program name is looked up on `PATH` when the configuration loads.",
+            grant_list(key, &format!("/full/path/to/{program}")),
+        ));
+    }
     if cap.is_path_scoped() {
         // Anchored already, so the folder in front of the pattern is the one the operator meant,
         // cut from the entry as written so its separators stay theirs.

@@ -1595,6 +1595,12 @@ fn a_grant_entry_that_allows_nothing_is_refused_naming_the_line_to_write() {
             "the `net.internal` entry `10.0.0.5/8` is not an IP address or a range",
             "write `internal = [\"10.0.0.5\"]` under `[capabilities.net]`",
         ),
+        // A program name is looked up on `PATH`, and a name nothing answers allows nothing.
+        (
+            "[capabilities.process]\nexec = [\"no-such-program-anywhere\"]\n",
+            "the `process.exec` entry `no-such-program-anywhere` names no program on `PATH`",
+            "write `exec = [\"/full/path/to/no-such-program-anywhere\"]` under `[capabilities.process]`",
+        ),
         // The table is the one the entry was written in.
         (
             "[[app]]\nentry = \"shop.nvs\"\n[app.capabilities.net]\nconnect = [\"a.example.com:443\"]\n",
@@ -1628,11 +1634,37 @@ fn a_grant_entry_that_can_allow_something_loads() {
         "[capabilities.fs]\nread = [\"/srv/app/\"]\nwrite = false\n",
         "[capabilities.tls]\npin = []\n",
         "[capabilities.process]\nexec = true\n",
+        "[capabilities.process]\nexec = [\"git\", \"bin/\", \"./tools\"]\n",
     ] {
         if let Err(refused) = validated(text) {
             panic!("{text}: refused with `{}`", refused.message);
         }
     }
+}
+
+/// `rule:security/process-exec-capability`: a bare name in `exec` is the program `PATH` gives,
+/// written as its absolute path when the configuration loads. A name with a separator is a
+/// folder beside the file, as every other path-scoped entry is.
+// covers: tools:config/capabilities
+#[test]
+fn a_bare_exec_entry_is_looked_up_on_path_when_the_configuration_loads() {
+    let git = nvs_config::capability::on_path("git").expect("`git` is on PATH");
+    let mut table: toml::Table = "[capabilities.process]\nexec = [\"git\", \"bin/\"]\n"
+        .parse()
+        .expect("valid TOML");
+    let mut config: nvs_config::tree::Config = table.clone().try_into().expect("a known block");
+    nvs_config::capability::anchor(&mut config, &mut table, &std::collections::BTreeMap::new());
+    let written = table["capabilities"]["process"]["exec"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|entry| entry.as_str().expect("text").to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(written[0], git.to_string_lossy());
+    assert!(
+        written[1].trim_end_matches(['/', '\\']).ends_with("bin"),
+        "a folder is not looked up: {written:?}"
+    );
 }
 
 /// `rule:security/denial-is-a-runtime-error`: the line a refusal prints loads, and once it is written

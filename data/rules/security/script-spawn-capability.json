@@ -1,5 +1,5 @@
 {
-  "title": "Executing code is its own capability, and the entry path is canonicalised and then prefix-checked",
+  "title": "Executing code is its own capability, a script in the app folder needs no grant, and the entry path is canonicalised and then prefix-checked",
   "status": "shipped",
   "seeAlso": [
     "security/capability-check-at-the-door",

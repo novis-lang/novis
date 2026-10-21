@@ -1,5 +1,5 @@
 {
-  "title": "Executing a program is deny-by-default under its own capability, and there is no shell to interpolate into",
+  "title": "Running a program needs `process.exec` in server work, and there is no shell to interpolate into",
   "status": "shipped",
   "seeAlso": [
     "security/capability-check-at-the-door",
@@ -9,7 +9,7 @@
     "core-classes/process-refuses-a-shell-target"
   ],
   "guardedBy": [
-    "tests/conformance/core/process-exec-is-deny-by-default.nvst",
+    "tests/conformance/core/process-exec-written-as-an-empty-list-refuses-every-program.nvst",
     "tests/conformance/core/process-run-asks-for-the-capability-before-it-looks-at-the-target.nvst",
     "tests/conformance/core/process-run-refuses-every-shell-target-and-only-those.nvst"
   ]

@@ -32,7 +32,6 @@
 //! grant, and § 3's table over every address the name answered — stays on the core.
 //!
 
-use std::borrow::Cow;
 use std::fs::{File, ReadDir};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -1451,10 +1450,14 @@ pub fn temp_root(config: Option<&nvs_config::Config>) -> Option<PathBuf> {
 /// by the same `execve` that already has the split argv — because a refusal that exists on one
 /// platform only is a behaviour no test on the other can pin.
 ///
-/// **A program is named by a path and never found by a `PATH` search.** [`require`] throws for a
-/// path that does not start at a root, so a bare name stops there; [`spawn_target`] still spells
-/// one against a directory, so that no caller of this door can reach a search by skipping that
-/// check.
+/// **A bare name such as `git` is looked up on `PATH`, and only once the grant allows some
+/// program** (`rule:security/process-exec-capability`). A CLI run allows every program by default,
+/// so its bare name is looked up straight away. Server work with no `process.exec` line is refused
+/// before the lookup, so it never learns which programs exist. With a line, the program found is
+/// asked about by its absolute path like any other, so the file the operating system starts is the
+/// file the check approved. A bare-name entry in the grant was looked up on the same `PATH` when
+/// the configuration loaded. Every other path that does not start at a root is refused by
+/// [`require`].
 ///
 /// The capability is asked **first**, before the target's kind, so the rule every other door here
 /// states holds without an exception: the grant is consulted before anything else is looked at.
@@ -1464,9 +1467,9 @@ pub fn temp_root(config: Option<&nvs_config::Config>) -> Option<PathBuf> {
 /// # Errors
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `process.exec` for
-/// `program`, a `RuntimeError` naming the extension for § 4's refused target kinds, or
-/// [`io_failure`]'s `IOError` when the spawn itself fails — nothing is at `program`, or it is not
-/// executable.
+/// `program`, a `RuntimeError` naming the extension for § 4's refused target kinds, an `IOError`
+/// when a bare name is in no folder of `PATH`, or [`io_failure`]'s `IOError` when the spawn itself
+/// fails — nothing is at `program`, or it is not executable.
 ///
 pub fn exec(ctx: &mut Ctx, program: &Path, argv: &[&str], member: &str) -> Result<Child, Fault> {
     exec_with(ctx, program, argv, &Launch::default(), member)
@@ -1520,6 +1523,29 @@ pub fn exec_with(
     launch: &Launch<'_>,
     member: &str,
 ) -> Result<Child, Fault> {
+    let found;
+    let program = match nvs_config::capability::bare_program(program) {
+        Some(name) => {
+            if !granted(ctx, Cap::ProcessExec, Scope::Unscoped) {
+                return Err(Fault::thrown(denial(
+                    Cap::ProcessExec,
+                    Scope::Path(program),
+                    member,
+                )));
+            }
+            found = nvs_config::capability::on_path(name).ok_or_else(|| {
+                Fault::thrown_as(
+                    ThrownClass::Io,
+                    format!(
+                        "{member} cannot run `{name}`: no folder of `PATH` has a program with \
+                         this name\nhelp: write the full path of the program"
+                    ),
+                )
+            })?;
+            found.as_path()
+        }
+        None => program,
+    };
     require(ctx, Cap::ProcessExec, Scope::Path(program), member)?;
     if let Some(extension) = shell_target(program) {
         return Err(Fault::thrown(format!(
@@ -1543,16 +1569,15 @@ pub fn exec_with(
             }
         }
     }
-    let target = spawn_target(program);
     let mut command = match launch.dir {
         Some(dir) => {
             let absolute =
-                std::path::absolute(&*target).map_err(|err| io_failure(member, program, &err))?;
+                std::path::absolute(program).map_err(|err| io_failure(member, program, &err))?;
             let mut command = Command::new(absolute);
             command.current_dir(dir);
             command
         }
-        None => Command::new(&*target),
+        None => Command::new(program),
     };
     command.env_clear();
     match launch.env {
@@ -1580,27 +1605,6 @@ pub fn exec_with(
     Ok(child)
 }
 
-/// The path [`exec`] hands the operating system: `program` itself, or a bare name spelled against
-/// the current directory.
-///
-/// `Command::new` searches `PATH` for a program name with no separator in it, and that is a
-/// different target from the one the capability approved: a grant is compared against
-/// `nvs_config::capability::resolved`, which reads a bare name as a file in the current directory —
-/// the same resolution that lets `read = ["."]` cover `missing.txt`. Left alone the two disagree,
-/// and `exec = ["."]` would approve `./say` while the operating system started `/usr/bin/say` on any
-/// machine that ships one. Naming the directory closes that: nothing below the check can resolve to
-/// a file the check did not see (`rule:security/process-exec-capability`).
-///
-/// The name is made relative rather than absolute, and nothing is canonicalized: a symlink is a
-/// target a caller may mean, and a program that reads its own `argv[0]` — which is the spelling this
-/// hands the operating system — would be started as something other than what it was asked for.
-fn spawn_target(program: &Path) -> Cow<'_, Path> {
-    let mut components = program.components();
-    match (components.next(), components.next()) {
-        (Some(Component::Normal(name)), None) => Cow::Owned(Path::new(".").join(name)),
-        _ => Cow::Borrowed(program),
-    }
-}
 
 /// The lower-cased extension of a target [`exec`] refuses, or `None` for one it will start.
 ///
@@ -1654,7 +1658,7 @@ mod tests {
     use super::{
         Access, Cap, Ctx, Fault, PINNED_ADDRESSES, Path, Scope, ThrownClass, copy, create, exec,
         granted, install_resolver, open, open_read, pin_host, pin_host_addresses, rename, require,
-        shell_target, spawn_target, temp_dir, working_dir, write,
+        shell_target, temp_dir, working_dir, write,
     };
 
     /// The member a case refuses on behalf of. `run` and not `spawn` for no reason beyond being the
@@ -2206,20 +2210,64 @@ mod tests {
         }
     }
 
-    /// `rule:security/process-exec-capability` on the target rather than on the grant: the program
-    /// the operating system is handed is the one the check approved, so a bare name names the
-    /// current directory and no `PATH` entry can answer in its place.
+    /// `rule:security/process-exec-capability`: a CLI run starts `git` by name, found on `PATH`.
+    /// Server work with no line refuses the name before it looks it up, and starts it once the
+    /// line names it. A `.cmd` name stays refused however wide the grant is, and a relative path
+    /// with a folder in it is still refused on both kinds of run.
     #[test]
-    fn a_bare_name_is_started_from_the_current_directory_and_never_off_the_path() {
-        assert_eq!(spawn_target(Path::new("say")).as_ref(), Path::new("./say"));
-        // Every other spelling is already explicit about a directory, and `Command` searches
-        // nothing for it — so it reaches the spawn as the caller wrote it, symlink and all.
-        for written in ["./say", "bin/say", "../say", "/usr/bin/say"] {
-            assert_eq!(
-                spawn_target(Path::new(written)).as_ref(),
-                Path::new(written)
-            );
+    fn a_bare_name_is_found_on_path_on_a_cli_run_and_needs_a_line_in_server_work() {
+        let mut cli = Ctx::buffered();
+        cli.set_config(snapshot_of(""));
+        let mut child = exec(&mut cli, Path::new("git"), &["--version"], MEMBER)
+            .expect("a CLI run starts any program, and `git` is on PATH");
+        let mut out = String::new();
+        std::io::Read::read_to_string(child.stdout.as_mut().expect("piped"), &mut out)
+            .expect("the child writes its version");
+        assert!(child.wait().expect("the child ends").success());
+        assert!(out.starts_with("git version"), "{out}");
+
+        let mut server = Ctx::buffered();
+        server.set_config(snapshot_of(""));
+        server.set_run_kind(crate::ctx::RunKind::Job);
+        let Fault::Thrown(class, message) = exec(&mut server, Path::new("git"), &[], MEMBER)
+            .expect_err("server work runs no program without a line")
+        else {
+            panic!("a denial is a throw");
+        };
+        assert_eq!(class, ThrownClass::Runtime);
+        assert!(message.contains("exec = [\"git\"]"), "{message}");
+
+        let mut granted_server = Ctx::buffered();
+        let mut table: toml::Table = "[capabilities.process]\nexec = [\"git\"]\n"
+            .parse()
+            .expect("valid TOML");
+        let mut config: nvs_config::tree::Config =
+            table.clone().try_into().expect("a block this tree has");
+        nvs_config::capability::anchor(&mut config, &mut table, &Default::default());
+        let mut snapshot = nvs_config::Snapshot {
+            config,
+            table,
+            ..nvs_config::Snapshot::default()
+        };
+        if let Some(caps) = snapshot.config.capabilities.as_mut() {
+            caps.canonicalize(&nvs_config::resolve::Disk);
         }
+        granted_server.set_config(Arc::new(snapshot));
+        granted_server.set_run_kind(crate::ctx::RunKind::Job);
+        let mut child = exec(&mut granted_server, Path::new("git"), &["--version"], MEMBER)
+            .expect("`exec = [\"git\"]` was looked up when the configuration loaded");
+        assert!(child.wait().expect("the child ends").success());
+
+        let Err(Fault::Thrown(_, message)) = exec(&mut cli, Path::new("/srv/say.cmd"), &[], MEMBER)
+        else {
+            panic!("a `.cmd` target is refused on a CLI run");
+        };
+        assert!(message.contains(".cmd"), "{message}");
+        let Err(Fault::Thrown(_, message)) = exec(&mut cli, Path::new("bin/git"), &[], MEMBER)
+        else {
+            panic!("a relative path with a folder is refused on a CLI run");
+        };
+        assert!(message.contains("relative"), "{message}");
     }
 
     /// `rule:concurrency/a-child-belongs-to-the-calling-task`'s children "share the request", and this is the half every capability-gated
@@ -2487,5 +2535,51 @@ mod tests {
         write(&cli, &root.join("beside.txt"), b"x", MEMBER)
             .expect("a CLI run writes outside its temporary directories");
         temp_dir(&mut cli, MEMBER).expect("and creates one");
+    }
+
+    /// `rule:security/script-spawn-capability`: with nothing written, a script in the app folder
+    /// spawns, in server work and on a CLI run. A script outside it, below a dot-folder, or in a
+    /// temporary directory the run made does not, even where that directory is inside the app
+    /// folder. The method form needs no path and spawns.
+    #[test]
+    fn a_script_in_the_app_folder_spawns_and_one_outside_it_does_not() {
+        let scratch = scratch("spawn-default");
+        let app = scratch.join("app");
+        for folder in [app.join(".jobs"), app.join("tmp"), scratch.join("outside")] {
+            std::fs::create_dir_all(folder).expect("the case makes its folders");
+        }
+        for file in [
+            app.join("job.nvs"),
+            app.join(".jobs").join("job.nvs"),
+            scratch.join("outside").join("job.nvs"),
+        ] {
+            std::fs::write(file, "").expect("the case writes its scripts");
+        }
+        let app = nvs_config::capability::resolved(&app, &nvs_config::resolve::Disk)
+            .expect("the app folder exists");
+
+        for serving in [true, false] {
+            let mut ctx = serving_at(&app.join("tmp"));
+            if !serving {
+                ctx.set_run_kind(crate::ctx::RunKind::Command);
+            }
+            ctx.set_app_folder(Arc::from(app.as_path()));
+            let made = temp_dir(&mut ctx, MEMBER).expect("the run makes its own directory");
+            std::fs::write(made.join("job.nvs"), "").expect("the run writes a script there");
+
+            let spawns = |path: &Path| granted(&ctx, Cap::ScriptSpawn, Scope::Path(path));
+            assert!(spawns(&app.join("job.nvs")), "the app folder, serving: {serving}");
+            assert!(
+                granted(&ctx, Cap::ScriptSpawn, Scope::Unscoped),
+                "the method form, serving: {serving}"
+            );
+            for refused in [
+                app.join(".jobs").join("job.nvs"),
+                scratch.join("outside").join("job.nvs"),
+                made.join("job.nvs"),
+            ] {
+                assert!(!spawns(&refused), "{}, serving: {serving}", refused.display());
+            }
+        }
     }
 }

@@ -100,8 +100,8 @@ fn a_callable_typed_variable_is_refused_as_a_spawn_target() {
 ///
 /// `--config` names the grant beside the fixtures rather than letting step 2
 /// find whatever `nvs.toml` the test process happens to be standing in
-/// (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`): `script.spawn` is deny-by-default, so a run without it
-/// asserts the denial instead of what the case is about.
+/// (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`), so the grant the
+/// cases run under is the one written beside them.
 fn run(fixture: &str) -> String {
     let dir = fixtures();
     let data = nvs_repo::scratch_private("nvsdata");

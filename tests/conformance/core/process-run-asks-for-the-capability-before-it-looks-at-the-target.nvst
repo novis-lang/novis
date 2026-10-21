@@ -56,7 +56,7 @@ echo hello
 echo hello
 --FILE nvs.toml--
 [capabilities.process]
-exec = ["allowed"]
+exec = ["allowed/"]
 --EXPECT--
 outside: the capability answered first
 inside: refused by target kind

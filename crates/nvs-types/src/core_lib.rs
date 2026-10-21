@@ -645,7 +645,11 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // A path or a class name is a mark on the text and not a second type:
         // `nvs_stdlib::registry::ParamText` owns what reads it, and none of
         // that changes what a caller may pass.
-        CoreTy::Str | CoreTy::Text(_) | CoreTy::Path(_) | CoreTy::ClassName(_) => interner.string(),
+        CoreTy::Str
+        | CoreTy::Text(_)
+        | CoreTy::Path(_)
+        | CoreTy::Program(_)
+        | CoreTy::ClassName(_) => interner.string(),
         // Untainted, as `Text` is: the classification admits a tainted
         // argument, and `crate::expr::quals`' `untainted` reads the argument
         // down to this before it is compared.

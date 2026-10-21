@@ -208,6 +208,14 @@ Outbound connections have a default too. Every run may connect to any public hos
 address (`127.0.0.1`, `::1`) is allowed on a command-line run, and in server work when the
 configuration sets `[mode] default = "development"`. Every other private address needs a line.
 
+A command-line run may start any program. A bare name such as `git` is looked up on `PATH`. Server
+work starts no program without a line. In `exec = ["git"]` the name is looked up on `PATH` when the
+configuration loads, and a name that is not found stops the load. Write a folder with a slash,
+`"bin/"`, so it is not read as a program name.
+
+Every run may spawn a script inside its app folder, except below a folder whose name starts with `.`
+or a directory `Core\IO::temporaryDir` made. A script anywhere else needs a `script.spawn` line.
+
 The default for every other capability is **denied** until a grant is written. A written key
 replaces its default, so `false` and an empty list both deny. The roster is closed:
 

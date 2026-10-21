@@ -306,23 +306,38 @@ for the same bug to be fixed once.
 
 <a id="security-script-spawn-capability"></a>
 
-## Executing code is its own capability, and the entry path is canonicalised and then prefix-checked
+## Executing code is its own capability, a script in the app folder needs no grant, and the entry path is canonicalised and then prefix-checked
 
 `rule:security/script-spawn-capability`
 
-Spawning an isolate requires `script.spawn`, a deny-by-default grant naming the roots that code may be
-executed *from*. Being able to read a file is not permission to run it, so `fs.read` does not imply
-`script.spawn`: the two answer different questions, and a template directory that is readable by
-design should not become an execution root by accident.
+Spawning an isolate asks `script.spawn`, a grant naming the roots that code may be executed *from*.
+Being able to read a file is not permission to run it, so `fs.read` does not imply `script.spawn`:
+the two answer different questions, and a template directory that is readable by design should not
+become an execution root by accident.
+
+**With the key not written, a script in the app folder spawns**, on a CLI run and in server work,
+from a `spawn script` door and from a `[[schedule]]` entry alike. `require` already runs that code,
+so spawning it grants nothing new. The default leaves out every path with a component below the app
+folder that starts with `.` and every file named `nvs.toml`, as the default read does
+([`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope)). It also leaves out every directory
+`Core\IO::temporaryDir` made for this run, so a run never spawns a script it wrote, even where the
+temporary root is inside the app folder. The method form (`Class::method`) names code already in the
+running unit, so it spawns too. A script outside the app folder needs a written `spawn` root, and a
+written list replaces the default whole.
 
 The entry path is canonicalised and then prefix-checked against the granted roots
 ([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)), which closes traversal by construction rather
 than by validation. A dynamic path is allowed — a queue worker needs one — but it can only ever land
-inside a root an operator wrote down.
+inside the app folder or a root an operator wrote down.
 
 The child's grants are the parent's effective grants, optionally narrowed at the spawn site. Nothing
 widens: a parent that has dropped `net.connect` cannot regain it by spawning
 ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
+
+Declined:
+
+- **A spawn default that covers the run's own temporary directories.** Server work writes there by
+  default, so a request could write a script and then run it.
 
 <sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed).</sub>
 
@@ -1036,14 +1051,17 @@ it still `tainted`.
 
 <a id="security-process-exec-capability"></a>
 
-## Executing a program is deny-by-default under its own capability, and there is no shell to interpolate into
+## Running a program needs `process.exec` in server work, and there is no shell to interpolate into
 
 `rule:security/process-exec-capability`
 
-Running another program is deny-by-default under `process.exec`, the same as every other
-syscall-touching entry point: a request may narrow it further and never widen it, and calling without
-the grant throws ([`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error)). The grant is asked for before the target
-is looked at, so an ungranted deployment never learns whether a binary exists.
+Running another program is a capability, `process.exec`, asked at the door
+([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)). **A CLI run may run any program** when the key is not
+written, as a command-line program in any other language does. **Server work runs no program**
+without a written line. A written `exec` list replaces the default on both kinds of run, and `[]`
+grants nothing. A request may narrow the grant further and never widen it, and calling without it
+throws ([`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error)). The grant is asked for before the target is
+looked at, so an ungranted deployment never learns whether a binary exists.
 
 The capability is only half of it, and the other half is that **there is no shell to interpolate
 into**. An executable path and an argv array, with nothing in between that parses a command line,
@@ -1057,10 +1075,30 @@ it does, and an attacker's value in that position can be an option such as `--ou
 A grant that names executable roots resolves the same way a spawn root does, canonicalise-then-prefix
 ([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
 
-The target is a path that starts at a root, and never a `PATH` lookup. A bare name such as `git` is
-refused before any grant is read ([`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file)), so the
-program the operating system starts is the one the check approved — a name a `PATH` entry would have
-answered is a program from a directory no grant named.
+**A bare name such as `git` is looked up on `PATH`.** A bare name has no separator, no drive, and is
+not `.` or `..`. The compiler leaves a bare name written as the program argument as it is, and joins
+every other relative literal to its file's folder ([`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file)).
+At the door the lookup comes after the grant: a run whose grant allows no program at all is refused
+before `PATH` is read. The program found is then asked about by its absolute path, like any other, so
+the file the operating system starts is the file the check approved. Any other path that does not
+start at a root is refused.
+
+**A bare name in the grant is looked up on `PATH` once, when the configuration loads**, and the entry
+becomes that program's absolute path. A name no folder of `PATH` answers is a load error that names
+the entry. So `exec = ["git"]` in server work allows exactly the `git` the server would start. A
+folder beside the configuration file is written with a separator, `"bin/"` or `"./bin"`.
+
+**Cost:** one `stat` per folder of `PATH` per bare-name call, and the same per bare-name entry at load.
+
+Declined:
+
+- **A bare name resolved against the current directory.** Under `nvs serve` that directory is shared
+  by every app and is a system folder under a service manager, so the name would start a different
+  file depending on how the server was started.
+- **A bare name looked up in server work before any grant exists.** The lookup would tell an
+  ungranted deployment which programs are installed.
+- **Programs open by default in server work.** A request that reaches any program reaches everything
+  the server's user can run, which is the one thing a server most needs to keep closed.
 
 <sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target).</sub>
 

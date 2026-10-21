@@ -1338,6 +1338,7 @@ mod tests {
             | CoreTy::Bytes
             | CoreTy::Text(_)
             | CoreTy::Path(_)
+            | CoreTy::Program(_)
             | CoreTy::ClassName(_)
             | CoreTy::Blob(_)
             | CoreTy::SecretBytes

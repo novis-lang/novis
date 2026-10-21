@@ -155,12 +155,28 @@ pub(crate) fn resolve_args(list: &[Arg], slots: &[ArgSlot], sig: &MethodSig, env
         return;
     }
     for (arg, slot) in list.iter().zip(slots) {
-        if let ArgSlot::Param(index) = *slot
-            && sig.text_at(index) == ParamText::Path
-        {
-            resolve_literal(&arg.value, env);
+        let ArgSlot::Param(index) = *slot else {
+            continue;
+        };
+        match sig.text_at(index) {
+            ParamText::Path => resolve_literal(&arg.value, env),
+            ParamText::Program if !is_bare_program(&arg.value, env) => {
+                resolve_literal(&arg.value, env);
+            }
+            _ => {}
         }
     }
+}
+
+/// Whether `value` is a string literal that is a bare program name such as `git`: no separator
+/// anywhere in it, and not `.` or `..`. The runtime looks such a name up on `PATH`
+/// (`rule:security/process-exec-capability`), so it is not joined to the file's folder.
+fn is_bare_program(value: &Expr, env: &Env<'_>) -> bool {
+    let ExprKind::Str(span) = value.unparenthesized().kind else {
+        return false;
+    };
+    let text = nvs_syntax::string_lit::cook_string_literal(env.src, span);
+    !text.is_empty() && text != "." && text != ".." && !text.contains(['/', '\\', ':'])
 }
 
 /// Records the absolute path a relative string literal at a path position

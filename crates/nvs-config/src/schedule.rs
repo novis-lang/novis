@@ -254,10 +254,14 @@ pub fn validate(
             return Err(refusal(
                 index,
                 entry,
-                format!("`{}` is not under any `script.spawn` root", named.display()),
-                "a scheduled script is checked against the `[capabilities] script.spawn` roots, \
-                 the same as a `spawn script` target",
-                "move the script under a granted root, or add its directory to `script.spawn`",
+                format!(
+                    "`{}` is not in its app folder or under a `script.spawn` root",
+                    named.display()
+                ),
+                "a scheduled script is checked the same way as a `spawn script` target. With no \
+                 `script.spawn` written, a script in its app folder may run, except one below a \
+                 folder whose name starts with `.`",
+                "move the script out of that folder, or add its folder to `script.spawn`",
                 origins,
                 "script",
             ));
