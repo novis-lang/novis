@@ -96,9 +96,12 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `691cbcd5a`. Its CI run,
-https://github.com/novis-lang/novis/actions/runs/39506154898, and its Website run,
-https://github.com/novis-lang/novis/actions/runs/39506154943, are green. No fix was needed. No red is
+`origin/main` is at `afbb1edc2`. Its CI run,
+https://github.com/novis-lang/novis/actions/runs/39534370379, and its Website run,
+https://github.com/novis-lang/novis/actions/runs/39534370421, are green. The push of `e0f330164` turned
+`supply chain` red on two new advisories, RUSTSEC-2026-0382 and RUSTSEC-2026-0381. `a3b109dcb` raised
+`rustls-webpki` to 0.103.16 and `webpki-roots` to 1.0.10 in `Cargo.lock`. `afbb1edc2` wrote
+`THIRD-PARTY-LICENSES.txt` again, because a lockfile bump also needs `bun nv gen-attribution`. No red is
 handed to the main loop, so no watch passes `--past`. `cargo deny` still warns that `deny.toml`'s ignore of
 RUSTSEC-2026-0206 matches no crate. It is only a warning.
 
