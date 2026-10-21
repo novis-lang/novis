@@ -13,11 +13,11 @@ import data from '../data/compare.json'
 import { githubFile } from '@config/site.mjs'
 
 interface PeerFigures {
-  /** The fastest of the run's repetitions. */
-  requests_per_sec: number
   /** The median of the run's repetitions. */
+  requests_per_sec: number
+  /** The same figure as `requests_per_sec`. */
   median_requests_per_sec: number
-  /** From the fastest repetition. */
+  /** From the median repetition. */
   p99_ms: number | null
   memory_peak_bytes: number | null
   /** How many responses had each status, over every repetition. */
@@ -74,8 +74,10 @@ const ROW_TEXT: Record<string, string> = {
   parallel: 'One request can split its work over four CPU cores',
   'live-edit': 'An edited source file is served without a restart',
   deploy: 'A new version goes live under load with no failed request and no mixed reply',
+  'deploy-big': 'A big deploy of 2,000 files goes live under load with no failed request and no mixed reply',
+  'deploy-switch': 'Switching a "current" link to a new release goes live with no failed request and no mixed reply',
   config: 'A change to the config file applies without a restart',
-  upgrade: 'A new runtime version runs with no failed request',
+
 }
 
 /**
@@ -87,6 +89,8 @@ const ROW_DETAILS: Record<string, string> = {
   taint: 'outside-data',
   'live-edit': 'edited-files',
   deploy: 'deploying-a-new-version',
+  'deploy-big': 'deploying-a-new-version',
+  'deploy-switch': 'deploying-a-new-version',
   cores: 'many-requests-at-once',
   loop: 'runaway-requests',
   memory: 'runaway-requests',
@@ -306,24 +310,29 @@ function evidenceOf(row: string): { peer: string; label: string; evidence: Recor
   })
 }
 
-/** What the `deploy` row's load saw while a new version of 200 files was copied in. */
+/** The rows that deploy a new version under load: 200 files, 2,000 files, and a switched `current` link. */
+export type DeployRow = 'deploy' | 'deploy-big' | 'deploy-switch'
+
+/** What a deploy row's load saw while a new version was copied in, summed over the row's runs. */
 export interface Deploy {
   peer: string
   label: string
-  /** Every request the load sent while the new version was copied in. */
+  /** Every reply the load checked while the new version went in. */
   requests: number
   failed: number
   /** Replies built partly from the old files and partly from the new ones. */
   mixed: number
 }
 
-export const deploys: Deploy[] = evidenceOf('deploy').map(({ peer, label, evidence: e }) => ({
-  peer,
-  label,
-  requests: e.requests as number,
-  failed: e.failed_requests as number,
-  mixed: e.mixed_replies as number,
-}))
+export function deploysOf(row: DeployRow): Deploy[] {
+  return evidenceOf(row).map(({ peer, label, evidence: e }) => ({
+    peer,
+    label,
+    requests: e.requests as number,
+    failed: e.failed_requests as number,
+    mixed: e.mixed_replies as number,
+  }))
+}
 
 /** What the steady load of the `memory` or `loop` row saw while one runaway request ran beside it. */
 export interface Runaway {
@@ -341,12 +350,19 @@ export interface Runaway {
   running: boolean
   /** How often the server crashed and its restart policy started it again. */
   restarts: number
+  /** The seconds until the server stopped the runaway request itself, or `null` when it never did. */
+  stoppedAfter: number | null
 }
+
+/** nginx's own answers for a backend that did not reply: such a reply is not the server stopping the request. */
+const PROXY_STATUSES = new Set([502, 504])
 
 export function runaways(row: 'memory' | 'loop'): Runaway[] {
   return evidenceOf(row).map(({ peer, label, evidence: e }) => {
     const requests = e.requests as number
     const baseline = e.baseline_requests as number
+    const status = (e.runaway_status as number | null) ?? null
+    const seconds = (e.runaway_seconds as number | null) ?? null
     return {
       peer,
       label,
@@ -357,6 +373,7 @@ export function runaways(row: 'memory' | 'loop'): Runaway[] {
       p99Ms: (e.p99_ms as number | null) ?? null,
       running: e.backend_running as boolean,
       restarts: (e.backend_restarts as number | undefined) ?? 0,
+      stoppedAfter: status === null || PROXY_STATUSES.has(status) ? null : seconds,
     }
   })
 }
