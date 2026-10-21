@@ -33,7 +33,17 @@ pub(crate) struct QueryWatch {
     traced: bool,
     /// § 11's threshold, for the block that wrote one.
     slow: Option<std::time::Duration>,
+    /// `DebugFlags::TRACE` is on and the span is not traced, because the `debug.trace` grant is
+    /// missing: [`QueryWatch::file`] says so once per process.
+    ungranted: bool,
 }
+
+/// Whether [`QueryWatch::file`] has already said that `trace` is on without its grant.
+///
+/// Once per process rather than per context, because a server builds a context per request and a
+/// line per request repeats one fact about the configuration.
+static TRACE_UNGRANTED_SAID: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 impl QueryWatch {
     /// What the context and the connection's block say, before the statement
@@ -54,19 +64,21 @@ impl QueryWatch {
     /// (`rule:testing/debug-mode-directive`). The grant costs one
     /// configuration read per statement, on a run with that bit on only.
     pub(crate) fn named(ctx: &nvs_runtime::Ctx, block: Option<&str>) -> QueryWatch {
-        let traced = if ctx.debug_flags().contains(nvs_runtime::DebugFlags::TRACE) {
-            ctx.trace_context().sampled()
+        let (traced, ungranted) = if ctx.debug_flags().contains(nvs_runtime::DebugFlags::TRACE) {
+            let traced = ctx.trace_context().sampled()
                 || nvs_runtime::capability::granted(
                     ctx,
                     nvs_config::capability::Cap::DebugTrace,
                     nvs_config::capability::Scope::Unscoped,
-                )
+                );
+            (traced, !traced)
         } else {
-            ctx.records_spans()
+            (ctx.records_spans(), false)
         };
         QueryWatch {
             traced,
             slow: block.and_then(|name| slow_query_of(ctx, name)),
+            ungranted,
         }
     }
 
@@ -86,6 +98,10 @@ impl QueryWatch {
         ctx: &mut nvs_runtime::Ctx,
         taken: Option<(String, std::time::Duration)>,
     ) {
+        if self.ungranted && !TRACE_UNGRANTED_SAID.swap(true, std::sync::atomic::Ordering::Relaxed)
+        {
+            trace_ungranted_record(ctx);
+        }
         let Some((line, took)) = taken else {
             return;
         };
@@ -114,6 +130,23 @@ pub(super) fn slow_query_of(ctx: &nvs_runtime::Ctx, name: &str) -> Option<std::t
     nvs_config::db::slow_query_for(name, written, &std::collections::BTreeMap::new())
         .ok()
         .flatten()
+}
+
+/// The warning that `trace` is on and traces no query, because `debug.trace` is not granted
+/// (`rule:testing/debug-mode-directive`). Its help is the line to add, from the same author as a
+/// refusal's.
+fn trace_ungranted_record(ctx: &mut nvs_runtime::Ctx) {
+    let cap = nvs_config::capability::Cap::DebugTrace;
+    let line = nvs_config::capability::grant_line(cap, nvs_config::capability::Scope::Unscoped);
+    let message = format!(
+        "The `trace` debug mode is on, but the capability `debug.trace` is not granted. No \
+         database query is traced.\nhelp: add `{line}` under `[capabilities.{}]` in nvs.toml",
+        cap.family()
+    );
+    let mut record = nvs_render::Record::at(nvs_render::Level::Warn);
+    record.envelope.message = Some(nvs_render::Rendered::new(&message));
+    ctx.stamp_envelope(&mut record.envelope);
+    let _dropped = ctx.write_log_record(&record, nvs_runtime::LogChannel::Diagnostic);
 }
 
 /// § 11's slow-query line: the span `rule:observability/trace-events-carry-a-kind`'s trace event carries, written to
@@ -235,6 +268,30 @@ mod tests {
         assert!(
             !QueryWatch::named(&off, None).traced,
             "an unsampled run renders none"
+        );
+    }
+
+    /// `trace` on without `debug.trace` is said, with the line to add; with the grant, or with
+    /// `trace` off, there is nothing to say.
+    #[test]
+    fn a_traced_run_without_the_grant_says_so_naming_the_line_to_add() {
+        let mut refused = configured("");
+        assert!(QueryWatch::named(&refused, None).ungranted);
+        assert!(
+            !QueryWatch::named(&configured("[capabilities.debug]\ntrace = true\n"), None).ungranted
+        );
+        let mut off = configured("");
+        off.set_debug_flags(nvs_runtime::DebugFlags::empty());
+        assert!(!QueryWatch::named(&off, None).ungranted);
+
+        refused.set_diagnostic_sink(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        super::trace_ungranted_record(&mut refused);
+        let said = String::from_utf8(refused.take_buffered_diagnostic().unwrap_or_default())
+            .expect("the warning is text");
+        assert!(said.contains("`debug.trace` is not granted"), "{said}");
+        assert!(
+            said.contains("help: add `trace = true` under `[capabilities.debug]` in nvs.toml"),
+            "{said}"
         );
     }
 }
