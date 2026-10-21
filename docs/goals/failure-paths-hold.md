@@ -13,7 +13,7 @@ stages:
         rules: [iteration/generators, security/isolate-teardown-is-a-drain-then-a-sweep]
   - id: 2
     title: "the armed memory ceiling, its refusal and its reserve travel with their task"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/budget.rs, crates/nvs-runtime/src/ctx/current.rs, crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-runtime/src/ctx/mod.rs, crates/nvs-runtime/src/ctx/hooks.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/ladder.rs, crates/nvs-server/src/serve.rs]
     extra:
       context:
@@ -239,9 +239,9 @@ thread ever names a freed safepoint word.
 - [x] `arm`'s caller obligation and `Ctx::drop`'s restore comment say what holds now. `crates/nvs-runtime/src/budget.rs:443`, `crates/nvs-runtime/src/ctx/mod.rs:1599`
 - [x] The limit handler runs after the reserve closes, and the log ladder closes its reserve before the handler isolate (`rule:errors/on-limit`). `crates/nvs-runtime/src/ctx/hooks.rs:570`, `crates/nvs-runtime/src/ctx/hooks.rs:625`, `crates/nvs-host/src/ladder.rs:111`
 - [x] Rust test: task A arms and parks, task B makes and drops a context, A resumes under its own ceiling, and after both end the thread's `POLLED` is null. `crates/nvs-host/src/scheduler.rs:1615`
-- [ ] The state-bleed suite gains a memory row with two interleaved requests, one over its limit and one under. `crates/nvs-server/src/serve.rs:8510`
-- [ ] `core-time-slice`'s standing decision on memory says the arming already travels, and its stage 3 charges the balance only. `docs/goals/core-time-slice.md:134`
-- [ ] The rule says every per-task value the allocator reads travels with the task. `docs/rules/security/isolate-shares-nothing.md:1`
+- [x] The state-bleed suite gains a memory row with two interleaved requests, one over its limit and one under. `crates/nvs-server/src/serve.rs:8540`
+- [x] `core-time-slice`'s standing decision on memory says the arming already travels, and its stage 3 charges the balance only. `docs/goals/core-time-slice.md:138`
+- [x] The rule says every per-task value the allocator reads travels with the task. `docs/rules/security/isolate-shares-nothing.md:34`
 
 ### 3. a form or query name of any shape stops at the memory ceiling inside one parse
 
@@ -326,7 +326,7 @@ reference-cell store and the `set => expr;` hook body, and both are fixed. `inst
 (`crates/nvs-runtime/src/ctx/isolate.rs:276`) releases a whole statics store before it installs the
 next one; it runs before any request frame, so it is left as it is.
 
-Stage 2's code is in. `budget::ArmedStack` (`crates/nvs-runtime/src/budget.rs:501`) carries the
+Stage 2 is done. `budget::ArmedStack` (`crates/nvs-runtime/src/budget.rs:501`) carries the
 four cells. `yield_on` takes and restores it (`crates/nvs-host/src/scheduler.rs:1623`). Two more
 seams were needed beyond the stage's items, because a context is made on one stack and run on
 another:
@@ -343,12 +343,16 @@ another:
 The limit handler's reserve closes after the report is built and before `call_callable`. The ladder
 builds the record and copies it in with `Isolate::start` inside the reserve, closes it, then
 `join`s. `a_task_resumes_under_its_own_memory_ceiling_and_leaves_no_word_armed`
-(`crates/nvs-host/src/scheduler.rs:1735`) passes by name. Build and clippy are green.
+(`crates/nvs-host/src/scheduler.rs:1735`) passes by name. The state-bleed suite's memory row,
+`the_state_bleed_suite_passes_between_two_interleaved_requests`
+(`crates/nvs-server/src/serve.rs:8540`), passes by name: a tight request is refused and parks on a
+short body, a roomy one runs to its end unrefused, and the tight one resumes still refused under the
+same ceiling. `rule:security/isolate-shares-nothing` and `core-time-slice`'s memory decision say
+what is true. Build and clippy are green.
 
-**The acceptance sweep's `proofs` failure is fixed.** Another session committed rewrites of nine
-`about.md` pages (`6e529cde4`), which left one page stale and eight pages' questions unstamped. Each
-page's questions were reread and stamped again (`0439d8ccf`), and `bun nv site --check stale
-questions prose` passes. `env-secret-proofs` exits 0 here.
+**The acceptance sweep's red was already fixed at HEAD.** The nightly `proofs` jobs ran at
+`afbb1edc2`, 131 commits back, and failed on website pages `0439d8ccf` restamped. `bun nv site --check
+structure snippets stale questions prose` passes now, and `env-secret-proofs`' log exits 0.
 
 **Expected red at the gate:** any `nvs-ir` lowering snapshot or IR-dump test that pins a property,
 static or reference-cell write. The release of the old value now follows the store instead of
@@ -358,17 +362,18 @@ the ceiling of its own context alone.
 
 ### Next
 
-**Stage 2's last three items, one group.** No gate.
+**Stage 3, one group: form and query names stop at the memory ceiling.** No gate. Its files are
+`crates/nvs-runtime/src/array.rs`, `crates/nvs-stdlib/src/uri.rs`, `crates/nvs-stdlib/src/request.rs`
+and `crates/nvs-stdlib/src/multipart.rs`.
 
-- [ ] The state-bleed suite gains a memory row: two interleaved requests, one over its limit and one under. `crates/nvs-server/src/serve.rs:8510`
-- [ ] `core-time-slice`'s standing decision on memory says the arming already travels, and its stage 3 charges the balance only. `docs/goals/core-time-slice.md:134`
-- [ ] `rule:security/isolate-shares-nothing` says every per-task value the allocator reads travels with the task, and names `leave_this_stack` and `arm_on_this_stack` as how a context reaches its own stack. `docs/rules/security/isolate-shares-nothing.md:1`
+- [ ] `NvsArray::try_new` asks `budget::affords` for one header and its empty table. `crates/nvs-runtime/src/array.rs:1037`
+- [ ] `uri::branch` and `insert` build through it, and a refusal ends `parse_query` and `place`. `crates/nvs-stdlib/src/uri.rs:2211`, `crates/nvs-stdlib/src/uri.rs:3181`
+- [ ] `post()`, `query()` and their array forms surface it as the request's memory error. `crates/nvs-stdlib/src/request.rs:1801`
+- [ ] Multipart field names count against `request_body` beside their values. `crates/nvs-stdlib/src/multipart.rs:480`
+- [ ] The Rust tests and the rule rewrite the stage names. `crates/nvs-stdlib/src/uri.rs:3279`, `docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself.md:8`
 
-Then set stage 2 to done. Stages 3 and 4 may run as a side goal beside it, because they touch only
-`crates/nvs-stdlib`, `crates/nvs-server/src/body.rs` and `crates/nvs-config`.
-
-Stages 3 and 4 may run as a side goal beside it, because they touch only `crates/nvs-stdlib`,
-`crates/nvs-server/src/body.rs` and `crates/nvs-config`.
+Stage 5 follows stage 2 and may run beside stage 3, because it touches only the safepoint path
+(`crates/nvs-runtime/src/ctx/safepoint.rs`, `crates/nvs-runtime/src/abi.rs`). Stage 4 follows stage 3.
 
 ### Backlog
 
