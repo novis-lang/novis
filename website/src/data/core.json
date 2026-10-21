@@ -29612,12 +29612,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "open(tainted bytes|Core\\IO\\File $source, Options $options = null): Template",
+          "signature": "open(bytes|Core\\IO\\File $source, Options $options = null): Template",
           "params": [
             {
               "kind": "param",
               "name": "source",
-              "type": "tainted bytes|Core\\IO\\File",
+              "type": "bytes|Core\\IO\\File",
               "default": null,
               "optional": false,
               "variadic": false
@@ -29634,7 +29634,7 @@
           "options": [],
           "returnType": "Template",
           "doc": {
-            "shortHtml": "<code>Template::open</code> opens the template in <code>$source</code>, the bytes of an xlsx or xlsm file or a file your program opened.\n<code>zone</code> is the time zone for an <code>Instant</code>, such as <code>'Europe/Berlin'</code>. Without <code>zone</code>, an <code>Instant</code> throws an error."
+            "shortHtml": "<code>Template::open</code> opens the template in <code>$source</code>, the bytes of an xlsx or xlsm file or a file your program opened.\nThe filled file copies the formulas, links and sheets of the template without any change. For this reason, <code>$source</code> cannot be <code>tainted</code>, such as an uploaded file.\nTo fill an uploaded template, call <code>Core\\Taint::assertTrusted</code> on its bytes first, with the reason you trust it.\n<code>zone</code> is the time zone for an <code>Instant</code>, such as <code>'Europe/Berlin'</code>. Without <code>zone</code>, an <code>Instant</code> throws an error."
           },
           "slug": "open",
           "url": "/reference/core/novis-spreadsheet-template/open/",

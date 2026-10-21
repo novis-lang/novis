@@ -6607,7 +6607,7 @@ echo Core\Json::encode($token), "\n";
 error[E0790]: `echo` cannot print a `secret` value
   --> main.nvs:7:6
   |
-7 | echo "Bearer {$token}\n";
+7 | echo "Bearer {******}\n";
   |      ^^^^^^^^^^^^^^^^^^^ this value is `secret`
   = help: Output is read by people and saved in logs. To print the value anyway, call `Core\Secret::reveal($value, "reason")` first. Joining it into a longer string does not help. The result is `secret` too.
 
@@ -52197,7 +52197,7 @@ Keywords: open, set, fill
 
 | Member | Signature |
 |---|---|
-| [`Novis\Spreadsheet\Template::open`](#core-novis-spreadsheet-template-open) | `open(tainted bytes\|Core\IO\File $source, Options $options = null): Template` |
+| [`Novis\Spreadsheet\Template::open`](#core-novis-spreadsheet-template-open) | `open(bytes\|Core\IO\File $source, Options $options = null): Template` |
 | [`Novis\Spreadsheet\Template->set`](#core-novis-spreadsheet-template-set) | `set(string $address, mixed $value): Template` |
 | [`Novis\Spreadsheet\Template->fill`](#core-novis-spreadsheet-template-fill) | `fill(array<mixed> $data): Export` |
 
@@ -52205,10 +52205,12 @@ Keywords: open, set, fill
 #### `Novis\Spreadsheet\Template::open`
 
 ```nvs skip
-Novis\Spreadsheet\Template::open(tainted bytes|Core\IO\File $source, Options $options = null): Template
+Novis\Spreadsheet\Template::open(bytes|Core\IO\File $source, Options $options = null): Template
 ```
 
 `Template::open` opens the template in `$source`, the bytes of an xlsx or xlsm file or a file your program opened.
+The filled file copies the formulas, links and sheets of the template without any change. For this reason, `$source` cannot be `tainted`, such as an uploaded file.
+To fill an uploaded template, call `Core\Taint::assertTrusted` on its bytes first, with the reason you trust it.
 `zone` is the time zone for an `Instant`, such as `'Europe/Berlin'`. Without `zone`, an `Instant` throws an error.
 
 **Returns** `Template`
