@@ -940,7 +940,9 @@ A parameter or property whose type is narrower than the first ancestor that decl
 `covariant`, also in a grandchild that only repeats its parent's narrowed type. Without it the
 override is `E0404` and the property is `E0866`, and both helps name `covariant`. A `covariant` whose
 type the topmost declaration's type fits is `E0882`, because it would cost a test that tests
-nothing, and one that is unrelated to it is `E0404`. A `tainted` or `secret` qualifier is kept: the
+nothing, and one that is unrelated to it is `E0404`. A grandchild's `covariant` type is also
+measured against its parent's narrowed type: one that has no value in common with it is `E0404`,
+because every call through the parent's type would throw. A `tainted` or `secret` qualifier is kept: the
 keyword narrows the type, never a qualifier, and dropping one is `E0404`. A default the topmost
 declaration gives a parameter must pass the narrower type, or the override is `E0884`, since a call
 through the ancestor fills that default. `Comparable::compareTo` takes the class that names
@@ -948,8 +950,9 @@ through the ancestor fills that default. `Comparable::compareTo` takes the class
 subclass narrows.
 
 **A parameter is tested when the method is entered, on every call.** Each covariant parameter gets
-one type test before the body runs: an `inout` one on entry, and a variadic one on each element. The
-test is the one `is` compiles to. Its message names the method, the parameter, the type it takes and
+one type test before the body runs: an `inout` one on entry, and a variadic one on each element. A
+generator method is tested when it is called, before it returns its iterator. The test is the one
+`is` compiles to. Its message names the method, the parameter, the type it takes and
 the class it got. A call through the subclass's own type is tested too: skipping it saves one
 compare and costs a second calling convention.
 
