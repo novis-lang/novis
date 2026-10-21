@@ -41,6 +41,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "../goal/config.ts";
 import { Refused, SIDE_GOAL_VAR } from "../goal/model.ts";
+import { waitOnPurpose } from "../jobs/hang.ts";
 import { looperHome } from "../jobs/slots.ts";
 import type { AgentAdapter } from "../loop/adapter.ts";
 import { Claude } from "../loop/claude.ts";
@@ -423,16 +424,22 @@ async function log(argv: string[], ctx: Context): Promise<Report> {
     const page = events(at, from, limit);
     return { doc: { ...page, ended: sessionRecord(dir, n)?.ended != null } };
   }
-  for (;;) {
-    // Whether the session had ended is read before its page, so the page holds its last events.
-    const ended = !follow || sessionRecord(dir, n)?.ended != null;
-    const page = events(at, from, limit);
-    for (const e of page.events) ctx.line(eventLine(e));
-    const last = page.events.at(-1);
-    if (last !== undefined) from = last.seq + 1;
-    if (page.next !== null) continue;
-    if (ended) return {};
-    await Bun.sleep(FOLLOW_EVERY);
+  // A followed session may be quiet for long, which is not a hang of this call.
+  const waiting = follow ? waitOnPurpose("log follows a session") : () => {};
+  try {
+    for (;;) {
+      // Whether the session had ended is read before its page, so the page holds its last events.
+      const ended = !follow || sessionRecord(dir, n)?.ended != null;
+      const page = events(at, from, limit);
+      for (const e of page.events) ctx.line(eventLine(e));
+      const last = page.events.at(-1);
+      if (last !== undefined) from = last.seq + 1;
+      if (page.next !== null) continue;
+      if (ended) return {};
+      await Bun.sleep(FOLLOW_EVERY);
+    }
+  } finally {
+    waiting();
   }
 }
 

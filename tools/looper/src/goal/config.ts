@@ -235,6 +235,12 @@ export interface Commits {
 export interface Jobs {
   heavy: string[];
   hide_windows: boolean;
+  /** Seconds a Bash call may wait with no output and no CPU before the hang watch kills it; 0 never. */
+  hang_stall_s: number;
+  /** Seconds a Bash call may use the CPU with no output before the hang watch kills it; 0 never. */
+  hang_spin_s: number;
+  /** Patterns, in Rust's `regex` syntax, of Bash commands the hang watch leaves alone. */
+  hang_exempt: string[];
 }
 
 export interface Merge {
@@ -356,7 +362,7 @@ export function defaultConfig(): Config {
     wrap: { section: [], checks: [] },
     sync: { skip: [] },
     commits: { subject_max: 71, types: [...COMMIT_TYPES] },
-    jobs: { heavy: [], hide_windows: true },
+    jobs: { heavy: [], hide_windows: true, hang_stall_s: 90, hang_spin_s: 600, hang_exempt: [] },
     merge: { generated: [], render: [] },
     launch: [],
   };
@@ -478,6 +484,13 @@ export function parseConfig(path: string, text: string): Config {
       ruleRegex(rule.pattern);
     } catch (e) {
       throw new ConfigError(path, `guard.deny pattern ${debug(rule.pattern)}: ${(e as Error).message}`);
+    }
+  }
+  for (const pattern of cfg.jobs.hang_exempt) {
+    try {
+      ruleRegex(pattern);
+    } catch (e) {
+      throw new ConfigError(path, `jobs.hang_exempt pattern ${debug(pattern)}: ${(e as Error).message}`);
     }
   }
   return cfg;
@@ -681,7 +694,11 @@ const sync = table<SyncSettings>("SyncSettings", { skip: strings }, () => defaul
 
 const commits = table<Commits>("Commits", { subject_max: usize, types: strings }, () => defaultConfig().commits);
 
-const jobsTable = table<Jobs>("Jobs", { heavy: strings, hide_windows: bool }, () => defaultConfig().jobs);
+const jobsTable = table<Jobs>(
+  "Jobs",
+  { heavy: strings, hide_windows: bool, hang_stall_s: u64, hang_spin_s: u64, hang_exempt: strings },
+  () => defaultConfig().jobs,
+);
 
 /** What `[jobs] exclusive` is refused with: no job takes every slot (decision 0029). */
 export const NO_EXCLUSIVE = "`exclusive` is removed, because a job takes at most one heavy slot. List these commands under `heavy` instead";

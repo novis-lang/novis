@@ -13,7 +13,8 @@
 // - `exec kill <id>` ends a running job's whole tree, after recording who asked (`asker`).
 // - `exec wait <id>` reads the job's folder every `WAIT_EVERY_MS` until it has exited or is lost. It
 //   prints the exit code, the running time and the last `WAIT_LINES` lines of the log, and exits with
-//   the job's code. A lost job, and a code outside 0 to 255, exit 1.
+//   the job's code. A lost job, and a code outside 0 to 255, exit 1. While it waits it tells the hang
+//   watch so (`../jobs/hang.ts`).
 // - `exec progress <id>` prints the job's progress (`../jobs/progress.ts`): a line of totals, the time
 //   left when the steps have a history, then one line per item of the tree, indented by its depth. Each
 //   line holds the item's id and name, its state, its count and its time. A child job's items stand
@@ -28,6 +29,7 @@
 // - `log --lines` without `--from` holds at most that many lines, and `wait` at most `WAIT_LINES`.
 // - `progress` holds one view, within the bounds of `../jobs/progress.ts`.
 
+import { waitOnPurpose } from "../jobs/hang.ts";
 import { looperHome, type Seen, seenSlots } from "../jobs/slots.ts";
 import { type Entry, jobName, type JobState, storeOf } from "../jobs/store.ts";
 import { jobPids, listeners } from "../os/index.ts";
@@ -201,9 +203,14 @@ async function wait(args: string[]): Promise<Report> {
   const record = store.record(id);
   if (!record) throw new Refusal(`no job has the id ${id}`);
   let state = store.state(id, record);
-  while (state.state === "running") {
-    await Bun.sleep(WAIT_EVERY_MS);
-    state = store.state(id, record);
+  const waiting = waitOnPurpose(`exec waits for job ${id}`);
+  try {
+    while (state.state === "running") {
+      await Bun.sleep(WAIT_EVERY_MS);
+      state = store.state(id, record);
+    }
+  } finally {
+    waiting();
   }
   const lines = textLines(store.dir(id), { last: WAIT_LINES });
   const code = state.state === "exited" ? state.exit.code : null;
