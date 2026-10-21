@@ -2,7 +2,7 @@
 // Measures ordering two eight-byte keys. A program does this when it sorts
 // binary keys, or when it checks that a key falls inside a range.
 // bench: iterations 1024
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: statements 3
 // bench: complexity linear

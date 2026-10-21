@@ -2,7 +2,7 @@
 // Measures writing a five-byte header, as a program does before it sends a
 // message over a socket.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

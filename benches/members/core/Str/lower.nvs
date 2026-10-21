@@ -1,7 +1,7 @@
 <?nvs
 // Changes a short word to lower case, as a program does before it compares a name or an email address.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

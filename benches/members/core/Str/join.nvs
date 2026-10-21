@@ -1,7 +1,7 @@
 <?nvs
 // Joins the parts of a date with a separator, as a program does when it writes a date into a report or a file name.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

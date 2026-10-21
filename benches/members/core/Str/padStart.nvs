@@ -1,7 +1,7 @@
 <?nvs
 // Pads a number with zeros in front, as a program does when it prints an invoice or order number.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

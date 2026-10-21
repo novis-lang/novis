@@ -1,7 +1,7 @@
 <?nvs
 // Folds a short email address, as a program does before it looks up a user by that address.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

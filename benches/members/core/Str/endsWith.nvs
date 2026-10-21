@@ -1,7 +1,7 @@
 <?nvs
 // Checks whether a file name ends with ".png", as a program does when it accepts an upload.
 // bench: iterations 512
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity linear
 

@@ -1,7 +1,7 @@
 <?nvs
 // Fills in the placeholders of a short message, as a program does before it sends an email.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

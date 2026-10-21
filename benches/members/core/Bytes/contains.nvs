@@ -2,7 +2,7 @@
 // Measures looking for a short run of bytes inside a small message. A program
 // does this when it checks whether the message it has read is complete.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: statements 3
 // bench: complexity linear

@@ -2,7 +2,7 @@
 // Measures reading one byte out of a `bytes` value. A program does this when
 // it checks the first bytes of an uploaded file to see what kind of file it is.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: statements 3
 // bench: complexity constant

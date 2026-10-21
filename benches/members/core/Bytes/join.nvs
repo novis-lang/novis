@@ -2,7 +2,7 @@
 // Measures joining a few buffers into one, as a program does when it puts the
 // chunks of a body back together.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

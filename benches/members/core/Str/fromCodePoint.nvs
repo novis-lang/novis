@@ -1,7 +1,7 @@
 <?nvs
 // Builds one symbol from its number, as a program does when it reads a reference like `&#233;` in imported text.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

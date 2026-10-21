@@ -1,7 +1,7 @@
 <?nvs
 // Checks whether a request path starts with "/api/", as a program does when it routes a request.
 // bench: iterations 512
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity linear
 

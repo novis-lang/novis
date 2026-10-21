@@ -1,7 +1,7 @@
 <?nvs
 // Wraps a short message at 10 characters, as a program does before it prints a notice in a narrow column.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

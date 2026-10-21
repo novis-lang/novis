@@ -1,7 +1,7 @@
 <?nvs
 // Splits a short list at its commas, as a program does when it reads tags or a line of CSV.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

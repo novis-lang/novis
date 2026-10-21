@@ -1,7 +1,7 @@
 <?nvs
 // Takes the first eight characters of a product name, as a program does to show a short preview.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {
