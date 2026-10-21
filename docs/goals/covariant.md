@@ -196,9 +196,9 @@ through a wider type that would store another class throws.
 
 **Does:** no write path stores a value of another class in a narrowed slot.
 
-- [ ] The erased write through `object` or `mixed`, the `property<T>` key write and the reflected write test the receiver's narrowed type (`rule:types/erased-member-access`, `rule:types/property-key-access`). `crates/nvs-runtime/src/object.rs:1`
-- [ ] A hooked property tests before its `set` hook, and the guard and observer run after the test. `crates/nvs-ir/src/lower/stmt.rs:1217`
-- [ ] A case for each path. `tests/conformance/class/a-covariant-property-is-checked-on-every-write-path.nvst:1`
+- [x] The erased write through `object` or `mixed`, the `property<T>` key write and the reflected write test the receiver's narrowed type (`rule:types/erased-member-access`, `rule:types/property-key-access`). `crates/nvs-runtime/src/object.rs:1`
+- [x] A hooked property tests before its `set` hook, and the guard and observer run after the test. `crates/nvs-ir/src/lower/stmt.rs:1217`
+- [x] A case for each path. `tests/conformance/class/a-covariant-property-is-checked-on-every-write-path.nvst:1`
 - [ ] The redeclaration matrix of compiler-holes stage 17 gains a `covariant` parameter and a `covariant` property as rows, against every relation and path it lists, and `bun nv soundness --write` writes them. `tools/nv/cmd/soundness.ts:1`
 
 ### 6. `lang:classes/covariant` has its feature proofs, and the rule is shipped
@@ -256,10 +256,9 @@ and `describe_argument` (`crates/nvs-runtime/src/object.rs`). The case is
 A covariant parameter of a generator method still asserts in lowering
 (`crates/nvs-ir/src/lower/generator.rs:709`).
 
-Stage 4's code and both cases are in one commit, **and `looper verify` has not run on it**: the session
-reached its context budget first. Both cases pass on `target/debug/nvs.exe` through
-`NVS_BIN=target/debug/nvs.exe bun nv try <case>` (plain `bun nv try` runs a stale pipeline build).
-What landed:
+Stage 4 is done and verified. `rule:classes/definite-property-initialization` says that
+`parent::constructor(...)` assigns a redeclared property, for the `ancestors_assigned` change below.
+What it landed:
 
 - `check_property_redeclarations` (`crates/nvs-types/src/conformance.rs:155`) measures a `covariant`
   property in `covariant_property_problem` against the topmost declaration (`topmost_property`) and
@@ -285,23 +284,36 @@ What landed:
 - The Declined sentence in `docs/rules/classes/a-redeclared-property-keeps-its-parents-type.md` that
   refused a checked narrower property now names `covariant` instead.
 
-The nightly sweep's failures are on `6544156`: `bun nv proofs --gate` and
-`bun nv render --website --check` are both green on `main`, and `miri` ran past its 45-minute
-`timeout-minutes` (`.github/workflows/ci.yml:1208`) with no failing test.
+Stage 5's run-time half is done. `write_property` (`crates/nvs-runtime/src/object.rs`) serves the
+`object` and `mixed` writes, the `property<T>` key write and `Core\Reflect`'s `set`. When
+`check_slot` refuses a value, `ClassDesc::ancestor_admits` asks every ancestor descriptor in
+`conforms` that has the same slot. If one takes the value, the slot was narrowed, and
+`covariant_rejected` throws the typed write's `LogicError`. Otherwise the old `RuntimeError` stays.
+It compares types, not spellings, so `Animal|null` under `?Animal` is not narrowed, and a write that
+fits never pays for the walk. A hooked property runs the same test before its guard and its `set`
+hook. The case `tests/conformance/class/a-covariant-property-is-checked-on-every-write-path.nvst`
+covers each path, and also a parent's `set` hook that stores a different value into the backing slot:
+that write is tested too.
+
+Hooks are resolved statically (`rule:classes/property-hooks`), so a write through the parent's type
+runs the parent's `set` hook on a subclass instance. The test runs before it, so this is safe.
+
+The nightly sweep's failures are on `6544156`, which the previous session found green on `main`.
 
 ### Next
 
-**First, `looper verify`**, and fix what it names. Likely spots: lowering snapshot tests that print
-`promoted_stores` (the covariant entry test now runs before them), any `E0409` case that relied on a
-redeclared property being required, and `rule:classes/definite-property-initialization`, which needs
-one sentence for the `ancestors_assigned` change. Then mark stage 4 done in the front matter.
+**Stage 5's last item, one slice**, in `tools/nv/cmd/soundness.ts` only. Read the header, `MEMBERS`,
+`PATHS`, `propertyPiece` and `methodPiece` and the oracle before you write anything. It is about
+700 lines, so budget for it.
 
-**Then stage 5, one group**, on `nvs-runtime` and `nvs-ir`. Its gate holds: `tools/nv/cmd/soundness.ts` exists.
-
-- [ ] The erased write, the `property<T>` key write and the reflected write throw the `LogicError` for a narrowed slot. `write_property` already runs `check_slot` on the receiver's descriptor, so this is mostly the error's class and wording. `crates/nvs-runtime/src/object.rs:5504`
-- [ ] A hooked property: `emit_covariant_property_check` already runs before the `set` hook. Prove it in the case. `crates/nvs-ir/src/lower/stmt.rs:1515`
-- [ ] The case for each path. `tests/conformance/class/a-covariant-property-is-checked-on-every-write-path.nvst:1`
-- [ ] The soundness matrix rows. `tools/nv/cmd/soundness.ts:1`
+- [ ] Add a `covariant` method parameter and a `covariant` property as member rows. Their verdict is
+  `ok` for `subclass`, `int-under-int-string`, `t-under-nullable` and `member-under-union`, `E0882`
+  for `same`, `superclass`, `nullable-over-t` and `wider-union`, and `E0404` or `E0866` for `unrelated`. Check each against `covariant_property_problem` and `check_covariant_params`. `tools/nv/cmd/soundness.ts:142`
+- [ ] The oracle: a path that passes the parent's wider value prints the `LogicError` message. A
+  path through the child's type passes the child's value. `tools/nv/cmd/soundness.ts:546`
+- [ ] `bun nv soundness --write`, then `NVS_BIN=E:/mwl/target/debug/nvs.exe bun nv soundness --probe`
+  and every cell green. `tests/conformance/soundness/`
+- [ ] Mark stage 5 done. Then stage 6, the feature proofs.
 
 ### Backlog
 
