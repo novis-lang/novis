@@ -59,13 +59,26 @@ type Tables = Record<string, Record<string, unknown>>;
  *  with a reason that says why, per this file's header. */
 export const UNSAFE_CRATES: Record<string, string> = {
   "crates/nvs-runtime":
-    "the helper ABI's `extern \"C\"` entry points, the request arena and the tagged-value representation decode raw pointers",
+    "the helper ABI's `extern \"C\"` entry points; the reference-counted strings, arrays and objects they reach through raw " +
+    "pointers, with the class descriptors objects are built from; and the global allocator, whose per-thread block cache " +
+    "and per-request byte counter forward to `System`",
   "crates/nvs-stdlib":
-    "every `Core` member is an `rule:errors/propagation` helper entry point, and therefore an `extern \"C\"` function over raw pointers",
-  "crates/nvs-codegen": "JIT page mapping, and transmuting a compiled code pointer to a callable function pointer",
-  "crates/nvs-host": "the coroutine stack switcher's one deref of the opaque yielder, and CPU affinity through the platform API",
-  "crates/nvs-config": "the process environment is read through `std::env`, whose accessors are `unsafe` in edition 2024",
-  "crates/nvs-cli": "the process environment again, at the one place the binary sets it before handing control to the runtime",
+    "a `Core` member retains and releases the runtime's reference-counted values, adopts a raw string, array or object " +
+    "pointer as a handle, builds or decodes an object through its class descriptor, and walks an array through the " +
+    "runtime's slot cursor, and `Core\\Json` takes serde_json's output as UTF-8 unchecked; its tests write `extern \"C\"` callees in compiled code's signature",
+  "crates/nvs-codegen":
+    "JIT page mapping, unmapping and instruction-cache flushing, transmuting a compiled code pointer to a callable function " +
+    "pointer, `Send` and `Sync` for a unit that holds code addresses, and constructing an object through the runtime",
+  "crates/nvs-host":
+    "the coroutine stack switcher's one deref of the opaque yielder, a task group's and an isolate's release of the " +
+    "references they are handed and their child contexts, the per-thread CPU clock through the platform API, and the " +
+    "ThreadSanitizer fiber hooks under the `tsan` feature",
+  "crates/nvs-config":
+    "the config file permission check (`geteuid` on Unix, the file's ACL through `advapi32` on Windows), reading the " +
+    "physical memory size, and creating a Windows data directory with a security descriptor",
+  "crates/nvs-cli":
+    "signal handling and its self-pipe, Windows service registration and dispatch, the account lookup, the monotonic " +
+    "clock, the socket `umask`, and making a cached code pointer callable",
   "crates/nvs-ext":
     "loading an extension's compiled component back from the artifact cache, whose bytes wasmtime runs as machine code without validating them",
   "benches/abi-probe":

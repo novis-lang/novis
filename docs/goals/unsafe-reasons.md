@@ -6,7 +6,7 @@ context: [tools/nv/cmd/lints.ts]
 stages:
   - id: 1
     title: "the unsafe roster states each crate's real reason"
-    status: open
+    status: done
     context: [tools/nv/cmd/lints.ts, crates/nvs-config/src/trust.rs, crates/nvs-cli/src/stop.rs]
   - id: 2
     title: "the standard library walks an array through one iterator"
@@ -65,9 +65,9 @@ gains: the cursor logic and its safety reason exist once.
 `#[expect(unsafe_code, reason = …)]` sites as `file.rs:NN` and the reason in one line. The session
 writes `lints.ts`.
 
-- [ ] `nvs-config`'s entry names the config file permission check (`geteuid` on Unix, the file's ACL through `advapi32` on Windows), the physical memory reading, and the Windows directory created with a security descriptor. `tools/nv/cmd/lints.ts:67`, `crates/nvs-config/src/trust.rs:180`, `crates/nvs-config/src/server.rs:974`, `crates/nvs-config/src/data.rs:545`
-- [ ] `nvs-cli`'s entry names signal handling, Windows service registration and dispatch, the account lookup, the socket `umask`, and the cached code pointer it makes callable. `tools/nv/cmd/lints.ts:68`, `crates/nvs-cli/src/stop.rs:144`, `crates/nvs-cli/src/service.rs:1691`, `crates/nvs-cli/src/dispatch.rs:377`, `crates/nvs-cli/src/serve.rs:2655`, `crates/nvs-cli/src/cache.rs:1097`
-- [ ] The other five entries are read against their crate's `#[expect(unsafe_code)]` reasons, and an entry that names less than the crate does is completed. `nvs-host`'s entry does not yet name the CPU clock reads or the ThreadSanitizer hooks. `tools/nv/cmd/lints.ts:61`, `tools/nv/cmd/lints.ts:66`, `tools/nv/cmd/lints.ts:69`, `crates/nvs-host/src/cpuclock.rs:150`, `crates/nvs-host/src/tsan.rs:87`
+- [x] `nvs-config`'s entry names the config file permission check (`geteuid` on Unix, the file's ACL through `advapi32` on Windows), the physical memory reading, and the Windows directory created with a security descriptor. `tools/nv/cmd/lints.ts:67`, `crates/nvs-config/src/trust.rs:180`, `crates/nvs-config/src/server.rs:974`, `crates/nvs-config/src/data.rs:545`
+- [x] `nvs-cli`'s entry names signal handling, Windows service registration and dispatch, the account lookup, the socket `umask`, and the cached code pointer it makes callable. `tools/nv/cmd/lints.ts:68`, `crates/nvs-cli/src/stop.rs:144`, `crates/nvs-cli/src/service.rs:1691`, `crates/nvs-cli/src/dispatch.rs:377`, `crates/nvs-cli/src/serve.rs:2655`, `crates/nvs-cli/src/cache.rs:1097`
+- [x] The other five entries are read against their crate's `#[expect(unsafe_code)]` reasons, and an entry that names less than the crate does is completed. `nvs-host`'s entry does not yet name the CPU clock reads or the ThreadSanitizer hooks. `tools/nv/cmd/lints.ts:61`, `tools/nv/cmd/lints.ts:66`, `tools/nv/cmd/lints.ts:69`, `crates/nvs-host/src/cpuclock.rs:150`, `crates/nvs-host/src/tsan.rs:87`
 
 ### 2. the standard library walks an array through one iterator
 
@@ -89,18 +89,29 @@ That list is the last item's set of groups.
 
 ### State
 
-No stage has started. The anchors were checked against the tree when the goal was written.
+Stage 1 is done. Every `UNSAFE_CRATES` entry in `tools/nv/cmd/lints.ts:60` was rewritten from that
+crate's `#[expect(unsafe_code)]` sites. Two old claims were false: `nvs-runtime` has no request arena
+(`crates/nvs-runtime/src/lib.rs:184` says it is refused), and `nvs-host` sets no CPU affinity. The
+added uses are the global allocator in `nvs-runtime`, `Send`/`Sync` for a unit in `nvs-codegen`, the
+task group's reference releases in `nvs-host`, and the monotonic clock in `nvs-cli`. `nvs-ext` and
+`benches/abi-probe` were already true.
+
+The nightly CI failures the sweep named were all on `6544156`, 89 commits behind this stage's head,
+and none reproduces there. `bun nv proofs --gate` owes nothing, and `bun nv render --website --check`
+is current. `miri` timed out at 45 minutes as one job, and `51e0534f6` already split it into two parts.
 
 ### Next
 
-**Stage 1: the roster**, one file set: `tools/nv/cmd/lints.ts` and the unsafe crates it names, read
-only. No gate.
+**Stage 2: one array walk**, on `crates/nvs-stdlib/src/` only. Start with the stage's `Explore`
+subagent. The stage 1 survey found 18 `nvs_array_next_slot` or `nvs_array_count` sites, not twelve.
+The six beyond the stage's list are `crates/nvs-stdlib/src/arr.rs:2288`, `arr.rs:2317`,
+`db/open.rs:1132`, `os.rs:400`, `test.rs:3493` and `str.rs:1874`. `str.rs:1874` is `Elements`
+itself. The subagent says which of the other five are walks and which only count.
 
-- [ ] `nvs-config`'s entry names its three real uses. `tools/nv/cmd/lints.ts:67`, `crates/nvs-config/src/trust.rs:180`
-- [ ] `nvs-cli`'s entry names its five real uses. `tools/nv/cmd/lints.ts:68`, `crates/nvs-cli/src/stop.rs:144`
-- [ ] The other five entries are completed from the Explore subagents' lists. `tools/nv/cmd/lints.ts:61`, `crates/nvs-host/src/cpuclock.rs:150`
-
-Stage 2 follows in its own session, on `crates/nvs-stdlib/src/`.
+- [ ] The keyed iterator beside `Elements`. `crates/nvs-stdlib/src/str.rs:1852`
+- [ ] The value-only walks use `Elements`. `crates/nvs-stdlib/src/bytes.rs:1086`
+- [ ] The keyed walks use the keyed iterator. `crates/nvs-stdlib/src/http.rs:3141`
+- [ ] The member ledger over each group reached. `data/perf/members.ndjson:1`
 
 ### Backlog
 
