@@ -6,7 +6,9 @@
 //! sleeps until the run's deadline, then raises [`nvs_runtime::SafepointFlags::WALL_TIME`] and expires the
 //! deadline through the run's [`SafepointView`]. The flag stops compiled code at its next
 //! poll, and the deadline stops a helper loop already running. A sleeping task reaches
-//! neither, so `Core\Time::sleep` ends at the deadline itself. The `Core\Fatal::onLimit`
+//! neither, so `Core\Time::sleep` ends at the deadline itself, and whichever of the two
+//! reaches it first claims the stop ([`SafepointView::stop_at_wall_time`]), so the
+//! thread's first raise never lands inside the sleep's handler. The `Core\Fatal::onLimit`
 //! handler runs with the flag lowered, and the thread raises it once more after the
 //! default `fatal_reserve_time`, which is the handler's slice.
 //!
@@ -89,7 +91,9 @@ fn watch(view: &SafepointView, moved: &Sender<Event>, events: &Receiver<Event>) 
             Ok(Event::Moved) => {}
             Ok(Event::Stop) | Err(RecvTimeoutError::Disconnected) => return,
             Err(RecvTimeoutError::Timeout) => {
-                view.request(SafepointFlags::WALL_TIME);
+                // A sleep that ended at the deadline may have stopped the run
+                // first, and then its handler is running and this raise is skipped.
+                view.stop_at_wall_time();
                 view.expire_deadline();
                 // `rule:errors/on-limit`'s handler runs with the flag lowered, so
                 // it is raised once more after the default reserve. That stops a
