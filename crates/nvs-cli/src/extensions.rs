@@ -305,11 +305,20 @@ fn live() -> Option<Arc<Set>> {
 /// The manifests of the live set, which `nvs serve` types a program against
 /// (`rule:packaging/extension-calls-are-statically-typed`). Empty before the first boot and for
 /// a configuration with no `[[extension]]`.
+///
+/// Each carries its extension's source files in [`Manifest::source`], as
+/// [`nvs_ext::load::read_manifests`] fills them for `nvs run`, so a class under the extension's
+/// namespace resolves with no `autoload` line
+/// (`rule:packaging/an-extension-package-carries-two-payloads`). The loader keeps those files on
+/// the [`nvs_ext::load::Extension`] and not in its manifest.
 pub(crate) fn live_manifests() -> Vec<Manifest> {
     live().map_or_else(Vec::new, |set| {
         set.extensions()
             .iter()
-            .map(|extension| extension.manifest.clone())
+            .map(|extension| Manifest {
+                source: extension.source.files.clone(),
+                ..extension.manifest.clone()
+            })
             .collect()
     })
 }

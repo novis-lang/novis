@@ -1900,6 +1900,26 @@ fn a_served_request_calls_a_configured_extension() {
     }
 }
 
+/// `nvs serve` resolves a class from a loaded extension's source section with no `autoload` line,
+/// as `nvs run` does (`rule:packaging/an-extension-package-carries-two-payloads`). The ledger
+/// fixture carries `Shop\Ledger\Receipt`.
+#[test]
+fn a_served_program_calls_a_class_from_an_extension_source_section() {
+    let shelf = Shelf::new("serve-source");
+    let ledger = ledger();
+    let server = Server::start(
+        "serve-source",
+        &shelf.put("ledger.nvsx", &ledger, &ledger),
+        &[(
+            "app.nvs",
+            "<?nvs\nuse Shop\\Ledger\\Receipt;\n\necho Receipt::line(\"Tea\", 250);\n",
+        )],
+    );
+    server.awaits("/", "the receipt line", |answer| {
+        answer.body == "Tea: 250 EUR"
+    });
+}
+
 /// An `[opcache]` block that writes compiled programs to `dir`.
 fn cache_dir(dir: &str) -> String {
     format!("[opcache]\nrevalidate_freq = \"100ms\"\nsettle = \"0s\"\nfile_cache_dir = \"{dir}\"\n")
