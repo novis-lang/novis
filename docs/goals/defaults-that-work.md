@@ -88,6 +88,10 @@ stages:
     extra:
       context:
         rules: [config/no-configuration-file-is-a-complete-configuration, security/package-authority-is-granted-one-line-at-a-time, security/an-unmatched-namespace-holds-the-application]
+  - id: 13
+    title: the goal's one gate is green
+    status: open
+    context: [tools/nv/cmd/verify.ts]
 checks:
   - id: config-tests
     stage: 1
@@ -110,7 +114,7 @@ checks:
     name: Core\Env::secret owes no feature proof
     run: [bun, nv, proofs, --gate, --only, "Core\\Env::secret"]
   - id: owners-closes
-    stage: 12
+    stage: 13
     name: no gap record or designed rule names this goal
     run: [bun, nv, owners, --closes, defaults-that-work]
     reach: true
@@ -336,7 +340,20 @@ request; the session store keeps nothing in memory between requests.
 `db/open.rs`, `pg.rs` and `mysql.rs`, disjoint from 4 and 6. Stages 7 (`session.rs`), 8 (`route.rs`,
 `serve.rs`, `csrf.rs`), 9 (`env.rs`, `http.rs`) and 10 (`config.rs`, `request.rs`, `limits.rs`) need
 nothing from stages 1 to 6, touch disjoint files, and may run as side goals in any order. Stage 11 runs
-after 1 to 10, and stage 12 last. `crates/nvs-cli/src/runner.rs` is touched only by stage 8.
+after 1 to 10, then stage 12, and stage 13 last. `crates/nvs-cli/src/runner.rs` is touched only by
+stage 8.
+
+**One gate, at the goal's end** (the user's call). Every stage changes the capability defaults that
+nearly every test binary, case and bench passes through, so each `bun nv affected --run` selects
+almost the whole tree and takes an hour or more. So stages 5 to 12 run no gate: no `looper verify`, no
+`bun nv verify` and no `bun nv affected --run`. This replaces § *Session workflow* step 3 of
+`AGENTS.md` for this goal, and step 5 commits once the build is green. A session's checks are
+`cargo build`, `cargo clippy --all-targets -- -D warnings` (which compiles the tests too), and
+`bun nv rules --check` when it changed a rule. It may run a test it wrote, by name, once:
+`cargo test --test <name> <filter>` or `cargo test --lib <filter>`. Where a changed default breaks
+an existing test or case, the slice updates it as it goes, writing the narrowing the test relied on,
+as stages 3 and 4 did. The handoff names every test and case the session expects to go red, and the
+status line is `CONTINUE`. Stage 13 runs the one gate and fixes everything it names.
 
 **Gates on other goals.** None to start. Stage 10's package check waits on goal `namespace-grants`:
 `crates/nvs-config/src/grants.rs` exists. Until it does, stage 10 records the duty in the rule, and
@@ -499,15 +516,37 @@ capability default. Then one writing subagent edits them, held to § *Text an en
 - [ ] Every other listed page. `website/src/content/docs/guides/cookbook/upload-file.mdx:1`
 - [ ] `rule:security/an-unmatched-namespace-holds-the-application` and `rule:security/package-authority-is-granted-one-line-at-a-time` say a default never reaches a package and the audit warning is the mitigation for hand-vendored code. `docs/rules/security/an-unmatched-namespace-holds-the-application.md:1`, `docs/rules/security/package-authority-is-granted-one-line-at-a-time.md:1`
 - [ ] Each rule this goal changed says what is true and lists its declined relaxations, and `bun nv rules --check` passes: `config/no-configuration-file-is-a-complete-configuration`, `security/capability-question-is-grant-and-scope`, `security/net-address-policy`, `config/a-startup-default-is-never-flipped`, `core-classes/db-capabilities`, `security/script-spawn-capability`, `http-server/no-session-block-means-no-store`, `config/ceilings-are-their-own-directives`. `docs/rules/config/no-configuration-file-is-a-complete-configuration.md:1`
+
+### 13. the goal's one gate is green
+
+**Does:** stages 5 to 12 ran no gate (§ *Standing decisions*, *One gate*), so this stage verifies
+the whole goal once and fixes every failure in one pass.
+
+**Split:** the session starts `bun nv affected --run` with `run_in_background` and ends its turn to
+wait. It groups the failures by cause. A group whose fix touches files no other group touches may go
+to a writing subagent, one after another. Then the gate runs once more.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass. A test whose expectation a new default changed writes the narrowing it relied on, and no test is deleted, renamed or loosened to pass. `docs/goals/defaults-that-work.md:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 - [ ] `bun nv verify --doc` names no broken link, and `bun nv owners --closes defaults-that-work` passes. `docs/goals/defaults-that-work.md:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done.
+Stages 1 to 4 are done. Stage 4 is committed without a green gate: its gate was stopped after a
+test hung. Stages 5 to 12 run no gate, and stage 13 runs the goal's one gate (§ *Standing
+decisions*, *One gate*).
 
 **Stage 4 (outbound hosts):**
+
+- Two tests in `crates/nvs-ext/tests/http.rs` relied on the old defaults, and both now pass:
+  the private-address case writes `internal = []`, and the second caller in
+  `a_guest_waiting_on_an_http_response_lets_another_task_on_its_core_run` writes `connect = []`.
+  That caller's call used to be refused; with `net.connect` open it was sent, nobody answered it,
+  and `block_on` spun forever.
+- Stage 4's full gate never finished, so stage 13 may find more tests and cases like these.
 
 - `defaults::capability` (`crates/nvs-config/src/defaults.rs`) gives `net.connect`
   `Granted::Everything` on both run kinds. `connect_to` and `downgrade` keep `Nothing`.
@@ -598,6 +637,9 @@ questions of the capabilities and trust pages. They are restamped in this group.
 - `rule:security/capability-question-is-grant-and-scope` now names the run as an input.
 
 ### Next
+
+**No gate until stage 13.** Check with `cargo build` and `cargo clippy --all-targets -- -D
+warnings`, commit each slice, and name in the handoff the tests and cases you expect to go red.
 
 **Stage 5**, SQLite and database TLS. `Db::open` (`crates/nvs-stdlib/src/db/open.rs:978`) stops
 asking `db.open` for `:memory:`, the empty path and a SQLite file. A file asks only the file rule
