@@ -43,6 +43,7 @@ class Stray {
 
 // Refused: an anonymous function replaces no method.
 callable $f = fn(covariant Dog $d) => 1;
+// covers: lang:classes/covariant
 --EXPECTF-ERROR--
 error[E0882]: `covariant` has no effect here, because `$a` is not narrower than in `Shelter::admit`
 %A

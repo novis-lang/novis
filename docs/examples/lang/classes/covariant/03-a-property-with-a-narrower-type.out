@@ -1,0 +1,3 @@
+the new pet is a Dog
+The property `$pet` of `DogOwner` has the type `Dog`. The value is an object of class `Cat`.
+the pet is still a Dog

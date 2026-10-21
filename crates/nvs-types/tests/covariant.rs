@@ -30,6 +30,7 @@ fn helps(diags: &Diagnostics) -> String {
         .join("\n")
 }
 
+// covers: lang:classes/covariant
 #[test]
 fn a_covariant_parameter_narrower_than_the_parents_compiles_in_each_form() {
     let diags = check(

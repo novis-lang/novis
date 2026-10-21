@@ -1,0 +1,1 @@
+The parameter `$a` of `DogShelter::admit` has the type `Dog`. The argument is an object of class `Cat`.

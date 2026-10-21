@@ -14238,6 +14238,248 @@ error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
 ```
 
+### `covariant`
+
+`covariant` lets a subclass give a method parameter or a property a narrower type than its parent
+gives it. The parent takes any `Animal`, and the subclass takes only a `Dog`.
+
+You write `covariant` before the type: `public function feed(covariant Dog $a)` for a parameter, and
+`public covariant Dog $pet;` for a property. Code that uses the parent's type can still pass any
+`Animal`. So Novis checks each value when it enters. A parameter is checked before the method body
+runs. A property is checked each time it is written. A value of the wrong type throws a
+`LogicError` that names both types.
+
+**Good to know:** a narrower type without `covariant` does not compile. The error message tells you
+to add it.
+
+**The examples below** show a narrower parameter, the error a wrong value throws, a narrower
+property and `compareTo` in a subclass. The last one does not compile.
+
+`covariant` is allowed on a parameter of a method that replaces a parent's method or implements an
+interface's method. Static methods and `compareTo` are included. It is also allowed on an instance
+property that the parent class already declares. Anywhere else it is the error `E0882`. That
+includes a method that replaces nothing and a constructor parameter that is not promoted. It also
+includes an anonymous function, a static property, a constant and a `readonly` property.
+
+The type must be one that `is` can test quickly: a class, an interface, an enum, a scalar, or a
+nullable type or union of those. An array, a shape, a callable, a `class<T>` and a `property<T>` are
+the error `E0883`. For those, take the wider type and test the value inside the method.
+
+The new type must be narrower than the type in the first class that declares the parameter or the
+property. The same type or a wider type with `covariant` is `E0882`, because the check would test
+nothing. A grandchild class that repeats its parent's narrower type writes `covariant` too. A
+`tainted` or `secret` type keeps that word. If the first class gives the parameter a default value,
+the narrower type must accept that value, or the method is the error `E0884`.
+
+An `inout` parameter is checked when the method is entered. A variadic parameter checks each value,
+and the error names the first one that fails. A property is checked on every write. That includes a
+write through `object` or `mixed`, a `property<T>` key, `Core\Reflect` and the parent's
+constructor. A property with a `set` hook is checked before the hook runs. Reading a value is never
+checked.
+
+#### Example 01: a method that takes a narrower type
+
+```nvs
+<?nvs
+// Shows a subclass method that takes a narrower parameter type with `covariant`.
+
+class Animal {
+    public function constructor(public string $name) {}
+}
+
+class Dog extends Animal {
+    public function bark(): string {
+        return $this->name . " barks";
+    }
+}
+
+class Shelter {
+    public function admit(Animal $a): string {
+        return $a->name . " is admitted";
+    }
+}
+
+class DogShelter extends Shelter {
+    // `covariant Dog` means this method takes only a `Dog`.
+    // Inside the body, `$a` is a `Dog`, so `bark` can be called.
+    public function admit(covariant Dog $a): string {
+        return $a->bark() . " and is admitted";
+    }
+}
+
+// The variable has the parent type, and the object is a `DogShelter`.
+Shelter $shelter = new DogShelter();
+
+// A `Dog` passes the check, so this prints "Rex barks and is admitted".
+echo $shelter->admit(new Dog("Rex")), "\n";
+```
+
+```output
+Rex barks and is admitted
+```
+
+#### Example 02: a wrong value throws a logic error
+
+```nvs
+<?nvs
+// Shows the `LogicError` a `covariant` parameter throws when the value has the wrong type.
+
+class Animal {}
+class Dog extends Animal {}
+class Cat extends Animal {}
+
+class Shelter {
+    public function admit(Animal $a): string {
+        return "admitted";
+    }
+}
+
+class DogShelter extends Shelter {
+    public function admit(covariant Dog $a): string {
+        return "a dog is admitted";
+    }
+}
+
+Shelter $shelter = new DogShelter();
+
+// The parent type takes any `Animal`, so this call compiles.
+// `DogShelter::admit` takes only a `Dog`, so the call throws before the body runs.
+try {
+    echo $shelter->admit(new Cat()), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+```
+
+```output
+The parameter `$a` of `DogShelter::admit` has the type `Dog`. The argument is an object of class `Cat`.
+```
+
+#### Example 03: a property with a narrower type
+
+```nvs
+<?nvs
+// Shows a subclass property with a narrower type, and the check on each write.
+
+class Animal {}
+class Dog extends Animal {}
+class Cat extends Animal {}
+
+class Owner {
+    public function constructor(public Animal $pet) {}
+}
+
+class DogOwner extends Owner {
+    // This property has the type `Dog` in a `DogOwner`.
+    public covariant Dog $pet;
+
+    public function constructor(Dog $pet) {
+        parent::constructor($pet);
+    }
+}
+
+Owner $owner = new DogOwner(new Dog());
+
+// A `Dog` passes the check.
+$owner->pet = new Dog();
+echo "the new pet is a ", $owner->pet::class, "\n";
+
+// The parent type allows a `Cat`, so this write compiles.
+// The object is a `DogOwner`, so the write throws and the property keeps its `Dog`.
+try {
+    $owner->pet = new Cat();
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+echo "the pet is still a ", $owner->pet::class, "\n";
+```
+
+```output
+the new pet is a Dog
+The property `$pet` of `DogOwner` has the type `Dog`. The value is an object of class `Cat`.
+the pet is still a Dog
+```
+
+#### Example 04: compare to in a subclass
+
+```nvs
+<?nvs
+// Shows `compareTo(covariant Price $other)` in a subclass of a `Comparable` class.
+
+class Amount implements Comparable {
+    public function constructor(public int $cents) {}
+
+    public function compareTo(self $other): int {
+        return $this->cents <=> $other->cents;
+    }
+}
+
+class Price extends Amount {
+    public function constructor(int $cents, public string $currency) {
+        parent::constructor($cents);
+    }
+
+    // A `Price` compares only with another `Price`, so it can read `currency`.
+    public function compareTo(covariant Price $other): int {
+        if ($this->currency != $other->currency) {
+            throw new LogicError("The two prices have different currencies.");
+        }
+        return $this->cents <=> $other->cents;
+    }
+}
+
+Price $tea = new Price(250, "EUR");
+Price $cake = new Price(400, "EUR");
+
+// `<` calls `compareTo` on two `Price` objects. This prints `true`.
+echo $tea < $cake ? "true" : "false", "\n";
+
+// A call through the type `Amount` can pass a plain `Amount`.
+// `Price::compareTo` takes only a `Price`, so the call throws.
+Amount $amount = $tea;
+try {
+    echo $amount->compareTo(new Amount(100)), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+```
+
+```output
+true
+The parameter `$other` of `Price::compareTo` has the type `Price`. The argument is an object of class `Amount`.
+```
+
+#### Example 05: a narrower type needs covariant
+
+```nvs error
+<?nvs
+// Shows that a narrower parameter type without `covariant` does not compile.
+// proof: compile-error
+
+class Animal {}
+class Dog extends Animal {}
+
+class Shelter {
+    public function admit(Animal $a): void {}
+}
+
+class DogShelter extends Shelter {
+    public function admit(Dog $a): void {}
+}
+```
+
+```output
+error[E0404]: `DogShelter::admit` cannot replace `Shelter::admit`
+   --> main.nvs:13:21
+   |
+13 |     public function admit(Dog $a): void {}
+   |                     ^^^^^ `$a` is `Dog`, and a call to `Shelter::admit` passes `Animal`
+   = help: a call through `Shelter` passes what `Shelter::admit` takes and reads what it returns. Keep its parameters, its `static` and its visibility. Each parameter may accept a wider type, and the return type may be narrower. To take a narrower type, write `covariant` before it. Each value is then tested when the method is called
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
 ### Interfaces
 
 An interface is a list of methods a class promises to provide. A class writes `implements` and then

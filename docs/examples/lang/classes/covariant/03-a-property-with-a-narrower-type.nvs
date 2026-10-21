@@ -1,0 +1,34 @@
+<?nvs
+// Shows a subclass property with a narrower type, and the check on each write.
+
+class Animal {}
+class Dog extends Animal {}
+class Cat extends Animal {}
+
+class Owner {
+    public function constructor(public Animal $pet) {}
+}
+
+class DogOwner extends Owner {
+    // This property has the type `Dog` in a `DogOwner`.
+    public covariant Dog $pet;
+
+    public function constructor(Dog $pet) {
+        parent::constructor($pet);
+    }
+}
+
+Owner $owner = new DogOwner(new Dog());
+
+// A `Dog` passes the check.
+$owner->pet = new Dog();
+echo "the new pet is a ", $owner->pet::class, "\n";
+
+// The parent type allows a `Cat`, so this write compiles.
+// The object is a `DogOwner`, so the write throws and the property keeps its `Dog`.
+try {
+    $owner->pet = new Cat();
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+echo "the pet is still a ", $owner->pet::class, "\n";
