@@ -14,6 +14,16 @@ Core\IO::exists, ::size, ::remove and ::removeDir each refuse an ungranted path 
 // granted the distinction has to vanish -- that is the leak this case pins.
 // `Here::path` returns a literal resolved from this file's folder, and each
 // name below is joined onto it, so the door is handed an absolute path.
+// `Grant::help` returns the second line of a refusal for `$path`: the folder of the
+// path, written as a TOML string, under `[capabilities.fs]`.
+class Grant {
+    public static function help(string $key, string $path): string {
+        ?uint $end = Core\Str::lastIndexOf(Core\Str::replaceAll($path, ["\\" => "/"]), "/");
+        string $folder = $end == null ? $path : Core\Str::slice($path, 0, ($end + 1) as int);
+        string $quoted = Core\Str::replaceAll($folder, ["\\" => "\\\\", "\"" => "\\\""]);
+        return "help: add `" . $key . " = [\"" . $quoted . "\"]` under `[capabilities.fs]` in nvs.toml";
+    }
+}
 class Here {
     public static function path(#[Core\Path] string $path): string {
         return $path;
@@ -34,8 +44,8 @@ int $namingFsWrite = 0;
 int $i = 0;
 for (; $i < $total; $i = $i + 1) {
     string $path = Core\Path::join($dir, $paths[$i]);
-    string $read = " needs the capability `fs.read` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`";
-    string $write = " needs the capability `fs.write` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`";
+    string $read = " needs the capability `fs.read` for " . $path . ", which is not granted\n" . Grant::help("read", $path);
+    string $write = " needs the capability `fs.write` for " . $path . ", which is not granted\n" . Grant::help("write", $path);
 
     // `exists` is the one whose refusal is worth the most: it has a perfectly
     // good `false` available and must not use it, or a program learns from the

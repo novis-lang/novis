@@ -15,6 +15,16 @@ if (Core\IO::isReadable("seed.txt")) {
 
 // `Here::path` returns a literal resolved from this file's folder, and each
 // name below is joined onto it, so the door is handed an absolute path.
+// `Grant::help` returns the second line of a refusal for `$path`: the folder of the
+// path, written as a TOML string, under `[capabilities.fs]`.
+class Grant {
+    public static function help(string $key, string $path): string {
+        ?uint $end = Core\Str::lastIndexOf(Core\Str::replaceAll($path, ["\\" => "/"]), "/");
+        string $folder = $end == null ? $path : Core\Str::slice($path, 0, ($end + 1) as int);
+        string $quoted = Core\Str::replaceAll($folder, ["\\" => "\\\\", "\"" => "\\\""]);
+        return "help: add `" . $key . " = [\"" . $quoted . "\"]` under `[capabilities.fs]` in nvs.toml";
+    }
+}
 class Here {
     public static function path(#[Core\Path] string $path): string {
         return $path;
@@ -36,7 +46,7 @@ for (; $i < $n; $i = $i + 1) {
         echo "isWritable answered for ", $path, "\n";
     } catch (RuntimeError $denied) {
         $refused = $refused + 1;
-        if ($denied->message == "Core\\IO::isWritable" . $needed . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
+        if ($denied->message == "Core\\IO::isWritable" . $needed . $path . ", which is not granted\n" . Grant::help("write", $path)) {
             $namingFsWrite = $namingFsWrite + 1;
         }
     }

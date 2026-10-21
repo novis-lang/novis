@@ -37,7 +37,7 @@ try {
 echo "still running\n";
 --EXPECTF--
 read: Core\IO::read needs the capability `fs.read` for %s%ereport.txt, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
+help: add `read = ["%s"]` under `[capabilities.fs]` in nvs.toml
 write: Core\IO::write needs the capability `fs.write` for %s%ereport.txt, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
+help: add `write = ["%s"]` under `[capabilities.fs]` in nvs.toml
 still running

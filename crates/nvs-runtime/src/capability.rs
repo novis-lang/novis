@@ -258,10 +258,11 @@ pub fn granted(ctx: &Ctx, cap: Cap, scope: Scope<'_>) -> bool {
 /// § 5's message. The capability's name comes first after the member because the reader is usually
 /// the operator, and that string is what they are about to paste into a configuration file.
 ///
-/// **The second line says where to paste it**: `nvs.toml`, and the table the grant is written in,
-/// which is [`Cap::family`] because a dotted capability name and a `[capabilities.<family>]` block
-/// are the same TOML input. A refusal is the documentation its reader is already looking at, and
-/// naming the file is what turns "which is not granted" into an instruction.
+/// **The second line is the line to add and where**: [`nvs_config::capability::grant_line`]'s
+/// line, the table it is written under, which is [`Cap::family`] because a dotted capability name
+/// and a `[capabilities.<family>]` block are the same TOML input, and `nvs.toml`. A refusal is the
+/// documentation its reader is already looking at, and a line they can paste is what turns "which
+/// is not granted" into an instruction.
 ///
 /// It rides on the message rather than on the record an uncaught throw renders, which is what
 /// `rule:security/denial-is-a-runtime-error` costs: a denial is catchable, so most of them are read
@@ -284,7 +285,8 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
         }
     };
     let family = cap.family();
-    format!("{subject}\nhelp: grant it in nvs.toml under `[capabilities.{family}]`")
+    let line = nvs_config::capability::grant_line(cap, scope);
+    format!("{subject}\nhelp: add `{line}` under `[capabilities.{family}]` in nvs.toml")
 }
 
 /// `rule:http-server/allow-url-pins-the-address`'s outbound door: the first address
@@ -542,8 +544,10 @@ pub fn pinned_addresses(
             None => nvs_config::capability::denied_by_default(address),
         };
         if let Some(range) = refused {
+            let line = nvs_config::capability::internal_line(address);
             return Err(Fault::thrown(format!(
-                "{member} refuses {address}: it is {range}, which `net.internal` does not except"
+                "{member} cannot connect to {address}: it is {range}, which `net.internal` does \
+                 not except\nhelp: add `{line}` under `[capabilities.net]` in nvs.toml"
             )));
         }
     }
@@ -1837,19 +1841,19 @@ mod tests {
         );
     }
 
-    /// The refusal's second line, which is the only part of it an operator can act on: the file a
-    /// grant is written in, and the table inside it. Four capabilities by hand for the exact
+    /// The refusal's second line, which is the only part of it an operator can act on: the line to
+    /// add, the table it goes under, and the file. Four capabilities by hand for the exact
     /// sentence, then every one of them, so that a capability added to a family with no
     /// `[capabilities.<family>]` block of its own fails here rather than pointing a reader at a
     /// table that does not exist.
     #[test]
     fn an_ungranted_call_names_the_config_file_and_the_capability_table() {
         let ctx = Ctx::buffered();
-        for (cap, table) in [
-            (Cap::FsRead, "[capabilities.fs]"),
-            (Cap::ScriptSpawn, "[capabilities.script]"),
-            (Cap::DbOpen, "[capabilities.db]"),
-            (Cap::CacheShared, "[capabilities.cache]"),
+        for (cap, line, table) in [
+            (Cap::FsRead, "read = true", "[capabilities.fs]"),
+            (Cap::ScriptSpawn, "spawn = true", "[capabilities.script]"),
+            (Cap::DbOpen, "open = true", "[capabilities.db]"),
+            (Cap::CacheShared, "shared = true", "[capabilities.cache]"),
         ] {
             let denied = require(&ctx, cap, Scope::Unscoped, MEMBER)
                 .expect_err("a context with no configuration grants nothing");
@@ -1859,7 +1863,7 @@ mod tests {
                 );
             };
             assert_eq!(class, ThrownClass::Runtime);
-            let want = format!("help: grant it in nvs.toml under `{table}`");
+            let want = format!("help: add `{line}` under `{table}` in nvs.toml");
             assert_eq!(
                 message.lines().nth(1),
                 Some(want.as_str()),
@@ -1878,8 +1882,8 @@ mod tests {
                 .nth(1)
                 .expect("every denial carries the help line, whatever the capability");
             let named = help
-                .strip_prefix("help: grant it in nvs.toml under `[capabilities.")
-                .and_then(|rest| rest.strip_suffix("]`"))
+                .split_once("` under `[capabilities.")
+                .and_then(|(_, rest)| rest.strip_suffix("]` in nvs.toml"))
                 .unwrap_or_else(|| panic!("one wording for every capability: {help}"));
             assert_eq!(
                 named,

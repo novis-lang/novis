@@ -29,4 +29,5 @@ connect = ["127.0.0.1", "10.0.0.7"]
 internal = ["127.0.0.1"]
 --EXPECT--
 pinned: excepted address
-Core\Http::allowUrl refuses 10.0.0.7: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+Core\Http::allowUrl cannot connect to 10.0.0.7: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+help: add `internal = ["10.0.0.7"]` under `[capabilities.net]` in nvs.toml

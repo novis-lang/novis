@@ -1,3 +1,5 @@
-not updated: Core\Http\Client::patch refuses 192.168.1.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
-not updated: Core\Http\Client::patch refuses 192.168.1.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+not updated: Core\Http\Client::patch cannot connect to 192.168.1.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+help: add `internal = ["192.168.1.20"]` under `[capabilities.net]` in nvs.toml
+not updated: Core\Http\Client::patch cannot connect to 192.168.1.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+help: add `internal = ["192.168.1.20"]` under `[capabilities.net]` in nvs.toml
 updated: 0, failed: 2

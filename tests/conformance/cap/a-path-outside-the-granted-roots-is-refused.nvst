@@ -45,6 +45,6 @@ secret
 --EXPECTF--
 note
 Core\IO::read needs the capability `fs.read` for %s%esecret.txt, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
+help: add `read = ["%s"]` under `[capabilities.fs]` in nvs.toml
 Core\IO::read needs the capability `fs.read` for %s%edata%e..%esecret.txt, which is not granted
-help: grant it in nvs.toml under `[capabilities.fs]`
+help: add `read = ["%sdata%s..%s"]` under `[capabilities.fs]` in nvs.toml

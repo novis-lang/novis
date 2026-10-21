@@ -25,8 +25,11 @@ foreach ($urls as string $url) {
 [capabilities.net]
 connect = true
 --EXPECT--
-Core\Http::allowUrl refuses ::7f00:1: it is loopback (127.0.0.0/8), which `net.internal` does not except
-Core\Http::allowUrl refuses 64:ff9b::7f00:1: it is loopback (127.0.0.0/8), which `net.internal` does not except
-Core\Http::allowUrl refuses 64:ff9b::a9fe:a9fe: it is link-local (169.254.0.0/16), which `net.internal` does not except
+Core\Http::allowUrl cannot connect to ::7f00:1: it is loopback (127.0.0.0/8), which `net.internal` does not except
+help: add `internal = ["::7f00:1"]` under `[capabilities.net]` in nvs.toml
+Core\Http::allowUrl cannot connect to 64:ff9b::7f00:1: it is loopback (127.0.0.0/8), which `net.internal` does not except
+help: add `internal = ["64:ff9b::7f00:1"]` under `[capabilities.net]` in nvs.toml
+Core\Http::allowUrl cannot connect to 64:ff9b::a9fe:a9fe: it is link-local (169.254.0.0/16), which `net.internal` does not except
+help: add `internal = ["64:ff9b::a9fe:a9fe"]` under `[capabilities.net]` in nvs.toml
 approved http://[::203.0.113.10]/
 approved http://[64:ff9b::203.0.113.10]/

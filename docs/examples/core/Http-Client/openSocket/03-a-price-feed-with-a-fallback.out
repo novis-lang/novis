@@ -1,4 +1,5 @@
-feed not available: Core\Http\Client::openSocket refuses 192.168.4.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+feed not available: Core\Http\Client::openSocket cannot connect to 192.168.4.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+help: add `internal = ["192.168.4.20"]` under `[capabilities.net]` in nvs.toml
 EUR: 1.08
 GBP: 1.27
 source: last known prices, updates: 0

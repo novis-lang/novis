@@ -60,4 +60,4 @@ Core\Http::allowUrl: the scheme must be `http`, `https`, `ws` or `wss`, and this
 Core\Http::allowUrl: the URL names no host, so there is nothing to resolve and pin
 Core\Http::allowUrl: the URL's port is past 65535, so it names no TCP port to connect to
 Core\Http::allowUrl needs the capability `net.connect` for example.com, which is not granted
-help: grant it in nvs.toml under `[capabilities.net]`
+help: add `connect = ["example.com"]` under `[capabilities.net]` in nvs.toml

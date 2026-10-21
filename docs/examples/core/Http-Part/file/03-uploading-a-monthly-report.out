@@ -1,2 +1,3 @@
-not uploaded: Core\Http\Client::post refuses 192.168.20.5: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+not uploaded: Core\Http\Client::post cannot connect to 192.168.20.5: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+help: add `internal = ["192.168.20.5"]` under `[capabilities.net]` in nvs.toml
 try again tomorrow: yes

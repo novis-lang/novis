@@ -39,4 +39,4 @@ request read note
 closed: 1000 closing
 connection read note
 connection: `spawn script` needs the capability `script.spawn` for %s%enote.nvs, which is not granted
-help: grant it in nvs.toml under `[capabilities.script]`
+help: add `spawn = ["%s"]` under `[capabilities.script]` in nvs.toml

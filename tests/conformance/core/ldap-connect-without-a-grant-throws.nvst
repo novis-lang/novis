@@ -33,7 +33,7 @@ url = "ldaps://127.0.0.1:1"
 url = "ldaps://127.0.0.1:1"
 --EXPECT--
 Core\Ldap::connect needs the capability `ldap.connect` for staff, which is not granted
-help: grant it in nvs.toml under `[capabilities.ldap]`
+help: add `connect = ["staff"]` under `[capabilities.ldap]` in nvs.toml
 Core\Ldap::connect needs the capability `ldap.connect` for nothing, which is not granted
-help: grant it in nvs.toml under `[capabilities.ldap]`
+help: add `connect = ["nothing"]` under `[capabilities.ldap]` in nvs.toml
 still running
