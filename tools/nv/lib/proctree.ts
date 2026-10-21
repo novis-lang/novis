@@ -33,14 +33,18 @@
 // `NtSuspendProcess` through a handle that `IsProcessInJob` has confirmed, and that handle is kept and
 // resumed through; elsewhere the child alone gets `SIGSTOP` and `SIGCONT`.
 //
+// A tree also reports what it uses (`usage`, `members`), which is what the hang watch in `hang.ts` reads.
+// Reading it kills and changes nothing.
+//
 // What it costs: per spawn one job handle and one process handle, held until `close`, and four calls;
 // per frozen process one handle until the thaw; per kill one snapshot of the process table and one
-// `OpenProcess` per running process to read when it started.
+// `OpenProcess` per running process to read when it started; per `usage` one call on Windows and one
+// read of `/proc` on Linux; per `members` one handle and two calls per process.
 //
 // Every method is best effort and never throws: a freeze that cannot be taken shows in its count, and a
 // kill that cannot be made safe kills less, never more.
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dlopen, FFIType, ptr, type Pointer } from "bun:ffi";
 
 /** A Windows handle as the FFI hands it back. */
@@ -52,6 +56,9 @@ const PROCESS_SET_QUOTA = 0x0100;
 const PROCESS_SUSPEND_RESUME = 0x0800;
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 const JOB_PROCESS_ID_LIST = 3;
+const JOB_BASIC_AND_IO_ACCOUNTING = 8;
+/** Clock ticks per second in `/proc/<pid>/stat`, which is 100 on every Linux build CI and this tree use. */
+const LINUX_TICKS_PER_S = 100;
 const ERROR_MORE_DATA = 234;
 const TH32CS_SNAPPROCESS = 0x2;
 
@@ -68,6 +75,7 @@ function load() {
     TerminateJobObject: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.i32 },
     TerminateProcess: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.i32 },
     GetProcessTimes: { args: [FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.ptr], returns: FFIType.i32 },
+    QueryFullProcessImageNameW: { args: [FFIType.ptr, FFIType.u32, FFIType.ptr, FFIType.ptr], returns: FFIType.i32 },
     CreateToolhelp32Snapshot: { args: [FFIType.u32, FFIType.u32], returns: FFIType.ptr },
     Process32FirstW: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.i32 },
     Process32NextW: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.i32 },
@@ -234,6 +242,55 @@ function screened(pids: number[]): { kill: number[]; table: Proc[]; refused: boo
 
 // ---- a tree ----------------------------------------------------------------------------------------
 
+// ---- what a tree uses ------------------------------------------------------------------------------
+
+/**
+ * What a tree has used since it started: CPU time and bytes read and written, the processes that have
+ * exited included on Windows, and how many processes run now. A hang watch compares two of these.
+ */
+export interface Usage {
+  cpuMs: number;
+  ioBytes: number;
+  procs: number;
+}
+
+/** One process of a tree as a hang report names it: its id, its program's file name, and its CPU time so far. */
+export interface Member {
+  pid: number;
+  name: string;
+  cpuMs: number;
+}
+
+/** One `/proc/<pid>/stat` read: the creator's id, the start, the CPU ticks and the program name. */
+interface Stat {
+  parent: number;
+  started: bigint;
+  ticks: number;
+  name: string;
+}
+
+function linuxStat(pid: number): Stat | null {
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    const close = stat.lastIndexOf(")");
+    // After the name come the fields from 3 on: the creator is field 4, utime and stime 14 and 15, the start 22.
+    const f = stat.slice(close + 2).split(" ");
+    return { parent: Number(f[1]), started: BigInt(f[19]!), ticks: Number(f[11]) + Number(f[12]), name: stat.slice(stat.indexOf("(") + 1, close) };
+  } catch {
+    return null;
+  }
+}
+
+/** Bytes `pid` has read and written through any file, pipe or socket, or 0 when that cannot be read. */
+function linuxIo(pid: number): number {
+  try {
+    const io = readFileSync(`/proc/${pid}/io`, "utf8");
+    return Number(/^rchar: (\d+)/m.exec(io)?.[1] ?? 0) + Number(/^wchar: (\d+)/m.exec(io)?.[1] ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
 /** The handle a caller owns for the child it spawned: a `Bun.Subprocess` is one. */
 export interface Owned {
   readonly pid: number;
@@ -303,6 +360,70 @@ export class Tree {
       return found.sort((a, b) => Number(a !== this.pid) - Number(b !== this.pid));
     }
     return [this.pid];
+  }
+
+  /**
+   * What the tree has used so far, or null where that cannot be read: on Windows from the job's own
+   * accounting, which keeps the share of every process that has exited; on Linux by adding up each live
+   * process of the tree, so a process that exits takes its share with it and the process count changes.
+   */
+  usage(): Usage | null {
+    const w = win();
+    if (w !== null) {
+      if (this.job === null) return null;
+      // JOBOBJECT_BASIC_AND_IO_ACCOUNTING_INFORMATION: user and kernel time in 100 ns units at 0 and 8, the
+      // live process count as a DWORD at byte 40, then IO_COUNTERS from byte 48, whose bytes read, written
+      // and moved by other calls are its last three fields. Socket traffic is counted among the other calls.
+      const buf = new BigUint64Array(12);
+      if (!w.k32.QueryInformationJobObject(this.job, JOB_BASIC_AND_IO_ACCOUNTING, ptr(buf), buf.byteLength, null)) return null;
+      return { cpuMs: Number(buf[0]! + buf[1]!) / 10_000, ioBytes: Number(buf[9]! + buf[10]! + buf[11]!), procs: new Uint32Array(buf.buffer, 40, 1)[0]! };
+    }
+    const live = this.linuxLive();
+    if (live === null) return null;
+    let ticks = 0;
+    let io = 0;
+    for (const [pid, s] of live) {
+      ticks += s.ticks;
+      io += linuxIo(pid);
+    }
+    return { cpuMs: (ticks * 1000) / LINUX_TICKS_PER_S, ioBytes: io, procs: live.length };
+  }
+
+  /** Every live process of the tree with its program and its CPU time so far, the root first. */
+  members(): Member[] {
+    const w = win();
+    if (w === null) return (this.linuxLive() ?? []).map(([pid, s]) => ({ pid, name: s.name, cpuMs: (s.ticks * 1000) / LINUX_TICKS_PER_S }));
+    const out: Member[] = [];
+    for (const pid of this.pids()) {
+      const handle = this.member(pid, PROCESS_QUERY_LIMITED_INFORMATION);
+      if (handle === null) continue;
+      try {
+        const t = new BigUint64Array(4);
+        const cpuMs = w.k32.GetProcessTimes(handle, ptr(t), ptr(t, 8), ptr(t, 16), ptr(t, 24)) ? Number(t[2]! + t[3]!) / 10_000 : 0;
+        const name = new Uint16Array(1024);
+        const size = new Uint32Array([name.length]);
+        const path = w.k32.QueryFullProcessImageNameW(handle, 0, ptr(name), ptr(size)) ? String.fromCharCode(...name.subarray(0, size[0]!)) : "?";
+        out.push({ pid, name: path.slice(Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/")) + 1), cpuMs });
+      } finally {
+        if (handle !== this.root) w.k32.CloseHandle(handle);
+      }
+    }
+    return out;
+  }
+
+  /** Linux: the child and every process it started, each with its `/proc` stat, read while the child runs; null elsewhere or once it has exited. */
+  private linuxLive(): [number, Stat][] | null {
+    if (process.platform !== "linux" || this.started === null || this.own.exitCode !== null || this.own.signalCode !== null) return null;
+    const stats = new Map<number, Stat>();
+    for (const entry of readdirSync("/proc")) {
+      if (!/^\d+$/.test(entry)) continue;
+      const s = linuxStat(Number(entry));
+      if (s !== null) stats.set(Number(entry), s);
+    }
+    const table: Proc[] = [...stats].map(([pid, s]) => ({ pid, parent: s.parent, started: s.started }));
+    const root = stats.get(this.pid);
+    if (root === undefined || root.started !== this.started) return null;
+    return [this.pid, ...descendants(this.pid, this.started, table)].flatMap((pid) => (stats.has(pid) ? [[pid, stats.get(pid)!] as [number, Stat]] : []));
   }
 
   /** Whether `pid` is a process in this tree's job right now, asked through a handle that can only query. */

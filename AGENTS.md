@@ -89,6 +89,11 @@ Each is here because not knowing it exists is the entire cost. The file named af
   binary. `bun nv proofs --id '<feature>'` prints what it still owes and the path of each, and every
   `.nvs` and `about.md` among them is held to § *Text an end user reads* below
   (`rule:testing/feature-proofs`).
+- **A `HANG:` line stops what you are doing until you know what hangs.** Every program `bun nv` starts
+  is watched, and a tree that stalls or spins with no output is killed early, with a report under
+  `.agent-tmp/hangs/`. Read the report, run the hung unit alone, and fix the cause before the slice
+  goes on. A longer bound is a fix only for a program that waits on purpose
+  ([commands.md](docs/agent/commands.md) § *A hang stops the slice*).
 - **Nothing a reporter told you is written into the tree under its own name.** A bug report, a pasted
   configuration or a log names somebody's modules, namespaces, directories, hosts, URLs and counts, and
   all of it is theirs. The test, the rule, the example, the comment and the commit message that come out
