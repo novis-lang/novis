@@ -2,9 +2,11 @@
 
 A test proves a behaviour, and a run proves only what a change can affect.
 
-- **Test only what a change can affect, through `bun nv affected --run`.** Never run a wider command.
-  Verify runs each step and each test only when a change reaches what it reads. A loop session runs
-  `looper verify`, which runs `bun nv verify`.
+- **A goal is verified once, in its last stage, through `bun nv affected --run`.** Never run a wider
+  command. Verify runs each step and each test only when a change reaches what it reads. A loop session
+  runs `looper verify`, which runs `bun nv verify`. Every other stage checks with a build, and runs only
+  a test it wrote, once and by name, or a run one of its items names (AGENTS.md § *The rules only this
+  project has*).
 - **In the loop, run `looper verify` even while another session's verify runs in the tree.** Yours
   joins that run, and its result covers both sessions' code. Never wait for another verify, and never
   kill one.

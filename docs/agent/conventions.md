@@ -589,8 +589,9 @@ work out again. How a goal is written in full is [loop-authoring.md](loop-author
   item says that an `Explore` subagent lists it first.
 - **A stage names its split.** A `**Split:**` paragraph after the `**Does:**` one says what goes to
   subagents: the searches, and the batches of similar files (pages, examples, attacks, `.lspt` cases,
-  fixtures) that writing subagents produce one after another. A stage with nothing to hand off has no
-  such paragraph.
+  fixtures) that writing subagents produce. Writing subagents whose files are disjoint run side by side
+  in the tree, and none of them builds; the session builds once they all end. Ones that share a file
+  run one after another. A stage with nothing to hand off has no such paragraph.
 - **The goal names its lanes.** `## Standing decisions` says which stages touch disjoint files and can run
   as side goals, and which share a file and run in order.
 - **A dependency is a gate.** A stage that needs another goal's work names the file or command that
@@ -598,8 +599,11 @@ work out again. How a goal is written in full is [loop-authoring.md](loop-author
 - **Every choice is made before the run.** A standing decision states the choice and its safe default.
   That covers a new dependency, a port, a command's shape and where a test's fixtures come from. A goal
   never says "goes to the user": the session decides by the priority ordering and records why.
-- **Tests run once per group.** No item asks for a test run of its own. The stage's checks run in the
-  group's one verify.
+- **A goal is verified once, at its end.** Its last stage is the gate stage (`gate: true`), which
+  `looper goal new` writes: it runs `bun nv affected --run` over the whole goal, fixes every failure in
+  one pass, and runs it once more. Every other stage checks with a build. An item asks for a test or
+  verify run of its own only where the stage cannot be finished without seeing it pass, and then the
+  item names the exact command. A slice whose change breaks an existing test updates it as it goes.
 
 ## A handoff
 

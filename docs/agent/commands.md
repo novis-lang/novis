@@ -289,13 +289,15 @@ and no filter, `looper check` with no `--name`, `bun nv benches`, `bun nv debt`,
 `--run` over every feature, and `bun nv verify --no-cache`. A person runs them by hand; looper's sweep
 and its hooks are not tool calls, so the guard never sees them. To look into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
 
-**Tests run once per group, and two of those flags are for the fix pass after it.** Verification is
-most of a session's tool-execution time, so nothing runs tests between slices: while you work, the only
-check is `cargo build`. The run at the **end of the group** is always the full one, which is step 3.
+**A goal is verified once, in its gate stage, and two of those flags are for the fix pass after it.**
+Verification is most of a session's tool-execution time, and a change to code every test passes through
+selects nearly the whole tree. So a stage that is not the gate stage runs no verify: its checks are
+`cargo build` and `cargo clippy --all-targets -- -D warnings`, a test it wrote, once and by name, and a
+run one of its items names as its requirement. The gate stage, the goal's last, runs the full gate.
 Every failure it names is fixed in one pass, and `--fast -p <crate>` reruns just the crate being fixed
 before the full run goes again.
 
-**And the last one need not be spent in series.** Start it with `run_in_background`, write the wrap
+**And the gate stage's last run need not be spent in series.** Start it with `run_in_background`, write the wrap
 file — which is prose you already know and cannot fail — and end your turn. The verify's report starts
 the next turn, and the wrap follows it:
 
