@@ -1043,6 +1043,21 @@ impl NvsArray {
         Self { ptr }
     }
 
+    /// [`Self::new`], or `None` where the running request cannot afford one
+    /// more header.
+    ///
+    /// For a builder whose count of arrays is the **input's** choice, such as
+    /// a query string's bracket names, where every `[]` opens another array.
+    /// `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`
+    /// asks the ceiling in front of the header. An empty table allocates
+    /// nothing, so the header is the whole ask. A `None` has already recorded
+    /// the breach, and the caller stops building. [`Self::new`] stays for
+    /// arrays whose count the runtime chooses.
+    #[must_use]
+    pub fn try_new() -> Option<Self> {
+        crate::budget::affords(size_of::<ArrayHeader>()).then(Self::new)
+    }
+
     /// A fresh empty array with room for `capacity` entries, so a builder that
     /// knows its result's size appends with no growth. The room survives a
     /// first key that is not `"0"`, since the hash form takes it over.

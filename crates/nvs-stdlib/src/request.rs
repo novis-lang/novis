@@ -1813,11 +1813,22 @@ fn form_of(
     let form = match declared.filter(|value| crate::multipart::is_multipart(value)) {
         Some(declared) => multipart_form(ctx, &declared, member),
         None => urlencoded_form(ctx, member),
-    }?;
+    }
+    .map_err(|fault| memory_first(ctx, fault))?;
     ctx.inbound_mut()
         .expect("the caller reads the request before it reads the form")
         .hold_form(form.clone());
     Ok(form)
+}
+
+/// `fault`, or the request's own memory error where the request is past its
+/// memory limit.
+///
+/// A parse that a name's arrays carried past the ceiling stops with a `FATAL`
+/// of its own. The request's error says more: it names the ceiling and the
+/// bytes held, as every other breach does (`rule:errors/on-limit`).
+fn memory_first(ctx: &Ctx, fault: Fault) -> Fault {
+    ctx.memory_breach().unwrap_or(fault)
 }
 
 /// The parameters of this request's query string, parsed by the first call and
@@ -1840,7 +1851,8 @@ fn query_fields_of(ctx: &mut Ctx, member: &'static str) -> Result<NvsArray, Faul
         "Core\\Request",
         member,
         crate::uri::Values::Text,
-    )?;
+    )
+    .map_err(|fault| memory_first(ctx, fault))?;
     ctx.inbound_mut()
         .expect("the request was read above")
         .hold_query_fields(fields.clone());
@@ -1937,7 +1949,13 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8], member: &'static str) -> Resul
             &mut out,
             name.as_bytes(),
             Value::str(NvsStr::new(value.as_bytes())),
-        );
+        )
+        .map_err(|_| {
+            Fault::fatal(format!(
+                "Core\\Request::{member}: the form's field names open more arrays than the \
+                 request's memory limit allows"
+            ))
+        })?;
     }
     Ok(out)
 }

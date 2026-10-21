@@ -24,7 +24,7 @@
 //! - [`PART_HEADERS`] — one part's header block, so a part that never ends its
 //!   headers cannot grow the buffer.
 //! - `[limits] request_body` — the buffered form fields of
-//!   `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`, which are bytes parsed into
+//!   `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`, their names and their values, which are bytes parsed into
 //!   memory and are charged exactly as `body()`'s are. The request's own value
 //!   is given to [`Multipart::new`].
 //!
@@ -477,21 +477,33 @@ impl Multipart {
     /// a chunk that would carry the total past [`Self::cap`] is refused while
     /// it is still a span of the wire buffer, so what this holds never exceeds
     /// the number it was given.
+    ///
+    /// **The field's name counts too**, before any of its value. A name is
+    /// kept as long as the value is, so a body of many fields with long names
+    /// and empty values is held to the same number.
     fn buffer(&mut self, body: &mut dyn RequestBody, name: Vec<u8>) -> Result<(), Box<str>> {
         self.state = State::Opening;
+        self.charge(name.len())?;
         let mut value = Vec::new();
         while let Some(span) = self.chunk(body)? {
-            if self.buffered + span.len() > self.cap {
-                return Err(format!(
-                    "this body's form fields hold more than `[limits] request_body` ({} bytes)",
-                    self.cap
-                )
-                .into());
-            }
-            self.buffered += span.len();
+            self.charge(span.len())?;
             value.extend_from_slice(&self.buf[span]);
         }
         self.fields.push((name, value));
+        Ok(())
+    }
+
+    /// Adds `bytes` to [`Self::buffered`], or refuses them where the total
+    /// would pass [`Self::cap`].
+    fn charge(&mut self, bytes: usize) -> Result<(), Box<str>> {
+        if self.buffered.saturating_add(bytes) > self.cap {
+            return Err(format!(
+                "this body's form fields hold more than `[limits] request_body` ({} bytes)",
+                self.cap
+            )
+            .into());
+        }
+        self.buffered += bytes;
         Ok(())
     }
 
@@ -1086,18 +1098,38 @@ mod tests {
         } else {
             (REQUEST_BODY, 64 * 1024)
         };
-        let held = "x".repeat(bound);
+        // The name `note` counts against the bound beside the value.
+        let held = "x".repeat(bound - 4);
         let wire = body(&[("note", None, &held)]);
         let (read, parse) =
             walk_under(&wire, piece, bound).expect("a field at the bound is buffered");
         assert!(read.is_empty());
-        assert_eq!(parse.fields()[0].1.len(), bound);
+        assert_eq!(parse.fields()[0].1.len(), bound - 4);
 
-        let over = "x".repeat(bound + 1);
+        let over = "x".repeat(bound - 3);
         let wire = body(&[("note", None, &over)]);
         assert!(
             walk_under(&wire, piece, bound).is_err(),
             "one byte past the bound is refused"
+        );
+    }
+
+    /// A field's name is buffered as its value is, so it counts against the
+    /// same bound. Many fields with long names and empty values are refused
+    /// once their names pass it.
+    #[test]
+    fn a_field_name_counts_against_the_in_memory_bound() {
+        let bound = 4 * 1024;
+        let name = "n".repeat(1024);
+        let rows: Vec<_> = (0..4).map(|_| (name.as_str(), None, "")).collect();
+        let (_, parse) = walk_under(&body(&rows), 512, bound)
+            .expect("four names of a quarter of the bound each are buffered");
+        assert_eq!(parse.fields().len(), 4);
+
+        let rows: Vec<_> = (0..5).map(|_| (name.as_str(), None, "")).collect();
+        assert!(
+            walk_under(&body(&rows), 512, bound).is_err(),
+            "a fifth name passes the bound with no value at all"
         );
     }
 
