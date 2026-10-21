@@ -42,9 +42,10 @@ pub enum Backend {
     /// deployment, so a session store that named a second address would be a second thing to
     /// configure for no coherence the first does not already have.
     Shared,
-    /// `db` — a table in a `[db.<name>]`, for a deployment that has a database and would rather not
-    /// have a second stateful dependency. `nvs_stdlib::session`'s module doc owns which half is on
-    /// disk.
+    /// `db` — a SQLite file in the data folder, [`crate::data::Folder::sessions`], in WAL mode.
+    /// It is also the store a tree that writes no `backend` gets
+    /// (`rule:http-server/no-session-block-means-the-data-folder-store`). Every server process on
+    /// the machine that shares the data folder reads it; `shared` is the store for several machines.
     Db,
 }
 
@@ -185,9 +186,9 @@ mod tests {
         );
     }
 
-    /// `rule:http-server/no-session-block-means-no-store`: a tree with no `[session]` block, and one that wrote the
-    /// block without choosing, both boot — the refusal belongs to `Core\Session::start()`, which is
-    /// where a program that actually wants a session says so.
+    /// `rule:http-server/no-session-block-means-the-data-folder-store`: a tree with no `[session]`
+    /// block, and one that wrote the block without choosing, both boot. Both get the data folder's
+    /// SQLite file, which `Core\Session::start()` opens.
     #[test]
     fn a_tree_that_configures_no_session_still_boots() {
         validate(&Config::default(), &BTreeMap::new()).expect("no block at all");

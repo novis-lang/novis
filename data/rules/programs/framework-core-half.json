@@ -6,7 +6,7 @@
     "errors/ambiguous-input-refused"
   ],
   "guardedBy": [
-    "tests/conformance/core/session-start-refuses-a-tree-that-configured-no-store.nvst",
+    "tests/conformance/core/session-start-reaches-the-configured-shared-store-and-never-one-of-its-own.nvst",
     "tests/conformance/core/mail-refuses-an-endpoint-the-deployment-did-not-name.nvst",
     "tests/conformance/core/storage-reaches-only-a-disk-the-deployment-named.nvst",
     "tests/conformance/core/cldr-plural-category-refuses-a-language-it-carries-no-rules-for.nvst",

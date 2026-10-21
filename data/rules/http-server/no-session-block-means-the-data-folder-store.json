@@ -1,0 +1,14 @@
+{
+  "title": "A tree with no `[session] backend` keeps its sessions in a SQLite file in the data folder, and `start` throws naming `[session]` where there is no data folder",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot",
+    "http-server/a-session-is-loaded-once-and-written-whole",
+    "http-server/session-expiry-belongs-to-the-store",
+    "core-classes/session-is-started-explicitly"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/session-start-with-no-block-opens-the-data-folder-store.nvst",
+    "crates/nvs-stdlib/src/session/sqlite.rs"
+  ]
+}

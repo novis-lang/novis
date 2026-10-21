@@ -3,9 +3,9 @@
 //! It is `.nvsdata` beside the running binary — [`std::env::current_exe`], canonicalized through
 //! [`trust::canonical`], its parent — unless the command line names another one, and a relative
 //! name resolves against the working directory like every other command-line path. Inside it are
-//! [`Folder::config_file`], [`Folder::cache`], [`Folder::tmp`], [`Folder::lsp`] and
-//! [`Folder::logs`]; each of those has a configuration key that moves it, and this module only owns
-//! the default. `logs/` is the default only for a service: `nvs_cli`'s hosted entry point reads it
+//! [`Folder::config_file`], [`Folder::cache`], [`Folder::tmp`], [`Folder::lsp`],
+//! [`Folder::logs`] and [`Folder::sessions`]; each of those has a configuration key that moves it
+//! or replaces it, and this module only owns the default. `logs/` is the default only for a service: `nvs_cli`'s hosted entry point reads it
 //! when the resolved tree sets no `[log] target`, and the command line keeps `stderr`.
 //!
 //! **One value per process.** The CLI names the folder once at startup through [`set`], and every
@@ -142,6 +142,14 @@ impl Folder {
     #[must_use]
     pub fn tmp(&self) -> PathBuf {
         self.root.join("tmp")
+    }
+
+    /// `session.sqlite`: the session store when no `[session] backend` is written
+    /// (`rule:http-server/no-session-block-means-the-data-folder-store`). Every server process that
+    /// shares this folder reads the same file.
+    #[must_use]
+    pub fn sessions(&self) -> PathBuf {
+        self.root.join("session.sqlite")
     }
 
     /// `lsp/<version>/`: the language server's stub tree when the client names none. One per

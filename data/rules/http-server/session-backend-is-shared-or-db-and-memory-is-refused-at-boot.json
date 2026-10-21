@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "concurrency/the-memory-tier-cannot-hold-what-must-be-coherent",
-    "http-server/no-session-block-means-no-store",
+    "http-server/no-session-block-means-the-data-folder-store",
     "config/cache-shared-is-the-grant-over-the-configured-store",
     "config/system-means-a-request-may-not-set-it",
     "core-api/two-cache-tiers"

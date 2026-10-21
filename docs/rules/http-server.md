@@ -239,9 +239,9 @@ wait forever ([`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#h
 The rule reaches past the client. A `[db.<name>]` pool bound, a socket wait, a terminal prompt and
 a queue lease each inherit a finite default and refuse `false` or `0` as a spelling for "no
 ceiling", because a wait that never ends is how one slow dependency becomes an outage and the
-request-level `wall_time` only bounds the damage after the fact. It also answers what a store
-nobody chose means — no store ([`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store)) — since the
-safe answer for an absent block is the one that cannot be wrong silently.
+request-level `wall_time` only bounds the damage after the fact. A store nobody chose is one that
+cannot be wrong silently: sessions default to a file every process on the machine reads, never to
+one process's memory ([`http-server/no-session-block-means-the-data-folder-store`](http-server.md#http-server-no-session-block-means-the-data-folder-store)).
 
 What a proxy does earlier and better — request-size caps, per-IP connection limits, flood
 limiting — stays the proxy's. Two things do not: how a message is parsed, which is
@@ -912,61 +912,87 @@ talks to the store ([`core-api/session-roster`](core-api.md#core-api-session-ros
 
 ```toml
 [session]
-backend = "shared"      # or "db"; there is no third value and no default that reaches a store
+backend = "shared"      # or "db", the default; there is no third value
 ttl     = "2h"          # how long an untouched record survives; the store enforces it
 cookie  = "nvsid"       # the name the identifier rides under
 ```
 
 `shared` is the coherent tier reached at `[cache.shared] url`
-([`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store)); `db` is a table in a
-`[db.<name>]`. `backend = "memory"` is `E0626`, and its note says what that store loses — a request
-another server process handles finds no session, and a restart deletes every one — and names the file
-the key was written in. That is what "enforced rather than documented" means: the value is refused
-where it is written, not where it is used, so a deployment cannot be running on a session store held in
-one process while believing otherwise. A generic unknown-value refusal would not do it: an operator who
-wrote `memory` because `Core\Cache::memory()` is the fast store needs the sentence explaining why the
-fast answer is the wrong one. Any other word gets the same code with a note naming the two that are
-admitted. The note's text is `REFUSED_NOTE` in `crates/nvs-config/src/session.rs`.
+([`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store)); `db` is the SQLite file
+`session.sqlite` in the data folder, and the store a tree that writes no `backend` gets
+([`http-server/no-session-block-means-the-data-folder-store`](http-server.md#http-server-no-session-block-means-the-data-folder-store)). `backend = "memory"` is `E0626`,
+and its note says what that store loses — a request another server process handles finds no
+session, and a restart deletes every one — and names the file the key was written in. That is what
+"enforced rather than documented" means: the value is refused where it is written, not where it is
+used, so a deployment cannot be running on a session store held in one process while believing
+otherwise. A generic unknown-value refusal would not do it: an operator who wrote `memory` because
+`Core\Cache::memory()` is the fast store needs the sentence explaining why the fast answer is the
+wrong one. Any other word gets the same code with a note naming the two that are admitted. The
+note's text is `REFUSED_NOTE` in `crates/nvs-config/src/session.rs`.
 
 The roster is a type with no memory variant, and every store operation is written against the shared
-tier's connection rather than the tier enum, so the process's map is absent rather than merely
-unselected. The key is `System` class ([`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it)), because
-where a fleet's sessions live is a deployment decision. It reloads: a request reads the block from the
-snapshot it cloned, so a changed backend reaches the next request, and no record moves from the old
-store to the new one, which signs every user out. An absent block is not a default backend
-([`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store)).
+tier's connection or the SQLite file rather than the tier enum, so the process's map is absent rather
+than merely unselected. The key is `System` class ([`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it)),
+because where a fleet's sessions live is a deployment decision. It reloads: a request reads the block
+from the snapshot it cloned, so a changed backend reaches the next request, and no record moves from
+the old store to the new one, which signs every user out.
 
-Both backends cost a session one round trip on a read and two on a write. That is latency spent to
-buy security and request isolation: the memory tier would cost none, and it is refused because a
-session there is not coherent across processes and does not survive a restart
-([`concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-memory-tier-cannot-hold-what-must-be-coherent)).
+`shared` costs a session one round trip on a read and two on a write, and `db` one statement on the
+blocking pool for each. That is latency spent to buy security and request isolation: the memory tier
+would cost none, and it is refused because a session there is not coherent across processes and does
+not survive a restart ([`concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-memory-tier-cannot-hold-what-must-be-coherent)). `db` is
+coherent across the processes of one machine, and `shared` across machines.
 
 **Declined:**
-- **A file backend.** It is per-machine, so a fleet either shares a filesystem or loses sessions on
-  every deploy, and a file cannot expire itself, which brings back the sweeper
-  [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store) declines. A single-machine deployment loses
-  nothing it cannot get from the shared tier on loopback or a socket.
+- **A directory of files, one per session.** A file cannot expire itself and a directory has no index
+  on expiry, so the sweep is a walk over every file. The SQLite file has both, and its sweep is one
+  indexed delete ([`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store)).
 
-<sub>See also [`concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-memory-tier-cannot-hold-what-must-be-coherent), [`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers).</sub>
+<sub>See also [`concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-memory-tier-cannot-hold-what-must-be-coherent), [`http-server/no-session-block-means-the-data-folder-store`](http-server.md#http-server-no-session-block-means-the-data-folder-store), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers).</sub>
 
-<a id="http-server-no-session-block-means-no-store"></a>
+<a id="http-server-no-session-block-means-the-data-folder-store"></a>
 
-## A tree with no `[session]` block has no session store, and `start` throws naming the block to write
+## A tree with no `[session] backend` keeps its sessions in a SQLite file in the data folder, and `start` throws naming `[session]` where there is no data folder
 
-`rule:http-server/no-session-block-means-no-store`
+`rule:http-server/no-session-block-means-the-data-folder-store`
 
-`[session]` absent is not "sessions off with a default backend". It is a session surface that
-throws on `Core\Session::start`, naming the block to write. The premise that a deployment with
-nothing configured is safe ([`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect)) has
-one answer for a store nobody chose: no store. Every other `Core\Session` member already throws
-until `start` has run ([`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly)), so a program that
-cannot use sessions can say so at the root.
+A tree that writes no `[session] backend` gets the `db` store: `session.sqlite` in Novis's own data
+folder ([`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults)), in WAL mode. A first
+program that calls `Core\Session::start` needs no configuration. Every server process on the machine
+that shares the data folder reads the same file, so a request another process handles finds the
+session, and a restart keeps it. That is the reason the memory tier is refused
+([`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot)), and the file
+meets it. `shared` stays the store for several machines.
 
-A block that names `shared` but a tree with no `[cache.shared]` is the same shape one step later:
-`start` reaches the one store that block names, and says which block is missing when there is
-none, rather than opening a store of its own.
+A process with no usable data folder, one that could not be created or failed
+[`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary)'s check, has no default store. There `start` throws a
+`RuntimeError` naming `[session] backend = "shared"`, and every other member throws until `start`
+has run ([`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly)).
 
-<sub>See also [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly).</sub>
+The file is Novis's own: the operator chose the folder, the name is fixed, and no program-supplied
+path reaches it. So no capability is asked, as none is for the compiled-code cache beside it. Each
+operation is one short statement in its own transaction, so two requests of one session never wait
+for each other ([`http-server/a-session-is-loaded-once-and-written-whole`](http-server.md#http-server-a-session-is-loaded-once-and-written-whole)). `busy_timeout`
+covers the moment two writers meet, and that wait is one statement long.
+
+- **Memory:** one SQLite connection and its statement cache per core, O(cores), and nothing per
+  session served. The rows are on disk, O(live sessions), because expired rows are swept
+  ([`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store)).
+- **Latency:** one indexed read at `start` and one upsert for a changed record, each on the blocking
+  pool, so a core never waits on the disk ([`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall)).
+
+**Declined:**
+- **No store at all where nothing is written.** It was safe and it was useless: a first program that
+  wanted a session had to choose a store and run a shared cache before its first page worked. A file
+  in the data folder is coherent across the processes of one machine, which is what the memory
+  tier's refusal asks for.
+- **A table in a `[db.<name>]` for `db`.** It needs a schema in the operator's database and a grant
+  to write it. The data folder's file needs neither, and a deployment with several machines has
+  `shared`.
+- **A session lock, as PHP's file handler takes.** One slow request would hold every other request
+  of that session until it ends ([`http-server/a-session-is-loaded-once-and-written-whole`](http-server.md#http-server-a-session-is-loaded-once-and-written-whole)).
+
+<sub>See also [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/a-session-is-loaded-once-and-written-whole`](http-server.md#http-server-a-session-is-loaded-once-and-written-whole), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly).</sub>
 
 <a id="http-server-a-session-is-loaded-once-and-written-whole"></a>
 
@@ -981,7 +1007,9 @@ since a hook is user code that may still write — and immediately for `regenera
 that starts a session and reads it makes one round trip, not two.
 
 There is no lock. Two requests writing one session concurrently is last-write-wins over the
-**whole record**, and this is stated rather than repaired. A lock held for the length of a
+**whole record**, and this is stated rather than repaired. On the `db` store each operation is one
+statement in its own transaction, so nothing is held between `start` and the write-back, and two
+requests of one session never wait for each other. A lock held for the length of a
 request is a cross-request channel ([`security/closed-doors`](security.md#security-closed-doors)), and a request that dies holding
 one wedges every later request for that session until it expires. The cost belongs to a narrow
 case — two concurrent requests that write *different keys* of one session lose one of the two
@@ -1006,22 +1034,30 @@ A cancelled task is the one end that sends nothing, because the send parks.
 
 <a id="http-server-session-expiry-belongs-to-the-store"></a>
 
-## `[session] ttl` is written onto the record and the store expires it; there is no sweeper and no probability of one
+## `[session] ttl` is written onto the record, an expired record is absent at once, and the SQLite store sweeps by time, never by chance
 
 `rule:http-server/session-expiry-belongs-to-the-store`
 
-`[session] ttl` is written onto the entry — `SET … EX` on the shared tier; an `expires_at` column
-and a `DELETE … WHERE expires_at < now()` in the database backend's own schema, run by the worker
-[`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration) already names. There is no probabilistic
-collection and no sweep on a percentage of requests: such a sweep exists only for a store that
-cannot expire anything by itself, such as a directory of files, and both backends here can.
+`[session] ttl` is written onto the entry: `SET … PX` on the shared tier, and an `expires_at`
+column in the `db` store's SQLite file. An expired record is absent at once, so `load` already
+answers it and `start` already issues a fresh id
+([`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations)). On the SQLite file `load` reads only
+a row whose `expires_at` is still ahead, so correctness never waits for a sweep. `save` refreshes
+the expiry, so `ttl` bounds how long an *untouched* record survives.
 
-An expired record is absent, so `load` already answers it and `start` already issues a fresh id
-([`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations)). `save` refreshes the expiry, so
-`ttl` bounds how long an *untouched* record survives. Expiry needs no code path of its own, which
-is the point of choosing backends that expire.
+The SQLite file deletes its expired rows with one indexed `DELETE … WHERE expires_at <= now`, run
+by a write at most once a minute per core. That sweep bounds the file at O(live sessions) rather
+than O(sessions ever issued). It is driven by time, never by a chance per request, and it is one
+statement on the blocking pool beside the write that ran it.
 
-<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration).</sub>
+**Declined:**
+- **A probabilistic collection, as PHP's `session.gc_probability`.** Which request pays for it is
+  chance, and on a quiet site the expired rows stay for days. A sweep by time costs every core the
+  same small delete once a minute.
+- **A sweep run by a scheduled job.** It would need a `[[schedule]]` entry nobody wrote, so a
+  deployment with no configuration would never sweep.
+
+<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/no-session-block-means-the-data-folder-store`](http-server.md#http-server-no-session-block-means-the-data-folder-store).</sub>
 
 <a id="http-server-a-session-holds-a-secret-only-sealed"></a>
 

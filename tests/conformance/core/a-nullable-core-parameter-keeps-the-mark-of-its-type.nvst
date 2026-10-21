@@ -8,19 +8,21 @@ under=a-request
 // `start(?tainted string $presented = null)` admits a `tainted` identifier: a
 // client that sends it in a header hands the member what `Core\Request::header`
 // returns. A `?T` that dropped the mark would refuse both calls at compile time.
+// The tree chooses the shared tier and gives it no address, so each call stops
+// at the store question.
 tainted string $presented = "PmA5tKz1QvR3sYbNqLwXe2";
 uint $reached = 0;
 try {
     Core\Session::start($presented);
 } catch (RuntimeError $unconfigured) {
-    if (Core\Str::contains($unconfigured->message, "[session] backend")) {
+    if (Core\Str::contains($unconfigured->message, "[cache.shared] url")) {
         $reached = $reached + 1;
     }
 }
 try {
     Core\Session::start(Core\Request::header("X-Session"));
 } catch (RuntimeError $unconfigured) {
-    if (Core\Str::contains($unconfigured->message, "[session] backend")) {
+    if (Core\Str::contains($unconfigured->message, "[cache.shared] url")) {
         $reached = $reached + 1;
     }
 }
@@ -31,6 +33,9 @@ echo "a tainted identifier reached the store question ", $reached, " of 2\n";
 tainted string $extension = "csv";
 tainted string $renamed = Core\Path::withExtension("report.txt", $extension);
 echo "renamed: ", Core\Str::length($renamed), " characters\n";
+--FILE nvs.toml--
+[session]
+backend = "shared"
 --EXPECT--
 a tainted identifier reached the store question 2 of 2
 renamed: 10 characters

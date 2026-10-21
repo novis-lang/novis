@@ -1,0 +1,29 @@
+--TEST--
+`Core\Session::start` with no `[session]` block opens the SQLite store in the data folder, and the session it opens reads back what it saved -- `rule:core-api/session-roster` and `rule:http-server/no-session-block-means-the-data-folder-store`
+--GET--
+under=a-request
+--FILE--
+<?nvs
+// The case answers a request, because that is the first thing `start` checks
+// (`rule:security/request-state-throws-in-an-isolate`).
+//
+// No `[session]` block is written, so the store is the data folder's
+// `session.sqlite`. A bare `start()` opens a new, empty session there.
+Core\Session::start();
+echo "a new session has no value: ", Core\Session::get("visits") == null ? "yes" : "no", "\n";
+
+Core\Session::set("visits", 1);
+echo "the session reads back what it saved: ", Core\Session::get("visits"), "\n";
+
+// A second `start()` on one request throws, as it does on every store.
+uint $refused = 0;
+try {
+    Core\Session::start();
+} catch (RuntimeError $twice) {
+    $refused = $refused + 1;
+}
+echo "a second start was refused ", $refused, " of 1\n";
+--EXPECT--
+a new session has no value: yes
+the session reads back what it saved: 1
+a second start was refused 1 of 1

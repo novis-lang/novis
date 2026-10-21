@@ -5,7 +5,8 @@
 //! **What is on disk is the store `rule:http-server/a-session-store-answers-four-operations` names
 //! and all seven members of `rule:core-api/session-roster`.** The four operations a backend
 //! answers are here — [`mint`], [`load`], [`save`], [`destroy`] and the key they share — over the
-//! shared tier's wire, and [`nvs_core_session_start`] is the member that reaches them: it takes the
+//! shared tier's wire, and [`sqlite`]'s four over the data folder's SQLite file. [`opened`] picks
+//! one as a [`Store`], and [`nvs_core_session_start`] is the member that reaches it: it takes the
 //! identifier the client presented, loads the record the store issued it for, and issues a fresh
 //! one where there is none. The other six operate on the record `start` left on the request
 //! ([`nvs_runtime::Session`]), and each of them throws until `start` has run — the whole benefit
@@ -18,11 +19,10 @@
 //! [`nvs_core_session_regenerate`] and [`nvs_core_session_destroy`] reach the store as they land
 //! because that rule makes those two immediate. The section below is where the send is decided.
 //!
-//! **`db` is a store the roster admits and this build cannot serve.** Every operation below is
-//! written against the shared tier's wire, so `start` under `backend = "db"` throws naming the half
-//! that is unwritten. Deliberately at run time rather than at boot: the word names a store the
-//! roster admits, and refusing it where it is written would be this build claiming the *decision* was
-//! wrong rather than that its second half has not landed.
+//! **`db` is the default store.** A tree that writes no `[session] backend` gets the data folder's
+//! `session.sqlite` (`rule:http-server/no-session-block-means-the-data-folder-store`), and a
+//! process with no usable data folder throws at `start` naming `[session]`. [`sqlite`]'s module
+//! doc owns the file's schema, its sweep, and why a request never waits on another.
 //!
 //! # Decision: a dirty record is sent by the *program's* end, and it travels there itself
 //!
@@ -137,14 +137,16 @@ use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
+mod sqlite;
+
 /// The class name, once, for the messages that all name it.
 pub(crate) const NAME: &str = r"Core\Session";
 
 /// `Core\Session`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Keeps values for one visitor from one request to the next. Call `start()` first, then \
-            use `get()` and `set()`. The values are saved in the store that `[session] backend` \
-            names.",
+            use `get()` and `set()`. By default, the values are saved in a SQLite file in the data \
+            folder. `[session] backend = \"shared\"` saves them in the shared cache instead.",
 };
 
 /// `rule:core-api/session-roster`'s roster, of which `start` is the member that talks to the store.
@@ -313,9 +315,9 @@ const START_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This request already called `start()`. It is also thrown when `[session] \
-                   backend` is not set, or is `db`, which this version does not support. It is \
-                   also thrown when `[cache.shared] url` is not set, or the program does not have \
+            desc: "This request already called `start()`. It is also thrown when the server has \
+                   no data folder for the default store. With `[session] backend = \"shared\"`, \
+                   it is thrown when `[cache.shared] url` is not set, or the program does not have \
                    the `cache.shared` capability. The same happens when `[session] cookie` is not \
                    a valid cookie name.",
         },
@@ -441,9 +443,10 @@ const REGENERATE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This request has not called `start()`, or it called `destroy()`. It is also \
-                   thrown when `[cache.shared] url` is not set, when the program does not have the \
-                   `cache.shared` capability, or when `[session] cookie` is not a valid cookie name.",
+            desc: "This request has not called `start()`, or it called `destroy()`. With \
+                   `[session] backend = \"shared\"`, it is also thrown when `[cache.shared] url` \
+                   is not set or the program does not have the `cache.shared` capability. It is \
+                   also thrown when `[session] cookie` is not a valid cookie name.",
         },
         ErrorDoc {
             error: "IOError",
@@ -463,9 +466,9 @@ const DESTROY_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This request has not called `start()`, or it already called `destroy()`. It is \
-                   also thrown when `[cache.shared] url` is not set, or the program does not have \
-                   the `cache.shared` capability.",
+            desc: "This request has not called `start()`, or it already called `destroy()`. With \
+                   `[session] backend = \"shared\"`, it is also thrown when `[cache.shared] url` \
+                   is not set or the program does not have the `cache.shared` capability.",
         },
         ErrorDoc {
             error: "IOError",
@@ -600,28 +603,104 @@ pub(crate) fn key_of(id: &str) -> Vec<u8> {
     key
 }
 
-/// Which store this deployment's records live in.
+/// Which store this deployment's records live in: the written `[session] backend`, or `db` where
+/// none is written (`rule:http-server/no-session-block-means-the-data-folder-store`).
 ///
 /// # Errors
 ///
-/// A thrown `RuntimeError` for a tree that configured no `[session]` block, naming the block to
-/// write. `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`: an absent block is not a default backend, because the safe answer for a
-/// store nobody chose is no store — the same direction
-/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` takes for everything it
-/// leaves unconfigured.
-///
-/// A word this module cannot spell is the same throw, and it is unreachable from a server that
-/// booted: `nvs_config::session::validate` refused it at `E0626`. It is answered rather than
+/// A thrown `RuntimeError` for a word this module cannot spell. It is unreachable from a server
+/// that booted: `nvs_config::session::validate` refused it at `E0626`. It is answered rather than
 /// asserted because this crate is also reachable from a test driving a hand-built context, and a
 /// panic there would report the fixture as an engine bug.
 pub(crate) fn backend(ctx: &Ctx, member: &str) -> Result<Backend, Fault> {
-    let written = configured(ctx, BACKEND);
-    written.as_deref().and_then(Backend::of).ok_or_else(|| {
+    let Some(written) = configured(ctx, BACKEND) else {
+        return Ok(Backend::Db);
+    };
+    Backend::of(&written).ok_or_else(|| {
         Fault::thrown(format!(
-            "Session::{member}(): no session store is configured. Write `[session] backend = \
-                 \"shared\"`. A session has to be in a store that every server process can read."
+            "{member}: `[session] backend = \"{written}\"` is not a session store. Write \
+             `backend = \"db\"` or `backend = \"shared\"`."
         ))
     })
+}
+
+/// Where this request's record lives, once the store has been checked.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Store {
+    /// The shared tier, over this core's connection, which [`open_configured`] has opened.
+    Shared,
+    /// The SQLite file at this path, [`sqlite`]'s store.
+    File(std::path::PathBuf),
+}
+
+/// The store this deployment's records live in, ready for one of the four operations.
+///
+/// `shared` opens this core's connection, so a store that is unconfigured or not granted throws
+/// here. `db`, which is also the store a tree that writes no `backend` gets, is the data folder's
+/// `session.sqlite` (`rule:http-server/no-session-block-means-the-data-folder-store`).
+///
+/// # Errors
+///
+/// [`backend`]'s, [`open_configured`]'s, and a thrown `RuntimeError` naming `[session]` where this
+/// process has no usable data folder.
+pub(crate) fn opened(ctx: &Ctx, member: &str, remedy: &str) -> Result<Store, Fault> {
+    match backend(ctx, member)? {
+        Backend::Shared => {
+            open_configured(ctx, member, remedy)?;
+            Ok(Store::Shared)
+        }
+        Backend::Db => nvs_config::data::current()
+            .map(|folder| Store::File(folder.sessions()))
+            .ok_or_else(|| {
+                Fault::thrown(format!(
+                    "{member}: sessions are saved in the data folder by default, and this \
+                     server has no data folder it can use. Write `[session] backend = \
+                     \"shared\"` to save them in the shared cache."
+                ))
+            }),
+    }
+}
+
+/// `load` on `store`, with a failure thrown as an `IOError` naming `member`.
+///
+/// # Errors
+///
+/// A thrown `IOError` for a store that cannot be reached. Never an answer that looks like absence:
+/// [`load`]'s doc says why.
+fn fetched(store: &Store, member: &str, id: &str) -> Result<Option<Vec<u8>>, Fault> {
+    match store {
+        Store::Shared => on_shared(NAME, member, |open| load(open, id)),
+        Store::File(path) => on_file(member, sqlite::load(path, id)),
+    }
+}
+
+/// `save` on `store`, as [`fetched`].
+///
+/// # Errors
+///
+/// As [`fetched`].
+fn put(store: &Store, member: &str, id: &str, record: &[u8], ttl: Duration) -> Result<(), Fault> {
+    match store {
+        Store::Shared => on_shared(NAME, member, |open| save(open, id, record, ttl)),
+        Store::File(path) => on_file(member, sqlite::save(path, id, record, ttl)),
+    }
+}
+
+/// `destroy` on `store`, as [`fetched`].
+///
+/// # Errors
+///
+/// As [`fetched`].
+fn forgot(store: &Store, member: &str, id: &str) -> Result<(), Fault> {
+    match store {
+        Store::Shared => on_shared(NAME, member, |open| destroy(open, id)),
+        Store::File(path) => on_file(member, sqlite::destroy(path, id)),
+    }
+}
+
+/// The SQLite store's answer, with its failure thrown as [`on_shared`] throws the shared tier's.
+fn on_file<T>(member: &str, answer: std::io::Result<T>) -> Result<T, Fault> {
+    answer.map_err(|why| Fault::thrown_as(ThrownClass::Io, format!("{NAME}::{member}: {why}")))
 }
 
 /// `[session] ttl`, or [`DEFAULT_TTL`].
@@ -782,9 +861,9 @@ nvs_runtime::nvs_helper! {
     /// # Errors
     ///
     /// As [`START_DOC`] lists them: a thrown `LogicError` where no request arrived; a thrown
-    /// `RuntimeError` for a second `start` on one request, for a tree that configured no store,
-    /// for the `db` store this build does not serve, and for a shared store that is unconfigured
-    /// or refused by capability; a thrown `IOError` for one that cannot be reached.
+    /// `RuntimeError` for a second `start` on one request, for the `db` store in a process with
+    /// no usable data folder, and for a shared store that is unconfigured or refused by capability;
+    /// a thrown `IOError` for a store that cannot be reached.
     fn nvs_core_session_start(ctx, args: [1]) {
         crate::request::served(ctx, &format!("{NAME}::start"))?;
 
@@ -796,19 +875,8 @@ nvs_runtime::nvs_helper! {
             )));
         }
 
-        match backend(ctx, "start")? {
-            Backend::Shared => {}
-            Backend::Db => {
-                return Err(Fault::thrown(format!(
-                    "{NAME}::start(): `[session] backend = \"db\"` names a store `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot` \
-                     admits and this build does not serve yet — write `backend = \"shared\"`, or \
-                     see `crates/nvs-stdlib/src/session.rs`'s module doc for which half is on disk"
-                )));
-            }
-        }
-
         let member = format!("{NAME}::start()");
-        open_configured(
+        let store = opened(
             ctx,
             &member,
             ". A session has to be in a store that every server process can read",
@@ -831,7 +899,7 @@ nvs_runtime::nvs_helper! {
         }
         .filter(|id| issuable(id));
         let opened = match presented {
-            Some(id) => on_shared(NAME, "start", |open| load(open, &id))?
+            Some(id) => fetched(&store, "start", &id)?
                 .map(|record| nvs_runtime::Session {
                     id,
                     record,
@@ -848,7 +916,7 @@ nvs_runtime::nvs_helper! {
                 let lifetime = ttl(ctx);
                 // The empty record is zero bytes — `nvs_runtime::Session::record`'s own doc owns
                 // why — so issuing one builds no value and encodes nothing.
-                on_shared(NAME, "start", |open| save(open, &id, &[], lifetime))?;
+                put(&store, "start", &id, &[], lifetime)?;
                 issue_cookie(ctx, "start", &id)?;
                 nvs_runtime::Session {
                     id,
@@ -1333,11 +1401,11 @@ nvs_runtime::nvs_helper! {
         let (retired, record) = (open.id.clone(), open.record.clone());
 
         let member = format!("{NAME}::regenerate()");
-        open_configured(ctx, &member, ", which is where this session's record already lives")?;
+        let store = opened(ctx, &member, ", which is where this session's record already lives")?;
         let fresh = mint(ctx);
         let lifetime = ttl(ctx);
-        on_shared(NAME, "regenerate", |open| save(open, &fresh, &record, lifetime))?;
-        on_shared(NAME, "regenerate", |open| destroy(open, &retired))?;
+        put(&store, "regenerate", &fresh, &record, lifetime)?;
+        forgot(&store, "regenerate", &retired)?;
         issue_cookie(ctx, "regenerate", &fresh)?;
 
         // Not dirty: the record was written whole a line ago, so the write-back has nothing left
@@ -1376,8 +1444,8 @@ nvs_runtime::nvs_helper! {
         let held = open.id.clone();
 
         let member = format!("{NAME}::destroy()");
-        open_configured(ctx, &member, ", which is where this session's record lives")?;
-        on_shared(NAME, "destroy", |open| destroy(open, &held))?;
+        let store = opened(ctx, &member, ", which is where this session's record lives")?;
+        forgot(&store, "destroy", &held)?;
         ctx.close_session();
         Ok(Value::null())
     }
@@ -1418,12 +1486,8 @@ fn send_at_end(ctx: &mut Ctx) {
         None => return,
         Some(open) => {
             let lifetime = ttl(ctx);
-            open_configured(ctx, SENDER, ", which is where this session's record lives").and_then(
-                |()| {
-                    on_shared(NAME, "the write-back", |store| {
-                        save(store, &open.id, &open.record, lifetime)
-                    })
-                },
+            opened(ctx, SENDER, ", which is where this session's record lives").and_then(
+                |store| put(&store, "the write-back", &open.id, &open.record, lifetime),
             )
         }
     };
@@ -1486,11 +1550,14 @@ mod tests {
     use nvs_runtime::{Ctx, NvsArray, NvsStr, Value};
 
     use super::{
-        DEFAULT_TTL, PREFIX, SEAL_DOMAIN, backend, cookie, destroy, key_of, load, mint,
-        opened_from, record, save, sealed_into, sealed_key, ttl, write_back,
+        DEFAULT_TTL, PREFIX, SEAL_DOMAIN, Store, backend, cookie, destroy, key_of, load, mint,
+        opened, opened_from, record, save, sealed_into, sealed_key, ttl, write_back,
     };
     use crate::cache::redis::Connection;
     use crate::cache::{Dial, Target, memory_get};
+
+    /// The block that chooses the shared tier, which every case driving it through a member writes.
+    const SHARED_BLOCK: &str = "[session]\nbackend = \"shared\"\n";
 
     /// The record two cores exchange, and the id it lives under.
     const ID: &str = "PmA5tKz1QvR3sYbN";
@@ -1936,6 +2003,7 @@ mod tests {
     #[test]
     fn destroy_forgets_the_record_before_it_closes_the_session() {
         let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(SHARED_BLOCK));
         assert!(
             nvs_runtime::call(super::nvs_core_session_destroy, &mut ctx, &[]).is_err(),
             "a request that never started a session has nothing to destroy"
@@ -1967,7 +2035,8 @@ mod tests {
         let store = Arc::clone(&held);
         let _serving = Serving::start(listener, store);
         ctx.set_config(crate::tests::granting(&format!(
-            "[capabilities.cache]\nshared = true\n[cache.shared]\nurl = \"redis://{address}\"\n"
+            "{SHARED_BLOCK}[capabilities.cache]\nshared = true\n\
+             [cache.shared]\nurl = \"redis://{address}\"\n"
         )));
 
         nvs_runtime::call(super::nvs_core_session_destroy, &mut ctx, &[])
@@ -1996,6 +2065,7 @@ mod tests {
     #[test]
     fn regenerate_moves_the_record_to_a_new_id_and_forgets_the_old_one() {
         let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(SHARED_BLOCK));
         assert!(
             nvs_runtime::call(super::nvs_core_session_regenerate, &mut ctx, &[]).is_err(),
             "a request that never started a session has nothing to move"
@@ -2027,7 +2097,8 @@ mod tests {
         let store = Arc::clone(&held);
         let _serving = Serving::start(listener, store);
         ctx.set_config(crate::tests::granting(&format!(
-            "[capabilities.cache]\nshared = true\n[cache.shared]\nurl = \"redis://{address}\"\n"
+            "{SHARED_BLOCK}[capabilities.cache]\nshared = true\n\
+             [cache.shared]\nurl = \"redis://{address}\"\n"
         )));
 
         nvs_runtime::call(super::nvs_core_session_regenerate, &mut ctx, &[])
@@ -2057,7 +2128,8 @@ mod tests {
     /// new identifier, written to the store and sent in a `Set-Cookie`.
     ///
     /// Both refusals come first, and neither leaves a session open: a context answering no
-    /// request, and a request whose tree configured no store. A second `start` on one request
+    /// request, and a request whose tree chose the shared tier and gave it no address. A second
+    /// `start` on one request
     /// throws and keeps the record the first one opened. The held identifier arrives in the
     /// `nvsid` cookie and the forged one as the `$presented` argument, so both readings are
     /// driven.
@@ -2079,9 +2151,10 @@ mod tests {
         let mut inbound = nvs_runtime::Inbound::new("GET", "/", "");
         inbound.push_header("cookie", format!("nvsid={HELD}").as_bytes());
         ctx.set_inbound(inbound);
+        ctx.set_config(crate::tests::granting(SHARED_BLOCK));
         assert!(
             nvs_runtime::call(super::nvs_core_session_start, &mut ctx, &nothing).is_err(),
-            "no `[session] backend`, so there is no store to open a record in"
+            "the shared tier with no `[cache.shared] url`, so there is no store to open a record in"
         );
         drop(ctx.take_pending());
         assert!(ctx.session().is_none());
@@ -2505,20 +2578,33 @@ mod tests {
     ///
     /// `rule:http-server/session-expiry-belongs-to-the-store`'s lifetime at both ends — the shipped
     /// one with nothing configured, and a written one preferred to it — and
-    /// `rule:http-server/no-session-block-means-no-store`: a tree with no `[session]`
-    /// block throws naming the block, rather than quietly selecting a store nobody chose.
+    /// `rule:http-server/no-session-block-means-the-data-folder-store`: a tree with no `[session]`
+    /// block gets the data folder's SQLite file, and a word the roster does not spell throws
+    /// naming the two it does.
     #[test]
-    fn the_block_decides_the_store_and_absence_decides_nothing() {
+    fn the_block_decides_the_store_and_absence_selects_the_data_folder_file() {
         let mut ctx = Ctx::buffered();
         assert_eq!(ttl(&ctx), DEFAULT_TTL);
         assert_eq!(cookie(&ctx), "nvsid");
-        let refused = backend(&ctx, "start").expect_err("no block, no store");
+        assert_eq!(
+            backend(&ctx, "start").expect("no block is the default store"),
+            Backend::Db
+        );
+        if let Some(folder) = nvs_config::data::current() {
+            assert_eq!(
+                opened(&ctx, "start", "").expect("the data folder's file"),
+                Store::File(folder.sessions())
+            );
+        }
+
+        ctx.set_config(crate::tests::granting("[session]\nbackend = \"redis\"\n"));
+        let refused = backend(&ctx, "start").expect_err("a word the roster does not spell");
         let nvs_runtime::Fault::Thrown(_, said) = refused else {
-            panic!("an unconfigured store is a throw the program can catch");
+            panic!("an unknown store is a throw the program can catch");
         };
         assert!(
-            said.contains("[session] backend"),
-            "the throw names the block to write: {said}"
+            said.contains("backend = \"db\"") && said.contains("backend = \"shared\""),
+            "the throw names the two stores: {said}"
         );
 
         ctx.set_config(crate::tests::granting(

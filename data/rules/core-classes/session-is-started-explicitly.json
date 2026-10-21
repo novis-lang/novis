@@ -10,6 +10,6 @@
     "tests/conformance/core/session-a-member-called-before-start-throws-naming-it.nvst",
     "tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst",
     "tests/conformance/core/session-start-takes-the-presented-identifier-or-none-at-all.nvst",
-    "tests/conformance/core/session-start-refuses-a-tree-that-configured-no-store.nvst"
+    "tests/conformance/core/session-start-with-no-block-opens-the-data-folder-store.nvst"
   ]
 }

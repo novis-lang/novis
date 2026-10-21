@@ -9,9 +9,9 @@ wait forever (`rule:http-server/no-spelling-for-an-unbounded-wait`).
 The rule reaches past the client. A `[db.<name>]` pool bound, a socket wait, a terminal prompt and
 a queue lease each inherit a finite default and refuse `false` or `0` as a spelling for "no
 ceiling", because a wait that never ends is how one slow dependency becomes an outage and the
-request-level `wall_time` only bounds the damage after the fact. It also answers what a store
-nobody chose means — no store (`rule:http-server/no-session-block-means-no-store`) — since the
-safe answer for an absent block is the one that cannot be wrong silently.
+request-level `wall_time` only bounds the damage after the fact. A store nobody chose is one that
+cannot be wrong silently: sessions default to a file every process on the machine reads, never to
+one process's memory (`rule:http-server/no-session-block-means-the-data-folder-store`).
 
 What a proxy does earlier and better — request-size caps, per-IP connection limits, flood
 limiting — stays the proxy's. Two things do not: how a message is parsed, which is
