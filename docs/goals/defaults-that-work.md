@@ -34,7 +34,7 @@ stages:
         rules: [security/net-address-policy, security/outbound-url-is-a-sink, config/a-startup-default-is-never-flipped, config/a-mode-is-five-defaults, security/extension-grants-are-an-intersection]
   - id: 5
     title: SQLite needs only the file rule, and Postgres and MySQL reach loopback without TLS
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/db/open.rs, crates/nvs-db/src/pg.rs, crates/nvs-db/src/mysql.rs, docs/rules/core-classes/db-capabilities.md]
     extra:
       context:
@@ -432,10 +432,10 @@ adds the narrowing lines.
 
 **Does:** decisions 4 and 5 are on.
 
-- [ ] `:memory:` and the empty path need no grant, a file asks `fs.read` and `fs.write` alone, and a file only readable opens read-only (`rule:core-classes/db-capabilities`). `crates/nvs-stdlib/src/db/open.rs:978`
-- [ ] Postgres accepts a server with no TLS on a loopback address only (`rule:core-classes/db-safe-connection-defaults`). `crates/nvs-db/src/pg.rs:1127`
-- [ ] MySQL and MariaDB do the same. `crates/nvs-db/src/mysql.rs:273`, `crates/nvs-db/src/mysql.rs:988`
-- [ ] Tests: `:memory:` on a server with no grant, a file in the app folder read and refused a write, a file on a CLI run, and a no-TLS server accepted on `127.0.0.1` and refused on any other address. `crates/nvs-db/src/pg.rs:1127`, `crates/nvs-stdlib/src/db/open.rs:2014`
+- [x] `:memory:` and the empty path need no grant, a file asks `fs.read` and `fs.write` alone, and a file only readable opens read-only (`rule:core-classes/db-capabilities`). `crates/nvs-stdlib/src/db/open.rs:978`
+- [x] Postgres accepts a server with no TLS on a loopback address only (`rule:core-classes/db-safe-connection-defaults`). `crates/nvs-db/src/pg.rs:1127`
+- [x] MySQL and MariaDB do the same. `crates/nvs-db/src/mysql.rs:273`, `crates/nvs-db/src/mysql.rs:988`
+- [x] Tests: `:memory:` on a server with no grant, a file in the app folder read and refused a write, a file on a CLI run, and a no-TLS server accepted on `127.0.0.1` and refused on any other address. `crates/nvs-db/src/pg.rs:1127`, `crates/nvs-stdlib/src/db/open.rs:2014`
 
 ### 6. a CLI run starts any program, and a script inside the app folder spawns with no grant
 
@@ -535,9 +535,45 @@ to a writing subagent, one after another. Then the gate runs once more.
 
 ### State
 
-Stages 1 to 4 are done. Stage 4 is committed without a green gate: its gate was stopped after a
+Stages 1 to 5 are done. Stage 4 is committed without a green gate: its gate was stopped after a
 test hung. Stages 5 to 12 run no gate, and stage 13 runs the goal's one gate (§ *Standing
 decisions*, *One gate*).
+
+**Expected red at stage 13** (found, not fixed):
+
+- `a_capability_query_answers_true_for_exactly_the_granted_names`
+  (`crates/nvs-stdlib/tests/capability.rs:868`) expects `Core\Cap::has` to answer `true` for
+  `fs.read` alone. Stages 3 and 4 opened `fs.write` and `net.connect` on a CLI run, so it now
+  gets more. The test should write `write = []` and `connect = []`, or count the defaults.
+- The acceptance check `config-tests` was red on stage 4's authority test. It is fixed and green
+  (`fd07d523a`).
+
+**Stage 5 (SQLite and database TLS):**
+
+- `sqlite_read_only` (`crates/nvs-stdlib/src/db/open.rs`) is the grant decision for a
+  program-supplied path. `:memory:` and `""` ask nothing. A `file:` URI asks `db.open`, `fs.read`
+  and `fs.write` as before. A path requires `fs.read`, and opens read-only where `fs.write` is not
+  granted. `SqliteTarget::read_only` (`crates/nvs-db/src/sqlite.rs`) opens with
+  `SQLITE_OPEN_READ_ONLY`. A read-only open's pool key is the settings key plus `:read-only`, and
+  its pool bounds come from the plain key.
+- A path-shaped `db.open` entry now grants nothing, so `silent_entry` refuses it at load, with
+  help naming `write = ["<its folder>"]` under `[capabilities.fs]` (`Silent::under`).
+- Postgres: `request_tls(stream, loopback)` gives `false` for `N` on a loopback address, and
+  `open_stream` returns `PgStream::Loopback(NvsTcp)`. A loopback server that answers `S` is still
+  verified. MySQL and MariaDB share `mysql::open_tcp`: on loopback it reads the greeting with
+  `REQUIRED_OVER_A_SOCKET` (no longer `cfg(unix)`), and a greeting without `CLIENT_SSL` gives
+  `MyStream::Loopback`.
+- Tests: `a_sqlite_file_asks_the_file_rule_and_opens_read_only_where_it_is_not_writable` and
+  `a_sqlite_open_asks_fs_read_before_it_reads_the_path` (`open.rs`),
+  `a_read_only_target_reads_the_file_and_a_write_is_refused` (`sqlite.rs`),
+  `a_loopback_server_with_no_tls_is_used_in_the_clear` (`pg.rs`),
+  `a_loopback_server_that_offers_no_tls_is_used_in_the_clear` (`mysql.rs`). Each passed once.
+- Cases: `db-open-asks-the-grant-about-a-sqlite-path-and-not-a-host.nvst` is renamed
+  `db-open-asks-the-file-rule-about-a-sqlite-path-and-not-db-open.nvst`, and it and
+  `db-open-refuses-a-tls-mode-weaker-than-verify-full.nvst` write `read = []`. Both pass under
+  `nvs test`.
+- Rules: `core-classes/db-capabilities` (the SQLite file rule, a Declined line) and
+  `core-classes/db-safe-connection-defaults` (the loopback exception, a Declined line).
 
 **Stage 4 (outbound hosts):**
 
@@ -641,13 +677,16 @@ questions of the capabilities and trust pages. They are restamped in this group.
 **No gate until stage 13.** Check with `cargo build` and `cargo clippy --all-targets -- -D
 warnings`, commit each slice, and name in the handoff the tests and cases you expect to go red.
 
-**Stage 5**, SQLite and database TLS. `Db::open` (`crates/nvs-stdlib/src/db/open.rs:978`) stops
-asking `db.open` for `:memory:`, the empty path and a SQLite file. A file asks only the file rule
-(`Authority::allows` for `fs.read`/`fs.write`). In server work a readable but not writable file opens
-with SQLite's read-only flag. Postgres (`crates/nvs-db/src/pg.rs:1127`) and MySQL
-(`crates/nvs-db/src/mysql.rs:273`) connect without TLS to a loopback address only. Rules
-`core-classes/db-capabilities` and `core-classes/db-safe-connection-defaults`. Stage 4 opened
-loopback on a CLI run, so a database test on loopback no longer needs `internal`.
+**Stage 6**, programs and scripts (decisions 6 and 7). `defaults::capability`
+(`crates/nvs-config/src/defaults.rs:364`) gives `process.exec` `Granted::Everything` on a CLI run.
+The relative-path refusal in `crates/nvs-runtime/src/capability.rs:128` and the exec door at
+`:1492` look a bare name up on `PATH` on a CLI run. In server work `exec = ["git"]` resolves through
+`PATH` once at boot to an absolute path and is refused at boot when nothing is found.
+`script.spawn` defaults to the app folder, minus dot-files and `nvs.toml`, on both run kinds
+(`Granted::AppFolder` already has that check, `Run::reads_by_default`): `crates/nvs-runtime/src/script.rs:477`
+and the schedule check `crates/nvs-config/src/schedule.rs:247`. The hostile block in `nvs.toml`
+gains `exec = []` and `spawn = []`. Rules `security/process-exec-capability`,
+`security/script-spawn-capability`.
 
 ### Backlog
 
