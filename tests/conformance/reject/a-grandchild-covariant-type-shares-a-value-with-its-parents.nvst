@@ -1,0 +1,39 @@
+--TEST--
+A grandchild's `covariant` type is measured against its parent's narrowed type too, and a type that has no value in common with it does not compile; a narrower, a wider and an overlapping type do — `rule:classes/a-covariant-type-is-checked-where-a-value-enters`
+--FILE--
+<?nvs
+class Animal {}
+class Dog extends Animal {}
+class Cat extends Animal {}
+class Puppy extends Dog {}
+
+class Kennel {
+    public function feed(Animal $a): string { return "kennel"; }
+    public function walk(Animal $a): string { return "kennel"; }
+    public function pet(Animal $a): string { return "kennel"; }
+    public function wash(Animal $a): string { return "kennel"; }
+}
+
+class DogKennel extends Kennel {
+    public function feed(covariant Dog $a): string { return "dog"; }
+    public function walk(covariant Dog|Cat $a): string { return "dog"; }
+    public function pet(covariant Puppy $a): string { return "dog"; }
+    public function wash(covariant Dog $a): string { return "dog"; }
+}
+
+class CatKennel extends DogKennel {
+    // Refused: no value is both a `Cat` and a `Dog`, so every call through `DogKennel` would throw.
+    public function feed(covariant Cat $a): string { return "cat"; }
+    // Allowed: a `Cat` is one of the types `DogKennel::walk` takes.
+    public function walk(covariant Cat $a): string { return "cat"; }
+    // Allowed: `Dog` accepts every `Puppy`.
+    public function pet(covariant Dog $a): string { return "cat"; }
+    // Allowed: `Puppy` is narrower than `Dog`.
+    public function wash(covariant Puppy $a): string { return "cat"; }
+}
+// covers: lang:classes/covariant
+--EXPECTF-ERROR--
+error[E0404]: `CatKennel::feed` cannot replace `DogKennel::feed`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

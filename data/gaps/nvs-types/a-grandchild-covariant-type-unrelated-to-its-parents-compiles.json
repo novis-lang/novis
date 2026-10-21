@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/conformance.rs",
-  "title": "A grandchild's `covariant` type is measured against the topmost declaration only, so one unrelated to its parent's narrowed type compiles.",
-  "text": "`check_covariant_params` measures a covariant parameter against `topmost_declarations`. A grandchild `covariant Cat` under a parent's `covariant Dog`, both under `Animal`, compiles, and every call through the parent's type throws the `LogicError`. The run-time test keeps it safe. A sentence in `rule:classes/a-covariant-type-is-checked-where-a-value-enters` and an `E0404` against the nearest declaration would make it a compile error.",
-  "goal": "diagnostic-records"
-}

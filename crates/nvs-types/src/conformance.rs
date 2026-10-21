@@ -1053,7 +1053,9 @@ fn parent_params_problem(
 /// the topmost one's that keeps its `tainted` and `secret` (`E0882` where it
 /// is not narrower, `E0404` where it is unrelated or drops a qualifier), and
 /// it must accept the default the topmost declaration gives it (`E0884`),
-/// since a call through that declaration fills it. A parameter without the
+/// since a call through that declaration fills it. A `covariant` type with no
+/// value in common with a nearer declaration's narrowed type is `E0404` too
+/// ([`reject_covariant_unrelated_to_nearest`]). A parameter without the
 /// keyword that is narrower than the topmost declaration's is `E0404`, also
 /// when it only repeats its parent's narrowed type. A narrower type is tested
 /// on every call, so each level writes the keyword where the test runs.
@@ -1093,7 +1095,8 @@ pub(crate) fn check_covariant_params(members: &[ClassMember], qname: &QName, env
                 continue;
             }
             topmost_declarations(&owner, &parent, &name, env, &mut seen, &mut roots);
-            nearest.push(bind_interface_args(qname, &owner, &parent, env));
+            let parent = bind_interface_args(qname, &owner, &parent, env);
+            nearest.push((owner, parent));
         }
         if roots.is_empty() {
             for p in m.params.iter().filter(|p| p.covariant) {
@@ -1121,7 +1124,7 @@ pub(crate) fn check_covariant_params(members: &[ClassMember], qname: &QName, env
                 (owner, sig)
             })
             .collect();
-        for (index, p) in m.params.iter().enumerate() {
+        'params: for (index, p) in m.params.iter().enumerate() {
             let Some(&taken) = own.params.get(index) else {
                 continue;
             };
@@ -1155,7 +1158,7 @@ pub(crate) fn check_covariant_params(members: &[ClassMember], qname: &QName, env
                 let reported = if p.covariant {
                     covariant_param_problem(qname, root, &name, p, taken, top, sig, index, env)
                 } else {
-                    let nearest_fits = nearest.iter().all(|parent| {
+                    let nearest_fits = nearest.iter().all(|(_, parent)| {
                         parent
                             .params
                             .get(index)
@@ -1183,11 +1186,45 @@ pub(crate) fn check_covariant_params(members: &[ClassMember], qname: &QName, env
                     }
                 };
                 if reported {
-                    break;
+                    continue 'params;
                 }
+            }
+            if p.covariant {
+                reject_covariant_unrelated_to_nearest(qname, &name, p, index, taken, &nearest, env);
             }
         }
     }
+}
+
+/// Reports `E0404` when the `covariant` parameter `p`, of type `taken`, has no
+/// value in common with the type a nearest declaration in `nearest` gives
+/// it. Measured against the topmost declaration alone, a grandchild's
+/// `covariant Cat` under its parent's `covariant Dog` would compile, and every
+/// call through the parent's type would throw.
+fn reject_covariant_unrelated_to_nearest(
+    qname: &QName,
+    name: &str,
+    p: &nvs_syntax::ast::Param,
+    index: usize,
+    taken: TypeId,
+    nearest: &[(QName, crate::signatures::MethodSig)],
+    env: &mut Env<'_>,
+) {
+    let found = nearest.iter().find_map(|(owner, sig)| {
+        let &passed = sig.params.get(index)?;
+        crate::expr::operators::types_are_disjoint(taken, passed, env).then_some((owner, passed))
+    });
+    let Some((owner, passed)) = found else {
+        return;
+    };
+    let at = p.ty.as_ref().map_or(p.span, |ty| ty.span);
+    let param = strip_sigil(span_text(env.src, p.name)).to_owned();
+    let have = env.interner.describe(taken);
+    let want = env.interner.describe(passed);
+    let message = format!(
+        "`${param}` is `{have}`, and `{owner}::{name}` takes `{want}`. No value has both types"
+    );
+    report_incompatible_override(qname, owner, name, at, message, false, env);
 }
 
 /// Reports what is wrong with the `covariant` parameter `p` of `qname`'s
