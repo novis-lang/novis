@@ -114,10 +114,14 @@ The main loop's gate does not run `bun nv proofs --gate`, so a goal that changes
 source or lengthens an `about.md` reaches CI red. No red is handed to the main loop, so no watch passes
 `--past`.
 
+That CI run has ended: a watch that passed over the four known reds (`--past proofs --past "the
+chapter examples run and the website matches the binary"`) exited 4, so the other 33 of its 37 jobs
+are green. The three fixes are still in `git log origin/main..HEAD`, and `bun nv proofs --gate` at
+`HEAD`, after the main loop's `6c7e5b271` and `a2434fdef`, still owes nothing.
+
 Until the next push, `bun nv ci --watch` exits 1 at once on `e9c83e4fe`'s red run and prints the same
-four failed jobs. The three fixes are still in `git log origin/main..HEAD`, and `bun nv proofs --gate`
-at `HEAD` still owes nothing. A session that sees that red with `origin/main` still at `e9c83e4fe`
-has nothing to fix, so it hands off again.
+four failed jobs. A session that sees that red with `origin/main` still at `e9c83e4fe` has nothing to
+fix, so it hands off again.
 
 ### Next
 
