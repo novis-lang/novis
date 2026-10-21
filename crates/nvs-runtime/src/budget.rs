@@ -443,10 +443,14 @@ impl Armed {
 /// Arms `next` for this thread.
 ///
 /// **What the caller owes:** the word `next` names must still be there at every
-/// allocation until something arms over it. [`Ctx`](crate::Ctx) discharges that
-/// by holding the pair it displaced in a field and arming it again as it drops,
-/// which is [`rebase_peak`]'s arrangement applied to a second number — so the
-/// address armed always belongs to a context that is still running.
+/// allocation until something arms over it. Two arrangements discharge that
+/// together. [`Ctx`](crate::Ctx) holds the pair it displaced in a field and arms
+/// it again as it drops, which is [`rebase_peak`]'s arrangement applied to a
+/// second number, and covers contexts that nest on one stack. [`ArmedStack`]
+/// takes the pair off the thread whenever a task's stack stops running, which
+/// covers contexts on different stacks: a context made while another task is
+/// parked displaces nothing of that task's. So the address armed always belongs
+/// to a context that is still running, on the stack the thread is running.
 pub(crate) fn arm(next: Armed) {
     CEILING.with(|ceiling| ceiling.set(next.ceiling));
     POLLED.with(|polled| polled.set(next.word));
@@ -464,6 +468,69 @@ pub(crate) fn displace(next: Armed) -> Armed {
     };
     arm(next);
     displaced
+}
+
+/// The arming, the refusal and the reserve of the stack that is about to stop
+/// running, carried off the thread until that stack runs again.
+///
+/// `crate::CurrentStack` is the model and its doc the argument. All four cells
+/// describe one *task*, while the thread-local they live in is shared by every
+/// coroutine the core runs. Without this, a task that makes a context while
+/// another task is parked saves *that* task's arming and writes it back as its
+/// context drops. Two requests interleaved on one core are then each measured
+/// against the other's ceiling. If the parked task ended in between, the
+/// restore leaves [`POLLED`] naming the safepoint word of a tree that is gone,
+/// and the next allocation past the ceiling writes into freed memory.
+/// `rule:security/isolate-shares-nothing` is the rule this holds.
+///
+/// `nvs_host`'s `yield_on` is the one caller, beside `CurrentStack`:
+/// [`take`](ArmedStack::take) on the way out of a stack, and
+/// [`restore`](ArmedStack::restore) on the way back in. A task that never comes
+/// back simply drops this, and its contexts' own drops put back what they
+/// displaced on that stack, which is nothing.
+///
+/// The balance cells [`LIVE`], [`PEAK`] and [`WRITTEN`] stay on the thread:
+/// charging the balance per task turn is a separate change, and the reading
+/// stays the difference the module doc describes.
+///
+/// **Cost:** four thread-local moves per park and four per resume, against a
+/// switch that already costs a stack change. **Memory:** four words per parked
+/// task, O(in-flight).
+#[derive(Debug)]
+#[must_use = "the task's arming is off the thread until this is restored"]
+pub struct ArmedStack {
+    armed: Armed,
+    refused: Option<Refusal>,
+    reporting: bool,
+}
+
+impl ArmedStack {
+    /// Takes the four cells off the thread and leaves it under nothing: no
+    /// threshold, no word, no refusal and no reserve.
+    pub fn take() -> Self {
+        Self {
+            armed: displace(Armed::NONE),
+            refused: take_refusal(),
+            reporting: REPORTING.with(|open| open.replace(false)),
+        }
+    }
+
+    /// Puts back what [`take`](ArmedStack::take) answered.
+    pub fn restore(self) {
+        arm(self.armed);
+        restore_refusal(self.refused);
+        REPORTING.with(|open| open.set(self.reporting));
+    }
+
+    /// Whether the stack this came off had a safepoint word armed.
+    ///
+    /// For the assertion a caller cannot otherwise make: a thread between
+    /// tasks names no word, and a restore that crossed a switch is what would
+    /// make it name one that is gone.
+    #[must_use]
+    pub fn is_armed(&self) -> bool {
+        !self.armed.word.is_null()
+    }
 }
 
 /// Raises [`SafepointFlags::MEMORY_LIMIT`](crate::SafepointFlags) and

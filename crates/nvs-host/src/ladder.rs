@@ -102,19 +102,24 @@ pub fn escalate(ctx: &mut Ctx, record: &Record) -> bool {
     let Ok(program) = nvs_runtime::script::resolve(ctx, &path) else {
         return false;
     };
-    // The record, the copy that crosses into the isolate and the script itself,
-    // all inside `rule:errors/on-limit`'s reserve. The request that got here is
-    // past its ceiling, so the pre-check in front of each of this array's
-    // strings would answer an empty one and the script would be handed a record
-    // naming nothing — tier 1's own report is lent the same thing for the same
-    // reason. See `nvs_runtime::budget::Reporting`.
-    let _reserve = nvs_runtime::budget::Reporting::begin();
+    // The record and the copy that crosses into the isolate are built inside
+    // `rule:errors/on-limit`'s reserve. The request that got here is past its
+    // ceiling, so the pre-check in front of each of this array's strings would
+    // answer an empty one and the script would be handed a record naming
+    // nothing — tier 1's own report is lent the same thing for the same reason.
+    // See `nvs_runtime::budget::Reporting`.
+    let reporting = nvs_runtime::budget::Reporting::begin();
     let args = nvs_runtime::floor::report_argument(record);
     RUNNING.with(|running| running.set(true));
     let guard = Guard;
-    let completion = Isolate::new(program, args, Output::Inherit)
+    let started = Isolate::new(program, args, Output::Inherit)
         .charged_to_the_engine_reserve()
-        .run(ctx);
+        .start(ctx);
+    // The script itself is user code, and user code never runs inside the
+    // reserve: it closes before the wait that lets the handler run, and the
+    // handler is held to the engine's allotment alone.
+    drop(reporting);
+    let completion = started.map(|running| running.join(ctx));
     drop(guard);
     // An `Err` is the *argument* refusing to cross, which a report built by
     // `report_argument` cannot do — it is a keyed array of strings. It is

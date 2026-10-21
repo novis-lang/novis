@@ -254,6 +254,46 @@ impl Ctx {
         });
     }
 
+    /// Gives the stack that made this context back the arming and the refusal
+    /// the context displaced, and keeps the context's own until
+    /// [`Self::arm_on_this_stack`].
+    ///
+    /// `nvs_host`'s `spawn` and `spawn_child` call it on the stack that made the
+    /// context, as they hand it to a task. Without it, that stack runs on under
+    /// the child's ceiling. It assumes the context is the last one this stack
+    /// armed, which holds because a spawn hands a context over as soon as it is
+    /// made.
+    pub fn leave_this_stack(&mut self) {
+        if !self.memory_off_stack {
+            self.swap_arming();
+            self.memory_off_stack = true;
+        }
+    }
+
+    /// Arms this context's own ceiling and refusal on the stack that now runs
+    /// it, and saves what that stack had: the first thing a task does with the
+    /// context it was handed.
+    ///
+    /// The scheduler starts every task under nothing
+    /// ([`crate::budget::ArmedStack`]), so what is saved is nothing, and the
+    /// context's drop puts nothing back.
+    pub fn arm_on_this_stack(&mut self) {
+        if self.memory_off_stack {
+            self.swap_arming();
+            self.memory_off_stack = false;
+        }
+    }
+
+    /// Swaps the thread's armed pair and refusal with the ones this context
+    /// saved. The two calls above are its only callers, and each is the other's
+    /// inverse.
+    fn swap_arming(&mut self) {
+        self.memory_ceiling_saved = crate::budget::displace(self.memory_ceiling_saved);
+        let refused = crate::budget::take_refusal();
+        crate::budget::restore_refusal(self.memory_refused_saved);
+        self.memory_refused_saved = refused;
+    }
+
     /// This request's reserved slice in bytes — the bytes ordinary execution's
     /// ceiling was reduced by, and the room
     /// [`Self::run_limit_handler`] adds back for the length of the handler.

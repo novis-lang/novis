@@ -566,8 +566,9 @@ impl Ctx {
         // it needs to read it, which is the tier saying nothing by another
         // route. What bounds the slice instead is the counting ceiling: the
         // widened threshold is compared behind every allocation, and § 1's
-        // zero-retry rule is what a handler overrunning it meets.
-        let _reserve = crate::budget::Reporting::begin();
+        // zero-retry rule is what a handler overrunning it meets. It covers the
+        // report alone, and closes before the handler is called.
+        let reporting = crate::budget::Reporting::begin();
         // The CPU half, and the reason it is a *flag* edit as well as a ceiling
         // edit. A handler entered under [`SafepointFlags::CPU_LIMIT`] would be
         // stopped again by the very flag it was entered under, at its own first
@@ -622,6 +623,11 @@ impl Ctx {
             Value::str(crate::NvsStr::new(limit.name().as_bytes())),
         );
         let report = Value::array(report);
+        // User code never runs inside the reserve (`rule:errors/on-limit`): the
+        // handler's body is measured against the widened ceiling armed above,
+        // so a handler that allocates without bound is refused at the end of
+        // its slice.
+        drop(reporting);
         let answer = crate::call_callable(self, handler, &[report]);
         self.memory_limit = ordinary;
         self.fatal_reserve = reserve;
