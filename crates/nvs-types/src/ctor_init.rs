@@ -462,7 +462,10 @@ fn parent_declares_constructor(qname: &QName, env: &Env<'_>) -> bool {
 /// Every instance property an ancestor of `qname` declares with no default
 /// and not `lateinit`, a promoted constructor parameter included. The
 /// ancestor's own constructor assigns each one, which its own check of this
-/// rule holds it to.
+/// rule holds it to. A property with a default is left out on purpose: a
+/// `covariant` redeclaration of `?int $n = null` as `int $n` has no default
+/// of its own, so the subclass must still assign it, and the parent's `null`
+/// never reaches the narrower slot.
 fn ancestors_assigned(qname: &QName, env: &Env<'_>) -> Vec<String> {
     let mut names = Vec::new();
     let mut seen = rustc_hash::FxHashSet::default();
