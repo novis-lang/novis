@@ -610,8 +610,12 @@ the whole grant. A key it does not write takes its default for that run, from th
 crate's table of defaults. On a CLI run `fs.read` and `fs.write` default to every path. In server
 work `fs.read` defaults to the app folder, less every path with a component below it that starts
 with `.` and every `nvs.toml`, and `fs.write` to the directories `Core\IO::temporaryDir` made for
-this context, which the context hands the procedure with the run; both of those read too. Every
-other default grants nothing. The procedure takes no
+this context, which the context hands the procedure with the run; both of those read too.
+`net.connect` defaults to every public host, `net.internal` to loopback on a CLI run and in
+development, `process.exec` to every program on a CLI run, and `script.spawn` to the app folder less
+its temporary directories
+([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)). Every other default grants
+nothing. The procedure takes no
 context, throws nothing, and is therefore testable without a compiler in front of it. Holding a
 capability is not a promise about any one argument; the scope is asked every time.
 
@@ -792,6 +796,14 @@ Hand-vendored code is the residue, and it is reported rather than closed: an aud
 namespace whose autoload root lies under a directory the grant table never mentions. A warning is the
 correct strength, because the same shape describes a legitimate second source tree of the
 application's own.
+
+**The application's authority includes its defaults**
+([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)): on a CLI run it reads and writes
+any file, reaches public hosts and loopback, and runs any program, and in server work it reads its
+app folder and reaches public hosts, all with nothing written. Hand-vendored code with no grant line
+holds all of that, so the audit warning is the mitigation for the wider defaults too, and the package
+goal that builds the audit keeps it. Code a package manager fetched never holds a default: its line
+is checked alone ([`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time)).
 
 A discovery glob happens to skip a directory such as `vendor/` because its name is not legal
 `PascalCase`. That casing convention exists for another reason, and nothing here relies on it.
@@ -1036,6 +1048,13 @@ Grant lines are friction, and the friction is the point. Some users will grant e
 reading, the way some run containers as root; the design cannot prevent that, only make it visible and
 diffable. What it prevents is authority arriving without anybody writing anything.
 
+**A default never reaches a package.** The application's own code holds the run's defaults with no
+line written ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)), and a package is
+checked against its own grant line alone, intersected with what the application wrote. A default is
+never part of a grant line, so widening the application's defaults widens no package. Hand-vendored
+code with no line is the exception, and the audit warning of
+[`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application) is its mitigation.
+
 A package may lower its own limits and never raise one. A `Core\Config::set` call under a package's
 namespace that raises a `[limits]` key returns `false`, even where the application's own code may
 raise it: on a CLI run with no `[limits.hard] memory` written, the application raises `memory` freely
@@ -1050,6 +1069,8 @@ it still `tainted`.
 - **Ambient capabilities: the process is granted, and every package inherits.** That is what every
   mainstream package system does, and it is how a compromised transitive dependency becomes a breach.
   No incumbent can retrofit the refusal.
+- **A package inherits the application's defaults.** It would hand every dependency the files, hosts
+  and programs a first program needs, which is the ambient authority above under another name.
 
 **Not on disk.** There is no package manager, no manifest, and no grant line writer in the tree.
 

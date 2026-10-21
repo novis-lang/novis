@@ -16,6 +16,13 @@ Grant lines are friction, and the friction is the point. Some users will grant e
 reading, the way some run containers as root; the design cannot prevent that, only make it visible and
 diffable. What it prevents is authority arriving without anybody writing anything.
 
+**A default never reaches a package.** The application's own code holds the run's defaults with no
+line written (`rule:config/no-configuration-file-is-a-complete-configuration`), and a package is
+checked against its own grant line alone, intersected with what the application wrote. A default is
+never part of a grant line, so widening the application's defaults widens no package. Hand-vendored
+code with no line is the exception, and the audit warning of
+`rule:security/an-unmatched-namespace-holds-the-application` is its mitigation.
+
 A package may lower its own limits and never raise one. A `Core\Config::set` call under a package's
 namespace that raises a `[limits]` key returns `false`, even where the application's own code may
 raise it: on a CLI run with no `[limits.hard] memory` written, the application raises `memory` freely
@@ -30,5 +37,7 @@ it still `tainted`.
 - **Ambient capabilities: the process is granted, and every package inherits.** That is what every
   mainstream package system does, and it is how a compromised transitive dependency becomes a breach.
   No incumbent can retrofit the refusal.
+- **A package inherits the application's defaults.** It would hand every dependency the files, hosts
+  and programs a first program needs, which is the ambient authority above under another name.
 
 **Not on disk.** There is no package manager, no manifest, and no grant line writer in the tree.

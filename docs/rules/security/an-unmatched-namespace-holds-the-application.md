@@ -12,6 +12,14 @@ namespace whose autoload root lies under a directory the grant table never menti
 correct strength, because the same shape describes a legitimate second source tree of the
 application's own.
 
+**The application's authority includes its defaults**
+(`rule:config/no-configuration-file-is-a-complete-configuration`): on a CLI run it reads and writes
+any file, reaches public hosts and loopback, and runs any program, and in server work it reads its
+app folder and reaches public hosts, all with nothing written. Hand-vendored code with no grant line
+holds all of that, so the audit warning is the mitigation for the wider defaults too, and the package
+goal that builds the audit keeps it. Code a package manager fetched never holds a default: its line
+is checked alone (`rule:security/package-authority-is-granted-one-line-at-a-time`).
+
 A discovery glob happens to skip a directory such as `vendor/` because its name is not legal
 `PascalCase`. That casing convention exists for another reason, and nothing here relies on it.
 

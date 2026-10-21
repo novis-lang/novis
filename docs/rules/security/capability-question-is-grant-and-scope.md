@@ -14,7 +14,11 @@ the whole grant. A key it does not write takes its default for that run, from th
 crate's table of defaults. On a CLI run `fs.read` and `fs.write` default to every path. In server
 work `fs.read` defaults to the app folder, less every path with a component below it that starts
 with `.` and every `nvs.toml`, and `fs.write` to the directories `Core\IO::temporaryDir` made for
-this context, which the context hands the procedure with the run; both of those read too. Every
-other default grants nothing. The procedure takes no
+this context, which the context hands the procedure with the run; both of those read too.
+`net.connect` defaults to every public host, `net.internal` to loopback on a CLI run and in
+development, `process.exec` to every program on a CLI run, and `script.spawn` to the app folder less
+its temporary directories
+(`rule:config/no-configuration-file-is-a-complete-configuration`). Every other default grants
+nothing. The procedure takes no
 context, throws nothing, and is therefore testable without a compiler in front of it. Holding a
 capability is not a promise about any one argument; the scope is asked every time.
