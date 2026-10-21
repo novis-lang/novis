@@ -1736,10 +1736,11 @@ fn the_line_a_refusal_prints_loads_and_grants_what_was_refused() {
 }
 
 /// [`Authority`] is the written grant where a key is written, and the default where it is not.
-/// Outside the two file keys and `net.connect` every default grants nothing on every kind of run,
-/// so an unwritten key, an absent block and a tree with no `[capabilities]` all deny, and a written
-/// key answers as [`Capabilities`] does. The file keys' defaults and loopback are the run's, and
-/// `net.connect` reaches every host on every run.
+/// Outside the two file keys, `net.connect`, `process.exec` and `script.spawn` every default grants
+/// nothing on every kind of run, so an unwritten key, an absent block and a tree with no
+/// `[capabilities]` all deny, and a written key answers as [`Capabilities`] does. The file keys',
+/// `process.exec`'s and loopback's defaults are the run's, `net.connect` reaches every host on every
+/// run, and `script.spawn` reaches the app folder.
 #[test]
 fn an_authority_answers_the_written_key_and_the_default_for_the_rest() {
     let disk = Disk::of(&["/srv/app", "/srv/app/job.nvs", "/srv/app/data"]);
@@ -1768,16 +1769,23 @@ fn an_authority_answers_the_written_key_and_the_default_for_the_rest() {
         );
         assert!(mine.allows_host(Cap::NetConnect, "api.example.com"));
         assert!(!mine.allows_host(Cap::NetConnect, "example.com"));
-        assert!(
-            !mine.allows(Cap::ScriptSpawn, Scope::Path(&job), &disk),
-            "unwritten"
+        assert_eq!(
+            mine.allows(Cap::ScriptSpawn, Scope::Path(&job), &disk),
+            run.folder.is_some(),
+            "an unwritten spawn reaches the app folder alone: {run:?}"
         );
         for authority in [
             Authority::new(None, run),
             Authority::new(Some(&headers), run),
         ] {
             let files = [Cap::FsRead, Cap::FsWrite];
-            let opened = [Cap::FsRead, Cap::FsWrite, Cap::NetConnect];
+            let opened = [
+                Cap::FsRead,
+                Cap::FsWrite,
+                Cap::NetConnect,
+                Cap::ProcessExec,
+                Cap::ScriptSpawn,
+            ];
             for cap in Cap::ALL.iter().copied().filter(|cap| !opened.contains(cap)) {
                 assert!(
                     !authority.allows(cap, Scope::Unscoped, &disk),
@@ -1809,6 +1817,31 @@ fn an_authority_answers_the_written_key_and_the_default_for_the_rest() {
                 !run.serving,
                 "{run:?}"
             );
+            // A CLI run runs any program, and server work none. A script in the app folder spawns
+            // on every run, and the method form is the unit's own code.
+            assert_eq!(
+                authority.allows(Cap::ProcessExec, Scope::Unscoped, &disk),
+                !run.serving,
+                "{run:?}"
+            );
+            assert_eq!(
+                matches!(
+                    authority.holds(Cap::ProcessExec),
+                    nvs_config::capability::Grant::Everything
+                ),
+                !run.serving,
+                "{run:?}"
+            );
+            assert!(authority.allows(Cap::ScriptSpawn, Scope::Unscoped, &disk));
+            assert_eq!(
+                authority.allows(Cap::ScriptSpawn, Scope::Path(&job), &disk),
+                run.folder.is_some(),
+                "{run:?}"
+            );
+            assert!(matches!(
+                authority.holds(Cap::ScriptSpawn),
+                nvs_config::capability::Grant::Nothing
+            ));
             assert!(authority.allows_host(Cap::NetConnect, "api.example.com"));
             assert!(matches!(
                 authority.holds(Cap::NetConnect),
