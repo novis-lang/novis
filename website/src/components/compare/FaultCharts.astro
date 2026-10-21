@@ -1,15 +1,19 @@
 ---
 /**
  * The comparison page's charts for a server under load while something goes
- * wrong, from rows of the feature table, split into the two groups `grouped`
- * gives. `deploy` is the requests that failed or got a mixed page while a new
- * version was copied in, against the most in the chart, and less is better.
- * `memory` and `loop` are the requests answered while one runaway request ran
- * beside the load, against the most in the chart. Every bar has its place in
- * its group, and every one in place 1 takes the accent colour.
+ * wrong, from rows of the feature table. `deploy` is the requests that failed
+ * or got a mixed page while a new version was copied in, against the most in
+ * the chart, and less is better. It is split into the two groups `grouped`
+ * gives, each in its own box with its note, because how a server takes a new
+ * version is what the test measures. `memory` and `loop` are the requests
+ * answered while one runaway request ran beside the load, over the requests
+ * the same server answered with no runaway request, so each bar is the share
+ * of its own speed a server kept and not how fast it is anyway. They rank all
+ * four peers together. Every bar has its place, and every one in place 1
+ * takes the accent colour.
  */
 import Bars from './Bars.astro'
-import { deploys, groupPlaces, grouped, record, runaways } from '~/lib/compare'
+import { deploys, groupPlaces, grouped, places, record, runaways } from '~/lib/compare'
 
 export interface Props {
   chart: 'deploy' | 'memory' | 'loop'
@@ -37,30 +41,28 @@ const groups = (() => {
       compared: '',
       figures: `${number(d.failed)} failed, ${number(d.mixed)} mixed. Less is better.`,
     }))
-    return grouped(bars).map((g) => ({ title: g.title, bars: g.items }))
+    return grouped(bars).map((g) => ({ title: g.title, group: g.group, note: g.note, bars: g.items }))
   }
   const runs = runaways(chart)
-  const most = Math.max(...runs.map((r) => r.requests))
-  const place = groupPlaces(
-    runs.map((r) => r.peer),
-    runs.map((r) => r.requests),
+  const place = places(
+    runs.map((r) => r.kept),
     false,
   )
   const bars = runs.map((r, i) => ({
     peer: r.peer,
     label: r.label,
     place: place[i]!,
-    share: most > 0 ? r.requests / most : 0,
+    share: r.kept,
     best: place[i] === 1,
-    value: number(r.requests),
+    value: `${Math.round(r.kept * 100)}%`,
     figures: [
-      'requests answered',
+      `${number(r.requests)} of ${number(r.baseline)} requests answered`,
       `${number(r.failed)} failed`,
       ...(r.p99Ms === null ? [] : [`p99 ${r.p99Ms.toFixed(1)} ms`]),
-      ...(r.running ? [] : ['the server crashed']),
+      ...(r.restarts > 0 ? ['the server crashed and was restarted'] : r.running ? [] : ['the server crashed']),
     ].join(', '),
   }))
-  return grouped(bars).map((g) => ({ title: g.title, bars: g.items }))
+  return [{ bars }]
 })()
 ---
 

@@ -1,16 +1,16 @@
 ---
 /**
  * The comparison page's charts for more than one core, from the `cores` and
- * `parallel` rows of the feature table, split into the two groups `grouped`
- * gives. `many-requests` is each peer's throughput with four cores against
- * the best peer's. `one-request` gives each peer two bars: the seconds one
- * part took, then the seconds four parts at once took, both against the
- * longest time in the chart. Only the four-part times have a place in their
- * group, and every one in place 1 takes the accent colour. In
+ * `parallel` rows of the feature table, all four peers ranked together.
+ * `many-requests` is each peer's throughput with four cores against the best
+ * peer's, with its throughput on one core beside it. `one-request` gives each
+ * peer two bars: the seconds one part took, then the seconds four parts at
+ * once took, both against the longest time in the chart. Only the four-part
+ * times have a place, and every one in place 1 takes the accent colour. In
  * `many-requests` every bar has a place.
  */
 import Bars from './Bars.astro'
-import { groupPlaces, grouped, manyRequests, oneRequest, overLeast, record } from '~/lib/compare'
+import { manyRequests, oneRequest, overLeast, places, record } from '~/lib/compare'
 
 export interface Props {
   chart: 'many-requests' | 'one-request'
@@ -23,8 +23,7 @@ const seconds = (n: number) => `${n.toFixed(2)} s`
 const groups = (() => {
   if (chart === 'many-requests') {
     const best = Math.max(...manyRequests.map((s) => s.four))
-    const place = groupPlaces(
-      manyRequests.map((s) => s.peer),
+    const place = places(
       manyRequests.map((s) => s.four),
       false,
     )
@@ -35,22 +34,20 @@ const groups = (() => {
       share: best > 0 ? s.four / best : 0,
       best: place[i] === 1,
       value: number(s.four),
-      figures: 'requests per second',
+      figures: `requests per second, ${number(s.one)} with one core`,
     }))
-    return grouped(bars).map((g) => ({ title: g.title, bars: g.items }))
+    return [{ bars }]
   }
   const longest = Math.max(...oneRequest.map((s) => Math.max(s.one, s.four)))
   const shortestOne = Math.min(...oneRequest.map((s) => s.one))
   const shortest = Math.min(...oneRequest.map((s) => s.four))
-  const place = groupPlaces(
-    oneRequest.map((s) => s.peer),
+  const place = places(
     oneRequest.map((s) => s.four),
     true,
   )
   const peers = oneRequest.map((s, i) => ({ ...s, place: place[i]! }))
-  return grouped(peers).map((g) => ({
-    title: g.title,
-    bars: g.items.flatMap((s) => [
+  return [peers].map((all) => ({
+    bars: all.flatMap((s) => [
       {
         label: s.label,
         share: s.one / longest,

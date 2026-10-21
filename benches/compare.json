@@ -366,8 +366,8 @@
     }
   },
   "scenarios": {
-    "date": "2026-10-21T14:48:14",
-    "commit": "4fd66f4c6",
+    "date": "2026-10-21T16:33:00",
+    "commit": "278ac685a",
     "rows": {
       "escape": {
         "folder": "benches/compare/scenarios/escape",
@@ -482,7 +482,7 @@
             "result": "on-by-default",
             "setting": "opcache.validate_timestamps",
             "evidence": {
-              "seconds_to_new_answer": 3,
+              "seconds_to_new_answer": 2.3,
               "restarts": 0
             }
           },
@@ -509,7 +509,7 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "seconds_without_command": 2.8,
+              "seconds_without_command": 2.5,
               "seconds_after_command": null,
               "command": null,
               "restarts": 0
@@ -520,7 +520,7 @@
             "setting": "php-fpm reload",
             "evidence": {
               "seconds_without_command": null,
-              "seconds_after_command": 0.4,
+              "seconds_after_command": 0.5,
               "command": "php-fpm reload",
               "restarts": 0
             }
@@ -547,26 +547,27 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "requests": 314577,
+              "requests": 351279,
               "failed_requests": 0,
               "failures": null,
               "mixed_replies": 0,
               "seconds_to_copy": 2.2,
-              "seconds_to_new_answer": 3.3,
+              "seconds_to_new_answer": 2.7,
               "command": null,
               "restarts": 0,
               "version_checked": true
             }
           },
           "php": {
-            "result": "no",
+            "result": "on-by-default",
+            "setting": "opcache.validate_timestamps",
             "evidence": {
-              "requests": 86086,
+              "requests": 110955,
               "failed_requests": 0,
               "failures": null,
-              "mixed_replies": 77,
-              "seconds_to_copy": 2.3,
-              "seconds_to_new_answer": 1.4,
+              "mixed_replies": 0,
+              "seconds_to_copy": 2.2,
+              "seconds_to_new_answer": 0.9,
               "command": null,
               "restarts": 0,
               "version_checked": true
@@ -575,12 +576,12 @@
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 379842,
-              "failed_requests": 1174,
-              "failures": "502 x1167",
+              "requests": 376968,
+              "failed_requests": 1161,
+              "failures": "502 x1156",
               "mixed_replies": 0,
-              "seconds_to_copy": 2.4,
-              "seconds_to_new_answer": 0.2,
+              "seconds_to_copy": 2.2,
+              "seconds_to_new_answer": 0.1,
               "command": "a restart",
               "restarts": 1,
               "version_checked": true
@@ -589,9 +590,9 @@
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 475739,
-              "failed_requests": 470,
-              "failures": "502 x470",
+              "requests": 474181,
+              "failed_requests": 487,
+              "failures": "502 x487",
               "mixed_replies": 0,
               "seconds_to_copy": 0,
               "seconds_to_new_answer": 0,
@@ -603,14 +604,14 @@
         }
       },
       "cores": {
-        "folder": "benches/compare/cases/html-page",
+        "folder": "benches/compare/scenarios/parallel",
         "peers": {
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 9976,
-              "requests_per_sec_4_cpus": 26241,
-              "scaling": 2.63,
+              "requests_per_sec_1_cpu": 924,
+              "requests_per_sec_4_cpus": 3679,
+              "scaling": 3.98,
               "errors": 0,
               "code": null
             }
@@ -618,19 +619,19 @@
           "php": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 4973,
-              "requests_per_sec_4_cpus": 21698,
-              "scaling": 4.36,
+              "requests_per_sec_1_cpu": 865,
+              "requests_per_sec_4_cpus": 2066,
+              "scaling": 2.39,
               "errors": 0,
               "code": null
             }
           },
           "bun": {
-            "result": "no",
+            "result": "your-code",
             "evidence": {
-              "requests_per_sec_1_cpu": 21368,
-              "requests_per_sec_4_cpus": 29804,
-              "scaling": 1.39,
+              "requests_per_sec_1_cpu": 843,
+              "requests_per_sec_4_cpus": 3459,
+              "scaling": 4.11,
               "errors": 0,
               "code": "a launcher that starts one reusePort process per cpu"
             }
@@ -638,9 +639,9 @@
           "go": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 3450,
-              "requests_per_sec_4_cpus": 11175,
-              "scaling": 3.24,
+              "requests_per_sec_1_cpu": 1065,
+              "requests_per_sec_4_cpus": 4144,
+              "scaling": 3.89,
               "errors": 0,
               "code": null
             }
@@ -655,7 +656,8 @@
             "evidence": {
               "crash_status": 500,
               "next_status": 200,
-              "backend_running": true
+              "backend_running": true,
+              "backend_restarts": 0
             }
           },
           "php": {
@@ -663,7 +665,8 @@
             "evidence": {
               "crash_status": 200,
               "next_status": 200,
-              "backend_running": true
+              "backend_running": true,
+              "backend_restarts": 0
             }
           },
           "bun": {
@@ -671,7 +674,8 @@
             "evidence": {
               "crash_status": 500,
               "next_status": 200,
-              "backend_running": true
+              "backend_running": true,
+              "backend_restarts": 0
             }
           },
           "go": {
@@ -679,7 +683,8 @@
             "evidence": {
               "crash_status": 502,
               "next_status": 200,
-              "backend_running": true
+              "backend_running": true,
+              "backend_restarts": 0
             }
           }
         }
@@ -688,53 +693,60 @@
         "folder": "benches/compare/scenarios/runaway",
         "peers": {
           "nvs": {
-            "result": "one-setting",
-            "setting": "[limits]",
+            "result": "no",
             "evidence": {
-              "requests": 274734,
-              "failed_requests": 0,
-              "failures": null,
+              "baseline_requests": 354132,
+              "requests": 41878,
+              "failed_requests": 16,
+              "failures": "timeout x16",
               "p99_ms": 0.8,
               "runaway_status": 500,
-              "runaway_seconds": 1.3,
-              "backend_running": true
+              "runaway_seconds": 30.9,
+              "backend_running": true,
+              "backend_restarts": 0
             }
           },
           "php": {
             "result": "on-by-default",
             "setting": "max_execution_time",
             "evidence": {
-              "requests": 83337,
+              "baseline_requests": 127337,
+              "requests": 95052,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 63.8,
+              "p99_ms": 66.7,
               "runaway_status": 200,
-              "runaway_seconds": 38.3,
-              "backend_running": true
+              "runaway_seconds": 39,
+              "backend_running": true,
+              "backend_restarts": 0
             }
           },
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 53465,
+              "baseline_requests": 430193,
+              "requests": 63965,
               "failed_requests": 16,
               "failures": "timeout x16",
-              "p99_ms": 0.7,
+              "p99_ms": 0.6,
               "runaway_status": null,
               "runaway_seconds": null,
-              "backend_running": true
+              "backend_running": true,
+              "backend_restarts": 0
             }
           },
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 33813,
+              "baseline_requests": 357940,
+              "requests": 47280,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 20.7,
+              "p99_ms": 20.5,
               "runaway_status": null,
               "runaway_seconds": null,
-              "backend_running": true
+              "backend_running": true,
+              "backend_restarts": 0
             }
           }
         }
@@ -743,53 +755,61 @@
         "folder": "benches/compare/scenarios/runaway",
         "peers": {
           "nvs": {
-            "result": "one-setting",
-            "setting": "[limits]",
+            "result": "on-by-default",
+            "setting": "[limits] memory",
             "evidence": {
-              "requests": 291179,
+              "baseline_requests": 349637,
+              "requests": 331187,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 0.9,
+              "p99_ms": 0.6,
               "runaway_status": 500,
-              "runaway_seconds": 0,
-              "backend_running": true
+              "runaway_seconds": 0.3,
+              "backend_running": true,
+              "backend_restarts": 0
             }
           },
           "php": {
             "result": "on-by-default",
             "setting": "memory_limit",
             "evidence": {
-              "requests": 43773,
+              "baseline_requests": 118958,
+              "requests": 122320,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 45.9,
+              "p99_ms": 4.1,
               "runaway_status": 200,
-              "runaway_seconds": 2,
-              "backend_running": true
+              "runaway_seconds": 0.7,
+              "backend_running": true,
+              "backend_restarts": 0
             }
           },
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 39332,
-              "failed_requests": 345,
-              "failures": "502 x329; timeout x16",
-              "p99_ms": 0.9,
+              "baseline_requests": 437958,
+              "requests": 332317,
+              "failed_requests": 448,
+              "failures": "502 x448",
+              "p99_ms": 0.7,
               "runaway_status": 502,
-              "runaway_seconds": 1.6,
-              "backend_running": false
+              "runaway_seconds": 1.9,
+              "backend_running": true,
+              "backend_restarts": 1
             }
           },
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 9247,
-              "failed_requests": 273,
-              "failures": "502 x273",
-              "p99_ms": 400,
+              "baseline_requests": 420904,
+              "requests": 361413,
+              "failed_requests": 785,
+              "failures": "502 x785",
+              "p99_ms": 0.6,
               "runaway_status": 502,
-              "runaway_seconds": 10.3,
-              "backend_running": false
+              "runaway_seconds": 0.5,
+              "backend_running": true,
+              "backend_restarts": 1
             }
           }
         }
@@ -872,7 +892,7 @@
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 107.3,
+              "kib_per_request": 106.8,
               "failed_requests": 0,
               "failures": null
             }
@@ -882,7 +902,7 @@
             "setting": "pm.max_children",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 588.9,
+              "kib_per_request": 593.4,
               "failed_requests": 0,
               "failures": null
             }
@@ -891,7 +911,7 @@
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 26,
+              "kib_per_request": 23.7,
               "failed_requests": 0,
               "failures": null
             }
@@ -900,7 +920,7 @@
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 51.9,
+              "kib_per_request": 51.7,
               "failed_requests": 0,
               "failures": null
             }
@@ -914,36 +934,36 @@
             "result": "one-setting",
             "setting": "[capabilities.script] spawn",
             "evidence": {
-              "seconds_1_part": 0.716,
-              "seconds_4_parts": 0.724,
-              "speedup": 3.96,
+              "seconds_1_part": 0.822,
+              "seconds_4_parts": 0.844,
+              "speedup": 3.9,
               "way": "spawn script … on: \"worker\""
             }
           },
           "php": {
             "result": "no",
             "evidence": {
-              "seconds_1_part": 0.616,
-              "seconds_4_parts": 2.354,
-              "speedup": 1.05,
+              "seconds_1_part": 0.706,
+              "seconds_4_parts": 2.843,
+              "speedup": 0.99,
               "way": null
             }
           },
           "bun": {
             "result": "built-in",
             "evidence": {
-              "seconds_1_part": 0.717,
-              "seconds_4_parts": 0.736,
-              "speedup": 3.9,
+              "seconds_1_part": 0.844,
+              "seconds_4_parts": 0.888,
+              "speedup": 3.8,
               "way": "Worker"
             }
           },
           "go": {
             "result": "built-in",
             "evidence": {
-              "seconds_1_part": 0.592,
-              "seconds_4_parts": 0.599,
-              "speedup": 3.95,
+              "seconds_1_part": 0.701,
+              "seconds_4_parts": 0.768,
+              "speedup": 3.65,
               "way": "goroutines"
             }
           }
@@ -955,10 +975,10 @@
           "nvs": {
             "result": "no",
             "evidence": {
-              "requests": 284206,
-              "failed_requests": 2733,
-              "failures": "502 x2733",
-              "p99_ms": 1.4,
+              "requests": 167123,
+              "failed_requests": 6184,
+              "failures": "502 x6182; timeout x2",
+              "p99_ms": 1.5,
               "seconds_to_answer": 0,
               "command": "a restart",
               "restarts": 1
@@ -967,10 +987,10 @@
           "php": {
             "result": "no",
             "evidence": {
-              "requests": 144014,
-              "failed_requests": 28,
-              "failures": "502 x28",
-              "p99_ms": 26.6,
+              "requests": 140621,
+              "failed_requests": 16,
+              "failures": "502 x16",
+              "p99_ms": 26.2,
               "seconds_to_answer": 0,
               "command": "php-fpm reload",
               "restarts": 0
@@ -979,10 +999,10 @@
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 252700,
-              "failed_requests": 505,
-              "failures": "502 x505",
-              "p99_ms": 8.7,
+              "requests": 336480,
+              "failed_requests": 360,
+              "failures": "502 x360",
+              "p99_ms": 1.2,
               "seconds_to_answer": 0,
               "command": "a restart",
               "restarts": 1
@@ -991,10 +1011,10 @@
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 432245,
-              "failed_requests": 765,
-              "failures": "502 x765",
-              "p99_ms": 0.8,
+              "requests": 310863,
+              "failed_requests": 430,
+              "failures": "502 x430",
+              "p99_ms": 1.2,
               "seconds_to_answer": 0,
               "command": "a new image and a restart",
               "restarts": 1

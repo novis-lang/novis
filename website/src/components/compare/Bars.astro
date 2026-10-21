@@ -1,19 +1,25 @@
 ---
 /**
- * One bar chart on the comparison page, in groups that each start with a
- * heading line and an optional note under it. All groups share one grid, so
- * their bars line up. Each bar's row has its place in its group (1 for the
- * best, empty for a bar that is not ranked), its label, how it compares (its
- * length as a percentage unless the caller words it) left of the bar, the
- * figure it shows right of it, and a line of text under it, smaller. A bar
- * with `best` takes the accent colour. A row with an empty label continues
- * the peer named above it, and a bar with `above` prints its text above it,
- * so two bars of one peer sit together between their two lines.
+ * One bar chart on the comparison page, in groups. A group with a title is a
+ * box with a coloured edge, its title and an optional note at the top, so
+ * each group reads as its own part of the chart; `group` names its colour. A
+ * group without a title is the bars alone, with the note above them. All
+ * groups share one grid through `subgrid`, so the bars of every box line up
+ * on one scale. Each bar's row has its place (1 for the best, empty for a bar
+ * that is not ranked), its label, how it compares (its length as a percentage
+ * unless the caller words it) left of the bar, the figure it shows right of
+ * it, and a line of text under it, smaller. A bar with `best` takes the
+ * accent colour. A row with an empty label continues the peer named above
+ * it, and a bar with `above` prints its text above it, so two bars of one
+ * peer sit together between their two lines.
  */
 export interface Props {
   groups: {
-    title: string
-    /** A line of text under the heading, or none. */
+    /** The box's heading. Without it the group is not boxed. */
+    title?: string
+    /** Which colour the box's edge takes: `files` or `build`. */
+    group?: string
+    /** A line of text under the heading, or above the bars of a group with no heading. */
     note?: string | null
     bars: Bar[]
   }[]
@@ -21,7 +27,7 @@ export interface Props {
 
 interface Bar {
   label: string
-  /** The bar's place in its group, 1 for the best, or none for a bar that is not ranked. */
+  /** The bar's place, 1 for the best, or none for a bar that is not ranked. */
   place?: number
   /** The bar's length, from 0 to 1. */
   share: number
@@ -39,68 +45,104 @@ const { groups } = Astro.props
 const percent = (share: number) => `${Math.round(share * 100)}%`
 ---
 
-<ul class="compare-bars">
+<div class="compare-bars">
   {
     groups.map((g) => (
-      <>
-        <li class="group">
-          <span class="title">{g.title}</span>
-          {g.note && <span class="note">{g.note}</span>}
-        </li>
-        {g.bars.map((b) => (
-          <li class:list={{ best: b.best, paired: b.above }}>
-            {b.above && <span class="figures above">{b.figures}</span>}
-            <span class="place">
-              {b.place !== undefined && (
-                <span class="badge" title={`Place ${b.place}`}>
-                  {b.place}
-                </span>
-              )}
-            </span>
-            <span class="peer">{b.label}</span>
-            <span class="percent">{b.compared ?? percent(b.share)}</span>
-            <span class="track">
-              <span class="bar" style={`width: ${(Math.min(b.share, 1) * 100).toFixed(1)}%`} />
-            </span>
-            <span class="value">{b.value}</span>
-            {!b.above && <span class="figures">{b.figures}</span>}
-          </li>
-        ))}
-      </>
+      <section class:list={['group', { boxed: g.title !== undefined }]} data-group={g.group}>
+        {(g.title !== undefined || g.note) && (
+          <header>
+            {g.title !== undefined && <span class="title">{g.title}</span>}
+            {g.note && <span class="note">{g.note}</span>}
+          </header>
+        )}
+        <ul>
+          {g.bars.map((b) => (
+            <li class:list={{ best: b.best, paired: b.above }}>
+              {b.above && <span class="figures above">{b.figures}</span>}
+              <span class="place">
+                {b.place !== undefined && (
+                  <span class="badge" title={`Place ${b.place}`}>
+                    {b.place}
+                  </span>
+                )}
+              </span>
+              <span class="peer">{b.label}</span>
+              <span class="percent">{b.compared ?? percent(b.share)}</span>
+              <span class="track">
+                <span class="bar" style={`width: ${(Math.min(b.share, 1) * 100).toFixed(1)}%`} />
+              </span>
+              <span class="value">{b.value}</span>
+              {!b.above && <span class="figures">{b.figures}</span>}
+            </li>
+          ))}
+        </ul>
+      </section>
     ))
   }
-</ul>
+</div>
 
 <style>
   .compare-bars {
-    list-style: none;
-    padding: 0;
     display: grid;
     grid-template-columns: auto auto auto 1fr auto;
-    gap: 0.25rem 0.75rem;
+    column-gap: 0.75rem;
+    row-gap: 1rem;
+  }
+  .compare-bars .group,
+  .compare-bars ul {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
     align-items: center;
+  }
+  .compare-bars .group {
+    row-gap: 0.5rem;
+  }
+  .compare-bars ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    row-gap: 0.25rem;
   }
   .compare-bars li {
     display: contents;
   }
-  .compare-bars li.group {
-    display: block;
+  .compare-bars .group.boxed {
+    --group-edge: var(--sl-color-gray-4);
+    --group-tint: var(--sl-color-gray-6);
+    border: 1px solid var(--sl-color-gray-5);
+    border-left: 0.3rem solid var(--group-edge);
+    border-radius: 0.5rem;
+    padding: 0 1rem 0.75rem;
+    overflow: hidden;
+  }
+  .compare-bars .group[data-group='files'] {
+    --group-edge: var(--sl-color-blue);
+    --group-tint: var(--sl-color-blue-low);
+  }
+  .compare-bars .group[data-group='build'] {
+    --group-edge: var(--sl-color-purple);
+    --group-tint: var(--sl-color-purple-low);
+  }
+  .compare-bars header {
     grid-column: 1 / -1;
-    margin-top: 0.75rem;
   }
-  .compare-bars li.group:first-child {
-    margin-top: 0;
+  .compare-bars .boxed header {
+    margin: 0 -1rem;
+    padding: 0.6rem 1rem;
+    background: var(--group-tint);
+    border-bottom: 1px solid var(--sl-color-gray-5);
   }
-  .compare-bars .group .title {
+  .compare-bars .title {
     display: block;
-    font-size: var(--sl-text-sm);
+    font-size: var(--sl-text-base);
     font-weight: 600;
     color: var(--sl-color-white);
   }
-  .compare-bars .group .note {
+  .compare-bars .note {
     display: block;
-    font-size: var(--sl-text-xs);
-    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
   }
   .compare-bars .place {
     grid-column: 1;
