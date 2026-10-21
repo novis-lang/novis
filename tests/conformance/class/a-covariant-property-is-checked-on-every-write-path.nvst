@@ -1,0 +1,155 @@
+--TEST--
+A `covariant` property is tested on every write path that names no class the compiler can check — a write through `object` and through `mixed`, a `property<T>` key, `Core\Reflect`, and a hooked property before its guard, its `set` hook and its observer, and again where the parent's hook stores another value — and a value of the wider type throws the `LogicError` a typed write throws, while a value no declaration takes still throws the `RuntimeError` it always did — `rule:classes/a-covariant-type-is-checked-where-a-value-enters`
+--FILE--
+<?nvs
+class Animal {}
+class Dog extends Animal {}
+class Cat extends Animal {}
+
+class Home {
+    public Animal $pet;
+    public ?Animal $guest = null;
+    public function constructor(Animal $pet) { $this->pet = $pet; }
+}
+
+class DogHome extends Home {
+    public covariant Dog $pet;
+    public Animal|null $guest = null;
+    public function constructor(Animal $pet) { parent::constructor($pet); }
+}
+
+class Pen implements PropertyGuard, PropertyObserver {
+    public Animal $pet {
+        set (Animal $v) {
+            echo "  Pen set\n";
+            $this->pet = $v;
+        }
+    }
+    public function constructor(Animal $pet) { $this->pet = $pet; }
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {
+        echo "  guard ", $name, "\n";
+    }
+    public function beforePropertyUnset(string $name, array<string> $keys): void {}
+    public function onPropertyGet(string $name, mixed $value): void {}
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "  observer ", $name, "\n";
+    }
+}
+
+class DogPen extends Pen {
+    public covariant Dog $pet {
+        set (Dog $v) {
+            echo "  DogPen set\n";
+            $this->pet = $v;
+        }
+    }
+    public function constructor(Animal $pet) { parent::constructor($pet); }
+}
+
+class Cot {
+    public lateinit Animal $pet {
+        set (Animal $v) {
+            $this->pet = $v is Dog ? new Cat() : $v;
+        }
+    }
+}
+
+class DogCot extends Cot {
+    public lateinit covariant Dog $pet;
+}
+
+DogHome $d = new DogHome(new Dog());
+
+// 1. A write through `object`.
+object $o = $d;
+try {
+    $o->pet = new Cat();
+} catch (LogicError $e) {
+    echo "1: ", $e->message, "\n";
+}
+
+// 2. A write through `mixed`.
+mixed $m = $d;
+try {
+    $m->pet = new Cat();
+} catch (LogicError $e) {
+    echo "2: ", $e->message, "\n";
+}
+
+// 3. A write through a `property<Home>` key.
+Home $h = $d;
+property<Home> $key = "pet" as property<Home>;
+try {
+    $h->$key = new Cat();
+} catch (LogicError $e) {
+    echo "3: ", $e->message, "\n";
+}
+
+// 4. A write through `Core\Reflect`.
+try {
+    Core\Reflect::forObject($d)->set($d, "pet", new Cat());
+} catch (LogicError $e) {
+    echo "4: ", $e->message, "\n";
+}
+
+// Each path still writes a `Dog`, and the property was never a `Cat`.
+$o->pet = new Dog();
+$h->$key = new Dog();
+echo $d->pet is Dog ? "a dog" : "not a dog", "\n";
+
+// 5. A value that no declaration of the property takes throws a `RuntimeError`.
+try {
+    $o->pet = "Rex";
+} catch (RuntimeError $wrong) {
+    echo "5: RuntimeError\n";
+}
+
+// 6. `Animal|null` is the same type as `?Animal`, so a `Cat` is written.
+$o->guest = new Cat();
+echo $d->guest is Cat ? "a cat" : "not a cat", "\n";
+
+// 7. A hooked property is tested before the guard, the hook and the observer run.
+Pen $p = new DogPen(new Dog());
+echo "write a Cat through Pen\n";
+try {
+    $p->pet = new Cat();
+} catch (LogicError $e) {
+    echo "7: ", $e->message, "\n";
+}
+echo "write a Cat through object\n";
+object $po = $p;
+try {
+    $po->pet = new Cat();
+} catch (LogicError $e) {
+    echo "7: ", $e->message, "\n";
+}
+echo "write a Dog through object\n";
+$po->pet = new Dog();
+
+// 8. The parent's `set` hook stores a `Cat` in place of the `Dog` it was given.
+Cot $cot = new DogCot();
+try {
+    $cot->pet = new Dog();
+} catch (LogicError $e) {
+    echo "8: ", $e->message, "\n";
+}
+--EXPECT--
+1: The property `$pet` of `DogHome` has the type `Dog`. The value is an object of class `Cat`.
+2: The property `$pet` of `DogHome` has the type `Dog`. The value is an object of class `Cat`.
+3: The property `$pet` of `DogHome` has the type `Dog`. The value is an object of class `Cat`.
+4: The property `$pet` of `DogHome` has the type `Dog`. The value is an object of class `Cat`.
+a dog
+5: RuntimeError
+a cat
+  guard pet
+  Pen set
+  observer pet
+write a Cat through Pen
+7: The property `$pet` of `DogPen` has the type `Dog`. The value is an object of class `Cat`.
+write a Cat through object
+7: The property `$pet` of `DogPen` has the type `Dog`. The value is an object of class `Cat`.
+write a Dog through object
+  guard pet
+  DogPen set
+  observer pet
+8: The property `$pet` of `DogCot` has the type `Dog`. The value is an object of class `Cat`.

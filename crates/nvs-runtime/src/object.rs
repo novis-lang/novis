@@ -1688,6 +1688,29 @@ impl ClassDesc {
         Ok(())
     }
 
+    /// Whether an ancestor that declares slot `index` takes `value`, which
+    /// this class's own type of the slot did not. That is true only when this
+    /// class or one between declares the property `covariant`
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+    ///
+    /// It compares the types themselves, not their spellings, so `?Animal`
+    /// under `Animal|null` is not narrowed. A write that fits never asks: the
+    /// walk runs only after [`Self::check_slot`] refused the value.
+    #[must_use]
+    #[expect(
+        unsafe_code,
+        reason = "a `conforms` entry belongs to the same table as this \
+                  descriptor and outlives it — this type's own invariant, \
+                  stated at the field"
+    )]
+    pub fn ancestor_admits(&self, index: usize, name: &str, value: Value) -> bool {
+        self.conforms.iter().any(|&other| {
+            let other = unsafe { &*other };
+            other.fields.get(index).map(String::as_str) == Some(name)
+                && other.check_slot(index, name, value).is_ok()
+        })
+    }
+
     /// Whether an instance of this class is also an instance of `other` —
     /// the whole of `$x is C`, and of a typed `catch`'s dispatch.
     ///
@@ -5535,6 +5558,14 @@ fn write_property(
     // to write: this door is the access spelling that had no class to lower
     // against, not a second way of storing.
     if let Some(row) = desc.hook_row(name, true) {
+        // A `covariant` hooked property tests the value before its guard and
+        // its `set` hook run, as a typed write does.
+        if let Some(slot) = found
+            && desc.check_slot(slot, name, value).is_err()
+            && desc.ancestor_admits(slot, name, value)
+        {
+            return Err(covariant_rejected(desc, slot, name, value));
+        }
         guard_erased_write(ctx, desc, receiver, name, value)?;
         let callee = format!("`{}::${name}::set`", desc.name());
         // The check converts as well as refuses — a widened `int` has to reach
@@ -5584,7 +5615,12 @@ fn write_property(
             desc.name()
         )));
     }
-    desc.check_slot(slot, name, value).map_err(Fault::thrown)?;
+    if let Err(refused) = desc.check_slot(slot, name, value) {
+        if desc.ancestor_admits(slot, name, value) {
+            return Err(covariant_rejected(desc, slot, name, value));
+        }
+        return Err(Fault::thrown(refused));
+    }
     // An anonymous object's class is named for its field names alone, so no
     // declared type belongs to its slots. The value the slot has now is the one
     // thing known to fit the type every typed read of it uses, so the written
@@ -5991,8 +6027,6 @@ pub(crate) fn describe_written(value: Value) -> String {
     })
 }
 
-/// What `value` is, for a message a program reads: "an object of class `Cat`",
-/// "`null`", or "a value of type `string`".
 /// Tests `value`, about to be written to `receiver`'s property `name`,
 /// against the type `receiver`'s own class gives that property
 /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
@@ -6031,17 +6065,27 @@ pub(crate) fn check_covariant_write(
     if desc.check_slot(index, name, value).is_ok() {
         return Ok(());
     }
+    Err(covariant_rejected(desc, index, name, value))
+}
+
+/// The `LogicError` a value the narrowed slot `index` of `desc` does not take
+/// throws, on every write path: the typed write's
+/// [`check_covariant_write`] and [`write_property`]'s erased, keyed and
+/// reflected ones.
+fn covariant_rejected(desc: &ClassDesc, index: usize, name: &str, value: Value) -> Fault {
     let declared = desc.field_type(index).unwrap_or("its declared type");
-    Err(Fault::thrown_as(
+    Fault::thrown_as(
         crate::ThrownClass::Logic,
         format!(
             "The property `${name}` of `{}` has the type `{declared}`. The value is {}.",
             desc.name(),
             describe_argument(value)
         ),
-    ))
+    )
 }
 
+/// What `value` is, for a message a program reads: "an object of class `Cat`",
+/// "`null`", or "a value of type `string`".
 pub(crate) fn describe_argument(value: Value) -> String {
     with_class(value, |class| {
         format!("an object of class `{}`", class.name())
