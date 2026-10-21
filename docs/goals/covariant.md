@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/conformance.rs, crates/nvs-diagnostics/src/code/types_e08.rs]
   - id: 3
     title: "a covariant parameter is checked when the method is entered"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/mod.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/operator.rs]
   - id: 4
     title: "a covariant property is checked by every typed write"
@@ -176,9 +176,9 @@ compile error where it is written.
 **Does:** a call that reaches a covariant parameter with a value of a wider type throws a `LogicError`
 before the body runs, through a class, an interface, a static method and `compareTo`.
 
-- [ ] `lower_method` emits one type test per covariant parameter before the body, each element of a variadic one included. `crates/nvs-ir/src/lower/mod.rs:1246`, `crates/nvs-ir/src/lower/mod.rs:1297`, `crates/nvs-ir/src/lower/expr.rs:6569`
-- [ ] A failure throws a `LogicError` that names the method, the parameter, the type and the class it got. `crates/nvs-ir/src/lower/operator.rs:256`
-- [ ] A case through a parent, an interface, a static method, `compareTo`, a grandchild, an `inout` and a variadic parameter, and a first-class callable of the method. The types include `int` under `int|string`, `Dog|Cat` under `Animal`, and `Dog` under `?Animal`, where a `null` throws. `tests/conformance/class/a-covariant-parameter-is-checked-when-the-method-is-entered.nvst:1`
+- [x] `lower_method` emits one type test per covariant parameter before the body, each element of a variadic one included. `crates/nvs-ir/src/lower/mod.rs:1476`, `crates/nvs-ir/src/lower/mod.rs:1317`, `crates/nvs-ir/src/lower/expr.rs:6927`
+- [x] A failure throws a `LogicError` that names the method, the parameter, the type and the class it got. `crates/nvs-runtime/src/helpers.rs:193`
+- [x] A case through a parent, an interface, a static method, `compareTo`, a grandchild, an `inout` and a variadic parameter, and a first-class callable of the method. The types include `int` under `int|string`, `Dog|Cat` under `Animal`, and `Dog` under `?Animal`, where a `null` throws. `tests/conformance/class/a-covariant-parameter-is-checked-when-the-method-is-entered.nvst:1`
 
 ### 4. a covariant property is checked by every typed write
 
@@ -243,26 +243,37 @@ rejects. The rule fragment names them. The constructor, static and `readonly` pr
 reported in `crates/nvs-types/src/signatures.rs` by `report_misplaced_covariant`, and the anonymous
 function form in `check_anon_fn`. A covariant instance property is still not checked: that is stage 4.
 
-**`lower_method` asserts that no parameter is `covariant`** (`crates/nvs-ir/src/lower/mod.rs:1308`).
-A program with a covariant method type-checks and does not compile until stage 3 emits the entry
-test. Without the assert, a body would read a wider value at the narrower type. Stage 3 replaces
-the assert with the test.
+Stage 3 is done. `lower_method` reads a plain covariant parameter's slot at `Ty::Tagged`, because
+every argument slot is a full tagged `Value` whatever the caller's representation, and
+`emit_covariant_check` (`crates/nvs-ir/src/lower/mod.rs:1476`) tests it with `test_shape` after
+every parameter is bound, then untags it to the narrower representation. An `inout` one is a
+`RefLoad` at `Ty::Tagged` on entry. A variadic one walks the array with `emit_every_element_with`
+(`crates/nvs-ir/src/lower/expr.rs:6927`), whose witness is the first element that failed. A failure
+calls `Helper::CovariantRejected`, and `nvs_covariant_rejected` throws a `LogicError` from the message
+and `describe_argument` (`crates/nvs-runtime/src/object.rs`). The case is
+`tests/conformance/class/a-covariant-parameter-is-checked-when-the-method-is-entered.nvst`.
 
-The nightly CI failures in the sweep are fixed. The website and Miri failures were already fixed
-on `main` (`51e0534f6` split Miri). The proofs gate owed 21 stale `lang:types` perf records,
-because `docs/reference/lang/20-types.md` changed. They are re-recorded.
+Two forms still assert in lowering: a promoted covariant constructor parameter, which is a property
+and stage 4's (`crates/nvs-ir/src/lower/mod.rs:1312`), and a covariant parameter of a generator
+method (`crates/nvs-ir/src/lower/generator.rs:709`).
+
+The nightly run the sweep named was on `6544156`, 52 commits back. `bun nv proofs --gate` is green
+on `main`: the stale `BigInt`, `Json` and `Router` perf records it named were re-recorded since.
 
 ### Next
 
-**Stage 3, one group**, on `nvs-ir`.
+**Stage 4, one group**, on `nvs-types` and `nvs-ir`. Its gate holds:
+`docs/rules/classes/a-redeclared-property-keeps-its-parents-type.md` exists.
 
-- [ ] Replace the assert in `lower_method` with one type test per covariant parameter before the body, an `inout` one on its pointee, and each element of a variadic one. The test is the one `lower_type_test` emits. `crates/nvs-ir/src/lower/mod.rs:1302`, `crates/nvs-ir/src/lower/expr.rs:6523`
-- [ ] A failure throws a `LogicError` that names the method, the parameter, the type and the class it got, the way `emit_same_class_check` throws. `crates/nvs-ir/src/lower/operator.rs:262`
-- [ ] The stage's case. `tests/conformance/class/a-covariant-parameter-is-checked-when-the-method-is-entered.nvst:1`
+- [ ] `check_property_redeclarations` accepts a `covariant` property whose type is narrower than the topmost declaration's, and `E0866`'s help names `covariant`. `crates/nvs-types/src/conformance.rs:155`
+- [ ] The class descriptor carries the narrowed type per narrowed slot. `crates/nvs-types/src/layout.rs:1004`
+- [ ] A typed write that can reach a narrowed slot from a wider type tests the value, and a promoted covariant parameter replaces its assert with that test. `crates/nvs-ir/src/lower/stmt.rs:1137`, `crates/nvs-ir/src/lower/mod.rs:1312`
+- [ ] The stage's case. `tests/conformance/class/a-covariant-property-is-checked-by-every-write.nvst:1`
 
 ### Backlog
 
-- The property side of the redeclaration check is stage 4. `crates/nvs-types/src/conformance.rs:155`
+- A covariant parameter of a generator method panics in lowering. The factory would need the
+  entry test before it stores the parameters in the state object. `crates/nvs-ir/src/lower/generator.rs:709`
 - The rule measures a covariant type against the topmost declaration only. A grandchild `covariant Cat`
   under a parent's `covariant Dog` compiles, and every call through the parent throws. Stage 6 may add
   a sentence to the rule if that should be an error. `crates/nvs-types/src/conformance.rs:905`
