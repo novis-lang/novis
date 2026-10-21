@@ -32,21 +32,21 @@
 
 use std::path::{Path, PathBuf};
 
-use nvs_config::capability::{Cap, Grant};
+use nvs_config::capability::{Authority, Cap, Grant};
 use nvs_config::extension::Granted;
 use nvs_config::resolve::Files;
-use nvs_config::tree::Capabilities;
 
 use crate::manifest::Requests;
 
 /// The calling code's own authority at the call.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Caller<'a> {
-    /// The `[capabilities]` of the caller's configuration snapshot, with its roots canonical.
-    /// `None` holds nothing.
-    pub capabilities: Option<&'a Capabilities>,
+    /// What the caller's run may do: the `[capabilities]` of its configuration snapshot, with its
+    /// roots canonical, and the default of every key it does not write. `None` is a caller with
+    /// no configuration, and holds nothing.
+    pub authority: Option<Authority<'a>>,
     /// An isolate's `grants:` list, when a spawn narrowed the caller: a capability it does not
-    /// name is not held, whatever `capabilities` grants. `None` narrows nothing.
+    /// name is not held, whatever `authority` grants. `None` narrows nothing.
     pub narrowed: Option<&'a [Cap]>,
 }
 
@@ -56,8 +56,8 @@ impl Caller<'_> {
     }
 
     fn holds(&self, cap: Cap) -> Grant<'_> {
-        match self.capabilities {
-            Some(caps) if self.keeps(cap) => caps.holds(cap),
+        match self.authority {
+            Some(authority) if self.keeps(cap) => authority.holds(cap),
             _ => Grant::Nothing,
         }
     }
@@ -65,8 +65,8 @@ impl Caller<'_> {
     fn connects(&self, host: &str) -> bool {
         self.keeps(Cap::NetConnect)
             && self
-                .capabilities
-                .is_some_and(|caps| caps.allows_host(Cap::NetConnect, host))
+                .authority
+                .is_some_and(|authority| authority.allows_host(Cap::NetConnect, host))
     }
 }
 

@@ -379,11 +379,11 @@ default still deny-all, so nothing observable changes.
 **Split:** first, an `Explore` subagent lists every caller of `Capabilities::allows`, `allows_host`,
 `allows_name`, `allows_resolved`, `allows_unscoped` and `holds`, as `file:line` and one line each.
 
-- [ ] The app folder as the standing decision defines it, computed by one function from the entry path and the matching `[[app]]` blocks, and stored on the context beside its `RunKind` by every host that builds one (`rule:config/an-application-is-its-entry-file-path`). `crates/nvs-config/src/snapshot.rs:520`, `crates/nvs-config/src/mount.rs:67`, `crates/nvs-runtime/src/ctx/isolate.rs:63`
-- [ ] The defaults function: snapshot, capability, scope and run in, grant out, with a written key replacing its default whole (`rule:security/capability-question-is-grant-and-scope`). `crates/nvs-config/src/capability.rs:694`, `crates/nvs-config/src/defaults.rs:370`
-- [ ] The runtime, the schedule check, an extension's caller grants and `Core\Cap::has` ask through it, so a check made while compiling and one made at run time agree (`rule:expressions/preparation-preserves-behaviour`). `crates/nvs-runtime/src/capability.rs:242`, `crates/nvs-config/src/schedule.rs:247`, `crates/nvs-ext/src/grants.rs:69`
-- [ ] An isolate takes its tree's app folder and run kind, and a `grants:` list still only subtracts (`rule:security/isolate-shares-nothing`). `crates/nvs-runtime/src/ctx/isolate.rs:63`
-- [ ] Tests: the app folder of a mount, a schedule, a CLI entry and an entry under an `[[app]] root`; an isolate inherits it. `crates/nvs-config/tests/capability.rs:1`
+- [x] The app folder as the standing decision defines it, computed by one function from the entry path and the matching `[[app]]` blocks, and stored on the context beside its `RunKind` by every host that builds one (`rule:config/an-application-is-its-entry-file-path`). `crates/nvs-config/src/snapshot.rs:520`, `crates/nvs-config/src/mount.rs:67`, `crates/nvs-runtime/src/ctx/isolate.rs:63`
+- [x] The defaults function: snapshot, capability, scope and run in, grant out, with a written key replacing its default whole (`rule:security/capability-question-is-grant-and-scope`). `crates/nvs-config/src/capability.rs:694`, `crates/nvs-config/src/defaults.rs:370`
+- [x] The runtime, the schedule check, an extension's caller grants and `Core\Cap::has` ask through it, so a check made while compiling and one made at run time agree (`rule:expressions/preparation-preserves-behaviour`). `crates/nvs-runtime/src/capability.rs:242`, `crates/nvs-config/src/schedule.rs:247`, `crates/nvs-ext/src/grants.rs:69`
+- [x] An isolate takes its tree's app folder and run kind, and a `grants:` list still only subtracts (`rule:security/isolate-shares-nothing`). `crates/nvs-runtime/src/ctx/isolate.rs:63`
+- [x] Tests: the app folder of a mount, a schedule, a CLI entry and an entry under an `[[app]] root`; an isolate inherits it. `crates/nvs-config/tests/capability.rs:1`
 
 ### 3. a CLI run reads and writes files freely, and server work reads its app folder and writes only its own temporary directories
 
@@ -505,30 +505,59 @@ capability default. Then one writing subagent edits them, held to § *Text an en
 
 ### State
 
-Stage 1 is done. Besides the load check, every capability refusal now ends with
-``help: add `<line>` under `[capabilities.<family>]` in nvs.toml``, the line built by
-`nvs_config::capability::grant_line` (a file's folder for `fs.*` and `script.spawn`, the path for
-other path grants, the host, name or endpoint itself, `key = true` unscoped). The address refusal
-reads `<member> cannot connect to <addr>: ...` and gives `internal = ["<addr>"]`
-(`internal_line`). Every pinned case, example `.out` and `70-errors.md` follow. A `tainted` argv
-element is pinned as `E0401` and both process rules say so; a bare program name is refused today.
-`debug.trace` missing under `trace` warns once per process at the first query.
+Stage 2's code is in and the whole tree builds with its tests, but **`looper verify` has not run on
+it**: the session hit the hand-off budget. Its five items are ticked. The stage is not marked done
+until verify is green.
 
-The nightly's proofs failures were the site checks, already fixed on `main` by `b3ed92165` and
-`1847e8036`. Locally only `/in-depth/compare/`'s questions are stale, from uncommitted compare-page
-edits in the working tree that are not this goal's.
+- **The app folder** is `nvs_config::app::folder(entry, keys)` (`crates/nvs-config/src/app.rs:699`):
+  the most specific matching block key that is not the entry itself, else the entry's folder. An
+  `entry` block is passed over, so it never shrinks the application; this is this goal's reading
+  of the decision. `Snapshot::folder` (`snapshot.rs:163`) serves a CLI run and
+  `Published::folder` (`snapshot.rs:530`, cached per path) serves a mount, a schedule and a job.
+- **It is stored on `nvs_config::Request`, beside `serving`** (`request.rs:94`), not as a `Ctx`
+  field. Every isolate constructor clones the configuration, so it inherits with no extra code, and
+  `Ctx::set_config` carries it over (`wiring.rs`). Hosts write it with `Ctx::set_app_folder`
+  (`crates/nvs-runtime/src/ctx/isolate.rs:108`) or `nvs_host::Isolate::in_folder`
+  (`crates/nvs-host/src/isolate.rs:392`, applied beside `running_as`). Wired: `nvs run`
+  (`main.rs`), `nvs test` and its per-test contexts (`runner.rs`), the shared worker
+  (`shared.rs`), a served request from its mount entry (`crates/nvs-cli/src/serve.rs`, both the
+  run and the rerun), a scheduled fire, and a job (`worker.rs` `configure`).
+- **The defaults function** is `nvs_config::capability::Authority` (`capability.rs:303`) over a
+  `Run` (`:258`), reading `nvs_config::defaults::capability` (`defaults.rs:364`), which returns
+  `Granted::Nothing` for every capability. A written key replaces the default whole, and a header
+  with no key leaves it. `Request::authority` builds one. `Run::default()` is server work with no
+  folder, the narrowest run.
+- **Every asker goes through it**: `capability::granted` and the resolved-path door `allow`, the
+  address table (`Authority::address_refused`, where stage 4's loopback default goes), the
+  schedule check (as server work with the script's folder), `nvs_ext::grants::Caller` (now
+  `authority: Option<Authority>`, built in `crates/nvs-cli/src/extensions.rs` from a cloned
+  `Request`), and the compiler's literal `db.open` and `queue.purge` checks in
+  `crates/nvs-types/src/intrinsics.rs`, asked as a CLI run because that is the widest run.
+  `nvs_config::store::reachable` still reads `allows_unscoped` directly: it counts written
+  `cache.shared` grants, which keep no default.
+- Tests: `crates/nvs-config/tests/snapshot.rs` (`a_mounted_entrys_app_folder_is_its_most_specific_root`,
+  `a_cli_entry_and_a_publish_agree_on_the_app_folder`), `crates/nvs-config/tests/capability.rs`
+  (`an_authority_answers_the_written_key_and_the_default_for_the_rest`), and
+  `an_isolate_takes_its_trees_app_folder_and_run` in `crates/nvs-runtime/src/ctx/isolate.rs`.
+  `crates/nvs-ext/tests/{grants,files,http}.rs` build their `Caller` with `Authority`.
+- `rule:security/capability-question-is-grant-and-scope` now names the run as an input.
+
+The nightly's proofs failures (run on `afbb1edc2`) were the two unstamped site pages, fixed on
+`main` by `b3ed92165`.
 
 ### Next
 
-**Stage 2**, the run kind and the app folder reach every capability decision. Files:
-`crates/nvs-config/src/capability.rs`, `crates/nvs-runtime/src/capability.rs`,
-`crates/nvs-runtime/src/ctx/isolate.rs`, `crates/nvs-config/src/snapshot.rs`. Gate: none.
-Follow the stage's `**Split:**` line: first an `Explore` list of every caller of `allows*` and `holds`.
+**First, verify stage 2**: `looper verify`, and fix what it names in one pass. Then set stage 2 to
+done in the front matter.
 
-- [ ] The app folder, one function, stored on the context beside `RunKind`. `crates/nvs-config/src/snapshot.rs:520`, `crates/nvs-config/src/mount.rs:67`, `crates/nvs-runtime/src/ctx/isolate.rs:63`
-- [ ] The defaults function (all defaults still deny-all). `crates/nvs-config/src/capability.rs:694`, `crates/nvs-config/src/defaults.rs:370`
-- [ ] Every asker goes through it. `crates/nvs-runtime/src/capability.rs:242`, `crates/nvs-config/src/schedule.rs:247`, `crates/nvs-ext/src/grants.rs:69`
-- [ ] Isolates inherit; tests. `crates/nvs-runtime/src/ctx/isolate.rs:63`
+**Then stage 3**, files: a CLI run reads and writes freely, and server work reads its app folder
+(no dot-file, no `nvs.toml`) and writes only its own temporary directories. The default goes in
+`crates/nvs-config/src/defaults.rs:364` (a new `Granted` variant per shape) and is applied in
+`Authority::allows` / `allows_resolved` / `holds` (`crates/nvs-config/src/capability.rs:303`).
+Add `[[app]] root = "tests/hostile"` with `[app.capabilities.fs] read = []` and `write = []` to
+`nvs.toml` in the same change, as the standing decision says. The temporary directories live on
+the context (`crates/nvs-runtime/src/capability.rs:1273`), so stage 3 has to decide how the
+`Authority` sees them: they are not in the pure procedure today.
 
 ### Backlog
 

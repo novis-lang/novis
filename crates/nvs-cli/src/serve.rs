@@ -1077,6 +1077,15 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // snapshot instead would hand it grants its own blocks narrowed.
             // `None` is a request this loop did not frame, and runs under the
             // host's.
+            //
+            // The app folder is the mount's, not the file's: under
+            // `dispatch = "path"` the file is anywhere below the mount's entry,
+            // and the application is the same one. A request this loop did not
+            // frame matches no `[[app]]` block, so its folder is the mount root.
+            let folder: Arc<Path> = nvs_server::published_of(&request).map_or_else(
+                || Arc::from(mount.root.as_path()),
+                |published| published.folder(&mount.entry, &crate::config::LocalFiles),
+            );
             let (config, compiled) = match nvs_server::published_of(&request)
                 .map(|published| published.entry(&file, &crate::config::LocalFiles))
             {
@@ -1224,6 +1233,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // holds, and finds the mount again by its place in the table.
             let rerun = (refusal_mode && inbound.refusal().is_none()).then(|| {
                 let compiler = Arc::clone(&compiler);
+                let folder = Arc::clone(&folder);
                 let at = table
                     .mounts()
                     .iter()
@@ -1256,8 +1266,9 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                         nvs_server::mount::carry(mount, &mut inbound);
                     }
                     inbound.set_refusal(nvs_runtime::routes::Refusal::Limit);
-                    let isolate =
-                        Isolate::new(program, Value::null(), Output::Capture).answering(inbound);
+                    let isolate = Isolate::new(program, Value::null(), Output::Capture)
+                        .answering(inbound)
+                        .in_folder(folder);
                     let isolate = match mount {
                         Some(mount) => at_mount_origin(isolate, mount),
                         None => isolate,
@@ -1273,7 +1284,9 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // built from. [`at_mount_origin`] owns why it goes onto the
             // isolate and not onto the carrier beside the prefix above.
             let isolate = at_mount_origin(
-                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                Isolate::new(program, Value::null(), Output::Capture)
+                    .answering(inbound)
+                    .in_folder(Arc::clone(&folder)),
                 mount,
             );
             // `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s
@@ -1959,6 +1972,13 @@ impl nvs_server::Fires for Scheduled {
             }
         };
         ctx.set_config(snapshot);
+        // The fire's app folder is its script's own, stored on this context
+        // before the resolve below asks `script.spawn`, and on the isolate.
+        let folder = published.folder(
+            std::path::Path::new(entry.script()),
+            &crate::config::LocalFiles,
+        );
+        ctx.set_app_folder(Arc::clone(&folder));
         // Resolved per fire and not once at boot, because `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s unit swap is
         // the point: an entry that fires nightly picks up an edited script at the
         // next fire, exactly as a request picks it up at the next request. What
@@ -1993,6 +2013,7 @@ impl nvs_server::Fires for Scheduled {
         Some(
             Isolate::new(program, args, Output::Capture)
                 .running_as(nvs_runtime::RunKind::Schedule)
+                .in_folder(folder)
                 .recording(nvs_runtime::TraceContext::rooted(
                     nvs_config::export::head_sample(&published.host().config),
                 )),

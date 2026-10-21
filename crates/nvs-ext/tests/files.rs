@@ -17,7 +17,7 @@ use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 use nvs_config::Setting;
-use nvs_config::capability::Cap;
+use nvs_config::capability::{Authority, Cap, Run};
 use nvs_config::extension::Granted;
 use nvs_config::resolve::Disk;
 use nvs_config::tree::{CapFs, Capabilities};
@@ -205,7 +205,10 @@ impl Budget for Held {
 
     fn caller(&self) -> Caller<'_> {
         Caller {
-            capabilities: self.capabilities.as_ref(),
+            authority: self
+                .capabilities
+                .as_ref()
+                .map(|caps| Authority::new(Some(caps), Run::default())),
             narrowed: self.narrowed.as_deref(),
         }
     }

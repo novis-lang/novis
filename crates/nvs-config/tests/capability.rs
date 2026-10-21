@@ -9,7 +9,7 @@
 use std::cell::Cell;
 use std::path::{Component, Path, PathBuf};
 
-use nvs_config::capability::{Cap, Scope, is_reserved_device, resolved};
+use nvs_config::capability::{Authority, Cap, Run, Scope, is_reserved_device, resolved};
 use nvs_config::resolve::Files;
 use nvs_config::tree::Capabilities;
 use nvs_config::trust::Untrusted;
@@ -1657,4 +1657,50 @@ fn the_line_a_refusal_prints_loads_and_grants_what_was_refused() {
         granting(&format!("[net]\n{line}\n"), &disk).address_refused(ip("10.0.0.5")),
         None
     );
+}
+
+/// [`Authority`] is the written grant where a key is written, and the default where it is not.
+/// Every default grants nothing on every kind of run, so an unwritten key, an absent block and a
+/// tree with no `[capabilities]` all deny, and a written key answers as [`Capabilities`] does.
+#[test]
+fn an_authority_answers_the_written_key_and_the_default_for_the_rest() {
+    let disk = Disk::of(&["/srv/app", "/srv/app/job.nvs", "/srv/app/data"]);
+    let folder = p("/srv/app");
+    let job = p("/srv/app/job.nvs");
+    let runs = [
+        Run::cli(Some(folder.as_path())),
+        Run::server(Some(folder.as_path())),
+        Run::cli(None),
+        Run::default(),
+    ];
+    let written = granting(
+        "[fs]\nread = [\"/srv/app\"]\nwrite = []\n\n[net]\nconnect = [\"api.example.com\"]\n",
+        &disk,
+    );
+    let headers = granting("[fs]\n\n[process]\n", &disk);
+    for run in runs {
+        let mine = Authority::new(Some(&written), run);
+        assert!(mine.allows(Cap::FsRead, Scope::Path(&job), &disk), "{run:?}");
+        assert!(!mine.allows(Cap::FsWrite, Scope::Path(&job), &disk), "`[]` grants nothing");
+        assert!(mine.allows_host(Cap::NetConnect, "api.example.com"));
+        assert!(!mine.allows_host(Cap::NetConnect, "example.com"));
+        assert!(!mine.allows(Cap::ScriptSpawn, Scope::Path(&job), &disk), "unwritten");
+        for authority in [
+            Authority::new(None, run),
+            Authority::new(Some(&headers), run),
+        ] {
+            for cap in Cap::ALL.iter().copied() {
+                assert!(!authority.allows(cap, Scope::Unscoped, &disk), "{}", cap.name());
+                assert!(
+                    matches!(authority.holds(cap), nvs_config::capability::Grant::Nothing),
+                    "{}",
+                    cap.name()
+                );
+            }
+            assert!(!authority.allows_resolved(Cap::FsRead, &job));
+            assert!(!authority.allows_host(Cap::NetConnect, "api.example.com"));
+            assert!(!authority.allows_name(Cap::QueuePurge, "mail"));
+            assert!(authority.address_refused(ip("127.0.0.1")).is_some());
+        }
+    }
 }

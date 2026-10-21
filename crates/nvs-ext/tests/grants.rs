@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use nvs_config::Setting;
-use nvs_config::capability::Cap;
+use nvs_config::capability::{Authority, Cap, Run};
 use nvs_config::extension::Granted;
 use nvs_config::resolve::Files;
 use nvs_config::tree::{CapFs, CapNet, Capabilities};
@@ -115,7 +115,7 @@ fn everything() -> Capabilities {
 
 fn caller(caps: &Capabilities) -> Caller<'_> {
     Caller {
-        capabilities: Some(caps),
+        authority: Some(Authority::new(Some(caps), Run::default())),
         narrowed: None,
     }
 }
@@ -220,7 +220,7 @@ fn an_isolate_narrowed_caller_narrows_the_extension() {
         &entry(),
         &requests(),
         Caller {
-            capabilities: Some(&caps),
+            authority: Some(Authority::new(Some(&caps), Run::default())),
             narrowed: Some(&only_hosts),
         },
         &fake(),
@@ -233,7 +233,7 @@ fn an_isolate_narrowed_caller_narrows_the_extension() {
         &entry(),
         &requests(),
         Caller {
-            capabilities: Some(&caps),
+            authority: Some(Authority::new(Some(&caps), Run::default())),
             narrowed: Some(&only_reads),
         },
         &fake(),

@@ -664,6 +664,11 @@ fn configure(
     ) {
         Ok(snapshot) => {
             ctx.set_config(snapshot);
+            // A job's app folder is its worker entry's own.
+            ctx.set_app_folder(current.published().folder(
+                std::path::Path::new(&job.script),
+                &crate::config::LocalFiles,
+            ));
             Ok(())
         }
         Err(refused) => {

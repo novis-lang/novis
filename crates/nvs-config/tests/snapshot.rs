@@ -393,6 +393,50 @@ fn an_entry_that_does_not_resolve_leaves_the_previous_set_serving() {
     assert!(Arc::ptr_eq(&current.load(), &host));
 }
 
+/// The app folder of a mounted entry is the `root` of the most specific block over it, and the
+/// entry's own folder where no block covers it. An entry block names a file, so it is passed over:
+/// `import.nvs`'s own block does not shrink the shop.
+#[test]
+fn a_mounted_entrys_app_folder_is_its_most_specific_root() {
+    let mut fs = shop();
+    fs.files
+        .insert(p("srv/www/shop/public/index.nvs"), String::new());
+    let set = published(&fs, &["srv/www/shop/index.nvs"]);
+    for (entry, folder) in [
+        ("srv/www/index.nvs", "srv/www"),
+        ("srv/www/shop/index.nvs", "srv/www/shop"),
+        ("srv/www/shop/public/index.nvs", "srv/www/shop"),
+        ("srv/www/shop/bin/import.nvs", "srv/www/shop"),
+        ("srv/other/x.nvs", "srv/other"),
+    ] {
+        assert_eq!(&*set.folder(&p(entry), &fs), p(folder).as_path(), "{entry}");
+    }
+}
+
+/// A CLI run's snapshot, built for its entry alone, gives the folder a publish gives that entry,
+/// so a run and a server agree on it. A scheduled script and a job's entry are asked of the
+/// publish the same way.
+#[test]
+fn a_cli_entry_and_a_publish_agree_on_the_app_folder() {
+    let fs = shop();
+    let set = published(&fs, &[]);
+    for entry in [
+        "srv/www/index.nvs",
+        "srv/www/shop/bin/import.nvs",
+        "srv/other/x.nvs",
+    ] {
+        let built = snapshot_of(&fs, entry);
+        assert_eq!(
+            built.folder().as_deref(),
+            Some(&*set.folder(&p(entry), &fs)),
+            "{entry}"
+        );
+    }
+    let host = Snapshot::host(&tree_of(&fs), &fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes));
+    assert_eq!(host.folder(), None, "the host's snapshot is for no entry");
+}
+
 /// A set built from one snapshot and no roster serves that snapshot to every entry, which is what
 /// a process holding one configuration for itself reads.
 #[test]

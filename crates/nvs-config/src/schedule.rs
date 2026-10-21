@@ -43,7 +43,7 @@ use jiff::tz::{AmbiguousOffset, TimeZone};
 use jiff::{Span, Zoned};
 use nvs_diagnostics::{Diagnostic, code};
 
-use crate::capability::{Cap, Scope};
+use crate::capability::{Authority, Cap, Run, Scope};
 use crate::resolve::{Files, Origin, origin_note};
 use crate::tree::{Config, Schedule};
 
@@ -244,7 +244,13 @@ pub fn validate(
         // [`anchor`] has already joined a relative script to the folder of the file that wrote it,
         // so this checks the path every fire will run.
         let named = Path::new(script);
-        if !granted.allows(Cap::ScriptSpawn, Scope::Path(named), files) {
+        // A scheduled run is server work, and its app folder is the script's own.
+        let folder = crate::capability::resolved(named, files).map(|at| {
+            let matched = crate::app::matching(&config.app, &at, files).unwrap_or_default();
+            crate::app::folder(&at, &crate::app::keys(&config.app, &matched))
+        });
+        let authority = Authority::new(Some(&granted), Run::server(folder.as_deref()));
+        if !authority.allows(Cap::ScriptSpawn, Scope::Path(named), files) {
             return Err(refusal(
                 index,
                 entry,

@@ -175,6 +175,11 @@ impl Serving {
             parent.set_origin(&origin);
         }
         parent.set_config(std::sync::Arc::clone(&self.snapshot));
+        // Each case's app folder is its own, as a fresh run of it has.
+        if let Ok(canonical) = nvs_config::resolve::Files::canonical(&config::LocalFiles, path) {
+            let folder = nvs_config::app::folder(&canonical, &self.snapshot.blocks);
+            parent.set_app_folder(folder.into());
+        }
         let answered: std::rc::Rc<std::cell::RefCell<Option<Result<String, String>>>> =
             std::rc::Rc::default();
         self.sched.spawn(parent, nvs_runtime::TaskRoot::Request, {

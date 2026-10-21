@@ -12,6 +12,10 @@
 //! to a canonical path is denied. There is no path through [`Capabilities::allows`] that returns `true`
 //! without an operator having written something that says so.
 //!
+//! **A default is [`Authority`]'s alone.** [`Capabilities`] answers for the keys a tree wrote, and
+//! [`Authority`] adds [`crate::defaults::capability`] for a key it did not, given the [`Run`]. Every
+//! door asks through [`Authority`].
+//!
 //! [`Cap`] is also the one place a capability's configuration *name* maps to the field of
 //! [`Capabilities`] that grants it. A new capability is a variant, a `name` arm and a `grant` arm —
 //! never a string compared in a second module.
@@ -243,6 +247,131 @@ pub enum Scope<'a> {
     /// carries — matched exactly, because a name is not a hostname and two of them differing only
     /// in case are two names.
     Name(&'a str),
+}
+
+/// The run a capability is asked for: what a default depends on, and nothing else.
+///
+/// A run is a CLI run or server work, and it has an app folder: the canonical folder of the entry
+/// file it started from, or the `root` of the most specific `[[app]]` block covering that entry
+/// ([`crate::app::folder`]). An isolate takes the run of the tree that spawned it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Run<'a> {
+    /// Whether this is server work: a request, a connection, a scheduled run, a queued job, or an
+    /// isolate in one of their trees.
+    pub serving: bool,
+    /// The app folder, or `None` where the run has no entry file to take one from.
+    pub folder: Option<&'a Path>,
+}
+
+impl<'a> Run<'a> {
+    /// A CLI run: `nvs run`, a `#[Command]` method or `nvs test`.
+    #[must_use]
+    pub fn cli(folder: Option<&'a Path>) -> Self {
+        Self {
+            serving: false,
+            folder,
+        }
+    }
+
+    /// Server work.
+    #[must_use]
+    pub fn server(folder: Option<&'a Path>) -> Self {
+        Self {
+            serving: true,
+            folder,
+        }
+    }
+}
+
+/// Server work with no app folder: the run no default can be wider than, for a caller that does
+/// not know which run it is asking for.
+impl Default for Run<'_> {
+    fn default() -> Self {
+        Self::server(None)
+    }
+}
+
+/// What one run may do: the `[capabilities]` written for it, and the defaults
+/// ([`crate::defaults::capability`]) for every key not written.
+///
+/// **Every asker goes through this**, so the runtime, the boot's schedule check, an extension's
+/// caller and `Core\Cap::has` cannot meet two different defaults. The methods mirror
+/// [`Capabilities`]' own, which answer for the written keys alone. A written key replaces its
+/// default whole, per key: `read = []` grants nothing, and a block header with no key under it
+/// leaves every default in place.
+#[derive(Clone, Copy, Debug)]
+pub struct Authority<'a> {
+    written: Option<&'a Capabilities>,
+    run: Run<'a>,
+}
+
+impl<'a> Authority<'a> {
+    /// The authority of `run` under `written`, where `None` is a tree with no `[capabilities]`.
+    #[must_use]
+    pub fn new(written: Option<&'a Capabilities>, run: Run<'a>) -> Self {
+        Self { written, run }
+    }
+
+    /// The default of `cap`, or `None` where `cap`'s key is written and the written grant answers.
+    fn default_of(&self, cap: Cap) -> Option<crate::defaults::Granted> {
+        let written = self.written.and_then(|caps| cap.grant(caps)).is_some();
+        (!written).then(|| crate::defaults::capability(cap, self.run))
+    }
+
+    /// [`Capabilities::allows`], with the default where `cap` is not written.
+    #[must_use]
+    pub fn allows(&self, cap: Cap, scope: Scope<'_>, files: &dyn Files) -> bool {
+        match (self.default_of(cap), self.written) {
+            (Some(crate::defaults::Granted::Nothing), _) | (None, None) => false,
+            (None, Some(caps)) => caps.allows(cap, scope, files),
+        }
+    }
+
+    /// [`Capabilities::holds`], with the default where `cap` is not written.
+    #[must_use]
+    pub fn holds(&self, cap: Cap) -> Grant<'a> {
+        match (self.default_of(cap), self.written) {
+            (Some(crate::defaults::Granted::Nothing), _) | (None, None) => Grant::Nothing,
+            (None, Some(caps)) => caps.holds(cap),
+        }
+    }
+
+    /// [`Capabilities::allows_resolved`], with the default where `cap` is not written.
+    #[must_use]
+    pub fn allows_resolved(&self, cap: Cap, path: &Path) -> bool {
+        match (self.default_of(cap), self.written) {
+            (Some(crate::defaults::Granted::Nothing), _) | (None, None) => false,
+            (None, Some(caps)) => caps.allows_resolved(cap, path),
+        }
+    }
+
+    /// [`Capabilities::allows_host`], with the default where `cap` is not written.
+    #[must_use]
+    pub fn allows_host(&self, cap: Cap, host: &str) -> bool {
+        match (self.default_of(cap), self.written) {
+            (Some(crate::defaults::Granted::Nothing), _) | (None, None) => false,
+            (None, Some(caps)) => caps.allows_host(cap, host),
+        }
+    }
+
+    /// [`Capabilities::allows_name`], with the default where `cap` is not written.
+    #[must_use]
+    pub fn allows_name(&self, cap: Cap, name: &str) -> bool {
+        match (self.default_of(cap), self.written) {
+            (Some(crate::defaults::Granted::Nothing), _) | (None, None) => false,
+            (None, Some(caps)) => caps.allows_name(cap, name),
+        }
+    }
+
+    /// [`Capabilities::address_refused`] for this run. With no `[capabilities.net] internal`
+    /// written, the table refuses every address it names ([`denied_by_default`]).
+    #[must_use]
+    pub fn address_refused(&self, address: std::net::IpAddr) -> Option<&'static str> {
+        match self.written {
+            Some(caps) => caps.address_refused(address),
+            None => denied_by_default(address),
+        }
+    }
 }
 
 /// The address ranges `rule:security/net-address-policy` denies
