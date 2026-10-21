@@ -1,14 +1,18 @@
 ---
 /**
- * One chart per recorded case on the comparison page. Each peer has two
- * bars: its requests per second against the best peer's, and its peak memory
- * against the most any peer used. The best bar of each kind takes the accent
- * colour: the most requests, and the least memory.
+ * One chart per recorded case on the comparison page, split into the two
+ * groups `grouped` gives. Each peer has two bars: its requests per second
+ * against the best peer's, and its peak memory against the most any peer
+ * used. Each bar has its place in its group for its kind, and every bar in
+ * place 1 takes the accent colour: the most requests, and the least memory.
+ * A group whose PHP ran with its file check off says so under its heading.
  */
 import Bars from './Bars.astro'
-import { charts, overLeast, record } from '~/lib/compare'
+import { charts, grouped, overLeast, record } from '~/lib/compare'
 
 const number = (n: number) => Math.round(n).toLocaleString('en-US')
+const fileCheckNote = (labels: string[]) =>
+  `${labels.join(' and ')} ran with the file check turned off, because that is faster. A new file is then not live until the server reloads.`
 ---
 
 {
@@ -24,28 +28,37 @@ const number = (n: number) => Math.round(n).toLocaleString('en-US')
             {c.text} {c.concurrency.toLocaleString('en-US')} connections at once.
           </p>
           <Bars
-            bars={c.bars.flatMap((b) => [
-              {
-                label: b.label,
-                share: b.share,
-                best: b.best,
-                value: number(b.requestsPerSec),
-                figures: b.p99Ms === null ? 'requests per second' : `requests per second, p99 ${b.p99Ms.toFixed(1)} ms`,
-                above: b.memoryMiB !== null,
-              },
-              ...(b.memoryMiB === null
-                ? []
-                : [
-                    {
-                      label: '',
-                      share: most > 0 ? b.memoryMiB / most : 0,
-                      best: b.memoryMiB === least,
-                      value: `${b.memoryMiB.toFixed(0)} MiB`,
-                      compared: overLeast(b.memoryMiB, least, 'least', 'more'),
-                      figures: 'peak memory, less is better',
-                    },
-                  ]),
-            ])}
+            groups={grouped(c.bars).map((g) => {
+              const off = g.items.filter((b) => b.fileCheckOff).map((b) => b.label)
+              return {
+                title: g.title,
+                note: off.length > 0 ? fileCheckNote(off) : null,
+                bars: g.items.flatMap((b) => [
+                  {
+                    label: b.label,
+                    place: b.place,
+                    share: b.share,
+                    best: b.best,
+                    value: number(b.requestsPerSec),
+                    figures: b.p99Ms === null ? 'requests per second' : `requests per second, p99 ${b.p99Ms.toFixed(1)} ms`,
+                    above: b.memoryMiB !== null,
+                  },
+                  ...(b.memoryMiB === null
+                    ? []
+                    : [
+                        {
+                          label: '',
+                          place: b.memoryPlace!,
+                          share: most > 0 ? b.memoryMiB / most : 0,
+                          best: b.memoryPlace === 1,
+                          value: `${b.memoryMiB.toFixed(0)} MiB`,
+                          compared: overLeast(b.memoryMiB, least, 'least', 'more'),
+                          figures: 'peak memory, less is better',
+                        },
+                      ]),
+                ]),
+              }
+            })}
           />
         </section>
       )

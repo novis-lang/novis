@@ -1,0 +1,73 @@
+---
+/**
+ * The comparison page's charts for a server under load while something goes
+ * wrong, from rows of the feature table, split into the two groups `grouped`
+ * gives. `deploy` is the requests that failed or got a mixed page while a new
+ * version was copied in, against the most in the chart, and less is better.
+ * `memory` and `loop` are the requests answered while one runaway request ran
+ * beside the load, against the most in the chart. Every bar has its place in
+ * its group, and every one in place 1 takes the accent colour.
+ */
+import Bars from './Bars.astro'
+import { deploys, groupPlaces, grouped, record, runaways } from '~/lib/compare'
+
+export interface Props {
+  chart: 'deploy' | 'memory' | 'loop'
+}
+
+const { chart } = Astro.props
+const number = (n: number) => Math.round(n).toLocaleString('en-US')
+
+const groups = (() => {
+  if (chart === 'deploy') {
+    const wrong = deploys.map((d) => d.failed + d.mixed)
+    const most = Math.max(...wrong)
+    const place = groupPlaces(
+      deploys.map((d) => d.peer),
+      wrong,
+      true,
+    )
+    const bars = deploys.map((d, i) => ({
+      peer: d.peer,
+      label: d.label,
+      place: place[i]!,
+      share: most > 0 ? wrong[i]! / most : 0,
+      best: place[i] === 1,
+      value: number(wrong[i]!),
+      compared: '',
+      figures: `${number(d.failed)} failed, ${number(d.mixed)} mixed. Less is better.`,
+    }))
+    return grouped(bars).map((g) => ({ title: g.title, bars: g.items }))
+  }
+  const runs = runaways(chart)
+  const most = Math.max(...runs.map((r) => r.requests))
+  const place = groupPlaces(
+    runs.map((r) => r.peer),
+    runs.map((r) => r.requests),
+    false,
+  )
+  const bars = runs.map((r, i) => ({
+    peer: r.peer,
+    label: r.label,
+    place: place[i]!,
+    share: most > 0 ? r.requests / most : 0,
+    best: place[i] === 1,
+    value: number(r.requests),
+    figures: [
+      'requests answered',
+      `${number(r.failed)} failed`,
+      ...(r.p99Ms === null ? [] : [`p99 ${r.p99Ms.toFixed(1)} ms`]),
+      ...(r.running ? [] : ['the server crashed']),
+    ].join(', '),
+  }))
+  return grouped(bars).map((g) => ({ title: g.title, bars: g.items }))
+})()
+---
+
+{
+  record?.scenarios && groups.length > 0 ? (
+    <Bars groups={groups} />
+  ) : (
+    <p class="compare-empty">No run of the feature table is recorded yet.</p>
+  )
+}

@@ -8,9 +8,20 @@ import Machine from '@components/compare/Machine.astro'
 import CaseCharts from '@components/compare/CaseCharts.astro'
 import CoreCharts from '@components/compare/CoreCharts.astro'
 import FeatureTable from '@components/compare/FeatureTable.astro'
+import FaultCharts from '@components/compare/FaultCharts.astro'
 
 This page compares Novis with PHP, Bun and Go. Each language runs the same small web programs. One
 command measures all four on one machine, and anybody can run it.
+
+The four servers take a new version of a program in two different ways:
+
+- **Copy a new file and it is live:** Novis and PHP. You copy the new source files to the server,
+  and the next request uses them.
+- **Build and restart for each change:** Bun and Go. By default, Bun needs a restart for a new
+  version. Go needs a new build and a restart.
+
+Each chart shows these two groups apart. The place of a server counts inside its group. All bars in
+a chart use the same scale.
 
 ## How the test works
 
@@ -27,6 +38,43 @@ Each program is written the way the documentation of its language shows. Before 
 four servers must return the same answer for the same request. A server that returns a different
 answer gets no number.
 
+## When something goes wrong
+
+These tests send steady requests to each server while something goes wrong. The charts show what
+happened to those requests. The number in the circle is the server's place in its group, and place 1
+is the best result.
+
+### Deploying a new version
+
+The deploy test copies a new version of 200 source files into a running server. Requests arrive
+the whole time. A failed request is a request that gets an error instead of the page. A mixed page
+is built partly from old files and partly from new files. Less is better.
+
+<FaultCharts chart="deploy" />
+
+Novis uses the new files with no reload and no restart, and every request got a complete page. PHP
+checks for changed files by default, so this test runs no reload for PHP. PHP had no failed request,
+but some of its pages mixed old and new files. By default, Bun needs a restart to use the new files,
+and Go needs a new build and a restart. In this test, both failed requests during the restart.
+
+### Runaway requests
+
+A runaway request is a request that never ends, or one that uses more and more memory. Each test
+sends one runaway request while the steady requests run. Each chart shows how many of the steady
+requests were answered during the test. More is better.
+
+By default, Novis stops a request at 128 MB of memory or 30 seconds of CPU time. This test sets both
+in the `[limits]` table. PHP stops these requests with `max_execution_time` and `memory_limit`, and
+both are on by default. Bun and Go did not stop the runaway request.
+
+#### A request that uses too much memory
+
+<FaultCharts chart="memory" />
+
+#### A request that never ends
+
+<FaultCharts chart="loop" />
+
 ## Speed and memory
 
 The absolute numbers depend on the machine. A faster machine gives bigger numbers for all four. The
@@ -34,8 +82,11 @@ result is the relation between the four servers.
 
 Each server has two bars in each test. The first
 bar is requests per second, and the fastest server has the full bar. The second bar is peak memory,
-and the server that used the most memory has the full bar. The coloured bars are the best results:
-the most requests and the least memory.
+and the server that used the most memory has the full bar. The coloured bars are the best results
+in each group: the most requests and the least memory.
+
+The number in the circle before each bar is the server's place in its group. Two results closer
+than 3% get the same place, and the next place is skipped.
 
 This is the machine and the run:
 
@@ -70,8 +121,9 @@ So the Bun program starts one Bun process for each core itself.
 
 Each request runs the same loop in four parts. The test times one part alone, and then all four
 parts on four cores. Each language has two bars: the time for one part, and the time for all four
-parts. A shorter bar is faster, and the coloured bar is the fastest time for four parts. When the
-four parts run at the same time, both bars are about the same length.
+parts. A shorter bar is faster, and the coloured bar is the fastest time for four parts. Only the
+time for four parts has a place. When the four parts run at the same time, both bars are about the
+same length.
 
 <CoreCharts chart="one-request" />
 
@@ -102,11 +154,11 @@ promise for every program. Each result is one of five values:
 - **No**: the server does not do it.
 
 Most Novis settings that are off by default are off for security. A Novis program gets only the
-access that you give it. The details below say why a setting is off, for every language where the
-reason is known.
+access that you give it. The details on this page say why a setting is off, for every language
+where the reason is known.
 
 Click a result to see the four programs for that row. Click **See details** to read more about a
-row below the table. The table shows every result, also the rows where another language does better
+row on this page. The table shows every result, also the rows where another language does better
 than Novis.
 
 <FeatureTable />
@@ -125,13 +177,6 @@ session, environment variables and command line arguments. A reply from another 
 read from a database are outside data too. Novis calls these values tainted. A tainted value in an SQL string is a compile error, so
 the program never runs with it.
 
-### Runaway requests
-
-A runaway request is a request that never ends, or one that uses more and more memory. By default,
-Novis stops a request at 128 MB of memory or 30 seconds of CPU time. This test sets both in the
-`[limits]` table. PHP stops these requests with `max_execution_time` and `memory_limit`, and both are
-on by default.
-
 ### Many waiting requests
 
 PHP-FPM answers each request in its own worker process. By default, it starts at most 5 workers.
@@ -141,23 +186,11 @@ sets `pm.max_children` high enough for 1000 requests at the same time.
 ### Edited files
 
 Novis checks for edited source files while it runs. No setting turns this check off. PHP checks for
-edited files by default, with `opcache.validate_timestamps`. The speed tests above turn this check
-off, because PHP is faster without it. This test uses PHP's default.
+edited files by default, with `opcache.validate_timestamps`. Every test on this page runs PHP with
+this check on. Both servers use their default and check every 2 seconds.
 
 Bun shows an edit only when it
 runs with `bun --hot`. Go compiles the program, so you must build and start it again.
-
-### Deploying a new version
-
-The deploy test copies a new version of 200 source files into a running server. Requests arrive
-the whole time. A failed request is a request that gets an error instead of the page. A mixed reply
-is a page built partly from old files and partly from new files.
-
-By default, Bun needs a restart to use the new files, and Go needs a new build and a restart. In
-this test, both failed requests during the restart. PHP checks for changed files by default, so this
-test runs no reload for PHP. PHP had no failed request, but some of its pages mixed old and new
-files. Novis uses the new files with no reload and no restart, and every request got a complete
-page.
 
 ## Run it yourself
 

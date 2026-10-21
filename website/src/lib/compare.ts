@@ -22,6 +22,8 @@ interface PeerFigures {
   memory_peak_bytes: number | null
   /** How many responses had each status, over every repetition. */
   status_codes: Record<string, number>
+  /** The server settings the case ran with, as the run recorded them. */
+  settings?: Record<string, unknown>
 }
 
 type Verdict = 'built-in' | 'on-by-default' | 'one-setting' | 'your-code' | 'no'
@@ -106,22 +108,101 @@ function textOf<T>(table: Record<string, T>, id: string, what: string): T {
   return found
 }
 
+/**
+ * How a peer takes a new version, which every chart on the page is split by. A `files` peer serves a
+ * new source file once it is copied in, and a `build` peer needs a new build or a restart. The deploy
+ * row measures what each way costs under load. A chart counts its places inside each group, because
+ * the two groups pay for different things, and its bars share one scale, so nothing is hidden.
+ */
+export type Group = 'files' | 'build'
+
+const GROUPS: Group[] = ['files', 'build']
+
+const GROUP_TEXT: Record<Group, string> = {
+  files: 'Copy a new file and it is live',
+  build: 'Build and restart for each change',
+}
+
+const PEER_GROUP: Record<string, Group> = { nvs: 'files', php: 'files', bun: 'build', go: 'build' }
+
 export interface Peer {
   id: string
   label: string
+  group: Group
 }
 
 /** The peers in the record's order. */
-export const peers: Peer[] = record ? Object.entries(record.peers).map(([id, p]) => ({ id, label: p.label })) : []
+export const peers: Peer[] = record
+  ? Object.entries(record.peers).map(([id, p]) => ({ id, label: p.label, group: textOf(PEER_GROUP, id, 'peer') }))
+  : []
+
+const groupOf = (peer: string): Group => textOf(PEER_GROUP, peer, 'peer')
+
+/** `items` split by their peer's group, in `GROUPS` order, leaving out a group with no item. */
+export function grouped<T extends { peer: string }>(items: T[]): { group: Group; title: string; items: T[] }[] {
+  return GROUPS.flatMap((group) => {
+    const inGroup = items.filter((t) => groupOf(t.peer) === group)
+    return inGroup.length === 0 ? [] : [{ group, title: GROUP_TEXT[group], items: inGroup }]
+  })
+}
+
+/**
+ * How close two figures are when the page counts them as the same result: the run's margin of error,
+ * which the comparison page states as about 3%.
+ */
+export const MARGIN = 0.03
+
+/**
+ * Each figure's place in its test, 1 for the best, in the order of `values`. A figure within `MARGIN`
+ * of the first figure of a place shares that place, and the next place counts the shared ones:
+ * 1, 1, 3. The first figure, not the last one added, is the measure, so a run of close figures
+ * cannot carry a place further than the margin.
+ */
+export function places(values: number[], lessIsBetter: boolean): number[] {
+  const order = values.map((_, i) => i).sort((a, b) => (lessIsBetter ? values[a]! - values[b]! : values[b]! - values[a]!))
+  const place = new Array<number>(values.length)
+  let first = 0
+  let firstPlace = 0
+  order.forEach((i, rank) => {
+    const v = values[i]!
+    if (rank === 0 || Math.abs(v - first) > Math.abs(first) * MARGIN) {
+      first = v
+      firstPlace = rank + 1
+    }
+    place[i] = firstPlace
+  })
+  return place
+}
+
+/** `places` counted inside each peer's group, where `peerIds[i]` is the peer of `values[i]`. */
+export function groupPlaces(peerIds: string[], values: number[], lessIsBetter: boolean): number[] {
+  const place = new Array<number>(values.length)
+  for (const group of GROUPS) {
+    const at = peerIds.flatMap((id, i) => (groupOf(id) === group ? [i] : []))
+    const inGroup = places(at.map((i) => values[i]!), lessIsBetter)
+    at.forEach((i, k) => (place[i] = inGroup[k]!))
+  }
+  return place
+}
 
 export interface Bar {
+  peer: string
   label: string
   requestsPerSec: number
   /** This peer's requests per second over the best peer's in the case, from 0 to 1. */
   share: number
+  /** The peer's place in its group by requests per second, from `groupPlaces`. */
+  place: number
   best: boolean
   p99Ms: number | null
   memoryMiB: number | null
+  /** The peer's place in its group by peak memory among the peers with a figure, or `null` with no figure. */
+  memoryPlace: number | null
+  /**
+   * The case ran PHP with `opcache.validate_timestamps` off, so a copied file was not live. The speed
+   * cases turn it off because PHP is faster without it, and the page says so beside PHP's group.
+   */
+  fileCheckOff: boolean
 }
 
 export interface CaseChart {
@@ -132,23 +213,38 @@ export interface CaseChart {
   bars: Bar[]
 }
 
-/** Every recorded case, each peer's throughput against the best peer's in that case. */
+/**
+ * Every recorded case, each peer's throughput against the best peer's in that case. Places are counted
+ * inside each group, and every peer in place 1 of its group is `best`, so the accent colour and the
+ * place agree.
+ */
 export const charts: CaseChart[] = record
   ? Object.entries(record.cases).map(([id, c]) => {
       const best = Math.max(...Object.values(c.peers).map((p) => p.requests_per_sec))
-      const bars = peers
-        .filter((p) => c.peers[p.id] !== undefined)
-        .map((p) => {
-          const f = c.peers[p.id]!
-          return {
-            label: p.label,
-            requestsPerSec: f.requests_per_sec,
-            share: best > 0 ? f.requests_per_sec / best : 0,
-            best: f.requests_per_sec === best,
-            p99Ms: f.p99_ms,
-            memoryMiB: f.memory_peak_bytes === null ? null : f.memory_peak_bytes / 1048576,
-          }
-        })
+      const figures = peers.flatMap((p) => (c.peers[p.id] === undefined ? [] : [{ peer: p.id, label: p.label, f: c.peers[p.id]! }]))
+      const speedPlaces = groupPlaces(
+        figures.map((x) => x.peer),
+        figures.map(({ f }) => f.requests_per_sec),
+        false,
+      )
+      const withMemory = figures.filter(({ f }) => f.memory_peak_bytes !== null)
+      const memoryPlaces = groupPlaces(
+        withMemory.map((x) => x.peer),
+        withMemory.map(({ f }) => f.memory_peak_bytes!),
+        true,
+      )
+      const bars = figures.map(({ peer, label, f }, i) => ({
+        peer,
+        label,
+        requestsPerSec: f.requests_per_sec,
+        share: best > 0 ? f.requests_per_sec / best : 0,
+        place: speedPlaces[i]!,
+        best: speedPlaces[i] === 1,
+        p99Ms: f.p99_ms,
+        memoryMiB: f.memory_peak_bytes === null ? null : f.memory_peak_bytes / 1048576,
+        memoryPlace: f.memory_peak_bytes === null ? null : memoryPlaces[withMemory.findIndex((m) => m.peer === peer)]!,
+        fileCheckOff: f.settings?.['opcache.validate_timestamps'] === '0',
+      }))
       return { id, ...textOf(CASE_TEXT, id, 'case'), concurrency: c.concurrency, bars }
     })
   : []
@@ -197,17 +293,57 @@ export function overLeast(value: number, least: number, best: string, more: stri
 }
 
 /** The evidence a row recorded for each peer, in `peers` order, skipping a peer the row has no result for. */
-function evidenceOf(row: string): { label: string; evidence: Record<string, unknown> }[] {
+function evidenceOf(row: string): { peer: string; label: string; evidence: Record<string, unknown> }[] {
   const r = record?.scenarios?.rows[row]
   if (r === undefined) return []
   return peers.flatMap((p) => {
     const evidence = r.peers[p.id]?.evidence
-    return evidence === undefined ? [] : [{ label: p.label, evidence }]
+    return evidence === undefined ? [] : [{ peer: p.id, label: p.label, evidence }]
   })
+}
+
+/** What the `deploy` row's load saw while a new version of 200 files was copied in. */
+export interface Deploy {
+  peer: string
+  label: string
+  failed: number
+  /** Replies built partly from the old files and partly from the new ones. */
+  mixed: number
+}
+
+export const deploys: Deploy[] = evidenceOf('deploy').map(({ peer, label, evidence: e }) => ({
+  peer,
+  label,
+  failed: e.failed_requests as number,
+  mixed: e.mixed_replies as number,
+}))
+
+/** What the steady load of the `memory` or `loop` row saw while one runaway request ran beside it. */
+export interface Runaway {
+  peer: string
+  label: string
+  /** The requests answered while the load ran, which lasts the same time for every peer. */
+  requests: number
+  failed: number
+  p99Ms: number | null
+  /** The server was still running after the test. */
+  running: boolean
+}
+
+export function runaways(row: 'memory' | 'loop'): Runaway[] {
+  return evidenceOf(row).map(({ peer, label, evidence: e }) => ({
+    peer,
+    label,
+    requests: e.requests as number,
+    failed: e.failed_requests as number,
+    p99Ms: (e.p99_ms as number | null) ?? null,
+    running: e.backend_running as boolean,
+  }))
 }
 
 /** A peer's figure with one core and with four, as the `cores` and `parallel` rows measured it. */
 export interface OneAndFour {
+  peer: string
   label: string
   /** Requests per second with one core for `cores`, the seconds one part took for `parallel`. */
   one: number
@@ -218,7 +354,8 @@ export interface OneAndFour {
 }
 
 /** The `cores` row: the HTML page case's throughput with one core and with four, for every peer. */
-export const manyRequests: OneAndFour[] = evidenceOf('cores').map(({ label, evidence: e }) => ({
+export const manyRequests: OneAndFour[] = evidenceOf('cores').map(({ peer, label, evidence: e }) => ({
+  peer,
   label,
   one: e.requests_per_sec_1_cpu as number,
   four: e.requests_per_sec_4_cpus as number,
@@ -228,7 +365,8 @@ export const manyRequests: OneAndFour[] = evidenceOf('cores').map(({ label, evid
 /** The `parallel` row: one request's work as one part and as four parts, for each peer that has a way to run parts at once. */
 export const oneRequest: OneAndFour[] = evidenceOf('parallel')
   .filter(({ evidence: e }) => e.way !== null)
-  .map(({ label, evidence: e }) => ({
+  .map(({ peer, label, evidence: e }) => ({
+    peer,
     label,
     one: e.seconds_1_part as number,
     four: e.seconds_4_parts as number,

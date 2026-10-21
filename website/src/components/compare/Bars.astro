@@ -1,46 +1,72 @@
 ---
 /**
- * One bar chart on the comparison page: a row per bar with its label, how it
- * compares (its length as a percentage unless the caller words it) left of
- * the bar, the figure it shows right of it, and a line of text
- * under it, smaller. A bar with `best` takes the accent colour. A row with an
- * empty label continues the peer named above it, and a bar with `above`
- * prints its text above it, so two bars of one peer sit together between
- * their two lines.
+ * One bar chart on the comparison page, in groups that each start with a
+ * heading line and an optional note under it. All groups share one grid, so
+ * their bars line up. Each bar's row has its place in its group (1 for the
+ * best, empty for a bar that is not ranked), its label, how it compares (its
+ * length as a percentage unless the caller words it) left of the bar, the
+ * figure it shows right of it, and a line of text under it, smaller. A bar
+ * with `best` takes the accent colour. A row with an empty label continues
+ * the peer named above it, and a bar with `above` prints its text above it,
+ * so two bars of one peer sit together between their two lines.
  */
 export interface Props {
-  bars: {
-    label: string
-    /** The bar's length, from 0 to 1. */
-    share: number
-    best: boolean
-    /** The figure printed at the end of the bar. */
-    value: string
-    /** The line of text printed under the bar, or above it with `above`. */
-    figures: string
-    above?: boolean
-    /** The text beside the value. Without it, the bar's length as a percentage. */
-    compared?: string
+  groups: {
+    title: string
+    /** A line of text under the heading, or none. */
+    note?: string | null
+    bars: Bar[]
   }[]
 }
 
-const { bars } = Astro.props
+interface Bar {
+  label: string
+  /** The bar's place in its group, 1 for the best, or none for a bar that is not ranked. */
+  place?: number
+  /** The bar's length, from 0 to 1. */
+  share: number
+  best: boolean
+  /** The figure printed at the end of the bar. */
+  value: string
+  /** The line of text printed under the bar, or above it with `above`. */
+  figures: string
+  above?: boolean
+  /** The text beside the value. Without it, the bar's length as a percentage. */
+  compared?: string
+}
+
+const { groups } = Astro.props
 const percent = (share: number) => `${Math.round(share * 100)}%`
 ---
 
 <ul class="compare-bars">
   {
-    bars.map((b) => (
-      <li class:list={{ best: b.best, paired: b.above }}>
-        {b.above && <span class="figures above">{b.figures}</span>}
-        <span class="peer">{b.label}</span>
-        <span class="percent">{b.compared ?? percent(b.share)}</span>
-        <span class="track">
-          <span class="bar" style={`width: ${(Math.min(b.share, 1) * 100).toFixed(1)}%`} />
-        </span>
-        <span class="value">{b.value}</span>
-        {!b.above && <span class="figures">{b.figures}</span>}
-      </li>
+    groups.map((g) => (
+      <>
+        <li class="group">
+          <span class="title">{g.title}</span>
+          {g.note && <span class="note">{g.note}</span>}
+        </li>
+        {g.bars.map((b) => (
+          <li class:list={{ best: b.best, paired: b.above }}>
+            {b.above && <span class="figures above">{b.figures}</span>}
+            <span class="place">
+              {b.place !== undefined && (
+                <span class="badge" title={`Place ${b.place}`}>
+                  {b.place}
+                </span>
+              )}
+            </span>
+            <span class="peer">{b.label}</span>
+            <span class="percent">{b.compared ?? percent(b.share)}</span>
+            <span class="track">
+              <span class="bar" style={`width: ${(Math.min(b.share, 1) * 100).toFixed(1)}%`} />
+            </span>
+            <span class="value">{b.value}</span>
+            {!b.above && <span class="figures">{b.figures}</span>}
+          </li>
+        ))}
+      </>
     ))
   }
 </ul>
@@ -50,15 +76,53 @@ const percent = (share: number) => `${Math.round(share * 100)}%`
     list-style: none;
     padding: 0;
     display: grid;
-    grid-template-columns: auto auto 1fr auto;
+    grid-template-columns: auto auto auto 1fr auto;
     gap: 0.25rem 0.75rem;
     align-items: center;
   }
   .compare-bars li {
     display: contents;
   }
-  .compare-bars .peer {
+  .compare-bars li.group {
+    display: block;
+    grid-column: 1 / -1;
+    margin-top: 0.75rem;
+  }
+  .compare-bars li.group:first-child {
+    margin-top: 0;
+  }
+  .compare-bars .group .title {
+    display: block;
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+  .compare-bars .group .note {
+    display: block;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .compare-bars .place {
     grid-column: 1;
+  }
+  .compare-bars .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 999px;
+    background: var(--sl-color-gray-6);
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .compare-bars .best .badge {
+    background: var(--sl-color-accent);
+    color: var(--sl-color-black);
+  }
+  .compare-bars .peer {
+    grid-column: 2;
     font-weight: 600;
   }
   .compare-bars .track {
@@ -88,7 +152,7 @@ const percent = (share: number) => `${Math.round(share * 100)}%`
     white-space: nowrap;
   }
   .compare-bars .figures {
-    grid-column: 3 / 5;
+    grid-column: 4 / 6;
     margin-top: -0.25rem;
     margin-bottom: 0.5rem;
     font-size: var(--sl-text-xs);
