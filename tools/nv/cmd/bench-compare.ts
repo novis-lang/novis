@@ -63,8 +63,11 @@ export interface PeerCtx {
   memory?: string | undefined;
   /** The folder in the container the backend serves its program from. Unset is `/app`. */
   appDir?: string | undefined;
-  /** `rw` for a row that changes the served folder from inside the container. Unset is `ro`. */
-  mount?: "ro" | "rw" | undefined;
+  /**
+   * The backend serves the `site` volume, mounted read-write, which `deploy/deploy.sh` writes from inside
+   * the container. Unset serves `case`'s folder, mounted read-only.
+   */
+  site?: boolean | undefined;
   /** The part count of a deploy row, which the PHP, Bun and Go programs read from `DEPLOY_PARTS`. */
   parts?: number | undefined;
   /** An nginx config under `nginx/` in place of the peer's own, for a row that serves differently. */
@@ -146,8 +149,9 @@ export function stackEnv(peer: Peer, ctx: PeerCtx): Record<string, string> {
     CASE: ctx.case,
     BACKEND_CPUS: String(ctx.cpus),
     BACKEND_MEMORY: ctx.memory ?? "0",
+    APP_SOURCE: ctx.site === true ? "site" : `./${ctx.tree}/${ctx.case}`,
     APP_DIR: ctx.appDir ?? "/app",
-    APP_MOUNT_MODE: ctx.mount ?? "ro",
+    APP_MOUNT_MODE: ctx.site === true ? "rw" : "ro",
     NGINX_CONF: ctx.nginx ?? peer.nginx,
     NGINX_PORT: String(peer.port),
     ...(ctx.parts === undefined ? {} : { DEPLOY_PARTS: String(ctx.parts) }),
@@ -394,28 +398,24 @@ export interface Scenario {
   case: string;
   /** `false` for a row that only checks a program, so no stack is brought up. */
   serves?: boolean;
-  /** Serve a fresh copy of the folder under `generated/`, for a row that edits the program. */
+  /** Serve a fresh copy of the folder under `generated/`, for a row that edits the program from the host. */
   copy?: boolean;
-  /** Files written into the copy before the stack comes up, by path in it, for a row whose tree is generated. */
-  generate?(): Record<string, string>;
   /** The backend container's memory cap, for a row whose program allocates without end. */
   memory?: string;
   /** The backend's cpus, for a row that needs more than the run's budget. */
   cpus?: number;
   /** The request a timed row sends to the row's own program, where it does not time a case in `cases/`. */
   timedCase?: Case;
-  /** The folder in the container the backend serves, `rw` mounted, and the deploy part count, for a deploy row. */
+  /** The folder in the container the backend serves, and the deploy part count, for a deploy row. */
   appDir?: string;
-  mount?: "rw";
   parts?: number;
+  /**
+   * A deploy row's layout. The backend serves the `site` volume, and `deploy/deploy.sh init` writes
+   * version 1 into it in a one-off container before the stack comes up. A compiled peer runs no init.
+   */
+  site?: DeployLayout;
   /** An nginx config per peer id in place of the peer's own. */
   nginx?: Record<string, string>;
-  /**
-   * Shell scripts run over the generated folder in a one-off backend container: `before` the stack comes
-   * up and `after` the probe. They make and remove what the host cannot, such as a symlink on a Windows drive.
-   */
-  before?: string;
-  after?: string;
   /**
    * Fresh stacks the row runs against each peer, one probe each, merged by `merge`. The runs interleave
    * the peers (run 1 of every peer, then run 2), so a slow stretch of the shared host lands on all of them.
@@ -788,17 +788,40 @@ export const DEPLOY_REQUEST_MS = 5_000;
 /** Fresh stacks each deploy row runs against each peer. Where a mixed reply comes from depends on timing, so one copy proves little. */
 export const DEPLOY_RUNS = 3;
 
-/**
- * The `deploy-switch` row's link: made before the stack comes up, switched in one rename inside the app
- * container after the whole of `releases/2/` is written, and removed after the probe. A Windows drive
- * cannot hold a symlink the containers read, so the container makes it.
- */
-export const DEPLOY_LINK = "ln -s releases/1 /app/current";
-export const DEPLOY_SWITCH = "ln -s releases/2 /app/next && mv -T /app/next /app/current";
-
 /** The pause between the last file of a release and the link switch to it, in the `deploy-switch` row. */
 export const DEPLOY_SETTLE_MS = 2_000;
-export const DEPLOY_UNLINK = "rm -f /app/current /app/next";
+
+/**
+ * How a deploy row lays out its program: `flat` serves `/app` and replaces its parts in place, `release`
+ * serves the link `/app/current` to `/app/releases/N/` and switches it in one rename.
+ */
+export type DeployLayout = "flat" | "release";
+
+/**
+ * Where the compose files mount `benches/compare/deploy/deploy.sh` in the backend container. The script
+ * writes the deploy rows' files there, on the `site` volume, and its header says why.
+ */
+export const DEPLOY_SCRIPT = "/srv/deploy.sh";
+
+/** `deploy.sh`'s arguments for one peer: the command, its part extension, count and layout, then the command's own. */
+export function deployCommand(command: "init" | "copy" | "switch", ext: string, parts: number, layout: DeployLayout, ...rest: string[]): string[] {
+  return [DEPLOY_SCRIPT, command, ext, String(parts), layout, ...rest];
+}
+
+/**
+ * The `docker compose` arguments that write version 1 before the stack comes up: a one-off app container
+ * with the row's committed folder at `/src`. `sh` is the entrypoint because Novis's image starts `nvs`.
+ */
+export function deployInitRun(source: string, ext: string, parts: number, layout: DeployLayout): string[] {
+  return ["run", "--rm", "--no-deps", "--entrypoint", "sh", "-v", `${source}:/src:ro`, "app", ...deployCommand("init", ext, parts, layout)];
+}
+
+/** The copy step of version 2, run in the backend container, with `DEPLOY_PAUSE_MS` between two files. */
+export const deployCopyStep = (ext: string, parts: number, layout: DeployLayout) =>
+  ["sh", ...deployCommand("copy", ext, parts, layout, "2", String(DEPLOY_PAUSE_MS / 1000))];
+
+/** The `deploy-switch` row's switch of `/app/current` to release 2, in one rename in the backend container. */
+export const deploySwitchStep = (ext: string, parts: number) => ["sh", ...deployCommand("switch", ext, parts, "release", "2")];
 
 /**
  * How a peer deploys a new version at its defaults once the files are in place: a command run in the
@@ -817,47 +840,6 @@ export const DEPLOY_WAYS: Record<string, DeployWay> = {
 
 /** The extension of the parts each peer's program reads. Go's parts are compiled into its image. */
 export const DEPLOY_EXT: Record<string, string> = { nvs: "nvs", php: "php", bun: "ts" };
-
-/** One part's text at `version`, in the language of `ext`. */
-const PART_TEXT: Record<string, (version: string) => string> = {
-  nvs: (v) => `<?nvs\necho "${v}";\n`,
-  php: (v) => `<?php echo "${v}";\n`,
-  ts: (v) => `export const version = "${v}";\n`,
-};
-
-/** A part's file name: its number padded to the digits of the highest one, so `p000` for 200 parts and `p0000` for 2000. */
-const partName = (i: number, count: number) => `p${String(i).padStart(String(count - 1).length, "0")}`;
-
-/** The part files one peer's program reads, by path in the row's folder under `base`, at `version`. */
-export function deployParts(version: string, ext: string, count = DEPLOY_PARTS, base = ""): Record<string, string> {
-  const files: Record<string, string> = {};
-  for (let i = 0; i < count; i++) files[`${base}parts/${partName(i, count)}.${ext}`] = PART_TEXT[ext]!(version);
-  return files;
-}
-
-/** Novis's entry: `require` takes a path written as literal text, so it names each part on its own line. */
-export function deployEntry(count = DEPLOY_PARTS): string {
-  const lines = ["<?nvs", `// Prints the version of each of the ${count} parts. The driver writes this file and the parts.`];
-  for (let i = 0; i < count; i++) lines.push(`require 'parts/${partName(i, count)}.nvs';`);
-  lines.push('echo "\\n";', "");
-  return lines.join("\n");
-}
-
-/** Each peer's entry program in a release, by the extension of its parts: Novis's is written, the others are the committed ones. */
-const DEPLOY_ENTRY: Record<string, { file: string; text(count: number): string }> = {
-  nvs: { file: "main.nvs", text: deployEntry },
-  php: { file: "index.php", text: () => readFileSync(join(COMPARE_DIR, "scenarios", "deploy", "index.php"), "utf8") },
-  ts: { file: "server.ts", text: () => readFileSync(join(COMPARE_DIR, "scenarios", "deploy", "server.ts"), "utf8") },
-};
-
-/** A whole release of one peer's program under `base`: its entry and its parts at `version`. */
-export function deployRelease(version: string, ext: string, count: number, base: string): Record<string, string> {
-  const entry = DEPLOY_ENTRY[ext]!;
-  return { [`${base}${entry.file}`]: entry.text(count), ...deployParts(version, ext, count, base) };
-}
-
-/** Every peer's release 1 under `base`, for a row whose tree is generated. */
-const allReleases = (count: number, base: string) => Object.assign({}, ...Object.values(DEPLOY_EXT).map((ext) => deployRelease("1", ext, count, base)));
 
 /**
  * What the deploy rows' checking load saw: every reply, each failed (an exception or a status but
@@ -1008,11 +990,12 @@ async function checkedLoad(p: Probe, deploying: Deploying, isNew: (body: string)
 }
 
 /**
- * One deploy run. The checking load starts, and `DEPLOY_START_MS` later the driver writes version 2:
- * the parts over the served ones, or with `release` the whole of `releases/2/` and then the link switch.
- * Then the peer's own step runs. Go compiles its parts into the image, so it writes nothing and only restarts.
+ * One deploy run. The checking load starts, and `DEPLOY_START_MS` later `deploy.sh` writes version 2 in
+ * the backend container: the parts over the served ones, or in the `release` layout the whole of
+ * `releases/2/` and then the link switch. Then the peer's own step runs. Go compiles its parts into the
+ * image, so it writes nothing and only restarts.
  */
-async function deployProbe(p: Probe, parts: number, release: boolean): Promise<RowResult> {
+async function deployProbe(p: Probe, parts: number, layout: DeployLayout): Promise<RowResult> {
   const { way, setting } = deployStep(p.peer);
   const first = ok(await p.get("/"), "the first version").body.trim();
   if (first !== "1".repeat(parts)) throw new Fail(`the first version: body ${pyRepr(first.slice(0, 200))}`);
@@ -1023,22 +1006,16 @@ async function deployProbe(p: Probe, parts: number, release: boolean): Promise<R
   try {
     await Bun.sleep(DEPLOY_START_MS);
     const copyStart = performance.now();
+    const ext = DEPLOY_EXT[p.peer]!;
     if (!p.compiled) {
-      const ext = DEPLOY_EXT[p.peer]!;
-      const files = release ? deployRelease("2", ext, parts, "releases/2/") : deployParts("2", ext, parts);
-      for (const [name, text] of Object.entries(files)) {
-        mkdirSync(dirname(join(p.dir, name)), { recursive: true });
-        writeFileSync(join(p.dir, name), text);
-        await Bun.sleep(DEPLOY_PAUSE_MS);
-      }
+      const copied = await p.step(deployCopyStep(ext, parts, layout));
+      if (copied.code !== 0) throw new Fail(`the copy: ${copied.output}`);
     }
     copySeconds = Number(((performance.now() - copyStart) / 1000).toFixed(1));
-    if (release && !p.compiled) {
-      // A deploy tool switches the link once the upload is complete. The pause also lets Docker
-      // Desktop's file sharing show the host's new files to every container before the link points
-      // at them, so a reply that misses a file measures the share and not the server.
+    if (layout === "release" && !p.compiled) {
+      // A deploy tool switches the link once the upload is complete.
       await Bun.sleep(DEPLOY_SETTLE_MS);
-      const switched = await p.step(["sh", "-c", DEPLOY_SWITCH]);
+      const switched = await p.step(deploySwitchStep(ext, parts));
       if (switched.code !== 0) throw new Fail(`the link switch: ${switched.output}`);
     }
     if (way !== undefined) {
@@ -1054,27 +1031,18 @@ async function deployProbe(p: Probe, parts: number, release: boolean): Promise<R
   return deployResult(await load, copySeconds, way, p.compiled, setting);
 }
 
-/** One of the three deploy rows: `parts` part files, served from a `current` link to a release with `release`. */
-function deployRow(id: string, parts: number, release: boolean): Scenario {
+/** One of the three deploy rows: `parts` part files, served from a `current` link to a release in the `release` layout. */
+function deployRow(id: string, parts: number, layout: DeployLayout): Scenario {
   return {
     id,
     tree: "scenarios",
     case: "deploy",
-    copy: true,
+    site: layout,
     parts,
     runs: DEPLOY_RUNS,
     merge: mergeDeploys,
-    ...(release
-      ? {
-          appDir: "/app/current",
-          mount: "rw" as const,
-          nginx: { php: "fastcgi-switch.conf" },
-          before: DEPLOY_LINK,
-          after: DEPLOY_UNLINK,
-          generate: () => allReleases(parts, "releases/1/"),
-        }
-      : { generate: () => Object.assign({ "main.nvs": deployEntry(parts) }, ...Object.values(DEPLOY_EXT).map((ext) => deployParts("1", ext, parts))) }),
-    probe: (p) => deployProbe(p, parts, release),
+    ...(layout === "release" ? { appDir: "/app/current", nginx: { php: "fastcgi-switch.conf" } } : {}),
+    probe: (p) => deployProbe(p, parts, layout),
   };
 }
 
@@ -1254,9 +1222,9 @@ export const SCENARIOS: Scenario[] = [
       return configResult(null, await secondsUntil(p, change.applied), change.reload.name);
     },
   },
-  deployRow("deploy", DEPLOY_PARTS, false),
-  deployRow("deploy-big", DEPLOY_BIG_PARTS, false),
-  deployRow("deploy-switch", DEPLOY_PARTS, true),
+  deployRow("deploy", DEPLOY_PARTS, "flat"),
+  deployRow("deploy-big", DEPLOY_BIG_PARTS, "flat"),
+  deployRow("deploy-switch", DEPLOY_PARTS, "release"),
   {
     id: "cores",
     tree: "scenarios",
@@ -1508,6 +1476,7 @@ const TUNABLES = [
   join(COMPARE_DIR, "nginx", "fastcgi.conf"),
   join(COMPARE_DIR, "nginx", "fastcgi-switch.conf"),
   join(COMPARE_DIR, "bun", "serve.ts"),
+  join(COMPARE_DIR, "deploy", "deploy.sh"),
   join(COMPARE_DIR, "go", "Dockerfile"),
   PHP_INI,
   FILE_CHECK_INI,
@@ -1692,24 +1661,19 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
       },
     });
   }
-  const own = s.copy === true && peer.compiled !== true;
-  if (own) {
+  if (s.copy === true && peer.compiled !== true) {
     rmSync(join(GENERATED, s.case), { recursive: true, force: true });
     cpSync(join(COMPARE_DIR, s.tree, s.case), join(GENERATED, s.case), { recursive: true });
-    for (const [path, text] of Object.entries(s.generate?.() ?? {})) {
-      mkdirSync(dirname(join(GENERATED, s.case, path)), { recursive: true });
-      writeFileSync(join(GENERATED, s.case, path), text);
-    }
     ctx = { ...ctx, tree: "generated" };
   }
   const env = stackEnv(peer, ctx);
   const stack = stackPath(peer);
   peer.prepare?.(ctx);
-  const shell = (script: string) => compose(stack, ["run", "--rm", "--no-deps", "--entrypoint", "sh", "app", "-c", script], env, true);
   try {
-    if (own && s.before !== undefined) {
-      const done = shell(s.before);
-      if (done.code !== 0) throw new Error(`${s.before}: ${done.stdout}${done.stderr}`);
+    if (s.site !== undefined && peer.compiled !== true) {
+      const init = deployInitRun(join(COMPARE_DIR, s.tree, s.case), DEPLOY_EXT[peer.id]!, s.parts ?? DEPLOY_PARTS, s.site);
+      const done = compose(stack, init, env, true);
+      if (done.code !== 0) throw new Error(`deploy.sh init: ${done.stdout}${done.stderr}`);
     }
     if (s.serves !== false) up(stack, env, "app", "nginx");
     return await s.probe!({
@@ -1738,9 +1702,7 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
   } catch (e) {
     throw new Fail(`${peer.label}, row ${s.id}: ${messageOf(e)}\n${peer.id} said:\n${logsOf(stack, "app", env)}`);
   } finally {
-    // A container removes what a container made, since the host may not delete a container's symlink on a
-    // Windows drive. `compose` never throws, so this cannot hide the probe's own error.
-    if (own && s.after !== undefined) shell(s.after);
+    // `down` removes the `site` volume a deploy row wrote, too.
     down(stack, env);
   }
 }
@@ -1828,6 +1790,22 @@ function help(): string {
 /** Connections a probed row's stack is sized for: a probe puts no load on the backend. A timed row uses its case's. */
 const SCENARIO_CONCURRENCY = 8;
 
+/** What one peer's stack is started with for row `s`, at a backend budget of `cpus` unless the row names its own. */
+export function scenarioCtx(s: Scenario, peer: Peer, cpus: number, commit: string): PeerCtx {
+  return {
+    cpus: s.cpus ?? cpus,
+    concurrency: SCENARIO_CONCURRENCY,
+    tree: s.tree,
+    case: s.case,
+    commit,
+    memory: s.memory,
+    appDir: s.appDir,
+    site: s.site !== undefined,
+    parts: s.parts,
+    nginx: s.nginx?.[peer.id],
+  };
+}
+
 /** `--scenarios`: every row against every peer, one fresh stack per pair, one line per row, then the record. */
 async function scenarios(o: Options, cpus: number, commit: string, load: Load): Promise<number> {
   if (o.record !== null && o.row !== null) throw new Fail("--record keeps every row of one run; drop --row or --record");
@@ -1845,19 +1823,7 @@ async function scenarios(o: Options, cpus: number, commit: string, load: Load): 
       for (const peer of PEERS) {
         if (run > 1 && s.fixed?.[peer.id] !== undefined) continue;
         console.log(`  ${s.id}: ${peer.label}${runs > 1 ? `, run ${run} of ${runs}` : ""} ...`);
-        const ctx: PeerCtx = {
-          cpus: s.cpus ?? cpus,
-          concurrency: SCENARIO_CONCURRENCY,
-          tree: s.tree,
-          case: s.case,
-          commit,
-          memory: s.memory,
-          appDir: s.appDir,
-          mount: s.mount,
-          parts: s.parts,
-          nginx: s.nginx?.[peer.id],
-        };
-        passes.get(peer.id)!.push(await scenarioPass(peer, s, ctx, load));
+        passes.get(peer.id)!.push(await scenarioPass(peer, s, scenarioCtx(s, peer, cpus, commit), load));
       }
     }
     const byPeer = new Map<string, RowResult>();

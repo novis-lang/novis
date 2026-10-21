@@ -52,6 +52,12 @@ The number in the circle before a bar is the server's place, and place 1 is the 
 coloured bars are the best results. The margin of error is about 3%. Two results closer than that
 get the same place, and the next place is skipped.
 
+Every number is the middle result of several runs. Each speed test runs 5 times, and the runs take
+turns between the four servers. The tests in "When something goes wrong" run 3 times each. A slow
+moment on the machine then affects all four servers in the same way.
+
+Novis's bars have a border, so you can find them quickly.
+
 ## Speed and memory
 
 Each server has two bars in each test. The first bar is requests per second, and the fastest server
@@ -124,20 +130,49 @@ The four servers take a new version of a program in two different ways:
 - **Build and restart:** Bun and Go. The server loads new code only when it restarts. Go also needs
   a new build first.
 
-The chart shows the two groups in separate boxes, and the place counts inside each box.
+Each chart shows the two groups in separate boxes, and the place counts inside each box.
 
-The test copies a new version of 200 source files into a running server. Requests arrive the whole
-time. A failed request is a request that gets an error instead of the page. A mixed page is built
-partly from old files and partly from new files. Each bar is every request a server got during the
-test. The number at the end is the share of complete pages.
+Each test puts a new version of a program on a running server. Requests arrive the whole time, and
+the test checks every page it gets back. A failed request is a request that gets an error instead of
+the page. A mixed page is built partly from old files and partly from new files. Each bar is every
+request a server got during the test. The number at the end is the share of complete pages.
+
+#### A small deploy
+
+The new version is 200 source files. They are copied over the old files, one after another, which
+takes about 2 seconds.
 
 <FaultCharts chart="deploy" />
 
-Novis uses the new files with no reload and no restart, and every request got a complete page. PHP
-checks for changed files by default, so this test runs no reload for PHP. PHP had no failed request
-and no mixed page in this run. PHP checks each file on its own, so a page can mix old and new files
-while they are copied. By default, Bun needs a restart to use the new files, and Go needs a new
-build and a restart. In this test, both failed requests during the restart.
+Novis waits until no file has changed for 1 second. Then it switches to the whole new program at
+once. In this test, it used the new version 1.3 seconds after the copy, and every page was
+complete. PHP had no failed request, but 45% of its pages mixed old and new files. PHP checks each
+file on its own, so during the copy some files are new and others are still old. Bun and Go need a
+restart, and some requests failed during each restart.
+
+#### A big deploy
+
+The new version is 2,000 source files, copied the same way. This takes about 20 seconds.
+
+<FaultCharts chart="deploy-big" />
+
+Novis used the new version 3.3 seconds after the copy, and every page was complete. PHP mixed old
+and new files in 91% of its pages. The copy took longer on PHP's server, because the copy and PHP's
+workers share the one CPU core. Bun and Go failed requests during the restart, as in the small
+deploy.
+
+#### Switching to a new release
+
+Many teams deploy a new version this way. The new version is copied to its own folder first. When it
+is complete, a link named `current` is switched from the old folder to the new one. The server reads
+the program through that link. For PHP, nginx uses `$realpath_root`, as the PHP deploy tools
+recommend.
+
+<FaultCharts chart="deploy-switch" />
+
+Novis and PHP had no failed request and no mixed page. For PHP, switching a link is the safe way to
+deploy. Novis is also safe when you copy the new files over the old ones. Bun and Go still need a
+restart.
 
 ### Runaway requests
 

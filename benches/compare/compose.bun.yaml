@@ -28,9 +28,10 @@ services:
       DEPLOY_PARTS: ${DEPLOY_PARTS:-}
 
     volumes:
-      # Read-only, as `compose.nvs.yaml` says.
-      - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:${APP_MOUNT_MODE:?the driver sets APP_MOUNT_MODE}
+      # The case's folder read-only, or the deploy rows' `site` volume, as `compose.nvs.yaml` says.
+      - ${APP_SOURCE:?the driver sets APP_SOURCE}:/app:${APP_MOUNT_MODE:?the driver sets APP_MOUNT_MODE}
       - ./bun/serve.ts:/srv/serve.ts:ro
+      - ./deploy/deploy.sh:/srv/deploy.sh:ro
 
     command: ["bun", "/srv/serve.ts"]
 
@@ -51,3 +52,7 @@ services:
 
   oha:
     extends: { file: compose.common.yaml, service: oha }
+
+# The deploy rows' program, as `compose.nvs.yaml` says.
+volumes:
+  site: {}

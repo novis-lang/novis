@@ -175,9 +175,11 @@ not `no`.
   without `--hot`, its default. An edit that never shows is `one-setting` where the peer's
   documentation names a setting it starts without, and the measured `null` stays in the evidence. Go
   compiles its program into the image, so it runs nothing and is `no`.
-- `deploy`, `deploy-big` and `deploy-switch` serve a copy whose program reads part files, each
-  printing its version, so a reply shows every part's version. The driver writes the parts, and
-  Novis's entry too, because `require` takes only a path written as literal text. The PHP, Bun and Go
+- `deploy`, `deploy-big` and `deploy-switch` serve a program that reads part files, each
+  printing its version, so a reply shows every part's version. `deploy/deploy.sh` writes the parts, and
+  Novis's entry too, because `require` takes only a path written as literal text. It runs inside the
+  container and writes to a Docker volume, because Docker Desktop's file share reports thousands of
+  changed host files late, and a Linux server has no such share. The PHP, Bun and Go
   programs read the part count from `DEPLOY_PARTS`. PHP runs at its default
   `opcache.validate_timestamps=1`, as in every case and row. The load is the driver's own: 8 loops of
   `GET /`, each reply checked, because `oha` never reads a body and a sampler beside it checks a few
@@ -190,8 +192,7 @@ not `no`.
   `deploy` replaces 200 parts in place, about 2 seconds of copying, and `deploy-big` 2000, about 20.
   `deploy-switch` is the deploy PHP's own tools recommend: the folder holds `releases/1/` and a
   `current` link to it, the driver writes the whole of `releases/2/`, and one rename inside the app
-  container switches the link. Every peer serves from `/app/current`, so its mount is read-write in
-  this row only. PHP's nginx uses `nginx/fastcgi-switch.conf`, which names the script under
+  container switches the link. Every peer serves from `/app/current`. PHP's nginx uses `nginx/fastcgi-switch.conf`, which names the script under
   `$realpath_root`, as Deployer and Laravel Envoyer document, so one request reads one release. That is
   PHP at its best for a switch, which is the comparison's rule. A mixed reply depends on where PHP's
   2-second file check lands in the copy, so one copy proves little: each row runs three times on a

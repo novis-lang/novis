@@ -24,8 +24,9 @@ services:
 
     working_dir: /app
     volumes:
-      # Read-only, as `compose.nvs.yaml` says.
-      - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:${APP_MOUNT_MODE:?the driver sets APP_MOUNT_MODE}
+      # The case's folder read-only, or the deploy rows' `site` volume, as `compose.nvs.yaml` says.
+      - ${APP_SOURCE:?the driver sets APP_SOURCE}:/app:${APP_MOUNT_MODE:?the driver sets APP_MOUNT_MODE}
+      - ./deploy/deploy.sh:/srv/deploy.sh:ro
       # The proxied leg's opcache settings, shared rather than copied.
       - ../proxied/php/opcache.ini:/usr/local/etc/php/conf.d/zz-opcache.ini:ro
       # PHP's own file check at its defaults, read after the shared ini. Its header says why.
@@ -55,10 +56,14 @@ services:
     # The program's folder too, read-only: `nginx/fastcgi-switch.conf` resolves `$realpath_root` here,
     # in nginx's own file system, as a host that runs nginx beside PHP-FPM does.
     volumes:
-      - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:ro
+      - ${APP_SOURCE:?the driver sets APP_SOURCE}:/app:ro
     depends_on:
       app:
         condition: service_healthy
 
   oha:
     extends: { file: compose.common.yaml, service: oha }
+
+# The deploy rows' program, as `compose.nvs.yaml` says.
+volumes:
+  site: {}
