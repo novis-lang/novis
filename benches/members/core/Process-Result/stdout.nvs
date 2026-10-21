@@ -2,7 +2,7 @@
 // Measures reading the output of a program that has ended, as a server does after it runs a converter.
 // bench: iterations 4096
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {

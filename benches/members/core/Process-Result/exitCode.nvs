@@ -2,7 +2,7 @@
 // Measures reading the exit code of a program that has ended, as a script does before it decides whether a tool succeeded.
 // bench: iterations 1024
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench {

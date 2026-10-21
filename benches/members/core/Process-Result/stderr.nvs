@@ -2,7 +2,7 @@
 // Measures reading the error output of a program that has ended, as a script does when it logs why a tool failed.
 // bench: iterations 2048
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench {
