@@ -7812,7 +7812,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         ctx.set_config(granting(
             "[capabilities.net]\nconnect = [\"api.example.invalid\"]\nconnect_to = \
-             [\"api.example.invalid\"]\n",
+             [\"api.example.invalid\"]\ninternal = []\n",
         ));
 
         let url = Value::str(NvsStr::new(

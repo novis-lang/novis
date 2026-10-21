@@ -1336,12 +1336,6 @@ coffee 3.50
 tea 2.80
 ```
 
-```toml file=nvs.toml
-# The examples read the files in this folder.
-[capabilities.fs]
-read = ["."]
-```
-
 ```nvs
 <?nvs
 // Shows how to read a file that is stored next to the program.
@@ -1357,12 +1351,6 @@ tea 2.80
 ```
 
 ## Example 02: your own method takes a path
-
-```toml file=nvs.toml
-# The examples read the files in this folder.
-[capabilities.fs]
-read = ["."]
-```
 
 ```text file=templates/welcome.txt
 Hello, {name}! Your order is on its way.
@@ -1393,12 +1381,6 @@ Hello, Ada! Your order is on its way.
 ```text file=data/prices.txt
 coffee 3.50
 tea 2.80
-```
-
-```toml file=nvs.toml
-# The examples read the files in this folder.
-[capabilities.fs]
-read = ["."]
 ```
 
 ```nvs

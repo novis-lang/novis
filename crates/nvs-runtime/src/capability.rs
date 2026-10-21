@@ -1605,7 +1605,6 @@ pub fn exec_with(
     Ok(child)
 }
 
-
 /// The lower-cased extension of a target [`exec`] refuses, or `None` for one it will start.
 ///
 /// By extension and not by content, `rule:core-classes/process-refuses-a-shell-target`: what makes a `.bat` unsafe to start is which
@@ -2254,8 +2253,13 @@ mod tests {
         }
         granted_server.set_config(Arc::new(snapshot));
         granted_server.set_run_kind(crate::ctx::RunKind::Job);
-        let mut child = exec(&mut granted_server, Path::new("git"), &["--version"], MEMBER)
-            .expect("`exec = [\"git\"]` was looked up when the configuration loaded");
+        let mut child = exec(
+            &mut granted_server,
+            Path::new("git"),
+            &["--version"],
+            MEMBER,
+        )
+        .expect("`exec = [\"git\"]` was looked up when the configuration loaded");
         assert!(child.wait().expect("the child ends").success());
 
         let Err(Fault::Thrown(_, message)) = exec(&mut cli, Path::new("/srv/say.cmd"), &[], MEMBER)
@@ -2568,7 +2572,10 @@ mod tests {
             std::fs::write(made.join("job.nvs"), "").expect("the run writes a script there");
 
             let spawns = |path: &Path| granted(&ctx, Cap::ScriptSpawn, Scope::Path(path));
-            assert!(spawns(&app.join("job.nvs")), "the app folder, serving: {serving}");
+            assert!(
+                spawns(&app.join("job.nvs")),
+                "the app folder, serving: {serving}"
+            );
             assert!(
                 granted(&ctx, Cap::ScriptSpawn, Scope::Unscoped),
                 "the method form, serving: {serving}"
@@ -2578,7 +2585,11 @@ mod tests {
                 scratch.join("outside").join("job.nvs"),
                 made.join("job.nvs"),
             ] {
-                assert!(!spawns(&refused), "{}, serving: {serving}", refused.display());
+                assert!(
+                    !spawns(&refused),
+                    "{}, serving: {serving}",
+                    refused.display()
+                );
             }
         }
     }

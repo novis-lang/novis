@@ -594,6 +594,9 @@ nvs_runtime::nvs_helper! {
             None => Ok(Value::null()),
             Some(value) => match value.to_str() {
                 Some(text) => Ok(Value::str(NvsStr::new(text.as_bytes()))),
+                // Unreachable from source, for the reason `get`'s same arm
+                // gives: no program can write the environment, so only an
+                // operator who exported a value that is not text reaches it.
                 None => Err(Fault::thrown(format!(
                     "Core\\Env::secret: `{name}` is set to bytes that are not valid UTF-8, so \
                      its value is not a `string`"
@@ -819,7 +822,10 @@ mod tests {
     fn secret_reads_the_value_get_reads_and_null_for_a_name_nothing_set() {
         let mut ctx = Ctx::buffered();
         let reported = all(&mut ctx);
-        assert!(!reported.is_empty(), "the test binary runs with no environment");
+        assert!(
+            !reported.is_empty(),
+            "the test binary runs with no environment"
+        );
         for (name, _) in &reported {
             assert_eq!(
                 read(nvs_core_env_secret, "secret", &mut ctx, name),

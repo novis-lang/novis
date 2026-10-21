@@ -3148,11 +3148,13 @@ mod tests {
     }
 
     /// A deployment whose one entry fires `script` under a `[limits] memory`
-    /// ceiling, granting `script.spawn` over `over` and nothing else.
+    /// ceiling, granting `script.spawn` over `over` and nothing else, or
+    /// writing it empty where there is no `over`.
     fn firing(script: &std::path::Path, over: Option<&std::path::Path>) -> String {
         let grant = match over {
             Some(root) => format!("[capabilities]\nscript.spawn = ['{}']\n\n", root.display()),
-            None => String::new(),
+            // Written empty: a script in its own app folder spawns with no line.
+            None => "[capabilities]\nscript.spawn = []\n\n".to_owned(),
         };
         format!(
             "[limits]\nmemory = '512M'\n\n{grant}[[schedule]]\nname = 'nightly'\ncron = '0 3 * * \

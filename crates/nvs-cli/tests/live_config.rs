@@ -1365,9 +1365,9 @@ const SESSIONED: &str = "<?nvs\ntry {\n    Core\\Session::start();\n    echo \"s
                          catch (RuntimeError $refused) {\n    echo \"refused\";\n}\n";
 
 /// `Core\Session::start` reads `[session]` from the snapshot its request
-/// cloned. A server that booted with `backend = "db"`, which this build does
-/// not serve, refuses every session. After a reload names `shared`, the next
-/// request starts one, and the record reaches the shared store.
+/// cloned. A server that booted with `backend = "db"` keeps its sessions in
+/// the data folder's SQLite file, so the shared store receives nothing. After
+/// a reload names `shared`, the next request's record reaches the shared store.
 #[test]
 fn a_changed_session_backend_applies_to_new_requests() {
     let store = Store::start();
@@ -1376,10 +1376,12 @@ fn a_changed_session_backend_applies_to_new_requests() {
         &sessions(&store, "db"),
         &[("app.nvs", SESSIONED)],
     );
-    server.awaits("/", "the boot's refusal", |answer| answer.body == "refused");
+    server.awaits("/", "a session on the boot's backend", |answer| {
+        answer.body == "started"
+    });
     assert!(
         !store.received("SET"),
-        "a backend that refuses every session wrote a record"
+        "a session on the `db` backend wrote a record to the shared store"
     );
 
     let report = server.reload(&sessions(&store, "shared"));
