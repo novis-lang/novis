@@ -41,10 +41,13 @@ try {
 // still running underneath it.
 echo "still running", "\n";
 --FILE nvs.toml--
-# One host granted, and no `[capabilities.net]` at all -- so the second call
-# above is past the grant and refused by the range table instead.
+# One host granted, and `internal` written empty, as a production server has it
+# -- so the second call above is past the grant and refused by the range table.
 [capabilities.db]
 open = ["127.0.0.1"]
+
+[capabilities.net]
+internal = []
 --EXPECT--
 Core\Db::open needs the capability `db.open` for db.example.test, which is not granted
 help: add `open = ["db.example.test"]` under `[capabilities.db]` in nvs.toml

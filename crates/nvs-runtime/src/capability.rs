@@ -1716,7 +1716,7 @@ mod tests {
     fn reaching(host: &str) -> Ctx {
         let mut ctx = Ctx::buffered();
         ctx.set_config(snapshot_of(&format!(
-            "[capabilities.net]\nconnect = [\"{host}\"]\n"
+            "[capabilities.net]\nconnect = [\"{host}\"]\ninternal = []\n"
         )));
         ctx
     }

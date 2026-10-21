@@ -516,8 +516,8 @@ fn a_6to4_or_teredo_address_is_judged_by_the_ipv4_address_inside_it() {
     );
 }
 
-/// `rule:security/net-address-policy`'s operator exception excepts the addresses it *names* and widens nothing else — not
-/// a range around one, not the table, and not a name that resolves to one.
+/// `rule:security/net-address-policy`'s operator exception excepts the addresses and ranges it
+/// *names* and widens nothing else — not the table, and not a name that resolves to one.
 ///
 /// The two refusals a reader would expect to be grants are the point of the test rather than
 /// incidental to it: `true` is the one `Setting` spelling that does not mean everything here, and a
@@ -525,7 +525,7 @@ fn a_6to4_or_teredo_address_is_judged_by_the_ipv4_address_inside_it() {
 /// checked here would exempt whatever it resolved to afterwards.
 // covers: tools:config/network-grants-the-addresses-and-endpoints-they-reach
 #[test]
-fn an_operator_exception_names_one_address_and_widens_nothing_else() {
+fn an_operator_exception_names_addresses_and_ranges_and_widens_nothing_else() {
     let disk = Disk::of(&["/srv"]);
     let excepting = |text: &str| granting(text, &disk);
 
@@ -567,12 +567,46 @@ fn an_operator_exception_names_one_address_and_widens_nothing_else() {
     for (why, text) in [
         ("`internal = true`", "[net]\ninternal = true\n"),
         ("a hostname entry", "[net]\ninternal = [\"localhost\"]\n"),
-        ("a range", "[net]\ninternal = [\"127.0.0.0/8\"]\n"),
+        (
+            "a range with bits below its prefix",
+            "[net]\ninternal = [\"127.0.0.1/8\"]\n",
+        ),
+        (
+            "a prefix longer than the address",
+            "[net]\ninternal = [\"127.0.0.1/33\"]\n",
+        ),
+        (
+            "a prefix that is not a number",
+            "[net]\ninternal = [\"127.0.0.0/+8\"]\n",
+        ),
     ] {
         assert_eq!(
             excepting(text).address_refused(ip("127.0.0.1")),
             Some("loopback (127.0.0.0/8)"),
             "{why} excepted the loopback",
+        );
+    }
+
+    // A range excepts every address inside it, in either spelling, and nothing beside it.
+    let network = excepting("[net]\ninternal = [\"172.18.0.0/16\", \"fd00::/8\"]\n");
+    for inside in [
+        "172.18.0.1",
+        "172.18.255.254",
+        "::ffff:172.18.3.4",
+        "fd12::7",
+    ] {
+        assert_eq!(network.address_refused(ip(inside)), None, "{inside}");
+    }
+    for outside in [
+        "172.19.0.1",
+        "172.17.255.255",
+        "127.0.0.1",
+        "fe80::1",
+        "::1",
+    ] {
+        assert!(
+            network.address_refused(ip(outside)).is_some(),
+            "`172.18.0.0/16` excepted {outside}",
         );
     }
 
@@ -1551,6 +1585,11 @@ fn a_grant_entry_that_allows_nothing_is_refused_naming_the_line_to_write() {
             "the `net.internal` entry `db.internal` is not an IP address",
             "write `internal = [\"10.0.0.5\"]` under `[capabilities.net]`",
         ),
+        (
+            "[capabilities.net]\ninternal = [\"172.18.0.0/16\", \"10.0.0.5/8\"]\n",
+            "the `net.internal` entry `10.0.0.5/8` is not an IP address or a range",
+            "write `internal = [\"10.0.0.5\"]` under `[capabilities.net]`",
+        ),
         // The table is the one the entry was written in.
         (
             "[[app]]\nentry = \"shop.nvs\"\n[app.capabilities.net]\nconnect = [\"a.example.com:443\"]\n",
@@ -1814,4 +1853,79 @@ fn server_work_reads_its_app_folder_and_writes_only_its_temporary_directories() 
     let written = Authority::new(Some(&narrowed), Run::cli(Some(&folder)));
     assert!(!reads(&written, "/srv/app/index.nvs"));
     assert!(writes(&written, "/etc/passwd"));
+}
+
+/// With no `connect` written, every kind of run reaches a public host, and the address table still
+/// refuses a private one. Loopback is a startup row: a CLI run and server work started in
+/// `development` reach it, and production server work does not
+/// (`rule:security/net-address-policy`, `rule:config/a-startup-default-is-never-flipped`).
+#[test]
+fn a_public_host_needs_no_grant_and_loopback_is_open_on_a_cli_run_and_in_development() {
+    let disk = Disk::of(&["/srv/app"]);
+    let folder = p("/srv/app");
+    let production = Run::server(Some(&folder));
+    let runs = [
+        ("a CLI run", Run::cli(Some(&folder))),
+        ("development", production.in_development(true)),
+        ("production", production),
+    ];
+    for (why, run) in runs {
+        let authority = Authority::new(None, run);
+        assert!(
+            authority.allows_host(Cap::NetConnect, "api.example.com"),
+            "{why}"
+        );
+        assert!(
+            authority.allows(Cap::NetConnect, Scope::Host("api.example.com"), &disk),
+            "{why}"
+        );
+        assert_eq!(
+            authority.address_refused(ip("93.184.216.34")),
+            None,
+            "{why}"
+        );
+        for private in ["10.0.0.7", "172.18.0.2", "169.254.169.254", "fd00::1"] {
+            assert!(
+                authority.address_refused(ip(private)).is_some(),
+                "{why} reached {private}"
+            );
+        }
+        // `connect_to` and `downgrade` keep no default.
+        assert!(
+            !authority.allows_host(Cap::NetConnectTo, "api.example.com"),
+            "{why}"
+        );
+    }
+
+    for (why, run) in [runs[0], runs[1]] {
+        let authority = Authority::new(None, run);
+        for loopback in ["127.0.0.1", "127.8.9.10", "::1", "::ffff:127.0.0.1"] {
+            assert_eq!(
+                authority.address_refused(ip(loopback)),
+                None,
+                "{why} refused {loopback}"
+            );
+        }
+    }
+    let refused = Authority::new(None, production);
+    for loopback in ["127.0.0.1", "::1"] {
+        assert!(
+            refused.address_refused(ip(loopback)).is_some(),
+            "production reached {loopback}"
+        );
+    }
+
+    // A written key replaces the default whole: `connect = []` reaches no host, and an `internal`
+    // list on a CLI run excepts what it names and no loopback.
+    let written = granting("[net]\nconnect = []\ninternal = [\"10.0.0.7\"]\n", &disk);
+    let narrowed = Authority::new(Some(&written), Run::cli(Some(&folder)));
+    assert!(!narrowed.allows_host(Cap::NetConnect, "api.example.com"));
+    assert_eq!(narrowed.address_refused(ip("10.0.0.7")), None);
+    assert!(narrowed.address_refused(ip("127.0.0.1")).is_some());
+
+    // A header with no key under it leaves both defaults in place.
+    let header = granting("[net]\n", &disk);
+    let open = Authority::new(Some(&header), Run::cli(Some(&folder)));
+    assert!(open.allows_host(Cap::NetConnect, "api.example.com"));
+    assert_eq!(open.address_refused(ip("127.0.0.1")), None);
 }

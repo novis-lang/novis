@@ -95,13 +95,15 @@ impl Request {
         self.folder.as_ref()
     }
 
-    /// The run a capability is asked for: whether it is server work, and its app folder.
+    /// The run a capability is asked for: whether it is server work, its app folder, and whether
+    /// it started in `development`. The mode is the started one, so a flip does not move it.
     #[must_use]
     pub fn run(&self) -> Run<'_> {
         Run {
             serving: self.serving,
             folder: self.folder.as_deref(),
             temporary: &[],
+            development: self.started() == mode::DEVELOPMENT,
         }
     }
 

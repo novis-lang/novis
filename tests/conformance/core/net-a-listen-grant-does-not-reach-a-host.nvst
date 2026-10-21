@@ -23,10 +23,12 @@ try {
 
 $door->close();
 --FILE nvs.toml--
-# One key. `net.connect` is absent, which is `rule:security/capability-roster-is-closed`'s
-# deny-by-default: a grant that is not written is not held.
+# The widest bind grant, and `connect` written empty. An unwritten `connect`
+# reaches every public host, and loopback on a CLI run, so it is written here to
+# show that `listen` adds nothing to it.
 [capabilities.net]
 listen = true
+connect = []
 --EXPECT--
 bound: 1
 Core\Net::connect needs the capability `net.connect` for 127.0.0.1, which is not granted

@@ -30,8 +30,9 @@ origin = "https://example.test"
 [app.capabilities.script]
 spawn = true
 
-# The attacks under `tests/hostile` run as CLI runs, and a CLI run reads and writes any file when
-# nothing is written (`rule:config/no-configuration-file-is-a-complete-configuration`). An attack
+# The attacks under `tests/hostile` run as CLI runs, and a CLI run reads and writes any file, and
+# reaches every public host and loopback, when nothing is written
+# (`rule:config/no-configuration-file-is-a-complete-configuration`, `rule:security/net-address-policy`). An attack
 # asserts a refusal, so this block writes each key a default opens as `[]`: a written key that grants
 # nothing. A more specific block below grants one attack what it needs, and an attack that tests a
 # default itself writes its own `[[app]] entry` block.
@@ -41,6 +42,10 @@ root = "tests/hostile"
 [app.capabilities.fs]
 read = []
 write = []
+
+[app.capabilities.net]
+connect = []
+internal = []
 
 # `examples/capability.nvs` is the fixture for `rule:security/capability-check-at-the-door`, so its
 # block is written to be *narrower* than the one above rather than wider: an exact `entry` layers over
@@ -139,8 +144,9 @@ connect = ["127.0.0.1", "169.254.169.254"]
 internal = ["127.0.0.1"]
 
 # `Core\Http::allowUrl`'s examples and attack approve URLs a program was handed, so
-# their grant is the one a service calling its users' webhooks writes: every host,
-# with the address table left whole and nothing in `net.internal`. What they show is
+# their grant is the one a production service calling its users' webhooks has:
+# every host, with the address table left whole and `net.internal` written empty,
+# because a CLI run reaches loopback when it is not written. What they show is
 # that table refusing loopback, private and link-local addresses however the URL
 # spells them. Every URL in them names a literal address, so no case waits on a
 # name server. The bench approves one address and is granted that address alone.
@@ -149,6 +155,7 @@ root = "docs/examples/core/Http/allowUrl"
 
 [app.capabilities.net]
 connect = true
+internal = []
 
 [[app]]
 root = "tests/hostile/core/Http/allowUrl"
@@ -173,6 +180,7 @@ root = "docs/examples/core/Http-Client"
 
 [app.capabilities.net]
 connect = true
+internal = []
 
 [[app]]
 root = "tests/hostile/core/Http-Client"
@@ -192,6 +200,7 @@ read = ["docs/examples/core/Http-Part/file/data"]
 
 [app.capabilities.net]
 connect = true
+internal = []
 
 [[app]]
 root = "tests/hostile/core/Http-Part"

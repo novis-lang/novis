@@ -11,18 +11,29 @@ each of which reaches the address it carries: IPv4-mapped (`::ffff:0:0/96`), IPv
 (`::/96`), the NAT64 well-known prefix (`64:ff9b::/96`), 6to4 (`2002::/16`, the 32 bits after the
 prefix) and Teredo (`2001::/32`, the inverted low 32 bits). The documentation ranges (`192.0.2.0/24`,
 `198.51.100.0/24`, `203.0.113.0/24`, `2001:db8::/32`) are not denied: nothing routes them, so a
-connection to one fails on its own. An operator grants an exception as an **IP address written out** beside the connect
-grant. Three things it is not, each a widening this refuses: not a hostname, because the policy is
-asked of a resolved address and a name would except whatever it resolved to afterwards; not a range,
-because an operator writing a whole `/8` hands back most of the table without naming a host; and not
-`true`, which is the one place a capability's `true` does not mean everything.
+connection to one fails on its own. An operator grants an exception in `net.internal` as an **IP
+address or a CIDR range written out** (`10.0.0.5`, `172.18.0.0/16`): a container network or a subnet
+the operator runs is a range, and no list of addresses can follow it. Two things it is not, each a
+widening this refuses: not a hostname, because the policy is asked of a resolved address and a name
+would except whatever it resolved to afterwards; and not `true`, which is the one place a capability's
+`true` does not mean everything. A range with bits set below its prefix (`10.0.0.5/8`) reads as one
+host and would grant a block, so it is refused at load with the hostname and `true`.
+
+**The application's own code reaches every public host by default**, on a CLI run and in server work,
+so an unwritten `connect` is every host and the table above is the whole policy. A written `connect`
+list narrows that to an allowlist. **Loopback (`127.0.0.0/8`, `::1`) is excepted by default on a CLI
+run and in server work whose configuration names `development`.** That default is a startup row
+(`rule:config/a-startup-default-is-never-flipped`), so a program that flips itself to `development`
+gains nothing, and a production server reaches loopback only where `internal` names it. A written
+`internal` list replaces the default whole.
 
 Link-local is the range whose omission is catastrophic rather than regrettable: `169.254.169.254` is the
 cloud instance-metadata endpoint, and reaching it turns a feature that fetches a URL into credential
 theft. The exception and the connect grant are independent and both required — `net.internal` reaches
-nothing `net.connect` has not granted by name — so an exception is a second thing an operator writes, not
-a way around the first. A deployment that calls internal services has to say so, and that is the point:
-the difference between an intended internal call and a forged one is whether somebody wrote it down.
+nothing a written `net.connect` list does not name — so an exception is a second thing an operator
+writes, not a way around the first. A production deployment that calls internal services has to say
+so, and that is the point: the difference between an intended internal call and a forged one is
+whether somebody wrote it down.
 
 The one class of address it does not govern is an endpoint an operator wrote into root-owned
 configuration and granted by name — that address is not attacker-influenceable, and applying the
@@ -46,3 +57,6 @@ no policy of its own.
 - **The policy applied to an operator-written endpoint too.** A database or a shared store lives at a
   private address, a container network or loopback, so every ordinary deployment would be denied
   (`rule:core-classes/db-capabilities`, `rule:config/cache-shared-is-the-grant-over-the-configured-store`).
+- **Loopback always allowed, a production server included.** It would give up SSRF protection for
+  every service listening on the machine, such as an admin port or an unauthenticated store, to save a
+  production deployment one line.

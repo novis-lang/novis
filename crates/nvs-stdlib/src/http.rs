@@ -4952,7 +4952,7 @@ mod tests {
 
     /// The grant every case here starts from: the host is reachable and no
     /// address is excepted, which is § 3's table exactly as it ships.
-    const GRANTED: &str = "[capabilities.net]\nconnect = [\"127.0.0.1\"]\n";
+    const GRANTED: &str = "[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = []\n";
 
     /// A loopback origin that answers `replies` in order, one connection each,
     /// and hands back how many it got through.

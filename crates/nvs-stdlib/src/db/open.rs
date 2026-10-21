@@ -1624,7 +1624,8 @@ mod tests {
         // deployment reaches no host and excepts no address.
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_config(crate::tests::granting(
-            "[capabilities.db]\nconnect = [\"main\"]\n",
+            "[capabilities.db]\nconnect = [\"main\"]\n\
+             [capabilities.net]\nconnect = []\ninternal = []\n",
         ));
 
         // § 3's two capabilities answer different questions: the one this path
@@ -1662,7 +1663,7 @@ mod tests {
         let mut reachable = Ctx::new(OutputSink::Sink);
         reachable.set_config(crate::tests::granting(
             "[capabilities.db]\nconnect = [\"main\"]\n\
-             [capabilities.net]\nconnect = [\"127.0.0.1\"]\n",
+             [capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = []\n",
         ));
         let by_range = nvs_runtime::capability::pin_host(&reachable, HOST, CONNECT)
             .expect_err("loopback is the first range § 3 denies");
@@ -1672,7 +1673,7 @@ mod tests {
         );
 
         // The path `Core\Db::connect` actually takes, on the deployment that
-        // granted neither `net` key: it answers the address both refusals above
+        // granted neither `net` key: it returns the address both refusals above
         // just named.
         let pinned = address_of(HOST, Some(5432), nvs_db::pg::DEFAULT_PORT, "main").expect(
             "a `connect`-named endpoint is pre-approved — `rule:core-classes/db-capabilities`",
