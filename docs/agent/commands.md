@@ -180,6 +180,10 @@ are `looper guard`'s.
   I/O and no CPU is stalled. One that uses the CPU for 10 minutes with no output and no I/O is
   spinning. Either is killed through its own `Tree`, so the kill reaches only what that run started.
   The run reports it as timed out, with the report in `hung`. `tools/nv/lib/hang.ts` is the home.
+- **Every Bash call is watched the same way by looper's shell wrapper.** A hung call is killed through
+  its own Job Object and exits 124. A call with a listening port, a Monitor call, and a looper wait
+  that writes its `waiting` heartbeat are left alone. A command that idles on purpose goes into
+  `looper.toml`'s `[jobs] hang_exempt`. `tools/looper/src/jobs/hang.ts` is the home.
 - **A `HANG:` line names its report** under `.agent-tmp/hangs/`. The report gives the processes of
   the tree, the CPU each used while it was watched closely, the test libtest last said was running
   long, and the last lines printed. In CI the whole report goes to stderr.
