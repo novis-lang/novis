@@ -9,10 +9,18 @@ already has the text, and a reader without the file is never handed a `secret` l
 (`crates/nvs-syntax/src/walk.rs`, `rule:ide/ast-json-schema-is-frozen`). The dump needs no placeholder,
 because the parse that writes it cannot know which literal is `secret` and so prints none of them.
 
-A compiler diagnostic's source snippet is the surface still missing. It quotes the lines a diagnostic
-points at as written, a `secret` literal among them, because a compiler diagnostic is not a producer
-of the diagnostic record whose redaction node the other renderings share
-(`crates/nvs-diagnostics/src/render.rs`, `data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json`).
+A compiler diagnostic's source snippet prints a `secret` literal **masked**: one `*` per character
+between its quotes, so the caret under a later argument still points at it. Which literals are
+`secret` is the checker's answer, from the walk the editor's redaction ranges come from
+(`crates/nvs-types/src/redaction.rs`), so the terminal and the editor conceal the same bytes. The
+compile path hands those ranges to the source map, and the diagnostic's record takes its snippet
+line from there (`crates/nvs-diagnostics/src/record.rs`), so the text and `nvs check --json` both
+inherit it. A suggestion whose edit touches a concealed literal is left out of the record, because
+its replacement could quote it; `nvs check --fix` still applies it. A file that does not parse has
+no checker answer, so a snippet under a syntax error is printed as written.
+
+The mask keeps the literal's length visible. That is the trade an editor's decoration already makes
+(`rule:ide/redaction-covers-bytes-only`), and it buys a caret that stays under the code it names.
 
 This rule is about what the toolchain **prints**, and it is enforced by the compiler for every caller.
 What an editor draws over a buffer it did not print is a separate mechanism in a separate chapter
@@ -20,5 +28,6 @@ What an editor draws over a buffer it did not print is a separate mechanism in a
 dump holds no literal with no editor running, and no decoration anywhere puts a value back into a
 rendering this rule has already redacted.
 
-**Partly on disk.** The dump and every rendering of the diagnostic record print no `secret` in the
-clear. A compiler diagnostic's snippet does.
+**Declined:**
+- **`[redacted]` in place of the literal.** It hides the length, and it moves every character after
+  it on the line, so a caret drawn from the record's columns lands under the wrong code.

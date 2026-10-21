@@ -13,12 +13,18 @@
 //!   map one to one onto five log levels: `help` and `note` are both `Info`.
 //! * [`CODE`] carries the code, absent when the diagnostic has none.
 //! * Its nodes are one [`Node::Span`] per label whose file the map holds, in
-//!   the order the diagnostic wrote them. Each carries its first line's text,
-//!   so the record renders without the map, and its byte offsets, which
-//!   `nvs check --json` writes as a label's `span`.
+//!   the order the diagnostic wrote them. Each carries its first line's text
+//!   as [`SourceMap::shown_line`] gives it, so the record renders without the
+//!   map and a `secret` literal on the line is masked, and its byte offsets,
+//!   which `nvs check --json` writes as a label's `span`.
 //! * [`NOTES`] is one single-key map per note, the key `note` or `help`, in
 //!   the order written, absent when there are none.
-//! * [`SUGGESTIONS`] is one map per suggestion, absent when there are none.
+//! * [`SUGGESTIONS`] is one map per suggestion, absent when there are none. A
+//!   suggestion whose span touches a concealed byte is left out, since its
+//!   replacement could quote the literal.
+//!
+//! The masking happens here, where the record is built, so every rendering of
+//! it inherits the answer (`rule:security/redaction-reaches-the-tools-own-renderings`).
 //!
 //! # What it spends
 //!
@@ -73,10 +79,17 @@ pub fn record(d: &Diagnostic, map: &SourceMap) -> Record {
             .fields
             .push((NOTES.to_owned(), Node::Sequence(notes)));
     }
-    if !d.suggestions.is_empty() {
-        let suggestions = d
-            .suggestions
-            .iter()
+    // A suggestion that rewrites concealed bytes would print them in its
+    // replacement, so the record leaves it out. `nvs check --fix` reads the
+    // diagnostic and still applies it.
+    let shown: Vec<_> = d
+        .suggestions
+        .iter()
+        .filter(|s| !map.is_concealed(s.span))
+        .collect();
+    if !shown.is_empty() {
+        let suggestions = shown
+            .into_iter()
             .map(|s| {
                 let mut entries = vec![
                     (Rendered::new("message"), text(&s.message)),
@@ -177,7 +190,7 @@ fn span(at: Span, primary: bool, label: &str, map: &SourceMap) -> Option<Node> {
         end_offset: at.end.max(at.start),
         primary,
         label: Rendered::new(label),
-        source: file.line_text(line).map(Rendered::new),
+        source: map.shown_line(at.file, line).as_deref().map(Rendered::new),
     })
 }
 
@@ -232,6 +245,27 @@ mod tests {
                 Rendered::new("help"),
                 text("rename one")
             )])]))
+        );
+        assert_eq!(field(&r, SUGGESTIONS), None);
+    }
+
+    /// A concealed literal is masked in the span's source line, and a
+    /// suggestion that rewrites it is left out of the record.
+    #[test]
+    fn a_concealed_literal_stays_out_of_the_record() {
+        let mut map = SourceMap::new();
+        let f = map.add("t.nvs", "$k = \"hunter2\";\n");
+        map.conceal([Span::new(f, 5, 14)]);
+        let d = Diagnostic::error(code::E_EVAL_UNSUPPORTED, "m")
+            .with_primary(Span::new(f, 0, 2), "")
+            .with_fix(Span::new(f, 5, 14), "'hunter2'", "use single quotes");
+        let r = record(&d, &map);
+        let Node::Span { source, .. } = &r.nodes[0] else {
+            panic!("a span node: {:?}", r.nodes[0]);
+        };
+        assert_eq!(
+            source.as_ref().map(Rendered::as_str),
+            Some("$k = \"*******\";")
         );
         assert_eq!(field(&r, SUGGESTIONS), None);
     }

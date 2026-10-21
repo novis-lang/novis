@@ -192,6 +192,7 @@ pub(crate) mod match_attribute;
 pub mod paths;
 pub(crate) mod program;
 pub(crate) mod reasons;
+pub mod redaction;
 pub(crate) mod response;
 pub(crate) mod retrieval;
 pub(crate) mod returns;

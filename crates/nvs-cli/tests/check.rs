@@ -162,6 +162,39 @@ fn check_json_matches_its_frozen_document() {
     );
 }
 
+/// A `secret` literal on the line a diagnostic quotes is masked in the text,
+/// one `*` per character between its quotes, so the caret still sits under
+/// the argument it names; and neither rendering carries the literal's bytes
+/// (`rule:security/redaction-reaches-the-tools-own-renderings`). The document
+/// writes no snippet, so its half is that no label, note or suggestion quotes
+/// the literal either.
+#[test]
+fn a_secret_literal_in_a_snippet_is_masked() {
+    let path = fixture("secret-in-snippet.nvs");
+    let (_, text, ok) = run_check(&[], &path);
+    assert!(!ok, "the fixture does not compile: {text}");
+    assert!(text.contains("E0724"), "the dump is the diagnostic: {text}");
+    assert!(
+        text.contains(
+            "3 | secret string $key = \"*************\"; Core\\Debug::dump($key);\n  \
+             |                                                        ^^^^"
+        ),
+        "the literal is masked and the caret is under `$key`: {text}"
+    );
+
+    let (json, _, _) = run_check(&["--json"], &path);
+    assert!(
+        json.contains("E0724"),
+        "the document has the diagnostic: {json}"
+    );
+    for printed in [&text, &json] {
+        assert!(
+            !printed.contains("hunter2"),
+            "no rendering prints the secret: {printed}"
+        );
+    }
+}
+
 /// What `check_json_matches_its_frozen_document` compares against.
 const FROZEN: &str = r#"{
   "diagnostics": [

@@ -649,6 +649,25 @@ mod tests {
         assert!(!out.contains(AGENT_SHOW_LINE), "got:\n{out}");
     }
 
+    /// The snippet prints a concealed literal masked, and the caret after it
+    /// is still under the code it names.
+    #[test]
+    fn a_concealed_literal_prints_masked() {
+        let mut map = SourceMap::new();
+        let f = map.add("t.nvs", "$k = \"hunter2\"; $k;\n");
+        map.conceal([Span::new(f, 5, 14)]);
+        let d = Diagnostic::error(code::E_EVAL_UNSUPPORTED, "m")
+            .with_primary(Span::new(f, 16, 18), "here");
+        let mut buf = Vec::new();
+        Renderer::new().render(&d, &map, &mut buf).unwrap();
+        let out = String::from_utf8(buf).unwrap();
+        assert!(!out.contains("hunter2"), "got:\n{out}");
+        assert!(
+            out.contains("1 | $k = \"*******\"; $k;\n  |                 ^^ here"),
+            "got:\n{out}"
+        );
+    }
+
     #[test]
     fn colour_output_contains_ansi_and_plain_does_not() {
         let mut map = SourceMap::new();

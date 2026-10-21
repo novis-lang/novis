@@ -29,10 +29,9 @@ any other value and redact like any other value.
 diagnostic build the record (`crates/nvs-stdlib/src/log.rs`, `crates/nvs-stdlib/src/debug.rs`,
 `crates/nvs-runtime/src/floor.rs`, `crates/nvs-diagnostics/src/record.rs`), and a frame is
 `nvs_render::Node::Frame`. A compiler diagnostic's terminal text and its `nvs check --json`
-document both render from its record (`crates/nvs-cli/src/check.rs`). A snippet does not redact a
-`secret` yet: goal
-`diagnostic-records`'s gap `data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json`. A test
-result does not build the record, and is that goal's gap
+document both render from its record (`crates/nvs-cli/src/check.rs`), and its snippet masks a
+`secret` literal (`rule:security/redaction-reaches-the-tools-own-renderings`). A test result does
+not build the record, and is goal `diagnostic-records`'s gap
 `data/gaps/nvs-render/test-result-is-not-a-producer.json`.
 
 **Declined:**

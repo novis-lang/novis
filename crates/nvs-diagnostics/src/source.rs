@@ -288,7 +288,12 @@ pub struct SourceMap {
     /// Every path a load asked for and got no file from, in the order asked —
     /// see [`SourceMap::missed`].
     missed: Vec<PathBuf>,
+    /// Bytes no snippet prints — see [`SourceMap::conceal`].
+    concealed: Vec<Span>,
 }
+
+/// What a snippet prints for each character of a concealed literal.
+pub const MASK: char = '*';
 
 /// The form a path is keyed and compared under.
 ///
@@ -440,6 +445,75 @@ impl SourceMap {
         self.files.iter()
     }
 
+    /// Records `spans` as bytes no snippet prints, which is how a `secret`
+    /// literal stays out of a diagnostic
+    /// (`rule:security/redaction-reaches-the-tools-own-renderings`).
+    ///
+    /// The compile path calls it once the checker has said which literals are
+    /// `secret`, and [`shown_line`](Self::shown_line) applies it. It costs one
+    /// [`Span`] per concealed literal, for as long as the map lives.
+    pub fn conceal(&mut self, spans: impl IntoIterator<Item = Span>) {
+        self.concealed.extend(spans);
+    }
+
+    /// Whether `span` touches a concealed byte. An empty span counts when it
+    /// sits strictly inside a concealed range.
+    #[must_use]
+    pub fn is_concealed(&self, span: Span) -> bool {
+        self.concealed.iter().any(|hidden| {
+            hidden.file == span.file
+                && span.start < hidden.end
+                && if span.start < span.end {
+                    hidden.start < span.end
+                } else {
+                    hidden.start < span.start
+                }
+        })
+    }
+
+    /// The text of `file`'s 0-based `line` as a snippet prints it: every
+    /// concealed byte on it is [`MASK`], one per character, so a column still
+    /// points at the same character. A string's opening and closing quote stay,
+    /// so the line still reads as code.
+    ///
+    /// `None` when the map does not hold `file` or `line` is out of range.
+    #[must_use]
+    pub fn shown_line(&self, file: SourceId, line: usize) -> Option<std::borrow::Cow<'_, str>> {
+        let source = self.get(file)?;
+        let text = source.line_text(line)?;
+        let start = source.line_starts[line] as usize;
+        let end = start + text.len();
+        let mut on_line = self
+            .concealed
+            .iter()
+            .filter(|span| {
+                span.file == file && (span.start as usize) < end && start < span.end as usize
+            })
+            .peekable();
+        if on_line.peek().is_none() {
+            return Some(std::borrow::Cow::Borrowed(text));
+        }
+        let mut masked = vec![false; text.len()];
+        for span in on_line {
+            let (lo, hi) = (span.start as usize, span.end as usize);
+            let quote = |at: usize| matches!(source.text.as_bytes().get(at), Some(b'"' | b'\''));
+            let from = if quote(lo) { lo + 1 } else { lo };
+            let to = if hi > lo + 1 && quote(hi - 1) {
+                hi - 1
+            } else {
+                hi
+            };
+            for at in from.max(start)..to.min(end) {
+                masked[at - start] = true;
+            }
+        }
+        Some(std::borrow::Cow::Owned(
+            text.char_indices()
+                .map(|(at, ch)| if masked[at] { MASK } else { ch })
+                .collect(),
+        ))
+    }
+
     /// Records `path` as a file this compilation looked for and did not find.
     ///
     /// [`load`](Self::load) records its own failures. A caller that decides a
@@ -478,6 +552,46 @@ impl SourceMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A concealed literal is one mask per character between its quotes, so a
+    /// column past it still names the same character; a line it does not touch
+    /// is the text as written, and so is another file's line.
+    #[test]
+    fn a_concealed_literal_is_masked_on_its_line() {
+        let mut map = SourceMap::new();
+        //                         0         1         2
+        //                         0123456789012345678901 2345
+        let f = map.add("t.nvs", "$k = \"pässwort\"; $j;\nx = 'a';\n");
+        let other = map.add("u.nvs", "$k = \"pässwort\";\n");
+        map.conceal([Span::new(f, 5, 16), Span::new(f, 26, 29)]);
+
+        assert_eq!(
+            map.shown_line(f, 0).as_deref(),
+            Some("$k = \"********\"; $j;")
+        );
+        assert_eq!(map.shown_line(f, 1).as_deref(), Some("x = '*';"));
+        assert_eq!(
+            map.shown_line(other, 0).as_deref(),
+            Some("$k = \"pässwort\";")
+        );
+        assert_eq!(map.shown_line(f, 9), None);
+        assert_eq!(map.shown_line(SourceId(9), 0), None);
+    }
+
+    /// A span touching a concealed byte is concealed; one beside it is not,
+    /// and an empty span only when it sits strictly inside.
+    #[test]
+    fn a_span_touching_a_concealed_byte_is_concealed() {
+        let mut map = SourceMap::new();
+        let f = map.add("t.nvs", "$k = \"secret\";\n");
+        map.conceal([Span::new(f, 5, 13)]);
+
+        assert!(map.is_concealed(Span::new(f, 0, 6)));
+        assert!(map.is_concealed(Span::new(f, 7, 7)));
+        assert!(!map.is_concealed(Span::new(f, 0, 5)));
+        assert!(!map.is_concealed(Span::new(f, 5, 5)));
+        assert!(!map.is_concealed(Span::new(f, 13, 14)));
+    }
 
     #[test]
     fn line_index_finds_the_containing_line() {
