@@ -2380,8 +2380,8 @@ pub(super) const QUERY_AS_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "ParseError",
             desc: "A row did not match `T`: a column missing, a column of another type than the \
-                   field declares, a SQL NULL in a field that is not `?T`, or a field whose \
-                   declared type has no column mapping at all. Every bad column of the row is \
+                   property declares, a SQL NULL in a property that is not `?T`, or a property \
+                   whose declared type has no column mapping at all. Every bad column of the row is \
                    reported at once, in `issues`, each `path` the column's name.",
         },
     ],
@@ -2579,8 +2579,8 @@ pub(super) const STREAM_AS_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "ParseError",
             desc: "A row did not match `T`: a column missing, a column of another type than the \
-                   field declares, a SQL NULL in a field that is not `?T`, or a field whose \
-                   declared type has no column mapping at all. Every bad column of that row is \
+                   property declares, a SQL NULL in a property that is not `?T`, or a property \
+                   whose declared type has no column mapping at all. Every bad column of that row is \
                    reported at once, in `issues`, each `path` the column's name — and the walk \
                    ends there, since the connection is left holding an unread portal.",
         },

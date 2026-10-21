@@ -3389,7 +3389,7 @@ impl Emitter<'_, '_> {
             ))
         })?;
         i32::try_from(nvs_runtime::field_offset(slot))
-            .map_err(|_| internal("an object field sitting past a 2 GiB offset"))
+            .map_err(|_| internal("a property sitting past a 2 GiB offset"))
     }
 
     /// `rule:testing/debug-probes`'s call-site probe, emitted twice per call: once before and once

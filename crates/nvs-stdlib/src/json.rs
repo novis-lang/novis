@@ -447,7 +447,7 @@ const DECODE_DOC: MethodDoc = MethodDoc {
 /// `Core\Json::decodeAs`'s reference card — `rule:core-api/reference-card`.
 const DECODE_AS_DOC: MethodDoc = MethodDoc {
     short: "Parses the JSON object `$json` into an instance of `T`, a class carrying \
-            `#[Json\\Derive]`, reading every declared field and running the constructor only \
+            `#[Json\\Derive]`, reading every declared property and running the constructor only \
             when all of them matched; write `array<T>` to read a JSON array as one instance \
             per element instead. It replaces hand-written hydration.",
     params: &[
@@ -2639,7 +2639,7 @@ unsafe fn decode_object(
             Err(Fault::thrown_with_issues(
                 ThrownClass::Parse,
                 format!(
-                    "{member}(): {count} field(s) of `{}` did not match",
+                    "{member}(): {count} value(s) of `{}` did not match",
                     contract.name()
                 ),
                 crate::issue::list(
@@ -3016,7 +3016,7 @@ impl<'a> Fields<'a> {
         if let Some(index) = self.filled.iter().position(|done| !done) {
             return Err(DecodeFailure::Fault(Fault::fatal(format!(
                 "Core\\Json::decodeAs(): `{}`'s constructor parameter {index} is not a codec \
-                 field, which `E0820` refuses at the call that names such a class",
+                 property, which `E0820` refuses at the call that names such a class",
                 self.contract.name()
             ))));
         }

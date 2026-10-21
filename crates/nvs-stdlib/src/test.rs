@@ -1345,7 +1345,7 @@ const RESPONSE_JSON_AS_DOC: MethodDoc = MethodDoc {
                to 1024. A document with no array or object in it has depth 1.",
         shape: &[],
     }],
-    ret: "A new `T` with its fields read from the body, or one `T` for each element for an \
+    ret: "A new `T` with its properties read from the body, or one `T` for each element for an \
           `array<T>`. Every call creates new objects.",
     errors: &[
         ErrorDoc {

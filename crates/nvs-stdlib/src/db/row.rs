@@ -163,7 +163,7 @@ pub(super) unsafe fn hydrate(
             None => match &field.default {
                 Some(default) => Ok(default.materialize()),
                 None => Err(format!(
-                    "the result has no column `{}` — a `#[Db\\Field(name: \"…\")]` is how a field \
+                    "the result has no column `{}` — a `#[Db\\Field(name: \"…\")]` is how a property \
                      reads one under another name",
                     field.key
                 )),
@@ -182,7 +182,7 @@ pub(super) unsafe fn hydrate(
                     // one class's own constructor, both written while compiling
                     // that class.
                     return Err(Fault::fatal(format!(
-                        "internal error: `{}`'s `{}` field names constructor parameter {} of {}",
+                        "internal error: `{}`'s `{}` property names constructor parameter {} of {}",
                         desc.name(),
                         field.key,
                         field.param,
@@ -221,7 +221,7 @@ pub(super) unsafe fn hydrate(
     if let Some(index) = filled.iter().position(|done| !done) {
         release_all(&ctor_args);
         return Err(Fault::fatal(format!(
-            "{QUERY_AS}: `{}`'s constructor parameter {index} is not a codec field, which \
+            "{QUERY_AS}: `{}`'s constructor parameter {index} is not a codec property, which \
              `E0806` refuses at the call that names such a class",
             desc.name()
         )));
@@ -300,7 +300,7 @@ pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<V
             Ok(held)
         } else {
             Err(
-                "the column is SQL NULL and the field is not declared `?T` — `rule:core-classes/db-column-types` reads a \
+                "the column is SQL NULL and the property is not declared `?T` — `rule:core-classes/db-column-types` reads a \
                  NULL back as `null` whatever the column's type is"
                     .to_owned(),
             )
@@ -311,7 +311,7 @@ pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<V
     };
     let Some(element) = field.element.as_ref() else {
         return Err(
-            "this field is a list whose element type the derive pass did not record".to_owned(),
+            "this property is a list whose element type the derive pass did not record".to_owned(),
         );
     };
     // A column is one value, so a row's list is flat: `nvs_types::derive`'s
@@ -319,7 +319,7 @@ pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<V
     // declaration, and this is the backstop for a descriptor built by hand.
     if element.element.is_some() {
         return Err(
-            "this field is a list of lists, and `rule:core-classes/db-column-types` maps no \
+            "this property is a list of lists, and `rule:core-classes/db-column-types` maps no \
              column to one"
                 .to_owned(),
         );
@@ -421,7 +421,8 @@ pub(super) fn converted(
         CodecTy::Enum => {
             let Some(cases) = cases else {
                 return Err(
-                    "this field is an enum whose cases the derive pass did not record".to_owned(),
+                    "this property is an enum whose cases the derive pass did not record"
+                        .to_owned(),
                 );
             };
             let backing = held
@@ -472,7 +473,7 @@ pub(super) fn converted(
         CodecTy::Class | CodecTy::Instant => {
             let Some(declared) = class else {
                 return Err(
-                    "this field is a class whose name the derive pass did not record".to_owned(),
+                    "this property is a class whose name the derive pass did not record".to_owned(),
                 );
             };
             let Some(object) = held.obj_ptr() else {
@@ -488,7 +489,7 @@ pub(super) fn converted(
                 Ok(held)
             } else {
                 Err(format!(
-                    "the column came back as a `{}` and this field declares `{declared}` — `rule:core-classes/db-column-types`'s \
+                    "the column came back as a `{}` and this property declares `{declared}` — `rule:core-classes/db-column-types`'s \
                      type map is what each column reads back as",
                     found.name()
                 ))
@@ -500,7 +501,7 @@ pub(super) fn converted(
         // `E0806` while compiling, so both arms are the backstop for a class
         // built by hand and named by no call site.
         CodecTy::Opaque | CodecTy::Shape => Err(
-            "this field's declared type is one no column reads back — an inline \
+            "this property's declared type is one no column reads back — an inline \
                                 shape"
                 .to_owned(),
         ),
@@ -515,7 +516,7 @@ pub(super) fn converted(
 /// field's declared type in hand rather than a reader's name.
 pub(super) fn wanted(want: &str, held: Value) -> String {
     format!(
-        "the column came back as {} and this field declares {want} — `rule:core-classes/db-column-types`'s type map is \
+        "the column came back as {} and this property declares {want} — `rule:core-classes/db-column-types`'s type map is \
          what each column reads back as",
         held.tag().map_or_else(
             || format!("tag {}", held.tag_byte()),
