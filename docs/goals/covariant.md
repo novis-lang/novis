@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-types/src/conformance.rs, crates/nvs-types/src/layout.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/mod.rs, docs/rules/classes/a-redeclared-property-keeps-its-parents-type.md]
   - id: 5
     title: "an erased, dynamic or hooked write of a covariant property is checked"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-ir/src/lower/stmt.rs, docs/rules/types/erased-member-access.md, docs/rules/types/property-key-access.md]
   - id: 6
     title: "`lang:classes/covariant` has its feature proofs, and the rule is shipped"
@@ -199,7 +199,7 @@ through a wider type that would store another class throws.
 - [x] The erased write through `object` or `mixed`, the `property<T>` key write and the reflected write test the receiver's narrowed type (`rule:types/erased-member-access`, `rule:types/property-key-access`). `crates/nvs-runtime/src/object.rs:1`
 - [x] A hooked property tests before its `set` hook, and the guard and observer run after the test. `crates/nvs-ir/src/lower/stmt.rs:1217`
 - [x] A case for each path. `tests/conformance/class/a-covariant-property-is-checked-on-every-write-path.nvst:1`
-- [ ] The redeclaration matrix of compiler-holes stage 17 gains a `covariant` parameter and a `covariant` property as rows, against every relation and path it lists, and `bun nv soundness --write` writes them. `tools/nv/cmd/soundness.ts:1`
+- [x] The redeclaration matrix of compiler-holes stage 17 gains a `covariant` parameter and a `covariant` property as rows, against every relation and path it lists, and `bun nv soundness --write` writes them. `tools/nv/cmd/soundness.ts:1`
 
 ### 6. `lang:classes/covariant` has its feature proofs, and the rule is shipped
 
@@ -298,18 +298,35 @@ that write is tested too.
 Hooks are resolved statically (`rule:classes/property-hooks`), so a write through the parent's type
 runs the parent's `set` hook on a subclass instance. The test runs before it, so this is safe.
 
-The nightly sweep's failures are on `6544156`, which the previous session found green on `main`.
+Stage 5 is done and verified. The soundness matrix has the rows `covariant-method-param` and
+`property-covariant` (`tools/nv/cmd/soundness.ts`, `covariantVerdicts`, `WIDER`, `covariantCall`,
+`covariantWrite`). A relation compiles where the child's type is narrower: `subclass`,
+`int-under-int-string`, `t-under-nullable` and `member-under-union`. `same`, `superclass`,
+`nullable-over-t` and `wider-union` are `E0882`. `unrelated`, `int-over-float` and `float-over-int`
+are `E0404` for the parameter and `E0866` for the property. Each path except the child's own type
+passes a value the parent takes and the child does not, and prints the `LogicError`. The union paths
+of the property throw too. All 465 cells pass alone on the debug build. The property's parent
+constructor takes the value as an argument, since a parent that stores its own wider value throws
+when the child is constructed.
+
+The nightly sweep's failures (run `39462919214`, on `6544156`) were already fixed on `main`: the
+stale perf records and `website/public/llms-full.txt` landed in later commits, and push run
+`39506154898` on `691cbcd` has the three `proofs` jobs and the chapter job green. `miri` timed out
+while it compiled. `ci.yml` has since split it into the `suites` and `samples` legs.
 
 ### Next
 
-**Stage 5's last item, one slice**, in `tools/nv/cmd/soundness.ts` only. Read the header, `MEMBERS`,
-`PATHS`, `propertyPiece` and `methodPiece` and the oracle before you write anything. It is about
-700 lines, so budget for it.
+**Stage 6, the feature proofs.** Follow its `**Split:**` line: writing subagents one after another,
+and the session checks each against AGENTS.md § *Text an end user reads*. `lang:classes/covariant`
+is not in the roster yet. A feature is a `# ` heading in the chapter source, so add `# \`covariant\``
+after `# Inheritance` first. Then `bun nv proofs --id 'lang:classes/covariant'` lists what it owes.
 
-- [ ] Add a `covariant` method parameter and a `covariant` property as member rows: `ok` for `subclass`, `int-under-int-string`, `t-under-nullable` and `member-under-union`, `E0882` for `same`, `superclass`, `nullable-over-t` and `wider-union`, `E0404` or `E0866` for `unrelated`; check each against `covariant_property_problem` and `check_covariant_params`. `tools/nv/cmd/soundness.ts:142`
-- [ ] The oracle: a path that passes the parent's wider value prints the `LogicError` message, and a path through the child's type passes the child's value. `tools/nv/cmd/soundness.ts:546`
-- [ ] `bun nv soundness --write`, then `NVS_BIN=E:/mwl/target/debug/nvs.exe bun nv soundness --probe` with every cell green. `tools/nv/cmd/soundness.ts:1`
-- [ ] Mark stage 5 done in the front matter. Then stage 6, the feature proofs. `docs/goals/covariant.md:1`
+- [ ] The heading in the chapter source, and the feature's directory with `about.md`. `docs/examples/lang/classes/chapter.md:12`, `docs/examples/lang/classes/covariant/about.md:1`
+- [ ] The three examples and the `compareTo` one. `docs/examples/lang/classes/covariant/01-a-method-that-takes-a-narrower-type.nvs:1`
+- [ ] The attack. `tests/hostile/lang/classes/covariant/01-a-wider-value-through-every-path.nvs:1`
+- [ ] The bench. `benches/members/lang/classes/covariant.nvs:1`
+- [ ] `bun nv render`, and `nvs agent show covariant`. `docs/reference/lang/50-classes.md:1011`
+- [ ] The rule record `shipped`, with the stage 2 to 5 cases and the two soundness files in `guardedBy`. `data/rules/classes/a-covariant-type-is-checked-where-a-value-enters.json:1`
 
 ### Backlog
 
