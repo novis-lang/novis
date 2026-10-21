@@ -666,9 +666,73 @@ pub(crate) fn lower_generator_factory(
     let (recv_v, _) = low.emit(entry, recv_ty, InstKind::Param(0));
     let mut param_tys = vec![recv_ty];
 
-    // The landing block is over an empty `Env` because that is what this
-    // frame holds here: the state object is the first thing it allocates, so
-    // a failing status has nothing of its own to release and only propagates.
+    // Each parameter is bound before the state object exists, so a
+    // `covariant` one is tested the way `lower_method` tests it, and a throw
+    // releases the receiver and the parameters the frame owns, as a method's
+    // does. A plain `covariant` slot is read at `Ty::Tagged` and the test
+    // untags it, so the field parks the narrower type.
+    let mut env = Env::default();
+    if !is_static {
+        env.insert("this".to_owned(), (recv_v, Ty::Object));
+    }
+    let mut stored = Vec::with_capacity(m.params.len());
+    let mut covariant_checks = Vec::new();
+    for (i, p) in m.params.iter().enumerate() {
+        assert!(
+            !p.inout,
+            "a generator with an `inout $x` parameter reached lowering: the slot it binds is a \
+             caller-staged cell that stops existing when the factory returns, so there is \
+             nothing sound to park in the state object — `nvs_types::check` refuses this \
+             where it is written, as `E0492`"
+        );
+        let decl_ty = p.ty.as_ref().unwrap_or_else(|| {
+            panic!("`rule:types/declaration`: every parameter has a declared type")
+        });
+        // `...$rest` receives the one array the caller collected its
+        // arguments into, as in `lower_method`.
+        let ty = match p.variadic {
+            true => Ty::Array,
+            false => lower_decl_type(decl_ty, exprs, checked_types),
+        };
+        let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
+        let pname = strip_sigil(span_text(src, p.name)).to_owned();
+        let bound_ty = if p.covariant && !p.variadic {
+            Ty::Tagged
+        } else {
+            ty
+        };
+        let (v, _) = low.emit(entry, bound_ty, InstKind::Param(index));
+        if p.covariant {
+            let declared = exprs.declared_ty(decl_ty.span).unwrap_or_else(|| {
+                panic!("nvs-ir: the checker records the type of every `covariant` parameter")
+            });
+            covariant_checks.push(CovariantParam {
+                name: pname.clone(),
+                declared,
+                narrow: ty,
+                value: v,
+                kind: if p.variadic {
+                    CovariantKind::Variadic
+                } else {
+                    CovariantKind::Plain
+                },
+                span: p.name,
+            });
+        }
+        env.insert(pname.clone(), (v, bound_ty));
+        param_tys.push(bound_ty);
+        stored.push((pname, ty));
+    }
+    let start = entry;
+    let mut cur = entry;
+    for check in covariant_checks {
+        low.emit_covariant_check(check, name, &mut env, &mut cur);
+    }
+
+    // The landing block is over an empty `Env`, as it was before a parameter
+    // had a test: the state object is the first thing this frame allocates.
+    // The rest of the frame is emitted into the block the tests passed to.
+    let entry = cur;
     let (gen_v, _) = low.emit_fallible(
         entry,
         Ty::Object,
@@ -695,30 +759,8 @@ pub(crate) fn lower_generator_factory(
         fields.push(("this".to_owned(), Ty::Object));
         low.emit_field_set(entry, gen_v, class.to_owned(), "this".to_owned(), recv_v);
     }
-    for (i, p) in m.params.iter().enumerate() {
-        assert!(
-            !p.inout,
-            "a generator with an `inout $x` parameter reached lowering: the slot it binds is a \
-             caller-staged cell that stops existing when the factory returns, so there is \
-             nothing sound to park in the state object — `nvs_types::check` refuses this \
-             where it is written, as `E0492`"
-        );
-        // The state object would park the wider value at the narrower type.
-        assert!(
-            !p.covariant,
-            "nvs-ir: the generator parameter `{}` is `covariant`, and no lowering emits its \
-             entry test in a generator yet \
-             (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`)",
-            span_text(src, p.name)
-        );
-        let decl_ty = p.ty.as_ref().unwrap_or_else(|| {
-            panic!("`rule:types/declaration`: every parameter has a declared type")
-        });
-        let ty = lower_decl_type(decl_ty, exprs, checked_types);
-        let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
-        let pname = strip_sigil(span_text(src, p.name)).to_owned();
-        let (v, _) = low.emit(entry, ty, InstKind::Param(index));
-        param_tys.push(ty);
+    for (pname, ty) in stored {
+        let (v, _) = env[&pname];
         fields.push((pname.clone(), ty));
         low.emit_field_set(entry, gen_v, class.to_owned(), pname, v);
     }
@@ -730,7 +772,7 @@ pub(crate) fn lower_generator_factory(
         params: param_tys,
         ret: Ty::Object,
         blocks,
-        entry,
+        entry: start,
         stmt_spans,
         edge_spans,
     }

@@ -7,13 +7,13 @@ fn G::upTo(classdesc, int) -> object {
   bb0:
     safepoint
     v0 = param 0  ; classdesc
-    v1 = new G::upTo$gen() ! bb1  ; object
-    v2 = const.int 0  ; int
-    field.set v1, G::upTo$gen::gen#state, v2
-    field.set v1, G::upTo$gen::gen#unwind, v2
-    v3 = param 1  ; int
-    field.set v1, G::upTo$gen::limit, v3
-    return v1
+    v1 = param 1  ; int
+    v2 = new G::upTo$gen() ! bb1  ; object
+    v3 = const.int 0  ; int
+    field.set v2, G::upTo$gen::gen#state, v3
+    field.set v2, G::upTo$gen::gen#unwind, v3
+    field.set v2, G::upTo$gen::limit, v1
+    return v2
   bb1:
     propagate "G::upTo() at t.nvs:1"
 }
