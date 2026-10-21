@@ -310,6 +310,7 @@ fn method_sig(
             })
             .collect(),
         inout: vec![false; count],
+        covariant: Vec::new(),
         variadic: false,
         defaults: method
             .params

@@ -83,6 +83,11 @@ pub struct MethodSig {
     /// turning one `Vec<TypeId>` into a `Vec<Param>` would rewrite every one
     /// of those call sites to buy nothing.
     pub inout: Vec<bool>,
+    /// Whether each parameter is declared `covariant`, positionally, and
+    /// **empty** for a signature that declares none, which is every signature
+    /// but a user method's. Read through [`Self::is_covariant`]
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+    pub covariant: Vec<bool>,
     /// Whether the last parameter is `...$x` — every argument from that
     /// position onward is checked against its type instead of requiring an
     /// exact count.
@@ -322,6 +327,17 @@ impl MethodSig {
             return self.inout.last().copied().unwrap_or(false);
         }
         self.inout.get(index).copied().unwrap_or(false)
+    }
+
+    /// Whether the parameter at `index` is declared `covariant`, the same way
+    /// [`Self::is_inout`] reads `inout`. `false` for every parameter of a
+    /// signature whose [`Self::covariant`] is empty.
+    #[must_use]
+    pub fn is_covariant(&self, index: usize) -> bool {
+        if self.variadic && index >= self.covariant.len().saturating_sub(1) {
+            return self.covariant.last().copied().unwrap_or(false);
+        }
+        self.covariant.get(index).copied().unwrap_or(false)
     }
 
     /// `rule:security/unclassified-parameter-refuses-tainted`'s classification of the parameter an argument at `index`
@@ -1184,6 +1200,11 @@ fn collect_members(
                 let text = span_text(env.src, p.name);
                 let name = strip_sigil(text).to_owned();
                 let void_or_never = reject_void_or_never_property(p, ty, env);
+                if p.covariant && p.modifiers.contains(&Modifier::Static) {
+                    report_misplaced_covariant(p.ty.span, "a static property", env);
+                } else if p.covariant && p.modifiers.contains(&Modifier::Readonly) {
+                    report_misplaced_covariant(p.ty.span, "a `readonly` property", env);
+                }
                 let is_lateinit = p.modifiers.contains(&Modifier::Lateinit);
                 if is_lateinit {
                     check_lateinit_property(p, env);
@@ -1308,6 +1329,11 @@ fn collect_members(
                     .map(|p| strip_sigil(span_text(env.src, p.name)).to_owned())
                     .collect();
                 let inout: Vec<bool> = m.params.iter().map(|p| p.inout).collect();
+                let covariant: Vec<bool> = if m.params.iter().any(|p| p.covariant) {
+                    m.params.iter().map(|p| p.covariant).collect()
+                } else {
+                    Vec::new()
+                };
                 let param_text = crate::paths::declared_text(&m.params, ctx, env);
                 let variadic = m.params.last().is_some_and(|p| p.variadic);
                 let mut defaults = collect_defaults(&m.params, &params, ctx, env);
@@ -1334,6 +1360,17 @@ fn collect_members(
                         .insert(name.clone());
                 }
                 if name == "constructor" {
+                    for p in m.params.iter().filter(|p| p.covariant) {
+                        if !p.is_promoted() {
+                            report_misplaced_covariant(
+                                p.span,
+                                "a constructor parameter that is not a property",
+                                env,
+                            );
+                        } else if p.modifiers.contains(&Modifier::Readonly) {
+                            report_misplaced_covariant(p.span, "a `readonly` property", env);
+                        }
+                    }
                     record_promoted_properties(&m.params, &params, qname, table, env);
                 } else {
                     reject_promotion_outside_constructor(&m.params, &name, env);
@@ -1344,6 +1381,7 @@ fn collect_members(
                         params,
                         param_names,
                         inout,
+                        covariant,
                         variadic,
                         defaults,
                         // `rule:security/unclassified-parameter-refuses-tainted` classifies a registry row's parameters,
@@ -1647,6 +1685,24 @@ fn reject_void_or_never_params(
             )),
         );
     }
+}
+
+/// `E0882` for a `covariant` written on `what`, where no value of a wider type
+/// can enter: a constructor parameter, a static or `readonly` property and an
+/// anonymous function's parameter
+/// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+pub(crate) fn report_misplaced_covariant(at: Span, what: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_COVARIANT_MISPLACED,
+            format!("`covariant` cannot be used on {what}"),
+        )
+        .with_primary(at, "`covariant` is written here")
+        .with_help(
+            "`covariant` is for a parameter of a method that replaces a parent's method, and for \
+             a property that a parent class declares. Remove it here",
+        ),
+    );
 }
 
 /// Refuses a visibility keyword on the parameter of a method that is not the

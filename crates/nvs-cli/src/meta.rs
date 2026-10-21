@@ -1152,8 +1152,8 @@ pub(crate) fn property_signature(property: &PropertyMember, src: &SourceFile) ->
     )
 }
 
-/// One parameter as it was written — `inout` and `...` included, and the
-/// default as its own source text.
+/// One parameter as it was written — `inout`, `covariant` and `...` included,
+/// and the default as its own source text.
 ///
 /// Read off the source rather than re-printed from the tree for the reason
 /// every span here is: the source is the text, so a spelling the grammar
@@ -1162,6 +1162,9 @@ fn param_signature(param: &Param, src: &SourceFile) -> String {
     let mut out = String::new();
     if param.inout {
         out.push_str("inout ");
+    }
+    if param.covariant {
+        out.push_str("covariant ");
     }
     if let Some(ty) = &param.ty {
         out.push_str(text(src, ty.span));

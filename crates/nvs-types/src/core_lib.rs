@@ -299,6 +299,7 @@ fn method_sig(
         // no `Core` parameter is ever by-reference. Not a gap in
         // the registry — a property of the convention.
         inout: vec![false; method.params.len()],
+        covariant: Vec::new(),
         // The last parameter's own shape says it — a
         // `CoreTy::Variadic` there and nowhere else, which that
         // variant's docs hold. `MethodSig::params` keeps the

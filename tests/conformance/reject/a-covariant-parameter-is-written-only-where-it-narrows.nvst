@@ -1,0 +1,72 @@
+--TEST--
+`covariant` is written only on a parameter that narrows the topmost declaration's type, with a type `is` tests in constant time, that keeps its qualifier and accepts the parent's default, and a grandchild that repeats a narrowed type writes it again — `rule:classes/a-covariant-type-is-checked-where-a-value-enters`
+--FILE--
+<?nvs
+class Animal {}
+class Dog extends Animal {}
+
+class Shelter {
+    public function admit(Animal $a): void {}
+    public function store(mixed $list, mixed $point, mixed $f): void {}
+    public function pick(?Animal $a = null): void {}
+    public function tag(tainted string $s): void {}
+}
+
+class DogShelter extends Shelter {
+    // Refused: `Animal` is not narrower than `Animal`.
+    public function admit(covariant Animal $a): void {}
+    // Refused: testing an array, a shape or a callable reads the whole value.
+    public function store(covariant array<int> $list, covariant {y: int} $point, covariant callable(int): int $f): void {}
+    // Refused: a call through `Shelter` passes the default `null`.
+    public function pick(covariant Dog $a): void {}
+    // Refused: `covariant` narrows the type and keeps `tainted`.
+    public function tag(covariant string $s): void {}
+}
+
+class Kennel extends Shelter {
+    public function admit(covariant Dog $a): void {}
+}
+
+class SmallKennel extends Kennel {
+    // Refused: `Dog` is narrower than `Shelter::admit`'s `Animal`, so it needs `covariant` too.
+    public function admit(Dog $a): void {}
+}
+
+class Stray {
+    // Refused: `Stray::feed` replaces no method.
+    public function feed(covariant Dog $a): void {}
+    // Refused: a constructor parameter that is not a property, and a `readonly` property.
+    public function constructor(covariant Dog $first, public readonly covariant Dog $second) {}
+    // Refused: a static property.
+    public static covariant ?Dog $last = null;
+}
+
+// Refused: an anonymous function replaces no method.
+callable $f = fn(covariant Dog $d) => 1;
+--EXPECTF-ERROR--
+error[E0882]: `covariant` has no effect here, because `$a` is not narrower than in `Shelter::admit`
+%A
+error[E0883]: a `covariant` parameter cannot have the type `array<int>`
+%A
+error[E0883]: a `covariant` parameter cannot have the type `{y: int}`
+%A
+error[E0883]: a `covariant` parameter cannot have the type `callable(int): int`
+%A
+error[E0884]: `$a` does not accept the default value that `Shelter::pick` gives it
+%A
+error[E0404]: `DogShelter::tag` cannot replace `Shelter::tag`
+%A
+error[E0404]: `SmallKennel::admit` cannot replace `Shelter::admit`
+%A
+error[E0882]: `covariant` has no effect here, because `Stray::feed` replaces no method
+%A
+error[E0882]: `covariant` cannot be used on a constructor parameter that is not a property
+%A
+error[E0882]: `covariant` cannot be used on a `readonly` property
+%A
+error[E0882]: `covariant` cannot be used on a static property
+%A
+error[E0882]: `covariant` cannot be used on a parameter of an anonymous function
+%A
+error: aborting due to 12 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

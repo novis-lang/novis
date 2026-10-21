@@ -772,6 +772,12 @@ fn signature(class: &str, call: &ResolvedCall, interner: &TypeInterner) -> (Stri
         let name = call.param_names.get(index).map_or("", String::as_str);
         let ty = interner.describe(*ty);
         let start = utf16_len(&row);
+        if call.inout.get(index).copied().unwrap_or(false) {
+            row.push_str("inout ");
+        }
+        if call.covariant.get(index).copied().unwrap_or(false) {
+            row.push_str("covariant ");
+        }
         // The variadic tail keeps the element type the row wrote, which is
         // what `ResolvedCall::param_tys` carries in that slot.
         if call.variadic && index == last {

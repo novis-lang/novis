@@ -1059,4 +1059,38 @@ codes! {
          in every class. Otherwise, test the value with `is` first, and use the member of that \
          one class.",
     );
+
+    /// `covariant` written where it narrows nothing: on a parameter of a
+    /// method that overrides nothing, of an anonymous function or of a
+    /// constructor that does not promote it, on a static or a `readonly`
+    /// property, or on a type no narrower than the topmost declaration's
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+    pub const E_COVARIANT_MISPLACED: Code = Code::new("E0882").card(
+        "`covariant` lets a method parameter or a property in a subclass have a narrower type \
+         than the parent class declares. Each value is then tested when it enters. You can \
+         write it only on a parameter of a method that replaces a parent's method, and on a \
+         property that a parent class declares. The type must also be narrower than the \
+         parent's type. Remove `covariant` everywhere else.",
+    );
+
+    /// A `covariant` type whose test is not constant time: an `array<T>`, a
+    /// shape, a callable, a `class<T>`, a `property<T>` or a generic class
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+    pub const E_COVARIANT_TYPE_NOT_TESTABLE: Code = Code::new("E0883").card(
+        "A `covariant` type is tested each time a value enters, and this test must be fast. \
+         So the type must be a class, an interface, an enum, a scalar, `null`, or a union of \
+         these. An array, a shape and a callable are not allowed, because the test has to look \
+         at every element. Use the parent's type instead, and test the value in the method body.",
+    );
+
+    /// A default the topmost declaration gives a parameter that the
+    /// override's `covariant` type does not accept, which a call through the
+    /// ancestor passes
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+    pub const E_COVARIANT_DEFAULT_REJECTED: Code = Code::new("E0884").card(
+        "A call through the parent class uses the default value that the parent declares. A \
+         `covariant` parameter must accept that value. Otherwise, every call that leaves out \
+         the argument throws an error. Use a type that includes the default, or change the \
+         default in the parent class.",
+    );
 }
