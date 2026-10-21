@@ -89,7 +89,8 @@ export async function bringUp(docker: Docker | undefined, say: Say, root: string
   if (docker === undefined) return "";
   const s: DockerSeams = { ...REAL, ...over };
   say(`bringing up ${docker.services.length > 0 ? docker.services.join(", ") : "every service"} from ${docker.compose}`);
-  const r = await s.run(["docker", "compose", "-f", docker.compose, "up", "-d", "--wait", ...docker.services], { cwd: root, timeoutMs: 1_800_000 });
+  // The CLI waits silently while Docker pulls and starts the services outside its tree, so only the time limit bounds it.
+  const r = await s.run(["docker", "compose", "-f", docker.compose, "up", "-d", "--wait", ...docker.services], { cwd: root, timeoutMs: 1_800_000, hang: false });
   if (r.code === 0) return "";
   return `\`docker compose -f ${docker.compose} up\` failed -- ${failLine(`${r.stderr}\n${r.stdout}`, r.code, "docker compose up")}. The live goal's checks need those services.`;
 }

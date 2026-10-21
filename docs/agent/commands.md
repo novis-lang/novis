@@ -174,6 +174,21 @@ are `looper guard`'s.
   The `[jobs] exclusive` commands take every slot, so no build runs beside a measurement. The comment
   above `[jobs]` there says which commands are which.
 
+## A hang stops the slice
+
+- **Every program `bun nv` starts is watched for a hang.** A tree that waits 90 s with no output, no
+  I/O and no CPU is stalled. One that uses the CPU for 10 minutes with no output and no I/O is
+  spinning. Either is killed through its own `Tree`, so the kill reaches only what that run started.
+  The run reports it as timed out, with the report in `hung`. `tools/nv/lib/hang.ts` is the home.
+- **A `HANG:` line names its report** under `.agent-tmp/hangs/`. The report gives the processes of
+  the tree, the CPU each used while it was watched closely, the test libtest last said was running
+  long, and the last lines printed. In CI the whole report goes to stderr.
+- **A `HANG:` line stops the slice until its cause is found.** Read the report, run the unit it names
+  alone with a time limit, and fix what hangs before you go on. A longer `stallMs`, or `hang: false`,
+  is a fix only for a program that waits on purpose, and its comment says what it waits for.
+- **Delete the report once the cause is fixed.** It is a scratch file, like everything under
+  `.agent-tmp/`.
+
 ## Other sessions' jobs
 
 Another session's command is a job too. Never kill a process by its name, `nvs.exe` and `cargo`

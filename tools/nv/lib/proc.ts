@@ -9,7 +9,12 @@
 // moment it starts, which is what bounds every kill to processes this run started; once the program
 // has exited, the timeout and the signal reach only what it left behind, so a process holding its
 // pipes open cannot keep a run waiting.
+//
+// Every run is also watched for a hang (`hang.ts`) unless it passes `hang: false`: a tree that waits
+// with no CPU and no output, or spins with no output, is killed long before its timeout, and reported
+// as both timed out and `hung`, with the report in `hung` and at the end of its stderr.
 
+import { type HangOptions, TAIL_BYTES, watch } from "./hang.ts";
 import { Tree } from "./proctree.ts";
 import { DISCARD_PROFILE, ROOT } from "./paths.ts";
 import { erase } from "./progress.ts";
@@ -28,6 +33,8 @@ export interface RunOptions {
   /** When aborted, the program is killed with every process it started. A run whose signal is already
    * aborted starts nothing. */
   signal?: AbortSignal;
+  /** The hang watch's bounds, or `false` for a program that waits on purpose. Watched by default. */
+  hang?: HangOptions | false;
 }
 
 export interface RunResult {
@@ -38,6 +45,8 @@ export interface RunResult {
   timedOut: boolean;
   /** The program was killed, or never started, because `signal` was aborted. */
   aborted: boolean;
+  /** The hang report, when the hang watch killed the program; `timedOut` is set then too. */
+  hung?: string;
 }
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -94,33 +103,62 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
     tree.kill();
   };
   opts.signal?.addEventListener("abort", abort, { once: true });
+  const printed = new Printed();
+  const watching = opts.hang === false ? null : watch(argv, tree, printed, opts.hang);
   try {
     // The exit status first: a process the program left running holds the pipes open, and reaping it is
     // what lets them close.
     const reading = Promise.all([
-      opts.onLine ? drain(child.stdout, (l) => opts.onLine!(l, "stdout")) : new Response(child.stdout).text(),
-      opts.onLine ? drain(child.stderr, (l) => opts.onLine!(l, "stderr")) : new Response(child.stderr).text(),
+      drain(child.stdout, printed, opts.onLine && ((l) => opts.onLine!(l, "stdout"))),
+      drain(child.stderr, printed, opts.onLine && ((l) => opts.onLine!(l, "stderr"))),
     ]);
     const code = await child.exited;
+    watching?.stop();
+    const hung = watching?.hung ?? undefined;
+    if (hung !== undefined) timedOut = true;
     if (opts.reap && (code !== 0 || timedOut)) tree.reap();
     const [stdout, stderr] = await reading;
-    return { argv, code: timedOut ? 124 : aborted ? 130 : code, stdout, stderr, timedOut, aborted };
+    const result: RunResult = { argv, code: timedOut ? 124 : aborted ? 130 : code, stdout, stderr: hung === undefined ? stderr : `${stderr}\n${hung}`, timedOut, aborted };
+    if (hung !== undefined) result.hung = hung;
+    return result;
   } finally {
     clearTimeout(timer);
+    watching?.stop();
     opts.signal?.removeEventListener("abort", abort);
     tree.close();
   }
 }
 
-/** All of `stream` as text, with `onLine` called on each line as it arrives. A line ends at LF, and a
- * CR before it is dropped; a last line with no LF is passed as well. */
-async function drain(stream: ReadableStream<Uint8Array>, onLine: (line: string) => void): Promise<string> {
+/** What a run has printed so far, on either stream, for the hang watch: a byte count and the last `TAIL_BYTES`. */
+class Printed {
+  private count = 0;
+  private last = "";
+
+  add(text: string): void {
+    this.count += text.length;
+    this.last = (this.last + text).slice(-TAIL_BYTES);
+  }
+
+  bytes(): number {
+    return this.count;
+  }
+
+  tail(): string {
+    return this.last;
+  }
+}
+
+/** All of `stream` as text, counted into `printed` as it arrives, with `onLine` called on each line. A
+ * line ends at LF, and a CR before it is dropped; a last line with no LF is passed as well. */
+async function drain(stream: ReadableStream<Uint8Array>, printed: Printed, onLine?: (line: string) => void): Promise<string> {
   const decoder = new TextDecoder();
   let all = "";
   let pending = "";
   for await (const chunk of stream) {
     const text = decoder.decode(chunk, { stream: true });
     all += text;
+    printed.add(text);
+    if (!onLine) continue;
     pending += text;
     let nl = pending.indexOf("\n");
     while (nl >= 0) {
@@ -131,8 +169,9 @@ async function drain(stream: ReadableStream<Uint8Array>, onLine: (line: string) 
   }
   const tail = decoder.decode();
   all += tail;
+  printed.add(tail);
   pending += tail;
-  if (pending) onLine(pending.replace(/\r$/, ""));
+  if (onLine && pending) onLine(pending.replace(/\r$/, ""));
   return all;
 }
 
@@ -154,11 +193,15 @@ export async function passthrough(argv: string[], opts: Omit<RunOptions, "input"
     timedOut = true;
     tree.kill();
   }, opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  // Its output goes straight to the terminal, so the watch sees it only as bytes written, and any write
+  // counts as progress.
+  const watching = opts.hang === false ? null : watch(argv, tree, new Printed(), { ioStep: 1, ...opts.hang });
   try {
     const code = await child.exited;
-    return timedOut ? 124 : code;
+    return timedOut || watching?.hung ? 124 : code;
   } finally {
     clearTimeout(timer);
+    watching?.stop();
     tree.close();
   }
 }

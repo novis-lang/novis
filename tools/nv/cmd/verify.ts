@@ -218,6 +218,8 @@ interface Job {
   limitMs?: number;
   /** Set once a run of it is killed for its time. */
   timedOut?: boolean;
+  /** The hang report, set once the hang watch killed a run of it. */
+  hung?: string;
 }
 
 interface Step {
@@ -550,7 +552,8 @@ async function runJob(job: Job): Promise<[number, number, string]> {
   try {
     const p = await proc(job.argv, { cwd: job.cwd, env: job.env, timeoutMs: limit, reap: true });
     if (p.timedOut) job.timedOut = true;
-    const killed = p.timedOut ? `\nkilled after ${Math.round(limit / 1000)} seconds, its time limit, so a test in it hangs or is far slower than its last run\n` : "";
+    if (p.hung !== undefined) job.hung = p.hung;
+    const killed = p.hung !== undefined ? "" : p.timedOut ? `\nkilled after ${Math.round(limit / 1000)} seconds, its time limit, so a test in it hangs or is far slower than its last run\n` : "";
     return [(performance.now() - started) / 1000, p.code, p.stdout + p.stderr + killed];
   } catch (e) {
     return [(performance.now() - started) / 1000, -1, `could not run \`${job.argv.join(" ")}\`: ${(e as Error).message}`];
@@ -702,7 +705,8 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
   for (const n of [...results.keys()].sort()) if (!names.has(n)) out.push(`     Running ${n}\n${results.get(n)![2]}`);
   for (const j of failed) out.push(`     Running ${j.name}  -- FAILED, exit ${results.get(j.name)![1]}\n${results.get(j.name)![2]}`);
   for (const j of failed) {
-    if (j.timedOut) out.push(`error: \`${j.name}\` ran past its time limit of ${Math.round(j.limitMs! / 1000)} seconds; \`${j.rerun}\` runs it again, and \`--test-threads=1\` on its binary names the test that hangs.`);
+    if (j.hung !== undefined) out.push(`error: \`${j.name}\` hung and was killed: ${j.hung.split("\n")[0]!.replace(/^HANG: `[^`]*` /, "it ")} ${j.hung.split("\n")[1] ?? ""}. Find what hangs before anything else; \`${j.rerun}\` runs it again.`);
+    else if (j.timedOut) out.push(`error: \`${j.name}\` ran past its time limit of ${Math.round(j.limitMs! / 1000)} seconds; \`${j.rerun}\` runs it again, and \`--test-threads=1\` on its binary names the test that hangs.`);
     else out.push(alone.get(j.name) ? RERUN_ALONE_PASSED(j.name) : `error: \`${j.name}\` failed, alone as well; \`${j.rerun}\` runs it again.`);
   }
   for (const line of wide) out.push(`error: ${line}`);
