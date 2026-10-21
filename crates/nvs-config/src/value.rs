@@ -135,10 +135,13 @@ pub fn unit_of(key: &str) -> Option<Unit> {
         // The ratio half is a multiplier rather than a fraction — output per octet of input — so
         // it is a `Count` and not `Unit::Ratio`, whose values run between zero and one.
         // The backtracking tier's step budget is a count of steps for the reason `max_tasks` is a
-        // count of tasks: a number of things, with no unit anyone would suffix it with.
-        "max_tasks" | "max_script_depth" | "max_decompression_ratio" | "max_regex_steps" => {
-            Some(Unit::Count)
-        }
+        // count of tasks: a number of things, with no unit anyone would suffix it with. A
+        // multipart body's part count is one for the same reason.
+        "max_tasks"
+        | "max_script_depth"
+        | "max_decompression_ratio"
+        | "max_regex_steps"
+        | "max_multipart_parts" => Some(Unit::Count),
         // `rule:observability/memory-high-water-writes-a-warn`'s threshold is a share of the
         // memory ceiling, which is what a `Ratio` is.
         "memory_high_water" => Some(Unit::Ratio),

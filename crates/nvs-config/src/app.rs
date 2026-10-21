@@ -222,8 +222,8 @@ pub fn quantities(config: &Config, origins: &BTreeMap<String, Origin>) -> Result
 /// reason. The resolve calls this over the global tree, and
 /// [`Snapshot::build`](crate::snapshot::Snapshot::build) over the tree an entry's `[[app]]` blocks
 /// fold to, where a start from one block meets a ceiling from another. An unwritten ceiling is the
-/// start itself, so there is nothing to compare, and the two body caps' default ceilings are
-/// [`body_caps`]'s.
+/// start itself, so there is nothing to compare, and the default ceilings of the two body caps and
+/// the part count are [`body_caps`]'s.
 ///
 /// # Errors
 ///
@@ -482,7 +482,7 @@ fn bounded(
 
 /// The `[limits]` keys of a per-app block, named and in the tree's own order — the same keys
 /// [`ceilings`] returns, in the same order, so the two zip row for row.
-fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 8] {
+fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 9] {
     [
         ("memory", limits.memory.as_ref()),
         ("cpu_time", limits.cpu_time.as_ref()),
@@ -491,6 +491,10 @@ fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 8] {
         ("max_output", limits.max_output.as_ref()),
         ("request_body", limits.request_body.as_ref()),
         ("upload_total", limits.upload_total.as_ref()),
+        (
+            "max_multipart_parts",
+            limits.max_multipart_parts.as_ref(),
+        ),
         ("max_regex_steps", limits.max_regex_steps.as_ref()),
     ]
 }
@@ -512,7 +516,7 @@ fn system(limits: &Limits) -> [(&'static str, Option<&Setting>); 5] {
 
 /// The same keys of a `[limits.hard]`, carrying their names — one table, so a new limit is a row
 /// here rather than a scattering of places to forget.
-pub(crate) fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 8] {
+pub(crate) fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 9] {
     [
         ("memory", set.memory.as_ref()),
         ("cpu_time", set.cpu_time.as_ref()),
@@ -521,32 +525,44 @@ pub(crate) fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 8] 
         ("max_output", set.max_output.as_ref()),
         ("request_body", set.request_body.as_ref()),
         ("upload_total", set.upload_total.as_ref()),
+        ("max_multipart_parts", set.max_multipart_parts.as_ref()),
         ("max_regex_steps", set.max_regex_steps.as_ref()),
     ]
 }
 
-/// `rule:http-server/request-body-and-upload-total-are-two-caps`'s two caps against their
-/// ceilings, which are the only `[limits.hard]` keys with a default of their own: `64M` and `2G`.
+/// `rule:http-server/request-body-and-upload-total-are-two-caps`'s two caps and
+/// `rule:errors/multipart-part-count`'s part count against their ceilings, which are the only
+/// `[limits.hard]` keys with a default of their own: `64M`, `2G` and `10000`.
 ///
 /// [`bound`] applies a ceiling only where the operator wrote one, because every other ceiling
-/// defaults to the value the run started with. These two default to a number, so a `[limits]` or
+/// defaults to the value the run started with. These three default to a number, so a `[limits]` or
 /// `[app.limits]` value past it is refused here whether or not `[limits.hard]` is written. An
 /// `[app.limits.hard]` value is held to the same ceiling, for [`bound`]'s reason.
 ///
 /// # Errors
 ///
-/// `E0610` for a value above the ceiling, and `E0601` for a value that is not a size.
+/// `E0610` for a value above the ceiling, and `E0601` for a value that is not a quantity.
 pub fn body_caps(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     let hard = config
         .limits
         .as_ref()
         .and_then(|limits| limits.hard.as_ref());
     for (name, default) in [
-        ("request_body", crate::defaults::LIMITS_HARD_REQUEST_BODY),
-        ("upload_total", crate::defaults::LIMITS_HARD_UPLOAD_TOTAL),
+        (
+            "request_body",
+            crate::defaults::size(crate::defaults::LIMITS_HARD_REQUEST_BODY),
+        ),
+        (
+            "upload_total",
+            crate::defaults::size(crate::defaults::LIMITS_HARD_UPLOAD_TOTAL),
+        ),
+        (
+            "max_multipart_parts",
+            crate::defaults::LIMITS_HARD_MAX_MULTIPART_PARTS.to_string(),
+        ),
     ] {
         let written = hard.and_then(|hard| field(&ceilings(hard), name));
-        let ceiling = written.unwrap_or_else(|| Setting::Text(crate::defaults::size(default)));
+        let ceiling = written.unwrap_or(Setting::Text(default));
         if let Some(asked) = config
             .limits
             .as_ref()

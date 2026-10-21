@@ -79,6 +79,10 @@
 # body larger than `upload_total` gets a `413` answer.
 #request_body = "8M"                  # default
 #upload_total = "256M"                # default
+# `Runtime` — how many parts a multipart form body may have. Text fields count as parts too. When
+# a body has more parts, the call that reads the form throws an error
+# (`rule:errors/multipart-part-count`).
+#max_multipart_parts = 1000           # default
 # `Runtime` — concurrent tasks, named to a request like the ones above. No scheduler or budget reads
 # it yet, so writing it bounds nothing today (`rule:security/isolate-budget-is-the-trees` is what it
 # is for).
@@ -134,10 +138,11 @@
 #max_tasks = 64                       # default: the [limits] value
 #max_output = "128M"                  # default: the [limits] value
 #max_regex_steps = 5000000            # default: the [limits] value
-# The two body limits have a ceiling of their own, which applies when this block does not write
-# one. A `[limits]` value above it does not start.
+# The two body limits and the part count have a ceiling of their own, which applies when this block
+# does not write one. A `[limits]` value above it does not start.
 #request_body = "64M"                 # default
 #upload_total = "2G"                  # default
+#max_multipart_parts = 10000          # default
 
 
 # ----------------------------------------------------------------------------------------------
@@ -882,6 +887,7 @@
 #max_regex_steps = 5000000            # default: the [limits] value
 #request_body = "64M"                 # default
 #upload_total = "2G"                  # default
+#max_multipart_parts = 10000          # default
 
 #[schedule.grants.script]
 # This entry's grants. Each key is the same as in `[capabilities.*]` above and works the same way.
@@ -1037,6 +1043,7 @@
 #max_regex_steps = 1000000            # default
 #request_body = "8M"                  # default
 #upload_total = "256M"                # default
+#max_multipart_parts = 1000           # default
 #fatal_reserve_memory = "1M"          # default
 #fatal_reserve_time = "50ms"          # default
 #max_script_depth = 64                # default
@@ -1057,6 +1064,7 @@
 #max_regex_steps = 5000000            # default: the [limits] value
 #request_body = "64M"                 # default
 #upload_total = "2G"                  # default
+#max_multipart_parts = 10000          # default
 
 #[app.capabilities.script]
 # This application's grants. Each key is the same as in `[capabilities.*]` above and works the same
