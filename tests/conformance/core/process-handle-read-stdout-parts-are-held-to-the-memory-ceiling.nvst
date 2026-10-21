@@ -47,5 +47,6 @@ memory = "16M"
 --EXPECT--
 before
 --EXPECTF-ERROR--
-FATAL: the request exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler, when an allocation of %d bytes was refused
+FATAL: the program exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler, when an allocation of %d bytes was refused
+help: raise `memory` under `[limits]` in nvs.toml, or call `Core\Config::set('memory', '32M')` in the program
 {"level":"error","msg":"A process started with `Core\\Process::spawn` was still running when the program ended, so it was stopped. Call `wait()` or `kill()` on its handle before the program ends.","fields":{"program":"%s"}}

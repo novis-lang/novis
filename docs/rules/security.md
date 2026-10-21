@@ -1036,6 +1036,12 @@ Grant lines are friction, and the friction is the point. Some users will grant e
 reading, the way some run containers as root; the design cannot prevent that, only make it visible and
 diffable. What it prevents is authority arriving without anybody writing anything.
 
+A package may lower its own limits and never raise one. A `Core\Config::set` call under a package's
+namespace that raises a `[limits]` key returns `false`, even where the application's own code may
+raise it: on a CLI run with no `[limits.hard] memory` written, the application raises `memory` freely
+([`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives)). A raise would let a dependency take memory the
+application never chose to spend.
+
 A package can never be the code that declares data safe. Only a `Core` member removes `tainted`
 ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), so a package can compute over a `tainted` value and return
 it still `tainted`.
@@ -1331,6 +1337,14 @@ A typed reader answers the tainted form itself: a row's `string` is `?tainted st
 is `?tainted bytes`. The list of sources being **enumerable** is what lets the qualifier attach itself
 automatically, and is exactly what `secret` has no equivalent of
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)).
+
+**`Core\Env::secret` is the environment's one read that is not `tainted`.** It answers `?secret
+string` ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)). `tainted` stops a value at a sink that would
+read it as an instruction: a URL, a path, a query, markup. A `secret` reaches none of those, because
+every output and instruction sink already refuses it, and it does reach the two places a credential
+belongs, an outbound header and a database password, which refuse `tainted`. Carrying both bits would
+make the member unusable for its one purpose. The operator who started the process chose the value,
+as they chose `nvs.toml`; `Core\Env::get` stays `tainted` because its value may reach any sink.
 
 No `Core` member names a qualifier, and the taint diagnosis has no opt-out. A `taintedPostAs` would
 make every other member's name read as a claim it does not make. A caller who finds the diagnosis
@@ -2142,10 +2156,24 @@ whether or not their content happens to be a credential.
 type, property or local. A helper that loads an API key is expected to declare its own return type
 `secret string`; the language gives no free ride.
 
-**One member originates the qualifier**, and it is the exception that proves the rule: reading a
-password at a terminal prompt with echo disabled answers `secret tainted string`, because the
-*member's contract* is confidentiality and there is no reading of its result that is not a credential.
-That is a declared return type, not an ambient grant.
+**Two members originate the qualifier**, and each is a member whose *contract* is confidentiality,
+so there is no reading of its result that is not a credential. Each is a declared return type, not
+an ambient grant.
+
+- **`Core\Cli::secret`** reads a password at a terminal prompt with echo disabled and answers
+  `secret tainted string`: the person at the keyboard is outside the program.
+- **`Core\Env::secret('NAME')`** answers `?secret string`, `null` where nothing set the variable. It
+  reads the variable `Core\Env::get` reads, and a program calls it instead of `get` to say that the
+  value is a credential. Its name is a sink, as `get`'s is, so a request cannot choose which
+  credential it reads. The value is not `tainted`, for [`security/tainted-sources`](security.md#security-tainted-sources)' reason.
+
+**Declined:**
+- **`Core\Env::get` answering `secret` for a name that looks like a credential** (`*_KEY`,
+  `*_PASSWORD`). A guess about a name is the ambient grant this rule refuses, and it would be wrong in
+  both directions.
+- **`Core\Env::secret` answering `secret tainted string`**, as the prompt does. An outbound header and
+  a database password refuse `tainted`, so every credential read from the environment would need
+  `Core\Taint::assertTrusted` before it reached the one place it is for.
 
 The cost is stated: `secret` protects only what a developer remembers to annotate. That is a real
 coverage gap relative to `tainted`, not an oversight.
@@ -2978,6 +3006,16 @@ csrf_key` names the key that says what a valid token is; until it does, there is
 any request to be missing. A valid token passes whatever the origin says, because it proves the page
 the request came from was this application's.
 
+**The token rides in the `x-csrf-token` header, a `_csrf` query parameter or an urlencoded form's
+`_csrf` field**, and the first of the three present decides. A plain HTML form therefore needs no
+script. The form body is read only for a checked `application/x-www-form-urlencoded` request that
+sent neither of the other two, up to `[limits] request_body`, by the request's own task before the
+handler runs, and the handler reads the same form afterwards. A body past the limit is refused as a
+missing token. A multipart body is never read for a token: a file upload would have to be buffered
+whole before the check, on the sender's terms, so a multipart write carries its token in the header or
+the query. **What it spends:** up to `[limits] request_body` per such request in flight, attributed to
+that request, and bytes the handler's own form parse would have buffered anyway.
+
 **An upgrade is checked by its origin, on any verb.** A browser opens a WebSocket with a `GET` that
 carries the visitor's cookies, so a request asking to upgrade that matched a route is refused when its
 `Origin` names somewhere other than where it arrived, and passes with no `Origin`, as a write does. The
@@ -3010,6 +3048,8 @@ and a gate that throws leaves the empty `403`. A program that does not call `dis
   than on what the code says, which is harder to reason about and harder to test.
 - **Tokens available, and enforcement left to the program.** An unprotected state-changing route would
   look the same as a protected one at compile time and at run time.
+- **Reading a multipart body for its `_csrf` field.** Every upload would be buffered before the check,
+  up to `[limits] upload_total`, before anything decides whether to run it.
 - **A gate that lets a refused request through.** The exemption would then live in code a reviewer reads
   apart from the route. `csrf: false` on the route stays the only opt-out.
 

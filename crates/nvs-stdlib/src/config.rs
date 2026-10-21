@@ -527,17 +527,25 @@ mod tests {
         );
     }
 
-    /// With no `[limits.hard]` written, the ceiling is the `[limits]` value the
-    /// run started with — the file's, or the default where the file writes
-    /// none. A program can lower its own limit and cannot raise it, until the
-    /// operator writes a hard ceiling above the start.
+    /// A context configured out of `written`, running as a request.
+    fn serving(written: &str) -> Ctx {
+        let mut ctx = configured(written);
+        ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
+        ctx
+    }
+
+    /// In server work with no `[limits.hard]` written, the ceiling is the
+    /// `[limits]` value the run started with — the file's, or the default
+    /// where the file writes none. A request can lower its own limit and
+    /// cannot raise it, until the operator writes a hard ceiling above the
+    /// start.
     // covers: Core\Config::set
     #[test]
     fn an_unwritten_hard_ceiling_is_the_value_the_run_started_with() {
-        let mut ctx = configured("");
+        let mut ctx = serving("");
         assert!(
             !set(&mut ctx, "memory", "256M"),
-            "a program raised its memory past the 128M default with no ceiling written"
+            "a request raised its memory past the 128M default with no ceiling written"
         );
         assert!(
             set(&mut ctx, "memory", "128M"),
@@ -549,23 +557,90 @@ mod tests {
             "a lowered limit goes back up to the start value"
         );
 
-        let mut written = configured("[limits]\nmemory = \"32M\"\n");
+        let mut written = serving("[limits]\nmemory = \"32M\"\n");
         assert!(
             !set(&mut written, "memory", "64M"),
-            "a program raised its memory past the value the file wrote"
+            "a request raised its memory past the value the file wrote"
         );
 
-        let mut ceilinged = configured("[limits.hard]\nmemory = \"512M\"\n");
+        let mut ceilinged = serving("[limits.hard]\nmemory = \"512M\"\n");
         assert!(
             set(&mut ceilinged, "memory", "256M"),
             "a written hard ceiling did not allow a raise below it"
         );
         assert!(!set(&mut ceilinged, "memory", "513M"));
 
-        let mut removed = configured("[limits.hard]\nmemory = false\n");
+        let mut removed = serving("[limits.hard]\nmemory = false\n");
         assert!(
             set(&mut removed, "memory", "4G"),
             "a hard `false` did not remove the ceiling"
+        );
+    }
+
+    /// A CLI run keeps the 128M default, and its own code may raise it past
+    /// that while no `[limits.hard] memory` is written. A written one bounds
+    /// the raise exactly as it bounds a request's.
+    // covers: Core\Config::set
+    #[test]
+    fn a_cli_run_raises_its_memory_freely_until_a_hard_ceiling_is_written() {
+        let mut command = configured("");
+        assert_eq!(get(&mut command, "memory").as_deref(), Some("128M"));
+        assert_eq!(
+            get(&mut command, "limits.hard.memory"),
+            None,
+            "a CLI run reported a hard memory ceiling nobody wrote"
+        );
+        assert!(
+            set(&mut command, "memory", "2G"),
+            "a CLI program could not raise its memory past 128M"
+        );
+        assert!(
+            command.memory_limit() > 1 << 30,
+            "the ceiling the runtime enforces did not move with the raise"
+        );
+        assert!(
+            !set(&mut command, "memory", "lots"),
+            "a value that does not spell a size was taken"
+        );
+
+        let mut ceilinged = configured("[limits.hard]\nmemory = \"512M\"\n");
+        assert!(set(&mut ceilinged, "memory", "512M"));
+        assert!(
+            !set(&mut ceilinged, "memory", "513M"),
+            "a CLI program raised its memory past the hard ceiling the file wrote"
+        );
+    }
+
+    /// The memory-limit error names the run and the two ways to raise the
+    /// limit: "the program" and an unbounded `Core\Config::set` on a CLI run,
+    /// "the request" and a set bounded by `[limits.hard] memory` in server work.
+    #[test]
+    fn the_memory_limit_error_names_the_run_and_how_to_raise_it() {
+        let breach = |ctx: Ctx| {
+            let held = vec![1_u8; 4 << 20];
+            let breach = ctx.memory_breach();
+            drop(held);
+            match breach {
+                Some(nvs_runtime::Fault::Fatal(message)) => message.into_owned(),
+                other => panic!("4M held under a 1M ceiling gave {other:?}"),
+            }
+        };
+        let small = "[limits]\nmemory = \"1M\"\n";
+        let command = breach(configured(small));
+        assert!(command.starts_with("the program exceeded its memory limit"), "{command}");
+        assert!(
+            command.ends_with(
+                "help: raise `memory` under `[limits]` in nvs.toml, or call \
+                 `Core\\Config::set('memory', '2M')` in the program"
+            ),
+            "{command}"
+        );
+
+        let request = breach(serving(small));
+        assert!(request.starts_with("the request exceeded its memory limit"), "{request}");
+        assert!(
+            request.ends_with("in the request, up to `[limits.hard] memory`"),
+            "{request}"
         );
     }
 

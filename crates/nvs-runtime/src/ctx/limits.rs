@@ -413,7 +413,8 @@ impl Ctx {
     /// fixture that wraps the loop in one has found the rule rather than a bug.
     /// The message names the ceiling as well as the reading, because the two
     /// together are what tells an operator whether to raise the limit or to fix
-    /// the program. After a refusal the reading is the one taken when the
+    /// the program, and a help line names both ways to raise it. The subject is
+    /// "the program" on a CLI run and "the request" in server work. After a refusal the reading is the one taken when the
     /// allocation was refused, followed by what it asked for
     /// ([`crate::budget::Refusal`] owns why): by the poll, a refused
     /// concatenation has already given back the text it was growing.
@@ -445,17 +446,55 @@ impl Ctx {
             bytes => format!(", of which {bytes} is reserved for the limit handler"),
         };
         let ceiling = self.memory_limit.saturating_add(self.fatal_reserve);
-        Some(crate::Fault::fatal(match crate::budget::refusal() {
+        let run = self.memory_run();
+        let reading = match crate::budget::refusal() {
             Some(refusal) => format!(
-                "the request exceeded its memory limit — {} bytes held against a ceiling of {ceiling}{reserved}, when an allocation of {} bytes was refused",
+                "the {run} exceeded its memory limit — {} bytes held against a ceiling of {ceiling}{reserved}, when an allocation of {} bytes was refused",
                 self.memory_share(refusal.live),
                 refusal.asked,
             ),
             None => format!(
-                "the request exceeded its memory limit — {} bytes held against a ceiling of {ceiling}{reserved}",
+                "the {run} exceeded its memory limit — {} bytes held against a ceiling of {ceiling}{reserved}",
                 self.memory_used(),
             ),
-        }))
+        };
+        Some(crate::Fault::fatal(format!(
+            "{reading}\n{}",
+            self.memory_help(ceiling)
+        )))
+    }
+
+    /// What [`Self::memory_breach`] calls the run: "program" on a CLI run, "request" in server
+    /// work.
+    fn memory_run(&self) -> &'static str {
+        if self.run_kind().is_server_work() {
+            "request"
+        } else {
+            "program"
+        }
+    }
+
+    /// The help line under a memory breach: the `[limits] memory` line to raise, and the
+    /// `Core\Config::set` call that raises it from the code, with twice `ceiling` as the value.
+    /// Where a `[limits.hard] memory` bounds the call, the line says so. A CLI run with none
+    /// written has no bound (`rule:config/ceilings-are-their-own-directives`).
+    fn memory_help(&self, ceiling: usize) -> String {
+        const MIB: usize = 1 << 20;
+        let raised = ceiling.saturating_mul(2).div_ceil(MIB);
+        let bounded = self
+            .config()
+            .and_then(|config| config.get("limits.hard.memory"))
+            .is_some_and(|hard| hard != "false");
+        let bound = if bounded {
+            ", up to `[limits.hard] memory`"
+        } else {
+            ""
+        };
+        format!(
+            "help: raise `memory` under `[limits]` in nvs.toml, or call \
+             `Core\\Config::set('memory', '{raised}M')` in the {}{bound}",
+            self.memory_run(),
+        )
     }
 
     /// The [`crate::Fault`] a request past its response ceiling owes, or `None`

@@ -667,7 +667,11 @@ fn get_gives_the_built_in_default_where_nothing_is_written() {
     assert_eq!(request.get("mode.default").as_deref(), Some("production"));
     assert_eq!(request.get("mode.ceiling").as_deref(), Some("production"));
     assert_eq!(request.get("log.level").as_deref(), Some("Info"));
-    assert_eq!(request.get("limits.hard.memory").as_deref(), Some("128M"));
+    assert_eq!(
+        request.get("limits.hard.memory"),
+        None,
+        "a CLI run has no default memory ceiling, so its own code may raise its limit"
+    );
     assert_eq!(request.get("wall_time"), None, "`wall_time` has no default");
 
     assert_eq!(
@@ -679,6 +683,7 @@ fn get_gives_the_built_in_default_where_nothing_is_written() {
     request.serve();
     assert_eq!(request.get("cpu_time").as_deref(), Some("30s"));
     assert_eq!(request.get("limits.hard.cpu_time").as_deref(), Some("30s"));
+    assert_eq!(request.get("limits.hard.memory").as_deref(), Some("128M"));
 }
 
 /// A written value beats the default, a request's own value beats both, and `restore` brings
@@ -689,6 +694,7 @@ fn a_written_value_beats_the_default_and_restore_returns_to_it() {
     assert_eq!(written.get("max_regex_steps").as_deref(), Some("500"));
 
     let mut request = Request::new(snapshot_of(""));
+    request.serve();
     assert!(
         request.set("memory", "64M"),
         "a narrowing set is within the default ceiling"
@@ -696,7 +702,7 @@ fn a_written_value_beats_the_default_and_restore_returns_to_it() {
     assert_eq!(request.get("memory").as_deref(), Some("64M"));
     assert!(
         !request.set("memory", "256M"),
-        "the default is also the ceiling where no `[limits.hard]` is written"
+        "in server work the default is also the ceiling where no `[limits.hard]` is written"
     );
     request.restore("memory");
     assert_eq!(request.get("memory").as_deref(), Some("128M"));

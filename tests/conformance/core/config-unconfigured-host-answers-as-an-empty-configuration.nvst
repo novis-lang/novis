@@ -12,10 +12,10 @@
 // force, the way the shipped file writes it.
 echo "get=", Core\Config::get("memory") ?? "unset", "\n";
 
-// `rule:config/three-changeability-classes`: `[limits]` states the default and `[limits.hard]` the ceiling. With
-// no ceiling written, the ceiling is the value the run started with — the 128M
-// default (`rule:config/no-configuration-file-is-a-complete-configuration`).
-// So a `Runtime` directive moves down and not up.
+// `rule:config/three-changeability-classes`: `[limits]` states the default and `[limits.hard]` the ceiling. A
+// case is a CLI run, and a CLI run with no `[limits.hard] memory` written has no
+// memory ceiling (`rule:config/ceilings-are-their-own-directives`), so its own
+// code moves `memory` up past the 128M default as well as down.
 if (Core\Config::set("memory", "512M")) {
     echo "raise=ok", "\n";
 } else {
@@ -46,7 +46,7 @@ array<string> $settings = Core\Config::all();
 echo "all=", $settings["limits.memory"], "\n";
 --EXPECT--
 get=128M
-raise=refused
+raise=ok
 set=ok
 after=64M
 system=refused

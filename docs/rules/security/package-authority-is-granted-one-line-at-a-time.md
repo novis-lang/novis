@@ -16,6 +16,12 @@ Grant lines are friction, and the friction is the point. Some users will grant e
 reading, the way some run containers as root; the design cannot prevent that, only make it visible and
 diffable. What it prevents is authority arriving without anybody writing anything.
 
+A package may lower its own limits and never raise one. A `Core\Config::set` call under a package's
+namespace that raises a `[limits]` key returns `false`, even where the application's own code may
+raise it: on a CLI run with no `[limits.hard] memory` written, the application raises `memory` freely
+(`rule:config/ceilings-are-their-own-directives`). A raise would let a dependency take memory the
+application never chose to spend.
+
 A package can never be the code that declares data safe. Only a `Core` member removes `tainted`
 (`rule:security/launderers-are-sink-named`), so a package can compute over a `tainted` value and return
 it still `tainted`.

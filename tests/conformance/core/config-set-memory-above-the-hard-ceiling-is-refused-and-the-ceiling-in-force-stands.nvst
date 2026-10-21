@@ -49,4 +49,5 @@ over=refused
 far=refused
 value=32M
 --EXPECTF-ERROR--
-FATAL: the request exceeded its memory limit — %d bytes held against a ceiling of 33554432, of which 1048576 is reserved for the limit handler, when an allocation of %d bytes was refused
+FATAL: the program exceeded its memory limit — %d bytes held against a ceiling of 33554432, of which 1048576 is reserved for the limit handler, when an allocation of %d bytes was refused
+help: raise `memory` under `[limits]` in nvs.toml, or call `Core\Config::set('memory', '64M')` in the program, up to `[limits.hard] memory`
