@@ -1,7 +1,7 @@
 <?nvs
 // Attack: the four properties of an error are read under pressure. One throw
 // travels out of as many frames as the stack allows. One object is thrown again
-// and again, and a hundred thousand errors are read field by field. Every step
+// and again, and each property of a hundred thousand errors is read. Every step
 // is caught, and the runtime should still be standing at the end.
 // hostile: timeout-ms 30000
 
@@ -55,7 +55,7 @@ while ($round < 50000) {
 }
 echo 'step 2: ', $places, " characters of places read\n";
 
-// Step 3: a hundred thousand errors, each one read field by field.
+// Step 3: a hundred thousand errors, and each property of each one is read.
 uint $read = 0;
 int $made = 0;
 while ($made < 100000) {

@@ -1,6 +1,6 @@
 <?nvs
-// Writes one property of a class that guards itself. A record that checks
-// every value before it is stored pays this on every field it updates.
+// Writes one property of a class that guards itself. A class that checks
+// every value before it is stored has this cost for every property it updates.
 // bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant

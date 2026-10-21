@@ -1,7 +1,7 @@
 <?nvs
-// Attack: a request sends sort fields that try to reach a private property, directly or through
-// a related object, or that are not paths at all. Every one should fail to convert, and very
-// long paths should finish quickly with a short error message.
+// Attack: a request sends the properties to sort by. Each one tries to reach a private property,
+// directly or through a related object, or is not a path at all. Every one should fail to
+// convert, and very long paths should finish quickly with a short error message.
 // hostile: timeout-ms 20000
 // covers: lang:types/property-paths
 
@@ -30,7 +30,7 @@ class Order
     }
 }
 
-// 1. Twelve fields from the web address: a private name, a protected name, a private name
+// 1. Twelve paths from the web address: a private name, a protected name, a private name
 //    through a relation, braces, empty parts, a part after a number, spaces and a wrong case.
 array<tainted string> $sent = Core\Request::queryArray('sort');
 int $refused = 0;
@@ -42,7 +42,7 @@ foreach ($sent as tainted string $field) {
         echo '1: BAD, converted a path of length ', Core\Str::length($field), "\n";
     }
 }
-echo '1: refused ', $refused, ' of ', Core\Arr::count($sent), " fields\n";
+echo '1: refused ', $refused, ' of ', Core\Arr::count($sent), " paths\n";
 
 // 2. The private name through a relation with `as propertyPath<Order>`, which throws.
 //    It is caught, so the steps after it still run.

@@ -1,5 +1,5 @@
 <?nvs
-// Attack: a request sends field names that try to reach a private or protected
+// Attack: a request sends property names that try to reach a private or protected
 // property, or that are not names at all. Every one of them should fail to
 // convert to a key, and no hidden property should be read or changed.
 // covers: lang:types/property-keys
