@@ -46,6 +46,10 @@ stages:
     extra:
       context:
         rules: [tooling/the-telemetry-collector-is-a-novis-program, tooling/a-failed-upload-never-fails-the-command, tooling/telemetry-show-prints-the-payload]
+  - id: 7
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: client-ip-proofs
     stage: 1
@@ -248,6 +252,19 @@ against it, on loopback, as § *Standing decisions* describes.
 - [ ] `127.0.0.1` is in no table and no log line the server wrote (`rule:tooling/the-collector-never-stores-an-address`). `crates/nvs-cli/tests/telemetry_e2e.rs:1`
 - [ ] The five tooling rules `shipped`, each with its tests in `guardedBy`. `data/rules/tooling/the-telemetry-collector-is-a-novis-program.json:3`, `data/rules/tooling/a-telemetry-report-is-checked-against-a-closed-schema.json:3`, `data/rules/tooling/the-collector-keeps-weekly-totals-only.json:3`, `data/rules/tooling/the-collector-never-stores-an-address.json:3`, `data/rules/tooling/telemetry-totals-are-public.json:3`
 - [ ] `bun nv owners --closes telemetry-service` passes.
+
+### 7. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

@@ -39,6 +39,10 @@ stages:
     extra:
       context:
         rules: [http-server/a-requests-blast-radius-is-bounded-at-four-tiers, testing/hostile-case-contract]
+  - id: 6
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: host-tests
     stage: 3
@@ -228,6 +232,19 @@ rules describe a core that is shared by slices.
 - [ ] The session row, gated on `defaults-that-work` stage 7 (`rule:http-server/a-session-is-loaded-once-and-written-whole` shipped): a probe that starts a session, sends `/slow` (writes, then works 2 s) and 200 ms later `/fast` with the same cookie, and times `/fast`. Under 1 s is `built-in`; PHP held by its session lock is `your-code` naming `session_start(['read_and_close' => true])` or `session_write_close()`; Bun and Go are a fixed `your-code`, because neither has sessions without a library. The page gets a "One visitor, two requests" chart of the fast request's wait for Novis and PHP, and a section that explains PHP's lock, its two ways out, and the cost of no lock: two requests of one visitor that change the same value keep the last write. The programs exist. `benches/compare/scenarios/session/main.nvs:1`, `benches/compare/scenarios/session/index.php:1`, `tools/nv/cmd/bench-compare.ts:1`, `website/src/content/docs/in-depth/compare.mdx:1`
 - [ ] The comparison re-recorded from a detached worktree, the cases first and then the rows. Novis's `hello` stays within 3% of 28,207, or the slice becomes 20 ms. `benches/compare.json:1`
 - [ ] The page's loop paragraph says what the new run measured. `website/src/content/docs/in-depth/compare.mdx:166`
+
+### 6. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

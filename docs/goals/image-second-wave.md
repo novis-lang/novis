@@ -32,6 +32,10 @@ stages:
     title: "the four rules are shipped, and the roster says the component is whole"
     status: open
     context: [docs/rules/core-api/tier-roster.md]
+  - id: 8
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: image-proofs
     stage: 5
@@ -187,6 +191,19 @@ after the other, held to § *Text an end user reads* in `AGENTS.md`.
 - [ ] `rule:core-api/tier-roster` stops naming the image gap and is `shipped`. `docs/rules/core-api/tier-roster.md:36`, `data/rules/core-api/tier-roster.json:3`
 - [ ] `image-pixel-cap` and `image-pipeline` stay `shipped` with stage 4's and 6's tests in `guardedBy`. `data/rules/core-classes/image-pixel-cap.json:3`, `data/rules/core-classes/image-pipeline.json:3`
 - [ ] `open` and `info` show an AVIF photo and an animation in an example each, and `bun nv proofs --id 'Novis\Image\Image::info'` and `--id 'Novis\Image\Image::open'` owe nothing. `docs/examples/novis/Image-Image/info/about.md:1`, `docs/examples/novis/Image-Image/open/about.md:1`
+
+### 8. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

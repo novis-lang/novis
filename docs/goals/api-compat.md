@@ -32,6 +32,10 @@ stages:
     extra:
       context:
         rules: [packaging/only-a-major-may-break-the-api, packaging/below-1-0-the-breaking-slot-moves-left]
+  - id: 5
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: compat-proofs
     stage: 4
@@ -159,6 +163,19 @@ then a second the attack, each held to § *Text an end user reads* in `AGENTS.md
 - [ ] The attack: a minor release that removes a method, with the version step trying to hide it, is refused. `tests/hostile/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/01-a-break-in-a-minor.nvs:1`
 - [ ] `bun nv proofs --id 'tools:packages/nvs-pkg-api-and-nvs-pkg-diff'` owes nothing. `docs/reference/tools/35-packages.md:1`
 - [ ] `rule:packaging/only-a-major-may-break-the-api` is `shipped` with its cases in `guardedBy`, and `bun nv owners --closes api-compat` passes. `data/rules/packaging/only-a-major-may-break-the-api.json:3`
+
+### 5. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

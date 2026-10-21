@@ -36,6 +36,10 @@ stages:
     title: "`nvs pkg audit` has its feature proofs, and its rules are shipped"
     status: open
     context: [docs/reference/tools/35-packages.md]
+  - id: 6
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: audit-proofs
     stage: 4
@@ -164,6 +168,19 @@ examples `bun nv proofs --id 'tools:packages/nvs-pkg-audit'` lists, then a secon
 - [ ] `about.md` and the examples the proofs command lists. `docs/examples/tools/packages/nvs-pkg-audit/about.md:1`
 - [ ] The attack: a registry hides an advisory from its feed that its log holds. `tests/hostile/tools/packages/nvs-pkg-audit/01-a-hidden-advisory.nvs:1`
 - [ ] `rule:packaging/a-known-bad-version-is-retracted-not-deleted` and `rule:security/an-unmatched-namespace-holds-the-application` are `shipped`, and `bun nv owners --closes package-audit` passes. `data/rules/packaging/a-known-bad-version-is-retracted-not-deleted.json:1`, `data/rules/security/an-unmatched-namespace-holds-the-application.json:1`
+
+### 6. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

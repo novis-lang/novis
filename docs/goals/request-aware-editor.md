@@ -60,6 +60,10 @@ stages:
     extra:
       context:
         rules: [testing/a-recorded-request-becomes-a-test, testing/in-process-request, testing/a-recorded-request-keeps-its-input-with-credentials-replaced, testing/feature-proofs]
+  - id: 9
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: owners-closes
     stage: 7
@@ -278,6 +282,19 @@ examples under `docs/examples/tools/cli/nvs-debug-to-test/`; the session writes 
 - [ ] A served fixture: the generated test passes against the unchanged program, and fails when its handler's status, its `Content-Type` or one JSON field of its body changes. `crates/nvs-cli/tests/debug_to_test.rs:1`
 - [ ] The help text and a `# nvs debug to-test` section, so `bun nv proofs --id 'tools:cli/nvs-debug-to-test'` prints nothing owed (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:302`, `docs/examples/tools/cli/nvs-debug-to-test/about.md:1`
 - [ ] `rule:testing/a-recorded-request-becomes-a-test` `shipped`, and `bun nv owners --closes request-aware-editor` passes. `data/rules/testing/a-recorded-request-becomes-a-test.json:3`
+
+### 9. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

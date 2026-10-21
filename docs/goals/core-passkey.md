@@ -33,6 +33,10 @@ stages:
     title: "the sign-in members have their feature proofs, and the rule is shipped"
     status: open
     context: [docs/examples/core/Totp/check/about.md, tests/hostile/core/Totp/check/01-guess-every-code.nvs]
+  - id: 6
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: passkey-proofs
     stage: 5
@@ -178,6 +182,19 @@ bench, held to § *Text an end user reads* in `AGENTS.md`. A last one writes the
 - [ ] The attack: a replayed assertion. `tests/hostile/core/Passkey/verifySignIn/01-a-replayed-assertion.nvs:1`
 - [ ] `bun nv proofs --group 'Core\Passkey'` owes nothing. `docs/examples/core/Passkey/verifySignIn/about.md:1`
 - [ ] `rule:core-classes/passkey-verifies-a-webauthn-ceremony` is `shipped` with its cases in `guardedBy`, and `bun nv owners --closes core-passkey` passes. `data/rules/core-classes/passkey-verifies-a-webauthn-ceremony.json:3`
+
+### 6. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

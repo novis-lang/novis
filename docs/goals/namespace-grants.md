@@ -43,6 +43,10 @@ stages:
     title: the grant table has its feature proofs, and its rules are shipped
     status: open
     context: [docs/reference/tools/35-packages.md, docs/reference/README.md]
+  - id: 7
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: grants-proofs
     stage: 6
@@ -196,6 +200,19 @@ and the bench, then a second writes the attack, each held to § *Text an end use
 - [ ] `rule:security/optional-capability-degrades` is `shipped`. `data/rules/security/optional-capability-degrades.json:3`
 - [ ] `rule:packaging/a-package-file-stays-under-its-declared-prefix` is `shipped`. `data/rules/packaging/a-package-file-stays-under-its-declared-prefix.json:3`
 - [ ] `rule:packaging/a-package-cannot-reach-its-host` is `shipped`, and `bun nv owners --closes namespace-grants` passes. `data/rules/packaging/a-package-cannot-reach-its-host.json:3`
+
+### 7. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 

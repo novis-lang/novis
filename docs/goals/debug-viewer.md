@@ -67,6 +67,10 @@ stages:
     extra:
       context:
         rules: [testing/feature-proofs, testing/hostile-case-contract, testing/examples-live-in-the-repository]
+  - id: 10
+    title: the goal is verified once, and every failure is fixed
+    status: open
+    gate: true
 checks:
   - id: owners-closes
     stage: 7
@@ -310,6 +314,19 @@ perf test and the rule flip.
 - [ ] The attack: a program whose requests dump, log and throw values with markup, script URLs, control and bidi characters and very long strings, and a browser test that no script runs and no element is made from them (`rule:testing/hostile-case-contract`). `tests/hostile/tools/cli/the-debug-viewer/values-that-look-like-markup.nvs:1`, `viewer/test/hostile.browser.test.ts:1`
 - [ ] A Rust test that the newest page reads the same number of SQLite steps at two index sizes, and a `perf` skip that names it. `crates/nvs-cli/tests/debug_api.rs:1`, `data/proofs/skip/tools/cli/the-debug-viewer.json:1`, `data/proofs/skip/tools/cli/nvs-info.json:1`
 - [ ] `bun nv proofs --id 'tools:cli/the-debug-viewer'` passes, `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact` `shipped`, and `bun nv owners --closes debug-viewer` passes. `data/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.json:3`
+
+### 10. the goal is verified once, and every failure is fixed
+
+**Does:** the stages before this one checked with a build alone, so this stage verifies the
+whole goal once and fixes every failure in one pass.
+
+**Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
+the failures by cause. A group whose fix touches files no other group touches may go to a writing
+subagent. Such subagents run side by side, and none of them builds.
+
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
