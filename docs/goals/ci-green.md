@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "GitHub CI stays green on main"
-summary: "Never reached: a loop in the project root watches every CI run on main, fixes each failure the moment a job reports it, commits, pushes and watches again, for as long as main changes."
+summary: "Never reached: a loop in the project root watches the CI run of every goal end's push to main, fixes each failure the moment a job reports it, commits, and watches again; the next goal end pushes the fixes."
 context: [tools/nv/cmd/ci.ts, .github/workflows/ci.yml, .github/workflows/pages.yml, looper.toml]
 stages:
   - id: 1
@@ -30,10 +30,11 @@ tree at the same time, so every rule for two sessions in one tree holds: commit 
 own files, never run a tree-wide git command (`stash`, `checkout -- .`, `reset`, `add -A`, `clean`), and
 leave every file you did not write as it is. The claims guard refuses a file another session holds.
 
-**`main` is pushed at three moments, always through `bun nv ci --push`.** Once when this goal's loop
-starts for the first time, at every goal end through `looper.toml`'s `after_retire` hook, and after
-each fix this goal commits. Never `git push`, never a force push, and never a push of another branch.
-A push sends everything on the local `main`, the main loop's finished slices with it.
+**`main` is pushed only at a goal's end, by `looper.toml`'s `after_retire` hook** (the user's call).
+A goal is verified once, in its last stage, so the local `main` carries unverified commits while a
+goal runs, and CI never sees them. This goal never pushes: it commits each fix, and the fix goes out
+with the next goal end's push. Never `git push`, never `bun nv ci --push`, never a force push, and
+never a push of another branch.
 
 **`bun nv ci` is the only way the session talks to GitHub.** `--push` pushes, and the push starts the
 CI and Website runs. Never start or cancel a run by hand.
@@ -74,8 +75,7 @@ loop only.
 
 Every session runs this cycle until CI is green or the context reaches 120k:
 
-1. **Push once, at the very first session only:** `bun nv ci --push`. The handoff's *State* says
-   whether that push happened. Every later session skips this step.
+1. **Never push.** The next goal end pushes, and its push starts the runs the watch waits for.
 2. **Watch:** `bun nv ci --watch` with `run_in_background` and a timeout of 7200000, then end your turn.
    Its exit code starts your next turn. Pass `--past <job>` for each red already handed to the main
    loop, so the watch goes on for the other jobs.
@@ -90,7 +90,9 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 3. **Fix:** `bun nv ci --status` lists every job that failed so far. Find each cause in the code,
    fix it, check it locally as § *Standing decisions* says, and commit each fix on its own with a
    pathspec.
-4. **Push:** `bun nv ci --push`. The push starts new runs. Go to step 2.
+4. **Hand off:** write the handoff with the fixes committed and not yet pushed, and the status line
+   `CONTINUE <the fixes>, out with the next goal end`, and stop. The next session's watch waits for
+   that push.
 
 ## Handoff
 
@@ -108,17 +110,17 @@ main loop reordered that page. No red is handed to the main loop, so no watch pa
 
 ### Next
 
-**Stage 1, the cycle.** Skip step 1, because the first push happened.
+**Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch with `bun nv ci --watch`, which waits for the next push. `tools/nv/cmd/ci.ts:224`
-- [ ] Fix and push each red job. `.github/workflows/ci.yml:1`
+- [ ] Fix and commit each red job. `.github/workflows/ci.yml:1`
   A stale guard red is fixed by `bun nv site --stale` and `bun nv site --questions --owed`, then a
   reread and a `--stamp`. Under Git Bash, a URL argument needs `MSYS_NO_PATHCONV=1`. Check a site or
   render red against committed `HEAD` in a scratch worktree with `--nvs E:/mwl/target/debug/nvs.exe`,
   because the root holds the main loop's uncommitted edits. A `git cherry-pick` into the root fails on
   its staged changes, so apply the diff with `git apply` and commit by pathspec. Before fixing a red,
-  run `git log origin/main..HEAD`: the main loop may have committed the fix already, and then a push
-  is the fix. Remove a scratch worktree from the root, never from inside it.
+  run `git log origin/main..HEAD`: the main loop may have committed the fix already, and then the
+  next goal end's push is the fix. Remove a scratch worktree from the root, never from inside it.
 
 ### Backlog
 
