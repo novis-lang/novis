@@ -17,6 +17,18 @@
 // reads one JSON user message per stdin line. It stays running until stdin closes, so a message sent
 // after a `result` starts another turn.
 //
+// # The advisor
+//
+// A decision's advisor (`discuss` in `decisions.ts`) is one short read-only run, launched by
+// `adviseLine`:
+//
+//     claude -p --output-format json --model M --tools Read,Grep,Glob --strict-mcp-config
+//            --settings {"autoMemoryEnabled":false}
+//
+// It runs in the loop's tree with `LOOPER_AGENT=1`, and its prompt goes in on stdin. It has no tool that
+// writes or runs a command, so the tree stays as the session left it. Each flag stands in the `--help`
+// of `claude` 2.1.306. Its stdout is one `result` document, and `adviceText` takes the reply from it.
+//
 // # The stdin lines
 //
 // Every line is `{"type":"user","message":{"role":"user","content":[{"type":"text","text":…}]}}`. The
@@ -147,6 +159,30 @@ export function commandLine(program: string[], opts: LaunchOptions): AgentComman
   if (opts.sideGoal !== undefined) env[SIDE_GOAL_VAR] = opts.sideGoal;
   env.LOOPER_AGENT = "1";
   return { argv, cwd: opts.cwd, env };
+}
+
+/** The tools the advisor may call: reading only. */
+export const ADVISOR_TOOLS = ["Read", "Grep", "Glob"];
+
+/** The advisor's command line in the tree `cwd`, on `model`, run by the words of `program`. */
+export function adviseLine(program: string[], model: string, cwd: string): AgentCommand {
+  const argv = [...program, "-p", "--output-format", "json", "--model", model, "--tools", ADVISOR_TOOLS.join(",")];
+  argv.push("--strict-mcp-config", "--settings", '{"autoMemoryEnabled":false}');
+  return { argv, cwd, env: { LOOPER_AGENT: "1" } };
+}
+
+/** The advisor's reply in its stdout `out`. Throws why there is none: the output is not a result, or the result is an error. */
+export function adviceText(out: string): string {
+  let v: Record<string, unknown>;
+  try {
+    v = record(JSON.parse(out));
+  } catch {
+    throw new Error(`its output is not JSON: ${firstLine(out.trim(), SUMMARY_CHARS)}`);
+  }
+  const said = typeof v.result === "string" ? v.result : "";
+  if (v.type !== "result") throw new Error("its output is not a result");
+  if (v.is_error === true || v.subtype !== "success") throw new Error(firstLine(said.trim() || str(v.subtype), SUMMARY_CHARS));
+  return said;
 }
 
 /** One stdin line carrying `text` as a user message. */

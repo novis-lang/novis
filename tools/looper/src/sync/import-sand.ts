@@ -396,6 +396,7 @@ export function goalOf(slug: string, g: GoalRecord, handoff: HandoffJson | undef
       id: st.number,
       title: st.title,
       status: nextStage !== undefined && st.number < nextStage ? "done" : "open",
+      gate: undefined,
       context: st.context,
       extra: st.extra,
     });

@@ -20,6 +20,9 @@
 //   `NtResumeProcess`. A query of the job lists at most `MAX_PROCS` processes, so a freeze or a thaw
 //   reaches only those, and says how many it reached. `Tree.kill` terminates the job. `Tree.release`
 //   clears the kill on close, so the tree outlives its handles.
+// - `Tree.usage` reads the job's own accounting in one query: its CPU time, its bytes read and written,
+//   and how many processes it runs. `Tree.members` reads each process of the job, with its program and
+//   its CPU time. Both only read, for the hang watch (`../jobs/hang.ts`).
 // - `spawnDetached` starts a command that inherits no handle at all, out of this process's job when that
 //   job allows breakaway, and says when it could not. It holds none of its caller's pipes open.
 // - `ctrlBreak` sends Ctrl+Break to a process group that shares this process's console.
@@ -58,6 +61,7 @@ const STARTF_USESTDHANDLES = 0x100;
 const PROC_THREAD_ATTRIBUTE_HANDLE_LIST = 0x20002n;
 const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000;
 const JOB_BASIC_PROCESS_ID_LIST = 3;
+const JOB_BASIC_AND_IO_ACCOUNTING = 8;
 const JOB_EXTENDED_LIMIT_INFORMATION = 9;
 const PROCESS_TERMINATE = 0x1;
 const PROCESS_SUSPEND_RESUME = 0x800;
@@ -272,6 +276,20 @@ function exitOf(h: Pointer): number | null {
   return c === STILL_ACTIVE ? null : c;
 }
 
+/** What a job has used since it started: CPU time and bytes read and written, the exited processes' share included, and how many processes run now. */
+export interface Usage {
+  cpuMs: number;
+  ioBytes: number;
+  procs: number;
+}
+
+/** One process of a job: its pid, its program's file name, and its CPU time so far. */
+export interface Member {
+  pid: number;
+  name: string;
+  cpuMs: number;
+}
+
 /**
  * A process tree in a Job Object. It holds its first process by a handle, so a pid the OS gives out
  * again never stands for it.
@@ -346,6 +364,36 @@ export class Tree {
   /** The pids of the processes in the job now, at most `MAX_PROCS` of them. */
   pids(): number[] {
     return this.job ? pidsOf(this.job) : [];
+  }
+
+  /**
+   * What the job has used so far, from its own accounting, which keeps the share of every process that
+   * has exited. Null once the tree is closed or when the query fails.
+   */
+  usage(): Usage | null {
+    if (!this.job) return null;
+    // JOBOBJECT_BASIC_AND_IO_ACCOUNTING_INFORMATION: user and kernel time in 100 ns units at bytes 0 and
+    // 8, the live process count as a DWORD at byte 40, then IO_COUNTERS from byte 48, whose bytes read
+    // and written are at bytes 72 and 80.
+    const buf = Buffer.alloc(96);
+    if (lib().k.QueryInformationJobObject(this.job, JOB_BASIC_AND_IO_ACCOUNTING, ptr(buf), buf.length, null) === 0) return null;
+    const cpu = buf.readBigUInt64LE(0) + buf.readBigUInt64LE(8);
+    const io = buf.readBigUInt64LE(72) + buf.readBigUInt64LE(80);
+    return { cpuMs: Number(cpu) / 10_000, ioBytes: Number(io), procs: buf.readUInt32LE(40) };
+  }
+
+  /** Every live process of the job, at most `MAX_PROCS`, with its program and its CPU time so far. */
+  members(): Member[] {
+    const out: Member[] = [];
+    for (const pid of this.pids()) {
+      const h = lib().k.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) as Pointer | null;
+      if (!h) continue;
+      const t = Buffer.alloc(32);
+      const cpuMs = lib().k.GetProcessTimes(h, ptr(t), ptr(t, 8), ptr(t, 16), ptr(t, 24)) === 0 ? 0 : Number(t.readBigUInt64LE(16) + t.readBigUInt64LE(24)) / 10_000;
+      close(h);
+      out.push({ pid, name: imageName(pid) ?? "?", cpuMs });
+    }
+    return out;
   }
 
   /** Suspends every process in the job. Returns how many it suspended. */

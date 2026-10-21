@@ -139,7 +139,7 @@ function stagesOf(stages: StageJson[], live: number | undefined): [string, Stage
     if (st.tasks.length > 0) text += "\n";
     if (st.done_when.length > 0) text += `**Done when:**\n\n${bullets(st.done_when)}\n\n`;
     if (st.handoff !== undefined && i !== live) text += `**Handoff:** ${st.handoff.trim()}\n\n`;
-    out.push({ id: st.id, title: st.title, status: done ? "done" : "open", context: st.context, extra: undefined });
+    out.push({ id: st.id, title: st.title, status: done ? "done" : "open", gate: undefined, context: st.context, extra: undefined });
   });
   return [text, out];
 }

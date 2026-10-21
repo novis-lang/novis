@@ -108,6 +108,7 @@ function stageNode(s: Stage): Node {
     ["id", raw(String(s.id))],
     ["title", strNode(s.title)],
     ["status", raw(s.status)],
+    ["gate", optRaw(s.gate)],
     ["context", optStrs(s.context)],
     ["extra", s.extra === undefined ? undefined : valueNode(s.extra)],
   ]);

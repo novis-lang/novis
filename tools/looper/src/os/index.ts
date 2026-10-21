@@ -10,7 +10,7 @@
 
 import * as windows from "./windows.ts";
 
-export type { Detached, Mutex, SpawnOptions, Tree, TreeOptions } from "./windows.ts";
+export type { Detached, Member, Mutex, SpawnOptions, Tree, TreeOptions, Usage } from "./windows.ts";
 export { MAX_PROCS, READ_BYTES } from "./windows.ts";
 export type { WindowWatcher } from "./windows-desktop.ts";
 export { OFF } from "./windows-desktop.ts";

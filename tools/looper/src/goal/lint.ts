@@ -2,9 +2,10 @@
 // reports it. Lint reads files and never rewrites one, and it reports every problem it finds rather
 // than the first. Each message is looper's text, so the two lints compare line by line.
 //
-// `lintGoal` checks one parsed goal: unique stage and check ids, checks that name existing stages and
-// carry a real command, the sections in their order, a heading for every stage that matches its title,
-// the Handoff's subsections, and a repo-rooted `path:line` anchor on every open `### Next` item.
+// `lintGoal` checks one parsed goal: unique stage and check ids, `gate: true` on the last stage and on
+// no other unless the goal is never reached, checks that name existing stages and carry a real command,
+// the sections in their order, a heading for every stage that matches its title, the Handoff's
+// subsections, and a repo-rooted `path:line` anchor on every open `### Next` item.
 // `lintAll` adds what only the tree can show:
 //
 // - a goal file or chain whose front matter does not parse, and a slug on the chain twice or without a
@@ -35,6 +36,7 @@ import {
   goalSlugs,
   loadChain,
   loadGoal,
+  neverReached,
   normalize,
   README,
 } from "./model.ts";
@@ -99,6 +101,15 @@ function lintFront(g: Goal, at: At): void {
     if (ids.has(s.id)) at(undefined, `stage id ${s.id} appears twice`);
     ids.add(s.id);
     if (s.title === "") at(undefined, `stage ${s.id} has no title`);
+  }
+  if (!neverReached(g)) {
+    const last = f.stages.at(-1);
+    for (const s of f.stages) {
+      if (s.gate === true && s !== last) at(undefined, `stage ${s.id} has \`gate: true\`, which only the last stage takes`);
+    }
+    if (last !== undefined && last.gate !== true) {
+      at(undefined, `stage ${last.id} is the last stage and lacks \`gate: true\`: a goal is verified once, in its last stage`);
+    }
   }
   const laid: [string, number | undefined][] = [["", undefined]];
   for (const s of f.stages) if (s.extra !== undefined) laid.push([`stage ${s.id}: `, s.id]);
