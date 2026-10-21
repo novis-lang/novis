@@ -15,7 +15,8 @@ command-line switches that change a setting. The settings in the file are the se
 2. `nvs.toml` in the folder you run `nvs` in.
 3. `nvs.toml` in the data folder. This is the folder `.nvsdata` next to the `nvs` program, or the
    folder that `--data` names.
-4. the built-in defaults. Each request may use up to 128M of memory, and no capability is granted.
+4. the built-in defaults. Each request may use up to 128M of memory. Read
+   [What a program may do with no nvs.toml](#what-a-program-may-do-with-no-nvstoml) for the rest.
 
 When `nvs run`, `nvs serve`, `nvs test`, `nvs build` or `nvs check` finds no file, it writes
 `nvs.toml` into the data folder. It never writes into your project. `--no-init` stops it from
@@ -52,12 +53,41 @@ write = ["data/uploads"]
 listen = ["127.0.0.1:8000"]
 ```
 
-A program can do nothing outside its own memory until the file allows it. Reading a file, opening a
-network connection and connecting to a database each need a grant under `[capabilities]`. Without
-a grant, the call throws a `RuntimeError` that names the missing capability.
+The `[capabilities]` blocks say which files, hosts and programs your code may use. A call that is
+not allowed throws a `RuntimeError`. The message shows the exact line to add to `nvs.toml`.
 
 A relative path in the file is relative to the folder of the file. It is not relative to the
 folder you run `nvs` in.
+
+## What a program may do with no nvs.toml
+
+Novis has two kinds of run. A CLI run is `nvs run`, a `#[Command]` method or `nvs test`. Server work
+is a request, a connection, a scheduled run or a queued job. The app folder is the folder of the
+entry file. If an `[[app]]` block with `root` matches, the app folder is that `root`.
+
+| | CLI run | Server work |
+|---|---|---|
+| Read files | any file | the app folder, except names that start with `.` and files named `nvs.toml` |
+| Write files | any file | only folders that `Core\IO::temporaryDir` created for this run |
+| Connect | any public host, and `127.0.0.1` or `::1` | any public host. `127.0.0.1` and `::1` work only in development mode |
+| Run a program | any program. A name such as `git` is found on `PATH` | none |
+| Start a script | a script in the app folder | a script in the app folder |
+| Memory | starts at 128M. Your code may raise it with `Core\Config::set('memory', ...)` if `[limits.hard]` sets no `memory` | 128M |
+
+A private address, such as `10.0.0.5`, always needs an `internal` line. Code from a package never
+gets these defaults. It gets only the line for its own package.
+
+When you write a key, its value replaces the default completely. Write only what the program uses:
+
+```toml
+[capabilities.fs]
+read = ["public/"]            # only this folder. read = [] allows no reading
+write = []                    # no writing
+
+[capabilities.net]
+connect = ["api.example.com"] # only this host
+internal = ["10.0.0.0/8"]     # private addresses or ranges that are allowed
+```
 
 ## One file, several applications
 

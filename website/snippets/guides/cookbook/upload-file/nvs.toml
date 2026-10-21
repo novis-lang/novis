@@ -1,4 +1,3 @@
-# The program writes files, so it may read and write files.
+# A request writes only in its own temporary folders by default. This line allows every folder.
 [capabilities.fs]
-read = true
 write = true

@@ -12,8 +12,14 @@ explains it.
 - `[mode] default` is `"production"`. Development mode serves static files and every `.nvs` file by
   its path. [Configuration](/guides/how-to-use/configuration/)
 - `nvs config check` reports no error. [Configuration](/guides/how-to-use/configuration/)
-- Each capability lists only the folders, hosts and databases the program uses.
-  [Reference: capabilities](/reference/config/capabilities/)
+- You know what server work may do with no `nvs.toml`. It reads its app folder and connects to any
+  public host. [Configuration](/guides/how-to-use/configuration/)
+- `read` and `connect` list only the folders and hosts the program uses.
+  [Configuration](/guides/how-to-use/configuration/)
+- Secrets are outside the app folder, or in files whose names start with `.`. Server work cannot
+  read those files by default. [Configuration](/guides/how-to-use/configuration/)
+- A package gets only the capabilities in its own line. Each line lists only what that package uses.
+  [Configuration](/guides/how-to-use/configuration/)
 - No password is in `nvs.toml`. Each one is read with `password_file`.
   [Reference: secrets from files](/reference/config/secrets-from-files/)
 - `[limits]` sets `memory` and `wall_time`, and `[limits.hard]` sets a maximum.

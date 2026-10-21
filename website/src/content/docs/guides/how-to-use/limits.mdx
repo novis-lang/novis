@@ -32,7 +32,7 @@ memory = false
 
 ## Raise a limit in nvs.toml
 
-A program cannot raise its own limit unless `nvs.toml` allows it. To give every request more, write
+A request cannot raise its own limit unless `nvs.toml` allows it. To give every request more, write
 the new value in `[limits]`:
 
 ```toml
@@ -45,7 +45,10 @@ cpu_time = "60s"
 
 `[limits]` is what each request starts with. `[limits.hard]` is the maximum: the most a request may
 raise itself to. When `[limits.hard]` does not set a key, the maximum is the value in `[limits]`. A
-program can then lower that limit, but it cannot raise it.
+request can then lower that limit, but it cannot raise it.
+
+A command-line program is different. When `[limits.hard]` does not set `memory`, it may raise its
+own memory limit with `Core\Config::set('memory', ...)`. It starts at `128M`.
 
 This is the `nvs.toml` for the program below:
 

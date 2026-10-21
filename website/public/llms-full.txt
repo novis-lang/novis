@@ -40173,7 +40173,8 @@ Keywords: nvs.toml, configuration, setting, read a setting, change a setting at 
 `[limits]` entry. `set` changes a directive for this request alone and answers `false`, leaving the value in
 place, for anything it may not do: a directive only the file may set, an unknown name, a value of the wrong
 shape, or a value above the `[limits.hard]` ceiling the operator kept. When `[limits.hard]` does not
-set a limit, its ceiling is the value the request started with, so a program cannot raise it. `restore` puts the file's value back,
+set a limit, its ceiling is the value the request started with, so a program cannot raise it. A program you
+start from the command line is the one exception: with no `[limits.hard] memory`, it may raise `memory` to any value. `restore` puts the file's value back,
 or the built-in default when the file does not write the key. `get` and `all` give the built-in default of every key the file
 does not write, such as `128M` for `memory`. A key with no default, such as `wall_time`, is `null`.
 
@@ -40273,11 +40274,12 @@ Returns every setting in force for this request, with the dotted names as keys. 
 <a id="core-core-env"></a>
 ### `Core\Env`
 
-Keywords: get, all, mode, context
+Keywords: get, secret, all, mode, context
 
 | Member | Signature |
 |---|---|
 | [`Core\Env::get`](#core-core-env-get) | `get(string $name): ?tainted string` |
+| [`Core\Env::secret`](#core-core-env-secret) | `secret(string $name): ?secret string` |
 | [`Core\Env::all`](#core-core-env-all) | `all(): array<tainted string>` |
 | [`Core\Env::mode`](#core-core-env-mode) | `mode(): Core\Env::Mode` |
 | [`Core\Env::context`](#core-core-env-context) | `context(): Core\Env::Context` |
@@ -40301,6 +40303,23 @@ Returns the value of the environment variable `$name`. The environment is read-o
 **Returns** `?tainted string` — Its value as a `tainted string` — the environment is outside the program's own text, so every sink still has to be passed through its own launderer — or `null` where nothing set the variable.
 
 **Throws** `RuntimeError` — The variable is set to bytes that are not valid UTF-8, so its value is not a `string`. `null` is reserved for a variable nothing set, and a lossy repair would hand back text the operator did not write.
+
+<a id="core-core-env-secret"></a>
+#### `Core\Env::secret`
+
+```nvs skip
+Core\Env::secret(string $name): ?secret string
+```
+
+Returns the value of the environment variable `$name` as a `secret string`. Use it for a password or an API key. The value can go into an outbound HTTP header, a form field or a database password. `echo`, a log and a response body do not accept it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (sink) | The variable's name. It may not be `tainted`, so a request cannot choose which secret the program reads. |
+
+**Returns** `?secret string` — The value as a `secret string`, or `null` if the variable is not set.
+
+**Throws** `RuntimeError` — The variable contains bytes that are not valid UTF-8, so its value is not a `string`. The message names the variable and not its value.
 
 <a id="core-core-env-all"></a>
 #### `Core\Env::all`
@@ -41653,7 +41672,7 @@ Opens the session of this request. Call it once, before any other method of this
 
 **Returns** `void` — Nothing. After it, the other methods of this class can read and change the session. When a new session is opened, the response sends its identifier in the session cookie.
 
-**Throws** `LogicError` — The program is not answering a request. A command-line program, a job and a test have no session.; `RuntimeError` — This request already called `start()`. It is also thrown when `[session] backend` is not set, or is `db`, which this version does not support. It is also thrown when `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability. The same happens when `[session] cookie` is not a valid cookie name.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.
+**Throws** `LogicError` — The program is not answering a request. A command-line program, a job and a test have no session.; `RuntimeError` — This request already called `start()`. It is also thrown when the server has no data folder for the default store. With `[session] backend = "shared"`, it is thrown when `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability. The same happens when `[session] cookie` is not a valid cookie name.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.
 
 <a id="core-core-session-get"></a>
 #### `Core\Session::get`
@@ -41731,7 +41750,7 @@ Gives the session a new identifier and deletes the old one from the store. Call 
 
 **Returns** `void` — Nothing. The data in the session does not change. The response sends the new identifier in the session cookie. The old identifier no longer finds the session.
 
-**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. It is also thrown when `[cache.shared] url` is not set, when the program does not have the `cache.shared` capability, or when `[session] cookie` is not a valid cookie name.; `IOError` — The store cannot be reached. The old identifier may still work, so do not treat the user as signed in.
+**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. With `[session] backend = "shared"`, it is also thrown when `[cache.shared] url` is not set or the program does not have the `cache.shared` capability. It is also thrown when `[session] cookie` is not a valid cookie name.; `IOError` — The store cannot be reached. The old identifier may still work, so do not treat the user as signed in.
 
 <a id="core-core-session-destroy"></a>
 #### `Core\Session::destroy`
@@ -41744,7 +41763,7 @@ Ends the session of this request and deletes its data from the store. Call it wh
 
 **Returns** `void` — Nothing. After it, this request has no session. The other methods of this class throw a `RuntimeError` until you call `start()` again, and that call opens a new, empty session.
 
-**Throws** `RuntimeError` — This request has not called `start()`, or it already called `destroy()`. It is also thrown when `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The data is still in the store, and the session stays open, so you can try again.
+**Throws** `RuntimeError` — This request has not called `start()`, or it already called `destroy()`. With `[session] backend = "shared"`, it is also thrown when `[cache.shared] url` is not set or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The data is still in the store, and the session stays open, so you can try again.
 
 <a id="core-core-session-setsecret"></a>
 #### `Core\Session::setSecret`
@@ -43251,7 +43270,7 @@ Keywords: issue, verify
 Core\Csrf::issue(string $session, secret bytes $key): string
 ```
 
-Answers a CSRF token bound to `$session` under `$key`. Put it in the form or the header the next request will carry, and hand it back to `verify` with the same session and key.
+Returns a CSRF token bound to `$session` under `$key`. Send it in a form field named `_csrf`, in the `x-csrf-token` header or in a `_csrf` query parameter. A form that uploads files must use the header or the query parameter. With `[http] csrf_key` set, the server checks the token before the handler runs. `verify` checks it with the same session and key.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -54780,7 +54799,9 @@ now 90
 
 `[limits]` states what a request **starts with**; `[limits.hard]` states the **ceiling** it may
 raise itself to with `Core\Config::set`. When `[limits.hard]` does not set a key, the ceiling is the
-value the request started with. So a program can lower that limit, and it cannot raise it.
+value the request started with. So a program can lower that limit, and it cannot raise it. One
+exception: a command-line run (`nvs run`, a command, `nvs test`) with no `[limits.hard] memory`
+may raise its own `memory` to any value. Server work never goes past `[limits.hard]`.
 
 When `[limits] memory` is not set, every program may hold 128M. When `[limits] cpu_time` is not
 set, a request, a connection, a scheduled script and a queued job may use 30s of processor time.
@@ -54860,12 +54881,24 @@ allows `development`, and returns `false` otherwise. `set("mode.ceiling", …)` 
 
 ### `[capabilities]`
 
-A program can do nothing outside its own memory unless the configuration allows it. Every effect is
-guarded by a named capability: reading a file, writing one, starting another script.
+Every effect outside a program's own memory is guarded by a named capability: reading a file,
+writing one, starting another script. Some capabilities have a default by run kind, below.
 
 Files have their own defaults. A command-line run (`nvs run`, `nvs test`) may read and write every
 file. Server work may read the files in its app folder, but no dot-file (such as `.env`) and no
 `nvs.toml`. It may write only in the directories `Core\IO::temporaryDir` made for it.
+
+Outbound connections have a default too. Every run may connect to any public host. A loopback
+address (`127.0.0.1`, `::1`) is allowed on a command-line run, and in server work when the
+configuration sets `[mode] default = "development"`. Every other private address needs a line.
+
+A command-line run may start any program. A bare name such as `git` is looked up on `PATH`. Server
+work starts no program without a line. In `exec = ["git"]` the name is looked up on `PATH` when the
+configuration loads, and a name that is not found stops the load. Write a folder with a slash,
+`"bin/"`, so it is not read as a program name.
+
+Every run may spawn a script inside its app folder, except below a folder whose name starts with `.`
+or a directory `Core\IO::temporaryDir` made. A script anywhere else needs a `script.spawn` line.
 
 The default for every other capability is **denied** until a grant is written. A written key
 replaces its default, so `false` and an empty list both deny. The roster is closed:
@@ -54942,17 +54975,21 @@ Core\IO::read needs the capability `fs.read`
 `net.connect` carries a second key, because a granted host is not automatically a reachable address:
 an outbound connection to a loopback, private, link-local or unspecified address is refused whatever
 the grant says, since a hostname an attacker influenced can resolve into one. A deployment that must
-reach an internal service excepts the address it means, one at a time:
+reach an internal service names the addresses or ranges it means:
 
 ```toml
 [capabilities.net]
-connect = ["metrics.internal"]   # the names reachable
-internal = ["10.4.0.9"]          # the denied addresses this deployment reaches anyway
+connect = ["metrics.internal"]          # the names reachable
+internal = ["10.4.0.9", "172.18.0.0/16"] # the denied addresses this deployment reaches anyway
 ```
 
-An `internal` entry is an IP address written out in full — never a hostname, never a range, and `true` is not a
-spelling it has. It grants nothing on its own: an address named there is still only reached under a
-host `connect` grants.
+An `internal` entry is an IP address or a CIDR range. A hostname is not allowed, `true` is not
+allowed, and neither is a range with bits set after its prefix, such as `10.0.0.5/8`. It grants
+nothing on its own: an address named there is still only reached under a host `connect` grants.
+
+With no `internal` written, loopback is allowed on a command-line run and in a `development`
+configuration. A program that changes its own mode to `development` does not get loopback. A
+written `internal` list replaces this default, so it must name loopback too if the program needs it.
 
 `net.listen` has no such key, because the policy's terms invert under a bind: binding loopback is
 the contained case and binding the unspecified address is the exposed one, so `connect`'s denied

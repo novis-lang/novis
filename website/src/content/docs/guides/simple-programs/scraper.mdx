@@ -25,5 +25,6 @@ The page comes from another server, so its text is `tainted`. You can print tain
 [Input from outside is tainted](/guides/why-novis/tainted-input/) to see what that means.
 
 `Core\Test::answerHttp` gives a fixed reply, so the example runs without a network. Delete that
-call to download a real page. A program that connects to another server needs a network
-capability in `nvs.toml`. Read [Capabilities](/reference/config/capabilities/) to set it up.
+call to download a real page. `nvs run` may connect to any public host with no `nvs.toml`. To
+allow only some hosts, list them in `[capabilities.net] connect`. Read
+[Capabilities](/reference/config/capabilities/) for the details.

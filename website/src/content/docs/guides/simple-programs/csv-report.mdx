@@ -11,15 +11,8 @@ prints the total amount for each product.
 
 <Snippet src="guides/simple-programs/csv-report/csv-report.nvs" />
 
-The program reads and writes files, so it needs this `nvs.toml` in the same folder:
-
-```toml
-[capabilities.fs]
-read = true
-write = true
-```
-
-Run it with `nvs run csv-report.nvs`.
+Run it with `nvs run csv-report.nvs`. It needs no `nvs.toml`. To allow it only one folder, write
+that folder in `[capabilities.fs] read`.
 
 ## How it works
 

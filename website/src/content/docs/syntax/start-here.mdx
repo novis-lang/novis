@@ -34,7 +34,8 @@ or different:
 - Options are one anonymous object at the end of a call: `{order: Core\Arr::Order::Asc}`.
 - The constructor is called `constructor`. There are no magic methods such as `__toString`.
 - A doc comment starts with `///`.
-- A program can read files or open connections only when `nvs.toml` allows it.
+- `nvs.toml` sets which files, hosts and programs your code may use. A web request may do less
+  than a program you start with `nvs run`.
 
 ## How these pages are ordered
 

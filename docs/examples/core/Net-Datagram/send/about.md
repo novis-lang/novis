@@ -5,7 +5,7 @@ the method returns how many bytes it sent.
 promise. If the other side must answer, it sends its own message back, and you read it with
 `receive`.
 
-The host must be allowed under `connect` in the `[capabilities.net]` block of `nvs.toml`. Opening the
-socket with `Core\Net::bindDatagram` does not allow any sending by itself. A host that is not allowed
-throws a `RuntimeError`. A message that is too large for one datagram throws an `IOError`, and
+Your program may send to any public host with no `nvs.toml`. A `connect` list in the
+`[capabilities.net]` block allows only the hosts it names. A host that is not allowed throws a
+`RuntimeError`. A message that is too large for one datagram throws an `IOError`, and
 nothing is sent.

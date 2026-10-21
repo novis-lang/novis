@@ -5,10 +5,6 @@ cron = "0 3 * * *"
 script = "scheduled-job.nvs"
 scope = "host"
 
-# The server may only start scripts in this folder.
-[capabilities.script]
-spawn = ["."]
-
 # The program writes and deletes files, so it may read and write files.
 [capabilities.fs]
 read = true
