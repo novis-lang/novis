@@ -721,7 +721,7 @@ pub(crate) fn reject_secret_markup_conversion(
     if qname.to_string() != crate::CORE_HTML_MARKUP_CLASS {
         return;
     }
-    if !is_secret(inner_ty, env.interner) {
+    if !carries_secret(inner_ty, env.interner) {
         return;
     }
     env.diags.report(
@@ -813,7 +813,7 @@ pub(crate) fn reject_secret_throwable_message(
     let Some(ty) = first_arg_ty else {
         return;
     };
-    if !is_secret(ty, env.interner) {
+    if !carries_secret(ty, env.interner) {
         return;
     }
     env.diags.report(
@@ -1528,13 +1528,17 @@ fn report_secret_logged(span: Span, env: &mut Env<'_>) {
 ///
 /// `subject` is the message's opening words, naming the sink as a reader
 /// would: "`echo`", "`print`", "an `html` template".
+///
+/// The operand is asked [`carries_secret`] and not [`is_secret`]: a
+/// `?secret string` is a union, and `Core\Env::secret` and
+/// `Core\Session::getSecret` answer one, so asking the atom alone printed it.
 pub(crate) fn reject_secret_output(
     ty: TypeId,
     span: Span,
     subject: &str,
     env: &mut Env<'_>,
 ) -> bool {
-    if !is_secret(ty, env.interner) {
+    if !carries_secret(ty, env.interner) {
         return false;
     }
     env.diags.report(
@@ -1630,7 +1634,7 @@ pub(crate) fn reject_secret_crossing(
     instead: Option<&str>,
     env: &mut Env<'_>,
 ) {
-    if !is_secret(ty, env.interner) {
+    if !contains_secret(ty, env.interner) {
         return;
     }
     let reveal = "reveal it first with `Core\\Secret::reveal(..., \"reason\")`, at the call \
