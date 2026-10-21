@@ -600,6 +600,7 @@ export default defineConfig({
                 { label: 'Declaring a class', link: '/syntax/classes/declaring/' },
                 { label: 'Properties and constants', link: '/syntax/classes/properties/' },
                 { label: 'Methods and inheritance', link: '/syntax/classes/methods-and-inheritance/' },
+                { label: 'Covariant parameters and properties', link: '/syntax/classes/covariant/' },
                 { label: 'Interfaces', link: '/syntax/classes/interfaces/' },
                 { label: 'Stringable, Comparable and Parses', link: '/syntax/classes/standard-interfaces/' },
                 { label: 'Property hooks', link: '/syntax/classes/property-hooks/' },

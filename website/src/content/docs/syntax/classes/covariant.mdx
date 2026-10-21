@@ -1,0 +1,48 @@
+---
+title: Covariant parameters and properties
+covers: ['lang:classes/covariant']
+description: How a subclass gives a method parameter or a property a narrower type with the covariant keyword, and what happens when a value has the wrong type.
+---
+import FeatureSection from '@components/FeatureSection.astro'
+
+A class `Shelter` has a method `admit(Animal $a)`. A subclass `DogShelter` wants to admit only a
+`Dog`. Its version of `admit` needs a narrower parameter type: `Dog` in place of `Animal`.
+
+A narrower parameter type without a keyword does not compile. The error is `E0404`, and its message
+tells you to add `covariant`. You write `covariant` before the type:
+
+```nvs
+public function admit(covariant Dog $a): void {}  // a parameter
+public covariant Dog $pet;                        // a property
+```
+
+<FeatureSection examples="lang/classes/covariant" heading="The covariant keyword" id="the-covariant-keyword" />
+
+## A value of the wrong type
+
+Code with a variable of type `Shelter` can still pass a `Cat` to `admit`. That call compiles,
+because `Shelter::admit` takes any `Animal`. When the object is a `DogShelter`, Novis checks the
+value when the method is entered. A wrong value throws a `LogicError` before the method body runs.
+The message names the type the parameter takes and the class of the value.
+
+A property with a narrower type is checked on every write. A wrong value throws a `LogicError`.
+A read is never checked, because the property always contains a value of the narrower type.
+
+## Return types need no keyword
+
+A subclass method may return a narrower type than the parent method without `covariant`. Every
+caller can use a `Dog` where it expects an `Animal`. So a narrower return type needs no check.
+
+## When a separate method is better
+
+`covariant` moves an error from compile time to run time. Use it when almost every caller passes the
+right type. If many callers pass a value the subclass does not take, give the subclass its own
+method with its own name. Then the compiler finds a wrong call when the program compiles.
+
+## Do and don't
+
+- Do use `covariant` when a subclass works with only one subclass of the parent's type.
+- Do write `covariant` again in a grandchild class that repeats the narrower type.
+- Don't use `covariant` on an array type. It does not compile. Take the wider type and test the
+  value with `is` inside the method.
+- Don't use `covariant` when most calls would throw. Add a method with its own name instead.
