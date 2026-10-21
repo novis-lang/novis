@@ -755,14 +755,14 @@
   },
   "/in-depth/compare/": {
     "feature": "in-depth/compare.mdx",
-    "hash": "753fd8182edaf7a4",
+    "hash": "e1f2896848a66185",
     "questions": [
-      "How fast is Novis compared to PHP, Bun and Go?",
-      "Benchmark of requests per second and memory for four languages",
+      "How do Novis, PHP, Bun and Go compare in requests per second and memory?",
       "Can one request split its work over several CPU cores?",
       "Which web server features are built in and which need extra code?",
       "Run the language comparison benchmark myself",
-      "Does a new deploy cause failed requests while the server runs?"
+      "Does a deploy cause failed requests or pages that mix old and new files?",
+      "What happens to other requests when one request uses too much memory or never ends?"
     ]
   },
   "/in-depth/concepts/": {
@@ -9910,7 +9910,7 @@
   },
   "/reference/core/novis-spreadsheet-template/open/": {
     "feature": "Novis\\Spreadsheet\\Template::open",
-    "hash": "0e275369e36aa910",
+    "hash": "ccd5e3eaf836555f",
     "questions": [
       "Open an xlsx template",
       "Fill the same template for each customer",

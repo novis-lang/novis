@@ -1,9 +1,9 @@
 {
   "guides/why-novis/secret-values.mdx": {
-    "lang:types/qualifiers-tainted-and-secret": "d3d6e01742783999"
+    "lang:types/qualifiers-tainted-and-secret": "0ea7f26f06859971"
   },
   "guides/why-novis/tainted-input.mdx": {
-    "lang:types/qualifiers-tainted-and-secret": "d3d6e01742783999"
+    "lang:types/qualifiers-tainted-and-secret": "0ea7f26f06859971"
   },
   "syntax/attributes/commands-and-discovery.mdx": {
     "lang:attributes/core-command-and-core-option-the-command-table": "c261a283869e05c2",
@@ -311,7 +311,7 @@
     "lang:types/values-written-in-the-code": "97fff419d8239219"
   },
   "syntax/values/tainted-and-secret.mdx": {
-    "lang:types/qualifiers-tainted-and-secret": "d3d6e01742783999"
+    "lang:types/qualifiers-tainted-and-secret": "0ea7f26f06859971"
   },
   "syntax/values/union-types.mdx": {
     "lang:types/a-member-every-class-of-a-union-declares": "124883794c34b9c3",
