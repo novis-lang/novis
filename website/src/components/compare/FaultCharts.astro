@@ -1,28 +1,36 @@
 ---
 /**
  * The comparison page's charts for a server under load while something goes
- * wrong, from rows of the feature table. `deploy` is one stacked bar per
- * server: every request its load sent while a new version was copied in, as
+ * wrong, from rows of the feature table. A deploy row (`deploy`, `deploy-big`
+ * or `deploy-switch`) is one stacked bar per server: every reply its load
+ * checked over its runs while a new version was copied in, as
  * complete pages, failed requests and mixed pages, with the share of complete
  * pages at its end. Its place counts the failed and mixed ones, fewer being
  * better. It is split into the two groups `grouped`
  * gives, each in its own box with its note, because how a server takes a new
- * version is what the test measures. `memory` and `loop` are the requests
- * answered while one runaway request ran beside the load, over the requests
- * the same server answered with no runaway request, so each bar is the share
- * of its own speed a server kept and not how fast it is anyway. They rank all
- * four peers together. Every bar has its place, and every one in place 1
- * takes the accent colour.
+ * version is what the test measures. `memory` and `loop` are one stacked bar
+ * per server too: the requests of the load that ran beside one runaway
+ * request, as answered and failed, with a line saying whether the server
+ * stopped the runaway request, crashed, or never stopped it, and the share of
+ * its own normal speed the load kept. A server that stopped it and kept
+ * running ranks first, by failed requests. They rank all four peers
+ * together. Every bar has its place, and every one in place 1 takes the
+ * accent colour.
  */
 import Bars from './Bars.astro'
-import { deploys, groupPlaces, grouped, places, record, runaways } from '~/lib/compare'
+import { type DeployRow, deploysOf, groupPlaces, grouped, places, record, runaways } from '~/lib/compare'
 
 export interface Props {
-  chart: 'deploy' | 'memory' | 'loop'
+  chart: DeployRow | 'memory' | 'loop'
 }
 
 const { chart } = Astro.props
+const isDeploy = (c: Props['chart']): c is DeployRow => c === 'deploy' || c === 'deploy-big' || c === 'deploy-switch'
 const number = (n: number) => Math.round(n).toLocaleString('en-US')
+const RUNAWAY_LEGEND = [
+  { kind: 'ok' as const, label: 'Answered' },
+  { kind: 'failed' as const, label: 'Failed request' },
+]
 const DEPLOY_LEGEND = [
   { kind: 'ok' as const, label: 'Complete page' },
   { kind: 'failed' as const, label: 'Failed request' },
@@ -30,7 +38,8 @@ const DEPLOY_LEGEND = [
 ]
 
 const groups = (() => {
-  if (chart === 'deploy') {
+  if (isDeploy(chart)) {
+    const deploys = deploysOf(chart)
     const wrong = deploys.map((d) => d.failed + d.mixed)
     const place = groupPlaces(
       deploys.map((d) => d.peer),
@@ -59,31 +68,47 @@ const groups = (() => {
     return grouped(bars).map((g) => ({ title: g.title, group: g.group, note: g.note, bars: g.items }))
   }
   const runs = runaways(chart)
+  // A server that stopped the runaway request and kept running ranks before one that did not, and the
+  // failed requests rank inside each of the two.
+  const handled = (r: (typeof runs)[number]) => r.stoppedAfter !== null && r.running && r.restarts === 0
   const place = places(
-    runs.map((r) => r.kept),
-    false,
+    runs.map((r) => (handled(r) ? 0 : 1_000_000_000) + r.failed),
+    true,
   )
-  const bars = runs.map((r, i) => ({
-    peer: r.peer,
-    label: r.label,
-    place: place[i]!,
-    share: r.kept,
-    best: place[i] === 1,
-    value: `${Math.round(r.kept * 100)}%`,
-    figures: [
-      `${number(r.requests)} of ${number(r.baseline)} requests answered`,
-      `${number(r.failed)} failed`,
-      ...(r.p99Ms === null ? [] : [`p99 ${r.p99Ms.toFixed(1)} ms`]),
-      ...(r.restarts > 0 ? ['the server crashed and was restarted'] : r.running ? [] : ['the server crashed']),
-    ].join(', '),
-  }))
+  const seconds = (s: number) => (s < 1 ? `${s.toFixed(1)} s` : `${Math.round(s)} s`)
+  const bars = runs.map((r, i) => {
+    const ok = Math.max(0, r.requests - r.failed)
+    const of = (n: number) => (r.requests > 0 ? n / r.requests : 0)
+    const outcome =
+      r.restarts > 0
+        ? 'The server crashed and was restarted.'
+        : !r.running
+          ? 'The server crashed.'
+          : r.stoppedAfter !== null
+            ? `The server stopped the runaway request after ${seconds(r.stoppedAfter)}.`
+            : 'The runaway request was never stopped.'
+    return {
+      peer: r.peer,
+      label: r.label,
+      place: place[i]!,
+      share: 1,
+      best: place[i] === 1,
+      value: r.failed === 0 ? '0 failed' : `${number(r.failed)} failed`,
+      compared: '',
+      parts: [
+        { kind: 'ok' as const, share: of(ok) },
+        { kind: 'failed' as const, share: of(r.failed) },
+      ],
+      figures: `${outcome} ${number(r.requests)} other requests, ${number(r.failed)} failed. They were answered at ${Math.round(r.kept * 100)}% of the normal speed.`,
+    }
+  })
   return [{ bars }]
 })()
 ---
 
 {
   record?.scenarios && groups.length > 0 ? (
-    <Bars groups={groups} legend={chart === 'deploy' ? DEPLOY_LEGEND : undefined} />
+    <Bars groups={groups} legend={isDeploy(chart) ? DEPLOY_LEGEND : RUNAWAY_LEGEND} />
   ) : (
     <p class="compare-empty">No run of the feature table is recorded yet.</p>
   )

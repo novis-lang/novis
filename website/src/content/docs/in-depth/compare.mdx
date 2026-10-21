@@ -142,10 +142,17 @@ build and a restart. In this test, both failed requests during the restart.
 ### Runaway requests
 
 A runaway request is a request that never ends, or one that uses more and more memory. Each test
-first sends steady requests for 15 seconds. Then it sends the same steady requests again, together
-with one runaway request. Each chart shows how many requests the server answered in the second part,
-as a share of the first part. More is better. A fast server does not get a better result only
-because it is fast.
+sends steady requests to the server for 15 seconds, and one runaway request together with them.
+The test checks three things:
+
+- Did the server stop the runaway request?
+- Did the server keep running?
+- Did any of the other requests fail?
+
+Each bar is all the other requests. The green part was answered, and the red part failed. The line
+under the bar says what happened to the runaway request. It also says how fast the other requests
+were answered, compared with the same test without a runaway request. A server that stopped the
+runaway request and kept running gets a better place than one that did not.
 
 By default, Novis and PHP stop a request at 128 MB of memory or 30 seconds of CPU time. In Novis,
 these limits are in the `[limits]` table. In PHP, they are `memory_limit` and `max_execution_time`.

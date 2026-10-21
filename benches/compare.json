@@ -968,59 +968,6 @@
             }
           }
         }
-      },
-      "upgrade": {
-        "folder": "benches/compare/cases/hello",
-        "peers": {
-          "nvs": {
-            "result": "no",
-            "evidence": {
-              "requests": 167123,
-              "failed_requests": 6184,
-              "failures": "502 x6182; timeout x2",
-              "p99_ms": 1.5,
-              "seconds_to_answer": 0,
-              "command": "a restart",
-              "restarts": 1
-            }
-          },
-          "php": {
-            "result": "no",
-            "evidence": {
-              "requests": 140621,
-              "failed_requests": 16,
-              "failures": "502 x16",
-              "p99_ms": 26.2,
-              "seconds_to_answer": 0,
-              "command": "php-fpm reload",
-              "restarts": 0
-            }
-          },
-          "bun": {
-            "result": "no",
-            "evidence": {
-              "requests": 336480,
-              "failed_requests": 360,
-              "failures": "502 x360",
-              "p99_ms": 1.2,
-              "seconds_to_answer": 0,
-              "command": "a restart",
-              "restarts": 1
-            }
-          },
-          "go": {
-            "result": "no",
-            "evidence": {
-              "requests": 310863,
-              "failed_requests": 430,
-              "failures": "502 x430",
-              "p99_ms": 1.2,
-              "seconds_to_answer": 0,
-              "command": "a new image and a restart",
-              "restarts": 1
-            }
-          }
-        }
       }
     }
   },
