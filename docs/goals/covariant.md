@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-ir/src/lower/stmt.rs, docs/rules/types/erased-member-access.md, docs/rules/types/property-key-access.md]
   - id: 6
     title: "`lang:classes/covariant` has its feature proofs, and the rule is shipped"
-    status: open
+    status: done
     context: [docs/rules/testing/feature-proofs.md, docs/examples/lang/classes/inheritance/about.md, benches/members/lang/classes/inheritance.nvs]
   - id: 7
     title: "the website explains `covariant` on a page of its own"
@@ -210,12 +210,12 @@ through a wider type that would store another class throws.
 then the bench. The session checks each against AGENTS.md § *Text an end user reads* and writes the
 rule flip.
 
-- [ ] `about.md` says what `covariant` does, where it is written, and what a wrong value throws. `docs/examples/lang/classes/covariant/about.md:1`
-- [ ] Three examples: a narrower parameter, the `LogicError` a wrong value throws, and a narrower property. A fourth shows `compareTo(covariant Price $other)`. `docs/examples/lang/classes/covariant/01-a-method-that-takes-a-narrower-type.nvs:1`
-- [ ] The attack: a call through the parent, an interface, a callable, an `inout`, a variadic, an erased write and the parent's constructor each try to put a wider value in, and each throws (`rule:testing/hostile-case-contract`). `tests/hostile/lang/classes/covariant/01-a-wider-value-through-every-path.nvs:1`
-- [ ] The bench: a call through the parent of a method with a covariant parameter, with `// bench: complexity constant`. `benches/members/lang/classes/covariant.nvs:1`
-- [ ] `bun nv render` writes the reference section, and `nvs agent show covariant` prints it. `docs/reference/lang/50-classes.md:1011`, `crates/nvs-cli/src/agent.rs:355`
-- [ ] The rule record `shipped` with every case of stages 2 to 5 in `guardedBy`, and the two neighbouring rules name `covariant`. `data/rules/classes/a-covariant-type-is-checked-where-a-value-enters.json:1`, `docs/rules/classes/an-override-keeps-its-parents-signature.md:1`
+- [x] `about.md` says what `covariant` does, where it is written, and what a wrong value throws. `docs/examples/lang/classes/covariant/about.md:1`
+- [x] Three examples: a narrower parameter, the `LogicError` a wrong value throws, and a narrower property. A fourth shows `compareTo(covariant Price $other)`. `docs/examples/lang/classes/covariant/01-a-method-that-takes-a-narrower-type.nvs:1`
+- [x] The attack: a call through the parent, an interface, a callable, an `inout`, a variadic, an erased write and the parent's constructor each try to put a wider value in, and each throws (`rule:testing/hostile-case-contract`). `tests/hostile/lang/classes/covariant/01-a-wider-value-through-every-path.nvs:1`
+- [x] The bench: a call through the parent of a method with a covariant parameter, with `// bench: complexity constant`. `benches/members/lang/classes/covariant.nvs:1`
+- [x] `bun nv render` writes the reference section, and `nvs agent show covariant` prints it. `docs/reference/lang/50-classes.md:1011`, `crates/nvs-cli/src/agent.rs:355`
+- [x] The rule record `shipped` with every case of stages 2 to 5 in `guardedBy`, and the two neighbouring rules name `covariant`. `data/rules/classes/a-covariant-type-is-checked-where-a-value-enters.json:1`, `docs/rules/classes/an-override-keeps-its-parents-signature.md:1`
 
 ### 7. the website explains `covariant` on a page of its own
 
@@ -309,24 +309,42 @@ of the property throw too. All 465 cells pass alone on the debug build. The prop
 constructor takes the value as an argument, since a parent that stores its own wider value throws
 when the child is constructed.
 
-The nightly sweep's failures (run `39462919214`, on `6544156`) were already fixed on `main`: the
-stale perf records and `website/public/llms-full.txt` landed in later commits, and push run
-`39506154898` on `691cbcd` has the three `proofs` jobs and the chapter job green. `miri` timed out
-while it compiled. `ci.yml` has since split it into the `suites` and `samples` legs.
+The nightly sweep's failures (run `39462919214`, on `6544156`) were already fixed on `main`: push
+run `39506154898` on `691cbcd` has the three `proofs` jobs and the chapter job green, and `ci.yml`
+has since split `miri` into the `suites` and `samples` legs.
+
+Stage 6 is done and verified. `# \`covariant\`` follows `# Inheritance` in the chapter source, and
+`bun nv proofs --id 'lang:classes/covariant'` prints nothing owed. The session wrote the files itself
+and did not use the Split line's subagents, because each is short. What landed:
+
+- `docs/examples/lang/classes/covariant/`: `about.md`, `details.md` (where the keyword is allowed,
+  which types, `E0882` to `E0884`, each write path), and five examples. They are a narrower
+  parameter, the `LogicError`, a narrower property, `compareTo(covariant Price $other)` under an
+  `Amount implements Comparable`, and `05-…` the `E0404` without the keyword (`proof: compile-error`).
+- The attack `tests/hostile/lang/classes/covariant/01-a-wider-value-through-every-path.nvs` has eight
+  steps, each caught: parent, interface, callable, `inout`, variadic, a write through `mixed`, the
+  parent's constructor, and 200000 wrong calls in a loop.
+- The bench `benches/members/lang/classes/covariant.nvs` calls `apply(covariant Doubling $step, …)`
+  through an abstract parent. The `lang:classes` group's perf is recorded again after the chapter
+  edit (`data/perf/members.ndjson`).
+- The five covariant conformance cases and the first test of `crates/nvs-types/tests/covariant.rs`
+  carry `// covers: lang:classes/covariant`.
+- The rule record is `shipped`, with the Rust test, the five cases, the four soundness files and the
+  attack in `guardedBy`. `rule:classes/an-override-keeps-its-parents-signature` names `covariant`
+  in its parameter bullet. The property rule already named it.
+- The binary shows the section as `nvs agent show 'classes#covariant'`. A bare `covariant` lists that
+  section as the nearest match, the same way every `lang:` feature works.
 
 ### Next
 
-**Stage 6, the feature proofs.** Follow its `**Split:**` line: writing subagents one after another,
-and the session checks each against AGENTS.md § *Text an end user reads*. `lang:classes/covariant`
-is not in the roster yet. A feature is a `# ` heading in the chapter source, so add `# \`covariant\``
-after `# Inheritance` first. Then `bun nv proofs --id 'lang:classes/covariant'` lists what it owes.
+**Stage 7, the website page.** Follow its `**Split:**` line: one writing subagent writes the page,
+and the session reads it against AGENTS.md § *Text an end user reads*. The page embeds the examples
+with `<FeatureSection examples="lang/classes/covariant">`. Model it on the inheritance page. After
+it, the goal-end gates: `bun nv verify --doc`, and `bun nv owners --closes covariant`.
 
-- [ ] The heading in the chapter source, and the feature's directory with `about.md`. `docs/examples/lang/classes/chapter.md:12`, `docs/examples/lang/classes/covariant/about.md:1`
-- [ ] The three examples and the `compareTo` one. `docs/examples/lang/classes/covariant/01-a-method-that-takes-a-narrower-type.nvs:1`
-- [ ] The attack. `tests/hostile/lang/classes/covariant/01-a-wider-value-through-every-path.nvs:1`
-- [ ] The bench. `benches/members/lang/classes/covariant.nvs:1`
-- [ ] `bun nv render`, and `nvs agent show covariant`. `docs/reference/lang/50-classes.md:1011`
-- [ ] The rule record `shipped`, with the stage 2 to 5 cases and the two soundness files in `guardedBy`. `data/rules/classes/a-covariant-type-is-checked-where-a-value-enters.json:1`
+- [ ] The page. `website/src/content/docs/syntax/classes/covariant.mdx:1`
+- [ ] The sidebar entry after "Methods and inheritance". `website/astro.config.ts:602`
+- [ ] One linking sentence each in the inheritance and properties pages. `website/src/content/docs/syntax/classes/methods-and-inheritance.mdx:13`
 
 ### Backlog
 
@@ -339,5 +357,5 @@ after `# Inheritance` first. Then `bun nv proofs --id 'lang:classes/covariant'` 
 - A covariant parameter of a generator method panics in lowering. The factory would need the
   entry test before it stores the parameters in the state object. `crates/nvs-ir/src/lower/generator.rs:709`
 - The rule measures a covariant type against the topmost declaration only. A grandchild `covariant Cat`
-  under a parent's `covariant Dog` compiles, and every call through the parent throws. Stage 6 may add
-  a sentence to the rule if that should be an error. `crates/nvs-types/src/conformance.rs:905`
+  under a parent's `covariant Dog` compiles, and every call through the parent throws. A sentence in
+  the rule could make that an error. `crates/nvs-types/src/conformance.rs:905`
