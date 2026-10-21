@@ -1699,9 +1699,10 @@ fn the_line_a_refusal_prints_loads_and_grants_what_was_refused() {
 }
 
 /// [`Authority`] is the written grant where a key is written, and the default where it is not.
-/// Outside the two file keys every default grants nothing on every kind of run, so an unwritten
-/// key, an absent block and a tree with no `[capabilities]` all deny, and a written key answers as
-/// [`Capabilities`] does. The file keys' defaults are the run's.
+/// Outside the two file keys and `net.connect` every default grants nothing on every kind of run,
+/// so an unwritten key, an absent block and a tree with no `[capabilities]` all deny, and a written
+/// key answers as [`Capabilities`] does. The file keys' defaults and loopback are the run's, and
+/// `net.connect` reaches every host on every run.
 #[test]
 fn an_authority_answers_the_written_key_and_the_default_for_the_rest() {
     let disk = Disk::of(&["/srv/app", "/srv/app/job.nvs", "/srv/app/data"]);
@@ -1739,7 +1740,8 @@ fn an_authority_answers_the_written_key_and_the_default_for_the_rest() {
             Authority::new(Some(&headers), run),
         ] {
             let files = [Cap::FsRead, Cap::FsWrite];
-            for cap in Cap::ALL.iter().copied().filter(|cap| !files.contains(cap)) {
+            let opened = [Cap::FsRead, Cap::FsWrite, Cap::NetConnect];
+            for cap in Cap::ALL.iter().copied().filter(|cap| !opened.contains(cap)) {
                 assert!(
                     !authority.allows(cap, Scope::Unscoped, &disk),
                     "{}",
@@ -1770,9 +1772,17 @@ fn an_authority_answers_the_written_key_and_the_default_for_the_rest() {
                 !run.serving,
                 "{run:?}"
             );
-            assert!(!authority.allows_host(Cap::NetConnect, "api.example.com"));
+            assert!(authority.allows_host(Cap::NetConnect, "api.example.com"));
+            assert!(matches!(
+                authority.holds(Cap::NetConnect),
+                nvs_config::capability::Grant::Everything
+            ));
             assert!(!authority.allows_name(Cap::QueuePurge, "mail"));
-            assert!(authority.address_refused(ip("127.0.0.1")).is_some());
+            assert_eq!(
+                authority.address_refused(ip("127.0.0.1")).is_some(),
+                run.serving,
+                "{run:?}"
+            );
         }
     }
 }
