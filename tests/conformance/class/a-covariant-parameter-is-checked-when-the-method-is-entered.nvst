@@ -1,0 +1,151 @@
+--TEST--
+A `covariant` parameter is tested when the method is entered, before the body runs, and a value of the wider type throws a `LogicError` that names the method, the parameter, the type and what the value is — through a parent, a grandchild, an interface, a static method, `compareTo`, an `inout` and a variadic parameter, and a callable of the method — `rule:classes/a-covariant-type-is-checked-where-a-value-enters`
+--FILE--
+<?nvs
+class Animal {}
+class Dog extends Animal {}
+class Cat extends Animal {}
+class Puppy extends Dog {}
+
+class Kennel {
+    public function feed(Animal $a): string { return "kennel"; }
+    public function label(int|string $id): string { return "kennel " . $id; }
+    public function walk(?Animal $a): string { return "kennel walk"; }
+    public function all(Animal ...$all): uint { return Core\Arr::count($all); }
+    public function swap(inout Animal $a): void {}
+    public static function adopt(Animal $a): string { return "kennel adopt"; }
+    public static function welcome(Animal $a): string { return static::adopt($a); }
+}
+
+class DogKennel extends Kennel {
+    public function feed(covariant Dog $a): string { return "dog kennel feeds a dog"; }
+    public function label(covariant int $id): string { return "dog " . ($id + 1); }
+    public function walk(covariant Dog $a): string { return "walks a dog"; }
+    public function all(covariant Dog ...$all): uint { return Core\Arr::count($all); }
+    public function swap(inout covariant Dog $a): void { $a = new Puppy(); }
+    public static function adopt(covariant Dog $a): string { return "adopts a dog"; }
+}
+
+class PuppyKennel extends DogKennel {
+    public function feed(covariant Dog $a): string { return "puppy kennel feeds a dog"; }
+}
+
+interface Feeds {
+    public function give(Animal $a): string;
+}
+
+class Bowl implements Feeds {
+    public function give(covariant Dog|Cat $a): string { return "the bowl takes it"; }
+}
+
+class Price implements Comparable {
+    public function constructor(public int $cents) {}
+    public function compareTo(self $other): int { return $this->cents <=> $other->cents; }
+}
+
+class SalePrice extends Price {
+    public function compareTo(covariant SalePrice $other): int { return 0; }
+}
+
+// A value of the narrower type runs the override, and `int` reaches the body as an `int`.
+Kennel $k = new DogKennel();
+echo $k->feed(new Dog()), "\n";
+echo $k->label(4), "\n";
+
+// 1. A `Cat` through the parent's type.
+try {
+    echo $k->feed(new Cat()), "\n";
+} catch (LogicError $e) {
+    echo "1: ", $e->message, "\n";
+}
+
+// 2. A `string` where the override takes `int`.
+try {
+    echo $k->label("x"), "\n";
+} catch (LogicError $e) {
+    echo "2: ", $e->message, "\n";
+}
+
+// 3. A `null` where the override takes `Dog`.
+try {
+    echo $k->walk(null), "\n";
+} catch (LogicError $e) {
+    echo "3: ", $e->message, "\n";
+}
+
+// 4. A variadic parameter tests each argument.
+echo $k->all(new Dog(), new Puppy()), "\n";
+try {
+    echo $k->all(new Dog(), new Cat()), "\n";
+} catch (LogicError $e) {
+    echo "4: ", $e->message, "\n";
+}
+
+// 5. An `inout` parameter tests the variable on entry, and the body may write a narrower value.
+Animal $pet = new Dog();
+$k->swap(inout $pet);
+echo $pet is Puppy ? "a puppy" : "not a puppy", "\n";
+Animal $other = new Cat();
+try {
+    $k->swap(inout $other);
+} catch (LogicError $e) {
+    echo "5: ", $e->message, "\n";
+}
+
+// 6. A static method, called through `static::` in the parent.
+echo DogKennel::welcome(new Dog()), "\n";
+try {
+    echo DogKennel::welcome(new Cat()), "\n";
+} catch (LogicError $e) {
+    echo "6: ", $e->message, "\n";
+}
+
+// 7. A grandchild.
+Kennel $p = new PuppyKennel();
+try {
+    echo $p->feed(new Cat()), "\n";
+} catch (LogicError $e) {
+    echo "7: ", $e->message, "\n";
+}
+
+// 8. An interface, with `Dog|Cat` where the interface takes `Animal`.
+Feeds $bowl = new Bowl();
+echo $bowl->give(new Cat()), "\n";
+try {
+    echo $bowl->give(new Animal()), "\n";
+} catch (LogicError $e) {
+    echo "8: ", $e->message, "\n";
+}
+
+// 9. A callable of the method.
+callable $feed = $k->feed(...);
+try {
+    echo $feed(new Cat()), "\n";
+} catch (LogicError $e) {
+    echo "9: ", $e->message, "\n";
+}
+
+// 10. `compareTo` called directly through the parent.
+Price $sale = new SalePrice(5);
+try {
+    echo $sale->compareTo(new Price(5)), "\n";
+} catch (LogicError $e) {
+    echo "10: ", $e->message, "\n";
+}
+--EXPECT--
+dog kennel feeds a dog
+dog 5
+1: The parameter `$a` of `DogKennel::feed` has the type `Dog`. The argument is an object of class `Cat`.
+2: The parameter `$id` of `DogKennel::label` has the type `int`. The argument is a value of type `string`.
+3: The parameter `$a` of `DogKennel::walk` has the type `Dog`. The argument is `null`.
+2
+4: The parameter `$all` of `DogKennel::all` has the type `Dog`. One of the arguments is an object of class `Cat`.
+a puppy
+5: The parameter `$a` of `DogKennel::swap` has the type `Dog`. The variable passed is an object of class `Cat`.
+adopts a dog
+6: The parameter `$a` of `DogKennel::adopt` has the type `Dog`. The argument is an object of class `Cat`.
+7: The parameter `$a` of `PuppyKennel::feed` has the type `Dog`. The argument is an object of class `Cat`.
+the bowl takes it
+8: The parameter `$a` of `Bowl::give` has the type `Dog|Cat`. The argument is an object of class `Animal`.
+9: The parameter `$a` of `DogKennel::feed` has the type `Dog`. The argument is an object of class `Cat`.
+10: The parameter `$other` of `SalePrice::compareTo` has the type `SalePrice`. The argument is an object of class `Price`.

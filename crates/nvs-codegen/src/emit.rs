@@ -4389,6 +4389,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::ClassDescName => "nvs_class_desc_name",
         Helper::ClassConstant => "nvs_class_constant",
         Helper::TypeCheckFailed => "nvs_type_check_failed",
+        Helper::CovariantRejected => "nvs_covariant_rejected",
         Helper::LateInitRunning => "nvs_late_init_running",
         Helper::IntTruthy => "nvs_int_truthy",
         Helper::UintTruthy => "nvs_uint_truthy",

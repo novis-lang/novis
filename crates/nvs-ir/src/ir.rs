@@ -2238,6 +2238,12 @@ pub enum Helper {
     /// because the value it names is a compiler bug and never a program's
     /// error. Only a unit compiled under the switch emits it.
     TypeCheckFailed,
+    /// A `covariant` parameter's entry test failed
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`). Two
+    /// operands: the message the lowering wrote, as a `Ty::Str`, and the value
+    /// that failed, as a borrowed `Ty::Tagged`. It always throws a `LogicError`
+    /// made of the message and what the value is.
+    CovariantRejected,
     /// Whether an `initProperty` call is running in this context, as a
     /// [`Ty::Bool`] (`rule:classes/late-init-initializes-on-the-first-read`).
     /// No arguments. Only a write to a `lateinit` property that was unset, in

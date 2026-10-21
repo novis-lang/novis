@@ -187,6 +187,25 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
+    /// `nvs_ir::Helper::CovariantRejected`: a `covariant` parameter's entry
+    /// test failed. It always throws a `LogicError` made of the lowering's
+    /// message and what the value is. The value is borrowed.
+    fn nvs_covariant_rejected(_ctx, args: [2]) {
+        let Some(message) = args[0].as_str_bytes() else {
+            return Err(wrong_tag("nvs_covariant_rejected", Tag::Str, args[0]));
+        };
+        Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!(
+                "{} {}.",
+                String::from_utf8_lossy(message),
+                crate::object::describe_argument(args[1])
+            ),
+        ))
+    }
+}
+
+crate::nvs_helper! {
     /// `nvs_ir::Helper::LateInitRunning`: whether an `initProperty` call is
     /// running in this context, as a `bool`.
     fn nvs_late_init_running(ctx, args: [0]) {
@@ -3435,6 +3454,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_class_desc_name", address(nvs_class_desc_name)),
         ("nvs_class_constant", address(nvs_class_constant)),
         ("nvs_type_check_failed", address(nvs_type_check_failed)),
+        ("nvs_covariant_rejected", address(nvs_covariant_rejected)),
         ("nvs_late_init_running", address(nvs_late_init_running)),
         ("nvs_int_truthy", address(nvs_int_truthy)),
         ("nvs_uint_truthy", address(nvs_uint_truthy)),

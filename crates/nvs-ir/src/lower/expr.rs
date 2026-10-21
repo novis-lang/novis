@@ -6910,8 +6910,33 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        let (answer, _) =
+            self.emit_every_element_with(element, value, subject, false, span, env, cur);
+        (answer, Ty::Bool)
+    }
+
+    /// [`Self::emit_every_element`], and with `witness` also the first
+    /// element that declined, as a borrowed [`Ty::Tagged`] that is `null` on
+    /// every other exit. A `covariant` variadic parameter's error names it
+    /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`).
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the walk's own operands, the witness switch, and the env and \
+                  block every emitted test threads"
+    )]
+    pub(super) fn emit_every_element_with(
+        &mut self,
+        element: TestShape,
+        value: ValueId,
+        subject: Ty,
+        witness: bool,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Option<ValueId>) {
         let merge = self.new_block();
         let mut incoming = Vec::new();
+        let mut witnesses = Vec::new();
         // A `Ty::Array` subject is the array; a `Ty::Tagged` one is it only
         // where the tag says so, and the untag is unchecked
         // ([`InstKind::Untag`]), so it goes after the branch rather than before.
@@ -6926,6 +6951,10 @@ impl<'a> Lowering<'a> {
             );
             let (missed, _) = self.emit(*cur, Ty::Bool, InstKind::ConstBool(false));
             incoming.push((*cur, missed));
+            if witness {
+                let none = self.emit_tagged_null(*cur, env);
+                witnesses.push((*cur, none));
+            }
             let enter = self.new_block();
             let enter_edge = self.ids.next_edge(span);
             let missed_edge = self.ids.next_edge(span);
@@ -6982,6 +7011,10 @@ impl<'a> Lowering<'a> {
         );
         let (drained, _) = self.emit(header, Ty::Bool, InstKind::ConstBool(true));
         incoming.push((header, drained));
+        if witness {
+            let none = self.emit_tagged_null(header, env);
+            witnesses.push((header, none));
+        }
         let body = self.new_block();
         let body_edge = self.ids.next_edge(span);
         let drained_edge = self.ids.next_edge(span);
@@ -7018,6 +7051,9 @@ impl<'a> Lowering<'a> {
         );
         let (declined, _) = self.emit(body_cur, Ty::Bool, InstKind::ConstBool(false));
         incoming.push((body_cur, declined));
+        if witness {
+            witnesses.push((body_cur, held));
+        }
         self.emit_safepoint(body_cur);
         let inst = &mut self.block_insts[header.index() as usize][cursor_phi];
         let InstKind::Phi {
@@ -7040,7 +7076,18 @@ impl<'a> Lowering<'a> {
             },
         );
         *cur = merge;
-        self.emit(merge, Ty::Bool, InstKind::Phi { incoming })
+        let (answer, _) = self.emit(merge, Ty::Bool, InstKind::Phi { incoming });
+        let witness = witness.then(|| {
+            let incoming = witnesses;
+            self.emit(merge, Ty::Tagged, InstKind::Phi { incoming }).0
+        });
+        (answer, witness)
+    }
+
+    /// A `null` at [`Ty::Tagged`], emitted into `block`.
+    fn emit_tagged_null(&mut self, block: BlockId, env: &mut Env) -> ValueId {
+        let (null, _) = self.emit(block, Ty::Null, InstKind::ConstNull);
+        self.coerce(block, null, Ty::Null, Ty::Tagged, env)
     }
 
     /// `rule:types/type-test`'s union and intersection rows: each member's own
