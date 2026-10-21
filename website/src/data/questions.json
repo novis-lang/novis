@@ -755,7 +755,7 @@
   },
   "/in-depth/compare/": {
     "feature": "in-depth/compare.mdx",
-    "hash": "61eb07c5a1added6",
+    "hash": "bb7dae5152cab9f2",
     "questions": [
       "How do Novis, PHP, Bun and Go compare in requests per second and memory?",
       "Can one request split its work over several CPU cores?",
@@ -1339,7 +1339,7 @@
   },
   "/reference/config/capabilities/": {
     "feature": "tools:config/capabilities",
-    "hash": "d9d852edcff49110",
+    "hash": "aaf53d7b64a533e7",
     "questions": [
       "How do I allow a program to read files from a folder?",
       "Why does writing a file throw a permission error?",
