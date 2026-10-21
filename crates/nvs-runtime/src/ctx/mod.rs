@@ -472,6 +472,13 @@ pub struct Ctx {
     /// worker whose last request was refused starts clear, and an isolate gives
     /// its parent's answer back rather than the one it was stopped by.
     memory_refused_saved: Option<crate::budget::Refusal>,
+    /// Whether the two fields above hold this context's *own* arming and
+    /// refusal rather than what it displaced: set by [`Self::leave_this_stack`]
+    /// and cleared by [`Self::arm_on_this_stack`]. A context dropped in between
+    /// was never run, so it was never armed on any stack, and its drop leaves
+    /// the thread as it is. Arming its own word there would name a word the
+    /// rest of the drop frees.
+    memory_off_stack: bool,
     /// The thread's output-byte count when this context was made — the zero
     /// point [`Self::output_used`] measures this request's own writing from.
     /// [`Self::memory_base`]'s twin in every respect, the reason it sits below
@@ -1599,14 +1606,21 @@ impl Drop for Ctx {
         // Beside it, and first for the same reason twice over: what the
         // teardown below allocates belongs to whatever context encloses this
         // one, and the word this context armed stops being a word anything may
-        // publish into the moment it drops. `Ctx::memory_ceiling_saved` is the
-        // field and `crate::budget::arm` the obligation.
-        crate::budget::arm(self.memory_ceiling_saved);
-        // And the verdict that travels with it, for the same reason in the
-        // other direction: a refusal this request was stopped by is not one the
-        // thread's next request inherits. `Ctx::memory_refused_saved` is the
-        // field.
-        crate::budget::restore_refusal(self.memory_refused_saved);
+        // publish into the moment it drops. What it puts back is what was armed
+        // on this stack when it was made, because `crate::budget::ArmedStack`
+        // takes the arming off the thread at every task switch: a context never
+        // saves another task's word. `Ctx::memory_ceiling_saved` is the field
+        // and `crate::budget::arm` the obligation. A context handed to a task
+        // that never ran it armed nothing, and puts nothing back —
+        // `Ctx::memory_off_stack`.
+        if !self.memory_off_stack {
+            crate::budget::arm(self.memory_ceiling_saved);
+            // And the verdict that travels with it, for the same reason in the
+            // other direction: a refusal this request was stopped by is not one
+            // the thread's next request inherits. `Ctx::memory_refused_saved`
+            // is the field.
+            crate::budget::restore_refusal(self.memory_refused_saved);
+        }
         self.release_statics();
         // An isolate's argument is one of its roots and is released with them
         // — `Ctx::set_isolate_argument` owns why it is held here at all.

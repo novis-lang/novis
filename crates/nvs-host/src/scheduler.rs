@@ -647,9 +647,19 @@ impl Task {
     ///
     /// The resume and nothing else goes inside [`Fiber::around`], which is that
     /// method's whole contract.
+    ///
+    /// The memory arming of the scheduler's own stack is taken off the thread
+    /// around the resume, so a task starts under nothing and what a task leaves
+    /// armed as it ends never reaches the next one. `yield_on` is the task's
+    /// side of the same switch, and [`nvs_runtime::budget::ArmedStack`] owns
+    /// why the arming is per stack.
     fn resume(&mut self, resume: Resume) -> CoroutineResult<Suspended, Finished> {
         let Self { coro, fiber, .. } = self;
-        fiber.around(|| coro.resume(resume))
+        let outside = nvs_runtime::budget::ArmedStack::take();
+        let result = fiber.around(|| coro.resume(resume));
+        drop(nvs_runtime::budget::ArmedStack::take());
+        outside.restore();
+        result
     }
 
     /// Unwinds this task's stack where it stands, telling the sanitizer that
@@ -837,6 +847,10 @@ impl Scheduler {
         // it is almost always `None` — the root case.
         let parent = current_task();
         let id = self.tree.borrow_mut().issue(parent);
+        // The stack that made the context keeps its own ceiling, and the
+        // context's goes with it to the task — `Ctx::leave_this_stack`.
+        let mut ctx = ctx;
+        ctx.leave_this_stack();
         self.start(id, ctx, root, Box::new(body));
         id
     }
@@ -871,6 +885,9 @@ impl Scheduler {
             // the length of the task and where every helper reaches it by
             // pointer; the box is freed here and is not a per-helper cost.
             let mut ctx = *carried;
+            // The context's ceiling is armed on the stack it runs on, which
+            // `Task::resume` started under nothing.
+            ctx.arm_on_this_stack();
             // Taking a pointer to the yielder is safe; only turning it back
             // into a reference is not, and `suspend` below owns that `unsafe`.
             // It is erased to `*const ()` so that `nvs-runtime` — the crate
@@ -1319,6 +1336,8 @@ where
 {
     let parent = current_task()?;
     let tree = current_tree()?;
+    let mut ctx = ctx;
+    ctx.leave_this_stack();
     let mut tree = tree.borrow_mut();
     let id = tree.issue(Some(parent));
     tree.pending.push(Pending {
@@ -1550,10 +1569,11 @@ pub fn suspend_current(waiting: Waiting) -> Resumed {
 /// else's.
 ///
 /// **Every per-stack thread-local this runtime keeps is taken and put back
-/// here.** [`RUNNING`], the helper-frame count, and
-/// [`nvs_runtime::CurrentStack`]'s pair — that last one because it is the only
-/// one whose stale value is a *dangling pointer* rather than a wrong number,
-/// which is what its own doc records.
+/// here.** [`RUNNING`], the helper-frame count,
+/// [`nvs_runtime::CurrentStack`]'s pair, and
+/// [`nvs_runtime::budget::ArmedStack`]'s memory ceiling, refusal and reserve.
+/// The last two are the ones whose stale value is a *dangling pointer* rather
+/// than a wrong number, which is what their own docs record.
 ///
 /// `tree` is the request tree of the context that suspended, where the park
 /// site has one. What travels out in the suspension for [`Task::tree`] is that
@@ -1597,11 +1617,16 @@ fn yield_on(raw: *const (), waiting: Waiting, tree: Option<usize>) -> Resumed {
     // otherwise save these words and write them back after this context has
     // been dropped.
     let current = nvs_runtime::CurrentStack::take();
+    // The memory ceiling this stack armed, its refusal and its reserve, off the
+    // thread beside the context and for the same reason:
+    // [`nvs_runtime::budget::ArmedStack`] owns it.
+    let armed = nvs_runtime::budget::ArmedStack::take();
     let resume = yielder.suspend(Suspended {
         waiting,
         unwindable: frames == 0,
         tree,
     });
+    armed.restore();
     current.restore();
     nvs_runtime::HelperFrame::restore(frames);
     RUNNING.set(running);
@@ -1703,6 +1728,57 @@ mod tests {
             !armed,
             "a core with no task running carries no context; this one is holding the \
              one the first task installed, whose allocation is already gone"
+        );
+    }
+
+    #[test]
+    fn a_task_resumes_under_its_own_memory_ceiling_and_leaves_no_word_armed() {
+        // `nvs_runtime::budget::ArmedStack`'s interleaving: A arms its ceiling
+        // and parks, B runs under another ceiling and makes and drops a context
+        // of its own, and A resumes. A must read the ceiling it parked with, and
+        // a core with no task running must name no safepoint word, because the
+        // last word armed belongs to a context that is gone.
+        let seen = Rc::new(RefCell::new(Vec::new()));
+        let mut sched = Scheduler::new();
+        for limit in [1 << 30, 1 << 20] {
+            let seen = Rc::clone(&seen);
+            let mut ctx = ctx();
+            ctx.set_memory_limit(limit);
+            sched.spawn(ctx, TaskRoot::Request, move |_| {
+                let before = nvs_runtime::budget::armed_ceiling();
+                if limit == 1 << 30 {
+                    suspend_current(Waiting::Yielded);
+                } else {
+                    let mut nested = Ctx::new(OutputSink::Sink);
+                    nested.set_memory_limit(1 << 10);
+                    drop(nested);
+                }
+                let after = nvs_runtime::budget::armed_ceiling();
+                seen.borrow_mut().push((limit, before, after));
+            });
+        }
+        sched.run();
+
+        let seen = seen.borrow();
+        assert_eq!(seen.len(), 2, "both tasks ran to the end: {seen:?}");
+        for &(limit, before, after) in seen.iter() {
+            assert_ne!(before, 0, "the task with limit {limit} ran with no ceiling armed");
+            assert_eq!(
+                before, after,
+                "the task with limit {limit} came back under another task's ceiling"
+            );
+        }
+        assert_ne!(
+            seen[0].1, seen[1].1,
+            "the two tasks were measured against one ceiling: {seen:?}"
+        );
+        let after = nvs_runtime::budget::ArmedStack::take();
+        let armed = after.is_armed();
+        after.restore();
+        assert!(
+            !armed,
+            "a core with no task running names no safepoint word; this one names the \
+             word of a request that has ended"
         );
     }
 

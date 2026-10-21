@@ -234,11 +234,11 @@ new one, in `crates/nvs-runtime/src` and `crates/nvs-ir/src/lower`, as `file:lin
 **Does:** two requests that interleave on one core are each checked against their own ceiling, and no
 thread ever names a freed safepoint word.
 
-- [ ] `budget::ArmedStack` takes and restores `CEILING`, `POLLED`, `REFUSED` and `REPORTING`, modelled on `CurrentStack` (`rule:security/isolate-shares-nothing`). `crates/nvs-runtime/src/budget.rs:243`, `crates/nvs-runtime/src/ctx/current.rs:107`
-- [ ] `yield_on` takes it beside `CurrentStack::take` and restores it beside `current.restore()`, and its doc lists it. `crates/nvs-host/src/scheduler.rs:1552`, `crates/nvs-host/src/scheduler.rs:1599`
-- [ ] `arm`'s caller obligation and `Ctx::drop`'s restore comment say what holds now. `crates/nvs-runtime/src/budget.rs:443`, `crates/nvs-runtime/src/ctx/mod.rs:1599`
-- [ ] The limit handler runs after the reserve closes, and the log ladder closes its reserve before the handler isolate (`rule:errors/on-limit`). `crates/nvs-runtime/src/ctx/hooks.rs:570`, `crates/nvs-runtime/src/ctx/hooks.rs:625`, `crates/nvs-host/src/ladder.rs:111`
-- [ ] Rust test: task A arms and parks, task B makes and drops a context, A resumes under its own ceiling, and after both end the thread's `POLLED` is null. `crates/nvs-host/src/scheduler.rs:1615`
+- [x] `budget::ArmedStack` takes and restores `CEILING`, `POLLED`, `REFUSED` and `REPORTING`, modelled on `CurrentStack` (`rule:security/isolate-shares-nothing`). `crates/nvs-runtime/src/budget.rs:243`, `crates/nvs-runtime/src/ctx/current.rs:107`
+- [x] `yield_on` takes it beside `CurrentStack::take` and restores it beside `current.restore()`, and its doc lists it. `crates/nvs-host/src/scheduler.rs:1552`, `crates/nvs-host/src/scheduler.rs:1599`
+- [x] `arm`'s caller obligation and `Ctx::drop`'s restore comment say what holds now. `crates/nvs-runtime/src/budget.rs:443`, `crates/nvs-runtime/src/ctx/mod.rs:1599`
+- [x] The limit handler runs after the reserve closes, and the log ladder closes its reserve before the handler isolate (`rule:errors/on-limit`). `crates/nvs-runtime/src/ctx/hooks.rs:570`, `crates/nvs-runtime/src/ctx/hooks.rs:625`, `crates/nvs-host/src/ladder.rs:111`
+- [x] Rust test: task A arms and parks, task B makes and drops a context, A resumes under its own ceiling, and after both end the thread's `POLLED` is null. `crates/nvs-host/src/scheduler.rs:1615`
 - [ ] The state-bleed suite gains a memory row with two interleaved requests, one over its limit and one under. `crates/nvs-server/src/serve.rs:8510`
 - [ ] `core-time-slice`'s standing decision on memory says the arming already travels, and its stage 3 charges the balance only. `docs/goals/core-time-slice.md:134`
 - [ ] The rule says every per-task value the allocator reads travels with the task. `docs/rules/security/isolate-shares-nothing.md:1`
@@ -326,22 +326,50 @@ reference-cell store and the `set => expr;` hook body, and both are fixed. `inst
 (`crates/nvs-runtime/src/ctx/isolate.rs:276`) releases a whole statics store before it installs the
 next one; it runs before any request frame, so it is left as it is.
 
-The acceptance sweep's `env-secret-proofs` and the nightly `proofs` jobs were already green on this
-tree: the gate exits 0, and `bun nv site --check structure snippets stale questions prose` passes.
+Stage 2's code is in. `budget::ArmedStack` (`crates/nvs-runtime/src/budget.rs:501`) carries the
+four cells. `yield_on` takes and restores it (`crates/nvs-host/src/scheduler.rs:1623`). Two more
+seams were needed beyond the stage's items, because a context is made on one stack and run on
+another:
+
+- `Task::resume` (`crates/nvs-host/src/scheduler.rs:656`) takes the scheduler stack's arming around
+  every resume, so a task starts under nothing and what a finished task leaves armed never reaches
+  the next one.
+- `Ctx::leave_this_stack` and `Ctx::arm_on_this_stack` (`crates/nvs-runtime/src/ctx/limits.rs:266`)
+  swap the thread's arming with the context's saved one. `spawn` and `spawn_child` call the first on
+  the creator's stack, and the task entry calls the second. The new `Ctx::memory_off_stack` flag
+  makes a context that was handed over and never run put nothing back as it drops. The handler
+  isolate still arms nothing, so it keeps failing open as `handler_isolate`'s doc says.
+
+The limit handler's reserve closes after the report is built and before `call_callable`. The ladder
+builds the record and copies it in with `Isolate::start` inside the reserve, closes it, then
+`join`s. `a_task_resumes_under_its_own_memory_ceiling_and_leaves_no_word_armed`
+(`crates/nvs-host/src/scheduler.rs:1735`) passes by name. Build and clippy are green.
+
+**The acceptance sweep's `proofs` failure is not this tree's.** The nightly run was on `afbb1edc2`,
+and HEAD passes `site stale` and `site questions` once the stamps are current. During this session
+someone else was rewriting nine `about.md` files under `docs/examples/` (Config/set, Http-Client/post,
+IO/writeStream, Process/spawn, Response/sendFile, isolates-spawn-script-and-await, and three under
+`tools/config/`). Those rewrites made their pages stale. A subagent re-checked each page's questions
+and stamped them, in `website/src/data/questions.json` and `website/site.lock.json`. Those two files
+and the nine `about.md` files are left **uncommitted** for whoever owns the rewrite.
+`env-secret-proofs` exits 0 here.
 
 **Expected red at the gate:** any `nvs-ir` lowering snapshot or IR-dump test that pins a property,
 static or reference-cell write. The release of the old value now follows the store instead of
-preceding it. Update the expected order; it is not a regression.
+preceding it. Update the expected order; it is not a regression. Also any `nvs-host` or
+`nvs-server` test that relied on a child task inheriting its creator's arming: a task now runs under
+the ceiling of its own context alone.
 
 ### Next
 
-**Stage 2, one group**, on `crates/nvs-runtime/src/budget.rs`, `crates/nvs-runtime/src/ctx/` and
-`crates/nvs-host/src/scheduler.rs`. No gate.
+**Stage 2's last three items, one group.** No gate.
 
-- [ ] `budget::ArmedStack`, modelled on `CurrentStack`. `crates/nvs-runtime/src/budget.rs:243`, `crates/nvs-runtime/src/ctx/current.rs:107`
-- [ ] `yield_on` takes and restores it. `crates/nvs-host/src/scheduler.rs:1552`, `crates/nvs-host/src/scheduler.rs:1599`
-- [ ] The limit handler runs after the reserve closes, and so does the ladder's handler isolate. `crates/nvs-runtime/src/ctx/hooks.rs:625`, `crates/nvs-host/src/ladder.rs:111`
-- [ ] The Rust test and the state-bleed memory row. `crates/nvs-host/src/scheduler.rs:1615`, `crates/nvs-server/src/serve.rs:8510`
+- [ ] The state-bleed suite gains a memory row: two interleaved requests, one over its limit and one under. `crates/nvs-server/src/serve.rs:8510`
+- [ ] `core-time-slice`'s standing decision on memory says the arming already travels, and its stage 3 charges the balance only. `docs/goals/core-time-slice.md:134`
+- [ ] `rule:security/isolate-shares-nothing` says every per-task value the allocator reads travels with the task, and names `leave_this_stack` and `arm_on_this_stack` as how a context reaches its own stack. `docs/rules/security/isolate-shares-nothing.md:1`
+
+Then set stage 2 to done. Stages 3 and 4 may run as a side goal beside it, because they touch only
+`crates/nvs-stdlib`, `crates/nvs-server/src/body.rs` and `crates/nvs-config`.
 
 Stages 3 and 4 may run as a side goal beside it, because they touch only `crates/nvs-stdlib`,
 `crates/nvs-server/src/body.rs` and `crates/nvs-config`.

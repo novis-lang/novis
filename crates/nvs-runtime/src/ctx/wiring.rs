@@ -130,6 +130,7 @@ impl Ctx {
             // begins under no refusal whatever the thread was carrying, and
             // hands back what it took as it drops.
             memory_refused_saved: crate::budget::take_refusal(),
+            memory_off_stack: false,
             output_base: crate::budget::written_bytes(),
             // A context is on its tree's root core until something says
             // otherwise, and the only thing that can is `Ctx::join_tree` on the
