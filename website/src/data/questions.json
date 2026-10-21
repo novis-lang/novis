@@ -1339,7 +1339,7 @@
   },
   "/reference/config/capabilities/": {
     "feature": "tools:config/capabilities",
-    "hash": "ef116e5c43f1ed0c",
+    "hash": "d9d852edcff49110",
     "questions": [
       "How do I allow a program to read files from a folder?",
       "Why does writing a file throw a permission error?",
@@ -1505,7 +1505,7 @@
   },
   "/reference/config/network-grants-the-addresses-and-endpoints-they-reach/": {
     "feature": "tools:config/network-grants-the-addresses-and-endpoints-they-reach",
-    "hash": "8a368d72906cb793",
+    "hash": "31cbed5758c30257",
     "questions": [
       "Which hosts may my program connect to?",
       "Why is my connection to a private IP address blocked?",
@@ -1626,7 +1626,7 @@
   },
   "/reference/config/trust/": {
     "feature": "tools:config/trust",
-    "hash": "7d4517170d933e4b",
+    "hash": "0b478a114647529b",
     "questions": [
       "Why does the server not start after I changed file permissions?",
       "Which file permissions should the config folder have?",
