@@ -1,10 +1,12 @@
 // `bun nv ext-templates` and the CI job that runs it: the job's platforms and gate, the `ext` lane's
-// reach over what the templates are built from, and the C leg's two outcomes without wasi-sdk.
+// reach over what the templates and the guide's example are built from, and the C leg's two
+// outcomes without wasi-sdk.
 
 import { expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { LANES, lanesFor } from "../cmd/ci-changes.ts";
+import { EXAMPLE, exampleOwns } from "../cmd/ext-templates.ts";
 import { ROOT } from "../lib/paths.ts";
 
 /** Every file under `dir`, repository-relative with `/` separators. */
@@ -34,6 +36,19 @@ test("the CI job runs both templates on Linux, Windows and macOS", () => {
   const runs = job!.steps.map((s) => s.run?.trim()).filter(Boolean);
   expect(runs).toContain("bun nv ext-templates --lang rust");
   expect(runs).toContain("bun nv ext-templates --lang c");
+  expect(runs).toContain("bun nv ext-templates --example");
+});
+
+test("the ext lane covers every file of the guide's example, and the leg copies none of its build output", () => {
+  const owned = filesUnder(EXAMPLE).filter((path) => exampleOwns(relative(EXAMPLE, path)));
+  expect(owned).toContain(`${EXAMPLE}/nvsx.toml`);
+  expect(owned).toContain(`${EXAMPLE}/demo/index.nvs`);
+  const uncovered = owned.filter((path) => !lanesFor({ ext: LANES.ext! }, [path])[0]![1]);
+  expect(uncovered).toEqual([]);
+  expect(exampleOwns("target/wasm32-wasip2/release/markdown.wasm")).toBe(false);
+  expect(exampleOwns("parser.nvsx")).toBe(false);
+  expect(exampleOwns("demo/nvs.toml")).toBe(false);
+  expect(exampleOwns("src/lib.rs")).toBe(true);
 });
 
 test("the ext lane covers every file the templates are built from", () => {

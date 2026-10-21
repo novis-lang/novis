@@ -1,0 +1,36 @@
+---
+/**
+ * Every file of the guide's example extension, one tab per file, read in
+ * place from `website/guides/markdown-extension/` by `exampleFiles` in
+ * src/lib/extension-example.ts. The tabs wrap as AppFiles' tabs do.
+ */
+import { Code, TabItem, Tabs } from '@astrojs/starlight/components'
+import { exampleFiles } from '~/lib/extension-example'
+
+const files = exampleFiles()
+---
+
+<div class="extension-files">
+  <Tabs>
+    {
+      files.map((file) => (
+        <TabItem label={file.path}>
+          <Code code={file.code} lang={file.lang} title={file.path} wrap />
+        </TabItem>
+      ))
+    }
+  </Tabs>
+</div>
+
+<style>
+  .extension-files :global(.tablist-wrapper) {
+    overflow-x: visible;
+  }
+  .extension-files :global([role='tablist']) {
+    flex-wrap: wrap;
+  }
+  .extension-files :global([role='tab']) {
+    padding-inline: 0.75rem;
+    font-size: var(--sl-text-sm);
+  }
+</style>

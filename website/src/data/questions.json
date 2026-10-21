@@ -173,6 +173,29 @@
       "Join several PDF files into one, with a QR code on each ticket"
     ]
   },
+  "/guides/extensions/": {
+    "feature": "guides/extensions/index.mdx",
+    "hash": "80c34393556c86ce",
+    "questions": [
+      "Use a Rust or C library from Novis",
+      "When should I write an extension instead of Novis code?",
+      "Is a WebAssembly extension safe to load in my server?",
+      "How much slower is a call into an extension?",
+      "Which languages can I write a Novis extension in?"
+    ]
+  },
+  "/guides/extensions/rust/": {
+    "feature": "guides/extensions/rust.mdx",
+    "hash": "561e463bf2253a4f",
+    "questions": [
+      "Step by step guide to write an extension in Rust",
+      "Convert Markdown to HTML with a Rust library",
+      "How do I build and test a .nvsx file?",
+      "Pack Novis classes into the same file as the Rust code",
+      "Load my own extension in nvs.toml with its sha256",
+      "Map WIT types like record and list to Novis types"
+    ]
+  },
   "/guides/how-to-use/": {
     "feature": "guides/how-to-use/index.mdx",
     "hash": "187d511016497921",

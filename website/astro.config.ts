@@ -519,6 +519,21 @@ export default defineConfig({
                 },
               ],
             },
+            {
+              label: 'Extensions',
+              items: [
+                {
+                  label: 'Overview',
+                  link: '/guides/extensions/',
+                  attrs: { 'data-subtext': 'Add a library written in Rust or C' },
+                },
+                {
+                  label: 'Write an extension in Rust',
+                  link: '/guides/extensions/rust/',
+                  attrs: { 'data-subtext': 'Markdown to HTML, from an empty folder to a web page' },
+                },
+              ],
+            },
           ],
         },
         {

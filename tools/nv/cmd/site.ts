@@ -1445,6 +1445,7 @@ export const GUIDE_SECTIONS: [dir: string, least: number, snippets: boolean][] =
   ["testing", 1, false],
   ["production", 1, false],
   ["example-apps", 1, false],
+  ["extensions", 1, false],
 ];
 
 /**

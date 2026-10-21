@@ -1,0 +1,63 @@
+---
+title: Extensions
+covers: []
+description: Add a library written in Rust or C to Novis. An extension runs as WebAssembly in a sandbox, and every call to it is type-checked.
+---
+
+An extension adds a class to Novis. The code of the class is written in another language, such as
+Rust or C, and compiled to WebAssembly. Your program calls the class like any other class, and the
+compiler checks every call.
+
+## When to write one
+
+Write an extension when you need a library that exists in another language and Novis does not have.
+A Markdown parser, a file format or a special algorithm are good examples. Look in the
+[Core reference](/reference/core/) first. Most of what a web server or a command line tool needs is
+already there.
+
+If the code is easy to write in Novis, write it in Novis. An extension is for code that already
+exists somewhere else.
+
+## How an extension stays safe
+
+- An extension runs in a sandbox. It has its own memory, and it cannot read or change the memory of
+  your program.
+- It cannot open a file or connect to a host. An extension can ask for both in its manifest. The
+  person who runs the server decides what each extension gets.
+- Only the configuration file `nvs.toml` can load an extension. Each entry has the `sha256` of the
+  file, so a changed file does not load.
+- Each request gets a new copy of the extension. Nothing that one request stores in it is there in
+  the next request.
+- A `tainted` value stays `tainted`. If you pass text from a form to an extension, the result is
+  `tainted` too. A `secret` value cannot be passed to an extension at all.
+
+## What a call costs
+
+A call to an extension takes about 10 nanoseconds longer than a call to a built-in function. The
+first call in a request also creates the new copy of the extension. That takes about 8 to 23
+microseconds.
+
+The values are copied into the extension and back. So write functions that do a lot of work in one
+call: give the whole document, and get the whole result. A function that is called once for each
+character of a text is slow.
+
+## Which language
+
+Novis has a template for Rust and one for C. `nvs ext new --lang rust` or `nvs ext new --lang c`
+creates a project that builds and runs as it is.
+
+Other languages work too, if their compiler writes WebAssembly for the target `wasm32-wasip2`. A
+language that brings its own runtime makes a much bigger file. The tools for JavaScript, for
+example, put a whole JavaScript engine into the file.
+
+## The guide
+
+[Write an extension in Rust](/guides/extensions/rust/) builds an extension from an empty folder. It
+converts Markdown to HTML with a Rust library, and a web page uses it at the end.
+
+The reference pages list every option:
+
+- [`nvs ext new` and `nvs ext build`](/reference/cli/nvs-ext-new-and-nvs-ext-build/)
+- [`nvs ext test`](/reference/cli/nvs-ext-test/)
+- [`nvs ext inspect`, `nvs ext verify` and `nvs ext pin`](/reference/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin/)
+- [The `[[extension]]` entry in `nvs.toml`](/reference/config/extension/)

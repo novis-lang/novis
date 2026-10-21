@@ -1,0 +1,26 @@
+package example:markdown;
+
+/// The functions a Novis program can call. Each one returns a `result`: the
+/// value, or an `error` that the program gets as an exception.
+interface api {
+    use nvs:ext/types@1.0.0.{error};
+
+    /// One heading of a document: its level, 1 to 6, and its text.
+    record heading {
+        level: s64,
+        text: string,
+    }
+
+    /// Returns `text`, written in Markdown, as HTML.
+    to-html: func(text: string) -> result<string, error>;
+
+    /// Returns every heading of `text`, in the order they appear.
+    headings: func(text: string) -> result<list<heading>, error>;
+}
+
+/// What this project builds: the `nvs:ext` world, plus the functions above.
+/// The files under `deps/` define that world. Do not change them.
+world markdown {
+    include nvs:ext/extension@1.0.0;
+    export api;
+}

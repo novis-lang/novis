@@ -1,0 +1,21 @@
+---
+/**
+ * One file of the guide's example extension, read in place from
+ * `website/guides/markdown-extension/` by `exampleFile` in src/lib/extension-example.ts,
+ * so a step shows the file exactly as the project has it:
+ *
+ *   <ExtensionFile path="src/lib.rs" />
+ *
+ * A path the project does not have fails the build.
+ */
+import { Code } from '@astrojs/starlight/components'
+import { exampleFile } from '~/lib/extension-example'
+
+interface Props {
+  path: string
+}
+
+const file = exampleFile(Astro.props.path)
+---
+
+<Code code={file.code} lang={file.lang} title={file.path} />

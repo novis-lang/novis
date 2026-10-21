@@ -1,0 +1,43 @@
+package nvs:ext@1.0.0;
+
+/// What every extension may import. An extension adds its own exported
+/// interface, and a component that imports anything not listed here does not
+/// load.
+///
+/// WASI comes from `deps/`, copied unchanged from the 0.2.12 release, the
+/// WIT the `wasip2` crate in this tree's lock file carries. wasmtime's linker
+/// resolves an import of 0.2.x to a newer 0.2 release the host defines, so a
+/// guest built against an older 0.2 release loads too. `wasi:io` is here only
+/// because the file, HTTP and standard-stream interfaces are written in its
+/// types. There
+/// is no `wasi:sockets`, no `wasi:cli/terminal-*` and no incoming HTTP
+/// handler. File access and outgoing HTTP are linked for every guest, and
+/// they fail unless the extension was granted them.
+world extension {
+    import types;
+    import log;
+    import settings;
+
+    import wasi:cli/environment@0.2.12;
+    import wasi:cli/exit@0.2.12;
+    import wasi:cli/stdin@0.2.12;
+    import wasi:cli/stdout@0.2.12;
+    import wasi:cli/stderr@0.2.12;
+
+    import wasi:clocks/monotonic-clock@0.2.12;
+    import wasi:clocks/wall-clock@0.2.12;
+
+    import wasi:random/random@0.2.12;
+    import wasi:random/insecure@0.2.12;
+    import wasi:random/insecure-seed@0.2.12;
+
+    import wasi:filesystem/types@0.2.12;
+    import wasi:filesystem/preopens@0.2.12;
+
+    import wasi:http/types@0.2.12;
+    import wasi:http/outgoing-handler@0.2.12;
+
+    import wasi:io/error@0.2.12;
+    import wasi:io/poll@0.2.12;
+    import wasi:io/streams@0.2.12;
+}
