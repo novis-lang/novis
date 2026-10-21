@@ -317,6 +317,7 @@ fn method_sig(
             .map(|(name, bound)| (name.to_owned(), lower(bound, interner)))
             .collect(),
         return_ty: lower(&method.return_ty, interner),
+        contagious_return: None,
         // A `Core` member is reachable exactly one way (`rule:core-api/shape-rules`
         // R20): a static one through its class name, an instance
         // one through a value. The registry states which by which

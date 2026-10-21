@@ -265,9 +265,9 @@ pub(crate) fn infer_method_call(
         None => env.interner.mixed(),
     };
     // A contagious member's answer carries its arguments' `tainted` —
-    // [`tainted_result`] owns where in a result the qualifier can land.
+    // [`contagious_result`] owns where in a result the qualifier can land.
     let returned = if contagious {
-        tainted_result(returned, env.interner)
+        contagious_result(sig.as_ref(), returned, env.interner)
     } else {
         returned
     };
@@ -414,7 +414,7 @@ fn infer_union_method_call(
         return held;
     }
     match carries_contagion(&sig, &slots, &arg_types, env.interner) {
-        true => tainted_result(sig.return_ty, env.interner),
+        true => contagious_result(Some(&sig), sig.return_ty, env.interner),
         false => sig.return_ty,
     }
 }
@@ -877,7 +877,7 @@ pub(crate) fn infer_static_call(
     };
     // See [`infer_method_call`]: the static half of the same contagion.
     if contagious {
-        tainted_result(returned, env.interner)
+        contagious_result(sig.as_ref(), returned, env.interner)
     } else {
         returned
     }

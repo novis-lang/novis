@@ -524,7 +524,9 @@ pub(crate) fn secret_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
 /// return type. Nothing else is reached into — a shape's or an object's own
 /// fields are qualified where they are written, not here — which is exactly
 /// the case [`admits_tainted_argument`] refuses the argument for rather than
-/// laundering it.
+/// laundering it. An extension method's result is the one shape whose fields
+/// are all its call's output, and it writes its own
+/// [`MethodSig::contagious_return`] that reaches them ([`contagious_result`]).
 pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     if let Some(is_bytes) = qualifiable_base(ty, interner) {
         let secret = is_secret(ty, interner);
@@ -593,6 +595,37 @@ pub(crate) fn admits_tainted_argument(
         None | Some(Qual::Sink) => false,
         Some(Qual::Neutral | Qual::Launder | Qual::Reveal) => true,
         Some(Qual::Contagious) => tainted_result(return_ty, interner) != return_ty,
+    }
+}
+
+/// [`admits_tainted_argument`] for the parameter at `index` of `sig`: a
+/// [`Qual::Contagious`] parameter of a signature that writes its own
+/// [`MethodSig::contagious_return`] admits a `tainted` argument, because that
+/// return carries the qualifier wherever the answer has text. Every other
+/// parameter is asked [`admits_tainted_argument`]'s question unchanged.
+pub(crate) fn admits_tainted_argument_at(
+    sig: &MethodSig,
+    index: usize,
+    interner: &mut TypeInterner,
+) -> bool {
+    match (sig.qual_at(index), sig.contagious_return) {
+        (Some(Qual::Contagious), Some(_)) => true,
+        (qual, _) => admits_tainted_argument(qual, sig.return_ty, interner),
+    }
+}
+
+/// What a call to `sig` answers when one of its contagious arguments carried
+/// `tainted`: the signature's own [`MethodSig::contagious_return`] when it
+/// writes one, and otherwise [`tainted_result`] of `returned`, the return
+/// type after the call site bound `static` and the type variables.
+pub(crate) fn contagious_result(
+    sig: Option<&MethodSig>,
+    returned: TypeId,
+    interner: &mut TypeInterner,
+) -> TypeId {
+    match sig.and_then(|sig| sig.contagious_return) {
+        Some(tainted) => tainted,
+        None => tainted_result(returned, interner),
     }
 }
 

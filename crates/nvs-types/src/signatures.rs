@@ -154,6 +154,20 @@ pub struct MethodSig {
     pub type_bounds: Vec<(String, TypeId)>,
     /// The declared return type (`mixed` if omitted).
     pub return_ty: TypeId,
+    /// What a call answers when an argument at a [`Qual::Contagious`]
+    /// parameter carried `tainted`, when the signature says so itself; `None`
+    /// answers `crate::expr::quals::tainted_result` of [`Self::return_ty`].
+    ///
+    /// Only a method of an extension the configuration loads writes one
+    /// (`rule:security/extension-contagion`), and a built-in component's engine
+    /// does not: its declared return with `tainted` on every `string` and
+    /// `bytes`, the fields of a shape included, which `tainted_result` does not
+    /// reach into.
+    /// `crate::ext_lib` owns why a shape is reached there and nowhere else, and
+    /// leaves it `None` for a return with no `string` or `bytes` in it, which
+    /// refuses a `tainted` argument as every such signature does. A `Some`
+    /// admits one (`crate::expr::quals::admits_tainted_argument_at`).
+    pub contagious_return: Option<TypeId>,
     /// Whether the declaration writes `static` as its **return type** — late
     /// static binding (`rule:statements/static-is-a-member-modifier`), seen as
     /// a type rather than as a dispatch.
@@ -1418,6 +1432,7 @@ fn collect_members(
                         type_params: Vec::new(),
                         type_bounds: Vec::new(),
                         return_ty,
+                        contagious_return: None,
                         returns_static,
                         params_bind_static,
                         return_binds_static,
