@@ -19,8 +19,9 @@
 //!
 //! # Three bounds, and the one that is not here
 //!
-//! - [`MAX_PARTS`] — `rule:errors/multipart-part-count`'s part count, which bounds *bookkeeping*: a body far inside every byte
-//!   cap can still hold a million parts.
+//! - `[limits] max_multipart_parts` — `rule:errors/multipart-part-count`'s part count, which
+//!   bounds *bookkeeping*: a body far inside every byte cap can still hold a million parts. The
+//!   request's own value is given to [`Multipart::new`].
 //! - [`PART_HEADERS`] — one part's header block, so a part that never ends its
 //!   headers cannot grow the buffer.
 //! - `[limits] request_body` — the buffered form fields of
@@ -48,24 +49,22 @@
 //! value with no closing quote, a boundary that is not RFC 2046's, and a body
 //! that ends anywhere but after its closing delimiter.
 //!
+//! # A failure is kept
+//!
+//! The first error a walk meets is kept and returned by every later call. A
+//! program that caught the throw from one reader and calls another gets the
+//! same throw, never the part of the form that arrived before the failure.
+//!
 //! # What it costs
 //!
-//! A part's header block is searched for its blank line from the block's start
-//! again after every chunk that did not finish it, so a block that arrives in
-//! many small chunks costs quadratic time. [`PART_HEADERS`] bounds the block,
-//! so the cost is bounded per part.
+//! Linear time in the body, whatever its chunking. A part's header block is
+//! searched for its blank line from three bytes before where the last search
+//! stopped, so a block that arrives a byte at a time is still searched a
+//! bounded number of times per byte.
 
 use std::ops::Range;
 
 use nvs_runtime::RequestBody;
-
-/// `rule:errors/multipart-part-count`'s `[limits] max_multipart_parts` default, as a constant until that row
-/// exists.
-///
-/// PHP's own number after CVE-2023-0662, and it counts *every* part: a field
-/// part costs the same bookkeeping as a file one, which is what this cap is
-/// about.
-const MAX_PARTS: usize = 1000;
 
 /// The most one part's header block may hold before it is refused.
 ///
@@ -107,8 +106,19 @@ pub(crate) struct Multipart {
     /// this point; every loop below recomputes from `at` after one.
     at: usize,
     state: State,
-    /// Parts opened so far, against [`MAX_PARTS`].
+    /// Parts opened so far, against [`Self::max_parts`].
     parts: usize,
+    /// The request's `[limits] max_multipart_parts`, which bounds [`Self::parts`].
+    /// It counts *every* part: a field part costs the same bookkeeping as a
+    /// file one, which is what the cap is about.
+    max_parts: usize,
+    /// The first error this parse returned, which every later call returns
+    /// again.
+    failed: Option<Box<str>>,
+    /// Bytes the header search has looked at, which a test holds to a
+    /// multiple of the bytes it was given.
+    #[cfg(test)]
+    searched: usize,
     /// The buffered form fields, in arrival order, for `Core\Request::post()`.
     fields: Vec<(Vec<u8>, Vec<u8>)>,
     /// Bytes of [`Self::fields`] held, against [`Self::cap`].
@@ -194,8 +204,9 @@ enum Scan {
 
 impl Multipart {
     /// A parse of a body delimited by `boundary`, before anything is pulled,
-    /// whose form fields may hold at most `cap` bytes.
-    pub(crate) fn new(boundary: &[u8], cap: usize) -> Self {
+    /// whose form fields may hold at most `cap` bytes and which may open at
+    /// most `max_parts` parts.
+    pub(crate) fn new(boundary: &[u8], cap: usize, max_parts: usize) -> Self {
         let mut delimiter = Vec::with_capacity(boundary.len() + 4);
         delimiter.extend_from_slice(b"\r\n--");
         delimiter.extend_from_slice(boundary);
@@ -205,6 +216,10 @@ impl Multipart {
             at: 0,
             state: State::Preamble,
             parts: 0,
+            max_parts,
+            failed: None,
+            #[cfg(test)]
+            searched: 0,
             fields: Vec::new(),
             buffered: 0,
             cap,
@@ -281,11 +296,21 @@ impl Multipart {
     /// A body that cannot be completed, whether because the supplier failed
     /// under it or because what arrived is not a multipart body this parse will
     /// guess at. The message is for the member reading it to turn into its own
-    /// throw; nothing here classifies.
+    /// throw; nothing here classifies. After one error, every call returns it
+    /// again.
     pub(crate) fn next_part(
         &mut self,
         body: &mut dyn RequestBody,
     ) -> Result<Option<PartHead>, Box<str>> {
+        if let Some(why) = &self.failed {
+            return Err(why.clone());
+        }
+        let walked = self.walk(body);
+        self.keep(walked)
+    }
+
+    /// [`Self::next_part`] before its first error is kept.
+    fn walk(&mut self, body: &mut dyn RequestBody) -> Result<Option<PartHead>, Box<str>> {
         loop {
             match self.state {
                 State::Done => return Ok(None),
@@ -324,8 +349,24 @@ impl Multipart {
         &mut self,
         body: &mut dyn RequestBody,
     ) -> Result<Option<&[u8]>, Box<str>> {
-        let span = self.chunk(body)?;
+        if let Some(why) = &self.failed {
+            return Err(why.clone());
+        }
+        let span = self.chunk(body);
+        let span = self.keep(span)?;
         Ok(span.map(|span| &self.buf[span]))
+    }
+
+    /// Records `result`'s error as the one every later call returns.
+    ///
+    /// A walk that stopped part-way has its cursor inside a part or a header
+    /// block, so a later call that went on from there would read bytes out of
+    /// place. Returning the first error again is the only answer that is true.
+    fn keep<T>(&mut self, result: Result<T, Box<str>>) -> Result<T, Box<str>> {
+        if let Err(why) = &result {
+            self.failed = Some(why.clone());
+        }
+        result
     }
 
     /// [`Self::next_chunk`] as a span, because a `&mut self` method that hands
@@ -437,8 +478,12 @@ impl Multipart {
         };
         self.at = skip;
         self.parts += 1;
-        if self.parts > MAX_PARTS {
-            return Err(format!("the body holds more than {MAX_PARTS} parts").into());
+        if self.parts > self.max_parts {
+            return Err(format!(
+                "the body holds more than `[limits] max_multipart_parts` ({}) parts",
+                self.max_parts
+            )
+            .into());
         }
         Ok(true)
     }
@@ -450,17 +495,31 @@ impl Multipart {
         // would otherwise be looked for inside the part's own body, and found
         // there by anything that happens to carry one. Either way the cursor is
         // left on the blank line, which `open_body` steps over.
+        //
+        // `searched` is how much of the block, counted from the cursor, holds
+        // no blank line. A fill appends, and the compaction it does drops only
+        // bytes before the cursor, so the count stays true across one. The next
+        // search starts three bytes before the old end, where a blank line split
+        // by the fill can begin, so the block is searched in linear time.
+        let mut searched = 0;
         let end = loop {
             let rest = &self.buf[self.at..];
             if rest.starts_with(b"\r\n") {
                 return head_of(&[]);
             }
-            if let Some(off) = find(rest, b"\r\n\r\n") {
-                break self.at + off;
+            let held = rest.len();
+            let found = find(&rest[searched..], b"\r\n\r\n");
+            #[cfg(test)]
+            {
+                self.searched += held - searched;
             }
-            if rest.len() > PART_HEADERS {
+            if let Some(off) = found {
+                break self.at + searched + off;
+            }
+            if held > PART_HEADERS {
                 return Err(format!("a part's headers hold more than {PART_HEADERS} bytes").into());
             }
+            searched = held.saturating_sub(3);
             if !self.fill(body)? {
                 return Err("the body ended inside a part's headers".into());
             }
@@ -854,11 +913,14 @@ fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{MAX_PARTS, Multipart, PartHead, boundary_of};
+    use super::{Multipart, PART_HEADERS, PartHead, boundary_of};
     use nvs_runtime::RequestBody;
 
     /// The `[limits] request_body` every parse here is given.
     const REQUEST_BODY: usize = 1024 * 1024;
+
+    /// The `[limits] max_multipart_parts` every parse here is given.
+    const PARTS: usize = nvs_config::defaults::LIMITS_MAX_MULTIPART_PARTS;
 
     /// A [`RequestBody`] handing one body out in fixed-size pieces, because a
     /// chunk boundary is the wire's and means nothing: every parse below has to
@@ -923,8 +985,12 @@ mod tests {
 
     /// [`walk`], with `bound` as the `[limits] request_body` the parse is given.
     fn walk_under(wire: &[u8], piece: usize, bound: usize) -> Result<Walked, Box<str>> {
+        walk_parse(wire, piece, Multipart::new(b"bnd", bound, PARTS))
+    }
+
+    /// [`walk`], with `parse` as the parse that reads the body.
+    fn walk_parse(wire: &[u8], piece: usize, mut parse: Multipart) -> Result<Walked, Box<str>> {
         let mut supplier = Wire::new(wire, piece);
-        let mut parse = Multipart::new(b"bnd", bound);
         let mut read = Vec::new();
         while let Some(head) = parse.next_part(&mut supplier)? {
             let mut content = Vec::new();
@@ -1054,7 +1120,7 @@ mod tests {
             ("c", Some("c.bin"), "third"),
         ]);
         let mut supplier = Wire::new(&wire, 3);
-        let mut parse = Multipart::new(b"bnd", REQUEST_BODY);
+        let mut parse = Multipart::new(b"bnd", REQUEST_BODY, PARTS);
         let mut names = Vec::new();
         while let Some(head) = parse.next_part(&mut supplier).expect("the body parses") {
             names.push(head.filename);
@@ -1066,24 +1132,65 @@ mod tests {
     }
 
     /// `rule:errors/multipart-part-count`'s part count, asserted on both sides: the cap is a cap only
-    /// if the last accepted body and the first refused one are one part apart.
-    #[cfg_attr(
-        miri,
-        ignore = "the cap is a constant thousand parts, and parsing that many takes minutes \
-                  under Miri, so there is no smaller input"
-    )]
+    /// if the last accepted body and the first refused one are one part apart. The cap is the
+    /// parse's argument, so a small one tests the same code the default does.
     #[test]
     fn the_part_count_cap_is_asserted_at_the_last_accepted_and_the_first_refused() {
-        for (parts, accepted) in [(MAX_PARTS, true), (MAX_PARTS + 1, false)] {
+        let cap = 12;
+        for (parts, accepted) in [(cap, true), (cap + 1, false)] {
             let rows: Vec<_> = (0..parts).map(|_| ("f", None, "x")).collect();
             let wire = body(&rows);
-            let walked = walk(&wire, 8192);
+            let walked = walk_parse(&wire, 7, Multipart::new(b"bnd", REQUEST_BODY, cap));
             assert_eq!(
                 walked.is_ok(),
                 accepted,
-                "a body of {parts} parts against a cap of {MAX_PARTS}"
+                "a body of {parts} parts against a cap of {cap}"
             );
         }
+    }
+
+    /// A header block that arrives a byte at a time is searched in linear time. Each search
+    /// starts three bytes before the last one stopped, so each byte is looked at four times at
+    /// most. A search from the block's start after every byte would look at each byte once per
+    /// byte after it.
+    #[cfg_attr(
+        miri,
+        ignore = "the case is a thousand parts read a byte at a time, which takes minutes under \
+                  Miri"
+    )]
+    #[test]
+    fn a_thousand_header_blocks_in_one_byte_chunks_are_each_searched_in_linear_time() {
+        // Each part's headers are as large as one part may have.
+        let padding = "x".repeat(PART_HEADERS - 64);
+        let mut wire = Vec::new();
+        for _ in 0..PARTS {
+            wire.extend_from_slice(b"--bnd\r\nContent-Disposition: form-data; name=\"f\"\r\nX-Pad: ");
+            wire.extend_from_slice(padding.as_bytes());
+            wire.extend_from_slice(b"\r\n\r\nv\r\n");
+        }
+        wire.extend_from_slice(b"--bnd--\r\n");
+        let (_, parse) = walk(&wire, 1).expect("a thousand parts at the size limit parse");
+        assert_eq!(parse.fields().len(), PARTS);
+        assert!(
+            parse.searched <= 4 * wire.len(),
+            "the header search looked at {} bytes of a {}-byte body",
+            parse.searched,
+            wire.len()
+        );
+    }
+
+    /// The first error a walk meets is returned by every later call, so a program that caught
+    /// the throw never reads the fields that arrived before it.
+    #[test]
+    fn a_walk_that_failed_returns_the_same_error_to_every_later_call() {
+        let rows: Vec<_> = (0..3).map(|_| ("f", None, "x")).collect();
+        let wire = body(&rows);
+        let mut supplier = Wire::new(&wire, 5);
+        let mut parse = Multipart::new(b"bnd", REQUEST_BODY, 2);
+        let first = parse.drain(&mut supplier).expect_err("a third part is over the cap");
+        assert_eq!(parse.drain(&mut supplier), Err(first.clone()));
+        assert_eq!(parse.next_part(&mut supplier), Err(first.clone()));
+        assert_eq!(parse.next_chunk(&mut supplier), Err(first));
     }
 
     /// Buffered form fields are bytes parsed into memory, so they are charged

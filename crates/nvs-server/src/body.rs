@@ -133,8 +133,9 @@ struct Wire {
     /// The end of the body, once the connection has seen it.
     ended: bool,
     /// What ended it instead. An `Err` ends the body for good
-    /// ([`nvs_runtime::RequestBody::next_chunk`]'s contract), so this is taken
-    /// once and the stream is over either way.
+    /// ([`nvs_runtime::RequestBody::next_chunk`]'s contract), so this is kept
+    /// and every later pull returns it again. Nothing pumps a failed body, so
+    /// a pull that went past it would park for a chunk no task reads.
     failed: Option<Box<str>>,
     /// The request's task, to wake when a chunk lands.
     puller: Option<Wake>,
@@ -280,8 +281,8 @@ impl RequestBody for Pull {
         let landed = loop {
             {
                 let mut wire = self.wire.borrow_mut();
-                if let Some(failed) = wire.failed.take() {
-                    break Landed::Failed(failed);
+                if let Some(failed) = wire.failed.as_ref() {
+                    break Landed::Failed(failed.clone());
                 }
                 if let Some(chunk) = wire.chunk.take() {
                     break Landed::Chunk(chunk);
@@ -343,3 +344,35 @@ const HUNG_UP: &str = "the client closed the connection before the request body 
 /// The request was cancelled while it waited — the peer went away, or `rule:concurrency/nothing-is-still-running-when-a-call-returns`
 /// 's teardown reached it. Delivered once, so this stops waiting.
 const CANCELLED: &str = "the request ended before its body finished arriving";
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use hyper::body::Bytes;
+    use nvs_runtime::RequestBody;
+
+    use super::{HUNG_UP, Pull, Wire};
+
+    /// A read after a wire error returns the same error and does not park. Nothing pumps a
+    /// failed body, so a read that parked would wait for a chunk no task reads.
+    #[test]
+    fn a_read_after_a_wire_error_returns_it_again() {
+        let wire = Rc::new(RefCell::new(Wire {
+            failed: Some(HUNG_UP.into()),
+            ..Wire::default()
+        }));
+        let mut pull = Pull {
+            wire,
+            held: Bytes::new(),
+        };
+        for read in ["the first read", "a second read", "a third read"] {
+            assert_eq!(
+                pull.next_chunk().map(|chunk| chunk.map(<[u8]>::to_vec)),
+                Err(HUNG_UP.into()),
+                "{read} after the wire failed"
+            );
+        }
+    }
+}

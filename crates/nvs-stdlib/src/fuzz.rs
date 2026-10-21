@@ -74,7 +74,11 @@ pub fn multipart(boundary: &[u8], body: &[u8], chunk: usize, cap: usize) -> Resu
         bytes: body,
         chunk: chunk.max(1),
     };
-    let mut parse = crate::multipart::Multipart::new(boundary, cap);
+    let mut parse = crate::multipart::Multipart::new(
+        boundary,
+        cap,
+        nvs_config::defaults::LIMITS_MAX_MULTIPART_PARTS,
+    );
     let mut files = Vec::new();
     while let Some(head) = parse.next_part(&mut wire)? {
         let mut bytes = Vec::new();

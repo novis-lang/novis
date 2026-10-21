@@ -1893,10 +1893,12 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8], member: &'static str) -> Resul
                 ),
             )
         })?;
-        let cap = request_body(ctx);
+        let (cap, parts) = (request_body(ctx), ctx.multipart_parts_limit());
         ctx.inbound_mut()
             .expect("the caller reads the request before it reads the form")
-            .hold_parts(Box::new(crate::multipart::Multipart::new(&boundary, cap)));
+            .hold_parts(Box::new(crate::multipart::Multipart::new(
+                &boundary, cap, parts,
+            )));
     }
     let inbound = ctx
         .inbound_mut()
@@ -3357,12 +3359,32 @@ fn held_octets<'a>(ctx: &'a mut Ctx, member: &str) -> Result<&'a [u8], Fault> {
 /// # Errors
 ///
 /// `RuntimeError` for a body past `[limits] request_body`, and `IOError` for one that
-/// did not arrive whole.
+/// did not arrive whole. **A failure is kept** on the request
+/// ([`nvs_runtime::Inbound::fail_body`]), so every later call throws it again
+/// rather than reading on from where this one stopped.
 fn whole_body(ctx: &mut Ctx, member: &str) -> Result<Vec<u8>, Fault> {
     let cap = request_body(ctx);
     let inbound = ctx
         .inbound_mut()
         .expect("the caller reads the request before it reads the body");
+    if let Some((class, why)) = inbound.body_failure() {
+        return Err(Fault::thrown_as(
+            class,
+            format!("Core\\Request::{member}(): {why}"),
+        ));
+    }
+    let (class, why) = match pull_whole(inbound, cap) {
+        Ok(whole) => return Ok(whole),
+        Err(failed) => failed,
+    };
+    let fault = Fault::thrown_as(class, format!("Core\\Request::{member}(): {why}"));
+    inbound.fail_body(class, why.into_boxed_str());
+    Err(fault)
+}
+
+/// [`whole_body`]'s loop, returning a failure as its class and its message
+/// without the member's name, which is what the request keeps.
+fn pull_whole(inbound: &mut Inbound, cap: usize) -> Result<Vec<u8>, (ThrownClass, String)> {
     let mut whole: Vec<u8> = Vec::new();
     let Some(body) = inbound.body() else {
         return Ok(whole);
@@ -3377,13 +3399,15 @@ fn whole_body(ctx: &mut Ctx, member: &str) -> Result<Vec<u8>, Fault> {
                     // Asserted by
                     // `the_request_body_cap_is_the_last_body_read_and_the_first_one_refused`
                     // below, on both sides of the bound.
-                    return Err(Fault::thrown(format!(
-                        "Core\\Request::{member}(): this request's body is larger than \
-                         `[limits] request_body` ({cap} bytes), so it is refused \
-                         rather than held. That directive bounds what a body may cost in \
-                         memory; a body bigger than it is one to stream rather than to \
-                         read whole"
-                    )));
+                    return Err((
+                        ThrownClass::Runtime,
+                        format!(
+                            "this request's body is larger than `[limits] request_body` \
+                             ({cap} bytes), so it is refused rather than held. That \
+                             directive bounds what a body may cost in memory; a body bigger \
+                             than it is one to stream rather than to read whole"
+                        ),
+                    ));
                 }
                 whole.extend_from_slice(chunk);
             }
@@ -3392,9 +3416,9 @@ fn whole_body(ctx: &mut Ctx, member: &str) -> Result<Vec<u8>, Fault> {
                 // connection has to exist before it can fail under a body.
                 // Asserted by
                 // `a_body_that_fails_mid_stream_throws_rather_than_answering_its_prefix`.
-                return Err(Fault::thrown_as(
+                return Err((
                     ThrownClass::Io,
-                    format!("Core\\Request::{member}(): the body did not arrive whole — {why}"),
+                    format!("the body did not arrive whole — {why}"),
                 ));
             }
         }
@@ -3580,10 +3604,12 @@ nvs_runtime::nvs_helper! {
                     ),
                 )
             })?;
-            let cap = request_body(ctx);
+            let (cap, parts) = (request_body(ctx), ctx.multipart_parts_limit());
             ctx.inbound_mut()
                 .expect("the read above refuses a context that is answering no request")
-                .hold_parts(Box::new(crate::multipart::Multipart::new(&boundary, cap)));
+                .hold_parts(Box::new(crate::multipart::Multipart::new(
+                    &boundary, cap, parts,
+                )));
         }
         Ok(crate::instance::build(&FILES, [Value::null()]))
     }
@@ -5336,6 +5362,43 @@ mod tests {
             nvs_runtime::call(nvs_core_request_body, &mut cut_off, &[]).is_err(),
             "a connection that failed under a body did not deliver one"
         );
+    }
+
+    /// A body read that failed fails the same way on every later read. The
+    /// failed read stopped part-way, so a second read that went on from there
+    /// would return the rest of the body as though it were all of it.
+    // covers: Core\Request::body
+    #[test]
+    fn a_body_read_that_failed_fails_again_and_never_returns_the_rest() {
+        let full = vec![b'x'; request_body()];
+        let mut over_it = answering(Some(Chunks::of(&[&full[..], &b"x"[..], &b"rest"[..]])));
+        let first = nvs_runtime::call(nvs_core_request_body, &mut over_it, &[])
+            .expect_err("one byte past `[limits] request_body` is past it");
+        let again = nvs_runtime::call(nvs_core_request_body, &mut over_it, &[])
+            .expect_err("the second read throws the first read's error");
+        assert_eq!(first, again);
+
+        let mut cut_off = answering(Some(Chunks::failing_at(&[&b"the first half"[..]], 1)));
+        let first = nvs_runtime::call(nvs_core_request_body, &mut cut_off, &[])
+            .expect_err("a connection that failed under a body did not deliver one");
+        let again = nvs_runtime::call(nvs_core_request_body, &mut cut_off, &[])
+            .expect_err("the second read throws the first read's error");
+        assert_eq!(first, again);
+    }
+
+    /// A multipart form whose body failed throws again from the next `post()`.
+    /// A program that caught the first throw never reads the fields that
+    /// arrived before the failure.
+    // covers: Core\Request::post
+    #[test]
+    fn a_second_post_after_a_caught_throw_throws_again() {
+        let mut cut_off = uploading(
+            "multipart/form-data; boundary=X",
+            Some(Chunks::failing_at(MIXED, 1)),
+        );
+        let first = posted(&mut cut_off, "title").expect_err("the body did not arrive whole");
+        let again = posted(&mut cut_off, "title").expect_err("the second `post()` throws too");
+        assert_eq!(first, again);
     }
 
     /// `bytes` answers the body `body` cannot: octets that are not UTF-8, split

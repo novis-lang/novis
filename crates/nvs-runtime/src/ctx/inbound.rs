@@ -312,6 +312,13 @@ pub struct Inbound {
     /// `[limits] request_body`, which `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` makes the cap on form field
     /// text, and O(in-flight).
     held: Option<Box<[u8]>>,
+    /// Why the read that would have filled [`Self::held`] failed, and the
+    /// class it threw, so every later buffering reader throws the same.
+    ///
+    /// A failed read stops part-way through the body. A second read that went
+    /// on from there would return the rest of the body as though it were all
+    /// of it, or park for a chunk the connection never reads.
+    body_failed: Option<(crate::ThrownClass, Box<str>)>,
     /// The document `Core\Request::json` decoded out of [`Self::held`], and the
     /// `maxDepth` it decoded at — `None` until that member has answered once.
     ///
@@ -624,6 +631,7 @@ impl Inbound {
             scheme: Scheme::Http,
             parts: None,
             held: None,
+            body_failed: None,
             decoded: None,
             form: None,
             query_fields: None,
@@ -982,6 +990,19 @@ impl Inbound {
     #[must_use]
     pub fn held_body(&self) -> Option<&[u8]> {
         self.held.as_deref()
+    }
+    /// Records why the read that would have filled [`Self::held_body`]
+    /// failed, for [`Self::body_failure`] to return to every later reader.
+    pub fn fail_body(&mut self, class: crate::ThrownClass, why: Box<str>) {
+        self.body_failed = Some((class, why));
+    }
+    /// The failure [`Self::fail_body`] recorded, or `None` where no read of
+    /// the body has failed.
+    #[must_use]
+    pub fn body_failure(&self) -> Option<(crate::ThrownClass, &str)> {
+        self.body_failed
+            .as_ref()
+            .map(|(class, why)| (*class, why.as_ref()))
     }
     /// Gives this carrier the document `Core\Request::json` decoded, for that
     /// member's later calls to answer out of — [`Self::decoded`] owns why it is
