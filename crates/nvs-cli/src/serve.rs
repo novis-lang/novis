@@ -1190,11 +1190,21 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // cookie name, because the default is the one that module writes.
             let key = nvs_config::http::csrf_key(&standing.config);
             let upload_total = nvs_config::app::upload_total(&standing.config);
-            let verdict = nvs_server::route::csrf(
-                &inbound,
-                key.as_deref(),
-                nvs_stdlib::session::cookie_in(&standing.config),
-            );
+            let cookie = nvs_stdlib::session::cookie_in(&standing.config);
+            let verdict = nvs_server::route::csrf(&inbound, key.as_deref(), cookie);
+            // An urlencoded write whose token rides in its body is checked by
+            // the request's own task, which can pull the body; the door cannot.
+            let program = match (verdict, key) {
+                (nvs_server::route::Csrf::InBody, Some(key)) if inbound.refusal().is_none() => {
+                    nvs_server::route::reading_the_form(
+                        program,
+                        key,
+                        cookie.to_owned(),
+                        refusal_mode,
+                    )
+                }
+                _ => program,
+            };
             drop(standing);
             if verdict == nvs_server::route::Csrf::Refused && inbound.refusal().is_none() {
                 if !refusal_mode {

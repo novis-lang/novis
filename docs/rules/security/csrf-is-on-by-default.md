@@ -11,6 +11,16 @@ csrf_key` names the key that says what a valid token is; until it does, there is
 any request to be missing. A valid token passes whatever the origin says, because it proves the page
 the request came from was this application's.
 
+**The token rides in the `x-csrf-token` header, a `_csrf` query parameter or an urlencoded form's
+`_csrf` field**, and the first of the three present decides. A plain HTML form therefore needs no
+script. The form body is read only for a checked `application/x-www-form-urlencoded` request that
+sent neither of the other two, up to `[limits] request_body`, by the request's own task before the
+handler runs, and the handler reads the same form afterwards. A body past the limit is refused as a
+missing token. A multipart body is never read for a token: a file upload would have to be buffered
+whole before the check, on the sender's terms, so a multipart write carries its token in the header or
+the query. **What it spends:** up to `[limits] request_body` per such request in flight, attributed to
+that request, and bytes the handler's own form parse would have buffered anyway.
+
 **An upgrade is checked by its origin, on any verb.** A browser opens a WebSocket with a `GET` that
 carries the visitor's cookies, so a request asking to upgrade that matched a route is refused when its
 `Origin` names somewhere other than where it arrived, and passes with no `Origin`, as a write does. The
@@ -43,5 +53,7 @@ and a gate that throws leaves the empty `403`. A program that does not call `dis
   than on what the code says, which is harder to reason about and harder to test.
 - **Tokens available, and enforcement left to the program.** An unprotected state-changing route would
   look the same as a protected one at compile time and at run time.
+- **Reading a multipart body for its `_csrf` field.** Every upload would be buffered before the check,
+  up to `[limits] upload_total`, before anything decides whether to run it.
 - **A gate that lets a refused request through.** The exemption would then live in code a reviewer reads
   apart from the route. `csrf: false` on the route stays the only opt-out.

@@ -43,7 +43,9 @@
 //! request is refused unless it carries a token this deployment issued, bound to
 //! *this* request's session — `nvs_runtime::csrf` is the construction, the
 //! session is the value of the cookie `[session] cookie` names, and
-//! [`TOKEN_HEADER`] is where the door looks. A valid token passes whatever the
+//! [`TOKEN_HEADER`] says where the door looks: the header, the `_csrf` query
+//! parameter, and an urlencoded form's `_csrf` field, which the request's own
+//! task reads before the handler ([`reading_the_form`]). A valid token passes whatever the
 //! origin says, because it proves the request came from a page this application
 //! rendered.
 //!
@@ -150,16 +152,28 @@ fn upgrade_checked(inbound: &Inbound) -> bool {
             .is_some_and(|matched| matched.route().upgrade_checked())
 }
 
-/// Where the door looks for a presented token.
+/// Where the door looks first for a presented token.
 ///
-/// A header and not a form field, because the body is the one part of a request
-/// the door deliberately does not read: it crosses as a stream the isolate pulls
-/// (`rule:http-server/request-body-and-upload-total-are-two-caps`), and a door
-/// that parsed a form to find a token would be buffering every unsafe request
-/// before deciding whether to run it — at the front of the server, on the
-/// attacker's terms. The spelling is the one every browser-side helper already
-/// writes, so `fetch` and a rendered form's script need nothing new.
+/// The spelling is the one every browser-side helper already writes, so `fetch`
+/// and a rendered form's script need nothing new. A request that sends no header
+/// is asked [`TOKEN_FIELD`] in its query, and then in its body where that body is
+/// an urlencoded form.
+///
+/// **A multipart body is never read for one.** It crosses as a stream the
+/// isolate pulls (`rule:http-server/request-body-and-upload-total-are-two-caps`),
+/// and a token at the end of a large upload could only be found by buffering the
+/// upload before deciding whether to run it, on the attacker's terms. A multipart
+/// write carries its token here or in the query. An urlencoded form is read,
+/// because `[limits] request_body` already bounds it and the handler's own form
+/// parse would buffer the same bytes.
 pub const TOKEN_HEADER: &str = "x-csrf-token";
+
+/// The form field and the query parameter a token may ride in instead of
+/// [`TOKEN_HEADER`]: what a rendered `<form>` posts with no script at all.
+pub const TOKEN_FIELD: &str = "_csrf";
+
+/// The media type of the one body the door reads for a token.
+const URLENCODED: &str = "application/x-www-form-urlencoded";
 
 /// The cookie header, whose value carries the session identifier a token binds.
 const COOKIE_HEADER: &str = "cookie";
@@ -183,6 +197,12 @@ pub enum Csrf {
     /// A checked request this deployment cannot tie to itself: refuse it, before
     /// an isolate exists.
     Refused,
+    /// A keyed, checked urlencoded write with no token in its header or query:
+    /// its body decides. The door runs inside the connection's poll, where no
+    /// body can be pulled (`nvs_runtime::RequestBody::next_chunk`), so the
+    /// caller wraps the program in [`reading_the_form`], and the request's own
+    /// task reads the field before the handler runs.
+    InBody,
 }
 
 /// `rule:security/csrf-is-on-by-default`'s refusal, taken at the door over the
@@ -202,6 +222,10 @@ pub enum Csrf {
 /// is named, a request with no such token is refused even same-origin, because a
 /// deployment that named a key asked for its unsafe verbs to carry one.
 ///
+/// The token is the [`TOKEN_HEADER`] header, else the [`TOKEN_FIELD`] query
+/// parameter, and the first one present decides. With neither, an urlencoded
+/// write answers [`Csrf::InBody`] and every other one is refused.
+///
 /// An upgrade is asked [`upgrade_checked`]'s question before any of that, and
 /// only the origin half of it: a browser's WebSocket handshake cannot carry a
 /// token header, so a key that refused one without a token would refuse every
@@ -220,13 +244,15 @@ pub fn csrf(inbound: &Inbound, key: Option<&[u8]>, session_cookie: &str) -> Csrf
     // into is this application's, which is strictly more than an origin says.
     if let Some(key) = key.and_then(nvs_runtime::csrf::Key::new) {
         let session = cookie(inbound, session_cookie).unwrap_or("");
-        let presented = header(inbound, TOKEN_HEADER)
-            .and_then(|value| std::str::from_utf8(value).ok())
-            .unwrap_or("");
-        return if key.verify(presented, session) {
-            Csrf::Passed
-        } else {
-            Csrf::Refused
+        let presented = match header(inbound, TOKEN_HEADER) {
+            Some(value) => Some(std::str::from_utf8(value).unwrap_or("").to_owned()),
+            None => field(inbound.query().as_bytes(), TOKEN_FIELD),
+        };
+        return match presented {
+            Some(presented) if key.verify(&presented, session) => Csrf::Passed,
+            Some(_) => Csrf::Refused,
+            None if urlencoded(inbound) => Csrf::InBody,
+            None => Csrf::Refused,
         };
     }
     if cross_origin(inbound) {
@@ -294,6 +320,131 @@ fn cookie<'a>(inbound: &'a Inbound, name: &str) -> Option<&'a str> {
             (found.trim() == name).then_some(value)
         })
     })
+}
+
+/// The token half for a [`Csrf::InBody`] request: reads its urlencoded body,
+/// up to `limit` bytes, and checks the [`TOKEN_FIELD`] field in it.
+///
+/// Called on the request's own task, before the handler, never from the door:
+/// a pull parks the task until the connection delivers the bytes. A body past
+/// `limit`, one that fails mid-read and one with no field are each
+/// [`Csrf::Refused`]. The bytes read go back on the carrier as a body already in
+/// memory, so every reader the program calls finds the whole form.
+///
+/// **What it spends:** up to `limit`, which is `[limits] request_body`, per
+/// such request in flight, attributed to that request. A form reader the
+/// handler calls holds a second copy of the same bytes.
+#[must_use]
+pub fn csrf_in_body(
+    inbound: &mut Inbound,
+    key: Option<&[u8]>,
+    session_cookie: &str,
+    limit: usize,
+) -> Csrf {
+    let Some(key) = key.and_then(nvs_runtime::csrf::Key::new) else {
+        return Csrf::Refused;
+    };
+    let Some(body) = inbound.body() else {
+        return Csrf::Refused;
+    };
+    let mut read = Vec::new();
+    loop {
+        match body.next_chunk() {
+            Ok(Some(chunk)) if read.len().saturating_add(chunk.len()) <= limit => {
+                read.extend_from_slice(chunk);
+            }
+            Ok(None) => break,
+            Ok(Some(_)) | Err(_) => return Csrf::Refused,
+        }
+    }
+    let session = cookie(inbound, session_cookie).unwrap_or("");
+    let passed =
+        field(&read, TOKEN_FIELD).is_some_and(|presented| key.verify(&presented, session));
+    inbound.set_buffered_body(read);
+    if passed { Csrf::Passed } else { Csrf::Refused }
+}
+
+/// `program`, preceded by [`csrf_in_body`]'s check of the request it answers.
+///
+/// A request that passes runs `program`. A refused one runs nothing and
+/// answers an empty `403`, or, where `refusal_mode` says the unit calls
+/// `Core\Router::dispatch`, runs `program` with the refusal on the carrier and
+/// no body, as the door's own refusal does
+/// (`rule:routing/a-gate-answers-around-every-handler`).
+pub fn reading_the_form(
+    program: nvs_runtime::script::Program,
+    key: Vec<u8>,
+    session_cookie: String,
+    refusal_mode: bool,
+) -> nvs_runtime::script::Program {
+    Box::new(move |ctx: &mut nvs_runtime::Ctx, args| {
+        let limit = ctx.request_body_limit();
+        let verdict = ctx.inbound_mut().map_or(Csrf::Refused, |inbound| {
+            csrf_in_body(inbound, Some(&key), &session_cookie, limit)
+        });
+        if verdict == Csrf::Refused {
+            if !refusal_mode {
+                ctx.declare_status(403);
+                return nvs_runtime::Value::null();
+            }
+            if let Some(inbound) = ctx.inbound_mut() {
+                inbound.set_refusal(nvs_runtime::routes::Refusal::Csrf);
+                inbound.clear_body();
+            }
+        }
+        program(ctx, args)
+    })
+}
+
+/// Whether this request says its body is an urlencoded form. The media type is
+/// compared without regard to case, and a parameter such as `charset` is
+/// ignored.
+fn urlencoded(inbound: &Inbound) -> bool {
+    header(inbound, "content-type")
+        .and_then(|value| std::str::from_utf8(value).ok())
+        .and_then(|value| value.split(';').next())
+        .is_some_and(|media| media.trim().eq_ignore_ascii_case(URLENCODED))
+}
+
+/// The first value of the field `name` in an urlencoded `encoded`, decoded.
+///
+/// A query and a form body are the same format. A pair whose name or value
+/// does not decode to UTF-8 is passed over.
+fn field(encoded: &[u8], name: &str) -> Option<String> {
+    encoded.split(|byte| *byte == b'&').find_map(|pair| {
+        let (found, value) = match pair.iter().position(|byte| *byte == b'=') {
+            Some(at) => (&pair[..at], &pair[at + 1..]),
+            None => (pair, &[][..]),
+        };
+        if decoded(found)? == name {
+            decoded(value)
+        } else {
+            None
+        }
+    })
+}
+
+/// `text` with `+` read as a space and each `%XX` as its octet, or `None` for
+/// an escape that is not two hex digits or a result that is not UTF-8.
+fn decoded(text: &[u8]) -> Option<String> {
+    let mut out = Vec::with_capacity(text.len());
+    let mut at = 0;
+    while let Some(&byte) = text.get(at) {
+        match byte {
+            b'+' => out.push(b' '),
+            b'%' => {
+                let hex = text.get(at + 1..at + 3)?;
+                if !hex.iter().all(u8::is_ascii_hexdigit) {
+                    return None;
+                }
+                out.push(u8::from_str_radix(std::str::from_utf8(hex).ok()?, 16).ok()?);
+                at += 2;
+            }
+            byte => out.push(byte),
+        }
+        at += 1;
+    }
+    String::from_utf8(out).ok()
 }
 
 /// `rule:observability/route-label-is-the-declared-name`'s `route` label for this request: the matched route's
@@ -585,6 +736,120 @@ mod tests {
         assert_eq!(
             door(&arrived(&[host, own, riding, ("x-csrf-token", "sid-ada")])),
             Csrf::Refused
+        );
+    }
+
+    /// `token` as a form or a query writes it: `+`, `/` and `=` escaped.
+    fn escaped(token: &str) -> String {
+        token
+            .replace('+', "%2B")
+            .replace('/', "%2F")
+            .replace('=', "%3D")
+    }
+
+    /// The form field and the query parameter: an urlencoded write with no
+    /// header is left to its body, a multipart one is never read and passes
+    /// with the header or the `_csrf` query parameter, and the body's field
+    /// passes, a wrong one is refused and a body past the limit is refused.
+    #[test]
+    fn a_form_field_or_a_query_parameter_carries_the_token_and_a_multipart_body_is_never_read() {
+        let key = [4_u8; nvs_runtime::csrf::KEY_LEN];
+        let keyed = nvs_runtime::csrf::Key::new(&key).expect("a 32-octet key keys");
+        let token = keyed
+            .issue(&[6_u8; nvs_runtime::csrf::NONCE_LEN], "sid-ada", "test")
+            .expect("a short identifier seals");
+        let elsewhere = keyed
+            .issue(&[7_u8; nvs_runtime::csrf::NONCE_LEN], "sid-grace", "test")
+            .expect("a short identifier seals");
+
+        let routes = checked();
+        let arrived = |query: &str, headers: &[(&str, &str)]| {
+            let mut inbound = Inbound::new("POST", "/orders", query);
+            for (name, value) in headers {
+                inbound.push_header(name, value.as_bytes());
+            }
+            super::take(&routes, &mut inbound);
+            inbound
+        };
+        let door = |inbound: &Inbound| super::csrf(inbound, Some(key.as_slice()), "nvsid");
+
+        let host = ("host", "app.example.com");
+        let riding = ("cookie", "nvsid=sid-ada");
+        let form = ("content-type", "Application/X-WWW-Form-Urlencoded; charset=UTF-8");
+        let upload = ("content-type", "multipart/form-data; boundary=x");
+        let query = format!("page=2&_csrf={}", escaped(&token));
+
+        assert_eq!(door(&arrived("", &[host, riding, form])), Csrf::InBody);
+        assert_eq!(door(&arrived("", &[host, riding, upload])), Csrf::Refused);
+        assert_eq!(
+            door(&arrived("", &[host, riding, upload, ("x-csrf-token", &token)])),
+            Csrf::Passed
+        );
+        assert_eq!(door(&arrived(&query, &[host, riding, upload])), Csrf::Passed);
+        assert_eq!(
+            door(&arrived(
+                &format!("_csrf={}", escaped(&elsewhere)),
+                &[host, riding, form]
+            )),
+            Csrf::Refused
+        );
+
+        let body = |content: String, limit: usize| {
+            let mut inbound = arrived("", &[host, riding, form]);
+            inbound.set_buffered_body(content.into_bytes());
+            let verdict = super::csrf_in_body(&mut inbound, Some(key.as_slice()), "nvsid", limit);
+            (verdict, inbound)
+        };
+        let content = format!("name=Ada+Lovelace&_csrf={}", escaped(&token));
+        let (verdict, mut inbound) = body(content.clone(), 4096);
+        assert_eq!(verdict, Csrf::Passed);
+        // The form is still whole for the handler that reads it next.
+        let left = inbound
+            .body()
+            .expect("the body is back on the carrier")
+            .next_chunk()
+            .expect("an in-memory body reads")
+            .map(<[u8]>::to_vec);
+        assert_eq!(left, Some(content.clone().into_bytes()));
+        assert_eq!(
+            body(format!("_csrf={}", escaped(&elsewhere)), 4096).0,
+            Csrf::Refused
+        );
+        assert_eq!(body("name=Ada".to_owned(), 4096).0, Csrf::Refused);
+        assert_eq!(body(content, 16).0, Csrf::Refused);
+    }
+
+    /// A refused form never reaches the handler: the request answers `403`
+    /// with nothing run, or, for a unit that dispatches, runs with the
+    /// refusal on the carrier and no body.
+    #[test]
+    fn a_refused_form_is_answered_before_the_handler_runs() {
+        let key = [4_u8; nvs_runtime::csrf::KEY_LEN];
+        let run = |refusal_mode: bool| {
+            let mut inbound = Inbound::new("POST", "/orders", "");
+            inbound.push_header("content-type", b"application/x-www-form-urlencoded");
+            inbound.set_buffered_body(b"_csrf=forged".to_vec());
+            let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+            ctx.set_inbound(inbound);
+            let ran = std::rc::Rc::new(std::cell::Cell::new(None));
+            let seen = std::rc::Rc::clone(&ran);
+            let program = super::reading_the_form(
+                Box::new(move |ctx: &mut nvs_runtime::Ctx, _args| {
+                    let inbound = ctx.inbound().expect("the request is on the context");
+                    seen.set(Some((inbound.refusal(), inbound.has_body())));
+                    nvs_runtime::Value::null()
+                }),
+                key.to_vec(),
+                "nvsid".to_owned(),
+                refusal_mode,
+            );
+            program(&mut ctx, nvs_runtime::Value::null());
+            (ran.get(), ctx.take_status())
+        };
+        assert_eq!(run(false), (None, Some(403)));
+        assert_eq!(
+            run(true),
+            (Some((Some(nvs_runtime::routes::Refusal::Csrf), false)), None)
         );
     }
 
