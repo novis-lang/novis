@@ -882,7 +882,14 @@ the refusal uncatchable would forbid it ([`errors/escalation-ladder`](errors.md#
 No new class is added: `RuntimeError` is "the world said no", where the world is the operator. The
 message names the capability **in its configuration spelling**, and for a scoped one the argument that
 fell outside the grant — because the reader of that message is usually the operator, and the grant
-name is the string they will add to their configuration.
+name is the string they will add to their configuration. Its second line is the line to add, the table
+it goes under and the file: ``help: add `read = ["/srv/app/data/"]` under `[capabilities.fs]` in
+nvs.toml``. A file under `fs.read`, `fs.write` or `script.spawn` gives its folder; any other path, a
+host, a name and an endpoint give themselves; an unscoped grant gives `key = true`. A connection
+refused by the address table ([`security/net-address-policy`](security.md#security-net-address-policy)) says `cannot connect to` the address
+and gives its `internal = ["10.0.0.5"]` line under `[capabilities.net]`. Every line given is one the
+load check accepts, and it is on the message rather than on the rendered record, so a program that
+catches the denial and logs `$e->message` logs it too.
 
 A predicate that would otherwise answer `false` is refused rather than answered, so an ungranted
 deployment never looks like a negative result.
@@ -1033,17 +1040,19 @@ is looked at, so an ungranted deployment never learns whether a binary exists.
 The capability is only half of it, and the other half is that **there is no shell to interpolate
 into**. An executable path and an argv array, with nothing in between that parses a command line,
 removes the escaping question rather than answering it — which is a stronger guarantee than any amount
-of quoting. Under the sink predicate the argv elements are therefore *data* while the executable path
-is an instruction, so the path is the sink and the arguments are not
-([`security/sink-predicate`](security.md#security-sink-predicate)).
+of quoting. Under the sink predicate the executable path is an instruction, so the path is the sink
+([`security/sink-predicate`](security.md#security-sink-predicate)). The argv elements are no sink of their own, and they are still typed
+plain `string`, so an argument list holding a `tainted string` does not compile
+([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)): no shell parses an argument, but the program that receives
+it does, and an attacker's value in that position can be an option such as `--output=/etc/passwd`.
 
 A grant that names executable roots resolves the same way a spawn root does, canonicalise-then-prefix
 ([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
 
-The target is a path and never a `PATH` lookup. A bare name resolves against the current directory,
-which is the resolution the grant was compared against, so the program the operating system starts is
-the one the check approved — a name a `PATH` entry would have answered instead is a program from a
-directory no grant named.
+The target is a path that starts at a root, and never a `PATH` lookup. A bare name such as `git` is
+refused before any grant is read ([`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file)), so the
+program the operating system starts is the one the check approved — a name a `PATH` entry would have
+answered is a program from a directory no grant named.
 
 <sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target).</sub>
 

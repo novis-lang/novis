@@ -1,0 +1,18 @@
+--TEST--
+`Core\Process::run` takes `array<string>` for its arguments, so an argument list holding a `tainted string` does not compile, the same as a tainted path — `rule:core-classes/process-is-argv-only`, `rule:security/process-exec-capability`
+--FILE--
+<?nvs
+// An environment value is `tainted`, and the argument list is the slot under
+// test: the path is a literal. The argument element has no qualifier of its
+// own, and `array<tainted string>` is not `array<string>`, so the ordinary
+// argument check is what refuses it. No grant is written, and none is reached.
+var $name = Core\Env::get("NAME") ?? "x";
+var $result = Core\Process::run("/bin/echo", [$name]);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `string|tainted string`
+  --> case.nvs:7:47
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
