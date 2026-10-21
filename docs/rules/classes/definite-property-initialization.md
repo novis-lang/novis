@@ -3,6 +3,9 @@ checked by the same flow analysis that already proves definite assignment for lo
 constructor parameter satisfies its obligation by construction; an inline default satisfies it before
 the body runs; a subclass discharges what it inherits by calling `parent::constructor(...)` on every
 path, and that call is trusted rather than re-derived, exactly as a callee is trusted everywhere else.
+The same call discharges a property the subclass declares again when a superclass declares it with
+no default and not `lateinit`, since the superclass's constructor assigns it. One the superclass gives
+a default is still the subclass's to assign, unless the subclass's declaration gives one too.
 A class that declares no constructor and a non-nullable property with no default is refused at the
 property's own declaration, since there is no constructor body to attach the diagnostic to. Inheriting
 one is not declaring one: a subclass that writes no constructor of its own runs the parent's

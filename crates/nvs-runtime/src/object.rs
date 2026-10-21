@@ -6006,7 +6006,11 @@ pub(crate) fn describe_written(value: Value) -> String {
 ///
 /// A `LogicError` naming the class, the property, its type and what the
 /// value is, when the value does not fit.
-pub(crate) fn check_covariant_write(receiver: Value, name: &str, value: Value) -> Result<(), Fault> {
+pub(crate) fn check_covariant_write(
+    receiver: Value,
+    name: &str,
+    value: Value,
+) -> Result<(), Fault> {
     let Some(ptr) = receiver.obj_ptr().filter(|ptr| !ptr.is_null()) else {
         return Err(Fault::fatal(format!(
             "internal error: a `covariant` test of `{name}` reached a value that is not an object"
