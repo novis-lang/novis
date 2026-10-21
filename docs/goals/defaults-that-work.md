@@ -55,7 +55,7 @@ stages:
         rules: [http-server/no-session-block-means-the-data-folder-store, http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot, http-server/a-session-is-loaded-once-and-written-whole, http-server/session-expiry-belongs-to-the-store]
   - id: 8
     title: the CSRF door reads a `_csrf` field from a urlencoded form
-    status: open
+    status: done
     context: [crates/nvs-server/src/route.rs, crates/nvs-cli/src/serve.rs, crates/nvs-stdlib/src/csrf.rs, docs/rules/security/csrf-is-on-by-default.md]
     extra:
       context:
@@ -453,11 +453,11 @@ adds the narrowing lines.
 
 **Does:** decision 9 is on.
 
-- [ ] With a key, a checked urlencoded request with no header token is read up to `[limits] request_body` and its `_csrf` field checked; a multipart body is never read (`rule:security/csrf-is-on-by-default`). `crates/nvs-server/src/route.rs:211`, `crates/nvs-cli/src/serve.rs:1187`
-- [ ] A `_csrf` query parameter is read for every checked request, and `TOKEN_HEADER`'s doc comment says why the multipart body stays unread. `crates/nvs-server/src/route.rs:162`
-- [ ] The in-process door the runner uses agrees. `crates/nvs-cli/src/runner.rs:912`
-- [ ] `Core\Csrf::issue`'s reference text names the `_csrf` field and the header. `crates/nvs-stdlib/src/csrf.rs:170`
-- [ ] Tests: a form field passes, a wrong one is refused, a body past the limit is refused before the handler runs, and a multipart upload passes with the header and with the query parameter. `crates/nvs-server/src/route.rs:523`
+- [x] With a key, a checked urlencoded request with no header token is read up to `[limits] request_body` and its `_csrf` field checked; a multipart body is never read (`rule:security/csrf-is-on-by-default`). `crates/nvs-server/src/route.rs:211`, `crates/nvs-cli/src/serve.rs:1187`
+- [x] A `_csrf` query parameter is read for every checked request, and `TOKEN_HEADER`'s doc comment says why the multipart body stays unread. `crates/nvs-server/src/route.rs:162`
+- [x] The in-process door the runner uses agrees. `crates/nvs-cli/src/runner.rs:912`
+- [x] `Core\Csrf::issue`'s reference text names the `_csrf` field and the header. `crates/nvs-stdlib/src/csrf.rs:170`
+- [x] Tests: a form field passes, a wrong one is refused, a body past the limit is refused before the handler runs, and a multipart upload passes with the header and with the query parameter. `crates/nvs-server/src/route.rs:523`
 
 ### 9. `Core\Env::secret` returns a `secret string`, and has its feature proofs
 
@@ -528,17 +528,40 @@ to a writing subagent, one after another. Then the gate runs once more.
 
 ### State
 
-Stages 1 to 7 are done. Stage 4 is committed without a green gate: its gate was stopped after a
-test hung. Stages 8 to 12 check with a build alone, and stage 13, the gate stage, verifies the goal.
+Stages 1 to 8 are done. Stage 4 is committed without a green gate: its gate was stopped after a
+test hung. Stages 9 to 12 check with a build alone, and stage 13, the gate stage, verifies the goal.
 
-**This session's fixes.** `config-tests` was red on
-`an_authority_answers_the_written_key_and_the_default_for_the_rest`
-(`crates/nvs-config/tests/capability.rs:1745`), which still counted `process.exec` and
-`script.spawn` among the keys with no default. It now asserts stage 6's defaults, and
-`bun nv verify --fast -p nvs-config` is green (398 passed). The nightly's proofs failures ran on
-`afbb1edc2`, before `85bb5a170` fixed `covariant.mdx` and `union-types.mdx`. Locally the stale
-guard named `syntax/errors/limits.mdx` and the questions of `/reference/config/capabilities/` and
-`/in-depth/compare/`; all three are restamped, and `bun nv site --check stale questions` is green.
+**This session's fixes.** `server-tests` was red on
+`a_schedule_entrys_limits_and_grants_narrow_its_run_and_never_widen_it`
+(`crates/nvs-server/src/schedule.rs:1498`): the test's watcher built its fire's isolate without
+`running_as(RunKind::Schedule)`, which `nvs serve`'s fire writes, so the fire was a CLI run and got
+stage 6's `process.exec` default. It now runs as a scheduled run, and `bun nv verify --fast -p
+nvs-server` is green (`8d18b22c2`). The nightly's proofs failures ran on `afbb1edc2`, before the
+restamps in `85bb5a170` and `6fd9500c1`; nothing new to fix.
+
+**Stage 8 (the CSRF form field), `3c3140d00`:**
+
+- `nvs_server::route::csrf` (`crates/nvs-server/src/route.rs`) takes the token from
+  `x-csrf-token`, else the `_csrf` query parameter (`TOKEN_FIELD`); the first present decides. With
+  neither, a keyed checked urlencoded write answers the new `Csrf::InBody`, and anything else is
+  refused. A multipart body is never read; `TOKEN_HEADER`'s doc says why.
+- **The door cannot pull the body**: it runs inside the connection's poll, and a pull there is the
+  deadlock `RequestBody::next_chunk` forbids. So `InBody` wraps the program in
+  `route::reading_the_form`, and the request's own task calls `route::csrf_in_body` before the
+  handler: it reads up to `ctx.request_body_limit()`, checks the field, and puts the bytes back
+  with `set_buffered_body` so every body reader still finds the whole form. A refusal is an empty
+  `403` with nothing run, or, in refusal mode, the program runs with `Refusal::Csrf` and no body.
+  A body past the limit is refused as a missing token (403, not 413).
+- Callers: `crates/nvs-cli/src/serve.rs` (after the verdict), `answer_on_the_wire` and
+  `UnderTest::answer` in `crates/nvs-cli/src/runner.rs` (the in-process body is in memory, so it
+  calls `csrf_in_body` directly).
+- Tests, each passed once: `a_form_field_or_a_query_parameter_carries_the_token_and_a_multipart_body_is_never_read`
+  and `a_refused_form_is_answered_before_the_handler_runs` (`route.rs`).
+- Rule `security/csrf-is-on-by-default` gained the three places, what the read spends, and a
+  Declined line for reading a multipart body. `Core\Csrf::issue`'s card names all three.
+- **Expected red at stage 13:** `website/src/data/core.json:7504` still holds the old
+  `Core\Csrf::issue` text, so a website staleness or reference-card check may name it. Regenerate
+  it with the website's data command in stage 12.
 
 **Stage 7 (sessions):**
 
@@ -746,20 +769,22 @@ questions of the capabilities and trust pages. They are restamped in this group.
 **No gate until stage 13.** Check with `cargo build` and `cargo clippy --all-targets -- -D
 warnings`, commit each slice, and name in the handoff the tests and cases you expect to go red.
 
-**Stage 8**, the CSRF form field (decision 9). With a `[http] csrf_key`, a checked urlencoded
-request with no header token is read up to `[limits] request_body` and its `_csrf` field checked
-(`crates/nvs-server/src/route.rs:211`, `crates/nvs-cli/src/serve.rs:1187`). A `_csrf` query
-parameter is read for every checked request, and a multipart body is never read; `TOKEN_HEADER`'s
-doc comment (`crates/nvs-server/src/route.rs:162`) narrows its reason to multipart. The runner's
-in-process door agrees (`crates/nvs-cli/src/runner.rs:912`), and `Core\Csrf::issue`'s reference
-text names the field and the header (`crates/nvs-stdlib/src/csrf.rs:170`). Rule
-`security/csrf-is-on-by-default`. Stages 9 and 10 touch disjoint files and may go first.
+**Stage 9**, `Core\Env::secret` (decision 10). A new `Core\Env` method returning `?secret string`,
+beside `get` in `crates/nvs-stdlib/src/env.rs`, with its name a sink as `get`'s is. It is accepted
+where a credential belongs, such as an outbound header (`crates/nvs-stdlib/src/http.rs:2241`).
+It owes its feature proofs: `bun nv proofs --id 'Core\Env::secret'` lists them and their paths,
+and the acceptance check `env-secret-proofs` runs `bun nv proofs --gate --only Core\Env::secret`.
+Rule `security/secret-has-no-ambient-source` names it as the second confidential source.
+
+**Stage 10**, CLI memory (decision 11): `crates/nvs-stdlib/src/config.rs:209`,
+`crates/nvs-runtime/src/ctx/limits.rs:450`. Stages 9 and 10 touch disjoint files.
 
 ### Backlog
 
+- `crates/nvs-stdlib/src/` holds many `default_*.profraw` coverage files from some earlier run. Find what writes them there and delete them. `crates/nvs-stdlib/src/csrf.rs:1`
 - `Core\Queue::push`'s `grants` refusal still says ``help: grant it in nvs.toml under ...``: it is about the request's own grants list, not a missing grant line, and may adopt `grant_line` when stage 2 touches queue grants. `crates/nvs-stdlib/src/queue.rs:3085`
 - `nvs-stdlib test ldap` failed 9 Samba cases in one full verify run. The cause was a TLS handshake that passed its 30s deadline, with the binary taking 205s, and it passed alone in 5s twice. If it repeats, find what loads Samba during verify. `crates/nvs-stdlib/tests/ldap.rs:49`
-- Stages 8, 9 and 10 touch disjoint files and may run as side goals at any time. `docs/goals/defaults-that-work.md`
+- Stages 9 and 10 touch disjoint files and may run as side goals at any time. `docs/goals/defaults-that-work.md`
 - Stage 12: a website page that says a session needs a configured store, or that `start` throws with no `[session]` block, now says what is not true. `website/src/content/docs/guides/how-to-use/configuration.mdx:1`
 - The editor offers file names at a `ParamText::Path` argument and not at `ParamText::Program`, so `Core\Process::run`'s first argument lost path completion, hover and links. `crates/nvs-lsp/src/completion.rs:743`
 - Stage 11: the shipped file's `#exec` and `#spawn` comments still read as deny-all. `crates/nvs-config/src/default.toml:147`
