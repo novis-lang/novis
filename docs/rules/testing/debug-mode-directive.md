@@ -19,7 +19,9 @@ write an ordinary file is not permission to persist a continuous log of every ca
 which can carry request data a coverage-only deployment never needed to expose. A grant of
 `debug.trace` is still a channel from request data to disk, so an operator names its roots
 explicitly, the same way a path-rooted spawn grant is named. A query span rendered because `trace`
-is on needs `debug.trace`; a span rendered because the request is sampled needs no grant.
+is on needs `debug.trace`; a span rendered because the request is sampled needs no grant. A run with
+`trace` on and no `debug.trace` grant writes one warning per process to the diagnostic channel, at its
+first query, naming the line to add, so a trace that comes out empty is never silent.
 
 **Declined:**
 - **`[debug] mode` as a directive a request may set freely.** Observability of a request's own
