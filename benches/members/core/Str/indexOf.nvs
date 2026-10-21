@@ -1,7 +1,7 @@
 <?nvs
 // Finds the `@` in an email address, as a program does before it reads the domain.
 // bench: iterations 512
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity linear
 

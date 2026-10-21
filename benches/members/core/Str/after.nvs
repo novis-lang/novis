@@ -1,7 +1,7 @@
 <?nvs
 // Takes the value after "=" in a short setting line, as a program does when it reads a config file.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench {

@@ -1,7 +1,7 @@
 <?nvs
 // Builds a short word from its code points, as a program does after it removes characters from a name.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

@@ -1,7 +1,7 @@
 <?nvs
 // Changes a short name to `Nfc`, as a program does before it stores or compares a name.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

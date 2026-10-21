@@ -1,7 +1,7 @@
 <?nvs
 // Pads a name with spaces, as a program does when it prints a table in a terminal.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

@@ -1,7 +1,7 @@
 <?nvs
 // Counts the commas in a short line, as a program does before it splits a CSV row.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity linear
 

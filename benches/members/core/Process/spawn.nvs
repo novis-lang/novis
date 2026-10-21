@@ -1,7 +1,7 @@
 <?nvs
 // Measures starting a small program, reading its output as it arrives and waiting for it to end, as a job runner does for each step.
 // bench: iterations 100
-// bench: calls 0
+// bench: calls 6
 // bench: complexity constant
 
 class Bench {

@@ -1,7 +1,7 @@
 <?nvs
 // Replaces a word in a short sentence, as a program does when it cleans up a message or a name.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

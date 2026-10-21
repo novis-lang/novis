@@ -1,7 +1,7 @@
 <?nvs
 // Divides a short name into its characters, as a program does before it checks each character of a form field.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

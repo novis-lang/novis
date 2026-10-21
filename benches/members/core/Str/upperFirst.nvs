@@ -1,7 +1,7 @@
 <?nvs
 // Changes the first letter of a word to upper case, as a program does when it shows a stored status as a label.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

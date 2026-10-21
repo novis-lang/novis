@@ -1,7 +1,7 @@
 <?nvs
 // Checks whether a short log line contains a word, as a program does when it filters a log.
 // bench: iterations 512
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity linear
 

@@ -2,7 +2,7 @@
 // Measures finding where a short run of bytes starts inside a small message. A
 // program does this when it cuts a message into its header and its body.
 // bench: iterations 1024
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity linear
 

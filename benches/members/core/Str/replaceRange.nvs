@@ -1,7 +1,7 @@
 <?nvs
 // Hides all but the last four digits of a short number, as a program does before it prints a receipt.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

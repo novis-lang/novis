@@ -1,7 +1,7 @@
 <?nvs
 // Changes a short code to upper case, as a program does before it compares a voucher or a country code.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

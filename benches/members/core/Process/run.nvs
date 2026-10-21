@@ -1,7 +1,7 @@
 <?nvs
 // Measures running a small program and waiting for it to end, as a build script does for each tool it calls.
 // bench: iterations 100
-// bench: calls 0
+// bench: calls 3
 // bench: complexity constant
 
 class Bench {

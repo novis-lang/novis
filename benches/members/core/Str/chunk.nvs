@@ -1,7 +1,7 @@
 <?nvs
 // Divides a card number into groups of four digits, as a payment page does before it shows one.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {

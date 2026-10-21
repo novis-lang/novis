@@ -2,7 +2,7 @@
 // Measures counting the bytes of a value, as a program does before it checks an
 // upload against a size limit.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 

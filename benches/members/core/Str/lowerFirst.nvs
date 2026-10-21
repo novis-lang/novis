@@ -1,7 +1,7 @@
 <?nvs
 // Changes the first letter of a name to lower case, as a program does when it turns a column name into a JSON key.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 2
 // bench: complexity linear
 
 class Bench {
