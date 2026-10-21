@@ -90,7 +90,7 @@ stages:
         rules: [config/no-configuration-file-is-a-complete-configuration, security/package-authority-is-granted-one-line-at-a-time, security/an-unmatched-namespace-holds-the-application]
   - id: 13
     title: the goal's one gate is green
-    status: open
+    status: done
     gate: true
     context: [tools/nv/cmd/verify.ts]
 checks:
@@ -519,373 +519,54 @@ the whole goal once and fixes every failure in one pass.
 wait. It groups the failures by cause. A group whose fix touches files no other group touches may go
 to a writing subagent, one after another. Then the gate runs once more.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass. A test whose expectation a new default changed writes the narrowing it relied on, and no test is deleted, renamed or loosened to pass. `docs/goals/defaults-that-work.md:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
-- [ ] `bun nv verify --doc` names no broken link, and `bun nv owners --closes defaults-that-work` passes. `docs/goals/defaults-that-work.md:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass. A test whose expectation a new default changed writes the narrowing it relied on, and no test is deleted, renamed or loosened to pass. `docs/goals/defaults-that-work.md:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv verify --doc` names no broken link, and `bun nv owners --closes defaults-that-work` passes. `docs/goals/defaults-that-work.md:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 12 are done. Stage 4 is committed without a green gate: its gate was stopped after a
-test hung. Stage 13, the gate stage, verifies the goal.
+**Every stage is done, and the gate is green.** Stages 1 to 12 landed the defaults, the files, the
+website and the rules (each stage's detail is in its commits, `6d9340431` to `feac65032`).
 
-**The last sweep's reds were already fixed.** The `env-secret-proofs` log is from 22:32, before
-`target/release/nvs.exe` was rebuilt at 22:40; `bun nv proofs --gate --only 'Core\Env::secret'`
-was rerun this session and is green. The nightly run `39567373487` is the same `afbb1edc2` run
-the earlier handoff covered.
+**Stage 13, `da1750c43`.** The first `bun nv affected --run` failed at `render` (three language
+chapters still showed the removed example grants; `bun nv render` rewrote them) and then at `test`
+and `conformance`. Every failure was a test that expected a refusal a new default no longer gives,
+and each now writes the narrowing it relied on:
 
-**Stage 12 (the website and the rules), `15d319bfd` and `feac65032`:**
+- Loopback is open on a test run: `a_db_open_target_in_a_denied_range_fails` (`db/open.rs`),
+  `connect_to_an_address_the_policy_denies_throws_before_connecting` (`http.rs`) and
+  `open_needs_the_ldap_open_grant_and_passes_the_address_policy` (`tests/ldap.rs`) write
+  `internal = []`.
+- A script in its app folder spawns: the `serve.rs` helper `firing` writes `script.spawn = []`
+  where it grants nothing.
+- `Core\Cap::has`: `tests/capability.rs` writes `script.spawn`, `net.connect` and
+  `process.exec` empty, and `a-capability-query-answers-the-grant-table-both-ways.nvst` writes
+  `exec = []`.
+- `a_changed_session_backend_applies_to_new_requests` (`live_config.rs`) boots on the `db`
+  store, which now serves, and asserts nothing reaches the shared store until the reload.
+- `tests/refusal.rs` reads the memory breach's first line, above its new `help:` line.
+- `Core\Env::secret`'s non-UTF-8 arm is declared unreachable from source, as `get`'s is.
+- `tools/data/impact-data-literals.txt` lost the `"../say"` line that stage 6 made stale.
 
-- Rules: `config/no-configuration-file-is-a-complete-configuration` and
-  `security/capability-question-is-grant-and-scope` no longer say every other capability defaults
-  to nothing; they name the `net.connect`, `net.internal`, `process.exec` and `script.spawn`
-  defaults. The former gained a **Declined** list: the grants kept strict, a writable `storage/`,
-  and loopback in production. The two package rules say a default never reaches a package and the
-  audit warning covers hand-vendored code. The other six rules the stage lists were rewritten in
-  their own stages and were reread. `bun nv rules --check` is green, and `bun nv rules --render`
-  rewrote `docs/rules/config.md` and `security.md`.
-- Website: `configuration.mdx` has a section *What a program may do with no nvs.toml* (a table per
-  run kind, and a block that narrows). The security checklist names the server defaults. The
-  guides drop the grants a default gives: `csv-report` and `file-watcher` lost their snippet
-  `nvs.toml`, `schedule-job` and `scheduled-job` lost `[capabilities.script]`, and `upload-file`
-  lost `read`. `page-db-rows` keeps `[capabilities.db] connect`, since a named `[db.*]` block keeps
-  no default. The six changed snippets were rerun with `--bless`, and no `.out` changed. The
-  `Core\Net::connect` and `Net\Datagram::send` about pages say a public host needs no line.
-- `website/src/data/core.json` and `llms-full.txt` were regenerated (`bun nv render --website`).
-  111 pages' questions were reread and stamped, `Core\Env::secret`'s were written, and 4 syntax
-  pages were restamped in `site.lock.json`. `bun nv site --check` passes `structure`,
-  `snippets`, `stale`, `questions`, `guides`, `in-depth` and `prose`.
-- **Expected red at stage 13:** `bun nv site --check reference` names
-  `/reference/core/env/secret/` as not in the built site, until the site is built. `site --check
-  syntax` lists 43 uncovered enum and router types (`Novis\Intl\*`, `Novis\Spreadsheet\*`,
-  `Core\Router\Gate`); this goal did not add them, so check whether the gate runs that part.
+Two reds passed on the rerun and were load: `parallel_tests_overlap_on_more_than_one_core`
+(1.61s against a 1.6s bound) and `compare_returns_a_bool_and_throws_on_error` (the Samba timeout
+in the backlog). The last `bun nv affected --run` is green over all 22 steps, `bun nv verify --doc`
+resolves every link, and `bun nv owners --closes defaults-that-work` finds no gap.
+`bun nv proofs --gate --only 'Core\Env::secret'` is green; the sweep's red log predated the
+release rebuild, and the nightly run `39567373487` ran on `afbb1edc2`.
 
-**Stage 11 (the files show the defaults), `6d9340431` and `c775ff1cc`:**
-
-- `nvs.toml` lost every grant a CLI default now gives: the `examples/{files,tempdir,upload,process,http}.nvs`
-  blocks, the Csv, Serialize, Http-Stream, IO, IO-File, IO-Metadata, Db/open and Db/inList docs
-  roots and benches, `connect = true` on the allowUrl, Http-Client and Http-Part docs, and the
-  loopback `internal` lines of net-echo, Ldap/open and Ldap-Tls. Kept: every `tests/hostile`
-  grant (the `[]` block closes the defaults there), `spawn = true` on `root = "."`
-  (`config/app/01` prints it, `config/capabilities` takes it back), `config/capabilities`'
-  `read = true` (`Core\Config::get` renders only a written key), and the narrowings an example
-  prints. Each comment says what is true.
-- The shipped file's `[capabilities]` banner defines a CLI run, server work and the app folder.
-  `spawn`, `read`, `write`, `connect`, `internal` and `exec` end in `# default: <what unset gives>`,
-  as do their `[schedule.grants.*]` and `[app.capabilities.*]` copies, which
-  `bun nv directives --check-template` requires. `schedule.limits.memory` and
-  `app.limits.hard.memory` now match `limits.hard.memory`'s trailer. `crates/nvs-config/tests/defaults.rs`
-  and `directives.rs` pass.
-- Examples: about pages for IO, Http, Http-Client, Process, Db/open, Storage, Zip, the
-  spreadsheet features and the memory pages say what each run kind may do. 25 per-example
-  `nvs.toml`s are deleted (20 of them landed in `6d9340431`, staged by the examples agent), and the
-  Net ones keep only `listen`/`local`. `Process/{run,spawn}` keep `exec = ["/bin", "/usr/bin"]`,
-  and `Net/connect` and `Net-Datagram/send` keep `connect = ["127.0.0.1"]`, for the refusal their
-  `02` prints. `Process-Result/exitCode/03` now tests for the root `nvs.toml`.
-- Runs: the programs behind every changed block and page (about 150 features, examples and
-  attacks) match their `.out` on the debug binary. Not run: the whole roster (the guard leaves that
-  to the gate), and the `requires: unix` Process-Handle and Process-Result examples whose
-  `nvs.toml` was deleted.
-- **Expected red at stage 13:** an example or attack outside the features above whose output
-  relied on a removed grant, and a Process-Handle or Process-Result example on Linux.
-
-**Stage 10 (CLI memory), `1d56487ff`:**
-
-- `limits.hard.memory`'s row in `crates/nvs-config/src/defaults.rs` is the new
-  `Value::InheritServing("limits.memory")`: the `[limits]` value in server work, and nothing on a
-  CLI run. So `Request::ceiling` (`request.rs`) finds no bound and a CLI `set` checks only the
-  unit. `Core\Config::get('limits.hard.memory')` is `null` on a CLI run.
-- `Ctx::memory_breach` (`crates/nvs-runtime/src/ctx/limits.rs`) says "the program" or "the
-  request" (`memory_run`), and adds a line from `memory_help`: ``help: raise `memory` under
-  `[limits]` in nvs.toml, or call `Core\Config::set('memory', '<2x ceiling>M')` in the program``,
-  plus ``, up to `[limits.hard] memory` `` where a ceiling bounds the call.
-- The repository's `nvs.toml` writes `[limits.hard] memory = "512M"`, so attacks and examples keep
-  their bound, and the hostile block needs no new key.
-- Tests, each passed once: `a_cli_run_raises_its_memory_freely_until_a_hard_ceiling_is_written`
-  and `the_memory_limit_error_names_the_run_and_how_to_raise_it` (`crates/nvs-stdlib/src/config.rs`);
-  `an_unwritten_hard_ceiling_is_the_value_the_run_started_with` now runs as a request. Two tests in
-  `crates/nvs-config/tests/request.rs` were updated, and that file passes. Ten memory-ceiling
-  `.nvst` cases expect the new error with its help line, and
-  `config-unconfigured-host-answers-as-an-empty-configuration.nvst` shows `raise=ok`. All eleven
-  pass, as do the other eight cases that call `Core\Config::set('memory', ...)`.
-- Rules: `config/ceilings-are-their-own-directives` (the exception, the error text, two Declined
-  lines), `config/no-configuration-file-is-a-complete-configuration`, and
-  `security/package-authority-is-granted-one-line-at-a-time` (a package may only lower its limits;
-  the check stays `namespace-grants`' stage 3 checkpoint, since `crates/nvs-config/src/grants.rs`
-  does not exist). The shipped file's `[limits.hard]` comment says the same.
-- **Expected red at stage 13:** a Rust test or `.nvst` case outside those above that expects
-  `the request exceeded its memory limit` from a CLI run, or a CLI `set('memory', ...)` above the
-  start refused with no `[limits.hard]` written. `crates/nvs-host/src/group.rs:1343` uses the text
-  as an opaque string and is not affected.
-
-**Stage 9 (`Core\Env::secret`), `a77e38609` and the next commits:**
-
-- The member, its card, the rules and three `.nvst` cases landed in `a77e38609`. The WIP commit
-  `54bbc5fd0` (the about page, three examples, the bench and the Rust test
-  `secret_reads_the_value_get_reads_and_null_for_a_name_nothing_set`) is kept as it was; the test
-  passed once, and the three examples run green.
-- The attack is `tests/hostile/core/Env/secret/01-print-a-secret-from-the-environment.nvs`
-  (`expect-refusal`): `echo`, `print`, a log record, `Core\Response::text`, an interpolated string
-  and a `tainted` name. Each step is refused at compile time.
-- `env-secret-proofs` was red only because `target/release/nvs.exe` predated the member, so the
-  roster (`nvs meta --json`) did not list it. `--record-perf` rebuilt it, and `bun nv proofs
-  --gate --only 'Core\Env::secret'` is green.
-- The four `Core\Env` benches declared `calls 0` but measured 1 or 2 (the playbook's stale-count
-  trap). `secret` and `context`/`mode` now declare `calls 1`, `get` `calls 2`, and the group's
-  perf is recorded. `Core\Env::all` stays a known gap.
-- The nightly's site failures (`covariant`, `union-types`, `properties`,
-  `methods-and-inheritance`) ran on `afbb1edc2` and pass at HEAD.
-- **Expected red at stage 13 (website questions):** `bun nv site --check questions` names six
-  stale reference pages: `/reference/core/csrf/issue/`, `/reference/core/env/`,
-  `/reference/core/session/`, and `start`, `regenerate` and `destroy` under it. They changed in
-  stages 7 to 9. Stage 12 rereads each, rewrites its questions, and stamps it.
-
-**Earlier fix.** `server-tests` was red on
-`a_schedule_entrys_limits_and_grants_narrow_its_run_and_never_widen_it`
-(`crates/nvs-server/src/schedule.rs:1498`): the test's fire now runs as a scheduled run, and
-`bun nv verify --fast -p nvs-server` is green (`8d18b22c2`).
-
-**Stage 8 (the CSRF form field), `3c3140d00`:**
-
-- `nvs_server::route::csrf` (`crates/nvs-server/src/route.rs`) takes the token from
-  `x-csrf-token`, else the `_csrf` query parameter (`TOKEN_FIELD`); the first present decides. With
-  neither, a keyed checked urlencoded write answers the new `Csrf::InBody`, and anything else is
-  refused. A multipart body is never read; `TOKEN_HEADER`'s doc says why.
-- **The door cannot pull the body**: it runs inside the connection's poll, and a pull there is the
-  deadlock `RequestBody::next_chunk` forbids. So `InBody` wraps the program in
-  `route::reading_the_form`, and the request's own task calls `route::csrf_in_body` before the
-  handler: it reads up to `ctx.request_body_limit()`, checks the field, and puts the bytes back
-  with `set_buffered_body` so every body reader still finds the whole form. A refusal is an empty
-  `403` with nothing run, or, in refusal mode, the program runs with `Refusal::Csrf` and no body.
-  A body past the limit is refused as a missing token (403, not 413).
-- Callers: `crates/nvs-cli/src/serve.rs` (after the verdict), `answer_on_the_wire` and
-  `UnderTest::answer` in `crates/nvs-cli/src/runner.rs` (the in-process body is in memory, so it
-  calls `csrf_in_body` directly).
-- Tests, each passed once: `a_form_field_or_a_query_parameter_carries_the_token_and_a_multipart_body_is_never_read`
-  and `a_refused_form_is_answered_before_the_handler_runs` (`route.rs`).
-- Rule `security/csrf-is-on-by-default` gained the three places, what the read spends, and a
-  Declined line for reading a multipart body. `Core\Csrf::issue`'s card names all three.
-- **Expected red at stage 13:** `website/src/data/core.json:7504` still holds the old
-  `Core\Csrf::issue` text, so a website staleness or reference-card check may name it. Regenerate
-  it with the website's data command in stage 12.
-
-**Stage 7 (sessions):**
-
-- The `db` store is `crates/nvs-stdlib/src/session/sqlite.rs`: one `nvs_session` table in
-  `<data>/session.sqlite`, WAL, `synchronous = NORMAL`, `busy_timeout = 5000`, one connection per
-  core in a thread-local taken out for each statement. `load` reads only a row whose expiry is
-  ahead; `save` is one upsert, and a due `sweep` (once a minute per core) deletes expired rows.
-- `crates/nvs-stdlib/src/session.rs` picks it in `opened` where no `[session] backend` is written,
-  and throws at `start` naming `[session]` where the data folder is unusable.
-- The rule `http-server/no-session-block-means-no-store` is now
-  `http-server/no-session-block-means-the-data-folder-store`; the backend, expiry and write-whole
-  rules say what is true, and `bun nv rules --check` is green.
-- Tests, each passed once this session: the three in `session/sqlite.rs`
-  (`two_requests_of_one_session_both_finish_and_the_last_write_wins`,
-  `a_record_survives_into_a_connection_another_process_would_open`,
-  `an_expired_row_is_absent_and_the_sweep_deletes_it`), and four cases under `nvs test`:
-  `session-start-with-no-block-opens-the-data-folder-store.nvst`,
-  `session-start-takes-the-presented-identifier-or-none-at-all.nvst`,
-  `a-nullable-core-parameter-keeps-the-mark-of-its-type.nvst` and
-  `a-session-survives-a-request-on-another-process.nvst`.
-- `session-start-refuses-a-tree-that-configured-no-store.nvst` is deleted: a bare `start` now
-  opens the file. Any other test or case that expected `Core\Session::start` to throw with no
-  `[session]` block goes red at stage 13 and should choose `backend = "shared"` with no address.
-
-**Expected red at stage 13** (found, not fixed):
-
-- `a_capability_query_answers_true_for_exactly_the_granted_names`
-  (`crates/nvs-stdlib/tests/capability.rs:868`) expects `Core\Cap::has` to answer `true` for
-  `fs.read` alone. Stages 3 and 4 opened `fs.write` and `net.connect` on a CLI run, so it now
-  gets more. The test should write `write = []` and `connect = []`, or count the defaults.
-- Stage 6 opened `process.exec` on a CLI run and `script.spawn` for the app folder. A Rust test or
-  a `.nvst` case that expects a program refused on a CLI run with nothing written, or a spawn
-  refused through `Authority` with nothing written, now gets the default. The process cases were
-  checked (`process-exec-is-deny-by-default.nvst` is now
-  `process-exec-written-as-an-empty-list-refuses-every-program.nvst`). Tests that ask
-  `Capabilities::allows` directly are not affected.
-- A test that asserts `Core\Cap::has('script.spawn')` or `process.exec` is `false` with nothing
-  written now gets `true` on a CLI run.
-- The acceptance check `config-tests` was red on stage 4's authority test. It is fixed and green
-  (`fd07d523a`).
-
-**Stage 6 (programs and scripts):**
-
-- `defaults::capability` (`crates/nvs-config/src/defaults.rs`) gives `process.exec`
-  `Granted::Everything` on a CLI run, and `script.spawn` the new `Granted::AppCode` on both run
-  kinds: the app folder minus dot-paths and `nvs.toml`, and **minus the run's own temporary
-  directories** (`Run::spawns_by_default`), so a request cannot write a script and spawn it.
-  `Authority::allows` answers an unscoped ask `true` under `AppCode`: that is the method form.
-- A bare name is `nvs_config::capability::bare_program` (no `/`, no `\` or `:` on Windows, not
-  `.`/`..`), and `on_path` looks it up (`PATHEXT` on Windows, the execute bit elsewhere; a relative
-  `PATH` folder is skipped). `anchor_program` writes a bare `exec` entry as its absolute path at
-  load, and `silent_entry` refuses one `PATH` does not answer. **A folder entry needs a separator
-  now**: `exec = ["target"]` in `nvs.toml` became `"target/"`, and the case
-  `process-run-asks-for-the-capability-before-it-looks-at-the-target.nvst` writes `"allowed/"`.
-- The exec door (`exec_with`, `crates/nvs-runtime/src/capability.rs`) asks the grant unscoped
-  before a bare name is looked up, then asks `require` with the found absolute path.
-  `spawn_target` is gone. **This session's reading of decision 6:** server work also looks a bare
-  name up on `PATH`, but only once a written line exists, and the found path must pass that line.
-  Matching the call against the entry's name instead fails once canonicalization resolves a
-  symlinked entry (`python3` to `python3.12`). The rule records it.
-- The compiler joined `Process::run("git")` to the file's folder, so the name never reached the
-  door. `CoreTy::Program(Qual)` and `ParamText::Program` (`crates/nvs-stdlib/src/registry.rs`)
-  mark `run` and `spawn`'s first parameter. `resolve_args` (`crates/nvs-types/src/paths.rs`) leaves
-  a bare literal there as written and joins every other one.
-- The hostile block writes `exec = []`. It does **not** write `spawn = []`: the `root = "."` block
-  already grants `spawn = true` to every attack, so the default opens nothing new there, and `[]`
-  would take a grant away.
-- The `[[schedule]]` refusal (`crates/nvs-config/src/schedule.rs`) names the app folder.
-- Tests, each passed once: `a_bare_name_is_found_on_path_on_a_cli_run_and_needs_a_line_in_server_work`
-  and `a_script_in_the_app_folder_spawns_and_one_outside_it_does_not`
-  (`crates/nvs-runtime/src/capability.rs`), `a_scheduled_script_in_its_app_folder_needs_no_spawn_grant`
-  (`crates/nvs-config/tests/resolve.rs`), `a_bare_exec_entry_is_looked_up_on_path_when_the_configuration_loads`
-  and a row in `a_grant_entry_that_allows_nothing_is_refused_naming_the_line_to_write`
-  (`crates/nvs-config/tests/capability.rs`). Six process cases pass under `nvs test`.
-- Rules rewritten: `security/process-exec-capability` (new title, three Declined lines) and
-  `security/script-spawn-capability` (one Declined line). `docs/reference/tools/20-config.md`
-  states both defaults.
-
-**Stage 5 (SQLite and database TLS):**
-
-- `sqlite_read_only` (`crates/nvs-stdlib/src/db/open.rs`) is the grant decision for a
-  program-supplied path. `:memory:` and `""` ask nothing. A `file:` URI asks `db.open`, `fs.read`
-  and `fs.write` as before. A path requires `fs.read`, and opens read-only where `fs.write` is not
-  granted. `SqliteTarget::read_only` (`crates/nvs-db/src/sqlite.rs`) opens with
-  `SQLITE_OPEN_READ_ONLY`. A read-only open's pool key is the settings key plus `:read-only`, and
-  its pool bounds come from the plain key.
-- A path-shaped `db.open` entry now grants nothing, so `silent_entry` refuses it at load, with
-  help naming `write = ["<its folder>"]` under `[capabilities.fs]` (`Silent::under`).
-- Postgres: `request_tls(stream, loopback)` gives `false` for `N` on a loopback address, and
-  `open_stream` returns `PgStream::Loopback(NvsTcp)`. A loopback server that answers `S` is still
-  verified. MySQL and MariaDB share `mysql::open_tcp`: on loopback it reads the greeting with
-  `REQUIRED_OVER_A_SOCKET` (no longer `cfg(unix)`), and a greeting without `CLIENT_SSL` gives
-  `MyStream::Loopback`.
-- Tests: `a_sqlite_file_asks_the_file_rule_and_opens_read_only_where_it_is_not_writable` and
-  `a_sqlite_open_asks_fs_read_before_it_reads_the_path` (`open.rs`),
-  `a_read_only_target_reads_the_file_and_a_write_is_refused` (`sqlite.rs`),
-  `a_loopback_server_with_no_tls_is_used_in_the_clear` (`pg.rs`),
-  `a_loopback_server_that_offers_no_tls_is_used_in_the_clear` (`mysql.rs`). Each passed once.
-- Cases: `db-open-asks-the-grant-about-a-sqlite-path-and-not-a-host.nvst` is renamed
-  `db-open-asks-the-file-rule-about-a-sqlite-path-and-not-db-open.nvst`, and it and
-  `db-open-refuses-a-tls-mode-weaker-than-verify-full.nvst` write `read = []`. Both pass under
-  `nvs test`.
-- Rules: `core-classes/db-capabilities` (the SQLite file rule, a Declined line) and
-  `core-classes/db-safe-connection-defaults` (the loopback exception, a Declined line).
-
-**Stage 4 (outbound hosts):**
-
-- Two tests in `crates/nvs-ext/tests/http.rs` relied on the old defaults, and both now pass:
-  the private-address case writes `internal = []`, and the second caller in
-  `a_guest_waiting_on_an_http_response_lets_another_task_on_its_core_run` writes `connect = []`.
-  That caller's call used to be refused; with `net.connect` open it was sent, nobody answered it,
-  and `block_on` spun forever.
-- Stage 4's full gate never finished, so stage 13 may find more tests and cases like these.
-
-- `defaults::capability` (`crates/nvs-config/src/defaults.rs`) gives `net.connect`
-  `Granted::Everything` on both run kinds. `connect_to` and `downgrade` keep `Nothing`.
-- **Loopback is `defaults::internal(run)`**, beside `capability`, with
-  `NET_INTERNAL_LOOPBACK = ["127.0.0.0/8", "::1"]`. It is not a `DEFAULTS` row: `Value::Startup`
-  has no CLI arm, and a capability is not a value `Core\Config::get` renders. The rule's table names
-  it as the fourth startup row. `Run` gained `development: bool` and `Run::in_development`;
-  `Request::run` sets it from `started()`, which ignores the overlay, so a flip moves nothing.
-- `Authority::address_refused` uses the written `internal` key when there is one, and otherwise the
-  default list. A written `internal` replaces the default whole, loopback included.
-- CIDR: `internal_range`, `masked` and `internal_covers` in `crates/nvs-config/src/capability.rs`.
-  A range with host bits set (`10.0.0.5/8`) is refused at load by `silent_internal`. Only `::ffff:`
-  forms are unmapped, so `::7f00:1`, NAT64, 6to4 and Teredo loopback stay refused by the default.
-- The hostile block writes `connect = []` and `internal = []`. The three `docs/examples` Http blocks
-  in `nvs.toml` write `internal = []`, because their outputs show loopback refused. 9 `.nvst` cases,
-  `crates/nvs-cli/tests/fixtures/test-grants/denied.toml`, and the Rust tests in `db/open.rs`,
-  `http.rs` (`GRANTED`), `net.rs` and the runtime's `reaching` write the empty keys.
-- Tests: `a_public_host_needs_no_grant_and_loopback_is_open_on_a_cli_run_and_in_development` and
-  `an_operator_exception_names_addresses_and_ranges_and_widens_nothing_else`
-  (`crates/nvs-config/tests/capability.rs`), `a_flip_to_development_does_not_open_loopback`
-  (`crates/nvs-config/tests/request.rs`), and
-  `a_callers_default_hosts_are_still_narrowed_by_the_entry_and_the_manifest`
-  (`crates/nvs-ext/tests/grants.rs`).
-- Rules updated: `security/net-address-policy` (ranges, the defaults, a Declined line for loopback
-  in production), `config/a-startup-default-is-never-flipped` (the fourth row, nine rows in all),
-  `config/a-mode-is-five-defaults`. `docs/reference/tools/20-config.md` states the net defaults.
-
-The nightly's proofs failures were the stage 3 restamp: `syntax/errors/limits.mdx` and the
-questions of the capabilities and trust pages. They are restamped in this group.
-
-**Stage 3 (files):**
-
-- `nvs_config::defaults::capability` (`crates/nvs-config/src/defaults.rs:364`) returns
-  `Granted::Everything` for `fs.read`/`fs.write` on a CLI run, and `Granted::AppFolder` (read) /
-  `Granted::Temporary` (write) in server work. `Authority` applies them in `allows`,
-  `allows_resolved`, `allows_host`, `allows_name` and `holds`. `holds` gives `Grant::Nothing` for a
-  folder-shaped default, so an extension gets no files by default in server work.
-- `Run` gained `temporary: &[PathBuf]` (the context's canonical temporary dirs) and
-  `Run::reads_by_default` / `writes_by_default` (`crates/nvs-config/src/capability.rs`), and
-  `Authority::with_temporary`. The runtime's `granted_with` and `allow`
-  (`crates/nvs-runtime/src/capability.rs`) pass `ctx.temporary_dirs()`. `temp_dir` canonicalizes
-  the root and asks with its list plus the new entry, so server work can create one.
-- `nvs serve` prints one boot line per app folder whose tree writes no `fs.read`
-  (`default_reads` in `crates/nvs-cli/src/serve.rs`).
-- `nvs.toml` has the `[[app]] root = "tests/hostile"` block with `read = []` and `write = []`.
-  Every case that relied on deny-all now writes the empty key: 16 `.nvst` cases, 3 hostile
-  `nvs.toml`s, 4 example `nvs.toml`s/blocks, and the `io.rs` and `tests/capability.rs` helpers in
-  `nvs-stdlib`. `docs/reference/tools/20-config.md` (the agent primer) states the new defaults.
-- Tests: `server_work_reads_its_app_folder_and_writes_only_its_temporary_directories`
-  (`crates/nvs-config/tests/capability.rs`) and
-  `server_work_writes_its_own_temporary_dirs_and_not_another_requests`
-  (`crates/nvs-runtime/src/capability.rs`).
-- Rules updated: `config/no-configuration-file-is-a-complete-configuration`,
-  `security/capability-question-is-grant-and-scope` and `core-classes/temporary-dir-sweep`.
-
-**From stage 2:**
-
-- **The app folder** is `nvs_config::app::folder(entry, keys)` (`crates/nvs-config/src/app.rs:699`):
-  the most specific matching block key that is not the entry itself, else the entry's folder. An
-  `entry` block is passed over, so it never shrinks the application; this is this goal's reading
-  of the decision. `Snapshot::folder` (`snapshot.rs:163`) serves a CLI run and
-  `Published::folder` (`snapshot.rs:530`, cached per path) serves a mount, a schedule and a job.
-- **It is stored on `nvs_config::Request`, beside `serving`** (`request.rs:94`), not as a `Ctx`
-  field. Every isolate constructor clones the configuration, so it inherits with no extra code, and
-  `Ctx::set_config` carries it over (`wiring.rs`). Hosts write it with `Ctx::set_app_folder`
-  (`crates/nvs-runtime/src/ctx/isolate.rs:108`) or `nvs_host::Isolate::in_folder`
-  (`crates/nvs-host/src/isolate.rs:392`, applied beside `running_as`). Wired: `nvs run`
-  (`main.rs`), `nvs test` and its per-test contexts (`runner.rs`), the shared worker
-  (`shared.rs`), a served request from its mount entry (`crates/nvs-cli/src/serve.rs`, both the
-  run and the rerun), a scheduled fire, and a job (`worker.rs` `configure`).
-- **The defaults function** is `nvs_config::capability::Authority` (`capability.rs:303`) over a
-  `Run` (`:258`), reading `nvs_config::defaults::capability` (`defaults.rs:364`). A written key replaces the default whole, and a header
-  with no key leaves it. `Request::authority` builds one. `Run::default()` is server work with no
-  folder, the narrowest run.
-- **Every asker goes through it**: `capability::granted` and the resolved-path door `allow`, the
-  address table (`Authority::address_refused`, where stage 4's loopback default goes), the
-  schedule check (as server work with the script's folder), `nvs_ext::grants::Caller` (now
-  `authority: Option<Authority>`, built in `crates/nvs-cli/src/extensions.rs` from a cloned
-  `Request`), and the compiler's literal `db.open` and `queue.purge` checks in
-  `crates/nvs-types/src/intrinsics.rs`, asked as a CLI run because that is the widest run.
-  `nvs_config::store::reachable` still reads `allows_unscoped` directly: it counts written
-  `cache.shared` grants, which keep no default.
-- Tests: `crates/nvs-config/tests/snapshot.rs` (`a_mounted_entrys_app_folder_is_its_most_specific_root`,
-  `a_cli_entry_and_a_publish_agree_on_the_app_folder`), `crates/nvs-config/tests/capability.rs`
-  (`an_authority_answers_the_written_key_and_the_default_for_the_rest`), and
-  `an_isolate_takes_its_trees_app_folder_and_run` in `crates/nvs-runtime/src/ctx/isolate.rs`.
-  `crates/nvs-ext/tests/{grants,files,http}.rs` build their `Caller` with `Authority`.
-- `rule:security/capability-question-is-grant-and-scope` now names the run as an input.
+**Not run here:** the 5802 proof programs and 4 `nvtest` trees verify leaves owed. The guard
+refuses a full `bun nv proofs` in a session, and `bun nv debt` pays them at the goal's end. An
+example or attack that relied on a removed grant, or a `requires: unix` Process-Handle or
+Process-Result example whose `nvs.toml` stage 11 deleted, may go red there.
 
 ### Next
 
-**Stage 13, the gate.** Run `bun nv affected --run` once over the whole goal, with
-`run_in_background`, and group its failures by cause. The *Expected red* lines under each stage
-above name what is likely: `crates/nvs-stdlib/tests/capability.rs:868`, tests and cases that
-expect a CLI run refused with nothing written, a CLI memory raise refused, `Core\Session::start`
-throwing with no `[session]` block, and examples or attacks that relied on a removed grant. A
-test whose expectation a new default changed writes the narrowing it relied on. Fix every failure
-in one pass, then run the gate once more. Last, `bun nv verify --doc` and
-`bun nv owners --closes defaults-that-work`.
-
-**Proofs use the release binary.** `bun nv proofs --gate` reads the roster from
-`target/release/nvs.exe`. After adding a `Core` member, pass `--nvs target/debug/nvs.exe` or run
-`--record-perf`, which rebuilds it.
+Nothing in this goal. If `bun nv debt` names a proof program red, it is a removed grant: write
+the narrowing its output relies on in its own `nvs.toml`, as stage 11 did.
 
 ### Backlog
 
