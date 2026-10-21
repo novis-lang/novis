@@ -30,12 +30,14 @@ origin = "https://example.test"
 [app.capabilities.script]
 spawn = true
 
-# The attacks under `tests/hostile` run as CLI runs, and a CLI run reads and writes any file, and
-# reaches every public host and loopback, when nothing is written
-# (`rule:config/no-configuration-file-is-a-complete-configuration`, `rule:security/net-address-policy`). An attack
+# The attacks under `tests/hostile` run as CLI runs, and a CLI run reads and writes any file,
+# reaches every public host and loopback, and runs any program, when nothing is written
+# (`rule:config/no-configuration-file-is-a-complete-configuration`, `rule:security/net-address-policy`,
+# `rule:security/process-exec-capability`). An attack
 # asserts a refusal, so this block writes each key a default opens as `[]`: a written key that grants
 # nothing. A more specific block below grants one attack what it needs, and an attack that tests a
-# default itself writes its own `[[app]] entry` block.
+# default itself writes its own `[[app]] entry` block. `script.spawn` is not written here: the
+# `root = "."` block above already grants it to every attack.
 [[app]]
 root = "tests/hostile"
 
@@ -46,6 +48,9 @@ write = []
 [app.capabilities.net]
 connect = []
 internal = []
+
+[app.capabilities.process]
+exec = []
 
 # `examples/capability.nvs` is the fixture for `rule:security/capability-check-at-the-door`, so its
 # block is written to be *narrower* than the one above rather than wider: an exact `entry` layers over
@@ -115,7 +120,8 @@ write = true
 # while proving nothing. Scoped to two directories rather than `true` because
 # that is the whole point of the member being path-scoped: `target`, where
 # every build of the binary the pipeline names in `NVS_BIN` lives, and the
-# fixture's own directory.
+# fixture's own directory. `target/` ends in a slash because a bare name such as
+# `target` is a program looked up on `PATH`.
 [[app]]
 entry = "examples/process.nvs"
 
@@ -123,7 +129,7 @@ entry = "examples/process.nvs"
 read = ["target", "examples/process"]
 
 [app.capabilities.process]
-exec = ["target", "examples/process"]
+exec = ["target/", "examples/process"]
 
 # `examples/http.nvs` talks to an origin on the loopback, which `rule:security/net-address-policy`
 # denies by default — so this block is where that rule's *other* half is written down: `net.connect`

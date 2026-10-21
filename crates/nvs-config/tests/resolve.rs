@@ -1689,6 +1689,38 @@ fn a_scheduled_script_outside_the_spawn_roots_refuses_the_boot() {
     }
 }
 
+/// `rule:security/script-spawn-capability` at boot: with no `script.spawn` written, a scheduled
+/// script in its app folder needs no grant, and one below a dot-folder is refused.
+// covers: directive:schedule
+#[test]
+fn a_scheduled_script_in_its_app_folder_needs_no_spawn_grant() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[[schedule]]\nname = \"nightly\"\ncron = \"@daily\"\nscript = \"jobs/report.nvs\"\n\
+             scope = \"host\"\n",
+        ),
+        ("etc/jobs/report.nvs", "<?nvs\n"),
+    ]);
+    assert_eq!(tree_of(&fs, "etc/nvs.toml").config.schedule.len(), 1);
+
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[[app]]\nroot = \".\"\n\n[[schedule]]\nname = \"nightly\"\ncron = \"@daily\"\n\
+             script = \".jobs/report.nvs\"\nscope = \"host\"\n",
+        ),
+        ("etc/.jobs/report.nvs", "<?nvs\n"),
+    ]);
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+    assert_eq!(diagnostic.code, Some(code::E_BAD_SCHEDULE));
+    assert!(
+        diagnostic.message.contains("app folder"),
+        "{}",
+        diagnostic.message
+    );
+}
+
 /// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` for a path-scoped
 /// grant: `data` in `etc/nvs.toml` is `etc/data`, and `uploads` in an `[[app]]` block of an
 /// included file is beside that file. A root of its own and an empty entry are left as written,

@@ -165,8 +165,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // — `nvs_types::core_lib::qual_of` reads no nested classification, and
             // none is needed: `array<tainted string>` is not `array<string>`, so a
             // tainted element is refused by the ordinary argument check.
+            // `Program` and not `Path`: a bare name such as `git` reaches the door as written.
             params: &[
-                CoreTy::Path(Qual::Sink),
+                CoreTy::Program(Qual::Sink),
                 CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
                 CoreTy::Options(OPTIONS),
             ],
@@ -184,7 +185,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // `there_is_no_shell_string_form_of_run_or_spawn` reads this row
             // the same way it reads `run`'s.
             params: &[
-                CoreTy::Path(Qual::Sink),
+                CoreTy::Program(Qual::Sink),
                 CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
                 CoreTy::Options(OPTIONS),
             ],
@@ -1564,10 +1565,14 @@ mod tests {
     const SHELL_SPELLINGS: &[&str] = &["exec", "system", "shellExec", "passthru", "backtick"];
 
     /// Whether a parameter is somewhere a command line could be written — every spelling of
-    /// `string` a row here uses, since [`CoreTy::Str`], [`CoreTy::Text`] and [`CoreTy::Path`]
-    /// differ in classification and marks and not in what a caller can put in one.
+    /// `string` a row here uses, since [`CoreTy::Str`], [`CoreTy::Text`], [`CoreTy::Path`] and
+    /// [`CoreTy::Program`] differ in classification and marks and not in what a caller can put
+    /// in one.
     fn is_text(ty: CoreTy) -> bool {
-        matches!(ty, CoreTy::Str | CoreTy::Text(_) | CoreTy::Path(_))
+        matches!(
+            ty,
+            CoreTy::Str | CoreTy::Text(_) | CoreTy::Path(_) | CoreTy::Program(_)
+        )
     }
 
     /// `rule:core-classes/process-run`, asserted over the whole roster rather than off `run`'s signature: **no member

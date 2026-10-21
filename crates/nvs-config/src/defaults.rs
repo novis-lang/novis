@@ -360,6 +360,10 @@ pub enum Granted {
     /// none named `nvs.toml`, or a path inside a directory `Core\IO::temporaryDir` made for this
     /// run. Asked of the canonical path.
     AppFolder,
+    /// A path inside the run's app folder with no component below it that starts with `.` and
+    /// none named `nvs.toml`, and inside no directory `Core\IO::temporaryDir` made for this run.
+    /// Asked of the canonical path.
+    AppCode,
     /// A path inside a directory `Core\IO::temporaryDir` made for this run, and nothing else.
     Temporary,
 }
@@ -376,6 +380,11 @@ pub enum Granted {
 ///   temporary directory.
 /// - **Outbound hosts:** `net.connect` is [`Granted::Everything`] on every kind of run. The address
 ///   table still refuses every address that is not public, with [`internal`] as its exceptions.
+/// - **Programs:** `process.exec` is [`Granted::Everything`] on a CLI run, and a bare name such as
+///   `git` is looked up on `PATH`. Server work runs no program without a written line.
+/// - **Scripts:** `script.spawn` is [`Granted::AppCode`] on every kind of run. `require` already
+///   runs that code, so spawning it gives nothing new. A script the run wrote into its own
+///   temporary directory is not covered.
 /// - **Every other capability** is [`Granted::Nothing`] on every kind of run.
 ///
 /// **What it spends:** nothing held. The app folder is one path per context, and the temporary
@@ -383,9 +392,9 @@ pub enum Granted {
 #[must_use]
 pub fn capability(cap: crate::Cap, run: crate::capability::Run<'_>) -> Granted {
     match (cap, run.serving) {
-        (crate::Cap::FsRead | crate::Cap::FsWrite, false) | (crate::Cap::NetConnect, _) => {
-            Granted::Everything
-        }
+        (crate::Cap::FsRead | crate::Cap::FsWrite | crate::Cap::ProcessExec, false)
+        | (crate::Cap::NetConnect, _) => Granted::Everything,
+        (crate::Cap::ScriptSpawn, _) => Granted::AppCode,
         (crate::Cap::FsRead, true) => Granted::AppFolder,
         (crate::Cap::FsWrite, true) => Granted::Temporary,
         _ => Granted::Nothing,

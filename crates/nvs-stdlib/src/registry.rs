@@ -289,6 +289,11 @@ pub enum CoreTy {
     /// forget. It interns as plain `string`, exactly as [`Self::Text`] does, so
     /// nothing about what a caller may pass changes.
     Path(Qual),
+    /// A `string` parameter whose text is a **program** — [`Self::Path`], except
+    /// that a bare name such as `git` is left as written, because the runtime
+    /// looks it up on `PATH` (`rule:security/process-exec-capability`). Every
+    /// other relative literal is joined as a [`Self::Path`] one is.
+    Program(Qual),
     /// A `string` parameter whose text is a **class name** — [`Self::Path`]'s
     /// twin for [`ParamText::ClassName`]. It changes nothing a checker or the
     /// runtime does; it is there so an editor can offer class names at it.
@@ -1230,6 +1235,7 @@ impl CoreTy {
         match self {
             Self::Text(qual)
             | Self::Path(qual)
+            | Self::Program(qual)
             | Self::ClassName(qual)
             | Self::Blob(qual)
             | Self::SecretBlob(qual)
@@ -1326,9 +1332,12 @@ impl CoreTy {
             // it also accepts is a *written shape* rather than a second type, so
             // spelling it as a union here would document a `callable` variable as
             // accepted where `nvs_types::expr::isolate` refuses one.
-            Self::Str | Self::Text(_) | Self::Path(_) | Self::ClassName(_) | Self::Entry => {
-                "string".into()
-            }
+            Self::Str
+            | Self::Text(_)
+            | Self::Path(_)
+            | Self::Program(_)
+            | Self::ClassName(_)
+            | Self::Entry => "string".into(),
             Self::StringHoles(key, _) => format!("string<{}>", key.spelled()),
             Self::PropertyPath(root) => format!("propertyPath<{}>", root.spelled()),
             Self::Bytes | Self::Blob(_) => "bytes".into(),
@@ -1417,6 +1426,7 @@ impl CoreTy {
                 | Self::Bytes
                 | Self::Text(_)
                 | Self::Path(_)
+                | Self::Program(_)
                 | Self::ClassName(_)
                 | Self::Blob(_)
                 | Self::SecretBytes
@@ -1439,6 +1449,7 @@ impl CoreTy {
     pub const fn param_text(&self) -> ParamText {
         match self {
             Self::Path(_) | Self::Entry => ParamText::Path,
+            Self::Program(_) => ParamText::Program,
             Self::ClassName(_) => ParamText::ClassName,
             Self::Nullable(inner) => inner.param_text(),
             _ => ParamText::Plain,
@@ -1462,6 +1473,8 @@ pub enum ParamText {
     Plain,
     /// A file path.
     Path,
+    /// A program: a file path, or a bare name the runtime looks up on `PATH`.
+    Program,
     /// A fully-qualified class name.
     ClassName,
 }
@@ -6095,6 +6108,7 @@ mod tests {
                 | CoreTy::Bytes
                 | CoreTy::Text(_)
                 | CoreTy::Path(_)
+                | CoreTy::Program(_)
                 | CoreTy::ClassName(_)
                 | CoreTy::Blob(_)
                 | CoreTy::TaintedStr
