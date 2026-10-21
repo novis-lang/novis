@@ -22120,8 +22120,9 @@ allowed.
 second call is still denied. The third is a program that finishes its work without the capability.
 
 The message has two lines. The first is ``Core\IO::read needs the capability `fs.read` for <path>,
-which is not granted``, with the full path of the file. The second is ``help: grant it in nvs.toml
-under `[capabilities.fs]` ``.
+which is not granted``, with the full path of the file. The second is the line to add to `nvs.toml`:
+``help: add `read = ["<folder>"]` under `[capabilities.fs]` in nvs.toml``. `<folder>` is the
+full path of the folder that contains the file.
 
 `fs.read` covers every call that looks at a file, such as `Core\IO::exists`, and not only
 `Core\IO::read`. `fs.write` is a separate capability. A grant of `read` for a folder does not let your
@@ -22152,8 +22153,10 @@ try {
     // The message names the method, the capability and the full path of the file.
     // This prints the part before the path.
     echo Core\Str::before($denied->message, " for "), "\n";
-    // The second line of the message says where to add the permission.
-    echo Core\Str::after($denied->message, "\n"), "\n";
+    // The second line of the message is the line to add to `nvs.toml`.
+    // It also contains the full path of the folder. This prints `...` in its place.
+    string $help = Core\Str::after($denied->message, "\n") ?? "";
+    echo Core\Str::before($help, "\""), "...]", Core\Str::after($help, "\"]"), "\n";
 }
 
 echo "still running\n";
@@ -22161,7 +22164,7 @@ echo "still running\n";
 
 ```output
 Core\IO::read needs the capability `fs.read`
-help: grant it in nvs.toml under `[capabilities.fs]`
+help: add `read = [...]` under `[capabilities.fs]` in nvs.toml
 still running
 ```
 
