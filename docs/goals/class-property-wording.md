@@ -10,7 +10,7 @@ stages:
     context: [website/src/content/docs/in-depth/concepts/checked-field-names.mdx, website/src/content/docs/guides/why-novis/typed-json.mdx, website/snippets/guides/how-to-use/data-mapper/01-one-field.nvs]
   - id: 2
     title: "the published examples say property"
-    status: open
+    status: done
     context: [docs/examples/core/Json/decodeAs/about.md, docs/examples/core/Request/jsonAs/about.md, docs/examples/lang/types/property-paths/about.md, website/src/lib/feature.ts]
   - id: 3
     title: "the attacks and benchmarks say property"
@@ -145,12 +145,12 @@ property, and an example whose title the website shows says it too.
 examples one batch after another: the readers and language features (first two items), then
 reflection to the spreadsheet chart (third), then `ObjectMap` and `ObjectSet` (fourth).
 
-- [ ] The JSON, request and response readers say property. `docs/examples/core/Json/decodeAs/about.md:3`, `docs/examples/core/Json/encode/about.md:5`, `docs/examples/core/Request/jsonAs/about.md:3`, `docs/examples/core/Request/postAs/about.md:3`, `docs/examples/core/Request/queryAs/about.md:4`, `docs/examples/core/Test-Response/jsonAs/about.md:10`, `docs/examples/core/Http-Response/jsonAs/02-a-reply-that-is-not-json.nvs:4`
-- [ ] The JSON codec attribute, a child's throw, `comparable`, `interfaces` (`implements I by $property`), narrowing, property keys and property paths say property. `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md:6`, `docs/examples/lang/concurrency/a-child-s-throw/about.md:6`, `docs/examples/lang/classes/comparable/02-an-order-built-from-two-fields.nvs:2`, `docs/examples/lang/classes/interfaces/03-one-class-passes-the-work-to-another.nvs:2`, `docs/examples/lang/types/narrowing/about.md:9`, `docs/examples/lang/types/property-keys/about.md:13`, `docs/examples/lang/types/property-paths/about.md:1`
-- [ ] Reflection, taint, `LateInit`, `PropertyObserver` and the spreadsheet chart say property. `docs/examples/core/Reflect-ClassInfo/hasProperty/03-check-the-fields-a-client-asked-for.nvs:15`, `docs/examples/core/Taint/assertTrustedBytes/about.md:5`, `docs/examples/types/LateInit/01-one-load-sets-every-field.nvs:2`, `docs/examples/types/PropertyObserver/01-an-audit-trail-of-every-change.nvs:3`, `docs/examples/novis/Spreadsheet-Chart/constructor/about.md:4`
-- [ ] `ObjectMap`, `ObjectSet` and `Spreadsheet\Style` say "equal property values" (or "the same property values") where they say "equal fields" or "the same fields". `docs/examples/core/ObjectSet/add/about.md:5`, `docs/examples/core/ObjectSet/count/about.md:5`, `docs/examples/core/ObjectSet/has/about.md:5`, `docs/examples/core/ObjectSet/intersect/about.md:4`, `docs/examples/core/ObjectSet/remove/about.md:6`, `docs/examples/core/ObjectSet/union/about.md:5`, `docs/examples/core/ObjectMap/get/about.md:6`, `docs/examples/core/ObjectMap/has/about.md:5`, `docs/examples/core/ObjectMap/remove/about.md:5`, `docs/examples/core/ObjectMap/set/about.md:5`, `docs/examples/novis/Spreadsheet-Style/constructor/about.md:5`, `docs/examples/core/ObjectSet/add/02-equal-objects-are-two-members.nvs:2`, `docs/examples/core/ObjectSet/has/02-equal-is-not-the-same-object.nvs:2`, `docs/examples/core/ObjectSet/intersect/02-nothing-in-common.nvs:18`, `docs/examples/core/ObjectMap/set/02-equal-objects-are-two-keys.nvs:2`, `docs/examples/core/ObjectMap/count/02-equal-objects-are-different-keys.nvs:20`
-- [ ] The sort examples and their `.out` say "the property to sort by" and "not a property path", re-blessed. `docs/examples/core/Reflect/steps/03-check-a-sort-field.nvs:2`, `docs/examples/lang/types/property-paths/02-a-sort-field-from-the-address.nvs:29`, `docs/examples/lang/types/property-keys/02-a-function-that-takes-a-field-name.nvs:21`
-- [ ] The file names that say field are renamed if `website/src/lib/feature.ts` shows them as titles, with their proof records. `docs/examples/types/LateInit/01-one-load-sets-every-field.nvs:1`
+- [x] The JSON, request and response readers say property. `docs/examples/core/Json/decodeAs/about.md:3`, `docs/examples/core/Json/encode/about.md:5`, `docs/examples/core/Request/jsonAs/about.md:3`, `docs/examples/core/Request/postAs/about.md:3`, `docs/examples/core/Request/queryAs/about.md:4`, `docs/examples/core/Test-Response/jsonAs/about.md:10`, `docs/examples/core/Http-Response/jsonAs/02-a-reply-that-is-not-json.nvs:4`
+- [x] The JSON codec attribute, a child's throw, `comparable`, `interfaces` (`implements I by $property`), narrowing, property keys and property paths say property. `docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md:6`, `docs/examples/lang/concurrency/a-child-s-throw/about.md:6`, `docs/examples/lang/classes/comparable/02-an-order-built-from-two-properties.nvs:2`, `docs/examples/lang/classes/interfaces/03-one-class-passes-the-work-to-another.nvs:2`, `docs/examples/lang/types/narrowing/about.md:9`, `docs/examples/lang/types/property-keys/about.md:13`, `docs/examples/lang/types/property-paths/about.md:1`
+- [x] Reflection, taint, `LateInit`, `PropertyObserver` and the spreadsheet chart say property. `docs/examples/core/Reflect-ClassInfo/hasProperty/03-check-the-properties-a-client-asked-for.nvs:15`, `docs/examples/core/Taint/assertTrustedBytes/about.md:5`, `docs/examples/types/LateInit/01-one-load-sets-every-property.nvs:2`, `docs/examples/types/PropertyObserver/01-an-audit-trail-of-every-change.nvs:3`, `docs/examples/novis/Spreadsheet-Chart/constructor/about.md:4`
+- [x] `ObjectMap`, `ObjectSet` and `Spreadsheet\Style` say "equal property values" (or "the same property values") where they say "equal fields" or "the same fields". `docs/examples/core/ObjectSet/add/about.md:5`, `docs/examples/core/ObjectSet/count/about.md:5`, `docs/examples/core/ObjectSet/has/about.md:5`, `docs/examples/core/ObjectSet/intersect/about.md:4`, `docs/examples/core/ObjectSet/remove/about.md:6`, `docs/examples/core/ObjectSet/union/about.md:5`, `docs/examples/core/ObjectMap/get/about.md:6`, `docs/examples/core/ObjectMap/has/about.md:5`, `docs/examples/core/ObjectMap/remove/about.md:5`, `docs/examples/core/ObjectMap/set/about.md:5`, `docs/examples/novis/Spreadsheet-Style/constructor/about.md:5`, `docs/examples/core/ObjectSet/add/02-equal-objects-are-two-members.nvs:2`, `docs/examples/core/ObjectSet/has/02-equal-is-not-the-same-object.nvs:2`, `docs/examples/core/ObjectSet/intersect/02-nothing-in-common.nvs:18`, `docs/examples/core/ObjectMap/set/02-equal-objects-are-two-keys.nvs:2`, `docs/examples/core/ObjectMap/count/02-equal-objects-are-different-keys.nvs:20`
+- [x] The sort examples and their `.out` say "the property to sort by" and "not a property path", re-blessed. `docs/examples/core/Reflect/steps/03-check-the-property-to-sort-by.nvs:2`, `docs/examples/lang/types/property-paths/02-the-property-to-sort-by-from-the-address.nvs:29`, `docs/examples/lang/types/property-keys/02-a-function-that-takes-a-property-name.nvs:21`
+- [x] The file names that say field are renamed if `website/src/lib/feature.ts` shows them as titles, with their proof records. `docs/examples/types/LateInit/01-one-load-sets-every-property.nvs:1`
 
 ### 3. the attacks and benchmarks say property
 
@@ -212,40 +212,35 @@ session renames them with one script under `.agent-tmp/`, deletes the script, an
 
 ### State
 
-Stage 1 is done. The two pages moved to `/in-depth/concepts/checked-property-names/` and
-`/guides/how-to-use/checked-property-paths/`, with the sidebar, `core.ts` anchors and questions.
-The unsure places were decided: `read-json-body.mdx:18` keeps "wrong field" (a key in the JSON body),
-and the other four say property. The guide's heading is *The property to sort by, from a request*.
+Stages 1 and 2 are done. Stage 2 changed about 60 files under `docs/examples/`. Their prose says
+property for a class property, and five outputs were re-blessed: the three sort examples,
+`hasProperty/03` ("unknown property:") and `PropertyObserver/01` ("properties changed").
 
-Decided on the way: a search question in `website/src/data/questions.json` is written in the words
-a visitor types. So the `Core\Reflect\PropertyInfo` pages' questions keep "field" as a search word,
-and no stage changes them.
+`website/src/lib/feature.ts:163` titles an example from its file name, so nine examples whose name
+meant a class property were renamed, with their `.out` and `.nvsr`. No proof record names an
+example file, so nothing else moved. Names that mean a form, JSON, record, date, shape or attribute
+field stay, such as `isPublic/03-list-the-fields-an-api-returns` (the JSON an API sends).
 
-The same commit pays debt from the covariant and union goals: the covariant page had an inline
-fence that `--check snippets` fails, and five syntax pages owed questions or a stamp. A changed page
-makes its questions stale, so a later stage that edits a page runs `bun nv site --check questions
-stale` and stamps it with `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <url>`.
+Decided on the way, read in context:
+- `Spreadsheet\Style` keeps "fields": its `fields` property is an anonymous object of style fields,
+  so "two styles with equal fields" is about that object.
+- `postAs`, `queryAs` and `Http-Response/jsonAs` read into "a class or a shape", so their
+  sentences mean both together and keep "field". So does `lang/types/mixed/details.md:11` (`->`
+  on any object).
+- A JSON issue ("one entry for each wrong field") names a key of the document, and stays.
 
-The nightly's proofs and render failures (run 39462919214, commit 654415619) were already fixed on
-`main`: `21e82d4e6` re-measured the stale perf records, and `bun nv render --website --check` passes. Its miri job hit the 45-minute limit while compiling. The
-supply chain failure of the `e0f330164` push is fixed by `a3b109dcb`.
-
-A whole-tree `looper verify` this session was red on three binaries that passed alone: `nvs-cli
-test live_edit`, `nvs-stdlib` lib and `nvs-stdlib test ldap` (search and add timeouts under load,
-`crates/nvs-stdlib/tests/ldap.rs:504`). They are outside this goal. `bun nv affected --run` over
-this stage's change was green.
+The nightly run 39462919214 the sweep named is the one already fixed on `main` by `21e82d4e6`.
 
 ### Next
 
-**Stage 2: the published examples**, one file set: `docs/examples/`. No gate. Every item follows
-AGENTS.md § *Text an end user reads*. Its **Split:** line says how the batches go.
+**Stage 3: the attacks and benchmarks**, one file set: `tests/hostile/` and `benches/members/`. No
+gate. Every item follows AGENTS.md § *Text an end user reads*, and a title is the file name as in
+stage 2.
 
-- [ ] The JSON, request and response readers say property. `docs/examples/core/Json/decodeAs/about.md:3`
-- [ ] The language feature examples say property. `docs/examples/lang/types/property-paths/about.md:1`
-- [ ] Reflection, taint, `LateInit`, `PropertyObserver` and the chart say property. `docs/examples/types/LateInit/01-one-load-sets-every-field.nvs:2`
-- [ ] `ObjectMap`, `ObjectSet` and `Spreadsheet\Style` say "equal property values". `docs/examples/core/ObjectSet/add/about.md:5`
-- [ ] The sort examples say "not a property path", re-blessed. `docs/examples/lang/types/property-paths/02-a-sort-field-from-the-address.nvs:29`
-- [ ] The file names that say field are renamed if the website shows them as titles. `website/src/lib/feature.ts:1`
+- [ ] The database error and property key attacks say property. `tests/hostile/lang/types/property-keys/01-request-names-that-reach-for-hidden-fields.nvs:2`
+- [ ] The error, JSON body and `Core\Program` attacks say property, and the sort attack says "the property to sort by". `tests/hostile/lang/types/property-paths/01-a-sort-field-from-a-request.nvs:2`
+- [ ] The benchmarks say property. `benches/members/lang/types/property-paths.nvs:2`
+- [ ] The attack file names that say field are renamed, with their records. `tests/hostile/lang/types/property-keys/02-a-write-that-could-reach-a-readonly-field.nvs:1`
 
 ### Backlog
 
