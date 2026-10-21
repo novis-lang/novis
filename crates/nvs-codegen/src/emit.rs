@@ -765,6 +765,16 @@ impl Emitter<'_, '_> {
                 let value = self.emit_field_is_init(*object, class, field)?;
                 self.define(inst, value)?;
             }
+            InstKind::FieldSlot { class, field } => {
+                let slot = self.classes.slot(class, field).ok_or_else(|| {
+                    CodegenError::Unsupported(format!(
+                        "the property `{class}::{field}`, which this unit declares no slot for"
+                    ))
+                })?;
+                let slot = i64::try_from(slot).map_err(|_| internal("a slot index past `i64`"))?;
+                let value = self.b.ins().iconst(types::I64, slot);
+                self.define(inst, value)?;
+            }
             InstKind::SlotGet {
                 object,
                 field,

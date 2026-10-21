@@ -1247,20 +1247,21 @@ impl<'a> Lowering<'a> {
     }
 
     /// Tests `value`, about to be written to `object`'s property `name`,
-    /// against the type the receiver's run-time class gives the property, and
-    /// throws a `LogicError` when it does not fit
+    /// which `class` declares, against the type the receiver's run-time class
+    /// gives the property, and throws a `LogicError` when it does not fit
     /// (`rule:classes/a-covariant-type-is-checked-where-a-value-enters`). The
     /// checker records which writes need it. `value` is `(value, its type,
     /// whether this frame owns it)`, and an owned one is released if the test
     /// throws.
     ///
-    /// Costs one helper call per such write. The narrower type is in the
+    /// Costs one helper call per such write, which reads the slot codegen
+    /// gives it and makes one tag or class test. The narrower type is in the
     /// receiver's class descriptor, so the test does not depend on which
     /// subclass narrows the property.
     pub(crate) fn emit_covariant_property_check(
         &mut self,
         object: ValueId,
-        name: &str,
+        (class, name): (&str, &str),
         (value, ty, owned): (ValueId, Ty, bool),
         env: &mut Env,
         cur: &mut BlockId,
@@ -1270,13 +1271,20 @@ impl<'a> Lowering<'a> {
             self.own_temporary(value);
         }
         let tagged = self.coerce(*cur, value, ty, Ty::Tagged, env);
-        let (name, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(name.to_owned()));
+        let (slot, _) = self.emit(
+            *cur,
+            Ty::Int,
+            InstKind::FieldSlot {
+                class: class.to_owned(),
+                field: name.to_owned(),
+            },
+        );
         self.emit_fallible(
             *cur,
             Ty::Tagged,
             InstKind::HelperCall {
                 helper: Helper::CovariantPropertyChecked,
-                args: vec![object, name, tagged],
+                args: vec![object, slot, tagged],
             },
             env,
         );
@@ -1548,7 +1556,7 @@ impl<'a> Lowering<'a> {
                     if self.exprs.is_covariant_write(target.span) {
                         self.emit_covariant_property_check(
                             object_v,
-                            &field_name,
+                            (&class_label, &field_name),
                             (v, field_ty, !aliasing),
                             env,
                             cur,
@@ -1674,7 +1682,7 @@ impl<'a> Lowering<'a> {
                     if self.exprs.is_covariant_write(target.span) {
                         self.emit_covariant_property_check(
                             object_v,
-                            &field_name,
+                            (&class_label, &field_name),
                             (v, field_ty, !aliasing),
                             env,
                             cur,

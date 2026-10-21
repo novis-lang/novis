@@ -1622,7 +1622,7 @@ fn promoted_stores(
         // frame's own, so the test is handed it as not fresh.
         if low.exprs.is_covariant_write(p.name) {
             let mut at = entry;
-            low.emit_covariant_property_check(this, &field, (v, ty, false), env, &mut at);
+            low.emit_covariant_property_check(this, (class, &field), (v, ty, false), env, &mut at);
         }
         if ty.is_refcounted() {
             low.emit_retain(entry, v);
