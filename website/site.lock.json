@@ -167,7 +167,7 @@
     "TimeoutError": "4c638020de9e7f10"
   },
   "syntax/errors/limits.mdx": {
-    "lang:errors/capability-denials-are-catchable": "9f61bbd574d7ca90",
+    "lang:errors/capability-denials-are-catchable": "6bc7aefe1ab9d0e3",
     "lang:errors/fatal-errors-limits-no-catch-sees": "330a110d0295b275",
     "lang:errors/recursion-depth": "da4039577910015b"
   },

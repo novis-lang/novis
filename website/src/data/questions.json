@@ -755,7 +755,7 @@
   },
   "/in-depth/compare/": {
     "feature": "in-depth/compare.mdx",
-    "hash": "e1f2896848a66185",
+    "hash": "427418c62e9b35d0",
     "questions": [
       "How do Novis, PHP, Bun and Go compare in requests per second and memory?",
       "Can one request split its work over several CPU cores?",
@@ -1505,7 +1505,7 @@
   },
   "/reference/config/network-grants-the-addresses-and-endpoints-they-reach/": {
     "feature": "tools:config/network-grants-the-addresses-and-endpoints-they-reach",
-    "hash": "e37d531b2ebcd370",
+    "hash": "8a368d72906cb793",
     "questions": [
       "Which hosts may my program connect to?",
       "Why is my connection to a private IP address blocked?",
@@ -2829,7 +2829,7 @@
   },
   "/reference/core/cache/shared/": {
     "feature": "Core\\Cache::shared",
-    "hash": "d702005f97a64631",
+    "hash": "7ce7d23afbd9e483",
     "questions": [
       "How do I use a cache on the network?",
       "Share a cache between several server machines",
@@ -5093,7 +5093,7 @@
   },
   "/reference/core/http/allowurl/": {
     "feature": "Core\\Http::allowUrl",
-    "hash": "e1e88966bf39d88a",
+    "hash": "a3a752207d2c0a4f",
     "questions": [
       "Send a request to a URL the user gave",
       "How do I protect against server-side request forgery?",
@@ -5135,7 +5135,7 @@
   },
   "/reference/core/http-client/delete/": {
     "feature": "Core\\Http\\Client::delete",
-    "hash": "e4b499f4444f26ad",
+    "hash": "e75b61e047abee2d",
     "questions": [
       "How do I send a DELETE request?",
       "Remove a record through a REST API",
@@ -5145,7 +5145,7 @@
   },
   "/reference/core/http-client/get/": {
     "feature": "Core\\Http\\Client::get",
-    "hash": "9fdbca4a1e64cf2e",
+    "hash": "1bf49a9cdb8fb260",
     "questions": [
       "How do I fetch a URL?",
       "Download data from an API",
@@ -5157,7 +5157,7 @@
   },
   "/reference/core/http-client/head/": {
     "feature": "Core\\Http\\Client::head",
-    "hash": "d8c7b2529cf7bb82",
+    "hash": "3b2b4b10e51e0d4c",
     "questions": [
       "Check if a URL exists without downloading it",
       "How do I get the size of a remote file?",
@@ -5168,7 +5168,7 @@
   },
   "/reference/core/http-client/opensocket/": {
     "feature": "Core\\Http\\Client::openSocket",
-    "hash": "c72670691debc2cf",
+    "hash": "179211f50c97b6ab",
     "questions": [
       "How do I connect to a WebSocket server?",
       "Receive live messages from another server",
@@ -5178,7 +5178,7 @@
   },
   "/reference/core/http-client/patch/": {
     "feature": "Core\\Http\\Client::patch",
-    "hash": "3668c490763b8886",
+    "hash": "b9be63034c9ecd6b",
     "questions": [
       "How do I update only some fields of a record?",
       "Send a PATCH request with JSON",
@@ -5188,7 +5188,7 @@
   },
   "/reference/core/http-client/post/": {
     "feature": "Core\\Http\\Client::post",
-    "hash": "360beca817d14bd0",
+    "hash": "502b221597c1d92d",
     "questions": [
       "How do I send JSON to an API?",
       "Submit form data to another server",
@@ -5199,7 +5199,7 @@
   },
   "/reference/core/http-client/put/": {
     "feature": "Core\\Http\\Client::put",
-    "hash": "f63aa18667c3f794",
+    "hash": "ba8c028dc88f52ad",
     "questions": [
       "How do I replace a whole record with an API call?",
       "Send a PUT request",
@@ -5209,7 +5209,7 @@
   },
   "/reference/core/http-client/request/": {
     "feature": "Core\\Http\\Client::request",
-    "hash": "63f529bafbc076eb",
+    "hash": "3562c319612379c9",
     "questions": [
       "Send a request with a method chosen at runtime",
       "How do I send an OPTIONS request?",
@@ -5220,7 +5220,7 @@
   },
   "/reference/core/http-client/stream/": {
     "feature": "Core\\Http\\Client::stream",
-    "hash": "6951e7a00147f00e",
+    "hash": "106a8fc1058bef16",
     "questions": [
       "Read a large response while it is still downloading",
       "How do I receive server-sent events?",
@@ -5328,7 +5328,7 @@
   },
   "/reference/core/http-part/bytes/": {
     "feature": "Core\\Http\\Part::bytes",
-    "hash": "8240ea526fb39736",
+    "hash": "8ac91c12ff4eb974",
     "questions": [
       "How do I upload data I already have in memory?",
       "Send a string as a file in a form upload",
@@ -5339,7 +5339,7 @@
   },
   "/reference/core/http-part/file/": {
     "feature": "Core\\Http\\Part::file",
-    "hash": "92217d3e19177620",
+    "hash": "f6cb4a6d5ea954d3",
     "questions": [
       "How do I upload a file from disk?",
       "Send a large file as the request body",
@@ -6371,7 +6371,7 @@
   },
   "/reference/core/ldap/connect/": {
     "feature": "Core\\Ldap::connect",
-    "hash": "34e991636292a02a",
+    "hash": "67199e6ee9f43a3f",
     "questions": [
       "How do I open the LDAP server from the configuration?",
       "Connect to a directory without a password in the code",
@@ -6381,7 +6381,7 @@
   },
   "/reference/core/ldap/open/": {
     "feature": "Core\\Ldap::open",
-    "hash": "6d4d50ae4ff30b8e",
+    "hash": "6e9b2797a900f6f0",
     "questions": [
       "How do I connect to an LDAP server at a given URL?",
       "Connect to a directory that each customer sets up",
@@ -8040,7 +8040,7 @@
   },
   "/reference/core/net/binddatagram/": {
     "feature": "Core\\Net::bindDatagram",
-    "hash": "0229f18faaef3da0",
+    "hash": "8117a0da63192a93",
     "questions": [
       "How do I open a UDP socket?",
       "Receive UDP messages on a port",
@@ -8051,7 +8051,7 @@
   },
   "/reference/core/net/connect/": {
     "feature": "Core\\Net::connect",
-    "hash": "5edd68711d592fa1",
+    "hash": "6424fb168d58cf50",
     "questions": [
       "How do I connect to a TCP server?",
       "Open a socket to a host and port",
@@ -8062,7 +8062,7 @@
   },
   "/reference/core/net/connectlocal/": {
     "feature": "Core\\Net::connectLocal",
-    "hash": "507f82cac057f7fa",
+    "hash": "e43cd6601459f55f",
     "questions": [
       "How do I connect to a Unix socket file?",
       "Connect to a local database through a socket path",
@@ -8073,7 +8073,7 @@
   },
   "/reference/core/net/listen/": {
     "feature": "Core\\Net::listen",
-    "hash": "1dfd17c8c813a96e",
+    "hash": "347bf894c44e8c4e",
     "questions": [
       "How do I start a TCP server?",
       "Wait for clients on a port",
@@ -8084,7 +8084,7 @@
   },
   "/reference/core/net/listenlocal/": {
     "feature": "Core\\Net::listenLocal",
-    "hash": "6dfe0d84f3c3088d",
+    "hash": "9ab609a5ef14f023",
     "questions": [
       "How do I create a Unix socket server?",
       "Listen on a socket file instead of a port",
@@ -8137,7 +8137,7 @@
   },
   "/reference/core/net-datagram/send/": {
     "feature": "Core\\Net\\Datagram::send",
-    "hash": "6c9d4e493de1cc64",
+    "hash": "159503bee2702b9d",
     "questions": [
       "How do I send one UDP message to a host?",
       "Does UDP check that my message arrived?",
@@ -9910,7 +9910,7 @@
   },
   "/reference/core/novis-spreadsheet-template/open/": {
     "feature": "Novis\\Spreadsheet\\Template::open",
-    "hash": "ccd5e3eaf836555f",
+    "hash": "0e275369e36aa910",
     "questions": [
       "Open an xlsx template",
       "Fill the same template for each customer",
@@ -11014,7 +11014,7 @@
   },
   "/reference/core/ratelimit/consume/": {
     "feature": "Core\\RateLimit::consume",
-    "hash": "bd368d05b8373653",
+    "hash": "e475424aefff40c1",
     "questions": [
       "How do I limit login attempts to 5 per 15 minutes?",
       "Enforce an API quota across all servers",
