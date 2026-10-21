@@ -1395,13 +1395,22 @@ hostname is safe to send credentials to, since a malicious server can answer any
 accept `tainted` freely, being length-prefixed protocol fields rather than parsed text, and `password`
 is `secret tainted string`.
 
-A SQLite file named in a configuration block is covered by `db.connect`; a path a program supplies
-through `open` additionally needs `fs.read` and `fs.write`, and is a path sink. An ungranted name
-throws naming the capability. What the split buys is that the set of databases a deployment can
-reach is enumerable from its configuration; what it costs is that code building a connection target
-at run time does not run until the operator adds a `db.open` grant.
+A SQLite file named in a configuration block is covered by `db.connect`. A path a program supplies
+through `open` asks the file rule alone, with its default for the run
+([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)), and never `db.open`: `fs.read`
+is required, and where `fs.write` is not granted the file opens with SQLite's read-only flag, so a
+write throws SQLite's read-only error. A CLI run therefore opens any file read-write, and server work
+opens a file in its app folder read-only. A read-only and a read-write open of one file are two pool
+keys. `:memory:` and the empty path are private to their connection and ask nothing. A `file:` URI
+can name any file and mode, so it asks `db.open`, `fs.read` and `fs.write`. The path is a path sink.
+An ungranted name throws naming the capability. What the split buys is that the set of network
+databases a deployment can reach is enumerable from its configuration; what it costs is that code
+building a network connection target at run time does not run until the operator adds a `db.open`
+grant.
 
 **Declined:**
+- **A `db.open` grant for a SQLite file.** A file is what `fs.read` and `fs.write` already govern,
+  and a second grant for the same path is a second answer to one question.
 - **A host pattern under `db.connect` or `net.connect`.** `db.connect` names configuration blocks, not
   hosts, and a pattern under `net.connect` would widen the reachable set to every name an attacker
   can get into that zone's DNS, which is what the pinned address of
@@ -1421,12 +1430,23 @@ value.
 **`LOCAL INFILE` is off**, with no option to enable it — a server that asks the client to send it a
 file gets nothing. **TLS defaults to `VerifyFull`** on a TCP connection, never
 `sslmode=prefer`, which silently connects in plaintext when the server says so, and a settings
-object naming a weaker mode does not compile. **The connection charset is forced to UTF-8**
+object naming a weaker mode does not compile. **The one exception is a loopback address**
+(`127.0.0.0/8`, `::1`) on PostgreSQL, MySQL and MariaDB: a server there that offers no TLS is used
+in the clear, because those bytes never leave the machine, as a Unix-domain socket's do not. A
+loopback server that offers TLS is still upgraded and verified. The loopback address still passes
+the address table and `net.internal` ([`security/net-address-policy`](security.md#security-net-address-policy)), unless an operator's
+`[db.<name>]` block wrote it. SQL Server is unchanged. **The connection charset is forced to UTF-8**
 (`utf8mb4` on MySQL and MariaDB), so text columns arrive as valid UTF-8 and
 [`types/string-is-utf8`](types.md#types-string-is-utf8)'s guarantee holds by construction rather than by hope.
 
 The cost is one connection option a deployment cannot turn down, which is the point: an unsafe
 default that can be restored is an unsafe default a misconfigured deployment still has.
+
+**Declined:**
+- **A setting that turns TLS off for a non-loopback address**, such as a database on a private
+  container network. The traffic crosses a network, and the address table already bounds which
+  addresses a program reaches; a plaintext exception there is `sslmode=prefer` with an operator's
+  signature.
 
 <sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`types/bytes`](types.md#types-bytes).</sub>
 

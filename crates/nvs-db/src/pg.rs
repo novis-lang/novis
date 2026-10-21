@@ -14,10 +14,13 @@
 //!
 //! 1. **The upgrade.** [`request_tls`] writes § 3's `SSLRequest` — eight bytes,
 //!    and the only plaintext this connection will ever carry — and reads the
-//!    one-byte answer. `S` continues; **`N` is refused**, because `rule:core-classes/db-safe-connection-defaults` makes `VerifyFull` the default
-//!    with no spelling for turning it off, and PHP's `sslmode=prefer`
-//!    silently connecting in the clear when the server says so is the exact
-//!    behaviour that rule exists to remove.
+//!    one-byte answer. `S` continues; **`N` is refused** on every address but
+//!    loopback, because `rule:core-classes/db-safe-connection-defaults` makes
+//!    `VerifyFull` the default with no spelling for turning it off, and PHP's
+//!    `sslmode=prefer` silently connecting in the clear when the server says
+//!    so is the exact behaviour that rule exists to remove. On a loopback
+//!    address `N` continues in the clear, because those bytes never leave the
+//!    machine.
 //! 2. **The handshake**, `NvsTls::over` on the same `NvsTcp`. One TLS client in
 //!    this tree, one answer to whose certificates it believes (`rule:security/one-tls-client`).
 //! 3. **SASL**, and only SASL. A server that asks for a cleartext or an MD5
@@ -389,6 +392,10 @@ pub(crate) struct Peer {
 pub enum PgStream {
     /// A server that named a host, reached over TCP and upgraded in band.
     Tls(NvsTls<NvsTcp>),
+    /// A server on a loopback address that answered the upgrade with `N`. The
+    /// bytes never leave the machine, so this connection carries the protocol
+    /// in the clear (`rule:core-classes/db-safe-connection-defaults`).
+    Loopback(NvsTcp),
     /// A server that named a directory, reached over the socket file
     /// [`socket_endpoint`] derived from it.
     #[cfg(unix)]
@@ -400,6 +407,7 @@ impl Read for PgStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self {
             Self::Tls(stream) => stream.read(buf),
+            Self::Loopback(stream) => stream.read(buf),
             #[cfg(unix)]
             Self::Local(stream) => stream.read(buf),
         }
@@ -411,6 +419,7 @@ impl Write for PgStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self {
             Self::Tls(stream) => stream.write(buf),
+            Self::Loopback(stream) => stream.write(buf),
             #[cfg(unix)]
             Self::Local(stream) => stream.write(buf),
         }
@@ -420,6 +429,7 @@ impl Write for PgStream {
     fn flush(&mut self) -> io::Result<()> {
         match self {
             Self::Tls(stream) => stream.flush(),
+            Self::Loopback(stream) => stream.flush(),
             #[cfg(unix)]
             Self::Local(stream) => stream.flush(),
         }
@@ -433,6 +443,7 @@ impl std::fmt::Debug for PgStream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Tls(_) => f.write_str("PgStream::Tls"),
+            Self::Loopback(_) => f.write_str("PgStream::Loopback"),
             #[cfg(unix)]
             Self::Local(_) => f.write_str("PgStream::Local"),
         }
@@ -444,6 +455,7 @@ impl nvs_host::net::Deadline for PgStream {
     fn set_deadline(&mut self, at: Option<Instant>) {
         match self {
             Self::Tls(stream) => stream.set_deadline(at),
+            Self::Loopback(stream) => stream.set_deadline(at),
             #[cfg(unix)]
             Self::Local(stream) => stream.set_deadline(at),
         }
@@ -452,6 +464,7 @@ impl nvs_host::net::Deadline for PgStream {
     fn deadline(&self) -> Option<Instant> {
         match self {
             Self::Tls(stream) => stream.deadline(),
+            Self::Loopback(stream) => stream.deadline(),
             #[cfg(unix)]
             Self::Local(stream) => stream.deadline(),
         }
@@ -1026,7 +1039,10 @@ fn open_stream(peer: &Peer, deadline: Option<Instant>) -> io::Result<PgStream> {
             };
             tcp.set_deadline(deadline);
 
-            request_tls(&mut tcp)?;
+            let loopback = addr.ip().to_canonical().is_loopback();
+            if !request_tls(&mut tcp, loopback)? {
+                return Ok(PgStream::Loopback(tcp));
+            }
             Ok(PgStream::Tls(match &peer.tls_ca_file {
                 Some(bundle) => NvsTls::over_bundle(tcp, &peer.host, bundle)?,
                 None => NvsTls::over(tcp, &peer.host)?,
@@ -1101,16 +1117,22 @@ fn say_goodbye<S: Read + Write>(wire: &mut Wire<S>) {
 
 /// Asks for § 3's in-band upgrade and reads the one-byte answer.
 ///
-/// Writes `SSLRequest` and returns once the server has agreed. The caller
+/// Writes `SSLRequest` and gives `true` once the server has agreed. The caller
 /// wraps the same stream in TLS immediately: every byte after this one is a
 /// record, which is why nothing else may be written in between.
 ///
+/// It gives `false` for `N` when `loopback` is set: the server has no TLS and
+/// the address is a loopback address, so the connection stays in the clear
+/// (`rule:core-classes/db-safe-connection-defaults`). A server that offers TLS
+/// on a loopback address is still upgraded and verified.
+///
 /// # Errors
 ///
-/// `ConnectionRefused` when the server answers `N` (no TLS configured) or `E`
-/// (it is old enough not to understand the request), `InvalidData` for any
-/// other byte, and `UnexpectedEof` when it answers nothing at all.
-fn request_tls<S: Read + Write>(stream: &mut S) -> io::Result<()> {
+/// `ConnectionRefused` when the server answers `N` (no TLS configured) on any
+/// other address, or `E` (it is old enough not to understand the request),
+/// `InvalidData` for any other byte, and `UnexpectedEof` when it answers
+/// nothing at all.
+fn request_tls<S: Read + Write>(stream: &mut S, loopback: bool) -> io::Result<bool> {
     let mut out = BytesMut::new();
     frontend::ssl_request(&mut out);
     // Written straight to the socket rather than through a `Wire`: this runs
@@ -1121,11 +1143,12 @@ fn request_tls<S: Read + Write>(stream: &mut S) -> io::Result<()> {
     let mut answer = [0u8; 1];
     stream.read_exact(&mut answer)?;
     match answer[0] {
-        b'S' => Ok(()),
+        b'S' => Ok(true),
+        b'N' if loopback => Ok(false),
         b'N' => Err(io::Error::new(
             io::ErrorKind::ConnectionRefused,
-            "the server offers no TLS, and `rule:core-classes/db-capabilities`'s VerifyFull has no spelling for connecting \
-             without it: configure `ssl = on` on the server",
+            "the server offers no TLS, and a connection to an address that is not loopback \
+             needs it: configure `ssl = on` on the server",
         )),
         b'E' => Err(io::Error::new(
             io::ErrorKind::ConnectionRefused,
@@ -4405,18 +4428,22 @@ mod tests {
     /// carries and a wrong request code reads as a plain startup message.
     #[test]
     fn an_ssl_request_is_the_first_thing_on_the_wire_and_s_is_the_yes() {
-        let mut peer = Peer::new(|_: &[u8]| b"S".to_vec());
-        request_tls(&mut peer).expect("S is the server agreeing");
-        assert_eq!(peer.sent, vec![vec![0, 0, 0, 8, 0x04, 0xd2, 0x16, 0x2f]]);
+        for loopback in [false, true] {
+            let mut peer = Peer::new(|_: &[u8]| b"S".to_vec());
+            assert!(request_tls(&mut peer, loopback).expect("S is the server agreeing"));
+            assert_eq!(peer.sent, vec![vec![0, 0, 0, 8, 0x04, 0xd2, 0x16, 0x2f]]);
+        }
     }
 
-    /// The refusal `rule:core-classes/db-capabilities` is written for: a server with no TLS is not
-    /// silently used in the clear, which is what `sslmode=prefer` does.
+    /// The refusal `rule:core-classes/db-safe-connection-defaults` is written for: a server with
+    /// no TLS on an address that is not loopback is not silently used in the clear, which is what
+    /// `sslmode=prefer` does.
     #[test]
     fn a_server_that_offers_no_tls_is_refused_rather_than_used_in_the_clear() {
         for answer in [&b"N"[..], &b"E"[..]] {
             let mut peer = Peer::new(move |_: &[u8]| answer.to_vec());
-            let refused = request_tls(&mut peer).expect_err("a plaintext connection was accepted");
+            let refused =
+                request_tls(&mut peer, false).expect_err("a plaintext connection was accepted");
             assert_eq!(refused.kind(), io::ErrorKind::ConnectionRefused);
         }
 
@@ -4424,10 +4451,26 @@ mod tests {
         // silent fallthrough to either branch.
         let mut peer = Peer::new(|_: &[u8]| b"?".to_vec());
         assert_eq!(
-            request_tls(&mut peer)
+            request_tls(&mut peer, true)
                 .expect_err("garbage was accepted")
                 .kind(),
             io::ErrorKind::InvalidData
+        );
+    }
+
+    /// A server with no TLS on a loopback address is used in the clear, because the bytes never
+    /// leave the machine (`rule:core-classes/db-safe-connection-defaults`). A server too old to
+    /// understand the request is still refused there.
+    #[test]
+    fn a_loopback_server_with_no_tls_is_used_in_the_clear() {
+        let mut peer = Peer::new(|_: &[u8]| b"N".to_vec());
+        assert!(!request_tls(&mut peer, true).expect("loopback continues without TLS"));
+        let mut peer = Peer::new(|_: &[u8]| b"E".to_vec());
+        assert_eq!(
+            request_tls(&mut peer, true)
+                .expect_err("an old server is refused")
+                .kind(),
+            io::ErrorKind::ConnectionRefused
         );
     }
 
