@@ -4,7 +4,7 @@ reads `package.toml`.
 
 **Every package and registry command a user types is a subcommand of `nvs pkg`**: `add`, `fetch`,
 `update`, `outdated`, `vendor`, `audit`, `publish`, `retract`, `unlist`, `login`, `whoami`, `api`,
-`diff` and `pack`. That is the one spelling, short as `nvs ext` is
+`diff`, `pack`, `download` and `provide`. That is the one spelling, short as `nvs ext` is
 (`rule:packaging/the-cli-surface-is-novis-own`): there is no `nvs package` alias and no flat `nvs add`
 or `nvs update`, so a package verb never collides with a toolchain command such as `nvs update-check`.
 The files keep their full names, `package.toml` and `package.lock`. The registry service's own byte work is `nvs registry`

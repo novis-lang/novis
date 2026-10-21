@@ -11,7 +11,12 @@ and the registry builds the archive itself from that commit
   from one already taken (`rule:packaging/a-package-name-is-vendor-slash-name`);
 - the archive holds an `nvs.toml` (`rule:packaging/a-package-cannot-reach-its-host`);
 - the manifest names a git dependency (`rule:packaging/a-git-dependency-is-root-only`);
-- the repository is over the size limit;
+- the clone is over its size limit (`rule:packaging/the-registry-builds-the-archive-from-git`);
+- the archive breaks `rule:packaging/a-package-carries-only-its-source-and-what-it-lists`: it is over
+  16 MiB or 5,000 files, has no license file, has a path another platform cannot hold, or `files`
+  names a missing file, a `.nvs` file or one the archive already carries;
+- a `[[download]]` entry is malformed
+  (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`);
 - a minor or patch breaks the API of the release before it
   (`rule:packaging/only-a-major-may-break-the-api`);
 - the version was published before, under any circumstance;

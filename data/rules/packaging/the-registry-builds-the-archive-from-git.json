@@ -3,6 +3,7 @@
   "status": "designed",
   "seeAlso": [
     "packaging/a-package-is-its-digest",
+    "packaging/a-package-carries-only-its-source-and-what-it-lists",
     "packaging/publishing-never-overwrites",
     "packaging/the-registry-is-a-novis-program",
     "packaging/a-git-dependency-is-root-only"

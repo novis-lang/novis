@@ -158,7 +158,11 @@ table, packs the directory with `nvs pkg pack`'s code, and digests it. The repos
 publish, and changing it needs a passkey.
 
 **A publish is refused** when a file's namespace is outside the package's name, when the archive holds
-an `nvs.toml`, when the manifest names a git dependency, when the repository is over the size limit,
+an `nvs.toml`, when the manifest names a git dependency, when the clone is over 512 MiB, when the
+archive breaks `rule:packaging/a-package-carries-only-its-source-and-what-it-lists` (over 16 MiB or
+5,000 files, no license file, a path another platform cannot hold, or a `files` entry that is missing,
+a `.nvs` file or already carried), when a `[[download]]` entry is malformed
+(`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`; the registry never downloads one),
 when a minor or patch breaks the previous release's API (`nvs pkg diff` from goal `api-compat`),
 when the version was published before, when the account is not active, and when the account has no
 verified notification channel.
@@ -306,8 +310,8 @@ line each with its anchor. After the session lands `build.rs`, a writing subagen
 loopback git server and the tests.
 
 - [ ] `nvs registry build`: clone, pack, digest, the namespace and manifest checks, and the API diff against the previous release, as JSON for the service, with `--ca-file` (`rule:packaging/the-registry-builds-the-archive-from-git`). `crates/nvs-cli/src/package/build.rs:1`, `crates/nvs-cli/src/main.rs:373`
-- [ ] `nvs pkg publish`, with `--dry-run` running the same packing locally to print the digest. `crates/nvs-cli/src/package/publish.rs:1`
-- [ ] Tests against the HTTPS loopback server: the JSON a build prints, the dry-run digest equal to the build's, an `http:` URL refused, a repository over the size limit refused, and a namespace outside the name refused. `crates/nvs-cli/tests/registry_build.rs:1`
+- [ ] `nvs pkg publish`, with `--dry-run` running the same packing locally to print every file, its size, the total and the digest, and both downloading every `[[download]]` entry and refusing one whose bytes do not match. `crates/nvs-cli/src/package/publish.rs:1`
+- [ ] Tests against the HTTPS loopback server: the JSON a build prints, the dry-run digest equal to the build's, an `http:` URL refused, a clone over 512 MiB refused, an archive over its limits refused, a malformed `[[download]]` entry refused, a clone that fetches the commit and none of its history, and a namespace outside the name refused. `crates/nvs-cli/tests/registry_build.rs:1`
 
 ### 7. the service's publish refuses what the rules refuse, and the release lands in the static index
 

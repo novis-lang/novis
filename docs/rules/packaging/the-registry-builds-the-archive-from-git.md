@@ -4,9 +4,12 @@ a commit, a version and the package's directory within the repository, and uploa
 - **The directory** defaults to the repository root, and `nvs pkg publish` may name a subdirectory, so
   one repository can hold several packages.
 - **The clone** is `nvs registry build`, which fetches that commit over HTTPS from any git host through
-  `gix`, inside a size and a time limit. Its host's address is checked against the outbound address
-  table, so an internal host is refused.
-- **The archive** is an uncompressed `ustar` tar of the directory's regular files, sorted by path bytes,
+  `gix`, inside a time limit and a 512 MiB size limit. It fetches that commit alone, with no history,
+  so a repository's past never counts against a package. Its host's address is checked against the
+  outbound address table, so an internal host is refused. The clone is larger than the archive limit
+  because one repository may hold several packages and the files around them.
+- **The archive** is an uncompressed `ustar` tar of the files
+  `rule:packaging/a-package-carries-only-its-source-and-what-it-lists` names, sorted by path bytes,
   with every time, owner and mode field fixed and no link or special file. Its BLAKE3 digest is the
   package's identity (`rule:packaging/a-package-is-its-digest`). A transport may compress it.
 - **The repository URL is bound at the package's first publish.** Changing it needs a passkey, is a log

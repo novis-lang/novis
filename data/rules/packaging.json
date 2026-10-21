@@ -48,6 +48,8 @@
     "packaging/an-owner-is-notified-without-email",
     "packaging/a-publish-token-is-scoped-and-expires",
     "packaging/the-registry-builds-the-archive-from-git",
+    "packaging/a-package-carries-only-its-source-and-what-it-lists",
+    "packaging/an-external-file-is-pinned-by-url-sha256-and-size",
     "packaging/publishing-never-overwrites",
     "packaging/a-release-waits-seven-days-unless-an-owner-confirms",
     "packaging/the-registry-keeps-an-append-only-log",
