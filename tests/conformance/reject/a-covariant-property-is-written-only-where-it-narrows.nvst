@@ -45,6 +45,7 @@ class Stray {
     public covariant Dog $pet;
     public function constructor() { $this->pet = new Dog(); }
 }
+// covers: lang:classes/covariant
 --EXPECTF-ERROR--
 error[E0882]: `covariant` has no effect here, because `$pet` is not narrower than in `Home`
 %A

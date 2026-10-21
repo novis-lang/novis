@@ -127,6 +127,7 @@ $d->pet = new Dog();
 Home $plain = new Home(new Cat());
 $plain->pet = new Animal();
 echo $plain->pet is Cat ? "a cat" : "an animal", "\n";
+// covers: lang:classes/covariant
 --EXPECT--
 a puppy
 a puppy

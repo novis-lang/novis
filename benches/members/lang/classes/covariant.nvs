@@ -1,0 +1,41 @@
+<?nvs
+// Calls a method with a `covariant` parameter through a variable typed at the
+// parent class, so each call tests the argument first. A program meets this
+// where a subclass takes only its own kind of value.
+// bench: iterations 4096
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+
+class Step {}
+
+final class Doubling extends Step {
+    public function constructor(public int $factor) {}
+}
+
+abstract class Machine {
+    public abstract function apply(Step $step, int $n): int;
+}
+
+final class Doubler extends Machine {
+    public function apply(covariant Doubling $step, int $n): int {
+        return $n * $step->factor;
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        Machine $machine = new Doubler();
+        Step $step = new Doubling(2);
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round starts from what the last one returned.
+            $acc = ($machine->apply($step, $acc) + 1) % 1000003;
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(4096), "\n";

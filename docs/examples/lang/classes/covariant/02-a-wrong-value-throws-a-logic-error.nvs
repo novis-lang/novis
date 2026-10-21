@@ -1,0 +1,28 @@
+<?nvs
+// Shows the `LogicError` a `covariant` parameter throws when the value has the wrong type.
+
+class Animal {}
+class Dog extends Animal {}
+class Cat extends Animal {}
+
+class Shelter {
+    public function admit(Animal $a): string {
+        return "admitted";
+    }
+}
+
+class DogShelter extends Shelter {
+    public function admit(covariant Dog $a): string {
+        return "a dog is admitted";
+    }
+}
+
+Shelter $shelter = new DogShelter();
+
+// The parent type takes any `Animal`, so this call compiles.
+// `DogShelter::admit` takes only a `Dog`, so the call throws before the body runs.
+try {
+    echo $shelter->admit(new Cat()), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

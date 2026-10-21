@@ -1,0 +1,155 @@
+<?nvs
+// Attack: a program tries to put a `Cat` where a subclass takes only a `Dog`.
+// It uses every path the parent type allows. Each attempt should throw a `LogicError`.
+// covers: lang:classes/covariant
+
+class Animal
+{}
+class Dog extends Animal
+{
+    public function bark(): string
+    {
+        return 'woof';
+    }
+}
+class Cat extends Animal
+{}
+
+interface Feeds
+{
+    public function give(Animal $a): string;
+}
+
+class Kennel implements Feeds
+{
+    public function give(Animal $a): string
+    {
+        return 'kennel';
+    }
+
+    public function swap(inout Animal $a): void
+    {}
+
+    public function all(Animal ...$all): uint
+    {
+        return Core\Arr::count($all);
+    }
+}
+
+class DogKennel extends Kennel
+{
+    // Each body calls `bark`, which only a `Dog` has.
+    public function give(covariant Dog $a): string
+    {
+        return $a->bark();
+    }
+
+    public function swap(inout covariant Dog $a): void
+    {
+        echo 'BAD, the body ran with ', $a::class, "\n";
+        $a = new Dog();
+    }
+
+    public function all(covariant Dog ...$all): uint
+    {
+        foreach ($all as Dog $d) {
+            $d->bark();
+        }
+        return Core\Arr::count($all);
+    }
+}
+
+class Owner
+{
+    public function constructor(public Animal $pet)
+    {}
+}
+
+class DogOwner extends Owner
+{
+    public covariant Dog $pet;
+
+    // This constructor takes any `Animal` and passes it to the parent.
+    public function constructor(Animal $pet)
+    {
+        parent::constructor($pet);
+    }
+}
+
+Kennel $k = new DogKennel();
+
+// 1. A call through the parent class. It is caught, so the next step runs.
+try {
+    string $got = $k->give(new Cat());
+    echo '1: BAD, returned ', $got, "\n";
+} catch (LogicError $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. A call through the interface.
+Feeds $f = $k;
+try {
+    string $viaInterface = $f->give(new Cat());
+    echo '2: BAD, returned ', $viaInterface, "\n";
+} catch (LogicError $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. A call through a callable of the method.
+callable $give = $k->give(...);
+try {
+    mixed $viaCallable = $give(new Cat());
+    echo "3: BAD, the call returned\n";
+} catch (LogicError $e) {
+    echo '3: caught ', $e->message, "\n";
+}
+
+// 4. An `inout` argument. The variable should still be a `Cat` afterwards.
+Animal $pet = new Cat();
+try {
+    $k->swap(inout $pet);
+    echo "4: BAD, the call returned\n";
+} catch (LogicError $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+echo '4: the variable is a ', $pet::class, "\n";
+
+// 5. A variadic argument with one `Cat` among many dogs.
+try {
+    uint $counted = $k->all(new Dog(), new Dog(), new Cat(), new Dog());
+    echo '5: BAD, counted ', $counted, "\n";
+} catch (LogicError $e) {
+    echo '5: caught ', $e->message, "\n";
+}
+
+// 6. A property write through `mixed`, which the compiler cannot check.
+Owner $owner = new DogOwner(new Dog());
+mixed $any = $owner;
+try {
+    $any->pet = new Cat();
+    echo "6: BAD, the write worked\n";
+} catch (LogicError $e) {
+    echo '6: caught ', $e->message, "\n";
+}
+echo '6: the pet is a ', $owner->pet::class, "\n";
+
+// 7. The parent's constructor stores a `Cat` into the property.
+try {
+    Owner $bad = new DogOwner(new Cat());
+    echo '7: BAD, made an owner with a ', $bad->pet::class, "\n";
+} catch (LogicError $e) {
+    echo '7: caught ', $e->message, "\n";
+}
+
+// 8. Two hundred thousand wrong calls, each one caught.
+int $caught = 0;
+int $i = 0;
+while ($i < 200000) {
+    try {
+        $k->give(new Cat());
+    } catch (LogicError $e) {
+        $caught = $caught + 1;
+    }
+    $i = $i + 1;
+}
+echo '8: caught ', $caught, " of 200000\n";

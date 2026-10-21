@@ -1,0 +1,2 @@
+true
+The parameter `$other` of `Price::compareTo` has the type `Price`. The argument is an object of class `Amount`.

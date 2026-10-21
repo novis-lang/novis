@@ -133,6 +133,7 @@ try {
 } catch (LogicError $e) {
     echo "8: ", $e->message, "\n";
 }
+// covers: lang:classes/covariant
 --EXPECT--
 1: The property `$pet` of `DogHome` has the type `Dog`. The value is an object of class `Cat`.
 2: The property `$pet` of `DogHome` has the type `Dog`. The value is an object of class `Cat`.

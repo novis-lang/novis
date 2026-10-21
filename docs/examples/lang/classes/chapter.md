@@ -10,6 +10,7 @@ keywords: class, constructor, __construct, new, public, protected, private, stat
 # Methods, `self`, `static` and `parent`
 # Constants and `::class`
 # Inheritance
+# `covariant`
 # Interfaces
 <!-- generated: interfaces -->
 # Property hooks
