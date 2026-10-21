@@ -666,9 +666,11 @@ nvs_runtime::nvs_helper! {
 mod tests {
     use std::sync::Arc;
 
-    use nvs_runtime::{Ctx, NvsArray, NvsStr, Value, call};
+    use nvs_runtime::{Ctx, NvsArray, NvsFn, NvsStr, Value, call};
 
-    use super::{mode_ordinal, nvs_core_env_all, nvs_core_env_get, nvs_core_env_mode};
+    use super::{
+        mode_ordinal, nvs_core_env_all, nvs_core_env_get, nvs_core_env_mode, nvs_core_env_secret,
+    };
 
     /// `Core\Env::all`'s answer, in the order the member reported it.
     fn all(ctx: &mut Ctx) -> Vec<(String, String)> {
@@ -703,11 +705,18 @@ mod tests {
 
     /// `Core\Env::get`'s answer for `name`, or `None` where it answered `null`.
     fn get(ctx: &mut Ctx, name: &str) -> Option<String> {
+        read(nvs_core_env_get, "get", ctx, name)
+    }
+
+    /// The answer of `member`, `get` or `secret`, for `name`. The two return
+    /// the same bytes at run time, because `secret` is a type the checker
+    /// enforces and not a different value.
+    fn read(member: NvsFn, label: &str, ctx: &mut Ctx, name: &str) -> Option<String> {
         let argument = Value::str(NvsStr::new(name.as_bytes()));
-        let answered = call(nvs_core_env_get, ctx, &[argument]).expect("`get` answers");
+        let answered = call(member, ctx, &[argument]).expect("the member answers");
         assert!(
             ctx.take_pending().is_none(),
-            "`get` refused {name:?}, which only a value that is not text may make it do"
+            "`{label}` refused {name:?}, which only a value that is not text may make it do"
         );
         let out = answered.as_str_bytes().map(|bytes| {
             String::from_utf8(bytes.to_vec())
@@ -799,6 +808,31 @@ mod tests {
 
         for name in ["", "NVS=SPLIT", "NVS\0NUL", "NVS_ENV_A_NAME_NOBODY_EXPORTS"] {
             assert_eq!(get(&mut ctx, name), None, "{name:?}");
+        }
+    }
+
+    /// `secret` returns what `get` returns for every name in the environment,
+    /// and `null` for the names nothing can have set. Only the type differs,
+    /// and the `.nvst` cases pin that half.
+    // covers: Core\Env::secret
+    #[test]
+    fn secret_reads_the_value_get_reads_and_null_for_a_name_nothing_set() {
+        let mut ctx = Ctx::buffered();
+        let reported = all(&mut ctx);
+        assert!(!reported.is_empty(), "the test binary runs with no environment");
+        for (name, _) in &reported {
+            assert_eq!(
+                read(nvs_core_env_secret, "secret", &mut ctx, name),
+                get(&mut ctx, name),
+                "{name:?}"
+            );
+        }
+        for name in ["", "NVS=SPLIT", "NVS\0NUL", "NVS_ENV_A_NAME_NOBODY_EXPORTS"] {
+            assert_eq!(
+                read(nvs_core_env_secret, "secret", &mut ctx, name),
+                None,
+                "{name:?}"
+            );
         }
     }
 
