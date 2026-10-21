@@ -227,6 +227,16 @@ pub const FILE_CHUNK: usize = 64 * 1024;
 /// this many entries, so it is also what one head costs to parse.
 pub const MAX_HEADER_LINES: usize = 100;
 
+/// The most bytes a connection's read buffer may hold, and so the longest a
+/// request head may be. A head that does not end inside it is answered `431`
+/// and the connection is closed.
+///
+/// `hyper`'s own default, 8 KiB plus 4 KiB for each of [`MAX_HEADER_LINES`],
+/// set here by name for that constant's reason: the bound is this server's and
+/// does not move with `hyper`'s version. **What it spends:** up to this many
+/// bytes per open connection while it reads a head.
+pub const MAX_HEAD_BYTES: usize = 8192 + 4096 * MAX_HEADER_LINES;
+
 /// The longest a connection that is closing reads and discards what its peer
 /// still sends, after its last response is written:
 /// `rule:http-server/a-response-is-not-lost-to-an-unread-body`.
@@ -2362,6 +2372,7 @@ where
     // a bound would be saying it may move between cores.
     let mut connection = http1::Builder::new()
         .max_headers(MAX_HEADER_LINES)
+        .max_buf_size(MAX_HEAD_BYTES)
         .serve_connection(io, service);
     let mut asked_to_close = false;
     let driven = block_on(std::future::poll_fn(|cx| {
