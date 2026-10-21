@@ -48,7 +48,7 @@ stages:
         rules: [security/process-exec-capability, core-classes/process-is-argv-only, core-classes/process-refuses-a-shell-target, core-classes/process-options, security/script-spawn-capability, security/no-runtime-grant]
   - id: 7
     title: with no `[session]` block, sessions live in a SQLite file in the data folder, and requests of one session never wait for each other
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/session.rs, crates/nvs-config/src/session.rs, crates/nvs-config/src/data.rs, docs/rules/http-server/no-session-block-means-the-data-folder-store.md]
     extra:
       context:
@@ -444,10 +444,10 @@ adds the narrowing lines.
 
 **Does:** decision 8 is on.
 
-- [ ] The `db` store reads a row at `start` and writes it whole at the end, with no lock (`rule:http-server/a-session-is-loaded-once-and-written-whole`). `crates/nvs-stdlib/src/session.rs:801`
-- [ ] No `[session]` block selects a SQLite file in the data folder, in WAL mode, and no usable data folder throws naming `[session]` (`rule:http-server/no-session-block-means-the-data-folder-store`). `crates/nvs-stdlib/src/session.rs:617`, `crates/nvs-config/src/data.rs:459`
-- [ ] Expired rows are deleted by a sweep (`rule:http-server/session-expiry-belongs-to-the-store`). `crates/nvs-stdlib/src/session.rs:1`
-- [ ] Tests: two concurrent requests of one session both complete without waiting on each other and the last write wins; a session survives a second server process on the same data folder; an expired row is swept. `tests/conformance/core/a-session-survives-a-request-on-another-process.nvst:1`, `crates/nvs-stdlib/src/session.rs:2511`
+- [x] The `db` store reads a row at `start` and writes it whole at the end, with no lock (`rule:http-server/a-session-is-loaded-once-and-written-whole`). `crates/nvs-stdlib/src/session/sqlite.rs:138`
+- [x] No `[session]` block selects a SQLite file in the data folder, in WAL mode, and no usable data folder throws naming `[session]` (`rule:http-server/no-session-block-means-the-data-folder-store`). `crates/nvs-stdlib/src/session.rs:617`, `crates/nvs-config/src/data.rs:459`
+- [x] Expired rows are deleted by a sweep (`rule:http-server/session-expiry-belongs-to-the-store`). `crates/nvs-stdlib/src/session/sqlite.rs:203`
+- [x] Tests: two concurrent requests of one session both complete without waiting on each other and the last write wins; a session survives a second server process on the same data folder; an expired row is swept. `tests/conformance/core/session-start-with-no-block-opens-the-data-folder-store.nvst:1`, `crates/nvs-stdlib/src/session/sqlite.rs:256`
 
 ### 8. the CSRF door reads a `_csrf` field from a urlencoded form
 
@@ -528,14 +528,40 @@ to a writing subagent, one after another. Then the gate runs once more.
 
 ### State
 
-Stages 1 to 6 are done. Stage 4 is committed without a green gate: its gate was stopped after a
-test hung. Stages 5 to 12 check with a build alone, and stage 13, the gate stage, verifies the goal.
+Stages 1 to 7 are done. Stage 4 is committed without a green gate: its gate was stopped after a
+test hung. Stages 8 to 12 check with a build alone, and stage 13, the gate stage, verifies the goal.
 
-The run's red acceptance checks (`config-tests`, `db-tests`, `runtime-tests`) all failed at build
-on a locked `target/covws/.../nvs.exe`, not on a test. `config-tests` and `db-tests` are green on
-rerun. The nightly's site failures (`covariant.mdx`, `union-types.mdx`, the questions) are already
-fixed at `85bb5a170`. The only stale page locally is `in-depth/compare.mdx`, whose edit is
-uncommitted work that is not this goal's.
+**This session's fixes.** `config-tests` was red on
+`an_authority_answers_the_written_key_and_the_default_for_the_rest`
+(`crates/nvs-config/tests/capability.rs:1745`), which still counted `process.exec` and
+`script.spawn` among the keys with no default. It now asserts stage 6's defaults, and
+`bun nv verify --fast -p nvs-config` is green (398 passed). The nightly's proofs failures ran on
+`afbb1edc2`, before `85bb5a170` fixed `covariant.mdx` and `union-types.mdx`. Locally the stale
+guard named `syntax/errors/limits.mdx` and the questions of `/reference/config/capabilities/` and
+`/in-depth/compare/`; all three are restamped, and `bun nv site --check stale questions` is green.
+
+**Stage 7 (sessions):**
+
+- The `db` store is `crates/nvs-stdlib/src/session/sqlite.rs`: one `nvs_session` table in
+  `<data>/session.sqlite`, WAL, `synchronous = NORMAL`, `busy_timeout = 5000`, one connection per
+  core in a thread-local taken out for each statement. `load` reads only a row whose expiry is
+  ahead; `save` is one upsert, and a due `sweep` (once a minute per core) deletes expired rows.
+- `crates/nvs-stdlib/src/session.rs` picks it in `opened` where no `[session] backend` is written,
+  and throws at `start` naming `[session]` where the data folder is unusable.
+- The rule `http-server/no-session-block-means-no-store` is now
+  `http-server/no-session-block-means-the-data-folder-store`; the backend, expiry and write-whole
+  rules say what is true, and `bun nv rules --check` is green.
+- Tests, each passed once this session: the three in `session/sqlite.rs`
+  (`two_requests_of_one_session_both_finish_and_the_last_write_wins`,
+  `a_record_survives_into_a_connection_another_process_would_open`,
+  `an_expired_row_is_absent_and_the_sweep_deletes_it`), and four cases under `nvs test`:
+  `session-start-with-no-block-opens-the-data-folder-store.nvst`,
+  `session-start-takes-the-presented-identifier-or-none-at-all.nvst`,
+  `a-nullable-core-parameter-keeps-the-mark-of-its-type.nvst` and
+  `a-session-survives-a-request-on-another-process.nvst`.
+- `session-start-refuses-a-tree-that-configured-no-store.nvst` is deleted: a bare `start` now
+  opens the file. Any other test or case that expected `Core\Session::start` to throw with no
+  `[session]` block goes red at stage 13 and should choose `backend = "shared"` with no address.
 
 **Expected red at stage 13** (found, not fixed):
 
@@ -720,20 +746,21 @@ questions of the capabilities and trust pages. They are restamped in this group.
 **No gate until stage 13.** Check with `cargo build` and `cargo clippy --all-targets -- -D
 warnings`, commit each slice, and name in the handoff the tests and cases you expect to go red.
 
-**Stage 7**, sessions (decision 8). The `db` store reads its row at `start` and writes it whole at
-the end with no lock (`crates/nvs-stdlib/src/session.rs:801`). No `[session]` block selects
-`<data>/session.sqlite` in WAL mode (`crates/nvs-stdlib/src/session.rs:617`,
-`crates/nvs-config/src/data.rs:459`), and no usable data folder throws naming `[session]`. A sweep
-deletes expired rows. Rules `http-server/no-session-block-means-the-data-folder-store`,
-`http-server/a-session-is-loaded-once-and-written-whole`,
-`http-server/session-expiry-belongs-to-the-store`. Stages 8, 9 and 10 may go first: their files are
-disjoint.
+**Stage 8**, the CSRF form field (decision 9). With a `[http] csrf_key`, a checked urlencoded
+request with no header token is read up to `[limits] request_body` and its `_csrf` field checked
+(`crates/nvs-server/src/route.rs:211`, `crates/nvs-cli/src/serve.rs:1187`). A `_csrf` query
+parameter is read for every checked request, and a multipart body is never read; `TOKEN_HEADER`'s
+doc comment (`crates/nvs-server/src/route.rs:162`) narrows its reason to multipart. The runner's
+in-process door agrees (`crates/nvs-cli/src/runner.rs:912`), and `Core\Csrf::issue`'s reference
+text names the field and the header (`crates/nvs-stdlib/src/csrf.rs:170`). Rule
+`security/csrf-is-on-by-default`. Stages 9 and 10 touch disjoint files and may go first.
 
 ### Backlog
 
 - `Core\Queue::push`'s `grants` refusal still says ``help: grant it in nvs.toml under ...``: it is about the request's own grants list, not a missing grant line, and may adopt `grant_line` when stage 2 touches queue grants. `crates/nvs-stdlib/src/queue.rs:3085`
 - `nvs-stdlib test ldap` failed 9 Samba cases in one full verify run. The cause was a TLS handshake that passed its 30s deadline, with the binary taking 205s, and it passed alone in 5s twice. If it repeats, find what loads Samba during verify. `crates/nvs-stdlib/tests/ldap.rs:49`
-- Stages 7, 8, 9 and 10 touch disjoint files and may run as side goals at any time. `docs/goals/defaults-that-work.md`
+- Stages 8, 9 and 10 touch disjoint files and may run as side goals at any time. `docs/goals/defaults-that-work.md`
+- Stage 12: a website page that says a session needs a configured store, or that `start` throws with no `[session]` block, now says what is not true. `website/src/content/docs/guides/how-to-use/configuration.mdx:1`
 - The editor offers file names at a `ParamText::Path` argument and not at `ParamText::Program`, so `Core\Process::run`'s first argument lost path completion, hover and links. `crates/nvs-lsp/src/completion.rs:743`
 - Stage 11: the shipped file's `#exec` and `#spawn` comments still read as deny-all. `crates/nvs-config/src/default.toml:147`
 - The package half of every default is goal `namespace-grants`'s: a package is checked against its own line alone. `docs/goals/namespace-grants.md`
