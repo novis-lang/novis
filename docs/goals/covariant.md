@@ -348,6 +348,12 @@ The installed `looper` has no `verify` subcommand, so the end-of-group gate was 
 The nightly sweep's failures on run `39462919214` are the ones already fixed on `main`, as above.
 The latest push runs on `main` (`39506154898` CI and `39506154943` Website, on `691cbcd`) are green.
 
+The first DONE was refused on `floor-debt`, with one atom left: the `samba-ad` attack
+`tests/hostile/core/Ldap-Entry/accountType/01-account-types-of-a-whole-subtree.nvs`. Its recording
+run diverged during the sweep, where it searches the whole domain while other live cases write to it.
+Alone it is green (`bun nv proofs --id 'Core\Ldap\Entry::accountType' --run`), and `looper check
+--name floor-debt` and `--name owners-closes` are both green after it, so no code changed.
+
 ### Next
 
 Nothing. The goal is reached and its file is ready to be retired. Every decision its prose held is in
