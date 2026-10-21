@@ -753,24 +753,7 @@ fn argv_of(value: &Value) -> Result<Vec<String>, Fault> {
         ))
     })?;
     let mut argv = Vec::new();
-    let mut from = 0usize;
-    loop {
-        #[expect(
-            unsafe_code,
-            reason = "a Tag::Array argument owns a reference to a live allocation, \
-                      so it is live for the length of this call, and `from` only \
-                      ever advances past a slot this same cursor reported"
-        )]
-        let (slot, element) = unsafe {
-            let slot = nvs_runtime::nvs_array_next_slot(array, from);
-            let Ok(slot) = usize::try_from(slot) else {
-                break;
-            };
-            let mut element = Value::null();
-            nvs_runtime::nvs_array_value_at(array, slot, &raw mut element);
-            (slot, element)
-        };
-        from = slot + 1;
+    for element in crate::str::Elements::of(array) {
         argv.push(text(&element, "an argv element")?.to_owned());
     }
     Ok(argv)
@@ -874,25 +857,7 @@ fn env_of(value: &Value) -> Result<Vec<(String, String)>, Fault> {
         ))
     })?;
     let mut env = Vec::new();
-    let mut from = 0usize;
-    loop {
-        #[expect(
-            unsafe_code,
-            reason = "a Tag::Array argument owns a reference to a live allocation, \
-                      so it is live for the length of this call, and `from` only \
-                      ever advances past a slot this same cursor reported"
-        )]
-        let (slot, name, element) = unsafe {
-            let slot = nvs_runtime::nvs_array_next_slot(array, from);
-            let Ok(slot) = usize::try_from(slot) else {
-                break;
-            };
-            let name = NvsStr::from_raw(nvs_runtime::nvs_array_key_at(array, slot));
-            let mut element = Value::null();
-            nvs_runtime::nvs_array_value_at(array, slot, &raw mut element);
-            (slot, name, element)
-        };
-        from = slot + 1;
+    for (name, element) in crate::str::Entries::of(array) {
         let name = String::from_utf8_lossy(name.as_bytes()).into_owned();
         env.push((name, text(&element, "an `env` value")?.to_owned()));
     }

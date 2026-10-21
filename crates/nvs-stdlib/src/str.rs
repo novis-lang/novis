@@ -1846,9 +1846,10 @@ fn built_fallibly(
 ///
 /// The cursor exists as an iterator so [`nvs_core_str_join`]'s body is the join
 /// and not the walk; the `unsafe` the walk needs is stated once, here. It is
-/// `pub(crate)` for the same reason — [`crate::cli`]'s live region walks a
-/// frame's rows with it rather than restating that obligation in a second
-/// place.
+/// `pub(crate)` for the same reason: every `Core` member that walks an array's
+/// values walks it with this, and [`Entries`] is the one walk over keys and
+/// values. A walk that needs the slot's position or stops early is
+/// `enumerate` or `take_while` over it, never a second cursor.
 pub(crate) struct Elements {
     /// The array being walked. Live for this iterator's whole life, which is
     /// [`Elements::of`]'s obligation on its caller.
@@ -1886,6 +1887,52 @@ impl Iterator for Elements {
         };
         self.from = slot + 1;
         Some(value)
+    }
+}
+
+/// The key and value of each slot of an `array` argument, in slot order: the
+/// value **borrowed** as [`Elements`] borrows it, and the key **owned**, because
+/// `nvs_array_key_at` hands over a reference of its own, which the [`NvsStr`]
+/// releases when the caller drops it.
+///
+/// An `int` key arrives as its decimal digits, so every key is text.
+pub(crate) struct Entries {
+    /// The array being walked. Live for this iterator's whole life, which is
+    /// [`Entries::of`]'s obligation on its caller.
+    array: *const nvs_runtime::ArrayHeader,
+    /// The slot the next step starts looking from.
+    from: usize,
+}
+
+impl Entries {
+    /// The entries of `array`, under [`Elements::of`]'s obligation: `array`
+    /// stays live and unwritten for as long as the iterator does.
+    pub(crate) fn of(array: *const nvs_runtime::ArrayHeader) -> Self {
+        Self { array, from: 0 }
+    }
+}
+
+impl Iterator for Entries {
+    type Item = (NvsStr, Value);
+
+    fn next(&mut self) -> Option<(NvsStr, Value)> {
+        #[expect(
+            unsafe_code,
+            reason = "`Entries::of`'s caller states the array is live for \
+                      this iterator's life, `from` only ever advances past a \
+                      slot this same cursor reported, and `nvs_array_key_at` \
+                      returns a reference the `NvsStr` takes over"
+        )]
+        let (slot, key, value) = unsafe {
+            let slot =
+                usize::try_from(nvs_runtime::nvs_array_next_slot(self.array, self.from)).ok()?;
+            let key = NvsStr::from_raw(nvs_runtime::nvs_array_key_at(self.array, slot));
+            let mut value = Value::null();
+            nvs_runtime::nvs_array_value_at(self.array, slot, &raw mut value);
+            (slot, key, value)
+        };
+        self.from = slot + 1;
+        Some((key, value))
     }
 }
 
@@ -2813,27 +2860,7 @@ nvs_runtime::nvs_helper! {
         // reference, and holding one per entry for the length of the scan
         // would owe a release on every early return below.
         let mut table: Vec<(String, String)> = Vec::new();
-        let mut from = 0usize;
-        loop {
-            #[expect(
-                unsafe_code,
-                reason = "a Tag::Array argument owns a reference to a live \
-                          allocation, so it is live for the length of this \
-                          call, and `from` only ever advances past a slot \
-                          this same cursor reported"
-            )]
-            let (slot, key, value) = unsafe {
-                let slot = nvs_runtime::nvs_array_next_slot(pairs, from);
-                let Ok(slot) = usize::try_from(slot) else {
-                    break;
-                };
-                let key = NvsStr::from_raw(nvs_runtime::nvs_array_key_at(pairs, slot));
-                let mut value = Value::null();
-                nvs_runtime::nvs_array_value_at(pairs, slot, &raw mut value);
-                (slot, key, value)
-            };
-            from = slot + 1;
-
+        for (key, value) in Entries::of(pairs) {
             // An array key is `int|string` and neither form can be invalid
             // UTF-8: `nvs_runtime`'s `key_at` renders a packed slot's key as
             // its own decimal digits, a hashed entry's key is the `string` it
@@ -3961,25 +3988,7 @@ nvs_runtime::nvs_helper! {
         })?;
 
         let mut out = String::new();
-        let mut from = 0usize;
-        loop {
-            #[expect(
-                unsafe_code,
-                reason = "a Tag::Array argument owns a reference to a live \
-                          allocation, so it is live for the length of this \
-                          call, and `from` only ever advances past a slot \
-                          this same cursor reported"
-            )]
-            let (slot, value) = unsafe {
-                let slot = nvs_runtime::nvs_array_next_slot(points, from);
-                let Ok(slot) = usize::try_from(slot) else {
-                    break;
-                };
-                let mut value = Value::null();
-                nvs_runtime::nvs_array_value_at(points, slot, &raw mut value);
-                (slot, value)
-            };
-            from = slot + 1;
+        for value in Elements::of(points) {
             let point = code_point(&value, "fromCodePoints", "an element")?;
             out.push(scalar_value(point, "fromCodePoints")?);
         }
@@ -4026,25 +4035,7 @@ nvs_runtime::nvs_helper! {
         let mut inline = [Value::null(); 8];
         let mut spilled: Vec<Value> = Vec::new();
         let mut count = 0usize;
-        let mut from = 0usize;
-        loop {
-            #[expect(
-                unsafe_code,
-                reason = "a Tag::Array argument owns a reference to a live \
-                          allocation, so it is live for the length of this \
-                          call, and `from` only ever advances past a slot \
-                          this same cursor reported"
-            )]
-            let (slot, value) = unsafe {
-                let slot = nvs_runtime::nvs_array_next_slot(arguments, from);
-                let Ok(slot) = usize::try_from(slot) else {
-                    break;
-                };
-                let mut value = Value::null();
-                nvs_runtime::nvs_array_value_at(arguments, slot, &raw mut value);
-                (slot, value)
-            };
-            from = slot + 1;
+        for value in Elements::of(arguments) {
             match inline.get_mut(count) {
                 Some(entry) if spilled.is_empty() => *entry = value,
                 _ => {

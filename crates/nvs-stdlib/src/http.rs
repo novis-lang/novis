@@ -2958,25 +2958,7 @@ fn pins_of(args: &[Value], member: &str, bag: Bag) -> Result<Vec<String>, Fault>
         )));
     };
     let mut pins = Vec::new();
-    let mut from = 0_usize;
-    loop {
-        #[expect(
-            unsafe_code,
-            reason = "a Tag::Array argument owns a reference to a live allocation, \
-                      so it is live for the length of this call, and `from` only \
-                      ever advances past a slot this same cursor reported"
-        )]
-        let (slot, value) = unsafe {
-            let slot = nvs_runtime::nvs_array_next_slot(array, from);
-            let Ok(slot) = usize::try_from(slot) else {
-                break;
-            };
-            let mut value = Value::null();
-            nvs_runtime::nvs_array_value_at(array, slot, &raw mut value);
-            (slot, value)
-        };
-        from = slot + 1;
-
+    for value in crate::str::Elements::of(array) {
         let pin = value.as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "{member} expected a `string` pin in `{TLS_PIN_OPTION}`, got tag {}",
@@ -3129,26 +3111,7 @@ pub(crate) fn headers_of(
         )));
     };
     let mut headers = Vec::new();
-    let mut from = 0_usize;
-    loop {
-        #[expect(
-            unsafe_code,
-            reason = "a Tag::Array argument owns a reference to a live allocation, \
-                      so it is live for the length of this call, and `from` only \
-                      ever advances past a slot this same cursor reported"
-        )]
-        let (slot, name, value) = unsafe {
-            let slot = nvs_runtime::nvs_array_next_slot(array, from);
-            let Ok(slot) = usize::try_from(slot) else {
-                break;
-            };
-            let name = NvsStr::from_raw(nvs_runtime::nvs_array_key_at(array, slot));
-            let mut value = Value::null();
-            nvs_runtime::nvs_array_value_at(array, slot, &raw mut value);
-            (slot, name, value)
-        };
-        from = slot + 1;
-
+    for (name, value) in crate::str::Entries::of(array) {
         // An array key is `int|string` and neither can be invalid UTF-8, for
         // the reasons `Core\Str::replaceAll`'s own cursor states in full.
         let name = std::str::from_utf8(name.as_bytes())
@@ -3690,26 +3653,7 @@ fn fields_of(
         )));
     };
     let mut fields = Vec::new();
-    let mut from = 0_usize;
-    loop {
-        #[expect(
-            unsafe_code,
-            reason = "a Tag::Array argument owns a reference to a live allocation, \
-                      so it is live for the length of this call, and `from` only \
-                      ever advances past a slot this same cursor reported"
-        )]
-        let (slot, name, value) = unsafe {
-            let slot = nvs_runtime::nvs_array_next_slot(array, from);
-            let Ok(slot) = usize::try_from(slot) else {
-                break;
-            };
-            let name = NvsStr::from_raw(nvs_runtime::nvs_array_key_at(array, slot));
-            let mut value = Value::null();
-            nvs_runtime::nvs_array_value_at(array, slot, &raw mut value);
-            (slot, name, value)
-        };
-        from = slot + 1;
-
+    for (name, value) in crate::str::Entries::of(array) {
         // An array key is `int|string` and neither can be invalid UTF-8, for
         // the reasons `Core\Str::replaceAll`'s own cursor states in full.
         let name = std::str::from_utf8(name.as_bytes())

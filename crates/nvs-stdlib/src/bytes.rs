@@ -1072,30 +1072,11 @@ nvs_runtime::nvs_helper! {
         let separator = raw(&args[1], "join", "the separator")?;
 
         let mut out: Vec<u8> = Vec::new();
-        let mut from = 0usize;
-        let mut written = 0usize;
-        loop {
-            #[expect(
-                unsafe_code,
-                reason = "a Tag::Array argument owns a reference to a live \
-                          allocation, so it is live for the length of this \
-                          call, and `from` only ever advances past a slot \
-                          this same cursor reported"
-            )]
-            let (slot, value) = unsafe {
-                let slot = nvs_runtime::nvs_array_next_slot(parts, from);
-                let Ok(slot) = usize::try_from(slot) else {
-                    break;
-                };
-                let mut value = Value::null();
-                nvs_runtime::nvs_array_value_at(parts, slot, &raw mut value);
-                (slot, value)
-            };
-            from = slot + 1;
+        for (written, value) in crate::str::Elements::of(parts).enumerate() {
             let octets = raw(&value, "join", "an element")?;
             // Counted rather than tested against `out.is_empty()`, because an
             // empty *first* element must still be followed by a separator —
-            // the same edge `Core\Str::join` writes against its own cursor.
+            // the same edge `Core\Str::join` writes against its own iterator.
             let size = out
                 .len()
                 .checked_add(octets.len())
@@ -1110,7 +1091,6 @@ nvs_runtime::nvs_helper! {
                 out.extend_from_slice(separator);
             }
             out.extend_from_slice(octets);
-            written += 1;
         }
         produced_fallibly(&out, "join")
     }
@@ -1484,28 +1464,7 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
 
-        let mut collected = Vec::new();
-        let mut from = 0usize;
-        loop {
-            #[expect(
-                unsafe_code,
-                reason = "a Tag::Array argument owns a reference to a live \
-                          allocation, so it is live for the length of this \
-                          call, and `from` only ever advances past a slot \
-                          this same cursor reported"
-            )]
-            let (slot, value) = unsafe {
-                let slot = nvs_runtime::nvs_array_next_slot(values, from);
-                let Ok(slot) = usize::try_from(slot) else {
-                    break;
-                };
-                let mut value = Value::null();
-                nvs_runtime::nvs_array_value_at(values, slot, &raw mut value);
-                (slot, value)
-            };
-            from = slot + 1;
-            collected.push(value);
-        }
+        let collected: Vec<Value> = crate::str::Elements::of(values).collect();
 
         produced(&packed(format, &collected)?)
     }

@@ -501,25 +501,7 @@ fn addresses_of(
         )));
     };
     let mut found = Vec::new();
-    let mut from = 0_usize;
-    loop {
-        #[expect(
-            unsafe_code,
-            reason = "a Tag::Array argument owns a reference to a live allocation, \
-                      so it is live for the length of this call, and `from` only \
-                      ever advances past a slot this same cursor reported"
-        )]
-        let (slot_at, value) = unsafe {
-            let slot_at = nvs_runtime::nvs_array_next_slot(array, from);
-            let Ok(slot_at) = usize::try_from(slot_at) else {
-                break;
-            };
-            let mut value = Value::null();
-            nvs_runtime::nvs_array_value_at(array, slot_at, &raw mut value);
-            (slot_at, value)
-        };
-        from = slot_at + 1;
-
+    for value in crate::str::Elements::of(array) {
         let text = value.as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "{member} expected a `string` in `{what}`, got tag {}",
