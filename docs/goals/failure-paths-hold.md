@@ -20,7 +20,7 @@ stages:
         rules: [security/isolate-shares-nothing, errors/on-limit, http-server/admission-is-arithmetic-not-a-number]
   - id: 3
     title: "a form or query name of any shape stops at the memory ceiling inside one parse"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/uri.rs, crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/budget.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/multipart.rs]
     extra:
       context:
@@ -248,13 +248,13 @@ thread ever names a freed safepoint word.
 **Does:** a form whose names nest past the memory limit stops with the memory error before the request
 holds more than its ceiling.
 
-- [ ] `NvsArray::try_new` asks `budget::affords` for one header and its empty table (`rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`). `crates/nvs-runtime/src/array.rs:1037`
-- [ ] `uri::branch` and `insert` build through it, and a refusal ends `parse_query` and `place` with the memory refusal. `crates/nvs-stdlib/src/uri.rs:2211`, `crates/nvs-stdlib/src/uri.rs:2251`, `crates/nvs-stdlib/src/uri.rs:3181`, `crates/nvs-stdlib/src/uri.rs:3234`
-- [ ] `post()`, `query()` and their array forms surface it as the request's memory error. `crates/nvs-stdlib/src/request.rs:1801`, `crates/nvs-stdlib/src/request.rs:1838`
-- [ ] The doc that says nesting needs no bound is rewritten: the ceiling bounds it, in front of each array. `crates/nvs-stdlib/src/uri.rs:2240`
-- [ ] Multipart field names count against `request_body` beside their values. `crates/nvs-stdlib/src/multipart.rs:480`
-- [ ] Rust tests: a name of 100 000 `[]` under a 4 MiB limit stops with the memory error, and the peak stays under the limit; a multipart name counts against `request_body`. `crates/nvs-stdlib/src/uri.rs:3279`, `crates/nvs-stdlib/src/multipart.rs:1`
-- [ ] The rule says arrays built from input are refused in front of the allocation, and stops saying the fallible constructor is the only way to make one. `docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself.md:8`
+- [x] `NvsArray::try_new` asks `budget::affords` for one header and its empty table (`rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`). `crates/nvs-runtime/src/array.rs:1037`
+- [x] `uri::branch` and `insert` build through it, and a refusal ends `parse_query` and `place` with the memory refusal. `crates/nvs-stdlib/src/uri.rs:2211`, `crates/nvs-stdlib/src/uri.rs:2251`, `crates/nvs-stdlib/src/uri.rs:3181`, `crates/nvs-stdlib/src/uri.rs:3234`
+- [x] `post()`, `query()` and their array forms surface it as the request's memory error. `crates/nvs-stdlib/src/request.rs:1801`, `crates/nvs-stdlib/src/request.rs:1838`
+- [x] The doc that says nesting needs no bound is rewritten: the ceiling bounds it, in front of each array. `crates/nvs-stdlib/src/uri.rs:2240`
+- [x] Multipart field names count against `request_body` beside their values. `crates/nvs-stdlib/src/multipart.rs:480`
+- [x] Rust tests: a name of 100 000 `[]` under a 4 MiB limit stops with the memory error, and the peak stays under the limit; a multipart name counts against `request_body`. `crates/nvs-stdlib/src/uri.rs:3279`, `crates/nvs-stdlib/src/multipart.rs:1`
+- [x] The rule says arrays built from input are refused in front of the allocation, and stops saying the fallible constructor is the only way to make one. `docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself.md:8`
 
 ### 4. a multipart body is read in linear time, a failed reader fails again, and `max_multipart_parts` is a `[limits]` row
 
@@ -350,30 +350,44 @@ short body, a roomy one runs to its end unrefused, and the tight one resumes sti
 same ceiling. `rule:security/isolate-shares-nothing` and `core-time-slice`'s memory decision say
 what is true. Build and clippy are green.
 
-**The acceptance sweep's red was already fixed at HEAD.** The nightly `proofs` jobs ran at
-`afbb1edc2`, 131 commits back, and failed on website pages `0439d8ccf` restamped. `bun nv site --check
-structure snippets stale questions prose` passes now, and `env-secret-proofs`' log exits 0.
+Stage 3 is done. `NvsArray::try_new` (`crates/nvs-runtime/src/array.rs:1057`) asks the ceiling
+for one header. `uri::branch` makes the fresh array through it, then asks `parent.affords_write()`
+before it places it, so each ask comes before its own allocation and the peak stays under the limit.
+A refusal is `uri::OverMemory` (`crates/nvs-stdlib/src/uri.rs:2253`). `insert` and `place` return
+it, `parse_query` turns it into a `FATAL`, and `request::memory_first`
+(`crates/nvs-stdlib/src/request.rs:1830`) swaps any fault for `ctx.memory_breach()` in `form_of` and
+`query_fields_of`. `Multipart::charge` (`crates/nvs-stdlib/src/multipart.rs:498`) counts the field
+name before its value. `a_name_nested_past_the_memory_limit_stops_inside_one_parse` and
+`a_field_name_counts_against_the_in_memory_bound` pass by name, and so does the updated
+`a_field_part_is_buffered_against_the_in_memory_bound`. The rule says what is true. Build and
+clippy are green.
+
+**The acceptance sweep's red was stale again.** `bun nv proofs --gate --only "Core\Env::secret"`
+exits 0 at HEAD. The nightly `proofs` jobs in run 39567373487 ran at `afbb1edc2`, which is many
+commits back; the stage 2 handoff already named their cause as fixed.
 
 **Expected red at the gate:** any `nvs-ir` lowering snapshot or IR-dump test that pins a property,
 static or reference-cell write. The release of the old value now follows the store instead of
 preceding it. Update the expected order; it is not a regression. Also any `nvs-host` or
 `nvs-server` test that relied on a child task inheriting its creator's arming: a task now runs under
-the ceiling of its own context alone.
+the ceiling of its own context alone. Also any `nvs-stdlib` multipart test that buffers a field
+value of exactly `request_body`: the field's name now counts too.
 
 ### Next
 
-**Stage 3, one group: form and query names stop at the memory ceiling.** No gate. Its files are
-`crates/nvs-runtime/src/array.rs`, `crates/nvs-stdlib/src/uri.rs`, `crates/nvs-stdlib/src/request.rs`
-and `crates/nvs-stdlib/src/multipart.rs`.
+**Stage 4, one group: the multipart body.** No gate. Its files are
+`crates/nvs-stdlib/src/multipart.rs`, `crates/nvs-server/src/body.rs`,
+`crates/nvs-stdlib/src/request.rs` and `crates/nvs-config/src/{app,defaults}.rs` with
+`default.toml`. Run the stage's Explore split for the user-facing `[limits]` docs first.
 
-- [ ] `NvsArray::try_new` asks `budget::affords` for one header and its empty table. `crates/nvs-runtime/src/array.rs:1037`
-- [ ] `uri::branch` and `insert` build through it, and a refusal ends `parse_query` and `place`. `crates/nvs-stdlib/src/uri.rs:2211`, `crates/nvs-stdlib/src/uri.rs:3181`
-- [ ] `post()`, `query()` and their array forms surface it as the request's memory error. `crates/nvs-stdlib/src/request.rs:1801`
-- [ ] Multipart field names count against `request_body` beside their values. `crates/nvs-stdlib/src/multipart.rs:480`
-- [ ] The Rust tests and the rule rewrite the stage names. `crates/nvs-stdlib/src/uri.rs:3279`, `docs/rules/errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself.md:8`
+- [ ] The header search resumes three bytes before the old end, and the admission is deleted. `crates/nvs-stdlib/src/multipart.rs:51`, `crates/nvs-stdlib/src/multipart.rs:285`
+- [ ] `Multipart` keeps its first error and returns it again. `crates/nvs-stdlib/src/multipart.rs:285`, `crates/nvs-stdlib/src/multipart.rs:498`
+- [ ] `Pull` and `whole_body` keep a wire error. `crates/nvs-server/src/body.rs:182`, `crates/nvs-server/src/body.rs:283`
+- [ ] `[limits] max_multipart_parts` replaces `MAX_PARTS`. `crates/nvs-stdlib/src/multipart.rs:68`, `crates/nvs-config/src/app.rs:493`
+- [ ] The Rust tests, the rule and the user docs the stage names. `docs/rules/errors/multipart-part-count.md:1`
 
-Stage 5 follows stage 2 and may run beside stage 3, because it touches only the safepoint path
-(`crates/nvs-runtime/src/ctx/safepoint.rs`, `crates/nvs-runtime/src/abi.rs`). Stage 4 follows stage 3.
+Stage 5 may run beside stage 4, because it touches only the safepoint path
+(`crates/nvs-runtime/src/ctx/safepoint.rs`, `crates/nvs-runtime/src/abi.rs`).
 
 ### Backlog
 
