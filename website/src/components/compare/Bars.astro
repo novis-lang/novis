@@ -238,7 +238,15 @@ const MIN_PART = '4px'
   }
   .compare-bars .part.ok,
   .compare-bars .swatch.ok {
-    background: var(--sl-color-green);
+    background: var(--compare-ok);
+  }
+  /* A green toward teal, quieter than the theme's own green, so the large "complete" part does not
+     outshine the small red and orange parts beside it. Darker on the light theme for contrast. */
+  .compare-bars {
+    --compare-ok: #2fa58a;
+  }
+  :global(:root[data-theme='light']) .compare-bars {
+    --compare-ok: #1f8a72;
   }
   .compare-bars .part.failed,
   .compare-bars .swatch.failed {
