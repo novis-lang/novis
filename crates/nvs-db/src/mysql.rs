@@ -76,9 +76,10 @@
 //!    than answered. `rule:core-classes/db-safe-connection-defaults` makes
 //!    `VerifyFull` the default with no spelling for turning it off, and a
 //!    handshake that continued in the clear here is exactly PHP's
-//!    `sslmode=prefer` under another name. This step belongs to the TCP
-//!    transport: a connection over a Unix-domain socket has no network to
-//!    upgrade and skips it, for the reason [`MyStream`] states.
+//!    `sslmode=prefer` under another name. This step belongs to a TCP
+//!    transport that leaves the machine: a connection over a Unix-domain
+//!    socket, or to a loopback address whose server offers no TLS, has no
+//!    network to upgrade and skips it, for the reason [`MyStream`] states.
 //! 3. **The handshake response and its auth loop**, over TLS.
 //!    [`authenticate`] sends the user, the database, the collation and the
 //!    first challenge response together, then answers whatever the server asks
@@ -278,15 +279,59 @@ pub(crate) const REQUIRED_CAPABILITIES: CapabilityFlags = CapabilityFlags::CLIEN
     .union(CapabilityFlags::CLIENT_PLUGIN_AUTH)
     .union(CapabilityFlags::CLIENT_SSL);
 
-/// [`REQUIRED_CAPABILITIES`] over a transport that never leaves the machine.
+/// [`REQUIRED_CAPABILITIES`] over a transport that never leaves the machine: a
+/// Unix-domain socket, or TCP to a loopback address.
 ///
-/// TLS is out of it, and only TLS. A Unix-domain socket has no network for a
+/// TLS is out of it, and only TLS. Neither transport has a network for a
 /// certificate to stand between, and demanding one there would refuse every
 /// server built without TLS for a threat that transport does not have —
 /// [`MyStream`] owns that argument in full.
-#[cfg(unix)]
 pub(crate) const REQUIRED_OVER_A_SOCKET: CapabilityFlags =
     REQUIRED_CAPABILITIES.difference(CapabilityFlags::CLIENT_SSL);
+
+/// The TCP arm of opening, for MySQL and MariaDB both: reads the greeting off
+/// `plain`, then upgrades in band to verified TLS.
+///
+/// On a loopback `address` a server whose greeting offers no TLS is used in the
+/// clear (`rule:core-classes/db-safe-connection-defaults`), because the bytes
+/// never leave the machine. A loopback server that offers TLS is still upgraded
+/// and verified. On every other address a greeting without `CLIENT_SSL` is
+/// refused.
+///
+/// # Errors
+///
+/// [`read_greeting`]'s, [`request_tls`]'s and the TLS handshake's.
+pub(crate) fn open_tcp(
+    mut plain: Wire<NvsTcp>,
+    address: std::net::SocketAddr,
+    host: &str,
+    tls_ca_file: Option<&std::path::Path>,
+) -> io::Result<(Wire, Greeting)> {
+    let loopback = address.ip().to_canonical().is_loopback();
+    let required = if loopback {
+        REQUIRED_OVER_A_SOCKET
+    } else {
+        REQUIRED_CAPABILITIES
+    };
+    let greeting = read_greeting(&mut plain, required)?;
+    if !greeting.capabilities.contains(CapabilityFlags::CLIENT_SSL) {
+        // Only a loopback address reaches here: `read_greeting` refused the
+        // rest. The handshake response offers back what the greeting has, so
+        // it claims no `CLIENT_SSL` either.
+        let wire = plain.upgrade(|tcp| Ok(MyStream::Loopback(tcp)))?;
+        return Ok((wire, greeting));
+    }
+    request_tls(&mut plain, &greeting)?;
+
+    // Whatever is still buffered arrived in the clear and is carried
+    // across with the codec: the greeting is the only thing a server
+    // may say before the upgrade, and `read_greeting` took it.
+    let wire = plain.upgrade(|tcp| match tls_ca_file {
+        Some(bundle) => NvsTls::over_bundle(tcp, host, bundle).map(MyStream::Tls),
+        None => NvsTls::over(tcp, host).map(MyStream::Tls),
+    })?;
+    Ok((wire, greeting))
+}
 
 /// The endpoint a socket `host` names on this driver, which is the path an
 /// operator wrote and nothing derived from it.
@@ -341,6 +386,9 @@ pub fn socket_endpoint(path: &str, _port: u16) -> io::Result<Endpoint> {
 pub enum MyStream {
     /// A server that named a host, reached over TCP and upgraded in band.
     Tls(NvsTls<NvsTcp>),
+    /// A server on a loopback address whose greeting offered no TLS, reached
+    /// over TCP in the clear. [`open_tcp`] says why.
+    Loopback(NvsTcp),
     /// A server that named a path, reached over a Unix-domain socket.
     #[cfg(unix)]
     Local(NvsUnix),
@@ -351,6 +399,7 @@ impl Read for MyStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self {
             Self::Tls(stream) => stream.read(buf),
+            Self::Loopback(stream) => stream.read(buf),
             #[cfg(unix)]
             Self::Local(stream) => stream.read(buf),
         }
@@ -362,6 +411,7 @@ impl Write for MyStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self {
             Self::Tls(stream) => stream.write(buf),
+            Self::Loopback(stream) => stream.write(buf),
             #[cfg(unix)]
             Self::Local(stream) => stream.write(buf),
         }
@@ -371,6 +421,7 @@ impl Write for MyStream {
     fn flush(&mut self) -> io::Result<()> {
         match self {
             Self::Tls(stream) => stream.flush(),
+            Self::Loopback(stream) => stream.flush(),
             #[cfg(unix)]
             Self::Local(stream) => stream.flush(),
         }
@@ -384,6 +435,7 @@ impl std::fmt::Debug for MyStream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Tls(_) => f.write_str("MyStream::Tls"),
+            Self::Loopback(_) => f.write_str("MyStream::Loopback"),
             #[cfg(unix)]
             Self::Local(_) => f.write_str("MyStream::Local"),
         }
@@ -395,6 +447,7 @@ impl nvs_host::net::Deadline for MyStream {
     fn set_deadline(&mut self, at: Option<Instant>) {
         match self {
             Self::Tls(stream) => stream.set_deadline(at),
+            Self::Loopback(stream) => stream.set_deadline(at),
             #[cfg(unix)]
             Self::Local(stream) => stream.set_deadline(at),
         }
@@ -403,6 +456,7 @@ impl nvs_host::net::Deadline for MyStream {
     fn deadline(&self) -> Option<Instant> {
         match self {
             Self::Tls(stream) => stream.deadline(),
+            Self::Loopback(stream) => stream.deadline(),
             #[cfg(unix)]
             Self::Local(stream) => stream.deadline(),
         }
@@ -1051,11 +1105,12 @@ pub(crate) struct Login<'a> {
 
 /// What a plugin is allowed to know while it composes a response.
 ///
-/// `is_tls_transport` is unconditionally `true` and that is a fact rather than
-/// an assertion: [`request_tls`] refused every path to this point that was not
-/// encrypted. `server_key_pem` is `None` because the RSA key exchange it feeds
-/// is the *unencrypted* transport's answer to the same problem, and there is no
-/// unencrypted transport here.
+/// `is_tls_transport` is unconditionally `true`, and it is true of every
+/// network path: [`open_tcp`] refused every path to this point that was not
+/// encrypted, except a loopback address and a Unix-domain socket, whose bytes
+/// never leave the machine. `server_key_pem` is `None` because the RSA key
+/// exchange it feeds is the answer of a transport that crosses a network
+/// unencrypted, and there is no such transport here.
 #[derive(Clone, Copy)]
 struct AuthContext<'a> {
     password: &'a [u8],
@@ -1670,20 +1725,7 @@ impl MySqlConn {
                 };
                 tcp.set_deadline(deadline);
 
-                let mut plain = Wire::new(tcp);
-                let greeting = read_greeting(&mut plain, REQUIRED_CAPABILITIES)?;
-                request_tls(&mut plain, &greeting)?;
-
-                // Whatever is still buffered arrived in the clear and is carried
-                // across with the codec: the greeting is the only thing a server
-                // may say before the upgrade, and `read_greeting` took it.
-                let wire = plain.upgrade(|tcp| match target.tls_ca_file {
-                    Some(bundle) => {
-                        NvsTls::over_bundle(tcp, target.host, bundle).map(MyStream::Tls)
-                    }
-                    None => NvsTls::over(tcp, target.host).map(MyStream::Tls),
-                })?;
-                (wire, greeting)
+                open_tcp(Wire::new(tcp), address, target.host, target.tls_ca_file)?
             }
             #[cfg(unix)]
             Endpoint::Socket(path) => {
@@ -4327,6 +4369,40 @@ mod tests {
             wire.peer().sent.is_empty(),
             "the client wrote something to a server it had already refused"
         );
+    }
+
+    /// On a loopback address a server whose greeting offers no TLS is used in the clear
+    /// (`rule:core-classes/db-safe-connection-defaults`), and the greeting the handshake response
+    /// offers back claims no `CLIENT_SSL`. Every other address is the refusal above.
+    #[test]
+    fn a_loopback_server_that_offers_no_tls_is_used_in_the_clear() {
+        use std::io::Write as _;
+
+        let listening =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a loopback port");
+        let address = listening
+            .local_addr()
+            .expect("a bound listener has an address");
+        let script = greeting_bytes(
+            super::CACHING_SHA2_PASSWORD,
+            server_capabilities().difference(CapabilityFlags::CLIENT_SSL),
+        );
+        let server = std::thread::spawn(move || {
+            let (mut accepted, _) = listening.accept().expect("the driver dials");
+            accepted.write_all(&script).expect("the greeting goes out");
+            accepted
+        });
+        let tcp = super::NvsTcp::connect(address).expect("the driver dials");
+        let (wire, greeting) = super::open_tcp(Wire::new(tcp), address, "localhost", None)
+            .expect("a loopback server with no TLS is a connection");
+        drop(server.join().expect("the fake server runs to completion"));
+
+        assert!(
+            matches!(wire.stream, super::MyStream::Loopback(_)),
+            "{:?}",
+            wire.stream
+        );
+        assert!(!greeting.capabilities.contains(CapabilityFlags::CLIENT_SSL));
     }
 
     /// The banner a greeting carried is kept exactly as the server wrote it,
