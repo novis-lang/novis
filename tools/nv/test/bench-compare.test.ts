@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   type Answer,
+  type DeployLoad,
   agreement,
   buildRecord,
   buildScenarios,
@@ -324,7 +325,7 @@ describe("the feature scenarios", () => {
     expect(SCENARIOS.filter((s) => s.id === "loop" || s.id === "memory").every((s) => s.runs === RUNAWAY_RUNS)).toBe(true);
   });
 
-  const deployLoad = { requests: 940, failed: 0, failures: {}, mixed: 0, complete: 940, seconds: 1.2 };
+  const deployLoad: DeployLoad = { requests: 940, failed: 0, failures: {}, mixed: 0, complete: 940, seconds: 1.2 };
 
   test("a deploy is built in with no command, one-setting naming its command, and no on a failure, a mixed reply or no new version", () => {
     const restart = DEPLOY_WAYS.bun!;
