@@ -1,13 +1,14 @@
 ---
 looper: 1
-title: "GitHub CI stays green on main"
+title: GitHub CI stays green on main
 summary: "Never reached: a loop in the project root watches the CI run of every goal end's push to main, fixes each failure the moment a job reports it, commits, and watches again; the next goal end pushes the fixes."
 context: [tools/nv/cmd/ci.ts, .github/workflows/ci.yml, .github/workflows/pages.yml, looper.toml]
 stages:
   - id: 1
-    title: "the newest CI and Website runs on main are green"
+    title: the newest CI and Website runs on main are green
     status: open
     context: [tools/nv/cmd/ci.ts, .github/workflows/ci.yml, .github/workflows/pages.yml]
+checks: []
 ---
 
 # GitHub CI stays green on main
@@ -98,39 +99,41 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `7351b91c7`, the push of `failure-paths-hold`'s end. Its Website run,
-https://github.com/novis-lang/novis/actions/runs/39709148442, is green. Its CI run,
-https://github.com/novis-lang/novis/actions/runs/39709148478, ended red in the same four jobs as
-`e9c83e4fe`'s, for new causes, and the other 31 of its 35 jobs are green:
+`origin/main` is at `fdbedb805`, the push of `core-time-slice`'s end. Its Website run is green. Its
+CI run, https://github.com/novis-lang/novis/actions/runs/39746794544, ended red in three jobs, and
+both earlier reds (`llms-full.txt` and the perf records) are green in it:
 
-- the chapter examples job's `bun nv render --website --check`: `website/public/llms-full.txt` was
-  stale after the concurrency chapter's spawn script section and the `max_multipart_parts` limit row
-  changed. `2c65e25ef` renders it again.
-- `proofs`' `bun nv proofs --verify` (all three platforms): 63 perf records were stale. 54 are
-  `Core\Uri`, `Core\Request`, `Core\Request\Mount` and `Core\Request\Part`, after
-  failure-paths-hold changed `uri.rs` and `request.rs`, and `4c811268c` measures them again. The
-  other nine are `lang:concurrency` rows, and `core-time-slice`, the main loop's open goal, is still
-  editing that chapter (`2b292f862`, `a96c498bf`). They were handed to the main loop with
-  `loop say`, and its session was already appending a `lang:concurrency` record, uncommitted in the
-  root's `data/perf/members.ndjson`. `bun nv proofs --owed` at `HEAD` owes only those nine.
+- `test / macos-aarch64 (tests)`: `nvs_host::group::tests::a_first_yield_charges_the_request_no_bytes`
+  read 64 bytes. On macOS a std `Mutex` is a pthread mutex boxed on its first lock, and the
+  reactor's wake queue was first locked by the yield. `5584a7c61` locks it once in `Reactor::new`.
+- `proofs / windows-x86_64`: the `tools:install/windows` attack hung past 10 s. Its `nvs.toml`
+  wrote no `process.exec`, so a CLI run allowed every program, and it ran `icacls`, `cmd.exe` and
+  PowerShell for real. `6b24e3330` sets `exec = []` in all four install attacks' `nvs.toml`.
+- `proofs / linux-x86_64`: `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs`
+  stopped with `Core\Ldap\Connection::whoami: Timeout`. It passed three times locally, eight at a
+  time. It was not rerun, because a rerun repeats the two reds fixed above. The next push is its
+  second try.
 
-The main loop's gate does not run `bun nv proofs --gate`, so a goal that changes a measured member's
-source or a chapter reaches CI red. This happened at two goal ends in a row.
+`crates/nvs-types/src/ctor_init.rs` is committed unformatted in `15892cf11`, the main loop's open
+work. The main loop was told with `loop say`. If it is still unformatted at the next push, the fmt
+job goes red and is this goal's to fix with `cargo fmt`.
 
-The handed-off red is `proofs`, so the watch passes `--past proofs`. A `proofs` red on the next push
-still shows as a `passing over FAILED` line and exits 4. On exit 4, run `bun nv proofs --owed --limit
-0` in the root: anything owed outside `lang:concurrency` is this goal's to fix.
-
-`.agent-tmp/wt-ci` and `.agent-tmp/wt-cig` are empty scratch folders. Git no longer lists them as
-worktrees. Each contains only a `.looper` directory that Windows will not delete while looper runs.
-Delete both when looper is stopped.
+`.agent-tmp/wt-ci`, `.agent-tmp/wt-cig` and `.agent-tmp/wt-r` are empty scratch folders. Git no
+longer lists them as worktrees. Each contains only a `.looper` directory that Windows will not
+delete while looper runs. Delete all three when looper is stopped.
 
 ### Next
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Watch with `bun nv ci --watch --past proofs` for the next push. `tools/nv/cmd/ci.ts:265`
-- [ ] Fix and commit each red job. `.github/workflows/ci.yml:1`
+- [ ] Watch past `fdbedb805`'s two fixed reds for the next push. `tools/nv/cmd/ci.ts:265`
+  Run `bun nv ci --watch --past "test / macos-aarch64 (tests)" --past proofs`. The newest run is
+  still `fdbedb805`'s, and without these `--past` names the watch exits 1 on it at once. A red in
+  them on the next push still ends with exit 4.
+- [ ] On exit 4 or 1, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
+  The whole log is under `.agent-tmp/ci/`. An LDAP `whoami: Timeout` a second time is not noise:
+  compare the socket deadline with the slice yield commits `13004e4f9` and `2b292f862`.
+- [ ] Fix and commit each other red job. `.github/workflows/ci.yml:1`
   A stale guard red is fixed by `bun nv site --stale` and `bun nv site --questions --owed`, then a
   reread and a `--stamp`. Under Git Bash, a URL argument needs `MSYS_NO_PATHCONV=1`. Check a site or
   render red against committed `HEAD` in a scratch worktree. `bun nv render` takes no `--nvs`, so
@@ -144,9 +147,10 @@ Delete both when looper is stopped.
   is its own group: `Core\Process\Result` is not inside `Core\Process`. The main loop may hold
   uncommitted ledger lines in the root, so never copy the ledger over. Take `git diff -U0` of it in the
   worktree, apply that with `git apply --cached --unidiff-zero` and again without `--cached`, then
-  check with `bun nv proofs --owed --limit 0` and commit the index.
+  check with `bun nv proofs --owed --limit 0` and commit the index. Run one attack with
+  `bun nv proofs --run --id <feature> --show --nvs E:/mwl/target/release/nvs.exe`, never with a
+  direct `nvs run`: an attack can change the checkout.
 
 ### Backlog
 
 Nothing waits.
-
