@@ -3248,7 +3248,9 @@ fn body_text<'a>(body: &'a Value, member: &str) -> Result<&'a str, Fault> {
     // Unreachable from source: `nvs_core_test_request` fills the slot with a
     // `bytes` and nothing else writes it.
     let octets = body.as_bytes().ok_or_else(|| {
-        Fault::fatal(format!("{RESPONSE_NAME}::{member} found a non-`bytes` body slot"))
+        Fault::fatal(format!(
+            "{RESPONSE_NAME}::{member} found a non-`bytes` body slot"
+        ))
     })?;
     std::str::from_utf8(octets).map_err(|err| {
         Fault::thrown(format!(

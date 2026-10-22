@@ -3360,7 +3360,10 @@ pub fn label(column: &Column) -> io::Result<&str> {
     std::str::from_utf8(column.name_ref()).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("column label {:?} is not well-formed UTF-8", column.name_str()),
+            format!(
+                "column label {:?} is not well-formed UTF-8",
+                column.name_str()
+            ),
         )
     })
 }
@@ -7400,6 +7403,9 @@ mod tests {
         assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
 
         let column = Column::new(ColumnType::MYSQL_TYPE_LONG).with_name("café".as_bytes());
-        assert_eq!(crate::mysql::label(&column).expect("a UTF-8 label reads"), "café");
+        assert_eq!(
+            crate::mysql::label(&column).expect("a UTF-8 label reads"),
+            "café"
+        );
     }
 }

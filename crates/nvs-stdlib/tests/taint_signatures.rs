@@ -20,13 +20,29 @@ use nvs_stdlib::registry::{CLASSES, CoreMethod, CoreTy, Qual};
 /// `encodes_outside_text` is that list, and a member added here as an encoder is added there.
 const ALLOWED: &[(&str, &str, &str)] = &[
     (r"Core\Json", "encode", "rule:security/taint-propagation"),
-    (r"Core\Serialize", "encode", "rule:security/taint-propagation"),
+    (
+        r"Core\Serialize",
+        "encode",
+        "rule:security/taint-propagation",
+    ),
     (r"Core\Str", "format", "rule:security/taint-propagation"),
     (r"Core\Bytes", "pack", "rule:security/taint-propagation"),
     (r"Core\Uri", "buildQuery", "rule:security/taint-propagation"),
-    (r"Core\Router", "url", "rule:routing/link-name-and-params-are-checked"),
-    (r"Core\Router", "urlAbsolute", "rule:routing/link-name-and-params-are-checked"),
-    (r"Core\Router", "urlSigned", "rule:routing/link-name-and-params-are-checked"),
+    (
+        r"Core\Router",
+        "url",
+        "rule:routing/link-name-and-params-are-checked",
+    ),
+    (
+        r"Core\Router",
+        "urlAbsolute",
+        "rule:routing/link-name-and-params-are-checked",
+    ),
+    (
+        r"Core\Router",
+        "urlSigned",
+        "rule:routing/link-name-and-params-are-checked",
+    ),
     (r"Core\Jwt", "signObject", "rule:security/jws-issued-subset"),
 ];
 

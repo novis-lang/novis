@@ -304,7 +304,8 @@ mod tests {
     use nvs_runtime::{Ctx, NvsArray, Value, call};
 
     use super::{
-        nvs_core_config_all, nvs_core_config_get, nvs_core_config_restore, nvs_core_config_set,
+        PREPARED_SECRET, nvs_core_config_all, nvs_core_config_get, nvs_core_config_restore,
+        nvs_core_config_set,
     };
 
     /// A context configured out of the TOML an operator would have written.
@@ -345,10 +346,18 @@ mod tests {
         out
     }
 
-    /// `Core\Config::get`'s answer for `name`.
+    /// `Core\Config::get`'s answer for `name`, called the way lowering calls
+    /// it for a literal name: argument 0 is [`PREPARED_SECRET`] when the
+    /// literal names a secret directive, and the absent word otherwise.
     fn get(ctx: &mut Ctx, name: &str) -> Option<String> {
+        let word = if nvs_config::secret::is_secret_key(name) {
+            PREPARED_SECRET
+        } else {
+            crate::regex::PREPARED_NONE
+        };
         let argument = text(name);
-        let answered = call(nvs_core_config_get, ctx, &[argument]).expect("`get` refuses nothing");
+        let answered = call(nvs_core_config_get, ctx, &[Value::int(word), argument])
+            .expect("`get` refuses nothing");
         let out = answered_text(answered);
         #[expect(
             unsafe_code,

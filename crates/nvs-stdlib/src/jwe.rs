@@ -1040,6 +1040,10 @@ nvs_runtime::nvs_helper! {
         // (`rule:types/string-is-utf8`). This is a `ParseError` and not
         // [`refused`]'s sentence, because the token did open, and saying so
         // tells its sealer nothing they did not write.
+        // no case can reach this: `encrypt` takes a `string`, so no Novis
+        // program seals a payload that is not UTF-8. A third party sealing
+        // to the same key does, and
+        // `decrypt_throws_for_a_payload_that_opens_and_is_not_utf8` asserts it.
         let Ok(text) = std::str::from_utf8(&plain) else {
             return Err(Fault::thrown_as(
                 ThrownClass::Parse,

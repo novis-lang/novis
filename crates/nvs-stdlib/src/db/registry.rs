@@ -2266,7 +2266,7 @@ pub(super) const QUOTE_IDENTIFIER_DOC: MethodDoc = MethodDoc {
     short: "Checks that `$name` is a plain SQL identifier: a letter or `_`, then letters, digits or \
             `_`. It returns the name unchanged and no longer `tainted`, so you can write it into the \
             text of a statement. Use it for a table or column name. It checks the syntax only. A \
-            visitor can still name any table or column, such as `password_hash`. If a visitor \
+            visitor can still name any table or column, such as `users`. If a visitor \
             chooses the name, check it against a list of allowed names first.",
     params: &[ParamDoc {
         name: "name",

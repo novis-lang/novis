@@ -16,8 +16,8 @@
 //! `extern "C"` function are a whole one. `nvs-stdlib`'s `allocation_policy.rs`
 //! owns that shape and the reason the table is leaked.
 
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, AtomicUsize, Ordering};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use nvs_config::Snapshot;
@@ -918,9 +918,8 @@ impl nvs_runtime::script::Resolver for ResolvesToTheServedProbe {
 /// request has ended. Once they end, their places are free again.
 #[test]
 fn a_served_failure_does_not_wait_for_its_handler_and_handlers_per_core_are_bounded() {
-    let snapshot = snapshot_of(
-        "[log]\nhandler = '/srv/report.nvs'\n\n[capabilities.script]\nspawn = true\n",
-    );
+    let snapshot =
+        snapshot_of("[log]\nhandler = '/srv/report.nvs'\n\n[capabilities.script]\nspawn = true\n");
     let served = move || {
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_config(Arc::clone(&snapshot));

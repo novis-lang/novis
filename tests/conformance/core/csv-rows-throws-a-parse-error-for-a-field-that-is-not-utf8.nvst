@@ -1,0 +1,24 @@
+--TEST--
+`Core\Csv::rows` throws a `ParseError` for a field whose bytes are not UTF-8, names the line, and gives every record before it — `rule:types/string-is-utf8`
+--FILE--
+<?nvs
+// The second line is the single byte FF, which never appears in UTF-8.
+Core\IO\File $out = Core\IO::open("names.csv", Core\IO::FileMode::Write);
+$out->write(Core\Bytes::pack('CCCCC', 0x61, 0x0A, 0xFF, 0x0A, 0x62));
+$out->close();
+
+Core\IO\File $in = Core\IO::open("names.csv", Core\IO::FileMode::Read);
+uint $read = 0;
+try {
+    foreach (Core\Csv::rows($in) as array<string> $record) {
+        $read = $read + 1;
+    }
+    echo "the byte FF was read as text\n";
+} catch (ParseError $notText) {
+    echo $notText->message, "\n";
+}
+$in->close();
+echo "records before it: ", $read, "\n";
+--EXPECTF--
+Core\Csv::rows: line %d of %s has a field that is not valid UTF-8
+records before it: 1
