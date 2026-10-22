@@ -458,13 +458,13 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 
 **Does:** CSRF-1, CSRF-2, SESS-1 and CRYPTO-2 are closed, and CRYPTO-3 and CRYPTO-6 are fixed.
 
-- [ ] CSRF-1, RS-3: the door reads cookies with `Core\Session`'s reader. `crates/nvs-server/src/route.rs:315`
-- [ ] CSRF-2: a program with no route table gets the Origin check (`rule:security/csrf-is-on-by-default`). `crates/nvs-server/src/route.rs:124`
-- [ ] SESS-1: `Session::start` writes no row and sends no cookie until the first write (`rule:core-classes/session-is-started-explicitly`). `crates/nvs-stdlib/src/session.rs:912`
+- [x] CSRF-1, RS-3: the door reads cookies with `Core\Session`'s reader. `crates/nvs-server/src/route.rs:315`
+- [x] CSRF-2: a program with no route table gets the Origin check (`rule:security/csrf-is-on-by-default`). `crates/nvs-server/src/route.rs:124`
+- [x] SESS-1: `Session::start` writes no row and sends no cookie until the first write (`rule:core-classes/session-is-started-explicitly`). `crates/nvs-stdlib/src/session.rs:912`
 - [ ] CRYPTO-2: signed cookies bind the name and a purpose into the associated data. `crates/nvs-stdlib/src/signed_cookie.rs:261`
 - [ ] CRYPTO-3: `Core\Config::get` and `::all` return a secret directive as `secret string`. `crates/nvs-stdlib/src/config.rs:192`
 - [ ] CRYPTO-6: `Core\Random\Seeded` output is refused where a key or a token goes. `crates/nvs-stdlib/src/random.rs:395`
-- [ ] BBK-1's pin: a token issued for no session, sent with no cookie, is refused same-origin and cross-origin by a keyed door. It is refused on a2b4854a4, and the attack keeps it so once CSRF-1 changes how the door reads cookies (`rule:security/csrf-is-on-by-default`). `crates/nvs-server/src/route.rs:245`
+- [x] BBK-1's pin: a token issued for no session, sent with no cookie, is refused same-origin and cross-origin by a keyed door. It passed on main (the claim that a2b4854a4 refused it was wrong), and the attack keeps it so once CSRF-1 changes how the door reads cookies (`rule:security/csrf-is-on-by-default`). `crates/nvs-server/src/route.rs:245`
 - [ ] The attacks: a session cookie on a second line, a cookie swapped between names, and 20,000 cookieless starts that leave no rows. `tests/hostile/core/Session/start/01-identifiers-nobody-issued.nvs:1`
 
 ### 10. a pooled database connection starts clean, and SQLite opens only what the grant names
@@ -556,10 +556,46 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 8 is done. EXT-1, EXT-2, EXT-5 and EXT-6 landed earlier (EXT-5 f86196453, EXT-6
-ddb8dd9d7), and EXT-7 to EXT-9 in the session before this one.
+Stage 9 is under way. Four of its items landed this session; CRYPTO-2, CRYPTO-3, CRYPTO-6 and the
+swapped-cookie attack are left.
 
-This session:
+- **CSRF-1/RS-3 and BBK-1 (0de803e8b).** `nvs_runtime::Inbound::cookie(name)` is the one cookie
+  reader (every `Cookie` line, pair by pair, the `__Host-`/`__Secure-` rule). It moved out of
+  `nvs-stdlib/src/request.rs`; `cookie_of` there is now a one-line call to it. The door's
+  `route::session` reads through it and treats an empty or non-UTF-8 value as no session, and
+  `route::verified` refuses every token on a request with no session. BBK-1's pin was **not**
+  refused on main: a token for `""` with no cookie passed from any origin. The attacks
+  `a_token_issued_for_no_session_is_refused_from_any_origin` and
+  `the_door_finds_the_session_wherever_the_session_reader_finds_it` (in `route.rs`'s tests) were
+  red on main and are green. `live_config.rs`'s `csrf_token` now binds `sid-live` and the post
+  sends `Cookie: nvsid=sid-live`. The rule says a login form must write the session before it
+  renders its token.
+- **CSRF-2 (913f5df4d).** `route::unmatched_write` (an unsafe wire verb with no match) gets the
+  origin half in `csrf`, key or no key. The token half stays a matched row's, and the rule says
+  why. The attack `a_cross_origin_write_nothing_matched_is_refused` was red on main.
+- **SESS-1 (c8292355a).** A cookieless or unknown-id `start` opens `Session { id: "" }`: no `put`,
+  no cookie. `write_back` draws the id and sends the cookie (after `head_open`) on the first write
+  that leaves the record non-empty; `send_at_end` writes the row. `regenerate` on an empty id is a
+  no-op, `destroy` skips the store. The attack `a_session_nobody_wrote_leaves_no_row_and_sends_no_cookie`
+  (20,000 starts over the fake shared store) was red on main. The old start test is renamed
+  `start_opens_a_held_record_and_a_fresh_one_for_an_id_the_store_does_not_hold`, and its rule
+  sentence follows. Step 6 of `tests/hostile/core/Session/start/01-identifiers-nobody-issued.nvs`
+  runs 20,000 read-only start/regenerate/destroy cycles. It needs Redis on 16379 and was not run.
+  `START_DOC` and `SET_DOC` help changed.
+- The sweep: `env-secret-proofs`'s log is the 00:07 one again (exit 0). The nightly run 39746060276
+  is the cancelled `workflow_dispatch` already named below. Neither is the tree's.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+
+Tests that may go red from this session: `nvs-stdlib`'s `request.rs` cookie tests (the reader
+moved, the logic is the same; not run); any served or `.nvst` test that sends a CSRF token issued
+for `""` or with no session cookie under a key (grep found only `live_config.rs`, updated); any
+served test that `POST`s with a foreign `Origin` to an unmatched path or a route-less program
+(none found); a `.nvst` or served test that expects a `Set-Cookie` or a store row from a bare
+`Core\Session::start()` (grep found none outside `session.rs`); the help snapshots and the
+website's `core.json`/`llms-full.txt` for `Core\Session::start` and `::set`; the website's rule
+pages for the three rules changed (`bun nv site --check` names them).
+
+The session before:
 
 - **EXT-10 (f8b660100).** `nvs_ext::call::Budget` has `open_file(path, FileOpen)`, `create_dir`
   and `rename`, each defaulting to the by-name call. `files.rs`'s `open` (every file open, read
@@ -692,29 +728,30 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 9, one group: sessions, the CSRF door and signed cookies. Its files are
-`crates/nvs-server/src/route.rs`, `crates/nvs-stdlib/src/session.rs`,
-`crates/nvs-stdlib/src/signed_cookie.rs` and `crates/nvs-stdlib/src/request.rs:2184` (the cookie
-reader `Core\Session` uses). Take them in this order, attack first each time:
+Stage 9's rest, attack first each time:
 
-1. CSRF-1/RS-3 and BBK-1's pin (`route.rs:315`, `:245`): the door reads every `Cookie` line, value
-   by value, with the session's reader. Pin BBK-1 before changing the reader, because it must stay
-   refused after.
-2. CSRF-2 (`route.rs:124`): a program with no `#[Route]` table gets the same Origin check on unsafe
-   methods.
-3. SESS-1 (`session.rs:912`): `Session::start` with no cookie writes no row and sends no cookie
-   until the first write. The attack is 20,000 cookieless starts that leave no rows
-   (`tests/hostile/core/Session/start/01-identifiers-nobody-issued.nvs`).
-4. CRYPTO-2 (`signed_cookie.rs:261`): the cookie's name and a purpose string go into the
-   associated data. Expiry inside the seal stays declined (the standing decision).
-5. CRYPTO-3 (`crates/nvs-stdlib/src/config.rs:192`) and CRYPTO-6
-   (`crates/nvs-stdlib/src/random.rs:395`) are separate files and can be a second group.
+1. CRYPTO-2 (`crates/nvs-stdlib/src/signed_cookie.rs:261`): the cookie's name and a purpose string
+   go into the associated data, so a value sealed for one cookie, a CSRF token or
+   `Core\Crypto::seal` does not open as another. Its attack is the stage's "cookie swapped between
+   names" (`tests/hostile/core/SignedCookie/`). Expiry inside the seal stays declined. Read
+   `.agent-tmp/sec-audit/reports/wb-stdlib-request.md`'s CRYPTO-2 first: how the name reaches
+   `seal`/`open` decides whether the signature changes, which would be a `Core` change.
+2. CRYPTO-3 (`crates/nvs-stdlib/src/config.rs:192`): `Core\Config::get`/`::all` return a secret
+   directive as `secret string`, and `all` renders `<secret>`. The card and help change.
+3. CRYPTO-6 (`crates/nvs-stdlib/src/random.rs:395`): `Core\Random\Seeded` output is refused where
+   a key or a token goes.
+
+Then tick the stage's last item (the attacks) and set stage 9 done.
 
 Each fix changes no syntax and adds no `Core` member. CRYPTO-3 changes the return type of
 `Core\Config::get`/`::all` for a secret directive, so its card and help change.
 
 ### Backlog
 
+- Under a keyed door, a page that renders a token for a visitor with no session must write the
+  session first, since a token for no session is now refused and a bare `start` sends no cookie.
+  No `Core\Session` member returns the id to issue the token for (BBK-1's first half). The pages
+  that teach the pattern are `taught-app-works`'s.
 - The extension pool stops at 4096 places (`MOST_SLOTS`), under the default `max_in_flight` of
   10000 once one class is loaded. Lifting it means a smaller memory reservation per place and a
   bounds check per guest memory access, which the rule declines. If a deployment needs more, the
