@@ -11,6 +11,12 @@ csrf_key` names the key that says what a valid token is; until it does, there is
 any request to be missing. A valid token passes whatever the origin says, because it proves the page
 the request came from was this application's.
 
+**The origin half covers every unsafe verb, matched or not.** A program with no `#[Route]` table,
+and a path a routed program's table does not claim, get the same origin refusal a matched row gets.
+The token half applies only to a matched row, because the opt-out is written on a route: a program
+with no table could not exempt a webhook from it, and every write it serves under a key would be
+refused.
+
 **The session a token is bound to is read the way `Core\Session::start` reads it**: the cookie
 `[session] cookie` names, found on any `Cookie` line, pair by pair, with one reader for both. Two
 readers that split the header differently would check a token against one session while the program

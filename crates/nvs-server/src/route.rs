@@ -82,7 +82,9 @@
 //! A request whose unit declares no route is matched against nothing and
 //! carries no match, which is `rule:routing/table-is-opt-in`'s opt-in rule; so is one whose
 //! program failed to compile, because the table is a product of the compile
-//! that did not happen.
+//! that did not happen. An unsafe verb that carries no match still gets the
+//! origin half: a write whose `Origin` names another origin is refused whether
+//! or not a row claimed it.
 //!
 //! **What it spends:** one walk of the table per request, and — for a matched
 //! one — what [`nvs_runtime::routes`] accounts for. Nothing is held past the
@@ -123,10 +125,11 @@ pub fn take(routes: &Routes, inbound: &mut Inbound) {
 /// would make two matches of one question, and § 4 was specified against the
 /// answer this one already has.
 ///
-/// **A request that matched nothing is not covered**, and that is `rule:routing/table-is-opt-in`
-/// 's opt-in rule rather than a hole in the default: a program with no route
-/// table declares no handler for the door to protect, so refusing its every
-/// `POST` would refuse every request it serves.
+/// **A request that matched nothing is not covered here**, which is
+/// `rule:routing/table-is-opt-in`'s opt-in rule: a program with no route table
+/// has no row to write `csrf: false` on, so a token required of its every
+/// `POST` would refuse every write it serves. [`csrf`] still refuses such a
+/// write when its `Origin` names another origin ([`unmatched_write`]).
 ///
 /// The refusal this answer feeds is [`csrf`], which is where § 4's other half —
 /// what makes a covered request acceptable — is decided.
@@ -135,6 +138,22 @@ pub fn csrf_required(inbound: &Inbound) -> bool {
     inbound
         .route()
         .is_some_and(|matched| matched.route().csrf())
+}
+
+/// The four unsafe verbs as they arrive on the wire. A method token is
+/// case-sensitive (RFC 9110 § 9.1), and the door answers `501` for any other.
+const UNSAFE_METHODS: [&str; 4] = ["POST", "PUT", "PATCH", "DELETE"];
+
+/// Whether this request is an unsafe verb no row matched: a write to a program
+/// with no route table, or to a path its table does not claim.
+///
+/// Such a write gets the origin half of [`csrf`] and not the token half. The
+/// origin half needs no route, because it refuses only a browser that names
+/// another origin. The token half would refuse every write a program with no
+/// table serves under a key, a webhook included, and that program has no route
+/// to write `csrf: false` on.
+fn unmatched_write(inbound: &Inbound) -> bool {
+    inbound.route().is_none() && UNSAFE_METHODS.contains(&inbound.method())
 }
 
 /// Whether this request asks to upgrade the connection over a row that did not
@@ -215,7 +234,8 @@ pub enum Csrf {
 ///
 /// The two grounds and what arms each are the module doc's own section. In
 /// order: a request the table did not claim for a checked verb passes
-/// ([`csrf_required`] is the whole of that question); a request carrying a token
+/// ([`csrf_required`] is the whole of that question), unless it is an unsafe
+/// verb no row matched and its `Origin` is another origin; a request carrying a token
 /// this key issued for this request's session passes, whatever its origin says;
 /// a request whose `Origin` is not where it arrived is refused; and, where a key
 /// is named, a request with no such token is refused even same-origin, because a
@@ -239,7 +259,11 @@ pub fn csrf(inbound: &Inbound, key: Option<&[u8]>, session_cookie: &str) -> Csrf
         return Csrf::Refused;
     }
     if !csrf_required(inbound) {
-        return Csrf::Passed;
+        return if unmatched_write(inbound) && cross_origin(inbound) {
+            Csrf::Refused
+        } else {
+            Csrf::Passed
+        };
     }
     // Keyed first, so that a valid token is the one answer that does not depend
     // on a header the request chose: a token proves the page it was rendered
@@ -669,6 +693,60 @@ mod tests {
             door(&arrived("GET", "/orders", &[host, elsewhere])),
             Csrf::Passed
         );
+    }
+
+    /// Attack: another site posts to a program with no route table, or to a path
+    /// a routed program's table does not claim. Each write that names another
+    /// origin is refused, key or no key. A write with no `Origin`, a safe verb
+    /// and an opted-out row still pass.
+    #[test]
+    fn a_cross_origin_write_nothing_matched_is_refused() {
+        let routes = checked();
+        let host = ("host", "app.example.com");
+        let elsewhere = ("origin", "http://evil.example.com");
+        let own = ("origin", "http://app.example.com");
+        let arrived = |verb: &str, path: &str, routed: bool, headers: &[(&str, &str)]| {
+            let mut inbound = Inbound::new(verb, path, "");
+            for (name, value) in headers {
+                inbound.push_header(name, value.as_bytes());
+            }
+            if routed {
+                super::take(&routes, &mut inbound);
+            }
+            inbound
+        };
+        let key = [4_u8; nvs_runtime::csrf::KEY_LEN];
+        for key in [None, Some(key.as_slice())] {
+            let door = |inbound: &Inbound| super::csrf(inbound, key, "nvsid");
+            for verb in ["POST", "PUT", "PATCH", "DELETE"] {
+                // 1. A program with no table, and a path the table does not claim.
+                assert_eq!(
+                    door(&arrived(verb, "/p", false, &[host, elsewhere])),
+                    Csrf::Refused,
+                    "{verb} to a program with no table"
+                );
+                assert_eq!(
+                    door(&arrived(verb, "/orders/9", true, &[host, elsewhere])),
+                    Csrf::Refused,
+                    "{verb} to a path the table does not claim"
+                );
+                // 2. The same write from this origin, or with no `Origin`, passes.
+                assert_eq!(
+                    door(&arrived(verb, "/p", false, &[host, own])),
+                    Csrf::Passed
+                );
+                assert_eq!(door(&arrived(verb, "/p", false, &[host])), Csrf::Passed);
+            }
+            // 3. A safe verb, and the row that opted out, are not checked.
+            assert_eq!(
+                door(&arrived("GET", "/p", false, &[host, elsewhere])),
+                Csrf::Passed
+            );
+            assert_eq!(
+                door(&arrived("POST", "/hooks/stripe", true, &[host, elsewhere])),
+                Csrf::Passed
+            );
+        }
     }
 
     /// The token half, armed by `[http] csrf_key`: a checked write carries a
