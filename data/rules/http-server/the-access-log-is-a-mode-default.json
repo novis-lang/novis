@@ -1,5 +1,5 @@
 {
-  "title": "`[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says",
+  "title": "`[log] access` is a mode default — on in development, off in production — and a `5xx` other than `501` is logged whatever it says",
   "status": "shipped",
   "seeAlso": [
     "observability/a-trace-id-exists-for-every-request",

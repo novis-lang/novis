@@ -728,6 +728,9 @@ impl Registry {
     /// method and status, which is § 1's "no `route` label" with a spelling the
     /// wire allows.
     ///
+    /// `method` is closed the same way, by [`method_label`]: a verb the client
+    /// made up is `other`, so a request's bytes never become a label.
+    ///
     /// Nothing is returned. Both names are seeded by [`DEFAULT`], so neither
     /// mismatch in [`Refused`] is reachable here, and § 7's cardinality refusal
     /// is the no-op it is defined to be — counted in [`Registry::refusals`] and
@@ -737,7 +740,7 @@ impl Registry {
         let status = std::str::from_utf8(&status).unwrap_or("000");
         // Sorted by label name, so `Registry::rewrite` borrows them as written.
         let labels = [
-            ("method", method),
+            ("method", method_label(method)),
             ("route", route.unwrap_or_default()),
             ("status", status),
         ];
@@ -1199,6 +1202,22 @@ fn empty(kind: Kind, buckets: &'static [f64]) -> Value {
     }
 }
 
+/// The `method` label for a request's verb: one of RFC 9110's nine methods as
+/// written, and `other` for any verb outside them.
+///
+/// A client chooses the verb, and every distinct one would be a series until
+/// `max_series` refuses new ones, legitimate metrics included. Nine names and
+/// `other` keep the label's set closed whatever arrives
+/// (`rule:observability/default-series`). The match is on exact bytes, because
+/// methods are case-sensitive and `get` is not `GET`.
+fn method_label(method: &str) -> &str {
+    match method {
+        "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "CONNECT" | "OPTIONS" | "TRACE"
+        | "PATCH" => method,
+        _ => "other",
+    }
+}
+
 /// A status as its three digits, on the stack.
 ///
 /// A label value is only borrowed for the length of the call that writes it, so
@@ -1483,6 +1502,41 @@ mod tests {
             Some(&Value::Counter(1))
         );
         assert_eq!(registry.len(), 3 + 4);
+    }
+
+    /// `rule:observability/default-series`: a verb outside the nine standard
+    /// methods is labelled `other`, so made-up verbs add one series between
+    /// them and never one each.
+    #[test]
+    fn an_unknown_verb_is_labelled_other() {
+        let mut registry = Registry::new(64);
+        for verb in ["BREW", "PROPFIND", "get", "X-ONE", "X-TWO"] {
+            registry.request(verb, 501, None, Duration::from_millis(1));
+        }
+        registry.request("PATCH", 200, None, Duration::from_millis(1));
+        assert_eq!(
+            registry.read(
+                "nvs_requests_total",
+                &[("method", "other"), ("status", "501"), ("route", "")]
+            ),
+            Some(&Value::Counter(5))
+        );
+        assert!(
+            registry
+                .read(
+                    "nvs_requests_total",
+                    &[("method", "BREW"), ("status", "501"), ("route", "")]
+                )
+                .is_none(),
+            "a client's verb became a label"
+        );
+        assert_eq!(
+            registry.read(
+                "nvs_requests_total",
+                &[("method", "PATCH"), ("status", "200"), ("route", "")]
+            ),
+            Some(&Value::Counter(1))
+        );
     }
 
     /// A pause histogram is bucketed where a pause lives: measured against the

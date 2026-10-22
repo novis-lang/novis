@@ -23,7 +23,9 @@ came near their ceiling. It reads the mark
 `rule:observability/a-memory-peak-is-recorded-not-asked-for` already holds, so it adds no probe site.
 
 `route` is the one label that would otherwise be unbounded, and
-`rule:observability/route-label-is-the-declared-name` is what keeps it closed. The ten are seeded
+`rule:observability/route-label-is-the-declared-name` is what keeps it closed. `method` is one of
+RFC 9110's nine methods as the request wrote it, and `other` for any verb outside them, so a client
+that makes up verbs adds one series and never one each. The ten are seeded
 into a core's registry ahead of `rule:observability/past-max-series-a-new-series-is-refused`'s
 bound rather than counted through it, because a `max_series` small enough to refuse them would
 quietly turn "present the moment an exporter is configured" into a different configuration.
