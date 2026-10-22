@@ -90,6 +90,9 @@
 //! entry per component file per build, under the cache's own size cap.
 
 use std::collections::BTreeMap;
+use std::fs::File;
+use std::io;
+use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -100,8 +103,8 @@ use nvs_config::tree::{Config, Extension};
 use nvs_config::value::{Quantity, Unit};
 use nvs_diagnostics::{Diagnostic, SourceMap};
 use nvs_ext::call::{
-    Answer, Budget, Host, Incoming, Lender, Lending, Level, Limit, Outbound, Outcome, Outgoing,
-    Request, Unsent,
+    Answer, Budget, FileOpen, Host, Incoming, Lender, Lending, Level, Limit, Outbound, Outcome,
+    Outgoing, Request, Unsent,
 };
 use nvs_ext::convert::{Key, Value as Crossed, fits};
 use nvs_ext::grants::Caller;
@@ -694,6 +697,30 @@ impl Budget for Spent {
             .unwrap_or_else(PoisonError::into_inner)
             .push((id, offset, length, lender));
         lending
+    }
+
+    /// Opened beneath a handle, as a `Core\IO` write door opens one
+    /// (`rule:security/writes-open-beneath-a-handle`).
+    fn open_file(&self, path: &Path, how: FileOpen) -> io::Result<File> {
+        let how = nvs_runtime::guest_files::Open {
+            read: how.read,
+            write: how.write,
+            append: false,
+            create: how.create,
+            exclusive: how.exclusive,
+            truncate: how.truncate,
+        };
+        nvs_runtime::guest_files::open_with(path, how)
+    }
+
+    /// Created beneath a handle, as [`Budget::open_file`] opens a file.
+    fn create_dir(&self, path: &Path) -> io::Result<()> {
+        nvs_runtime::guest_files::create_dir(path)
+    }
+
+    /// Renamed between two folder handles, as [`Budget::open_file`] opens a file.
+    fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+        nvs_runtime::guest_files::rename(from, to)
     }
 
     /// The value at `ext.<block>.<key>` in the request's snapshot, as JSON.

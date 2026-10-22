@@ -50,6 +50,73 @@ pub(crate) enum Mode {
     ReadWrite,
 }
 
+impl Mode {
+    /// The flags `mode` opens with.
+    const fn open(self) -> Open {
+        let none = Open {
+            read: false,
+            write: false,
+            append: false,
+            create: false,
+            exclusive: false,
+            truncate: false,
+        };
+        match self {
+            Self::Read => Open { read: true, ..none },
+            Self::New => Open {
+                write: true,
+                create: true,
+                exclusive: true,
+                ..none
+            },
+            Self::Truncate => Open {
+                write: true,
+                create: true,
+                truncate: true,
+                ..none
+            },
+            Self::Write => Open {
+                write: true,
+                create: true,
+                ..none
+            },
+            Self::Append => Open {
+                append: true,
+                create: true,
+                ..none
+            },
+            Self::ReadWrite => Open {
+                read: true,
+                write: true,
+                create: true,
+                ..none
+            },
+        }
+    }
+}
+
+/// How [`open_with`] opens the file at the end of the walk, flag by flag, as
+/// `std::fs::OpenOptions` names them. [`Mode`] is the doors' fixed set of these.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "one flag per open option, the shape `std::fs::OpenOptions` has"
+)]
+pub struct Open {
+    /// The file may be read.
+    pub read: bool,
+    /// The file may be written anywhere.
+    pub write: bool,
+    /// The file is written only at its end. Set it without `write`.
+    pub append: bool,
+    /// A missing file is created.
+    pub create: bool,
+    /// The file is created, and a name already there fails with `AlreadyExists`.
+    pub exclusive: bool,
+    /// What was there is emptied. It needs `write`.
+    pub truncate: bool,
+}
+
 /// The file at `path`, opened as `mode` says.
 ///
 /// `path` is a resolved, absolute path. Its folders must exist.
@@ -60,11 +127,34 @@ pub(crate) enum Mode {
 /// system's error, which is `AlreadyExists` for [`Mode::New`] on a name already there and
 /// `NotFound` for [`Mode::Read`] on a name that is not.
 pub(crate) fn open_file(path: &Path, mode: Mode) -> io::Result<File> {
+    open_with(path, mode.open())
+}
+
+/// [`open_file`] with each flag chosen on its own.
+///
+/// # Errors
+///
+/// [`open_file`]'s, and `AlreadyExists` for `exclusive` on a name already there.
+pub fn open_with(path: &Path, how: Open) -> io::Result<File> {
     let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
         return Err(io::Error::from(io::ErrorKind::InvalidInput));
     };
     let dir = walk(parent, false)?;
-    sys::open_at_end(&dir, name, mode)
+    sys::open_at_end(&dir, name, how)
+}
+
+/// The one folder `path` names created. Its parent must exist.
+///
+/// # Errors
+///
+/// [`link_refused`] when a folder above it is a link, and `AlreadyExists` when the name is
+/// there, a link included. Otherwise the operating system's error.
+pub fn create_dir(path: &Path) -> io::Result<()> {
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+        return Err(io::Error::from(io::ErrorKind::InvalidInput));
+    };
+    let dir = walk(parent, false)?;
+    sys::make_dir(&dir, name)
 }
 
 /// [`open_file`] for a door that creates: exclusively when `overwrite` is false, or emptying what
@@ -88,7 +178,7 @@ pub(crate) fn create_file(path: &Path, overwrite: bool) -> io::Result<File> {
 ///
 /// [`link_refused`] when a folder above either name is a link. Otherwise the operating system's
 /// error, such as nothing at `from` or the two names on different filesystems.
-pub(crate) fn rename(from: &Path, to: &Path) -> io::Result<()> {
+pub fn rename(from: &Path, to: &Path) -> io::Result<()> {
     let (Some(from_parent), Some(from_name), Some(to_parent), Some(to_name)) =
         (from.parent(), from.file_name(), to.parent(), to.file_name())
     else {
@@ -170,7 +260,10 @@ mod sys {
         let name = c_name(name)?;
         match open_at(dir.as_raw_fd(), &name, DIR_FLAGS, 0) {
             Err(err) if create && err.kind() == io::ErrorKind::NotFound => {
-                make_at(dir, &name)?;
+                match make_at(dir, &name) {
+                    Err(err) if err.kind() != io::ErrorKind::AlreadyExists => return Err(err),
+                    _ => {}
+                }
                 open_at(dir.as_raw_fd(), &name, DIR_FLAGS, 0)
             }
             other => other,
@@ -178,20 +271,32 @@ mod sys {
         .map_err(|err| explain(dir, &name, err))
     }
 
-    pub(super) fn open_at_end(dir: &Dir, name: &OsStr, mode: super::Mode) -> io::Result<File> {
+    pub(super) fn open_at_end(dir: &Dir, name: &OsStr, how: super::Open) -> io::Result<File> {
         let name = c_name(name)?;
-        let mode = match mode {
-            super::Mode::Read => libc::O_RDONLY,
-            super::Mode::New => libc::O_CREAT | libc::O_WRONLY | libc::O_EXCL,
-            super::Mode::Truncate => libc::O_CREAT | libc::O_WRONLY | libc::O_TRUNC,
-            super::Mode::Write => libc::O_CREAT | libc::O_WRONLY,
-            super::Mode::Append => libc::O_CREAT | libc::O_WRONLY | libc::O_APPEND,
-            super::Mode::ReadWrite => libc::O_CREAT | libc::O_RDWR,
+        let mut flags = match (how.read, how.write || how.append) {
+            (true, true) => libc::O_RDWR,
+            (false, true) => libc::O_WRONLY,
+            _ => libc::O_RDONLY,
         };
-        let flags = libc::O_NOFOLLOW | libc::O_CLOEXEC | mode;
+        for (set, flag) in [
+            (how.append, libc::O_APPEND),
+            (how.create, libc::O_CREAT),
+            (how.exclusive, libc::O_CREAT | libc::O_EXCL),
+            (how.truncate, libc::O_TRUNC),
+        ] {
+            if set {
+                flags |= flag;
+            }
+        }
+        let flags = libc::O_NOFOLLOW | libc::O_CLOEXEC | flags;
         open_at(dir.as_raw_fd(), &name, flags, 0o666)
             .map(File::from)
             .map_err(|err| explain(dir, &name, err))
+    }
+
+    pub(super) fn make_dir(dir: &Dir, name: &OsStr) -> io::Result<()> {
+        let name = c_name(name)?;
+        make_at(dir, &name)
     }
 
     pub(super) fn rename_at(
@@ -265,13 +370,9 @@ mod sys {
         )]
         let status = unsafe { libc::mkdirat(dir.as_raw_fd(), name.as_ptr(), 0o777) };
         if status == 0 {
-            return Ok(());
-        }
-        let err = io::Error::last_os_error();
-        if err.kind() == io::ErrorKind::AlreadyExists {
             Ok(())
         } else {
-            Err(err)
+            Err(io::Error::last_os_error())
         }
     }
 
@@ -363,17 +464,26 @@ mod sys {
         Ok(handle)
     }
 
-    pub(super) fn open_at_end(dir: &Dir, name: &OsStr, mode: super::Mode) -> io::Result<File> {
-        // `FILE_CREATE` fails on any name already there, a link included. Every other mode opens
+    pub(super) fn open_at_end(dir: &Dir, name: &OsStr, how: super::Open) -> io::Result<File> {
+        // `FILE_CREATE` fails on any name already there, a link included. Every other open takes
         // what is there without emptying it, so a link is refused before it loses anything, and a
         // truncate empties the file afterwards. A handle without `FILE_WRITE_DATA` writes only at
-        // the end, which is how `std` appends too. A read creates nothing.
-        let (access, disposition) = match mode {
-            super::Mode::Read => (FILE_GENERIC_READ, FILE_OPEN),
-            super::Mode::New => (FILE_GENERIC_WRITE, FILE_CREATE),
-            super::Mode::Truncate | super::Mode::Write => (FILE_GENERIC_WRITE, FILE_OPEN_IF),
-            super::Mode::Append => (FILE_GENERIC_WRITE & !FILE_WRITE_DATA, FILE_OPEN_IF),
-            super::Mode::ReadWrite => (FILE_GENERIC_READ | FILE_GENERIC_WRITE, FILE_OPEN_IF),
+        // the end, which is how `std` appends too. An open that does not create creates nothing.
+        let mut access = 0;
+        if how.read {
+            access |= FILE_GENERIC_READ;
+        }
+        if how.write {
+            access |= FILE_GENERIC_WRITE;
+        } else if how.append {
+            access |= FILE_GENERIC_WRITE & !FILE_WRITE_DATA;
+        }
+        let disposition = if how.exclusive {
+            FILE_CREATE
+        } else if how.create {
+            FILE_OPEN_IF
+        } else {
+            FILE_OPEN
         };
         let handle = open_at(
             dir,
@@ -384,10 +494,21 @@ mod sys {
         )?;
         refuse_surrogate(&handle)?;
         let file = File::from(handle);
-        if mode == super::Mode::Truncate {
+        if how.truncate {
             file.set_len(0)?;
         }
         Ok(file)
+    }
+
+    pub(super) fn make_dir(dir: &Dir, name: &OsStr) -> io::Result<()> {
+        open_at(
+            dir,
+            name,
+            DIR_ACCESS,
+            FILE_CREATE,
+            FILE_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+        )
+        .map(drop)
     }
 
     pub(super) fn rename_at(
@@ -709,6 +830,41 @@ mod tests {
         assert!(!root.join("d").join("none.txt").exists());
     }
 
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_guest_open_takes_each_flag_and_a_folder_is_made_once() {
+        let (_dir, root) = scratch("guest");
+        let existing = Open {
+            read: true,
+            write: true,
+            ..Open::default()
+        };
+        let err = open_with(&root.join("f.txt"), existing).expect_err("nothing there");
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        let create = Open {
+            create: true,
+            ..existing
+        };
+        let mut file = open_with(&root.join("f.txt"), create).expect("created");
+        std::io::Write::write_all(&mut file, b"abc").expect("write");
+        drop(file);
+        let truncate = Open {
+            truncate: true,
+            ..existing
+        };
+        drop(open_with(&root.join("f.txt"), truncate).expect("emptied"));
+        assert_eq!(std::fs::read(root.join("f.txt")).expect("read"), b"");
+        create_dir(&root.join("g")).expect("made");
+        assert!(root.join("g").is_dir());
+        let err = create_dir(&root.join("g")).expect_err("made twice");
+        assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
+        let err = create_dir(&root.join("h").join("i")).expect_err("no parent");
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+    }
+
     /// A link to `target` at `at`. On Windows a symbolic link needs a right most accounts lack, and
     /// a junction, which needs none, is planted in its place.
     fn plant_dir_link(target: &Path, at: &Path) -> bool {
@@ -742,6 +898,23 @@ mod tests {
             assert_eq!(err.to_string(), link_refused().to_string());
             let err = create_dirs(&root.join("d").join("e")).expect_err("through a link");
             assert_eq!(err.to_string(), link_refused().to_string());
+            // A guest's folder and its exclusive read-write create.
+            let err = create_dir(&root.join("d").join("g")).expect_err("through a link");
+            assert_eq!(err.to_string(), link_refused().to_string());
+            let how = Open {
+                read: true,
+                write: true,
+                create: true,
+                exclusive: true,
+                ..Open::default()
+            };
+            let err = open_with(&root.join("d").join("w.txt"), how).expect_err("through a link");
+            assert_eq!(err.to_string(), link_refused().to_string());
+            assert!(!outside.join("g").exists());
+            assert!(!outside.join("w.txt").exists());
+            // The link itself is a name already there.
+            let err = create_dir(&root.join("d")).expect_err("a link as the folder");
+            assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
             // The copy door's destination.
             let err = open_file(&root.join("d").join("c.txt"), Mode::Write)
                 .expect_err("a copy through a link");

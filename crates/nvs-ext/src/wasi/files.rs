@@ -27,8 +27,12 @@
 //! - **Links are never made or read.** `symlink-at`, `link-at` and `readlink-at` answer
 //!   `not-permitted`: a guest that could make a link could aim it outside its root, and the check
 //!   above would refuse it on every use anyway. `set-times` and `set-times-at` answer the same.
-//! - **The check is a path check, as every `Core\IO` door's is.** A directory renamed between the
-//!   check and the open is the race those doors have too, and is closed for all of them or none.
+//! - **A file is opened beneath a handle, as a `Core\IO` write door opens one**
+//!   (`rule:security/writes-open-beneath-a-handle`). Opening a file, `create-directory-at` and
+//!   `rename-at` hand the checked path to [`Budget::open_file`], [`Budget::create_dir`] and
+//!   [`Budget::rename`], and the server opens it one level at a time, so a folder replaced by a
+//!   link after the check fails the call. Removing, `stat-at` and listing still act on the whole
+//!   path, as `Core\IO`'s removal, metadata and listing doors do.
 //! - **Every call runs to its end on the request's core**, as a `Core\IO` call does, and a read
 //!   returns at most [`PERMIT`] bytes at once.
 //!
@@ -37,7 +41,7 @@
 //! kept until the guest drops its stream.
 
 use std::collections::hash_map::DefaultHasher;
-use std::fs::{self, File, Metadata, OpenOptions};
+use std::fs::{self, File, Metadata};
 use std::hash::{Hash, Hasher};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -56,6 +60,7 @@ use wasmtime_wasi_io::streams::{
 use super::bindings::wasi::clocks::wall_clock::Datetime;
 use super::bindings::wasi::filesystem::{preopens, types};
 use super::{Context, PERMIT};
+use crate::call::{Budget, FileOpen};
 use crate::grants::Effective;
 
 use types::{
@@ -208,8 +213,15 @@ impl Descriptor {
         Ok(at)
     }
 
-    /// The file or directory `path` names, opened as `how` and `flags` ask.
-    fn open(&self, path: &str, how: OpenFlags, flags: DescriptorFlags) -> Result<Self, ErrorCode> {
+    /// The file or directory `path` names, opened as `how` and `flags` ask. `budget` opens a
+    /// file beneath a handle.
+    fn open(
+        &self,
+        budget: &dyn Budget,
+        path: &str,
+        how: OpenFlags,
+        flags: DescriptorFlags,
+    ) -> Result<Self, ErrorCode> {
         let creates = how.intersects(OpenFlags::CREATE | OpenFlags::TRUNCATE);
         let writes = flags.contains(DescriptorFlags::WRITE);
         if creates || writes || flags.contains(DescriptorFlags::MUTATE_DIRECTORY) {
@@ -229,14 +241,14 @@ impl Descriptor {
             Ok(_) if how.contains(OpenFlags::DIRECTORY) => Err(ErrorCode::NotDirectory),
             Err(err) if how.contains(OpenFlags::DIRECTORY) => Err(code(&err)),
             _ => {
-                let file = OpenOptions::new()
-                    .read(true)
-                    .write(writes || creates)
-                    .create(how.contains(OpenFlags::CREATE) && !how.contains(OpenFlags::EXCLUSIVE))
-                    .create_new(how.contains(OpenFlags::CREATE | OpenFlags::EXCLUSIVE))
-                    .truncate(how.contains(OpenFlags::TRUNCATE))
-                    .open(&at)
-                    .map_err(|err| code(&err))?;
+                let opening = FileOpen {
+                    read: true,
+                    write: writes || creates,
+                    create: how.contains(OpenFlags::CREATE),
+                    exclusive: how.contains(OpenFlags::CREATE | OpenFlags::EXCLUSIVE),
+                    truncate: how.contains(OpenFlags::TRUNCATE),
+                };
+                let file = budget.open_file(&at, opening).map_err(|err| code(&err))?;
                 let kept = DescriptorFlags::READ | DescriptorFlags::WRITE;
                 Ok(Self {
                     root: Arc::clone(&self.root),
@@ -598,7 +610,7 @@ impl types::HostDescriptor for Context {
 
     fn create_directory_at(&mut self, fd: Resource<Descriptor>, path: String) -> Answer<()> {
         let at = check!(self.descriptor(&fd)?.reach_entry(&path));
-        Ok(fs::create_dir(at).map_err(|err| code(&err)))
+        Ok(self.budget.create_dir(&at).map_err(|err| code(&err)))
     }
 
     fn stat(&mut self, fd: Resource<Descriptor>) -> Answer<DescriptorStat> {
@@ -656,7 +668,7 @@ impl types::HostDescriptor for Context {
         how: OpenFlags,
         flags: DescriptorFlags,
     ) -> Answer<Resource<Descriptor>> {
-        let opened = check!(self.descriptor(&fd)?.open(&path, how, flags));
+        let opened = check!(self.descriptor(&fd)?.open(&*self.budget, &path, how, flags));
         Ok(Ok(self.table.push(opened)?))
     }
 
@@ -678,7 +690,7 @@ impl types::HostDescriptor for Context {
     ) -> Answer<()> {
         let from = check!(self.descriptor(&fd)?.reach_entry(&from));
         let to = check!(self.descriptor(&to_fd)?.reach_entry(&to));
-        Ok(fs::rename(from, to).map_err(|err| code(&err)))
+        Ok(self.budget.rename(&from, &to).map_err(|err| code(&err)))
     }
 
     fn symlink_at(&mut self, _: Resource<Descriptor>, _: String, _: String) -> Answer<()> {

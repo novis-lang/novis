@@ -21,7 +21,7 @@ use nvs_config::capability::{Authority, Cap, Run};
 use nvs_config::extension::Granted;
 use nvs_config::resolve::Disk;
 use nvs_config::tree::{CapFs, Capabilities};
-use nvs_ext::call::{Budget, Host, Level, Request};
+use nvs_ext::call::{Budget, FileOpen, Host, Level, Request};
 use nvs_ext::grants::Caller;
 use nvs_ext::load::{Extension, pin as pin_of};
 use nvs_ext::manifest::Manifest;
@@ -118,6 +118,8 @@ const NO_ROOT: i64 = -1000;
 const NOT_PERMITTED: i64 = -32;
 /// What they return for `read-only`, the 34th case.
 const READ_ONLY: i64 = -34;
+/// What they return for `access`, the first case.
+const ACCESS: i64 = -1;
 
 /// The guest, componentized against its world.
 fn guest_bytes() -> Vec<u8> {
@@ -170,10 +172,13 @@ fn extension(host: &Host, entry: Granted, requests: &str) -> Extension {
 }
 
 /// A request budget with no limits whose caller holds `capabilities`, narrowed by `narrowed`.
+/// With `walled` set, its host refuses every open, the way a host's beneath walk refuses a path
+/// whose folder became a link after the check.
 #[derive(Debug, Default)]
 struct Held {
     capabilities: Option<Capabilities>,
     narrowed: Option<Vec<Cap>>,
+    walled: bool,
 }
 
 impl Budget for Held {
@@ -212,6 +217,19 @@ impl Budget for Held {
             narrowed: self.narrowed.as_deref(),
         }
     }
+
+    fn open_file(&self, path: &Path, how: FileOpen) -> std::io::Result<fs::File> {
+        if self.walled {
+            return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+        }
+        fs::OpenOptions::new()
+            .read(how.read)
+            .write(how.write)
+            .create(how.create && !how.exclusive)
+            .create_new(how.exclusive)
+            .truncate(how.truncate)
+            .open(path)
+    }
 }
 
 /// A caller holding `fs.read` under `read` and `fs.write` under `write`, each root canonical as a
@@ -239,6 +257,7 @@ fn holding(read: &[&Path], write: &[&Path]) -> Held {
             ..Capabilities::default()
         }),
         narrowed: None,
+        walled: false,
     }
 }
 
@@ -399,6 +418,30 @@ fn a_guest_writes_a_file_under_a_write_root() {
     // A caller holding `fs.write` without `fs.read` gets no root to open.
     let blind = self::request(&host, holding(&[], &[&out]));
     assert_eq!(ask(&blind, &extension, "write", "other.txt"), NO_ROOT);
+}
+
+/// Attack: a guest opens files under a root it may write. A folder of the path could become a
+/// link after the path is checked. So every open goes to the host, which opens beneath a handle.
+#[test]
+fn a_guest_opens_every_file_through_the_hosts_walk() {
+    let scratch = Scratch::new("walled");
+    let entry = Granted {
+        write: vec![scratch.at("out")],
+        ..Granted::default()
+    };
+    let (host, extension) = host_with(entry, WRITES);
+    let out = scratch.at("out");
+    fs::write(out.join("there.txt"), "kept").expect("the file is written");
+    let walled = request(
+        &host,
+        Held {
+            walled: true,
+            ..holding(&[&out], &[&out])
+        },
+    );
+    assert_eq!(ask(&walled, &extension, "write", "new.txt"), ACCESS);
+    assert_eq!(ask(&walled, &extension, "read", "there.txt"), ACCESS);
+    assert!(!out.join("new.txt").exists());
 }
 
 #[test]

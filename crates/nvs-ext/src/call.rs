@@ -81,6 +81,9 @@
 //! request and freed with it, so O(in-flight). The pooling allocator reserves address space for
 //! [`Host::new`]'s `slots` instances, not committed memory, and one ticker thread per process.
 
+use std::fs::{self, File, OpenOptions};
+use std::io;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::task::{Poll, Waker};
@@ -165,6 +168,65 @@ pub trait Budget: Send + Sync {
     fn read(&self, _id: u64, _offset: u64, _length: u64) -> Lending {
         Lending::ready(Err("this request lends no source".to_owned()))
     }
+
+    /// Opens the file at `path` for the guest, as `how` says.
+    ///
+    /// `path` is resolved and absolute, and `wasi:filesystem` has checked it against the
+    /// instance's preopens. The host opens it beneath a handle
+    /// (`rule:security/writes-open-beneath-a-handle`), so a folder of it that became a link after
+    /// the check fails the open. The default opens it by its whole path.
+    ///
+    /// # Errors
+    ///
+    /// The operating system's error, or the host's when a level of `path` is a link.
+    fn open_file(&self, path: &Path, how: FileOpen) -> io::Result<File> {
+        OpenOptions::new()
+            .read(how.read)
+            .write(how.write)
+            .create(how.create && !how.exclusive)
+            .create_new(how.exclusive)
+            .truncate(how.truncate)
+            .open(path)
+    }
+
+    /// Creates the one folder `path` names for the guest, as [`Budget::open_file`] opens a file.
+    /// The default creates it by its whole path.
+    ///
+    /// # Errors
+    ///
+    /// The operating system's error, or the host's when a level of `path` is a link.
+    fn create_dir(&self, path: &Path) -> io::Result<()> {
+        fs::create_dir(path)
+    }
+
+    /// Moves the name `from` to the name `to` for the guest, as [`Budget::open_file`] opens a
+    /// file. The default renames by the whole paths.
+    ///
+    /// # Errors
+    ///
+    /// The operating system's error, or the host's when a folder above either name is a link.
+    fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+        fs::rename(from, to)
+    }
+}
+
+/// How [`Budget::open_file`] opens a file, flag by flag, as `std::fs::OpenOptions` names them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "one flag per open option, the shape `std::fs::OpenOptions` has"
+)]
+pub struct FileOpen {
+    /// The file may be read.
+    pub read: bool,
+    /// The file may be written.
+    pub write: bool,
+    /// A missing file is created.
+    pub create: bool,
+    /// The file is created, and a name already there fails with `AlreadyExists`.
+    pub exclusive: bool,
+    /// What was there is emptied. It needs `write`.
+    pub truncate: bool,
 }
 
 /// One outbound HTTP request a guest sends.

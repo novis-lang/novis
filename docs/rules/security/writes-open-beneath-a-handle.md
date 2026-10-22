@@ -11,8 +11,10 @@ modes of `capability::open`, the destination of `capability::copy` and both ends
 filesystem through them. The read doors are `capability::open_read`, the reading mode of
 `capability::open` and the source of `capability::copy`, and `Core\IO`'s reads, `Core\Storage::get`,
 `Core\Response::sendFile` and a multipart file part sent by `Core\Http` reach the filesystem through
-them. A
-read creates nothing, and a read-write handle checks `fs.read` and `fs.write` on the one resolution. A rename resolves the folder above each end and keeps the last name as
+them. An extension's `wasi:filesystem` checks a path against its instance's preopens
+(`rule:security/extension-grants-are-an-intersection`) and then opens a file, creates a folder or
+renames through the same walk, which `nvs_runtime::guest_files` exposes to it with no grant check of
+its own. A read creates nothing, and a read-write handle checks `fs.read` and `fs.write` on the one resolution. A rename resolves the folder above each end and keeps the last name as
 written, because it moves or replaces that name: a link there is the entry renamed, never its target,
 and the grant is checked on the entry. A missing folder is created by the same walk, one level at a time. On Unix a level is `openat` or
 `mkdirat` with `O_NOFOLLOW`; on Windows it is `NtCreateFile` with the folder above as its root, and a
