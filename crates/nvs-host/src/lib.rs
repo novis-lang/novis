@@ -125,6 +125,8 @@ pub mod affinity;
 pub mod block_on;
 pub mod blocking;
 pub mod channel;
+#[cfg(debug_assertions)]
+pub mod counts;
 pub mod cpuclock;
 pub mod group;
 pub mod isolate;

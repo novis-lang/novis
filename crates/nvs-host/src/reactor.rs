@@ -304,6 +304,8 @@ impl RemoteWake {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push(self.id);
+        #[cfg(debug_assertions)]
+        crate::counts::wake_poke();
         self.remote.waker.wake()
     }
 

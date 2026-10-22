@@ -1526,6 +1526,8 @@ impl<S: Source> NvsStream<S> {
                 Ok(read) => return self.answer(Interest::READABLE, Ok(read)),
                 Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
                 Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    #[cfg(debug_assertions)]
+                    crate::counts::would_block_read();
                     match self.arm_only(Interest::READABLE) {
                         Ok(true) => return Poll::Pending,
                         Ok(false) => {}
@@ -1715,6 +1717,8 @@ impl<S: Source + Read> Read for NvsStream<S> {
             match self.inner.read(buf) {
                 Ok(read) => return Ok(read),
                 Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    #[cfg(debug_assertions)]
+                    crate::counts::would_block_read();
                     self.wait_until_ready(Interest::READABLE)?;
                 }
                 Err(err) if err.kind() == io::ErrorKind::Interrupted => {}

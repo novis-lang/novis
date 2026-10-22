@@ -10144,6 +10144,84 @@ pub(crate) mod tests {
         );
     }
 
+    /// What a keep-alive request costs in system calls beyond its own read and
+    /// write: the socket reads that answered `WouldBlock`, and the pokes at the
+    /// core's wake descriptor. One client sends 20 requests on one connection,
+    /// each after the last answer, and the counts are taken on the thread that
+    /// serves them ([`nvs_host::counts`], which exists in debug builds only).
+    ///
+    /// The bounds are what the server spends today, so a change that spends
+    /// more fails here. A change that spends less lowers them. The connection
+    /// adds one poke of its own beside its requests'.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_keep_alive_request_reads_and_wakes_within_its_count() {
+        const REQUESTS: u64 = 20;
+        const WOULD_BLOCK_READS_PER_REQUEST: u64 = 4;
+        const WAKE_POKES_PER_REQUEST: u64 = 1;
+        const WAKE_POKES_PER_CONNECTION: u64 = 1;
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            let mut seen = String::new();
+            for n in 0..REQUESTS {
+                socket
+                    .write_all(format!("GET /{n} HTTP/1.1\r\nHost: localhost\r\n\r\n").as_bytes())
+                    .expect("the write failed");
+                read_until(&mut socket, &format!("hello /{n}"), &mut seen);
+            }
+            drop(socket);
+            end_the_loop(addr);
+        });
+
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+            let path = request.uri().path().to_owned();
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                child
+                    .write_output(format!("hello {path}").as_bytes())
+                    .expect("a buffer");
+                Value::null()
+            });
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture))
+        });
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                until_the_loop_is_ended(),
+            )
+            .expect("the accept loop failed");
+        });
+        let before = nvs_host::counts::Counts::now();
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let spent = nvs_host::counts::Counts::now().since(before);
+        client.join().expect("the client thread panicked");
+
+        assert!(
+            spent.would_block_reads <= WOULD_BLOCK_READS_PER_REQUEST * REQUESTS
+                && spent.wake_pokes <= WAKE_POKES_PER_REQUEST * REQUESTS + WAKE_POKES_PER_CONNECTION,
+            "{REQUESTS} keep-alive requests spent {spent:?}, over {WOULD_BLOCK_READS_PER_REQUEST} \
+             reads that answered WouldBlock and {WAKE_POKES_PER_REQUEST} wake pokes each"
+        );
+    }
+
     /// `rule:concurrency/one-future-per-connection`'s third property: **`Pending` suspends the task and not the
     /// thread**, which is `rule:http-server/a-core-is-never-blocked-on-a-syscall`'s rule stated about this seam. One
     /// core, two connections, and the second is answered in full while the
