@@ -10,6 +10,9 @@ import {
   CASES,
   COMPARE_DIR,
   CONFIG_CHANGES,
+  FLOOD_AFTER,
+  FLOOD_SETTING,
+  floodResult,
   CORES_CASE,
   CORES_TURNS,
   checkResult,
@@ -235,7 +238,7 @@ describe("the feature scenarios", () => {
   });
 
   test("the rows run in the goal's order, and each id once", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["escape", "taint", "secret", "live-edit", "config", "deploy", "deploy-big", "deploy-switch", "cores", "crash", "loop", "memory", "csrf", "session", "headers", "waiting", "parallel"]);
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["escape", "taint", "secret", "live-edit", "config", "deploy", "deploy-big", "deploy-switch", "cores", "crash", "loop", "memory", "flood", "csrf", "session", "headers", "waiting", "parallel"]);
   });
 
   test("every row either probes a stack or times a case, never both, and a timed row names a case or brings its own", () => {
@@ -576,6 +579,39 @@ describe("the feature scenarios", () => {
     expect(runawayResult(baseline, { ...load, failed: 1 }, stopped, up, limits).result).toBe("no");
     expect(runawayResult(baseline, load, stopped, { running: false, restarts: 0 }, undefined).result).toBe("no");
     expect(runawayResult(baseline, load, stopped, { running: true, restarts: 1 }, undefined).result).toBe("no");
+  });
+
+  test("a flood holds when every probe is answered in time with 200 or a 503 that says when to retry, and the server recovers", () => {
+    const flood = { requests: 4000, failed: 900, failures: "503 x850; timeout x50", p99_ms: 5000 };
+    const answered = (status: number, ms: number, retryAfter = false) => ({ status, ms, retryAfter });
+    const probes = [answered(200, 3), answered(503, 1, true), answered(200, 40)];
+    const up = { running: true, restarts: 0 };
+    expect(floodResult(flood, probes, 0.3, FLOOD_AFTER, up, undefined)).toEqual({
+      result: "built-in",
+      evidence: {
+        flood_requests: 4000,
+        refused: 850,
+        flood_failures: "503 x850; timeout x50",
+        probes: 3,
+        probes_failed: 0,
+        probe_median_ms: 3,
+        probe_max_ms: 40,
+        recovery_seconds: 0.3,
+        after_ok: FLOOD_AFTER,
+        backend_running: true,
+        backend_restarts: 0,
+      },
+    });
+    expect(floodResult(flood, probes, 0.3, FLOOD_AFTER, up, FLOOD_SETTING.php)).toMatchObject({ result: "one-setting", setting: "pm.max_children" });
+    expect(floodResult(flood, [answered(503, 1)], 0.3, FLOOD_AFTER, up, undefined).result).toBe("no");
+    expect(floodResult(flood, [{ status: null, ms: 10_000, retryAfter: false }], 0.3, FLOOD_AFTER, up, undefined)).toMatchObject({
+      result: "no",
+      evidence: { probes_failed: 1, probe_median_ms: null },
+    });
+    expect(floodResult(flood, [answered(502, 1)], 0.3, FLOOD_AFTER, up, undefined).result).toBe("no");
+    expect(floodResult(flood, probes, null, 0, up, undefined).result).toBe("no");
+    expect(floodResult(flood, probes, 0.3, FLOOD_AFTER - 1, up, undefined).result).toBe("no");
+    expect(floodResult(flood, probes, 0.3, FLOOD_AFTER, { running: true, restarts: 1 }, undefined).result).toBe("no");
   });
 
   test("the runaway rows run every peer at its defaults: Novis and PHP name the limit they start with", () => {

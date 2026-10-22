@@ -139,6 +139,21 @@ not `no`.
   `resourceLimits`, measured with `oven/bun:1.4.3-slim` and stated in its Node compatibility page, so
   `memory` has no such way. No framework on either side stops a goroutine or a blocked event loop: Gin,
   Echo, Fiber, chi, Hono, Express and Fastify time out the reply and leave the handler running.
+- `flood` puts load past capacity on the backend for 10 seconds: 200 connections send `/hold`
+  without pause, and each hold keeps 8 MiB for 300 ms. That wants 1.6 GB, three times the 512 MiB
+  cap the backend has in this row, as in `loop` and `memory`. Every 250 ms beside the load, the
+  driver sends `/` and waits up to 10 seconds. A probe holds when it answers `200`, or `503` with
+  `Retry-After`, which tells a client to come back. Once the load ends, `/` must answer `200` within
+  20 seconds, and then 8 holds sent together must all answer `200`. Every probe held, the recovery,
+  and a backend that never restarted is `built-in`, or `one-setting` naming PHP's
+  `pm.max_children`, which this comparison writes for every PHP stack. Anything else is `no`. The
+  evidence has the load's refusals (its `503`s), the probes' median and slowest time, and the seconds
+  the recovery took. Every peer runs at its defaults. On one cpu a hold costs about 25 ms of CPU, so
+  the load is past every peer's CPU as well as its memory. `nvs serve` admits a request while the
+  memory running requests hold leaves room for one more to reach its cap. The holds of one burst all
+  arrive before any of them has allocated, so Novis admits them, and those that grow past the room
+  are stopped with `500`. The nightly deep lane runs the row's `--smoke` form, which fails only when
+  a stack cannot serve the row.
 - No row tests whether a request sees a value another request set. A process that keeps state
   between requests is a design choice in Bun and Go, not a failure, and a yes or no cannot say which
   of the two a reader wants.

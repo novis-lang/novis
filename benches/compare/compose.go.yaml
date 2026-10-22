@@ -15,7 +15,7 @@ services:
 
     cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
 
-    # The `loop` and `memory` rows' cap, as `compose.nvs.yaml` says.
+    # The `loop`, `memory` and `flood` rows' cap, as `compose.nvs.yaml` says.
     mem_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
     memswap_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
 

@@ -1110,6 +1110,30 @@ jobs:
                   || echo "::warning title=unsafe audit::cargo geiger could not scan $name"
               done
 
+  # Nightly and at release only. The comparison's `flood` row puts load past capacity on each stack
+  # behind nginx and prints what each did: its refusals, how long `/` took beside the load, and how
+  # soon it answered again. The run fails when a stack cannot serve the row, and its results gate
+  # nothing. It builds every peer's image, and Novis's from this checkout in release, which no push
+  # can afford. `benches/compare/README.md` § *The feature scenarios* is the row.
+  # `rule:testing/the-deep-lane`.
+  flood:
+    name: overload past capacity
+    needs: [changes, lint]  # starts after `lint`, as the note above `jobs:` says
+    if: ${{ !cancelled() && needs.changes.outputs.deep == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      - name: The flood row, smoke form
+        run: bun nv bench-compare --scenarios --smoke --row flood
+
   # ---------------------------------------------------------------------------
   # libFuzzer isn't supported on Windows, so this only ever runs here (or in
   # a contributor's WSL/Linux/macOS setup — AGENTS.md's WSL section covers

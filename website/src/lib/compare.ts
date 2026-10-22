@@ -65,6 +65,7 @@ const ROW_TEXT: Record<string, string> = {
   crash: 'Other requests are still answered after one request crashes',
   loop: 'A request that loops forever is stopped, and other requests are still answered',
   memory: 'A request that uses too much memory is stopped, and other requests are still answered',
+  flood: 'With more load than it can handle, the server still answers other requests in time, and recovers when the load stops',
   escape: 'Text in an HTML page is always escaped, also when you write it without a template',
   taint: 'An SQL injection from outside data (request, session, environment, database) is not executed',
   secret: 'A secret in the output is found before the program runs',
