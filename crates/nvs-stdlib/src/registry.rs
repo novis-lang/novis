@@ -3149,6 +3149,7 @@ pub const PREPARED_MEMBERS: &[(&str, &str)] = &[
     (crate::regex::NAME, "compile"),
     (crate::time::DATETIME_NAME, "format"),
     (crate::time::TIME_NAME, "parse"),
+    (crate::config::NAME, "get"),
 ];
 
 /// Whether `class::method` is one of [`PREPARED_MEMBERS`].

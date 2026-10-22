@@ -19,6 +19,12 @@ an ambient grant.
   value is a credential. Its name is a sink, as `get`'s is, so a request cannot choose which
   credential it reads. The value is not `tainted`, for `rule:security/tainted-sources`' reason.
 
+One more call originates it, and it is a fact rather than a guess: **`Core\Config::get` with a
+secret directive written as its name** answers `?secret string`. The configuration's own table says
+which directives are credentials, because the boot reads each one from a file
+(`rule:config/a-secret-is-a-file-whose-content-is-the-value`). That is not the name guess declined
+below, which reads a name nobody marked.
+
 **Declined:**
 - **`Core\Env::get` answering `secret` for a name that looks like a credential** (`*_KEY`,
   `*_PASSWORD`). A guess about a name is the ambient grant this rule refuses, and it would be wrong in

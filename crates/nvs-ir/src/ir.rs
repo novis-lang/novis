@@ -2123,6 +2123,10 @@ pub enum Prepared {
     /// program was, so `nvs_stdlib::cldr` holds it per core rather than
     /// building it per call.
     CldrPattern,
+    /// A `Core\Config::get` whose literal name is a secret directive, so the
+    /// checker typed the call `?secret string`. The member throws for a secret
+    /// directive that arrives without this word.
+    SecretDirective,
 }
 
 impl Prepared {
@@ -2134,6 +2138,7 @@ impl Prepared {
             Self::RegexLinear => nvs_types::CORE_REGEX_PREPARED_LINEAR,
             Self::RegexBacktracking => nvs_types::CORE_REGEX_PREPARED_BACKTRACKING,
             Self::CldrPattern => nvs_types::CORE_CLDR_PREPARED_PATTERN,
+            Self::SecretDirective => nvs_types::CORE_CONFIG_PREPARED_SECRET,
         }
     }
 }

@@ -284,6 +284,12 @@ pub use cache::Lease;
 /// rest of `Core\Topic` is reached through [`registry`] like every other class.
 pub use topic::publish_text;
 
+/// The word that tells `Core\Config::get` its name is a literal secret
+/// directive, which `nvs-types` re-exports for `nvs-ir` beside the regex and
+/// CLDR words. Re-exported rather than made public with its module, for
+/// [`publish_text`]'s reason.
+pub use config::PREPARED_SECRET as CONFIG_PREPARED_SECRET;
+
 /// A guest's log line as a record of its request, which `nvs_cli`'s extension host is the one
 /// caller of. Re-exported rather than made public with its module, for [`publish_text`]'s reason.
 pub use compress::decompression_ceiling;

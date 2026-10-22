@@ -20,7 +20,11 @@ array<string> $values = [
 foreach ($secrets as string $key) {
     foreach ($values as string $value) {
         Core\Config::set($key, $value);
-        Core\Config::get($key);
+        try {
+            Core\Config::get($key);
+        } catch (LogicError $e) {
+            // The key is a secret setting. This call does not write its name, so `get` throws.
+        }
     }
     Core\Config::restore($key);
 }
@@ -104,5 +108,5 @@ Core\Config::restore('http.cookies.secure');
 Core\Config::restore('http.cors.origins');
 Core\Config::restore('http.cors.credentials');
 
-echo 'csrf key:     ', Core\Config::get('http.csrf_key') ?? '(nothing)', "\n";
+echo 'csrf key:     ', Core\Config::get('http.csrf_key') == null ? '(nothing)' : '(a key is set)', "\n";
 echo 'error detail: ', Core\Config::get('http.errors.detail') ?? '(nothing)', "\n";

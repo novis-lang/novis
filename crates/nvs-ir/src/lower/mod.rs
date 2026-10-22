@@ -2844,6 +2844,7 @@ impl<'a> Lowering<'a> {
                     nvs_types::RegexTier::Backtracking,
                 ) => Prepared::RegexBacktracking,
                 nvs_types::expr_table::PreparedFact::CldrPattern => Prepared::CldrPattern,
+                nvs_types::expr_table::PreparedFact::SecretDirective => Prepared::SecretDirective,
             });
         self.emit(b, Ty::Int, InstKind::PreparedConst { fact }).0
     }

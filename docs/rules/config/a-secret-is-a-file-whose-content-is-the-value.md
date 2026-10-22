@@ -25,7 +25,20 @@ never logged, and `nvs config dump` renders it `<secret>` beside the file it cam
 setting is the usual way a credential leaks. `Core\Config::get` returns the value: it is the one
 reader a program that connects with the credential needs.
 
+**`get` returns a secret directive as a `?secret string`, and only by its written name.** The
+checker types `Core\Config::get('db.main.password')` as `?secret string` when the literal is a
+secret directive, read from the same table the boot fills them from, so no output, log or
+serialiser takes the value (`rule:security/secret-sinks-refuse`). Every other directive stays a
+`?string`. A name the program computes cannot be typed by its value, so `get` throws `LogicError`
+when a computed name turns out to be a secret directive: its result would otherwise be a plain
+`?string` any sink takes. A method reference to `get` is a computed name too. **What it spends:**
+one walk of the secret rows per `get`, and one word the compiler passes beside the name.
+
 **Declined:**
+- **A `secret` return for every `get`.** Most settings are a size, a duration or a level a program
+  prints and compares, and every one of them would need a conversion.
+- **A computed secret name answered `null`.** It reads as "not configured", which is the one fact a
+  program checks before it connects, and it would be wrong.
 - **Decrypting SOPS, `age` or a KMS envelope inside the binary**, so that a directive could name an
   encrypted file. It does not compose with the format: SOPS has no TOML store, so an encrypted
   configuration would be one opaque blob ahead of the merge, the includes and the dump. It puts the

@@ -698,6 +698,12 @@ pub(crate) fn infer_static_call(
     // `rule:security/secret-sinks-refuse`'s debug-dump sink, at the one end where the qualifier is
     // still visible — both members declare `mixed`, so nothing below this
     // point can tell. See [`reject_secret_debug_argument`].
+    // `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s credential,
+    // typed by its written name: `Core\Config::get('db.main.password')` is a
+    // `?secret string`. Read at the return below. See [`crate::secret_directive`].
+    let secret_directive = resolved.as_ref().is_some_and(|(owner, name, _)| {
+        crate::secret_directive::types_secret(owner, name, expr.span, args, env)
+    });
     if let Some((owner, name, _)) = &resolved {
         reject_secret_debug_argument(owner, name, args, &arg_types, env);
         // `rule:security/secret-sinks-refuse`'s cross-boundary sink, at the same end and for the same
@@ -922,6 +928,11 @@ pub(crate) fn infer_static_call(
         None if is_written_class_side(class) => env.interner.error(),
         None => env.interner.mixed(),
     };
+    if secret_directive {
+        let secret = env.interner.secret_string();
+        let null = env.interner.null();
+        return env.interner.make_union([secret, null]);
+    }
     // See [`infer_method_call`]: the static half of the same contagion.
     if contagious {
         contagious_result(sig.as_ref(), returned, env.interner)
