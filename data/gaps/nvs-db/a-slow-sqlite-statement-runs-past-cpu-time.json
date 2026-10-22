@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-db/src/sqlite.rs",
+  "title": "A slow SQLite statement is charged to `cpu_time` after it ends, not stopped at it.",
+  "text": "CPU a request spends on the blocking pool is added to its own CPU time, so the request stops at its next safepoint once the statement returns. The statement itself runs to its end. Closing it is a progress-handler deadline from the request's remaining CPU time, beside the interrupt the handler already checks, and a test where an endless statement stops near `cpu_time`.",
+  "goal": "taught-app-works"
+}
