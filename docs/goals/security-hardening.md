@@ -356,7 +356,11 @@ carry the mark.
 
 - [ ] CRYPTO-1, TAINT-3: `SignedCookie::open` returns `tainted string`, and the module doc says so. `crates/nvs-stdlib/src/signed_cookie.rs:149`
 - [ ] TAINT-2: `Core\Response\Stream::write` is a sink and refuses `tainted`. `crates/nvs-stdlib/src/response.rs:603`
-- [ ] REQ-2, DB-2: a text column fills only a `tainted string` property, and every example, page and app compiles (`rule:security/tainted-sources`). `crates/nvs-types/src/derive.rs:1466`
+- [x] REQ-2, DB-2: a text column fills only a `tainted string` property, and every example, page and app compiles (`rule:security/tainted-sources`). `crates/nvs-types/src/derive.rs:1466`
+  - [x] `written_class_of` treats a `Core\Db` owner as outside text, for a class and a shape
+  - [x] `DecodeSite` carries its format, and a field no column maps gets no second report
+  - [x] the reject case is written and green, and both repros are refused
+  - [x] every `.nvs` and `.nvst` calling `queryAs<`/`streamAs<` compiles, and the rule, card and pages say so
 - [ ] EXT-4: a `secret` value does not cross an extension's `mixed` parameter (`rule:security/secret-does-not-cross-an-extension`). `crates/nvs-types/src/ext_lib.rs:304`
 - [ ] TAINT-4: `Core\Ldap\Connection::add` refuses attribute names from a tainted array's keys. `crates/nvs-stdlib/src/ldap/registry.rs:464`
 - [ ] HTML-1: a spawned child's captured output is lifted to the parent's sink carrier only when the child wrote it with `echo` through the same sink; output a child wrote through `Core\Response::text`, `::json`, `::bytes` or `::stream` reaches the parent as a plain `string`, which the parent's `echo` escapes. Carrying every child's output as a plain `string` is not the fix: a child's `echo` already escaped it, so the parent would escape it twice (`rule:security/capture-answers-the-carrier`, `rule:security/isolate-output-is-captured`). `crates/nvs-stdlib/src/out.rs:193`, `crates/nvs-stdlib/src/script.rs:1278`
@@ -499,35 +503,32 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 4 is done. Stage 5 is next, and nothing of it is started.
+Stage 5 is under way. REQ-2/DB-2 landed (ad9a16a91); the other six items are not started.
 
-- REQ-1 landed (722d76597). `converts_outside_text` (`crates/nvs-types/src/expr/quals.rs`) reads
-  `Core\Arr::shapeAs`'s first argument the way `encodes_outside_text` reads an encoder's: an array
-  type with `tainted` or `mixed` anywhere, or a literal holding such a value. `written_class_of`
-  (`crates/nvs-types/src/expr/args.rs`) takes that answer as `subject_outside` and ORs it with
-  `reads_a_peers_octets`, so a shape target gets `check_shape_decode_site` and a class target records
-  a `DecodeSite`. A literal element that is a call counts as outside text (`element_outside_text`).
-- E0810's message now reads "… and `X` fills it with text from outside the program". Five
-  `tests/conformance/reject/*.nvst` cases that expected the old wording were updated.
-- Attack `tests/hostile/core/Arr/shapeAs/02-…` compiled before the fix and is refused after it.
-  `tests/conformance/reject/shape-as-over-outside-text-fills-only-tainted-fields.nvst` ran once by
-  name, green. Every `.nvs`/`.nvst` calling `Arr::shapeAs<` was checked on the debug binary. Three
-  needed a change: `benches/members/core/Arr/shapeAs.nvs` (field `tainted`),
-  `benches/members/core/Jwt/verifyIssued.scale.nvs` (the `repeat` call bound to a variable first) and
-  `docs/examples/lang/errors/properties-not-accessors/02-…` (`array<string>`, and its copy in
-  `docs/reference/lang/70-errors.md`).
-- `rule:security/derived-codec-qualifiers` says which call sites decide by owner and which by
-  argument. The `shapeAs` card and `docs/reference/core/Arr.md` say a field filled from outside
-  text is `tainted`.
-- TAINT-5 is ticked: the keystone test names none of its items. Stage 13 now has one item for each.
-  TAINT-4 was already stage 5's.
+- `written_class_of` (`crates/nvs-types/src/expr/args.rs`) now ORs `hydrates_a_row` into
+  `outside`, so `queryAs<T>`/`streamAs<T>` on `Core\Db\Connection`/`Transaction` record a
+  `DecodeSite` for a class and run `check_shape_decode_site` for an inline shape. `DecodeSite`
+  carries a `Format`, and `check_decode_sites` (`crates/nvs-types/src/derive.rs`) walks the fields of
+  that format only. A `Format::Db` field that `db_reachable` refuses is skipped: E0756/E0806 already
+  report it.
+- Both repros (`.agent-tmp/sec-audit/wb-stdlib-request/dbtaint/a.nvs`, `b.nvs`) are refused.
+  `tests/conformance/reject/a-text-column-fills-only-a-tainted-property.nvst` ran once by name, green.
+  Every `.nvs` calling `queryAs<`/`streamAs<` checks clean on the debug binary (the corpus already
+  wrote `tainted string`), and every such `.nvst` passes; one
+  (`tests/conformance/core/a-derived-decoder-fills-an-enum-default-as-a-case.nvst`) needed `tainted`.
+- The E0810 card, `rule:security/derived-codec-qualifiers` and the four `queryAs`/`streamAs`
+  `about.md` pages name the row case.
 - `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --check` and
-  `bun nv proofs --comments` on the touched `.nvs` files are green.
+  `bun nv proofs --comments` on the four pages are green.
 
-The sweep's `env-secret-proofs` red was stale again: its log shows exit 0. Nightly run 39746060276 was
-cancelled whole and is not a failure of this tree.
+The sweep's `env-secret-proofs` red was stale a third time: its log (written 00:07) shows exit 0, and
+`looper check` does not exist in the installed looper. Nightly run 39746060276 was cancelled whole
+and is not a failure of this tree.
 
-Tests that may go red: a help or reference-card snapshot of `Core\Arr::shapeAs` (its `a` parameter
+Tests that may go red: a snapshot of the E0810 card (`nvs agent show E0810`, its text changed); a
+Rust test that hydrates a row into a plain `string` (none found by `git grep` in
+`crates/*/tests`); a `.nvs` in `apps/` or `website/` that does (none found). From stage 4: a help or
+reference-card snapshot of `Core\Arr::shapeAs` (its `a` parameter
 text changed); any test or page matching E0810's old text "answers a peer's octets"; a `.nvs` in
 `apps/` or `website/` that reads a `mixed` or request array through `shapeAs` into a plain
 `string` (none found by `git grep`). From stage 4's first half: any `.nvs` that passes a request
@@ -541,16 +542,16 @@ guard, `LateInit` or a hook, and a page listing every diagnostic code (`E0885`).
 
 ### Next
 
-1. REQ-2, DB-2 (stage 5): a text column fills only a `tainted string` property. Put
-   `hydrates_a_row`'s owners through the qualifier question: `check_row_sites`
-   (`crates/nvs-types/src/derive.rs:1324`) next to `check_decode_sites` (`derive.rs:1718`), and the
-   inline-shape branch of `written_class_of` (`args.rs`, `if outside {`). Remove "a `Core\Db`
-   row is not a taint source" from `reads_a_peers_octets`' doc. Repros:
-   `.agent-tmp/sec-audit/wb-stdlib-request/dbtaint/a.nvs` and `b.nvs`. Then fix every example,
-   page and app that stops compiling, per the standing decision's safe default.
-2. CRYPTO-1, TAINT-3: `SignedCookie::open` returns `tainted string`
-   (`crates/nvs-stdlib/src/signed_cookie.rs:149`). Repro `.agent-tmp/sec-audit/…/crypto/poc5.nvs`.
-3. TAINT-2 (`response.rs:603`) and TAINT-4 (`ldap/registry.rs:464`), then EXT-4 and HTML-1.
+1. CRYPTO-1, TAINT-3 (stage 5): `SignedCookie::open` returns `tainted string`
+   (`crates/nvs-stdlib/src/signed_cookie.rs:149`). Its module doc's section "`open` launders, and
+   it is the only cookie in the language that does" is rewritten whole, and
+   `rule:security/verification-does-not-launder` loses its exception. Repro
+   `.agent-tmp/sec-audit/…/crypto/poc5.nvs`. The stage's attack file
+   `tests/conformance/core/signed-cookie-open-launders-where-jwt-verify-does-not.nvst` is the
+   reject case's name in the stage; check whether it exists and asserts the old laundering first.
+   Then every `.nvs` that binds `SignedCookie::open` to a plain `string` (`git grep -n "SignedCookie::open"`).
+2. TAINT-2: `Core\Response\Stream::write` is a sink (`crates/nvs-stdlib/src/response.rs:603`).
+3. TAINT-4 (`ldap/registry.rs:464`), then EXT-4 (`ext_lib.rs:304`) and HTML-1.
 
 ### Backlog
 
