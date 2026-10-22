@@ -21,8 +21,8 @@ restart the server. Requests that already started finish with the old version.
 ## Errors before the program runs
 
 The compiler checks the whole file before any of it runs. A wrong type, a call to a method that
-does not exist or a variable that was never declared stops the compile. You see the error immediately.
-A user of your program never sees it.
+does not exist or a variable that was never declared stops the compile. Then none of the file runs.
+[`nvs check`](/reference/cli/nvs-check/) shows these errors on your machine, before you deploy.
 
 ## Safe machine code
 

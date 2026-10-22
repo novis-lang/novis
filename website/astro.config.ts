@@ -182,7 +182,7 @@ export default defineConfig({
                 {
                   label: 'Input from outside is tainted',
                   link: '/guides/why-novis/tainted-input/',
-                  attrs: { 'data-subtext': 'The compiler checks where request values go' },
+                  attrs: { 'data-subtext': 'The compiler checks where it goes before the code runs' },
                 },
                 {
                   label: 'Secrets are never printed',
