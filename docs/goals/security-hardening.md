@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-cli/src/extensions.rs, crates/nvs-ext/src/call.rs, docs/rules/packaging/a-fresh-instance-per-request.md, docs/rules/security/extension-grants-are-an-intersection.md]
   - id: 9
     title: "sessions, the CSRF door and signed cookies read and bind one way"
-    status: open
+    status: done
     context: [crates/nvs-server/src/route.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/session.rs, crates/nvs-stdlib/src/signed_cookie.rs, docs/rules/security/csrf-is-on-by-default.md, docs/rules/core-classes/session-is-started-explicitly.md]
   - id: 10
     title: "a pooled database connection starts clean, and SQLite opens only what the grant names"
@@ -475,7 +475,7 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 - [x] SESS-1: `Session::start` writes no row and sends no cookie until the first write (`rule:core-classes/session-is-started-explicitly`). `crates/nvs-stdlib/src/session.rs:912`
 - [x] CRYPTO-2: signed cookies bind the name and a purpose into the associated data. `crates/nvs-stdlib/src/signed_cookie.rs:261`
 - [x] CRYPTO-3: `Core\Config::get` and `::all` return a secret directive as `secret string`. `crates/nvs-stdlib/src/config.rs:192`
-- [ ] CRYPTO-6: `Core\Random\Seeded` output is refused where a key or a token goes. `crates/nvs-stdlib/src/random.rs:395`
+- [x] CRYPTO-6: `Core\Random\Seeded` output is refused where a key or a token goes. `crates/nvs-stdlib/src/random.rs:395`
 - [x] BBK-1's pin: a token issued for no session, sent with no cookie, is refused same-origin and cross-origin by a keyed door. It passed on main (the claim that a2b4854a4 refused it was wrong), and the attack keeps it so once CSRF-1 changes how the door reads cookies (`rule:security/csrf-is-on-by-default`). `crates/nvs-server/src/route.rs:245`
 - [x] The attacks: a session cookie on a second line, a cookie swapped between names, and 20,000 cookieless starts that leave no rows. `tests/hostile/core/Session/start/01-identifiers-nobody-issued.nvs:1`
 
@@ -568,7 +568,42 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 9 has one item left, CRYPTO-6 (d5's standing decision). CRYPTO-3 is done.
+Stage 9 is done. Stages 11, 12, 13 and 15 are open, then the gate stage 14.
+
+- **CRYPTO-6 (fd55a8c78).** `Core\Random\Seeded::bytes` returns `tainted bytes` and `::token`
+  returns `tainted string`. `nvs_stdlib::keyring::KEY` is now `SecretBlob(Qual::Sink)` and is the
+  one type every key parameter is written with: `Core\Crypto::seal`/`open`/`expandKey`,
+  `Core\Crypto\KeyPair::read`, `Core\Hash::hmac`, `Core\Csrf`'s and `Core\Jwt`'s `KEY`,
+  `Core\Jwe\Key::shared`, `Core\Totp`'s `SECRET`, and every ring (`SignedCookie`, `Signature`,
+  session, cache, router, `Uri`). Before, every one was `Neutral` and took `tainted`. A key from a
+  database row now needs `Core\Taint::assertTrustedBytes`. The attack
+  `tests/conformance/reject/seeded-output-cannot-become-a-key.nvst` (seven refusals, and a
+  `generateKey` seal that compiles) compiled on main and passes. A compile sweep of the 440 corpus
+  files that call a key member or `Seeded` (`.nvst` with an expected error skipped) found only the
+  Seeded files themselves. Their benches, examples 03, hostile cases and
+  `random-seeded-gives-the-same-sequence-for-the-same-seed.nvst` declare `tainted` now.
+  `docs/examples/core/Signature/sign/02-...nvs` failed on stage 4's keys mark, not this change, and
+  now declares `array<tainted string> $names`. `rule:security/tainted-sources` says so and declines
+  a `predictable` qualifier and a run-time randomness check. Both Seeded cards and about pages say
+  the result is `tainted`.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render` and `--check`
+  are green. Run by name: the new reject case, the Seeded conformance case, and `bun nv proofs
+  --run` for `Seeded::bytes`, `Seeded::token` and `Signature::sign`. All pass.
+- The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0, `nothing owed`), and the
+  nightly run 39746060276 is the cancelled `workflow_dispatch` named below. Neither is the tree's.
+
+Tests that may go red from CRYPTO-6: the registry or `nvs-types` tests that count marks per
+signature (`every_mark_a_row_can_write_reaches_a_signature` only needs each mark once; a test that
+counts `Neutral` key parameters or lists `Qual::Sink` parameters by class, such as `sinks_by_class`
+in `crates/nvs-types/src/core_lib.rs`, gains `Core\Crypto`, `Hash`, `Csrf`, `Jwt`, `Jwe`, `Totp` and
+every ring class); any test that passes a `tainted` value (a request field, a row, an HTTP body)
+as a key (the sweep found none, but `.nvst` cases with an expected error were skipped and Rust
+tests that compile source were not swept); the help snapshots and the website's `core.json` /
+`llms-full.txt` for `Seeded::bytes`/`::token` and every key member; the `perf: stale` proofs of
+both Seeded members (`bun nv proofs --record-perf --group 'Core\Random\Seeded'`); the website's
+rule page for `tainted-sources`.
+
+The session before:
 
 - **CRYPTO-3, `get` half (827baed9b).** `crates/nvs-types/src/secret_directive.rs`'s `types_secret`
   is called from the static call path in `expr/calls.rs`. For `Core\Config::get` with a literal
@@ -867,15 +902,21 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 9's last item, one session's slice, and the attack comes first:
+Stage 11, as its standing decision says. Each attack comes first. The group shares
+`crates/nvs-runtime/src/capability.rs` and `crates/nvs-stdlib/src/io.rs`:
 
-1. CRYPTO-6, as the d5 standing decision says. `Seeded::bytes`/`::token` are at
-   `crates/nvs-stdlib/src/random.rs:395`, and the key ring is at `crates/nvs-stdlib/src/keyring.rs:67`.
-   First check whether key parameters (`Core\Crypto`, `Core\SignedCookie`, `Core\Jwt`, `Core\Signature`,
-   `Core\Csrf`) refuse a `tainted` argument today. Then `git grep -n "Seeded"` over the tests,
-   examples and benches that seal with a seeded key. Each one changes.
-2. Then set stage 9 done. Stage 11 (Windows paths, `crates/nvs-runtime/src/capability.rs:1159`)
-   is next after it.
+1. SINK-1 and SINK-3: one textual check of a Windows path (`\\` or `//` first, a component ending
+   in a dot or a space, a `:` after the drive letter, a component with `~` and a digit) before
+   `canonicalize` in `crates/nvs-runtime/src/capability.rs:1159`, and `Core\IO::within` at
+   `crates/nvs-stdlib/src/io.rs:3688` returns no alias. The attack is
+   `tests/hostile/core/IO/within/01-names-built-to-escape.nvs`, plus a Rust test that times the
+   refusal so no network attempt is made.
+2. EXT-10's names: `refused_name` in `crates/nvs-ext/src/wasi/files.rs:253` refuses the same text and
+   the DOS device names (`CON`, `NUL`, `COM1`, `LPT1`, with or without an extension).
+3. CVE-2 is the larger slice and may take its own session: `remove_file`, `remove_dir`, `read_dir`,
+   `metadata` and `exists` open beneath a handle (`crates/nvs-runtime/src/capability.rs:950`), and
+   the WASI layer's `unlink-file-at`, `remove-directory-at`, `stat-at` and `read-directory` go
+   through a `Budget` method each, beside `open_file` (`crates/nvs-ext/src/call.rs`).
 
 ### Backlog
 
