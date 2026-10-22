@@ -474,7 +474,7 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 - [x] CSRF-2: a program with no route table gets the Origin check (`rule:security/csrf-is-on-by-default`). `crates/nvs-server/src/route.rs:124`
 - [x] SESS-1: `Session::start` writes no row and sends no cookie until the first write (`rule:core-classes/session-is-started-explicitly`). `crates/nvs-stdlib/src/session.rs:912`
 - [x] CRYPTO-2: signed cookies bind the name and a purpose into the associated data. `crates/nvs-stdlib/src/signed_cookie.rs:261`
-- [ ] CRYPTO-3: `Core\Config::get` and `::all` return a secret directive as `secret string`. `crates/nvs-stdlib/src/config.rs:192`
+- [x] CRYPTO-3: `Core\Config::get` and `::all` return a secret directive as `secret string`. `crates/nvs-stdlib/src/config.rs:192`
 - [ ] CRYPTO-6: `Core\Random\Seeded` output is refused where a key or a token goes. `crates/nvs-stdlib/src/random.rs:395`
 - [x] BBK-1's pin: a token issued for no session, sent with no cookie, is refused same-origin and cross-origin by a keyed door. It passed on main (the claim that a2b4854a4 refused it was wrong), and the attack keeps it so once CSRF-1 changes how the door reads cookies (`rule:security/csrf-is-on-by-default`). `crates/nvs-server/src/route.rs:245`
 - [x] The attacks: a session cookie on a second line, a cookie swapped between names, and 20,000 cookieless starts that leave no rows. `tests/hostile/core/Session/start/01-identifiers-nobody-issued.nvs:1`
@@ -568,9 +568,44 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 10 is done. Stage 9 still has two items, CRYPTO-3's `get` half and CRYPTO-6. The user has
-answered both: d4 and d5 are closed and recorded under § *Standing decisions*, so neither is
-parked any more.
+Stage 9 has one item left, CRYPTO-6 (d5's standing decision). CRYPTO-3 is done.
+
+- **CRYPTO-3, `get` half (827baed9b).** `crates/nvs-types/src/secret_directive.rs`'s `types_secret`
+  is called from the static call path in `expr/calls.rs`. For `Core\Config::get` with a literal
+  name that `nvs_config::secret::is_secret_key` names, it files `PreparedFact::SecretDirective`
+  under the call's span, and the call is typed `?secret string`. The word reaches the member through
+  the existing prepared channel: `Core\Config::get` joined `PREPARED_MEMBERS`, the helper is
+  `args: [2]` (word, name), and the word is `nvs_stdlib::config::PREPARED_SECRET = 4`
+  (`nvs_ir::ir::Prepared::SecretDirective`, printed `prepared config.secret`). A secret directive
+  with any other word throws `LogicError`, so a computed name and a method reference throw. The
+  attacks: `tests/conformance/reject/a-secret-setting-read-by-config-get-cannot-be-printed.nvst`
+  (new), `tests/conformance/core/password-file-is-read-under-run.nvst` (now compares the password
+  and pins `computed=LogicError`; on main the computed name read the value), and
+  `tests/hostile/core/Config/get/02-a-secret-name-built-at-run-time.nvs`. Two example `.nvs`
+  files under `docs/examples/config/` (`http-csrf_key`, `http-csrf_key_file`), the
+  `secrets-from-files` example (its `.out` lost the `15` line), and three hostile cases under
+  `tests/hostile/config/` (`http`, `http-csrf_key`, `http-client-proxy`) changed. Each one printed
+  a secret setting or read one by a computed name. `get`'s card has a `LogicError` row.
+  `rule:config/a-secret-is-a-file-whose-content-is-the-value` says so and declines two options, and
+  `rule:security/secret-has-no-ambient-source` names the third origin.
+- `cargo build` and `cargo clippy --all-targets -- -D warnings` are green. `bun nv rules --render`
+  and `--check` are green. Run by name: the three attacks and the dump case (`nvs test`), and
+  `bun nv proofs --run` for `Core\Config::get`, `directive:http`, `directive:http.csrf_key`,
+  `directive:http.csrf_key_file`, `directive:http.client.proxy`, `directive:cache.shared` and
+  `tools:config/secrets-from-files`. All pass.
+- The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0, `nothing owed`).
+
+Tests that may go red from this session: a registry or footprint test that checks a
+`PREPARED_MEMBERS` helper's `args: [N]` against its parameters (none read; `get` is now one more);
+an `nvs-ir` lowering snapshot of a `Core\Config::get` call (it gains a `prepared` constant first);
+the help snapshots and the website's `core.json` / `llms-full.txt` for `Core\Config::get`; the
+website's rule pages for the two rules changed; any `.nvs`, `.nvst` or page outside the files
+grepped that echoes or assigns to `string` a literal `get` of a `*.password` or `http.csrf_key`
+(a `git grep` found none left); `crates/nvs-config/src/default.toml:384`'s comment shows
+`Core\Csrf::issue($session, Core\Config::get("http.csrf_key"))`, which never type-checked
+(`?string` for a `secret bytes` key) and still does not.
+
+The session before:
 
 - **d4, d5 (c4259bed0).** Recorded and closed with `bun tools/looper/main.ts decision close`.
 - **CVE-1, Postgres (ac872e079).** `RESET_COMMANDS` is eight: `SET SESSION AUTHORIZATION DEFAULT`
@@ -832,22 +867,14 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 9's last two items, now that d4 and d5 are answered. Each is its own session's slice, and
-the attack comes first each time:
+Stage 9's last item, one session's slice, and the attack comes first:
 
-1. CRYPTO-3's `get`, as the d4 standing decision says. The member is at
-   `crates/nvs-stdlib/src/config.rs:192`. The checker's call typing goes beside the intrinsic roster
-   (`crates/nvs-types/src/intrinsics.rs:549`), which validates literals today and never changes
-   a return type. The predicate is `nvs_config::secret::is_secret_key`. The attacks are a conformance
-   case where `echo Core\Config::get('db.main.password')` does not compile, and one where a computed
-   name throws `LogicError`. `get`'s card and `rule:config/a-secret-is-a-file-whose-content-is-the-value`
-   change.
-2. CRYPTO-6, as the d5 standing decision says. `Seeded::bytes`/`::token` are at
+1. CRYPTO-6, as the d5 standing decision says. `Seeded::bytes`/`::token` are at
    `crates/nvs-stdlib/src/random.rs:395`, and the key ring is at `crates/nvs-stdlib/src/keyring.rs:67`.
    First check whether key parameters (`Core\Crypto`, `Core\SignedCookie`, `Core\Jwt`, `Core\Signature`,
    `Core\Csrf`) refuse a `tainted` argument today. Then `git grep -n "Seeded"` over the tests,
    examples and benches that seal with a seeded key. Each one changes.
-3. Then set stage 9 done. Stage 11 (Windows paths, `crates/nvs-runtime/src/capability.rs:1159`)
+2. Then set stage 9 done. Stage 11 (Windows paths, `crates/nvs-runtime/src/capability.rs:1159`)
    is next after it.
 
 ### Backlog
