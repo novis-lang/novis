@@ -495,11 +495,11 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 **Does:** SINK-1 sends no packet, SINK-3's aliases are refused, and CVE-2's checked-then-reopened
 operations open beneath a handle.
 
-- [ ] SINK-1, SINK-3: the textual refusal runs before `canonicalize` (`rule:security/path-scope-canonicalise-then-prefix`). `crates/nvs-runtime/src/capability.rs:1159`
-- [ ] SINK-3: `Core\IO::within` returns no alias. `crates/nvs-stdlib/src/io.rs:3688`
-- [ ] EXT-10's names: the WASI filesystem's `refused_name` refuses the same Windows text, DOS device names (`CON`, `NUL`, `COM1`, `LPT1`, with or without an extension) among it. `crates/nvs-ext/src/wasi/files.rs:253`
+- [x] SINK-1, SINK-3: the textual refusal runs before `canonicalize` (`rule:security/path-scope-canonicalise-then-prefix`). `crates/nvs-runtime/src/capability.rs:1159`
+- [x] SINK-3: `Core\IO::within` returns no alias. `crates/nvs-stdlib/src/io.rs:3688`
+- [x] EXT-10's names: the WASI filesystem's `refused_name` refuses the same Windows text, DOS device names (`CON`, `NUL`, `COM1`, `LPT1`, with or without an extension) among it. `crates/nvs-ext/src/wasi/files.rs:253`
 - [ ] CVE-2: `remove_file`, `remove_dir`, `read_dir`, `metadata` and `exists` open beneath a handle (`rule:security/writes-open-beneath-a-handle`), and so do the WASI layer's `unlink-file-at`, `remove-directory-at`, `stat-at` and `read-directory`, through a `Budget` method each beside `open_file`. `crates/nvs-runtime/src/capability.rs:950`
-- [ ] The attacks: a UNC, `\\?\`, `\\.\` and 8.3 path through `within`, refused with no network attempt; a Rust test that times the refusal. `tests/hostile/core/IO/within/01-names-built-to-escape.nvs:1`
+- [x] The attacks: a UNC, `\\?\`, `\\.\` and 8.3 path through `within`, refused with no network attempt; a Rust test that times the refusal. `tests/hostile/core/IO/within/01-names-built-to-escape.nvs:1`
 
 ### 12. development serving answers only loopback and serves no project file, and the HTTP front's small gaps are closed
 
@@ -568,7 +568,42 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 9 is done. Stages 11, 12, 13 and 15 are open, then the gate stage 14.
+Stage 11 is open with CVE-2 its one item left. Stages 12, 13 and 15 follow, then the gate stage 14.
+
+- **SINK-1, SINK-3 (fb186cf9e).** `nvs_config::capability::windows_alias(text)` judges a path by
+  its text, on every platform: two separators first (`\\`, `//`, `\\?\`, `\\.\`), a `:` after the
+  drive letter, and each component through `alias_component` (a trailing dot or space; an 8.3
+  name, `~` and digits before the end or the first `.`). `.` and `..` are not names.
+  `nvs_runtime::capability::require_as` calls it as `alias_refusal`, after `device_refusal` and
+  before any grant is read, so every door refuses with a `RuntimeError` ending "on any platform".
+  `resolved` returns `None` for a path with two separators first, and reads only that form,
+  because `temp_dir` resolves an 8.3 `[io] temp_root` (`C:\Users\RUNNER~1\...` on CI) to its long
+  name through it. So `granted()` callers that skip the door (`Core\Cap::has`, `script::resolve`,
+  `Core\Db::open`) never open a network path either. The attacks: step 7 of
+  `tests/hostile/core/IO/within/01-names-built-to-escape.nvs` (eight aliases, all refused; ran
+  green on the debug binary), `a_windows_alias_is_refused_by_its_text_before_any_network_attempt`
+  in `io.rs` (ten aliases under 500 ms; on main the UNC one waited on the network for over 60 s
+  per the audit), and `a_windows_alias_is_found_by_its_text` in `crates/nvs-config/tests/capability.rs`.
+  `rule:errors/path-component-refusals` says every door refuses the aliases and states the cost (a
+  POSIX `foo.`, `a:b`, `v~2` and a `//` share are unreachable). `path-scope-canonicalise-then-prefix`
+  says the text is judged first.
+- **EXT-10's names (3e74f54fa).** `refused_name` in `crates/nvs-ext/src/wasi/files.rs` refuses a
+  `:` on every platform (before, Windows only), a device name and `alias_component`. Unit test
+  `a_guest_name_windows_reads_as_another_is_refused_on_every_platform`.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render` and `--check`
+  are green. Run by name: the three new tests, `core_io_within_...`, and `bun nv proofs --run --id
+  'Core\IO::within'` (3 examples, 1 hostile, all ok).
+- The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0, `nothing owed`), and the
+  nightly run 39746060276 is the cancelled `workflow_dispatch`. Neither is the tree's.
+
+Tests that may go red from SINK-1/3: any Rust test, `.nvst` or example that hands a door a path
+with a component ending in `.` or a space, a `:` past the drive, a `~<digits>` name, or a `//`
+start (a Windows CI leg whose test builds a path from the raw `TEMP`/`std::env::temp_dir()` rather
+than `nvs_repo::scratch` or `Core\IO::temporaryDir` is the likeliest; `nvs_repo::scratch` is under
+`target/` and safe); a WASI guest test that names a file with `:` on Unix; the website's rule
+pages for the two rules changed.
+
+The session before:
 
 - **CRYPTO-6 (fd55a8c78).** `Core\Random\Seeded::bytes` returns `tainted bytes` and `::token`
   returns `tainted string`. `nvs_stdlib::keyring::KEY` is now `SecretBlob(Qual::Sink)` and is the
@@ -902,21 +937,24 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 11, as its standing decision says. Each attack comes first. The group shares
-`crates/nvs-runtime/src/capability.rs` and `crates/nvs-stdlib/src/io.rs`:
+Stage 11's last item, CVE-2, one session. Each attack comes first. The group shares
+`crates/nvs-runtime/src/beneath.rs`, `crates/nvs-runtime/src/capability.rs` and
+`crates/nvs-ext/src/call.rs`:
 
-1. SINK-1 and SINK-3: one textual check of a Windows path (`\\` or `//` first, a component ending
-   in a dot or a space, a `:` after the drive letter, a component with `~` and a digit) before
-   `canonicalize` in `crates/nvs-runtime/src/capability.rs:1159`, and `Core\IO::within` at
-   `crates/nvs-stdlib/src/io.rs:3688` returns no alias. The attack is
-   `tests/hostile/core/IO/within/01-names-built-to-escape.nvs`, plus a Rust test that times the
-   refusal so no network attempt is made.
-2. EXT-10's names: `refused_name` in `crates/nvs-ext/src/wasi/files.rs:253` refuses the same text and
-   the DOS device names (`CON`, `NUL`, `COM1`, `LPT1`, with or without an extension).
-3. CVE-2 is the larger slice and may take its own session: `remove_file`, `remove_dir`, `read_dir`,
-   `metadata` and `exists` open beneath a handle (`crates/nvs-runtime/src/capability.rs:950`), and
-   the WASI layer's `unlink-file-at`, `remove-directory-at`, `stat-at` and `read-directory` go
-   through a `Budget` method each, beside `open_file` (`crates/nvs-ext/src/call.rs`).
+1. The runtime half: `remove_file` and `remove_dir` (`crates/nvs-runtime/src/capability.rs:1214`,
+   `:1232`), `read_dir` (`:1197`), `metadata` and `exists` resolve once and act beneath a handle,
+   as `open_with` and `rename` in `beneath.rs` do: open the folder above with the walk, then
+   `unlinkat`/`fstatat(AT_SYMLINK_NOFOLLOW)`/`fdopendir` on Unix, and on Windows the
+   `NtCreateFile` level with `FILE_DELETE_ON_CLOSE` or a handle query. The attack is a Rust test
+   beside `a_planted_link_is_never_followed` that swaps a folder for a link between the check and
+   the act.
+2. The WASI half: `unlink-file-at`, `remove-directory-at`, `stat-at` and `read-directory` in
+   `crates/nvs-ext/src/wasi/files.rs` go through a `Budget` method each, defaulting to the by-name
+   call, and `Spent` in `crates/nvs-cli/src/extensions.rs` fills them from `guest_files`, as
+   EXT-10 did for `open_file`. The attack extends `a_guest_opens_every_file_through_the_hosts_walk`
+   in `crates/nvs-ext/tests/files.rs`.
+3. `rule:security/writes-open-beneath-a-handle` names the new doors. Then stage 11 is done; stage
+   12's first item (development serving) is next.
 
 ### Backlog
 
