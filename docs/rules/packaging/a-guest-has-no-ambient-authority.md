@@ -23,6 +23,11 @@ is refused at boot and at reload, and the guest reads the block through `nvs:ext
 only narrows what the component does, as `[image] max_pixels` does, and never grants anything: the
 entry's `grants` are the only place a guest gains I/O.
 
+A block belongs to the one extension that declares it. A set where two extensions declare the same
+block name, compared without regard to case, is refused at boot and at reload
+(`nvs_ext::load::Set::insert`), because the block often holds a key or a token, and a second
+extension that declared it would read the first's.
+
 **On disk.** The import list is written as the `extension` world in `wit/nvs-ext/world.wit`, and
 `crates/nvs-stdlib/tests/ext_world.rs` checks it imports exactly the allowed interfaces. `nvs_ext::wasi`
 links every WASI interface of the world, and the loader admits a WASI import only from the
@@ -46,3 +51,6 @@ transport under the request's own context (`crates/nvs-ext/tests/http.rs`).
 - **Raw sockets.** A WASI socket connects to an address, so a grant written as a host name would need
   the host to remember which addresses came from which lookups. That is a second copy of the outbound
   policy, and TLS would become the guest's own code.
+- **Binding the block to the extension's class name.** `[ext.<name>]` would stop being a name the
+  operator writes freely, and every configuration that names a block today would change. Refusing a
+  second declaration closes the same read.
