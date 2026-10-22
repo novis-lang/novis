@@ -15,8 +15,8 @@ class Record implements PropertyObserver
     public function constructor()
     {
         $this->id = 1;
-        $this->title = "first";
-        $this->tags = ["a", "b"];
+        $this->title = 'first';
+        $this->tags = ['a', 'b'];
     }
 
     public function onPropertyGet(string $name, mixed $value): void
@@ -26,7 +26,7 @@ class Record implements PropertyObserver
     // Each write reads `title` and `tags`. During the first write, neither has a value.
     public function onPropertySet(string $name, mixed $value): void
     {
-        if ($name == "reads" || $name == "errors") {
+        if ($name == 'reads' || $name == 'errors') {
             return;
         }
         try {
@@ -40,15 +40,15 @@ class Record implements PropertyObserver
 
 // 1. Build one object. The first two writes find properties with no value.
 var $record = new Record();
-echo "step 1: ", $record->reads, " reads, ", $record->errors, " errors\n";
+echo 'step 1: ', $record->reads, ' reads, ', $record->errors, " errors\n";
 
 // 2. Write again after the constructor. Every property has a value now.
-$record->title = "second";
-echo "step 2: ", $record->reads, " reads, ", $record->errors, " errors\n";
+$record->title = 'second';
+echo 'step 2: ', $record->reads, ' reads, ', $record->errors, " errors\n";
 
 // 3. Build many objects in a loop.
 int $errors = 0;
 for (var $i = 0; $i < 1000; $i++) {
     $errors = $errors + (new Record())->errors;
 }
-echo "step 3: ", $errors, " errors\n";
+echo 'step 3: ', $errors, " errors\n";

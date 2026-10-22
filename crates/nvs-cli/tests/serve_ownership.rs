@@ -10,7 +10,7 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Child, ExitStatus, Stdio};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -55,7 +55,7 @@ struct Started {
 
 fn start(dir: &Path) -> Started {
     let data = nvs_repo::scratch_private("serve-ownership-data");
-    let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+    let mut child = nvs_repo::spawn(env!("CARGO_BIN_EXE_nvs"), &[])
         .arg("--data")
         .arg(&*data)
         .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
@@ -183,7 +183,7 @@ fn open_to_others(path: &Path) {
     }
     #[cfg(windows)]
     {
-        let status = Command::new("icacls")
+        let status = nvs_repo::spawn("icacls", &[])
             .arg(path)
             .args(["/grant", "*S-1-5-11:(M)"])
             .stdout(Stdio::null())

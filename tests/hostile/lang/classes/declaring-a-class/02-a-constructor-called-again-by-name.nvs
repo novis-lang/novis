@@ -33,36 +33,36 @@ class Box
     }
 }
 
-var $box = new Box(new Dog("Rex", 3, 20));
+var $box = new Box(new Dog('Rex', 3, 20));
 var $info = Core\Reflect::forObject($box);
 
 // 1. Call the constructor again with a new value for the readonly property.
 try {
-    $info->call($box, "constructor", [new Dog("Max", 5, 30)]);
+    $info->call($box, 'constructor', [new Dog('Max', 5, 30)]);
     echo "step 1: the constructor ran again\n";
 } catch (LogicError $e) {
-    echo "step 1: ", $e->message, "\n";
+    echo 'step 1: ', $e->message, "\n";
 }
-echo "step 1: the pet is still ", $box->pet->name, "\n";
+echo 'step 1: the pet is still ', $box->pet->name, "\n";
 
 // 2. Test that the pet is a `Dog`, then try to put a `Cat` in its place.
 // The `Dog` properties are read after the attempt.
 if ($box->pet is Dog) {
     try {
-        $info->call($box, "constructor", [new Cat("Tom")]);
+        $info->call($box, 'constructor', [new Cat('Tom')]);
     } catch (LogicError $e) {
-        echo "step 2: ", $e->message, "\n";
+        echo 'step 2: ', $e->message, "\n";
     }
-    echo "step 2: age ", $box->pet->age, ", weight ", $box->pet->weight, "\n";
+    echo 'step 2: age ', $box->pet->age, ', weight ', $box->pet->weight, "\n";
 }
 
 // 3. Do the same many times in a loop.
 int $refused = 0;
 for (var $i = 0; $i < 1000; $i++) {
     try {
-        $info->call($box, "constructor", [new Cat("Tom")]);
+        $info->call($box, 'constructor', [new Cat('Tom')]);
     } catch (LogicError $e) {
         $refused++;
     }
 }
-echo "step 3: ", $refused, " calls threw an error\n";
+echo 'step 3: ', $refused, " calls threw an error\n";

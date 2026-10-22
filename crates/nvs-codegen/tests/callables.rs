@@ -108,7 +108,7 @@ try {
 /// loop below, so the leak guard is still measuring one callable's walk.
 const MISMATCH: &str = "<?nvs
 callable $wantsString = fn (string $s): bool => $s != \"zzz\";
-callable(mixed, string): bool $forward = fn (mixed $m): bool => $wantsString($m) as bool;
+callable(mixed, tainted string): bool $forward = fn (mixed $m): bool => $wantsString($m) as bool;
 array<mixed> $mixed = [\"a\", \"b\", 3];
 ";
 

@@ -77,8 +77,8 @@ fn the_runtime_and_the_compiler_agree_on_every_throwable_slot() {
 class MyError extends IOError {
   public int $code;
            function constructor(int $code) {
+    $this->code = $code;
     parent::constructor(\"bad\");
-             $this->code = $code;
   }
 }
 ",
