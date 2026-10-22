@@ -226,6 +226,7 @@ pub mod floor;
 mod fmt;
 pub mod graph;
 pub mod graphemes;
+pub mod guest_files;
 pub mod helpers;
 pub mod holes;
 pub mod host;
