@@ -1208,27 +1208,77 @@ fn sent(call: &Call<'_>, repin: &mut Repin<'_>, bounds: Bounds) -> Result<Stream
     let mut url = call.url.clone();
     let mut addresses = call.addresses.clone();
     let mut tls = parts(&url, call.member)?.tls;
+    let mut hop = Hop::of(call);
     let mut hops = 0_u32;
     loop {
-        let reply = attempts(call, &url, &addresses, bounds)?;
+        let reply = attempts(call, hop, &url, &addresses, bounds)?;
         let Some(location) = redirect_of(&reply) else {
             return Ok(reply);
         };
         if hops >= call.redirects {
             return Ok(reply);
         }
+        let next = resolved(&url, &location, call.member)?;
+        let next_parts = parts(&next, call.member)?;
+        let Some(next_hop) = onward(hop, reply.status, same_origin(call, &next_parts)) else {
+            return Ok(reply);
+        };
         hops += 1;
         call.span.borrow_mut().hopped();
-        url = resolved(&url, &location, call.member)?;
-        let onward = parts(&url, call.member)?.tls;
+        hop = next_hop;
+        url = next;
         // Before the connection and not after it: § 4 refuses a hop on its
         // *address*, and an address that has not been asked about yet is one
         // the first URL's approval is standing in for. The second argument is
         // the question this module can answer and must not decide — a hop out
         // of TLS into plaintext, which is the module doc's paragraph above.
-        addresses = repin(&url, tls && !onward)?;
-        tls = onward;
+        addresses = repin(&url, tls && !next_parts.tls)?;
+        tls = next_parts.tls;
     }
+}
+
+/// What one hop sends: the method and the body. The first hop sends the call's
+/// own, and [`onward`] decides what each redirect hop sends.
+#[derive(Clone, Copy)]
+struct Hop<'h> {
+    /// The method, upper-cased.
+    verb: &'h str,
+    /// The body, or `None` for a hop that sends none.
+    body: Option<&'h Body>,
+}
+
+impl<'h> Hop<'h> {
+    /// The call's own method and body, which the first hop sends.
+    fn of(call: &'h Call<'_>) -> Self {
+        Self {
+            verb: call.verb,
+            body: call.body.as_ref(),
+        }
+    }
+}
+
+/// What the hop after a redirect sends, or `None` where the redirect is the
+/// answer (`rule:http-server/a-cross-origin-redirect-drops-credentials`).
+///
+/// RFC 9110 § 15.4: a `303` is followed with a `GET` (a `HEAD` stays a
+/// `HEAD`), and a `301` or `302` after a `POST` is followed with a `GET`, as
+/// every browser does. Either sends no body. A `307` or `308` keeps the method
+/// and the body, so one that leaves the origin [`Call::url`] was approved at
+/// while it carries a body is not followed: the body is the program's, as its
+/// headers are, and a `PUT` sent on with its body left out is a different
+/// request from the one the program wrote.
+fn onward(hop: Hop<'_>, status: i64, same_origin: bool) -> Option<Hop<'_>> {
+    if status == 303 {
+        let verb = if hop.verb == "HEAD" { "HEAD" } else { "GET" };
+        return Some(Hop { verb, body: None });
+    }
+    if matches!(status, 301 | 302) && hop.verb == "POST" {
+        return Some(Hop {
+            verb: "GET",
+            body: None,
+        });
+    }
+    (same_origin || hop.body.is_none()).then_some(hop)
 }
 
 /// A buffered reply, whole: [`sent`] under the one deadline, drained.
@@ -1375,6 +1425,7 @@ pub(crate) fn send_streamed(call: &Call<'_>, repin: &mut Repin<'_>) -> Result<St
 /// One URL's worth of attempts, under the call's own deadline.
 fn attempts(
     call: &Call<'_>,
+    hop: Hop<'_>,
     url: &str,
     addresses: &[IpAddr],
     bounds: Bounds,
@@ -1386,7 +1437,7 @@ fn attempts(
         }
         let last = attempt + 1 >= call.attempts;
         call.span.borrow_mut().attempted();
-        let wait = match one(call, url, addresses, bounds)? {
+        let wait = match one(call, hop, url, addresses, bounds)? {
             Attempt::Answered(reply) => {
                 if last || !retryable(reply.status) {
                     return Ok(reply);
@@ -1429,7 +1480,13 @@ fn attempts(
 /// The set is walked rather than its first address used, under the one
 /// `connectTimeout` clamped below — `rule:http-server/an-outbound-call-tries-every-approved-address`,
 /// and [`nvs_host::net::NvsTcp::connect_racing`] is the walk itself.
-fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Result<Attempt, Fault> {
+fn one(
+    call: &Call<'_>,
+    hop: Hop<'_>,
+    url: &str,
+    addresses: &[IpAddr],
+    bounds: Bounds,
+) -> Result<Attempt, Fault> {
     let parts = parts(url, call.member)?;
     // Where this attempt is going, written before anything can fail: the event
     // names the origin that answered and the path it asked for, and
@@ -1437,7 +1494,7 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
     call.span
         .borrow_mut()
         .at(parts.tls, &parts.host, parts.port, &parts.target);
-    let request = compose(call, &parts)?;
+    let request = compose(call, hop, &parts)?;
     let approved: Vec<SocketAddr> = addresses
         .iter()
         .map(|&address| SocketAddr::new(address, parts.port))
@@ -1480,6 +1537,7 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
         call.span.borrow_mut().drawn(socket);
         match exchange(
             call,
+            hop.body,
             held,
             &request,
             &reached_at(&parts, socket),
@@ -1505,7 +1563,7 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
     let key = pool_key(&parts, socket, fingerprint, &call.policy, through);
 
     Ok(
-        match exchange(call, connection, &request, &reached, bounds, &key)? {
+        match exchange(call, hop.body, connection, &request, &reached, bounds, &key)? {
             Sent::Answered(reply) => Attempt::Answered(reply),
             // On a socket opened for this request, nothing arriving at all is a
             // statement about the other end rather than weather: a second identical
@@ -2232,6 +2290,7 @@ fn policy_key(policy: &CallPolicy) -> String {
 /// is the whole reason `nvs-host` exposes it that way.
 fn exchange(
     call: &Call<'_>,
+    body: Option<&Body>,
     mut stream: Box<dyn Connection>,
     request: &str,
     reached: &str,
@@ -2243,7 +2302,7 @@ fn exchange(
             "sending to {reached} failed: {err}"
         )));
     }
-    if let Some(body) = &call.body
+    if let Some(body) = body
         && let Some(err) = write_body(body, &mut stream, call.member)?
     {
         return Ok(Sent::WhileSending(format!(
@@ -2358,10 +2417,10 @@ fn reusable(head: &[u8], headers: &[(String, String)], frame: Frame) -> bool {
 /// That is header injection and it is refused for security: a value holding
 /// `\r\n` is a second request the caller did not write, and there is no
 /// escaping that makes one safe, only a rejection that makes it visible.
-fn compose(call: &Call<'_>, parts: &Parts) -> Result<String, Fault> {
+fn compose(call: &Call<'_>, hop: Hop<'_>, parts: &Parts) -> Result<String, Fault> {
     let mut out = format!(
         "{verb} {target} HTTP/1.1\r\nHost: {authority}\r\n",
-        verb = call.verb,
+        verb = hop.verb,
         target = parts.target,
         authority = parts.authority,
     );
@@ -2378,7 +2437,10 @@ fn compose(call: &Call<'_>, parts: &Parts) -> Result<String, Fault> {
         return Err(own_offer(call.member, name));
     }
     field(&mut out, "Accept-Encoding", OFFERED, call.member)?;
-    if let Some(key) = &call.idempotency_key {
+    // A hop a redirect turned into a `GET` is not the request the key names.
+    if hop.verb == call.verb
+        && let Some(key) = &call.idempotency_key
+    {
         field(&mut out, "Idempotency-Key", key, call.member)?;
     }
     // `rule:http-server/a-cross-origin-redirect-drops-credentials`: a hop to
@@ -2413,7 +2475,7 @@ fn compose(call: &Call<'_>, parts: &Parts) -> Result<String, Fault> {
     // `Content-Type` beside a `json` body still sends one line rather than two
     // — the last one written is the one an origin reads, and the program's is
     // the one it meant.
-    if let Some(body) = &call.body {
+    if let Some(body) = hop.body {
         if let Some(content_type) = &body.content_type {
             field(&mut out, "Content-Type", content_type, call.member)?;
         }
@@ -4576,7 +4638,8 @@ pub(crate) mod tests {
         let mut theirs = call(at, "test");
         theirs.headers = vec![("Accept-Encoding".to_owned(), "deflate".to_owned())];
         let parts = super::parts(&theirs.url, "test").expect("a URL this case wrote");
-        let refused = super::compose(&theirs, &parts).expect_err("a program's own offer");
+        let refused = super::compose(&theirs, super::Hop::of(&theirs), &parts)
+            .expect_err("a program's own offer");
         assert!(
             format!("{refused:?}").contains("Accept-Encoding"),
             "the refusal names the header: {refused:?}"
@@ -6163,6 +6226,117 @@ pub(crate) mod tests {
         assert!(asked[1].contains("X-Api-Key: k-93ce\r\n"), "{}", asked[1]);
     }
 
+    /// A form body this case sends, which no hop after a rewrite may carry.
+    fn card_form() -> super::Body {
+        super::Body {
+            content_type: Some("application/x-www-form-urlencoded".to_owned()),
+            length: 9,
+            pieces: vec![super::Piece::Held(b"card=4242".to_vec())],
+        }
+    }
+
+    /// RFC 9110 § 15.4: a `303` is followed with a `GET`, and a `301` or `302`
+    /// after a `POST` is followed with a `GET`. The hop carries no body, no
+    /// `Content-Type` and no `Content-Length`, so the form never reaches the
+    /// host the `Location` named.
+    #[test]
+    fn a_303_and_a_301_or_302_after_a_post_follow_as_a_get_with_no_body() {
+        let ok = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
+        let (elsewhere, answering) = origin(vec![ok, ok, ok]);
+        for (status, verb) in [(303, "PUT"), (301, "POST"), (302, "POST")] {
+            let (at, served) = origin_raw(vec![
+                format!(
+                    "HTTP/1.1 {status} Moved\r\nLocation: http://{elsewhere}/next\r\nContent-Length: 0\r\n\r\n"
+                )
+                .into_bytes(),
+            ]);
+            let mut followed = call(at, "test");
+            followed.verb = verb;
+            followed.redirects = 1;
+            followed.idempotency_key = Some("k-1".to_owned());
+            followed.body = Some(card_form());
+            let reply = send(&followed, &mut |_url, _downgrade| Ok(vec![elsewhere.ip()]))
+                .expect("the hop's answer");
+            assert_eq!(reply.status, 200, "{status} after {verb}");
+            served.join().expect("the first origin thread");
+        }
+
+        for hop in answering.join().expect("the second origin thread").asked {
+            assert!(hop.starts_with("GET /next HTTP/1.1\r\n"), "{hop}");
+            let lower = hop.to_ascii_lowercase();
+            for gone in ["content-length:", "content-type:", "idempotency-key:"] {
+                assert!(
+                    !lower.contains(gone),
+                    "`{gone}` crossed a rewritten hop: {hop}"
+                );
+            }
+            assert!(!hop.contains("card=4242"), "the body crossed: {hop}");
+        }
+    }
+
+    /// A `307` or `308` keeps the method and the body, so one that leaves the
+    /// origin while the call carries a body is not followed. The redirect is
+    /// the answer, and nothing is sent to the host it names.
+    #[test]
+    fn a_307_or_308_to_another_origin_with_a_body_is_the_answer() {
+        for status in [307, 308] {
+            let (at, served) = origin_raw(vec![
+                format!(
+                    "HTTP/1.1 {status} Moved\r\nLocation: http://127.0.0.1:9/next\r\nContent-Length: 0\r\n\r\n"
+                )
+                .into_bytes(),
+            ]);
+            let mut followed = call(at, "test");
+            followed.verb = "POST";
+            followed.redirects = 1;
+            followed.body = Some(card_form());
+            let mut hops: Vec<String> = Vec::new();
+            let reply = send(&followed, &mut |url, _downgrade| {
+                hops.push(url.to_owned());
+                Ok(vec![at.ip()])
+            })
+            .expect("the redirect itself");
+            assert_eq!(reply.status, status);
+            assert_eq!(
+                hops,
+                [] as [String; 0],
+                "a {status} with a body was followed"
+            );
+            served.join().expect("the origin thread");
+        }
+    }
+
+    /// `onward`'s whole table: what each redirect does to each kind of hop.
+    #[test]
+    fn a_redirect_rewrites_the_method_only_where_rfc_9110_says_so() {
+        let form = card_form();
+        let post = super::Hop {
+            verb: "POST",
+            body: Some(&form),
+        };
+        let head = super::Hop {
+            verb: "HEAD",
+            body: None,
+        };
+        let get = super::Hop {
+            verb: "GET",
+            body: None,
+        };
+        fn shape(hop: Option<super::Hop<'_>>) -> Option<(&str, bool)> {
+            hop.map(|hop| (hop.verb, hop.body.is_some()))
+        }
+        assert_eq!(
+            shape(super::onward(head, 303, false)),
+            Some(("HEAD", false))
+        );
+        assert_eq!(shape(super::onward(post, 303, true)), Some(("GET", false)));
+        assert_eq!(shape(super::onward(post, 302, true)), Some(("GET", false)));
+        assert_eq!(shape(super::onward(post, 307, true)), Some(("POST", true)));
+        assert_eq!(shape(super::onward(post, 308, false)), None);
+        assert_eq!(shape(super::onward(get, 301, false)), Some(("GET", false)));
+        assert_eq!(shape(super::onward(get, 307, false)), Some(("GET", false)));
+    }
+
     /// The rule's second paragraph: no header value reaches a trace span, a log
     /// record or an error message.
     ///
@@ -6187,7 +6361,8 @@ pub(crate) mod tests {
         )];
         let refused = format!(
             "{:?}",
-            super::compose(&injected, &parts).expect_err("a value that would end the line")
+            super::compose(&injected, super::Hop::of(&injected), &parts)
+                .expect_err("a value that would end the line")
         );
         assert!(
             refused.contains("X-Api-Key"),
@@ -6202,7 +6377,8 @@ pub(crate) mod tests {
         offered.headers = vec![("Accept-Encoding".to_owned(), credential.to_owned())];
         let refused = format!(
             "{:?}",
-            super::compose(&offered, &parts).expect_err("a program's own offer")
+            super::compose(&offered, super::Hop::of(&offered), &parts)
+                .expect_err("a program's own offer")
         );
         assert!(
             refused.contains("Accept-Encoding"),
