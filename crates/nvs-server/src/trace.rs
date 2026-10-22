@@ -358,13 +358,15 @@ pub struct Access<'a> {
 
 /// Writes `line` as one diagnostic record where `[log] target` says, when
 /// `on` — `[log] access` for the snapshot the request ran under — or when the
-/// status is a `5xx`, whatever `on` says.
+/// status is a `5xx` other than `501`, whatever `on` says.
 ///
 /// **The same record a `Core\Log::write` produces**, rendered by the same
 /// [`Ctx::write_log_record`](nvs_runtime::Ctx::write_log_record) in whichever
 /// `[log] format` is configured, so there is no access-log format of its own.
 /// An access line is `Info`; a `5xx` is `Error`, because it is a diagnostic
-/// that has to survive the production default level.
+/// that has to survive the production default level. A `501` is an access
+/// line like a `4xx`: the door answers it to a verb the client made up, so a
+/// client could otherwise force an error line per request.
 ///
 /// The envelope's ids are filled here rather than by
 /// `nvs_runtime::Ctx::stamp_envelope`: `ctx` is the connection's context, and
@@ -376,7 +378,7 @@ pub fn access(ctx: &mut nvs_runtime::Ctx, on: bool, line: &Access<'_>) {
     use nvs_render::{Level, Node, Scalar};
     use nvs_runtime::floor;
 
-    let failed = line.status >= 500;
+    let failed = line.status >= 500 && line.status != 501;
     if line.probe || (!on && !failed) {
         return;
     }
@@ -1148,12 +1150,25 @@ mod tests {
             line.to_lowercase().contains("\"level\":\"error\""),
             "a 5xx is `Error`: {line}"
         );
-        for status in [200, 304, 404, 499] {
+        for status in [200, 304, 404, 499, 501] {
             assert_eq!(
                 logged(false, false, status, Some(trace)),
                 "",
                 "`access` is off and a {status} was logged"
             );
         }
+    }
+
+    /// `rule:http-server/the-access-log-is-a-mode-default`: a `501` is an
+    /// access line at `Info`, because the door answers it to a verb the client
+    /// made up. A client cannot force an error line per request.
+    #[test]
+    fn a_501_is_an_access_line_at_info() {
+        let line = logged(true, false, 501, Some(decided(&[])));
+        assert!(line.contains("\"status\":501"), "the 501 was lost: {line}");
+        assert!(
+            line.to_lowercase().contains("\"level\":\"info\""),
+            "a 501 is `Info`: {line}"
+        );
     }
 }

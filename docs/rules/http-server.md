@@ -658,7 +658,7 @@ It performs **no dependency checks** — a health endpoint that pings the databa
 
 <a id="http-server-the-access-log-is-a-mode-default"></a>
 
-## `[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says
+## `[log] access` is a mode default — on in development, off in production — and a `5xx` other than `501` is logged whatever it says
 
 `rule:http-server/the-access-log-is-a-mode-default`
 
@@ -666,7 +666,7 @@ It performs **no dependency checks** — a health endpoint that pings the databa
 
 It renders through the one diagnostic record — text in development, JSON in production ([`errors/renderings`](errors.md#errors-renderings)) — and there is deliberately **no Common or Combined Log Format**, which would be a second renderer. The fields are `method`, `path` (never the query string), `status`, `durationMs`, `bytes` where the body's length is known when the head goes out, `clientIp`, `route` when the application matched one, and the trace id as the envelope's `request_id` ([`errors/log-fields`](errors.md#errors-log-fields)). An access line is `Info`. The health probe writes no line, whatever its status.
 
-**An error is logged unconditionally**, whatever `access` says: a `5xx` is a diagnostic rather than access telemetry, and losing one because access logging was off would be the wrong failure. It is written at `Error`, so the production default level keeps it.
+**An error is logged unconditionally**, whatever `access` says: a `5xx` is a diagnostic rather than access telemetry, and losing one because access logging was off would be the wrong failure. It is written at `Error`, so the production default level keeps it. A `501` is the exception and is an access line like a `4xx`: the door answers it to a verb the client made up, so an error line per `501` would let any client write one per request.
 
 The door writes the line where it counts the request for the request series, so every answer it writes has one — a refusal at the valve and a mount table's `404` included. `access` is read off the snapshot the request ran under, so an `[[app]]` block's own value and a reload reach the next request; a program's `Core\Config::set` of it changes nothing, because the line is written after the request's own view has gone. An answer the door wrote before a request carrier existed has no trace id on its line.
 

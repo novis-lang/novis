@@ -1720,8 +1720,10 @@ where
             crate::metrics::count_request(verb.as_str(), status, route, took);
             let probe = is_probe(response);
             // Read only where it decides something: the probe writes nothing,
-            // and a `5xx` is written whatever it says.
-            let on = !probe && status < 500 && crate::trace::access_on(under);
+            // and a `5xx` other than `501` is written whatever it says.
+            let on = !probe
+                && (status < 500 || status == 501)
+                && crate::trace::access_on(under);
             crate::trace::access(
                 &mut ctx.borrow_mut(),
                 on,
