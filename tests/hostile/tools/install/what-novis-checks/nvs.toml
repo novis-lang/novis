@@ -2,3 +2,7 @@
 [capabilities.fs]
 read = ["config", "cache", "uploads"]
 write = ["uploads"]
+
+# It may not start any program. Without this line, a CLI run may start every program.
+[capabilities.process]
+exec = []
