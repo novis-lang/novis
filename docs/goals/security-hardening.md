@@ -506,16 +506,16 @@ operations open beneath a handle.
 **Does:** RS-1, RS-2, RS-4, RS-6, RS-7, HTTP-2, HTTP-4 and HTTP-5 are closed, and RS-5 is declined
 into its rule.
 
-- [ ] RS-1: static serving skips the set program reads skip, in every mode (`rule:http-server/static-serving-is-one-policy`). `crates/nvs-server/src/mount.rs:571`
-- [ ] RS-2: a loopback development server answers only a loopback `Host` or a listed one. `crates/nvs-server/src/mount.rs:307`
-- [ ] RS-4, RS-6, RS-7: the case rule through a link, a strict `Range` parse, and `sandbox` on static SVG and HTML. `crates/nvs-server/src/statics.rs:239`
+- [x] RS-1: static serving skips the set program reads skip, in every mode (`rule:http-server/static-serving-is-one-policy`). `crates/nvs-server/src/mount.rs:571`
+- [x] RS-2: a loopback development server answers only a loopback `Host` or a listed one. `crates/nvs-server/src/mount.rs:307`
+- [x] RS-4, RS-6, RS-7: the case rule through a link, a strict `Range` parse, and `sandbox` on static SVG and HTML. `crates/nvs-server/src/statics.rs:239`
 - [ ] HTTP-2: an absolute-form target's host wins over `Host` (`rule:http-server/host-matching-is-on-the-host-part-only`). `crates/nvs-server/src/mount.rs:424`
 - [ ] HTTP-4, APP-3: a malformed chunked body answers `400`, and so does a request that carries both `Content-Length` and `Transfer-Encoding` (it is framed by `Transfer-Encoding` and closed today). `crates/nvs-server/src/body.rs:198`
 - [ ] APP-2: when a body reader trips `[limits] request_body`, the runtime records `Refusal::BodyTooLarge` on the request as it throws, and `dispatch` sends a handler that throws after that to the gate's `refused` with `413` instead of `failed` with `500`. No new error class: the reader still throws its `RuntimeError` (`rule:http-server/the-body-is-read-on-demand-under-two-caps`, `rule:routing/a-gate-answers-around-every-handler`). `crates/nvs-stdlib/src/request.rs:679`, `crates/nvs-stdlib/src/router.rs:2523`
 - [ ] APP-2's attack: a 9 MB JSON body and a 9 MB form body to a route that reads them answer `413` through the gate, and the next request answers `200`. `tests/hostile/core/Request/jsonAs/02-a-body-over-the-limit.nvs:1`
 - [ ] HTTP-5: `X-Forwarded-Proto` from a trusted peer that never set it is ignored (`rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`). `crates/nvs-server/src/forwarded.rs:466`
-- [ ] RS-5: the Declined entry for a hard link. `docs/rules/http-server/static-serving-is-one-policy.md:1`
-- [ ] The attacks: `GET /nvs.toml`, `/.env` and `/data.sqlite` in development mode, a rebinding `Host`, and the static policy rows; Rust tests beside `mount.rs`. `crates/nvs-server/src/mount.rs:1586`
+- [x] RS-5: the Declined entry for a hard link. `docs/rules/http-server/static-serving-is-one-policy.md:1`
+- [x] The attacks: `GET /nvs.toml`, `/.env` and `/data.sqlite` in development mode, a rebinding `Host`, and the static policy rows; Rust tests beside `mount.rs`. `crates/nvs-server/src/mount.rs:1586`
 
 ### 13. the outbound client's redirects, the leftovers, and the audit's scratch is gone
 
@@ -568,7 +568,48 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 11 is done. Stages 12, 13 and 15 are open, then the gate stage 14.
+Stage 12 is half done: the RS items are landed, HTTP-2, HTTP-4/APP-3, APP-2 and HTTP-5 are open.
+Stages 13 and 15 are open, then the gate stage 14.
+
+- **The `sendFile` `500` is not a bug.** On this tree `Response::sendFile("assets/logo.svg")` in
+  `src/App.nvs` resolves beside the source file (`src/assets/logo.svg`), which
+  `rule:programs/relative-paths-resolve-from-their-file` says; `"../assets/logo.svg"` answers `200`.
+  The audit's copy no longer compiles either: `Config::get("http.csrf_key")` is now
+  `?secret string` (CRYPTO-3), as intended.
+- **RS-1, RS-2, RS-4, RS-5, RS-6, RS-7 (76d3483a5).** `nvs_config::capability::kept_from_requests`
+  (a dot component or `nvs.toml`, any case) is the one predicate; `in_app_folder` calls it.
+  `Table::withholds` in `mount.rs` declines a step-3 file it names, a `.nvst`, and a database file
+  from `Table::withholding` (from `from_config`'s `[db]` paths, canonical, plus `-wal`, `-shm`,
+  `-journal`). The root config's `[db]` blocks only: a mount entry's own tree's blocks are not read.
+  `.well-known` is withheld too (the rule says a route answers it). RS-2: `Table::select` takes
+  the peer (`origin.client()` in `nvs-cli`'s door) and `Table::refuses_host` refuses a loopback
+  peer whose `Host` is not `localhost`, `*.localhost`, a loopback literal or a mount's host, in
+  development (`local_hosts_only`, from `[mode] default`); only the probe answers it, else `404`.
+  RS-4: `OnDisk::file` uses `spelled_through_links` (the folder before each link canonical, the
+  link's name found exactly in its listing, and the walk equal to the canonical path). RS-6:
+  `conditional::Asked` has `range_repeated`; `position` takes digits only; `statics::asked` keeps
+  every `Range` line. RS-7: `statics::send` sets `sandbox; frame-ancestors 'none'` for HTML, SVG
+  and XML (`SANDBOXED`), which replaces the configured policy on those files. RS-5 is a Declined
+  entry. The attacks (all pass, run by name): `a_project_file_is_never_served_as_a_static_file`,
+  `a_project_file_on_disk_is_never_served_through_a_link`, `a_link_inside_the_root_keeps_the_case_rule`
+  (a junction on Windows), `a_rebinding_host_from_this_machine_reaches_no_mount` in `mount.rs`;
+  `a_file_a_browser_runs_script_from_is_sandboxed`, `a_range_written_two_ways_is_unsatisfiable` in
+  `statics.rs`; `two_range_lines_are_unsatisfiable` in `conditional.rs`.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render` and `--check`
+  are green.
+- The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0, `nothing owed`), and the
+  nightly run 39746060276 is the cancelled `workflow_dispatch`. Neither is the tree's.
+
+Tests that may go red from the RS slice: any served or `nvs-cli` test in development mode that
+sends a non-local `Host` (such as `example.com` or a test host no mount lists) over loopback — it
+now gets `404` (`live_config.rs`, `serve.rs` tests and `.nvst` request helpers are the likeliest;
+not grepped); any test that serves a static `.html`/`.svg`/`.xml` and expects the configured
+`Content-Security-Policy`; any test that fetches a dot-file, `nvs.toml`, a `.nvst` or a
+`.well-known` file through static serving; a `Range` test with a space or `+`; the website's rule
+pages for the two rules changed; the `perf: stale` proofs of `Core\Response::sendFile`
+(`statics.rs` changed).
+
+The session before (CVE-2):
 
 - **CVE-2, runtime half (95017e2d3).** `beneath.rs` has `remove_file`, `remove_dir`, `metadata`,
   `entry_metadata` and `list` (returns `Vec<Entry { name, kind: Kind }>`). Unix: `unlinkat`; the
@@ -982,29 +1023,30 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 12, development serving first. The group shares `crates/nvs-server/src/mount.rs` and
-`crates/nvs-server/src/statics.rs`. Each attack comes first, as Rust tests beside `mount.rs`
-(`crates/nvs-server/src/mount.rs:1586`):
+Stage 12's HTTP half. The audit's text for each is in `.agent-tmp/sec-audit/reports/` (grep the id).
+Each attack comes first:
 
-0. Before touching static serving, the backlog's unchecked `Response::sendFile("assets/logo.svg")`
-   `500`: serve the copy under `.agent-tmp/sec-audit/bb-kitchen/app` as its `serve.log` shows and
-   fetch `/logo`. CVE-2 changed `capability::metadata`, which `sendFile` reads
-   (`crates/nvs-stdlib/src/response.rs:2003`), so check it on this tree.
-1. RS-1: static serving skips dot-files, `nvs.toml`, `*.nvst` and the `[db]` files, in every mode
-   (`crates/nvs-server/src/mount.rs:571`, `rule:http-server/static-serving-is-one-policy`). The
-   attack is `GET /nvs.toml`, `/.env` and `/data.sqlite` in development mode.
-2. RS-2: a loopback development server answers only a `localhost`, loopback or
-   `[[server.mount]]`-listed `Host` (`crates/nvs-server/src/mount.rs:307`). The attack is a
-   rebinding `Host`.
-3. RS-4, RS-6, RS-7: the case rule through a link, a strict `Range` parse, and
-   `Content-Security-Policy: sandbox` on static `.svg` and `.html`
-   (`crates/nvs-server/src/statics.rs:239`).
-4. RS-5: the hard-link Declined entry in `docs/rules/http-server/static-serving-is-one-policy.md`.
+1. HTTP-2: an absolute-form target's host wins over `Host`
+   (`crates/nvs-server/src/mount.rs`'s `host`, about line 480 now;
+   `rule:http-server/host-matching-is-on-the-host-part-only`). `Table::select` and `refuses_host`
+   both read `host(request)`, so the fix reaches the rebinding guard too.
+2. HTTP-4, APP-3: a malformed chunked body and a request with both `Content-Length` and
+   `Transfer-Encoding` answer `400` (`crates/nvs-server/src/body.rs:198`).
+3. APP-2: `Refusal::BodyTooLarge` recorded as the reader throws, and `dispatch` sends a later throw to
+   the gate's `refused` with `413` (`crates/nvs-stdlib/src/request.rs:679`,
+   `crates/nvs-stdlib/src/router.rs:2523`). Attack: `tests/hostile/core/Request/jsonAs/02-a-body-over-the-limit.nvs`.
+4. HTTP-5: `X-Forwarded-Proto` from a trusted peer that never set it is ignored
+   (`crates/nvs-server/src/forwarded.rs:466`).
 
-HTTP-2, HTTP-4/APP-3, APP-2 and HTTP-5 (`body.rs`, `forwarded.rs`, `request.rs`, `router.rs`)
-are the session after.
+Then stage 12's status goes to done, and stage 13 is next.
 
 ### Backlog
+
+- The audit's RS-1 also proposed limiting step 3 to `GET` and `HEAD` (`POST /style.css` is sent as
+  the file). No item owns it.
+- `Table::from_config` withholds the root configuration's `[db]` files only. A mount entry whose own
+  `nvs.toml` names a database under its static root is not covered, except by name rules. No item
+  owns it.
 
 - Under a keyed door, a page that renders a token for a visitor with no session must write the
   session first, since a token for no session is now refused and a bare `start` sends no cookie.
@@ -1020,9 +1062,6 @@ are the session after.
 - The audit's LC-5 also proposed a SQLite progress-handler deadline from the request's remaining CPU
   time, so a slow statement stops at `cpu_time` instead of only being charged after it ends. No item
   owns it; the charge alone stops the request at its next safepoint once the statement returns.
-- Not checked: the stage 1 rerun saw `Response::sendFile("assets/logo.svg")` answer `500` in a copy of
-  `.agent-tmp/sec-audit/bb-kitchen/app`, where the audit saw `200`. Serve that app as its
-  `serve.log` shows and fetch `/logo` before stage 12 touches static serving.
 - `crates/nvs-stdlib/src/` holds many `default_*.profraw` files from a coverage run. git ignores them,
   but `grep -r` over `src/` matches them. Whoever runs coverage there should write it under `target/`.
 - The conformance case `tests/conformance/reject/an-array-key-or-a-formatted-value-from-outside-keeps-its-mark.nvst`
