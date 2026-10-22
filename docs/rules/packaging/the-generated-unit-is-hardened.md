@@ -36,8 +36,7 @@ socket's folder anywhere else is the operator's, and the unit only adds it to `R
 changing its owner or mode. `/run` itself is never opened, because that would let the service write
 every other service's runtime files; a socket placed directly in it needs a folder of its own. A folder
 `RuntimeDirectory=` cannot name (a `.` or `..` segment, or a `:`, which it reads as a symlink) is opened
-as written instead. The sockets are read off the configuration the service reads, as the privileged
-port is.
+as written instead.
 
 **No value is written into the unit raw.** Every `ExecStart` word, the binary included, and every
 `ReadWritePaths=` path is quoted when it is empty, is a lone `;`, or has a space, a quote, a backslash or
@@ -56,8 +55,12 @@ and lets `ReadWritePaths=` open the granted ones; every other unit keeps `true`.
 was the alternative, and it would refuse the common case of a binary in a user's home for no write the
 service does not already hold.
 
-`AmbientCapabilities` is emitted **only** when the configured `[server] listen` addresses include a
-privileged port, so the ordinary case grants nothing at all. `MemoryMax` is derived from the config's
+`AmbientCapabilities` is emitted **only** when the addresses the server binds include a privileged
+port, so the ordinary case grants nothing at all. **The addresses, and the sockets above, are the ones
+`serve` binds:** `[server] listen` of the configuration the service reads, unless the stored argv gives
+`serve` a `--listen`, which replaces the whole set with one TCP address, or a `--port`, which keeps each
+entry's host and turns a socket into TCP. Either flag therefore leaves no socket folder. An argument of
+`run` spelled `--port` is the program's and is not read. `MemoryMax` is derived from the config's
 `[limits]` rather than invented. `Type=notify` means `READY=1` after the listener binds — so
 `systemctl start` does not return before the port accepts — plus `RELOADING=1`/`STOPPING=1` at the
 transitions and a `WATCHDOG=1` ping for as long as
