@@ -45,7 +45,7 @@ import { withBase } from '~/lib/base'
 const panels = [
   { slot: 'html', label: 'HTML', result: 'The script is escaped. Your code calls no escaping function.' },
   { slot: 'sql', label: 'SQL', result: 'The compiler stops SQL injection before the program runs.' },
-  { slot: 'secret', label: 'Secrets', result: 'The compiler keeps the password out of the page.' },
+  { slot: 'secret', label: 'Secrets', result: 'The compiler finds the password in the page before the program runs.' },
 ] as const
 
 // The phrases the slogan turns through after its own first one, in order.
