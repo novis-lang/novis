@@ -99,24 +99,40 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `fdbedb805`, the push of `core-time-slice`'s end. Its Website run is green. Its
-CI run, https://github.com/novis-lang/novis/actions/runs/39746794544, ended red in three jobs, and
-both earlier reds (`llms-full.txt` and the perf records) are green in it:
+`origin/main` is at `7b6ef53ee`, the push of `security-hardening`'s end. Its Website run is green.
+Its CI run, https://github.com/novis-lang/novis/actions/runs/39865426742, was still going at this
+handoff and is red in 14 jobs. Four fixes are committed and not pushed:
 
-- `test / macos-aarch64 (tests)`: `nvs_host::group::tests::a_first_yield_charges_the_request_no_bytes`
-  read 64 bytes. On macOS a std `Mutex` is a pthread mutex boxed on its first lock, and the
-  reactor's wake queue was first locked by the yield. `5584a7c61` locks it once in `Reactor::new`.
-- `proofs / windows-x86_64`: the `tools:install/windows` attack hung past 10 s. Its `nvs.toml`
-  wrote no `process.exec`, so a CLI run allowed every program, and it ran `icacls`, `cmd.exe` and
-  PowerShell for real. `6b24e3330` sets `exec = []` in all four install attacks' `nvs.toml`.
-- `proofs / linux-x86_64`: `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs`
-  stopped with `Core\Ldap\Connection::whoami: Timeout`. It passed three times locally, eight at a
-  time. It was not rerun, because a rerun repeats the two reds fixed above. The next push is its
-  second try.
+- `test / * (conformance)`, all three platforms: 41 to 45 image, intl, pdf and spreadsheet cases
+  failed on the shared worker with "the extension used all of the request's CPU time". The shared
+  worker kept one `Calls` for its whole life. Its budget read the tree of the first case that
+  called an extension, and once that tree ended `Spent::cpu_spent` read it as spent. `dc3a2ed29`
+  installs `extensions::Tested` there. All 72 `tests/conformance/novis/` cases pass locally.
+- `the chapter examples run and the website matches the binary`: `core.json` and `llms-full.txt`
+  were stale. `f6ce06671` renders them again with a binary built at `HEAD` in a scratch worktree.
+- `asan`: `io::tests::a_windows_alias_is_refused_by_its_text_before_any_network_attempt`. On Linux,
+  `\\host\share` joined to the base no longer starts the path, so `Core\IO::within` passed it.
+  `93919e633` runs `capability::alias_refusal` over `$path` before the join. It was checked on
+  Windows only, where it passed before as well.
+- `cost guards / linux` and `windows`, and `extension sandbox probes`:
+  `a_class_without_a_property_observer_costs_nothing_extra` counted 9 calls. `a8d700d37` armed every
+  non-nullable slot of a class with any hook, so an unhooked read tested the unset tag. `42409d10d`
+  arms only the slots a constructor can reach a hook before writing. A subagent wrote it. The guard
+  passes in release, and the 136 `tests/conformance/class/` cases pass.
 
-`crates/nvs-types/src/ctor_init.rs` is committed unformatted in `15892cf11`, the main loop's open
-work. The main loop was told with `loop say`. If it is still unformatted at the next push, the fmt
-job goes red and is this goal's to fix with `cargo fmt`.
+Two reds are not fixed:
+
+- `proofs` on all three platforms: 765 perf records are stale since `38c110098` changed their impl
+  files. That red belongs to the main loop: `request-overhead`'s stage 8 records the ledgers again,
+  and it was told with `loop say`. The proofs gate stops before the attacks run, so the LDAP
+  `whoami: Timeout` attack has still not had its second try.
+- `test / macos-aarch64 (tests)`, `test / windows-x86_64 (tests)` and `test / linux-aarch64`
+  (`cargo test --workspace`): these went red after the fixes above, and their logs are not read.
+  linux-aarch64 is probably the asan alias test. The other two are unknown.
+
+`.agent-tmp/wt-ci`, `.agent-tmp/wt-cig` and `.agent-tmp/wt-r` are empty scratch folders. Git no
+longer lists them as worktrees. Each contains only a `.looper` directory that Windows will not
+delete while looper runs. Delete all three when looper is stopped.
 
 `.agent-tmp/wt-ci`, `.agent-tmp/wt-cig` and `.agent-tmp/wt-r` are empty scratch folders. Git no
 longer lists them as worktrees. Each contains only a `.looper` directory that Windows will not
@@ -126,14 +142,23 @@ delete while looper runs. Delete all three when looper is stopped.
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Watch past `fdbedb805`'s two fixed reds for the next push. `tools/nv/cmd/ci.ts:265`
-  Run `bun nv ci --watch --past "test / macos-aarch64 (tests)" --past proofs`. The newest run is
-  still `fdbedb805`'s, and without these `--past` names the watch exits 1 on it at once. A red in
-  them on the next push still ends with exit 4.
-- [ ] On exit 4 or 1, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
-  The whole log is under `.agent-tmp/ci/`. An LDAP `whoami: Timeout` a second time is not noise:
-  compare the socket deadline with the slice yield commits `13004e4f9` and `2b292f862`.
+- [ ] Read the three unread `cargo test` reds of `7b6ef53ee`. `tools/nv/cmd/ci.ts:265`
+  Run `bun nv ci --watch --max-min 2 --past proofs --past "cost guards" --past asan --past
+  "extension sandbox probes" --past "the chapter examples run and the website matches the binary"
+  --past "test / linux-x86_64 (conformance)" --past "test / windows-x86_64 (conformance)" --past
+  "test / macos-aarch64 (conformance)"`. It exits 1 at once and saves each other failed job's log
+  under `.agent-tmp/ci/`. Check each failing test against `git log origin/main..HEAD` first, and fix
+  and commit the rest.
+- [ ] Then watch for the next push, past `proofs` alone. `tools/nv/cmd/ci.ts:265`
+  Run `bun nv ci --watch --past proofs`. Until `request-overhead` records the ledgers, the
+  proofs gate stays red on perf.
+- [ ] Once proofs runs its attacks, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
+  A second LDAP `whoami: Timeout` is not noise. Compare the socket deadline with the slice yield
+  commits `13004e4f9` and `2b292f862`.
 - [ ] Fix and commit each other red job. `.github/workflows/ci.yml:1`
+  A render red needs a binary built at `HEAD`: the root's `target/debug/nvs.exe` carries the main
+  loop's uncommitted edits. Build one with `cargo build --bin nvs` in the scratch worktree.
+  It takes about 15 minutes cold. Then render with `NVS_BIN` pointing at it.
   A stale guard red is fixed by `bun nv site --stale` and `bun nv site --questions --owed`, then a
   reread and a `--stamp`. Under Git Bash, a URL argument needs `MSYS_NO_PATHCONV=1`. Check a site or
   render red against committed `HEAD` in a scratch worktree. `bun nv render` takes no `--nvs`, so
