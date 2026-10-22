@@ -173,7 +173,11 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Union(PATTERN_OR_STRING),
-                CoreTy::Text(Qual::Contagious),
+                // The replacement is a template (`$1`, `${name}`, `$$`), which
+                // is one more grammar, so it is a sink
+                // (`rule:security/every-grammar-is-a-sink`). Text from outside
+                // goes in through `replaceWith`'s function.
+                CoreTy::Text(Qual::Sink),
                 CoreTy::Options(REPLACE_OPTIONS),
             ],
             defaults: &[],
@@ -347,7 +351,8 @@ const REPLACE_DOC: MethodDoc = MethodDoc {
             desc: "The text that replaces each match. `$1` to `$99` insert a numbered group, and \
                    `${name}` inserts a named group. Write `${1}0` when a digit follows the \
                    group. `$$` is one `$`. A group the pattern does not have inserts nothing. \
-                   `\\1` is not a group.",
+                   `\\1` is not a group. A `tainted` string does not compile here. To insert \
+                   text from outside, return it from the function of `replaceWith`.",
             shape: &[],
         },
         ParamDoc {

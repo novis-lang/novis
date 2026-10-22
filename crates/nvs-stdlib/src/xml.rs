@@ -760,7 +760,10 @@ pub(crate) const WRITER: CoreClass = CoreClass {
         CoreMethod {
             name: "instruction",
             names: &["target", "data"],
-            params: &[CoreTy::Text(Qual::Launder), CoreTy::Text(Qual::Launder)],
+            // Sinks, unlike the members above: XML escapes nothing inside an
+            // instruction, and its data is an instruction to the program that
+            // reads the document, such as an `xml-stylesheet`'s `href`.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_xml_writer_instruction",
@@ -995,14 +998,15 @@ const INSTRUCTION_DOC: MethodDoc = MethodDoc {
             name: "target",
             desc: "The name of the program or purpose the instruction is for. It must be an XML \
                    name. It cannot be `xml` in any casing, because `startDocument` already writes \
-                   that one.",
+                   that one. A `tainted` string does not compile here.",
             shape: &[],
         },
         ParamDoc {
             name: "data",
             desc: "The instruction's data. It is written unchanged, because XML cannot escape \
                    anything inside an instruction. It cannot contain `?>`. When it is `\"\"`, only \
-                   the target is written.",
+                   the target is written. A `tainted` string does not compile here, because the \
+                   program that reads the document follows the data.",
             shape: &[],
         },
     ],
