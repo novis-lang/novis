@@ -59,8 +59,9 @@
 //!    scheduler tore down before its first resume never entered it.
 //! 3. On the first throw, or on the deadline, cancel every child still running
 //!    and drop every job not yet started. The deadline is a reactor timer, so
-//!    it fires only once the core is handed back: a child that never waits is
-//!    stopped by the request's `cpu_time` through the tree's safepoint word, as
+//!    it fires once the core is handed back: a child that never waits hands it
+//!    back when its time slice is up ([`crate::slice`]), so the deadline stops
+//!    it one slice late at most, as
 //!    `rule:concurrency/limit-and-deadline-are-the-only-bounds` says.
 //! 4. **Keep parking until the count reaches zero**, whichever of those ended
 //!    it. This is the step that costs something and the one `rule:concurrency/nothing-is-still-running-when-a-call-returns` exists for: the

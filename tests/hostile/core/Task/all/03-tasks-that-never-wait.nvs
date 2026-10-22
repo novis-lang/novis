@@ -1,29 +1,39 @@
 <?nvs
 // Attack: two tasks count in a loop that never ends and never waits. The deadline
-// of the call does not stop them, because it is checked only while tasks wait.
-// The CPU limit of the request should stop them, and the program should end there.
+// of the call should stop both tasks, and no task should still count after the call returns.
 // hostile: timeout-ms 5000
-// hostile: ends-early 2 FATAL
 
-// 1. Lowers the CPU limit of this request to 200 milliseconds.
+class Counter {
+    public static int $count = 0;
+}
+
+// 1. Lowers the CPU limit of this request to 200 milliseconds, so a missed deadline ends the program.
 echo 'CPU limit: ', Core\Config::set('limits.cpu_time', '200ms') ? 'lowered' : 'not changed', "\n";
 
-// 2. Starts the two tasks with a deadline of 50 milliseconds.
+// 2. Starts the two tasks with a deadline of 50 milliseconds, and catches the `TimeoutError`.
 echo "step 2\n";
-var $busy = Core\Task::all({
-    a: fn (): uint => {
-        uint $n = 0;
-        while (true) {
-            $n = $n + 1;
-        }
-        return $n;
-    },
-    b: fn (): uint => {
-        uint $n = 0;
-        while (true) {
-            $n = $n + 1;
-        }
-        return $n;
-    },
-}, { deadline: 50ms });
-echo 'never: ', $busy->a, "\n";
+try {
+    Core\Task::all({
+        a: fn (): int => {
+            while (true) {
+                Counter::$count += 1;
+            }
+            return Counter::$count;
+        },
+        b: fn (): int => {
+            while (true) {
+                Counter::$count += 1;
+            }
+            return Counter::$count;
+        },
+    }, { deadline: 50ms });
+    echo "the tasks returned\n";
+} catch (TimeoutError $e) {
+    echo "the deadline stopped the tasks\n";
+}
+
+// 3. Waits 20 milliseconds and checks that the count did not change.
+echo "step 3\n";
+int $before = Counter::$count;
+Core\Time::sleep(20ms);
+echo 'still counting: ', Counter::$count == $before ? 'no' : 'yes', "\n";
