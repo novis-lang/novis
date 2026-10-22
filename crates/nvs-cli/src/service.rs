@@ -508,11 +508,12 @@ pub(crate) struct Host {
     /// `[limits] memory`, which `rule:packaging/the-generated-unit-is-hardened` derives `MemoryMax` from rather than
     /// inventing one.
     pub(crate) memory_max: Option<String>,
-    /// Whether `[server] listen` includes a privileged port, which is the only
-    /// condition under which `rule:packaging/the-generated-unit-is-hardened` emits `AmbientCapabilities` at all.
+    /// Whether the server binds a privileged port, which is the only condition
+    /// under which `rule:packaging/the-generated-unit-is-hardened` emits `AmbientCapabilities` at all.
+    /// [`listeners`] answers it.
     pub(crate) privileged_port: bool,
-    /// The Unix-socket entries of `[server] listen`, as written: the sockets
-    /// whose folders `rule:packaging/the-generated-unit-is-hardened` creates or opens.
+    /// The Unix sockets the server binds, as written: the sockets whose folders
+    /// `rule:packaging/the-generated-unit-is-hardened` creates or opens. [`listeners`] answers it.
     pub(crate) sockets: Vec<String>,
     /// `[server] socket_mode`, which the mode of a folder the unit creates for
     /// a socket follows.
@@ -901,9 +902,9 @@ pub(crate) fn image_path(plan: &Plan) -> String {
 ///
 /// Some of its lines are conditions rather than constants, and each is stated
 /// in that section: `AmbientCapabilities` is emitted **only** when the
-/// configured listen addresses include a privileged port, so the ordinary case
-/// grants nothing at all, and `MemoryMax` is derived from `[limits]` rather
-/// than invented.
+/// addresses the server binds include a privileged port ([`listeners`]), so
+/// the ordinary case grants nothing at all, and `MemoryMax` is derived from
+/// `[limits]` rather than invented.
 ///
 /// `ReadWritePaths=` is the write half of [`registration::grants`] and the
 /// folder of each socket outside `/run`, `RuntimeDirectory=` the folder of
@@ -4459,12 +4460,14 @@ fn describe_host(
         .filter(|root| !root.is_empty())
         .map(PathBuf::from);
 
+    let (privileged_port, sockets) = listeners(listen, argv);
+
     Ok(Host {
         exe,
         from_a_bundle: crate::bundle::embedded().is_some(),
         memory_max,
-        privileged_port: listen.is_some_and(privileged),
-        sockets: listen.map(sockets).unwrap_or_default(),
+        privileged_port,
+        sockets,
         socket_mode,
         log_file: target
             .and_then(|target| target.strip_prefix("file:"))
@@ -4491,17 +4494,55 @@ fn data_folder(argv: &[String], exe: &Path) -> Option<nvs_config::data::Folder> 
     }
 }
 
+/// Whether the server a stored `argv` starts binds a privileged port, and the
+/// Unix sockets it binds, given `listen`, the `[server] listen` value of the
+/// configuration it reads.
+///
+/// `serve`'s flags have the last word, as `serve::addresses` applies them:
+/// `--listen` replaces the whole set with one TCP address, and `--port` keeps
+/// each entry's host and turns a Unix entry into TCP, so either flag leaves no
+/// socket. The flags are read for `serve` alone, because an argument of `run`
+/// spelled `--port` belongs to the program.
+fn listeners(listen: Option<&toml::Value>, argv: &[String]) -> (bool, Vec<String>) {
+    let serving = argv.first().is_some_and(|word| word == "serve");
+    let flag = |option| {
+        serving
+            .then(|| values_of(argv, option).last().copied())
+            .flatten()
+    };
+    if let Some(address) = flag("--listen") {
+        return (port_of(address).is_some_and(privileged_port), Vec::new());
+    }
+    if let Some(port) = flag("--port") {
+        return (port.parse().is_ok_and(privileged_port), Vec::new());
+    }
+    (
+        listen.is_some_and(privileged),
+        listen.map(sockets).unwrap_or_default(),
+    )
+}
+
 /// Whether a `[server] listen` value — one address or a list of them — names a
-/// port below 1024, which is `rule:packaging/the-generated-unit-is-hardened`'s one condition for granting a capability.
+/// privileged port.
 fn privileged(listen: &toml::Value) -> bool {
     match listen {
-        toml::Value::String(address) => address
-            .rsplit_once(':')
-            .and_then(|(_, port)| port.parse::<u16>().ok())
-            .is_some_and(|port| port < 1024),
+        toml::Value::String(address) => port_of(address).is_some_and(privileged_port),
         toml::Value::Array(addresses) => addresses.iter().any(privileged),
         _ => false,
     }
+}
+
+/// The port of a `host:port` address, or `None` for anything else.
+fn port_of(address: &str) -> Option<u16> {
+    address
+        .rsplit_once(':')
+        .and_then(|(_, port)| port.parse().ok())
+}
+
+/// Whether binding `port` needs `CAP_NET_BIND_SERVICE`: one from 1 to 1023.
+/// Port `0` asks the platform for a free port, which is never below 1024.
+fn privileged_port(port: u16) -> bool {
+    (1..1024).contains(&port)
 }
 
 /// `[server] socket_mode` when the configuration writes none.
@@ -5436,6 +5477,67 @@ mod tests {
         assert_eq!(sockets(&server["listen"]), vec!["/run/shop/nvs.sock"]);
         let one: toml::Table = toml::from_str(r#"listen = "/run/shop/nvs.sock""#).expect("one");
         assert_eq!(sockets(&one["listen"]), vec!["/run/shop/nvs.sock"]);
+    }
+
+    /// `rule:packaging/the-generated-unit-is-hardened`'s capability and socket
+    /// folders follow the addresses the server really binds: `serve`'s
+    /// `--listen` and `--port` replace `[server] listen`, as they do when it
+    /// runs, and an argument of `run` is the program's.
+    #[test]
+    fn the_listen_flags_of_serve_decide_the_port_and_the_sockets() {
+        let words = |words: &[&str]| {
+            words
+                .iter()
+                .map(|&word| word.to_owned())
+                .collect::<Vec<_>>()
+        };
+        let config: toml::Table =
+            toml::from_str(r#"listen = ["127.0.0.1:8000", "/run/shop/nvs.sock"]"#).expect("a list");
+        let listen = Some(&config["listen"]);
+        let socket = vec!["/run/shop/nvs.sock".to_owned()];
+
+        assert_eq!(
+            listeners(listen, &words(&["serve", "/srv/app.nvs"])),
+            (false, socket.clone())
+        );
+        assert_eq!(
+            listeners(listen, &words(&["serve", "/srv/app.nvs", "--port", "80"])),
+            (true, Vec::new())
+        );
+        assert_eq!(
+            listeners(listen, &words(&["serve", "/srv/app.nvs", "--port=8080"])),
+            (false, Vec::new())
+        );
+        assert_eq!(
+            listeners(
+                listen,
+                &words(&["serve", "/srv/app.nvs", "--listen", "0.0.0.0:443"])
+            ),
+            (true, Vec::new())
+        );
+        assert_eq!(
+            listeners(
+                listen,
+                &words(&["serve", "/srv/app.nvs", "--listen=[::1]:8443"])
+            ),
+            (false, Vec::new())
+        );
+        assert_eq!(
+            listeners(listen, &words(&["run", "/srv/job.nvs", "--port", "80"])),
+            (false, socket)
+        );
+
+        let privileged: toml::Table = toml::from_str(r#"listen = "0.0.0.0:80""#).expect("one");
+        assert_eq!(
+            listeners(Some(&privileged["listen"]), &words(&["serve"])),
+            (true, Vec::new())
+        );
+        let ephemeral: toml::Table = toml::from_str(r#"listen = "127.0.0.1:0""#).expect("one");
+        assert_eq!(
+            listeners(Some(&ephemeral["listen"]), &words(&["serve"])),
+            (false, Vec::new())
+        );
+        assert_eq!(listeners(None, &words(&["serve"])), (false, Vec::new()));
     }
 
     /// The one `ExecStart` line of a unit, without its key.
