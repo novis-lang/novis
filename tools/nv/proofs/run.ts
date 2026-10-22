@@ -35,7 +35,7 @@ import { inPart } from "../lib/reads.ts";
 import { record } from "../lib/written.ts";
 import { proofReadsSlot, SelectStore } from "../select/store.ts";
 import { cargoLines, progress } from "../lib/progress.ts";
-import { linked, pinned } from "../lib/relink.ts";
+import { linked, pinned, RELEASE_ARGV } from "../lib/relink.ts";
 import { gapTitle, knownGap } from "./collect.ts";
 import { read } from "./roster.ts";
 
@@ -61,7 +61,7 @@ export const RELEASE_BINARY = `target/release/${EXE}`;
 /** The two optimized builds. The release build is the argv the acceptance sweep runs, so both share one
  * set of artefacts under `target/release/`. */
 export const PROOF_BUILD = { name: "proof binary", key: "proof", path: PROOF_BINARY, argv: ["cargo", "build", "--profile", "proof", "--bin", "nvs"] };
-const RELEASE = { name: "release binary", key: "release", path: RELEASE_BINARY, argv: ["cargo", "build", "--release", "-p", "nvs-cli"] };
+const RELEASE = { name: "release binary", key: "release", path: RELEASE_BINARY, argv: RELEASE_ARGV };
 
 /** How many times its own limit a recording run may take before it counts as hung: the covws debug
  * build is unoptimized and instrumented, so it is many times slower than the binary a verdict is

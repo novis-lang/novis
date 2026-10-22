@@ -243,6 +243,9 @@ What a loop session owes on top of the block's § *Session workflow*:
   fixed, then `bun nv owners --closes <slug>` and every gap it names closed or given another owner.
   A reached goal's file is deleted, so first move each decision only its prose holds to a rule or a
   module doc, and turn each check that proves more than a suite does into a test.
+- **Every goal end rebuilds the local release binary, `target/release/nvs`.** looper's `after_retire`
+  hook runs `bun nv relink --build --hook` once the goal is retired. A goal ended outside the loop runs
+  `bun nv relink --build` once its file is deleted.
 - **A repair fixes the cause, not the symptom.** The loop's tooling under `tools/` is in scope, and so
   is a check that is itself wrong; renaming a test, removing a check or loosening a bound until it
   passes is not a fix. A verdict already fixed on disk needs no change, and the status line says so.

@@ -47,7 +47,7 @@ import { allTestBinaries, metadata, type Graph, targetFilters } from "../keys/gr
 import { covwsCargo, covwsNvs } from "../lib/covws.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
-import { linked, releaseCli } from "../lib/relink.ts";
+import { linked, RELEASE_ARGV, releaseCli } from "../lib/relink.ts";
 import { recordName } from "../proofs/run.ts";
 import { caseId, nvTestFiles, nvTestId } from "../select/atoms.ts";
 import { commandKeys, crateKeys, grouped, type Grouped, heavyKeys, heavyTwin, LEG_KEYS, legAtoms, LEGS, legId, onDisk, planContext, predicted, type Twin, twinBinaries, twinWork } from "../select/checks.ts";
@@ -350,10 +350,10 @@ export class PlanSweep {
    * caller builds it again. */
   private releaseCli(stop?: AbortSignal): Promise<Outcome> {
     this.release ??= (async () => {
-      this.say("cargo build --release -p nvs-cli");
+      this.say(RELEASE_ARGV.join(" "));
       // An editor running `nvs lsp` out of this tree holds the binary the link replaces;
       // `tools/nv/lib/relink.ts` moves it aside so the retry lands.
-      const r = await linked(releaseCli(), () => capture(["cargo", "build", "--release", "-p", "nvs-cli"], ROOT, undefined, TIMEOUT_MS, stop), (r) => r.err);
+      const r = await linked(releaseCli(), () => capture(RELEASE_ARGV, ROOT, undefined, TIMEOUT_MS, stop), (r) => r.err);
       if (stop?.aborted) this.release = undefined;
       return r;
     })();
