@@ -151,6 +151,15 @@ interleaved memory row pins it. So this stage moves the balance only. Safe defau
 check cannot read a per-request count on its hot path: swap the balance cells `LIVE`, `PEAK` and
 `WRITTEN` in `yield_on` beside that state (`crates/nvs-host/src/scheduler.rs:1630`).
 
+**The count is the request tree's, never one task stack's.** A per-stack offset was built and shelved:
+it splits a tree's budget (`rule:security/isolate-budget-is-the-trees`). A `Core\Task::map` child
+charges its 1 MiB stack to the parent's balance (`crates/nvs-host/src/group.rs:427`) and gives it
+back on its own stack (`crates/nvs-host/src/group.rs:527`), and the results it files are bytes the
+parent then holds. Per stack, the parent never sees either, and N children each read the tree's
+ceiling alone. The proof is `tests/hostile/core/Task/map/01-bad-limits-huge-arrays-and-errors-from-every-task.nvs`
+stopping at step 4 with 430 MB held. So a turn's change is charged to the running *tree*: tasks of one
+tree share one unit, and only turns of other trees move a parked tree's offset.
+
 **A deadline now stops a task that never waits.** Its timer is on the core's reactor, and a slice
 hands the core back, so the timer fires at the next slice
 (`rule:concurrency/limit-and-deadline-are-the-only-bounds`). The hostile case that pins the old
@@ -213,7 +222,7 @@ memory limit stops the one that crossed it.
 - [ ] Charge the balance's change per turn to the running request, and read that count at the ceiling (`rule:security/isolate-shares-nothing`, `rule:errors/on-limit`). `crates/nvs-runtime/src/budget.rs:216`, `crates/nvs-runtime/src/budget.rs:450`, `crates/nvs-runtime/src/ctx/limits.rs:244`, `crates/nvs-host/src/scheduler.rs:1582`
 - [ ] The budget module's header says the count is per request across switches. `crates/nvs-runtime/src/budget.rs:27`
 - [ ] Rust tests: two interleaved requests that allocate are each charged their own bytes, and only the one over its limit stops. `crates/nvs-runtime/src/budget.rs:1`
-- [ ] Rust test: CPU time is still charged per switch with slices on, beside `a_thread_charges_each_published_request_only_for_the_time_it_runs_it`. `crates/nvs-host/src/watchdog.rs:2026`
+- [x] Rust test: CPU time is still charged per switch with slices on, beside `a_thread_charges_each_published_request_only_for_the_time_it_runs_it`. `crates/nvs-host/src/watchdog.rs:2026`
 
 ### 4. a deadline stops a task that never waits, and the concurrency rules say so
 
@@ -257,34 +266,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done: a task that never waits now gives its core back every slice. The safepoint's
-`YIELD` branch sits below the limit branches and above the cancel branch
-(`crates/nvs-runtime/src/ctx/safepoint.rs:873`). It lowers the bit, enters a `HelperFrame` and calls
-`Host::yield_slice`, and a `Woken::Cancelled` sets `ctx.cancelled` so the branch below stops the
-request. `SchedulerHost::yield_slice` (`crates/nvs-host/src/group.rs:205`) fires
-`reactor::wake_this_task()` and parks, or suspends `Waiting::Yielded` with no reactor. The three test
-hosts answer `Woken::Elapsed`. The runaway cases in `crates/nvs-cli/src/serve.rs` share
-`serve_a_runaway_and_an_answer`, which starts a `SliceClock` beside the watchdog.
+Stages 1 and 2 are done: a task that never waits gives its core back every slice
+(`crates/nvs-runtime/src/ctx/safepoint.rs:873`, `crates/nvs-host/src/group.rs:205`).
 
-Ran once by name, green: `scheduler::tests::a_parked_task_runs_between_the_slices_of_a_task_that_never_waits`,
-`serve::tests::a_served_while_true_does_not_stall_a_second_connection_on_its_core` and its sibling
-`a_served_while_true_is_ended_as_a_fatal_and_the_core_answers_the_next_request`. The full
-`serve-tests` check runs at the gate. Expected to go red: `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs`,
-whose deadline can now fire at a slice. Stage 4 rewrites its expectation.
+Stage 3's CPU item landed: `watchdog::tests::a_thread_charges_each_request_for_its_own_time_with_slices_on`
+runs a real `SliceClock` and checks that the running request is asked to yield and that each switch
+charges only the request that ran. Ran once by name, green.
 
-The sweep's red items were stale again: `bun nv proofs --gate --only 'Core\Env::secret'` exits 0 at
-HEAD, and nightly run 39567373487 ran at `afbb1edc2`, before the site fix `b3ed92165`.
+Stage 3's memory items are **not** landed. A per-*stack* offset was built, and its runtime code is in
+the local stash `core-time-slice stage 3 WIP: per-stack FOREIGN offset` (`git stash list`). Its tests
+were green, but it splits a tree's budget: `bun nv proofs --run --group 'Core\Task'` turned
+`tests/hostile/core/Task/map/01-bad-limits-huge-arrays-and-errors-from-every-task.nvs` red at step 4.
+The new standing decision *The count is the request tree's* says why. What the stash has that stays
+right: a `FOREIGN` cell that `live_bytes`, `peak_bytes`, `armed_ceiling` and the refusal's figure
+subtract, `arm` storing `CEILING` raw so the allocation path is unchanged, `ArmedStack::resume` for
+`yield_on` beside the scheduler-side `restore`, a per-stack `PEAK`, and `leave_this_stack` /
+`arm_on_this_stack` re-anchoring the base and ceiling relative to the balance. What is wrong is only
+where the offset comes from at a resume.
+
+Expected to go red: `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs`, whose deadline can
+now fire at a slice. Stage 4 rewrites its expectation.
+
+The sweep's red items were stale again: `env-secret-proofs`'s own log exits 0, and nightly run
+39567373487 ran at `afbb1edc2`, before the site fix `b3ed92165`.
 
 ### Next
 
-**Stage 3, one group**, on `crates/nvs-runtime/src/budget.rs`, `crates/nvs-runtime/src/ctx/limits.rs`,
-`crates/nvs-host/src/scheduler.rs` and `crates/nvs-host/src/watchdog.rs`. Its gate is met:
-`failure-paths-hold` is reached and `budget::ArmedStack` exists.
+**Stage 3's memory group**, on `crates/nvs-runtime/src/budget.rs`, `crates/nvs-runtime/src/ctx/limits.rs`,
+`crates/nvs-runtime/src/ctx/mod.rs` and `crates/nvs-host/src/scheduler.rs`. Start from the stash
+(`git stash show -p 'stash^{/core-time-slice stage 3}'`), then drop it once applied.
 
-- [ ] Charge the balance's change per turn to the running request, and read that count at the ceiling. `crates/nvs-runtime/src/budget.rs:216`, `crates/nvs-runtime/src/budget.rs:450`, `crates/nvs-runtime/src/ctx/limits.rs:244`, `crates/nvs-host/src/scheduler.rs:1631`
-- [ ] The budget module's header says the count is per request across switches. `crates/nvs-runtime/src/budget.rs:27`
-- [ ] Rust tests: two interleaved requests that allocate are each charged their own bytes, and only the one over its limit stops. `crates/nvs-runtime/src/budget.rs:1`
-- [ ] Rust test: CPU time is still charged per switch with slices on. `crates/nvs-host/src/watchdog.rs:2026`
+- [ ] Charge each turn's balance change to the running tree. Keep a signed own-balance per tree on its root core, beside `OffCore` in the tree's shared allocation (`crates/nvs-runtime/src/budget.rs:357`). At a park, store `live_bytes()` there. At every resume, a task's first turn included, set `FOREIGN = LIVE - tree.own`, so tasks of one tree share one unit. `crates/nvs-host/src/scheduler.rs:1631`, `crates/nvs-runtime/src/ctx/limits.rs:266`
+- [ ] The budget module's header says the count is per request tree across switches. `crates/nvs-runtime/src/budget.rs:27`
+- [ ] Rust tests: the stash's `two_requests_that_take_turns_on_a_core_are_each_charged_their_own_bytes`, plus a tree case where a parent's children each hold under the ceiling and together cross it, and the tree is stopped. `crates/nvs-host/src/scheduler.rs:1796`
+- [ ] Run `bun nv proofs --run --group 'Core\Task'` once: only `all/03` may be red. `tests/hostile/core/Task/map/01-bad-limits-huge-arrays-and-errors-from-every-task.nvs:1`
 
 ### Backlog
 
