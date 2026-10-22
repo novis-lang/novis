@@ -41,7 +41,7 @@ stages:
         rules: [http-server/a-requests-blast-radius-is-bounded-at-four-tiers, testing/hostile-case-contract]
   - id: 6
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: host-tests
@@ -258,101 +258,59 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+  - [x] the first run: the two upgrade arena tests in `nvs-server` and the formatter's corpus check
+  - [x] the second run: the conformance memory case that yields under load
+  - [x] the third run: the `Core\IO::temporaryDir` bench's growth
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+  - [x] the tree's turn at `Ctx::reroot` and at a child's end
+  - [x] the reactor's wake list reserved, with a test that fails without it
+  - [x] the grant check of `temporaryDir` copies nothing
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 and 2 are done: a task that never waits gives its core back every slice
-(`crates/nvs-runtime/src/ctx/safepoint.rs:873`, `crates/nvs-host/src/group.rs:205`).
+Every stage is done, and the goal's checks pass. A task that never waits gives its core back every
+10 ms slice (`crates/nvs-runtime/src/ctx/safepoint.rs:886`, `crates/nvs-host/src/group.rs:206`).
+A turn's memory is charged to the request tree that ran it (`crates/nvs-runtime/src/budget.rs:36`).
+A `Core\Task::all` deadline stops a task that never waits. `rule:http-server/a-request-that-computes-shares-its-core`
+is shipped, and the comparison's `loop` row is `on-by-default` for Novis.
 
-Stage 3 is done. A turn's memory is charged to the request *tree* that ran it
-(`crates/nvs-runtime/src/budget.rs:36`). `TreeState::balance` is the tree's balance on its root
-core, `ArmedStack::take` stores it at a park and after a task's last turn
-(`crates/nvs-runtime/src/budget.rs:583`), and `ArmedStack::resume` and `budget::begin_turn` set
-`FOREIGN` from it (`crates/nvs-runtime/src/budget.rs:656`). The stack carries the tree as an
-`Arc<TreeState>` in the thread-local `TURN`, moved at a switch, so the last turn's store never names
-a freed tree. A context off its root core has no tree turn, and its stack keeps the thread's
-balance as before. The stash's per-stack re-anchoring in `leave_this_stack` / `arm_on_this_stack`
-is gone, and the stash is dropped.
+Stage 6 ran `bun nv affected --run` four times, and each run's failures had one cause:
 
-Tests, each run once by name and green: `scheduler::tests::two_requests_that_take_turns_on_a_core_are_each_charged_their_own_bytes`
-(`crates/nvs-host/src/scheduler.rs:1813`), `group::tests::children_that_together_cross_the_ceiling_are_each_over_it`
-(`crates/nvs-host/src/group.rs:1339`), and `budget::tests::a_parked_stack_reads_its_own_balance_and_ceiling_when_it_resumes`
-and `budget::tests::the_tasks_of_one_tree_read_one_balance`. `bun nv proofs --run --group 'Core\Task'`
-ran once: `map/01` is green, and only `all/03` is red.
+- Run 1: the formatter's corpus check put `03-tasks-that-never-wait.nvs`'s class brace on its own
+  line (accepted, `b03b2cf24`). The two upgrade arena tests in `nvs-server` found a real leak: bytes
+  freed on another tree's turn stayed on the tree that was charged. Two fixes (`4742e854f`):
+  `Ctx::reroot` hands the running turn to the new tree (`budget::reroot_turn`), and a child's
+  context is dropped as a turn of its own tree (`Ctx::end_in_its_turn`, called at
+  `crates/nvs-host/src/scheduler.rs:1080`).
+- Run 2: `tests/conformance/lang/a-write-through-a-fresh-receiver-or-a-get-hook-holds-no-memory-after-it.nvst`
+  read `grew` under load. A slice yield wakes its own task, and the reactor's empty wake list grew
+  32 bytes in the request's turn. The reactor reserves 64 entries (`PENDING_CAPACITY`,
+  `crates/nvs-host/src/reactor.rs`, `c0eb1f9ff`), and
+  `group::tests::a_first_yield_charges_the_request_no_bytes` fails without it.
+- Run 3: verify was green, and the bench `benches/members/core/IO/temporaryDir.nvs` was red. Its
+  grant check copied the script's whole folder list per call. This was not caused by this goal.
+  `Ctx::with_candidate_temporary_dir` pushes and pops in place (`c66080ca9`).
+- Run 4: `affected: GREEN`, 22 of 22 verify steps, 0 red benches.
 
-Stage 4 is done. A `Core\Task::all` deadline stops a task that never waits one slice late at most,
-and no change to the engine was needed: stage 2's yield already polls the reactor, so the group's
-timer fires there. The deadline rule, the worker-placement rule's parent-waits lines and rule 4 of
-the parking contract say so, and `crates/nvs-host/src/group.rs:60`'s step 3 matches.
-`tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` now expects the deadline to stop both
-tasks and checks that nothing counts afterwards. Its 200 ms `cpu_time` stays as the backstop, so a
-missed deadline ends it early and fails it. `bun nv proofs --run --group 'Core\Task'` is green (5
-hostile, 9 examples), and the new `tests/conformance/isolate/a-deadline-stops-a-task-that-never-waits.nvst`
-passes under `nvs test`.
+The acceptance checks, each run once and green: `host-tests`, `serve-tests`, `rules-check`,
+`owners-closes`, and `loop-row` (Novis `on-by-default`, PHP `on-by-default`, Bun `your-code`, Go
+`no`). `bun nv verify --doc` is green. `bun nv proofs --run --group 'Core\Task'` is green after
+the budget change.
 
-Expected to go red: none new. Stage 3's note stands: budget and peak tests in `nvs-runtime` and
-`nvs-host` that read `budget::live_bytes` or `peak_bytes` across a task switch were not run, and
-stage 6 finds any that read the thread's balance where they now read the tree's.
+The sweep's red items were stale: `env-secret-proofs` exits 0 when run, and nightly run
+39567373487 ran at `afbb1edc2`, before the site fix.
 
-Stage 5 is done. `rule:http-server/a-request-that-computes-shares-its-core`
-is shipped, with the slice, the epoch clock, the cost and the three declined designs, and tier B
-cites it. Its `guardedBy` names stage 2's serve test
-`a_served_while_true_does_not_stall_a_second_connection_on_its_core`
-(`crates/nvs-cli/src/serve.rs:5555`), which is the attack the item asks for, so no new test was
-added. `rule:http-server/time-is-bounded-inside-a-helper` says the safepoint poll also yields,
-and that a helper's batched poll (`bounded_loop`, `crates/nvs-runtime/src/abi.rs:345`) reads the
-deadline alone: a helper call is one turn. `bun nv rules --check` is clean, and the render also
-brought `docs/rules/concurrency.md` up to stage 4's fragment. `bench-compare --expect
-PEER=RESULT,...` exits 1 naming each row that missed (`parseExpect`, `unmetExpectations` in
-`tools/nv/cmd/bench-compare.ts`), and its four tests ran once by name and are green.
-
-The `lang:concurrency` perf records were stale because `docs/reference/lang/80-concurrency.md`
-changed in `7ac95e7b9`, a commit outside this goal. This session re-recorded all nine, and
-`bun nv proofs --gate --group lang:concurrency` owes nothing. The group run in the background was
-killed as a `HANG:` at `no-colouring-i-o-just-waits`, whose callgrind leg in WSL prints nothing for
-over 90 s. Alone, in the foreground, it ended in 265 s (the playbook has the trap).
-
-The session row: `sessionProbe` (`tools/nv/cmd/bench-compare.ts:778`) starts a
-session, carries every `set-cookie` as one `Cookie` header (`cookieOf`), sends `/slow`, and times
-`/fast` 200 ms later. `sessionResult` (`tools/nv/cmd/bench-compare.ts:771`) is `built-in` under
-1 s, else `your-code` with the PHP calls in its evidence's `code`. Bun and Go are fixed
-`your-code`. The README's row list says so, the site has the row's label, a `SessionChart`
-(`website/src/components/compare/SessionChart.astro`) and the "One visitor, two requests" section
-(`website/src/content/docs/in-depth/compare.mdx:252`). Its two tests and the row-order test ran once
-by name and are green.
-
-The comparison is re-recorded at `dd662196e` from a detached worktree, cases then rows
-(`benches/compare.json`, copied by `bun nv render` to `website/src/data/compare.json`). The slice
-stays 10 ms: Novis's `hello` is 33,599 requests/sec, against 31,993 in the old record and the
-28,207 bar, and Bun, Go and PHP rose by a similar share, so the host was faster. The rows changed in
-two places only: `loop` for Novis is `on-by-default` with 0 failed requests (48 timeouts before,
-p99 20.5 ms beside Go's 20.6 ms), and `session` is new (Novis `built-in` at 3 ms, PHP `your-code`
-at 1,801 ms). The page's loop paragraph (`website/src/content/docs/in-depth/compare.mdx:209`) says
-Novis gave the core back every 10 ms and every other request was answered, and the deploy figures
-are the new run's (1.2 s and 46%, 3.1 s and 93%). `bun nv site --check prose` is clean, `bun nv
-site --build` renders `SessionChart` with both bars, and `bun nv rules --check` is clean. The
-`loop-row` check itself was not run: the record's row is the same probe, and stage 6 runs it.
-
-The sweep's red items were stale again: `env-secret-proofs`'s own log exits 0, and nightly run
-39567373487 ran at `afbb1edc2`, before the site fix `b3ed92165` of the snippet it failed on.
-
-Expected to go red: none new. Stage 3's note stands for stage 6.
+Expected to go red: none.
 
 ### Next
 
-**Stage 6**, the gate. Start `bun nv affected --run` with `run_in_background` and end the turn.
-Then group the failures by cause and fix each in one pass.
-
-- [ ] `bun nv affected --run` once over the goal (`tools/nv/cmd/verify.ts:1`). Look first at budget and peak tests in `nvs-runtime` and `nvs-host` that read `budget::live_bytes` or `peak_bytes` across a task switch (`crates/nvs-runtime/src/budget.rs:36`).
-- [ ] The acceptance checks: `loop-row` needs Docker and over 10 minutes (three runs per peer), so build the images first with `bun nv bench-compare --smoke` in the foreground, then run the check with `run_in_background` (the playbook has the trap). `tools/nv/cmd/bench-compare.ts:1813`
-- [ ] Before `DONE`: `bun nv verify --doc`, then `bun nv owners --closes core-time-slice`. `tools/nv/cmd/owners.ts:1`
+Nothing. The goal is reached, and the driver deletes its file.
 
 ### Backlog
 
-- Outside this goal: looper's shell watcher (`tools/looper/src/jobs/hang.ts`) could take `tools/nv/lib/hang.ts`'s `OUTSIDE` rule in looper's kit, so a Docker build is not taken for a hang.
+- Outside this goal: looper's shell watcher (`tools/looper/src/jobs/hang.ts`) could take `tools/nv/lib/hang.ts`'s `OUTSIDE` rule in looper's kit, so a Docker build is not taken for a hang. `bun nv bench-compare --smoke` in the foreground was killed as a `HANG:` again this session, and it ran green in the background.
 - Outside this goal: `--record-perf` could print a line as each WSL leg starts and ends, so a long callgrind leg is not taken for a hang (`tools/nv/lib/hang.ts:21`).
