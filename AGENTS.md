@@ -314,8 +314,8 @@ rule is its home.
 10. **Nothing is written outside this repository's folders.** Every scratch file goes under
     `.agent-tmp/`, and whoever writes one deletes it (commands.md).
 11. **A change that adds, changes or removes a feature states its trade-offs** in performance, memory,
-    usability and simplicity. Ask the user before a large one; in the loop, file it as a
-    `--built-on` decision and go on.
+    usability and simplicity. Decide it yourself, however large, and ask the user only a call you
+    cannot decide (conventions.md).
 12. **A manual step done twice becomes a command.**
 13. **Look up a fast-moving API in the installed version's reference,** never from memory.
 14. **Name a goal by its slug, never by its number.**
@@ -360,7 +360,8 @@ Every session runs the same steps, in this order, and **stops**:
    green. Stage each slice's own files.
 6. **In the loop, write the status line** the prompt names: `CONTINUE <what landed>`,
    `DONE <goal reached>` or `BLOCKED <what the loop cannot do itself>`. A design call never blocks:
-   file it with `looper decision ask --built-on <n>`, record it, and build on it.
+   decide it, record it under `## Standing decisions`, and build on it. Only a call you cannot decide
+   goes to the user, with `looper decision ask --built-on <n>`.
 
 **After the last step, stop.** Writing prose cannot break a build.
 
