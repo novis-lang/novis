@@ -1728,8 +1728,16 @@ fn canonical_root(root: &mut String, files: &dyn Files) {
 /// which is why the search asks `missing` and never `canonical`: on Windows a folder whose ACL
 /// denies reading it fails to canonicalize while a folder inside it does not, and a search that took
 /// that failure for absence would anchor above it and leave a reparse point below it unresolved.
+///
+/// **A path that starts with two separators is `None`, and nothing is asked about it.** On Windows
+/// it is a network, device or verbatim path, and canonicalizing one opens it: `\\host\share`
+/// connects to `host`. [`windows_alias`] is the test, and only its first form is read here, since the
+/// other forms are harmless to resolve and an 8.3 temporary folder must resolve to its long name.
 #[must_use]
 pub fn resolved(path: &Path, files: &dyn Files) -> Option<PathBuf> {
+    if network_path(&path.to_string_lossy()) {
+        return None;
+    }
     if let Ok(found) = files.canonical(path) {
         return Some(found);
     }
@@ -1790,6 +1798,60 @@ pub fn is_reserved_device(name: &str) -> bool {
                 "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
             )
         })
+}
+
+/// Why one path component names something other than what it spells, on Windows, or `None`:
+/// `rule:errors/path-component-refusals`'s trailing dot or space and 8.3 short name, on every
+/// platform.
+///
+/// Windows drops a trailing dot or space when it opens a name, so `a.nvs.` opens `a.nvs`. A short
+/// name is a component with `~` and digits before its end or its first `.`, such as `PROGRA~1` or
+/// `PROBE~12.NVS`, and it opens whichever long name the volume gave it. `.` and `..` are not names.
+#[must_use]
+pub fn alias_component(name: &str) -> Option<&'static str> {
+    if name == "." || name == ".." {
+        return None;
+    }
+    if name.ends_with(['.', ' ']) {
+        return Some("ends in a dot or a space");
+    }
+    let stem = name.split('.').next().unwrap_or(name);
+    let short = stem.rsplit_once('~').is_some_and(|(_, digits)| {
+        !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+    });
+    short.then_some("is a short 8.3 name")
+}
+
+/// Why the path `text` names something other than what it spells, on Windows, or `None`.
+///
+/// The path is judged by its text alone, before anything asks the file system about it, on every
+/// platform. A path that starts with two separators is a network path (`\\host\share`), a device
+/// path (`\\.\pipe\x`) or a verbatim one (`\\?\GLOBALROOT\...`), and opening one connects to the
+/// host it names. A `:` after the drive letter names a stream of a file (`a.nvs::$DATA`). Each
+/// component is [`alias_component`]. Both `/` and `\` separate, since Windows reads both.
+///
+/// **Cost:** one scan of the path per door call, and no system call.
+#[must_use]
+pub fn windows_alias(text: &str) -> Option<&'static str> {
+    if network_path(text) {
+        return Some("starts with two separators, which is a network or device path");
+    }
+    let bytes = text.as_bytes();
+    let rest = if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        &text[2..]
+    } else {
+        text
+    };
+    if rest.contains(':') {
+        return Some("has a `:` after the drive letter, which names a stream of a file");
+    }
+    rest.split(['/', '\\']).find_map(alias_component)
+}
+
+/// Whether `text` starts with two separators: a network (`\\host\share`), device (`\\.\`) or
+/// verbatim (`\\?\`) path on Windows, in either slash.
+fn network_path(text: &str) -> bool {
+    text.starts_with(['/', '\\']) && text[1..].starts_with(['/', '\\'])
 }
 
 /// The empty parent, spelled as the current directory; every other parent unchanged.

@@ -9,7 +9,9 @@
 use std::cell::Cell;
 use std::path::{Component, Path, PathBuf};
 
-use nvs_config::capability::{Authority, Cap, Run, Scope, is_reserved_device, resolved};
+use nvs_config::capability::{
+    Authority, Cap, Run, Scope, alias_component, is_reserved_device, resolved, windows_alias,
+};
 use nvs_config::resolve::Files;
 use nvs_config::tree::Capabilities;
 use nvs_config::trust::Untrusted;
@@ -1256,6 +1258,51 @@ fn every_spelling_of_a_device_name_is_one() {
     ] {
         assert!(!is_reserved_device(name), "`{name}` is a name");
     }
+}
+
+/// `rule:errors/path-component-refusals`' Windows aliases, judged by text: two separators first,
+/// a `:` after the drive letter, a trailing dot or space and an 8.3 short name are each one, and
+/// an ordinary path with a drive, a `~` or dots inside a name is not. A network path resolves to
+/// nothing, so no grant check opens it.
+#[test]
+fn a_windows_alias_is_found_by_its_text() {
+    for alias in [
+        r"\\host\share\x",
+        "//host/share/x",
+        r"\/host\share",
+        r"\\?\C:\x",
+        r"\\.\pipe\x",
+        r"C:\a\b.txt:stream",
+        "/srv/a.nvs::$DATA",
+        "/srv/a.nvs.",
+        "/srv/new.txt ",
+        r"C:\PROGRA~1\x",
+        "/srv/PROBE~12.NVS",
+    ] {
+        assert!(windows_alias(alias).is_some(), "`{alias}` is an alias");
+    }
+    for path in [
+        r"C:\data\a.txt",
+        "/srv/app/a.txt",
+        "/srv/../srv/./a.txt",
+        "/srv/notes~",
+        "/srv/v~2x.txt",
+        "/srv/.hidden",
+        "/srv/a.b.c",
+        "relative/a.txt",
+    ] {
+        assert_eq!(windows_alias(path), None, "`{path}` is a path");
+    }
+    for name in ["..", "."] {
+        assert_eq!(alias_component(name), None, "`{name}` is not a name");
+    }
+    assert_eq!(
+        resolved(
+            Path::new(r"\\10.255.255.1\share\x"),
+            &nvs_config::resolve::Disk
+        ),
+        None
+    );
 }
 
 /// A xorshift sequence from a fixed seed, so a property case generates the same inputs on every
