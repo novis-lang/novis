@@ -1,8 +1,7 @@
 <?nvs
-// Attack: a program checks table and column names that a visitor sent. It tries
-// names with SQL commands in them, a name of eight million letters, and four
-// hundred thousand checks in a row. Every name has to come back or throw an
-// error, and none of them may stop the program.
+// Attack: a program checks table and column names that a visitor sent. It tries SQL
+// commands, a very long name, many checks in a row, and names the database reads as a
+// value. Every name has to come back or throw an error, and none may stop the program.
 // hostile: timeout-ms 30000
 
 // 1. Names that try to end the identifier and start something else. Each one
@@ -75,3 +74,16 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 echo '4 names that came back: ', $answered, ', names refused: ', $threw, "\n";
+
+// 5. Names such as `current_user` are values when they are written without quotes.
+// Each one must throw, in any case.
+array<string> $values = ['current_user', 'SESSION_USER', 'User', 'system_user', 'current_role'];
+uint $valueRefused = 0;
+foreach ($values as string $name) {
+    try {
+        Core\Db::quoteIdentifier($name);
+    } catch (LogicError $isValue) {
+        $valueRefused = $valueRefused + 1;
+    }
+}
+echo '5 refused: ', $valueRefused, ' of ', Core\Arr::count($values), "\n";

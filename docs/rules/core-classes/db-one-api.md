@@ -27,7 +27,12 @@ tooling are not `Core` at all.
 A dynamic identifier, a table or column name SQL cannot bind, goes through `Core\Db::quoteIdentifier`.
 It checks syntax only, so it keeps a name from breaking out of the statement and does not keep a
 visitor from naming a column the program never meant to show. A name a visitor chooses is checked
-against an allow list first, and the member's help says so.
+against an allow list first, and the member's help says so. It also refuses the names a backend reads
+as a value when they are written bare, the SQL standard's niladic functions such as `current_user`,
+`session_user` and `user` and MySQL's `UTC_*` ones (`nvs_db::NILADIC_NAMES`), in any case: the name
+comes back with no delimiter, so `SELECT current_user FROM orders` would read the database account
+into every row. A schema's own names are delimited where they are written, so `user` stays a column
+there.
 
 **Declined:**
 - **Mirroring PDO**: `prepare`/`execute`, fetch-mode constants, `quote()`, `lastInsertId()`,

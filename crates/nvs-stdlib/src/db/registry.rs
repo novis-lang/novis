@@ -2280,7 +2280,9 @@ pub(super) const QUOTE_IDENTIFIER_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`$name` is empty, starts with a digit, or holds any character outside letters, \
-               digits and `_` — including a name that would need delimiting to be legal.",
+               digits and `_` — including a name that would need delimiting to be legal. Or \
+               `$name` is a name the database reads as a value when it has no quotes, such as \
+               `current_user`, `user` or `current_timestamp`, in any case.",
     }],
 };
 
