@@ -36,20 +36,25 @@ What it exports is [`observability/default-series`](observability.md#observabili
 
 <a id="observability-a-trace-id-exists-for-every-request"></a>
 
-## A trace id exists for every request whatever the sampling decision, is the only request identifier and is emitted on the response, and an inbound `X-Request-ID` is ignored
+## A trace id exists for every request whatever the sampling decision and is emitted on the response, the request id is always one the server drew, and an inbound `X-Request-ID` is ignored
 
 `rule:observability/a-trace-id-exists-for-every-request`
 
 A trace id is drawn for every request when its context is built, whatever the sampling decision.
 Sampling ([`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based)) governs whether a trace is *exported*, never
-whether an id is generated, so the id exists with `[trace] sample` at zero as well — and that is what
-lets one id be Novis's only request identifier, the one that joins a log line to an error page to a
-proxy's log entry. An inbound `traceparent` is continued and a missing one is generated
-([`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued)). `Core\Server::traceId()` reads it, every
-`[log]` record and every error rendering carries it as `request_id`
-([`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`errors/log-fields`](errors.md#errors-log-fields)),
-and every response carries it in W3C Trace Context's `traceresponse` header, so a proxy can log it
-with one `log_format` line and a tracing backend reads one standard header.
+whether an id is generated, so the id exists with `[trace] sample` at zero as well. An inbound
+`traceparent` is continued and a missing one is generated
+([`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued)). `Core\Server::traceId()` reads it, and
+every response carries it in W3C Trace Context's `traceresponse` header, so a proxy can log it with
+one `log_format` line and a tracing backend reads one standard header.
+
+**The request id is always the server's own.** Every `[log]` record and every error rendering
+carries it as `request_id`
+([`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`errors/log-fields`](errors.md#errors-log-fields)).
+For a trace this process roots it is the trace id, one number in every place. A continued trace's id
+is whatever the client sent, so two requests can carry one; such a request gets a request id drawn
+here, and its records carry the trace id as `trace_id` beside it. A client therefore cannot make two
+requests share a log key. What it spends: 16 bytes per request in flight.
 
 The header is `00-<trace id>-<the request's span id>-<flags>`, the `traceparent` shape, written
 sampled or not; the flag says which, so a backend that holds no trace for a `-00` id knows why. It is
@@ -59,18 +64,23 @@ id. An answer the door wrote before any carrier existed — a refusal at the val
 mount table's own answer — gets a new unsampled root there, and its access line names the same id.
 What it spends: one 55-byte header value per response.
 
-There is deliberately **no second identifier, and an inbound `X-Request-ID` is ignored** and appears
-nowhere — not as the trace id, not on the response, not on the access line. Two identifiers for one
-request is two things that can disagree and two things to grep, and honouring the header would need a
-validation rule against log injection for a fact Novis already has. A subsystem minting an id of its
-own where a record is written would produce a line no backend could join to anything, so the id is
-generated where the request's state lives, eagerly, rather than by whichever subsystem asks first.
+**An inbound `X-Request-ID` is ignored** and appears nowhere — not as the trace id, not on the
+response, not on the access line. Honouring the header would need a validation rule against log
+injection for a fact Novis already has, and it is a client's choice exactly as a continued trace id
+is. A subsystem minting an id of its own where a record is written would produce a line no backend
+could join to anything, so both ids are generated where the request's state lives, eagerly, rather
+than by whichever subsystem asks first.
 
 **A trace id never becomes a metric label.** It is unbounded by construction, and
 [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) would refuse it anyway.
 
-**Declined:** an `X-Request-ID` response header beside `traceresponse` — a second spelling of the
-same id, which is the second identifier this rule rules out.
+**Declined:**
+- **An `X-Request-ID` response header beside `traceresponse`.** It is a second spelling of an id the
+  response already carries.
+- **The trace id as the request id for a continued trace.** It is the client's to choose, so a client
+  could give many requests one id, and an application that keys on it would mix them up.
+- **Continuing an inbound trace only from a trusted proxy.** It needs a list of proxies for a
+  tracing header, and the server-drawn request id already keeps the log key the server's.
 
 <sub>See also [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted), [`errors/log-fields`](errors.md#errors-log-fields), [`http-server/the-access-log-is-a-mode-default`](http-server.md#http-server-the-access-log-is-a-mode-default).</sub>
 
@@ -116,17 +126,18 @@ program set for itself is still removed, because the request has one id and it i
 `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`
 
 The JSON-Lines record [`errors/log-write`](errors.md#errors-log-write) defines gains `trace_id` and `span_id` whenever a
-trace is active. Inside a sampled request both are present; outside one both are **omitted rather
-than written as empty strings**, and that omitted-not-empty rule applies to the whole envelope —
-a producer with no request to name does not invent one.
+trace is active. Inside a sampled request, and inside one that continued a caller's trace, both are
+present; otherwise both are **omitted rather than written as empty strings**, and that
+omitted-not-empty rule applies to the whole envelope — a producer with no request to name does not
+invent one.
 
-`request_id` on the same record is the trace id, because
-[`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request) makes that the only identifier there is.
-It repeats in `trace_id` for a sampled trace on purpose: a log pipeline correlating by request and a
-tracing backend correlating by trace each read their own key, and neither has to know the other's
-rule. The id a record carries is the one the server's door decided from the inbound header
-([`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued)), never a second one drawn where the
-record was written.
+`request_id` on the same record is the id the server drew for the request
+([`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request)). For a trace the server rooted it equals
+the trace id, and it repeats in `trace_id` for a sampled one on purpose: a log pipeline correlating
+by request and a tracing backend correlating by trace each read their own key, and neither has to
+know the other's rule. The trace id a record carries is the one the server's door decided from the
+inbound header ([`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued)), never a second one drawn
+where the record was written.
 
 Two fields added to a shape that already exists, and they are what lets an operator jump from a
 log line to the trace that produced it — the single highest-value thing an observability stack does.
@@ -572,7 +583,9 @@ observability feature into an availability one.
 
 An inbound trace that is already sampled is always continued, because a partially recorded
 distributed trace is worse than none; that half of the rule is
-[`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based)'s. The other direction is
+[`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based)'s, and so is the case with no exporter, where the flag
+is not read. The trace id is the client's choice, so the request id stays the server's own
+([`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request)). The other direction is
 [`observability/an-outbound-call-propagates-traceparent`](observability.md#observability-an-outbound-call-propagates-traceparent).
 
 <sub>See also [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/an-outbound-call-propagates-traceparent`](observability.md#observability-an-outbound-call-propagates-traceparent), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based).</sub>
@@ -609,9 +622,18 @@ The decision governs export only. An id exists for every request whether or not 
 ([`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request)), so an unsampled request still has a log
 line that can be correlated with a proxy's.
 
+**With no `[trace] exporter`, nothing is recorded.** A recorded request files events and hands its
+spans to the export queue, and with no exporter nothing drains that queue. So the door neither draws
+against `sample` nor reads an inbound sampled flag: a client sending `-01` on every request with a
+long path would otherwise fill the queue with text nothing ships. The trace id is still continued,
+and an outbound call carries the flag as `-00`. The exporter is boot-class, so the check is one
+lookup in the snapshot a request already reads.
+
 Head sampling records one per cent of the errors too, when one per cent is the fraction.
 
 **Declined:**
+- **Passing an inbound sampled flag onward unchanged with no exporter.** It needs a second bit, one
+  for this process's recording and one for the header, for a hop that records nothing anyway.
 - **Tail sampling**, deciding after the fact and keeping the slow and the failed, which is what
   operators want. It needs a collector-side component, which is configuration and not this runtime's
   code, or an exporter that buffers every span until the request ends, which is a footprint cost

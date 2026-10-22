@@ -1609,7 +1609,7 @@ fn inbound_of(text: &str) -> Result<nvs_runtime::Inbound, String> {
     // for `crate::runner`'s reason: nothing here exports a trace, and a
     // `traceparent` the file wrote is still continued, so `Core\Server::traceId`
     // reads the id the file named.
-    nvs_server::trace::take(&mut inbound, 0.0);
+    nvs_server::trace::take(&mut inbound, None);
     Ok(inbound)
 }
 

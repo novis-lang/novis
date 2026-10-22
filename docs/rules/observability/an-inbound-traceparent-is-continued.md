@@ -9,5 +9,7 @@ observability feature into an availability one.
 
 An inbound trace that is already sampled is always continued, because a partially recorded
 distributed trace is worse than none; that half of the rule is
-`rule:observability/sampling-is-head-based`'s. The other direction is
+`rule:observability/sampling-is-head-based`'s, and so is the case with no exporter, where the flag
+is not read. The trace id is the client's choice, so the request id stays the server's own
+(`rule:observability/a-trace-id-exists-for-every-request`). The other direction is
 `rule:observability/an-outbound-call-propagates-traceparent`.

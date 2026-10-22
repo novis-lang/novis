@@ -161,13 +161,20 @@ const DEFAULT_SAMPLE: f64 = crate::defaults::TRACE_SAMPLE;
 /// draws against what the published snapshot says, and an edit reaches the next request. What comes
 /// back is finite and inside `0.0..=1.0` — [`validate`] refused anything else where it was written,
 /// and a caller holding a [`Config`] holds one that got past that.
+///
+/// `None` where no `[trace]` exporter is configured ([`Tracing::of`]): nothing would ship a
+/// recorded span, so nothing is recorded, and an inbound sampled flag is not read either
+/// (`rule:observability/sampling-is-head-based`).
 #[must_use]
-pub fn head_sample(config: &Config) -> f64 {
-    config
-        .trace
-        .as_ref()
-        .and_then(|trace| trace.sample)
-        .unwrap_or(DEFAULT_SAMPLE)
+pub fn head_sample(config: &Config) -> Option<f64> {
+    Tracing::of(config)?;
+    Some(
+        config
+            .trace
+            .as_ref()
+            .and_then(|trace| trace.sample)
+            .unwrap_or(DEFAULT_SAMPLE),
+    )
 }
 
 /// Which block an `exporter` was written in: its name, and the protocols § 6 gives it.
