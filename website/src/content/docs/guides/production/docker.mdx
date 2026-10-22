@@ -168,7 +168,16 @@ replaces that setting.
 `/app` is the working folder. `nvs` reads `/app/nvs.toml` from there, so the configuration in your
 project is found without `--config`.
 
-If you pass `--config` with a file, `nvs` reads only that file. It does not read `/app/nvs.toml`.
+If you pass `--config`, `nvs` reads only the files you name. It does not read `/app/nvs.toml`. To
+change a few settings for one deployment, name both files. Then the second file replaces the keys
+it sets:
+
+```sh
+nvs serve /app/public/index.nvs --config /app/nvs.toml --config /etc/nvs/override.toml
+```
+
+[Configuration](/guides/how-to-use/configuration/#change-a-setting-without-editing-nvstoml) shows
+how the files are combined.
 
 A program has the same capabilities in a container as outside one. The container does not grant
 more, even when it runs as root. Change them in `nvs.toml`, as
@@ -183,6 +192,55 @@ driver = "postgres"
 host = "db"
 password_file = "/run/secrets/db-password"
 ```
+
+### Settings from a Kubernetes ConfigMap
+
+Keep `nvs.toml` in the image. Write the settings for one cluster in a ConfigMap, and mount it as a
+file. This example uses the image from [Build your own image](#build-your-own-image):
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shop-config
+data:
+  override.toml: |
+    [limits]
+    memory = "256M"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shop
+spec:
+  selector:
+    matchLabels: { app: shop }
+  template:
+    metadata:
+      labels: { app: shop }
+    spec:
+      containers:
+        - name: app
+          image: registry.example.com/shop:1.0
+          args: ["serve", "/app/public/index.nvs",
+                 "--config", "/app/nvs.toml", "--config", "/etc/nvs/override.toml",
+                 "--listen", "0.0.0.0:8000"]
+          ports: [{ containerPort: 8000 }]
+          volumeMounts:
+            - { name: config, mountPath: /etc/nvs, readOnly: true }
+      volumes:
+        - { name: config, configMap: { name: shop-config } }
+```
+
+Each key in `override.toml` replaces the same key in `/app/nvs.toml`. Every other key keeps its
+value from the image. Kubernetes writes the file as root, and only root can change it. So
+`nvs serve` accepts it.
+
+`nvs` reads the file when it starts. After you change the ConfigMap, restart the pods with
+`kubectl rollout restart deployment/shop`.
+
+Do not put a password in a ConfigMap. Put it in a Secret, mount the Secret as a file, and name that
+file with `password_file`.
 
 ## The data folder
 

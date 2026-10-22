@@ -4,14 +4,16 @@ covers: []
 description: What nvs.toml controls, how to start one, and how to check it before you deploy.
 ---
 
-All configuration is in one TOML file, `nvs.toml`. There are no environment variables and no
-command-line switches that change a setting. The settings in the file are the settings that apply.
+All configuration is in TOML files. Usually there is one file, `nvs.toml`. Novis reads no setting
+from an environment variable. Two command-line options change a setting: `--listen` and `--port` of
+`nvs serve`.
 
 ## Where nvs finds the file
 
 `nvs` uses the first of these that exists:
 
-1. the file that `--config` names. Then `nvs` reads no other `nvs.toml`.
+1. the files that `--config` names. You can give `--config` more than once. Then `nvs` reads no
+   other `nvs.toml`.
 2. `nvs.toml` in the folder you run `nvs` in.
 3. `nvs.toml` in the data folder. This is the folder `.nvsdata` next to the `nvs` program, or the
    folder that `--data` names.
@@ -103,13 +105,51 @@ entry = "jobs/nightly.nvs"
 memory = "64M"
 ```
 
+## Change a setting without editing nvs.toml
+
+Write the settings you want to change in a second file. Then name both files with `--config`:
+
+```toml
+# /etc/nvs/override.toml
+[limits]
+memory = "256M"
+```
+
+```sh
+nvs serve public/index.nvs --config nvs.toml --config /etc/nvs/override.toml
+```
+
+A later file replaces each key that it sets. Here `memory` is `256M`. `wall_time` and every other
+key keep their values from `nvs.toml`. Name `nvs.toml` too, because with `--config`, `nvs` does not
+read it by itself.
+
+A list is one value. If the second file sets `read = ["data"]`, then `data` is the only folder.
+A block with two brackets, such as `[[app]]`, is different. Each one adds an entry.
+
+An `[[include]]` block does the same from inside a file. The included file is read after the file
+that includes it, so its keys replace the keys of that file:
+
+```toml
+[[include]]
+path = "local.toml"
+optional = true               # a missing local.toml is not an error
+```
+
+Every file must belong to the account that runs `nvs serve`, or to root. No other account may
+write to the file or to its folder. Otherwise `nvs serve` stops with the error `E0607`. A file can
+grant capabilities, so this check protects it.
+
 ## Check it before you deploy
 
 A key that Novis does not know stops the program before it starts, with the error `E0601`. So a typo
 in a key always gives an error message.
 
 - `nvs config check` reads the file and reports every error.
-- `nvs config dump --origin` prints every key that is set, and the file that set it.
+- `nvs config dump --origin` prints every key that is set, and the file that set it. When a later
+  file replaced a key, it names both files.
+
+Both commands read the files you list, in the order you list them:
+`nvs config dump --origin nvs.toml /etc/nvs/override.toml`.
 
 A program can read a setting with `Core\Config::get`. It returns the value in force. For a key the
 file does not set, that is the built-in default, such as `128M` for `memory`. A program can change
@@ -121,6 +161,7 @@ for an example.
 - Do commit `nvs.toml` with your code, so every server runs the same settings.
 - Do give each capability only the folders and hosts the program really uses.
 - Do run `nvs config check` in your build, before each deploy.
+- Do put the settings that differ on one server in a second file. Don't edit a copy of `nvs.toml`.
 - Don't write a password in `nvs.toml`. Use `password_file` to read it from a separate file.
 - Don't grant `true` for a capability when a list of folders or hosts is enough.
 
