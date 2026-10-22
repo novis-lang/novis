@@ -246,6 +246,10 @@ pub fn check_program_loaded(
     // `rule:testing/hook-inheritance`'s tables are built once every class has
     // recorded its own, since a base class may be declared in a later file.
     crate::test_inherit::merge(&module.graph, exprs);
+    // The slots a constructor may leave unset while a hook or an observer
+    // runs, for the same reason: they combine each class's constructor with
+    // every constructor its ancestors declare.
+    record_pipeline_slots(&signatures, &module.graph, interner, exprs);
     // § 4's fold, which is the second pass over the same table and the reason
     // the table is collected across the files rather than per file.
     crate::links::resolve(&routes, &links, exprs, diags);
@@ -426,7 +430,6 @@ pub(crate) fn check_stmts(
                 crate::routes::check_class_routes(decl, &qname, &ctx, env);
                 record_property_defaults(&qname, env);
                 record_lateinit_properties(&qname, env);
-                record_pipeline_slots(&qname, env);
                 record_static_properties(&qname, env);
             }
             StmtKind::InterfaceDecl(decl) => {
@@ -579,72 +582,128 @@ fn record_lateinit_properties(qname: &QName, env: &mut Env<'_>) {
         .record_lateinit_properties(qname.to_string(), names);
 }
 
-/// The slots a constructor of `qname` may leave unset while code it did not
-/// write runs, which `nvs-ir` arms with the never-written marker and whose
-/// compiled reads test it (`rule:classes/definite-property-initialization`).
+/// The properties a class declares whose slot has no value until something
+/// writes it: every non-nullable one with no default that is not `lateinit`,
+/// a promoted parameter's included.
+pub(crate) fn starts_unset(
+    sig: &crate::signatures::ClassSignature,
+    interner: &TypeInterner,
+) -> Vec<String> {
+    sig.properties
+        .iter()
+        .filter(|(name, ty)| {
+            !interner.is_nullable(**ty)
+                && !sig.lateinit_properties.contains(*name)
+                && !sig.property_defaults.iter().any(|(d, _)| d == *name)
+        })
+        .map(|(name, _)| name.clone())
+        .collect()
+}
+
+/// The slots a constructor of each checked class may leave unset while code
+/// it did not write runs, which `nvs-ir` arms with the never-written marker
+/// and whose compiled reads test it (`rule:classes/definite-property-initialization`).
 ///
 /// Two-phase construction keeps `$this` in the constructor until every slot
-/// is written, but a write itself runs code when the class implements
-/// `PropertyObserver`, `PropertyGuard` or `LateInit`, or any class in its
-/// chain declares a hook. That code sees `$this` with later slots still zero,
-/// and refusing it would refuse every observer that assigns two properties.
-/// So in those classes every non-nullable property with no default, a
-/// promoted parameter's included, starts unset, and a read of one throws
-/// the `LogicError` of `rule:classes/an-unwritten-property-read-throws`.
+/// is written, but an access itself runs code when the class implements
+/// `PropertyObserver`, `PropertyGuard` or `LateInit`, or the property has a
+/// hook. That code sees `$this` with later slots still zero, and refusing it
+/// would refuse every observer that assigns two properties. A read of such a
+/// slot throws the `LogicError` of `rule:classes/an-unwritten-property-read-throws`.
 ///
-/// The guard is recorded under each class `qname` extends too, because a
-/// read typed as an ancestor may reach an object of this class. **Cost:** one
-/// tag compare and branch per compiled read of such a property, and one store
-/// per armed slot at `new`. Every other class pays nothing.
-fn record_pipeline_slots(qname: &QName, env: &mut Env<'_>) {
-    let mut chain = vec![qname.clone()];
-    while let Some(parent) = chain
-        .last()
-        .and_then(|current| env.graph.get(current))
-        .and_then(|links| links.extends.first())
-        .filter(|parent| !chain.contains(parent))
-        .cloned()
-    {
-        chain.push(parent);
-    }
-    let runs_code_on_write = [
-        nvs_hir::interfaces::PROPERTY_OBSERVER,
-        nvs_hir::interfaces::PROPERTY_GUARD,
-        nvs_hir::interfaces::LATE_INIT,
-    ]
-    .iter()
-    .any(|name| nvs_hir::hierarchy::implements_interface(qname, &QName::parse(name), env.graph))
-        || chain.iter().any(|class| {
-            env.signatures
-                .get(class)
-                .is_some_and(|sig| !sig.hooked_properties.is_empty())
-        });
-    if !runs_code_on_write {
-        return;
-    }
-    let own: Vec<Vec<String>> = chain
+/// A class that implements one of the three interfaces arms every slot of
+/// [`starts_unset`] in its chain. A class whose chain only declares hooks
+/// arms just the slots some constructor in the chain may not have written
+/// yet when it reads or writes a hooked property: its own ones from
+/// [`crate::expr_table::CtorAccess`], and every inherited one when the access
+/// can come before `parent::constructor(...)`. A slot every constructor
+/// writes before its first hooked access is never seen unset, so its reads
+/// stay one load. An ancestor this program did not check arms all of its
+/// slots.
+///
+/// Run once every class is checked, since a parent may be declared in a later
+/// file. The guard is recorded under each class a class extends too, because
+/// a read typed as an ancestor may reach an object of this class. **Cost:**
+/// one tag compare and branch per compiled read of such a property, and one
+/// store per armed slot at `new`. Every other property pays nothing.
+fn record_pipeline_slots(
+    signatures: &crate::signatures::SignatureTable,
+    graph: &nvs_hir::ClassGraph,
+    interner: &TypeInterner,
+    exprs: &mut ExprTypeTable,
+) {
+    let accesses = exprs.take_ctor_accesses();
+    for qname in accesses.keys() {
+        let mut chain = vec![qname.clone()];
+        while let Some(parent) = chain
+            .last()
+            .and_then(|current| graph.get(current))
+            .and_then(|links| links.extends.first())
+            .filter(|parent| !chain.contains(parent))
+            .cloned()
+        {
+            chain.push(parent);
+        }
+        let every_access_runs_code = [
+            nvs_hir::interfaces::PROPERTY_OBSERVER,
+            nvs_hir::interfaces::PROPERTY_GUARD,
+            nvs_hir::interfaces::LATE_INIT,
+        ]
         .iter()
-        .map(|class| {
-            let Some(sig) = env.signatures.get(class) else {
-                return Vec::new();
+        .any(|name| nvs_hir::hierarchy::implements_interface(qname, &QName::parse(name), graph));
+        let hooked: FxHashSet<&str> = chain
+            .iter()
+            .filter_map(|class| signatures.get(class))
+            .flat_map(|sig| sig.hooked_properties.keys().map(String::as_str))
+            .collect();
+        if !every_access_runs_code && hooked.is_empty() {
+            continue;
+        }
+        let own: Vec<Vec<String>> = chain
+            .iter()
+            .map(|class| {
+                signatures
+                    .get(class)
+                    .map(|sig| starts_unset(sig, interner))
+                    .unwrap_or_default()
+            })
+            .collect();
+        let mut exposed: FxHashSet<&str> = FxHashSet::default();
+        for (at, class) in chain.iter().enumerate() {
+            let above = || own[at..].iter().flatten().map(String::as_str);
+            let Some(found) = accesses.get(class) else {
+                exposed.extend(above());
+                continue;
             };
-            sig.properties
-                .iter()
-                .filter(|(name, ty)| {
-                    !env.interner.is_nullable(**ty)
-                        && !sig.lateinit_properties.contains(*name)
-                        && !sig.property_defaults.iter().any(|(d, _)| d == *name)
-                })
-                .map(|(name, _)| name.clone())
-                .collect()
-        })
-        .collect();
-    let armed = chain
-        .iter()
-        .enumerate()
-        .map(|(at, class)| (class.to_string(), own[at..].concat()))
-        .collect();
-    env.exprs.record_pipeline_slots(armed);
+            if every_access_runs_code {
+                exposed.extend(above());
+                continue;
+            }
+            for (property, access) in found {
+                if !hooked.contains(property.as_str()) {
+                    continue;
+                }
+                exposed.extend(access.unassigned.iter().map(String::as_str));
+                if access.before_parent {
+                    exposed.extend(own[at + 1..].iter().flatten().map(String::as_str));
+                }
+            }
+        }
+        let armed = chain
+            .iter()
+            .enumerate()
+            .map(|(at, class)| {
+                let names = own[at..]
+                    .iter()
+                    .flatten()
+                    .filter(|name| exposed.contains(name.as_str()))
+                    .cloned()
+                    .collect();
+                (class.to_string(), names)
+            })
+            .collect();
+        exprs.record_pipeline_slots(armed);
+    }
 }
 
 /// The same move for the class's own `static` properties — see

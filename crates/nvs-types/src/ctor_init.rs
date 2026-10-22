@@ -128,6 +128,7 @@ use nvs_syntax::ast::{
 use nvs_syntax::visit::each_child_expr;
 
 use crate::expr::is_this_receiver;
+use crate::expr_table::{CtorAccess, CtorAccesses};
 use crate::live::{Live, Mark, assigned_on_every_way};
 use crate::signatures::{own_required_properties, resolve_method};
 use crate::{Env, span_text, strip_sigil};
@@ -204,6 +205,12 @@ pub(crate) struct InitState {
     /// Every `parent::constructor(...)` that a path may reach a second time,
     /// reported once the walk is over.
     second_parent_calls: Vec<Span>,
+    /// The class's own slots that start unset and that the body writes,
+    /// which [`InitState::access`] checks against `assigned`. Empty for a
+    /// `set` hook's walk.
+    starts_unset: Vec<String>,
+    /// What each `$this->prop` access finds unset, by property.
+    accesses: CtorAccesses,
 }
 
 /// The name `written` tracks a `parent::constructor(...)` call under. No
@@ -301,6 +308,7 @@ impl InitState {
     /// Records a write through `$this` to the property `name`, and refuses it
     /// where it can be the second write to a `readonly` one.
     fn write(&mut self, name: &str, span: Span) {
+        self.access(name);
         if !self.readonly.iter().any(|r| r == name) {
             return;
         }
@@ -328,6 +336,7 @@ impl InitState {
     /// Records a read through `$this` of the property `name`, and refuses it
     /// where a path reaches it before the property is assigned.
     fn read(&mut self, name: &str, span: Span) {
+        self.access(name);
         let inherited = !self.own_required.iter().any(|r| r == name);
         let early = !self.assigned.contains(name)
             && if inherited {
@@ -342,6 +351,24 @@ impl InitState {
                 inherited,
             });
         }
+    }
+
+    /// Records, for a constructor's walk, which of the class's own slots a
+    /// path may not have written yet where the body reads or writes `name`
+    /// through `$this`, and whether `parent::constructor(...)` may not have
+    /// run there. A write is recorded before it assigns, since a `set` hook
+    /// runs before its own slot has a value.
+    fn access(&mut self, name: &str) {
+        if self.class.is_none() {
+            return;
+        }
+        let entry = self.accesses.entry(name.to_owned()).or_default();
+        for slot in &self.starts_unset {
+            if !self.assigned.contains(slot) && !entry.unassigned.contains(slot) {
+                entry.unassigned.push(slot.clone());
+            }
+        }
+        entry.before_parent |= !self.parent_called;
     }
 
     /// Records a use of `$this` at `span` that lets the object escape, and
@@ -406,6 +433,12 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
         _ => None,
     });
 
+    // A class with no constructor body runs none of its own accesses.
+    if ctor.and_then(|ctor| ctor.body.as_ref()).is_none() {
+        env.exprs
+            .record_ctor_accesses(qname.clone(), CtorAccesses::default());
+    }
+
     let Some(ctor) = ctor else {
         // No constructor at all: a required property has no path to get
         // assigned along, so it is refused right at its own declaration
@@ -453,13 +486,30 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
         .get(qname)
         .map(|sig| sig.readonly_properties.iter().cloned().collect())
         .unwrap_or_default();
-    let promoted = ctor
+    let all_promoted: Vec<String> = ctor
         .params
         .iter()
         .filter(|p| p.is_promoted())
         .map(|p| strip_sigil(span_text(env.src, p.name)).to_owned())
-        .filter(|name| readonly.contains(name))
         .collect();
+    let promoted = all_promoted
+        .iter()
+        .filter(|name| readonly.contains(name))
+        .cloned()
+        .collect();
+    let own_unset = env
+        .signatures
+        .get(qname)
+        .map(|sig| crate::check::starts_unset(sig, env.interner))
+        .unwrap_or_default();
+    // Each promotion is a write before the body runs, and before any
+    // promotion after it, so it finds every slot unset.
+    let mut accesses = CtorAccesses::default();
+    for name in &all_promoted {
+        let entry: &mut CtorAccess = accesses.entry(name.clone()).or_default();
+        entry.unassigned.clone_from(&own_unset);
+        entry.before_parent = true;
+    }
     let mut state = InitState {
         readonly,
         promoted,
@@ -467,9 +517,16 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
         inherited_required: ancestors_required(qname, env),
         class: Some(qname.clone()),
         needs_parent_call,
+        starts_unset: own_unset
+            .into_iter()
+            .filter(|name| !all_promoted.contains(name))
+            .collect(),
+        accesses,
         ..InitState::default()
     };
     let terminates = walk_stmts(&body.stmts, &mut state, &obligations, env);
+    env.exprs
+        .record_ctor_accesses(qname.clone(), std::mem::take(&mut state.accesses));
     if !terminates {
         // Fell off the end of the body without an explicit `return` — the
         // implicit return `rule:classes/definite-property-initialization` also covers.
@@ -1198,6 +1255,10 @@ mod tests {
     use crate::ty::TypeInterner;
 
     fn check_src(src: &str) -> Diagnostics {
+        check_tables(src).0
+    }
+
+    fn check_tables(src: &str) -> (Diagnostics, ExprTypeTable) {
         let mut map = SourceMap::new();
         let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
@@ -1217,7 +1278,7 @@ mod tests {
             &mut exprs,
             &mut diags,
         );
-        diags
+        (diags, exprs)
     }
 
     #[test]
@@ -1617,6 +1678,47 @@ mod tests {
             "<?nvs\n{BOX}class Sub extends Box {{\n  public function constructor(bool $b) {{\n    if ($b) {{ parent::constructor(1); }} else {{ parent::constructor(2); }}\n  }}\n}}\n"
         );
         assert_eq!(direct_constructor_calls(&once), 0, "{:?}", check_src(&once));
+    }
+
+    const HOOKED: &str = "  public int $m {\n    get => $this->m;\n    set => $value;\n  }\n";
+
+    /// The slots `check_tables(src)` arms in `class`, after a clean check.
+    fn armed(src: &str, class: &str) -> (Vec<String>, ExprTypeTable) {
+        let (diags, exprs) = check_tables(src);
+        assert!(!diags.has_errors(), "{diags:?}");
+        (exprs.pipeline_armed(class).to_vec(), exprs)
+    }
+
+    #[test]
+    fn a_property_assigned_before_the_first_hooked_access_starts_set() {
+        let src = format!(
+            "<?nvs\nclass Cell {{\n  public int $n;\n{HOOKED}  public function constructor(int $n) {{\n    $this->n = $n;\n    $this->m = $n;\n  }}\n}}\n"
+        );
+        let (armed, exprs) = armed(&src, "Cell");
+        assert_eq!(armed, ["m"]);
+        assert!(!exprs.read_may_find_unset("Cell", "n"));
+        assert!(exprs.read_may_find_unset("Cell", "m"));
+    }
+
+    #[test]
+    fn a_property_assigned_after_a_hooked_write_starts_unset() {
+        let src = format!(
+            "<?nvs\nclass Cell {{\n  public int $n;\n{HOOKED}  public function constructor(int $n) {{\n    $this->m = $n;\n    $this->n = $n;\n  }}\n}}\n"
+        );
+        let (armed, exprs) = armed(&src, "Cell");
+        assert_eq!(armed, ["m", "n"]);
+        assert!(exprs.read_may_find_unset("Cell", "n"));
+    }
+
+    #[test]
+    fn a_hooked_write_before_the_parent_constructor_arms_every_inherited_slot() {
+        let src = format!(
+            "<?nvs\nclass Base {{\n  public int $a;\n  public function constructor(int $a) {{\n    $this->a = $a;\n  }}\n}}\nclass Sub extends Base {{\n{HOOKED}  public function constructor() {{\n    $this->m = 1;\n    parent::constructor(2);\n  }}\n}}\n"
+        );
+        let (armed, exprs) = armed(&src, "Sub");
+        assert_eq!(armed, ["a", "m"]);
+        assert!(exprs.read_may_find_unset("Base", "a"));
+        assert!(exprs.pipeline_armed("Base").is_empty());
     }
 
     /// The `catch` doesn't assign `$count`, so it's not satisfied on every

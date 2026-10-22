@@ -287,11 +287,17 @@ property.
 The steps of [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline) are the one place the order cannot hold: a
 write in the constructor runs a hook, a guard or an observer with `$this` while later properties are
 unassigned, and refusing that would refuse every observer that assigns two properties. So a class that
-implements `PropertyObserver`, `PropertyGuard` or `LateInit`, or whose chain declares a hook, starts
-each non-nullable property with no default unset, a promoted parameter's included, and a compiled read
-of one tests it first, through that class and every class it extends. A read before the write throws
-the `LogicError` of [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). That costs one tag compare and
-branch per such read, and one store per such slot at `new`. Every other class pays nothing.
+implements `PropertyObserver`, `PropertyGuard` or `LateInit` starts each non-nullable property with no
+default unset, a promoted parameter's included. A class whose chain declares a hook starts unset only
+the ones a constructor in its chain may not have assigned yet where it reads or writes a hooked
+property, and every inherited one when that access can come before `parent::constructor(...)`. A
+compiled read of an unset-starting property tests it first, through that class and every class it
+extends. A read before the write throws the `LogicError` of
+[`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). That costs one tag compare and branch per such read,
+and one store per such slot at `new`. A property every constructor assigns before its first hooked
+access pays nothing, which keeps [`classes/property-observer-costs-nothing-when-unused`](classes.md#classes-property-observer-costs-nothing-when-unused) true of an
+unhooked property beside a hooked one. The analysis is the same flow walk that proves the assignments,
+so it costs compile time and no runtime.
 
 A hooked property carries the obligation when its backing slot is read: by a plain read, because it
 has no `get` hook, or by a hook that names `$this->prop` other than as the target of `=`. Each `set`
