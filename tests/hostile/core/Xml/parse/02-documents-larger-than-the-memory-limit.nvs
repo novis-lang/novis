@@ -1,0 +1,25 @@
+<?nvs
+// Attack: a client sends XML documents of eight megabytes that are made of many
+// small elements. The elements need much more memory than the text. The last
+// document needs more memory than a request may use, so the program should stop
+// there with `FATAL`.
+// hostile: timeout-ms 30000
+// hostile: ends-early 3 FATAL
+
+// 1. One element with one hundred thousand empty child elements. This fits in memory.
+var $small = Core\Xml::parse('<list>' . Core\Str::repeat('<i/>', 100000) . '</list>');
+echo '1 children: ', Core\Arr::count($small->children()[0]->children()), "\n";
+
+// 2. One element with one hundred thousand short attributes. This fits in memory too.
+string $attributes = '';
+for (int $n = 0; $n < 100000; $n++) {
+    $attributes = $attributes . ' a' . $n . '=""';
+}
+var $wide = Core\Xml::parse('<e' . $attributes . '/>');
+echo '2 attributes: ', Core\Arr::count($wide->children()[0]->attributes()), "\n";
+
+// 3. Eight megabytes of empty elements, two million of them. The elements need
+// more than the memory limit, so the program stops while it reads them.
+echo "step 3\n";
+var $huge = Core\Xml::parse('<list>' . Core\Str::repeat('<i/>', 2000000) . '</list>');
+echo '3 children: ', Core\Arr::count($huge->children()[0]->children()), "\n";
