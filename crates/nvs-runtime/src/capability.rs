@@ -1298,10 +1298,11 @@ pub fn temp_dir(ctx: &mut Ctx, member: &str) -> Result<PathBuf, Fault> {
         // nothing behind. The entry counts as one of this run's directories, so server work's
         // default write covers creating it and nothing else under the root.
         |path| {
-            let mut made = ctx.temporary_dirs().to_vec();
-            made.push(path.to_path_buf());
             relative_refusal(path, member)?;
-            if granted_with(ctx, Cap::FsWrite, Scope::Path(path), &made) {
+            let granted = ctx.with_candidate_temporary_dir(path, |ctx, made| {
+                granted_with(ctx, Cap::FsWrite, Scope::Path(path), made)
+            });
+            if granted {
                 Ok(())
             } else {
                 Err(Fault::thrown(denial(
