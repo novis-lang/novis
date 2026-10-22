@@ -25,14 +25,35 @@
 //! snapshot, and it is deliberately not a throw — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3 makes "no configuration
 //! file anywhere" a valid host and not an error, so a program has to be able to
 //! ask on one.
+//!
+//! # A secret directive is read only by its written name
+//!
+//! `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s value is a
+//! credential, and `secret` is a static qualifier the run time never sees. So
+//! the checker types `get('db.main.password')` as `?secret string` when the
+//! name is a literal [`nvs_config::secret::is_secret_key`] names, and says so
+//! through `crate::registry::PREPARED_MEMBERS`' argument 0 as
+//! [`PREPARED_SECRET`]. A name the program computed reaches `get` with no such
+//! word, and a secret directive under it throws `LogicError`, because its
+//! result would be a plain `?string` any sink takes. This is the one rule
+//! `get` holds itself. **What it spends:** one walk of the secret rows per
+//! call, and no memory.
 
-use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
+use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
 pub(crate) const NAME: &str = "Core\\Config";
+
+/// The word `crate::registry::PREPARED_MEMBERS`' argument 0 carries when
+/// `get`'s name is a literal secret directive, so the checker typed the call
+/// `?secret string`. Minted from the space [`crate::cldr::PREPARED_PATTERN`]
+/// is, so a word meant for another member never reads as this one.
+pub const PREPARED_SECRET: i64 = 4;
 
 /// `Core\Config`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
@@ -106,8 +127,14 @@ const GET_DOC: MethodDoc = MethodDoc {
     }],
     ret: "The value as text, written the way the configuration file writes it, such as `128M` or \
           `30s`. The result is `null` for a setting with no default, such as `wall_time`. It is \
-          also `null` for a name that has a group of settings or a list.",
-    errors: &[],
+          also `null` for a name that has a group of settings or a list. A secret setting, such \
+          as `db.main.password` or `http.csrf_key`, gives a `?secret string`. Your program \
+          cannot print it or write it to a log.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The name is a secret setting, and the call does not write it as a string literal. \
+               Write the name in the call, such as `Core\\Config::get('db.main.password')`.",
+    }],
 };
 
 /// `Core\Config::set`'s reference card — `rule:core-api/reference-card`.
@@ -189,9 +216,20 @@ fn text<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Config::get(string $name): ?string` — replacing `ini_get`.
-    fn nvs_core_config_get(ctx, args: [1]) {
-        let name = text(&args[0], "get")?;
+    /// `Core\Config::get(string $name): ?string` — replacing `ini_get`. Its
+    /// argument 0 is the prepared word, and a secret directive needs
+    /// [`PREPARED_SECRET`] there, as the module doc says.
+    fn nvs_core_config_get(ctx, args: [2]) {
+        let name = text(&args[1], "get")?;
+        if nvs_config::secret::is_secret_key(name) && args[0].as_int() != Some(PREPARED_SECRET) {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "Core\\Config::get(): `{name}` is a secret setting, so the call must write \
+                     its name as a string literal and the result is a `secret string`"
+                ),
+            ));
+        }
         match ctx.config().and_then(|config| config.get(name)) {
             Some(value) => Ok(Value::text(&value)),
             None => Ok(Value::null()),

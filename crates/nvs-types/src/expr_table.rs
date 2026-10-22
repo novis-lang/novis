@@ -1431,6 +1431,10 @@ pub enum PreparedFact {
     /// told is that its pattern was written rather than assembled, which is
     /// what admits the text to that module's per-core cache.
     CldrPattern,
+    /// That `Core\Config::get`'s literal name is a secret directive, so the
+    /// call is typed `?secret string`. `crate::secret_directive` owns why the
+    /// member needs to be told.
+    SecretDirective,
 }
 
 /// One piece of a `Core\Str::format` call that `nvs-ir` lowers to a string
@@ -2446,7 +2450,7 @@ impl ExprTypeTable {
             .values()
             .filter_map(|prepared| match prepared.fact {
                 PreparedFact::RegexTier(tier) => Some(tier),
-                PreparedFact::CldrPattern => None,
+                PreparedFact::CldrPattern | PreparedFact::SecretDirective => None,
             })
     }
 
@@ -2459,7 +2463,7 @@ impl ExprTypeTable {
             .values()
             .filter_map(|prepared| match prepared.fact {
                 PreparedFact::RegexTier(tier) => Some((prepared.literal, tier)),
-                PreparedFact::CldrPattern => None,
+                PreparedFact::CldrPattern | PreparedFact::SecretDirective => None,
             })
     }
 

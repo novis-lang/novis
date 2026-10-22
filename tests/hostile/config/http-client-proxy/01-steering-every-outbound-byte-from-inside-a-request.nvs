@@ -34,7 +34,11 @@ array<string> $values = [
 foreach ($keys as string $key) {
     foreach ($values as string $value) {
         Core\Config::set($key, $value);
-        Core\Config::get($key);
+        try {
+            Core\Config::get($key);
+        } catch (LogicError $e) {
+            // The password is a secret setting. This call does not write its name, so `get` throws.
+        }
     }
     Core\Config::restore($key);
 }

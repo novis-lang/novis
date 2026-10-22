@@ -74,4 +74,4 @@ while ($i < 100000) {
     Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
     $i = $i + 1;
 }
-echo Core\Config::get('http.csrf_key') ?? '(nothing)', "\n";
+echo Core\Config::get('http.csrf_key') == null ? '(nothing)' : '(a key is set)', "\n";

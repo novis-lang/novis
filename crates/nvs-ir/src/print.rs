@@ -198,6 +198,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
                 "prepared regex.backtracking".to_owned()
             }
             Some(crate::ir::Prepared::CldrPattern) => "prepared cldr.pattern".to_owned(),
+            Some(crate::ir::Prepared::SecretDirective) => "prepared config.secret".to_owned(),
             None => "prepared none".to_owned(),
         },
         InstKind::SourceConst { source } => match source {

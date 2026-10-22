@@ -197,6 +197,7 @@ pub(crate) mod response;
 pub(crate) mod retrieval;
 pub(crate) mod returns;
 pub mod routes;
+pub(crate) mod secret_directive;
 pub mod signatures;
 /// Re-exported, not owned: the escape grammar lives in `nvs-syntax`, the one
 /// crate `nvs-hir`'s `require` resolution, this checker and `nvs-ir`'s lowering
@@ -229,6 +230,10 @@ pub use links::is_link;
 /// of — that crate reaches the compiler's exception tree through this crate,
 /// exactly as it reaches every `Core` symbol below.
 pub use nvs_hir::errors::FINISH_MARKER as CORE_SCRIPT_FINISH_CLASS;
+/// The word `nvs_stdlib::registry::PREPARED_MEMBERS`' argument 0 carries for a
+/// `Core\Config::get` whose literal name is a secret directive, reached from
+/// `nvs-ir` through this crate as the CLDR word below is.
+pub use nvs_stdlib::CONFIG_PREPARED_SECRET as CORE_CONFIG_PREPARED_SECRET;
 /// The word `nvs_stdlib::registry::PREPARED_MEMBERS`' argument 0 carries for a
 /// literal CLDR date pattern, reached from `nvs-ir` through this crate exactly
 /// as every other `Core` symbol below is.

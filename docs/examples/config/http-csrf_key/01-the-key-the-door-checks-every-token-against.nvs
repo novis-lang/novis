@@ -3,7 +3,8 @@
 // The server checks tokens only when this key is set. This file sets no key,
 // so no request needs a token yet.
 
-echo 'door key:       ', Core\Config::get('http.csrf_key') ?? '(nothing, so no token is expected yet)', "\n";
+// The key is a secret, so your program cannot print it. This line checks whether a key is set.
+echo 'door key:       ', Core\Config::get('http.csrf_key') == null ? '(nothing, so no token is expected yet)' : '(a key is set)', "\n";
 echo 'read from file: ', Core\Config::get('http.csrf_key_file') ?? '(nothing)', "\n";
 
 // The server checks every request against this one key, so a program cannot set it.

@@ -5,15 +5,15 @@
 
 echo 'key from a file: ', Core\Config::get('http.csrf_key_file') ?? '(nothing)', "\n";
 
-// When a file is set, this returns the content of the file, never the path.
-// One newline at the end is removed, and nothing else.
-echo 'key in force:    ', Core\Config::get('http.csrf_key') ?? '(nothing, so no token is expected yet)', "\n";
+// When a file is set, `get('http.csrf_key')` returns the content of the file, never the path.
+// One newline at the end is removed. The key is a secret, so this line only checks whether it is set.
+echo 'key in force:    ', Core\Config::get('http.csrf_key') == null ? '(nothing, so no token is expected yet)' : '(a key is set)', "\n";
 
 // The server checks every request against this one key, so a program cannot set the key
 // or the file. Both calls return `false`, and the key is still not set.
 echo 'name a file:     ', Core\Config::set('http.csrf_key_file', '/tmp/csrf.key') ? 'yes' : 'no', "\n";
 echo 'or the key:      ', Core\Config::set('http.csrf_key', 'a-key-of-my-own') ? 'yes' : 'no', "\n";
-echo 'still in force:  ', Core\Config::get('http.csrf_key') ?? '(nothing)', "\n";
+echo 'still in force:  ', Core\Config::get('http.csrf_key') == null ? '(nothing)' : '(a key is set)', "\n";
 
 // The server does not start if both `csrf_key` and `csrf_key_file` are set. It also does
 // not start if an account other than the server's account can change the key file.
