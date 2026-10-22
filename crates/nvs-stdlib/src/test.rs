@@ -3030,12 +3030,15 @@ nvs_runtime::nvs_helper! {
         // making every test say so.
         let status = i64::from(completion.status.unwrap_or(200));
         let headers = answered_headers(&completion);
-        #[allow(
-            clippy::disallowed_methods,
-            reason = "unchecked: a body can hold raw bytes from `Core\\Response::bytes`, \
-                      and security-hardening's stage 3 checks it"
-        )]
-        let body = Value::str(nvs_runtime::NvsStr::new(&completion.output));
+        // The body is a `string`, so a route that answered with bytes that are
+        // not UTF-8 throws here and the test fails naming why.
+        let body = Value::text(std::str::from_utf8(&completion.output).map_err(|_| {
+            Fault::thrown(
+                "`Core\\Test`: the response body is not valid UTF-8, so it cannot be a string. \
+                 `Core\\Response::bytes` or `Core\\Response::sendFile` wrote it."
+                    .to_owned(),
+            )
+        })?);
         Ok(crate::instance::build(
             &RESPONSE,
             [

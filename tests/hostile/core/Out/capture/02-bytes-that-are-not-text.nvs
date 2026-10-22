@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program captures output that contains bytes which are not valid UTF-8.
+// Each capture should throw a `RuntimeError`, and the program should run to its end.
+
+uint $refused = 0;
+
+// 1. The byte FF is never part of valid UTF-8.
+try {
+    var $first = Core\Out::capture(fn (): void => {
+        Core\Response::bytes(Core\Encoding::fromHex('ff'), 'application/octet-stream');
+    });
+} catch (RuntimeError $error) {
+    $refused = $refused + 1;
+}
+
+// 2. Text, then the first byte of a two-byte character with no second byte.
+try {
+    var $second = Core\Out::capture(fn (): void => {
+        echo 'price: ';
+        Core\Response::bytes(Core\Encoding::fromHex('c3'), 'text/plain');
+    });
+} catch (RuntimeError $error) {
+    $refused = $refused + 1;
+}
+
+// 3. A capture inside a capture. The inner one throws, and the outer one goes on.
+var $outer = Core\Out::capture(fn (): void => {
+    try {
+        var $inner = Core\Out::capture(fn (): void => {
+            Core\Response::bytes(Core\Encoding::fromHex('c0bc'), 'text/plain');
+        });
+    } catch (RuntimeError $error) {
+        echo 'inner refused';
+    }
+});
+
+// 4. Bytes that are valid UTF-8 are captured as text.
+var $fine = Core\Out::capture(fn (): void => {
+    Core\Response::bytes('café' as bytes, 'text/plain');
+});
+
+echo 'refused ', $refused, "\n";
+echo $outer, "\n";
+echo $fine, "\n";

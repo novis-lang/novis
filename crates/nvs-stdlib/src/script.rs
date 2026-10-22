@@ -1146,7 +1146,7 @@ nvs_runtime::nvs_helper! {
             ));
         };
         let completion = running.join(ctx);
-        Ok(result_of(ctx, completion))
+        result_of(ctx, completion)
     }
 }
 
@@ -1278,7 +1278,11 @@ nvs_runtime::nvs_helper! {
 /// One [`Completion`] as the shape the language surface reads, its `output`
 /// built as the carrier of `ctx`'s sink — the parent's, whose carrier the
 /// child's sink shares (`crate::out::carried`).
-fn result_of(ctx: &nvs_runtime::Ctx, completion: Completion) -> Value {
+///
+/// # Errors
+///
+/// [`crate::out::carried`]'s, when the child's output is not UTF-8.
+fn result_of(ctx: &nvs_runtime::Ctx, completion: Completion) -> Result<Value, Fault> {
     let Completion {
         ok,
         value,
@@ -1326,15 +1330,26 @@ fn result_of(ctx: &nvs_runtime::Ctx, completion: Completion) -> Value {
             [Value::text(&failure.class), Value::text(&failure.message)],
         )
     });
-    crate::instance::shape(
+    let output = match crate::out::carried(ctx, &output, "await") {
+        Ok(output) => output,
+        Err(fault) => {
+            #[expect(
+                unsafe_code,
+                reason = "`error` and `value` are references this frame owns, \
+                          and the shape that would have taken them is not built"
+            )]
+            // SAFETY: as above, and nothing reads either after this.
+            unsafe {
+                error.release();
+                value.release();
+            }
+            return Err(fault);
+        }
+    };
+    Ok(crate::instance::shape(
         RESULT_SHAPE,
-        [
-            error,
-            Value::bool(ok),
-            crate::out::carried(ctx, &output),
-            value,
-        ],
-    )
+        [error, Value::bool(ok), output, value],
+    ))
 }
 
 #[cfg(test)]
