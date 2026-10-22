@@ -79,8 +79,9 @@
 //! and released with its arena. The parse itself holds the document once more
 //! while it builds — a Rust tree of owned strings, dropped before the member
 //! returns. That tree is many times the size of a document of small nodes, so
-//! the parse asks the request's budget once per node and once per attribute
-//! and stops at the memory limit's `FATAL` rather than build past it.
+//! the parse asks the request's budget once per node and once per attribute,
+//! and for each doubling of an element's attributes or children before it is
+//! made, and stops at the memory limit's `FATAL` rather than build past it.
 //!
 //! Per streaming walk: the document's own text, held as the caller handed it
 //! over rather than copied, plus the node [`nvs_core_xml_reader_read`] last
@@ -1362,10 +1363,33 @@ impl<'a> Reader<'a> {
     /// Asked once per node and once per attribute, and each ask is one
     /// thread-local compare.
     fn afford(&self) -> Result<(), String> {
-        match nvs_runtime::affordable(Some(size_of::<Parsed>()), "Core\\Xml::parse") {
+        self.afford_bytes(size_of::<Parsed>())
+    }
+
+    /// [`Self::afford`] for a step of `bytes`, which is never zero.
+    fn afford_bytes(&self, bytes: usize) -> Result<(), String> {
+        match nvs_runtime::affordable(Some(bytes), "Core\\Xml::parse") {
             Ok(_) => Ok(()),
             Err(_) => Err(UNAFFORDABLE.to_owned()),
         }
+    }
+
+    /// Refuses where pushing one more item onto `items` would carry the
+    /// request past its memory limit.
+    ///
+    /// A full vector doubles, and that is the largest single step a parse
+    /// takes: a node of a million children holds a million nodes' room, and the
+    /// next push asks for twice that. So the doubling is asked for in front of
+    /// itself, beside `extra` bytes the item brings with it.
+    /// `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`
+    /// is the rule.
+    fn afford_push<T>(&self, items: &Vec<T>, extra: usize) -> Result<(), String> {
+        let room = if items.len() == items.capacity() {
+            items.capacity().saturating_mul(2).max(4)
+        } else {
+            1
+        };
+        self.afford_bytes(room.saturating_mul(size_of::<T>()).saturating_add(extra))
     }
 
     /// A reader positioned at the start of `src`.
@@ -1629,6 +1653,7 @@ impl<'a> Reader<'a> {
                     node.name
                 ));
             }
+            self.afford_push(&node.attributes, attr.len().saturating_add(value.len()))?;
             node.attributes.push((attr, value));
         }
     }
@@ -1813,7 +1838,10 @@ impl<'a> Reader<'a> {
                 self.chardata()?
             };
             match open.last_mut() {
-                Some(parent) => parent.children.push(node),
+                Some(parent) => {
+                    self.afford_push(&parent.children, 0)?;
+                    parent.children.push(node);
+                }
                 None => return Ok(node),
             }
         }
@@ -1948,6 +1976,7 @@ impl<'a> Reader<'a> {
                 break;
             }
             self.afford()?;
+            self.afford_push(&root.children, 0)?;
             if rest.starts_with("<!--") {
                 let node = self.comment()?;
                 root.children.push(node);
@@ -4715,6 +4744,40 @@ mod tests {
             ctx.memory_peak()
         );
         dropped(source);
+    }
+
+    /// One element with a great many attributes, and one with a great many
+    /// children. Each vector doubles as it fills, and the parse asks for the
+    /// doubling before it is made, so the peak stays under twice the limit.
+    // covers: Core\Xml::parse
+    #[test]
+    fn a_wide_element_stops_at_the_memory_limit_before_its_room_doubles() {
+        let (count, limit) = if cfg!(miri) {
+            (20_000, 1 << 20)
+        } else {
+            (400_000, 8 << 20)
+        };
+        let attributes: String = (0..count).map(|n| format!(" a{n}=\"\"")).collect();
+        for (document, shape) in [
+            (format!("<e{attributes}/>"), "many attributes"),
+            (format!("<list>{}</list>", "<i/>".repeat(count)), "many children"),
+        ] {
+            let source = word(&document);
+            drop(document);
+            let mut ctx = Ctx::buffered();
+            ctx.set_memory_limit(limit);
+            assert!(
+                call(super::nvs_core_xml_parse, &mut ctx, &[source]).is_err(),
+                "{shape}: the parse refuses past the limit"
+            );
+            assert!(
+                ctx.memory_peak() < 2 * limit,
+                "{shape}: {} bytes at the peak",
+                ctx.memory_peak()
+            );
+            drop(ctx);
+            dropped(source);
+        }
     }
 
     /// A writer indenting by `indent`, over the argument list its option takes.

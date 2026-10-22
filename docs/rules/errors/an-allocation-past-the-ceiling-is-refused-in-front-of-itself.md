@@ -20,7 +20,9 @@ limit exists beside it. `NvsArray::new` stays for arrays whose count the runtime
 `::rows` ask for a field's place in its record, for each entry and string of a row, and for each
 chunk of a field that has not ended. `Core\Json::decode`, `::isValid`, `::decodeAs` and
 `Core\Request::json` ask for each array they open, for each element's or key's place in front of it,
-and for each string. A refusal ends the parse with the memory `FATAL`, so an upload
+and for each string. `Core\Xml::parse` asks for each node and each attribute, and for the doubling
+of an element's attributes or children before it is made. A refusal ends the parse with the memory
+`FATAL`, so an upload
 of any size stops at the ceiling inside the parse and never after it. Each ask is the size of its step
 and never zero. The budget's ceiling sits below `[limits] memory` by the limit handler's reserve, and
 in that band only a recorded refusal ends the request, so an ask of nothing would report a refused
