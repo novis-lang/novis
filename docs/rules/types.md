@@ -539,6 +539,11 @@ Treating an attacker's byte buffer as text without asserting its encoding is the
 check made in the wrong unit and a truncation that splits a multi-byte sequence; with the invariant,
 the only way from untrusted bytes to text is a checked `bytes as string` ([`types/bytes`](types.md#types-bytes)).
 
+A `Core` member that reads outside bytes as text checks them where they enter, and throws a
+`ParseError` for a run that is not UTF-8: `Core\Csv::rows` naming the line, and `Core\Jwe::decrypt`
+for a payload whose tag held. A member whose input is already a `string`, and which cuts or removes
+only ASCII bytes, has nothing to check: `Core\Csv::parse` is one.
+
 **A `string`'s length, indexing and iteration operate on extended grapheme clusters** (Unicode UAX
 #29) — the unit a person reading the source calls "one character", including a flag emoji, an emoji
 built from a ZWJ sequence, or a letter with a combining accent. Byte-level and codepoint-level
@@ -573,6 +578,8 @@ nothing about whether two visually identical strings compare equal.
   string, and most strings a request builds are never asked their length.
 - **A cached offset table for random access by grapheme index.** It would cost one word per cluster
   on every string ever indexed, and the walk is linear.
+- **Replacing a bad run with U+FFFD where outside bytes enter.** It changes the data without a word,
+  and a later check could still be fooled by an overlong form such as `C0 BC`.
 
 <sub>See also [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion).</sub>
 

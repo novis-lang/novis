@@ -294,6 +294,10 @@ const DECRYPT_DOC: MethodDoc = MethodDoc {
                    the one `$keys` names, or it was altered. All of them are one sentence on \
                    purpose: telling them apart tells a forger which half landed.",
         },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The token opened, and its payload is not valid UTF-8 text.",
+        },
     ],
 };
 
@@ -1031,6 +1035,19 @@ nvs_runtime::nvs_helper! {
         let Some(plain) = plaintext(&ring, token)? else {
             return Err(refused());
         };
+        // A tag that held proves who sealed the payload, not that it is text:
+        // anybody with a recipient's public key seals an `ECDH-ES` token. The
+        // octets become a `string` only once they are UTF-8
+        // (`rule:types/string-is-utf8`). This is a `ParseError` and not
+        // [`refused`]'s sentence, because the token did open, and saying so
+        // tells its sealer nothing they did not write.
+        if std::str::from_utf8(&plain).is_err() {
+            return Err(Fault::thrown_as(
+                ThrownClass::Parse,
+                "Core\\Jwe::decrypt(): the token opened, and its payload is not valid UTF-8 text."
+                    .to_owned(),
+            ));
+        }
         Ok(Value::str(NvsStr::new(&plain)))
     }
 }
@@ -1770,6 +1787,34 @@ mod tests {
         assert!(
             alone.contains("is not a token any key in $keys opens"),
             "{alone}"
+        );
+    }
+
+    /// A token whose tag holds and whose payload is not UTF-8 throws the
+    /// `ParseError`, never a `string` built from those octets. `FF` never
+    /// appears in UTF-8, and `C0 BC` is the overlong form of `<`. The member
+    /// sees no other way in, because `encrypt` takes a `string`: this is a
+    /// third party sealing to the same key. The next call on the same context
+    /// opens a good token, so nothing was left broken.
+    // covers: Core\Jwe::decrypt
+    #[test]
+    fn decrypt_throws_for_a_payload_that_opens_and_is_not_utf8() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let key = [6_u8; crypto::KEY_LEN];
+        let iv = [7_u8; crypto::GCM_NONCE_LEN];
+        let shared = || built(USE_SHARED, &key, NO_KIND);
+
+        for payload in [&[0x61_u8, 0xFF][..], &[0xC0, 0xBC]] {
+            let token = sealed(&key, &iv, &direct(), "", payload).expect("the seal fits");
+            let thrown = decrypted(&mut ctx, &token, vec![shared()])
+                .expect_err("octets that are not UTF-8 do not become a string");
+            assert!(thrown.contains("is not valid UTF-8"), "{thrown}");
+        }
+
+        let token = sealed(&key, &iv, &direct(), "", b"id=42").expect("the seal fits");
+        assert_eq!(
+            decrypted(&mut ctx, &token, vec![shared()]),
+            Ok(b"id=42".to_vec())
         );
     }
 
