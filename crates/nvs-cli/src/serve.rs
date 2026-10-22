@@ -5392,7 +5392,7 @@ echo Core\Router::{member}("Docs::here", []);
         capped: &str,
     ) -> (String, String, String) {
         let (_dir, spins, answers) = a_runaway_beside_an_answer(case, runaway);
-        let mut listener =
+        let listener =
             nvs_host::NvsListener::bind(a_free_address()).expect("the loopback refused a listener");
         let addr = listener
             .local_addr()
@@ -5426,6 +5426,25 @@ echo Core\Router::{member}("Docs::here", []);
             (first, second, String::from_utf8_lossy(&body).into_owned())
         });
 
+        serve_a_runaway_and_an_answer(listener, &draining, spins, answers, capped);
+        client.join().expect("the client thread panicked")
+    }
+
+    /// The server half of [`a_runaway_then_an_answer`] and of the case that
+    /// sends the two requests on two connections: one core serving `/runaway`
+    /// from `spins` and every other path from `answers`, under the `[limits]`
+    /// block `capped` writes, until `draining` begins.
+    ///
+    /// The slice clock is the process's own, handed to the watchdog before the
+    /// core registers, as [`super::serve_on_worker`]'s boot does. So a request
+    /// that holds the core for a slice gives it back here as it would there.
+    fn serve_a_runaway_and_an_answer(
+        mut listener: nvs_host::NvsListener,
+        draining: &nvs_server::Draining,
+        spins: PathBuf,
+        answers: PathBuf,
+        capped: &str,
+    ) {
         let compiler = Arc::new(Compiler::default());
         let serving = nvs_server::Serving::new(
             Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
@@ -5445,6 +5464,8 @@ echo Core\Router::{member}("Docs::here", []);
             Duration::from_millis(5),
             |_stall| {},
         );
+        let slices = nvs_host::SliceClock::start();
+        watchdog.slice_with(&slices);
         let mut sched = nvs_host::Scheduler::new();
         let installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
@@ -5514,8 +5535,114 @@ echo Core\Router::{member}("Docs::here", []);
             }
         }
         drop(installed);
+    }
 
-        client.join().expect("the client thread panicked")
+    /// A request that never waits shares its core: on one worker, a second
+    /// connection is answered while a `while (true)` on the first is still
+    /// running.
+    ///
+    /// The runaway's `cpu_time` is five seconds, so it is still running when
+    /// the second request arrives. The slice clock asks it to yield every slice,
+    /// the yield goes behind readiness, and the reactor accepts and answers the
+    /// second connection between two slices. A yield that did not reach the
+    /// reactor would answer the second request only after the first had been
+    /// stopped, and the order of the two answers is the assertion.
+    ///
+    /// Skipped where the platform offers no per-thread clock, for the sibling
+    /// case's reason: a core with no clock publishes nothing, so it takes no
+    /// seat in the slice clock and is never asked to yield.
+    #[test]
+    fn a_served_while_true_does_not_stall_a_second_connection_on_its_core() {
+        if nvs_host::ThreadClock::current().is_none() {
+            return;
+        }
+        let (_dir, spins, answers) = a_runaway_beside_an_answer(
+            "slice-runaway",
+            "<?nvs\nint $turns = 0;\nwhile (true) {\n    $turns = $turns + 1;\n}\necho $turns;\n",
+        );
+        let listener =
+            nvs_host::NvsListener::bind(a_free_address()).expect("the loopback refused a listener");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener knows its own address");
+        let draining = nvs_server::Draining::detached();
+
+        let drained = draining.clone();
+        let client = std::thread::spawn(move || {
+            let _ends = EndsTheServer(drained);
+            let mut runaway =
+                std::net::TcpStream::connect(addr).expect("the loopback refused a socket");
+            runaway
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            runaway
+                .write_all(b"GET /runaway HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the first request could not be written");
+            // Long enough that the runaway is spinning when the second
+            // connection opens, and far inside its five seconds.
+            std::thread::sleep(Duration::from_millis(300));
+            let mut neighbour =
+                std::net::TcpStream::connect(addr).expect("the loopback refused a socket");
+            neighbour
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            neighbour
+                .write_all(b"GET /answers HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the second request could not be written");
+            let second = head_from(&mut neighbour);
+            let mut body = Vec::new();
+            neighbour
+                .read_to_end(&mut body)
+                .expect("the second response's body could not be read");
+            // Read only once the second answer is in: a runaway that had
+            // already been answered would have its head waiting here.
+            runaway
+                .set_nonblocking(true)
+                .expect("the socket refused non-blocking mode");
+            let mut byte = [0_u8; 1];
+            let mut first = Vec::new();
+            let first_was_waiting = match runaway.read(&mut byte) {
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => false,
+                read => {
+                    first.extend_from_slice(&byte[..read.unwrap_or(0)]);
+                    true
+                }
+            };
+            runaway
+                .set_nonblocking(false)
+                .expect("the socket refused blocking mode");
+            first.extend(head_from(&mut runaway).into_bytes());
+            (
+                first_was_waiting,
+                String::from_utf8_lossy(&first).into_owned(),
+                second,
+                String::from_utf8_lossy(&body).into_owned(),
+            )
+        });
+
+        serve_a_runaway_and_an_answer(
+            listener,
+            &draining,
+            spins,
+            answers,
+            "[limits]\ncpu_time = \"5s\"\n",
+        );
+        let (first_was_waiting, first, second, body) =
+            client.join().expect("the client thread panicked");
+
+        assert!(
+            !first_was_waiting,
+            "the runaway was answered before its neighbour was: {first}"
+        );
+        assert!(
+            second.starts_with("HTTP/1.1 200 OK\r\n"),
+            "the neighbour of a spinning request was not answered: {second}"
+        );
+        assert_eq!(body, "answered");
+        assert!(
+            first.starts_with("HTTP/1.1 500 "),
+            "the runaway was not stopped by its `cpu_time`: {first}"
+        );
     }
 
     /// `rule:errors/on-limit`'s CPU ceiling on the served path: a request that
