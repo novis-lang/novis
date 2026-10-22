@@ -2191,13 +2191,21 @@ fn csrf_text(octet: u8) -> String {
     text
 }
 
-/// A token for a request with no session cookie, signed with the key of 32
+/// The session cookie [`csrf_token`]'s tokens are bound to. The door refuses a
+/// token for no session.
+const CSRF_SESSION: &str = "nvsid=sid-live";
+
+/// A token for the session [`CSRF_SESSION`] names, signed with the key of 32
 /// octets, each `octet`.
 fn csrf_token(octet: u8) -> String {
     nvs_runtime::csrf::Key::new(&[octet; nvs_runtime::csrf::KEY_LEN])
         .expect("32 octets are a key")
-        .issue(&[9; nvs_runtime::csrf::NONCE_LEN], "", "live_config")
-        .expect("an empty session seals")
+        .issue(
+            &[9; nvs_runtime::csrf::NONCE_LEN],
+            "sid-live",
+            "live_config",
+        )
+        .expect("a short session seals")
 }
 
 /// `[http] csrf_key` and `csrf_key_file` reload at the door: a token signed
@@ -2209,7 +2217,11 @@ fn a_rotated_csrf_key_refuses_the_old_token_at_the_door() {
         let token = csrf_token(octet);
         let started = Instant::now();
         loop {
-            let answer = server.send("POST", "/form", &[("X-CSRF-Token", &token)]);
+            let answer = server.send(
+                "POST",
+                "/form",
+                &[("X-CSRF-Token", &token), ("Cookie", CSRF_SESSION)],
+            );
             if answer.status == status {
                 return;
             }

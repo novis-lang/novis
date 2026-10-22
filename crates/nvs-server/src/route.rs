@@ -42,7 +42,9 @@
 //! **The token half is armed by `[http] csrf_key`.** With a key named, a checked
 //! request is refused unless it carries a token this deployment issued, bound to
 //! *this* request's session — `nvs_runtime::csrf` is the construction, the
-//! session is the value of the cookie `[session] cookie` names, and
+//! session is the value of the cookie `[session] cookie` names, read by the
+//! reader `Core\Session::start` uses, a request with no session passes no
+//! token, and
 //! [`TOKEN_HEADER`] says where the door looks: the header, the `_csrf` query
 //! parameter, and an urlencoded form's `_csrf` field, which the request's own
 //! task reads before the handler ([`reading_the_form`]). A valid token passes whatever the
@@ -175,9 +177,6 @@ pub const TOKEN_FIELD: &str = "_csrf";
 /// The media type of the one body the door reads for a token.
 const URLENCODED: &str = "application/x-www-form-urlencoded";
 
-/// The cookie header, whose value carries the session identifier a token binds.
-const COOKIE_HEADER: &str = "cookie";
-
 /// The header naming where a checked request says it came from.
 const ORIGIN_HEADER: &str = "origin";
 
@@ -222,6 +221,9 @@ pub enum Csrf {
 /// is named, a request with no such token is refused even same-origin, because a
 /// deployment that named a key asked for its unsafe verbs to carry one.
 ///
+/// The session is read the way `Core\Session::start` reads it ([`session`]),
+/// and a request with no session has no token that passes ([`verified`]).
+///
 /// The token is the [`TOKEN_HEADER`] header, else the [`TOKEN_FIELD`] query
 /// parameter, and the first one present decides. With neither, an urlencoded
 /// write answers [`Csrf::InBody`] and every other one is refused.
@@ -243,13 +245,12 @@ pub fn csrf(inbound: &Inbound, key: Option<&[u8]>, session_cookie: &str) -> Csrf
     // on a header the request chose: a token proves the page it was rendered
     // into is this application's, which is strictly more than an origin says.
     if let Some(key) = key.and_then(nvs_runtime::csrf::Key::new) {
-        let session = cookie(inbound, session_cookie).unwrap_or("");
         let presented = match header(inbound, TOKEN_HEADER) {
             Some(value) => Some(std::str::from_utf8(value).unwrap_or("").to_owned()),
             None => field(inbound.query().as_bytes(), TOKEN_FIELD),
         };
         return match presented {
-            Some(presented) if key.verify(&presented, session) => Csrf::Passed,
+            Some(presented) if verified(&key, &presented, inbound, session_cookie) => Csrf::Passed,
             Some(_) => Csrf::Refused,
             None if urlencoded(inbound) => Csrf::InBody,
             None => Csrf::Refused,
@@ -305,21 +306,29 @@ fn header<'a>(inbound: &'a Inbound, name: &str) -> Option<&'a [u8]> {
         .map(|(_, value)| value)
 }
 
-/// The value of the cookie `name`, out of whatever `Cookie` lines the request
-/// carried.
+/// The session a token must be bound to: the value of the cookie `name`, or
+/// `None` where the request carries no session.
 ///
-/// The name is matched exactly, which is what RFC 6265 § 4.1.1 says a cookie name
-/// is, and a value that is not UTF-8 answers `None` rather than a lossy string —
-/// what it is compared against is a session identifier this server minted, and
-/// that is ASCII.
-fn cookie<'a>(inbound: &'a Inbound, name: &str) -> Option<&'a str> {
-    let line = header(inbound, COOKIE_HEADER)?;
-    std::str::from_utf8(line).ok().and_then(|line| {
-        line.split(';').find_map(|pair| {
-            let (found, value) = pair.split_once('=')?;
-            (found.trim() == name).then_some(value)
-        })
-    })
+/// [`nvs_runtime::Inbound::cookie`] reads it, which is the reader
+/// `Core\Session::start` uses, so the door checks the token against the session
+/// the program will open: every `Cookie` line, pair by pair. A value that is
+/// not UTF-8 is no identifier this server minted, and an empty one is no session.
+fn session<'a>(inbound: &'a Inbound, name: &str) -> Option<&'a str> {
+    inbound
+        .cookie(name.as_bytes())
+        .and_then(|value| std::str::from_utf8(value).ok())
+        .filter(|value| !value.is_empty())
+}
+
+/// Whether `presented` is a token `key` issued for this request's session.
+///
+/// **A request with no session passes no token.** A token for no session is
+/// what a page shown to a visitor without one carries, so anyone can load it,
+/// and accepting it would let another site sign a visitor in to the attacker's
+/// account. An application that checks a write from a visitor with no session
+/// writes the session first, so the token it renders is bound to an identifier.
+fn verified(key: &nvs_runtime::csrf::Key, presented: &str, inbound: &Inbound, name: &str) -> bool {
+    session(inbound, name).is_some_and(|session| key.verify(presented, session))
 }
 
 /// The token half for a [`Csrf::InBody`] request: reads its urlencoded body,
@@ -357,8 +366,8 @@ pub fn csrf_in_body(
             Ok(Some(_)) | Err(_) => return Csrf::Refused,
         }
     }
-    let session = cookie(inbound, session_cookie).unwrap_or("");
-    let passed = field(&read, TOKEN_FIELD).is_some_and(|presented| key.verify(&presented, session));
+    let passed = field(&read, TOKEN_FIELD)
+        .is_some_and(|presented| verified(&key, &presented, inbound, session_cookie));
     inbound.set_buffered_body(read);
     if passed { Csrf::Passed } else { Csrf::Refused }
 }
@@ -736,6 +745,94 @@ mod tests {
             door(&arrived(&[host, own, riding, ("x-csrf-token", "sid-ada")])),
             Csrf::Refused
         );
+    }
+
+    /// Attack: a page shown to a visitor with no session issues a token for no
+    /// session, and anyone can load that page. A keyed door refuses that token,
+    /// from this origin and from any other, with or without a cookie.
+    #[test]
+    fn a_token_issued_for_no_session_is_refused_from_any_origin() {
+        let key = [4_u8; nvs_runtime::csrf::KEY_LEN];
+        let keyed = nvs_runtime::csrf::Key::new(&key).expect("a 32-octet key keys");
+        let nobody = keyed
+            .issue(&[8_u8; nvs_runtime::csrf::NONCE_LEN], "", "test")
+            .expect("an empty identifier seals");
+        let routes = checked();
+        let arrived = |headers: &[(&str, &str)]| {
+            let mut inbound = Inbound::new("POST", "/orders", "");
+            for (name, value) in headers {
+                inbound.push_header(name, value.as_bytes());
+            }
+            super::take(&routes, &mut inbound);
+            inbound
+        };
+        let door = |inbound: &Inbound| super::csrf(inbound, Some(key.as_slice()), "nvsid");
+        let host = ("host", "app.example.com");
+        let token = ("x-csrf-token", nobody.as_str());
+
+        // 1. No cookie, from this origin, from another one, and with no `Origin`.
+        assert_eq!(
+            door(&arrived(&[
+                host,
+                ("origin", "http://app.example.com"),
+                token
+            ])),
+            Csrf::Refused
+        );
+        assert_eq!(
+            door(&arrived(&[
+                host,
+                ("origin", "http://evil.example.com"),
+                token
+            ])),
+            Csrf::Refused
+        );
+        assert_eq!(door(&arrived(&[host, token])), Csrf::Refused);
+        // 2. A session cookie with an empty value is no session either.
+        assert_eq!(
+            door(&arrived(&[host, ("cookie", "nvsid="), token])),
+            Csrf::Refused
+        );
+    }
+
+    /// Attack: a signed-in visitor's session cookie arrives on a second `Cookie`
+    /// line, or beside a cookie with a byte that is not UTF-8. The door must find
+    /// the session `Core\Session::start` finds, so a token for no session is
+    /// refused and the visitor's own token passes.
+    #[test]
+    fn the_door_finds_the_session_wherever_the_session_reader_finds_it() {
+        let key = [4_u8; nvs_runtime::csrf::KEY_LEN];
+        let keyed = nvs_runtime::csrf::Key::new(&key).expect("a 32-octet key keys");
+        let nobody = keyed
+            .issue(&[8_u8; nvs_runtime::csrf::NONCE_LEN], "", "test")
+            .expect("an empty identifier seals");
+        let own = keyed
+            .issue(&[9_u8; nvs_runtime::csrf::NONCE_LEN], "sid-ada", "test")
+            .expect("a short identifier seals");
+        let routes = checked();
+        let arrived = |headers: &[(&str, &[u8])]| {
+            let mut inbound = Inbound::new("POST", "/orders", "");
+            for (name, value) in headers {
+                inbound.push_header(name, value);
+            }
+            super::take(&routes, &mut inbound);
+            inbound
+        };
+        let door = |inbound: &Inbound| super::csrf(inbound, Some(key.as_slice()), "nvsid");
+        let host: (&str, &[u8]) = ("host", b"app.example.com");
+        let second_line: [(&str, &[u8]); 2] =
+            [("cookie", b"theme=dark"), ("cookie", b"nvsid=sid-ada")];
+        let planted: (&str, &[u8]) = ("cookie", b"junk=\xff\xfe; nvsid=sid-ada");
+
+        for cookies in [&second_line[..], &[planted][..]] {
+            let with = |token: &str| {
+                let mut headers = vec![host, ("x-csrf-token", token.as_bytes())];
+                headers.extend_from_slice(cookies);
+                door(&arrived(&headers))
+            };
+            assert_eq!(with(&nobody), Csrf::Refused);
+            assert_eq!(with(&own), Csrf::Passed);
+        }
     }
 
     /// `token` as a form or a query writes it: `+`, `/` and `=` escaped.

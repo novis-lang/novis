@@ -812,6 +812,54 @@ impl Inbound {
     pub fn headers(&self) -> impl ExactSizeIterator<Item = (&str, &[u8])> {
         self.headers.iter().map(|(name, value)| (&**name, &**value))
     }
+    /// The cookie `name`, or `None` where the request carries none a reader is
+    /// allowed to see.
+    ///
+    /// **The one cookie reader.** `Core\Request::cookie`, `Core\Session::start`
+    /// and the server's CSRF door all read through it, so the session a token is
+    /// checked against is the session the program opens. Two readers that split
+    /// the header differently were how a token issued for no session passed for a
+    /// signed-in visitor whose cookie arrived on a second line.
+    ///
+    /// Every `Cookie` line is read, pair by pair, and a pair's bytes are compared
+    /// with `name` exactly (`rule:errors/cookie-name-bytes`). A pair with no `=`
+    /// is skipped (RFC 6265 § 5.4), and a byte that is not UTF-8 in another pair
+    /// changes nothing about this one. The value is returned undecoded.
+    ///
+    /// A `__Host-` or `__Secure-` name is not visible over a scheme that is not
+    /// `https`, because both prefixes require `Secure`. A `__Host-` name that
+    /// arrived twice is not visible either: a conforming browser holds one per
+    /// host, so a second is a shadowing attempt. Otherwise the **first** value
+    /// wins, which RFC 6265 § 5.4 makes the most specific one.
+    #[must_use]
+    pub fn cookie(&self, name: &[u8]) -> Option<&[u8]> {
+        const HOST_PREFIX: &[u8] = b"__Host-";
+        const SECURE_PREFIX: &[u8] = b"__Secure-";
+        let host_locked = name.starts_with(HOST_PREFIX);
+        if (host_locked || name.starts_with(SECURE_PREFIX)) && self.scheme != Scheme::Https {
+            return None;
+        }
+        let mut found = self
+            .headers()
+            .filter(|(field, _)| field.eq_ignore_ascii_case("cookie"))
+            .flat_map(|(_, line)| line.split(|byte| *byte == b';'))
+            .filter_map(|pair| {
+                // The `"; "` delimiter's padding belongs to the delimiter, so
+                // only the leading side is trimmed: after the `=` is the value.
+                let start = pair
+                    .iter()
+                    .position(|byte| *byte != b' ' && *byte != b'\t')
+                    .unwrap_or(pair.len());
+                let pair = &pair[start..];
+                let equals = pair.iter().position(|byte| *byte == b'=')?;
+                (&pair[..equals] == name).then(|| &pair[equals + 1..])
+            });
+        let first = found.next()?;
+        if host_locked && found.next().is_some() {
+            return None;
+        }
+        Some(first)
+    }
     /// Gives this carrier the body the peer is still sending, which nothing
     /// has read a byte of yet.
     ///

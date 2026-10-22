@@ -11,6 +11,15 @@ csrf_key` names the key that says what a valid token is; until it does, there is
 any request to be missing. A valid token passes whatever the origin says, because it proves the page
 the request came from was this application's.
 
+**The session a token is bound to is read the way `Core\Session::start` reads it**: the cookie
+`[session] cookie` names, found on any `Cookie` line, pair by pair, with one reader for both. Two
+readers that split the header differently would check a token against one session while the program
+opens another. **A request with no session passes no token**, from any origin. A token for no session
+is what a page shows a visitor who has none, so anyone can load one, and accepting it would let
+another site sign a visitor in to an account the attacker chose. An application that checks a write
+from a visitor with no session, such as a login form, writes the session before it renders the form,
+so the token is bound to an identifier.
+
 **The token rides in the `x-csrf-token` header, a `_csrf` query parameter or an urlencoded form's
 `_csrf` field**, and the first of the three present decides. A plain HTML form therefore needs no
 script. The form body is read only for a checked `application/x-www-form-urlencoded` request that
