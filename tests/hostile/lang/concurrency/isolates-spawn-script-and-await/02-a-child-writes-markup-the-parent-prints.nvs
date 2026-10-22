@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a child script writes a script tag and a terminal escape code with
+// `Core\Response::text`, and the parent prints the child's output. The parent
+// should print it as plain text, and a child that uses `echo` should give the same.
+
+// `Here::path` returns its argument as a full path. A relative path written in quotes
+// starts at the folder of this file.
+class Here
+{
+    public static function path(#[Core\Path] string $path): string
+    {
+        return $path;
+    }
+}
+
+// `Plain::of` returns the text of a captured output, and throws if the text
+// still contains the escape character.
+class Plain
+{
+    public static function of(Core\Html\Markup|Core\Cli\Text $output): string
+    {
+        if (!($output is Core\Cli\Text)) {
+            throw new RuntimeError('a program on the terminal got a page carrier');
+        }
+        string $text = $output->text();
+        if (Core\Str::contains($text, Core\Str::fromCodePoint(27))) {
+            throw new RuntimeError('the escape character reached the parent unchanged');
+        }
+        return $text;
+    }
+}
+
+string $jobs = Here::path('jobs');
+
+// Step 1: a child writes the text with `Core\Response::text`. Its output has
+// no escape character.
+var $bodyJob = spawn script $jobs . '/writes-a-text-body.nvs' with(output: 'capture');
+var $body = await $bodyJob;
+string $fromBody = Plain::of($body->output);
+echo "step 1: the child's text body was changed into plain text\n";
+
+// Step 2: a child writes the same text with `echo`. The parent gets the same
+// text as in step 1, so it was changed once and not twice.
+var $echoJob = spawn script $jobs . '/echoes-the-same-text.nvs' with(output: 'capture');
+var $echoed = await $echoJob;
+string $fromEcho = Plain::of($echoed->output);
+if ($fromEcho != $fromBody) {
+    throw new RuntimeError('a text body and an echo of the same text differ');
+}
+echo "step 2: the echoed text is the same as the text body\n";
+
+// Step 3: the parent captures its own `Core\Response::text`. The capture has no
+// escape character either.
+string $esc = Core\Str::fromCodePoint(27);
+var $captured = Core\Out::capture(fn (): void => {
+    Core\Response::text("<script>alert(1)</script>{$esc}[2J");
+});
+string $fromCapture = Plain::of($captured);
+echo "step 3: a captured text body was changed into plain text\n";

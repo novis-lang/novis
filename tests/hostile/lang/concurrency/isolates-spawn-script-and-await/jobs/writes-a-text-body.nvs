@@ -1,0 +1,6 @@
+<?nvs
+// The attack in the folder above starts this script. It writes a script tag and
+// a terminal escape code with `Core\Response::text`.
+
+string $esc = Core\Str::fromCodePoint(27);
+Core\Response::text("<script>alert(1)</script>{$esc}[2J");

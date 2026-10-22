@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "tests/conformance/core/out-capture-answers-the-sinks-carrier.nvst",
-    "tests/conformance/core/out-capture-refuses-a-through-that-answers-anything-but-the-carrier.nvst"
+    "tests/conformance/core/out-capture-refuses-a-through-that-answers-anything-but-the-carrier.nvst",
+    "tests/hostile/lang/concurrency/isolates-spawn-script-and-await/02-a-child-writes-markup-the-parent-prints.nvs"
   ]
 }

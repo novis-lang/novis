@@ -1,0 +1,6 @@
+<?nvs
+// The attack in the folder above starts this script. It writes the same text as
+// `writes-a-text-body.nvs`, but with `echo`.
+
+string $esc = Core\Str::fromCodePoint(27);
+echo "<script>alert(1)</script>{$esc}[2J";
