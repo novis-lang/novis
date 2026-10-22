@@ -112,6 +112,7 @@ pub fn of(headers: &HeaderMap, incoming: Incoming, upload_total: u64) -> Arrived
         wire: Rc::clone(&wire),
         carried: 0,
         spent: false,
+        malformed: false,
     };
     let pull = Pull {
         wire,
@@ -162,6 +163,9 @@ pub struct Supply {
     carried: u64,
     /// Whether the [`Incoming`] is finished — ended, failed, or over the cap.
     spent: bool,
+    /// Whether it failed on framing the client wrote wrong, such as a chunk
+    /// size line that is not hex or ends in a bare LF.
+    malformed: bool,
 }
 
 impl Supply {
@@ -197,6 +201,7 @@ impl Supply {
                 }
                 Poll::Ready(Some(Err(failed))) => {
                     self.spent = true;
+                    self.malformed = is_malformed(&failed);
                     self.wire.borrow_mut().failed = Some(failed.to_string().into_boxed_str());
                     self.deliver();
                     return;
@@ -228,6 +233,17 @@ impl Supply {
                 }
             }
         }
+    }
+
+    /// Whether the body failed on framing the client wrote wrong.
+    ///
+    /// `rule:errors/http-message-defects` makes that a `400` that closes, as a
+    /// defect in the head is: the program saw a read error, but the fault is
+    /// the client's, so the connection answers for it whatever the program
+    /// wrote. A client that went away before its body ended is not a defect.
+    #[must_use]
+    pub fn malformed(&self) -> bool {
+        self.malformed
     }
 
     /// Fails the body for a client that went away before it ended, and wakes a
@@ -326,6 +342,20 @@ impl RequestBody for Pull {
     fn allow_total(&mut self, total: u64) {
         self.wire.borrow_mut().total = total;
     }
+}
+
+/// Whether `hyper` ended a body over framing it could not read. Its HTTP/1
+/// decoder fails a malformed chunk with `InvalidInput` or `InvalidData`, and a
+/// body cut short with `UnexpectedEof`, which is a client that went away.
+fn is_malformed(failed: &hyper::Error) -> bool {
+    std::error::Error::source(failed)
+        .and_then(|source| source.downcast_ref::<std::io::Error>())
+        .is_some_and(|io| {
+            matches!(
+                io.kind(),
+                std::io::ErrorKind::InvalidInput | std::io::ErrorKind::InvalidData
+            )
+        })
 }
 
 /// A body crossing `upload_total` with no length declared, which is the case

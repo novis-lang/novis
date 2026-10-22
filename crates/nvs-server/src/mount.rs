@@ -2155,7 +2155,11 @@ mod tests {
         assert!(host_is_refused(&disagreeing));
 
         // The same host written with a port or in capitals is not another host.
-        for line in [&b"a.example.com"[..], b"A.Example.Com:80", b"a.example.com."] {
+        for line in [
+            &b"a.example.com"[..],
+            b"A.Example.Com:80",
+            b"a.example.com.",
+        ] {
             let agreeing = request_to("http://a.example.com/", &[line]);
             assert_eq!(host(&agreeing), Host::Named("a.example.com".into()));
             assert!(!host_is_refused(&agreeing));
