@@ -522,8 +522,8 @@ into its rule.
 **Does:** the client's redirects follow RFC 9110, the remaining small items are fixed, and
 `.agent-tmp/sec-audit/` is deleted.
 
-- [ ] A 303 becomes a `GET`, and a 301 or 302 after a `POST` becomes a `GET`; a cross-origin hop drops the body (`rule:http-server/a-cross-origin-redirect-drops-credentials`). `crates/nvs-stdlib/src/http/transport.rs:2361`
-- [ ] NET-1: the two IPv6 forms that carry private addresses are denied (`rule:security/net-address-policy`). `crates/nvs-config/src/capability.rs:502`
+- [x] A 303 becomes a `GET`, and a 301 or 302 after a `POST` becomes a `GET`; a cross-origin hop drops the body (`rule:http-server/a-cross-origin-redirect-drops-credentials`). `crates/nvs-stdlib/src/http/transport.rs:2361`
+- [x] NET-1: the two IPv6 forms that carry private addresses are denied (`rule:security/net-address-policy`). `crates/nvs-config/src/capability.rs:502`
 - [ ] Correct the comment that says an unquoted attribute is safe. `crates/nvs-stdlib/src/html.rs:119`
 - [ ] HTML-2: `Core\Html::sanitize` drops a URL attribute whose value, after the tab, newline and carriage-return strip, starts with `//`, `\\`, `/\` or `\/`; a browser reads a backslash as a slash, so each names another host. The `addressable` doc and the rule say a relative reference never names a host (`rule:core-classes/html-sanitize`). `crates/nvs-stdlib/src/html.rs:1847`
 - [ ] HTML-2's cases join the sanitizer's tests: the four forms are dropped, and `/path`, `?q` and `#frag` are kept. `crates/nvs-stdlib/src/html.rs:1847`
@@ -568,7 +568,36 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 12 is done. Stages 13 and 15 are open, then the gate stage 14.
+Stage 13 is open (its first two items are done), then stage 15, then the gate stage 14.
+
+- **NET-1 (7f17d9b34).** `denied_by_default` denies `64:ff9b:1::/48` whole, as
+  `local-use NAT64 (64:ff9b:1::/48)`, since RFC 6052 lets its translator carry an IPv4 address in
+  any of six layouts; and `fec0::/10` as `site-local (fec0::/10)`. `embedded` does not read the
+  local-use prefix. The attack `the_local_use_nat64_prefix_and_site_local_addresses_are_denied`
+  (`crates/nvs-config/tests/capability.rs`) was red on main; the range sweep gained `fec0::/10`. The
+  rule names both ranges and declines reading the prefix's low 32 bits. The whole `capability`
+  test file passes (34 + 11).
+- **Redirects (1f802a759).** `transport::Hop { verb, body }` is what one hop sends, threaded
+  through `attempts`, `one`, `compose(call, hop, parts)` and `exchange(call, body, ..)`.
+  `transport::onward(hop, status, same_origin)` decides each hop: `303` → `GET` (`HEAD` stays),
+  `301`/`302` after `POST` → `GET`, both with no body; a `307`/`308` leaving the origin with a body
+  is not followed, so the redirect is the answer. `Idempotency-Key` is sent only while the hop's
+  verb is the call's. The attacks `a_303_and_a_301_or_302_after_a_post_follow_as_a_get_with_no_body`,
+  `a_307_or_308_to_another_origin_with_a_body_is_the_answer` and the table test
+  `a_redirect_rewrites_the_method_only_where_rfc_9110_says_so` pass with every existing redirect
+  test in `transport.rs` (12 run by name). `rule:http-server/a-cross-origin-redirect-drops-credentials`
+  has the paragraph and two Declined entries.
+- `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render` and `--check` are green.
+- The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0, `nothing owed`), and the
+  nightly run 39746060276 is the cancelled `workflow_dispatch`. Neither is the tree's.
+
+Tests that may go red from this session: a `Core\Http` `.nvst`, example or served test that follows
+a `303`, or a `301`/`302` after a `POST`, and expects the origin to see the original method or body
+(none grepped); one that follows a cross-origin `307`/`308` with a body and expects the far answer;
+an `nvs-config` or `nvs-runtime` test that expects an address in `64:ff9b:1::/48` or `fec0::/10` to
+connect; the website's rule pages for the two rules changed.
+
+The session before (HTTP-5):
 
 - **HTTP-5 (86e60e3b6).** `forwarded::walk` reads `X-Forwarded-Proto` only when the trusted peer
   also forwarded a non-empty `X-Forwarded-For` chain; with no chain the scheme is `http` and the
@@ -1081,16 +1110,10 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-1. Stage 13, first group: the outbound client's redirects
-   (`crates/nvs-stdlib/src/http/transport.rs:2361`: a 303 becomes `GET`, a 301 or 302 after a
-   `POST` becomes `GET`, a cross-origin hop drops the body; `rule:http-server/a-cross-origin-redirect-drops-credentials`)
-   and NET-1 (`crates/nvs-config/src/capability.rs:502`, the two IPv6 forms that carry private
-   addresses; `rule:security/net-address-policy`). The audit's notes for both are under
-   `.agent-tmp/sec-audit/reports/`.
-2. Then the `html.rs` group: the unquoted-attribute comment (`crates/nvs-stdlib/src/html.rs:119`),
+1. Stage 13's `html.rs` group: the unquoted-attribute comment (`crates/nvs-stdlib/src/html.rs:119`),
    HTML-2 and its cases (`html.rs:1847`), and the HTML-escaping probes
    (`.agent-tmp/sec-audit/wb-stdlib-request/html/app.nvs`).
-3. Then the TAINT-5 items, grouped by file (`response.rs` twice, `regex.rs`, `xml.rs`, `mail.rs`,
+2. Then the TAINT-5 items, grouped by file (`response.rs` twice, `regex.rs`, `xml.rs`, `mail.rs`,
    `nvs-db/src/schema.rs`, `storage.rs`, `nvs-types/src/expr/assign.rs`), the `wasmtime` and
    `cranelift` minimums in `Cargo.toml:98`, and last the deletion of `.agent-tmp/sec-audit/`.
 
