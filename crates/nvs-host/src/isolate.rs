@@ -1271,9 +1271,10 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         // `rule:errors/handler-script`'s tier 3, climbed here for the same reason `nvs run`
         // climbs it at the end of a program: an isolate *is* a program, and
         // this throw reached the top of it with nothing left to catch it. It
-        // runs **before** the buffer is taken below, so the handler's own
+        // runs **before** the buffer is taken below, so a joined handler's own
         // output joins the child's and crosses at the await like every other
-        // byte the child wrote.
+        // byte the child wrote. Server work does not join it
+        // (`crate::ladder`'s *Server work does not wait for its handler*).
         //
         // **Tier 4 is deliberately not reached from here.** `rule:security/isolate-shares-nothing`'s
         // failure-is-a-value already carries this throw back to the parent,

@@ -17,6 +17,23 @@ The tier is the shared catch-all: it fires for any tier-1 or tier-2 failure, for
 never registered at all, for an internal panic unconditionally, and for an entry-script compile
 failure where no frame ever existed to register anything from.
 
+**Server work does not wait for the handler.** A request, a connection, a scheduled run or a job
+that fails starts the handler on a task of its own and goes on, so its response is written and its
+in-flight place goes back while the handler runs. A client who can make a program throw would
+otherwise hold a place, and the core's CPU, for up to `handler_reserve_time` per request. One core
+runs at most four handlers at once; past that the run is dropped, counted in
+`nvs_log_handler_dropped_total`, and the floor writes the record instead. A handler that fails on
+its own task has the floor write the record there, so each failure is still reported once. Its
+output goes to the diagnostic stream, because no response is waiting for it. A CLI program still
+waits for its handler, because the process ends with the program.
+
 **Memory:** the allotment is a ceiling, 16 MiB by default, and the same whatever the failing
 request was allowed. Nothing is held between failures; in flight the handler costs one more isolate
-context, so it does not grow with the number of requests served.
+context, and off a request one more context for its task, at most four per core, so it does not
+grow with the number of requests served.
+
+**Declined:**
+- **Queueing the handlers past four for a later turn.** A queue is a second store that grows with
+  how far behind the handlers are, and the floor already writes the record, with repeats counted.
+- **Joining the handler on the failing request.** It keeps the handler's output in that request's
+  stream, which a failed response does not send, and it costs a place per forced failure.

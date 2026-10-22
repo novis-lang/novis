@@ -183,7 +183,7 @@ except for the export path. A program that never calls it and serves no requests
 
 `rule:observability/default-series`
 
-Ten series are present the moment an exporter is configured, with no application code written:
+Eleven series are present the moment an exporter is configured, with no application code written:
 
 | series | kind | labels |
 |---|---|---|
@@ -197,6 +197,7 @@ Ten series are present the moment an exporter is configured, with no application
 | `nvs_memory_bytes` | gauge | `scope` (`request`/`cache`/`process`) |
 | `nvs_request_memory_peak_bytes` | histogram | `route` |
 | `nvs_schedule_runs_total` | counter | `name`, `outcome` |
+| `nvs_log_handler_dropped_total` | counter | — |
 
 Every one is read from instrumentation that already exists — the `query`, `gc` and `spawn` event
 kinds and the arena accounting [`programs/memory-priority`](programs.md#programs-memory-priority) already requires — which is
@@ -210,7 +211,7 @@ came near their ceiling. It reads the mark
 `route` is the one label that would otherwise be unbounded, and
 [`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name) is what keeps it closed. `method` is one of
 RFC 9110's nine methods as the request wrote it, and `other` for any verb outside them, so a client
-that makes up verbs adds one series and never one each. The ten are seeded
+that makes up verbs adds one series and never one each. The eleven are seeded
 into a core's registry ahead of [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused)'s
 bound rather than counted through it, because a `max_series` small enough to refuse them would
 quietly turn "present the moment an exporter is configured" into a different configuration.

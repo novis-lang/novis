@@ -17,6 +17,7 @@
 //! owns that shape and the reason the table is leaked.
 
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, AtomicUsize, Ordering};
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use nvs_config::Snapshot;
@@ -881,6 +882,90 @@ fn the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling()
         "the reserve was the handler's: the request is still the one that ran out",
     );
     drop(hog);
+}
+
+/// How many served handlers below ran, and how many of them started while the
+/// request that escalated was still running.
+static SERVED_RUNS: AtomicUsize = AtomicUsize::new(0);
+static SERVED_EARLY: AtomicUsize = AtomicUsize::new(0);
+thread_local! {
+    static REQUEST_ENDED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[derive(Debug)]
+struct ResolvesToTheServedProbe;
+
+impl nvs_runtime::script::Resolver for ResolvesToTheServedProbe {
+    fn resolve(&self, _path: &str) -> Result<nvs_runtime::script::Prepared, String> {
+        Ok(program(|_ctx, _args| {
+            SERVED_RUNS.fetch_add(1, Ordering::SeqCst);
+            if !REQUEST_ENDED.with(std::cell::Cell::get) {
+                SERVED_EARLY.fetch_add(1, Ordering::SeqCst);
+            }
+            Value::null()
+        })
+        .into())
+    }
+}
+
+/// `rule:errors/handler-script` on a serving core: a request that fails does
+/// not wait for the `[log] handler`, and one core runs a bounded number of
+/// handlers at once. A flood of forced failures cannot hold a request's place
+/// for each handler's time.
+///
+/// Six failures in one turn: four handlers start and two are turned away,
+/// which is `false` and the floor's line. Every handler runs after the failing
+/// request has ended. Once they end, their places are free again.
+#[test]
+fn a_served_failure_does_not_wait_for_its_handler_and_handlers_per_core_are_bounded() {
+    let snapshot = snapshot_of(
+        "[log]\nhandler = '/srv/report.nvs'\n\n[capabilities.script]\nspawn = true\n",
+    );
+    let served = move || {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_config(Arc::clone(&snapshot));
+        ctx.config_mut().expect("the config was just set").serve();
+        ctx
+    };
+    let record = nvs_runtime::floor::note(nvs_render::Level::Error, "the request threw");
+    let answers = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let before = SERVED_RUNS.load(Ordering::SeqCst);
+
+    nvs_runtime::script::scoped(&ResolvesToTheServedProbe, || {
+        let mut sched = nvs_host::Scheduler::new();
+        let (seen, failed) = (Rc::clone(&answers), record.clone());
+        sched.spawn(served(), nvs_runtime::TaskRoot::Request, move |ctx| {
+            REQUEST_ENDED.with(|ended| ended.set(false));
+            for _ in 0..6 {
+                seen.borrow_mut()
+                    .push(nvs_host::ladder::escalate(ctx, &failed));
+            }
+            REQUEST_ENDED.with(|ended| ended.set(true));
+        });
+        sched.run();
+        drop(sched.take_finished());
+
+        let (seen, failed) = (Rc::clone(&answers), record.clone());
+        sched.spawn(served(), nvs_runtime::TaskRoot::Request, move |ctx| {
+            seen.borrow_mut()
+                .push(nvs_host::ladder::escalate(ctx, &failed));
+        });
+        sched.run();
+        drop(sched.take_finished());
+    });
+
+    assert_eq!(
+        *answers.borrow(),
+        [true, true, true, true, false, false, true],
+        "four handlers at once on a core; the next two are the floor's, and a place is free \
+         again once a handler ends",
+    );
+    assert_eq!(SERVED_RUNS.load(Ordering::SeqCst) - before, 5);
+    assert_eq!(
+        SERVED_EARLY.load(Ordering::SeqCst),
+        0,
+        "no handler ran while the request that failed was still running",
+    );
 }
 
 /// Both halves the name promises are asserted, because either one alone is green against the
