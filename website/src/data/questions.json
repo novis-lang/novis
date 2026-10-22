@@ -1468,13 +1468,13 @@
   },
   "/reference/config/limits/": {
     "feature": "tools:config/limits-and-limits-hard",
-    "hash": "e495576b0f093e9f",
+    "hash": "47b093d2ed0dd1ac",
     "questions": [
       "How do I limit how much memory a request can use?",
       "Stop a slow request after a few seconds",
-      "Stop a runaway loop that burns the CPU",
       "Let one report route use more memory than the others",
       "Protect my server from a zip bomb",
+      "Limit how many fields and files one upload form can send",
       "Log a warning when a request gets close to its memory limit"
     ]
   },
