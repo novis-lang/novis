@@ -873,8 +873,10 @@ modes of `capability::open`, the destination of `capability::copy` and both ends
 filesystem through them. The read doors are `capability::open_read`, the reading mode of
 `capability::open` and the source of `capability::copy`, and `Core\IO`'s reads, `Core\Storage::get`,
 `Core\Response::sendFile` and a multipart file part sent by `Core\Http` reach the filesystem through
-them. A
-read creates nothing, and a read-write handle checks `fs.read` and `fs.write` on the one resolution. A rename resolves the folder above each end and keeps the last name as
+them. An extension's `wasi:filesystem` checks a path against its instance's preopens
+([`security/extension-grants-are-an-intersection`](security.md#security-extension-grants-are-an-intersection)) and then opens a file, creates a folder or
+renames through the same walk, which `nvs_runtime::guest_files` exposes to it with no grant check of
+its own. A read creates nothing, and a read-write handle checks `fs.read` and `fs.write` on the one resolution. A rename resolves the folder above each end and keeps the last name as
 written, because it moves or replaces that name: a link there is the entry renamed, never its target,
 and the grant is checked on the entry. A missing folder is created by the same walk, one level at a time. On Unix a level is `openat` or
 `mkdirat` with `O_NOFOLLOW`; on Windows it is `NtCreateFile` with the folder above as its root, and a
@@ -3114,6 +3116,21 @@ csrf_key` names the key that says what a valid token is; until it does, there is
 any request to be missing. A valid token passes whatever the origin says, because it proves the page
 the request came from was this application's.
 
+**The origin half covers every unsafe verb, matched or not.** A program with no `#[Route]` table,
+and a path a routed program's table does not claim, get the same origin refusal a matched row gets.
+The token half applies only to a matched row, because the opt-out is written on a route: a program
+with no table could not exempt a webhook from it, and every write it serves under a key would be
+refused.
+
+**The session a token is bound to is read the way `Core\Session::start` reads it**: the cookie
+`[session] cookie` names, found on any `Cookie` line, pair by pair, with one reader for both. Two
+readers that split the header differently would check a token against one session while the program
+opens another. **A request with no session passes no token**, from any origin. A token for no session
+is what a page shows a visitor who has none, so anyone can load one, and accepting it would let
+another site sign a visitor in to an account the attacker chose. An application that checks a write
+from a visitor with no session, such as a login form, writes the session before it renders the form,
+so the token is bound to an identifier.
+
 **The token rides in the `x-csrf-token` header, a `_csrf` query parameter or an urlencoded form's
 `_csrf` field**, and the first of the three present decides. A plain HTML form therefore needs no
 script. The form body is read only for a checked `application/x-www-form-urlencoded` request that
@@ -3487,7 +3504,9 @@ boundary sits, and this rule is the boundary's home.
 `rule:security/a-session-id-the-store-did-not-issue-is-rejected`
 
 `Core\Session::start()` accepts a presented id only if its own store issued it and it is still
-live. An unknown, expired or attacker-minted id is discarded and a fresh id is issued in its place.
+live. An unknown, expired or attacker-minted id is discarded and a fresh, empty session is opened in
+its place. Its new id is drawn when something is first written to it
+([`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly)), so the presented id is never used.
 There is no toggle, no ini, no option, on the security priority: an off switch for fixation
 resistance is a security default traded for nothing. Session fixation resistance is therefore a
 property of the language, not of a deployment's configuration.
@@ -3495,7 +3514,7 @@ property of the language, not of a deployment's configuration.
 It follows that the session store must be able to answer "did I issue this id". A store that holds
 nothing, such as a signed cookie carrying the record itself, cannot answer it and so cannot be the
 session store ([`core-api/session-roster`](core-api.md#core-api-session-roster)). `nvs_stdlib::session`'s test
-`start_opens_a_held_record_and_issues_a_new_id_for_one_the_store_does_not_hold` presents a forged id
-and gets a fresh one back.
+`start_opens_a_held_record_and_a_fresh_one_for_an_id_the_store_does_not_hold` presents a forged id
+and gets a fresh session that does not carry it.
 
 <sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster).</sub>
