@@ -413,7 +413,7 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 - [x] ~~LC-8: try the native stack overflow shapes in the lifecycle report; if the process ends, the deep helper checks the stack it has left and throws.~~ Ruled out on a2b4854a4: every native walk over a runtime value is iterative or depth-bounded, JSON decode's 1024-deep recursion runs on the 8 MiB spare stack, and each shape answered a clean `500` with the worker still serving (LC-8 in the lifecycle report). `.agent-tmp/sec-audit/reports/wb-lifecycle.md:1`
 - [x] LC-12: a configured `[log]` escalation handler runs on a task of its own behind a bounded queue, never joined on the serving worker; a full queue drops the event and counts it in a metric, so forced uncaught throws cannot each hold a worker for `handler_reserve_time`. The queue's length is a constant with its reason in the code (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/ladder.rs:122`
 - [x] HTTP-1's fix keeps a Rust test beside `admit.rs`: a core thread holding connection buffers past the room still admits a request, because admission reads request memory only. No idle-connection or slow-reader attack, since a proxy stops those first. `crates/nvs-server/src/admit.rs:1`
-- [ ] The overload attack, a Rust test that starts the real `nvs serve` with `max_in_flight = 50` and a small `[limits] memory`. A flood several times the ceiling runs beside requests that reach the memory limit, reach the CPU limit, and lose their client, while a probe sends ordinary requests. Every refusal is a `503` with `Retry-After`, every probe gets `200` or that `503` and never hangs, and the process lives. Once the flood ends, 50 requests held open together are all admitted, `nvs_memory_bytes` is back within a stated bound of its reading before the flood, and the next request answers `200`. `crates/nvs-cli/tests/serve_isolation.rs:1`
+- [x] The overload attack, a Rust test that starts the real `nvs serve` with `max_in_flight = 50` and a small `[limits] memory`. A flood several times the ceiling runs beside requests that reach the memory limit, reach the CPU limit, and lose their client, while a probe sends ordinary requests. Every refusal is a `503` with `Retry-After`, every probe gets `200` or that `503` and never hangs, and the process lives. Once the flood ends, 50 requests held open together are all admitted, `nvs_memory_bytes` is back within a stated bound of its reading before the flood, and the next request answers `200`. `crates/nvs-cli/tests/serve_isolation.rs:1`
 - [ ] A `flood` row in `bench-compare --scenarios` puts load past capacity on each stack behind nginx and reports refusals, probe latency and recovery; the nightly deep lane runs its smoke form. `benches/compare/README.md:80`
 - [x] `[limits] max_tasks`'s comment says what `claim_task` enforces, not "bounds nothing today". `crates/nvs-config/src/default.toml:86`
 
@@ -529,11 +529,28 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 7 is under way. Every item but two has landed: the overload attack and the `flood` row are
-left.
+Stage 7 is under way. Every item but one has landed: the `flood` row is left.
 
-This session (the sweep's `env-secret-proofs` exits 0 when rerun, `nothing owed`; nightly
-39746060276 was cancelled whole and is not a failure of this tree):
+This session (the sweep's `env-secret-proofs` again exits 0 when rerun, `nothing owed`, and its log
+on disk says exit 0 too, so the sweep's red looks stale; nightly 39746060276 was cancelled whole):
+
+- **The overload attack (08024fe6d).** `a_flood_past_capacity_is_refused_and_every_place_and_byte_comes_back`
+  in `crates/nvs-cli/tests/serve_isolation.rs` serves `OVERLOADED` with two workers,
+  `max_in_flight = 50`, `memory = "24M"`, `cpu_time = "200ms"` and a Prometheus scrape port. 200
+  connections send 3 holds (300 ms sleeps) each, beside 10 requests that reach the memory limit, 10
+  that reach the CPU limit and 10 whose client leaves, while a probe sends `/`. It asserts every
+  refusal is `503` with `Retry-After`, a probe answers within 10 s, at least one hold was refused,
+  the process lives, the request memory returns within `SETTLED` (2 MiB per worker) of its reading
+  before the flood, 50 held requests sent together all answer `200`, and `/` answers `ok`. It ran
+  once, green, in 2.6 s. `Client::answer` now also returns `Retry-After`.
+- **`nvs_memory_bytes` was never written.** The family was seeded and nothing set it, so a scrape
+  had no member. `nvs_runtime::metrics::every_core` now sets `scope="request"` on the first copy it
+  gathers from `budget::held_by_cores`. `rule:observability/default-series` says so, and says
+  `cache`, `process`, `nvs_tasks_in_flight` and `nvs_deferred_trees` are not written yet (see
+  Backlog). Its title said "Ten series"; it says "Eleven" now. Both rules' `guardedBy` name the test.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+
+LC-12, for the record (the previous session):
 
 - **LC-12 (18414cd54).** `nvs_host::ladder::escalate` on server work (`config.serves()`) calls the
   new `off_the_request`: it starts the handler on a root task of its own with the new
@@ -757,20 +774,27 @@ expects a `[log] handler`'s output in a response or on stdout (it goes to stderr
 handler to have run by the time the response arrives (`live_config.rs` polls, and passes); any test
 that reads `take_finished()` after a detached `afterResponse` tree and expects it filed (none found
 by grep); the website's generated rule pages and any page that counts the default series (`bun nv
-site --check` names them; grep found none outside `docs/rules/`).
+site --check` names them; grep found none outside `docs/rules/`). The overload slice adds: a
+scrape or OTLP push test that expects the exact set of series and finds a new
+`nvs_memory_bytes{scope="request"}` member (`prometheus.rs` and `otlp.rs` tests build their own
+registries and do not call `every_core`; `live_config.rs`'s scrapes only check `contains`), and the
+website's rule pages (`default-series`'s title changed).
 
 ### Next
 
 Stage 7's rest, then stage 8:
 
-1. The overload attack, a Rust test of its own session (`crates/nvs-cli/tests/serve_isolation.rs:1`):
-   the real `nvs serve` with `max_in_flight = 50` and a small `[limits] memory`, the stage's item says
-   the whole shape.
-2. The `flood` row in `bench-compare --scenarios` (`benches/compare/README.md:80`,
-   `tools/nv/cmd/bench-compare.ts`), with its smoke form in the nightly deep lane.
-3. Stage 8: an extension instance ends with its request (`rule:packaging/a-fresh-instance-per-request`).
+1. The `flood` row in `bench-compare --scenarios` (`benches/compare/README.md:80`,
+   `tools/nv/cmd/bench-compare.ts`), with its smoke form in the nightly deep lane. The
+   `OVERLOADED` program and the shape of the overload test (`serve_isolation.rs`, after
+   `a_looping_guest_…`) are the request mix to reuse. Once it lands, set stage 7 done.
+2. Stage 8: an extension instance ends with its request (`rule:packaging/a-fresh-instance-per-request`).
 
 ### Backlog
+
+- `nvs_memory_bytes{scope="cache"|"process"}`, `nvs_tasks_in_flight` and `nvs_deferred_trees` are
+  seeded and never written, so they read `0` or have no member. `every_core`'s gather is where a
+  process-wide figure can be set without a request writing it. No item owns them.
 
 - The audit's LC-5 also proposed a SQLite progress-handler deadline from the request's remaining CPU
   time, so a slow statement stops at `cpu_time` instead of only being charged after it ends. No item
