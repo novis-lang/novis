@@ -1908,6 +1908,81 @@ mod tests {
         );
     }
 
+    /// A task that never waits gives its core back at each slice, and a task
+    /// parked on the reactor runs between two of them.
+    ///
+    /// The spinner raises the yield bit itself where the slice clock would
+    /// have, which keeps the case free of timing; `crate::slice`'s own tests
+    /// prove the clock raises it. The neighbour is woken from another thread
+    /// through the reactor, the way readiness reaches a parked connection. A
+    /// yield that went to the front of the run queue would never let the
+    /// reactor poll, and the spinner would reach its bound with the neighbour
+    /// still parked.
+    #[test]
+    fn a_parked_task_runs_between_the_slices_of_a_task_that_never_waits() {
+        use std::sync::{Arc, Mutex};
+        use std::task::{Poll, Waker};
+        use std::time::{Duration, Instant};
+
+        let mut sched = Scheduler::new();
+        let _installed = crate::reactor::install(
+            crate::reactor::Reactor::new().expect("the OS refused a poll"),
+        );
+        let slot: Arc<Mutex<Option<Waker>>> = Arc::new(Mutex::new(None));
+        let far = Arc::clone(&slot);
+        let neighbour_ran = Rc::new(Cell::new(false));
+        let spinner_saw = Rc::new(Cell::new(None));
+
+        let ran = Rc::clone(&neighbour_ran);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let mut polls = 0_usize;
+            let _ = crate::block_on::block_on(std::future::poll_fn(move |cx| {
+                polls += 1;
+                if polls == 1 {
+                    *slot.lock().expect("no holder panics") = Some(cx.waker().clone());
+                    return Poll::Pending;
+                }
+                Poll::Ready(())
+            }));
+            ran.set(true);
+        });
+        let ran = Rc::clone(&neighbour_ran);
+        let saw = Rc::clone(&spinner_saw);
+        sched.spawn(ctx(), TaskRoot::Worker, move |ctx| {
+            let bound = Instant::now() + Duration::from_secs(10);
+            let mut slices = 0_usize;
+            while !ran.get() && Instant::now() < bound {
+                slices += 1;
+                ctx.request_safepoint(nvs_runtime::SafepointFlags::YIELD);
+                #[allow(
+                    unsafe_code,
+                    reason = "the poll compiled code makes, on a context this \
+                              closure owns for the whole call"
+                )]
+                let status = unsafe { nvs_runtime::nvs_safepoint(std::ptr::from_mut(ctx)) };
+                assert_eq!(status, nvs_runtime::OK, "a yield does not stop the task");
+            }
+            saw.set(Some((ran.get(), slices)));
+        });
+
+        let far_side = std::thread::spawn(move || {
+            let waker = loop {
+                if let Some(waker) = far.lock().expect("no holder panics").take() {
+                    break waker;
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            };
+            waker.wake();
+        });
+        let report = crate::reactor::run_until_idle(&mut sched).expect("the loop failed");
+        far_side.join().expect("the far side panicked");
+
+        assert_eq!(report.finished, 2);
+        let (seen, slices) = spinner_saw.get().expect("the spinner finished");
+        assert!(seen, "the neighbour never ran while the spinner held the core");
+        assert!(slices >= 1);
+    }
+
     #[test]
     fn a_spawned_task_runs_to_completion_on_the_run_queue() {
         let mut sched = Scheduler::new();

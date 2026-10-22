@@ -202,6 +202,34 @@ impl Host for SchedulerHost {
         }
     }
 
+    fn yield_slice(&self) -> Woken {
+        // `rule:concurrency/the-park-route-is-chosen-once`'s two core routes,
+        // the way `crate::block_on`'s `yield_turn` takes them. On a core with a
+        // reactor the task fires its own wake and parks: the reactor drains
+        // that wake only after the run queue empties and it has polled, so the
+        // task comes back behind every connection that became ready meanwhile.
+        // A bare `Waiting::Yielded` there would put it back on a run queue that
+        // never empties while it spins, and the core would never poll again.
+        // With no reactor there is no readiness to stand behind, and the back
+        // of the run queue is the whole of the fairness there is.
+        let resumed = match reactor::wake_this_task() {
+            Some(wake) => {
+                // As in `yield_turn`: a failed poke loses promptness, not the
+                // wake.
+                let _ = wake.wake();
+                suspend_current(Waiting::Parked)
+            }
+            // No task beneath the call answers `NotSuspended` here, which is a
+            // turn with no neighbour to give it to.
+            None => suspend_current(Waiting::Yielded),
+        };
+        if resumed.cancelled() {
+            Woken::Cancelled
+        } else {
+            Woken::Elapsed
+        }
+    }
+
     fn start_isolate(
         &self,
         ctx: &mut Ctx,
