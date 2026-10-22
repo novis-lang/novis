@@ -2130,6 +2130,78 @@ mod tests {
         );
     }
 
+    /// The case above with the slice clock running. A slice asks the running
+    /// request to yield, and the switch that follows still charges each
+    /// request only for the time this thread ran it.
+    #[test]
+    fn a_thread_charges_each_request_for_its_own_time_with_slices_on() {
+        use nvs_runtime::SafepointFlags;
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let clock = crate::slice::SliceClock::start();
+        dog.slice_with(&clock);
+        let registered = dog.register_requests();
+        if ThreadClock::current().is_none() {
+            // No per-thread clock, so nothing is published or charged.
+            return;
+        }
+        let first = capped(a_minute());
+        let second = capped(a_minute());
+        let charged = |request: &Ctx| {
+            let mine = request.safepoint_view();
+            dog.running()
+                .into_iter()
+                .find(|(_, running)| running.view().same_tree(&mine))
+                .and_then(|(_, running)| running.burned())
+                .expect("a published request was not readable")
+        };
+        let asked = |request: &Ctx| request.safepoint_flags().contains(SafepointFlags::YIELD);
+        let spin_until_asked = |request: &Ctx| {
+            let bound = std::time::Instant::now() + Duration::from_secs(10);
+            while !asked(request) && std::time::Instant::now() < bound {
+                burn_a_charge();
+            }
+        };
+        registered.publish(first.safepoint_view());
+        registered.publish(second.safepoint_view());
+        let outer = crate::slice::current_turn();
+        crate::slice::begin_turn();
+
+        switch_to(first.tree_key());
+        let first_before = charged(&first);
+        let second_left = charged(&second);
+        spin_until_asked(&first);
+        assert!(asked(&first), "a request that ran for a slice was not asked to yield");
+        assert!(!asked(&second), "a parked request was asked to yield");
+        assert!(
+            charged(&first) >= first_before + Duration::from_millis(20),
+            "the request asked to yield was not charged for its slice"
+        );
+        assert_eq!(
+            charged(&second),
+            second_left,
+            "a parked request was charged for its neighbour's slice"
+        );
+
+        switch_to(second.tree_key());
+        let first_left = charged(&first);
+        spin_until_asked(&second);
+        assert!(asked(&second), "the request switched to was not asked to yield");
+        assert!(
+            charged(&second) >= second_left + Duration::from_millis(20),
+            "the request switched to was not charged for its slice"
+        );
+        assert_eq!(
+            charged(&first),
+            first_left,
+            "a request that yielded was charged for the slice after it"
+        );
+
+        crate::slice::end_turn(outer);
+        registered.withdraw(&second.safepoint_view());
+        registered.withdraw(&first.safepoint_view());
+    }
+
     /// What `view`'s tree has been charged on the thread it is published on,
     /// read the way the walk reads it.
     fn charged_on(shared: &Shared, view: &SafepointView) -> Option<Duration> {
