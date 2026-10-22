@@ -782,6 +782,15 @@ pub(crate) fn infer_static_call(
         // arrives as the declared `CoreShape`, so the written literal is all
         // there is left to read. See [`reject_secret_enqueued_argument`].
         reject_secret_enqueued_argument(owner, name, args, &slots, scope, env);
+        // `rule:security/secret-does-not-cross-an-extension`, at the parameters
+        // a type cannot refuse it at: a `mixed`, an array or a shape. Every
+        // extension method is static, so this is its one call path. See
+        // [`super::quals::reject_secret_extension_argument`].
+        if let Some(sig) = &sig {
+            super::quals::reject_secret_extension_argument(
+                owner, args, &arg_types, &slots, sig, scope, env,
+            );
+        }
     }
     // See [`infer_method_call`]: a method reference names a callable,
     // not the resolved method's return type, and records `CallableRef` rather

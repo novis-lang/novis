@@ -1717,6 +1717,85 @@ pub(crate) fn reject_secret_crossing(
     );
 }
 
+/// `rule:security/secret-does-not-cross-an-extension`: a `secret` value is
+/// refused at every parameter of a loaded extension's method, whatever type
+/// the manifest declared.
+///
+/// A `string` or `bytes` parameter already refuses one by its type, because
+/// neither extension mark is [`Qual::Reveal`] (`crate::ext_lib`). A `mixed`
+/// parameter, an array or a shape admits `secret string` by assignability, and
+/// the host hands the guest its text. So an argument the parameter's type
+/// admitted is asked here, deeply, with [`reject_secret_crossing`]'s code, and
+/// one it refused has already been reported. A `...` spread is asked by its
+/// array's type.
+///
+/// An array literal or an anonymous object written at `mixed` is inferred as
+/// `mixed` entries, so its type no longer shows the qualifier. It is walked as
+/// it is written, at every depth, and a variable in it is read at the type the
+/// scope gives it ([`secret_written_in`]).
+pub(crate) fn reject_secret_extension_argument(
+    qname: &QName,
+    args: &CallArgs,
+    arg_types: &[TypeId],
+    slots: &[ArgSlot],
+    sig: &MethodSig,
+    scope: &LocalScope,
+    env: &mut Env<'_>,
+) {
+    if !env.signatures.get(qname).is_some_and(|class| class.extension) {
+        return;
+    }
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    for ((arg, &ty), &slot) in list.iter().zip(arg_types).zip(slots) {
+        let admitted = match slot {
+            ArgSlot::Param(index) => sig.params.get(index).is_some_and(|&want| {
+                is_assignable(ty, want, env.interner, env.graph, env.signatures)
+            }),
+            ArgSlot::Spread(_) => true,
+            ArgSlot::Unresolved => false,
+        };
+        if !admitted {
+            continue;
+        }
+        let carrier = "an extension's code reads it outside the program";
+        if contains_secret(ty, env.interner) {
+            reject_secret_crossing(&arg.value, ty, carrier, None, env);
+        } else if let Some((at, bound)) = secret_written_in(&arg.value, scope, env) {
+            reject_secret_crossing(at, bound, carrier, None, env);
+        }
+    }
+}
+
+/// The first variable inside a literal written at `at` whose type in `scope`
+/// contains `secret`, and that type. It walks every key and value of an array
+/// literal and every field of an anonymous object, at any depth.
+fn secret_written_in<'a>(
+    at: &'a Expr,
+    scope: &LocalScope,
+    env: &Env<'_>,
+) -> Option<(&'a Expr, TypeId)> {
+    match &at.kind {
+        ExprKind::Paren(inner) => secret_written_in(inner, scope, env),
+        ExprKind::ArrayLiteral(items) => items.iter().find_map(|item| {
+            item.key
+                .as_ref()
+                .and_then(|key| secret_written_in(key, scope, env))
+                .or_else(|| secret_written_in(&item.value, scope, env))
+        }),
+        ExprKind::AnonObject(fields) => fields
+            .iter()
+            .find_map(|field| secret_written_in(&field.value, scope, env)),
+        ExprKind::Variable(span) => {
+            let name = strip_sigil(span_text(env.src, *span));
+            let bound = scope.narrowed_ty(name).or_else(|| scope.declared_ty(name))?;
+            contains_secret(bound, env.interner).then_some((at, bound))
+        }
+        _ => None,
+    }
+}
+
 /// `rule:core-classes/ldap-filter-is-a-value`'s attribute names are a sink,
 /// and `Core\Ldap\Connection::add` takes them as its `$attributes` array's
 /// keys. A row cannot mark a key, so the parameter is `array<mixed>` and this

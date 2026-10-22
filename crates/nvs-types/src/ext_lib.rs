@@ -29,7 +29,8 @@
 //!   included, so its result is `tainted` whatever its arguments are.
 //! - A `secret` argument is refused at every parameter, sink or not, because neither mark is
 //!   [`Qual::Reveal`] (`rule:security/secret-does-not-cross-an-extension`). The code is the one a
-//!   `Core` parameter that refuses `secret` gives.
+//!   `Core` parameter that refuses `secret` gives. A `mixed` parameter admits one by type, so
+//!   `crate::expr::quals::reject_secret_extension_argument` refuses it at the call.
 //! - A method declared `secret`, a type outside `rule:packaging/a-value-crosses-as-its-wit-type`'s
 //!   table, or a constant whose
 //!   value is not of its type, leaves the method or the constant out. The loader has already
