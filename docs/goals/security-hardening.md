@@ -524,13 +524,13 @@ into its rule.
 
 - [x] A 303 becomes a `GET`, and a 301 or 302 after a `POST` becomes a `GET`; a cross-origin hop drops the body (`rule:http-server/a-cross-origin-redirect-drops-credentials`). `crates/nvs-stdlib/src/http/transport.rs:2361`
 - [x] NET-1: the two IPv6 forms that carry private addresses are denied (`rule:security/net-address-policy`). `crates/nvs-config/src/capability.rs:502`
-- [ ] Correct the comment that says an unquoted attribute is safe. `crates/nvs-stdlib/src/html.rs:119`
-- [ ] HTML-2: `Core\Html::sanitize` drops a URL attribute whose value, after the tab, newline and carriage-return strip, starts with `//`, `\\`, `/\` or `\/`; a browser reads a backslash as a slash, so each names another host. The `addressable` doc and the rule say a relative reference never names a host (`rule:core-classes/html-sanitize`). `crates/nvs-stdlib/src/html.rs:1847`
-- [ ] HTML-2's cases join the sanitizer's tests: the four forms are dropped, and `/path`, `?q` and `#frag` are kept. `crates/nvs-stdlib/src/html.rs:1847`
-- [ ] Raise `wasmtime` and `cranelift`'s minimums to the fixed releases in the lock file. `Cargo.toml:98`
-- [ ] Run the HTML-escaping probes the audit never reported on, and fix or record each result here — run, recorded as HTML-1 (stage 5) and HTML-2 above. `.agent-tmp/sec-audit/wb-stdlib-request/html/app.nvs:1`
+- [x] Correct the comment that says an unquoted attribute is safe. `crates/nvs-stdlib/src/html.rs:119`
+- [x] HTML-2: `Core\Html::sanitize` drops a URL attribute whose value, after the tab, newline and carriage-return strip, starts with `//`, `\\`, `/\` or `\/`; a browser reads a backslash as a slash, so each names another host. The `addressable` doc and the rule say a relative reference never names a host (`rule:core-classes/html-sanitize`). `crates/nvs-stdlib/src/html.rs:1847`
+- [x] HTML-2's cases join the sanitizer's tests: the four forms are dropped, and `/path`, `?q` and `#frag` are kept. `crates/nvs-stdlib/src/html.rs:1847`
+- [x] Raise `wasmtime` and `cranelift`'s minimums to the fixed releases in the lock file. `Cargo.toml:98`
+- [x] Run the HTML-escaping probes the audit never reported on, and fix or record each result here — run, recorded as HTML-1 (stage 5) and HTML-2 above. The audit's `wb-html.md` ran every probe: `app.nvs`'s quoted holes are escaped, and its unquoted, `on*`, `<script>`, `<style>`, tag-name and `javascript:` holes are the blind spot `rule:core-classes/html-template` declines; `p1`–`p3` (forging a `Markup`) do not compile; `p6` (the mXSS corpus) kept only `//host`, which is HTML-2; `cap.nvs` answers `text/plain` or JSON with `nosniff`; `parent`/`child` is HTML-1. `.agent-tmp/sec-audit/wb-stdlib-request/html/app.nvs:1`
 - [ ] TAINT-5: `$m[$t] = …` with a tainted key makes the keys of `$m` tainted, as `keys_from_outside` reads them at a `foreach`. `crates/nvs-types/src/expr/assign.rs:1062`
-- [ ] TAINT-5: `Core\Response::redirect` refuses a relative target that names another host (`//x`, `/\x`, `\/x`), so a launderer's plain answer cannot open a redirect. `crates/nvs-stdlib/src/response.rs:1473`
+- [x] TAINT-5: `Core\Response::redirect` refuses a relative target that names another host (`//x`, `/\x`, `\/x`), so a launderer's plain answer cannot open a redirect. `crates/nvs-stdlib/src/response.rs:1473`
 - [ ] TAINT-5: the regex replacement template is a sink and refuses `tainted` (`rule:security/every-grammar-is-a-sink`). `crates/nvs-stdlib/src/regex.rs:171`
 - [ ] TAINT-5: `Core\Xml`'s writer `instruction` refuses a tainted target and data. `crates/nvs-stdlib/src/xml.rs:760`
 - [ ] TAINT-5: `setHeader` refuses `Content-Length`, `Transfer-Encoding`, `Connection` and `Upgrade` as it refuses `Content-Type`; probe what hyper sends first. `crates/nvs-stdlib/src/response.rs:433`
@@ -568,7 +568,36 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 13 is open (its first two items are done), then stage 15, then the gate stage 14.
+Stage 13 is open (its HTML, dependency and redirect items are done), then stage 15, then the gate
+stage 14.
+
+- **HTML-2 and the comment (d7ac42606).** `addressable` in `crates/nvs-stdlib/src/html.rs`
+  returns `false` for a value whose first two characters, after the tab/LF/CR strip and the
+  leading-space trim, are both `/` or `\`. The attack
+  `a_reference_that_names_another_host_is_dropped_and_a_path_query_or_fragment_stays` was red on
+  main; all 31 `html::tests` pass, the mXSS fixed point included. The escape's module doc now says
+  an unquoted attribute is **not** safe, and points at `rule:core-classes/html-template`'s blind
+  spot. `rule:core-classes/html-sanitize` has the paragraph.
+- **The probes item** is recorded on the item from the audit's `wb-html.md`, which ran them all.
+- **Pins (a9f294809).** Every `cranelift*` is `0.136.4` and every `wasmtime*` is `49.0.4`,
+  the locked releases; `Cargo.lock` did not change.
+- **Redirect (99421501c).** `names_another_host` in `response.rs`: `Core\Response::redirect`
+  throws `LogicError` for an address starting with two of `/` and `\` after leading spaces.
+  The unit attack `a_relative_destination_that_names_another_host_is_refused` was red on main;
+  `tests/hostile/core/Response/redirect/02-a-relative-address-that-names-another-host.nvs` and
+  `bun nv proofs --run --id 'Core\Response::redirect'` (3 examples, 2 hostile) pass. The card's
+  `LogicError` row and the about page say so. No rule fragment owns this sink; the module doc does.
+- `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render` and `--check` are green.
+- The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0, `nothing owed`), and the
+  nightly run 39746060276 is the cancelled `workflow_dispatch`. Neither is the tree's.
+
+Tests that may go red from this session: a `.nvst`, example or test that sanitizes a `//` or
+`\\` link and expects it kept, or that redirects to `//...` (grep found none); the help
+snapshots and the website's `core.json` / `llms-full.txt` for `Core\Response::redirect`'s card;
+the website's rule page for `html-sanitize`; the `perf: stale` proofs of
+`Core\Response::redirect` and `Core\Html::sanitize` (`response.rs`, `html.rs` changed).
+
+The session before (NET-1, redirects):
 
 - **NET-1 (7f17d9b34).** `denied_by_default` denies `64:ff9b:1::/48` whole, as
   `local-use NAT64 (64:ff9b:1::/48)`, since RFC 6052 lets its translator carry an IPv4 address in
@@ -1110,12 +1139,13 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-1. Stage 13's `html.rs` group: the unquoted-attribute comment (`crates/nvs-stdlib/src/html.rs:119`),
-   HTML-2 and its cases (`html.rs:1847`), and the HTML-escaping probes
-   (`.agent-tmp/sec-audit/wb-stdlib-request/html/app.nvs`).
-2. Then the TAINT-5 items, grouped by file (`response.rs` twice, `regex.rs`, `xml.rs`, `mail.rs`,
-   `nvs-db/src/schema.rs`, `storage.rs`, `nvs-types/src/expr/assign.rs`), the `wasmtime` and
-   `cranelift` minimums in `Cargo.toml:98`, and last the deletion of `.agent-tmp/sec-audit/`.
+1. Stage 13's remaining TAINT-5 items, grouped by file: `setHeader`'s framing headers
+   (`crates/nvs-stdlib/src/response.rs:433`, probe what hyper sends first), the regex replacement
+   template (`regex.rs:171`) and `Core\Xml`'s `instruction` (`xml.rs:760`) as sinks,
+   `Core\Mail`'s addresses and subject (`mail.rs:453`), `quoteIdentifier`'s niladic names
+   (`crates/nvs-db/src/schema.rs:93`), the file and `Core\Storage` read rule (`storage.rs:202`),
+   and a tainted array key (`crates/nvs-types/src/expr/assign.rs:1062`).
+2. Last, delete `.agent-tmp/sec-audit/`. Then stage 15.
 
 ### Backlog
 
