@@ -39,6 +39,17 @@
 //! own ceiling does. Work with no request armed is never stopped, because there is nobody to stop:
 //! the engine's own bytes are what the reserve under the limit exists for.
 //!
+//! **A request admitted and not yet grown counts one [`STEP`].** Before it allocates, an admitted
+//! request looks like no request at all, so a burst on one core would be admitted whole before any
+//! of it allocated. Admission takes a share ([`hold_share`]) for each request it admits, and the
+//! core publishes one [`STEP`] per share on top of its balance. A publish where a request armed on
+//! this thread grew a whole step gives one share back, and so does a request's end
+//! ([`give_share_back`]). The shares are the core's, not each request's: a growth gives back a
+//! share whichever request grew, so a request that has not grown can go uncounted by one step,
+//! which is the staleness the sum already has. The count never passes the requests admitted on
+//! the core, and it is zero once they end. The shares count against the server's limit too, so a
+//! request that grows can be stopped up to one step per share early.
+//!
 //! # What it spends
 //!
 //! Per `rule:programs/memory-priority`: one padded atomic per core, in blocks of [`CHUNK`] that are
@@ -47,6 +58,7 @@
 //! compare per balance change; a publish is one relaxed store, plus one relaxed load per core when
 //! a request is armed and the balance grew. [`IDLE`] is two more thread-local cells, and an idle
 //! tree's park pays two relaxed loads, a swap and a compare. Each tree carries three words for it.
+//! [`SHARES`] is one more thread-local cell, and admitting or ending a request one more publish.
 
 use std::cell::Cell;
 use std::sync::OnceLock;
@@ -122,6 +134,9 @@ thread_local! {
     static IDLE: Cell<isize> = const { Cell::new(0) };
     /// [`IDLE`] at this thread's last publish.
     static IDLE_MARK: Cell<isize> = const { Cell::new(0) };
+    /// How many requests admitted on this core have not yet grown a whole [`STEP`]: the module
+    /// doc's *a request admitted and not yet grown counts one step*. A publish adds a step for each.
+    static SHARES: Cell<isize> = const { Cell::new(0) };
 }
 
 /// Moves [`IDLE`] by `by`, and publishes once it has moved a whole [`STEP`] since the last
@@ -158,11 +173,18 @@ pub(super) fn report(grew: bool) {
     LIVE_MARK.with(|mark| mark.set(live));
     DETACHED_MARK.with(|mark| mark.set(detached));
     IDLE_MARK.with(|mark| mark.set(idle));
+    // A request that grew a step has published what it holds, so a share goes back.
+    if grew && !POLLED.with(Cell::get).is_null() {
+        SHARES.with(|shares| shares.set((shares.get() - 1).max(0)));
+    }
     let Some(gauge) = GAUGE.with(Cell::get) else {
         return;
     };
+    let shares = SHARES.with(Cell::get).wrapping_mul(STEP);
     gauge.held.store(
-        live.wrapping_add(detached).wrapping_sub(idle),
+        live.wrapping_add(detached)
+            .wrapping_sub(idle)
+            .wrapping_add(shares),
         Ordering::Relaxed,
     );
     if grew {
@@ -193,6 +215,20 @@ fn stop_if_full(live: isize) {
 /// and as one ends, so the sum is fresh at the moment admission reads it. It never stops a
 /// request.
 pub fn publish_held() {
+    report(false);
+}
+
+/// Counts one more admitted request on this core at [`STEP`] until it grows, and publishes. The
+/// server's admission calls it for each request it admits.
+pub fn hold_share() {
+    SHARES.with(|shares| shares.set(shares.get() + 1));
+    report(false);
+}
+
+/// Gives back a share [`hold_share`] took, where one is still held, and publishes. The server
+/// calls it as an admitted request ends.
+pub fn give_share_back() {
+    SHARES.with(|shares| shares.set((shares.get() - 1).max(0)));
     report(false);
 }
 

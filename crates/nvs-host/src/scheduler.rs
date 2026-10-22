@@ -362,6 +362,8 @@ struct Pending {
     ctx: Ctx,
     root: TaskRoot,
     body: Box<dyn FnOnce(&mut Ctx)>,
+    /// Whether it goes to the front of the run queue ([`spawn_child_next`]).
+    next: bool,
 }
 
 impl std::fmt::Debug for Pending {
@@ -860,7 +862,7 @@ impl Scheduler {
         // context's goes with it to the task — `Ctx::leave_this_stack`.
         let mut ctx = ctx;
         ctx.leave_this_stack();
-        self.start(id, ctx, root, Box::new(body));
+        self.start(id, ctx, root, Box::new(body), false);
         id
     }
 
@@ -869,8 +871,16 @@ impl Scheduler {
     ///
     /// Its callers — [`Scheduler::spawn`] and the drain of [`spawn_child`]'s
     /// pending list — both have to arm the stack limit the same way, and the
-    /// way it is armed is the whole reason this is not two copies.
-    fn start(&mut self, id: TaskId, ctx: Ctx, root: TaskRoot, body: Box<dyn FnOnce(&mut Ctx)>) {
+    /// way it is armed is the whole reason this is not two copies. A `next`
+    /// task goes to the front of the run queue, and any other to the back.
+    fn start(
+        &mut self,
+        id: TaskId,
+        ctx: Ctx,
+        root: TaskRoot,
+        body: Box<dyn FnOnce(&mut Ctx)>,
+        next: bool,
+    ) {
         let stack = match self.stacks.take() {
             Ok(stack) => stack,
             Err(error) => {
@@ -927,14 +937,19 @@ impl Scheduler {
         );
         let coro = Coroutine::with_stack(stack, entry);
 
-        self.ready.push_back(Task {
+        let task = Task {
             id,
             coro,
             unwindable: true,
             told: false,
             tree,
             fiber: Fiber::new(),
-        });
+        };
+        if next {
+            self.ready.push_front(task);
+        } else {
+            self.ready.push_back(task);
+        }
     }
 
     /// Ends a task the worker could not give a stack, as a limit
@@ -1208,16 +1223,22 @@ impl Scheduler {
     /// After every resume rather than once per turn, so a child is on the run
     /// queue before its parent's next slice: a parent that spawns and then
     /// parks is waiting on work that is already runnable.
+    ///
+    /// The `next` ones go to the front in reverse, so they run in the order
+    /// they were spawned.
     fn drain_pending(&mut self) {
         let pending = std::mem::take(&mut self.tree.borrow_mut().pending);
-        for Pending {
-            id,
-            ctx,
-            root,
-            body,
-        } in pending
-        {
-            self.start(id, ctx, root, body);
+        let (next, last): (Vec<Pending>, Vec<Pending>) =
+            pending.into_iter().partition(|pending| pending.next);
+        for pending in last.into_iter().chain(next.into_iter().rev()) {
+            let Pending {
+                id,
+                ctx,
+                root,
+                body,
+                next,
+            } = pending;
+            self.start(id, ctx, root, body, next);
         }
     }
 
@@ -1363,6 +1384,37 @@ pub fn spawn_child<F>(ctx: Ctx, root: TaskRoot, body: F) -> Option<TaskId>
 where
     F: FnOnce(&mut Ctx) + 'static,
 {
+    spawn_child_ordered(ctx, root, false, body)
+}
+
+/// [`spawn_child`], with the child run before every task already on the run
+/// queue.
+///
+/// The one caller is a served request's isolate (`crate::isolate`). A request
+/// that runs at once allocates, and its core publishes what it holds, before
+/// the next ready connection asks admission for a place. Without it, a burst
+/// on one core was admitted whole before any request of it had allocated, as
+/// `rule:http-server/admission-is-arithmetic-not-a-number` says. It changes the
+/// run order on a core: a new request goes ahead of tasks already ready.
+pub fn spawn_child_next<F>(ctx: Ctx, root: TaskRoot, body: F) -> Option<TaskId>
+where
+    F: FnOnce(&mut Ctx) + 'static,
+{
+    spawn_child_ordered(ctx, root, true, body)
+}
+
+/// [`spawn_child_next`] where `next` is `true`, and [`spawn_child`] where it is
+/// `false`.
+pub(crate) fn spawn_child_ordered<F>(
+    ctx: Ctx,
+    root: TaskRoot,
+    next: bool,
+    body: F,
+) -> Option<TaskId>
+where
+    F: FnOnce(&mut Ctx) + 'static,
+{
+    let body: Box<dyn FnOnce(&mut Ctx)> = Box::new(body);
     let parent = current_task()?;
     let tree = current_tree()?;
     let mut ctx = ctx;
@@ -1373,7 +1425,8 @@ where
         id,
         ctx,
         root,
-        body: Box::new(body),
+        body,
+        next,
     });
     Some(id)
 }
@@ -1405,6 +1458,7 @@ where
         ctx,
         root,
         body: Box::new(body),
+        next: false,
     });
     Some(id)
 }
@@ -1932,6 +1986,38 @@ mod tests {
     }
 
     #[test]
+    fn a_child_spawned_next_runs_before_the_tasks_already_ready() {
+        // A served request is spawned next, so it allocates before the next
+        // ready connection asks admission for a place. Two next children keep
+        // the order they were spawned in.
+        let mut sched = Scheduler::new();
+        let order = Rc::new(RefCell::new(Vec::new()));
+        for name in ["first", "second"] {
+            let seen = Rc::clone(&order);
+            sched.spawn(ctx(), TaskRoot::Request, move |_| {
+                seen.borrow_mut().push(name);
+                if name == "first" {
+                    for child in ["request", "after it"] {
+                        let seen = Rc::clone(&seen);
+                        spawn_child_next(ctx(), TaskRoot::Request, move |_| {
+                            seen.borrow_mut().push(child);
+                        })
+                        .expect("a task is running");
+                    }
+                    let _ = suspend_current(Waiting::Yielded);
+                }
+            });
+        }
+        sched.run();
+
+        assert_eq!(
+            *order.borrow(),
+            ["first", "request", "after it", "second"],
+            "a child spawned next waited behind a ready task"
+        );
+    }
+
+    #[test]
     fn a_detached_or_spawned_root_is_not_filed_when_it_ends() {
         // A detached after-response tree and a handler's root are one per
         // request served, so filing their contexts would hold one each until
@@ -1953,13 +2039,19 @@ mod tests {
                 let _ = suspend_current(Waiting::Yielded);
             }
             let rooted = Rc::clone(&seen);
-            spawn_root(ctx(), TaskRoot::Request, move |_| rooted.set(rooted.get() + 1))
-                .expect("a scheduler is turning");
+            spawn_root(ctx(), TaskRoot::Request, move |_| {
+                rooted.set(rooted.get() + 1)
+            })
+            .expect("a scheduler is turning");
         });
         sched.run();
 
         assert_eq!(ran.get(), 2, "both ran to their end");
-        assert_eq!(sched.take_finished().len(), 1, "only the outer root is filed");
+        assert_eq!(
+            sched.take_finished().len(),
+            1,
+            "only the outer root is filed"
+        );
     }
 
     #[test]

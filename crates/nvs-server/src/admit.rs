@@ -31,6 +31,16 @@
 //! (`nvs_runtime::budget::set_process_limit`). The limit is the out-of-memory
 //! killer's job done one request at a time, with the process still running.
 //!
+//! **A burst is counted before it allocates.** A request admitted and not yet
+//! run holds nothing, so a burst on one core was admitted whole, and the limit
+//! above then stopped those past the room. Each admitted request counts one
+//! publish step (`nvs_runtime::budget::hold_share`) until it grows one or ends,
+//! and the request a connection starts runs before the next ready connection
+//! is admitted (`nvs_host::spawn_child_next`), so a request that allocates has
+//! published it by the next admission on its core. A burst of requests that
+//! allocate is refused once their bytes reach the room, and a burst of light
+//! ones costs a mebibyte each.
+//!
 //! The inputs are `nvs_config::server::Capacity`'s, and reading them is that
 //! module's, including the part that asks the operating system what this
 //! machine has.
@@ -69,8 +79,8 @@
 //! watchdog's counts — one [`InFlight`] guard per request being served, which
 //! is a borrow and nothing else, and the response above, which allocates no
 //! body at all. Each admission reads one gauge per core, publishes the
-//! admitting core's own and reads the watchdog's counts with three relaxed
-//! loads.
+//! admitting core's own, publishes it again if it admits, and reads the
+//! watchdog's counts with three relaxed loads.
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -229,12 +239,19 @@ impl Admission {
         nvs_runtime::budget::publish_held();
         let max_in_flight = self.available();
         let fits = self.memory_fits();
-        self.in_flight
+        let place = self
+            .in_flight
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
                 (current < max_in_flight && (current == 0 || fits)).then_some(current + 1)
             })
             .ok()
-            .map(|_| InFlight { admission: self })
+            .map(|_| InFlight { admission: self });
+        // Counted before it allocates, so the next admission on any core reads
+        // it: the module doc's *A burst is counted before it allocates*.
+        if place.is_some() {
+            nvs_runtime::budget::hold_share();
+        }
+        place
     }
 
     /// Sheds onto the watchdog's report from the next [`admit`](Self::admit)
@@ -309,9 +326,9 @@ pub struct InFlight<'a> {
 impl Drop for InFlight<'_> {
     fn drop(&mut self) {
         self.admission.in_flight.fetch_sub(1, Ordering::Relaxed);
-        // What the request freed, published as it ends, so the next admission
-        // on any core reads it.
-        nvs_runtime::budget::publish_held();
+        // What the request freed, and its share if it never grew, published as
+        // it ends, so the next admission on any core reads it.
+        nvs_runtime::budget::give_share_back();
     }
 }
 
@@ -521,6 +538,57 @@ mod tests {
                 this_core()
             );
             drop((buffers, first));
+        })
+        .join()
+        .expect("the core thread panicked");
+    }
+
+    /// A burst on one core is refused once its shares reach the room, before
+    /// any request of it allocates, and every share goes back as the burst
+    /// ends.
+    #[test]
+    fn a_burst_on_one_core_is_refused_before_it_allocates() {
+        std::thread::spawn(|| {
+            let _core = nvs_runtime::budget::CoreGauge::claim();
+            nvs_runtime::budget::publish_held();
+            let before = this_core();
+            let admission = Admission::reading(
+                &Ceiling::of(&capacity(
+                    10_000,
+                    Some(16 * MIB),
+                    Some(ENGINE_RESERVE + 24 * MIB),
+                )),
+                this_core,
+            );
+            let mut places = Vec::with_capacity(64);
+            let mut refused = false;
+            for _ in 0..64 {
+                match admission.admit() {
+                    Some(place) => places.push(place),
+                    None => {
+                        refused = true;
+                        break;
+                    }
+                }
+            }
+            assert!(
+                refused,
+                "a burst of {} requests that allocated nothing was admitted past the room",
+                places.len()
+            );
+            assert!(
+                places.len() <= 9,
+                "{} requests were admitted with room for 8 shares",
+                places.len()
+            );
+
+            drop(places);
+            assert!(
+                this_core() < before + nvs_runtime::budget::GAUGE_STEP,
+                "the burst's shares were not given back ({} bytes published, {before} before)",
+                this_core()
+            );
+            assert!(admission.admit().is_some(), "the room did not come back");
         })
         .join()
         .expect("the core thread panicked");
