@@ -195,8 +195,8 @@ pub use pg::{CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgT
 // question it answers.
 pub use plan::{Change, Grade, KeyKind, Plan, Step, diff, diff_on};
 pub use schema::{
-    ColumnDefault, FloatWidth, Ident, IntWidth, Key, MAX_IDENTIFIER, Node, ScalarType, Schema,
-    SchemaError, Table, is_bare_identifier,
+    ColumnDefault, FloatWidth, Ident, IntWidth, Key, MAX_IDENTIFIER, NILADIC_NAMES, Node,
+    ScalarType, Schema, SchemaError, Table, is_bare_identifier, is_niladic_name,
 };
 pub use span::{QuerySpan, SQL_LIMIT};
 pub use sql::{Binding, Dialect, Params, Prepared, Source, Statement, StatementCache, rewrite};

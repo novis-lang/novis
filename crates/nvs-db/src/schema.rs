@@ -105,6 +105,41 @@ pub fn is_bare_identifier(name: &str) -> bool {
     bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
 
+/// The names a backend reads as a value when they are written bare, with no
+/// parentheses after them: the SQL standard's niladic functions, and MySQL's
+/// three `UTC_*` ones. Upper case; compare with `eq_ignore_ascii_case`.
+///
+/// `Core\Db::quoteIdentifier` refuses each, because it returns a name bare:
+/// `SELECT current_user FROM orders` reads the database account into every
+/// row. A schema name never meets this list, since [`crate::ddl`] delimits
+/// every name it writes and a delimited `user` is a column.
+pub const NILADIC_NAMES: &[&str] = &[
+    "CURRENT_CATALOG",
+    "CURRENT_DATE",
+    "CURRENT_PATH",
+    "CURRENT_ROLE",
+    "CURRENT_SCHEMA",
+    "CURRENT_TIME",
+    "CURRENT_TIMESTAMP",
+    "CURRENT_USER",
+    "LOCALTIME",
+    "LOCALTIMESTAMP",
+    "SESSION_USER",
+    "SYSTEM_USER",
+    "USER",
+    "UTC_DATE",
+    "UTC_TIME",
+    "UTC_TIMESTAMP",
+];
+
+/// Whether a bare `name` is one of [`NILADIC_NAMES`], in any case.
+#[must_use]
+pub fn is_niladic_name(name: &str) -> bool {
+    NILADIC_NAMES
+        .iter()
+        .any(|niladic| niladic.eq_ignore_ascii_case(name))
+}
+
 /// A validated identifier: a table, column, constraint or index name.
 ///
 /// Comparison is case-**insensitive**, because the backends disagree about

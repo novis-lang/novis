@@ -1216,6 +1216,18 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         }
+        // `nvs_db::NILADIC_NAMES` is the list and why: written bare, each of
+        // these is a value the database fills in, such as its own account.
+        if nvs_db::is_niladic_name(name) {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "Core\\Db::quoteIdentifier(): `{name}` is a value the database fills in, \
+                     such as the current user or time, when it is written without quotes, so \
+                     it cannot name a table or a column here"
+                ),
+            ));
+        }
         Ok(Value::text(name))
     }
 }
@@ -1874,6 +1886,49 @@ mod tests {
             "every name is accepted exactly when the schema validator accepts it, answered \
              unchanged when it is, and named in the refusal when it is not"
         );
+    }
+
+    /// A name a backend reads as a value when it is written bare is refused
+    /// in any case, though its letters pass the alphabet: `SELECT current_user
+    /// FROM orders` would read the database account into every row. A name
+    /// that only starts like one still comes back.
+    // covers: Core\Db::quoteIdentifier
+    #[test]
+    fn a_name_the_database_reads_as_a_value_is_refused() {
+        let mut ctx = Ctx::buffered();
+        let mut refused = Vec::new();
+        for name in [
+            "current_user",
+            "SESSION_USER",
+            "User",
+            "current_role",
+            "system_user",
+            "current_schema",
+            "current_timestamp",
+            "localtime",
+            "utc_date",
+        ] {
+            let subject = Value::text(name);
+            match nvs_runtime::call(nvs_core_db_quote_identifier, &mut ctx, &[subject]) {
+                Ok(answered) => released(answered),
+                Err(_) => {
+                    let message = ctx.take_pending().expect("a refusal carries a sentence");
+                    assert!(message.contains(name), "{message}");
+                    refused.push(name);
+                }
+            }
+            released(subject);
+        }
+        assert_eq!(refused.len(), 9, "only {refused:?} were refused");
+
+        for name in ["users", "user_id", "current_users", "username"] {
+            let subject = Value::text(name);
+            let answered = nvs_runtime::call(nvs_core_db_quote_identifier, &mut ctx, &[subject])
+                .unwrap_or_else(|_| panic!("`{name}` is an ordinary column name"));
+            assert_eq!(answered.as_text(), Some(name));
+            released(answered);
+            released(subject);
+        }
     }
 
     /// `fs.read` is asked **before** [`sqlite_settings`] looks at the path at

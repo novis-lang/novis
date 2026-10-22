@@ -4,7 +4,9 @@ unchanged.
 A value is sent to the database as a placeholder, but a table or column name cannot be. A name has to
 be written into the text of the statement, and `Core\Db::quoteIdentifier` checks it first. It
 accepts a name that starts with a letter or `_`, and continues with letters, digits or `_`. Every
-other name throws a `LogicError`.
+other name throws a `LogicError`. A few names, such as `current_user`, `user` and
+`current_timestamp`, also throw. Without quotes, the database reads each of them as a value, such as
+its own user name.
 
 Text that arrived from a request is tainted, which means Novis does not allow you to write it into a
 statement. The result of this method is not tainted, so you can use it.
