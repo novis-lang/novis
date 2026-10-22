@@ -130,6 +130,13 @@
 //! media type and it takes it beside the body it describes. The refusal is
 //! ASCII-case-insensitive, a field name being.
 //!
+//! **The four framing headers are refused beside it** ([`FRAMING_HEADERS`]):
+//! `Content-Length`, `Transfer-Encoding`, `Connection` and `Upgrade`. `hyper`
+//! frames a body by a `Content-Length` it is handed, so a program's that
+//! disagrees with the body desynchronises the connection, which is a response
+//! split with no newline in it. The other three describe the connection, and
+//! only the server knows it.
+//!
 //! **Both parameters are sinks.** § 1's rule is that a parameter whose content
 //! becomes an instruction is one, and a header line is two instructions: a
 //! `tainted` name or value would let what arrived on the request choose what
@@ -287,6 +294,18 @@ const STATUS_MAX: u16 = 599;
 /// body member wrote the body. The module doc owns why it is refused rather
 /// than admitted as one more override.
 const CONTENT_TYPE_HEADER: &str = "Content-Type";
+
+/// The headers that frame the message or describe its connection, which
+/// `setHeader` refuses beside [`CONTENT_TYPE_HEADER`]. The server writes each
+/// from the body it sends, and `hyper` trusts a `Content-Length` it is handed,
+/// so a program's would frame the body wrong. `nvs_server`'s `overrides` drops
+/// the same four.
+const FRAMING_HEADERS: [&str; 4] = [
+    "Content-Length",
+    "Transfer-Encoding",
+    "Connection",
+    "Upgrade",
+];
 
 /// The header a redirect names its destination in, and the one header name
 /// this class writes on a program's behalf rather than being told.
@@ -928,8 +947,9 @@ const SET_HEADER_DOC: MethodDoc = MethodDoc {
             name: "name",
             desc: "The header name, such as `Cache-Control`. It contains letters, digits and a \
                    few marks such as `-` and `_`. Spaces and `:` are not allowed. It cannot be \
-                   `Content-Type`, because the body method you use sets that header. A `tainted` \
-                   value is not allowed.",
+                   `Content-Type`, because the body method you use sets that header. It cannot \
+                   be `Content-Length`, `Transfer-Encoding`, `Connection` or `Upgrade`. The \
+                   server sets these from the body it sends. A `tainted` value is not allowed.",
             shape: &[],
         },
         ParamDoc {
@@ -944,8 +964,9 @@ const SET_HEADER_DOC: MethodDoc = MethodDoc {
           the response has none of these headers.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$name` is empty, contains a character that is not allowed, or is \
-               `Content-Type`. Or `$value` contains a character that is not printable ASCII.",
+        desc: "`$name` is empty, contains a character that is not allowed, or is one of the \
+               headers the server sets, such as `Content-Type` or `Content-Length`. Or `$value` \
+               contains a character that is not printable ASCII.",
     }],
 };
 
@@ -1451,6 +1472,18 @@ nvs_runtime::nvs_helper! {
                     "Core\\Response::setHeader(): `{name}` is declared by the body member \
                      that wrote the body — answer with `Core\\Response::bytes($body, \
                      $contentType)` to say what a body is"
+                ),
+            ));
+        }
+        if FRAMING_HEADERS
+            .iter()
+            .any(|framing| name.eq_ignore_ascii_case(framing))
+        {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "Core\\Response::setHeader(): `{name}` frames the response, and the \
+                     server writes it from the body it sends"
                 ),
             ));
         }
@@ -3245,6 +3278,10 @@ mod tests {
             ("X-Split", "a\r\nSet-Cookie: admin=1"),
             ("X-Split", "a\nb"),
             ("X-Split", "a\0b"),
+            ("Content-Length", "0"),
+            ("transfer-encoding", "chunked"),
+            ("Connection", "close"),
+            ("UPGRADE", "websocket"),
         ] {
             assert!(
                 !set(&mut ctx, name, value),
