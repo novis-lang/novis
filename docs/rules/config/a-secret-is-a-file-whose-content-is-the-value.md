@@ -32,3 +32,8 @@ never logged, and `nvs config dump` renders it `<secret>` beside the file it cam
   reads unchanged. A deployment target that cannot produce a file at all is what would reopen this.
 - **A `_file` sibling for every string directive.** It doubles the key space of the format and
   complicates the unknown-key refusal, to serve the handful of directives the registry marks.
+- **An `_env` sibling, a third source naming an environment variable** (`password_env =
+  "DB_PASSWORD"`). It is the narrow form of interpolation: it cannot grant, and it serves a platform
+  that injects credentials only as variables. It still puts the credential where every child process
+  inherits it and `/proc/<pid>/environ` and a crash dump show it, so `process.exec` would owe a scrub,
+  and it serves no target that cannot also mount a file. The trigger above reopens it too.

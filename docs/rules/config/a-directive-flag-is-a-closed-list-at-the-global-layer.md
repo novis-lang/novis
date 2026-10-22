@@ -32,3 +32,7 @@ shipped defaults
   mode with no restart (`rule:config/the-config-is-an-immutable-snapshot`). A flag would be a second
   source the file does not show, and a stale `--mode=development` in a deploy script would start a
   public server in development mode.
+- **A per-key environment override**, such as ASP.NET's `NVS__LIMITS__MEMORY`. It is `--set` moved
+  into the environment: a second spelling for every directive, set by whoever starts the process, and
+  invisible to a review of the root-owned file. Changing a few keys for one deployment is a second
+  `--config` file, which is typed, ownership-checked and named by `nvs config dump --origin`.
