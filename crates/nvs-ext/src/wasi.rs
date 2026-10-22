@@ -463,9 +463,10 @@ impl wall_clock::Host for Context {
 }
 
 impl Context {
-    /// `len` bytes from the request's generator, refused past the instance's memory: a guest
-    /// cannot ask the host to allocate more than a wasm32 guest could hold.
+    /// `len` bytes from the request's generator, refused before they are made past the memory
+    /// the request has left, and past what a wasm32 guest could hold.
     fn bytes(&self, len: u64) -> wasmtime::Result<Vec<u8>> {
+        crate::call::afford(&*self.budget, "random bytes", len)?;
         let len = usize::try_from(len)
             .ok()
             .filter(|len| u32::try_from(*len).is_ok())

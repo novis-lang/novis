@@ -3042,7 +3042,10 @@ linear memory is the request's: each growth is charged to the request's memory a
 store's limit is the least of what the request has left, the entry's optional `memory` ceiling and
 the manifest's declared maximum. What crosses from the guest is the request's memory as well: the
 host's copy of a value the guest passes or returns is bounded by what the request has left and charged
-to it while the host holds it, so a result is as large as the request can afford and no larger. An
+to it while the host holds it, so a result is as large as the request can afford and no larger. A
+host import that allocates a size the guest chose asks what the request has left before it allocates:
+random bytes, and `as-bytes` on a lent file or a byte string. A size past it ends the call at the
+memory limit, and nothing is allocated. An
 extension therefore cannot starve its neighbours — a stronger
 guarantee than a built-in native function currently has, because it is enforced by the sandbox rather
 than by discipline.
@@ -3063,7 +3066,8 @@ dynamic crossing's cost on the request path, paid once per call; a typed crossin
 would lower it, at the price of a second conversion path.
 
 `nvs_ext::call` charges every growth to a `Budget` and traps a guest past its CPU deadline or the
-least of the three memory limits (`crates/nvs-ext/tests/call.rs`). The budget `nvs run` and
+least of the three memory limits (`crates/nvs-ext/tests/call.rs`). `nvs_ext::call::afford` is the check
+a host import asks first (`crates/nvs-ext/tests/wasi.rs`, `crates/nvs-ext/tests/convert.rs`). The budget `nvs run` and
 `nvs serve` hand a guest, `nvs_cli::extensions::Spent`, is the request's own: its CPU deadline is the
 `CPU_LIMIT` flag the watchdog raises on the request tree, against everything the request has run since
 it started, and each growth is charged to the memory count the runtime keeps for the request, under the

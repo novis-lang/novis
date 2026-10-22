@@ -9,6 +9,8 @@
     "benches/abi-probe/tests/wasm_sandbox.rs",
     "crates/nvs-ext/tests/call.rs",
     "crates/nvs-ext/tests/failure.rs",
+    "crates/nvs-ext/tests/wasi.rs",
+    "crates/nvs-ext/tests/convert.rs",
     "crates/nvs-cli/src/extensions.rs",
     "crates/nvs-cli/tests/serve_isolation.rs"
   ]
