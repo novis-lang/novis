@@ -402,17 +402,28 @@ impl Reactor {
         // being polled by a parked worker, and a fallible `remote_wake` would
         // put an error path on the handoff that nothing sensible could do with.
         let waker = Waker::new(poll.registry(), WAKE_TOKEN)?;
+        let remote = Arc::new(Remote {
+            waker,
+            pending: Mutex::new(Vec::with_capacity(PENDING_CAPACITY)),
+            outstanding: AtomicUsize::new(0),
+        });
+        // Locked once here so the lock's own allocation is the core's too. On
+        // macOS a std `Mutex` is a pthread mutex boxed on its first lock, which
+        // a slice yield would otherwise charge to the request it ran in. What
+        // it spends: 64 bytes per core, on macOS alone.
+        drop(
+            remote
+                .pending
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner),
+        );
         Ok(Self {
             poll,
             events: Events::with_capacity(EVENT_CAPACITY),
             registrations: HashMap::new(),
             ready: Vec::new(),
             timers: Timers::default(),
-            remote: Arc::new(Remote {
-                waker,
-                pending: Mutex::new(Vec::with_capacity(PENDING_CAPACITY)),
-                outstanding: AtomicUsize::new(0),
-            }),
+            remote,
             _pinned_to_one_thread: PhantomData,
         })
     }
