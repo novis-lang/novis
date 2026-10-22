@@ -261,9 +261,14 @@ impl Descriptor {
     }
 }
 
-/// A name no path a guest writes may hold.
+/// A name no path a guest writes may hold, on every platform: a `\`, a NUL or a `:`, a Windows
+/// device name, and a name Windows reads as another
+/// (`nvs_config::capability::alias_component`). Each is refused by its text, before the walk
+/// asks the file system about it, the same as a door refuses it.
 fn refused_name(name: &str) -> bool {
-    name.contains(['\\', '\0']) || (cfg!(windows) && name.contains(':'))
+    name.contains(['\\', '\0', ':'])
+        || nvs_config::capability::is_reserved_device(name)
+        || nvs_config::capability::alias_component(name).is_some()
 }
 
 /// `path` canonicalised, or its deepest existing ancestor canonicalised with the rest re-appended.
@@ -752,5 +757,32 @@ impl types::HostDirectoryEntryStream for Context {
     fn drop(&mut self, entries: Resource<Entries>) -> wasmtime::Result<()> {
         self.table.delete(entries)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::refused_name;
+
+    /// EXT-10's names: a guest's path component that is a device, a stream, a trailing dot or
+    /// space, or an 8.3 short name is refused by its text on every platform, as a door refuses it.
+    #[test]
+    fn a_guest_name_windows_reads_as_another_is_refused_on_every_platform() {
+        for name in [
+            "CON",
+            "nul.txt",
+            "COM1",
+            "LPT1.log",
+            "a.txt:x",
+            "a.txt.",
+            "a.txt ",
+            "PROBE~1.TXT",
+            "a\\b",
+        ] {
+            assert!(refused_name(name), "`{name}` is refused");
+        }
+        for name in ["a.txt", "..", ".hidden", "notes~", "console"] {
+            assert!(!refused_name(name), "`{name}` is a name");
+        }
     }
 }
