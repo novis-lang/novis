@@ -411,11 +411,11 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 - [x] LC-6, LC-7: the `method` label is closed, and a 501 logs at `info`. `crates/nvs-server/src/serve.rs:1706`
 - [x] LC-5: blocking-pool CPU is charged to its request (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/blocking.rs:349`
 - [x] ~~LC-8: try the native stack overflow shapes in the lifecycle report; if the process ends, the deep helper checks the stack it has left and throws.~~ Ruled out on a2b4854a4: every native walk over a runtime value is iterative or depth-bounded, JSON decode's 1024-deep recursion runs on the 8 MiB spare stack, and each shape answered a clean `500` with the worker still serving (LC-8 in the lifecycle report). `.agent-tmp/sec-audit/reports/wb-lifecycle.md:1`
-- [ ] LC-12: a configured `[log]` escalation handler runs on a task of its own behind a bounded queue, never joined on the serving worker; a full queue drops the event and counts it in a metric, so forced uncaught throws cannot each hold a worker for `handler_reserve_time`. The queue's length is a constant with its reason in the code (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/ladder.rs:122`
+- [x] LC-12: a configured `[log]` escalation handler runs on a task of its own behind a bounded queue, never joined on the serving worker; a full queue drops the event and counts it in a metric, so forced uncaught throws cannot each hold a worker for `handler_reserve_time`. The queue's length is a constant with its reason in the code (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/ladder.rs:122`
 - [x] HTTP-1's fix keeps a Rust test beside `admit.rs`: a core thread holding connection buffers past the room still admits a request, because admission reads request memory only. No idle-connection or slow-reader attack, since a proxy stops those first. `crates/nvs-server/src/admit.rs:1`
 - [ ] The overload attack, a Rust test that starts the real `nvs serve` with `max_in_flight = 50` and a small `[limits] memory`. A flood several times the ceiling runs beside requests that reach the memory limit, reach the CPU limit, and lose their client, while a probe sends ordinary requests. Every refusal is a `503` with `Retry-After`, every probe gets `200` or that `503` and never hangs, and the process lives. Once the flood ends, 50 requests held open together are all admitted, `nvs_memory_bytes` is back within a stated bound of its reading before the flood, and the next request answers `200`. `crates/nvs-cli/tests/serve_isolation.rs:1`
 - [ ] A `flood` row in `bench-compare --scenarios` puts load past capacity on each stack behind nginx and reports refusals, probe latency and recovery; the nightly deep lane runs its smoke form. `benches/compare/README.md:80`
-- [ ] `[limits] max_tasks`'s comment says what `claim_task` enforces, not "bounds nothing today". `crates/nvs-config/src/default.toml:86`
+- [x] `[limits] max_tasks`'s comment says what `claim_task` enforces, not "bounds nothing today". `crates/nvs-config/src/default.toml:86`
 
 ### 8. an extension instance ends with its request
 
@@ -529,11 +529,36 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 7 is under way. HTTP-1 (both items and its test), LC-3/LC-9, LC-6/LC-7 and LC-5 have landed.
-LC-12, the overload attack, the `flood` row and `max_tasks`'s comment are left.
+Stage 7 is under way. Every item but two has landed: the overload attack and the `flood` row are
+left.
 
-This session (the sweep's `env-secret-proofs` exits 0 when rerun; nightly 39746060276 was cancelled
-whole and is not a failure of this tree):
+This session (the sweep's `env-secret-proofs` exits 0 when rerun, `nothing owed`; nightly
+39746060276 was cancelled whole and is not a failure of this tree):
+
+- **LC-12 (18414cd54).** `nvs_host::ladder::escalate` on server work (`config.serves()`) calls the
+  new `off_the_request`: it starts the handler on a root task of its own with the new
+  `nvs_host::spawn_root`, under `ctx.handler_isolate(OutputSink::Stderr)`, and answers `true`. The
+  failing request no longer joins it. The task writes `floor::report` itself if the handler fails.
+  `HANDLERS_PER_CORE = 4` (reason in the code); past it the run is dropped, counted by the new
+  `nvs_runtime::metrics::count_handler_dropped` in the new default series
+  `nvs_log_handler_dropped_total` (eleven series now), and `escalate` answers `false`, so the floor
+  writes the record. The recursion guard for these is the thread-local `HANDLERS` list of root task
+  ids plus the new `nvs_host::running_beneath`; a `Slot` guard the task owns gives the place back
+  however it ends. A CLI program still joins (the `RUNNING` path). `rule:errors/handler-script` has
+  the paragraph, a memory line, two Declined entries and `guardedBy`; `default-series` has the row.
+- **A leak found on the way, fixed in the same commit.** A tree `detach_current` cut loose (every
+  request with `afterResponse` work) was filed as `Finished` with its whole `Ctx` when it ended, and
+  `nvs serve` never takes the finished list, so it held one context per such request served.
+  `TaskNode::detached` now marks it, and the `Return` arm drops its context like a child's.
+  Tests `a_detached_or_spawned_root_is_not_filed_when_it_ends` (scheduler unit) and
+  `a_served_failure_does_not_wait_for_its_handler_and_handlers_per_core_are_bounded`
+  (`crates/nvs-host/tests/limits.rs`) are new and ran once, green; the served end-to-end test
+  `a_log_handler_beside_the_configuration_runs_from_any_working_directory` (`live_config.rs`) ran
+  once, green.
+- **65e8d91d1:** `default.toml`'s `max_tasks` comment says a spawn past it stops the request.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+
+LC-3 to LC-5, for the record (the previous session):
 
 - **e139f309d** renders the core-classes, errors, http-server and security chapters, which stages 5
   to 7 left stale. Run `bun nv rules --render` after editing a fragment.
@@ -727,17 +752,23 @@ inbound `traceparent`'s trace id, or a continued unsampled request's record to h
 outbound call (none found); the website's generated rule pages (two rule titles changed). LC-6/LC-7
 add: any test that reads `nvs_requests_total` under a non-standard method label, or expects a door
 `501` at `error` with `[log] access` off (none found). LC-5 adds: a watchdog test whose request runs
-blocking work and expects its charge to stay small (none found).
+blocking work and expects its charge to stay small (none found). LC-12 adds: any served test that
+expects a `[log] handler`'s output in a response or on stdout (it goes to stderr now) or expects the
+handler to have run by the time the response arrives (`live_config.rs` polls, and passes); any test
+that reads `take_finished()` after a detached `afterResponse` tree and expects it filed (none found
+by grep); the website's generated rule pages and any page that counts the default series (`bun nv
+site --check` names them; grep found none outside `docs/rules/`).
 
 ### Next
 
-Stage 7's rest, in one session, then stage 8:
+Stage 7's rest, then stage 8:
 
-1. LC-12 (`crates/nvs-host/src/ladder.rs:122`): the `[log]` escalation handler runs on a task of its
-   own behind a bounded queue, never joined on the serving worker; a full queue drops and counts.
-2. The overload attack (`crates/nvs-cli/tests/serve_isolation.rs:1`), the `flood` row
-   (`benches/compare/README.md:80`), and `max_tasks`'s comment (`crates/nvs-config/src/default.toml:86`).
-   The attack may take a session of its own.
+1. The overload attack, a Rust test of its own session (`crates/nvs-cli/tests/serve_isolation.rs:1`):
+   the real `nvs serve` with `max_in_flight = 50` and a small `[limits] memory`, the stage's item says
+   the whole shape.
+2. The `flood` row in `bench-compare --scenarios` (`benches/compare/README.md:80`,
+   `tools/nv/cmd/bench-compare.ts`), with its smoke form in the nightly deep lane.
+3. Stage 8: an extension instance ends with its request (`rule:packaging/a-fresh-instance-per-request`).
 
 ### Backlog
 
