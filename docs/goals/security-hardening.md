@@ -545,9 +545,36 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 7 is open for one item, d2's, and it waits on decision d3. Stage 8 can go first.
+Stage 7 is open for one item, d2's, and d3 is answered (option 3, under *Standing decisions*), so it
+can be built. Stage 8 has EXT-1 and its attack done.
 
-This session (0149) landed no code:
+This session (0150):
+
+- **EXT-1 (0dcaf45b1).** The cycle was `TreeState::extensions` → `Calls` → `Arc<Spent>` →
+  `SafepointView` → `Arc<TreeState>`. `Spent` now holds a `WeakSafepointView` (new, from
+  `SafepointView::downgrade`, `crates/nvs-runtime/src/ctx/safepoint.rs`); a tree that has ended reads
+  as CPU-spent. `TreeState::extensions` is a `Mutex<Option<ExtensionHost>>` (`ExtensionHost` is an
+  `Arc<dyn Any + Send + Sync>`), and `TreeState::extensions(make)` returns a clone, so the lock is
+  never held while a guest runs. `Ctx::between_requests` drops the instances when
+  `Arc::strong_count(tree) == 1`, so a waiting keep-alive connection holds no instance place; a tree
+  that after-response work holds drops them when that work ends. A request whose tree still holds a
+  weak handle takes `reroot`'s replace path (one allocation), since `Arc::get_mut` counts weak ones.
+- Test `every_request_that_calls_an_extension_ends_its_instance` (`serve_isolation.rs`): 100
+  requests on one keep-alive connection and 100 on fresh ones answer `Shop, Blog, and Wiki`, and
+  `nvs_memory_bytes{scope="request"}` moves at most 4 MiB. It ran once, green, and it fails at
+  request 65 with `500` on the code before the fix (checked with a stash).
+  `rule:packaging/a-fresh-instance-per-request` has the paragraph and `guardedBy` names the test.
+- d3 is recorded under *Standing decisions* and closed (`bun tools/looper/main.ts decision close d3`;
+  the installed `looper` has no `decision` subcommand).
+- `env-secret-proofs`: its log still says exit 0 with `nothing owed`, and no check has that name. The
+  sweep's red is stale again. Nightly 39746060276 was cancelled whole.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+
+Tests that may go red from EXT-1: any test that reads `TreeState::extensions()` as a `OnceLock`
+(none found by grep), and a guest destructor that runs after its tree ended and loops (it now traps,
+since the weak view reads as spent; the failure is not reported).
+
+The session before (0149) landed no code:
 
 - **d2's share has no size that meets the item, so d3 asks.** The scheduler's ready queue is FIFO
   (`crates/nvs-host/src/scheduler.rs:930`), and `Isolate::start` queues each request as a child task.
@@ -845,14 +872,15 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 8 first, because d2's item waits on decision d3. Then d2 once d3 is answered.
+d2 first, since stage 7 is the live stage and d3 is answered. Then the rest of stage 8.
 
-0. d2, after d3 (`crates/nvs-server/src/admit.rs`, `Admission::admit` and `memory_fits`;
-   `crates/nvs-runtime/src/budget/gauge.rs`, `report` and `publish_held`). Build what d3's answer
-   names. For a share: `InFlight` holds it, and its `Drop` gives it back; `memory_fits` adds the
-   shares to `used`. For option 3's hand-off: `crates/nvs-host/src/scheduler.rs:930` (`start`
-   pushes a new task to the back of `ready`), and `Isolate::start` (`crates/nvs-host/src/isolate.rs:627`)
-   is the caller that queues a request. Write why in
+0. d2, as d3's option 3 says (`crates/nvs-server/src/admit.rs`, `Admission::admit` and `memory_fits`;
+   `crates/nvs-runtime/src/budget/gauge.rs`, `report` and `publish_held`). A 1 MiB share:
+   `InFlight` holds it until the request's first publish, and its `Drop` gives it back;
+   `memory_fits` adds the shares to `used`. The hand-off: `crates/nvs-host/src/scheduler.rs:930`
+   (`start` pushes a new task to the back of `ready`); a request `Isolate::start`
+   (`crates/nvs-host/src/isolate.rs:627`) queues goes to the front, so it runs before the next ready
+   connection. Write why, and the run-order change, in
    `rule:http-server/admission-is-arithmetic-not-a-number`. Write the Rust test first: one core, a
    burst past the room, at least one `503` before any request allocates. Then run the `flood` row
    once (`bun nv bench-compare --scenarios --smoke --row flood`, about 15 minutes with the image
@@ -860,11 +888,11 @@ Stage 8 first, because d2's item waits on decision d3. Then d2 once d3 is answer
 
 Stage 8: an extension instance ends with its request (`rule:packaging/a-fresh-instance-per-request`).
 
-1. EXT-1: drop the tree's `Calls`, and the instance with them, when the tree ends
-   (`crates/nvs-cli/src/extensions.rs:333`). Write the attack first: 200 requests that each call
-   `Novis\Intl`, every answer correct and memory flat, a Rust test in `nvs-cli`.
-2. EXT-2: wasmtime's instance limit from `max_in_flight` (`crates/nvs-ext/src/call.rs:1170`).
-3. EXT-5 and EXT-6 (`extensions.rs:442`, `crates/nvs-ext/src/wasi/http.rs:488`), then EXT-7 to
+1. EXT-2: wasmtime's instance limit from `max_in_flight` (`crates/nvs-ext/src/call.rs:1170`;
+   `SLOTS = 64` at `crates/nvs-cli/src/extensions.rs:110`, made once in `host()` at `:291`). The
+   host is made before or at the first boot, so the limit is read from the configuration it boots
+   with; a reload that raises `max_in_flight` cannot grow a made pool, so say what happens then.
+2. EXT-5 and EXT-6 (`extensions.rs:442`, `crates/nvs-ext/src/wasi/http.rs:488`), then EXT-7 to
    EXT-10 from `.agent-tmp/sec-audit/reports/wb-sinks.md:212`.
 
 

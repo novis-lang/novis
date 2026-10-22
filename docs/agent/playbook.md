@@ -26,6 +26,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **The installed `looper` binary may lack a subcommand the prompt names, such as `decision`.** It
+  answers `unrecognized subcommand` with exit 2. The project's copy, `tools/looper/main.ts`, has every command, so run
+  `bun tools/looper/main.ts decision close <id>` instead (AGENTS.md § *Novis works without looper*).
+  `until: gone tools/looper/main.ts:decision`
+
 ## Running things
 - **`bun nv proofs --record-perf --group lang:concurrency` run in the background is killed as a
   `HANG:` at `no-colouring-i-o-just-waits`, and it appends nothing for the features it had already
