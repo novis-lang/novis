@@ -1,0 +1,106 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "comment": "Caddyfile highlighting for ```caddyfile and ```caddy fences. Shiki ships no Caddyfile grammar, so this one is the site's own. At the top level a word is a site address; inside a block the first word of a line is a directive.",
+  "name": "caddyfile",
+  "aliases": ["caddy"],
+  "scopeName": "source.caddyfile",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#snippet" },
+    { "include": "#import" },
+    { "include": "#placeholder" },
+    { "include": "#block" },
+    {
+      "match": "[^\\s{}#,]+",
+      "name": "entity.name.tag.address.caddyfile"
+    }
+  ],
+  "repository": {
+    "comment": {
+      "match": "(?<=^|\\s)#.*$",
+      "name": "comment.line.number-sign.caddyfile"
+    },
+    "snippet": {
+      "match": "^\\s*(\\()([\\w.-]+)(\\))",
+      "captures": {
+        "1": { "name": "punctuation.definition.snippet.begin.caddyfile" },
+        "2": { "name": "entity.name.function.snippet.caddyfile" },
+        "3": { "name": "punctuation.definition.snippet.end.caddyfile" }
+      }
+    },
+    "import": {
+      "match": "^\\s*(import)\\b",
+      "captures": {
+        "1": { "name": "keyword.control.import.caddyfile" }
+      }
+    },
+    "block": {
+      "begin": "\\{",
+      "beginCaptures": { "0": { "name": "punctuation.section.block.begin.caddyfile" } },
+      "end": "\\}",
+      "endCaptures": { "0": { "name": "punctuation.section.block.end.caddyfile" } },
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#heredoc" },
+        { "include": "#import" },
+        {
+          "match": "^\\s*(@[\\w-]+)",
+          "captures": {
+            "1": { "name": "entity.name.function.matcher.caddyfile" }
+          }
+        },
+        {
+          "match": "^\\s*([A-Za-z_][\\w.-]*)",
+          "captures": {
+            "1": { "name": "keyword.other.directive.caddyfile" }
+          }
+        },
+        { "include": "#argument" },
+        { "include": "#block" }
+      ]
+    },
+    "argument": {
+      "patterns": [
+        { "include": "#string" },
+        { "include": "#placeholder" },
+        {
+          "match": "@[\\w-]+",
+          "name": "entity.name.function.matcher.caddyfile"
+        },
+        {
+          "match": "(?<![\\w.:/*-])\\d+(?:\\.\\d+)?(?:ns|us|µs|ms|s|m|h|d|[KMGTP]i?B|[kmgtp]b|B)?(?![\\w.:/*-])",
+          "name": "constant.numeric.caddyfile"
+        }
+      ]
+    },
+    "placeholder": {
+      "match": "\\{[^\\s{}]+\\}",
+      "name": "variable.other.placeholder.caddyfile"
+    },
+    "string": {
+      "patterns": [
+        {
+          "begin": "\"",
+          "end": "\"",
+          "name": "string.quoted.double.caddyfile",
+          "patterns": [
+            { "match": "\\\\.", "name": "constant.character.escape.caddyfile" },
+            { "include": "#placeholder" }
+          ]
+        },
+        {
+          "begin": "`",
+          "end": "`",
+          "name": "string.quoted.other.backtick.caddyfile"
+        }
+      ]
+    },
+    "heredoc": {
+      "begin": "<<([A-Za-z_][\\w-]*)\\s*$",
+      "beginCaptures": { "0": { "name": "punctuation.definition.heredoc.begin.caddyfile" } },
+      "end": "^\\s*(\\1)\\b",
+      "endCaptures": { "1": { "name": "punctuation.definition.heredoc.end.caddyfile" } },
+      "contentName": "string.unquoted.heredoc.caddyfile"
+    }
+  }
+}
