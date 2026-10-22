@@ -13,7 +13,7 @@ array<Core\Http\Target> $webhooks = [];
 
 foreach ($saved as tainted string $customer => tainted string $url) {
     try {
-        $webhooks[$customer] = Core\Http::allowUrl($url);
+        $webhooks[] = Core\Http::allowUrl($url);
         echo $customer, ": saved", "\n";
     } catch (RuntimeError $refused) {
         // The customer sees why the URL was not saved.

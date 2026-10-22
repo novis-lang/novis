@@ -2537,7 +2537,9 @@ pub(crate) fn check_unset_target(
             // keeps `E_APPEND_IN_READ_POSITION` — PHP refuses it as *"cannot
             // use [] for unsetting"* and so does this.
             mark_write_target_levels(expr, false, env);
+            env.unset_target = true;
             check_expr(expr, None, live, scope, ctx, env);
+            env.unset_target = false;
             let mut root = expr.unparenthesized();
             while let ExprKind::Index { base, .. } = &root.kind {
                 root = base.unparenthesized();

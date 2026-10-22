@@ -1195,6 +1195,9 @@ pub(crate) fn check_array_literal(
         if let Some(key) = &item.key {
             let key_ty = check_expr(key, None, live, scope, ctx, env);
             check_array_key_type(key_ty, key.span, env);
+            if let Some(array) = expected {
+                super::quals::reject_tainted_key_write(key.span, key_ty, array, env);
+            }
         }
         // `rule:security/secret-qualifier`'s container axis, at the element
         // that is about to lose the bit: this literal joins no element types,
@@ -1319,6 +1322,7 @@ fn synthesize_items(
     // A nested literal of two types makes this one two types as well, even
     // when it is the only element; its union is its part of the help line.
     let mut differs = false;
+    let mut keys = Vec::new();
     for item in items {
         if item.by_ref {
             report_by_reference_element(item, env);
@@ -1327,6 +1331,7 @@ fn synthesize_items(
         if let Some(key) = &item.key {
             let key_ty = check_expr(key, None, live, scope, ctx, env);
             check_array_key_type(key_ty, key.span, env);
+            keys.push((key.span, key_ty));
         }
         let answer = if item.spread {
             spread_element_ty(item, live, scope, ctx, env)
@@ -1369,7 +1374,11 @@ fn synthesize_items(
             env.exprs.record_type(item.value.span, first);
         }
     }
-    Ok(env.interner.array(first))
+    let array = env.interner.array(first);
+    for (key, key_ty) in keys {
+        super::quals::reject_tainted_key_write(key, key_ty, array, env);
+    }
+    Ok(array)
 }
 
 /// One plain element's type for [`synthesize_items`]: a nested literal's by
