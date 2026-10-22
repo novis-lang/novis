@@ -1739,15 +1739,26 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// long afterwards, so a claim tied to the first pull would leave a program
 /// free to name both readings and only lose on the one it actually took.
 ///
+/// **A body whose read failed throws that failure first**, whatever reader
+/// asks. The failure is what is true of the body, and the claim's refusal
+/// would name a reading that never finished.
+///
 /// # Errors
 ///
-/// `LogicError` where a member has already read the body and what it left
-/// behind is not what `need` asks for.
+/// The kept failure ([`nvs_runtime::Inbound::fail_body`]) where a read of the
+/// body failed. Otherwise `LogicError` where a member has already read the
+/// body and what it left behind is not what `need` asks for.
 fn claim_body(ctx: &mut Ctx, member: &'static str, need: BodyNeed) -> Result<(), Fault> {
     let total = ctx.upload_total_limit();
     let inbound = ctx
         .inbound_mut()
         .expect("the caller reads the request before it claims the body");
+    if let Some((class, why)) = inbound.body_failure() {
+        return Err(Fault::thrown_as(
+            class,
+            format!("Core\\Request::{member}(): {why}"),
+        ));
+    }
     let claimed = inbound.claim_body(member, need);
     // Every reader claims before its first pull, so this is where the wire
     // learns the request's own `upload_total`. The door counted against the
