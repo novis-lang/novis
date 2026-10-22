@@ -1060,7 +1060,7 @@ impl Node {
     /// A text node carrying `text`.
     fn text(text: &str) -> Self {
         let mut node = Self::new(Kind::Text);
-        node.text.push_str(text);
+        node.text = copied(text);
         node
     }
 }
@@ -1117,11 +1117,14 @@ impl Sink {
     /// [`nvs_runtime::budget::affords`] has already recorded the breach, and
     /// [`OverLimit`] unwinds out of `html5ever` to [`bounded`], because
     /// [`TreeSink`] has no way to stop a parse.
+    ///
+    /// What is asked is the arena's doubling when it is full, which is the
+    /// largest single step a parse takes: two million nodes are about 300 MB
+    /// of room. Each `create_` method asks for the node's own strings before
+    /// it copies them.
     fn push(&self, node: Node) -> usize {
-        if !nvs_runtime::budget::affords(std::mem::size_of::<Node>()) {
-            std::panic::resume_unwind(Box::new(OverLimit));
-        }
         let mut nodes = self.nodes.borrow_mut();
+        afford(room(&nodes, 0));
         nodes.push(node);
         nodes.len() - 1
     }
@@ -1144,6 +1147,7 @@ impl Sink {
     fn attach(&self, parent: usize, child: usize) {
         self.detach(child);
         let mut nodes = self.nodes.borrow_mut();
+        afford(room(&nodes[parent].children, 0));
         nodes[child].parent = Some(parent);
         nodes[parent].children.push(child);
     }
@@ -1151,6 +1155,7 @@ impl Sink {
     /// Puts `child` among `parent`'s children at `at`.
     fn insert(&self, parent: usize, at: usize, child: usize) {
         let mut nodes = self.nodes.borrow_mut();
+        afford(room(&nodes[parent].children, 0));
         nodes[child].parent = Some(parent);
         nodes[parent].children.insert(at, child);
     }
@@ -1180,6 +1185,7 @@ impl Sink {
         if nodes[at].kind != Kind::Text {
             return false;
         }
+        afford(grown(nodes[at].text.len(), nodes[at].text.capacity(), text.len()));
         nodes[at].text.push_str(text);
         true
     }
@@ -1220,6 +1226,15 @@ impl TreeSink for Sink {
     fn create_element(&self, name: QualName, attrs: Vec<Attribute>, flags: ElementFlags) -> usize {
         let mut node = Node::new(Kind::Element);
         node.name = written(&name);
+        afford(
+            attrs
+                .iter()
+                .fold(size_of::<(String, String)>() * attrs.len(), |bytes, attr| {
+                    bytes
+                        .saturating_add(attr.name.local.len())
+                        .saturating_add(attr.value.len())
+                }),
+        );
         node.attributes = attrs
             .into_iter()
             .map(|attr| (written(&attr.name), attr.value.to_string()))
@@ -1231,7 +1246,7 @@ impl TreeSink for Sink {
 
     fn create_comment(&self, text: StrTendril) -> usize {
         let mut node = Node::new(Kind::Comment);
-        node.text = text.to_string();
+        node.text = copied(&text);
         self.push(node)
     }
 
@@ -1240,8 +1255,8 @@ impl TreeSink for Sink {
     /// kind and `xml5ever` drives the same trait onto it.
     fn create_pi(&self, target: StrTendril, data: StrTendril) -> usize {
         let mut node = Node::new(Kind::ProcessingInstruction);
-        node.name = target.to_string();
-        node.text = data.to_string();
+        node.name = copied(&target);
+        node.text = copied(&data);
         self.push(node)
     }
 
@@ -1345,6 +1360,8 @@ impl TreeSink for Sink {
         });
         for attr in attrs {
             let name = written(&attr.name);
+            let bytes = name.len().saturating_mul(2).saturating_add(attr.value.len());
+            afford(room(&node.attributes, bytes));
             if had.insert(name.clone()) {
                 node.attributes.push((name, attr.value.to_string()));
             }
@@ -1375,6 +1392,50 @@ impl TreeSink for Sink {
     fn allow_declarative_shadow_roots(&self, _intended_parent: &usize) -> bool {
         false
     }
+}
+
+/// Unwinds with [`OverLimit`] unless the request can afford `bytes` more.
+///
+/// [`room`] and [`grown`] never answer zero, and the attribute sum counts at
+/// least the empty vector's room, because an ask of zero bytes past the limit
+/// records a refusal that names zero bytes.
+fn afford(bytes: usize) {
+    if !nvs_runtime::budget::affords(bytes) {
+        std::panic::resume_unwind(Box::new(OverLimit));
+    }
+}
+
+/// The bytes one more push onto `items` allocates, plus `extra` the item brings.
+///
+/// A full vector doubles, so that is the room asked for: a node of a million
+/// children holds a million children's room, and the next push asks for twice
+/// that.
+fn room<T>(items: &Vec<T>, extra: usize) -> usize {
+    let slots = if items.len() == items.capacity() {
+        items.capacity().saturating_mul(2).max(4)
+    } else {
+        1
+    };
+    slots.saturating_mul(size_of::<T>()).saturating_add(extra)
+}
+
+/// The bytes a string of `len` bytes in `capacity` allocates to take `more`
+/// bytes, and at least one.
+fn grown(len: usize, capacity: usize, more: usize) -> usize {
+    let wanted = len.saturating_add(more);
+    if wanted > capacity {
+        wanted.max(capacity.saturating_mul(2))
+    } else {
+        1
+    }
+}
+
+/// `text` as an owned string, once the request can afford its bytes.
+fn copied(text: &str) -> String {
+    if !text.is_empty() {
+        afford(text.len());
+    }
+    text.to_owned()
 }
 
 /// A qualified name as the document wrote it — `prefix:local` where there is a
@@ -3184,6 +3245,40 @@ mod tests {
             unsafe {
                 document.release();
             }
+        }
+    }
+
+    /// A document of many sibling elements stops before the arena doubles past
+    /// the limit.
+    ///
+    /// Each node asks for its room, but the arena's doubling is the largest
+    /// step: half a million line breaks are 2 MB of source and an arena of
+    /// about 70 MB. Asked for only one node at a time, the doubling made the
+    /// peak near three times the arena that was full.
+    // covers: Core\Html::parse
+    #[test]
+    fn many_siblings_stop_at_the_memory_limit_before_the_arena_doubles() {
+        let (count, limit) = if cfg!(miri) {
+            (20_000, 1 << 20)
+        } else {
+            (500_000, 8 << 20)
+        };
+        let document = Value::text(&"<br>".repeat(count));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_memory_limit(limit);
+        assert!(
+            call(nvs_core_html_parse, &mut ctx, &[document]).is_err(),
+            "the parse refuses past the limit"
+        );
+        assert!(
+            ctx.memory_peak() < limit + limit / 4,
+            "{} bytes at the peak",
+            ctx.memory_peak()
+        );
+        drop(ctx);
+        #[expect(unsafe_code, reason = "the case owns the document it made")]
+        unsafe {
+            document.release();
         }
     }
 

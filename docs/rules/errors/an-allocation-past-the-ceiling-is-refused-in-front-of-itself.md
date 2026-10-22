@@ -21,7 +21,9 @@ limit exists beside it. `NvsArray::new` stays for arrays whose count the runtime
 chunk of a field that has not ended. `Core\Json::decode`, `::isValid`, `::decodeAs` and
 `Core\Request::json` ask for each array they open, for each element's or key's place in front of it,
 and for each string. `Core\Xml::parse` asks for each node and each attribute, and for the doubling
-of an element's attributes or children before it is made. A refusal ends the parse with the memory
+of an element's attributes or children before it is made. `Core\Html::parse` and `::sanitize` ask
+for each node's room in the arena, for each doubling of the arena or of an element's children or
+attributes, and for each string they copy. A refusal ends the parse with the memory
 `FATAL`, so an upload
 of any size stops at the ceiling inside the parse and never after it. Each ask is the size of its step
 and never zero. The budget's ceiling sits below `[limits] memory` by the limit handler's reserve, and
