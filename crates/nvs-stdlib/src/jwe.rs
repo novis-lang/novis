@@ -962,7 +962,7 @@ nvs_runtime::nvs_helper! {
         crate::random::draw(ctx, |rng| rng.fill_bytes(&mut iv));
 
         let token = sealed(&cek, &iv, &protected, &encrypted_key, payload.as_bytes())?;
-        Ok(Value::str(NvsStr::new(token.as_bytes())))
+        Ok(Value::text(&token))
     }
 }
 
@@ -1041,14 +1041,14 @@ nvs_runtime::nvs_helper! {
         // (`rule:types/string-is-utf8`). This is a `ParseError` and not
         // [`refused`]'s sentence, because the token did open, and saying so
         // tells its sealer nothing they did not write.
-        if std::str::from_utf8(&plain).is_err() {
+        let Ok(text) = std::str::from_utf8(&plain) else {
             return Err(Fault::thrown_as(
                 ThrownClass::Parse,
                 "Core\\Jwe::decrypt(): the token opened, and its payload is not valid UTF-8 text."
                     .to_owned(),
             ));
-        }
-        Ok(Value::str(NvsStr::new(&plain)))
+        };
+        Ok(Value::text(text))
     }
 }
 
@@ -1594,7 +1594,7 @@ mod tests {
 
         let mut ctx = nvs_runtime::Ctx::buffered();
         let text = "id=42; role=admin";
-        let payload = Value::str(NvsStr::new(text.as_bytes()));
+        let payload = Value::text(text);
         // Under Miri the `PBES2` case is left out, for `too_slow_for_miri`'s
         // reason. The `ECDH-ES` case seals once there: the IV is drawn after
         // the algorithm's branch, so `dir`'s two seals already test it, and a
@@ -1695,7 +1695,7 @@ mod tests {
             ring.append(key);
         }
         let ring = Value::array(ring);
-        let token = Value::str(NvsStr::new(token.as_bytes()));
+        let token = Value::text(token);
         let answer = nvs_runtime::call(nvs_core_jwe_decrypt, ctx, &[token, ring]);
         let out = match answer {
             Ok(plain) => {
@@ -1740,7 +1740,7 @@ mod tests {
         let new = [4_u8; crypto::KEY_LEN];
         let shared = |octets: &[u8]| built(USE_SHARED, octets, NO_KIND);
 
-        let payload = Value::str(NvsStr::new(b"id=42"));
+        let payload = Value::text("id=42");
         let sealer = shared(&new);
         let token = encrypted(&mut ctx, payload, sealer);
         #[expect(unsafe_code, reason = "this frame holds the only references")]
@@ -1851,7 +1851,7 @@ mod tests {
             Value::bytes(NvsStr::new(&octets)),
         )
         .expect("a key of the right length builds");
-        let payload = Value::str(NvsStr::new(b"cart=3"));
+        let payload = Value::text("cart=3");
         let token = encrypted(&mut ctx, payload, key);
         #[expect(unsafe_code, reason = "this frame holds the only references")]
         unsafe {
@@ -1896,14 +1896,10 @@ mod tests {
     #[test]
     fn password_builds_a_pbes2_key_from_any_text_and_only_that_text_opens_it() {
         let mut ctx = nvs_runtime::Ctx::buffered();
-        let payload = Value::str(NvsStr::new(b"note"));
+        let payload = Value::text("note");
         for password in ["", "correct horse", "pässwört 🔑"] {
-            let key = constructed(
-                &mut ctx,
-                nvs_core_jwe_key_password,
-                Value::str(NvsStr::new(password.as_bytes())),
-            )
-            .expect("every text is a password");
+            let key = constructed(&mut ctx, nvs_core_jwe_key_password, Value::text(password))
+                .expect("every text is a password");
             let token = encrypted(&mut ctx, payload, key);
             #[expect(unsafe_code, reason = "this frame holds the only reference")]
             unsafe {
@@ -1958,7 +1954,7 @@ mod tests {
     #[test]
     fn recipient_seals_to_one_public_key_and_refuses_a_key_that_only_signs() {
         let mut ctx = nvs_runtime::Ctx::buffered();
-        let payload = Value::str(NvsStr::new(b"card=4111"));
+        let payload = Value::text("card=4111");
         for kind in agreeing_kinds() {
             let (mine, der) = pair(&mut ctx, kind);
             let (theirs, other) = pair(&mut ctx, kind);
@@ -2022,7 +2018,7 @@ mod tests {
     #[test]
     fn own_opens_what_was_sealed_to_its_pair_and_refuses_a_pair_that_only_signs() {
         let mut ctx = nvs_runtime::Ctx::buffered();
-        let payload = Value::str(NvsStr::new(b"order=1042"));
+        let payload = Value::text("order=1042");
         for kind in agreeing_kinds() {
             let (mine, der) = pair(&mut ctx, kind);
             let (theirs, other) = pair(&mut ctx, kind);

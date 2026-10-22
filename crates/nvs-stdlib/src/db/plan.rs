@@ -52,8 +52,8 @@ fn step_value(step: &nvs_db::Step) -> Value {
         &STEP,
         [
             Value::int(grade_case(step.grade())),
-            Value::str(NvsStr::new(step.reason().as_bytes())),
-            Value::str(NvsStr::new(step.sql().join("\n").as_bytes())),
+            Value::text(step.reason()),
+            Value::text(&step.sql().join("\n")),
             Value::bool(step.is_report()),
         ],
     )

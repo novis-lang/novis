@@ -220,7 +220,7 @@ nvs_runtime::nvs_helper! {
 
         let key = open_named(ctx, &name, shared, deadline, CONNECT)?;
         note_timeout(ctx, key, asked, deadline);
-        let block = Value::str(NvsStr::new(name.as_bytes()));
+        let block = Value::text(&name);
         Ok(crate::instance::build(&CONNECTION, [Value::uint(key), block]))
     }
 }
@@ -795,7 +795,7 @@ nvs_runtime::nvs_helper! {
         if shared && let Some(key) = ctx.memoized_connection(&memo) {
             return Ok(crate::instance::build(
                 &CONNECTION,
-                [Value::uint(key), Value::str(NvsStr::new(host.as_bytes()))],
+                [Value::uint(key), Value::text(host)],
             ));
         }
 
@@ -916,7 +916,7 @@ nvs_runtime::nvs_helper! {
         note_timeout(ctx, key, asked, deadline);
         Ok(crate::instance::build(
             &CONNECTION,
-            [Value::uint(key), Value::str(NvsStr::new(host.as_bytes()))],
+            [Value::uint(key), Value::text(host)],
         ))
     }
 }
@@ -1034,7 +1034,7 @@ pub(super) fn sqlite_settings(
     if shared && let Some(key) = ctx.memoized_connection(&memo) {
         return Ok(crate::instance::build(
             &CONNECTION,
-            [Value::uint(key), Value::str(NvsStr::new(path.as_bytes()))],
+            [Value::uint(key), Value::text(path)],
         ));
     }
 
@@ -1092,7 +1092,7 @@ pub(super) fn sqlite_settings(
     note_timeout(ctx, key, asked, deadline);
     Ok(crate::instance::build(
         &CONNECTION,
-        [Value::uint(key), Value::str(NvsStr::new(path.as_bytes()))],
+        [Value::uint(key), Value::text(path)],
     ))
 }
 
@@ -1220,7 +1220,7 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         }
-        Ok(Value::str(NvsStr::new(name.as_bytes())))
+        Ok(Value::text(name))
     }
 }
 
@@ -1301,7 +1301,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_db_connection_server_version(ctx, args: [1]) {
         let (key, _) = connection_of(args[0], "serverVersion")?;
         let filed = crate::db::pool::filed_connection(ctx, key, SERVER_VERSION_MEMBER)?;
-        Ok(Value::str(NvsStr::new(filed.server_version().as_bytes())))
+        Ok(Value::text(filed.server_version()))
     }
 }
 
@@ -1569,10 +1569,7 @@ mod tests {
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let key = ctx.hold_open_connection(Some("main".to_owned()), None, Box::new(Opened));
-        let handle = crate::instance::build(
-            &CONNECTION,
-            [Value::uint(key), Value::str(NvsStr::new(b"main"))],
-        );
+        let handle = crate::instance::build(&CONNECTION, [Value::uint(key), Value::text("main")]);
 
         let before = nvs_runtime::call(nvs_core_db_connection_is_open, &mut ctx, &[handle])
             .expect("`isOpen` answers a `bool` and refuses nothing");
@@ -1854,7 +1851,7 @@ mod tests {
 
         let mut agreed = 0_usize;
         for name in names {
-            let subject = Value::str(NvsStr::new(name.as_bytes()));
+            let subject = Value::text(name);
             let agrees = match nvs_runtime::call(nvs_core_db_quote_identifier, &mut ctx, &[subject])
             {
                 Ok(answered) => {
@@ -1899,7 +1896,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let absent = "/no-such-directory-here/notes.sqlite";
         let mut args = [Value::null(); 12];
-        args[PATH_ARG] = Value::str(NvsStr::new(absent.as_bytes()));
+        args[PATH_ARG] = Value::text(absent);
         args[OPEN_SHARED_ARG] = Value::bool(true);
 
         let refused = sqlite_settings(&mut ctx, &args, nvs_db::Driver::Sqlite)
@@ -2097,11 +2094,7 @@ mod tests {
         let refusal = |config: &str, name: &str| -> String {
             let mut ctx = Ctx::buffered();
             ctx.set_config(crate::tests::granting(config));
-            let args = [
-                Value::str(NvsStr::new(name.as_bytes())),
-                Value::bool(true),
-                Value::null(),
-            ];
+            let args = [Value::text(name), Value::bool(true), Value::null()];
             let answered = nvs_runtime::call(super::nvs_core_db_connect, &mut ctx, &args);
             released(args[0]);
             assert!(
@@ -2156,10 +2149,7 @@ mod tests {
     #[test]
     fn a_connection_the_request_no_longer_holds_answers_false_where_every_other_member_throws() {
         let mut ctx = Ctx::buffered();
-        let handle = crate::instance::build(
-            &CONNECTION,
-            [Value::uint(7), Value::str(NvsStr::new(b"notes"))],
-        );
+        let handle = crate::instance::build(&CONNECTION, [Value::uint(7), Value::text("notes")]);
 
         let open = nvs_runtime::call(nvs_core_db_connection_is_open, &mut ctx, &[handle])
             .expect("`isOpen` answers rather than throwing");

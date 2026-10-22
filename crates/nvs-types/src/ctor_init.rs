@@ -1593,7 +1593,12 @@ mod tests {
         let named = format!(
             "<?nvs\n{BOX}?{{}} $none = Core\\Attributes::get<{{}}>(Box::constructor(...));\n"
         );
-        assert_eq!(direct_constructor_calls(&named), 0, "{:?}", check_src(&named));
+        assert_eq!(
+            direct_constructor_calls(&named),
+            0,
+            "{:?}",
+            check_src(&named)
+        );
     }
 
     #[test]

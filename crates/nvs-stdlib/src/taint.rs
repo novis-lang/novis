@@ -217,10 +217,9 @@ mod tests {
     #[test]
     fn assert_trusted_hands_back_the_argument_itself_and_reads_no_reason() {
         for written in [Some("the column is one of three the program allows"), None] {
-            let value = Value::str(NvsStr::new("<a href='x'>Tom & Jerry</a> ünï".as_bytes()));
+            let value = Value::text("<a href='x'>Tom & Jerry</a> ünï");
             let header: *const StrHeader = value.buffer_ptr().expect("the value is a `string`");
-            let reason =
-                written.map_or_else(Value::null, |text| Value::str(NvsStr::new(text.as_bytes())));
+            let reason = written.map_or_else(Value::null, Value::text);
             let mut ctx = Ctx::buffered();
             let answer = nvs_runtime::call(
                 super::nvs_core_taint_assert_trusted,
@@ -261,7 +260,7 @@ mod tests {
     #[test]
     fn assert_trusted_bytes_hands_back_the_argument_itself() {
         let value = Value::bytes(NvsStr::new(&[0x00, 0xff, b'<', 0xc3]));
-        let reason = Value::str(NvsStr::new(b"the program wrote these bytes itself"));
+        let reason = Value::text("the program wrote these bytes itself");
         let mut ctx = Ctx::buffered();
         let answer = nvs_runtime::call(
             super::nvs_core_taint_assert_trusted_bytes,

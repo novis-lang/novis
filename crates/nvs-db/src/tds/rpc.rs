@@ -997,10 +997,7 @@ mod tests {
             (Value::int(-7), b"-7".to_vec()),
             (Value::uint(u64::MAX), u64::MAX.to_string().into_bytes()),
             (Value::float(1.5), b"1.5".to_vec()),
-            (
-                Value::str(nvs_runtime::NvsStr::new("é".as_bytes())),
-                "é".as_bytes().to_vec(),
-            ),
+            (Value::text("é"), "é".as_bytes().to_vec()),
         ];
         for (value, octets) in sent {
             assert_eq!(

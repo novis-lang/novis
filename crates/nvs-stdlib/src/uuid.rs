@@ -691,7 +691,7 @@ nvs_runtime::nvs_helper! {
         let value = uuid_of(args, 0, "toString")?;
         let mut buffer = TEXT;
         let text = canonical(value.into_bytes(), &mut buffer);
-        Ok(Value::str(NvsStr::new(text.as_bytes())))
+        Ok(Value::text(text))
     }
 }
 
@@ -938,7 +938,7 @@ mod tests {
     /// — the spelling `rule:expressions/try-parse` left standing when this class lost its
     /// `isValid`. Releases the string this test built and whatever came back.
     fn valid(text: &str) -> bool {
-        let subject = Value::str(nvs_runtime::NvsStr::new(text.as_bytes()));
+        let subject = Value::text(text);
         let answer = run(super::nvs_core_uuid_try_parse, &[subject])
             .expect("`tryParse` answers rather than throwing");
         let parsed = answer.tag() != Some(nvs_runtime::Tag::Null);
@@ -958,9 +958,7 @@ mod tests {
     // covers: Core\Uuid::parse, Core\Uuid::toString
     #[test]
     fn the_canonical_form_parses_in_either_case_and_renders_lower() {
-        let subject = Value::str(nvs_runtime::NvsStr::new(
-            b"F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4",
-        ));
+        let subject = Value::text("F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4");
         let parsed = run(super::nvs_core_uuid_parse, &[subject]).expect("that is a UUID");
         #[expect(
             unsafe_code,
@@ -1008,7 +1006,7 @@ mod tests {
     #[test]
     fn a_rejected_operand_is_quoted_bounded() {
         let long = "z".repeat(4096);
-        let subject = Value::str(nvs_runtime::NvsStr::new(long.as_bytes()));
+        let subject = Value::text(&long);
         let status = run(super::nvs_core_uuid_parse, &[subject]).expect_err("that is not a UUID");
         assert_eq!(status, nvs_runtime::THROWN);
         #[expect(

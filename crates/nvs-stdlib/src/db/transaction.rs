@@ -863,7 +863,7 @@ mod tests {
             &TRANSACTION,
             [
                 Value::uint(1),
-                Value::str(NvsStr::new(b"main")),
+                Value::text("main"),
                 Value::bool(true),
                 Value::null(),
             ],
@@ -879,7 +879,7 @@ mod tests {
         );
 
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let reason = Value::str(NvsStr::new(b"the cart is gone"));
+        let reason = Value::text("the cart is gone");
         if call(
             nvs_core_db_transaction_roll_back,
             &mut ctx,
@@ -1015,7 +1015,7 @@ mod tests {
 
     /// What a statement on `[db.main]` throws when PostgreSQL reports a deadlock.
     fn deadlocked() -> Fault {
-        let block = Value::str(NvsStr::new(b"main"));
+        let block = Value::text("main");
         let deadlocked = statement_failure(
             TRANSACTION_MEMBER,
             &block,
@@ -1137,7 +1137,7 @@ mod tests {
     // covers: Core\Db\Connection::transaction
     #[test]
     fn retries_recover_an_induced_deadlock() {
-        let block = Value::str(NvsStr::new(b"main"));
+        let block = Value::text("main");
         let callable = callable_of(conflicts_once);
         let attempted = |retries| Attempted {
             key: 1,
@@ -1270,7 +1270,7 @@ mod tests {
 
     /// One `transaction` on the connection filed under `key`, running [`enqueues`].
     fn transacted_on(ctx: &mut Ctx, key: u64) -> Result<Value, Fault> {
-        let block = Value::str(NvsStr::new(b"main"));
+        let block = Value::text("main");
         let callable = callable_of(enqueues);
         let answered = transacted(
             ctx,

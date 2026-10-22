@@ -1316,7 +1316,7 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
 
 /// `text` as an owned `string` value.
 fn produced(text: &str) -> HelperResult {
-    Ok(Value::str(NvsStr::new(text.as_bytes())))
+    Ok(Value::text(text))
 }
 
 /// `octets` as text, or a throw where they are not UTF-8. `subject` names
@@ -1504,20 +1504,18 @@ fn built(reference: &UriRef<&str>, member: &str) -> HelperResult {
         Some(authority) => port_of(&authority, member)?,
         None => None,
     };
-    let text = |held: Option<&str>| {
-        held.map_or_else(Value::null, |held| Value::str(NvsStr::new(held.as_bytes())))
-    };
+    let text = |held: Option<&str>| held.map_or_else(Value::null, Value::text);
     Ok(crate::instance::build(
         &CLASS,
         [
-            Value::str(NvsStr::new(reference.as_str().as_bytes())),
+            Value::text(reference.as_str()),
             text(reference.scheme().map(Scheme::as_str)),
             text(authority.and_then(|held| held.userinfo()).map(EStr::as_str)),
             // Present-but-empty where `//` was written with nothing after it,
             // which is the distinction `parse_url`'s array cannot hold.
             text(authority.as_ref().map(Authority::host)),
             port.map_or_else(Value::null, |port| Value::int(i64::from(port))),
-            Value::str(NvsStr::new(reference.path().as_str().as_bytes())),
+            Value::text(reference.path().as_str()),
             text(reference.query().map(EStr::as_str)),
             text(reference.fragment().map(EStr::as_str)),
         ],
@@ -2087,9 +2085,7 @@ pub(crate) fn without_signature(query: &str) -> (Vec<&str>, String) {
 /// which is the one thing a query string genuinely does not carry; a
 /// consequence is that a query with no pairs and no query at all sign alike.
 fn payload_of(form: &Equivalent, parameters: NvsArray) -> Value {
-    let text = |held: Option<&String>| {
-        held.map_or_else(Value::null, |held| Value::str(NvsStr::new(held.as_bytes())))
-    };
+    let text = |held: Option<&String>| held.map_or_else(Value::null, |held| Value::text(held));
     let mut payload = NvsArray::new();
     payload.set(NvsStr::new(b"scheme"), text(form.scheme.as_ref()));
     payload.set(NvsStr::new(b"userInfo"), text(form.user_info.as_ref()));
@@ -2098,10 +2094,7 @@ fn payload_of(form: &Equivalent, parameters: NvsArray) -> Value {
         NvsStr::new(b"port"),
         form.port.map_or_else(Value::null, Value::int),
     );
-    payload.set(
-        NvsStr::new(b"path"),
-        Value::str(NvsStr::new(form.path.as_bytes())),
-    );
+    payload.set(NvsStr::new(b"path"), Value::text(&form.path));
     payload.set(NvsStr::new(b"query"), Value::array(parameters));
     Value::array(payload)
 }
@@ -3067,7 +3060,7 @@ nvs_runtime::nvs_helper! {
             &slots,
             MEMBER,
             SIG_NAME,
-            Some(Value::str(NvsStr::new(token.as_bytes()))),
+            Some(Value::text(&token)),
         )
     }
 }
@@ -3285,9 +3278,12 @@ pub(crate) fn parse_query(
         let octets = decode(written_value, Form::FormValue);
         let value = match values {
             Values::Octets => Value::bytes(NvsStr::new(&octets)),
-            Values::Text => Value::str(NvsStr::new(
-                text_from(octets, owner, member, "the decoded value of a parameter")?.as_bytes(),
-            )),
+            Values::Text => Value::text(&text_from(
+                octets,
+                owner,
+                member,
+                "the decoded value of a parameter",
+            )?),
         };
         place(&mut out, name.as_bytes(), value).map_err(|_| OverMemory::fault(owner, member))?;
     }
@@ -3382,7 +3378,7 @@ mod tests {
         subject: &str,
     ) -> Result<String, i32> {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let argument = Value::str(nvs_runtime::NvsStr::new(subject.as_bytes()));
+        let argument = Value::text(subject);
         let answer = call(member, &mut ctx, &[argument]);
         let out = answer.map(|value| {
             let text = String::from_utf8(
@@ -3419,7 +3415,7 @@ mod tests {
         subject: &str,
     ) -> Vec<u8> {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let argument = Value::str(nvs_runtime::NvsStr::new(subject.as_bytes()));
+        let argument = Value::text(subject);
         let answer = call(member, &mut ctx, &[argument]).expect("a decoder refuses nothing");
         let out = answer
             .as_bytes()
@@ -3515,7 +3511,7 @@ mod tests {
     /// `Core\Uri::parseQuery(query)`, rendered by [`rendered`].
     fn parsed(query: &str) -> Result<String, i32> {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let argument = Value::str(nvs_runtime::NvsStr::new(query.as_bytes()));
+        let argument = Value::text(query);
         let answer = call(super::nvs_core_uri_parse_query, &mut ctx, &[argument]);
         let out = answer.map(|value| {
             let text = rendered(value);
@@ -3598,7 +3594,7 @@ mod tests {
     /// both members are specified against, run through the same boundary.
     fn rebuilt(query: &str) -> Result<String, i32> {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let argument = Value::str(nvs_runtime::NvsStr::new(query.as_bytes()));
+        let argument = Value::text(query);
         let parsed = call(super::nvs_core_uri_parse_query, &mut ctx, &[argument]);
         #[expect(unsafe_code, reason = "this frame owns the argument it built")]
         unsafe {
@@ -4073,7 +4069,7 @@ mod tests {
     /// `Core\Uri::parse($text)`, as the instance value the caller then owns.
     fn uri_of(text: &str) -> Value {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let argument = Value::str(nvs_runtime::NvsStr::new(text.as_bytes()));
+        let argument = Value::text(text);
         let uri = call(super::nvs_core_uri_parse, &mut ctx, &[argument])
             .expect("every subject here is a URI reference");
         #[expect(unsafe_code, reason = "this frame owns the argument it built")]
@@ -4141,7 +4137,7 @@ mod tests {
     /// or `None` where the answer is `null`.
     fn tried(text: &str) -> Option<String> {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let argument = Value::str(nvs_runtime::NvsStr::new(text.as_bytes()));
+        let argument = Value::text(text);
         let answer = call(super::nvs_core_uri_try_parse, &mut ctx, &[argument])
             .expect("`tryParse` answers `null` where `parse` throws");
         #[expect(unsafe_code, reason = "this frame owns the argument it built")]
@@ -4173,7 +4169,7 @@ mod tests {
             "/a\u{0}b",
         ] {
             let mut ctx = Ctx::new(OutputSink::Sink);
-            let argument = Value::str(nvs_runtime::NvsStr::new(subject.as_bytes()));
+            let argument = Value::text(subject);
             assert!(
                 call(super::nvs_core_uri_parse, &mut ctx, &[argument]).is_err(),
                 "`parse` throws on {subject:?}"
@@ -4427,7 +4423,7 @@ mod tests {
 
     /// A written `string` option, as the call site's own text.
     fn wrote(text: &str) -> Value {
-        Value::str(nvs_runtime::NvsStr::new(text.as_bytes()))
+        Value::text(text)
     }
 
     /// One nullable option in the state a call site put it in: `None` is the
@@ -4858,10 +4854,7 @@ mod tests {
     fn a_query_parameter_round_trips_an_array_value_through_the_bracket_convention() {
         let nested_value = || {
             let mut inner = nvs_runtime::NvsArray::new();
-            inner.set(
-                nvs_runtime::NvsStr::new(b"b"),
-                Value::str(nvs_runtime::NvsStr::new(b"c")),
-            );
+            inner.set(nvs_runtime::NvsStr::new(b"b"), Value::text("c"));
             Value::array(inner)
         };
 

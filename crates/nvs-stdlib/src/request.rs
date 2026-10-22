@@ -1958,12 +1958,7 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8], member: &'static str) -> Resul
             member,
             "the value of a form field",
         )?;
-        crate::uri::place(
-            &mut out,
-            name.as_bytes(),
-            Value::str(NvsStr::new(value.as_bytes())),
-        )
-        .map_err(|_| {
+        crate::uri::place(&mut out, name.as_bytes(), Value::text(value)).map_err(|_| {
             Fault::fatal(format!(
                 "Core\\Request::{member}: the form's field names open more arrays than the \
                  request's memory limit allows"
@@ -2146,7 +2141,7 @@ fn peer_text<'a>(
 /// [`peer_text`]'s answer as a `string` value, or its `ParseError`.
 fn field_text(octets: &[u8], member: &str, what: &str) -> Result<Value, Fault> {
     let text = peer_text(octets, ThrownClass::Parse, member, what)?;
-    Ok(Value::str(NvsStr::new(text.as_bytes())))
+    Ok(Value::text(text))
 }
 
 /// The request's field lines grouped by lower-cased name, each group in arrival
@@ -2342,14 +2337,11 @@ nvs_runtime::nvs_helper! {
 fn mount_value(inbound: &Inbound) -> Value {
     let mut captures = NvsArray::new();
     for capture in inbound.mount_captures() {
-        captures.append(Value::str(NvsStr::new(capture.as_bytes())));
+        captures.append(Value::text(capture));
     }
     crate::instance::build(
         &MOUNT,
-        [
-            Value::str(NvsStr::new(inbound.mount_prefix().as_bytes())),
-            Value::array(captures),
-        ],
+        [Value::text(inbound.mount_prefix()), Value::array(captures)],
     )
 }
 
@@ -2436,7 +2428,7 @@ nvs_runtime::nvs_helper! {
     /// the whole point of the mount table.
     fn nvs_core_request_path(ctx, _args: [0]) {
         let path = inbound_of(ctx, "path")?.path();
-        Ok(Value::str(NvsStr::new(path.as_bytes())))
+        Ok(Value::text(path))
     }
 }
 
@@ -2890,7 +2882,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_request_client_ip(ctx, _args: [0]) {
         Ok(match client_text(inbound_of(ctx, "clientIp")?) {
             None => Value::null(),
-            Some(address) => Value::str(NvsStr::new(address.as_bytes())),
+            Some(address) => Value::text(&address),
         })
     }
 }
@@ -2905,7 +2897,7 @@ nvs_runtime::nvs_helper! {
     /// own, which is the same rule's fail-closed end.
     fn nvs_core_request_scheme(ctx, _args: [0]) {
         let scheme = scheme_text(inbound_of(ctx, "scheme")?);
-        Ok(Value::str(NvsStr::new(scheme.as_bytes())))
+        Ok(Value::text(scheme))
     }
 }
 
@@ -3047,8 +3039,9 @@ nvs_runtime::nvs_helper! {
         // repaired. A lossy decode would change a webhook's signed payload
         // without saying so, which spends security to buy convenience —
         // `bytes()` is the reading that has no encoding to promise.
-        if let Err(why) = std::str::from_utf8(octets) {
-            return Err(Fault::thrown_as(
+        match std::str::from_utf8(octets) {
+            Ok(text) => Ok(Value::text(text)),
+            Err(why) => Err(Fault::thrown_as(
                 ThrownClass::Parse,
                 format!(
                     "Core\\Request::body(): the body of this request is not UTF-8 — {why} — and a \
@@ -3056,9 +3049,8 @@ nvs_runtime::nvs_helper! {
                      could be. `Core\\Request::bytes()` answers them as they arrived, out of the \
                      hold this reading has already filled"
                 ),
-            ));
+            )),
         }
-        Ok(Value::str(NvsStr::new(octets)))
     }
 }
 
@@ -3791,9 +3783,9 @@ fn part_value(head: &crate::multipart::PartHead, ordinal: usize) -> Result<Value
     Ok(crate::instance::build(
         &PART,
         [
-            Value::str(NvsStr::new(name.as_bytes())),
-            Value::str(NvsStr::new(filename.as_bytes())),
-            Value::str(NvsStr::new(content_type.as_bytes())),
+            Value::text(name),
+            Value::text(filename),
+            Value::text(content_type),
             Value::uint(
                 u64::try_from(ordinal).expect("`MAX_PARTS` bounds a body at a thousand parts"),
             ),
@@ -5029,7 +5021,7 @@ mod tests {
         fn values_of(query: &str, name: &str) -> String {
             let mut ctx = Ctx::buffered();
             ctx.set_inbound(Inbound::new("GET", "/", query));
-            let name = Value::str(nvs_runtime::NvsStr::new(name.as_bytes()));
+            let name = Value::text(name);
             let answer = nvs_runtime::call(
                 crate::request::nvs_core_request_query_array,
                 &mut ctx,
@@ -5094,7 +5086,7 @@ mod tests {
         fn query_of(query: &str, name: &str) -> String {
             let mut ctx = Ctx::buffered();
             ctx.set_inbound(Inbound::new("GET", "/", query));
-            let name = Value::str(nvs_runtime::NvsStr::new(name.as_bytes()));
+            let name = Value::text(name);
             let answer =
                 nvs_runtime::call(crate::request::nvs_core_request_query, &mut ctx, &[name]);
             let seen = match answer {
@@ -5149,7 +5141,7 @@ mod tests {
         );
         assert_eq!(query_of("q=%FF", "q"), "refused");
 
-        let name = Value::str(nvs_runtime::NvsStr::new(b"page"));
+        let name = Value::text("page");
         let unanswered = nvs_runtime::call(
             crate::request::nvs_core_request_query,
             &mut Ctx::buffered(),
@@ -6515,7 +6507,7 @@ mod tests {
         path: &std::path::Path,
         overwrite: bool,
     ) -> Result<(), i32> {
-        let written = Value::str(nvs_runtime::NvsStr::new(path.to_string_lossy().as_bytes()));
+        let written = Value::text(&path.to_string_lossy());
         let answered = nvs_runtime::call(
             nvs_core_request_part_save_to,
             ctx,
@@ -6643,7 +6635,7 @@ mod tests {
     /// `Core\Request::post(name)` on `ctx`, with the argument's own reference
     /// released the way a compiled call site releases it.
     fn posted(ctx: &mut Ctx, name: &str) -> Result<Value, i32> {
-        let asked = Value::str(nvs_runtime::NvsStr::new(name.as_bytes()));
+        let asked = Value::text(name);
         let answered = nvs_runtime::call(nvs_core_request_post, ctx, &[asked]);
         dropped(asked);
         answered
@@ -6651,7 +6643,7 @@ mod tests {
 
     /// `Core\Request::postArray(name)` on `ctx`, as [`posted`] calls `post`.
     fn posted_array(ctx: &mut Ctx, name: &str) -> Result<Value, i32> {
-        let asked = Value::str(nvs_runtime::NvsStr::new(name.as_bytes()));
+        let asked = Value::text(name);
         let answered = nvs_runtime::call(nvs_core_request_post_array, ctx, &[asked]);
         dropped(asked);
         answered
@@ -7554,9 +7546,7 @@ mod tests {
         shape: (*const ClassDesc, *const ShapeCodec),
         name: Option<&str>,
     ) -> Result<Value, i32> {
-        let named = name.map_or_else(Value::null, |name| {
-            Value::str(nvs_runtime::NvsStr::new(name.as_bytes()))
-        });
+        let named = name.map_or_else(Value::null, Value::text);
         let answered = nvs_runtime::call(
             member,
             ctx,

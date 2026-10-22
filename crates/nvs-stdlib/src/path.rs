@@ -87,7 +87,7 @@
 //! names. `Qual::Launder` refuses a `secret` argument, so `tainted` is the only
 //! qualifier it removes.
 
-use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
+use nvs_runtime::{Fault, HelperResult, NvsArray, Tag, Value};
 
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreConst, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc,
@@ -849,7 +849,7 @@ fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
 
 /// A freshly built `string` result.
 fn produced(text: &str) -> HelperResult {
-    Ok(Value::str(NvsStr::new(text.as_bytes())))
+    Ok(Value::text(text))
 }
 
 // ============================================================================
@@ -1070,10 +1070,10 @@ nvs_runtime::nvs_helper! {
         let mut out = NvsArray::new();
         let root = root(&parts);
         if !root.is_empty() {
-            out.append(Value::str(NvsStr::new(root.as_bytes())));
+            out.append(Value::text(&root));
         }
         for component in &parts.components {
-            out.append(Value::str(NvsStr::new(component.as_bytes())));
+            out.append(Value::text(component));
         }
         Ok(Value::array(out))
     }
@@ -1262,7 +1262,7 @@ mod tests {
 
     /// A `string` argument.
     fn s(text: &str) -> Value {
-        Value::str(nvs_runtime::NvsStr::new(text.as_bytes()))
+        Value::text(text)
     }
 
     /// The returned string's bytes, releasing the reference the helper handed

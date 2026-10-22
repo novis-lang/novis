@@ -162,8 +162,8 @@ fn ctx_with(mut caps: Capabilities) -> nvs_runtime::Ctx {
 /// or the message the refusal carried.
 fn within(ctx: &mut nvs_runtime::Ctx, base: &Path, path: &str) -> Result<String, String> {
     let args = [
-        nvs_runtime::Value::str(nvs_runtime::NvsStr::new(base.to_string_lossy().as_bytes())),
-        nvs_runtime::Value::str(nvs_runtime::NvsStr::new(path.as_bytes())),
+        nvs_runtime::Value::text(&base.to_string_lossy()),
+        nvs_runtime::Value::text(path),
     ];
     match nvs_runtime::call(nvs_stdlib::io::nvs_core_io_within, ctx, &args) {
         Ok(answer) => Ok(answer
@@ -865,9 +865,7 @@ fn ctx_reading_and_writing(roots: &[&str]) -> nvs_runtime::Ctx {
 /// `Core\Cap::has($capability)` as the member itself rather than as a re-derivation of it, driven
 /// the way a program drives it — [`within`] above takes the same route for the same reason.
 fn has(ctx: &mut nvs_runtime::Ctx, capability: &str) -> bool {
-    let args = [nvs_runtime::Value::str(nvs_runtime::NvsStr::new(
-        capability.as_bytes(),
-    ))];
+    let args = [nvs_runtime::Value::text(capability)];
     nvs_runtime::call(nvs_stdlib::cap::nvs_core_cap_has, ctx, &args)
         .expect("the query reports and never throws, whatever it is handed")
         .as_bool()

@@ -1449,7 +1449,7 @@ nvs_runtime::nvs_helper! {
             now,
             exp,
         })?;
-        Ok(Value::str(NvsStr::new(token.as_bytes())))
+        Ok(Value::text(&token))
     }
 }
 
@@ -1501,7 +1501,7 @@ nvs_runtime::nvs_helper! {
         token.push_str(&signing_input);
         token.push('.');
         token.push_str(&signature);
-        Ok(Value::str(NvsStr::new(token.as_bytes())))
+        Ok(Value::text(&token))
     }
 }
 
@@ -1585,7 +1585,7 @@ nvs_runtime::nvs_helper! {
             })?;
             out.set(
                 NvsStr::new(name.as_bytes()),
-                Value::str(NvsStr::new(text.as_bytes())),
+                Value::text(&text),
             );
         }
         Ok(Value::array(out))
@@ -2928,7 +2928,7 @@ mod tests {
         for pair in written {
             claims.set(
                 NvsStr::new(webcrypto::text(pair, "/0").as_bytes()),
-                Value::str(NvsStr::new(webcrypto::text(pair, "/1").as_bytes())),
+                Value::text(webcrypto::text(pair, "/1")),
             );
         }
         claims
@@ -3107,10 +3107,7 @@ mod tests {
     ) -> Result<String, i32> {
         let mut bag = NvsArray::new();
         for (name, value) in claims {
-            bag.set(
-                NvsStr::new(name.as_bytes()),
-                Value::str(NvsStr::new(value.as_bytes())),
-            );
+            bag.set(NvsStr::new(name.as_bytes()), Value::text(value));
         }
         let args = [
             Value::array(bag),
@@ -3180,10 +3177,7 @@ mod tests {
             )
         );
 
-        let args = [
-            Value::str(NvsStr::new(token.as_bytes())),
-            Value::bytes(NvsStr::new(&key)),
-        ];
+        let args = [Value::text(&token), Value::bytes(NvsStr::new(&key))];
         let claims = nvs_runtime::call(nvs_core_jwt_verify, &mut ctx, &args)
             .expect("the key that signed the token verifies it before `exp`");
         #[expect(unsafe_code, reason = "this frame holds every one of these references")]
@@ -3218,10 +3212,7 @@ mod tests {
     ) -> Result<String, i32> {
         let mut bag = NvsArray::new();
         for (name, value) in claims {
-            bag.set(
-                NvsStr::new(name.as_bytes()),
-                Value::str(NvsStr::new(value.as_bytes())),
-            );
+            bag.set(NvsStr::new(name.as_bytes()), Value::text(value));
         }
         let owned = [Value::array(bag), crate::time::duration_of(lifetime_nanos)];
         let args = [
@@ -3346,10 +3337,7 @@ mod tests {
         key: &[u8],
         names: &[&str],
     ) -> Result<(usize, Vec<Option<String>>), String> {
-        let args = [
-            Value::str(NvsStr::new(token.as_bytes())),
-            Value::bytes(NvsStr::new(key)),
-        ];
+        let args = [Value::text(token), Value::bytes(NvsStr::new(key))];
         let answer = nvs_runtime::call(nvs_core_jwt_verify, ctx, &args);
         let read = match answer {
             Ok(claims) => {
@@ -3494,9 +3482,9 @@ mod tests {
     ) -> Result<String, String> {
         let (class, codec) = subject_shape();
         let owned = [
-            Value::str(NvsStr::new(token.as_bytes())),
-            Value::str(NvsStr::new(issuer.as_bytes())),
-            Value::str(NvsStr::new(audience.as_bytes())),
+            Value::text(token),
+            Value::text(issuer),
+            Value::text(audience),
         ];
         let args = [
             Value::class_desc(class),
@@ -3664,7 +3652,7 @@ mod tests {
     /// One call of `Core\Jwt\KeySet::read` as compiled code makes it, with no
     /// options, answering the set or the sentence it threw.
     fn key_set(ctx: &mut nvs_runtime::Ctx, jwks: &str) -> Result<Value, String> {
-        let document = Value::str(NvsStr::new(jwks.as_bytes()));
+        let document = Value::text(jwks);
         let answer = nvs_runtime::call(nvs_core_jwt_key_set_read, ctx, &[document, Value::null()]);
         #[expect(
             unsafe_code,

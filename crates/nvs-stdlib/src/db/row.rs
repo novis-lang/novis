@@ -1349,11 +1349,7 @@ mod tests {
         for expected in labels {
             let column = crate::instance::build(
                 &COLUMN,
-                [
-                    Value::str(NvsStr::new(expected.as_bytes())),
-                    Value::int(0),
-                    Value::bool(true),
-                ],
+                [Value::text(expected), Value::int(0), Value::bool(true)],
             );
             let answered = nvs_runtime::call(nvs_core_db_column_name, &mut ctx, &[column])
                 .expect("`name` reads one slot and has nothing to throw");
@@ -1432,11 +1428,7 @@ mod tests {
             let declared = column_type_value(column.column_type());
             let built = crate::instance::build(
                 &COLUMN,
-                [
-                    Value::str(NvsStr::new(column.name.as_bytes())),
-                    declared,
-                    Value::bool(true),
-                ],
+                [Value::text(&column.name), declared, Value::bool(true)],
             );
             let answered = nvs_runtime::call(nvs_core_db_column_type, &mut ctx, &[built])
                 .expect("`type` reads one slot and has nothing to throw");
@@ -1652,7 +1644,7 @@ mod tests {
                       so reading its header is reading a live object"
         )]
         let before = unsafe { nvs_runtime::NvsObj::refcount_of(held) };
-        let name = Value::str(NvsStr::new(b"born"));
+        let name = Value::text("born");
         let answered = nvs_runtime::call(nvs_core_db_row_date, &mut ctx, &[row, name])
             .expect("a `DATE` column is what `date` reads");
         assert_eq!(
@@ -1674,7 +1666,7 @@ mod tests {
         released(name);
 
         // 2. The neighbouring class, which is an instance and is not a day.
-        let other = Value::str(NvsStr::new(b"opens"));
+        let other = Value::text("opens");
         nvs_runtime::call(nvs_core_db_row_date, &mut ctx, &[row, other])
             .expect_err("a `TIME` column has no `date` reading");
         let message = ctx
@@ -1688,7 +1680,7 @@ mod tests {
 
         // 3. And the column with no value, which is an absence rather than a
         //    day the reader had to invent.
-        let absent = Value::str(NvsStr::new(b"empty"));
+        let absent = Value::text("empty");
         let nothing = nvs_runtime::call(nvs_core_db_row_date, &mut ctx, &[row, absent])
             .expect("a NULL column is read rather than refused");
         assert_eq!(nothing.tag(), Some(Tag::Null));
@@ -1721,13 +1713,13 @@ mod tests {
             NvsStr::new(b"photo"),
             Value::bytes(NvsStr::new(&[0x00, 0xff, 0x80])),
         );
-        columns.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"a name")));
+        columns.set(NvsStr::new(b"label"), Value::text("a name"));
         columns.set(NvsStr::new(b"empty"), Value::null());
         let row = crate::instance::build(&ROW, [Value::array(columns)]);
 
         // 1. Each reader over its own column, and the octets come back as they
         //    were stored rather than as whatever they could be decoded into.
-        let name = Value::str(NvsStr::new(b"photo"));
+        let name = Value::text("photo");
         let answered = nvs_runtime::call(nvs_core_db_row_bytes, &mut ctx, &[row, name])
             .expect("a `BLOB` column is what `bytes` reads");
         assert_eq!(
@@ -1748,7 +1740,7 @@ mod tests {
             ),
             (nvs_core_db_row_string, "photo", "string"),
         ] {
-            let asked = Value::str(NvsStr::new(column.as_bytes()));
+            let asked = Value::text(column);
             nvs_runtime::call(reader, &mut ctx, &[row, asked])
                 .expect_err("§ 6 keeps `bytes` and `string` apart in both directions");
             let message = ctx
@@ -1764,7 +1756,7 @@ mod tests {
         // 3. And the column with no value, which is an absence in both readers
         //    and never an empty buffer — the one answer that is not a refusal
         //    and not the octets.
-        let absent = Value::str(NvsStr::new(b"empty"));
+        let absent = Value::text("empty");
         let nothing = nvs_runtime::call(nvs_core_db_row_bytes, &mut ctx, &[row, absent])
             .expect("a NULL column is read rather than refused");
         assert_eq!(
@@ -1808,7 +1800,7 @@ mod tests {
 
         // 1. The exact number, with the digits and the scale it was stored
         //    with, and nothing allocated to carry them.
-        let name = Value::str(NvsStr::new(b"amount"));
+        let name = Value::text("amount");
         let answered = nvs_runtime::call(nvs_core_db_row_decimal, &mut ctx, &[row, name])
             .expect("a `DECIMAL` column is what `decimal` reads");
         assert_eq!(
@@ -1834,7 +1826,7 @@ mod tests {
             ),
             (nvs_core_db_row_float, "amount", "float"),
         ] {
-            let asked = Value::str(NvsStr::new(column.as_bytes()));
+            let asked = Value::text(column);
             nvs_runtime::call(reader, &mut ctx, &[row, asked])
                 .expect_err("§ 6 keeps `decimal` and `float` apart in both directions");
             let message = ctx
@@ -1849,7 +1841,7 @@ mod tests {
 
         // 3. And the column with no value, which is an absence rather than the
         //    zero a number column makes so easy to answer instead.
-        let absent = Value::str(NvsStr::new(b"empty"));
+        let absent = Value::text("empty");
         let nothing = nvs_runtime::call(nvs_core_db_row_decimal, &mut ctx, &[row, absent])
             .expect("a NULL column is read rather than refused");
         assert_eq!(
@@ -1903,7 +1895,7 @@ mod tests {
         //    for each answer the caller has not released yet.
         let mut answers = Vec::new();
         for _ in 0..3 {
-            let name = Value::str(NvsStr::new(b"opens"));
+            let name = Value::text("opens");
             let answered = nvs_runtime::call(nvs_core_db_row_time, &mut ctx, &[row, name])
                 .expect("a `TIME` column is what `time` reads");
             assert_eq!(
@@ -1939,7 +1931,7 @@ mod tests {
 
         // 2. The neighbouring class, which is an instance and is not a clock
         //    reading.
-        let other = Value::str(NvsStr::new(b"born"));
+        let other = Value::text("born");
         nvs_runtime::call(nvs_core_db_row_time, &mut ctx, &[row, other])
             .expect_err("a `DATE` column has no `time` reading");
         let message = ctx
@@ -1953,7 +1945,7 @@ mod tests {
 
         // 3. And the column with no value, which is an absence rather than
         //    midnight, the reading a member inventing one would pick.
-        let absent = Value::str(NvsStr::new(b"empty"));
+        let absent = Value::text("empty");
         let nothing = nvs_runtime::call(nvs_core_db_row_time, &mut ctx, &[row, absent])
             .expect("a NULL column is read rather than refused");
         assert_eq!(nothing.tag(), Some(Tag::Null));
@@ -1998,7 +1990,7 @@ mod tests {
         let held = moment
             .obj_ptr()
             .expect("a `Core\\Time\\Instant` is an object");
-        let name = Value::str(NvsStr::new(b"at"));
+        let name = Value::text("at");
         let answered = nvs_runtime::call(nvs_core_db_row_instant, &mut ctx, &[row, name])
             .expect("a `TIMESTAMPTZ` column is what `instant` reads");
         assert_eq!(
@@ -2015,7 +2007,7 @@ mod tests {
         released(name);
 
         // 2. The neighbouring class, which is an instance and carries no zone.
-        let other = Value::str(NvsStr::new(b"seen"));
+        let other = Value::text("seen");
         nvs_runtime::call(nvs_core_db_row_instant, &mut ctx, &[row, other])
             .expect_err("a reading with no zone is not a moment");
         let message = ctx
@@ -2029,7 +2021,7 @@ mod tests {
 
         // 3. And the column with no value, which is an absence rather than the
         //    epoch, the moment a member inventing one would pick.
-        let absent = Value::str(NvsStr::new(b"empty"));
+        let absent = Value::text("empty");
         let nothing = nvs_runtime::call(nvs_core_db_row_instant, &mut ctx, &[row, absent])
             .expect("a NULL column is read rather than refused");
         assert_eq!(nothing.tag(), Some(Tag::Null));
@@ -2074,7 +2066,7 @@ mod tests {
 
         // 1. The one column of the four that is an id, answered as the object
         //    the row itself holds.
-        let name = Value::str(NvsStr::new(b"id"));
+        let name = Value::text("id");
         let answered = nvs_runtime::call(nvs_core_db_row_uuid, &mut ctx, &[row, name])
             .expect("a `UUID` column is what `uuid` reads");
         assert_eq!(
@@ -2088,7 +2080,7 @@ mod tests {
         // 2. The other three, each an instance and none of them an id.
         for column in [b"at".as_slice(), b"born".as_slice(), b"opens".as_slice()] {
             let label = core::str::from_utf8(column).expect("these column names are ASCII");
-            let other = Value::str(NvsStr::new(column));
+            let other = Value::text(label);
             nvs_runtime::call(nvs_core_db_row_uuid, &mut ctx, &[row, other])
                 .expect_err("a reading of another class is not an id");
             let message = ctx
@@ -2103,7 +2095,7 @@ mod tests {
 
         // 3. And the column with no value, which is an absence rather than the
         //    nil id, the value a member inventing one would pick.
-        let absent = Value::str(NvsStr::new(b"empty"));
+        let absent = Value::text("empty");
         let nothing = nvs_runtime::call(nvs_core_db_row_uuid, &mut ctx, &[row, absent])
             .expect("a NULL column is read rather than refused");
         assert_eq!(nothing.tag(), Some(Tag::Null));
@@ -2127,7 +2119,7 @@ mod tests {
     #[test]
     fn string_answers_the_rows_own_text_rather_than_a_copy_of_it() {
         let mut ctx = Ctx::buffered();
-        let stored = Value::str(NvsStr::new("Amélie".as_bytes()));
+        let stored = Value::text("Amélie");
         let mut columns = NvsArray::new();
         columns.set(NvsStr::new(b"name"), stored);
         columns.set(NvsStr::new(b"empty"), Value::null());
@@ -2139,7 +2131,7 @@ mod tests {
 
         // 1. Four reads of the one column, each answering the allocation the
         //    row itself holds.
-        let name = Value::str(NvsStr::new(b"name"));
+        let name = Value::text("name");
         for _ in 0..4 {
             let answered = nvs_runtime::call(nvs_core_db_row_string, &mut ctx, &[row, name])
                 .expect("a `TEXT` column is what `string` reads");
@@ -2159,7 +2151,7 @@ mod tests {
 
         // 2. And the column with no value, which is an absence rather than the
         //    empty text, the value a member inventing one would pick.
-        let absent = Value::str(NvsStr::new(b"empty"));
+        let absent = Value::text("empty");
         let nothing = nvs_runtime::call(nvs_core_db_row_string, &mut ctx, &[row, absent])
             .expect("a NULL column is read rather than refused");
         assert_eq!(nothing.tag(), Some(Tag::Null));
@@ -2201,6 +2193,7 @@ mod tests {
 
         // 1. Each end of the range, answered as the number the column holds.
         for (label, stored) in ENDS {
+            #[expect(clippy::disallowed_methods, reason = "the test's labels are ASCII")]
             let name = Value::str(NvsStr::new(label));
             let answered = nvs_runtime::call(nvs_core_db_row_int, &mut ctx, &[row, name])
                 .expect("an integer column is what `int` reads");
@@ -2214,7 +2207,7 @@ mod tests {
 
         // 2. And the nearest double to the ceiling, which is a fractional
         //    column however round its value is.
-        let near = Value::str(NvsStr::new(b"near"));
+        let near = Value::text("near");
         nvs_runtime::call(nvs_core_db_row_int, &mut ctx, &[row, near])
             .expect_err("a `REAL` column is not an integer, whatever it holds");
         let message = ctx
@@ -2246,12 +2239,12 @@ mod tests {
         let mut columns = NvsArray::new();
         columns.set(NvsStr::new(b"size"), Value::int(18432));
         columns.set(NvsStr::new(b"owed"), Value::int(-1));
-        columns.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"18432")));
+        columns.set(NvsStr::new(b"label"), Value::text("18432"));
         let row = crate::instance::build(&ROW, [Value::array(columns)]);
 
         // 1. The column this reader answers, which is a signed one that is not
         //    negative.
-        let name = Value::str(NvsStr::new(b"size"));
+        let name = Value::text("size");
         let answered = nvs_runtime::call(nvs_core_db_row_uint, &mut ctx, &[row, name])
             .expect("a signed column that is not negative has a `uint` reading");
         assert_eq!(answered.as_uint(), Some(18432));
@@ -2259,8 +2252,8 @@ mod tests {
 
         // 2. The two refusals, read off the member as a program catches them.
         let mut said = Vec::new();
-        for column in [b"owed".as_slice(), b"label".as_slice()] {
-            let asked = Value::str(NvsStr::new(column));
+        for column in ["owed", "label"] {
+            let asked = Value::text(column);
             nvs_runtime::call(nvs_core_db_row_uint, &mut ctx, &[row, asked])
                 .expect_err("neither a negative number nor a text is a `uint`");
             said.push(
@@ -2300,7 +2293,7 @@ mod tests {
     #[test]
     fn get_answers_the_columns_own_tag_and_lends_the_rows_allocation() {
         let mut ctx = Ctx::buffered();
-        let text = Value::str(NvsStr::new("north field".as_bytes()));
+        let text = Value::text("north field");
         let mut columns = NvsArray::new();
         columns.set(NvsStr::new(b"label"), text);
         columns.set(NvsStr::new(b"seats"), Value::int(7));
@@ -2317,22 +2310,21 @@ mod tests {
         // 1. Every family, answered under the tag it was stored with. Nothing
         //    here is converted on the way out.
         for (column, tag) in [
-            (b"label".as_slice(), Tag::Str),
-            (b"seats".as_slice(), Tag::Int),
-            (b"folders".as_slice(), Tag::Uint),
-            (b"share".as_slice(), Tag::Float),
-            (b"price".as_slice(), Tag::Decimal),
-            (b"open".as_slice(), Tag::Bool),
-            (b"missed".as_slice(), Tag::Null),
+            ("label", Tag::Str),
+            ("seats", Tag::Int),
+            ("folders", Tag::Uint),
+            ("share", Tag::Float),
+            ("price", Tag::Decimal),
+            ("open", Tag::Bool),
+            ("missed", Tag::Null),
         ] {
-            let name = Value::str(NvsStr::new(column));
+            let name = Value::text(column);
             let answered = nvs_runtime::call(nvs_core_db_row_get, &mut ctx, &[row, name])
                 .expect("every column the row carries is one this member answers");
             assert_eq!(
                 answered.tag(),
                 Some(tag),
-                "`get` answered `{}` under a tag the column was not stored with",
-                String::from_utf8_lossy(column)
+                "`get` answered `{column}` under a tag the column was not stored with"
             );
             released(answered);
             released(name);
@@ -2344,7 +2336,7 @@ mod tests {
             .as_str_bytes()
             .map(<[u8]>::as_ptr)
             .expect("the column was built holding a text");
-        let label = Value::str(NvsStr::new(b"label"));
+        let label = Value::text("label");
         let answered = nvs_runtime::call(nvs_core_db_row_get, &mut ctx, &[row, label])
             .expect("a `TEXT` column is one this member answers");
         assert_eq!(
@@ -2357,7 +2349,7 @@ mod tests {
 
         // 3. And the name that is no column, which is the one refusal this
         //    member has — `Core\Db\Row::has` answers `false` for it instead.
-        let missing = Value::str(NvsStr::new(b"missing"));
+        let missing = Value::text("missing");
         nvs_runtime::call(nvs_core_db_row_get, &mut ctx, &[row, missing])
             .expect_err("a name the row does not carry is refused rather than answered");
         let message = ctx
@@ -2395,10 +2387,7 @@ mod tests {
     fn to_array_lends_the_rows_own_columns_and_takes_the_reference_back() {
         let mut ctx = Ctx::buffered();
         let mut columns = NvsArray::new();
-        columns.set(
-            NvsStr::new(b"label"),
-            Value::str(NvsStr::new("north field".as_bytes())),
-        );
+        columns.set(NvsStr::new(b"label"), Value::text("north field"));
         columns.set(NvsStr::new(b"seats"), Value::int(7));
         columns.set(NvsStr::new(b"missed"), Value::null());
         let stored = Value::array(columns);
@@ -2451,7 +2440,7 @@ mod tests {
              arrays nor frees one the row is still read from"
         );
 
-        let label = Value::str(NvsStr::new(b"label"));
+        let label = Value::text("label");
         let answered = nvs_runtime::call(nvs_core_db_row_get, &mut ctx, &[row, label])
             .expect("the row still carries the column it lent out");
         assert_eq!(
@@ -2488,20 +2477,19 @@ mod tests {
         let row = crate::instance::build(&ROW, [Value::array(columns)]);
 
         for (column, present) in [
-            (b"on_hand".as_slice(), true),
-            (b"missed".as_slice(), true),
-            (b"price".as_slice(), false),
-            (b"on_hand ".as_slice(), false),
-            (b"".as_slice(), false),
+            ("on_hand", true),
+            ("missed", true),
+            ("price", false),
+            ("on_hand ", false),
+            ("", false),
         ] {
-            let name = Value::str(NvsStr::new(column));
+            let name = Value::text(column);
             let answered = nvs_runtime::call(nvs_core_db_row_has, &mut ctx, &[row, name])
                 .expect("`has` answers every name it is given and throws for none");
             assert_eq!(
                 answered.as_bool(),
                 Some(present),
-                "`has` over `{}` answered the wrong way",
-                String::from_utf8_lossy(column)
+                "`has` over `{column}` answered the wrong way"
             );
             assert_eq!(
                 answered.obj_ptr(),
@@ -2560,6 +2548,7 @@ mod tests {
         // 1. Each value, answered as the bits the column holds rather than as
         //    a number that prints the same.
         for (label, held) in STORED {
+            #[expect(clippy::disallowed_methods, reason = "the test's labels are ASCII")]
             let name = Value::str(NvsStr::new(label));
             let answered = nvs_runtime::call(nvs_core_db_row_float, &mut ctx, &[row, name])
                 .expect("a floating-point column is what `float` reads");
@@ -2573,15 +2562,15 @@ mod tests {
 
         // 2. And the two whole-number columns, which hold a round seven and
         //    have a reader each that is not this one.
-        for column in [b"seats".as_slice(), b"folders".as_slice()] {
-            let asked = Value::str(NvsStr::new(column));
+        for column in ["seats", "folders"] {
+            let asked = Value::text(column);
             nvs_runtime::call(nvs_core_db_row_float, &mut ctx, &[row, asked])
                 .expect_err("an integer column is no floating-point one, however round it reads");
             let message = ctx
                 .take_pending()
                 .expect("a refusal is a throw, and it carries a sentence");
             assert!(
-                message.contains(str::from_utf8(column).expect("the label is text")),
+                message.contains(column),
                 "the refusal names the column it was asked about: {message}"
             );
             released(asked);
@@ -2783,7 +2772,7 @@ mod tests {
         // that is not `?T`. Nothing here is right, which is the point: a codec
         // reporting the first would answer one of the three.
         let mut row = NvsArray::new();
-        row.set(NvsStr::new(b"id"), Value::str(NvsStr::new(b"7")));
+        row.set(NvsStr::new(b"id"), Value::text("7"));
         row.set(NvsStr::new(b"at"), Value::null());
 
         #[expect(unsafe_code, reason = "the leaked table keeps the descriptor live")]
@@ -3044,10 +3033,10 @@ mod tests {
     fn all_lends_every_row_its_own_columns_and_takes_the_references_back() {
         let mut ctx = Ctx::buffered();
         let mut north = NvsArray::new();
-        north.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"north")));
+        north.set(NvsStr::new(b"label"), Value::text("north"));
         north.set(NvsStr::new(b"seats"), Value::int(4));
         let mut east = NvsArray::new();
-        east.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"east")));
+        east.set(NvsStr::new(b"label"), Value::text("east"));
         east.set(NvsStr::new(b"seats"), Value::int(2));
 
         let rows = [Value::array(north), Value::array(east)];
@@ -3174,16 +3163,13 @@ mod tests {
     #[test]
     fn column_takes_one_reference_per_row_and_frees_what_it_collected_on_a_refusal() {
         let mut ctx = Ctx::buffered();
-        let key = Value::str(NvsStr::new(b"label"));
-        let north = Value::str(NvsStr::new("north field".as_bytes()));
+        let key = Value::text("label");
+        let north = Value::text("north field");
         let text = north.str_ptr().expect("a label is a string");
         let mut first = NvsArray::new();
         first.set(NvsStr::new(b"label"), north);
         let mut second = NvsArray::new();
-        second.set(
-            NvsStr::new(b"label"),
-            Value::str(NvsStr::new("east field".as_bytes())),
-        );
+        second.set(NvsStr::new(b"label"), Value::text("east field"));
         let result = result_over([Value::array(first), Value::array(second)]);
 
         #[expect(
@@ -3234,7 +3220,7 @@ mod tests {
         // The second row does not carry the key, so the walk refuses after it
         // has already taken a reference to the first row's value.
         let mut carries = NvsArray::new();
-        let south = Value::str(NvsStr::new("south field".as_bytes()));
+        let south = Value::text("south field");
         let collected = south.str_ptr().expect("a label is a string");
         carries.set(NvsStr::new(b"label"), south);
         let mut lacks = NvsArray::new();
@@ -3294,14 +3280,10 @@ mod tests {
     fn columns_hand_on_the_one_description_the_result_holds() {
         let mut ctx = Ctx::buffered();
         let mut described = NvsArray::new();
-        for label in [b"seats".as_slice(), b"label".as_slice()] {
+        for label in ["seats", "label"] {
             described.append(crate::instance::build(
                 &COLUMN,
-                [
-                    Value::str(NvsStr::new(label)),
-                    Value::int(0),
-                    Value::bool(true),
-                ],
+                [Value::text(label), Value::int(0), Value::bool(true)],
             ));
         }
         let columns = Value::array(described);
@@ -3487,9 +3469,9 @@ mod tests {
     fn first_lends_the_head_row_leaves_the_rest_alone_and_has_no_cursor() {
         let mut ctx = Ctx::buffered();
         let mut north = NvsArray::new();
-        north.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"north")));
+        north.set(NvsStr::new(b"label"), Value::text("north"));
         let mut east = NvsArray::new();
-        east.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"east")));
+        east.set(NvsStr::new(b"label"), Value::text("east"));
 
         let rows = [Value::array(north), Value::array(east)];
         let held: Vec<_> = rows
@@ -3590,12 +3572,12 @@ mod tests {
     #[test]
     fn value_lends_the_head_columns_text_and_a_row_of_no_columns_reads_as_an_empty_result() {
         let mut ctx = Ctx::buffered();
-        let stored = Value::str(NvsStr::new("Amélie".as_bytes()));
+        let stored = Value::text("Amélie");
         let mut north = NvsArray::new();
         north.set(NvsStr::new(b"label"), stored);
         north.set(NvsStr::new(b"seats"), Value::int(4));
         let mut east = NvsArray::new();
-        east.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"east")));
+        east.set(NvsStr::new(b"label"), Value::text("east"));
 
         let text = stored
             .as_str_bytes()

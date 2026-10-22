@@ -1867,7 +1867,7 @@ impl PgScalar<'_> {
             PgScalar::UInt(value) => Value::uint(value),
             PgScalar::Float(value) => Value::float(value),
             PgScalar::Decimal(value) => Value::decimal(value),
-            PgScalar::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
+            PgScalar::Text(text) => Value::text(&text),
             PgScalar::Bytes(bytes) => Value::bytes(bytes),
             PgScalar::Date(_)
             | PgScalar::Time(_)

@@ -104,7 +104,7 @@ use nvs_config::capability::{Cap, Scope};
 use nvs_runtime::Tag;
 use nvs_runtime::host::{Completion, Entry, Narrowing, Output, Placement, StartError};
 use nvs_runtime::script::ResolveError;
-use nvs_runtime::{Fault, NvsObj, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Fault, NvsObj, ThrownClass, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, CoreClass, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc,
@@ -1323,10 +1323,7 @@ fn result_of(ctx: &nvs_runtime::Ctx, completion: Completion) -> Value {
     let error = error.map_or_else(Value::null, |failure| {
         crate::instance::shape(
             FAILURE_SHAPE,
-            [
-                Value::str(NvsStr::new(failure.class.as_bytes())),
-                Value::str(NvsStr::new(failure.message.as_bytes())),
-            ],
+            [Value::text(&failure.class), Value::text(&failure.message)],
         )
     });
     crate::instance::shape(
@@ -1387,7 +1384,7 @@ mod tests {
             "nothing spawned this context"
         );
 
-        ctx.set_isolate_argument(Value::str(nvs_runtime::NvsStr::new(b"orders.csv")));
+        ctx.set_isolate_argument(Value::text("orders.csv"));
         let held = ctx
             .isolate_argument()
             .str_ptr()

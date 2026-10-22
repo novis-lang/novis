@@ -1590,7 +1590,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_bigint_to_string(_ctx, args: [1]) {
         let text = operand(args, 0, "toString")?.to_string();
         nvs_runtime::affordable(Some(text.len()), NAME)?;
-        Ok(Value::str(NvsStr::new(text.as_bytes())))
+        Ok(Value::text(&text))
     }
 }
 
@@ -1601,7 +1601,7 @@ nvs_runtime::nvs_helper! {
         let value = operand(args, 0, "format")?;
         let text = value.to_str_radix(radix(&args[1], "format")?);
         nvs_runtime::affordable(Some(text.len()), NAME)?;
-        Ok(Value::str(NvsStr::new(text.as_bytes())))
+        Ok(Value::text(&text))
     }
 }
 
@@ -1623,7 +1623,7 @@ mod tests {
 
     /// One `string` argument, built for a single [`call`] the way [`of`] is.
     fn text(source: &str) -> Value {
-        Value::str(NvsStr::new(source.as_bytes()))
+        Value::text(source)
     }
 
     /// The magnitude a member answered with, read back out of its two slots.

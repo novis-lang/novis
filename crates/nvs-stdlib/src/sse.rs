@@ -105,7 +105,7 @@
 
 use nvs_runtime::sse::{DECLARED_HEADERS, Event, MEDIA_TYPE};
 use nvs_runtime::{
-    Ctx, Delivery, EventStreamDoor, Fault, NvsStr, Tag, ThrownClass, Upgrade, Value, copy_graph_to,
+    Ctx, Delivery, EventStreamDoor, Fault, Tag, ThrownClass, Upgrade, Value, copy_graph_to,
 };
 
 use crate::registry::{
@@ -802,7 +802,7 @@ const CROSS_CORE_TICK: std::time::Duration = std::time::Duration::from_millis(50
 /// it, and the slot is where that reference comes to rest. Two slots and not the
 /// sibling's four: [`MESSAGE`]'s own doc owns why this door has one source.
 fn message_of_delivery(delivery: Delivery) -> Value {
-    let topic = Value::str(NvsStr::new(delivery.topic().as_bytes()));
+    let topic = Value::text(delivery.topic());
     let value = delivery.into_value();
     crate::instance::build(&MESSAGE, [topic, value])
 }
@@ -1076,7 +1076,7 @@ mod tests {
         let cell = SseSlot::new();
         served(&mut ctx, &cell);
 
-        let path = Value::str(NvsStr::new(b"/streams/feed.nvs"));
+        let path = Value::text("/streams/feed.nvs");
         let mine = a_room();
         nvs_runtime::call(nvs_core_sse_upgrade, &mut ctx, &upgrading(path, mine))
             .expect("an offered cell takes the stream");
@@ -1115,7 +1115,7 @@ mod tests {
         let cell = SseSlot::new();
         served(&mut ctx, &cell);
 
-        let first = Value::str(NvsStr::new(b"/streams/feed.nvs"));
+        let first = Value::text("/streams/feed.nvs");
         nvs_runtime::call(
             nvs_core_sse_upgrade,
             &mut ctx,
@@ -1123,7 +1123,7 @@ mod tests {
         )
         .expect("an offered cell takes the first stream");
 
-        let second = Value::str(NvsStr::new(b"/streams/other-feed.nvs"));
+        let second = Value::text("/streams/other-feed.nvs");
         nvs_runtime::call(
             nvs_core_sse_upgrade,
             &mut ctx,
@@ -1189,7 +1189,7 @@ mod tests {
 
         let handle = nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
             .expect("an offered cell takes the stream");
-        let data = Value::str(NvsStr::new(b"ready"));
+        let data = Value::text("ready");
         nvs_runtime::call(
             super::nvs_core_sse_send,
             &mut ctx,
@@ -1374,7 +1374,7 @@ mod tests {
         let handle = nvs_runtime::call(super::nvs_core_sse_current, &mut stream, &[])
             .expect("an event stream's isolate answers `current()`");
 
-        let topic = Value::str(NvsStr::new(b"room:feed"));
+        let topic = Value::text("room:feed");
         nvs_runtime::call(
             crate::topic::nvs_core_topic_subscribe,
             &mut stream,
@@ -1383,7 +1383,7 @@ mod tests {
         .expect("an event stream's isolate is a connection and may subscribe");
 
         let mut publisher = Ctx::buffered();
-        let published = Value::str(NvsStr::new(b"the board changed"));
+        let published = Value::text("the board changed");
         let reached = nvs_runtime::call(
             crate::topic::nvs_core_topic_publish,
             &mut publisher,
@@ -1421,8 +1421,8 @@ mod tests {
         let handle = nvs_runtime::call(super::nvs_core_sse_current, &mut stream, &[])
             .expect("an event stream's isolate answers `current()`");
 
-        let prices = Value::str(NvsStr::new(b"prices"));
-        let orders = Value::str(NvsStr::new(b"orders"));
+        let prices = Value::text("prices");
+        let orders = Value::text("orders");
         for topic in [prices, orders] {
             nvs_runtime::call(
                 crate::topic::nvs_core_topic_subscribe,
@@ -1434,7 +1434,7 @@ mod tests {
 
         let mut publisher = Ctx::buffered();
         let price = Value::int(1842);
-        let order = Value::str(NvsStr::new(b"order 1042"));
+        let order = Value::text("order 1042");
         for (topic, value) in [(orders, order), (prices, price)] {
             nvs_runtime::call(
                 crate::topic::nvs_core_topic_publish,
@@ -1544,7 +1544,7 @@ mod tests {
         // A topic no other test uses: every test in this binary shares the
         // process's topic table, so a subscriber count is only this test's own
         // on a topic nobody else subscribes to.
-        let topic = Value::str(NvsStr::new(b"room:farewell"));
+        let topic = Value::text("room:farewell");
         nvs_runtime::call(
             crate::topic::nvs_core_topic_subscribe,
             &mut stream,
@@ -1661,7 +1661,7 @@ mod tests {
                 .expect("the member filled the cell"),
         );
 
-        let data = Value::str(NvsStr::new(b"too late"));
+        let data = Value::text("too late");
         nvs_runtime::call(
             super::nvs_core_sse_send,
             &mut ctx,

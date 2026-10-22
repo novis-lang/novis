@@ -571,7 +571,7 @@ nvs_runtime::nvs_helper! {
             SIGN,
             "$payload",
         )?;
-        Ok(Value::str(NvsStr::new(token.as_bytes())))
+        Ok(Value::text(&token))
     }
 }
 
@@ -1147,9 +1147,7 @@ impl Reader<'_> {
                 }
                 Value::decimal(held)
             }
-            tags::STR => Value::str(NvsStr::new(
-                std::str::from_utf8(self.run()?).ok()?.as_bytes(),
-            )),
+            tags::STR => Value::text(std::str::from_utf8(self.run()?).ok()?),
             tags::BYTES => Value::bytes(NvsStr::new(self.run()?)),
             tags::ARRAY => Value::array(self.array(depth)?),
             _ => return None,
@@ -1283,7 +1281,7 @@ mod tests {
     #[test]
     fn an_int_one_and_a_string_one_encode_to_different_bytes() {
         let numeric = payload(&[("id", Value::int(1))]);
-        let textual = payload(&[("id", Value::str(NvsStr::new(b"1")))]);
+        let textual = payload(&[("id", Value::text("1"))]);
         assert_ne!(
             signed(&numeric, None),
             signed(&textual, None),
@@ -1313,7 +1311,7 @@ mod tests {
             || Value::int(1),
             || Value::uint(1),
             || Value::float(1.0),
-            || Value::str(NvsStr::new(b"")),
+            || Value::text(""),
             || Value::bytes(NvsStr::new(b"")),
         ];
         let mut seen: Vec<Vec<u8>> = builders
@@ -1340,7 +1338,7 @@ mod tests {
         nested.append(Value::bytes(NvsStr::new(&[0_u8, 0xff, 0x80])));
         let held = payload(&[
             ("map", Value::array(nested)),
-            ("text", Value::str(NvsStr::new("héllo".as_bytes()))),
+            ("text", Value::text("héllo")),
             ("big", Value::uint(u64::MAX)),
             ("low", Value::int(i64::MIN)),
             ("none", Value::null()),
@@ -1528,7 +1526,7 @@ mod tests {
         let keys = ring_of(&[&[1_u8; 32]]);
         let held = payload(&[
             ("id", Value::int(7)),
-            ("role", Value::str(NvsStr::new(b"editor"))),
+            ("role", Value::text("editor")),
             ("all", Value::bool(true)),
         ]);
         let until = Some(Until {
@@ -1583,7 +1581,7 @@ mod tests {
     fn the_token_is_unpadded_url_safe_base64_and_needs_no_further_escaping() {
         let keys = ring_of(&[&[2_u8; 32]]);
         for text in ["", "a", "+/=&? ", "\u{1f512}", &"x".repeat(97)] {
-            let held = payload(&[("v", Value::str(NvsStr::new(text.as_bytes())))]);
+            let held = payload(&[("v", Value::text(text))]);
             let token = minted(&held, &keys);
             assert!(
                 token
@@ -1823,7 +1821,7 @@ mod tests {
     fn verified(second: i64, token: &str, ring: &Value) -> Result<Value, String> {
         let mut ctx = Ctx::buffered();
         ctx.set_fixed_clock(i128::from(second) * i128::from(NANOS_PER_SECOND));
-        let carried = Value::str(NvsStr::new(token.as_bytes()));
+        let carried = Value::text(token);
         let answered = nvs_runtime::call(nvs_core_signature_verify, &mut ctx, &[carried, *ring]);
         let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
         dropped(carried);
@@ -1845,7 +1843,7 @@ mod tests {
     #[test]
     fn a_token_past_its_until_throws_the_expired_error() {
         let keys = ring_of(&[&[3_u8; 32]]);
-        let held = payload(&[("id", Value::str(NvsStr::new(b"7")))]);
+        let held = payload(&[("id", Value::text("7"))]);
         let token = minted_at(Domain::Payload, Some(UNTIL), &held, &keys);
 
         let live = verified(UNTIL.second - 1, &token, &keys)
@@ -1886,7 +1884,7 @@ mod tests {
     fn a_token_both_forged_and_past_its_until_throws_the_invalid_error_not_the_expired_one() {
         let mine = ring_of(&[&[4_u8; 32]]);
         let theirs = ring_of(&[&[5_u8; 32]]);
-        let held = payload(&[("id", Value::str(NvsStr::new(b"7")))]);
+        let held = payload(&[("id", Value::text("7"))]);
         let token = minted_at(Domain::Payload, Some(UNTIL), &held, &theirs);
 
         let forged = verified(UNTIL.second + 1, &token, &mine)
@@ -1935,7 +1933,7 @@ mod tests {
     fn every_other_way_of_not_being_authentic_raises_one_error_with_one_sentence() {
         let keys = ring_of(&[&[6_u8; 32]]);
         let others = ring_of(&[&[7_u8; 32]]);
-        let text = payload(&[("id", Value::str(NvsStr::new(b"7")))]);
+        let text = payload(&[("id", Value::text("7"))]);
         let numeric = payload(&[("id", Value::int(7))]);
 
         let ways = [
@@ -2013,10 +2011,7 @@ mod tests {
     #[test]
     fn sign_returns_a_token_verify_opens_and_an_empty_ring_is_refused() {
         let keys = ring_of(&[&[8_u8; 32]]);
-        let held = payload(&[
-            ("doc", Value::str(NvsStr::new(b"7"))),
-            ("act", Value::str(NvsStr::new(b"download"))),
-        ]);
+        let held = payload(&[("doc", Value::text("7")), ("act", Value::text("download"))]);
 
         let mut ctx = Ctx::buffered();
         let token = nvs_runtime::call(

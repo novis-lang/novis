@@ -154,13 +154,7 @@ pub(super) fn entry_value(entry: nvs_ldap::Entry) -> Value {
         }
         attributes.set(NvsStr::new(attribute.name.as_bytes()), Value::array(values));
     }
-    crate::instance::build(
-        &ENTRY,
-        [
-            Value::str(NvsStr::new(entry.dn.as_bytes())),
-            Value::array(attributes),
-        ],
-    )
+    crate::instance::build(&ENTRY, [Value::text(&entry.dn), Value::array(attributes)])
 }
 
 /// The name an `Ldap\Entry` reader was given, and the list of values the
@@ -220,7 +214,7 @@ pub(super) fn only_value(values: &NvsArray, member: &str, name: &str) -> Result<
 /// `value` as a `string`, or the error for a value that is not UTF-8.
 fn text_value(value: Value, member: &str, name: &str) -> Result<Value, Fault> {
     let bytes = value.as_bytes().unwrap_or_default();
-    if std::str::from_utf8(bytes).is_err() {
+    let Ok(text) = std::str::from_utf8(bytes) else {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
@@ -228,15 +222,15 @@ fn text_value(value: Value, member: &str, name: &str) -> Result<Value, Fault> {
                  as it is"
             ),
         ));
-    }
-    Ok(Value::str(NvsStr::new(bytes)))
+    };
+    Ok(Value::text(text))
 }
 
 /// `urls` as an `array<string>`.
 fn url_list(urls: &[String]) -> Value {
     let mut out = NvsArray::new();
     for url in urls {
-        out.append(Value::str(NvsStr::new(url.as_bytes())));
+        out.append(Value::text(url));
     }
     Value::array(out)
 }
@@ -398,7 +392,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_ldap_connection_whoami(ctx, args: [1]) {
         let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "whoami")?;
         let who = super::who_am_i(ctx, key)?;
-        Ok(Value::str(NvsStr::new(who.as_bytes())))
+        Ok(Value::text(&who))
     }
 }
 
@@ -920,7 +914,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_ldap_filter_to_string(_ctx, args: [1]) {
         let ber = ber_of(args[0], "toString")?;
         let text = nvs_ldap::Filter::Encoded(ber).to_text();
-        Ok(Value::str(NvsStr::new(text.as_bytes())))
+        Ok(Value::text(&text))
     }
 }
 

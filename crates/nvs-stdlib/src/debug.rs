@@ -283,9 +283,7 @@ nvs_runtime::nvs_helper! {
     /// bound: the answer's class is a *declared* type, and the two carriers
     /// have no spelling a program could tell apart.
     fn nvs_core_debug_render(_ctx, args: [1]) {
-        Ok(crate::cli::built(Value::str(nvs_runtime::NvsStr::new(
-            rendered(args[0]).as_bytes(),
-        ))))
+        Ok(crate::cli::built(Value::text(&rendered(args[0]))))
     }
 }
 

@@ -186,8 +186,7 @@ mod tests {
         let header: *const StrHeader = value
             .buffer_ptr()
             .expect("the value revealed is a `string` or a `bytes`");
-        let reason =
-            reason.map_or_else(Value::null, |text| Value::str(NvsStr::new(text.as_bytes())));
+        let reason = reason.map_or_else(Value::null, Value::text);
         let mut ctx = Ctx::buffered();
         #[expect(
             unsafe_code,
@@ -225,7 +224,7 @@ mod tests {
     #[test]
     fn reveal_hands_back_the_argument_itself_and_reads_no_reason() {
         for reason in [Some("the print-token command shows it once"), None] {
-            let value = Value::str(NvsStr::new("hunter2 — ключ 🔑".as_bytes()));
+            let value = Value::text("hunter2 — ключ 🔑");
             assert_eq!(
                 identity_of(super::nvs_core_secret_reveal, value, reason),
                 (true, [1, 2, 1]),

@@ -53,7 +53,7 @@ nvs_runtime::nvs_helper! {
     /// `$sid->toString(): string` — [`nvs_ldap::Sid::to_text`].
     fn nvs_core_ldap_sid_to_string(_ctx, args: [1]) {
         let sid = sid_of(args[0], "toString")?;
-        Ok(Value::str(NvsStr::new(sid.to_text().as_bytes())))
+        Ok(Value::text(&sid.to_text()))
     }
 }
 

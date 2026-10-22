@@ -203,6 +203,11 @@ nvs_runtime::nvs_helper! {
 /// [`crate::cli::built`] this transfers bytes and neutralizes nothing, which is
 /// sound only because the sink neutralized them on their way in.
 pub(crate) fn carried(ctx: &nvs_runtime::Ctx, captured: &[u8]) -> Value {
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "unchecked: a capture can hold raw bytes from `Core\\Response::bytes`, \
+                  and security-hardening's stage 3 checks it"
+    )]
     let text = Value::str(NvsStr::new(captured));
     if ctx.carrier() == crate::html::MARKUP_NAME {
         crate::instance::build(&crate::html::MARKUP, [text])

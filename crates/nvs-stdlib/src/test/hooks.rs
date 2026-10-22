@@ -10,7 +10,7 @@
 //! **What it spends:** one `Outcome` per attempt and one `Summary` per class,
 //! each a few strings and one list, released when the hook returns.
 
-use nvs_runtime::{NvsArray, NvsStr, Value};
+use nvs_runtime::{NvsArray, Value};
 
 use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc};
 
@@ -252,7 +252,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 fn text(value: &str) -> Value {
-    Value::str(NvsStr::new(value.as_bytes()))
+    Value::text(value)
 }
 
 fn texts(values: &[String]) -> Value {

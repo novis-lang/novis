@@ -614,12 +614,12 @@ nvs_runtime::nvs_helper! {
 
         let mut addresses = NvsArray::new();
         for address in approved {
-            addresses.append(Value::str(NvsStr::new(address.to_string().as_bytes())));
+            addresses.append(Value::text(&address.to_string()));
         }
         Ok(crate::instance::build(
             &TARGET,
             [
-                Value::str(NvsStr::new(text.as_bytes())),
+                Value::text(text),
                 Value::array(addresses),
             ],
         ))
@@ -639,11 +639,16 @@ nvs_runtime::nvs_helper! {
     /// One allocation of at most seven bytes, written once.
     fn nvs_core_http_method_name(_ctx, args: [1]) {
         let verb = crate::router::method_verb(&args[0], r"Core\Http::methodName")?;
-        Ok(Value::str(NvsStr::build(verb.len(), |out| {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "an ASCII case change of a `&str` stays UTF-8"
+        )]
+        let token = Value::str(NvsStr::build(verb.len(), |out| {
             for byte in verb.bytes() {
                 out.push(&[byte.to_ascii_uppercase()]);
             }
-        })))
+        }));
+        Ok(token)
     }
 }
 
@@ -756,7 +761,7 @@ nvs_runtime::nvs_helper! {
             [
                 Value::bytes(NvsStr::new(chain)),
                 Value::bytes(NvsStr::new(pkcs8)),
-                Value::str(NvsStr::new(fingerprint.as_bytes())),
+                Value::text(&fingerprint),
             ],
         ))
     }
@@ -1391,7 +1396,7 @@ nvs_runtime::nvs_helper! {
         Ok(crate::instance::build(
             &PART,
             [
-                Value::str(NvsStr::new(path.as_bytes())),
+                Value::text(&path),
                 Value::null(),
                 text_slot(filename.as_deref()),
                 text_slot(args[2].as_text()),
@@ -1435,7 +1440,7 @@ nvs_runtime::nvs_helper! {
             [
                 Value::null(),
                 Value::bytes(NvsStr::new(data)),
-                Value::str(NvsStr::new(filename.as_bytes())),
+                Value::text(filename),
                 text_slot(args[2].as_text()),
             ],
         ))
@@ -1445,7 +1450,7 @@ nvs_runtime::nvs_helper! {
 /// One optional slot of a [`PART`]: the text, or the `null` that says the
 /// program wrote none.
 fn text_slot(text: Option<&str>) -> Value {
-    text.map_or_else(Value::null, |text| Value::str(NvsStr::new(text.as_bytes())))
+    text.map_or_else(Value::null, Value::text)
 }
 
 /// The ABI slot each of [`OPTIONS`]'s bounds flattens into — the bag expands to
@@ -3708,8 +3713,8 @@ pub(crate) fn tls_info_of(session: &nvs_host::tls::Session, verified: bool) -> V
     crate::instance::build(
         &TLS_INFO,
         [
-            Value::str(NvsStr::new(session.version().as_bytes())),
-            Value::str(NvsStr::new(session.cipher().as_bytes())),
+            Value::text(session.version()),
+            Value::text(session.cipher()),
             Value::bool(verified),
             Value::array(chain),
         ],
@@ -4091,7 +4096,7 @@ fn filed(ctx: &mut Ctx, body: transport::Incoming) -> Value {
 fn header_map(lines: &[(String, String)]) -> Value {
     let mut grouped: Vec<(&str, NvsArray)> = Vec::new();
     for (name, value) in lines {
-        let held = Value::str(NvsStr::new(value.as_bytes()));
+        let held = Value::text(value);
         match grouped.iter_mut().find(|(seen, _)| *seen == name) {
             Some((_, values)) => values.append(held),
             None => {
@@ -4213,14 +4218,14 @@ pub(crate) fn joined_field(
         }
         return Ok(line);
     }
-    let mut joined = Vec::new();
+    let mut joined = String::new();
     for (at, line) in each_line(&values).enumerate() {
         if at > 0 {
-            joined.extend_from_slice(b", ");
+            joined.push_str(", ");
         }
-        joined.extend_from_slice(line.as_text().unwrap_or_default().as_bytes());
+        joined.push_str(line.as_text().unwrap_or_default());
     }
-    Ok(Value::str(NvsStr::new(&joined)))
+    Ok(Value::text(&joined))
 }
 
 /// Every line one field carried, kept apart where [`joined_field`] joins them —
@@ -4609,7 +4614,12 @@ nvs_runtime::nvs_helper! {
         )]
         unsafe {
             body.retain();
-            Ok(Value::str(NvsStr::from_raw(payload)))
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "`from_utf8` checked these bytes above"
+            )]
+            let text = Value::str(NvsStr::from_raw(payload));
+            Ok(text)
         }
     }
 }
@@ -4858,7 +4868,7 @@ nvs_runtime::nvs_helper! {
         let object = crate::instance::receiver(args[0], &TLS_INFO, "peerChain")?;
         let mut out = NvsArray::new();
         for der in chain_of(object) {
-            out.append(Value::str(NvsStr::new(pem_of(&der).as_bytes())));
+            out.append(Value::text(&pem_of(&der)));
         }
         Ok(Value::array(out))
     }
@@ -4878,7 +4888,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_http_tls_info_subject(_ctx, args: [1]) {
         let object = crate::instance::receiver(args[0], &TLS_INFO, "subject")?;
         let read = leaf_of(&chain_of(object), "subject")?;
-        Ok(Value::str(NvsStr::new(read.subject().as_bytes())))
+        Ok(Value::text(read.subject()))
     }
 }
 
@@ -4891,7 +4901,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_http_tls_info_issuer(_ctx, args: [1]) {
         let object = crate::instance::receiver(args[0], &TLS_INFO, "issuer")?;
         let read = leaf_of(&chain_of(object), "issuer")?;
-        Ok(Value::str(NvsStr::new(read.issuer().as_bytes())))
+        Ok(Value::text(read.issuer()))
     }
 }
 
@@ -5034,7 +5044,7 @@ mod tests {
         ctx.set_config(granting(REACHABLE));
         ctx.set_debug_flags(nvs_runtime::DebugFlags::TRACE);
 
-        let url = Value::str(NvsStr::new(format!("http://{at}/ok").as_bytes()));
+        let url = Value::text(&format!("http://{at}/ok"));
         let args = asking(url);
         let answer = super::request(&mut ctx, &args, "get", "GET").expect("the origin's answer");
         #[expect(
@@ -5094,7 +5104,7 @@ mod tests {
         ctx.set_config(granting(REACHABLE));
         ctx.set_debug_flags(nvs_runtime::DebugFlags::TRACE);
 
-        let url = Value::str(NvsStr::new(format!("http://{at}/ok").as_bytes()));
+        let url = Value::text(&format!("http://{at}/ok"));
         let mut args = asking(url);
         args[RETRY_ATTEMPTS] = Value::uint(2);
         let answer =
@@ -5136,16 +5146,11 @@ mod tests {
         ctx.set_config(granting(REACHABLE));
         ctx.set_debug_flags(nvs_runtime::DebugFlags::TRACE);
 
-        let url = Value::str(NvsStr::new(
-            format!("http://{at}/things?token=sekrit").as_bytes(),
-        ));
+        let url = Value::text(&format!("http://{at}/things?token=sekrit"));
         let mut written = NvsArray::new();
-        written.set(
-            NvsStr::new(b"x-api-key"),
-            Value::str(NvsStr::new(b"hunter2")),
-        );
+        written.set(NvsStr::new(b"x-api-key"), Value::text("hunter2"));
         let headers = Value::array(written);
-        let body = Value::str(NvsStr::new(b"parcel-of-secrets"));
+        let body = Value::text("parcel-of-secrets");
         let mut args = [Value::null(); REQUEST_ARITY];
         args[0] = url;
         args[HEADERS] = headers;
@@ -5198,7 +5203,7 @@ mod tests {
             tls: None,
         });
 
-        let url = Value::str(NvsStr::new(URL.as_bytes()));
+        let url = Value::text(URL);
         let args = asking(url);
         let answer = super::request(&mut ctx, &args, "get", "GET").expect("the table's answer");
         #[expect(
@@ -5449,7 +5454,7 @@ mod tests {
             "[capabilities.net]\nconnect = [\"203.0.113.10\"]\n",
         ));
 
-        let url = Value::str(NvsStr::new(URL.as_bytes()));
+        let url = Value::text(URL);
         let target = nvs_runtime::call(super::nvs_core_http_allow_url, &mut ctx, &[url])
             .expect("a granted public address is approved");
         let object = target.obj_ptr().expect("the answer is an instance");
@@ -5474,7 +5479,7 @@ mod tests {
         }
 
         for empty in ["http:///hook", "http://:8080/hook", "https://@/hook"] {
-            let url = Value::str(NvsStr::new(empty.as_bytes()));
+            let url = Value::text(empty);
             let refused = nvs_runtime::call(super::nvs_core_http_allow_url, &mut ctx, &[url]);
             #[expect(
                 unsafe_code,
@@ -5610,7 +5615,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         ctx.set_config(granting(GRANTED));
 
-        let url = Value::str(NvsStr::new(format!("http://{at}/ok").as_bytes()));
+        let url = Value::text(&format!("http://{at}/ok"));
         let mut args = [Value::null(); REQUEST_ARITY];
         args[0] = url;
         let refused = super::request(&mut ctx, &args, "get", "GET")
@@ -5737,7 +5742,7 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         ctx.set_config(granting(REACHABLE));
-        let url = Value::str(NvsStr::new(format!("http://{at}{path}").as_bytes()));
+        let url = Value::text(&format!("http://{at}{path}"));
         let args = asking(url);
         let answer = super::request(&mut ctx, &args, member, verb).expect("the origin's answer");
         let head = served.join().expect("the origin thread");
@@ -5870,11 +5875,11 @@ mod tests {
         ]);
         let mut ctx = Ctx::buffered();
         ctx.set_config(granting(REACHABLE));
-        let url = Value::str(NvsStr::new(format!("http://{at}/orders").as_bytes()));
+        let url = Value::text(&format!("http://{at}/orders"));
         let mut order = NvsArray::new();
         order.set(NvsStr::new(b"id"), Value::int(7));
         let json = Value::array(order);
-        let key = Value::str(NvsStr::new(b"order-7"));
+        let key = Value::text("order-7");
         let mut args = asking(url);
         args[JSON] = json;
         args[RETRY_ATTEMPTS] = Value::uint(2);
@@ -5936,8 +5941,8 @@ mod tests {
         ]);
         let mut ctx = Ctx::buffered();
         ctx.set_config(granting(REACHABLE));
-        let url = Value::str(NvsStr::new(format!("http://{at}/stock/7").as_bytes()));
-        let body = Value::str(NvsStr::new(b"ready"));
+        let url = Value::text(&format!("http://{at}/stock/7"));
+        let body = Value::text("ready");
         let mut args = asking(url);
         args[RETRY_ATTEMPTS] = Value::uint(2);
         args[JSON] = body;
@@ -5993,9 +5998,9 @@ mod tests {
         ]);
         let mut ctx = Ctx::buffered();
         ctx.set_config(granting(REACHABLE));
-        let url = Value::str(NvsStr::new(format!("http://{at}/orders/7").as_bytes()));
-        let status = Value::str(NvsStr::new(b"paid"));
-        let key = Value::str(NvsStr::new(b"order-7-paid"));
+        let url = Value::text(&format!("http://{at}/orders/7"));
+        let status = Value::text("paid");
+        let key = Value::text("order-7-paid");
 
         let mut keyless = asking(url);
         keyless[JSON] = status;
@@ -6117,7 +6122,7 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         ctx.set_config(granting(REACHABLE));
-        let url = Value::str(NvsStr::new(format!("http://{at}/v1/chat").as_bytes()));
+        let url = Value::text(&format!("http://{at}/v1/chat"));
         let mut args = [Value::null(); STREAM_ARITY];
         args[0] = url;
         args[HEADERS] = Value::array(NvsArray::new());
@@ -6168,7 +6173,7 @@ mod tests {
 
         // No configuration at all, so `net.connect` grants nothing.
         let mut ctx = Ctx::buffered();
-        let url = Value::str(NvsStr::new(format!("ws://{at}/chat").as_bytes()));
+        let url = Value::text(&format!("ws://{at}/chat"));
         let idle = crate::instance::build(&crate::time::DURATION, [Value::int(0)]);
         // The empty list a call site fills in for `headers` when none are written.
         let headers = Value::array(NvsArray::new());
@@ -6499,7 +6504,7 @@ mod tests {
 
     /// `name` as the text a program passes a field reader.
     fn field(name: &str) -> Value {
-        Value::str(NvsStr::new(name.as_bytes()))
+        Value::text(name)
     }
 
     /// `Core\Http\Response::header` matches a name however either side
@@ -6631,8 +6636,8 @@ mod tests {
         crate::instance::build(
             &super::TLS_INFO,
             [
-                Value::str(NvsStr::new(b"TLSv1.3")),
-                Value::str(NvsStr::new(b"TLS13_AES_128_GCM_SHA256")),
+                Value::text("TLSv1.3"),
+                Value::text("TLS13_AES_128_GCM_SHA256"),
                 Value::bool(verified),
                 Value::array(chain),
             ],
@@ -6994,8 +6999,8 @@ mod tests {
         let bare = crate::instance::build(
             &super::TLS_INFO,
             [
-                Value::str(NvsStr::new(b"TLSv1.3")),
-                Value::str(NvsStr::new(b"TLS13_AES_128_GCM_SHA256")),
+                Value::text("TLSv1.3"),
+                Value::text("TLS13_AES_128_GCM_SHA256"),
                 Value::bool(false),
                 Value::array(NvsArray::new()),
             ],
@@ -7043,9 +7048,9 @@ mod tests {
         )));
 
         let written = inside.to_string_lossy().into_owned();
-        let path = Value::str(NvsStr::new(written.as_bytes()));
-        let named = Value::str(NvsStr::new(b"renamed.csv"));
-        let typed = Value::str(NvsStr::new(b"text/csv"));
+        let path = Value::text(&written);
+        let named = Value::text("renamed.csv");
+        let typed = Value::text("text/csv");
         for (filename, content_type, want_name, want_type) in [
             (Value::null(), Value::null(), "report.csv", None),
             (named, typed, "renamed.csv", Some("text/csv")),
@@ -7086,7 +7091,7 @@ mod tests {
             }
         }
 
-        let beside = Value::str(NvsStr::new(outside.to_string_lossy().as_bytes()));
+        let beside = Value::text(&outside.to_string_lossy());
         let refused = nvs_runtime::call(
             super::nvs_core_http_part_file,
             &mut ctx,
@@ -7127,7 +7132,7 @@ mod tests {
             "[capabilities.fs]\nread = ['{}']\n",
             dir.display()
         )));
-        let path = Value::str(NvsStr::new(inside.to_string_lossy().as_bytes()));
+        let path = Value::text(&inside.to_string_lossy());
         let part = nvs_runtime::call(
             super::nvs_core_http_part_file,
             &mut ctx,
@@ -7138,7 +7143,7 @@ mod tests {
 
         let mut fields = NvsArray::new();
         fields.set(NvsStr::new(b"file"), part);
-        fields.set(NvsStr::new(b"bad\"name"), Value::str(NvsStr::new(b"x")));
+        fields.set(NvsStr::new(b"bad\"name"), Value::text("x"));
         let mut args = [Value::null(); REQUEST_ARITY];
         args[super::MULTIPART] = Value::array(fields);
         let Err(refused) = super::multipart(&ctx, &args, r"Core\Http\Client::post") else {
@@ -7172,12 +7177,13 @@ mod tests {
     // covers: Core\Http\Part::bytes
     #[test]
     fn part_bytes_holds_either_arm_as_the_same_octets_and_no_path() {
-        const OCTETS: &[u8] = b"name,total\n";
+        const CSV: &str = "name,total\n";
+        const OCTETS: &[u8] = CSV.as_bytes();
         let mut ctx = Ctx::buffered();
-        let text = Value::str(NvsStr::new(OCTETS));
+        let text = Value::text(CSV);
         let raw = Value::bytes(NvsStr::new(OCTETS));
-        let filename = Value::str(NvsStr::new(b"orders.csv"));
-        let typed = Value::str(NvsStr::new(b"text/csv"));
+        let filename = Value::text("orders.csv");
+        let typed = Value::text("text/csv");
 
         let from_text = nvs_runtime::call(
             super::nvs_core_http_part_bytes,
@@ -7375,7 +7381,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         ctx.set_config(granting(REACHABLE));
 
-        let url = Value::str(NvsStr::new(format!("http://{at}/ok").as_bytes()));
+        let url = Value::text(&format!("http://{at}/ok"));
         let mut args = [Value::null(); REQUEST_ARITY];
         args[0] = url;
         // A written `null` under `json` is the document `null`, which is a body,
@@ -7422,8 +7428,8 @@ mod tests {
         const MEMBER: &str = "Core\\Http\\Client::get";
         const URL: &str = "https://127.0.0.1:8443/ok";
 
-        let anchors = Value::str(NvsStr::new(b"-----BEGIN CERTIFICATE-----"));
-        let pins = Value::str(NvsStr::new(b"sha256//ZDk="));
+        let anchors = Value::text("-----BEGIN CERTIFICATE-----");
+        let pins = Value::text("sha256//ZDk=");
         for (slot, value, grant, key) in [
             (REQUEST_BAG.ca(), anchors, "anchors", "tls.anchors"),
             (REQUEST_BAG.pin(), pins, "pin", "tls.pin"),
@@ -7483,8 +7489,8 @@ mod tests {
         const MEMBER: &str = "Core\\Http\\Client::get";
         const URL: &str = "https://127.0.0.1:8443/ok";
 
-        let asked = Value::str(NvsStr::new(b"1.2"));
-        let ancient = Value::str(NvsStr::new(b"1.0"));
+        let asked = Value::text("1.2");
+        let ancient = Value::text("1.0");
         let mut args = [Value::null(); REQUEST_ARITY];
         args[REQUEST_BAG.min_version()] = asked;
 
@@ -7546,8 +7552,8 @@ mod tests {
         const MEMBER: &str = "Core\\Http\\Client::get";
         const URL: &str = "http://api.example.invalid:8080/ok";
 
-        let url = Value::str(NvsStr::new(URL.as_bytes()));
-        let named = Value::str(NvsStr::new(b"127.0.0.1"));
+        let url = Value::text(URL);
+        let named = Value::text("127.0.0.1");
         let mut args = [Value::null(); REQUEST_ARITY];
         args[0] = url;
         args[CONNECT_TO] = named;
@@ -7612,8 +7618,8 @@ mod tests {
         const MEMBER: &str = "Core\\Http\\Client::get";
         const URL: &str = "https://api.example.invalid/ok";
 
-        let url = Value::str(NvsStr::new(URL.as_bytes()));
-        let elsewhere = Value::str(NvsStr::new(b"ftp://api.example.invalid/ok"));
+        let url = Value::text(URL);
+        let elsewhere = Value::text("ftp://api.example.invalid/ok");
         let mut args = [Value::null(); REQUEST_ARITY];
         args[0] = url;
 
@@ -7699,12 +7705,9 @@ mod tests {
         // door a call carrying it goes through.
         let mut empty = NvsArray::new();
         for address in &pinned {
-            empty.append(Value::str(NvsStr::new(address.to_string().as_bytes())));
+            empty.append(Value::text(&address.to_string()));
         }
-        let target = crate::instance::build(
-            &TARGET,
-            [Value::str(NvsStr::new(URL.as_bytes())), Value::array(empty)],
-        );
+        let target = crate::instance::build(&TARGET, [Value::text(URL), Value::array(empty)]);
         let mut args = [Value::null(); REQUEST_ARITY];
         args[0] = target;
         let (sent, addresses) = super::approved(&mut proxied, &args, MEMBER, super::REQUEST_BAG)
@@ -7722,13 +7725,7 @@ mod tests {
         // is the one thing that stopped being folded in with it.
         let mut mangled = NvsArray::new();
         mangled.append(Value::int(443));
-        let wrong = crate::instance::build(
-            &TARGET,
-            [
-                Value::str(NvsStr::new(URL.as_bytes())),
-                Value::array(mangled),
-            ],
-        );
+        let wrong = crate::instance::build(&TARGET, [Value::text(URL), Value::array(mangled)]);
         args[0] = wrong;
         let unreadable = super::approved(&mut proxied, &args, MEMBER, super::REQUEST_BAG)
             .expect_err("an entry that is not an address is a target this crate did not write");
@@ -7815,10 +7812,8 @@ mod tests {
              [\"api.example.invalid\"]\ninternal = []\n",
         ));
 
-        let url = Value::str(NvsStr::new(
-            format!("http://api.example.invalid:{}/ok", at.port()).as_bytes(),
-        ));
-        let named = Value::str(NvsStr::new(b"127.0.0.1"));
+        let url = Value::text(&format!("http://api.example.invalid:{}/ok", at.port()));
+        let named = Value::text("127.0.0.1");
         let mut args = [Value::null(); REQUEST_ARITY];
         args[0] = url;
         // A written `null` under `json` is the document `null`, which is a body,
@@ -7859,15 +7854,15 @@ mod tests {
         const MEMBER: &str = "Core\\Http\\Client::get";
 
         let mut addresses = NvsArray::new();
-        addresses.append(Value::str(NvsStr::new(b"127.0.0.1")));
+        addresses.append(Value::text("127.0.0.1"));
         let target = crate::instance::build(
             &TARGET,
             [
-                Value::str(NvsStr::new(b"http://api.example.invalid:8080/ok")),
+                Value::text("http://api.example.invalid:8080/ok"),
                 Value::array(addresses),
             ],
         );
-        let named = Value::str(NvsStr::new(b"127.0.0.2"));
+        let named = Value::text("127.0.0.2");
         let mut args = [Value::null(); REQUEST_ARITY];
         args[0] = target;
         args[CONNECT_TO] = named;
@@ -7913,20 +7908,10 @@ mod tests {
         const URL: &str = "http://api.example.invalid/ok";
 
         let mut addresses = NvsArray::new();
-        for text in [
-            b"198.51.100.7".as_slice(),
-            b"203.0.113.9".as_slice(),
-            b"192.0.2.4".as_slice(),
-        ] {
-            addresses.append(Value::str(NvsStr::new(text)));
+        for text in ["198.51.100.7", "203.0.113.9", "192.0.2.4"] {
+            addresses.append(Value::text(text));
         }
-        let target = crate::instance::build(
-            &TARGET,
-            [
-                Value::str(NvsStr::new(URL.as_bytes())),
-                Value::array(addresses),
-            ],
-        );
+        let target = crate::instance::build(&TARGET, [Value::text(URL), Value::array(addresses)]);
         let mut args = [Value::null(); REQUEST_ARITY];
         args[0] = target;
 

@@ -48,7 +48,7 @@
 //! memoization, and the 64 characters it returns are all 32 bytes: a caller
 //! wanting eight can take eight, and one handed eight cannot get the rest.
 
-use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Fault, ThrownClass, Value};
 
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreField, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -277,7 +277,7 @@ nvs_runtime::nvs_helper! {
                     .to_owned(),
             ));
         }
-        Ok(Value::str(NvsStr::new(id.as_bytes())))
+        Ok(Value::text(&id))
     }
 }
 

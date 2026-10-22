@@ -147,7 +147,13 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?;
-        format(spec, &args[1..]).map(Value::str)
+        let rendered = format(spec, &args[1..])?;
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "`format` writes only `&str` pieces, through `StrWriter::push_str`"
+        )]
+        let piece = Value::str(rendered);
+        Ok(piece)
     }
 }
 
@@ -958,11 +964,11 @@ fn unreadable(conversion: char) -> Fault {
 #[cfg(test)]
 mod tests {
     use super::format;
-    use nvs_runtime::{Decimal, NvsArray, NvsStr, Value};
+    use nvs_runtime::{Decimal, NvsArray, Value};
 
     /// One `string` argument, and the reference this test owes for it.
     fn s(text: &str) -> Value {
-        Value::str(NvsStr::new(text.as_bytes()))
+        Value::text(text)
     }
 
     /// Releases every reference the arguments of one case carried — `format`

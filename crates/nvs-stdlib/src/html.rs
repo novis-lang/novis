@@ -627,7 +627,7 @@ fn escaped_text(value: Value, subject: &str) -> Result<Value, Fault> {
         }
         return Ok(value);
     };
-    Ok(Value::str(NvsStr::new(escaped.as_bytes())))
+    Ok(Value::text(&escaped))
 }
 
 /// The bytes of an optional `Markup` option, or nothing for one the call did
@@ -677,10 +677,12 @@ nvs_runtime::nvs_helper! {
                 args[0].retain();
             }
             let marker = ctx.register_later(args[0], &placeholder, &error, deadline);
-            return Ok(crate::instance::build(
-                &MARKUP,
-                [Value::str(NvsStr::new(&marker))],
-            ));
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "ASCII markers and a token around the placeholder `Markup`'s string"
+            )]
+            let marker = Value::str(NvsStr::new(&marker));
+            return Ok(crate::instance::build(&MARKUP, [marker]));
         }
         ctx.begin_capture();
         let answer = nvs_runtime::call_callable(ctx, args[0], &[]);
@@ -700,7 +702,13 @@ nvs_runtime::nvs_helper! {
         unsafe {
             answer.release();
         }
-        Ok(crate::instance::build(&MARKUP, [Value::str(NvsStr::new(&bytes))]))
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "unchecked: the callable's output can hold raw bytes from `Core\\Response::bytes`, \
+                      and security-hardening's stage 3 checks it"
+        )]
+        let text = Value::str(NvsStr::new(&bytes));
+        Ok(crate::instance::build(&MARKUP, [text]))
     }
 }
 
@@ -863,10 +871,7 @@ fn markup_concat(left: Value, right: Value) -> Result<Value, Fault> {
     let mut out = String::with_capacity(left.len() + right.len());
     out.push_str(left);
     out.push_str(right);
-    Ok(crate::instance::build(
-        &MARKUP,
-        [Value::str(NvsStr::new(out.as_bytes()))],
-    ))
+    Ok(crate::instance::build(&MARKUP, [Value::text(&out)]))
 }
 
 nvs_runtime::nvs_helper! {
@@ -949,7 +954,7 @@ nvs_runtime::nvs_helper! {
         }
         Ok(crate::instance::build(
             &MARKUP,
-            [Value::str(NvsStr::new(out.as_bytes()))],
+            [Value::text(&out)],
         ))
     }
 }
@@ -2012,7 +2017,7 @@ nvs_runtime::nvs_helper! {
         let out = source(&rebuilt(&bounded(document, r"Core\Html::sanitize")?));
         Ok(crate::instance::build(
             &MARKUP,
-            [Value::str(NvsStr::new(out.as_bytes()))],
+            [Value::text(&out)],
         ))
     }
 }
@@ -2128,8 +2133,8 @@ mod tests {
 
     /// A `Core\Html\Markup` over `source`, built the way every member that
     /// answers one builds it — the carrier's one slot holding the bytes.
-    fn markup(source: &[u8]) -> Value {
-        crate::instance::build(&MARKUP, [Value::str(NvsStr::new(source))])
+    fn markup(source: &str) -> Value {
+        crate::instance::build(&MARKUP, [Value::text(source)])
     }
 
     /// The bytes a `Core\Html\Markup` carries, read back out of that slot.
@@ -2153,11 +2158,11 @@ mod tests {
     #[test]
     fn html_join_writes_every_part_in_order_with_its_separator_between() {
         let mut list = NvsArray::new();
-        list.append(markup(b"<li>one</li>"));
-        list.append(markup(b"<li>two</li>"));
-        list.append(markup(b"<li>three</li>"));
+        list.append(markup("<li>one</li>"));
+        list.append(markup("<li>two</li>"));
+        list.append(markup("<li>three</li>"));
         let parts = Value::array(list);
-        let separator = markup(b"<br>");
+        let separator = markup("<br>");
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let joined = call(super::nvs_core_html_join, &mut ctx, &[parts, separator])
@@ -2187,8 +2192,8 @@ mod tests {
     /// its one owner, and copies where a second variable also holds it.
     #[test]
     fn markup_append_grows_a_sole_owner_in_place_and_copies_a_shared_one() {
-        let page = markup(b"<p>");
-        let row = markup(b"a & b");
+        let page = markup("<p>");
+        let row = markup("a & b");
         let mut ctx = Ctx::new(OutputSink::Sink);
 
         let grown = call(super::nvs_core_html_markup_append, &mut ctx, &[page, row])
@@ -2223,7 +2228,7 @@ mod tests {
     #[test]
     fn html_join_over_an_empty_list_answers_an_empty_markup() {
         let parts = Value::array(NvsArray::new());
-        let separator = markup(b"<br>");
+        let separator = markup("<br>");
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let joined = call(super::nvs_core_html_join, &mut ctx, &[parts, separator])
@@ -2257,17 +2262,17 @@ mod tests {
     #[test]
     fn html_join_escapes_nothing_because_every_part_is_already_a_carrier() {
         let mut list = NvsArray::new();
-        list.append(markup(b"<b>a & b</b>"));
-        list.append(markup(b"<i>'q' > \"p\"</i>"));
+        list.append(markup("<b>a & b</b>"));
+        list.append(markup("<i>'q' > \"p\"</i>"));
         let parts = Value::array(list);
-        let separator = markup(b" & ");
+        let separator = markup(" & ");
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let joined = call(super::nvs_core_html_join, &mut ctx, &[parts, separator])
             .expect("joining carriers never fails");
         assert_eq!(carried(joined), "<b>a & b</b> & <i>'q' > \"p\"</i>");
 
-        let text = Value::str(NvsStr::new(b"a & b"));
+        let text = Value::text("a & b");
         let escaped = call(super::nvs_core_html_escape, &mut ctx, &[text])
             .expect("escaping text never fails");
         assert_eq!(
@@ -2299,7 +2304,7 @@ mod tests {
     #[test]
     fn html_escape_writes_five_references_and_replaces_an_open_control() {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let text = Value::str(NvsStr::new("<a title='x'>\"&\"</a>\u{202E}!".as_bytes()));
+        let text = Value::text("<a title='x'>\"&\"</a>\u{202E}!");
         let escaped = call(super::nvs_core_html_escape, &mut ctx, &[text])
             .expect("escaping text never fails");
         assert_eq!(
@@ -2307,7 +2312,7 @@ mod tests {
             "&lt;a title=&#39;x&#39;&gt;&quot;&amp;&quot;&lt;/a&gt;\u{FFFD}!"
         );
 
-        let plain = Value::str(NvsStr::new(b"Ada Lovelace"));
+        let plain = Value::text("Ada Lovelace");
         let unchanged = call(super::nvs_core_html_escape, &mut ctx, &[plain])
             .expect("escaping text never fails");
         assert_eq!(carried(unchanged), "Ada Lovelace");
@@ -2336,10 +2341,10 @@ mod tests {
     #[test]
     fn html_sanitize_rebuilds_a_fragment_and_its_answer_is_a_fixed_point() {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let document = Value::str(NvsStr::new(
-            b"<p onclick=x() class=c>Hi <b>there</b><script>alert(1)</script></p>\
+        let document = Value::text(
+            "<p onclick=x() class=c>Hi <b>there</b><script>alert(1)</script></p>\
               <font>kept</font> <a href=\" javascript:alert(1)\">a</a> <a href=/help>b</a>",
-        ));
+        );
         let once = call(super::nvs_core_html_sanitize, &mut ctx, &[document])
             .expect("the rebuild has no failure mode");
         let written = carried(once);
@@ -2348,7 +2353,7 @@ mod tests {
             "<p>Hi <b>there</b></p>kept <a>a</a> <a href=\"/help\">b</a>"
         );
 
-        let again = Value::str(NvsStr::new(written.as_bytes()));
+        let again = Value::text(&written);
         let twice = call(super::nvs_core_html_sanitize, &mut ctx, &[again])
             .expect("the rebuild has no failure mode");
         assert_eq!(carried(twice), written);
@@ -2375,8 +2380,8 @@ mod tests {
     #[test]
     fn html_to_source_answers_the_carried_bytes_and_refuses_an_empty_reason() {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let fragment = markup(b"<b>Tom &amp; Jerry</b>");
-        let reason = Value::str(NvsStr::new(b"storing the rendered card"));
+        let fragment = markup("<b>Tom &amp; Jerry</b>");
+        let reason = Value::text("storing the rendered card");
         let source = call(
             super::nvs_core_html_to_source,
             &mut ctx,
@@ -2389,7 +2394,7 @@ mod tests {
         );
         assert_eq!(carried(fragment), "<b>Tom &amp; Jerry</b>");
 
-        let empty = Value::str(NvsStr::new(b""));
+        let empty = Value::text("");
         assert!(call(super::nvs_core_html_to_source, &mut ctx, &[fragment, empty]).is_err());
         let refused = ctx.take_pending().expect("an empty reason throws");
         assert!(refused.contains("an empty one is refused"), "{refused}");
@@ -2787,16 +2792,16 @@ mod tests {
     // covers: Core\Html::parse
     #[test]
     fn html_parse_answers_a_whole_document_for_a_fragment_and_for_nothing() {
-        let cases: [(&[u8], &str); 2] = [
+        let cases: [(&str, &str); 2] = [
             (
-                b"<ul><li>one<li>two</ul>",
+                "<ul><li>one<li>two</ul>",
                 "<html><head></head><body><ul><li>one</li><li>two</li></ul></body></html>",
             ),
-            (b"", "<html><head></head><body></body></html>"),
+            ("", "<html><head></head><body></body></html>"),
         ];
         let mut ctx = Ctx::new(OutputSink::Sink);
         for (document, expected) in cases {
-            let source = Value::str(NvsStr::new(document));
+            let source = Value::text(document);
             let tree = call(super::nvs_core_html_parse, &mut ctx, &[source])
                 .expect("the parse has no failure mode");
             let written = call(crate::xml::nvs_core_xml_node_source, &mut ctx, &[tree])
@@ -3166,7 +3171,7 @@ mod tests {
             } else {
                 (100_000, 1 << 20)
             };
-            let document = Value::str(NvsStr::new("<p>x".repeat(paragraphs).as_bytes()));
+            let document = Value::text(&"<p>x".repeat(paragraphs));
             let mut ctx = Ctx::new(OutputSink::Sink);
             ctx.set_memory_limit(limit);
             let answered = call(member, &mut ctx, &[document]);

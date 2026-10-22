@@ -145,7 +145,7 @@ use argon2::password_hash::phc::PasswordHash;
 use argon2::{Algorithm, Argon2, Params, PasswordHasher, PasswordVerifier, Version};
 use rand::Rng;
 
-use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Fault, ThrownClass, Value};
 
 use crate::registry::{
     ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -455,7 +455,7 @@ nvs_runtime::nvs_helper! {
             )
         })?;
 
-        Ok(Value::str(NvsStr::new(hash.to_string().as_bytes())))
+        Ok(Value::text(&hash.to_string()))
     }
 }
 
@@ -614,17 +614,14 @@ mod tests {
     }
 
     /// The password [`PHP_STORED`] was made from.
-    const PASSWORD: &[u8] = b"correct horse battery staple";
+    const PASSWORD: &str = "correct horse battery staple";
 
     /// The answer a member gave, or the sentence its throw carried — which is
     /// what a `catch` in a program reads, so it is what these assertions
     /// compare.
     fn answer(function: nvs_runtime::NvsFn, args: &[&str]) -> Result<bool, String> {
         let mut ctx = Ctx::buffered();
-        let values: Vec<Value> = args
-            .iter()
-            .map(|text| Value::str(NvsStr::new(text.as_bytes())))
-            .collect();
+        let values: Vec<Value> = args.iter().map(|text| Value::text(text)).collect();
         match call(function, &mut ctx, &values) {
             Ok(value) => Ok(value.as_bool().expect("both members answer a `bool`")),
             Err(_) => Err(ctx
@@ -641,7 +638,7 @@ mod tests {
     // covers: Core\Password::verify
     #[test]
     fn a_php_stored_bcrypt_hash_verifies_and_the_wrong_password_does_not() {
-        let offered = std::str::from_utf8(PASSWORD).expect("the fixture is text");
+        let offered = PASSWORD;
         assert_eq!(
             answer(nvs_core_password_verify, &[offered, php_stored()]),
             Ok(true),
@@ -787,7 +784,7 @@ mod tests {
     #[test]
     fn hash_draws_a_salt_per_call_and_each_answer_verifies() {
         let mut ctx = Ctx::buffered();
-        let password = [Value::str(NvsStr::new(PASSWORD))];
+        let password = [Value::text(PASSWORD)];
         let stored: Vec<String> = (0..2)
             .map(|_| {
                 let value = call(nvs_core_password_hash, &mut ctx, &password)
@@ -800,7 +797,7 @@ mod tests {
             .collect();
 
         assert_ne!(stored[0], stored[1], "each call draws its own salt");
-        let offered = std::str::from_utf8(PASSWORD).expect("the fixture is text");
+        let offered = PASSWORD;
         for hash in &stored {
             assert!(
                 hash.starts_with("$argon2id$v=19$m=19456,t=2,p=1$"),

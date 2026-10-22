@@ -66,7 +66,7 @@ use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
 use nvs_runtime::capability::Access;
-use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Fault, NvsArray, Tag, ThrownClass, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc,
@@ -2057,7 +2057,7 @@ fn text<'a>(value: &'a Value, member: &str, what: &str) -> Result<&'a str, Fault
 /// `Core\Http\Response::text` checks a reply's body.
 fn text_of(octets: &[u8], member: &str) -> Result<Value, Fault> {
     match std::str::from_utf8(octets) {
-        Ok(_) => Ok(Value::str(NvsStr::new(octets))),
+        Ok(text) => Ok(Value::text(text)),
         Err(err) => Err(Fault::thrown(format!(
             "{member}: what was read is not valid UTF-8, so it is not a `string` — byte {} \
              is where it stops being text",
@@ -2096,7 +2096,7 @@ nvs_runtime::nvs_helper! {
         let path = Path::new(text(&args[0], "readText", "path")?);
         let raw = slurp(ctx, path, "Core\\IO::readText")?;
         let text = crate::encoding::decode_argument(args, "Core\\IO::readText", &raw)?;
-        Ok(Value::str(NvsStr::new(text.as_bytes())))
+        Ok(Value::text(&text))
     }
 }
 
@@ -3500,9 +3500,7 @@ nvs_runtime::nvs_helper! {
             // Lossy only where a name is not UTF-8, which a Novis `string`
             // cannot hold at all (`rule:types/bytes`) — the same reading as
             // [`nvs_core_io_temporary_dir`]'s.
-            names.append(Value::str(NvsStr::new(
-                entry.file_name().to_string_lossy().as_bytes(),
-            )));
+            names.append(Value::text(&entry.file_name().to_string_lossy()));
         }
         Ok(Value::array(names))
     }
@@ -3548,9 +3546,7 @@ nvs_runtime::nvs_helper! {
                     .is_dir();
                 let relative = prefix.join(entry.file_name());
                 // Lossy only where a name is not UTF-8, exactly as `list` is.
-                found.append(Value::str(NvsStr::new(
-                    relative.to_string_lossy().as_bytes(),
-                )));
+                found.append(Value::text(&relative.to_string_lossy()));
                 if descend {
                     frontier.push_back((entry.path(), relative));
                 }
@@ -3599,9 +3595,7 @@ nvs_runtime::nvs_helper! {
         let path = Path::new(text(&args[0], "canonicalize", "path")?);
         let resolved =
             nvs_runtime::capability::resolve_existing(ctx, path, "Core\\IO::canonicalize")?;
-        Ok(Value::str(NvsStr::new(
-            resolved.to_string_lossy().as_bytes(),
-        )))
+        Ok(Value::text(&resolved.to_string_lossy()))
     }
 }
 
@@ -3657,7 +3651,7 @@ nvs_runtime::nvs_helper! {
         // Lossy only where a path is not UTF-8, which a Novis `string` cannot
         // hold at all (`rule:types/bytes`): the alternative is refusing to answer for a
         // temporary root this process did not choose.
-        Ok(Value::str(NvsStr::new(made.to_string_lossy().as_bytes())))
+        Ok(Value::text(&made.to_string_lossy()))
     }
 }
 
@@ -3714,14 +3708,14 @@ nvs_runtime::nvs_helper! {
                 base.display()
             )));
         }
-        Ok(Value::str(NvsStr::new(
-            resolved.to_string_lossy().as_bytes(),
-        )))
+        Ok(Value::text(&resolved.to_string_lossy()))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use nvs_runtime::NvsStr;
+
     use super::*;
 
     /// A context granting `fs.write` everywhere and nothing else: `read` is written empty, because
@@ -3903,7 +3897,7 @@ mod tests {
         let written = path
             .to_str()
             .expect("a scratch path this suite spelled itself");
-        let args = [Value::str(NvsStr::new(written.as_bytes()))];
+        let args = [Value::text(written)];
         let answered = nvs_runtime::call(nvs_core_io_read, ctx, &args);
         let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
         for argument in args {
@@ -3941,7 +3935,7 @@ mod tests {
         let refused = read_under(&mut ctx, &path).expect_err("`read` of a file that is not text");
         assert!(refused.contains("not valid UTF-8"), "{refused}");
 
-        let args = [Value::str(NvsStr::new(path.to_string_lossy().as_bytes()))];
+        let args = [Value::text(&path.to_string_lossy())];
         let answered = nvs_runtime::call(nvs_core_io_lines, &mut ctx, &args);
         assert!(answered.is_err(), "`lines` of a file that is not text");
         let refused = ctx.take_pending().expect("the refusal is a thrown error");
@@ -4032,10 +4026,7 @@ mod tests {
         ctx: &mut nvs_runtime::Ctx,
         texts: &[&str],
     ) -> Result<Value, String> {
-        let args: Vec<Value> = texts
-            .iter()
-            .map(|text| Value::str(NvsStr::new(text.as_bytes())))
-            .collect();
+        let args: Vec<Value> = texts.iter().map(|text| Value::text(text)).collect();
         let answered = nvs_runtime::call(member, ctx, &args);
         let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
         for argument in args {
@@ -5171,10 +5162,7 @@ mod tests {
         const LATIN1: i64 = 4;
         let (_dir, path) = scratch("read-text.txt");
         let read_text = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path, charset: i64| {
-            let args = [
-                Value::str(NvsStr::new(spelled(path).as_bytes())),
-                Value::int(charset),
-            ];
+            let args = [Value::text(spelled(path)), Value::int(charset)];
             let answered = nvs_runtime::call(nvs_core_io_read_text, ctx, &args);
             let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
             #[expect(unsafe_code, reason = "the list holds the one reference it built")]
@@ -5233,10 +5221,7 @@ mod tests {
     /// index a call site passes, closing the handle it returned, or the message the refusal
     /// left in `ctx`.
     fn opened(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path, mode: i64) -> Result<(), String> {
-        let args = [
-            Value::str(NvsStr::new(spelled(path).as_bytes())),
-            Value::int(mode),
-        ];
+        let args = [Value::text(spelled(path)), Value::int(mode)];
         let answered = nvs_runtime::call(nvs_core_io_open, ctx, &args);
         let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
         let outcome = match answered {
@@ -5412,10 +5397,7 @@ mod tests {
     /// `Core\IO::open(path, ReadWrite)` under `ctx`, as the handle a program holds. The caller
     /// owns the one reference returned.
     fn handle_on(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Value {
-        let args = [
-            Value::str(NvsStr::new(spelled(path).as_bytes())),
-            Value::int(READ_WRITE),
-        ];
+        let args = [Value::text(spelled(path)), Value::int(READ_WRITE)];
         let handle = nvs_runtime::call(nvs_core_io_open, ctx, &args).expect("a scratch file opens");
         #[expect(unsafe_code, reason = "the list holds the one reference it built")]
         unsafe {
@@ -5465,7 +5447,7 @@ mod tests {
         let (_dir, path) = scratch("file-close.txt");
         let mut ctx = handling();
         let file = handle_on(&mut ctx, &path);
-        let text = Value::str(NvsStr::new(b"kept"));
+        let text = Value::text("kept");
         on_handle(&mut ctx, nvs_core_io_file_write, file, &[text]).expect("an open handle writes");
         #[expect(unsafe_code, reason = "the case owns the text it built")]
         unsafe {
@@ -5504,7 +5486,7 @@ mod tests {
         let mut ctx = handling();
         let file = handle_on(&mut ctx, &path);
         on_handle(&mut ctx, nvs_core_io_file_flush, file, &[]).expect("nothing written flushes");
-        let text = Value::str(NvsStr::new(b"line one\n"));
+        let text = Value::text("line one\n");
         on_handle(&mut ctx, nvs_core_io_file_write, file, &[text]).expect("an open handle writes");
         #[expect(unsafe_code, reason = "the case owns the text it built")]
         unsafe {
@@ -5762,7 +5744,7 @@ mod tests {
     /// `Core\IO\File::write($data)` on `handle`: the count it returned, or the message its
     /// refusal left in `ctx`.
     fn write_on(ctx: &mut nvs_runtime::Ctx, handle: Value, data: &str) -> Result<u64, String> {
-        let text = Value::str(NvsStr::new(data.as_bytes()));
+        let text = Value::text(data);
         let answered = nvs_runtime::call(nvs_core_io_file_write, ctx, &[handle, text]);
         let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
         #[expect(unsafe_code, reason = "the case owns the string it built")]
@@ -5803,10 +5785,7 @@ mod tests {
             Some("café au lait")
         );
 
-        let args = [
-            Value::str(NvsStr::new(spelled(&path).as_bytes())),
-            Value::int(0),
-        ];
+        let args = [Value::text(spelled(&path)), Value::int(0)];
         let reader = nvs_runtime::call(nvs_core_io_open, &mut ctx, &args).expect("a file opens");
         #[expect(unsafe_code, reason = "the list holds the one reference it built")]
         unsafe {
@@ -5953,10 +5932,7 @@ mod tests {
         let_go(file);
 
         std::fs::write(&path, "kept").expect("a scratch file");
-        let args = [
-            Value::str(NvsStr::new(spelled(&path).as_bytes())),
-            Value::int(0),
-        ];
+        let args = [Value::text(spelled(&path)), Value::int(0)];
         let reader = nvs_runtime::call(nvs_core_io_open, &mut ctx, &args).expect("a file opens");
         #[expect(unsafe_code, reason = "the list holds the one reference it built")]
         unsafe {

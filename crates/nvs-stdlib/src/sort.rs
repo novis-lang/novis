@@ -256,7 +256,7 @@ mod tests {
     }
 
     fn text(s: &str) -> Value {
-        Value::str(NvsStr::new(s.as_bytes()))
+        Value::text(s)
     }
 
     /// A small deterministic generator, so a failing case can be named by its

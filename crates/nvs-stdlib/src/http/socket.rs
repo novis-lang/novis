@@ -451,13 +451,13 @@ nvs_runtime::nvs_helper! {
         };
 
         let protocol = match &chosen {
-            Some(name) => Value::str(NvsStr::new(name.as_bytes())),
+            Some(name) => Value::text(name),
             None => Value::null(),
         };
         Ok(crate::instance::build(
             &SOCKET,
             [
-                Value::str(NvsStr::new(url.as_bytes())),
+                Value::text(&url),
                 protocol,
                 Value::int(0),
                 Value::bool(false),
@@ -678,7 +678,7 @@ fn text_message(text: &str) -> Value {
         &crate::socket::MESSAGE,
         [
             Value::null(),
-            Value::str(NvsStr::new(text.as_bytes())),
+            Value::text(text),
             Value::null(),
             Value::null(),
         ],
@@ -1441,7 +1441,7 @@ mod tests {
     // covers: Core\Http\Socket::close
     #[test]
     fn protocol_reads_the_settled_name_whether_or_not_the_socket_is_closed() {
-        let text = |value: &str| Value::str(nvs_runtime::NvsStr::new(value.as_bytes()));
+        let text = |value: &str| Value::text(value);
         let socket = |protocol: Value| {
             crate::instance::build(
                 &super::SOCKET,

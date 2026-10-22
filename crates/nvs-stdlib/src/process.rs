@@ -1714,16 +1714,10 @@ mod tests {
         let program = me.to_str().expect("this suite is built under a UTF-8 path");
         let mut array = NvsArray::new();
         for one in argv {
-            array.append(Value::str(NvsStr::new(one.as_bytes())));
+            array.append(Value::text(one));
         }
         let [cwd, env, timeout] = options;
-        let args = [
-            Value::str(NvsStr::new(program.as_bytes())),
-            Value::array(array),
-            cwd,
-            env,
-            timeout,
-        ];
+        let args = [Value::text(program), Value::array(array), cwd, env, timeout];
         let answered =
             nvs_runtime::call(super::nvs_core_process_spawn, ctx, &args).map_err(|_| thrown(ctx));
         for argument in args {
@@ -2371,9 +2365,9 @@ mod tests {
             "[capabilities.process]\nexec = true\n\n[limits]\nmax_output = \"{ceiling}\"\n"
         )));
         let mut argv = NvsArray::new();
-        argv.append(Value::str(NvsStr::new(b"--list")));
+        argv.append(Value::text("--list"));
         let args = [
-            Value::str(NvsStr::new(program.as_bytes())),
+            Value::text(program),
             Value::array(argv),
             Value::null(),
             Value::null(),
@@ -2551,16 +2545,10 @@ mod tests {
         ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
         let mut array = NvsArray::new();
         for one in argv {
-            array.append(Value::str(NvsStr::new(one.as_bytes())));
+            array.append(Value::text(one));
         }
         let [cwd, env, timeout] = options;
-        let args = [
-            Value::str(NvsStr::new(program.as_bytes())),
-            Value::array(array),
-            cwd,
-            env,
-            timeout,
-        ];
+        let args = [Value::text(program), Value::array(array), cwd, env, timeout];
         let answered = nvs_runtime::call(super::nvs_core_process_run, &mut ctx, &args);
         let outcome = match answered {
             Ok(result) => {
@@ -2597,10 +2585,7 @@ mod tests {
     fn env_value(pairs: &[(&str, &str)]) -> Value {
         let mut array = NvsArray::new();
         for (name, value) in pairs {
-            array.set(
-                NvsStr::new(name.as_bytes()),
-                Value::str(NvsStr::new(value.as_bytes())),
-            );
+            array.set(NvsStr::new(name.as_bytes()), Value::text(value));
         }
         Value::array(array)
     }
@@ -2648,11 +2633,7 @@ mod tests {
         }
         let given = run_with(
             REPORTER,
-            [
-                Value::str(NvsStr::new(folder.as_bytes())),
-                env_value(&pairs),
-                Value::null(),
-            ],
+            [Value::text(folder), env_value(&pairs), Value::null()],
         )
         .expect("a child with a folder and an environment starts");
         assert!(
@@ -2676,15 +2657,8 @@ mod tests {
     // covers: Core\Process::run
     #[test]
     fn a_relative_cwd_a_bad_env_name_and_a_zero_timeout_throw() {
-        let relative = run_with(
-            REPORTER,
-            [
-                Value::str(NvsStr::new(b"src")),
-                Value::null(),
-                Value::null(),
-            ],
-        )
-        .expect_err("a relative folder is not resolved against the server's own");
+        let relative = run_with(REPORTER, [Value::text("src"), Value::null(), Value::null()])
+            .expect_err("a relative folder is not resolved against the server's own");
         assert!(
             relative.starts_with("RuntimeError") && relative.contains("absolute"),
             "{relative}"
@@ -2781,7 +2755,7 @@ mod tests {
             &mut ctx,
             REPORTER,
             [
-                Value::str(NvsStr::new(folder.as_bytes())),
+                Value::text(folder),
                 env_value(&[("NVS_PROBE", "spawned")]),
                 Value::null(),
             ],

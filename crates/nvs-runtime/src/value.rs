@@ -337,9 +337,22 @@ impl Value {
     }
 
     /// A `string`, taking over the handle's reference.
+    ///
+    /// This checks nothing: the handle's bytes become text as they are, and a
+    /// `string` must be UTF-8 for its whole lifetime (`rule:types/string-is-utf8`).
+    /// `clippy.toml` refuses every call outside an audited site, which states
+    /// why its bytes are UTF-8 in an `expect`. Text that starts as a `&str` is
+    /// [`Self::text`].
     #[must_use]
     pub fn str(value: NvsStr) -> Self {
         Self::new(Tag::Str, value.into_raw() as usize as u64)
+    }
+
+    /// A `string` copied from Rust text, which the type already proves UTF-8.
+    #[must_use]
+    #[expect(clippy::disallowed_methods, reason = "a `&str` is UTF-8 by its type")]
+    pub fn text(value: &str) -> Self {
+        Self::str(NvsStr::new(value.as_bytes()))
     }
 
     /// A `bytes`, taking over the handle's reference.
@@ -1025,7 +1038,7 @@ mod tests {
         assert!(value.buffer_ptr().is_some());
         assert!(Tag::Bytes.is_refcounted());
 
-        let text = Value::str(NvsStr::new(b"hi"));
+        let text = Value::text("hi");
         assert_eq!(text.as_bytes(), None);
         assert_eq!(text.as_text(), Some("hi"));
         assert!(text.buffer_ptr().is_some());
@@ -1044,6 +1057,10 @@ mod tests {
     #[test]
     fn a_string_value_owns_one_reference() {
         let s = NvsStr::new(b"hi");
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the handle is built from an ASCII literal, and the test counts its references"
+        )]
         let value = Value::str(s.clone());
         assert_eq!(s.refcount(), 2);
         assert_eq!(value.as_str_bytes(), Some(&b"hi"[..]));
@@ -1060,6 +1077,10 @@ mod tests {
     #[test]
     fn retain_and_release_pair_up_on_a_string_value() {
         let s = NvsStr::new(b"hi");
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the handle is built from an ASCII literal, and the test counts its references"
+        )]
         let value = Value::str(s.clone());
         #[expect(unsafe_code, reason = "the payload is kept alive by `s`")]
         unsafe {
@@ -1086,7 +1107,7 @@ mod tests {
         assert_eq!(format!("{:?}", Value::int(-3)), "int(-3)");
         assert_eq!(format!("{:?}", Value::uint(3)), "uint(3)");
         assert_eq!(format!("{:?}", Value::bool(true)), "bool(true)");
-        let value = Value::str(NvsStr::new(b"hi"));
+        let value = Value::text("hi");
         assert_eq!(format!("{value:?}"), "string(\"hi\")");
         let raw = Value::bytes(NvsStr::new(b"\xff\x00hi"));
         assert_eq!(format!("{raw:?}"), "bytes(4 byte(s))");

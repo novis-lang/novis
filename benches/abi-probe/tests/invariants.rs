@@ -392,7 +392,7 @@ fn engine_recursion_is_bounded_before_the_stack_is() {
 /// decoder chose, which is the half that distinguishes a refusal from a fault.
 fn decode_on_this_stack(document: &str) -> Result<(), i32> {
     let mut ctx = nvs_runtime::Ctx::buffered();
-    let text = nvs_runtime::Value::str(nvs_runtime::NvsStr::new(document.as_bytes()));
+    let text = nvs_runtime::Value::text(document);
     let answer = nvs_runtime::call(
         nvs_stdlib::json::nvs_core_json_decode,
         &mut ctx,

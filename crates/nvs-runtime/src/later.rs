@@ -536,6 +536,10 @@ fn held_back(body: &[u8]) -> usize {
 
 /// One slot, as a group of one under its own deadline, answering the bytes
 /// that replace its placeholder.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the `error` fragment is copied from a `Markup`'s `string`"
+)]
 fn fill(child: &mut Ctx, callable: Value, deadline: Option<Duration>, error: &[u8]) -> Value {
     // The head is the request's and the main script has finished it, so the
     // slot and every task it starts may not change it.
@@ -614,7 +618,13 @@ fn render(ctx: &mut Ctx, callable: Value) -> Value {
     }
     release(answer);
     assemble(ctx, &mut bytes);
-    Value::str(NvsStr::new(&bytes))
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "unchecked: a slot's buffered output can hold raw bytes from `Core\\Response::bytes`, \
+                  and security-hardening's stage 3 checks it"
+    )]
+    let text = Value::str(NvsStr::new(&bytes));
+    text
 }
 
 fn occurrences(haystack: &[u8], needle: &[u8]) -> usize {

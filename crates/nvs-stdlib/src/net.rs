@@ -1875,7 +1875,7 @@ nvs_runtime::nvs_helper! {
             &MESSAGE,
             [
                 Value::bytes(NvsStr::new(&buffer[..kept])),
-                Value::str(NvsStr::new(sender.as_bytes())),
+                Value::text(&sender),
                 Value::uint(u64::from(from.port())),
             ],
         ))
@@ -2000,11 +2000,7 @@ mod tests {
         denied.set_config(crate::tests::granting(
             "[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = []\n",
         ));
-        let args = [
-            Value::str(NvsStr::new(HOST.as_bytes())),
-            Value::uint(9),
-            a_second(),
-        ];
+        let args = [Value::text(HOST), Value::uint(9), a_second()];
         nvs_runtime::call(nvs_core_net_connect, &mut denied, &args)
             .expect_err("loopback is the first range the address policy denies");
         let by_member = denied
@@ -2033,11 +2029,7 @@ mod tests {
         // is what stops this member being a resolver for hosts it may not
         // reach.
         let mut ungranted = Ctx::buffered();
-        let args = [
-            Value::str(NvsStr::new(b"example.invalid")),
-            Value::uint(80),
-            a_second(),
-        ];
+        let args = [Value::text("example.invalid"), Value::uint(80), a_second()];
         nvs_runtime::call(nvs_core_net_connect, &mut ungranted, &args)
             .expect_err("a context with no configuration grants nothing");
         let refused = ungranted.pending().expect("a message").into_owned();
@@ -2063,11 +2055,7 @@ mod tests {
         outbound.set_config(crate::tests::granting(
             "[capabilities.net]\nconnect = true\ninternal = [\"127.0.0.1\"]\n",
         ));
-        let args = [
-            Value::str(NvsStr::new(b"127.0.0.1")),
-            Value::uint(0),
-            Value::null(),
-        ];
+        let args = [Value::text("127.0.0.1"), Value::uint(0), Value::null()];
         nvs_runtime::call(nvs_core_net_listen, &mut outbound, &args[..2])
             .expect_err("reaching a host is not permission to bind one");
         let refused = outbound.pending().expect("a message").into_owned();
@@ -2083,11 +2071,7 @@ mod tests {
         inbound.set_config(crate::tests::granting(
             "[capabilities.net]\nlisten = true\n",
         ));
-        let args = [
-            Value::str(NvsStr::new(b"127.0.0.1")),
-            Value::uint(0),
-            Value::null(),
-        ];
+        let args = [Value::text("127.0.0.1"), Value::uint(0), Value::null()];
         let door = nvs_runtime::call(nvs_core_net_listen, &mut inbound, &args[..2])
             .expect("a granted bind on an ephemeral port");
         released(args);
@@ -2138,7 +2122,7 @@ mod tests {
         // socket, and the bound is a ceiling on a failure rather than a figure
         // anything here is measuring.
         let within = crate::time::duration_of(5_000_000_000);
-        let loopback = Value::str(NvsStr::new(b"127.0.0.1"));
+        let loopback = Value::text("127.0.0.1");
         let bind = |ctx: &mut Ctx| {
             nvs_runtime::call(nvs_core_net_bind_datagram, ctx, &[loopback, Value::uint(0)])
                 .expect("a granted bind on an ephemeral port")
@@ -2243,7 +2227,7 @@ mod tests {
         ));
         let within = crate::time::duration_of(5_000_000_000);
         let briefly = crate::time::duration_of(50_000_000);
-        let loopback = Value::str(NvsStr::new(b"127.0.0.1"));
+        let loopback = Value::text("127.0.0.1");
 
         let door = nvs_runtime::call(nvs_core_net_listen, &mut ctx, &[loopback, Value::uint(0)])
             .expect("a granted bind on an ephemeral port");
@@ -2375,11 +2359,7 @@ mod tests {
         // bound at the path.
         let mut ctx = Ctx::buffered();
         ctx.set_config(crate::tests::granting(GRANTED));
-        let args = [
-            Value::str(NvsStr::new(PATH.as_bytes())),
-            Value::uint(80),
-            a_second(),
-        ];
+        let args = [Value::text(PATH), Value::uint(80), a_second()];
         nvs_runtime::call(nvs_core_net_connect, &mut ctx, &args)
             .expect_err("the widest `net.connect` authorizes no path");
         let by_connect = ctx.pending().expect("a message").into_owned();
@@ -2405,7 +2385,7 @@ mod tests {
         for door in [nvs_core_net_listen, nvs_core_net_bind_datagram] {
             let mut ctx = Ctx::buffered();
             ctx.set_config(crate::tests::granting(GRANTED));
-            let args = [Value::str(NvsStr::new(PATH.as_bytes())), Value::uint(0)];
+            let args = [Value::text(PATH), Value::uint(0)];
             nvs_runtime::call(door, &mut ctx, &args).expect_err("a path is not an endpoint");
             let refused = ctx.pending().expect("a message").into_owned();
             released(args);
@@ -2419,7 +2399,7 @@ mod tests {
         // ends, since binding a path is granted exactly as connecting to one is.
         let mut ctx = Ctx::buffered();
         ctx.set_config(crate::tests::granting(GRANTED));
-        let args = [Value::str(NvsStr::new(PATH.as_bytes())), a_second()];
+        let args = [Value::text(PATH), a_second()];
         nvs_runtime::call(nvs_core_net_connect_local, &mut ctx, &args)
             .expect_err("`net.connect` does not widen to admit a path");
         let by_local = ctx.pending().expect("a message").into_owned();
@@ -2427,7 +2407,7 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         ctx.set_config(crate::tests::granting(GRANTED));
-        let args = [Value::str(NvsStr::new(PATH.as_bytes()))];
+        let args = [Value::text(PATH)];
         nvs_runtime::call(nvs_core_net_listen_local, &mut ctx, &args)
             .expect_err("and `net.listen` does not widen to admit one either");
         let by_bind = ctx.pending().expect("a message").into_owned();
@@ -2465,11 +2445,11 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         ctx.set_config(crate::tests::granting(&written));
-        let args = [Value::str(NvsStr::new(path.as_bytes()))];
+        let args = [Value::text(&path)];
         let bound = nvs_runtime::call(nvs_core_net_listen_local, &mut ctx, &args)
             .map_err(|_| ctx.take_pending().expect("a message").into_owned());
         released(args);
-        let args = [Value::str(NvsStr::new(path.as_bytes())), a_second()];
+        let args = [Value::text(&path), a_second()];
         let connected = nvs_runtime::call(nvs_core_net_connect_local, &mut ctx, &args)
             .map_err(|_| ctx.take_pending().expect("a message").into_owned());
         released(args);
@@ -2513,11 +2493,7 @@ mod tests {
         ] {
             let mut ctx = Ctx::buffered();
             ctx.set_config(crate::tests::granting(GRANTED));
-            let args = [
-                Value::str(NvsStr::new(written.as_bytes())),
-                Value::uint(80),
-                a_second(),
-            ];
+            let args = [Value::text(written), Value::uint(80), a_second()];
             nvs_runtime::call(nvs_core_net_connect, &mut ctx, &args)
                 .expect_err("a scheme is not a transport selector and this is not a host");
             let refused = ctx.pending().expect("a message").into_owned();
@@ -2530,7 +2506,7 @@ mod tests {
             for door in [nvs_core_net_listen, nvs_core_net_bind_datagram] {
                 let mut ctx = Ctx::buffered();
                 ctx.set_config(crate::tests::granting(GRANTED));
-                let args = [Value::str(NvsStr::new(written.as_bytes())), Value::uint(0)];
+                let args = [Value::text(written), Value::uint(0)];
                 nvs_runtime::call(door, &mut ctx, &args)
                     .expect_err("an endpoint is parsed, and a URL does not parse as one");
                 let refused = ctx.pending().expect("a message").into_owned();
@@ -2545,7 +2521,7 @@ mod tests {
             // scheme, and do not: the grant is asked about the whole string.
             let mut ctx = Ctx::buffered();
             ctx.set_config(crate::tests::granting(GRANTED));
-            let args = [Value::str(NvsStr::new(written.as_bytes())), a_second()];
+            let args = [Value::text(written), a_second()];
             nvs_runtime::call(nvs_core_net_connect_local, &mut ctx, &args)
                 .expect_err("no grant here covers a path");
             let by_local = ctx.pending().expect("a message").into_owned();
@@ -2553,7 +2529,7 @@ mod tests {
 
             let mut ctx = Ctx::buffered();
             ctx.set_config(crate::tests::granting(GRANTED));
-            let args = [Value::str(NvsStr::new(written.as_bytes()))];
+            let args = [Value::text(written)];
             nvs_runtime::call(nvs_core_net_listen_local, &mut ctx, &args)
                 .expect_err("nor at the other end");
             let by_bind = ctx.pending().expect("a message").into_owned();

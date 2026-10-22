@@ -159,7 +159,7 @@ use std::time::{Duration, Instant};
 
 use nvs_config::capability::{Cap, Scope};
 use nvs_config::{Quantity, Setting, Unit};
-use nvs_runtime::{Ctx, Fault, NvsStr, Tag, ThrownClass, Value, budget};
+use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, budget};
 use nvs_syntax::duration;
 
 use crate::registry::{
@@ -1760,7 +1760,8 @@ fn seal_and_store(ctx: &mut Ctx, at: &Sealing<'_>, value: &[u8], nanos: i64) -> 
 /// another name or lifted into another application, a tampered payload, and one
 /// past its sealed expiry all answer `None`. A caller that could tell them apart
 /// would learn something about the ring from an entry it cannot read, and a
-/// rotated ring is meant to re-fetch rather than fail. A ring that is wrong in
+/// rotated ring is meant to re-fetch rather than fail. A payload that opens but
+/// is not UTF-8 is the same miss, because a `string` must be UTF-8. A ring that is wrong in
 /// itself is a different thing and throws.
 ///
 /// Every key of the ring is tried rather than the newest alone, which is
@@ -1794,9 +1795,10 @@ fn opened(ctx: &Ctx, at: &Sealing<'_>) -> Result<Option<Held<Value>>, Fault> {
         let cipher = crate::keyring::cipher_at(&entry, slot, who)?;
         if let Some(plain) = crate::crypto::open_under(&cipher, &aad, &sealed, who)?
             && let Some(held) = sealed_value(&plain, now)
+            && let Ok(text) = std::str::from_utf8(held.value)
         {
             return Ok(Some(Held {
-                value: Value::str(NvsStr::new(held.value)),
+                value: Value::text(text),
                 refreshing: held.refreshing,
             }));
         }
@@ -1867,7 +1869,7 @@ fn supplied(ctx: &mut Ctx, at: &Sealing<'_>, entry: Value) -> Result<Value, Faul
     };
 
     seal_and_store(ctx, at, value.as_bytes(), nanos)?;
-    Ok(Value::str(NvsStr::new(value.as_bytes())))
+    Ok(Value::text(value))
 }
 
 /// The wall clock this request reads, in milliseconds since the epoch.
@@ -2535,7 +2537,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_cache_memory(_ctx, _args: [0]) {
         Ok(crate::instance::build(
             &STORE,
-            [Value::str(NvsStr::new(MEMORY_TIER.as_bytes()))],
+            [Value::text(MEMORY_TIER)],
         ))
     }
 }
@@ -2569,7 +2571,7 @@ nvs_runtime::nvs_helper! {
 
         Ok(crate::instance::build(
             &STORE,
-            [Value::str(NvsStr::new(SHARED_TIER.as_bytes()))],
+            [Value::text(SHARED_TIER)],
         ))
     }
 }
@@ -2890,10 +2892,11 @@ pub(crate) mod tests {
     use nvs_runtime::{Fault, ThrownClass};
 
     use crate::tests::granting;
+    use nvs_runtime::NvsStr;
 
     use super::{
         CLASS, Ctx, DEFAULT_FILL_WAIT, DEFAULT_MAX_SIZE, ENTRY_OVERHEAD, Entries, FILL_WAIT,
-        GET_DOC, Lifetime, MAX_SIZE, MEMORY, MEMORY_DOC, NvsStr, SEAL_DOMAIN, SECRET_ENTRY, SHARDS,
+        GET_DOC, Lifetime, MAX_SIZE, MEMORY, MEMORY_DOC, SEAL_DOMAIN, SECRET_ENTRY, SHARDS,
         SHARED_DOC, Value, bound, charged, dial_of, elected, endpoint, memory_cap, memory_forget,
         memory_get, memory_put, memory_update, nvs_core_cache_secret_entry_of, open_configured,
         scoped, sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of, wait_of, waited,
@@ -4527,7 +4530,7 @@ pub(crate) mod tests {
     fn a_secret_entry_holds_the_secret_itself_and_the_lifetime_as_a_count() {
         const NANOS: i64 = 90_500_000_000;
         let mut ctx = Ctx::buffered();
-        let value = Value::str(NvsStr::new(b"at-7f3c9b21"));
+        let value = Value::text("at-7f3c9b21");
         let ttl = crate::instance::build(&crate::time::DURATION, [Value::int(NANOS)]);
 
         #[expect(

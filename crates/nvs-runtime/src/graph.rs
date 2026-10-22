@@ -526,6 +526,10 @@ impl Carrier for Live<'_> {
         value
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a `Tag::Str` node's bytes are copied from a Novis `string`"
+    )]
     fn text(&mut self, tag: Tag, text: &[u8], adopted: Option<Value>) -> Value {
         if let Some(value) = adopted {
             return value;
@@ -906,7 +910,14 @@ impl Reader<'_> {
                     .ok_or_else(|| GraphError("a `decimal` node is malformed".to_owned()))?;
                 Ok(Value::decimal(held))
             }
-            node::STR => Ok(Value::str(self.text("a `string` node")?)),
+            node::STR => {
+                #[expect(
+                    clippy::disallowed_methods,
+                    reason = "`Reader::text` checks that the bytes are UTF-8"
+                )]
+                let text = Value::str(self.text("a `string` node")?);
+                Ok(text)
+            }
             node::BYTES => Ok(Value::bytes(NvsStr::new(&self.blob()?))),
             node::ARRAY => {
                 let count = usize::try_from(self.varint()?).map_err(|_| truncated())?;
@@ -1540,7 +1551,7 @@ mod tests {
         for (what, payload, named) in [
             (
                 "a wrong scalar",
-                owner(Value::str(NvsStr::new(b"two")), "Dog", "Dog"),
+                owner(Value::text("two"), "Dog", "Dog"),
                 "field `count` as int",
             ),
             (

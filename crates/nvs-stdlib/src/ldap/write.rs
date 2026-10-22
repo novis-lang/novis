@@ -364,11 +364,7 @@ fn change(args: &[Value], kind: i64, member: &str) -> Result<Value, Fault> {
     };
     Ok(crate::instance::build(
         &CHANGE,
-        [
-            Value::int(kind),
-            Value::str(NvsStr::new(attribute.as_bytes())),
-            value,
-        ],
+        [Value::int(kind), Value::text(&attribute), value],
     ))
 }
 
@@ -465,7 +461,12 @@ nvs_runtime::nvs_helper! {
         let mut attributes = Vec::with_capacity(map.count());
         for name in map.keys() {
             let value = map.get(&name).unwrap_or_else(Value::null);
-            let name = attribute_name(Value::str(NvsStr::new(&name)), ADD)?;
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "an array key is a `string`, so it is UTF-8"
+            )]
+            let label = Value::str(NvsStr::new(&name));
+            let name = attribute_name(label, ADD)?;
             let values = encoded(ctx, key, &name, value, ADD)?;
             if values.is_empty() {
                 return Err(not_writable(ADD, &name, "`null` or an empty list"));

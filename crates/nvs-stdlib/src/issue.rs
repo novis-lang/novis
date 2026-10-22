@@ -35,7 +35,7 @@
 //! failing to compile — which is why the order is stated here, in
 //! `nvs_types::error_lib::issue_shape`'s interned type, and nowhere else.
 
-use nvs_runtime::{NvsArray, NvsStr, Value};
+use nvs_runtime::{NvsArray, Value};
 
 /// The descriptor name `crate::instance`'s shape roster registers this under.
 ///
@@ -55,13 +55,7 @@ pub(crate) const FIELDS: &[&str] = &["message", "path"];
 /// and is empty for a failure that is about the document rather than a field
 /// in it, which is what a syntax error is.
 pub(crate) fn one(path: &str, message: &str) -> Value {
-    crate::instance::shape(
-        SHAPE,
-        [
-            Value::str(NvsStr::new(message.as_bytes())),
-            Value::str(NvsStr::new(path.as_bytes())),
-        ],
-    )
+    crate::instance::shape(SHAPE, [Value::text(message), Value::text(path)])
 }
 
 /// An `array<Issue>` of every `(path, message)` in `issues`, in the order

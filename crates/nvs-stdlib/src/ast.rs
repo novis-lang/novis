@@ -84,7 +84,7 @@
 //! 96-level nesting limit bounds the depth, so both this walk and
 //! [`nvs_core_ast_node_nodes`]'s recurse on a bounded stack.
 
-use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Fault, NvsArray, Tag, ThrownClass, Value};
 
 use crate::registry::{
     ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -458,7 +458,7 @@ fn instance_of(
     crate::instance::build(
         class_of(node.kind),
         [
-            Value::str(NvsStr::new(node.kind.as_bytes())),
+            Value::text(node.kind),
             Value::array(children),
             Value::int(i64::from(line)),
             Value::int(i64::from(column)),
@@ -629,7 +629,7 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use nvs_diagnostics::{Diagnostic, Diagnostics, PositionEncoding, SourceFile, SourceMap};
-    use nvs_runtime::{Ctx, NvsArray, NvsObj, NvsStr, OutputSink, THROWN, Tag, Value, call};
+    use nvs_runtime::{Ctx, NvsArray, NvsObj, OutputSink, THROWN, Tag, Value, call};
 
     use super::{
         CHILDREN_SLOT, COLUMN_SLOT, KIND_SLOT, LINE_SLOT, NAME, NODE, NODE_NAME, OFFSET_SLOT,
@@ -720,7 +720,7 @@ mod tests {
     /// below the root is too.
     #[test]
     fn a_parsed_node_carries_its_productions_own_class() {
-        let source = Value::str(NvsStr::new(b"<?nvs echo 1 + 2;"));
+        let source = Value::text("<?nvs echo 1 + 2;");
         let mut ctx = Ctx::new(OutputSink::Sink);
         let tree =
             call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
@@ -789,7 +789,7 @@ mod tests {
     // covers: Core\Ast\Node::children
     #[test]
     fn children_answers_the_nodes_own_array_with_a_reference_of_its_own() {
-        let source = Value::str(NvsStr::new(b"<?nvs echo 1 + 2;"));
+        let source = Value::text("<?nvs echo 1 + 2;");
         let mut ctx = Ctx::new(OutputSink::Sink);
         let tree =
             call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
@@ -855,7 +855,7 @@ mod tests {
     #[test]
     fn a_nodes_column_is_the_one_homes_column_for_that_nodes_own_offset() {
         let text = "<?nvs\necho \"ä\", 7 + 1;\n";
-        let source = Value::str(NvsStr::new(text.as_bytes()));
+        let source = Value::text(text);
         let mut ctx = Ctx::new(OutputSink::Sink);
         let tree =
             call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
@@ -934,9 +934,9 @@ mod tests {
     // covers: Core\Ast\Node::kind
     #[test]
     fn every_kind_a_node_answers_is_one_of_the_walks_own_names() {
-        let source = Value::str(NvsStr::new(
-            b"<?nvs\nint $count = 2;\nif ($count > 1) { foreach ([1, 2] as int $n) { echo $n; } }\n",
-        ));
+        let source = Value::text(
+            "<?nvs\nint $count = 2;\nif ($count > 1) { foreach ([1, 2] as int $n) { echo $n; } }\n",
+        );
         let mut ctx = Ctx::new(OutputSink::Sink);
         let tree =
             call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
@@ -1026,7 +1026,7 @@ mod tests {
     // covers: Core\Ast\Node::nodes
     #[test]
     fn nodes_answers_a_fresh_array_holding_a_reference_to_every_node_in_it() {
-        let source = Value::str(NvsStr::new(b"<?nvs if (1) { echo 2; }"));
+        let source = Value::text("<?nvs if (1) { echo 2; }");
         let mut ctx = Ctx::new(OutputSink::Sink);
         let tree =
             call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
@@ -1131,7 +1131,7 @@ mod tests {
     #[test]
     fn a_nodes_line_is_the_one_homes_line_for_that_nodes_own_offset() {
         let text = "<?nvs\necho 1;\necho \"a\nb\nc\";\necho 2 + 3;\n";
-        let source = Value::str(NvsStr::new(text.as_bytes()));
+        let source = Value::text(text);
         let mut ctx = Ctx::new(OutputSink::Sink);
         let tree =
             call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
@@ -1213,7 +1213,7 @@ mod tests {
     #[test]
     fn a_nodes_offset_is_the_byte_position_of_its_own_line_and_column() {
         let text = "<?nvs\necho \"\u{1F600}\", 7 + 1;\n";
-        let source = Value::str(NvsStr::new(text.as_bytes()));
+        let source = Value::text(text);
         let mut ctx = Ctx::new(OutputSink::Sink);
         let tree =
             call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
@@ -1403,9 +1403,7 @@ mod tests {
             );
         }
 
-        let source = Value::str(NvsStr::new(
-            b"<?nvs class C { public function m(): void {} }",
-        ));
+        let source = Value::text("<?nvs class C { public function m(): void {} }");
         let mut ctx = Ctx::new(OutputSink::Sink);
         let tree =
             call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
@@ -1513,7 +1511,7 @@ mod tests {
             let _ = nvs_syntax::parse_file(map.file(id), &mut diags);
             let compiler_refuses = diags.iter().any(Diagnostic::is_error);
 
-            let value = Value::str(NvsStr::new(source.as_bytes()));
+            let value = Value::text(&source);
             let mut ctx = Ctx::new(OutputSink::Sink);
             match call(super::nvs_core_ast_parse, &mut ctx, &[value]) {
                 Ok(tree) => {

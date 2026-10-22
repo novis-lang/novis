@@ -1328,15 +1328,11 @@ impl Open<'_> {
     /// handle stays the one the slot names.
     fn push(&mut self, node: &Parsed) {
         let at = i64::try_from(self.depth).expect("`DEPTH_CEILING` is far under `i64::MAX`");
-        self.names
-            .set_index(at, Value::str(NvsStr::new(node.name.as_bytes())));
+        self.names.set_index(at, Value::text(&node.name));
         let mut declarations = NvsArray::new();
         for (attribute, value) in &node.attributes {
             if declared(attribute).is_some() {
-                declarations.set(
-                    NvsStr::new(attribute.as_bytes()),
-                    Value::str(NvsStr::new(value.as_bytes())),
-                );
+                declarations.set(NvsStr::new(attribute.as_bytes()), Value::text(value));
             }
         }
         self.scopes.set_index(at, Value::array(declarations));
@@ -2108,7 +2104,7 @@ impl Scope {
     fn resolved(&self, name: &str) -> Value {
         let prefix = prefix_of(name);
         if prefix == "xml" {
-            return Value::str(NvsStr::new(XML_NAMESPACE.as_bytes()));
+            return Value::text(XML_NAMESPACE);
         }
         let Some(&(_, uri, _)) = self
             .innermost
@@ -2174,7 +2170,7 @@ impl Building {
         if node.kind == Kind::Element {
             for (attribute, value) in &node.attributes {
                 if let Some(prefix) = declared(attribute) {
-                    scope.push(prefix, Value::str(NvsStr::new(value.as_bytes())));
+                    scope.push(prefix, Value::text(value));
                 }
             }
             namespace = scope.resolved(&node.name);
@@ -2236,17 +2232,14 @@ pub(crate) fn instance_of(node: Parsed, inherited: &[(String, Value)]) -> Value 
 fn built(node: Parsed, namespace: Value, children: NvsArray) -> Value {
     let mut attributes = NvsArray::new();
     for (name, value) in node.attributes {
-        attributes.set(
-            NvsStr::new(name.as_bytes()),
-            Value::str(NvsStr::new(value.as_bytes())),
-        );
+        attributes.set(NvsStr::new(name.as_bytes()), Value::text(&value));
     }
     crate::instance::build(
         &NODE,
         [
             Value::int(node.kind.ordinal()),
-            Value::str(NvsStr::new(node.name.as_bytes())),
-            Value::str(NvsStr::new(node.text.as_bytes())),
+            Value::text(&node.name),
+            Value::text(&node.text),
             Value::array(attributes),
             Value::array(children),
             namespace,
@@ -2749,7 +2742,7 @@ nvs_runtime::nvs_helper! {
     /// `a_parsed_tree_has_no_path_back_into_execution` holds.
     fn nvs_core_xml_node_source(_ctx, args: [1]) {
         let written = source(args[0])?;
-        Ok(Value::str(NvsStr::new(written.as_bytes())))
+        Ok(Value::text(&written))
     }
 }
 
@@ -2992,7 +2985,7 @@ impl Pen {
         if held.str_ptr().is_none() {
             return Err(wrong_slot(&WRITER, self.member, WRITTEN_SLOT, held));
         }
-        crate::instance::append_bytes_to_text_slot(self.object, WRITTEN_SLOT, chunk.as_bytes());
+        crate::instance::append_str_to_text_slot(self.object, WRITTEN_SLOT, chunk);
         Ok(())
     }
 
@@ -3145,6 +3138,7 @@ fn end_document(receiver: Value) -> Result<Value, Fault> {
     // Its spare room, up to its own size again, goes with it, as it does for a
     // string a program built with `.=`.
     let document = crate::instance::take_slot(pen.object, WRITTEN_SLOT);
+    #[expect(clippy::disallowed_methods, reason = "the empty string is UTF-8")]
     crate::instance::set_slot(
         pen.object,
         WRITTEN_SLOT,
@@ -3183,7 +3177,7 @@ fn start_element(receiver: Value, name: &str) -> Result<Value, Fault> {
     pen.emit(name)?;
     let mut names = pen.array(OPEN_NAMES_SLOT)?;
     let at = i64::try_from(open).expect("`DEPTH_CEILING` is far under `i64::MAX`");
-    names.set_index(at, Value::str(NvsStr::new(name.as_bytes())));
+    names.set_index(at, Value::text(name));
     pen.set_count(OPEN_COUNT_SLOT, open + 1);
     pen.set_flag(TAG_SLOT, true);
     // A start tag carries no attribute twice, and the names it already carries
@@ -3443,15 +3437,17 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         }
+        #[expect(clippy::disallowed_methods, reason = "the empty string is UTF-8")]
+        let written = Value::str(NvsStr::empty_immortal());
         Ok(crate::instance::build(
             &WRITER,
             [
-                Value::str(NvsStr::empty_immortal()),
+                written,
                 Value::array(NvsArray::new()),
                 counted(0),
                 Value::bool(false),
                 Value::array(NvsArray::new()),
-                Value::str(NvsStr::new(indent.as_bytes())),
+                Value::text(indent),
                 counted(0),
                 counted(BEFORE),
                 Value::bool(false),
@@ -3549,7 +3545,7 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use nvs_runtime::{Ctx, NvsStr, OutputSink, Tag, Value, call};
+    use nvs_runtime::{Ctx, OutputSink, Tag, Value, call};
 
     use super::{
         ATTRIBUTES_SLOT, CHILDREN_SLOT, CLASS, DOCTYPE_REFUSAL, KIND, KIND_NAME, KIND_SLOT, Kind,
@@ -4068,7 +4064,7 @@ mod tests {
             );
         }
 
-        let source = Value::str(NvsStr::new(b"<?xml version=\"1.0\"?><a k=\"v\">t<b/></a>"));
+        let source = Value::text("<?xml version=\"1.0\"?><a k=\"v\">t<b/></a>");
         let mut ctx = Ctx::new(OutputSink::Sink);
         let tree = call(super::nvs_core_xml_parse, &mut ctx, &[source])
             .expect("that document is well-formed");
@@ -4239,7 +4235,7 @@ mod tests {
             "f=urn:d".to_owned(),
         ];
 
-        let source = Value::str(NvsStr::new(document.as_bytes()));
+        let source = Value::text(document);
         let mut ctx = Ctx::new(OutputSink::Sink);
         let tree =
             call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("that document is one");
@@ -4308,9 +4304,7 @@ mod tests {
                 .expect("a depth is a `uint`")
         };
 
-        let source = Value::str(NvsStr::new(
-            b"<!--c--><a><b>t<c/></b><d/>u</a><?p x?>".as_slice(),
-        ));
+        let source = Value::text("<!--c--><a><b>t<c/></b><d/>u</a><?p x?>");
         let reader = call(super::nvs_core_xml_reader, &mut ctx, &[source]).expect("a reader opens");
         assert_eq!(depth_of(reader, &mut ctx), 0, "nothing has been read yet");
         let mut walked = Vec::new();
@@ -4340,7 +4334,7 @@ mod tests {
         dropped(reader);
         dropped(source);
 
-        let source = Value::str(NvsStr::new(b"<a><b></a>".as_slice()));
+        let source = Value::text("<a><b></a>");
         let reader = call(super::nvs_core_xml_reader, &mut ctx, &[source]).expect("a reader opens");
         for _ in 0..2 {
             dropped(
@@ -4397,7 +4391,7 @@ mod tests {
     #[test]
     fn attributes_keep_written_order_and_normalise_literal_whitespace() {
         let document = "<item b=\"2\" a=\"1 &amp; 2\" c=\"x\r\ny\tz\n\" d=\"&#9;\"/><!--c-->";
-        let source = Value::str(NvsStr::new(document.as_bytes()));
+        let source = Value::text(document);
         let mut ctx = Ctx::new(OutputSink::Sink);
         let tree =
             call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("that document is one");
@@ -4723,7 +4717,7 @@ mod tests {
 
     /// A writer indenting by `indent`, over the argument list its option takes.
     fn pen(ctx: &mut Ctx, indent: &str) -> Value {
-        let indent = Value::str(NvsStr::new(indent.as_bytes()));
+        let indent = Value::text(indent);
         let writer = call(super::nvs_core_xml_writer, ctx, &[indent])
             .expect("whitespace is what an indent is");
         dropped(indent);
@@ -4750,7 +4744,7 @@ mod tests {
 
     /// A text argument, which the callee borrows and the caller releases.
     fn word(text: &str) -> Value {
-        Value::str(NvsStr::new(text.as_bytes()))
+        Value::text(text)
     }
 
     /// An attribute value comes back out of a parse exactly as it went in: the
@@ -5523,7 +5517,7 @@ mod tests {
         // the rest.
         assert_eq!(expected.remove(0), "Document::");
 
-        let source = Value::str(NvsStr::new(DOCUMENT.as_bytes()));
+        let source = Value::text(DOCUMENT);
         let mut ctx = Ctx::new(OutputSink::Sink);
         let reader = call(super::nvs_core_xml_reader, &mut ctx, &[source])
             .expect("a reader reads nothing until it is asked");
@@ -5696,7 +5690,7 @@ mod tests {
         /// What materialising `text` holds, and the most a walk over it holds
         /// at any one moment.
         fn cost(text: &str) -> (isize, isize) {
-            let source = Value::str(NvsStr::new(text.as_bytes()));
+            let source = Value::text(text);
             let mut ctx = Ctx::new(OutputSink::Sink);
             let base = nvs_runtime::budget::live_bytes();
 

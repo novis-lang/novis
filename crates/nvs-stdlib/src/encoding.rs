@@ -1068,7 +1068,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_encoding_decode_text(_ctx, args: [2]) {
         let raw = bytes_of(args, "decodeText")?;
         let text = decode_argument(args, "Core\\Encoding::decodeText", raw)?;
-        Ok(Value::str(NvsStr::new(text.as_bytes())))
+        Ok(Value::text(&text))
     }
 }
 
@@ -1099,7 +1099,7 @@ nvs_runtime::nvs_helper! {
     /// `base64_encode` answers. Total: every octet sequence has a spelling.
     fn nvs_core_encoding_to_base64(_ctx, args: [1]) {
         let raw = bytes_of(args, "toBase64")?;
-        Ok(Value::str(NvsStr::new(STANDARD.encode(raw).as_bytes())))
+        Ok(Value::text(&STANDARD.encode(raw)))
     }
 }
 
@@ -1137,7 +1137,7 @@ nvs_runtime::nvs_helper! {
     /// string anyway.
     fn nvs_core_encoding_to_base64_url(_ctx, args: [1]) {
         let raw = bytes_of(args, "toBase64Url")?;
-        Ok(Value::str(NvsStr::new(URL_SAFE_NO_PAD.encode(raw).as_bytes())))
+        Ok(Value::text(&URL_SAFE_NO_PAD.encode(raw)))
     }
 }
 
@@ -1168,7 +1168,7 @@ nvs_runtime::nvs_helper! {
     /// spelling.
     fn nvs_core_encoding_to_base32(_ctx, args: [1]) {
         let raw = bytes_of(args, "toBase32")?;
-        Ok(Value::str(NvsStr::new(BASE32_NOPAD.encode(raw).as_bytes())))
+        Ok(Value::text(&BASE32_NOPAD.encode(raw)))
     }
 }
 
@@ -1219,7 +1219,9 @@ nvs_runtime::nvs_helper! {
             out.push(DIGITS[usize::from(octet >> 4)]);
             out.push(DIGITS[usize::from(octet & 0x0f)]);
         }
-        Ok(Value::str(NvsStr::new(&out)))
+        #[expect(clippy::disallowed_methods, reason = "hex digits are ASCII")]
+        let hex = Value::str(NvsStr::new(&out));
+        Ok(hex)
     }
 }
 
@@ -1494,7 +1496,7 @@ mod tests {
     fn one_value_has_one_base32_spelling() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let read = |ctx: &mut nvs_runtime::Ctx, text: &str| {
-            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let subject = Value::text(text);
             let answered = nvs_runtime::call(nvs_core_encoding_from_base32, ctx, &[subject]);
             let octets = answered.as_ref().ok().map(|value| {
                 let owned = value.as_bytes().expect("a `bytes` answer").to_vec();
@@ -1563,7 +1565,7 @@ mod tests {
     fn base64_reads_one_alphabet_and_one_padding() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let read = |ctx: &mut nvs_runtime::Ctx, text: &str| {
-            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let subject = Value::text(text);
             let answered = nvs_runtime::call(nvs_core_encoding_from_base64, ctx, &[subject]);
             let octets = answered.as_ref().ok().map(|value| {
                 let owned = value.as_bytes().expect("a `bytes` answer").to_vec();
@@ -1643,7 +1645,7 @@ mod tests {
     fn base64url_reads_the_web_alphabet_and_refuses_padding() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let read = |ctx: &mut nvs_runtime::Ctx, text: &str| {
-            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let subject = Value::text(text);
             let answered = nvs_runtime::call(nvs_core_encoding_from_base64_url, ctx, &[subject]);
             let octets = answered.as_ref().ok().map(|value| {
                 let owned = value.as_bytes().expect("a `bytes` answer").to_vec();
@@ -1718,7 +1720,7 @@ mod tests {
     fn hex_reads_two_spellings_of_every_octet_and_nothing_else() {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let read = |ctx: &mut nvs_runtime::Ctx, text: &str| {
-            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let subject = Value::text(text);
             let answered = nvs_runtime::call(nvs_core_encoding_from_hex, ctx, &[subject]);
             let octets = answered.as_ref().ok().map(|value| {
                 let owned = value.as_bytes().expect("a `bytes` answer").to_vec();
@@ -1830,7 +1832,7 @@ mod tests {
                 "{length} octets gave {spelled}"
             );
 
-            let text = Value::str(NvsStr::new(spelled.as_bytes()));
+            let text = Value::text(&spelled);
             let read = nvs_runtime::call(nvs_core_encoding_from_base64_url, &mut ctx, &[text])
                 .expect("`toBase64Url`'s answer is text `fromBase64Url` reads");
             assert_eq!(read.as_bytes(), Some(octets.as_slice()), "{length} octets");
@@ -1904,7 +1906,7 @@ mod tests {
                 "{length} octets padded wrongly: {spelled}"
             );
 
-            let text = Value::str(NvsStr::new(spelled.as_bytes()));
+            let text = Value::text(&spelled);
             let read = nvs_runtime::call(nvs_core_encoding_from_base64, &mut ctx, &[text])
                 .expect("`toBase64`'s answer is text `fromBase64` reads");
             assert_eq!(read.as_bytes(), Some(octets.as_slice()), "{length} octets");
@@ -1993,7 +1995,7 @@ mod tests {
             let spelled = spell(&mut ctx, &octets);
             assert_eq!(spelled.len(), (length * 8).div_ceil(5), "{length} octets");
 
-            let text = Value::str(NvsStr::new(spelled.as_bytes()));
+            let text = Value::text(&spelled);
             let read = nvs_runtime::call(nvs_core_encoding_from_base32, &mut ctx, &[text])
                 .expect("`toBase32`'s answer is text `fromBase32` reads");
             assert_eq!(read.as_bytes(), Some(octets.as_slice()), "{length} octets");
@@ -2069,7 +2071,7 @@ mod tests {
             let spelled = spell(&mut ctx, &octets);
             assert_eq!(spelled.len(), length * 2, "{length} octets");
 
-            let text = Value::str(NvsStr::new(spelled.as_bytes()));
+            let text = Value::text(&spelled);
             let read = nvs_runtime::call(nvs_core_encoding_from_hex, &mut ctx, &[text])
                 .expect("`toHex`'s answer is text `fromHex` reads");
             assert_eq!(read.as_bytes(), Some(octets.as_slice()), "{length} octets");
@@ -2113,7 +2115,7 @@ mod tests {
             ("a", "Utf16Be", &[0x00, 0x61][..]),
             ("\u{20ac}", "Windows1252", &[0x80][..]),
         ] {
-            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let subject = Value::text(text);
             let answered = nvs_runtime::call(
                 nvs_core_encoding_encode_text,
                 &mut ctx,
@@ -2140,7 +2142,7 @@ mod tests {
             ("\u{e9}\u{20ac}", "Latin1", 2, '\u{20ac}'),
             ("ok\u{1f600}", "Ascii", 2, '\u{1f600}'),
         ] {
-            let subject = Value::str(NvsStr::new(text.as_bytes()));
+            let subject = Value::text(text);
             let refused = nvs_runtime::call(
                 nvs_core_encoding_encode_text,
                 &mut ctx,

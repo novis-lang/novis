@@ -739,9 +739,9 @@ mod tests {
 
     #[test]
     fn a_string_compares_by_content_not_by_pointer() {
-        let left = Value::str(NvsStr::new(b"abc"));
-        let right = Value::str(NvsStr::new(b"abc"));
-        let other = Value::str(NvsStr::new(b"abd"));
+        let left = Value::text("abc");
+        let right = Value::text("abc");
+        let other = Value::text("abd");
         assert!(identical(left, right));
         assert!(!identical(left, other));
         assert!(!identical(left, Value::int(0)));
@@ -760,7 +760,7 @@ mod tests {
         assert!(identical(left, right));
         assert!(!identical(left, other));
 
-        let text = Value::str(NvsStr::new(b"abc"));
+        let text = Value::text("abc");
         let raw = Value::bytes(NvsStr::new(b"abc"));
         assert!(!identical(text, raw));
         assert_ne!(hashed(text), hashed(raw));
@@ -772,15 +772,15 @@ mod tests {
     fn an_array_is_identical_entry_by_entry_in_order() {
         let mut left = NvsArray::new();
         left.set(NvsStr::new(b"0"), Value::int(1));
-        left.set(NvsStr::new(b"1"), Value::str(NvsStr::new(b"two")));
+        left.set(NvsStr::new(b"1"), Value::text("two"));
 
         let mut same = NvsArray::new();
         same.set(NvsStr::new(b"0"), Value::int(1));
-        same.set(NvsStr::new(b"1"), Value::str(NvsStr::new(b"two")));
+        same.set(NvsStr::new(b"1"), Value::text("two"));
 
         // The same entries, inserted the other way round.
         let mut reordered = NvsArray::new();
-        reordered.set(NvsStr::new(b"1"), Value::str(NvsStr::new(b"two")));
+        reordered.set(NvsStr::new(b"1"), Value::text("two"));
         reordered.set(NvsStr::new(b"0"), Value::int(1));
 
         let mut shorter = NvsArray::new();
@@ -939,11 +939,8 @@ mod tests {
     /// looking strings as numbers, so it answered `true` to every pair here.
     #[test]
     fn equal_strings_compare_as_text_and_never_as_numbers() {
-        fn compiled_eq(left: &[u8], right: &[u8]) -> bool {
-            let (left, right) = (
-                Value::str(NvsStr::new(left)),
-                Value::str(NvsStr::new(right)),
-            );
+        fn compiled_eq(left: &str, right: &str) -> bool {
+            let (left, right) = (Value::text(left), Value::text(right));
             #[expect(
                 unsafe_code,
                 reason = "both values own a live allocation for this call"
@@ -960,14 +957,14 @@ mod tests {
             verdict
         }
 
-        assert!(compiled_eq(b"abc", b"abc"));
-        assert!(!compiled_eq(b"1", b"01"));
-        assert!(!compiled_eq(b"1e3", b"1000"));
-        assert!(!compiled_eq(b"0", b"0.0"));
-        assert!(!compiled_eq(b" 1", b"1"));
+        assert!(compiled_eq("abc", "abc"));
+        assert!(!compiled_eq("1", "01"));
+        assert!(!compiled_eq("1e3", "1000"));
+        assert!(!compiled_eq("0", "0.0"));
+        assert!(!compiled_eq(" 1", "1"));
         // No normalization either: "e" plus a combining acute and the
         // precomposed "é" render alike and are two values.
-        assert!(!compiled_eq("e\u{301}".as_bytes(), "é".as_bytes()));
+        assert!(!compiled_eq("e\u{301}", "é"));
     }
 
     /// `rule:expressions/equality-semantics`'s array row at that same door — [`nvs_array_eq`], which
@@ -1019,7 +1016,7 @@ mod tests {
         let mut textual = NvsArray::new();
         textual.set(NvsStr::new(b"0"), {
             let mut inner = NvsArray::new();
-            inner.set(NvsStr::new(b"0"), Value::str(NvsStr::new(b"1")));
+            inner.set(NvsStr::new(b"0"), Value::text("1"));
             Value::array(inner)
         });
         let outer = Value::array(outer);

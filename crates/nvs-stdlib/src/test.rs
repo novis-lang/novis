@@ -2322,7 +2322,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_test_server_url(ctx, args: [0]) {
         let _ = args;
         match ctx.test_server() {
-            Some(url) => Ok(Value::str(nvs_runtime::NvsStr::new(url.as_bytes()))),
+            Some(url) => Ok(Value::text(url)),
             None => Ok(Value::null()),
         }
     }
@@ -2596,10 +2596,7 @@ fn peer_frames_of(list: Value, member: &str) -> Result<Vec<nvs_runtime::SocketFr
 /// wire fills them with.
 fn frame_message(frame: &nvs_runtime::SocketFrame) -> Value {
     let (text, bytes) = match frame {
-        nvs_runtime::SocketFrame::Text(payload) => (
-            Value::str(nvs_runtime::NvsStr::new(payload.as_bytes())),
-            Value::null(),
-        ),
+        nvs_runtime::SocketFrame::Text(payload) => (Value::text(payload), Value::null()),
         nvs_runtime::SocketFrame::Bytes(payload) => (
             Value::null(),
             Value::bytes(nvs_runtime::NvsStr::new(payload)),
@@ -2677,7 +2674,7 @@ nvs_runtime::nvs_helper! {
             for (name, value) in &sent.headers {
                 headers.set(
                     nvs_runtime::NvsStr::new(name.as_bytes()),
-                    Value::str(nvs_runtime::NvsStr::new(value.as_bytes())),
+                    Value::text(value),
                 );
             }
             let ordinal = crate::router::method_case(&sent.verb).ok_or_else(|| {
@@ -2693,7 +2690,7 @@ nvs_runtime::nvs_helper! {
                 &SENT_REQUEST,
                 [
                     Value::int(ordinal),
-                    Value::str(nvs_runtime::NvsStr::new(sent.url.as_bytes())),
+                    Value::text(&sent.url),
                     Value::array(headers),
                     Value::bytes(nvs_runtime::NvsStr::new(&sent.body)),
                 ],
@@ -3023,7 +3020,7 @@ nvs_runtime::nvs_helper! {
                 &RESPONSE,
                 [
                     Value::int(500),
-                    Value::str(nvs_runtime::NvsStr::new(b"")),
+                    Value::text(""),
                     Value::array(nvs_runtime::NvsArray::new()),
                 ],
             ));
@@ -3033,11 +3030,17 @@ nvs_runtime::nvs_helper! {
         // making every test say so.
         let status = i64::from(completion.status.unwrap_or(200));
         let headers = answered_headers(&completion);
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "unchecked: a body can hold raw bytes from `Core\\Response::bytes`, \
+                      and security-hardening's stage 3 checks it"
+        )]
+        let body = Value::str(nvs_runtime::NvsStr::new(&completion.output));
         Ok(crate::instance::build(
             &RESPONSE,
             [
                 Value::int(status),
-                Value::str(nvs_runtime::NvsStr::new(&completion.output)),
+                body,
                 headers,
             ],
         ))
@@ -3080,7 +3083,7 @@ fn answered_headers(completion: &nvs_runtime::host::Completion) -> Value {
     for (name, lines) in groups {
         let mut values = nvs_runtime::NvsArray::new();
         for line in lines {
-            values.append(Value::str(nvs_runtime::NvsStr::new(line.as_bytes())));
+            values.append(Value::text(line));
         }
         out.set(
             nvs_runtime::NvsStr::new(name.as_bytes()),
@@ -3179,6 +3182,10 @@ nvs_runtime::nvs_helper! {
             for line in crate::http::each_line(&lines) {
                 let text = line.as_str_bytes().unwrap_or_default();
                 if let Some((name, value)) = cookie_pair(text) {
+                    #[expect(
+                        clippy::disallowed_methods,
+                        reason = "cut from a header line's `string` at ASCII bytes"
+                    )]
                     out.set(nvs_runtime::NvsStr::new(name), Value::str(nvs_runtime::NvsStr::new(value)));
                 }
             }
@@ -5515,10 +5522,10 @@ mod tests {
     fn answer_http_takes_every_status_a_status_line_carries_and_a_refused_answer_arms_nothing() {
         fn answer(ctx: &mut Ctx, url: &str, status: u64, json: Value) -> Result<(), String> {
             let args = [
-                Value::str(nvs_runtime::NvsStr::new(url.as_bytes())),
+                Value::text(url),
                 Value::uint(status),
                 json,
-                Value::str(nvs_runtime::NvsStr::new(b"ok")),
+                Value::text("ok"),
                 Value::array(nvs_runtime::NvsArray::new()),
                 Value::null(),
             ];
@@ -5586,16 +5593,14 @@ mod tests {
             let mut list = nvs_runtime::NvsArray::new();
             for frame in frames {
                 list.append(match frame {
-                    Text(text) => Value::str(nvs_runtime::NvsStr::new(text.as_bytes())),
+                    Text(text) => Value::text(text),
                     Bytes(octets) => Value::bytes(nvs_runtime::NvsStr::new(octets)),
                 });
             }
             let args = [
-                Value::str(nvs_runtime::NvsStr::new(url.as_bytes())),
+                Value::text(url),
                 Value::array(list),
-                protocol.map_or_else(Value::null, |name| {
-                    Value::str(nvs_runtime::NvsStr::new(name.as_bytes()))
-                }),
+                protocol.map_or_else(Value::null, Value::text),
             ];
             let answered = nvs_runtime::call(nvs_core_test_answer_socket, ctx, &args)
                 .expect("every peer a program can write is registered");
@@ -5735,7 +5740,7 @@ mod tests {
         let mut headers = nvs_runtime::NvsArray::new();
         headers.set(
             nvs_runtime::NvsStr::new(b"X-Signature"),
-            Value::str(nvs_runtime::NvsStr::new(b"t=1,v1=deadbeef")),
+            Value::text("t=1,v1=deadbeef"),
         );
         // The slots the ABI hands a member, of which this reading uses the bag's
         // alone: the verb is the caller's `verb_of` and the target is a
@@ -5744,10 +5749,10 @@ mod tests {
         // which describe a request served at the root.
         let args = [
             Value::int(0),
-            Value::str(nvs_runtime::NvsStr::new(b"/hooks?since=2")),
+            Value::text("/hooks?since=2"),
             Value::array(headers),
             Value::bytes(nvs_runtime::NvsStr::new(BODY)),
-            Value::str(nvs_runtime::NvsStr::new(b"")),
+            Value::text(""),
             Value::array(nvs_runtime::NvsArray::new()),
         ];
         let described =
@@ -5772,7 +5777,7 @@ mod tests {
             BODY,
             "the bag's body is the request's body, octet for octet"
         );
-        let signature = Value::str(nvs_runtime::NvsStr::new(b"x-signature"));
+        let signature = Value::text("x-signature");
         assert_eq!(
             read(
                 &mut ctx,
@@ -5783,14 +5788,14 @@ mod tests {
             "and its header is a field line the program reads back under that name"
         );
         dropped(signature);
-        let length = Value::str(nvs_runtime::NvsStr::new(b"content-length"));
+        let length = Value::text("content-length");
         assert_eq!(
             read(&mut ctx, crate::request::nvs_core_request_header, &[length]),
             b"8",
             "with the length derived from the body, since the bag declared none"
         );
         dropped(length);
-        let since = Value::str(nvs_runtime::NvsStr::new(b"since"));
+        let since = Value::text("since");
         assert_eq!(
             read(&mut ctx, crate::request::nvs_core_request_query, &[since]),
             b"2",
@@ -5965,8 +5970,8 @@ mod tests {
             Value::null(),
             vec![("send".to_owned(), callable_of())],
         );
-        for recipient in [b"a@example.test".as_slice(), b"b@example.test"] {
-            let to = Value::str(nvs_runtime::NvsStr::new(recipient));
+        for recipient in ["a@example.test", "b@example.test"] {
+            let to = Value::text(recipient);
             let answered = nvs_runtime::call_method(&mut ctx, double, "send", &[to], "a test")
                 .expect("the trampoline answers")
                 .expect("`send` is a row of the double's own class");
@@ -6157,7 +6162,7 @@ mod tests {
     #[test]
     fn sent_http_returns_one_record_per_call_in_the_order_they_were_made() {
         fn text(of: &str) -> Value {
-            Value::str(nvs_runtime::NvsStr::new(of.as_bytes()))
+            Value::text(of)
         }
         fn sent(ctx: &mut Ctx) -> Vec<String> {
             let answered = nvs_runtime::call(nvs_core_test_sent_http, ctx, &[] as &[Value])
@@ -6234,7 +6239,7 @@ mod tests {
     #[test]
     fn sent_request_members_read_their_fields_and_refuse_a_stranger() {
         fn text(of: &str) -> Value {
-            Value::str(nvs_runtime::NvsStr::new(of.as_bytes()))
+            Value::text(of)
         }
         fn header(ctx: &mut Ctx, record: Value, name: &str) -> Option<String> {
             let name = text(name);
@@ -6367,14 +6372,14 @@ mod tests {
         ) -> Result<Value, i32> {
             let mut listed = nvs_runtime::NvsArray::new();
             for capture in captures {
-                listed.append(Value::str(nvs_runtime::NvsStr::new(capture.as_bytes())));
+                listed.append(Value::text(capture));
             }
             let args = [
                 Value::int(crate::router::method_case(verb).expect("a verb the roster names")),
-                Value::str(nvs_runtime::NvsStr::new(target.as_bytes())),
+                Value::text(target),
                 Value::array(nvs_runtime::NvsArray::new()),
                 Value::null(),
-                Value::str(nvs_runtime::NvsStr::new(mount.as_bytes())),
+                Value::text(mount),
                 Value::array(listed),
             ];
             let answered = nvs_runtime::call(nvs_core_test_request, ctx, &args);
@@ -6440,10 +6445,7 @@ mod tests {
         );
 
         let mut keyed = nvs_runtime::NvsArray::new();
-        keyed.set(
-            nvs_runtime::NvsStr::new(b"tenant"),
-            Value::str(nvs_runtime::NvsStr::new(b"acme")),
-        );
+        keyed.set(nvs_runtime::NvsStr::new(b"tenant"), Value::text("acme"));
         let keyed = Value::array(keyed);
         let refused = captures_of(&keyed).expect_err("a map is not a list of captures");
         dropped(keyed);
@@ -6511,10 +6513,10 @@ mod tests {
         fn asked(ctx: &mut Ctx, unit: &HalfPage) -> Value {
             let args = [
                 Value::int(crate::router::method_case("GET").expect("a verb the roster names")),
-                Value::str(nvs_runtime::NvsStr::new(b"/page")),
+                Value::text("/page"),
                 Value::array(nvs_runtime::NvsArray::new()),
                 Value::null(),
-                Value::str(nvs_runtime::NvsStr::new(b"")),
+                Value::text(""),
                 Value::array(nvs_runtime::NvsArray::new()),
             ];
             let answered = nvs_runtime::inproc::scoped(unit, || {
@@ -6603,10 +6605,10 @@ mod tests {
     fn declared(ctx: &mut Ctx, unit: &Declares) -> Value {
         let args = [
             Value::int(crate::router::method_case("GET").expect("a verb the roster names")),
-            Value::str(nvs_runtime::NvsStr::new(b"/page")),
+            Value::text("/page"),
             Value::array(nvs_runtime::NvsArray::new()),
             Value::null(),
-            Value::str(nvs_runtime::NvsStr::new(b"")),
+            Value::text(""),
             Value::array(nvs_runtime::NvsArray::new()),
         ];
         let answered = nvs_runtime::inproc::scoped(unit, || {
@@ -6676,7 +6678,7 @@ mod tests {
         );
 
         fn header(ctx: &mut Ctx, response: Value, name: &str) -> Result<Option<String>, String> {
-            let name = Value::str(nvs_runtime::NvsStr::new(name.as_bytes()));
+            let name = Value::text(name);
             let read = nvs_runtime::call(nvs_core_test_response_header, ctx, &[response, name]);
             dropped(name);
             match read {
@@ -6935,7 +6937,7 @@ mod tests {
     #[test]
     fn assert_called_and_assert_never_called_agree_over_one_record() {
         fn text(of: &str) -> Value {
-            Value::str(nvs_runtime::NvsStr::new(of.as_bytes()))
+            Value::text(of)
         }
         fn outcome(ctx: &mut Ctx, answered: Result<Value, i32>) -> Result<(), String> {
             match answered {
@@ -7223,7 +7225,7 @@ mod tests {
             }
         }
         fn text(of: &str) -> Value {
-            Value::str(nvs_runtime::NvsStr::new(of.as_bytes()))
+            Value::text(of)
         }
         fn list(of: &[i64]) -> Value {
             let mut list = nvs_runtime::NvsArray::new();
@@ -7302,7 +7304,7 @@ mod tests {
     #[test]
     fn assert_matches_inline_compares_the_rendering_and_records_each_mismatch() {
         fn matched(ctx: &mut Ctx, actual: Value, snapshot: &str) -> Result<(), String> {
-            let expected = Value::str(nvs_runtime::NvsStr::new(snapshot.as_bytes()));
+            let expected = Value::text(snapshot);
             let args = [actual, expected, Value::null()];
             let answered = nvs_runtime::call(nvs_core_test_assert_matches_inline, ctx, &args);
             dropped(actual);
@@ -7478,7 +7480,7 @@ mod tests {
         assert_eq!(ctx.fixed_clock(), Some(50_000_000));
 
         let mut bare = Ctx::buffered();
-        let expected = || Value::str(nvs_runtime::NvsStr::new(b"LogicError"));
+        let expected = || Value::text("LogicError");
         let why = judged(
             &mut bare,
             nvs_core_test_assert_throws,
@@ -7538,9 +7540,7 @@ mod tests {
         const CAUGHT: usize = if cfg!(miri) { 200 } else { 20_000 };
 
         fn asserted(ctx: &mut Ctx, actual: bool, message: Option<&str>) -> Result<(), String> {
-            let message = message.map_or(Value::null(), |given| {
-                Value::str(nvs_runtime::NvsStr::new(given.as_bytes()))
-            });
+            let message = message.map_or(Value::null(), Value::text);
             let answered = nvs_runtime::call(
                 nvs_core_test_assert_true,
                 ctx,
@@ -7721,7 +7721,7 @@ mod tests {
         fn scripted(ctx: &mut Ctx, lines: &[&str]) {
             let mut list = nvs_runtime::NvsArray::new();
             for line in lines {
-                list.append(Value::str(nvs_runtime::NvsStr::new(line.as_bytes())));
+                list.append(Value::text(line));
             }
             let list = Value::array(list);
             let answered = nvs_runtime::call(nvs_core_test_script_answers, ctx, &[list]);

@@ -192,7 +192,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_config_get(ctx, args: [1]) {
         let name = text(&args[0], "get")?;
         match ctx.config().and_then(|config| config.get(name)) {
-            Some(value) => Ok(Value::str(NvsStr::new(value.as_bytes()))),
+            Some(value) => Ok(Value::text(&value)),
             None => Ok(Value::null()),
         }
     }
@@ -250,7 +250,7 @@ nvs_runtime::nvs_helper! {
             for (name, value) in config.all() {
                 out.set(
                     NvsStr::new(name.as_bytes()),
-                    Value::str(NvsStr::new(value.as_bytes())),
+                    Value::text(&value),
                 );
             }
         }
@@ -262,7 +262,7 @@ nvs_runtime::nvs_helper! {
 mod tests {
     use std::sync::Arc;
 
-    use nvs_runtime::{Ctx, NvsArray, NvsStr, Value, call};
+    use nvs_runtime::{Ctx, NvsArray, Value, call};
 
     use super::{
         nvs_core_config_all, nvs_core_config_get, nvs_core_config_restore, nvs_core_config_set,
@@ -290,7 +290,7 @@ mod tests {
 
     /// One `string` argument, as a call site builds it.
     fn text(value: &str) -> Value {
-        Value::str(NvsStr::new(value.as_bytes()))
+        Value::text(value)
     }
 
     /// What a member answered as text, or `None` where it answered `null`.

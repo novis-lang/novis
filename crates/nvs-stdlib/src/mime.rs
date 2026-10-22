@@ -48,7 +48,7 @@
 //! case*: `Unknown` for a format with no signature, and a container
 //! case for a format the signature reaches but cannot narrow.
 
-use nvs_runtime::{Fault, NvsStr, Value};
+use nvs_runtime::{Fault, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc, Qual,
@@ -611,7 +611,7 @@ nvs_runtime::nvs_helper! {
                 args[0].as_int()
             )));
         };
-        Ok(Value::str(NvsStr::new(media.media_type().as_bytes())))
+        Ok(Value::text(media.media_type()))
     }
 }
 

@@ -1162,9 +1162,10 @@ nvs_runtime::nvs_helper! {
                  process could hold",
             )
         };
-        Ok(Value::str(draw(ctx, |rng| {
-            hex_from(rng, bytes, digits, refusal)
-        })?))
+        let hex = draw(ctx, |rng| hex_from(rng, bytes, digits, refusal))?;
+        #[expect(clippy::disallowed_methods, reason = "hex digits are ASCII")]
+        let token = Value::str(hex);
+        Ok(token)
     }
 }
 
@@ -1352,9 +1353,10 @@ nvs_runtime::nvs_helper! {
                  this process could hold",
             )
         };
-        Ok(Value::str(sequence(args, "token", |rng| {
-            hex_from(rng, bytes, digits, refusal)
-        })??))
+        let hex = sequence(args, "token", |rng| hex_from(rng, bytes, digits, refusal))??;
+        #[expect(clippy::disallowed_methods, reason = "hex digits are ASCII")]
+        let token = Value::str(hex);
+        Ok(token)
     }
 }
 

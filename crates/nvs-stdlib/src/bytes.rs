@@ -2290,7 +2290,7 @@ mod tests {
     /// One `string` argument, which the caller still owns — [`packed`] borrows
     /// its octets exactly as the helper convention does.
     fn text(literal: &str) -> Value {
-        Value::str(NvsStr::new(literal.as_bytes()))
+        Value::text(literal)
     }
 
     /// Gives back every reference [`text`] built.

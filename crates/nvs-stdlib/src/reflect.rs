@@ -195,7 +195,7 @@
 //! slots per attach site, plus two arrays and one string per payload field,
 //! charged to the request that asked and released with the description.
 
-use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, Tag, ThrownClass, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
@@ -1804,13 +1804,13 @@ fn describe(desc: &ClassDesc) -> Value {
             continue;
         };
         let ty = match desc.field_type(slot) {
-            Some(ty) => Value::str(NvsStr::new(ty.as_bytes())),
+            Some(ty) => Value::text(ty),
             None => Value::null(),
         };
         properties.append(crate::instance::build(
             &PROPERTY_INFO,
             [
-                Value::str(NvsStr::new(name.as_bytes())),
+                Value::text(name),
                 Value::bool(desc.field_is_public(slot)),
                 ty,
             ],
@@ -1831,18 +1831,18 @@ fn describe(desc: &ClassDesc) -> Value {
             // A position the table spelled nothing at answers `null`, which is
             // the absence [`PARAMETER_TYPE_SLOT`] carries.
             let ty = match row.param_types.get(slot) {
-                Some(ty) if !ty.is_empty() => Value::str(NvsStr::new(ty.as_bytes())),
+                Some(ty) if !ty.is_empty() => Value::text(ty),
                 _ => Value::null(),
             };
             parameters.append(crate::instance::build(
                 &PARAMETER_INFO,
-                [Value::str(NvsStr::new(name.as_bytes())), ty],
+                [Value::text(name), ty],
             ));
         }
         methods.append(crate::instance::build(
             &METHOD_INFO,
             [
-                Value::str(NvsStr::new(row.name.as_bytes())),
+                Value::text(&row.name),
                 Value::bool(row.public),
                 Value::uint(u64::from(row.arity)),
                 Value::array(parameters),
@@ -1854,7 +1854,7 @@ fn describe(desc: &ClassDesc) -> Value {
         constants.append(crate::instance::build(
             &CONSTANT_INFO,
             [
-                Value::str(NvsStr::new(constant.name.as_bytes())),
+                Value::text(&constant.name),
                 Value::bool(constant.public),
                 Value::bool(constant.value != nvs_runtime::ConstantValue::Opaque),
             ],
@@ -1865,15 +1865,15 @@ fn describe(desc: &ClassDesc) -> Value {
         let mut names = NvsArray::new();
         let mut values = NvsArray::new();
         for (name, value) in &attribute.fields {
-            names.append(Value::str(NvsStr::new(name.as_bytes())));
+            names.append(Value::text(name));
             values.append(constant_value(value));
         }
         attributes.append(crate::instance::build(
             &ATTRIBUTE_INFO,
             [
-                Value::str(NvsStr::new(attribute.name.as_bytes())),
-                Value::str(NvsStr::new(attribute.member.as_bytes())),
-                Value::str(NvsStr::new(attribute.parameter.as_bytes())),
+                Value::text(&attribute.name),
+                Value::text(&attribute.member),
+                Value::text(&attribute.parameter),
                 Value::array(names),
                 Value::array(values),
             ],
@@ -1882,7 +1882,7 @@ fn describe(desc: &ClassDesc) -> Value {
     crate::instance::build(
         &CLASS_INFO,
         [
-            Value::str(NvsStr::new(desc.name().as_bytes())),
+            Value::text(desc.name()),
             Value::array(properties),
             Value::array(methods),
             Value::array(constants),
@@ -1901,7 +1901,7 @@ fn describe(desc: &ClassDesc) -> Value {
 /// `null` is not one of the four literals — so the two cannot be confused.
 fn constant_value(value: &nvs_runtime::ConstantValue) -> Value {
     match value {
-        nvs_runtime::ConstantValue::Str(text) => Value::str(NvsStr::new(text.as_bytes())),
+        nvs_runtime::ConstantValue::Str(text) => Value::text(text),
         nvs_runtime::ConstantValue::Int(value) => Value::int(*value),
         nvs_runtime::ConstantValue::Bool(value) => Value::bool(*value),
         nvs_runtime::ConstantValue::Float(value) => Value::float(*value),
@@ -1923,7 +1923,7 @@ fn describe_enum(desc: &nvs_runtime::EnumDesc) -> Value {
     let mut cases = NvsArray::new();
     let mut values = NvsArray::new();
     for (case, value) in desc.cases() {
-        cases.append(Value::str(NvsStr::new(case.as_bytes())));
+        cases.append(Value::text(case));
         // Both narrowings are exact rather than checked: the widening to `i128`
         // is what `nvs_ir::lower` did to an `i64` or a `u64` on the way down,
         // and `rule:enums/one-backing-type` is what says which one it was.
@@ -1936,7 +1936,7 @@ fn describe_enum(desc: &nvs_runtime::EnumDesc) -> Value {
     crate::instance::build(
         &ENUM_INFO,
         [
-            Value::str(NvsStr::new(desc.name().as_bytes())),
+            Value::text(desc.name()),
             Value::array(cases),
             Value::array(values),
             Value::bool(desc.unsigned()),
@@ -2211,22 +2211,24 @@ nvs_runtime::nvs_helper! {
                           rewritten while a member of it is running"
             )]
             let desc = unsafe { &*desc };
-            let Some(slot) = (0..desc.field_count())
-                .find(|&slot| desc.field_name(slot).is_some_and(|name| name.as_bytes() == segment))
-            else {
+            let Some((slot, name)) = (0..desc.field_count()).find_map(|slot| {
+                desc.field_name(slot)
+                    .filter(|name| name.as_bytes() == segment)
+                    .map(|name| (slot, name))
+            }) else {
                 return Err(Fault::fatal(format!(
                     "{member} found no property `${}` on `{class}`",
                     String::from_utf8_lossy(segment)
                 )));
             };
             let ty = match desc.field_type(slot) {
-                Some(ty) => Value::str(NvsStr::new(ty.as_bytes())),
+                Some(ty) => Value::text(ty),
                 None => Value::null(),
             };
             out.append(crate::instance::build(
                 &PROPERTY_INFO,
                 [
-                    Value::str(NvsStr::new(segment)),
+                    Value::text(name),
                     Value::bool(desc.field_is_public(slot)),
                     ty,
                 ],
@@ -2378,7 +2380,7 @@ nvs_runtime::nvs_helper! {
             if !visible {
                 continue;
             }
-            names.append(Value::str(NvsStr::new(name.as_bytes())));
+            names.append(Value::text(name));
         }
         Ok(Value::array(names))
     }
@@ -2495,7 +2497,7 @@ nvs_runtime::nvs_helper! {
             )));
         }
         Ok(match &constant.value {
-            nvs_runtime::ConstantValue::Str(text) => Value::str(NvsStr::new(text.as_bytes())),
+            nvs_runtime::ConstantValue::Str(text) => Value::text(text),
             nvs_runtime::ConstantValue::Int(value) => Value::int(*value),
             nvs_runtime::ConstantValue::Bool(value) => Value::bool(*value),
             nvs_runtime::ConstantValue::Float(value) => Value::float(*value),
@@ -3248,7 +3250,7 @@ mod tests {
             panic!("an out-of-class call to a `private` method is a catchable throw");
         };
 
-        let sealed = Value::str(NvsStr::new(b"sealed"));
+        let sealed = Value::text("sealed");
         let none = Value::array(NvsArray::new());
         assert_eq!(
             call(
@@ -3272,7 +3274,7 @@ mod tests {
             "and the same class, which is what a `catch` in a program sees"
         );
 
-        let open = Value::str(NvsStr::new(b"open"));
+        let open = Value::text("open");
         let none = Value::array(NvsArray::new());
         assert_eq!(
             call(
@@ -3593,7 +3595,7 @@ mod tests {
 
         assert_eq!(ordinary_write(&mut ctx, subject, "n", Value::uint(7)), OK);
 
-        let name = Value::str(NvsStr::new(b"n"));
+        let name = Value::text("n");
         call(
             super::nvs_core_reflect_class_info_set,
             &mut ctx,
@@ -3786,7 +3788,7 @@ mod tests {
         let (mut ctx, subject, tags) = gauge();
         let info = call(super::nvs_core_reflect_for_object, &mut ctx, &[subject])
             .expect("every object has a description");
-        let name = |text: &str| Value::str(NvsStr::new(text.as_bytes()));
+        let name = |text: &str| Value::text(text);
 
         // A plain slot: the same array, with one more owner — the caller.
         let tags_name = name("tags");
@@ -3901,7 +3903,7 @@ mod tests {
 
         let by_value = call(super::nvs_core_reflect_for_object, &mut ctx, &[subject])
             .expect("every object has a description");
-        let vault_name = Value::str(NvsStr::new(b"Vault"));
+        let vault_name = Value::text("Vault");
         let by_name = call(super::nvs_core_reflect_for_class, &mut ctx, &[vault_name])
             .expect("asking for a class by name never throws");
         assert_eq!(
@@ -3912,7 +3914,7 @@ mod tests {
         assert_eq!(named(&mut ctx, by_name), named(&mut ctx, by_value));
         assert_eq!(named(&mut ctx, by_name), "Vault");
 
-        let unknown = Value::str(NvsStr::new(b"Vaults"));
+        let unknown = Value::text("Vaults");
         let absent = call(super::nvs_core_reflect_for_class, &mut ctx, &[unknown])
             .expect("a name no class has is an absence, not a failure");
         assert_eq!(absent.tag(), Some(Tag::Null));
@@ -3953,19 +3955,19 @@ mod tests {
         let mut names = NvsArray::new();
         let mut values = NvsArray::new();
         for (name, value) in [
-            ("path", Value::str(NvsStr::new(b"/show"))),
+            ("path", Value::text("/show")),
             ("limit", Value::int(3)),
             ("cap", Value::null()),
         ] {
-            names.append(Value::str(NvsStr::new(name.as_bytes())));
+            names.append(Value::text(name));
             values.append(value);
         }
         let info = crate::instance::build(
             &super::ATTRIBUTE_INFO,
             [
-                Value::str(NvsStr::new(b"Route")),
-                Value::str(NvsStr::new(b"show")),
-                Value::str(NvsStr::new(b"id")),
+                Value::text("Route"),
+                Value::text("show"),
+                Value::text("id"),
                 Value::array(names),
                 Value::array(values),
             ],
@@ -4017,7 +4019,7 @@ mod tests {
 
         let mut read = Vec::new();
         for field in &fields {
-            let asked = Value::str(NvsStr::new(field.as_bytes()));
+            let asked = Value::text(field);
             match call(
                 super::nvs_core_reflect_attribute_info_field,
                 &mut ctx,
@@ -4050,7 +4052,7 @@ mod tests {
             "`cap` has no folded value"
         );
 
-        let misspelt = Value::str(NvsStr::new(b"paths"));
+        let misspelt = Value::text("paths");
         assert_eq!(
             call(
                 super::nvs_core_reflect_attribute_info_field,
@@ -4232,7 +4234,7 @@ mod tests {
         let (_blob, within) = inside("Vault::open");
 
         let mut ask = |name: &str, site: Value| -> Result<Value, String> {
-            let asked = Value::str(NvsStr::new(name.as_bytes()));
+            let asked = Value::text(name);
             let answer = call(
                 super::nvs_core_reflect_class_info_constant,
                 &mut ctx,
@@ -4563,7 +4565,7 @@ mod tests {
         let none = Value::array(NvsArray::new());
         let site = inside("Vault::check");
         for probe in ["open", "sealed", "OPEN", "ope", "opened", ""] {
-            let name = Value::str(NvsStr::new(probe.as_bytes()));
+            let name = Value::text(probe);
             let declared = call(
                 super::nvs_core_reflect_class_info_has_method,
                 &mut ctx,
@@ -4591,7 +4593,7 @@ mod tests {
             }
         }
 
-        let sealed = Value::str(NvsStr::new(b"sealed"));
+        let sealed = Value::text("sealed");
         assert_eq!(
             call(
                 super::nvs_core_reflect_class_info_call,
@@ -4766,7 +4768,7 @@ mod tests {
     /// `ClassInfo::constant`'s answer for `name` at `site`, as the sentence it
     /// threw when it refused.
     fn read_constant(ctx: &mut Ctx, info: Value, name: &str, site: Value) -> Result<Value, String> {
-        let asked = Value::str(NvsStr::new(name.as_bytes()));
+        let asked = Value::text(name);
         let answer = call(
             super::nvs_core_reflect_class_info_constant,
             ctx,
@@ -4977,7 +4979,7 @@ mod tests {
                 .as_int()
                 .expect("an enum answers as its ordinal")
         };
-        let text = Value::str(NvsStr::new(b"x"));
+        let text = Value::text("x");
         let bytes = Value::bytes(NvsStr::new(b"x"));
         let array = Value::array(NvsArray::new());
         assert_eq!(asked(Value::null()), case("Null"));
@@ -5108,7 +5110,7 @@ mod tests {
         );
 
         for declared in ["Blog\\Entry", "Blog\\Post"] {
-            let asked = Value::str(NvsStr::new(declared.as_bytes()));
+            let asked = Value::text(declared);
             let info = call(super::nvs_core_reflect_for_class, &mut ctx, &[asked])
                 .expect("asking for a class by name never throws");
             let first = call(super::nvs_core_reflect_class_info_name, &mut ctx, &[info])
@@ -5395,7 +5397,7 @@ mod tests {
         let (mut ctx, [ledger, audit, other, plain]) = ledger_family();
         let own = inside("Ledger::check");
         let has = |ctx: &mut Ctx, info: Value, probe: &str| {
-            let name = Value::str(NvsStr::new(probe.as_bytes()));
+            let name = Value::text(probe);
             let found = call(
                 super::nvs_core_reflect_class_info_has_property,
                 ctx,
@@ -5486,7 +5488,7 @@ mod tests {
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), anchor));
         let infos = ["Shop\\Status", "Shop\\Level", "Shop\\Nothing"].map(|name| {
-            let asked = Value::str(NvsStr::new(name.as_bytes()));
+            let asked = Value::text(name);
             let info = call(super::nvs_core_reflect_enum_info_of, &mut ctx, &[asked])
                 .expect("asking for an enum by name never throws");
             #[expect(
@@ -5609,7 +5611,7 @@ mod tests {
     fn enum_info_of_describes_a_declared_enum_and_is_null_for_anything_else() {
         let (mut ctx, infos) = shop_enums();
         let asked = |ctx: &mut Ctx, name: &str| {
-            let text = Value::str(NvsStr::new(name.as_bytes()));
+            let text = Value::text(name);
             let answer = call(super::nvs_core_reflect_enum_info_of, ctx, &[text])
                 .expect("asking for an enum by name never throws");
             #[expect(
@@ -5717,7 +5719,7 @@ mod tests {
     fn enum_info_value_of_is_the_case_constant_at_the_enums_own_backing() {
         let (mut ctx, [status, level, nothing]) = shop_enums();
         let value = |ctx: &mut Ctx, info: Value, case: &str| {
-            let text = Value::str(NvsStr::new(case.as_bytes()));
+            let text = Value::text(case);
             let answer = call(
                 super::nvs_core_reflect_enum_info_value_of,
                 ctx,
@@ -6259,11 +6261,11 @@ mod tests {
         // `Customer`'s node starts at byte 0x21, after `Order`'s three lines and
         // the empty line that ends it. The private `secret` is not a step.
         let graph = "Order\ncustomer\t00000021\ntotal\t-\n\nCustomer\nname\t-\n\n";
-        let path = Value::str(NvsStr::new(b"customer.name"));
+        let path = Value::text("customer.name");
         let answer = call(
             super::nvs_core_reflect_steps,
             &mut ctx,
-            &[path, Value::str(NvsStr::new(graph.as_bytes()))],
+            &[path, Value::text(graph)],
         )
         .expect("a path the graph accepts has a row per segment");
         #[expect(
@@ -6293,7 +6295,7 @@ mod tests {
             call(
                 super::nvs_core_reflect_steps,
                 &mut ctx,
-                &[path, Value::str(NvsStr::new(b""))],
+                &[path, Value::text("")],
             )
             .err(),
             Some(nvs_runtime::THROWN),

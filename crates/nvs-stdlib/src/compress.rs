@@ -1726,7 +1726,7 @@ mod tests {
         for (ordinal, codec) in EVERY.into_iter().enumerate() {
             let case = Value::int(i64::try_from(ordinal).expect("five cases fit an `i64`"));
             let octets = Value::bytes(NvsStr::new(payload));
-            let as_text = Value::str(NvsStr::new(payload));
+            let as_text = Value::text(&text);
 
             let from_octets =
                 nvs_runtime::call(nvs_core_compress_compress, &mut ctx, &[octets, case])

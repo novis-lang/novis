@@ -271,7 +271,7 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
 
 #[cfg(test)]
 mod tests {
-    use nvs_runtime::{Ctx, NvsFn, NvsStr, OutputSink, Tag, Value, call};
+    use nvs_runtime::{Ctx, NvsFn, OutputSink, Tag, Value, call};
 
     use super::super::flags::{
         nvs_core_ldap_ad_account_flags_bits, nvs_core_ldap_ad_group_type_bits,
@@ -341,7 +341,7 @@ mod tests {
     }
 
     fn named(name: &str) -> Value {
-        Value::str(NvsStr::new(name.as_bytes()))
+        Value::text(name)
     }
 
     fn read(ctx: &mut Ctx, member: NvsFn, entry: Value, name: &str) -> Result<Value, i32> {

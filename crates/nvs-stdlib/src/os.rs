@@ -41,7 +41,7 @@
 //! has no answer and names it — the same shape as every other member that
 //! cannot do on one platform what it does on another.
 
-use nvs_runtime::{Fault, NvsArray, NvsStr, Value};
+use nvs_runtime::{Fault, NvsArray, Value};
 
 use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc};
 
@@ -222,7 +222,7 @@ nvs_runtime::nvs_helper! {
                     .to_owned(),
             ));
         };
-        Ok(Value::str(NvsStr::new(name.as_bytes())))
+        Ok(Value::text(&name))
     }
 }
 

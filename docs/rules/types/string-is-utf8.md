@@ -12,7 +12,12 @@ the only way from untrusted bytes to text is a checked `bytes as string` (`rule:
 A `Core` member that reads outside bytes as text checks them where they enter, and throws a
 `ParseError` for a run that is not UTF-8: `Core\Csv::rows` naming the line, and `Core\Jwe::decrypt`
 for a payload whose tag held. A member whose input is already a `string`, and which cuts or removes
-only ASCII bytes, has nothing to check: `Core\Csv::parse` is one.
+only ASCII bytes, has nothing to check: `Core\Csv::parse` is one. A plaintext that a seal opens is
+checked too, because a tag proves who sealed the bytes and not that they are text: `Core\SignedCookie::open`
+refuses it as it refuses a forgery, and `Core\Session::getSecret` and `Core\Cache::getSecret` read it
+as a miss. In the runtime, a `string` value is made from bytes only through `Value::str`, which checks
+nothing. `clippy.toml` refuses it outside an audited site, which says why its bytes are UTF-8, and
+`Value::text` makes one from a Rust `&str`.
 
 **A `string`'s length, indexing and iteration operate on extended grapheme clusters** (Unicode UAX
 #29) — the unit a person reading the source calls "one character", including a flag emoji, an emoji

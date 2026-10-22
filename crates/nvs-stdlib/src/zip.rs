@@ -1085,7 +1085,7 @@ nvs_runtime::nvs_helper! {
         let archive = archive_of(args, "entries")?;
         let mut out = NvsArray::new();
         for entry in directory(archive)? {
-            out.append(Value::str(NvsStr::new(entry.name.as_bytes())));
+            out.append(Value::text(&entry.name));
         }
         Ok(Value::array(out))
     }
@@ -1478,7 +1478,7 @@ mod tests {
     ) -> Result<Vec<u8>, String> {
         let args = [
             Value::bytes(NvsStr::new(raw)),
-            Value::str(NvsStr::new(name.as_bytes())),
+            Value::text(name),
             Value::uint(bytes),
             Value::uint(ratio),
         ];
@@ -2315,7 +2315,7 @@ mod tests {
     ) -> Result<u64, String> {
         let args = [
             Value::bytes(NvsStr::new(raw)),
-            Value::str(NvsStr::new(destination.to_string_lossy().as_bytes())),
+            Value::text(&destination.to_string_lossy()),
             Value::uint(bytes),
             Value::uint(ratio),
         ];

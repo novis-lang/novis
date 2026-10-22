@@ -3043,8 +3043,8 @@ mod tests {
             let mut packed = list_of(4);
             let mut hashed = list_of(4);
             hashed.degrade();
-            packed.set(key("k"), Value::str(NvsStr::new(b"a stored string")));
-            hashed.set(key("k"), Value::str(NvsStr::new(b"a stored string")));
+            packed.set(key("k"), Value::text("a stored string"));
+            hashed.set(key("k"), Value::text("a stored string"));
             let alias = packed.clone();
             packed.append(Value::int(1));
             drop(alias);
@@ -3305,6 +3305,10 @@ mod tests {
     fn separation_retains_every_stored_string() {
         let text = NvsStr::new(b"shared");
         let mut original = NvsArray::new();
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the handle is built from an ASCII literal, and the test counts its references"
+        )]
         original.set(key("k"), Value::str(text.clone()));
         assert_eq!(text.refcount(), 2);
 
@@ -3380,8 +3384,8 @@ mod tests {
             let mut outer = NvsArray::new();
             for index in 0..16 {
                 let mut inner = NvsArray::new();
-                inner.set(key("name"), Value::str(NvsStr::new(b"a stored string")));
-                inner.append(Value::str(NvsStr::new(b"another")));
+                inner.set(key("name"), Value::text("a stored string"));
+                inner.append(Value::text("another"));
                 outer.set(key(&index.to_string()), Value::array(inner));
             }
             let alias = outer.clone();

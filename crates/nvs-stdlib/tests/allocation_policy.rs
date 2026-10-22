@@ -156,7 +156,7 @@ fn allocations_of(
 /// A `string` argument.
 #[cfg(debug_assertions)]
 fn arg(text: &str) -> nvs_runtime::Value {
-    nvs_runtime::Value::str(nvs_runtime::NvsStr::new(text.as_bytes()))
+    nvs_runtime::Value::text(text)
 }
 
 /// A draw is written into the buffer it answers with, a pass at a time, and

@@ -224,7 +224,7 @@ fn frames_argument(nodes: &[Node]) -> Option<Value> {
 
 /// One `&str` as an owned Novis `string` value.
 fn string(text: &str) -> Value {
-    Value::str(NvsStr::new(text.as_bytes()))
+    Value::text(text)
 }
 
 /// A record carrying nothing but a level and a message — what the floor has to
@@ -658,7 +658,7 @@ mod tests {
     };
     use crate::ctx::CurrentCtx;
     use crate::object::{ClassTable, NvsObj};
-    use crate::string::NvsStr;
+
     use crate::throwable::{SLOT_COUNT, Thrown, ThrownClass};
     use crate::{Ctx, Inbound, OutputSink, TaskRoot, run_task};
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -751,8 +751,8 @@ mod tests {
                       exception's own slot"
         )]
         let held = unsafe { NvsObj::new(settings) };
-        held.set_field(0, Value::str(NvsStr::new(b"db.internal")));
-        held.set_field(1, Value::str(NvsStr::new(b"hunter2-the-token")));
+        held.set_field(0, Value::text("db.internal"));
+        held.set_field(1, Value::text("hunter2-the-token"));
         #[expect(unsafe_code, reason = "as the object built above")]
         let thrown = unsafe {
             Thrown::new_as(

@@ -1489,7 +1489,7 @@ fn boolean(value: &Value, member: &str, position: &str) -> Result<bool, Fault> {
 
 /// A freshly built `string` result.
 fn produced(text: &str) -> HelperResult {
-    Ok(Value::str(NvsStr::new(text.as_bytes())))
+    Ok(Value::text(text))
 }
 
 /// One part of `Core\Regex::replace`'s replacement, as [`template`] reads it.
@@ -1660,7 +1660,7 @@ nvs_runtime::nvs_helper! {
         Ok(crate::instance::build(
             &PATTERN,
             [
-                Value::str(NvsStr::new(pattern.as_bytes())),
+                Value::text(pattern),
                 Value::int(i64::from(flags)),
             ],
         ))
@@ -1747,9 +1747,7 @@ fn start_byte(value: &Value, subject: &str, from: i64) -> usize {
 /// that buys it.
 fn built_match(offsets: &mut Cursor<'_>, names: &[Option<&str>], captured: &Captured<'_>) -> Value {
     let text_of = |group: Option<(usize, &str)>| {
-        group.map_or_else(Value::null, |(_, text)| {
-            Value::str(NvsStr::new(text.as_bytes()))
-        })
+        group.map_or_else(Value::null, |(_, text)| Value::text(text))
     };
     let mut groups = NvsArray::new();
     for (number, group) in captured.iter().enumerate() {
@@ -2274,7 +2272,7 @@ nvs_runtime::nvs_helper! {
                     afforded = false;
                     return false;
                 }
-                out.append(Value::str(NvsStr::new(piece.as_bytes())));
+                out.append(Value::text(piece));
             }
             true
         })?;
@@ -2390,8 +2388,8 @@ mod tests {
     #[test]
     fn the_four_match_members_read_one_match_by_grapheme_and_by_group() {
         let mut ctx = Ctx::buffered();
-        let subject = Value::str(NvsStr::new("é abc".as_bytes()));
-        let pattern = Value::str(NvsStr::new(br"(?<word>[a-z]+)([0-9]+)?"));
+        let subject = Value::text("é abc");
+        let pattern = Value::text(r"(?<word>[a-z]+)([0-9]+)?");
         let found = nvs_runtime::call(
             nvs_core_regex_match,
             &mut ctx,
@@ -2425,7 +2423,7 @@ mod tests {
         );
         assert!(held.get(b"2").is_some_and(|v| v.tag() == Some(Tag::Null)));
 
-        let word = Value::str(NvsStr::new(b"word"));
+        let word = Value::text("word");
         let by_name = nvs_runtime::call(nvs_core_regex_match_group, &mut ctx, &[found, word])
             .expect("a name");
         assert_eq!(text_of(by_name), Some(b"abc".to_vec()));
@@ -2738,8 +2736,8 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         ctx.set_memory_limit(ceiling);
-        let subject = Value::str(NvsStr::new("a".repeat(groups).as_bytes()));
-        let pattern = Value::str(NvsStr::new(many.as_bytes()));
+        let subject = Value::text(&"a".repeat(groups));
+        let pattern = Value::text(&many);
         let args = [subject, pattern, Value::int(0)];
         assert!(nvs_runtime::call(nvs_core_regex_match, &mut ctx, &args).is_err());
         assert!(
@@ -2875,8 +2873,8 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         ctx.set_memory_limit(ceiling);
-        let subject = Value::str(NvsStr::new(b"aaa"));
-        let pattern = Value::str(NvsStr::new(wide.as_bytes()));
+        let subject = Value::text("aaa");
+        let pattern = Value::text(&wide);
         let args = [subject, pattern, Value::int(0)];
         assert!(nvs_runtime::call(nvs_core_regex_match, &mut ctx, &args).is_err());
         #[expect(unsafe_code, reason = "this frame owns the two strings it built")]
@@ -2926,7 +2924,7 @@ mod tests {
     fn compile_builds_eagerly_and_answers_the_written_text_beside_its_flags() {
         let mut ctx = Ctx::buffered();
         let (on, off) = (Value::bool(true), Value::bool(false));
-        let written = Value::str(NvsStr::new(br"^order-[0-9]+$"));
+        let written = Value::text(r"^order-[0-9]+$");
         let args = [Value::int(PREPARED_NONE), written, on, off, on, off];
         let pattern = nvs_runtime::call(nvs_core_regex_compile, &mut ctx, &args).expect("compiles");
 
@@ -2942,7 +2940,7 @@ mod tests {
         });
         assert!(held, "compile returned before the program was cached");
 
-        let unclosed = Value::str(NvsStr::new(b"(unclosed"));
+        let unclosed = Value::text("(unclosed");
         let args = [Value::int(PREPARED_NONE), unclosed, on, off, off, off];
         assert!(nvs_runtime::call(nvs_core_regex_compile, &mut ctx, &args).is_err());
         let message = ctx.take_pending().expect("a throw leaves its message");
@@ -2968,8 +2966,8 @@ mod tests {
     #[test]
     fn match_searches_from_a_grapheme_index_and_answers_null_past_the_last_match() {
         let mut ctx = Ctx::buffered();
-        let subject = Value::str(NvsStr::new("é1 é22".as_bytes()));
-        let digits = Value::str(NvsStr::new(b"[0-9]+"));
+        let subject = Value::text("é1 é22");
+        let digits = Value::text("[0-9]+");
         let mut found = Vec::new();
         for from in [0, 2, -2, 5, 6, 100] {
             let args = [subject, digits, Value::int(from)];
@@ -3019,8 +3017,8 @@ mod tests {
     fn matches_is_unanchored_on_both_engines_and_throws_when_the_budget_runs_out() {
         let mut ctx = context();
         let mut ask = |subject: &str, pattern: &str| {
-            let subject = Value::str(NvsStr::new(subject.as_bytes()));
-            let pattern = Value::str(NvsStr::new(pattern.as_bytes()));
+            let subject = Value::text(subject);
+            let pattern = Value::text(pattern);
             let answer = nvs_runtime::call(nvs_core_regex_matches, &mut ctx, &[subject, pattern]);
             #[expect(unsafe_code, reason = "this frame owns the two strings it built")]
             unsafe {
@@ -3047,10 +3045,10 @@ mod tests {
     #[test]
     fn match_all_answers_every_match_at_its_grapheme_offset_on_both_engines() {
         let mut ctx = Ctx::buffered();
-        let subject = Value::str(NvsStr::new("é1 é22 x é333".as_bytes()));
+        let subject = Value::text("é1 é22 x é333");
         let mut answers = Vec::new();
         for pattern in [r"[0-9]+", r"([0-9])\1*", "z"] {
-            let pattern = Value::str(NvsStr::new(pattern.as_bytes()));
+            let pattern = Value::text(pattern);
             let args = [subject, pattern];
             let answer =
                 nvs_runtime::call(nvs_core_regex_match_all, &mut ctx, &args).expect("answers");
@@ -3134,9 +3132,9 @@ mod tests {
         ctx.set_memory_limit(memory_limit);
         let mut replace = |subject: &str, pattern: &str, replacement: &str, limit: u64| {
             let args = [
-                Value::str(NvsStr::new(subject.as_bytes())),
-                Value::str(NvsStr::new(pattern.as_bytes())),
-                Value::str(NvsStr::new(replacement.as_bytes())),
+                Value::text(subject),
+                Value::text(pattern),
+                Value::text(replacement),
                 Value::uint(limit),
             ];
             let answer = nvs_runtime::call(nvs_core_regex_replace, &mut ctx, &args)
@@ -3233,7 +3231,7 @@ mod tests {
             .get(b"0")
             .and_then(|v| v.as_text().map(str::to_owned))
             .expect("group 0 is the whole match");
-        let answer = Value::str(NvsStr::new(format!("[{whole}]").as_bytes()));
+        let answer = Value::text(&format!("[{whole}]"));
         unsafe { answered(args, out, answer) }
     }
 
@@ -3254,7 +3252,7 @@ mod tests {
         args: *const Value,
         out: *mut Value,
     ) -> i32 {
-        let answer = Value::str(NvsStr::new("x".repeat(64 * 1024).as_bytes()));
+        let answer = Value::text(&"x".repeat(64 * 1024));
         unsafe { answered(args, out, answer) }
     }
 
@@ -3271,8 +3269,8 @@ mod tests {
         let mut replace_with =
             |subject: &str, pattern: &str, invoke: nvs_runtime::NvsFn, limit: u64| {
                 let args = [
-                    Value::str(NvsStr::new(subject.as_bytes())),
-                    Value::str(NvsStr::new(pattern.as_bytes())),
+                    Value::text(subject),
+                    Value::text(pattern),
                     callable_of(invoke),
                     Value::uint(limit),
                 ];
@@ -3334,8 +3332,8 @@ mod tests {
         };
         // Made before the context, so the subject is not on its balance.
         let args = [
-            Value::str(NvsStr::new(",".repeat(separators).as_bytes())),
-            Value::str(NvsStr::new(b",")),
+            Value::text(&",".repeat(separators)),
+            Value::text(","),
             Value::int(i64::MAX),
             Value::bool(true),
         ];
@@ -3370,8 +3368,8 @@ mod tests {
         let mut ctx = context();
         let mut split = |subject: &str, pattern: &str, limit: i64, keep_empty: bool| {
             let args = [
-                Value::str(NvsStr::new(subject.as_bytes())),
-                Value::str(NvsStr::new(pattern.as_bytes())),
+                Value::text(subject),
+                Value::text(pattern),
                 Value::int(limit),
                 Value::bool(keep_empty),
             ];
@@ -3444,7 +3442,7 @@ mod tests {
     fn quote_escapes_every_meta_character_so_the_result_matches_only_its_text() {
         let mut ctx = Ctx::buffered();
         let literal = r"#$&()*+-.?[\]^{|}~ a.b";
-        let argument = Value::str(NvsStr::new(literal.as_bytes()));
+        let argument = Value::text(literal);
         let quoted =
             nvs_runtime::call(nvs_core_regex_quote, &mut ctx, &[argument]).expect("quotes");
         let pattern = quoted.as_text().expect("a string").to_owned();

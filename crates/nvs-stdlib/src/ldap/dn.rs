@@ -12,13 +12,13 @@
 //! [`dn_arg`] reads every `Dn|string` parameter. The `string` arm is a sink,
 //! so its text is sent as the program wrote it; the `Dn` arm sends the slot.
 
-use nvs_runtime::{Fault, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Fault, Tag, ThrownClass, Value};
 
 use super::{DN, DN_NAME, DN_TEXT_AT};
 
 /// A `Dn` value over `dn`.
 pub(super) fn dn_value(dn: &nvs_ldap::Dn) -> Value {
-    crate::instance::build(&DN, [Value::str(NvsStr::new(dn.to_text().as_bytes()))])
+    crate::instance::build(&DN, [Value::text(&dn.to_text())])
 }
 
 /// The [`nvs_ldap::Dn`] a `Dn` argument carries.
@@ -142,7 +142,7 @@ nvs_runtime::nvs_helper! {
     /// `$dn->rdnAttribute(): string` — the first level's first attribute.
     fn nvs_core_ldap_dn_rdn_attribute(_ctx, args: [1]) {
         let dn = dn_of(args[0], "rdnAttribute")?;
-        Ok(Value::str(NvsStr::new(dn.rdn().first().attribute.as_bytes())))
+        Ok(Value::text(&dn.rdn().first().attribute))
     }
 }
 
@@ -151,7 +151,7 @@ nvs_runtime::nvs_helper! {
     /// unescaped.
     fn nvs_core_ldap_dn_rdn_value(_ctx, args: [1]) {
         let dn = dn_of(args[0], "rdnValue")?;
-        Ok(Value::str(NvsStr::new(dn.rdn().first().value.as_bytes())))
+        Ok(Value::text(&dn.rdn().first().value))
     }
 }
 

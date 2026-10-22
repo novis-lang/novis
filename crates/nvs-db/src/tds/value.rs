@@ -233,7 +233,7 @@ impl TdsScalar<'_> {
             TdsScalar::Int(value) => Value::int(value),
             TdsScalar::Float(value) => Value::float(value),
             TdsScalar::Decimal(value) => Value::decimal(value),
-            TdsScalar::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
+            TdsScalar::Text(text) => Value::text(&text),
             TdsScalar::Bytes(octets) => Value::bytes(NvsStr::new(octets)),
             _ => return None,
         })

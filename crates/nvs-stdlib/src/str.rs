@@ -1800,7 +1800,7 @@ fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
 /// A freshly built `string` result, copied out of the borrowed text it is
 /// already sitting in.
 fn produced(text: &str) -> HelperResult {
-    Ok(Value::str(NvsStr::new(text.as_bytes())))
+    Ok(Value::text(text))
 }
 
 /// A freshly built `string` result, written straight into the allocation it is
@@ -1808,6 +1808,10 @@ fn produced(text: &str) -> HelperResult {
 /// where it knows and as a starting point where it guesses.
 ///
 /// See this module's § *A result is written once*.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "every writer in this module pushes `&str`s or `char::encode_utf8` output"
+)]
 fn built(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> HelperResult {
     Ok(Value::str(NvsStr::build(capacity, write)))
 }
@@ -1826,6 +1830,10 @@ fn built(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> HelperResul
 /// `capacity` must be the result's *exact* length; a writer that exceeds it
 /// grows through the aborting path, which is why [`built`] stays the spelling
 /// for a member whose capacity is only a guess or an upper bound.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "every writer in this module pushes `&str`s or `char::encode_utf8` output"
+)]
 fn built_fallibly(
     capacity: usize,
     member: &str,
@@ -2152,13 +2160,13 @@ nvs_runtime::nvs_helper! {
                 let Some((at, matched)) = find_from(rest, separator, false) else {
                     break;
                 };
-                out.append(Value::str(NvsStr::new(&rest.as_bytes()[..at])));
+                out.append(Value::text(&rest[..at]));
                 rest = &rest[at + matched..];
             }
-            out.append(Value::str(NvsStr::new(rest.as_bytes())));
+            out.append(Value::text(rest));
         } else {
             for piece in separated(subject, separator).take(count) {
-                out.append(Value::str(NvsStr::new(piece.as_bytes())));
+                out.append(Value::text(piece));
             }
         }
         Ok(Value::array(out))
@@ -2202,8 +2210,12 @@ nvs_runtime::nvs_helper! {
                         (out.count() + 3).checked_mul(std::mem::size_of::<Value>()),
                         member,
                     )?;
+                    #[expect(
+                        clippy::disallowed_methods,
+                        reason = "text of a `string` with one brace of each ASCII pair dropped"
+                    )]
                     out.append(Value::str(NvsStr::new(&piece)));
-                    out.append(Value::str(NvsStr::new(&bytes[range])));
+                    out.append(Value::text(&subject[range]));
                     piece.clear();
                 }
                 Err(error) => {
@@ -2215,6 +2227,10 @@ nvs_runtime::nvs_helper! {
                 }
             }
         }
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "text of a `string` with one brace of each ASCII pair dropped"
+        )]
         out.append(Value::str(NvsStr::new(&piece)));
         Ok(Value::array(out))
     }
@@ -2279,13 +2295,13 @@ nvs_runtime::nvs_helper! {
             at += piece.len();
             held += 1;
             if held == size {
-                out.append(Value::str(NvsStr::new(&subject.as_bytes()[start..at])));
+                out.append(Value::text(&subject[start..at]));
                 start = at;
                 held = 0;
             }
         }
         if start < subject.len() {
-            out.append(Value::str(NvsStr::new(&subject.as_bytes()[start..])));
+            out.append(Value::text(&subject[start..]));
         }
         Ok(Value::array(out))
     }
@@ -2382,6 +2398,10 @@ pub(crate) fn lines_array(subject: &[u8], member: &str) -> Result<NvsArray, Faul
         )));
     }
     for line in line_pieces(subject) {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "each caller passes UTF-8 it has checked, and a line is cut at ASCII breaks"
+        )]
         out.append(Value::str(NvsStr::new(line)));
     }
     Ok(out)
@@ -2404,7 +2424,7 @@ nvs_runtime::nvs_helper! {
         let subject = text(&args[0], "graphemes", "the subject")?;
         let mut out = NvsArray::new();
         for piece in crate::granularity::Unit::Grapheme.pieces(subject) {
-            out.append(Value::str(NvsStr::new(piece.as_bytes())));
+            out.append(Value::text(piece));
         }
         Ok(Value::array(out))
     }
@@ -4052,7 +4072,13 @@ nvs_runtime::nvs_helper! {
             false => &spilled[..],
         };
 
-        crate::format::format(template, collected).map(Value::str)
+        let rendered = crate::format::format(template, collected)?;
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "`format` writes only `&str` pieces, through `StrWriter::push_str`"
+        )]
+        let formatted = Value::str(rendered);
+        Ok(formatted)
     }
 }
 
@@ -4230,7 +4256,7 @@ mod tests {
     }
 
     fn s(text: &str) -> Value {
-        Value::str(NvsStr::new(text.as_bytes()))
+        Value::text(text)
     }
 
     /// `upper` writes through a small run buffer and `map_first` through a

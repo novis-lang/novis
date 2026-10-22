@@ -588,7 +588,7 @@ nvs_runtime::nvs_helper! {
 
         let mut out = NvsArray::new();
         for key in &keys {
-            out.append(Value::str(NvsStr::new(key.as_bytes())));
+            out.append(Value::text(key));
         }
         Ok(Value::array(out))
     }
@@ -702,7 +702,7 @@ mod tests {
     }
 
     fn text(value: &str) -> Value {
-        Value::str(NvsStr::new(value.as_bytes()))
+        Value::text(value)
     }
 
     /// `put` replaces an object by default, and `overwrite: false` claims a
