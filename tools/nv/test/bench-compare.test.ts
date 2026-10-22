@@ -54,6 +54,8 @@ import {
   PARALLEL_PARTS,
   parallelResult,
   parseExpect,
+  PROFILE_SCRIPT,
+  profileArgs,
   rowLine,
   type RowResult,
   run,
@@ -736,6 +738,35 @@ describe("--expect", () => {
   test("is a usage error without --scenarios, before Docker is needed", async () => {
     expect(await run(["--expect", "nvs=on-by-default"])).toBe(2);
     expect(await run(["--scenarios", "--expect", "nvs=fast"])).toBe(2);
+  });
+});
+
+describe("--profile", () => {
+  const caseOf = (id: string) => CASES.find((c) => c.id === id)!;
+
+  test("runs profile.sh in a privileged container of the Novis image, with the case's request", () => {
+    const args = profileArgs(caseOf("hello"), "/tmp/profile");
+    expect(args.slice(0, 3)).toEqual(["run", "--rm", "--privileged"]);
+    expect(args).toContain(`type=bind,src=${PROFILE_SCRIPT},dst=/profile.sh,readonly`);
+    expect(args).toContain("type=bind,src=/tmp/profile,dst=/profile,readonly");
+    expect(args.slice(-4)).toEqual(["/profile.sh", "hello", "GET", "/"]);
+  });
+
+  test("passes the body file only for a case whose timed request has a body", () => {
+    expect(profileArgs(caseOf("json-api"), "/tmp/profile").slice(-5)).toEqual(["/profile.sh", "json-api", "POST", "/orders", "body"]);
+    expect(profileArgs(caseOf("html-page"), "/tmp/profile").at(-1)).toBe(caseOf("html-page").timed.path);
+  });
+
+  test("the script it runs exists, and every case it can name has a Novis program", () => {
+    expect(existsSync(PROFILE_SCRIPT)).toBe(true);
+    for (const c of CASES) expect(existsSync(join(COMPARE_DIR, "cases", c.id, "main.nvs"))).toBe(true);
+  });
+
+  test("is a usage error for an unknown case, or beside a flag that measures the peers, before Docker is needed", async () => {
+    expect(await run(["--profile", "nope"])).toBe(2);
+    expect(await run(["--profile", "hello", "--smoke"])).toBe(2);
+    expect(await run(["--profile", "hello", "--scenarios"])).toBe(2);
+    expect(await run(["--profile", "hello", "--record", "x.json"])).toBe(2);
   });
 });
 

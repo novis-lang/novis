@@ -271,6 +271,27 @@ their passes too, one peer after another, because a row asks for its passes one 
 **The numbers are relations.** The absolute figures depend on the machine. The record names the machine
 so the page can say which, and the page shows each peer against the best in each case.
 
+## The profile: Novis alone, on one pinned core
+
+`--profile CASE` answers where Novis spends a request, which no record says. It runs `profile.sh` in one
+privileged container of the Novis image, and measures no other peer.
+
+- **No nginx and no TLS.** The proxy's cost is the same for every peer, so it says nothing about
+  Novis. Without it, the server's own work is most of every sample.
+- **One core serves, and other cores load.** `taskset` pins `nvs serve` to one core, which also makes
+  it start one worker, and `oha` runs on cores the server never uses. A profile of a core that the
+  generator also runs on measures the generator.
+- **Privileged, because `perf` and `strace` attach to another process.** The container is the bench
+  image, so the binary is the one the comparison measures, with `linux-perf` and `strace` added.
+- **Counts beside the samples.** `strace -c` gives the system calls per request, and the `wait` case
+  gives the server cgroup's peak minus its idle memory, per request in flight, over two loads. A
+  second load whose figure is higher shows a pool that grows. These are the counts a change to the
+  request path is judged by. The samples only show where to look.
+- **Nothing is recorded.** A profile is read by a person, and the next change makes it stale.
+
+`perf` needs a kernel that lets a privileged container record. Where it cannot, the command exits 1,
+and `profile.sh` is the recipe: run its steps on a Linux host.
+
 ## Running it
 
 ```sh
@@ -280,6 +301,7 @@ bun nv bench-compare --record benches/compare.json    # the fair arm, one cpu pe
 bun nv bench-compare --scenarios --record benches/compare.json   # the feature rows, into that record
 bun nv bench-compare --arm deployed --record PATH     # four cpus per backend
 bun nv bench-compare --down                           # tear every stack down
+bun nv bench-compare --profile json-api               # perf and strace on Novis serving one case
 ```
 
 It needs `bun` and Docker, and nothing else. The first run builds `nvs` for Linux inside the image,
