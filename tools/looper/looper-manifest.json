@@ -35,7 +35,7 @@
     "tools/looper/src/goal/glob.ts": "d0e3c0e1400f23dd9bc60eb19fff2aa3fcb2f10c89642f4c243ca187a69816ed",
     "tools/looper/src/goal/lint.ts": "e11c006f0c1ec6b4ae0d14476f1bb43864f2efef324cb42a001a2c4719e5cac1",
     "tools/looper/src/goal/model.ts": "cda28d26aa3713a902bf454aa83180088e8f22302c44459eeb12aaffbb56e7f3",
-    "tools/looper/src/goal/orient.ts": "4295cc510fb8c3461fad4ed53e728b86b2e0df5ae6312da1d56b4129f3bda60b",
+    "tools/looper/src/goal/orient.ts": "fcf3a9d76ee001bfccd14af9f341705581b525c726461e9e12a0c3480a295301",
     "tools/looper/src/goal/playbook.ts": "f862774646cdb9815fa87582150bc23c41ab019c57008c2d1173b5946b64426b",
     "tools/looper/src/goal/reader.ts": "27e0e001f84c0633990cc85bd0864d16154488d85aabbdf400aea9b428d0148f",
     "tools/looper/src/goal/render.ts": "d4e7aee5ef25bc69fab27b14907f22162f142da75c8caec72b865745304e05e3",
@@ -64,7 +64,7 @@
     "tools/looper/src/loop/claude.ts": "602b63a266dffc956fb4e8d9756793a87f92f4ec26a139480a9b7ecc3811145b",
     "tools/looper/src/loop/controls.ts": "f568636711e3c3e768e3a2a5effdda0d56fc2dae015766a24cb1eff25b9bbd5c",
     "tools/looper/src/loop/decisions.ts": "5a73a6156371a8104662e0719980b572970b68732ba4b3bf100b1f733587d467",
-    "tools/looper/src/loop/driver.ts": "b6a1082ea194ab5fa123edcb1ab88058cc95add1737ebdb1654c5c343c28a2af",
+    "tools/looper/src/loop/driver.ts": "6a8f291955d5eeff43e76b5b77ecf9e74a72de3f3b26360c19c441f9d3a4b681",
     "tools/looper/src/loop/hooks.ts": "715310ee91a0c13bfa56707371e9cb6e69c5443e6fb5648a95c9fddd79bdee1e",
     "tools/looper/src/loop/landing.ts": "a87b27a8b14d877488be46bb8f4133bc14f05d3efd66846fbbee63c804256dd9",
     "tools/looper/src/loop/lanes.ts": "97586e3267484a2f9102e05d0436157af6899b7d6dcb101215c9b3ddca9cc0de",
@@ -98,7 +98,7 @@
     "tools/looper/src/verify/select.ts": "7107ad3bb7ee366f72ce7bf0564cc4e5084842ff4f94c6048879a4c3a69ffae5",
     "tools/looper/src/verify/shared.ts": "795778cd479e81d78d2a42bd99277c20a89edd080fe9d4cf69bc8df06e23212f",
     "tools/looper/src/verify/verify.ts": "d89fc97400046489ba2b35f61d2e691913f78f824be4021ea1eb1300155774e4",
-    "tools/looper/templates.json": "7adbb90e844d65d6e5533ca9f1e184bf5c8c54261bc8532b8c7c9c3ae2c13676",
+    "tools/looper/templates.json": "4c55dc45678f7d7c92f250aea0300f4f75a48d98bed7fa563bd6d2ec81db7cb8",
     "tools/loop": "cba052266cdcce84ac445efe46a18f510344a9d41312f69210f893f7e611a24e",
     "tools/loop.cmd": "700ce79b882cd5724199e1caa544f63427cf627952f8bd9769190015cd769b42"
   }
