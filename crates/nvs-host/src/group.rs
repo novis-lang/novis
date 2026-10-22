@@ -1329,6 +1329,53 @@ mod tests {
         );
     }
 
+    /// Children that each hold less than the request's ceiling and together
+    /// hold more are all over it: a turn is charged to the request *tree*, not
+    /// to the task's own stack (`rule:security/isolate-budget-is-the-trees`).
+    /// Each child yields between its allocation and its reading, and again
+    /// before it frees, so every sibling holds its bytes while any of them
+    /// reads.
+    #[test]
+    fn children_that_together_cross_the_ceiling_are_each_over_it() {
+        const LIMIT: usize = 16 << 20;
+        const HOLDS: usize = 4 << 20;
+        const CHILDREN: usize = 4;
+        // One child's bytes, its stack included, stay well under the ceiling.
+        const { assert!(2 * (HOLDS + crate::stack::TASK_STACK_SIZE) < LIMIT) };
+        let mut sched = Scheduler::new();
+        let mut parent = ctx();
+        parent.set_memory_limit(LIMIT);
+        // Whether each child was over the ceiling once its siblings had run.
+        let seen: Rc<RefCell<Vec<bool>>> = Rc::new(RefCell::new(Vec::new()));
+        let out = Rc::clone(&seen);
+
+        sched.spawn(parent, TaskRoot::Request, move |ctx| {
+            let jobs: Vec<Job> = (0..CHILDREN)
+                .map(|_| {
+                    let out = Rc::clone(&out);
+                    Box::new(move |child: &mut Ctx| {
+                        let held = std::hint::black_box(vec![1_u8; HOLDS]);
+                        suspend_current(Waiting::Yielded);
+                        out.borrow_mut().push(child.memory_breach().is_some());
+                        // Held until every sibling has read.
+                        suspend_current(Waiting::Yielded);
+                        drop(held);
+                        Value::int(0)
+                    }) as Job
+                })
+                .collect();
+            drop(group(ctx, jobs, Bounds::default()));
+        });
+        sched.run();
+
+        let seen = seen.borrow();
+        assert_eq!(seen.len(), CHILDREN, "every child read: {seen:?}");
+        assert!(
+            seen.iter().all(|&over| over),
+            "a child read only its own stack's bytes, under a ceiling the tree had crossed: {seen:?}"
+        );
+    }
+
     /// A request whose ceiling is smaller than one stack has a child that is
     /// over it from its first poll, which is what stops groups nested past
     /// `[limits] memory`.

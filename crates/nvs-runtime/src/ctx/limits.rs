@@ -263,9 +263,22 @@ impl Ctx {
     /// the child's ceiling. It assumes the context is the last one this stack
     /// armed, which holds because a spawn hands a context over as soon as it is
     /// made.
+    ///
+    /// It also gives this stack back the memory mark the context displaced,
+    /// and stores the tree's balance as it stands, in the units this
+    /// context's baseline was read in. The task's first turn starts from that
+    /// balance ([`crate::budget`]'s *per request tree across switches*).
     pub fn leave_this_stack(&mut self) {
         if !self.memory_off_stack {
             self.swap_arming();
+            if self.on_root_core {
+                self.tree.balance.store(
+                    crate::budget::live_bytes(),
+                    std::sync::atomic::Ordering::Relaxed,
+                );
+            }
+            crate::budget::publish_peak(self.memory_peak_saved);
+            self.memory_peak_saved = isize::MIN;
             self.memory_off_stack = true;
         }
     }
@@ -276,10 +289,16 @@ impl Ctx {
     ///
     /// The scheduler starts every task under nothing
     /// ([`crate::budget::ArmedStack`]), so what is saved is nothing, and the
-    /// context's drop puts nothing back.
+    /// context's drop puts nothing back. On the tree's root core the task's
+    /// turns are the tree's from here, so the baseline and the ceiling are
+    /// read in the tree's units. The memory mark starts here.
     pub fn arm_on_this_stack(&mut self) {
         if self.memory_off_stack {
+            if self.on_root_core {
+                crate::budget::begin_turn(&self.tree);
+            }
             self.swap_arming();
+            self.memory_peak_saved = crate::budget::rebase_peak();
             self.memory_off_stack = false;
         }
     }

@@ -1579,7 +1579,8 @@ pub fn suspend_current(waiting: Waiting) -> Resumed {
 /// **Every per-stack thread-local this runtime keeps is taken and put back
 /// here.** [`RUNNING`], the helper-frame count,
 /// [`nvs_runtime::CurrentStack`]'s pair, and
-/// [`nvs_runtime::budget::ArmedStack`]'s memory ceiling, refusal and reserve.
+/// [`nvs_runtime::budget::ArmedStack`]'s memory ceiling, refusal, reserve and
+/// share of the balance.
 /// The last two are the ones whose stale value is a *dangling pointer* rather
 /// than a wrong number, which is what their own docs record.
 ///
@@ -1625,8 +1626,9 @@ fn yield_on(raw: *const (), waiting: Waiting, tree: Option<usize>) -> Resumed {
     // otherwise save these words and write them back after this context has
     // been dropped.
     let current = nvs_runtime::CurrentStack::take();
-    // The memory ceiling this stack armed, its refusal and its reserve, off the
-    // thread beside the context and for the same reason:
+    // The memory ceiling this stack armed, its refusal, its reserve and its
+    // share of the balance, off the thread beside the context and for the same
+    // reason. The resume charges what other trees allocated meanwhile to them:
     // [`nvs_runtime::budget::ArmedStack`] owns it.
     let armed = nvs_runtime::budget::ArmedStack::take();
     let resume = yielder.suspend(Suspended {
@@ -1634,7 +1636,7 @@ fn yield_on(raw: *const (), waiting: Waiting, tree: Option<usize>) -> Resumed {
         unwindable: frames == 0,
         tree,
     });
-    armed.restore();
+    armed.resume();
     current.restore();
     nvs_runtime::HelperFrame::restore(frames);
     RUNNING.set(running);
@@ -1791,6 +1793,70 @@ mod tests {
             "a core with no task running names no safepoint word; this one names the \
              word of a request that has ended"
         );
+    }
+
+    /// Raises the yield bit and makes the poll compiled code makes at a back
+    /// edge: the slice clock's yield, from a Rust body.
+    fn yield_a_slice(ctx: &mut Ctx) -> i32 {
+        ctx.request_safepoint(nvs_runtime::SafepointFlags::YIELD);
+        #[allow(
+            unsafe_code,
+            reason = "the poll compiled code makes, on a context the caller owns \
+                      for the whole call"
+        )]
+        unsafe {
+            nvs_runtime::nvs_safepoint(std::ptr::from_mut(ctx))
+        }
+    }
+
+    #[test]
+    fn two_requests_that_take_turns_on_a_core_are_each_charged_their_own_bytes() {
+        // `nvs_runtime::budget`'s *per request across switches*. Both requests
+        // grow by `STEP` and yield. Then the first grows by `STEP` again and is
+        // past its own limit, while the second, reading after it, holds one
+        // `STEP` and runs on. Read off the thread's balance, the first would
+        // read two steps after its first yield and the second three.
+        const LIMIT: usize = 4 << 20;
+        const STEP: usize = 3 << 20;
+        // The fixture's own bytes beside the payload: the trap's allowance.
+        const SLACK: usize = 256 << 10;
+        let seen = Rc::new(RefCell::new(Vec::new()));
+        let mut sched = Scheduler::new();
+        for grows_twice in [true, false] {
+            let seen = Rc::clone(&seen);
+            let mut ctx = ctx();
+            ctx.set_memory_limit(LIMIT);
+            sched.spawn(ctx, TaskRoot::Request, move |ctx| {
+                let first = std::hint::black_box(vec![1_u8; STEP]);
+                assert_eq!(yield_a_slice(ctx), nvs_runtime::OK);
+                let resumed = ctx.memory_used();
+                let second = grows_twice.then(|| std::hint::black_box(vec![1_u8; STEP]));
+                let over = nvs_runtime::budget::over_ceiling();
+                let status = yield_a_slice(ctx);
+                seen.borrow_mut()
+                    .push((grows_twice, resumed, over, status));
+                drop((first, second));
+            });
+        }
+        sched.run();
+
+        let seen = seen.borrow();
+        assert_eq!(seen.len(), 2, "both requests ran to the end: {seen:?}");
+        for &(grows_twice, resumed, over, status) in seen.iter() {
+            assert!(
+                (STEP..STEP + SLACK).contains(&resumed),
+                "a request read {resumed} bytes after its neighbour's turn, holding {STEP}"
+            );
+            assert_eq!(
+                over, grows_twice,
+                "only the request past its own limit is over its ceiling: {seen:?}"
+            );
+            assert_eq!(
+                status == nvs_runtime::OK,
+                !grows_twice,
+                "only the request past its own limit stops: {seen:?}"
+            );
+        }
     }
 
     #[test]
