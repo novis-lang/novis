@@ -1465,8 +1465,9 @@ pub(crate) fn hydrates_a_row(owner: &str) -> bool {
 ///
 /// The rest are not: `Core\Json::decodeAs` takes its document through a plain
 /// `string` parameter, so a tainted one is refused where it is passed;
-/// `Core\Arr::shapeAs` converts an array the program already holds, whose taint
-/// it carries in already; and a `Core\Db` row is not a taint source at all.
+/// `Core\Arr::shapeAs` is asked of its argument instead
+/// (`crate::expr::quals::converts_outside_text`); and a `Core\Db` row is not a
+/// taint source at all.
 pub(crate) fn reads_a_peers_octets(owner: &str) -> bool {
     owner == r"Core\Request" || owner == r"Core\Http\Response" || owner == r"Core\Jwt"
 }
@@ -1748,7 +1749,7 @@ pub(crate) fn check_decode_sites(
                         code::E_DECODED_FIELD_NOT_TAINTED,
                         format!(
                             "`{class}::${property}` is declared `{spelling}`, and `{member}` \
-                             answers a peer's octets"
+                             fills it with text from outside the program"
                         ),
                     )
                     .with_primary(field.span, "declared without a qualifier")
@@ -1820,7 +1821,7 @@ pub(crate) fn check_shape_decode_site(
                 code::E_DECODED_FIELD_NOT_TAINTED,
                 format!(
                     "`{name}` is declared `{declared}` in `{shape}`, and `{member}` \
-                     answers a peer's octets"
+                     fills it with text from outside the program"
                 ),
             )
             .with_primary(span, "written without a qualifier")

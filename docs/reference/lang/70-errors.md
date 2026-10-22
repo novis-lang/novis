@@ -292,7 +292,7 @@ thrown at main.nvs:8
 // problem the parser found. This form has two bad fields, and both of them are
 // in the list.
 
-array<mixed> $form = ["name" => "Ada", "age" => "not a number", "active" => "yes"];
+array<string> $form = ["name" => "Ada", "age" => "not a number", "active" => "yes"];
 
 try {
     Core\Arr::shapeAs<{name: string, age: int, active: bool}>($form);

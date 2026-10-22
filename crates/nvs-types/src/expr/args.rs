@@ -1885,12 +1885,18 @@ impl WrittenTarget {
 /// `{n: int}` and `{n: string}` are one `$shape{n}` — and it cannot ride
 /// [`crate::expr_table::ResolvedCall`], which `nvs-ir` reads by span anyway.
 ///
+/// `subject_outside` is [`super::quals::converts_outside_text`]'s answer for
+/// the call: `Core\Arr::shapeAs` fills its fields from whatever array it is
+/// handed, so where that array came from is the argument's question and not
+/// the owner's.
+///
 /// `None` for every member not on that roster, which is all but one of them —
 /// so this is a table lookup on the ordinary path and nothing more.
 pub(crate) fn written_class_of(
     owner: &QName,
     method: &str,
     written: &[TypeId],
+    subject_outside: bool,
     type_args: &[Type],
     call_span: Span,
     env: &mut Env<'_>,
@@ -1903,6 +1909,8 @@ pub(crate) fn written_class_of(
         Ty::Array(element) => (*element, true),
         _ => (first, false),
     };
+    let owner_name = owner.to_string();
+    let outside = subject_outside || crate::derive::reads_a_peers_octets(&owner_name);
     if let Ty::Class(qname, _) = env.interner.get(element) {
         let qname = qname.clone();
         // Two questions about the whole program, so both are only *recorded*
@@ -1914,7 +1922,6 @@ pub(crate) fn written_class_of(
         // are what the shape branch below reads as well, so a class target and
         // a shape target cannot come to disagree about where a document came
         // from.
-        let owner_name = owner.to_string();
         let span = type_args.first().map_or(call_span, |ty| ty.span);
         // `rule:security/derived-codec-qualifiers`'s qualifier, asked of the
         // fields that receive the octets — see
@@ -1927,7 +1934,7 @@ pub(crate) fn written_class_of(
         if crate::derive::stands_in_for_a_class(&owner_name) {
             return Some((WrittenTarget::Class(qname), list));
         }
-        if crate::derive::reads_a_peers_octets(&owner_name) {
+        if outside {
             env.decode_sites.push(crate::derive::DecodeSite::new(
                 format!("{owner}::{method}"),
                 qname.clone(),
@@ -1979,8 +1986,7 @@ pub(crate) fn written_class_of(
         // outside, which is the owner's answer and not the member's, so
         // `crate::derive::reads_a_peers_octets` is the one home for it and the
         // two branches cannot come to disagree.
-        let owner_name = owner.to_string();
-        if crate::derive::reads_a_peers_octets(&owner_name) {
+        if outside {
             crate::derive::check_shape_decode_site(
                 element,
                 &format!("{owner}::{method}"),

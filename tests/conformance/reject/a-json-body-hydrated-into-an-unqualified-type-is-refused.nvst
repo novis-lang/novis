@@ -60,9 +60,9 @@ echo $post->title, "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0810]: `Author::$name` is declared `string`, and `Core\Request::jsonAs` answers a peer's octets
+error[E0810]: `Author::$name` is declared `string`, and `Core\Request::jsonAs` fills it with text from outside the program
 %A
-error[E0810]: `Post::$tags` is declared `array<string>`, and `Core\Request::jsonAs` answers a peer's octets
+error[E0810]: `Post::$tags` is declared `array<string>`, and `Core\Request::jsonAs` fills it with text from outside the program
 %A
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

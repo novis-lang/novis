@@ -1,0 +1,41 @@
+--TEST--
+`Core\Arr::shapeAs<T>` over an array that carries outside text fills a text field only if the field is `tainted`, for an inline shape and a derived class alike, while an array of the program's own values fills a plain `string` — `rule:security/taint-propagation`
+--FILE--
+<?nvs
+// covers: lang:types/qualifiers-tainted-and-secret
+// Each of the first three calls reads an array filled from outside into a plain
+// `string` field. The count of errors is the assertion.
+#[Core\Json\Derive]
+class Note {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+array<tainted string> $form = Core\Request::postArray("form");
+array<mixed> $doc = [];
+tainted string $raw = "x";
+
+var $fromForm = Core\Arr::shapeAs<{sql: string}>($form);
+var $fromDoc = Core\Arr::shapeAs<Note>($doc);
+var $fromLiteral = Core\Arr::shapeAs<{sql: string}>(["sql" => $raw]);
+
+// A `tainted` field takes outside text, and the program's own values fill a
+// plain one.
+var $marked = Core\Arr::shapeAs<{sql: tainted string}>($form);
+array<string> $own = ["sql" => "select 1"];
+var $fromOwn = Core\Arr::shapeAs<{sql: string}>($own);
+var $fromOwnLiteral = Core\Arr::shapeAs<{sql: string, n: int}>(["sql" => "select 1", "n" => "2"]);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0810]: `Note::$text` is declared `string`, and `Core\Arr::shapeAs` fills it with text from outside the program
+%A
+error[E0810]: `sql` is declared `string` in `{sql: string}`, and `Core\Arr::shapeAs` fills it with text from outside the program
+%A
+error[E0810]: `sql` is declared `string` in `{sql: string}`, and `Core\Arr::shapeAs` fills it with text from outside the program
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

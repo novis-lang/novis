@@ -1,0 +1,12 @@
+<?nvs
+// Attack: a request sends SQL in a form field. The program reads the form into
+// a shape whose field is a plain `string`, and runs that field as a query.
+// The field is tainted, so the program should not compile.
+// hostile: expect-refusal
+
+type Command = {sql: string};
+
+// 1. The form arrives as `sql=DROP TABLE users`.
+Command $command = Core\Arr::shapeAs<Command>(Core\Request::postArray('form'));
+var $db = Core\Db::connect('main');
+$db->execute($command->sql, []);

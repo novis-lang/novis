@@ -242,6 +242,7 @@ pub(crate) fn infer_method_call(
     // never survives a call site, and this record is the one thing that carries
     // a signature past it.
     if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
+        let outside = converts_outside_text(qname, args, &slots, &arg_types, scope, env);
         let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
         // `Core\Db\Queryable::queryAs<T>` is the *instance* half of
         // `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS`, and it needs the class
@@ -250,7 +251,7 @@ pub(crate) fn infer_method_call(
         // nothing here: `queryAs` produces its `T` rather than reading one off
         // a `Rows` it was called on.
         if let Some((target, list)) =
-            written_class_of(qname, name, &written, type_args, expr.span, env)
+            written_class_of(qname, name, &written, outside, type_args, expr.span, env)
         {
             target.record_on(&mut call, list);
         }
@@ -391,6 +392,7 @@ fn infer_union_method_call(
     }
     let mut arms = Vec::with_capacity(owners.len());
     for (class, owner) in owners {
+        let outside = converts_outside_text(&owner, args, &slots, &arg_types, scope, env);
         let mut resolved = resolved_call(
             owner.clone(),
             name.to_owned(),
@@ -399,7 +401,7 @@ fn infer_union_method_call(
             env.signatures,
         );
         if let Some((target, list)) =
-            written_class_of(&owner, name, &written, type_args, expr.span, env)
+            written_class_of(&owner, name, &written, outside, type_args, expr.span, env)
         {
             target.record_on(&mut resolved, list);
         }
@@ -876,12 +878,13 @@ pub(crate) fn infer_static_call(
     } else if is_written_class_side(class)
         && let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
     {
+        let outside = converts_outside_text(qname, args, &slots, &arg_types, scope, env);
         let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
         // Late static binding: which spellings set the called class and which
         // forward the caller's is [`called_class_set_at`]'s.
         call.static_class = called_class_set_at(class, ctx, env);
         if let Some((target, list)) =
-            written_class_of(qname, name, &written, type_args, expr.span, env)
+            written_class_of(qname, name, &written, outside, type_args, expr.span, env)
         {
             target.record_on(&mut call, list);
         }

@@ -21,7 +21,8 @@ failure is still a `400` — and nothing downstream is left holding a `mixed` to
 absent, or that holds a value `as` refuses for its declared type, throws `ParseError` carrying every
 field that failed at its own dotted path, rather than the first of them. `{name?: T}` marks a key that
 may be absent, and `??` and `isset` read one without throwing. `Core\Request::queryAs` and `postAs`
-are this member over what a request carried.
+are this member over what a request carried. Text that came from outside the program, such as a form
+or an `array<mixed>`, is `tainted`. A text field it fills must then be declared `tainted` too.
 
 ```nvs
 <?nvs
