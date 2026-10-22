@@ -329,7 +329,11 @@ fn method_sig(
             .collect(),
         type_params: Vec::new(),
         type_bounds: Vec::new(),
-        return_ty: if method.source { tainted } else { returns },
+        return_ty: if manifest.is_source(method) {
+            tainted
+        } else {
+            returns
+        },
         contagious_return: (tainted != returns).then_some(tainted),
         // An extension declares one class of `static` methods and nothing else
         // (`rule:classes/no-free-functions-or-constants`).

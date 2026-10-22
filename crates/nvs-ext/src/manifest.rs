@@ -171,7 +171,8 @@ pub struct Method {
     /// Its Novis return type.
     #[serde(default = "void")]
     pub returns: String,
-    /// The return is always `tainted`: the extension is a source.
+    /// The return is always `tainted`: the extension is a source. A manifest that requests any
+    /// I/O makes every method one ([`Manifest::is_source`]).
     #[serde(default)]
     pub source: bool,
     /// A `secret` return, which is read only to be refused: nothing `secret` crosses an
@@ -427,6 +428,19 @@ impl Manifest {
             .map_err(|err| malformed(format!("the manifest does not read: {err}")))?;
         manifest.check()?;
         Ok(manifest)
+    }
+
+    /// Whether `method`'s return is always `tainted`
+    /// (`rule:security/extension-declares-sink-or-source`): the method says `"source": true`, or
+    /// the manifest requests any I/O, because then a result can carry bytes from a file or a host
+    /// the program never read. The request decides, not the grant, so a program's types do not
+    /// change with the operator's configuration.
+    #[must_use]
+    pub fn is_source(&self, method: &Method) -> bool {
+        method.source
+            || !(self.requests.read.is_empty()
+                && self.requests.write.is_empty()
+                && self.requests.connect.is_empty())
     }
 
     /// The full name of the enum `decl` this manifest declares: in the namespace of the manifest's
