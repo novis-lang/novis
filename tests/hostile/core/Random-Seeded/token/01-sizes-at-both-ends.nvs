@@ -15,11 +15,11 @@ try {
 }
 
 // 2. One hundred thousand short tokens are kept. Each is compared with the one before.
-array<string> $kept = [];
+array<tainted string> $kept = [];
 uint $repeats = 0;
 uint $drawn = 0;
 while ($drawn < 100000) {
-    string $next = $generator->token(4);
+    tainted string $next = $generator->token(4);
     if ($drawn > 0 && $next == $kept[$drawn - 1]) {
         $repeats = $repeats + 1;
     }

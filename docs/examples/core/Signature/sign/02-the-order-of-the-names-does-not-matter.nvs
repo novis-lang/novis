@@ -19,5 +19,5 @@ echo $a == $c ? "same" : "different", "\n";
 
 // `verify` returns the values sorted by name, so this prints `order status`.
 array<tainted string> $back = Core\Signature::verify($b, $keys);
-array<string> $names = Core\Arr::keys($back);
+array<tainted string> $names = Core\Arr::keys($back);
 echo $names[0], " ", $names[1], "\n";

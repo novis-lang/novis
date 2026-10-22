@@ -118,7 +118,7 @@ const DRIFT: i64 = 1;
 const MIN_SECRET: usize = 16;
 
 /// The secret both rows take, written once so neither can drift.
-const SECRET: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
+const SECRET: CoreTy = crate::keyring::KEY;
 
 /// `rule:security/protocol-roster`'s third roster entry, as two rows.
 ///

@@ -303,7 +303,7 @@ const HEADER: &str = r#"{"alg":"HS256","typ":"JWT"}"#;
 const MIN_KEY_LEN: usize = 32;
 
 /// The key `verify` takes: a shared secret and nothing else.
-const KEY: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
+const KEY: CoreTy = crate::keyring::KEY;
 
 /// The key `sign` takes, which is the whole of its algorithm choice.
 ///

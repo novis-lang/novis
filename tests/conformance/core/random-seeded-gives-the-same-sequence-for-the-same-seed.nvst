@@ -56,8 +56,8 @@ echo "two seeds: ", $differ, " of 4 differ\n";
 // a generator that kept its seed unchanged would answer one token forever and
 // still pass every row above.
 var $advancing = new Core\Random\Seeded(7);
-string $first = $advancing->token(16);
-string $second = $advancing->token(16);
+tainted string $first = $advancing->token(16);
+tainted string $second = $advancing->token(16);
 echo "a second draw is a second value: ", ($first == $second) ? "no" : "yes", "\n";
 
 // And the seed fixes the whole sequence rather than its head: a hundred draws

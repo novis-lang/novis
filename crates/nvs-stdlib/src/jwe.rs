@@ -318,10 +318,9 @@ pub(crate) const KEY: CoreClass = CoreClass {
         CoreMethod {
             name: "shared",
             names: &["key"],
-            // Neutral on the `tainted` axis for `Core\Crypto\KeyPair::read`'s
-            // reason: what crosses out is an object, which carries no qualifier
-            // at all.
-            params: &[CoreTy::SecretBlob(Qual::Neutral)],
+            // A key, so it refuses `tainted` as every key does
+            // (`crate::keyring::KEY`).
+            params: &[crate::keyring::KEY],
             defaults: &[],
             return_ty: CoreTy::Instance(KEY_NAME),
             symbol: "nvs_core_jwe_key_shared",

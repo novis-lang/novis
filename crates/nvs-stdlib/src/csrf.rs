@@ -106,7 +106,7 @@ const NAME: &str = r"Core\Csrf";
 
 /// The key both rows take: the 32 octets `Core\Crypto::generateKey()` answers,
 /// written once so neither row can drift from the other.
-const KEY: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
+const KEY: CoreTy = crate::keyring::KEY;
 
 /// `Core\Csrf`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {

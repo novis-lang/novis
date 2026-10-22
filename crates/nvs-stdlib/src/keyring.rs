@@ -63,15 +63,23 @@ use nvs_runtime::{Fault, NvsArray, Tag, ThrownClass, Value};
 
 use crate::registry::{CoreTy, Qual};
 
-/// The ring's element type, written once so that every row taking a ring
-/// declares the same thing: a `secret bytes`, so the array a program builds
-/// out of what `Core\Crypto::generateKey()` answers is exactly the type those
-/// rows want, and a plain `bytes` ring still widens onto it.
+/// The type of every key parameter in the crate, and the ring's element type:
+/// a `secret bytes`, so the array a program builds out of what
+/// `Core\Crypto::generateKey()` answers is exactly the type those rows want,
+/// and a plain `bytes` key still widens onto it.
 ///
-/// A row spells the parameter itself `CoreTy::Array(&KEY)`, and calls it
+/// It is [`Qual::Sink`] on the `tainted` axis. No octet of a key reaches an
+/// answer, but a key whose bytes somebody else chose or can predict keys
+/// nothing: a visitor's text, a database row, and `Core\Random\Seeded`'s
+/// output, which is `tainted` for this reason. A program that stored a key in
+/// a row and trusts it says so with `Core\Taint::assertTrustedBytes`.
+/// `rule:security/secret-has-no-ambient-source` is the rule.
+///
+/// A ring row spells the parameter itself `CoreTy::Array(&KEY)`, and calls it
 /// `$keys` — the refusals below name that spelling, so a row that renamed the
-/// parameter would be a row whose messages point at nothing.
-pub(crate) const KEY: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
+/// parameter would be a row whose messages point at nothing. A single key is
+/// `KEY` itself, in every class that takes one.
+pub(crate) const KEY: CoreTy = CoreTy::SecretBlob(Qual::Sink);
 
 /// The key ring in slot `slot` of `args`, borrowed for the length of the call.
 ///

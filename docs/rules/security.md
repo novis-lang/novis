@@ -1379,9 +1379,26 @@ belongs, an outbound header and a database password, which refuse `tainted`. Car
 make the member unusable for its one purpose. The operator who started the process chose the value,
 as they chose `nvs.toml`; `Core\Env::get` stays `tainted` because its value may reach any sink.
 
+**`Core\Random\Seeded::bytes` answers `tainted bytes` and `::token` answers `tainted string`, and
+every key parameter refuses `tainted`.** Anyone who knows the seed draws the same bytes again, so
+they are as predictable as a visitor's text. A key parameter is a sink on the `tainted` axis: no
+octet of a key reaches an answer, but a key somebody else chose or can predict protects nothing.
+That covers each key `Core\Crypto`, `Core\Crypto\KeyPair::read`, `Core\Hash::hmac`, `Core\Csrf`,
+`Core\Jwt`, `Core\Jwe\Key::shared` and `Core\Totp` take, and every key ring (`Core\SignedCookie`,
+`Core\Signature`, the session and cache rings, signed URLs). A key a program stored in a database
+row is `tainted` too, and reaches a key parameter through `Core\Taint::assertTrustedBytes` with its
+reason. The seeded `int`, `float`, `pick`, `sample` and `shuffle` stay plain: none is the type a key
+parameter takes. `nvs_stdlib::keyring::KEY` is the one type every key parameter is written with.
+
 No `Core` member names a qualifier, and the taint diagnosis has no opt-out. A `taintedPostAs` would
 make every other member's name read as a claim it does not make. A caller who finds the diagnosis
 verbose writes `tainted {…}` over the shape.
+
+**Declined:**
+- **A `predictable` qualifier of its own.** It would be a third axis that every signature and every
+  diagnostic carries, for one source. `tainted` already says "do not let this decide anything".
+- **A run-time check that a key looks random.** No test of a 32-byte buffer tells a seeded draw from
+  a real one.
 
 <sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
 
