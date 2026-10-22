@@ -1,0 +1,9 @@
+# A `string` is UTF-8 for its whole lifetime (`rule:types/string-is-utf8`), so text is made from
+# bytes only after a check. Each unchecked conversion below is refused everywhere; an audited site
+# writes `#[expect(clippy::disallowed_methods, reason = "...")]` with why its bytes are UTF-8.
+# `bun nv lints`'s header names this file as the home of that list.
+disallowed-methods = [
+    { path = "std::str::from_utf8_unchecked", reason = "bytes become text only after a UTF-8 check (rule:types/string-is-utf8)" },
+    { path = "std::str::from_utf8_unchecked_mut", reason = "bytes become text only after a UTF-8 check (rule:types/string-is-utf8)" },
+    { path = "std::string::String::from_utf8_unchecked", reason = "bytes become text only after a UTF-8 check (rule:types/string-is-utf8)" },
+]

@@ -33,6 +33,9 @@
 // its `#[expect]`; and a safe layer over the helper ABI's raw pointers, which would cost time on every
 // call on the request path. Where the same `unsafe` recurs, it moves behind one safe function that
 // states the reason once, as `nvs-stdlib`'s array walk is `crate::str::Elements` and `Entries`.
+// Making text from bytes without a check is refused by `clippy.toml`'s `disallowed-methods`, which
+// is the list's home: clippy resolves the path, so a re-export or a `use` cannot hide a call. An
+// audited site states why its bytes are UTF-8 in `#[expect(clippy::disallowed_methods, reason)]`.
 // The Windows-only `unsafe` in `nvs-config` and `nvs-cli` runs under no sanitizer, because every
 // sanitizer job runs on Linux. That is accepted for startup and install code, and stops being
 // accepted if that code grows.

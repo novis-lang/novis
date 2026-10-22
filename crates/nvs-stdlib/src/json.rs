@@ -905,6 +905,7 @@ impl<'a> Encodable<'a> {
         }
         #[expect(
             unsafe_code,
+            clippy::disallowed_methods,
             reason = "every byte above came from `serde_json`, which emits UTF-8 \
                       — the same step and the same reason as that crate's own \
                       `to_string`"
