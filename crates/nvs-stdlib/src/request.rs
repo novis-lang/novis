@@ -3302,6 +3302,11 @@ fn whole_body(ctx: &mut Ctx, member: &str) -> Result<Vec<u8>, Fault> {
         Err(failed) => failed,
     };
     let fault = Fault::thrown_as(class, format!("Core\\Request::{member}(): {why}"));
+    // `pull_whole` throws `RuntimeError` for the cap alone. The record is what
+    // sends a handler that throws after this to the gate's `refused`.
+    if matches!(class, ThrownClass::Runtime) {
+        inbound.refuse_body_too_large();
+    }
     inbound.fail_body(class, why.into_boxed_str());
     Err(fault)
 }

@@ -2545,7 +2545,9 @@ nvs_runtime::nvs_helper! {
     /// it converts every capture, so a capture that throws while it converts
     /// is the `400`, and `refused` is told `null` for the route, because there
     /// is no match to hand it. Then `allows`, then the handler, then `failed`
-    /// with the handler's throw. A handler that returns instead hands its value
+    /// with the handler's throw, or `refused` with `BodyTooLarge` where a body
+    /// read stopped at `[limits] request_body` before it
+    /// ([`nvs_runtime::Inbound::body_too_large`]). A handler that returns instead hands its value
     /// to `respond` when its row says it returns one
     /// ([`nvs_runtime::routes::Route::returns_value`]) and the gate's class
     /// implements [`RESPONDER`] ([`nvs_runtime::ClassDesc::is_responder`]);
@@ -2660,7 +2662,16 @@ fn dispatch_matched(
         Ok(value) => value,
         Err(fault) => {
             let error = caught(ctx, fault)?;
-            let answered = fail(ctx, gate, route, error.as_value());
+            // A body read that stopped at `[limits] request_body` is the
+            // client's fault, whatever the handler threw after it.
+            let too_large = ctx
+                .inbound()
+                .is_some_and(nvs_runtime::Inbound::body_too_large);
+            let answered = if too_large {
+                refuse(ctx, gate, refusal::BODY_TOO_LARGE, route)
+            } else {
+                fail(ctx, gate, route, error.as_value())
+            };
             drop(error);
             return answered;
         }
