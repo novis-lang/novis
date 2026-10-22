@@ -2169,96 +2169,17 @@ fn grouped_fields<'a>(inbound: &'a Inbound) -> Vec<(String, Vec<&'a [u8]>)> {
     groups
 }
 
-/// The field a request's cookies arrive under, matched as every field name is.
-const COOKIE_FIELD: &[u8] = b"cookie";
-
-/// `rule:errors/cookie-name-bytes`'s stricter prefix, on the read side — the write side's spelling
-/// of it is `crate::response`'s `HOST_PREFIX`, and the two are one rule read
-/// from its two ends.
-const HOST_PREFIX: &[u8] = b"__Host-";
-
-/// The same rule's other prefix, which asks only that the cookie was sent over a
-/// secure connection.
-const SECURE_PREFIX: &[u8] = b"__Secure-";
-
-/// `bytes` without the ASCII spaces and tabs it opens with.
-///
-/// The delimiter between two cookie pairs is `"; "` (RFC 6265 § 4.2.1), so the
-/// padding belongs to the delimiter and not to the name that follows it. Only
-/// the leading side is trimmed: anything after the `=` is the value, and a
-/// trailing space inside one is a byte the peer sent.
-fn without_leading_padding(bytes: &[u8]) -> &[u8] {
-    let start = bytes
-        .iter()
-        .position(|byte| *byte != b' ' && *byte != b'\t')
-        .unwrap_or(bytes.len());
-    &bytes[start..]
-}
-
-/// Every value the request's `Cookie` field lines carry under exactly `name`, in
-/// arrival order.
-///
-/// **The comparison is byte for byte**, which is `rule:errors/cookie-name-bytes` and the whole of
-/// what CVE-2024-2756 was: PHP substituted a dot and a space in a cookie name
-/// for an underscore, so a name a browser refused to give the `__Host-` meaning
-/// could be mangled into one that had it. Nothing is substituted here in either
-/// direction, and a name that differs by one byte is a different cookie.
-///
-/// A pair with no `=` in it is skipped rather than read as a name with an empty
-/// value — RFC 6265 § 5.4's own rule for parsing a `Cookie` field, and the same
-/// refusal-not-repair the rest of this module makes.
-fn cookie_lines<'a>(inbound: &'a Inbound, name: &[u8]) -> Vec<&'a [u8]> {
-    let mut found = Vec::new();
-    for (field, value) in inbound.headers() {
-        if !field.as_bytes().eq_ignore_ascii_case(COOKIE_FIELD) {
-            continue;
-        }
-        for pair in value.split(|byte| *byte == b';') {
-            let pair = without_leading_padding(pair);
-            let Some(equals) = pair.iter().position(|byte| *byte == b'=') else {
-                continue;
-            };
-            if &pair[..equals] == name {
-                found.push(&pair[equals + 1..]);
-            }
-        }
-    }
-    found
-}
-
 /// The cookie the program asked for, or `None` where the request carries none it
 /// is allowed to see.
 ///
-/// **A `__Host-` name that arrived twice is not visible**, which is `rule:errors/cookie-name-bytes`'s "a non-conforming cookie carrying the prefix is not visible on read"
-/// stated over the one non-conformance a `Cookie` field can actually show. The
-/// prefix means host-locked and `Path=/`, so a conforming browser holds at most
-/// one of them per host; two lines are either a client that is not one or a
-/// shadowing attempt from a name that was supposed to be unshadowable, and
-/// picking between them is the arrangement the prefix exists to end.
-///
-/// **A `__Host-` or `__Secure-` name is not visible on a request whose scheme is
-/// not `https`**, which is the other half of § 3: both prefixes require
-/// `Secure`, and a browser sends a `Secure` cookie over a secure connection
-/// only. The scheme is the one [`nvs_core_request_scheme`] answers, which the
-/// door decided from the connection or a trusted proxy, so a plain-HTTP listener
-/// with no trusted proxy shows neither prefix at all. `Core\Response::addCookie`
-/// refuses to *write* a non-conforming one either way, which is the same rule
-/// from the other end.
-///
-/// Otherwise the **first** line wins. RFC 6265 § 5.4 has a user agent send the
-/// most specific cookie first, so the first is the one that applies most closely
-/// to this path; that is reading the peer's own order rather than choosing among
-/// answers, exactly as [`joined_field`] preserves it.
+/// [`nvs_runtime::Inbound::cookie`] is the reader, and its doc owns the
+/// visibility rule (`rule:errors/cookie-name-bytes`). The scheme it reads is the
+/// one [`nvs_core_request_scheme`] answers, so a plain-HTTP listener with no
+/// trusted proxy shows no `__Host-` or `__Secure-` cookie at all. The server's
+/// CSRF door reads the same way, so the session a token is checked against is
+/// the one `Core\Session::start` opens.
 pub(crate) fn cookie_of<'a>(inbound: &'a Inbound, name: &[u8]) -> Option<&'a [u8]> {
-    let prefixed = name.starts_with(HOST_PREFIX) || name.starts_with(SECURE_PREFIX);
-    if prefixed && inbound.scheme() != Scheme::Https {
-        return None;
-    }
-    let lines = cookie_lines(inbound, name);
-    if name.starts_with(HOST_PREFIX) && lines.len() > 1 {
-        return None;
-    }
-    lines.first().copied()
+    inbound.cookie(name)
 }
 
 nvs_runtime::nvs_helper! {
@@ -2943,7 +2864,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Request::cookie(string $name): ?tainted string` — the
     /// cookie reader, replacing `$_COOKIE` and `filter_input(INPUT_COOKIE, …)`.
     ///
-    /// The parse is [`cookie_lines`]'s and the visibility rule is
+    /// The parse and the visibility rule are
     /// [`cookie_of`]'s; both are `rule:errors/cookie-name-bytes`, whose other end is
     /// `Core\Response::addCookie`'s refusal to write what would not be visible
     /// here. There is no second field on the carrier for cookies: they are the
