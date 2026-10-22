@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/ctor_init.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-codegen/src/emit.rs, docs/rules/classes/definite-property-initialization.md, docs/rules/classes/readonly-is-written-once.md, docs/rules/classes/constructor-is-a-method-named-constructor.md]
   - id: 3
     title: "every string made from outside bytes is checked UTF-8"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/jwe.rs, crates/nvs-runtime/src/string.rs, tools/nv/cmd/lints.ts, docs/rules/types/string-is-utf8.md]
   - id: 4
     title: "one test walks every Core signature for a lost mark, and `Core\\Arr` and `Core\\Str` keep it"
@@ -331,11 +331,11 @@ written.
   - [x] `nvs_runtime::value::Value::str` in `clippy.toml`; confirm clippy names a site in `nvs-stdlib` (touch `src/lib.rs` first, since clippy does not see a `clippy.toml` change)
   - [x] the mechanical sweep: 766 sites became `Value::text(...)`, by a paren-balanced script and the compiler, not subagents
 - [x] Fix every other site the lint names: 128 were left, each now checked or under an `expect` that says why. `Core\SignedCookie::open`, `Core\Session::getSecret` and `Core\Cache::getSecret` gained a check. `38c110098`
-- [ ] The five sites still under `#[allow(clippy::disallowed_methods, reason = "unchecked: ...")]` are checked (`grep -rn '"unchecked: ' crates/`). `crates/nvs-stdlib/src/out.rs:205`
-  - [ ] MySQL column labels: `mysql_described_columns` returns a `Result` and throws the `IoError` a non-UTF-8 text value already throws (`nvs_db::mysql::text`); the row keys at `db/execute.rs:834` and `db/stream.rs:344` get the same check. Rust test beside it. `crates/nvs-stdlib/src/db/column.rs:58`
-  - [ ] captured output that holds raw bytes from `Core\Response::bytes` or `::sendFile`: `crate::out::carried` (`Core\Out::capture`, `spawn script`'s `output`), `Core\Html::later` run at once (`html.rs:705`) and a `later` slot's `render` (`crates/nvs-runtime/src/later.rs:621`). Follow the decision filed for it; until it is answered, the safe default is a `RuntimeError` naming the member when the captured output is not UTF-8
-  - [ ] `Core\Test\Response`'s body (`crates/nvs-stdlib/src/test.rs:3040`) from a route that answers with `Core\Response::bytes`: the same decision
-  - [ ] an attack under `tests/hostile/` for the capture: `Core\Out::capture` around `Core\Response::bytes` of `FF`, then the program runs on
+- [x] The five sites still under `#[allow(clippy::disallowed_methods, reason = "unchecked: ...")]` are checked (`grep -rn '"unchecked: ' crates/` finds none). `4036dd605`, `53101d858`. `crates/nvs-stdlib/src/out.rs:205`
+  - [x] MySQL column labels: `mysql_described_columns` returns a `Result` and throws the `IoError` a non-UTF-8 text value already throws (`nvs_db::mysql::text`); the row keys at `db/execute.rs:834` and `db/stream.rs:344` get the same check. Rust test beside it. `crates/nvs-stdlib/src/db/column.rs:58`
+  - [x] captured output that holds raw bytes from `Core\Response::bytes` or `::sendFile`: `crate::out::carried` (`Core\Out::capture`, `spawn script`'s `output`), `Core\Html::later` run at once (`html.rs:705`) and a `later` slot's `render` (`crates/nvs-runtime/src/later.rs:621`). Follow the decision filed for it; until it is answered, the safe default is a `RuntimeError` naming the member when the captured output is not UTF-8
+  - [x] `Core\Test\Response`'s body (`crates/nvs-stdlib/src/test.rs:3040`) from a route that answers with `Core\Response::bytes`: the same decision
+  - [x] an attack under `tests/hostile/` for the capture: `Core\Out::capture` around `Core\Response::bytes` of `FF`, then the program runs on. `tests/hostile/core/Out/capture/02-bytes-that-are-not-text.nvs:7`
 - [x] The attack: an upload of `FF 0A` and of `C0 BC`, then the program runs on. Before the fix, the release binary panicked in `unicode-segmentation` at step 6. After it, steps 6 and 7 each throw a `ParseError`, and the program runs to its end. `tests/hostile/core/Csv/rows/01-a-file-an-upload-form-could-send.nvs:67`
 
 ### 4. one test walks every Core signature for a lost mark, and `Core\Arr` and `Core\Str` keep it
@@ -491,47 +491,47 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 3's lint is whole (`38c110098`). `clippy.toml` refuses `nvs_runtime::value::Value::str`, and
-`Value::text(&str)` sits beside it in `crates/nvs-runtime/src/value.rs`. 766 sites moved to
-`Value::text` through a script and the compiler. The 128 left were judged one by one: each is checked
-or carries an `expect` that says why its bytes are UTF-8. Three opened plaintexts gained a check.
-`Core\SignedCookie::open` refuses one that is not UTF-8 as it refuses a forgery. `Core\Session::getSecret`
-and `Core\Cache::getSecret` read it as a miss, as their docs say every way of not opening is.
-`rule:types/string-is-utf8` says all of this. `cargo build` and `cargo clippy --all-targets -- -D
-warnings` are green. No test ran.
+Stage 3 is done. No `Value::str` site is left unchecked: `grep -rn '"unchecked: ' crates/` finds
+nothing, and `clippy.toml` refuses the call outside an audited `expect`.
 
-Five sites are not checked yet. Each carries `#[allow(clippy::disallowed_methods, reason =
-"unchecked: ...")]`, and `grep -rn '"unchecked: ' crates/` finds all five. Four are captured output,
-which can hold raw bytes from `Core\Response::bytes` or `::sendFile`. The fifth is a MySQL column
-label. Decision `d1` asks where captured output is refused, and the loop builds on its option 1.
+- `4036dd605`: `nvs_db::mysql::label` checks a MySQL column label. The column description and both
+  row walks use it, and a label that is not UTF-8 throws the `IoError` a text value already throws.
+  `a_column_label_that_is_not_utf8_is_refused` in `crates/nvs-db/src/mysql.rs` ran once, green.
+- `53101d858`: captured output is checked at the capture's end, by `d1`'s option 1 while `d1` is
+  open. `Core\Out::capture`, `await`'s `output`, `Core\Html::later`, a `later` slot and
+  `Core\Test`'s response body throw `RuntimeError` naming the member. `crate::out::not_text` is the
+  message. The attack `tests/hostile/core/Out/capture/02-bytes-that-are-not-text.nvs` ran once on the
+  debug binary and printed `refused 2`, `inner refused` and `café`.
+- `rule:types/string-is-utf8` names both. `cargo build` and `cargo clippy --all-targets -- -D
+  warnings` are green.
 
-The sweep's `env-secret-proofs` red was stale: it reran green this session. Nightly run 39746060276
-was cancelled whole and is not a failure of this tree.
+The sweep's `env-secret-proofs` red was stale again: its log shows exit 0. Nightly run 39746060276 was
+cancelled whole and is not a failure of this tree.
 
-Tests that may go red: a session or cache test that seals bytes that are not UTF-8 and expects them
-back. A test helper's signature changed in about a dozen test modules (`&[u8]` to `&str`), all
-compiled. A website or reference page that lists `Core\Csv::rows`'s or `Core\Jwe::decrypt`'s errors.
-From stage 2: an `nvs-ir` lowering snapshot of a class with an observer, a guard, `LateInit` or a
-hook, and a page that lists every diagnostic code, which now has `E0885`.
+Tests that may go red: a test that captures `Core\Response::bytes` output that is not UTF-8 and
+expects it back, and a `Core\Test` test of a route that answers with such bytes. A session or cache
+test that seals bytes that are not UTF-8 and expects them back. A website or reference page that lists
+the errors of `Core\Csv::rows`, `Core\Jwe::decrypt` or `Core\Out::capture`. From stage 2: an
+`nvs-ir` lowering snapshot of a class with an observer, a guard, `LateInit` or a hook, and a page that
+lists every diagnostic code, which now has `E0885`.
 
 ### Next
 
-1. The MySQL labels. `mysql_described_columns` (`crates/nvs-stdlib/src/db/column.rs:58`) returns a
-   `Result` and throws the `IoError` that `statement_failure` makes of `nvs_db::mysql::text`'s
-   `InvalidData`. Its caller is `db/execute.rs:806`. The row keys at `db/execute.rs:834` and
-   `db/stream.rs:344` take the same check. A Rust test beside it, since the harness has no MySQL.
-2. Captured output, by `d1`'s answer, or its option 1 while it is open: `crate::out::carried`
-   (`crates/nvs-stdlib/src/out.rs:205`), `Core\Html::later` run at once (`html.rs:705`), a `later`
-   slot's `render` (`crates/nvs-runtime/src/later.rs:621`) and `Core\Test\Response`'s body
-   (`crates/nvs-stdlib/src/test.rs:3040`). `carried` returns `Value` today, and `script.rs`'s
-   `result_of` is its other caller. Then the attack:
-   `tests/hostile/core/Out/capture/01-...nvs`, `Core\Out::capture` around `Core\Response::bytes` of
-   `FF`, and the program runs on.
-3. Remove each `allow` as its site is checked, then stage 3 is done. Then stage 4, the keystone taint
-   test, `crates/nvs-stdlib/tests/taint_signatures.rs`.
+1. Stage 4, the keystone taint test, first: `crates/nvs-stdlib/tests/taint_signatures.rs`. It walks
+   every `Core` registry row and fails naming each member whose return has `string` while a parameter
+   is `Text(Contagious)`, `Array` or `Mixed` and the return lacks the contagion. The allow list is the
+   launderers of `rule:security/launderers-are-sink-named`, each with its rule id. Find the registry
+   walk an existing test already does (`grep -rn "fn every_" crates/nvs-stdlib/tests/`) before writing
+   a new one.
+2. Then the members it names: `Core\Str::format` (`crates/nvs-stdlib/src/str.rs:632`), the `Core\Arr`
+   key members (`crates/nvs-stdlib/src/arr.rs:304`), and `shapeAs<T>`
+   (`crates/nvs-types/src/expr/args.rs:1950`).
+3. The attacks in `tests/conformance/reject/every-sink-a-marked-value-can-reach-refuses-it.nvst:23`.
 
 ### Backlog
 
 - Not checked: the stage 1 rerun saw `Response::sendFile("assets/logo.svg")` answer `500` in a copy of
   `.agent-tmp/sec-audit/bb-kitchen/app`, where the audit saw `200`. Serve that app as its
   `serve.log` shows and fetch `/logo` before stage 12 touches static serving.
+- `crates/nvs-stdlib/src/` holds many `default_*.profraw` files from a coverage run. git ignores them,
+  but `grep -r` over `src/` matches them. Whoever runs coverage there should write it under `target/`.
