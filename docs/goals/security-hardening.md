@@ -50,7 +50,7 @@ stages:
     context: [crates/nvs-runtime/src/capability.rs, crates/nvs-stdlib/src/io.rs, docs/rules/security/path-scope-canonicalise-then-prefix.md, docs/rules/security/writes-open-beneath-a-handle.md]
   - id: 12
     title: "development serving answers only loopback and serves no project file, and the HTTP front's small gaps are closed"
-    status: open
+    status: done
     context: [crates/nvs-server/src/mount.rs, crates/nvs-server/src/statics.rs, crates/nvs-server/src/body.rs, crates/nvs-server/src/forwarded.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/router.rs, docs/rules/http-server/static-serving-is-one-policy.md, docs/rules/http-server/host-matching-is-on-the-host-part-only.md, docs/rules/http-server/the-body-is-read-on-demand-under-two-caps.md]
   - id: 13
     title: "the outbound client's redirects, the leftovers, and the audit's scratch is gone"
@@ -513,7 +513,7 @@ into its rule.
 - [x] HTTP-4, APP-3: a malformed chunked body answers `400`, and so does a request that carries both `Content-Length` and `Transfer-Encoding` (it is framed by `Transfer-Encoding` and closed today). `crates/nvs-server/src/body.rs:198`
 - [x] APP-2: when a body reader trips `[limits] request_body`, the runtime records `Refusal::BodyTooLarge` on the request as it throws, and `dispatch` sends a handler that throws after that to the gate's `refused` with `413` instead of `failed` with `500`. No new error class: the reader still throws its `RuntimeError` (`rule:http-server/the-body-is-read-on-demand-under-two-caps`, `rule:routing/a-gate-answers-around-every-handler`). `crates/nvs-stdlib/src/request.rs:679`, `crates/nvs-stdlib/src/router.rs:2523`
 - [x] APP-2's attack: a 9 MB JSON body and a 9 MB form body to a route that reads them answer `413` through the gate, and the next request answers `200`. `tests/hostile/core/Request/jsonAs/02-a-body-over-the-limit.nvs:1`
-- [ ] HTTP-5: `X-Forwarded-Proto` from a trusted peer that never set it is ignored (`rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`). `crates/nvs-server/src/forwarded.rs:466`
+- [x] HTTP-5: `X-Forwarded-Proto` from a trusted peer that never set it is ignored (`rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`). `crates/nvs-server/src/forwarded.rs:466`
 - [x] RS-5: the Declined entry for a hard link. `docs/rules/http-server/static-serving-is-one-policy.md:1`
 - [x] The attacks: `GET /nvs.toml`, `/.env` and `/data.sqlite` in development mode, a rebinding `Host`, and the static policy rows; Rust tests beside `mount.rs`. `crates/nvs-server/src/mount.rs:1586`
 
@@ -568,7 +568,27 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 12 has one item left, HTTP-5. Stages 13 and 15 are open, then the gate stage 14.
+Stage 12 is done. Stages 13 and 15 are open, then the gate stage 14.
+
+- **HTTP-5 (86e60e3b6).** `forwarded::walk` reads `X-Forwarded-Proto` only when the trusted peer
+  also forwarded a non-empty `X-Forwarded-For` chain; with no chain the scheme is `http` and the
+  client is the peer. The attack `a_trusted_peer_that_forwarded_no_address_cannot_assert_the_scheme`
+  (127.0.0.1, 10.0.0.7 and a Unix socket, plus a blank chain line) was red on main and passes, with
+  the updated `the_nearest_proxy_asserts_the_scheme_and_only_https_is_believed` (its cases now send
+  a chain). `rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only` gains the paragraph
+  and two Declined entries. The `.nvsr` files were checked: every one that expects `https` sends an
+  `x-forwarded-for` line; the others are untrusted peers. `serve.rs`'s `a_forwarded_request` sends
+  both. `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render` and
+  `--check` are green.
+- The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0, `nothing owed`), and the
+  nightly run 39746060276 is the cancelled `workflow_dispatch`. Neither is the tree's.
+
+Tests that may go red from HTTP-5: any served test, `.nvst` or `.nvsr` with `trusted_proxies` set
+that sends `X-Forwarded-Proto: https` with no `X-Forwarded-For` and expects `https` or HSTS (none
+found by grep; `crates/nvs-cli` served tests were not grepped for a trusted loopback); the
+website's rule page for the rule changed.
+
+The session before (HTTP-2, HTTP-4, APP-3, APP-2):
 
 - **HTTP-2 (fe441247c).** `mount::host` takes a target's own authority (absolute form, HTTP/2's
   `:authority`) over `Host`, and returns `Host::Refused` when a `Host` line names another host
@@ -1061,27 +1081,18 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-1. HTTP-5 (`crates/nvs-server/src/forwarded.rs:466`'s `asserted`, called from `walk` at :352).
-   The audit (`.agent-tmp/sec-audit/reports/wb-http-front.md`, HTTP-5) found no clean code fix. Its
-   repro is a direct client on a trusted loopback address. The design this session chose and did
-   not write: `walk` reads `X-Forwarded-Proto` only when the trusted peer forwarded an
-   `X-Forwarded-For` chain (`chain` is non-empty). A peer that wrote none did not act as a proxy.
-   The cost: a proxy that writes `X-Forwarded-Proto` but no `X-Forwarded-For` loses `https` (no
-   HSTS, `scheme()` is `http`), which is the safe direction. A proxy that appends
-   `X-Forwarded-For` and passes the client's `X-Forwarded-Proto` through cannot be detected. The
-   rule (`rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`) says the proxy must
-   overwrite the header and declines the rest. The reverse-proxy page
-   (`website/src/content/docs/guides/production/reverse-proxy.mdx:86`) already sets it in both
-   nginx blocks. Attack: a unit test beside
-   `the_nearest_proxy_asserts_the_scheme_and_only_https_is_believed` (forwarded.rs:702), whose cases
-   send no `X-Forwarded-For` and must gain one. Check `serve.rs:5985`'s
-   `claiming_to_be_forwarded` (sends both, fine), and the `.nvsr` files that send
-   `x-forwarded-proto` (`tests/hostile/core/Request/scheme/01-...`,
-   `tests/hostile/tools/server/behind-a-proxy-trusted-proxies/01-...`,
-   `docs/examples/tools/server/behind-a-proxy-trusted-proxies/01-...`,
-   `docs/examples/core/Request/scheme/`): an example that expects `https` with no
-   `x-forwarded-for` line needs one.
-2. Then stage 12's status goes to done, and stage 13 is next.
+1. Stage 13, first group: the outbound client's redirects
+   (`crates/nvs-stdlib/src/http/transport.rs:2361`: a 303 becomes `GET`, a 301 or 302 after a
+   `POST` becomes `GET`, a cross-origin hop drops the body; `rule:http-server/a-cross-origin-redirect-drops-credentials`)
+   and NET-1 (`crates/nvs-config/src/capability.rs:502`, the two IPv6 forms that carry private
+   addresses; `rule:security/net-address-policy`). The audit's notes for both are under
+   `.agent-tmp/sec-audit/reports/`.
+2. Then the `html.rs` group: the unquoted-attribute comment (`crates/nvs-stdlib/src/html.rs:119`),
+   HTML-2 and its cases (`html.rs:1847`), and the HTML-escaping probes
+   (`.agent-tmp/sec-audit/wb-stdlib-request/html/app.nvs`).
+3. Then the TAINT-5 items, grouped by file (`response.rs` twice, `regex.rs`, `xml.rs`, `mail.rs`,
+   `nvs-db/src/schema.rs`, `storage.rs`, `nvs-types/src/expr/assign.rs`), the `wasmtime` and
+   `cranelift` minimums in `Cargo.toml:98`, and last the deletion of `.agent-tmp/sec-audit/`.
 
 ### Backlog
 
