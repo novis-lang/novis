@@ -37,8 +37,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   the `nvs` image, and the report is `-looper-sh.txt`.** That is looper's shell watcher
   (`tools/looper/src/jobs/hang.ts`), which has no `OUTSIDE` rule like `tools/nv/lib/hang.ts`'s, so
   the release compile in Docker's VM reads as a tree with no CPU. Run a bench row in the foreground
-  with a 600 s timeout; a full record goes to a detached worktree the same way, or the rule goes into
-  looper's kit. `until: gone tools/looper/src/jobs/hang.ts:WAIT_LINES`
+  with a 600 s timeout. A full record survives in the background once `--smoke` has built the
+  images in the foreground, and a filter on it uses `grep --line-buffered`. `until: gone tools/looper/src/jobs/hang.ts:WAIT_LINES`
+- **A new `benches/compare.json` changes nothing on the built comparison page until `bun nv render`
+  copies it to `website/src/data/compare.json`.** `bun nv site --build` reads only the copy, so a
+  chart new to the record shows its empty text. Run `bun nv render`, then build, and commit the copy
+  beside the record. `until: gone website/src/lib/compare.ts:../data/compare.json`
 - **The `looper` on `PATH` may be an older build with no `verify` subcommand, and run in the
   background it exits 0 with only a usage error.** Run `bun tools/looper/main.ts verify`, the
   project's own copy, and read the log for `✓ 1:` before you trust the exit status. See
