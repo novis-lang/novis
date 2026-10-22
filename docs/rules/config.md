@@ -774,6 +774,11 @@ never logged, and `nvs config dump` renders it `<secret>` beside the file it cam
   reads unchanged. A deployment target that cannot produce a file at all is what would reopen this.
 - **A `_file` sibling for every string directive.** It doubles the key space of the format and
   complicates the unknown-key refusal, to serve the handful of directives the registry marks.
+- **An `_env` sibling, a third source naming an environment variable** (`password_env =
+  "DB_PASSWORD"`). It is the narrow form of interpolation: it cannot grant, and it serves a platform
+  that injects credentials only as variables. It still puts the credential where every child process
+  inherits it and `/proc/<pid>/environ` and a crash dump show it, so `process.exec` would owe a scrub,
+  and it serves no target that cannot also mount a file. The trigger above reopens it too.
 
 <sub>See also [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
@@ -984,6 +989,10 @@ shipped defaults
   mode with no restart ([`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot)). A flag would be a second
   source the file does not show, and a stale `--mode=development` in a deploy script would start a
   public server in development mode.
+- **A per-key environment override**, such as ASP.NET's `NVS__LIMITS__MEMORY`. It is `--set` moved
+  into the environment: a second spelling for every directive, set by whoever starts the process, and
+  invisible to a review of the root-owned file. Changing a few keys for one deployment is a second
+  `--config` file, which is typed, ownership-checked and named by `nvs config dump --origin`.
 
 <sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped).</sub>
 
