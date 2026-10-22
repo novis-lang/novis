@@ -236,6 +236,9 @@ pub struct ConnectionIo {
     /// The reader of every request byte on its way into `hyper`
     /// ([`crate::heads`]).
     scanner: Scanner,
+    /// Whether the last write found the socket full, shared with the
+    /// connection loop: [`ConnectionIo::write_parked`].
+    write_parked: Rc<Cell<bool>>,
 }
 
 impl ConnectionIo {
@@ -253,6 +256,7 @@ impl ConnectionIo {
             draining: None,
             woken_at_drain: None,
             scanner: Scanner::default(),
+            write_parked: Rc::new(Cell::new(false)),
         }
     }
 
@@ -319,6 +323,21 @@ impl ConnectionIo {
     #[must_use]
     pub fn drain_seen(&self) -> DrainSeen {
         self.drain_seen.clone()
+    }
+
+    /// The handle on whether the last write found the socket full.
+    ///
+    /// `hyper` returns from a poll with a response still owed only when that
+    /// response's body has no chunk ready or a write is waiting for room, and
+    /// in the second case this is `true`. A whole body or a file always has
+    /// its next chunk ready. So once the service has answered with one, a poll
+    /// that ends with this `false` is one whose response is all on the wire,
+    /// and `crate::serve` gives that response's in-flight place back there.
+    /// The phase cannot say this: `hyper` may not read again until the next
+    /// request's bytes arrive. Shared for [`ConnectionIo::phase`]'s reason.
+    #[must_use]
+    pub fn write_parked(&self) -> Rc<Cell<bool>> {
+        Rc::clone(&self.write_parked)
     }
 
     /// Puts the current phase's wait on the stream, or refreshes it.
@@ -473,6 +492,7 @@ impl Write for ConnectionIo {
     ) -> Poll<io::Result<usize>> {
         self.arm(false);
         let written = self.stream.poll_write(buf);
+        self.write_parked.set(written.is_pending());
         if matches!(written, Poll::Ready(Ok(bytes)) if bytes > 0) {
             self.arm(true);
         }
