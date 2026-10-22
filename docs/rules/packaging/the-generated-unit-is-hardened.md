@@ -26,6 +26,19 @@ outside them — derived from the same list a Windows install applies as ACLs. T
 the whole unit with `226/NAMESPACE`, while a skipped one leaves the server running with the one warning
 an unusable folder gets.
 
+**A Unix socket in `[server] listen` gets its folder.** A socket's folder under `/run` (or `/var/run`)
+is a `RuntimeDirectory=`: systemd creates it for the service account at every start, keeps it writable
+under `ProtectSystem=strict`, and removes it at stop, so nothing is left over to make the next bind fail
+and `/run` being emptied at boot costs nothing. `RuntimeDirectoryMode=` is the owner's `rwx` plus search
+for the group and for others exactly where `socket_mode` lets them connect: `0750` for the default
+`0660`, so a proxy added to the account's group reaches the socket and nobody else lists the folder. A
+socket's folder anywhere else is the operator's, and the unit only adds it to `ReadWritePaths=`, never
+changing its owner or mode. `/run` itself is never opened, because that would let the service write
+every other service's runtime files; a socket placed directly in it needs a folder of its own. A folder
+`RuntimeDirectory=` cannot name (a `.` or `..` segment, or a `:`, which it reads as a symlink) is opened
+as written instead. The sockets are read off the configuration the service reads, as the privileged
+port is.
+
 **No value is written into the unit raw.** Every `ExecStart` word, the binary included, and every
 `ReadWritePaths=` path is quoted when it is empty, is a lone `;`, or has a space, a quote, a backslash or
 a control character; inside the quotes `\` and `"` are escaped and a control character is written
