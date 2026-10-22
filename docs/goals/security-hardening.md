@@ -359,17 +359,24 @@ carry the mark.
   - [x] `rule:security/verification-does-not-launder` loses its exception and declines it
   - [x] a contagious member answering `mixed` admits `tainted` text, so `Core\Json::decode` of an opened cookie compiles
   - [x] every `.nvs` and `.nvst` calling `open` compiles, and the reject case is written and green
-- [ ] TAINT-2: `Core\Response\Stream::write` is a sink and refuses `tainted`. `crates/nvs-stdlib/src/response.rs:603`
+- [x] TAINT-2: `Core\Response\Stream::write` is a sink and refuses `tainted`. `crates/nvs-stdlib/src/response.rs:603`
+  - [x] both arms of the chunk union are `Qual::Sink`, and the card and the rule say why
+  - [x] every `.nvs` that streams compiles; the hostile case escapes its query value first
+  - [x] the reject case is written and green
 - [x] REQ-2, DB-2: a text column fills only a `tainted string` property, and every example, page and app compiles (`rule:security/tainted-sources`). `crates/nvs-types/src/derive.rs:1466`
   - [x] `written_class_of` treats a `Core\Db` owner as outside text, for a class and a shape
   - [x] `DecodeSite` carries its format, and a field no column maps gets no second report
   - [x] the reject case is written and green, and both repros are refused
   - [x] every `.nvs` and `.nvst` calling `queryAs<`/`streamAs<` compiles, and the rule, card and pages say so
-- [ ] EXT-4: a `secret` value does not cross an extension's `mixed` parameter (`rule:security/secret-does-not-cross-an-extension`). `crates/nvs-types/src/ext_lib.rs:304`
-- [ ] TAINT-4: `Core\Ldap\Connection::add` refuses attribute names from a tainted array's keys. `crates/nvs-stdlib/src/ldap/registry.rs:464`
+- [x] EXT-4: a `secret` value does not cross an extension's `mixed` parameter (`rule:security/secret-does-not-cross-an-extension`). `crates/nvs-types/src/ext_lib.rs:304`
+  - [x] every argument an extension parameter admits is asked for `secret`, and a literal at `mixed` is walked as written
+  - [x] the reject case covers `mixed`, alone and inside arrays, and is green
+- [x] TAINT-4: `Core\Ldap\Connection::add` refuses attribute names from a tainted array's keys. `crates/nvs-stdlib/src/ldap/registry.rs:464`
+  - [x] a call-site rule reads a literal's keys one by one, and any other array by `keys_from_outside`
+  - [x] the rule, the card and a reject case say so, and every `Core\Ldap` example compiles
 - [ ] HTML-1: a spawned child's captured output is lifted to the parent's sink carrier only when the child wrote it with `echo` through the same sink; output a child wrote through `Core\Response::text`, `::json`, `::bytes` or `::stream` reaches the parent as a plain `string`, which the parent's `echo` escapes. Carrying every child's output as a plain `string` is not the fix: a child's `echo` already escaped it, so the parent would escape it twice (`rule:security/capture-answers-the-carrier`, `rule:security/isolate-output-is-captured`). `crates/nvs-stdlib/src/out.rs:193`, `crates/nvs-stdlib/src/script.rs:1278`
 - [ ] HTML-1's attack: a child writes `<script>` with `Core\Response::text`, the parent prints `$result->output` into an HTML page, and the page shows it escaped; beside it, a child that `echo`es the same text is escaped once, not twice. `tests/hostile/lang/concurrency/isolates-spawn-script-and-await/02-a-child-writes-markup-the-parent-prints.nvs:1`
-- [ ] The attacks: stored injection, a sealed visitor value, a stream echo and a `mixed` secret, each a reject case. The stored injection and the sealed visitor value are written (`tests/conformance/reject/a-text-column-fills-only-a-tainted-property.nvst`, `tests/conformance/reject/a-sealed-visitor-value-opens-tainted.nvst`). `tests/conformance/reject/a-sealed-visitor-value-opens-tainted.nvst:1`
+- [x] The attacks: stored injection, a sealed visitor value, a stream echo and a `mixed` secret, each a reject case (`tests/conformance/reject/a-text-column-fills-only-a-tainted-property.nvst`, `tests/conformance/reject/a-sealed-visitor-value-opens-tainted.nvst`, `tests/conformance/reject/a-response-stream-part-refuses-a-tainted-value.nvst`, `tests/conformance/reject/a-secret-argument-to-an-extension-does-not-compile.nvst`). `tests/conformance/reject/a-sealed-visitor-value-opens-tainted.nvst:1`
 
 ### 6. an array a Rust parser builds stops at the request's memory ceiling
 
@@ -507,8 +514,24 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 5 is under way. REQ-2/DB-2 (ad9a16a91) and CRYPTO-1/TAINT-3 landed. TAINT-2, EXT-4, TAINT-4,
-HTML-1 and its attack are not started.
+Stage 5 is under way. REQ-2/DB-2, CRYPTO-1/TAINT-3, TAINT-2 (40063273f), TAINT-4 (1118be657) and
+EXT-4 (8c1ef0342) landed, and all four reject attacks are written. HTML-1 and its hostile attack are
+the stage's last two items, and neither is started.
+
+- **TAINT-2:** `Core\Response\Stream::write`'s chunk is `Union[Text(Sink), Blob(Sink)]`
+  (`crates/nvs-stdlib/src/response.rs`). The card and `rule:security/response-body-is-one-typed-member`
+  say why `text` may take `tainted` and a chunk may not. Step 2 of
+  `tests/hostile/core/Response-Stream/write/01-parts-without-end.nvs` now escapes its query value with
+  `Core\Html::escape` and `Core\Html::toSource`. Every other `.nvs` that streams checks clean.
+- **TAINT-4:** `reject_tainted_ldap_attribute_names` (`crates/nvs-types/src/expr/quals.rs`), called
+  from both instance-call paths in `calls.rs`, reports E0401 at a literal key that is not a literal, a
+  constant or a variable with a clean type, at a spread, and at a non-literal array whose
+  `keys_from_outside` is true. `rule:core-classes/ldap-filter-is-a-value` and `add`'s card say so.
+- **EXT-4:** `reject_secret_extension_argument` (`quals.rs`), called from the static-call hook block,
+  reports E0775 for a `secret` at any extension parameter that admitted it by type. A literal written at
+  `mixed` is walked as written (`secret_written_in`), because its inferred entries are `mixed`.
+- The three cases ran once by name, all green. `cargo build`, `cargo clippy --all-targets -- -D
+  warnings` and `bun nv rules --check` are green.
 
 - `Core\SignedCookie::open` answers `CoreTy::TaintedStr`, and its `$cookie` is `Qual::Neutral`
   (`crates/nvs-stdlib/src/signed_cookie.rs`). The module doc section is now "`open` answers
@@ -531,7 +554,7 @@ HTML-1 and its attack are not started.
   edited Rust tests are green. A full `nvs test tests/conformance` run showed 10 other reds, all from
   earlier stages (listed below).
 
-The sweep's `env-secret-proofs` red was stale a fourth time: its log (00:07) shows exit 0. Nightly run
+The sweep's `env-secret-proofs` red was stale a fifth time: its log (00:07) shows exit 0. Nightly run
 39746060276 was cancelled whole and is not a failure of this tree.
 
 Tests that go red now (seen in the conformance run, left for stage 14):
@@ -549,18 +572,22 @@ Tests that may go red: the website's generated `core.json` and `llms-full.txt` (
 `$cookie` qualifier changed; `bun nv site --check` would name them), a help snapshot of
 `Core\SignedCookie::open`, and the earlier stages' list: the E0810 card, `Core\Arr::shapeAs`'s card,
 an `nvs-ir` lowering snapshot of a class with an observer, a guard, `LateInit` or a hook, and a page
-listing every diagnostic code (`E0885`).
+listing every diagnostic code (`E0885`). This session adds: the website's generated `core.json` and
+`llms-full.txt` (the cards of `Core\Response\Stream::write` and `Core\Ldap\Connection::add` changed),
+and any help snapshot of those two members. A `.nvst` or `.nvs` that streams a `tainted` value or
+passes a `secret` to an extension's `mixed` parameter would go red too. None was found by grep.
 
 ### Next
 
-1. TAINT-2 (stage 5): `Core\Response\Stream::write` is a sink and refuses `tainted`
-   (`crates/nvs-stdlib/src/response.rs:603`). Its reject case is the stage's "stream echo" attack.
-   Then every `.nvs` that writes a request value to a stream (`git grep -n "->write("` under
-   `docs/examples/core/Response*` and `tests/`).
-2. TAINT-4: `Core\Ldap\Connection::add` refuses attribute names from a tainted array's keys
-   (`crates/nvs-stdlib/src/ldap/registry.rs:464`).
-3. EXT-4 (`crates/nvs-types/src/ext_lib.rs:304`): a `secret` does not cross an extension's `mixed`
-   parameter, with its reject case. Then HTML-1 and its hostile case.
+1. HTML-1 (stage 5's last fix): a spawned child's captured output is lifted to the parent's sink
+   carrier only for bytes the child wrote with `echo`. Bytes written by `Core\Response::text`,
+   `::json`, `::bytes` or `::stream` reach the parent as a plain `string`. Start at
+   `crates/nvs-stdlib/src/out.rs:193` (`carried`) and `crates/nvs-stdlib/src/script.rs:1278`, and find
+   where `nvs_runtime::Ctx::write_output` is called by a body member and by `echo`. The two writers
+   need a distinct record in the capture buffer, or the result needs to know which wrote it.
+2. HTML-1's attack: `tests/hostile/lang/concurrency/isolates-spawn-script-and-await/02-a-child-writes-markup-the-parent-prints.nvs`.
+   Then tick the stage and set its front-matter status to done.
+3. Stage 6 (`NvsArray::try_new` in the Rust parsers) is next after that.
 
 ### Backlog
 
