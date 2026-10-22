@@ -1042,6 +1042,7 @@ impl NvsStr {
         );
         #[expect(
             unsafe_code,
+            clippy::disallowed_methods,
             reason = "the caller guarantees this payload is a `string`'s, which \
                       `rule:types/bytes` makes well-formed UTF-8; the assertion above is \
                       the debug build's check of that"
@@ -1439,7 +1440,14 @@ unsafe fn concat_onto(lhs: *mut StrHeader, rest: &[*const StrHeader]) -> *mut St
                 "a cached grapheme count belongs to a `string`, whose payload is \
                  well-formed UTF-8 by `rule:types/bytes`'s construction"
             );
-            joined_count(std::str::from_utf8_unchecked(payload), sum, seams)
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "every piece has a cached grapheme count, which only a `string` \
+                          gets, so each is UTF-8 and so is their join; the assertion above \
+                          is the debug build's check"
+            )]
+            let text = std::str::from_utf8_unchecked(payload);
+            joined_count(text, sum, seams)
         });
         if reused {
             header.len.set(needed);
