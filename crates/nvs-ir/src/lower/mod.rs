@@ -333,6 +333,17 @@ fn property_defaults(
             image[slot] = Some(FieldDefault::Unset);
         }
     }
+    // The slots a constructor of this class may leave unset while an
+    // observer, a guard or a hook runs (`ExprTypeTable::pipeline_armed`).
+    // Flattened, so asked of the label alone, and after every default so a
+    // written default still wins its slot.
+    for property in exprs.pipeline_armed(label) {
+        if let Some(slot) = layout.slot_of(property)
+            && image[slot].is_none()
+        {
+            image[slot] = Some(FieldDefault::Unset);
+        }
+    }
     image
         .into_iter()
         .enumerate()
@@ -1109,7 +1120,7 @@ pub fn lower_program(
         // field (`rule:classes/lateinit`) is the one E0720 admits that no constructor is
         // obliged to fill, and dispatching on what it then holds is what
         // `delegation_forward`'s guard exists to stop.
-        let never_written = exprs.is_lateinit_property(&delegation.class, &delegation.field);
+        let never_written = exprs.read_may_find_unset(&delegation.class, &delegation.field);
         let Some(function) = delegation_forward(delegation, checked_types, never_written) else {
             continue;
         };

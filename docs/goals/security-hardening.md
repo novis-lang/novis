@@ -289,7 +289,11 @@ written.
   - [x] `parent::constructor(...)` is refused while an own required property is unassigned
   - [x] unit tests `this_used_*` and `a_subclass_assigns_its_own_properties_before_the_parent_constructor` pass
   - [x] the rule and E0409's card say it, and the four programs the sweep found are ported
-- [ ] RT-2 through the property pipeline: a constructor's write runs `onPropertySet`, a guard or a hook on `$this` while later slots are zero, and that still panics (`.agent-tmp/sec-audit/wb-runtime-memory/rt2-observer.nvs`). Refusing these accesses at compile time would refuse every observer class that assigns two properties, so it takes the standing safe default: a tagged read of a required slot in a class that implements `PropertyObserver`, `PropertyGuard` or `LateInit`, or declares a hook, and a promoted parameter's pipeline store counts too. `crates/nvs-types/src/expr_table.rs:1513`
+- [x] RT-2 through the property pipeline: a constructor's write runs `onPropertySet`, a guard or a hook on `$this` while later slots are zero, and that still panics (`.agent-tmp/sec-audit/wb-runtime-memory/rt2-observer.nvs`). Refusing these accesses at compile time would refuse every observer class that assigns two properties, so it takes the standing safe default: a tagged read of a required slot in a class that implements `PropertyObserver`, `PropertyGuard` or `LateInit`, or declares a hook, and a promoted parameter's pipeline store counts too. `crates/nvs-types/src/expr_table.rs:1513`
+  - [x] `record_pipeline_slots` in `crates/nvs-types/src/check.rs` records the armed slots per class and the guarded reads under the class and each ancestor
+  - [x] `property_defaults` in `crates/nvs-ir/src/lower/mod.rs` arms them `Unset`, and the property read and the delegation forward test them through `read_may_find_unset`
+  - [x] the repro, a promoted pair, an inherited property, a hook and a guard each throw a catchable `LogicError`
+  - [x] `rule:classes/definite-property-initialization` and `rule:classes/an-unwritten-property-read-throws` say it, with the cost
 - [ ] RT-1: `constructor` is callable only through `new` and as one `parent::constructor(...)` statement per path (`rule:classes/constructor-is-a-method-named-constructor`). `crates/nvs-types/src/expr/calls.rs:1040`
 - [ ] RT-1: a second `parent::constructor(...)` on a path does not compile. `crates/nvs-types/src/expr/assign.rs:1333`
 - [ ] RT-1: a dynamic call named `constructor` through `mixed` throws `Error`. `crates/nvs-codegen/src/emit.rs:3018`
@@ -459,33 +463,36 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 2's RT-2 checker half landed. `InitState::escape` in `crates/nvs-types/src/ctor_init.rs` refuses
-every use of `$this` other than `$this->prop` while an own required property is unassigned or an owed
-`parent::constructor(...)` has not run, and the parent call itself while an own property is
-unassigned. `t1.nvs` and `app1.nvs` no longer compile (E0409 names the first missing property). A sweep
-of every tracked `.nvs` file declaring a constructor found four programs. Three examples now assign
-before `parent::constructor(...)`, and the observer example's `.out` changed order. The Stringable
-attack's `Ping::$other` is `?Pong`. The rule and E0409's card say it. The `env-secret-proofs` red from
-the sweep passes on a rerun, and the cancelled nightly run was the push of `fdbedb805` superseding a
-dispatched run; the scheduled one was green.
+Stage 2's RT-2 is done in both halves. The checker half (`InitState::escape`,
+`crates/nvs-types/src/ctor_init.rs`) refuses an early `$this`. The pipeline half: in a class that
+implements `PropertyObserver`, `PropertyGuard` or `LateInit`, or whose chain declares a hook, every
+non-nullable property with no default starts `Unset` (promoted ones too), and a compiled read of one
+through that class or an ancestor takes `emit_never_written_guard`
+(`crates/nvs-ir/src/lower/expr.rs`). `rt2-observer.nvs` now throws a catchable `LogicError` instead of
+panicking, and so do a promoted pair, a parent property read from a child's observer, a hook and a guard.
+The table side is `ExprTypeTable::record_pipeline_slots` / `pipeline_armed` / `read_may_find_unset`,
+filled by `record_pipeline_slots` in `crates/nvs-types/src/check.rs`. Both class rules say it, with
+the cost. The sweep's `env-secret-proofs` red and the cancelled nightly were checked again this session:
+the check's log is green, and run 39746060276 was a dispatched run superseded by the `fdbedb805` push.
 
 Tests that may go red: any snapshot of E0409's card text (`nvs agent show E0409`, the website's code
-pages), and a Rust test whose inline program calls a method on `$this` or `parent::constructor(...)`
-before assigning its own properties. The sweep covered `.nvs` files only.
+pages); a Rust test whose inline program calls a method on `$this` or `parent::constructor(...)` before
+assigning its own properties; an `nvs-ir` lowering snapshot of a class with an observer, a guard,
+`LateInit` or a hook (its `new` now arms more slots, and its reads carry a `FieldIsInit` branch); and
+an observer example whose observer reads a property the constructor had not assigned yet (it now
+throws). The example run was not done here: the guard refuses a loop of `nvs run`.
 
 ### Next
 
-1. RT-2 through the property pipeline (the new item under stage 2). Repro:
-   `.agent-tmp/sec-audit/wb-runtime-memory/rt2-observer.nvs` panics in
-   `crates/nvs-runtime/src/string.rs:1010`. The expression table already marks each pipelined access
-   (`ExprInfo::Property { observer, guard }`, `ExprInfo::HookedProperty`, `PromotedPipeline` at
-   `crates/nvs-types/src/expr_table.rs:1513`). The untested slot read is `crates/nvs-codegen/src/emit.rs:4248`.
-2. Then RT-1: `infer_new` at `crates/nvs-types/src/expr/calls.rs:1017` and the method-call path
+1. RT-1: `infer_new` at `crates/nvs-types/src/expr/calls.rs:1017` and the method-call path
    for `$x->constructor(...)`, a second `parent::constructor(...)` (track it in `InitState` beside
    `parent_called`, `crates/nvs-types/src/ctor_init.rs`), and the `mixed` dynamic call at
    `crates/nvs-codegen/src/emit.rs:3018`. Repros `t5.nvs` and `t14.nvs`.
+2. Then the port item: `bun nv proofs --run --id <feature> --show` for the observer, guard, hook and
+   `LateInit` features shows any example the pipeline guard now stops.
 3. Then the attacks: a conformance reject case and a hostile case each for `app1.nvs`'s shape and for
-   the readonly rewrite.
+   the readonly rewrite, and a hostile case where an observer's `onPropertySet` reads a property the
+   constructor assigns later (it must catch the `LogicError` and go on).
 
 ### Backlog
 

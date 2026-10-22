@@ -425,6 +425,7 @@ pub(crate) fn check_stmts(
                 crate::routes::check_class_routes(decl, &qname, &ctx, env);
                 record_property_defaults(&qname, env);
                 record_lateinit_properties(&qname, env);
+                record_pipeline_slots(&qname, env);
                 record_static_properties(&qname, env);
             }
             StmtKind::InterfaceDecl(decl) => {
@@ -575,6 +576,74 @@ fn record_lateinit_properties(qname: &QName, env: &mut Env<'_>) {
     names.dedup();
     env.exprs
         .record_lateinit_properties(qname.to_string(), names);
+}
+
+/// The slots a constructor of `qname` may leave unset while code it did not
+/// write runs, which `nvs-ir` arms with the never-written marker and whose
+/// compiled reads test it (`rule:classes/definite-property-initialization`).
+///
+/// Two-phase construction keeps `$this` in the constructor until every slot
+/// is written, but a write itself runs code when the class implements
+/// `PropertyObserver`, `PropertyGuard` or `LateInit`, or any class in its
+/// chain declares a hook. That code sees `$this` with later slots still zero,
+/// and refusing it would refuse every observer that assigns two properties.
+/// So in those classes every non-nullable property with no default, a
+/// promoted parameter's included, starts unset, and a read of one throws
+/// the `LogicError` of `rule:classes/an-unwritten-property-read-throws`.
+///
+/// The guard is recorded under each class `qname` extends too, because a
+/// read typed as an ancestor may reach an object of this class. **Cost:** one
+/// tag compare and branch per compiled read of such a property, and one store
+/// per armed slot at `new`. Every other class pays nothing.
+fn record_pipeline_slots(qname: &QName, env: &mut Env<'_>) {
+    let mut chain = vec![qname.clone()];
+    while let Some(parent) = chain
+        .last()
+        .and_then(|current| env.graph.get(current))
+        .and_then(|links| links.extends.first())
+        .filter(|parent| !chain.contains(parent))
+        .cloned()
+    {
+        chain.push(parent);
+    }
+    let runs_code_on_write = [
+        nvs_hir::interfaces::PROPERTY_OBSERVER,
+        nvs_hir::interfaces::PROPERTY_GUARD,
+        nvs_hir::interfaces::LATE_INIT,
+    ]
+    .iter()
+    .any(|name| nvs_hir::hierarchy::implements_interface(qname, &QName::parse(name), env.graph))
+        || chain.iter().any(|class| {
+            env.signatures
+                .get(class)
+                .is_some_and(|sig| !sig.hooked_properties.is_empty())
+        });
+    if !runs_code_on_write {
+        return;
+    }
+    let own: Vec<Vec<String>> = chain
+        .iter()
+        .map(|class| {
+            let Some(sig) = env.signatures.get(class) else {
+                return Vec::new();
+            };
+            sig.properties
+                .iter()
+                .filter(|(name, ty)| {
+                    !env.interner.is_nullable(**ty)
+                        && !sig.lateinit_properties.contains(*name)
+                        && !sig.property_defaults.iter().any(|(d, _)| d == *name)
+                })
+                .map(|(name, _)| name.clone())
+                .collect()
+        })
+        .collect();
+    let armed = chain
+        .iter()
+        .enumerate()
+        .map(|(at, class)| (class.to_string(), own[at..].concat()))
+        .collect();
+    env.exprs.record_pipeline_slots(armed);
 }
 
 /// The same move for the class's own `static` properties — see

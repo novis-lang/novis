@@ -1491,6 +1491,8 @@ pub struct ExprTypeTable {
     property_types: FxHashMap<String, Vec<(String, TypeId)>>,
     property_keys: FxHashMap<String, Vec<(String, TypeId)>>,
     lateinit_properties: FxHashMap<String, Vec<String>>,
+    pipeline_armed: FxHashMap<String, Vec<String>>,
+    pipeline_guarded: FxHashMap<String, Vec<String>>,
     static_properties: FxHashMap<String, Vec<(String, Option<crate::defaults::ConstArg>)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
@@ -2294,6 +2296,48 @@ impl ExprTypeTable {
     #[must_use]
     pub fn is_lateinit_property(&self, label: &str, name: &str) -> bool {
         self.lateinit_properties(label).iter().any(|p| p == name)
+    }
+
+    /// Records the slots a `new` of the class labelled `label` arms with the
+    /// never-written marker, and the reads of them that test it first, for a
+    /// class whose construction runs code from a property access — see
+    /// `crate::check::record_pipeline_slots`. `armed` is `label`'s own
+    /// flattened list, and `guarded` is added to under `label` and each class
+    /// it extends, since a read may name any of them.
+    pub(crate) fn record_pipeline_slots(&mut self, armed: Vec<(String, Vec<String>)>) {
+        let Some((label, own)) = armed.first() else {
+            return;
+        };
+        let mut own = own.clone();
+        own.sort();
+        self.pipeline_armed.insert(label.clone(), own);
+        for (owner, mut names) in armed {
+            let entry = self.pipeline_guarded.entry(owner).or_default();
+            entry.append(&mut names);
+            entry.sort();
+            entry.dedup();
+        }
+    }
+
+    /// The slots a `new` of the class labelled `label` arms with the
+    /// never-written marker beside its `lateinit` ones. Flattened, so the
+    /// class's own label is the only one to ask.
+    #[must_use]
+    pub fn pipeline_armed(&self, label: &str) -> &[String] {
+        self.pipeline_armed.get(label).map_or(&[], Vec::as_slice)
+    }
+
+    /// Whether the compiled read of `$name` through the class labelled
+    /// `label` tests the slot's tag before it uses the value: a `lateinit`
+    /// property, or a slot [`Self::pipeline_armed`] may leave unset while a
+    /// constructor runs.
+    #[must_use]
+    pub fn read_may_find_unset(&self, label: &str, name: &str) -> bool {
+        self.is_lateinit_property(label, name)
+            || self
+                .pipeline_guarded
+                .get(label)
+                .is_some_and(|names| names.binary_search_by(|p| p.as_str().cmp(name)).is_ok())
     }
 
     /// The class labelled `label`'s own property defaults, in declaration

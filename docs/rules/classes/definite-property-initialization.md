@@ -27,11 +27,18 @@ captures it, and no instance method called through `parent::`, `self::` or `stat
 constructor is itself called only once the class's own properties are assigned, because it may call
 a method the class overrides. Each refusal names the first property still unassigned. This is what
 lets compiled code read a slot without testing it: no method the constructor calls can run while a
-slot is still zero, so the check never has to follow a call. The steps of
-`rule:classes/property-observer-pipeline` are not covered: a hook, a guard or an observer that an
-access runs is not checked here. What it costs is one order a
+slot is still zero, so the check never has to follow a call. What it costs is one order a
 constructor must keep, and a cycle built in a constructor (`new Pong($this)`) needs a `lateinit`
 property.
+
+The steps of `rule:classes/property-observer-pipeline` are the one place the order cannot hold: a
+write in the constructor runs a hook, a guard or an observer with `$this` while later properties are
+unassigned, and refusing that would refuse every observer that assigns two properties. So a class that
+implements `PropertyObserver`, `PropertyGuard` or `LateInit`, or whose chain declares a hook, starts
+each non-nullable property with no default unset, a promoted parameter's included, and a compiled read
+of one tests it first, through that class and every class it extends. A read before the write throws
+the `LogicError` of `rule:classes/an-unwritten-property-read-throws`. That costs one tag compare and
+branch per such read, and one store per such slot at `new`. Every other class pays nothing.
 
 A hooked property carries the obligation when its backing slot is read: by a plain read, because it
 has no `get` hook, or by a hook that names `$this->prop` other than as the target of `=`. Each `set`

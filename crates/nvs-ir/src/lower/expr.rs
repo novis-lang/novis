@@ -5458,7 +5458,7 @@ impl<'a> Lowering<'a> {
         // `rule:classes/an-unwritten-property-read-throws`'s never-written state, asked of the *declaring* class,
         // which is what the table recorded. A `get` hook answers with its own
         // body rather than with the slot, so there is nothing to guard there.
-        let never_written = get.is_none() && self.exprs.is_lateinit_property(&class_label, name);
+        let never_written = get.is_none() && self.exprs.read_may_find_unset(&class_label, name);
         // See the `MethodCall` arm above: `?->` guards the access on
         // the receiver not being `null`, `->` opens no guard.
         let mark = self.temporaries_mark();
@@ -5580,7 +5580,10 @@ impl<'a> Lowering<'a> {
     /// A `lateinit` property takes every type (`rule:classes/lateinit-restrictions`), so a zero
     /// payload is a real `0`, `false` or `null`. Only the tag byte tells the
     /// unset state apart, at one load and one compare. Only a `lateinit` read
-    /// carries the test, so every other property read stays one load.
+    /// and a read of a slot a constructor may leave unset while an observer, a
+    /// guard or a hook runs carry the test
+    /// (`nvs_types::ExprTypeTable::read_may_find_unset`), so every other
+    /// property read stays one load.
     ///
     /// **The unset branch is the erased read** ([`InstKind::SlotGet`]), so
     /// the compiled and the erased read share one runtime path.
