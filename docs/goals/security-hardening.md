@@ -461,11 +461,11 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 - [x] CSRF-1, RS-3: the door reads cookies with `Core\Session`'s reader. `crates/nvs-server/src/route.rs:315`
 - [x] CSRF-2: a program with no route table gets the Origin check (`rule:security/csrf-is-on-by-default`). `crates/nvs-server/src/route.rs:124`
 - [x] SESS-1: `Session::start` writes no row and sends no cookie until the first write (`rule:core-classes/session-is-started-explicitly`). `crates/nvs-stdlib/src/session.rs:912`
-- [ ] CRYPTO-2: signed cookies bind the name and a purpose into the associated data. `crates/nvs-stdlib/src/signed_cookie.rs:261`
+- [x] CRYPTO-2: signed cookies bind the name and a purpose into the associated data. `crates/nvs-stdlib/src/signed_cookie.rs:261`
 - [ ] CRYPTO-3: `Core\Config::get` and `::all` return a secret directive as `secret string`. `crates/nvs-stdlib/src/config.rs:192`
 - [ ] CRYPTO-6: `Core\Random\Seeded` output is refused where a key or a token goes. `crates/nvs-stdlib/src/random.rs:395`
 - [x] BBK-1's pin: a token issued for no session, sent with no cookie, is refused same-origin and cross-origin by a keyed door. It passed on main (the claim that a2b4854a4 refused it was wrong), and the attack keeps it so once CSRF-1 changes how the door reads cookies (`rule:security/csrf-is-on-by-default`). `crates/nvs-server/src/route.rs:245`
-- [ ] The attacks: a session cookie on a second line, a cookie swapped between names, and 20,000 cookieless starts that leave no rows. `tests/hostile/core/Session/start/01-identifiers-nobody-issued.nvs:1`
+- [x] The attacks: a session cookie on a second line, a cookie swapped between names, and 20,000 cookieless starts that leave no rows. `tests/hostile/core/Session/start/01-identifiers-nobody-issued.nvs:1`
 
 ### 10. a pooled database connection starts clean, and SQLite opens only what the grant names
 
@@ -556,8 +556,51 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 9 is under way. Four of its items landed this session; CRYPTO-2, CRYPTO-3, CRYPTO-6 and the
-swapped-cookie attack are left.
+Stage 9 is down to two items, CRYPTO-3's `get` half and CRYPTO-6, and each waits on a parked
+decision (d4, d5). Every other item of the stage is ticked.
+
+- **CRYPTO-2 (65240abf6).** `Core\SignedCookie::seal(string $name, string $value, $keys)` and
+  `::open(string $name, string $cookie, $keys)`: the name is a new required first parameter, and
+  the associated data is `cache::bound(COOKIE_DOMAIN = 3, b"", name)`. Cache is octet 1, session
+  secrets 2, and `Core\Crypto::seal` and `Core\Csrf` tokens seal under empty associated data, so
+  none opens as another. The application is not bound, so a deployment that moves folders keeps
+  its cookies. Every caller passes a name (benches, examples, conformance, hostile, the website
+  snippet, `examples/session.nvs`); the about pages, the cookbook page and the two cards say so.
+  The attacks: `a_cookie_opens_only_under_the_name_it_was_sealed_for` (unit, in
+  `signed_cookie.rs`), `tests/hostile/core/SignedCookie/open/02-a-cookie-under-another-name.nvs`,
+  and the rewritten `csrf-a-signed-cookie-of-the-session-is-not-a-token-under-the-same-key.nvst`
+  (a token and a `Crypto::seal` message now throw in `open`; on main the token opened). Every
+  cookie sealed before this commit stops opening. `rule:security/protocol-roster` says so and
+  declines a sealed expiry and a per-purpose derived key.
+- **CRYPTO-3, `all` half (fde9fb2dc).** `nvs_config::Request::all` renders `<secret>` for every
+  key `nvs_config::secret::is_secret_key` names (a `SECRETS` row's value key, `*` one segment),
+  whether a file or the tree set it. `REDACTED` moved from `audit.rs` to `secret.rs`. The attack
+  is `tests/conformance/core/password-file-is-read-under-run.nvst`, which pinned the leak
+  (`all= s3cr3t`) and now expects `<secret>` for a file and an inline password; red on main.
+  `all`'s card and `rule:config/a-secret-is-a-file-whose-content-is-the-value` say so.
+- **CRYPTO-3, `get` half: parked as d4.** `get` returns `?string`, and secrecy is an erased static
+  qualifier, so typing it `?secret string` for a secret directive needs a literal-name hook in the
+  checker. The intrinsic roster (`crates/nvs-types/src/intrinsics.rs`) validates literals and never
+  changes a return type. Recommended: option 1, that hook.
+- **CRYPTO-6: parked as d5.** `Seeded::bytes`/`::token` return plain `bytes`/`string`, which widen
+  onto `secret`. Recommended: option 1, return them `tainted` and have every key parameter refuse
+  `tainted` (not checked whether key parameters accept `tainted` today).
+- The sweep's `env-secret-proofs` red is the 00:07 log again; `bun nv proofs --gate --only
+  'Core\Env::secret'` exits 0 on this tree.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+  Run by name: the five `signed_cookie` unit tests, `a_secret_key_is_a_rows_value_half_with_one_segment_for_its_star`,
+  the nine signed-cookie conformance cases, the two secret config cases, and
+  `bun nv proofs --run` for both `Core\SignedCookie` members (examples, attacks and benches).
+
+Tests that may go red from this session: the help snapshots and the website's `core.json` /
+`llms-full.txt` for `Core\SignedCookie::seal`/`::open` (new `$name` parameter) and
+`Core\Config::all` (card); the `perf: stale` proofs of both `Core\SignedCookie` members
+(`bun nv proofs --record-perf --group '<group>'` re-records); any `.nvs`, `.nvst` or page outside
+the files grepped that calls `SignedCookie::seal`/`open` with two arguments (a `git grep` found
+none left); any test that reads a secret's value through `Core\Config::all` (none found); the
+website's rule pages for `protocol-roster` and the secret rule.
+
+The session before:
 
 - **CSRF-1/RS-3 and BBK-1 (0de803e8b).** `nvs_runtime::Inbound::cookie(name)` is the one cookie
   reader (every `Cookie` line, pair by pair, the `__Host-`/`__Secure-` rule). It moved out of
@@ -728,23 +771,19 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 9's rest, attack first each time:
+CRYPTO-3's `get` half and CRYPTO-6 wait on d4 and d5. While they are parked, stage 10 is
+independent of both, and the next session takes it:
 
-1. CRYPTO-2 (`crates/nvs-stdlib/src/signed_cookie.rs:261`): the cookie's name and a purpose string
-   go into the associated data, so a value sealed for one cookie, a CSRF token or
-   `Core\Crypto::seal` does not open as another. Its attack is the stage's "cookie swapped between
-   names" (`tests/hostile/core/SignedCookie/`). Expiry inside the seal stays declined. Read
-   `.agent-tmp/sec-audit/reports/wb-stdlib-request.md`'s CRYPTO-2 first: how the name reaches
-   `seal`/`open` decides whether the signature changes, which would be a `Core` change.
-2. CRYPTO-3 (`crates/nvs-stdlib/src/config.rs:192`): `Core\Config::get`/`::all` return a secret
-   directive as `secret string`, and `all` renders `<secret>`. The card and help change.
-3. CRYPTO-6 (`crates/nvs-stdlib/src/random.rs:395`): `Core\Random\Seeded` output is refused where
-   a key or a token goes.
-
-Then tick the stage's last item (the attacks) and set stage 9 done.
-
-Each fix changes no syntax and adds no `Core` member. CRYPTO-3 changes the return type of
-`Core\Config::get`/`::all` for a secret directive, so its card and help change.
+1. Stage 10 (`crates/nvs-db`): Postgres's reset batch gains `SET SESSION AUTHORIZATION DEFAULT`
+   and `RESET ROLE`; SQLite gets an authorizer refusing `ATTACH`/`DETACH`, a reset that drops the
+   `temp` schema's objects and reapplies the opening pragmas, and a `file:` URI in `path` refused
+   at load. The SQL Server neighbour rule and `quoteIdentifier`'s help change as the standing
+   decision says. Attack first each time.
+2. Once d4 is answered: CRYPTO-3's `get` (`crates/nvs-stdlib/src/config.rs:192`, the checker's
+   call typing beside `crates/nvs-types/src/intrinsics.rs:549`), with a conformance case that a
+   `echo Core\Config::get('db.main.password')` does not compile. Once d5 is answered: CRYPTO-6
+   (`crates/nvs-stdlib/src/random.rs:395`, `crates/nvs-stdlib/src/keyring.rs:67`). Then set stage
+   9 done.
 
 ### Backlog
 
