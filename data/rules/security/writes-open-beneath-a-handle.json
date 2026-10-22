@@ -1,5 +1,5 @@
 {
-  "title": "A read or a write opens its resolved path one level at a time from the root, following no link, so the grant it checked is the path it opens",
+  "title": "A read, a write, a removal, a stat or a listing walks its resolved path one level at a time from the root, following no link, so the grant it checked is the path it acts on",
   "status": "shipped",
   "seeAlso": [
     "security/path-scope-canonicalise-then-prefix",
