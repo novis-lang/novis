@@ -46,7 +46,7 @@ stages:
     context: [crates/nvs-db/src/pg.rs, crates/nvs-db/src/sqlite.rs, crates/nvs-stdlib/src/db/open.rs, crates/nvs-db/src/tds/rows.rs, docs/rules/security/db-pool-reset-is-a-boundary.md]
   - id: 11
     title: a Windows path is refused by its text before the file system sees it
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/capability.rs, crates/nvs-stdlib/src/io.rs, docs/rules/security/path-scope-canonicalise-then-prefix.md, docs/rules/security/writes-open-beneath-a-handle.md]
   - id: 12
     title: "development serving answers only loopback and serves no project file, and the HTTP front's small gaps are closed"
@@ -498,7 +498,7 @@ operations open beneath a handle.
 - [x] SINK-1, SINK-3: the textual refusal runs before `canonicalize` (`rule:security/path-scope-canonicalise-then-prefix`). `crates/nvs-runtime/src/capability.rs:1159`
 - [x] SINK-3: `Core\IO::within` returns no alias. `crates/nvs-stdlib/src/io.rs:3688`
 - [x] EXT-10's names: the WASI filesystem's `refused_name` refuses the same Windows text, DOS device names (`CON`, `NUL`, `COM1`, `LPT1`, with or without an extension) among it. `crates/nvs-ext/src/wasi/files.rs:253`
-- [ ] CVE-2: `remove_file`, `remove_dir`, `read_dir`, `metadata` and `exists` open beneath a handle (`rule:security/writes-open-beneath-a-handle`), and so do the WASI layer's `unlink-file-at`, `remove-directory-at`, `stat-at` and `read-directory`, through a `Budget` method each beside `open_file`. `crates/nvs-runtime/src/capability.rs:950`
+- [x] CVE-2: `remove_file`, `remove_dir`, `read_dir`, `metadata` and `exists` open beneath a handle (`rule:security/writes-open-beneath-a-handle`), and so do the WASI layer's `unlink-file-at`, `remove-directory-at`, `stat-at` and `read-directory`, through a `Budget` method each beside `open_file`. `crates/nvs-runtime/src/capability.rs:950`
 - [x] The attacks: a UNC, `\\?\`, `\\.\` and 8.3 path through `within`, refused with no network attempt; a Rust test that times the refusal. `tests/hostile/core/IO/within/01-names-built-to-escape.nvs:1`
 
 ### 12. development serving answers only loopback and serves no project file, and the HTTP front's small gaps are closed
@@ -568,7 +568,52 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 11 is open with CVE-2 its one item left. Stages 12, 13 and 15 follow, then the gate stage 14.
+Stage 11 is done. Stages 12, 13 and 15 are open, then the gate stage 14.
+
+- **CVE-2, runtime half (95017e2d3).** `beneath.rs` has `remove_file`, `remove_dir`, `metadata`,
+  `entry_metadata` and `list` (returns `Vec<Entry { name, kind: Kind }>`). Unix: `unlinkat`; the
+  entry opened `O_PATH|O_NOFOLLOW` (Linux) or `O_EVTONLY|O_SYMLINK` (macOS) and `fstat`ed;
+  `fdopendir` on `.` beneath the walked folder, `d_type` with an `fstatat` fallback. Windows: the
+  name opened `DELETE` beneath the folder and a `FileDispositionInfoEx` (POSIX) disposition, plain
+  `FileDispositionInfo` on FAT; metadata from the entry's `FILE_OPEN_REPARSE_POINT` handle; a
+  listing reopens the folder by an empty name for `FILE_LIST_DIRECTORY` and reads
+  `FileFullDirectoryInfo`, opening a reparse entry once more for its tag. `metadata` returns
+  `NotFound` for a link at the last name (it led nowhere at resolve, or was planted), so `exists`
+  is `false` for a dangling link as before. `capability::metadata`, `metadata_if_present`,
+  `exists` and `read_dir` now use `resolve`; `remove_file`/`remove_dir` use `resolve_name` (a link
+  at the name is removed, and its grant is checked on the entry, not its target). `resolve` and
+  `resolve_name` now call `alias_refusal`, which the open doors skipped before. `read_dir` returns
+  the whole `Vec<Entry>`; `Core\IO::list`, `::walk` and `Core\Storage::list` read `entry.kind`.
+  The attack `a_removal_a_stat_and_a_listing_never_follow_a_planted_link` and
+  `removes_reads_and_lists_what_is_there` pass on Windows with all 10 `beneath::tests`.
+  **The Unix half was not compiled** (the guard refuses a cross-target `-p` check, and the
+  whole tree cannot cross-build here). CI's Linux and macOS legs are its first build.
+- **CVE-2, WASI half (a00da75b3).** `Budget` has `remove_file`, `remove_dir`,
+  `metadata(path, follow)` and `read_dir` (returns `Vec<Listed { name, kind: ListedKind }>`), each
+  defaulting to the by-name call. `files.rs` calls them for `unlink-file-at`,
+  `remove-directory-at`, `stat-at`, a directory's `stat`/`get-type`/`metadata-hash`,
+  `metadata-hash-at` and `read-directory`. `Spent` fills them from `guest_files`. The guest in
+  `crates/nvs-ext/tests/files.rs` gained `unlink`, `rmdir`, `stat` and `listing` exports, and
+  `a_guest_opens_every_file_through_the_hosts_walk` checks all four refused by a walled host and
+  run by an open one. It passes.
+- `rule:security/writes-open-beneath-a-handle` names the new doors, its title changed, and its cost
+  and memory lines say a listing is read whole.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings` (Windows), `bun nv rules --render` and
+  `--check` are green.
+- The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0, `nothing owed`), and the
+  nightly run 39746060276 is the cancelled `workflow_dispatch`. Neither is the tree's.
+
+Tests that may go red from CVE-2: the Linux or macOS build itself (the Unix `list`, `stat_at`,
+`remove_at`, `clear_errno` and `ENTRY_FLAGS` in `beneath.rs` were never compiled); any `.nvs`,
+`.nvst` or Rust test that removes a link whose target is outside the grant and expects a refusal
+(it is now removed), that expects `Core\IO::exists`, `isFile`, `isDir`, `size` or `list` on a
+path with `..` past a missing folder to answer (it now throws `IOError`), or that hands a stat,
+removal or listing door a Windows alias; `Core\IO::walk` over a tree with a folder link (the kind
+is read without following, as before); the website's rule page for `writes-open-beneath-a-handle`
+(title changed); the `perf: stale` proofs of `Core\IO::list`, `::walk`, `::exists`, `::size`,
+`::remove`, `::removeDir` and `Core\Storage::list`.
+
+The session before (SINK-1, SINK-3, EXT-10's names):
 
 - **SINK-1, SINK-3 (fb186cf9e).** `nvs_config::capability::windows_alias(text)` judges a path by
   its text, on every platform: two separators first (`\\`, `//`, `\\?\`, `\\.\`), a `:` after the
@@ -937,24 +982,27 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 11's last item, CVE-2, one session. Each attack comes first. The group shares
-`crates/nvs-runtime/src/beneath.rs`, `crates/nvs-runtime/src/capability.rs` and
-`crates/nvs-ext/src/call.rs`:
+Stage 12, development serving first. The group shares `crates/nvs-server/src/mount.rs` and
+`crates/nvs-server/src/statics.rs`. Each attack comes first, as Rust tests beside `mount.rs`
+(`crates/nvs-server/src/mount.rs:1586`):
 
-1. The runtime half: `remove_file` and `remove_dir` (`crates/nvs-runtime/src/capability.rs:1214`,
-   `:1232`), `read_dir` (`:1197`), `metadata` and `exists` resolve once and act beneath a handle,
-   as `open_with` and `rename` in `beneath.rs` do: open the folder above with the walk, then
-   `unlinkat`/`fstatat(AT_SYMLINK_NOFOLLOW)`/`fdopendir` on Unix, and on Windows the
-   `NtCreateFile` level with `FILE_DELETE_ON_CLOSE` or a handle query. The attack is a Rust test
-   beside `a_planted_link_is_never_followed` that swaps a folder for a link between the check and
-   the act.
-2. The WASI half: `unlink-file-at`, `remove-directory-at`, `stat-at` and `read-directory` in
-   `crates/nvs-ext/src/wasi/files.rs` go through a `Budget` method each, defaulting to the by-name
-   call, and `Spent` in `crates/nvs-cli/src/extensions.rs` fills them from `guest_files`, as
-   EXT-10 did for `open_file`. The attack extends `a_guest_opens_every_file_through_the_hosts_walk`
-   in `crates/nvs-ext/tests/files.rs`.
-3. `rule:security/writes-open-beneath-a-handle` names the new doors. Then stage 11 is done; stage
-   12's first item (development serving) is next.
+0. Before touching static serving, the backlog's unchecked `Response::sendFile("assets/logo.svg")`
+   `500`: serve the copy under `.agent-tmp/sec-audit/bb-kitchen/app` as its `serve.log` shows and
+   fetch `/logo`. CVE-2 changed `capability::metadata`, which `sendFile` reads
+   (`crates/nvs-stdlib/src/response.rs:2003`), so check it on this tree.
+1. RS-1: static serving skips dot-files, `nvs.toml`, `*.nvst` and the `[db]` files, in every mode
+   (`crates/nvs-server/src/mount.rs:571`, `rule:http-server/static-serving-is-one-policy`). The
+   attack is `GET /nvs.toml`, `/.env` and `/data.sqlite` in development mode.
+2. RS-2: a loopback development server answers only a `localhost`, loopback or
+   `[[server.mount]]`-listed `Host` (`crates/nvs-server/src/mount.rs:307`). The attack is a
+   rebinding `Host`.
+3. RS-4, RS-6, RS-7: the case rule through a link, a strict `Range` parse, and
+   `Content-Security-Policy: sandbox` on static `.svg` and `.html`
+   (`crates/nvs-server/src/statics.rs:239`).
+4. RS-5: the hard-link Declined entry in `docs/rules/http-server/static-serving-is-one-policy.md`.
+
+HTTP-2, HTTP-4/APP-3, APP-2 and HTTP-5 (`body.rs`, `forwarded.rs`, `request.rs`, `router.rs`)
+are the session after.
 
 ### Backlog
 
