@@ -34,8 +34,8 @@ class Article extends Record {
     public int $words;
 
     public function constructor(int $id, string $title, int $words) {
-        parent::constructor($id, $title);
         $this->words = $words;
+        parent::constructor($id, $title);
     }
 }
 

@@ -21,8 +21,8 @@ final class LoginFailed extends AuditEntry {
     public string $user;
 
     public function constructor(string $user) {
-        parent::constructor("login failed");
         $this->user = $user;
+        parent::constructor("login failed");
     }
 
     public function toString(): string {

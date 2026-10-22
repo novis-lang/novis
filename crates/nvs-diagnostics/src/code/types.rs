@@ -64,10 +64,12 @@ codes! {
     /// A non-nullable, no-default property a class declares (itself, or
     /// through a used trait) is not definitely assigned on some path out of
     /// its constructor — or the class has no constructor at all to assign
-    /// it; see `rule:classes/definite-property-initialization`.
+    /// it, or the constructor lets `$this` escape before it is assigned; see
+    /// `rule:classes/definite-property-initialization`.
     pub const E_UNINITIALIZED_PROPERTY: Code = Code::new("E0409").card(
         "A property with no default value and no `?` in its type is not assigned on every path \
-         through the constructor. Assign it on every path, or give it a default value.",
+         through the constructor. The constructor must also assign it before it uses `$this` or \
+         calls `parent::constructor(...)`. Assign it earlier, or give it a default value.",
     );
     /// A subclass constructor has a path that never calls
     /// `parent::constructor(...)`, so the properties it inherits are never
