@@ -83,9 +83,9 @@
 # a body has more parts, the call that reads the form throws an error
 # (`rule:errors/multipart-part-count`).
 #max_multipart_parts = 1000           # default
-# `Runtime` — concurrent tasks, named to a request like the ones above. No scheduler or budget reads
-# it yet, so writing it bounds nothing today (`rule:security/isolate-budget-is-the-trees` is what it
-# is for).
+# `Runtime` — how many child scripts one request may have running at once. The request itself does
+# not count. A spawn past this number stops the request with a limit error
+# (`rule:security/isolate-budget-is-the-trees`).
 #max_tasks = 16                       # default: no cap
 # `Runtime` — how many backtracking steps the regex engine may spend on one subject before it throws
 # (`rule:core-classes/regex-two-tiers`). The linear tier runs under none, so this bounds only the
