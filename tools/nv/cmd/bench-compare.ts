@@ -3,6 +3,7 @@
 //     bun nv bench-compare --smoke                               # every peer and case, a few hundred requests
 //     bun nv bench-compare --scenarios --smoke                   # every feature row against every peer
 //     bun nv bench-compare --scenarios --smoke --row config      # one row
+//     bun nv bench-compare --scenarios --row loop --expect nvs=on-by-default   # exits 1 on another result
 //     bun nv bench-compare --record benches/compare.json         # the fair arm, recorded
 //     bun nv bench-compare --scenarios --record benches/compare.json   # the feature rows, into that record
 //     bun nv bench-compare --arm deployed --record PATH          # four cpus to each backend
@@ -296,6 +297,9 @@ export function agreement(c: Case, answers: Map<string, Answer[]>): Disagreement
  * starts with, one setting away, code the developer writes, or absent.
  */
 export type Verdict = "built-in" | "on-by-default" | "one-setting" | "your-code" | "no";
+
+/** Every `Verdict`, in the page's order. */
+export const VERDICTS: readonly Verdict[] = ["built-in", "on-by-default", "one-setting", "your-code", "no"];
 
 /** One peer's result in one row, with the measured evidence beside it. */
 export interface RowResult {
@@ -1720,7 +1724,8 @@ async function composeAsync(stack: string, args: string[], env: Record<string, s
 
 const USAGE =
   "usage: nv bench-compare [-h] [--smoke] [--scenarios] [--arm {fair,deployed}] [--backend-cpus N]\n" +
-  "                        [--row ID] [--requests REQUESTS] [--reps REPS] [--record PATH] [--down]";
+  "                        [--row ID] [--expect PEER=RESULT,...] [--requests REQUESTS] [--reps REPS]\n" +
+  "                        [--record PATH] [--down]";
 
 interface Options {
   smoke: boolean;
@@ -1732,10 +1737,37 @@ interface Options {
   record: string | null;
   down: boolean;
   row: string | null;
+  expect: Map<string, Verdict> | null;
+}
+
+/** `--expect nvs=on-by-default,php=no`: the result each named peer must get in every row run. */
+export function parseExpect(word: string): Map<string, Verdict> {
+  const expect = new Map<string, Verdict>();
+  for (const pair of word.split(",")) {
+    const [peer, result, ...rest] = pair.split("=");
+    if (peer === undefined || result === undefined || rest.length > 0 || peer === "") throw new ArgError(`argument --expect: ${pyRepr(pair)} is not PEER=RESULT`);
+    if (!PEERS.some((p) => p.id === peer)) throw new ArgError(`argument --expect: no peer ${pyRepr(peer)} (choose from ${PEERS.map((p) => `'${p.id}'`).join(", ")})`);
+    if (!(VERDICTS as readonly string[]).includes(result)) throw new ArgError(`argument --expect: invalid result: ${pyRepr(result)} (choose from ${VERDICTS.map((v) => `'${v}'`).join(", ")})`);
+    if (expect.has(peer)) throw new ArgError(`argument --expect: peer ${pyRepr(peer)} is named twice`);
+    expect.set(peer, result as Verdict);
+  }
+  return expect;
+}
+
+/** One line for each row whose result for an expected peer is not the expected one, in row order. */
+export function unmetExpectations(expect: Map<string, Verdict>, results: Map<string, Map<string, RowResult>>): string[] {
+  const lines: string[] = [];
+  for (const [row, byPeer] of results) {
+    for (const [peer, want] of expect) {
+      const got = byPeer.get(peer)?.result;
+      if (got !== want) lines.push(`${row}: ${peer} is ${got ?? "missing"}, want ${want}`);
+    }
+  }
+  return lines;
 }
 
 function options(args: string[]): Options | null {
-  const p = parseArgs(args, { flags: ["--smoke", "--scenarios", "--down"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row"] });
+  const p = parseArgs(args, { flags: ["--smoke", "--scenarios", "--down"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--expect"] });
   if (p.flags.has("--help")) return null;
   const int = (o: string): number | null => {
     const word = p.values.get(o);
@@ -1746,6 +1778,8 @@ function options(args: string[]): Options | null {
   };
   const arm = p.values.get("--arm") ?? "fair";
   if (arm !== "fair" && arm !== "deployed") throw new ArgError(`argument --arm: invalid choice: ${pyRepr(arm)} (choose from 'fair', 'deployed')`);
+  const expect = p.values.get("--expect");
+  if (expect !== undefined && !p.flags.has("--scenarios")) throw new ArgError("argument --expect: only with --scenarios");
   return {
     smoke: p.flags.has("--smoke"),
     scenarios: p.flags.has("--scenarios"),
@@ -1756,6 +1790,7 @@ function options(args: string[]): Options | null {
     record: p.values.get("--record") ?? null,
     down: p.flags.has("--down"),
     row: p.values.get("--row") ?? null,
+    expect: expect === undefined ? null : parseExpect(expect),
   };
 }
 
@@ -1781,6 +1816,9 @@ function help(): string {
     "  --record PATH         write this run to PATH as one JSON object. A case run keeps the scenarios",
     "                        already recorded there",
     "  --row ID              with --scenarios, run only the row ID",
+    "  --expect PEER=RESULT,...",
+    "                        with --scenarios, exit 1 when a row's result for PEER is not RESULT",
+    "                        (built-in, on-by-default, one-setting, your-code or no)",
     "  --down                tear every peer's stack down and stop",
     "",
     "benches/compare/README.md is the design; this tool is only how it is run. It needs bun and Docker.",
@@ -1835,10 +1873,14 @@ async function scenarios(o: Options, cpus: number, commit: string, load: Load): 
       console.log(`    ${peer.label.padEnd(6)} ${evidence.join(", ")}`);
     }
   }
-  if (o.record === null || prior === null) return 0;
-  writeRecord(resolve(o.record), withScenarios(prior, buildScenarios(stamp(), commit, results)));
-  console.log(`  recorded the rows to ${o.record}`);
-  return 0;
+  if (o.record !== null && prior !== null) {
+    writeRecord(resolve(o.record), withScenarios(prior, buildScenarios(stamp(), commit, results)));
+    console.log(`  recorded the rows to ${o.record}`);
+  }
+  if (o.expect === null) return 0;
+  const unmet = unmetExpectations(o.expect, results);
+  for (const line of unmet) console.error(`nv bench-compare: unexpected result: ${line}`);
+  return unmet.length === 0 ? 0 : 1;
 }
 
 const mib = (bytes: number | null) => (bytes === null ? "    -" : fixed(bytes / 1048576, 1).padStart(6));
