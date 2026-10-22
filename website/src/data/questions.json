@@ -287,7 +287,7 @@
   },
   "/guides/production/": {
     "feature": "guides/production/index.mdx",
-    "hash": "7587382507e2a441",
+    "hash": "cc396afcfd2b971c",
     "questions": [
       "How do I deploy a Novis application to production?",
       "Host a Novis web app on my own server",
@@ -321,13 +321,13 @@
   },
   "/guides/production/reverse-proxy/": {
     "feature": "guides/production/reverse-proxy.mdx",
-    "hash": "2fbfb062429a539c",
+    "hash": "114a6af5d52af9b5",
     "questions": [
       "How do I run Novis behind nginx with HTTPS?",
-      "Why does my program see the proxy address and not the client?",
+      "Example Caddy configuration for a Novis server",
+      "Does Novis support HTTP/2 or HTTP/3?",
       "Get the real client IP address behind a proxy",
-      "Example nginx configuration for a Novis server",
-      "What status does the health check return while the server stops?",
+      "Production nginx configuration with static files and a rate limit",
       "Listen on a Unix socket so only the proxy can connect"
     ]
   },
