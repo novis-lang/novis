@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/jwe.rs, crates/nvs-runtime/src/string.rs, tools/nv/cmd/lints.ts, docs/rules/types/string-is-utf8.md]
   - id: 4
     title: "one test walks every Core signature for a lost mark, and `Core\\Arr` and `Core\\Str` keep it"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/src/str.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/expr/args.rs, docs/rules/security/taint-propagation.md, docs/rules/security/launderers-are-sink-named.md]
   - id: 5
     title: "signed cookies, streams, database rows and extension calls keep the mark"
@@ -347,7 +347,7 @@ carry the mark.
 - [x] DB-1: `Core\Str::format`'s `%s` arguments make the result tainted. `crates/nvs-stdlib/src/str.rs:632`
 - [x] TAINT-1, DB-3: `keys`, `firstKey`, `lastKey`, `keyOf`, `findKey` and the key in a `map` callback keep the mark. `crates/nvs-stdlib/src/arr.rs:304`
 - [x] REQ-1: `Core\Arr::shapeAs<T>` fills a field from a tainted value only if the field is `tainted`. `crates/nvs-types/src/expr/quals.rs:@converts_outside_text`
-- [ ] TAINT-5: each Low item in the sinks report that the keystone test names. `.agent-tmp/sec-audit/reports/wb-sinks.md:191`
+- [x] TAINT-5: each Low item in the sinks report that the keystone test names. It names none, since none is a signature that drops a mark, and stage 13 owns each one. `.agent-tmp/sec-audit/reports/wb-sinks.md:191`
 - [x] The attacks: `sprintf`-style and key-name SQL injection do not compile. `tests/conformance/reject/every-sink-a-marked-value-can-reach-refuses-it.nvst:23`
 
 ### 5. signed cookies, streams, database rows and extension calls keep the mark
@@ -460,6 +460,14 @@ into its rule.
 - [ ] HTML-2's cases join the sanitizer's tests: the four forms are dropped, and `/path`, `?q` and `#frag` are kept. `crates/nvs-stdlib/src/html.rs:1847`
 - [ ] Raise `wasmtime` and `cranelift`'s minimums to the fixed releases in the lock file. `Cargo.toml:98`
 - [ ] Run the HTML-escaping probes the audit never reported on, and fix or record each result here — run, recorded as HTML-1 (stage 5) and HTML-2 above. `.agent-tmp/sec-audit/wb-stdlib-request/html/app.nvs:1`
+- [ ] TAINT-5: `$m[$t] = …` with a tainted key makes the keys of `$m` tainted, as `keys_from_outside` reads them at a `foreach`. `crates/nvs-types/src/expr/assign.rs:1062`
+- [ ] TAINT-5: `Core\Response::redirect` refuses a relative target that names another host (`//x`, `/\x`, `\/x`), so a launderer's plain answer cannot open a redirect. `crates/nvs-stdlib/src/response.rs:1473`
+- [ ] TAINT-5: the regex replacement template is a sink and refuses `tainted` (`rule:security/every-grammar-is-a-sink`). `crates/nvs-stdlib/src/regex.rs:171`
+- [ ] TAINT-5: `Core\Xml`'s writer `instruction` refuses a tainted target and data. `crates/nvs-stdlib/src/xml.rs:760`
+- [ ] TAINT-5: `setHeader` refuses `Content-Length`, `Transfer-Encoding`, `Connection` and `Upgrade` as it refuses `Content-Type`; probe what hyper sends first. `crates/nvs-stdlib/src/response.rs:433`
+- [ ] TAINT-5: `Core\Mail` writes `To:` and `Cc:` in angle brackets, `address_of` refuses `( " : ; %`, and a long subject is folded. `crates/nvs-stdlib/src/mail.rs:453`
+- [ ] TAINT-5: `Core\Db::quoteIdentifier` refuses the niladic SQL names (`current_user`, `session_user`, `user`, …). `crates/nvs-db/src/schema.rs:93`
+- [ ] TAINT-5: file and `Core\Storage` reads are written into `rule:security/tainted-sources`, as tainted or declined with the reason. Safe default: `Core\Storage` reads are tainted, and a file the program ships is declined. `crates/nvs-stdlib/src/storage.rs:202`
 - [ ] Delete `.agent-tmp/sec-audit/`. `.agent-tmp/sec-audit/BRIEF.md:1`
 
 ### 15. `nvs serve` and every reload check who owns the configuration, and a read-only mount passes
@@ -491,65 +499,65 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 4 is four items in. The keystone test exists and is green, and the members it named keep the
-mark.
+Stage 4 is done. Stage 5 is next, and nothing of it is started.
 
-- `crates/nvs-stdlib/tests/taint_signatures.rs` walks every `CLASSES` row. It fails naming a member
-  that answers a plain `string`/`bytes`, or hands its callback one, while a parameter is an array,
-  `mixed`, `object`, a variable or a variadic of them that the row does not classify. Contagious
-  parameters are left alone, because the checker already carries them. `ALLOWED` holds nine rows: the
-  four encoders (`Json::encode`, `Serialize::encode`, `Str::format`, `Bytes::pack`) and five launderers
-  (`Uri::buildQuery`, `Router::url`/`urlAbsolute`/`urlSigned`, `Jwt::signObject`). Both tests ran
-  once, green.
-- New `CoreTy::Key` (`crates/nvs-stdlib/src/registry.rs`, beside `Var`) is an array key. It interns as
-  the type variable `registry::KEY_VAR`, and `check_generic_args` (`crates/nvs-types/src/expr/args.rs`)
-  binds it before any callback: `tainted string` when an argument passes `keys_from_outside`, else
-  `string`. `keys`, `firstKey`, `lastKey`, `keyOf`, `findKey` and every `Core\Arr` and `Core\Task::map`
-  callback key use it.
-- `encodes_outside_text` (`crates/nvs-types/src/expr/quals.rs`) now covers `Core\Str::format` and
-  `Core\Bytes::pack`, reading every argument after the template.
-- Attacks: `tests/hostile/core/Str/format/02-…`, `Arr/keys/02-…`, `Arr/map/02-…`. Each was refused on
-  the debug binary for the taint at the query and nothing else. The conformance case
-  `tests/conformance/reject/an-array-key-or-a-formatted-value-from-outside-keeps-its-mark.nvst` was
-  checked by hand against the debug binary (8 errors, own keys plain), and was not run by its runner.
-- `rule:security/taint-propagation` and `rule:security/jws-issued-subset` say so. `cargo build`,
-  `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+- REQ-1 landed (722d76597). `converts_outside_text` (`crates/nvs-types/src/expr/quals.rs`) reads
+  `Core\Arr::shapeAs`'s first argument the way `encodes_outside_text` reads an encoder's: an array
+  type with `tainted` or `mixed` anywhere, or a literal holding such a value. `written_class_of`
+  (`crates/nvs-types/src/expr/args.rs`) takes that answer as `subject_outside` and ORs it with
+  `reads_a_peers_octets`, so a shape target gets `check_shape_decode_site` and a class target records
+  a `DecodeSite`. A literal element that is a call counts as outside text (`element_outside_text`).
+- E0810's message now reads "… and `X` fills it with text from outside the program". Five
+  `tests/conformance/reject/*.nvst` cases that expected the old wording were updated.
+- Attack `tests/hostile/core/Arr/shapeAs/02-…` compiled before the fix and is refused after it.
+  `tests/conformance/reject/shape-as-over-outside-text-fills-only-tainted-fields.nvst` ran once by
+  name, green. Every `.nvs`/`.nvst` calling `Arr::shapeAs<` was checked on the debug binary. Three
+  needed a change: `benches/members/core/Arr/shapeAs.nvs` (field `tainted`),
+  `benches/members/core/Jwt/verifyIssued.scale.nvs` (the `repeat` call bound to a variable first) and
+  `docs/examples/lang/errors/properties-not-accessors/02-…` (`array<string>`, and its copy in
+  `docs/reference/lang/70-errors.md`).
+- `rule:security/derived-codec-qualifiers` says which call sites decide by owner and which by
+  argument. The `shapeAs` card and `docs/reference/core/Arr.md` say a field filled from outside
+  text is `tainted`.
+- TAINT-5 is ticked: the keystone test names none of its items. Stage 13 now has one item for each.
+  TAINT-4 was already stage 5's.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --check` and
+  `bun nv proofs --comments` on the touched `.nvs` files are green.
 
 The sweep's `env-secret-proofs` red was stale again: its log shows exit 0. Nightly run 39746060276 was
 cancelled whole and is not a failure of this tree.
 
-Tests that may go red: any `.nvs` in examples, apps, the website or tests that passes a request array
-(`queryArray`, `postArray`, `headers()`, a decoded `array<mixed>`) to `Core\Arr::keys`/`firstKey`/…
-into a plain `string`, or to `map`/`filter`/`reduce`/`find`/`any`/`all`/`groupBy`/`mapKeys` with a
-callback written `string $k`. Also anything binding `Core\Str::format` or `Core\Bytes::pack` over a
-tainted or `mixed` argument to a plain type. An `nvs meta` or stub snapshot does not change, since
-`Key` prints as `string`. From stage 3: a test that captures `Core\Response::bytes` output that is
-not UTF-8, a `Core\Test` route test answering such bytes, a session or cache test sealing them, and a
-page listing the errors of `Core\Csv::rows`, `Core\Jwe::decrypt` or `Core\Out::capture`. From stage 2:
-an `nvs-ir` lowering snapshot of a class with an observer, a guard, `LateInit` or a hook, and a page
-listing every diagnostic code (`E0885`).
+Tests that may go red: a help or reference-card snapshot of `Core\Arr::shapeAs` (its `a` parameter
+text changed); any test or page matching E0810's old text "answers a peer's octets"; a `.nvs` in
+`apps/` or `website/` that reads a `mixed` or request array through `shapeAs` into a plain
+`string` (none found by `git grep`). From stage 4's first half: any `.nvs` that passes a request
+array to `Core\Arr::keys`/`firstKey`/… into a plain `string`, or to a callback written
+`string $k`, and anything binding `Core\Str::format` or `Core\Bytes::pack` over a tainted or
+`mixed` argument to a plain type. From stage 3: a test that captures `Core\Response::bytes` output
+that is not UTF-8, a `Core\Test` route test answering such bytes, a session or cache test sealing
+them, and a page listing the errors of `Core\Csv::rows`, `Core\Jwe::decrypt` or
+`Core\Out::capture`. From stage 2: an `nvs-ir` lowering snapshot of a class with an observer, a
+guard, `LateInit` or a hook, and a page listing every diagnostic code (`E0885`).
 
 ### Next
 
-1. REQ-1: `Core\Arr::shapeAs<T>` fills a field from a tainted value only if the field is `tainted`.
-   The inline-shape branch is `crates/nvs-types/src/expr/args.rs:1964`, and `check_shape_field`
-   (`args.rs:827`) is the field check. Write the attack first (`tests/hostile/core/Arr/shapeAs/`).
-2. TAINT-5 (`.agent-tmp/sec-audit/reports/wb-sinks.md:191`): the keystone test names none of its Low
-   items, because none is a signature that drops a mark. Tick the item with that note. Then confirm
-   stage 13's leftovers owns the rest (a tainted key written into a clean array, `redirect`'s
-   same-origin check, the regex replacement template, file and `Core\Storage` reads, the XML
-   processing instruction, `setHeader`, mail headers, `quoteIdentifier`'s niladic names). Add an
-   item there for any it does not own.
-3. Then stage 5 (`crates/nvs-types/src/derive.rs:1466`), which shares `derive.rs` with REQ-1.
+1. REQ-2, DB-2 (stage 5): a text column fills only a `tainted string` property. Put
+   `hydrates_a_row`'s owners through the qualifier question: `check_row_sites`
+   (`crates/nvs-types/src/derive.rs:1324`) next to `check_decode_sites` (`derive.rs:1718`), and the
+   inline-shape branch of `written_class_of` (`args.rs`, `if outside {`). Remove "a `Core\Db`
+   row is not a taint source" from `reads_a_peers_octets`' doc. Repros:
+   `.agent-tmp/sec-audit/wb-stdlib-request/dbtaint/a.nvs` and `b.nvs`. Then fix every example,
+   page and app that stops compiling, per the standing decision's safe default.
+2. CRYPTO-1, TAINT-3: `SignedCookie::open` returns `tainted string`
+   (`crates/nvs-stdlib/src/signed_cookie.rs:149`). Repro `.agent-tmp/sec-audit/…/crypto/poc5.nvs`.
+3. TAINT-2 (`response.rs:603`) and TAINT-4 (`ldap/registry.rs:464`), then EXT-4 and HTML-1.
 
 ### Backlog
-
-- TAINT-4 (`wb-sinks.md`, just above TAINT-5): `Core\Ldap`'s `Array(&Mixed)` attribute map takes a
-  tainted key as an attribute name. It has the same cause as TAINT-1, but the keystone test cannot see
-  it because the member answers no text. Confirm a stage owns it.
 
 - Not checked: the stage 1 rerun saw `Response::sendFile("assets/logo.svg")` answer `500` in a copy of
   `.agent-tmp/sec-audit/bb-kitchen/app`, where the audit saw `200`. Serve that app as its
   `serve.log` shows and fetch `/logo` before stage 12 touches static serving.
 - `crates/nvs-stdlib/src/` holds many `default_*.profraw` files from a coverage run. git ignores them,
   but `grep -r` over `src/` matches them. Whoever runs coverage there should write it under `target/`.
+- The conformance case `tests/conformance/reject/an-array-key-or-a-formatted-value-from-outside-keeps-its-mark.nvst`
+  has not been run by its runner; stage 14's verify runs it.
