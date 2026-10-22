@@ -339,9 +339,10 @@ fn mysql_step(mut framed: Framed<'_>, block: &Value, watch: &QueryWatch) -> Resu
         })?;
         let scalar = nvs_db::mysql::scalar(column, body)
             .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
-        let label = String::from_utf8_lossy(column.name_ref());
-        let value = mysql_column_value(scalar, zone, STREAM_MEMBER, &label)?;
-        one.set(NvsStr::new(column.name_ref()), value);
+        let label = nvs_db::mysql::label(column)
+            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+        let value = mysql_column_value(scalar, zone, STREAM_MEMBER, label)?;
+        one.set(NvsStr::new(label.as_bytes()), value);
     }
     Ok((Some(one), None))
 }

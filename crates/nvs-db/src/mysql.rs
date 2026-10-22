@@ -3347,6 +3347,24 @@ fn text<'a>(column: &Column, body: &'a [u8]) -> io::Result<&'a str> {
     std::str::from_utf8(body).map_err(|_| malformed(column, "well-formed UTF-8"))
 }
 
+/// A column's label as text, **checked**, for [`text`]'s reason: the label is
+/// the server's octets in the column definition, and a program reads it as a
+/// row key and as `Core\Db\Column`'s name, both of which are a `string`.
+///
+/// # Errors
+///
+/// `InvalidData` for a label that is not well-formed UTF-8. The message shows
+/// the label decoded lossily, because it is the schema's own metadata and the
+/// person fixing the schema needs to find the column.
+pub fn label(column: &Column) -> io::Result<&str> {
+    std::str::from_utf8(column.name_ref()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("column label {:?} is not well-formed UTF-8", column.name_str()),
+        )
+    })
+}
+
 /// § 9's `DECIMAL` row: the server's own rendering as a [`Decimal`], and the
 /// two reasons it may not be one.
 ///
@@ -7370,5 +7388,18 @@ mod tests {
     /// above ask what did and did not reach the wire.
     fn contains(haystack: &[u8], needle: &[u8]) -> bool {
         haystack.windows(needle.len()).any(|at| at == needle)
+    }
+
+    /// A label in a column's own charset, such as `latin1`, arrives as octets
+    /// that are not UTF-8. It is refused as `InvalidData`, which the stdlib
+    /// throws as the same `IoError` a text value that is not UTF-8 throws.
+    #[test]
+    fn a_column_label_that_is_not_utf8_is_refused() {
+        let column = Column::new(ColumnType::MYSQL_TYPE_LONG).with_name(b"caf\xe9");
+        let refused = crate::mysql::label(&column).expect_err("a latin1 label is not UTF-8");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
+
+        let column = Column::new(ColumnType::MYSQL_TYPE_LONG).with_name("café".as_bytes());
+        assert_eq!(crate::mysql::label(&column).expect("a UTF-8 label reads"), "café");
     }
 }

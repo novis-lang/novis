@@ -803,7 +803,7 @@ pub(super) fn mysql_rows(
     // ordering `postgres_rows` gets by cloning its columns, and here the clone
     // is needed anyway: `nvs_db::mysql::scalar` reads a value against the
     // definition it arrived under.
-    let described = mysql_described_columns(&answered);
+    let described = mysql_described_columns(&answered, named, &statement.block, source)?;
     let columns = answered.columns().to_vec();
 
     let mut rows = NvsArray::new();
@@ -827,11 +827,12 @@ pub(super) fn mysql_rows(
             let scalar = nvs_db::mysql::scalar(column, body)
                 .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
             // A label is bytes on this driver and text on the other, and § 9
-            // reads both as UTF-8: the lossy decode is for the message only,
-            // where the key keeps the octets the server sent.
-            let label = String::from_utf8_lossy(column.name_ref());
-            let value = mysql_column_value(scalar, zone, named, &label)?;
-            one.set(NvsStr::new(column.name_ref()), value);
+            // reads both as UTF-8, so a label that is not is refused here as
+            // it is in the description above.
+            let label = nvs_db::mysql::label(column)
+                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+            let value = mysql_column_value(scalar, zone, named, label)?;
+            one.set(NvsStr::new(label.as_bytes()), value);
         }
         rows.append(Value::array(one));
         rows_fit(named)?;

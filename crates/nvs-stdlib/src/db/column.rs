@@ -52,15 +52,20 @@ pub(super) fn described_columns(columns: &[nvs_db::PgColumn]) -> NvsArray {
 /// **The type is asked of the result set rather than read off the definition**,
 /// because which § 9 row a definition names is `nvs-db`'s reading and not this
 /// module's — the same division [`nvs_db::mysql::scalar`] draws for a value.
-/// The label is taken as octets for [`described_columns`]'s reason: a column
-/// name is a key in the row array, and a lossy decode would rename a column
-/// rather than refuse it.
-#[allow(
-    clippy::disallowed_methods,
-    reason = "unchecked: a MySQL column label is the server's raw octets, \
-              and security-hardening's stage 3 checks it"
-)]
-pub(super) fn mysql_described_columns(rows: &nvs_db::MySqlRows<'_>) -> NvsArray {
+/// The label is checked by [`nvs_db::mysql::label`]: a column name is a key in
+/// the row array, and a lossy decode would rename a column rather than refuse
+/// it.
+///
+/// # Errors
+///
+/// [`statement_failure`]'s `IoError` for a label that is not UTF-8, the same
+/// error a text value that is not UTF-8 throws.
+pub(super) fn mysql_described_columns(
+    rows: &nvs_db::MySqlRows<'_>,
+    named: &str,
+    block: &Value,
+    source: Option<&str>,
+) -> Result<NvsArray, Fault> {
     let mut described = NvsArray::new();
     for (index, column) in rows.columns().iter().enumerate() {
         let column_type = rows
@@ -69,7 +74,10 @@ pub(super) fn mysql_described_columns(rows: &nvs_db::MySqlRows<'_>) -> NvsArray 
         described.append(crate::instance::build(
             &COLUMN,
             [
-                Value::str(NvsStr::new(column.name_ref())),
+                Value::text(
+                    nvs_db::mysql::label(column)
+                        .map_err(|refused| statement_failure(named, block, source, &refused))?,
+                ),
                 column_type_value(column_type),
                 // As [`described_columns`]: § 9's own answer, and
                 // [`COLUMN_NULLABLE_DOC`] is where it is written down.
@@ -77,7 +85,7 @@ pub(super) fn mysql_described_columns(rows: &nvs_db::MySqlRows<'_>) -> NvsArray 
             ],
         ));
     }
-    described
+    Ok(described)
 }
 
 /// The same description for a SQL Server result set: [`described_columns`]'
