@@ -87,6 +87,7 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
 use hyper::body::Incoming;
@@ -128,8 +129,10 @@ impl Existing for OnDisk {
     /// names a file that is not there — what a disk that folds nothing already
     /// says, and `rule:http-server/a-request-resolves-in-five-steps` takes no
     /// name rule from the filesystem. A link is the one other reason the two
-    /// differ, and a path that crosses one is answered: where it leads is
-    /// [`under`]'s containment check.
+    /// differ, and a path that crosses one is answered when every name on the
+    /// way, the link's own included, is spelled as the disk holds it
+    /// ([`spelled_through_links`]). Where the link leads is [`under`]'s
+    /// containment check.
     fn file(&self, path: &Path) -> Option<PathBuf> {
         // Recorded when `NVS_FOOTPRINT_LOG` names a log: whether a file is there decides the route.
         nvs_footprint::exists(path);
@@ -137,17 +140,53 @@ impl Existing for OnDisk {
             return None;
         }
         let held = nvs_config::trust::canonical(path).ok()?;
-        (held == path || crosses_a_link(path)).then_some(held)
+        (held == path || spelled_through_links(path, &held)).then_some(held)
     }
 }
 
-/// Whether `path`, or a directory on the way to it, is a symbolic link.
+/// Whether `path`, which resolves to `held`, crosses a link and names every
+/// entry on the way exactly as the disk holds it.
+///
+/// The path is walked one name at a time. A name that is not a link is kept as
+/// it was asked. A link's own name is looked up in its folder's listing, where
+/// it has to appear in the same case, and the walk goes on from where the link
+/// leads. The walk ends where the canonical path ends only when no name differed
+/// from the disk's, so `/Assets/INDEX.HTML` through a link `assets` is a file
+/// that is not there, as it is with no link.
 ///
 /// Asked only of a path whose canonical form is not the path itself, so a
-/// request that names a file the way the disk holds it never pays for it.
-fn crosses_a_link(path: &Path) -> bool {
-    path.ancestors()
-        .any(|at| std::fs::symlink_metadata(at).is_ok_and(|meta| meta.is_symlink()))
+/// request that names a file the way the disk holds it never pays for it. It
+/// costs one `lstat` per name, and one listing and two canonical lookups per
+/// link crossed.
+fn spelled_through_links(path: &Path, held: &Path) -> bool {
+    let mut at = PathBuf::new();
+    let mut crossed = false;
+    for component in path.components() {
+        let std::path::Component::Normal(name) = component else {
+            at.push(component.as_os_str());
+            continue;
+        };
+        let folder = at.clone();
+        at.push(name);
+        if !std::fs::symlink_metadata(&at).is_ok_and(|meta| meta.is_symlink()) {
+            continue;
+        }
+        // The names before the link are replaced by where it leads below, so
+        // they are compared now: the folder, then the link's own name in it.
+        let spelled = nvs_config::trust::canonical(&folder).is_ok_and(|real| real == folder)
+            && std::fs::read_dir(&folder).is_ok_and(|mut entries| {
+                entries.any(|entry| entry.is_ok_and(|entry| entry.file_name() == name))
+            });
+        let Ok(target) = nvs_config::trust::canonical(&at) else {
+            return false;
+        };
+        if !spelled {
+            return false;
+        }
+        crossed = true;
+        at = target;
+    }
+    crossed && at == held
 }
 
 /// The mount table a running server selects from, with the two `[server]`
@@ -165,6 +204,12 @@ pub struct Table {
     /// § 5's probe path, or `None` where this server reserves none. Step 0, and
     /// the module docs own why it is not a step of § 4's.
     health: Option<String>,
+    /// The database files the `[db]` blocks name, canonical, with SQLite's
+    /// `-wal`, `-shm` and `-journal` files beside each. Step 3 never sends one.
+    databases: Vec<PathBuf>,
+    /// Whether a request that arrives from this machine must name this machine
+    /// in its `Host`: `true` in development ([`Table::local_hosts_only`]).
+    local_hosts_only: bool,
 }
 
 impl Table {
@@ -177,7 +222,44 @@ impl Table {
             dispatch,
             serve_static,
             health: None,
+            databases: Vec::new(),
+            local_hosts_only: false,
         }
+    }
+
+    /// The same table, never sending one of `files` as a static file, nor the
+    /// `-wal`, `-shm` or `-journal` file SQLite keeps beside each.
+    ///
+    /// `files` are compared with the canonical path step 3 selects, so each is
+    /// made canonical here, once per configuration. A file that does not exist
+    /// yet keeps the path as written.
+    #[must_use]
+    pub fn withholding(mut self, files: impl IntoIterator<Item = PathBuf>) -> Self {
+        for file in files {
+            let file = nvs_config::trust::canonical(&file).unwrap_or(file);
+            for suffix in ["-wal", "-shm", "-journal"] {
+                let mut beside = file.clone().into_os_string();
+                beside.push(suffix);
+                self.databases.push(beside.into());
+            }
+            self.databases.push(file);
+        }
+        self
+    }
+
+    /// The same table, answering a request from a loopback address only where
+    /// its `Host` names this machine or a mount: `localhost`, a name under
+    /// `.localhost`, a loopback address, or a host a `[[server.mount]]` lists.
+    ///
+    /// That is development's DNS rebinding guard. A web page on another site
+    /// can make its own name resolve to `127.0.0.1`, and the browser then sends
+    /// that name in `Host` to this server. A request from another machine is
+    /// not asked, so a development server on `0.0.0.0` still answers its own
+    /// network address.
+    #[must_use]
+    pub fn local_hosts_only(mut self, yes: bool) -> Self {
+        self.local_hosts_only = yes;
+        self
     }
 
     /// The same table, reserving `health` from every mount in it.
@@ -205,7 +287,24 @@ impl Table {
         let health = nvs_config::server::health_path(config, &BTreeMap::new())
             .ok()
             .flatten();
-        Self::new(mounts, switches.dispatch, switches.serve_static).with_health(health)
+        let development = config
+            .mode
+            .as_ref()
+            .and_then(|mode| mode.default.as_deref())
+            == Some(nvs_config::mode::DEVELOPMENT);
+        // A `path` is absolute once the configuration resolved, and a
+        // server's block has none.
+        let databases = config
+            .db
+            .blocks
+            .values()
+            .filter_map(|block| block.path.as_deref())
+            .map(PathBuf::from)
+            .filter(|path| path.is_absolute());
+        Self::new(mounts, switches.dispatch, switches.serve_static)
+            .with_health(health)
+            .withholding(databases)
+            .local_hosts_only(development)
     }
 
     /// Every mount this table holds, which is § 2's executable set in full.
@@ -224,13 +323,41 @@ impl Table {
     /// header is host-header injection and `rule:routing/matching-is-not-dispatching` already makes
     /// `Core\Router::url` answer with a path. What a trusted proxy may assert
     /// is the client address and the scheme, and neither is read here.
+    ///
+    /// `peer` is the address the request came from, and `None` over a Unix
+    /// socket. A loopback peer with a `Host` [`refuses_host`](Table::refuses_host)
+    /// names reaches no mount, and only the probe answers it.
     #[must_use]
-    pub fn select(&self, request: &Request<Incoming>, disk: &dyn Existing) -> Option<Resolved<'_>> {
+    pub fn select(
+        &self,
+        request: &Request<Incoming>,
+        peer: Option<IpAddr>,
+        disk: &dyn Existing,
+    ) -> Option<Resolved<'_>> {
+        let path = request.uri().path();
         match host(request) {
-            Host::Named(named) => self.resolve(Some(&named), request.uri().path(), disk),
-            Host::Absent => self.resolve(None, request.uri().path(), disk),
+            Host::Named(named) if self.refuses_host(&named, peer) => {
+                (self.health.as_deref() == Some(path)).then_some(Resolved::Health)
+            }
+            Host::Named(named) => self.resolve(Some(&named), path, disk),
+            Host::Absent => self.resolve(None, path, disk),
             Host::Refused => None,
         }
+    }
+
+    /// Whether this table gives no mount to a request from `peer` that names
+    /// `host`, already [`folded`]: [`local_hosts_only`](Table::local_hosts_only)
+    /// is on, `peer` is a loopback address, and `host` names neither this
+    /// machine nor any mount.
+    #[must_use]
+    pub fn refuses_host(&self, host: &str, peer: Option<IpAddr>) -> bool {
+        self.local_hosts_only
+            && peer.is_some_and(|peer| peer.to_canonical().is_loopback())
+            && !names_this_machine(host)
+            && !self
+                .mounts
+                .iter()
+                .any(|mount| mount.host.as_deref() == Some(host))
     }
 
     /// Step 0 and § 4's five steps over a host and a path, which is
@@ -274,8 +401,9 @@ impl Table {
             under(&mount.root, remainder, disk).filter(|file| is_nvs(file) == wanted_nvs)
         };
         let what = if self.serve_static
-            && let Some(file) =
-                under_root(false).or_else(|| default_document(mount, remainder, disk))
+            && let Some(file) = under_root(false)
+                .or_else(|| default_document(mount, remainder, disk))
+                .filter(|file| !self.withholds(mount, file))
         {
             What::Static(file)
         } else if self.dispatch == Dispatch::Path
@@ -318,6 +446,36 @@ impl Table {
         };
         longest(true).or_else(|| longest(false))
     }
+
+    /// Whether step 3 declines `file`, a canonical path under `mount`'s root,
+    /// because a request's program could not read it either: a dot-file, a file
+    /// in a dot-folder, or `nvs.toml`
+    /// ([`nvs_config::capability::kept_from_requests`]). A `.nvst` test file and
+    /// a database file the `[db]` blocks name are declined too.
+    ///
+    /// A declined file falls through to the step that would have answered had
+    /// it not been there, so the peer cannot tell it from a missing one.
+    fn withholds(&self, mount: &Mounted, file: &Path) -> bool {
+        file.strip_prefix(&mount.root)
+            .is_ok_and(nvs_config::capability::kept_from_requests)
+            || file
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("nvst"))
+            || self.databases.iter().any(|database| database == file)
+    }
+}
+
+/// Whether a folded `host` names this machine: `localhost`, a name ending in
+/// `.localhost` (which RFC 6761 reserves for loopback), or a loopback address.
+fn names_this_machine(host: &str) -> bool {
+    host == "localhost"
+        || host.ends_with(".localhost")
+        || host
+            .strip_prefix('[')
+            .and_then(|inner| inner.strip_suffix(']'))
+            .unwrap_or(host)
+            .parse::<IpAddr>()
+            .is_ok_and(|ip| ip.to_canonical().is_loopback())
 }
 
 /// What the table made of one request: § 5's probe, or the mount § 4 selected.
@@ -1629,6 +1787,224 @@ mod tests {
             what("/console.txt"),
             What::Static(p("/www/public/console.txt"))
         );
+    }
+
+    /// The audit's development server, run as `nvs serve app.nvs` in the
+    /// project folder: `nvs.toml`, a dot-file, a file in a dot-folder, a test
+    /// file and the database are never sent, and the entry answers each of
+    /// them. On main every one of them was sent as bytes.
+    #[test]
+    fn a_project_file_is_never_served_as_a_static_file() {
+        let fs = Fake::with(&[
+            "/www/app/index.nvs",
+            "/www/app/nvs.toml",
+            "/www/app/conf/NVS.TOML",
+            "/www/app/.env",
+            "/www/app/.git/config",
+            "/www/app/public/.env",
+            "/www/app/tests/home.nvst",
+            "/www/app/data.sqlite",
+            "/www/app/data.sqlite-wal",
+            "/www/app/style.css",
+            "/www/app/docs/index.html",
+            "/www/app/.well-known/index.html",
+        ]);
+        let entry = p("/www/app/index.nvs");
+        let table = Table::new(
+            vec![mount("/", None, "/www/app/index.nvs")],
+            Dispatch::Path,
+            true,
+        )
+        .withholding([p("/www/app/data.sqlite")]);
+        let what = |path: &str| {
+            table
+                .resolve(None, path, &fs)
+                .and_then(Resolved::selection)
+                .expect("the root mount covers every path")
+                .what
+        };
+        for path in [
+            "/nvs.toml",
+            "/conf/NVS.TOML",
+            "/.env",
+            "/.git/config",
+            "/public/.env",
+            "/tests/home.nvst",
+            "/data.sqlite",
+            "/data.sqlite-wal",
+            "/.well-known/",
+        ] {
+            assert_eq!(what(path), What::Run(entry.clone()), "{path} was sent");
+        }
+        assert_eq!(what("/style.css"), What::Static(p("/www/app/style.css")));
+        assert_eq!(what("/docs/"), What::Static(p("/www/app/docs/index.html")));
+    }
+
+    /// The same, on a real disk: a link inside the root to a dot-file is
+    /// followed to where it leads and declined there, and the database is found
+    /// by its canonical name.
+    #[test]
+    fn a_project_file_on_disk_is_never_served_through_a_link() {
+        let dir = nvs_repo::scratch("mount-project-files");
+        let root = nvs_config::trust::canonical(&dir).expect("the scratch folder");
+        for (name, text) in [
+            ("index.nvs", "<?nvs"),
+            ("nvs.toml", "[mode]"),
+            (".env", "SECRET=1"),
+            ("data.sqlite", "SQLite format 3"),
+            ("style.css", "a{}"),
+        ] {
+            std::fs::write(root.join(name), text).expect("a scratch file");
+        }
+        let table = Table::new(
+            vec![mount("/", None, &root.join("index.nvs").to_string_lossy())],
+            Dispatch::Path,
+            true,
+        )
+        .withholding([root.join("data.sqlite")]);
+        let what = |path: &str| {
+            table
+                .resolve(None, path, &OnDisk)
+                .and_then(Resolved::selection)
+                .expect("the root mount covers every path")
+                .what
+        };
+        let entry = What::Run(root.join("index.nvs"));
+        for path in ["/nvs.toml", "/.env", "/data.sqlite"] {
+            assert_eq!(what(path), entry, "{path} was sent");
+        }
+        assert_eq!(what("/style.css"), What::Static(root.join("style.css")));
+        // A file link needs a right on Windows that most accounts lack, so the
+        // link step runs where one can be planted.
+        if plant_file_link(&root.join(".env"), &root.join("env.txt")) {
+            assert_eq!(
+                what("/env.txt"),
+                entry,
+                "a link to .env was followed and sent"
+            );
+        }
+    }
+
+    /// A link to the file `target` at `at`, or `false` where this account
+    /// cannot make one.
+    fn plant_file_link(target: &Path, at: &Path) -> bool {
+        #[cfg(unix)]
+        return std::os::unix::fs::symlink(target, at).is_ok();
+        #[cfg(windows)]
+        return std::os::windows::fs::symlink_file(target, at).is_ok();
+    }
+
+    /// A link to the folder `target` at `at`. On Windows a junction, which
+    /// needs no right, is planted where a symbolic link cannot be.
+    fn plant_dir_link(target: &Path, at: &Path) -> bool {
+        #[cfg(unix)]
+        return std::os::unix::fs::symlink(target, at).is_ok();
+        #[cfg(windows)]
+        return std::os::windows::fs::symlink_dir(target, at).is_ok()
+            || nvs_repo::spawn("cmd", &[])
+                .arg("/C")
+                .arg("mklink")
+                .arg("/J")
+                .arg(at)
+                .arg(target)
+                .output()
+                .is_ok_and(|out| out.status.success());
+    }
+
+    /// The case rule holds through a link: with a link `assets` to `docs`,
+    /// `/assets/index.html` is sent, and `/Assets/index.html` and
+    /// `/assets/INDEX.HTML` are files that are not there. On main a
+    /// case-insensitive disk sent `docs/index.html` for both.
+    #[test]
+    fn a_link_inside_the_root_keeps_the_case_rule() {
+        let dir = nvs_repo::scratch("mount-link-case");
+        let root = nvs_config::trust::canonical(&dir).expect("the scratch folder");
+        std::fs::write(root.join("index.nvs"), "<?nvs").expect("the entry");
+        std::fs::create_dir(root.join("docs")).expect("a folder");
+        std::fs::write(root.join("docs").join("index.html"), "<p>").expect("a page");
+        assert!(
+            plant_dir_link(&root.join("docs"), &root.join("assets")),
+            "a symbolic link on Unix, or a junction on Windows"
+        );
+        let table = Table::new(
+            vec![mount("/", None, &root.join("index.nvs").to_string_lossy())],
+            Dispatch::Path,
+            true,
+        );
+        let what = |path: &str| {
+            table
+                .resolve(None, path, &OnDisk)
+                .and_then(Resolved::selection)
+                .expect("the root mount covers every path")
+                .what
+        };
+        let page = What::Static(root.join("docs").join("index.html"));
+        assert_eq!(what("/assets/index.html"), page);
+        assert_eq!(what("/assets/"), page);
+        for other in ["/Assets/index.html", "/assets/INDEX.HTML", "/ASSETS/"] {
+            assert_eq!(
+                what(other),
+                What::Run(root.join("index.nvs")),
+                "{other} reached the page in another case"
+            );
+        }
+    }
+
+    /// DNS rebinding against a development server: a page on another site
+    /// makes its own name resolve to `127.0.0.1`, and the browser sends that
+    /// name in `Host`. A request from this machine reaches a mount only when
+    /// its `Host` names this machine or a mount. A request from another
+    /// machine, over a Unix socket, or to a production server is not asked.
+    #[test]
+    fn a_rebinding_host_from_this_machine_reaches_no_mount() {
+        let config: Config = toml::from_str("[mode]\ndefault = \"development\"\n")
+            .expect("the fixture deserializes");
+        let mounts = vec![
+            mount("/", Some("app.test"), "/www/app/index.nvs"),
+            mount("/", None, "/www/site/index.nvs"),
+        ];
+        let development = Table::from_config(mounts.clone(), &config);
+        let production = Table::from_config(mounts, &Config::default());
+        let here: IpAddr = "127.0.0.1".parse().expect("an address");
+        let mapped: IpAddr = "::ffff:127.0.0.1".parse().expect("an address");
+        let six: IpAddr = "::1".parse().expect("an address");
+        let other: IpAddr = "192.0.2.7".parse().expect("an address");
+
+        for host in [
+            "rebind.example.com",
+            "0.0.0.0",
+            "192.0.2.7",
+            "localhost.example.com",
+        ] {
+            for peer in [here, mapped, six] {
+                assert!(
+                    development.refuses_host(host, Some(peer)),
+                    "{host} from {peer}"
+                );
+            }
+            assert!(
+                !development.refuses_host(host, Some(other)),
+                "{host} from another machine"
+            );
+            assert!(
+                !development.refuses_host(host, None),
+                "{host} over a socket"
+            );
+            assert!(
+                !production.refuses_host(host, Some(here)),
+                "{host} in production"
+            );
+        }
+        for host in [
+            "localhost",
+            "app.localhost",
+            "127.0.0.1",
+            "127.1.2.3",
+            "[::1]",
+            "app.test",
+        ] {
+            assert!(!development.refuses_host(host, Some(here)), "{host}");
+        }
     }
 
     /// `rule:errors/http-message-defects`'s path row, as the door reads it: a

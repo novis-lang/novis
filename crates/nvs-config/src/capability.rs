@@ -329,12 +329,7 @@ impl<'a> Run<'a> {
     fn in_app_folder(&self, path: &Path) -> bool {
         self.folder
             .and_then(|folder| path.strip_prefix(folder).ok())
-            .is_some_and(|below| {
-                below.components().all(|part| {
-                    let part = part.as_os_str().to_string_lossy();
-                    !part.starts_with('.') && !part.eq_ignore_ascii_case("nvs.toml")
-                })
-            })
+            .is_some_and(|below| !kept_from_requests(below))
     }
 
     /// Whether the canonical `path` is inside one of this run's temporary directories:
@@ -1767,6 +1762,22 @@ pub fn resolved(path: &Path, files: &dyn Files) -> Option<PathBuf> {
                 .filter_map(|step| step.file_name()),
         );
         Some(resolved)
+    })
+}
+
+/// Whether `below`, a path relative to an app folder, is one a request never reads there by
+/// default: a component that starts with `.` (`.env`, `.git/config`) or is named `nvs.toml`, in
+/// any case.
+///
+/// Server work's default `fs.read` and a static mount's files both ask this, so a file the
+/// program cannot read is never one the server sends
+/// (`rule:http-server/static-serving-is-one-policy`). Refusing `NVS.TOML` on a filesystem that
+/// keeps case is the safe direction.
+#[must_use]
+pub fn kept_from_requests(below: &Path) -> bool {
+    below.components().any(|part| {
+        let part = part.as_os_str().to_string_lossy();
+        part.starts_with('.') || part.eq_ignore_ascii_case("nvs.toml")
     })
 }
 

@@ -1044,7 +1044,10 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // and the CSRF key. A reload reaches the next request.
             let standing = current.load();
             let table = tables.table(&standing);
-            let selected = match table.select(&request, &OnDisk) {
+            // The client address decides the development rebinding guard: a
+            // request from this machine names this machine in its `Host`
+            // (`nvs_server::Table::local_hosts_only`).
+            let selected = match table.select(&request, origin.client(), &OnDisk) {
                 // Step 0, ahead of every mount: § 5's probe says the process is
                 // alive, which is a fact this loop holds and no program is asked
                 // for. That is why it is answered here rather than by an entry —
