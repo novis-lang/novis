@@ -11,11 +11,13 @@ A cycle survives the graph copy as a cycle rather than unrolling or hanging, and
 //
 // `next` and `alias` are non-nullable and self-referential from the
 // constructor, so every node here is already on a cycle before a copy is asked
-// for and no case below needs a null to stand in for "the end".
+// for and no case below needs a null to stand in for "the end". They are
+// `lateinit` because `$this` leaves the constructor only once `name` is set
+// (`rule:classes/definite-property-initialization`).
 final class Node {
     public string $name;
-    public Node $next;
-    public Node $alias;
+    public lateinit Node $next;
+    public lateinit Node $alias;
 
     public function constructor(string $name) {
         $this->name = $name;

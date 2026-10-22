@@ -18,8 +18,8 @@ class Square extends Shape {
     private int $side;
 
     public function constructor(int $side) {
-        parent::constructor("square");
         $this->side = $side;
+        parent::constructor("square");
     }
 
     public function describe(): string {

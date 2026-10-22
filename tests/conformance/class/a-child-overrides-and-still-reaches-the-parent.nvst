@@ -18,8 +18,8 @@ class Polygon extends Shape {
     public int $sides;
 
     public function constructor(string $name, int $sides) {
-        parent::constructor($name);
         $this->sides = $sides;
+        parent::constructor($name);
     }
 
     public function describe(): string {

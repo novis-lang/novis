@@ -60,8 +60,8 @@ class Savings extends Account {
     public int $rate;
 
     public function constructor(string $owner, int $rate) {
-        parent::constructor($owner);
         $this->rate = $rate;
+        parent::constructor($owner);
     }
 }
 
@@ -142,11 +142,11 @@ hooked write and read:
 a class that implements nothing:
   caller sees 99
 an inherited observer:
+  set rate = 3
   set owner = grace
   set balance = 0
   hook commits 0
   set doubled = 0
-  set rate = 3
   set rate = 4
 a throwing observer:
   caught refusing n
