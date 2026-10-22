@@ -405,7 +405,7 @@ carry the mark.
 **Does:** HTTP-1's idle connections and slow readers no longer flip admission, a server pushed past
 capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 are closed.
 
-- [ ] HTTP-1: set hyper's buffer size, and keep a buffered response's in-flight place until its body is written. `crates/nvs-server/src/serve.rs:2373`
+- [x] HTTP-1: set hyper's buffer size, and keep a buffered response's in-flight place until its body is written. `crates/nvs-server/src/serve.rs:2373`
 - [ ] HTTP-1: admission reads memory charged to requests, not the thread's total (`rule:http-server/admission-is-arithmetic-not-a-number`). `crates/nvs-server/src/admit.rs:1`
 - [ ] LC-3, LC-9: no span queued without an exporter, the client's flag read only with one, and `request_id` always the server's (`rule:observability/sampling-is-head-based`). `crates/nvs-server/src/trace.rs:278`
 - [ ] LC-6, LC-7: the `method` label is closed, and a 501 logs at `info`. `crates/nvs-server/src/serve.rs:1706`
@@ -529,8 +529,46 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 6 is done. PARSE-1 (66fc862ac), PARSE-2 (8267a6e5d), PARSE-3 (1ea3cb0ad) and RT-4 (65c1adb0a)
-landed, each with its attack. Stage 7 is next.
+Stage 7 is under way. Its first item, HTTP-1's buffer size and the buffered response's place,
+landed in 8c8a86f6d.
+
+- **hyper's buffer size was already named** by eef6c73a9: `MAX_HEAD_BYTES` (`serve.rs:238`) is
+  `max_buf_size`, beside `MAX_HEADER_LINES`. Nothing changed there.
+- **A whole answer keeps its place until it is written.** The service puts a buffered response's
+  `InFlight` into the connection cell `sending` (`serve.rs`, beside `writing`) instead of dropping it
+  when the service returns. The drive loop drops it at the first poll that returns `Pending` with
+  `ConnectionIo::write_parked` false (`crates/nvs-server/src/io.rs`, set by every `poll_write`). A
+  whole or file body always has its next chunk ready, so that poll has nothing left to write. The
+  phase is not the signal: after the last write `hyper` does not read again until the next request's
+  bytes arrive, so the phase stays `Write`. `Streamed::_place` is now an `Option`, always `Some`.
+- Test `a_whole_answer_holds_its_place_until_it_is_written` (`serve.rs`, after the streaming case)
+  ran once, green. It sends a 32 MiB body to a client that reads only the head, then a second request
+  on the same connection, whose handler reads `in_flight() == 1`. The slow-reader assert runs on Unix
+  only: the Windows loopback takes all 32 MiB into the kernel in one write, so the server never
+  waits. No `socket2` in the graph, so the test cannot shrink the send buffer.
+- `rule:http-server/max-in-flight-refuses-before-allocating` says when a place goes back, and
+  `guardedBy` names `serve.rs`. `cargo build`, `cargo clippy --all-targets -- -D warnings` and
+  `bun nv rules --check` are green.
+- The sweep's `env-secret-proofs` log reads exit 0. Nightly run 39746060276 was cancelled whole and
+  is not a failure of this tree.
+
+**What item 2 needs, found while reading (not started):**
+
+- The gauge each core publishes is `LIVE + DETACHED` (`crates/nvs-runtime/src/budget/gauge.rs`,
+  `report`), the whole thread balance, so hyper's connection buffers are in it.
+- A request tree's own balance is `TreeState::balance` (`crates/nvs-runtime/src/ctx/safepoint.rs:632`),
+  stored at each switch (`budget.rs`, `begin_turn`, `enter`, `ArmedStack`'s drop). But
+  `budget::reroot_turn` (`budget.rs`, after `begin_turn`) makes a connection's own turns charge the
+  request tree it is serving, so bytes hyper allocates while a request runs land on that request.
+  The head of the next request is read before the reroot, under the last tree.
+- One shape that costs nothing on the allocation path: a thread-local sum of what turns of trees that
+  are not requests moved `LIVE` by, updated at each switch, and subtracted in `report`. It needs a
+  flag on `TreeState` for "this tree is a request", and it misattributes a block allocated under one
+  kind of turn and freed under the other. Weigh that against walking the core's in-flight trees in
+  `report`. The test is `admit.rs`'s, as the item says, and `Admission::reading` already takes a
+  `held` function a test can state.
+
+RT-4, for the record:
 
 - **RT-4:** `html.rs`'s `Sink::push` asked one node's size (144 bytes), but the arena's doubling is
   the largest step: 8 MB of `<br>` held 393 MB against the 268 MB ceiling. The sink now asks, through
@@ -547,9 +585,6 @@ landed, each with its attack. Stage 7 is next.
   `html.rs` and the attack. `Core\Html`'s figures were re-recorded. `bun nv proofs --run --id
   'Core\Html::parse'` (3 examples, 4 attacks), the two Html memory tests, `cargo build`, `cargo clippy
   --all-targets -- -D warnings` and `bun nv rules --check` are green.
-- The sweep's `env-secret-proofs` log reads exit 0 on rerun. Nightly run 39746060276 was cancelled
-  whole and is not a failure of this tree.
-
 PARSE-1, for the record:
 
 - **PARSE-1, the shape the other three parsers follow.** A helper that returns `Err` while the
@@ -659,20 +694,21 @@ document that outgrows the memory limit and expected it to finish, or that expec
 `Core\Json::isValid` to answer `false` past the limit (none known). Both attacks' `ends-early 3 FATAL`
 pass only on a binary built after 1ea3cb0ad. RT-4 adds: an HTML document whose tree outgrows the
 limit by its arena's doubling and expected to finish (none known), and the Html attack 04's
-`ends-early 3 FATAL` passes only on a binary built after 65c1adb0a.
+`ends-early 3 FATAL` passes only on a binary built after 65c1adb0a. 8c8a86f6d adds: an `nvs-server`
+test that reads `in_flight()` right after a buffered response's head arrives and expects `0`
+(none found), and on Linux, any test that counts places while a client has not read a large body.
 
 ### Next
 
-Stage 7, in one session per two or three items, all in `nvs-server` and `nvs-host`:
+Stage 7, in one session per two or three items, all in `nvs-server`, `nvs-host` and `nvs-runtime`:
 
-1. HTTP-1: hyper's buffer size from the head limit (`crates/nvs-server/src/serve.rs:2373`), and a
-   buffered response keeps its in-flight place until its body is written.
-2. HTTP-1: admission reads memory charged to requests (`crates/nvs-server/src/admit.rs:1`), with its
-   Rust test beside `admit.rs`.
-3. LC-3, LC-9 (`crates/nvs-server/src/trace.rs:278`), then LC-6, LC-7
+1. HTTP-1: admission reads memory charged to requests (`crates/nvs-server/src/admit.rs:1`,
+   `crates/nvs-runtime/src/budget/gauge.rs:1`), with its Rust test beside `admit.rs`. *State* has
+   what the gauge holds now and one shape for the fix.
+2. LC-3, LC-9 (`crates/nvs-server/src/trace.rs:278`), then LC-6, LC-7
    (`crates/nvs-server/src/serve.rs:1706`).
-4. LC-5 (`crates/nvs-host/src/blocking.rs:349`) and LC-12 (`crates/nvs-host/src/ladder.rs:122`).
-5. The overload attack (`crates/nvs-cli/tests/serve_isolation.rs:1`), the `flood` row
+3. LC-5 (`crates/nvs-host/src/blocking.rs:349`) and LC-12 (`crates/nvs-host/src/ladder.rs:122`).
+4. The overload attack (`crates/nvs-cli/tests/serve_isolation.rs:1`), the `flood` row
    (`benches/compare/README.md:80`), and `max_tasks`'s comment (`crates/nvs-config/src/default.toml:86`).
 
 ### Backlog
