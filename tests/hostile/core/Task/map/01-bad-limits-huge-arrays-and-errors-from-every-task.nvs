@@ -1,7 +1,9 @@
 <?nvs
 // Attack: a program calls `Core\Task::map` with limits that make no sense, with a very
 // large array, and with tasks that all throw at once. Each bad call should throw one
-// error that the program can catch, and the runtime must not crash or hang.
+// error that the program can catch. Too many tasks at once should stop the program at
+// its memory limit. The runtime must not crash or hang.
+// hostile: ends-early 7 FATAL
 
 class Nest
 {
@@ -48,14 +50,14 @@ try {
     echo "step 3: one error\n";
 }
 
-// Step 4: one task for each of 20,000 elements, with no limit and then with `limit: 1`.
+// Step 4: one task for each of 20,000 elements, with `limit: 100` and then with `limit: 1`.
 array<int> $many = [];
 int $i = 0;
 while ($i < 20000) {
     $many[] = $i;
     $i = $i + 1;
 }
-var $wide = Core\Task::map($many, fn (int $n): int => $n % 7);
+var $wide = Core\Task::map($many, fn (int $n): int => $n % 7, { limit: 100 });
 var $narrow = Core\Task::map($many, fn (int $n, string $key): uint => Core\Str::length($key), { limit: 1 });
 echo 'step 4: ', Core\Arr::count($wide), ' ', Core\Arr::count($narrow), "\n";
 
@@ -74,3 +76,9 @@ try {
 
 // Step 6: calls nested 100 deep. Every level waits for the level below it.
 echo 'step 6: ', Nest::down(100), "\n";
+
+// Step 7: 20,000 tasks with no limit. Each running task uses 1 MiB of memory,
+// so the program stops at its memory limit.
+echo "step 7\n";
+var $all = Core\Task::map($many, fn (int $n): int => $n % 7);
+echo 'step 7: ', Core\Arr::count($all), "\n";
