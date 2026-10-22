@@ -1,0 +1,25 @@
+--TEST--
+`Core\Response\Stream::write` is a sink, so text a visitor sent cannot be streamed into a body whose media type the program declared, `text/html` included — `rule:security/response-body-is-one-typed-member`
+--FILE--
+<?nvs
+// covers: lang:types/qualifiers-tainted-and-secret
+// A program streams an HTML page and writes a value a visitor sent into it.
+// The two writes of the visitor's value, as text and as bytes, are errors. The count of errors is the assertion.
+Core\Response\Stream $page = Core\Response::stream("text/html; charset=utf-8");
+tainted string $name = Core\Request::query("name") ?? "guest";
+
+$page->write($name);
+$page->write($name as bytes);
+
+// A launderer makes the value safe for the page, and text the program wrote is allowed.
+$page->write(Core\Html::toSource(Core\Html::escape($name), "escaped visitor text"));
+$page->write("<p>Hello</p>\n");
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: %s
+%A
+error[E0401]: %s
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
