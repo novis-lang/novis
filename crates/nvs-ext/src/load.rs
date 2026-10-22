@@ -179,16 +179,37 @@ impl fmt::Debug for Extension {
     }
 }
 
-/// A set of loaded extensions, no two declaring one class.
+/// A set of loaded extensions, no two declaring one class or one `[ext.<name>]` block.
 #[derive(Debug, Clone, Default)]
 pub struct Set {
     extensions: Vec<Extension>,
 }
 
 impl Set {
-    /// Adds `extension`, or refuses it when another extension of the set declares its class.
-    /// Class names compare without regard to case, as Novis names do.
+    /// Adds `extension`, or refuses it when another extension of the set declares its class or
+    /// its settings block. Class names compare without regard to case, as Novis names do. A block
+    /// belongs to the one extension that declares it, so a second one cannot read the first's
+    /// keys (`rule:packaging/a-guest-has-no-ambient-authority`). Block names compare without
+    /// regard to case too, which refuses more than TOML's exact keys would.
     pub fn insert(&mut self, extension: Extension) -> Result<(), Refused> {
+        if let Some(block) = &extension.manifest.settings
+            && let Some(other) = self.extensions.iter().find(|other| {
+                other
+                    .manifest
+                    .settings
+                    .as_ref()
+                    .is_some_and(|taken| taken.name.eq_ignore_ascii_case(&block.name))
+            })
+        {
+            return Err(refused(
+                &extension.path,
+                format!(
+                    "the settings block `[ext.{}]` is already declared by the extension `{}`",
+                    block.name,
+                    other.path.display()
+                ),
+            ));
+        }
         if let Some(other) = self.extensions.iter().find(|other| {
             other
                 .manifest

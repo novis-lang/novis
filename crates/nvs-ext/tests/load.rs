@@ -389,6 +389,38 @@ fn a_class_another_loaded_extension_declares_is_refused() {
 }
 
 #[test]
+fn a_settings_block_another_loaded_extension_declares_is_refused() {
+    let with_settings = |class: &str, block: &str| {
+        let plain = manifest(class, "1.0.0", METHOD);
+        let declared = format!(
+            r#", "settings": {{"name": "{block}", "keys": [{{"name": "token", "type": "string", "default": ""}}]}}}}"#
+        );
+        let text = format!("{}{declared}", &plain[..plain.len() - 1]);
+        nvsx(guest(""), &text)
+    };
+    let first = with_settings("Shop\\Geo", "geo");
+    let second = with_settings("Shop\\Atlas", "geo");
+    let loader = loader();
+    let mut set = Set::default();
+    set.insert(
+        loader
+            .load_bytes(&entry("geo.nvsx", &first), &first)
+            .expect("the first loads"),
+    )
+    .expect("the first joins the set");
+    let err = set
+        .insert(
+            loader
+                .load_bytes(&entry("atlas.nvsx", &second), &second)
+                .expect("the second loads alone"),
+        )
+        .expect_err("the block is taken");
+    assert_eq!(err.entry, "atlas.nvsx");
+    assert_says(&err, &["`[ext.geo]`", "`geo.nvsx`"]);
+    assert_eq!(set.extensions().len(), 1);
+}
+
+#[test]
 fn a_component_built_against_a_newer_minor_or_another_major_is_refused_naming_both_versions() {
     let host = loader().with_world(WorldVersion {
         major: 1,
