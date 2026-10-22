@@ -425,6 +425,21 @@ struct Descriptors {
     /// [`ClassTable::id_of`] scans the whole table, and every construction of
     /// a `Core` instance makes one.
     by_name: Vec<(&'static str, nvs_runtime::ClassId)>,
+    /// Each name's first id, so [`Descriptors::id_of`] is one hash and one
+    /// compare of the name.
+    ///
+    /// Every `Core` instance built and every [`is_instance`] test finds its
+    /// descriptor by name, because a `Core` class is a `const` and has no static
+    /// to keep its descriptor in. A binary search of [`Self::by_name`] compares
+    /// the name about eight times, and each name starts with `Core\`. The map
+    /// is filled once from the binary's own names and never written again. A
+    /// name a program looks up through [`core_class_desc`] is only read against
+    /// it, so no input can grow a bucket, and the hash is `rustc_hash`'s, which
+    /// is fast and not keyed.
+    ///
+    /// **What it spends:** one entry, a name and an id, per `Core` class, for
+    /// the process.
+    first: rustc_hash::FxHashMap<&'static str, nvs_runtime::ClassId>,
 }
 
 impl Descriptors {
@@ -439,7 +454,7 @@ impl Descriptors {
 
     /// The first id defined under `name`, or `None` if no descriptor has it.
     fn id_of(&self, name: &str) -> Option<nvs_runtime::ClassId> {
-        self.ids_named(name).next()
+        self.first.get(name).copied()
     }
 
     /// `name`'s descriptor, or `None` if no descriptor has it.
@@ -529,9 +544,18 @@ fn descriptors() -> &'static Descriptors {
                 table.set_compare(id, crate::address_of(symbol));
             }
         }
+        // Filled in definition order, so each name keeps the id defined first.
+        let mut first = rustc_hash::FxHashMap::default();
+        for (name, id) in &by_name {
+            first.entry(*name).or_insert(*id);
+        }
         // A stable sort, so equal names keep their definition order.
         by_name.sort_by_key(|(name, _)| *name);
-        let mut found = Descriptors { table, by_name };
+        let mut found = Descriptors {
+            table,
+            by_name,
+            first,
+        };
         for (name, _) in DISPATCH_ROSTER {
             let ids: Vec<_> = found.ids_named(name).collect();
             for id in ids {
@@ -1178,6 +1202,40 @@ mod tests {
             let desc = table.desc_of(name).expect("the roster row is defined");
             assert!(desc.is_shape(), "{name} is not a shape");
         }
+    }
+
+    /// The hash map and the sorted index agree: for every name, the map's id
+    /// is the first one the index has, so a class found by either is the same
+    /// descriptor.
+    #[test]
+    fn every_core_class_finds_its_descriptor_in_one_hash_lookup() {
+        let found = descriptors();
+        for (name, _) in &found.by_name {
+            assert_eq!(
+                found.first.get(name).copied(),
+                found.ids_named(name).next(),
+                "{name}'s first id differs between the map and the index"
+            );
+        }
+        assert_eq!(
+            found.first.len(),
+            found
+                .by_name
+                .iter()
+                .map(|(name, _)| name)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+        );
+        assert!(found.id_of("Core\\NoSuchClass").is_none());
+        assert!(std::ptr::eq(
+            descriptor(&crate::html::MARKUP),
+            found.table.desc(
+                found
+                    .ids_named(crate::html::MARKUP.name)
+                    .next()
+                    .expect("it has instances")
+            )
+        ));
     }
 
     #[test]
