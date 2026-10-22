@@ -18,6 +18,11 @@ Every one is read from instrumentation that already exists — the `query`, `gc`
 kinds and the arena accounting `rule:programs/memory-priority` already requires — which is
 `rule:observability/the-runtime-exports-what-it-already-measures` applied series by series.
 
+`nvs_memory_bytes{scope="request"}` is what every core holds for its requests, the sum admission
+reads (`rule:http-server/admission-is-arithmetic-not-a-number`). A scrape or a push reads it once
+as it gathers the cores' series, so no request writes it. The `cache` and `process` scopes are not
+written yet, and neither are `nvs_tasks_in_flight` and `nvs_deferred_trees`, which read `0`.
+
 The peak is a **histogram** where the live figure is a gauge, because the two answer different
 questions: a gauge says what is held now, and only a distribution answers what fraction of requests
 came near their ceiling. It reads the mark

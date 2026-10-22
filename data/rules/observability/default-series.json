@@ -1,5 +1,5 @@
 {
-  "title": "Ten series exist the moment an exporter is configured, with no application code written",
+  "title": "Eleven series exist the moment an exporter is configured, with no application code written",
   "status": "shipped",
   "seeAlso": [
     "observability/the-runtime-exports-what-it-already-measures",
@@ -12,6 +12,7 @@
   ],
   "guardedBy": [
     "crates/nvs-server/src/metrics.rs",
-    "crates/nvs-runtime/src/metrics.rs"
+    "crates/nvs-runtime/src/metrics.rs",
+    "crates/nvs-cli/tests/serve_isolation.rs"
   ]
 }
