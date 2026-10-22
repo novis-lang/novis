@@ -354,7 +354,11 @@ carry the mark.
 
 **Does:** the rest of the keystone test's list is fixed, and stored injection does not compile.
 
-- [ ] CRYPTO-1, TAINT-3: `SignedCookie::open` returns `tainted string`, and the module doc says so. `crates/nvs-stdlib/src/signed_cookie.rs:149`
+- [x] CRYPTO-1, TAINT-3: `SignedCookie::open` returns `tainted string`, and the module doc says so. `crates/nvs-stdlib/src/signed_cookie.rs:149`
+  - [x] the row answers `tainted string`, its `$cookie` is neutral, and the module doc, card and roster tests say so
+  - [x] `rule:security/verification-does-not-launder` loses its exception and declines it
+  - [x] a contagious member answering `mixed` admits `tainted` text, so `Core\Json::decode` of an opened cookie compiles
+  - [x] every `.nvs` and `.nvst` calling `open` compiles, and the reject case is written and green
 - [ ] TAINT-2: `Core\Response\Stream::write` is a sink and refuses `tainted`. `crates/nvs-stdlib/src/response.rs:603`
 - [x] REQ-2, DB-2: a text column fills only a `tainted string` property, and every example, page and app compiles (`rule:security/tainted-sources`). `crates/nvs-types/src/derive.rs:1466`
   - [x] `written_class_of` treats a `Core\Db` owner as outside text, for a class and a shape

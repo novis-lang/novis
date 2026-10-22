@@ -8,7 +8,7 @@
   ],
   "guardedBy": [
     "tests/conformance/core/signature-a-round-trip-hands-back-the-payload-in-canonical-order.nvst",
-    "tests/conformance/core/signature-verify-does-not-launder-where-signed-cookie-open-does.nvst",
+    "tests/conformance/core/signature-verify-and-signed-cookie-open-both-answer-tainted.nvst",
     "crates/nvs-stdlib/src/signature.rs"
   ]
 }

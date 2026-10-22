@@ -4,9 +4,8 @@
 //!
 //! `rule:security/protocol-roster` places the class and § 2 says why the roster is closed at four;
 //! what belongs here is which end of the ring is the newest key, why `open`
-//! removes `tainted` when `rule:security/launderers-are-sink-named`
-//! refuses that nearly everywhere else, and why two members named `seal`
-//! and `open` are not a second way to reach `Core\Crypto`'s two.
+//! answers `tainted string`, and why two members named `seal` and `open` are
+//! not a second way to reach `Core\Crypto`'s two.
 //!
 //! # The key ring is an `array<secret bytes>`, newest first
 //!
@@ -21,25 +20,21 @@
 //! per key until one authenticates, so a ring of `n` costs at most `n` opens of
 //! a cookie-sized buffer, all inside the call and none held between calls.
 //!
-//! # `open` launders, and it is the only cookie in the language that does
+//! # `open` answers `tainted string`
 //!
-//! `rule:security/verification-does-not-launder`
-//! is emphatic that a verified signature does not launder — JWT claims come
-//! back `tainted` because a signature proves origin and not safety — and then
-//! names this one exception: a cookie payload the application itself sealed
-//! round-trips through our own AEAD unchanged, and comes back **unqualified**.
-//! The distinction is not about the strength of the authentication, which is
-//! identical; it is that the plaintext here was *ours and plain* when it went
-//! in, so returning it qualified would mark a value the program already held
-//! unmarked one line earlier.
+//! `rule:security/verification-does-not-launder` holds here as it holds for
+//! `Core\Jwt::verify` and `Core\Signature::verify`: the tag proves the cookie
+//! came from a holder of a key in the ring, and says nothing about what was
+//! sealed. `seal`'s `$value` is [`Qual::Contagious`], so a program may seal a
+//! visitor's text, and a later request that opens the cookie gets that text
+//! back. Answering it unqualified would carry the visitor's bytes past every
+//! sink with no mark on them, which is stored injection through a cookie.
 //!
-//! That makes [`open`]'s `$cookie` a [`Qual::Launder`] parameter, and the sink
-//! it launders for is **none of them** — it does not make a value safe for
-//! HTML, for SQL or for a shell, it restores the qualifier the value had before
-//! `seal`. A program that sealed a `tainted` value gets a plain one back, which
-//! is the one sharp edge of this design and is why `seal` is not reachable with
-//! a `tainted` argument: the round trip cannot launder what it was never
-//! allowed to seal.
+//! So [`open`]'s `$cookie` is [`Qual::Neutral`] and its answer is always
+//! `tainted string`, whatever the argument was: the mark is the payload's, not
+//! the cookie text's. A program that stored a value it knows is safe for one
+//! sink says so at the sink, with that sink's launderer, as it would for any
+//! other read.
 //!
 //! # `seal` and `open` here are not `Core\Crypto`'s, and R17 is why they can
 //! share the names
@@ -121,8 +116,7 @@ const CARD: ClassDoc = ClassDoc {
 /// through the same three helpers, with a key ring over it and a
 /// cookie-safe spelling around it, so there is one AEAD in this crate and
 /// not two. Its own module doc owns which end of the ring is the newest key
-/// and why its `open` is the one verification in the language that removes
-/// `tainted`.
+/// and why its `open` answers `tainted string`.
 // rank: 950
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -143,12 +137,11 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "open",
             names: &["cookie", "keys"],
-            // The cookie **launders**: the module doc's own section is the
-            // home of why this one round trip may, when `rule:security/verification-does-not-launder` refuses
-            // it for a verified signature everywhere else.
-            params: &[CoreTy::Text(Qual::Launder), CoreTy::Array(&KEY)],
+            // The cookie text is neutral and the payload is always
+            // `tainted`: the module doc's section on `open` says why.
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Array(&KEY)],
             defaults: &[],
-            return_ty: CoreTy::Str,
+            return_ty: CoreTy::TaintedStr,
             symbol: "nvs_core_signed_cookie_open",
             doc: Some(&OPEN_DOC),
         },
@@ -198,8 +191,8 @@ const SEAL_DOC: MethodDoc = MethodDoc {
 const OPEN_DOC: MethodDoc = MethodDoc {
     short: "Checks that `$cookie` was made by `Core\\SignedCookie::seal` with a key in `$keys`, \
             and returns the value stored in it. A changed cookie throws an error. The value is \
-            returned without the `tainted` mark (the mark for input from outside), because \
-            your own program stored it.",
+            `tainted` (marked as input from outside), because your program may have stored \
+            text that a visitor sent.",
     params: &[
         ParamDoc {
             name: "cookie",
@@ -214,7 +207,7 @@ const OPEN_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The value that was given to `seal`, exactly as it was.",
+    ret: "The value that was given to `seal`, exactly as it was, as a `tainted string`.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
@@ -278,9 +271,9 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\SignedCookie::open(string $cookie, array<secret bytes> $keys): string`
-    /// — the read half, answering the sealed value **unqualified** per `rule:security/verification-does-not-launder`
-    /// 's one named exception.
+    /// `Core\SignedCookie::open(string $cookie, array<secret bytes> $keys): tainted string`
+    /// — the read half, answering the sealed value `tainted` per
+    /// `rule:security/verification-does-not-launder`.
     ///
     /// Each key is keyed before the cookie is tried against it, so a ring
     /// entry that was never a key is a `LogicError` once the walk reaches it,

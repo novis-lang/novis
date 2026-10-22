@@ -1,0 +1,26 @@
+--TEST--
+`Core\SignedCookie::open` answers a `tainted string`, so text a visitor sent that a program sealed into a cookie cannot reach a sink unmarked when a later request opens it — `rule:security/verification-does-not-launder`
+--FILE--
+<?nvs
+// covers: lang:types/qualifiers-tainted-and-secret
+// A program seals a name a visitor sent, and a later request opens the cookie.
+// The first two uses of the opened value are errors. The count of errors is the assertion.
+array<secret bytes> $ring = [Core\Crypto::generateKey()];
+tainted string $name = Core\Request::query("name") ?? "guest";
+tainted string $cookie = Core\SignedCookie::seal($name, $ring);
+
+string $opened = Core\SignedCookie::open($cookie, $ring);
+Core\Regex\Pattern $pattern = Core\Regex::compile(Core\SignedCookie::open($cookie, $ring));
+
+// A `tainted` variable takes the value, and a launderer makes it safe for its sink.
+tainted string $kept = Core\SignedCookie::open($cookie, $ring);
+Core\Regex\Pattern $quoted = Core\Regex::compile(Core\Regex::quote($kept));
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

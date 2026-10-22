@@ -1567,9 +1567,9 @@ mod tests {
     /// `Core\Jwe::decrypt` is the roster read over a payload only the holder of
     /// a key can see: decrypting proves who wrote it and never that it is safe
     /// for a sink, which is `Core\Jwt::verify`'s reading over confidentiality
-    /// rather than over a signature. `Core\SignedCookie::open` is the one
-    /// deliberate absence from that pair and is a launderer instead, because a
-    /// payload this program sealed itself was already plain when it went in.
+    /// rather than over a signature. `Core\SignedCookie::open` is the same
+    /// reading over a cookie: a program may seal a visitor's text, so a value
+    /// it sealed itself is no safer than one it was handed.
     /// `Core\Http\Response`'s four are the roster read over a reply the program
     /// itself asked for: pinning an address settles which host sent the bytes
     /// and says nothing about what is in them, so the body carries the mark as
@@ -1796,6 +1796,7 @@ mod tests {
                     "verify",
                     "array<tainted string>".to_owned(),
                 ),
+                (r"Core\SignedCookie", "open", "tainted string".to_owned()),
                 (
                     r"Core\Socket\Message",
                     "bytes",
@@ -1824,7 +1825,7 @@ mod tests {
             ]),
             "the roster of members whose *answer* is qualified `tainted` is closed — a \
              verified claim, a verified signature's payload, a decrypted payload, an \
-             outbound reply's body as text and as octets, the two readers of that \
+             opened cookie, an outbound reply's body as text and as octets, the two readers of that \
              reply's header lines, the chain the peer it arrived from presented and \
              the two names written in that chain's leaf, a database row's text and \
              octets, the two environment \
@@ -1858,9 +1859,9 @@ mod tests {
              program gets back is the value someone else put in"
         );
         assert!(
-            launderers.contains(&(r"Core\SignedCookie", "open")),
-            "the cookie is § 5's one admitted exception — the value round-trips through our own \
-             AEAD unchanged, and it was already plain when it went in"
+            !launderers.contains(&(r"Core\SignedCookie", "open")),
+            "an opened cookie removes no qualifier: a program may seal a visitor's text, and the \
+             tag proves the cookie came from this program, not that its value is safe for a sink"
         );
     }
 

@@ -3,7 +3,13 @@ any sink: the payload may be authored by a third-party issuer, and even a self-i
 carries user-supplied data. Treating verification as laundering would be exactly the false confidence
 refused everywhere else (`rule:security/launderers-are-sink-named`).
 
-Cookie payloads the application itself sealed are the one case where the value round-trips through our
-own authenticated encryption unchanged, and they come back **unqualified** — sealing is an
-authenticated operation over a value that was already plain when it went in. The asymmetry between the
-two is the rule, not an inconsistency: one is a value we had, the other is a value we were handed.
+A cookie the application itself sealed is no exception: `Core\SignedCookie::open` answers `tainted
+string` too. `seal` accepts a `tainted` value, so the payload may be a visitor's text that a later
+request reads back, which is stored injection if it comes back unmarked. A program that knows one
+stored value is safe for one sink says so at that sink, with its launderer.
+
+**Declined:**
+- **An unqualified cookie payload, on the ground that the program sealed it.** The tag says which
+  program sealed the bytes and not where they came from. `seal` would have to refuse every `tainted`
+  value for the round trip to be safe, and a cookie that remembers a visitor's choice is the common
+  case.

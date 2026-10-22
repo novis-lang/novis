@@ -570,7 +570,8 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
 ///   and AGENTS.md's ordering does not trade security for a call that
 ///   compiles. A member in that position is either mis-classified — an answer
 ///   carrying no byte of any argument is `Neutral` — or answers a shape or an
-///   object, whose fields are a slice of their own.
+///   object, whose fields are a slice of their own. A result that is all
+///   `mixed` carries it too, because text out of `mixed` is `tainted`.
 ///
 /// * [`Qual::Reveal`] does, for [`Qual::Contagious`]'s reason and not for
 ///   [`Qual::Launder`]'s: the mark removes `secret`, which says nothing about
@@ -594,7 +595,22 @@ pub(crate) fn admits_tainted_argument(
     match qual {
         None | Some(Qual::Sink) => false,
         Some(Qual::Neutral | Qual::Launder | Qual::Reveal) => true,
-        Some(Qual::Contagious) => tainted_result(return_ty, interner) != return_ty,
+        Some(Qual::Contagious) => {
+            tainted_result(return_ty, interner) != return_ty || all_unchecked(return_ty, interner)
+        }
+    }
+}
+
+/// Whether every value of `ty` is `mixed`, or an array of it. Text out of
+/// `mixed` is `tainted` (`rule:security/taint-propagation`), so a contagious
+/// member answering it, such as `Core\Json::decode`, carries the mark with
+/// nothing written on the return type. [`carries_unchecked`] is not this
+/// question: a union with a class in it has fields the mark does not reach.
+fn all_unchecked(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Mixed => true,
+        Ty::Array(elem) => all_unchecked(*elem, interner),
+        _ => false,
     }
 }
 

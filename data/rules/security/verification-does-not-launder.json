@@ -7,6 +7,7 @@
     "security/protocol-roster"
   ],
   "guardedBy": [
-    "tests/conformance/core/signed-cookie-open-launders-where-jwt-verify-does-not.nvst"
+    "tests/conformance/core/signed-cookie-open-and-jwt-verify-both-answer-tainted.nvst",
+    "tests/conformance/reject/a-sealed-visitor-value-opens-tainted.nvst"
   ]
 }

@@ -1,0 +1,39 @@
+--TEST--
+Core\Signature::verify answers a tainted payload for a token this program signed a line earlier, and Core\SignedCookie::open answers a tainted string for a cookie it sealed the same way — `rule:security/verification-does-not-launder`, `rule:security/launderers-are-sink-named`
+--FILE--
+<?nvs
+// The agreement shape: a signature and a seal each prove origin and not
+// safety for any sink, so both payloads come back `tainted`.
+// `crates/nvs-stdlib/src/signature.rs` is the home of why the qualifier is
+// what fixes the element type here.
+//
+// Both halves are asserted by the declarations below: neither can be written
+// with a plain `string` and still compile, so this file compiling is the assertion.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+string $sealed = Core\SignedCookie::seal("role=admin", $ring);
+tainted string $opened = Core\SignedCookie::open($sealed, $ring);
+echo $opened, "\n";
+
+// The same key and the same ring, and again a `tainted` payload: a token
+// minted by one service and read by another is a value we were handed.
+array<string> $claims = ["role" => "admin"];
+string $token = Core\Signature::sign($claims, {keys: $ring, until: null});
+array<tainted string> $payload = Core\Signature::verify($token, $ring);
+tainted string $role = $payload["role"];
+
+// The pattern sink refuses a tainted argument, so both values need
+// `Core\Regex::quote` in front of them.
+Core\Regex\Pattern $cookie = Core\Regex::compile(Core\Regex::quote($opened));
+echo Core\Regex::matches("role=admin", $cookie) ? "y" : "n", "\n";
+
+string $quoted = Core\Regex::quote($role);
+Core\Regex\Pattern $claim = Core\Regex::compile($quoted);
+echo Core\Regex::matches("admin", $claim) ? "y" : "n", "\n";
+echo $quoted, "\n";
+--EXPECT--
+role=admin
+y
+y
+admin

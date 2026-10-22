@@ -2616,7 +2616,6 @@ mod tests {
             (r"Core\Ldap\Dn::of", false),
             (r"Core\Path::fromCwd", false),
             (r"Core\Regex::quote", false),
-            (r"Core\SignedCookie::open", false),
             (r"Core\Taint::assertTrusted", false),
             (r"Core\Taint::assertTrustedBytes", false),
             (r"Core\Uri::encodeComponent", false),

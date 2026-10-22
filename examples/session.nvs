@@ -2,7 +2,7 @@
 // This program seals a session id into a cookie with a list of keys, then opens it again.
 // `seal` uses the first key in the list. `open` tries each key in the list, in order.
 // A cookie still opens after a new key is added at the front. It does not open after its key is removed.
-// `open` returns the session id without `tainted`, because this program sealed it.
+// `open` returns the session id as a `tainted string`, like any input from outside.
 
 // A ring of one, which is the ordinary case spelled `[$key]`. The key is
 // generated rather than configured because what this fixture is about is the
@@ -27,7 +27,7 @@ if (Core\SignedCookie::open($cookie, $ring) == $sid) {
 // Altered, not base64 at all, or sealed under a retired key are deliberately
 // one message: telling them apart tells a forger which half landed.
 try {
-    string $forged = Core\SignedCookie::open($cookie . 'x', $ring);
+    tainted string $forged = Core\SignedCookie::open($cookie . 'x', $ring);
     echo 'opened a forged cookie', "\n";
 } catch (RuntimeError $refused) {
     echo 'forgery refused', "\n";
@@ -47,7 +47,7 @@ if (Core\SignedCookie::open($cookie, $rotated) == $sid) {
 // Retirement: drop the tail and the same cookie is a forgery, on the same
 // message as any other.
 try {
-    string $stale = Core\SignedCookie::open($cookie, [$next]);
+    tainted string $stale = Core\SignedCookie::open($cookie, [$next]);
     echo 'opened under a retired key', "\n";
 } catch (RuntimeError $refused) {
     echo 'retired key refused', "\n";
