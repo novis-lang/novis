@@ -3673,6 +3673,10 @@ nvs_runtime::nvs_helper! {
 
         let given = Path::new(text(&args[0], "within", "base")?);
         let candidate = text(&args[1], "within", "path")?;
+        // `$path` is judged by its own text first. Joined to an absolute base on
+        // Linux or macOS, `\\host\share` no longer starts the path, and
+        // canonicalizing the join would pass it.
+        nvs_runtime::capability::alias_refusal(Path::new(candidate), MEMBER)?;
         let base = nvs_runtime::capability::canonicalize(ctx, given, MEMBER)?;
         // The resolution pins a missing name to its deepest existing ancestor,
         // which is right for `$path` and wrong for `$base`: a folder that is
