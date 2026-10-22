@@ -600,13 +600,12 @@ pub(crate) const STREAM: CoreClass = CoreClass {
             // response body is one thing written two ways where a WebSocket frame's
             // two payload kinds are two things on the wire. The classification is
             // written on both arms and the union answers it
-            // ([`CoreTy::classification`]): [`Qual::Neutral`], so a `tainted`
-            // chunk is admitted exactly as `Core\Response::text` admits one and
-            // nothing comes back out to carry the qualifier.
-            params: &[CoreTy::Union(&[
-                CoreTy::Text(Qual::Neutral),
-                CoreTy::Blob(Qual::Neutral),
-            ])],
+            // ([`CoreTy::classification`]): [`Qual::Sink`], so a `tainted` chunk
+            // does not compile. `Core\Response::text` may admit one because its
+            // media type is fixed at `text/plain`; a stream's is whatever the
+            // program declared, `text/html` included, so a chunk is markup the
+            // peer may parse (`rule:security/response-body-is-one-typed-member`).
+            params: &[CoreTy::Union(&[CoreTy::Text(Qual::Sink), CoreTy::Blob(Qual::Sink)])],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: STREAM_WRITE_SYMBOL,
@@ -742,8 +741,8 @@ const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
     params: &[ParamDoc {
         name: "chunk",
         desc: "The part to send, as a `string` or as `bytes`. It is sent exactly as it is. An \
-               empty part sends nothing and is not an error. A `tainted` value is allowed, as it \
-               is for `Core\\Response::text`.",
+               empty part sends nothing and is not an error. A `tainted` value does not \
+               compile, because the browser may read the part as HTML.",
         shape: &[],
     }],
     ret: "Nothing. When this method returns, the part has been given to the connection. If the \

@@ -6,9 +6,10 @@ file member's path is a sink.
 **Two of the seven write their body over time rather than at once, and classification follows the
 shape and not the timing.** The streaming member declares a media type it is told, so that argument
 is the bytes member's sink for the bytes member's reason — it becomes an instruction the peer obeys
-about how to read everything after it — while each chunk is a union of text and bytes, which carries
-no classification at all and therefore refuses a tainted argument outright. That is the fail-closed
-direction of the two: the text member accepts a tainted body and a chunk does not.
+about how to read everything after it — while each chunk, text or bytes, is a sink and refuses a
+tainted argument. The text member may accept a tainted body because its media type is fixed at
+`text/plain`; a stream's media type is whatever the program declared, `text/html` included, so a
+chunk is markup the peer may parse. The text member accepts a tainted body and a chunk does not.
 
 The event-stream member takes no media type — the protocol's is the only one it could have — and its
 `send` splits three ways. The payload is contagious, for the JSON member's reason: framing belongs to
