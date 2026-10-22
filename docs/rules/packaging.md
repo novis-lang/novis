@@ -2946,6 +2946,12 @@ Nothing a guest wrote into a global, a static or its linear memory is there on t
 test that stores state in one instance must not be able to observe it from the next. No extension
 keeps state for a worker's lifetime.
 
+**The instance ends with its request.** In `nvs serve` the instances a request made are dropped when
+its connection waits for the next request and nothing else holds the request's tree, or else when its
+after-response work ends. A keep-alive connection that waits holds no instance. The guest's budget
+reads the tree's stop flags through a weak handle, because the tree keeps the budget, and a strong one
+would keep every tree, its instances and its memory for the life of the process.
+
 Instantiation costs about 8 µs with the pooling allocator, paid only for the extensions a request
 actually calls. A typical request touches one to three, so the realistic cost is 8–23 µs against a
 request budget measured in milliseconds — and the figure is environment-sensitive, so quote it as a

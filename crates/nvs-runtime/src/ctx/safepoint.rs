@@ -217,10 +217,19 @@ impl Ctx {
     /// [`Self::reroot`] counts it again. `crate::budget`'s gauge module owns
     /// why. A context whose stack is not its tree's turn is left counted.
     ///
+    /// Where nothing else holds the tree, its extension instances are dropped
+    /// here (`rule:packaging/a-fresh-instance-per-request`). A connection may
+    /// wait a long time for its next request, and an instance it kept would
+    /// hold one of the process's instance places all that time. A tree that
+    /// after-response work still holds drops them when that work ends.
+    ///
     /// **What it spends:** nothing per request beyond the tree's three words,
     /// and a thread-local add at each park of an idle tree.
     pub fn between_requests(&mut self) {
         self.idles_tree = crate::budget::begin_idle(&self.tree) || self.idles_tree;
+        if std::sync::Arc::strong_count(&self.tree) == 1 {
+            drop(self.tree.end_extensions());
+        }
     }
 
     /// Joins `tree` as a member running on a core **other** than the one that
@@ -602,6 +611,31 @@ impl SafepointView {
         self.request(SafepointFlags::WALL_TIME);
         true
     }
+
+    /// A handle on the same word that does not keep the tree alive.
+    ///
+    /// For a holder the tree itself keeps, such as the extension host's budget
+    /// in [`TreeState::extensions`]: a strong view there would be a cycle, and
+    /// the tree, its instances and its memory would outlive every request.
+    #[must_use]
+    pub fn downgrade(&self) -> WeakSafepointView {
+        WeakSafepointView(std::sync::Arc::downgrade(&self.tree))
+    }
+}
+
+/// A [`SafepointView`] that does not keep its tree alive, made by
+/// [`SafepointView::downgrade`].
+#[derive(Clone, Debug)]
+pub struct WeakSafepointView(std::sync::Weak<TreeState>);
+
+impl WeakSafepointView {
+    /// The flags standing in the word, or `None` once the tree has ended.
+    #[must_use]
+    pub fn flags(&self) -> Option<SafepointFlags> {
+        self.0.upgrade().map(|tree| {
+            SafepointFlags::from_bits_retain(tree.word.load(std::sync::atomic::Ordering::Relaxed))
+        })
+    }
 }
 
 /// The state a request **tree** shares: the word every context in it is stopped
@@ -693,10 +727,13 @@ pub struct TreeState {
     pub(super) wall_stop: std::sync::Mutex<bool>,
     /// What [`crate::extension`]'s host keeps for this request — the
     /// extension instances its calls made, and the resources they returned —
-    /// set at its first call into an extension and dropped with the tree,
-    /// which is the request's end, after-response work included. Empty for
-    /// every request that calls no extension.
-    pub(super) extensions: std::sync::OnceLock<Box<dyn std::any::Any + Send + Sync>>,
+    /// set at its first call into an extension. It is dropped when the
+    /// request's connection waits for its next request and nothing else holds
+    /// the tree ([`Ctx::between_requests`]), or else with the tree, which is
+    /// the end of the request's after-response work. Empty for every request
+    /// that calls no extension. A call holds its own handle on it, so the lock
+    /// is never held while a guest runs.
+    pub(super) extensions: std::sync::Mutex<Option<ExtensionHost>>,
     /// How many child isolates of this tree are running now — one per
     /// [`TaskSlot`] alive, which [`Ctx::claim_task`] hands out against
     /// `[limits] max_tasks` and the child's context gives back as it drops
@@ -724,12 +761,39 @@ impl Drop for TaskSlot {
     }
 }
 
+/// What [`TreeState::extensions`] keeps: the extension host's per-request
+/// state, which only the host that set it can read back.
+pub type ExtensionHost = std::sync::Arc<dyn std::any::Any + Send + Sync>;
+
 impl TreeState {
-    /// [`Self::extensions`]: the host's per-request state, which only the host
-    /// that set it can read back.
-    #[must_use]
-    pub fn extensions(&self) -> &std::sync::OnceLock<Box<dyn std::any::Any + Send + Sync>> {
-        &self.extensions
+    /// [`Self::extensions`], made by `make` at the request's first call into
+    /// an extension and returned as it stands at every later one.
+    ///
+    /// # Errors
+    ///
+    /// What `make` returns, in which case nothing is kept.
+    pub fn extensions<E>(
+        &self,
+        make: impl FnOnce() -> Result<ExtensionHost, E>,
+    ) -> Result<ExtensionHost, E> {
+        let mut slot = self
+            .extensions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(host) = slot.as_ref() {
+            return Ok(std::sync::Arc::clone(host));
+        }
+        let host = make()?;
+        *slot = Some(std::sync::Arc::clone(&host));
+        Ok(host)
+    }
+
+    /// Takes [`Self::extensions`] out, so the caller drops it outside the lock.
+    pub(super) fn end_extensions(&self) -> Option<ExtensionHost> {
+        self.extensions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
     }
 }
 

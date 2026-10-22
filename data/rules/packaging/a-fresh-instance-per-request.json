@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "benches/abi-probe/tests/wasm_sandbox.rs",
-    "crates/nvs-ext/tests/call.rs"
+    "crates/nvs-ext/tests/call.rs",
+    "crates/nvs-cli/tests/serve_isolation.rs"
   ]
 }

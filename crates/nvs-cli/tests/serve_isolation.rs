@@ -6,7 +6,9 @@
 //! forever reaches the request's limit handler, and the next request is served.
 //! And `rule:http-server/admission-is-arithmetic-not-a-number` under overload: a
 //! flood past `max_in_flight` beside requests that reach their limits or lose
-//! their client, and a server that gives every place and byte back once it ends.
+//! their client, and a server that gives every place and byte back once it ends. And
+//! `rule:packaging/a-fresh-instance-per-request`: an extension instance ends with its request, so
+//! requests past the process's instance places are all served.
 //!
 //! [`Server`] starts the binary this test was built beside on a port the
 //! platform chose and reads the port back from the `listening on` line, as
@@ -635,5 +637,60 @@ fn a_flood_past_capacity_is_refused_and_every_place_and_byte_comes_back() {
         server.child.try_wait().expect("the process is asked").is_none(),
         "the server ended after the flood; it wrote: {}",
         server.said()
+    );
+}
+
+/// The program the instance case serves: one call into the built-in `Novis\Intl` component.
+const LISTING: &str = "<?nvs\n\
+use Novis\\Intl\\ListFormat;\n\
+echo ListFormat::join([[\"Shop\", \"Blog\", \"Wiki\"]], \"en\")[0];\n";
+
+/// Requests the instance case sends on each kind of connection. Together they are past the
+/// process's 64 instance places three times over.
+const LISTINGS: u32 = 100;
+
+/// How far `nvs_memory_bytes{scope="request"}` may move between the reading after a few requests
+/// and the reading after all of them. One instance of the component is several mebibytes, so a
+/// kept instance per request moves it by far more.
+const LISTED: f64 = 4.0 * 1_048_576.0;
+
+/// Every request that calls an extension gets a fresh instance, and the instance ends with the
+/// request (`rule:packaging/a-fresh-instance-per-request`). 100 requests on one keep-alive
+/// connection and 100 more each on a connection of its own all answer correctly, past the
+/// process's 64 instance places, and the request memory stays where it was after the first few.
+#[test]
+fn every_request_that_calls_an_extension_ends_its_instance() {
+    let port = free_port();
+    let config = format!("[metrics]\nexporter = \"prometheus\"\nlisten = \"127.0.0.1:{port}\"\n");
+    let server = Server::serving("instances", 1, LISTING, &config, &[]);
+    let want = "Shop, Blog, and Wiki";
+
+    let mut client = Client::connect(server.addr);
+    for _ in 0..4 {
+        assert_eq!(client.get("/"), want, "the server wrote: {}", server.said());
+    }
+    let before = request_memory(port, &server);
+    for request in 4..LISTINGS {
+        assert_eq!(
+            client.get("/"),
+            want,
+            "request {request} on one connection; the server wrote: {}",
+            server.said()
+        );
+    }
+    drop(client);
+    for request in 0..LISTINGS {
+        assert_eq!(
+            Client::connect(server.addr).get("/"),
+            want,
+            "request {request} on a connection of its own; the server wrote: {}",
+            server.said()
+        );
+    }
+    let after = request_memory(port, &server);
+    assert!(
+        after - before <= LISTED,
+        "the request memory went from {before} to {after} bytes over {} requests",
+        2 * LISTINGS
     );
 }
