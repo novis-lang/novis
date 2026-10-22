@@ -77,6 +77,19 @@
 //! property is read too early before `parent::constructor(...)` is called. A
 //! read through a method call is not followed, as no call is.
 //!
+//! **Construction is two-phase, as Swift has it**, which is what lets the
+//! untested slot reads of compiled code hold without following calls. `$this`
+//! escapes the constructor wherever it is used other than as `$this->prop`:
+//! a method call on it, passing or storing it, a `throw` that carries it, an
+//! anonymous function that captures it, and an instance method called through
+//! `parent::`, `self::` or `static::`. [`InitState::escape`] refuses an escape
+//! while a path has not yet assigned an own required property, or has not yet
+//! called an owed `parent::constructor(...)`, and that call itself is refused
+//! while an own required property is unassigned: the parent's constructor may
+//! call a method this class overrides. The diagnostic names the first
+//! property in declaration order still unassigned. A `set` hook of a property
+//! the constructor writes is not followed, as no call is.
+//!
 //! **A `readonly` property is written at most once on each path**, which is
 //! the "assigned exactly once" `rule:classes/lateinit-restrictions` states for
 //! the modifier. [`InitState`] carries a second set beside the assigned one,
@@ -174,6 +187,25 @@ pub(crate) struct InitState {
     /// Every read of a property no path has assigned yet, reported once the
     /// walk is over.
     early_reads: Vec<EarlyRead>,
+    /// The constructor's class, whose escapes [`InitState::escape`] checks.
+    /// `None` for a `set` hook's walk, which checks none.
+    class: Option<QName>,
+    /// Whether the constructor owes a `parent::constructor(...)` call.
+    needs_parent_call: bool,
+    /// Every use of `$this` that a path reaches too early, reported once the
+    /// walk is over.
+    escapes: Vec<Escape>,
+}
+
+/// A use of `$this` that a path reaches before construction's first phase is
+/// over.
+struct Escape {
+    span: Span,
+    /// The escape is the `parent::constructor(...)` call itself.
+    parent_call: bool,
+    /// The first own required property not yet assigned, or `None` when every
+    /// one is and `parent::constructor(...)` has not run yet.
+    missing: Option<String>,
 }
 
 /// A read through `$this` of a property no path has assigned yet.
@@ -297,6 +329,29 @@ impl InitState {
             });
         }
     }
+
+    /// Records a use of `$this` at `span` that lets the object escape, and
+    /// refuses it where a path reaches it before every own required property
+    /// is assigned. Unless `parent_call` says the use is the
+    /// `parent::constructor(...)` call, an owed call must have run too.
+    fn escape(&mut self, span: Span, parent_call: bool) {
+        if self.class.is_none() || self.escapes.iter().any(|e| e.span == span) {
+            return;
+        }
+        let missing = self
+            .own_required
+            .iter()
+            .find(|name| !self.assigned.contains(name))
+            .cloned();
+        let parent_owed = !parent_call && self.needs_parent_call && !self.parent_called;
+        if missing.is_some() || parent_owed {
+            self.escapes.push(Escape {
+                span,
+                parent_call,
+                missing,
+            });
+        }
+    }
 }
 
 /// What every way in `ways` added, or `None` when there are no ways at all.
@@ -371,11 +426,12 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
         return; // an abstract constructor has no body to walk
     };
 
+    let needs_parent_call = decl.extends.is_some() && parent_declares_constructor(qname, env);
     let obligations = CtorObligations {
         qname,
         required: &required,
         ctor_name: ctor.name,
-        needs_parent_call: decl.extends.is_some() && parent_declares_constructor(qname, env),
+        needs_parent_call,
         body: Body::Constructor,
     };
     let readonly: Vec<String> = env
@@ -395,6 +451,8 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
         promoted,
         own_required: required.iter().map(|(name, _)| name.clone()).collect(),
         inherited_required: ancestors_required(qname, env),
+        class: Some(qname.clone()),
+        needs_parent_call,
         ..InitState::default()
     };
     let terminates = walk_stmts(&body.stmts, &mut state, &obligations, env);
@@ -420,6 +478,37 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
                 "a path reaches this read before the property has a value",
             )
             .with_help(help),
+        );
+    }
+    for escape in &state.escapes {
+        let (message, label, help) = match (&escape.missing, escape.parent_call) {
+            (Some(name), true) => (
+                format!("`parent::constructor(...)` is called before the constructor assigns `${name}`"),
+                format!("a path reaches this call before `${name}` has a value"),
+                format!(
+                    "assign `$this->{name}` before this call on every path. The parent \
+                     constructor can call a method that this class overrides"
+                ),
+            ),
+            (Some(name), false) => (
+                format!("`$this` is used before the constructor assigns `${name}`"),
+                format!("a path reaches this use of `$this` before `${name}` has a value"),
+                format!(
+                    "assign `$this->{name}` before this line on every path. Code that gets \
+                     `$this` can read every property"
+                ),
+            ),
+            (None, _) => (
+                "`$this` is used before `parent::constructor(...)` is called".to_owned(),
+                "a path reaches this use of `$this` before the inherited properties have values"
+                    .to_owned(),
+                "call `parent::constructor(...)` before this line on every path".to_owned(),
+            ),
+        };
+        env.diags.report(
+            Diagnostic::error(code::E_UNINITIALIZED_PROPERTY, message)
+                .with_primary(escape.span, label)
+                .with_help(help),
         );
     }
     for refused in &state.refused {
@@ -648,6 +737,8 @@ fn walk_stmt(
             if matches!(&e.kind, ExprKind::Throw(_)) {
                 // A throwing path never returns the constructed object, so
                 // `rule:classes/definite-property-initialization` has nothing to check on it.
+                // What it throws may still carry `$this` out.
+                scan_expr(e, state, env);
                 return true;
             }
             scan_expr(e, state, env);
@@ -881,6 +972,10 @@ pub(crate) fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
             value,
             ..
         } if this_property(target, env).is_some() => scan_expr(value, state, env),
+        // `$this->prop` reads one property, and `$this` goes nowhere.
+        _ if this_property(e, env).is_some() => {}
+        ExprKind::Variable(_) if is_this_receiver(e, env.src) => state.escape(e.span, false),
+        ExprKind::Fn(_) if captures_this(e, env) => state.escape(e.span, false),
         _ => each_child_expr(e, &mut |child| scan_expr(child, state, env)),
     }
     if let Some(name) = this_property(e, env) {
@@ -909,10 +1004,50 @@ pub(crate) fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
         } if matches!(class.kind, ExprKind::ParentExpr)
             && span_text(env.src, *name_span) == "constructor" =>
         {
+            state.escape(e.span, true);
             state.parent_called = true;
+        }
+        ExprKind::StaticCall { class, method, .. } if passes_this(class, method, state, env) => {
+            state.escape(e.span, false);
         }
         _ => {}
     }
+}
+
+/// Whether the anonymous function `e` captures `$this`, as the checker
+/// recorded it when it checked the function's body.
+fn captures_this(e: &Expr, env: &Env<'_>) -> bool {
+    matches!(
+        env.exprs.lookup(e.span),
+        Some(crate::expr_table::ExprInfo::AnonFn { captures, .. })
+            if captures.iter().any(|(name, _)| name == "this")
+    )
+}
+
+/// Whether `class::method(...)` calls an instance method with `$this` as its
+/// receiver: `class` is `parent`, `self` or `static`, and the method it names
+/// is not `static`. A name that does not resolve counts, so an escape the
+/// checker cannot see is refused.
+fn passes_this(class: &Expr, method: &MemberName, state: &InitState, env: &Env<'_>) -> bool {
+    let Some(own) = &state.class else {
+        return false;
+    };
+    let target = match class.kind {
+        ExprKind::SelfExpr | ExprKind::StaticExpr => Some(own.clone()),
+        ExprKind::ParentExpr => env
+            .graph
+            .get(own)
+            .and_then(|links| links.extends.first().cloned()),
+        _ => return false,
+    };
+    let MemberName::Ident(name) = method else {
+        return true;
+    };
+    target
+        .and_then(|target| {
+            resolve_method(&target, span_text(env.src, *name), env.signatures, env.graph)
+        })
+        .is_none_or(|(_, sig)| !sig.is_static)
 }
 
 /// The property `target` names, when it is `$this->name` written out.
@@ -1318,6 +1453,75 @@ mod tests {
             ),
             0
         );
+    }
+
+    /// How many uses of `$this` a constructor makes before construction's
+    /// first phase is over.
+    fn early_escapes(src: &str) -> usize {
+        check_src(src)
+            .iter()
+            .filter(|d| {
+                d.code == Some(code::E_UNINITIALIZED_PROPERTY)
+                    && (d.message.contains("`$this` is used before")
+                        || d.message.contains("`parent::constructor(...)` is called before"))
+            })
+            .count()
+    }
+
+    const PEEK: &str = "  public function peek(): void { echo $this->name; }\n";
+
+    #[test]
+    fn this_used_before_every_property_is_assigned_is_refused() {
+        for early in [
+            "$this->peek();",
+            "Core\\Arr::count([$this]);",
+            "var $f = fn (): void => $this->peek();",
+            "self::peek();",
+            "if ($this->id > 0) { $this->peek(); }",
+            "throw new LogicError(\"no\" . Core\\Arr::count([$this]));",
+        ] {
+            let src = format!(
+                "<?nvs\nclass A {{\n  public int $id = 1;\n  public string $name;\n  public function constructor() {{\n    {early}\n    $this->name = \"n\";\n  }}\n{PEEK}}}\n"
+            );
+            assert_eq!(early_escapes(&src), 1, "{early}");
+        }
+    }
+
+    #[test]
+    fn this_used_once_every_property_is_assigned_is_fine() {
+        let diags = check_src(&format!(
+            "<?nvs\nclass A {{\n  public string $name;\n  public function constructor() {{\n    $this->name = \"n\";\n    $this->peek();\n    var $f = fn (): void => $this->peek();\n    self::make();\n  }}\n  public static function make(): void {{}}\n{PEEK}}}\n"
+        ));
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn this_used_after_a_branch_that_assigned_on_one_side_is_refused() {
+        let src = format!(
+            "<?nvs\nclass A {{\n  public string $name;\n  public function constructor(bool $b) {{\n    if ($b) {{ $this->name = \"n\"; }}\n    $this->peek();\n    $this->name = \"m\";\n  }}\n{PEEK}}}\n"
+        );
+        assert_eq!(early_escapes(&src), 1);
+    }
+
+    #[test]
+    fn a_subclass_assigns_its_own_properties_before_the_parent_constructor() {
+        let parent = "class P {\n  public string $name;\n  public function constructor() { $this->name = \"p\"; }\n}\n";
+        let late = format!(
+            "<?nvs\n{parent}class C extends P {{\n  public int $n;\n  public function constructor() {{\n    parent::constructor();\n    $this->n = 1;\n  }}\n}}\n"
+        );
+        assert_eq!(early_escapes(&late), 1);
+        let first = format!(
+            "<?nvs\n{parent}class C extends P {{\n  public int $n;\n  public function constructor() {{\n    $this->n = 1;\n    parent::constructor();\n  }}\n}}\n"
+        );
+        assert!(!check_src(&first).has_errors(), "{:?}", check_src(&first));
+    }
+
+    #[test]
+    fn this_used_before_the_parent_constructor_is_refused() {
+        let src = format!(
+            "<?nvs\nclass P {{\n  public string $name;\n  public function constructor() {{ $this->name = \"p\"; }}\n{PEEK}}}\nclass C extends P {{\n  public function constructor() {{\n    $this->peek();\n    parent::peek();\n    parent::constructor();\n  }}\n}}\n"
+        );
+        assert_eq!(early_escapes(&src), 2);
     }
 
     /// The `catch` doesn't assign `$count`, so it's not satisfied on every

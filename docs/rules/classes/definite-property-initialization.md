@@ -20,6 +20,19 @@ A constructor also reads a property through `$this->` only where every path has 
 inherited one only after `parent::constructor(...)`; an earlier read is refused at the read, since it
 would see the zeroed slot.
 
+Construction is two-phase, as Swift has it. Until a path has assigned every property the class itself
+must assign, and has called an owed `parent::constructor(...)`, `$this` does not leave the constructor:
+no method call on it, no passing or storing it, no `throw` that carries it, no anonymous function that
+captures it, and no instance method called through `parent::`, `self::` or `static::`. The parent's
+constructor is itself called only once the class's own properties are assigned, because it may call
+a method the class overrides. Each refusal names the first property still unassigned. This is what
+lets compiled code read a slot without testing it: no method the constructor calls can run while a
+slot is still zero, so the check never has to follow a call. The steps of
+`rule:classes/property-observer-pipeline` are not covered: a hook, a guard or an observer that an
+access runs is not checked here. What it costs is one order a
+constructor must keep, and a cycle built in a constructor (`new Pong($this)`) needs a `lateinit`
+property.
+
 A hooked property carries the obligation when its backing slot is read: by a plain read, because it
 has no `get` hook, or by a hook that names `$this->prop` other than as the target of `=`. Each `set`
 hook of such a property stores the property on every path that does not throw, or is refused at the
@@ -38,6 +51,9 @@ not just a recompile.
 **Declined:**
 - **A runtime-only throw with no compile-time check.** It finds the mistake at a read far from its
   cause, and gives up the one analysis that already serves locals.
+- **Following each call the constructor makes into the method it reaches.** A method can be
+  overridden, called through `mixed` or handed to a library, so the analysis would be whole-program
+  and still unsound at the first call it cannot see.
 - **A silent per-type default.** A plausible zero hides the missing assignment
   (`rule:classes/no-undefined-value`).
 - **An `undefined` value for the unassigned state.** It widens every declared type

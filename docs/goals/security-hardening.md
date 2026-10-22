@@ -284,7 +284,12 @@ repros with `target/debug/nvs.exe` on ports 18100-18199 and answering, per ID, r
 **Does:** RT-1 and RT-2 no longer compile, and no program reaches a slot the constructor has not
 written.
 
-- [ ] RT-2: two-phase construction in the init check: every own property is assigned before `$this` escapes or `parent::constructor` runs (`rule:classes/definite-property-initialization`). `crates/nvs-types/src/ctor_init.rs:73`
+- [x] RT-2: two-phase construction in the init check: every own property is assigned before `$this` escapes or `parent::constructor` runs (`rule:classes/definite-property-initialization`). `crates/nvs-types/src/ctor_init.rs:73`
+  - [x] `InitState::escape` refuses `$this`, a closure that captures it, `parent::`/`self::`/`static::` instance calls and a `throw` that carries it, while an own property or an owed parent call is missing
+  - [x] `parent::constructor(...)` is refused while an own required property is unassigned
+  - [x] unit tests `this_used_*` and `a_subclass_assigns_its_own_properties_before_the_parent_constructor` pass
+  - [x] the rule and E0409's card say it, and the four programs the sweep found are ported
+- [ ] RT-2 through the property pipeline: a constructor's write runs `onPropertySet`, a guard or a hook on `$this` while later slots are zero, and that still panics (`.agent-tmp/sec-audit/wb-runtime-memory/rt2-observer.nvs`). Refusing these accesses at compile time would refuse every observer class that assigns two properties, so it takes the standing safe default: a tagged read of a required slot in a class that implements `PropertyObserver`, `PropertyGuard` or `LateInit`, or declares a hook, and a promoted parameter's pipeline store counts too. `crates/nvs-types/src/expr_table.rs:1513`
 - [ ] RT-1: `constructor` is callable only through `new` and as one `parent::constructor(...)` statement per path (`rule:classes/constructor-is-a-method-named-constructor`). `crates/nvs-types/src/expr/calls.rs:1040`
 - [ ] RT-1: a second `parent::constructor(...)` on a path does not compile. `crates/nvs-types/src/expr/assign.rs:1333`
 - [ ] RT-1: a dynamic call named `constructor` through `mixed` throws `Error`. `crates/nvs-codegen/src/emit.rs:3018`
@@ -454,20 +459,33 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 1 is done at fdbedb805. Every CONFIRMED repro ran again on a debug build. Each finding an item
-names still reproduces, so no item is struck. Five anchors moved, and they are corrected. LC-1 is fixed
-by `040873f47` and is out of scope here. APP-1 and BBK-1 to BBK-5 still reproduce, and
-`taught-app-works` owns them. The repro programs and reports are under `.agent-tmp/sec-audit/`, and
-stage 13 deletes them. No test is expected to go red: nothing in the tree changed but this file.
+Stage 2's RT-2 checker half landed. `InitState::escape` in `crates/nvs-types/src/ctor_init.rs` refuses
+every use of `$this` other than `$this->prop` while an own required property is unassigned or an owed
+`parent::constructor(...)` has not run, and the parent call itself while an own property is
+unassigned. `t1.nvs` and `app1.nvs` no longer compile (E0409 names the first missing property). A sweep
+of every tracked `.nvs` file declaring a constructor found four programs. Three examples now assign
+before `parent::constructor(...)`, and the observer example's `.out` changed order. The Stringable
+attack's `Ping::$other` is `?Pong`. The rule and E0409's card say it. The `env-secret-proofs` red from
+the sweep passes on a rerun, and the cancelled nightly run was the push of `fdbedb805` superseding a
+dispatched run; the scheduled one was green.
+
+Tests that may go red: any snapshot of E0409's card text (`nvs agent show E0409`, the website's code
+pages), and a Rust test whose inline program calls a method on `$this` or `parent::constructor(...)`
+before assigning its own properties. The sweep covered `.nvs` files only.
 
 ### Next
 
-Stage 2, RT-2 first: two-phase construction in the init check, `crates/nvs-types/src/ctor_init.rs:73`.
-Then RT-1 at `crates/nvs-types/src/expr/calls.rs:1040`, `crates/nvs-types/src/expr/assign.rs:1333`
-and `crates/nvs-codegen/src/emit.rs:3018`. The repros are `.agent-tmp/sec-audit/wb-runtime-memory/t1.nvs`
-(RT-2, exits 139), `app1.nvs` (`/?restore=1` kills the server), `t5.nvs` and `t14.nvs` (RT-1, garbage
-slot reads). On main, RT-2 now stops at a guarded panic in `crates/nvs-runtime/src/string.rs:1010`,
-and the process still dies.
+1. RT-2 through the property pipeline (the new item under stage 2). Repro:
+   `.agent-tmp/sec-audit/wb-runtime-memory/rt2-observer.nvs` panics in
+   `crates/nvs-runtime/src/string.rs:1010`. The expression table already marks each pipelined access
+   (`ExprInfo::Property { observer, guard }`, `ExprInfo::HookedProperty`, `PromotedPipeline` at
+   `crates/nvs-types/src/expr_table.rs:1513`). The untested slot read is `crates/nvs-codegen/src/emit.rs:4248`.
+2. Then RT-1: `infer_new` at `crates/nvs-types/src/expr/calls.rs:1017` and the method-call path
+   for `$x->constructor(...)`, a second `parent::constructor(...)` (track it in `InitState` beside
+   `parent_called`, `crates/nvs-types/src/ctor_init.rs`), and the `mixed` dynamic call at
+   `crates/nvs-codegen/src/emit.rs:3018`. Repros `t5.nvs` and `t14.nvs`.
+3. Then the attacks: a conformance reject case and a hostile case each for `app1.nvs`'s shape and for
+   the readonly rewrite.
 
 ### Backlog
 

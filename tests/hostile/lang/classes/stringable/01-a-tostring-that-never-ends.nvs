@@ -17,7 +17,7 @@ final class Mirror implements Stringable
 
 final class Ping implements Stringable
 {
-    public Pong $other;
+    public ?Pong $other;
 
     public function constructor()
     {
@@ -26,7 +26,7 @@ final class Ping implements Stringable
 
     public function toString(): string
     {
-        return 'ping ' . $this->other;
+        return 'ping ' . ($this->other?->toString() ?? 'none');
     }
 }
 
