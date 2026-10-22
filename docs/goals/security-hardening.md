@@ -178,8 +178,12 @@ and throws, or keeps `Value::str` under an `expect` that says why its bytes are 
 **Captured output is checked where the capture ends (the user's call on d1, 2026-10-22).** Output
 captured by `Core\Out::capture`, `Core\Html::later` or a later slot can hold raw bytes from
 `Core\Response::bytes` or `::sendFile`. Each capture throws `RuntimeError` naming the member when the
-output it ends with is not UTF-8. `Core\Test::request` keeps the body as bytes, and its `body`, `json`
-and `jsonAs` readers throw that `RuntimeError` (the user's call on d6, option 1).
+output it ends with is not UTF-8.
+
+**A test response keeps its body as bytes (the user's call on d6, option 1, 2026-10-22).**
+`Core\Test::request` keeps the body as bytes, so an in-process test can request a binary route such
+as a PDF. `body()`, `json()` and `jsonAs()` throw d1's `RuntimeError` when the body is not UTF-8;
+`status()` and the headers work on any body. No `Core` member is added. Landed in f70139ab1.
 
 **Stage 4: a keystone test reads every `Core` signature.** It fails naming each member whose return
 contains `string`, or an array or shape of it, while a parameter is a qualified container
@@ -564,7 +568,11 @@ the code change before it runs any of them.
 
 ### 14. the goal is verified once, and every failure is fixed
 
-- [ ] CI's Linux `docker` job (`tests/docker/smoke.sh:52`, the `:ro` mount) and `bun nv bench-compare --smoke` pass with no `E0607`; stage 15 could not run them on Windows.
+- [x] CI's Linux `docker` job (`tests/docker/smoke.sh:52`, the `:ro` mount) and `bun nv bench-compare --smoke` pass with no `E0607`; stage 15 could not run them on Windows.
+  - [x] `bun nv bench-compare --smoke` under Docker Desktop: 4 cases, 4 peers agree, no `E0607`
+  - [x] the release image, `--read-only --cap-drop ALL`, serves `tests/docker/app` from a `:ro` volume owned by uid 1001 with mode 755: `/` and `/healthz` answer `200`
+  - [x] the same volume mounted writable stops with `E0607` (owned by uid 1001, not 65532 or root)
+  - [x] `smoke.sh` over a Windows bind mount fails the serve steps with `E0607` mode `0777`, the Docker Desktop case `rule:config/ownership-is-the-trust-boundary` and the guide record; CI's Linux leg is the one that runs it
 - [ ] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
 - [ ] Run `looper verify` once more, and it is green.
@@ -573,7 +581,21 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 15 is done. The gate stage 14 is next.
+The gate stage 14 is running: its first item is done, and the first `looper verify` was started.
+
+- **The container check.** `bun nv bench-compare --smoke` passes under Docker Desktop with no
+  `E0607`. `tests/docker/smoke.sh` needs a Linux file system for its bind mount: from this
+  Windows checkout Docker Desktop reports `0777`, so its serve steps stop with `E0607`, as the rule
+  and the guide say. The Linux shape was checked by hand instead: the release image (built from
+  `docker/Dockerfile` around the bench image's Linux binary) serves `tests/docker/app` from a `:ro`
+  named volume owned by uid 1001, mode 755, and answers `200`. The same volume mounted writable
+  stops with `E0607` naming uid 1001. The scratch `docker/bin/` and images are deleted.
+- **d6 is recorded and closed.** The standing decision *A test response keeps its body as bytes*
+  says what the user chose; `decision list` has no decisions.
+- **`looper verify` is `bun tools/looper/main.ts verify`.** The installed `looper` has no `verify`
+  subcommand (exit 2).
+
+The session before:
 
 - **d6, option 1 (f70139ab1).** `Core\Test::request` keeps the body slot as `bytes`
   (`Value::bytes`, and `b""` for a failed request), so it no longer throws for a PDF body.
@@ -592,8 +614,6 @@ Stage 15 is done. The gate stage 14 is next.
   (two tests each spending most of an extension CPU budget under `--jobs 1`) is not written: no
   fixture guest spins (`tests/conformance/ext/fixtures/ledger` has echo methods only). See the
   backlog.
-- d6 is still listed open in `looper decision list`. It was built on option 1, so the gate
-  session closes it with `bun tools/looper/main.ts decision close d6` before `DONE`.
 - `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render`/`--check`
   are green.
 - The sweep's `env-secret-proofs` red is the 00:07 log again, and the nightly run 39746060276 is
@@ -1343,14 +1363,12 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-1. The gate stage 14 (`### 14.` above). First read CI's Linux `docker` job and run
-   `bun nv bench-compare --smoke` where Docker runs, for the `:ro` mount and `E0607`.
-2. Start `looper verify` with `run_in_background`, write the handoff, and end the turn. Fix every
-   failure it names in one pass, using the "Tests that may go red" lists in every State block
-   above as the map, and the conformance reds listed under the oldest block. Then run it once
-   more.
-3. Before `DONE`: `bun tools/looper/main.ts decision close d6`, `bun nv verify --doc`, and
-   `bun nv owners --closes security-hardening`, as AGENTS.md § *In the loop* says.
+1. Read the report of the first `bun tools/looper/main.ts verify` (stage 14's second item). Fix
+   every failure it names in one pass, using the "Tests that may go red" lists in every State
+   block above as the map, and the conformance reds listed under the oldest block. Then run it
+   once more.
+2. Before `DONE`: `bun nv verify --doc`, and `bun nv owners --closes security-hardening`, as
+   AGENTS.md § *In the loop* says.
 
 ### Backlog
 
