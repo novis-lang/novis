@@ -1364,7 +1364,7 @@ fn failure(store: &Store<Guest>, err: &wasmtime::Error, at: At<'_>) -> Failure {
     }
     if err
         .chain()
-        .any(|cause| cause.to_string().ends_with(FUEL_EXHAUSTED))
+        .any(|cause| cause.is::<Unaffordable>() || cause.to_string().ends_with(FUEL_EXHAUSTED))
     {
         return Failure::Limit(Limit::Memory);
     }
@@ -1375,6 +1375,36 @@ fn failure(store: &Store<Guest>, err: &wasmtime::Error, at: At<'_>) -> Failure {
         Some(trap) => at.crash(trap.to_string()),
         None => at.crash(err.root_cause().to_string()),
     }
+}
+
+/// A host import's refusal to allocate a size the guest chose, which [`failure`] reads as
+/// [`Limit::Memory`]. [`afford`] makes it.
+#[derive(Debug)]
+struct Unaffordable {
+    what: &'static str,
+    bytes: u64,
+}
+
+impl std::fmt::Display for Unaffordable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} of {} bytes is past the request's memory",
+            self.what, self.bytes
+        )
+    }
+}
+
+impl std::error::Error for Unaffordable {}
+
+/// Refuses a host allocation of `bytes`, a size the guest chose, before it is made, when the
+/// request has less than that left (`rule:packaging/a-guest-runs-under-the-requests-budget`).
+/// The call then ends at the memory limit. A request with no memory limit refuses nothing here.
+pub(crate) fn afford(budget: &dyn Budget, what: &'static str, bytes: u64) -> wasmtime::Result<()> {
+    if budget.left().is_some_and(|left| bytes > left) {
+        return Err(wasmtime::Error::new(Unaffordable { what, bytes }));
+    }
+    Ok(())
 }
 
 /// The end of the message wasmtime fails a crossing with when it has used up the store's hostcall

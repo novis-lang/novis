@@ -127,6 +127,7 @@ interface api {
     nanos: func() -> u32;
     draw: func() -> s64;
     fill: func() -> s64;
+    flood: func();
 }
 
 world guest {
@@ -146,7 +147,8 @@ world guest {
 /// `-2` for a failed read. The other exports return the length of the list, or `1` for a working
 /// directory and `0` for none. `seconds` and `nanos` read the wall clock. `draw` returns
 /// `get-random-u64`, and `fill` returns the eight bytes `get-random-bytes` gives, read
-/// little-endian. Every import returning more than one value writes it at 16.
+/// little-endian. `flood` asks `get-random-bytes` for 64 MiB. Every import returning more than
+/// one value writes it at 16.
 const GUEST_CORE: &str = r#"(module
   (import "wasi:cli/stdout@0.2.12" "get-stdout" (func $stdout (result i32)))
   (import "wasi:cli/stderr@0.2.12" "get-stderr" (func $stderr (result i32)))
@@ -210,7 +212,9 @@ const GUEST_CORE: &str = r#"(module
     (call $draw))
   (func (export "shop:probe/api#fill") (result i64)
     (call $fill (i64.const 8) (i32.const 16))
-    (i64.load (i32.load (i32.const 16)))))"#;
+    (i64.load (i32.load (i32.const 16))))
+  (func (export "shop:probe/api#flood")
+    (call $fill (i64.const 67108864) (i32.const 16))))"#;
 
 const GUEST_METHODS: &str = r#"[
   {"name": "say", "params": [], "returns": "void"},
@@ -222,7 +226,8 @@ const GUEST_METHODS: &str = r#"[
   {"name": "seconds", "params": [], "returns": "int"},
   {"name": "nanos", "params": [], "returns": "int"},
   {"name": "draw", "params": [], "returns": "int"},
-  {"name": "fill", "params": [], "returns": "int"}
+  {"name": "fill", "params": [], "returns": "int"},
+  {"name": "flood", "params": [], "returns": "void"}
 ]"#;
 
 /// The core module `core`, componentized against the world `guest` in `wit`.
@@ -304,14 +309,17 @@ impl Seeded {
     }
 }
 
-/// A request budget with no limits, a fixed wall clock, a seeded generator and the settings
-/// blocks of its configuration, which keeps every record written to its log.
+/// A request budget with no limits but the memory it has `left`, a fixed wall clock, a seeded
+/// generator and the settings blocks of its configuration, which keeps every record written to
+/// its log and the most random bytes it was asked for at once.
 #[derive(Debug, Default)]
 struct Recorder {
     records: Mutex<Vec<Record>>,
     clock: Duration,
     generator: Mutex<Seeded>,
     settings: BTreeMap<String, serde_json::Map<String, serde_json::Value>>,
+    left: Option<u64>,
+    drawn: Mutex<usize>,
 }
 
 impl Recorder {
@@ -340,6 +348,10 @@ impl Budget for Recorder {
         true
     }
 
+    fn left(&self) -> Option<u64> {
+        self.left
+    }
+
     fn log(&self, level: Level, channel: &str, message: &str) {
         self.records
             .lock()
@@ -356,6 +368,8 @@ impl Budget for Recorder {
     }
 
     fn random(&self, out: &mut [u8]) {
+        let mut drawn = self.drawn.lock().unwrap_or_else(PoisonError::into_inner);
+        *drawn = (*drawn).max(out.len());
         let mut generator = self
             .generator
             .lock()
@@ -454,6 +468,24 @@ fn a_guest_drawing_random_bytes_under_a_seed_draws_the_seeded_bytes() {
         [draw, fill],
         [[as_int(expected.next())], [as_int(expected.next())]]
     );
+}
+
+#[test]
+fn a_guest_asking_for_more_random_bytes_than_its_request_has_left_reaches_the_memory_limit() {
+    let (request, extension, recorder) = context_of(Recorder {
+        left: Some(1 << 20),
+        ..Recorder::default()
+    });
+    let failure = ask(&request, &extension, "flood").expect_err("64 MiB is past what is left");
+    assert!(
+        matches!(failure, Failure::Limit(nvs_ext::call::Limit::Memory)),
+        "the guest reaches the memory limit: {failure:?}"
+    );
+    let drawn = *recorder
+        .drawn
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    assert_eq!(drawn, 0, "the host made none of the bytes");
 }
 
 /// A guest importing every WASI interface the world links but `wasi:io/error`, as a toolchain's

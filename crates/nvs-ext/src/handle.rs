@@ -14,6 +14,12 @@
 //! imports: each asks [`crate::call::Budget::read`] for the bytes, and the guest's call waits,
 //! pending, until the host serves the read where it holds the source.
 //!
+//! **A read past the request's memory is refused before it is made.** `as-bytes` on a lent source
+//! reads all of it, and on a byte string copies all of it, so each first asks
+//! [`crate::call::Budget::left`], and a size past it ends the call at the memory limit
+//! (`rule:packaging/a-guest-runs-under-the-requests-budget`). `range` reads at most [`RANGE_MOST`]
+//! and is asked the same.
+//!
 //! **A handle lives for one call.** The call's arguments are the table's roots, and a handle is a
 //! root and the path of positions to the entry under it, so reading an element copies nothing until
 //! the guest asks for a scalar, a string or a byte string. When the call returns, every root and
@@ -348,18 +354,26 @@ fn bytes_of(
     offset: u64,
     length: Option<u64>,
 ) -> wasmtime::Result<impl Future<Output = wasmtime::Result<Option<Vec<u8>>>> + Send + 'static> {
+    let budget = store.data().budget();
     let (copied, lent) = match read(store, this)? {
-        Value::Bytes(bytes) => (
-            Some(length.map_or_else(
-                || bytes.clone(),
-                |length| range(bytes, offset, length).to_vec(),
-            )),
-            None,
-        ),
+        Value::Bytes(bytes) => {
+            if length.is_none() {
+                let whole = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+                crate::call::afford(&**budget, "a copy of the bytes", whole)?;
+            }
+            (
+                Some(length.map_or_else(
+                    || bytes.clone(),
+                    |length| range(bytes, offset, length).to_vec(),
+                )),
+                None,
+            )
+        }
         Value::Lent { id, size } => {
             let most = u64::try_from(RANGE_MOST).unwrap_or(u64::MAX);
             let length = length.map_or(*size, |length| length.min(most));
-            (None, Some(store.data().budget().read(*id, offset, length)))
+            crate::call::afford(&**budget, "a read of the source", length)?;
+            (None, Some(budget.read(*id, offset, length)))
         }
         _ => (None, None),
     };

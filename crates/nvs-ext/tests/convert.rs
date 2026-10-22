@@ -975,3 +975,133 @@ fn an_extension_resource_is_dropped_when_its_request_ends() {
     );
     assert_eq!(host.live_instances(), 0);
 }
+
+/// A guest that reads a whole `mixed` argument through `as-bytes`. `whole` returns how many bytes
+/// it read, and `0` for a value that is not bytes.
+const WHOLE: &str = r#"(component
+  (import "nvs:ext/types@1.0.0" (instance $types
+    (type $e (variant (case "invalid" string) (case "parse" string) (case "runtime" string)))
+    (export "error" (type (eq $e)))
+    (export "value" (type $value (sub resource)))
+    (export "[method]value.as-bytes"
+      (func (param "self" (borrow $value)) (result (option (list u8)))))))
+  (alias export $types "error" (type $error))
+  (alias export $types "value" (type $value))
+  (core module $memory
+    (memory (export "memory") 1)
+    (global $bump (mut i32) (i32.const 1024))
+    (func (export "realloc") (param i32 i32 i32 i32) (result i32) (local $at i32)
+      (local.set $at
+        (i32.and
+          (i32.add (global.get $bump) (i32.sub (local.get 2) (i32.const 1)))
+          (i32.sub (i32.const 0) (local.get 2))))
+      (global.set $bump (i32.add (local.get $at) (local.get 3)))
+      (local.get $at)))
+  (core instance $mi (instantiate $memory))
+  (alias core export $mi "memory" (core memory $mem))
+  (alias core export $mi "realloc" (core func $realloc))
+  (core func $as-bytes
+    (canon lower (func $types "[method]value.as-bytes") (memory $mem) (realloc $realloc)))
+  (core func $drop (canon resource.drop $value))
+  (core module $m
+    (import "host" "memory" (memory 1))
+    (import "host" "as-bytes" (func $as-bytes (param i32 i32)))
+    (import "host" "drop" (func $drop (param i32)))
+    (func (export "whole") (param $v i32) (result i32)
+      (call $as-bytes (local.get $v) (i32.const 64))
+      (call $drop (local.get $v))
+      (i32.store8 (i32.const 16) (i32.const 0))
+      (i64.store (i32.const 24) (i64.extend_i32_u (i32.load (i32.const 72))))
+      (i32.const 16)))
+  (core instance $i (instantiate $m
+    (with "host" (instance
+      (export "memory" (memory $mem))
+      (export "as-bytes" (func $as-bytes))
+      (export "drop" (func $drop))))))
+  (func $whole (param "value" (borrow $value)) (result (result u64 (error $error)))
+    (canon lift (core func $i "whole") (memory $mem) (realloc $realloc)))
+  (instance $api (export "whole" (func $whole)))
+  (export "shop:whole/api" (instance $api)))"#;
+
+/// A [`Meter`] that lends one source of zeros and keeps the length of every read of it.
+#[derive(Debug)]
+struct Lends {
+    meter: Meter,
+    reads: Mutex<Vec<u64>>,
+}
+
+impl Budget for Lends {
+    fn cpu_spent(&self) -> bool {
+        self.meter.cpu_spent()
+    }
+
+    fn charge(&self, bytes: i64) -> bool {
+        self.meter.charge(bytes)
+    }
+
+    fn left(&self) -> Option<u64> {
+        self.meter.left()
+    }
+
+    fn log(&self, _level: Level, _channel: &str, _message: &str) {}
+
+    fn wall_clock(&self) -> Duration {
+        self.meter.wall_clock()
+    }
+
+    fn monotonic_clock(&self) -> u64 {
+        self.meter.monotonic_clock()
+    }
+
+    fn random(&self, out: &mut [u8]) {
+        self.meter.random(out);
+    }
+
+    fn setting(&self, block: &str, key: &str) -> Option<serde_json::Value> {
+        self.meter.setting(block, key)
+    }
+
+    fn read(&self, _id: u64, _offset: u64, length: u64) -> nvs_ext::call::Lending {
+        self.reads.lock().expect("the reads lock").push(length);
+        let length = usize::try_from(length).expect("the length fits");
+        nvs_ext::call::Lending::ready(Ok(vec![0; length]))
+    }
+}
+
+#[test]
+fn a_whole_lent_source_larger_than_the_memory_left_is_refused_before_it_is_read() {
+    let host = host();
+    let component = wat::parse_str(WHOLE).expect("the test component compiles");
+    let manifest = r#"{"manifest": 1, "world": "1.0.0", "class": "Shop\\Whole", "interface": "shop:whole/api",
+      "methods": [{"name": "whole", "params": [{"name": "value", "type": "mixed"}], "returns": "uint"}]}"#;
+    let bytes = append_section(component, MANIFEST, manifest.as_bytes());
+    let entry = Entry {
+        path: PathBuf::from("whole.nvsx"),
+        sha256: pin(&bytes),
+        memory: None,
+        grants: nvs_config::extension::Granted::default(),
+    };
+    let extension = Loader::new(host.engine())
+        .load_bytes(&entry, &bytes)
+        .expect("the guest loads");
+    let budget = Arc::new(Lends {
+        meter: Meter::new(Duration::from_secs(30), Some(1 << 20)),
+        reads: Mutex::default(),
+    });
+    let request = host.request(Arc::clone(&budget) as Arc<dyn Budget>);
+    let source = Value::Lent {
+        id: 0,
+        size: 64 << 20,
+    };
+    let failure = block_on(request.call_values(&extension, "whole", vec![source]))
+        .expect_err("64 MiB is past what is left");
+    assert!(
+        matches!(failure, Failure::Limit(nvs_ext::call::Limit::Memory)),
+        "the guest reaches the memory limit: {failure:?}"
+    );
+    assert_eq!(
+        *budget.reads.lock().expect("the reads lock"),
+        Vec::<u64>::new(),
+        "the host read none of the source"
+    );
+}
