@@ -509,10 +509,10 @@ into its rule.
 - [x] RS-1: static serving skips the set program reads skip, in every mode (`rule:http-server/static-serving-is-one-policy`). `crates/nvs-server/src/mount.rs:571`
 - [x] RS-2: a loopback development server answers only a loopback `Host` or a listed one. `crates/nvs-server/src/mount.rs:307`
 - [x] RS-4, RS-6, RS-7: the case rule through a link, a strict `Range` parse, and `sandbox` on static SVG and HTML. `crates/nvs-server/src/statics.rs:239`
-- [ ] HTTP-2: an absolute-form target's host wins over `Host` (`rule:http-server/host-matching-is-on-the-host-part-only`). `crates/nvs-server/src/mount.rs:424`
-- [ ] HTTP-4, APP-3: a malformed chunked body answers `400`, and so does a request that carries both `Content-Length` and `Transfer-Encoding` (it is framed by `Transfer-Encoding` and closed today). `crates/nvs-server/src/body.rs:198`
-- [ ] APP-2: when a body reader trips `[limits] request_body`, the runtime records `Refusal::BodyTooLarge` on the request as it throws, and `dispatch` sends a handler that throws after that to the gate's `refused` with `413` instead of `failed` with `500`. No new error class: the reader still throws its `RuntimeError` (`rule:http-server/the-body-is-read-on-demand-under-two-caps`, `rule:routing/a-gate-answers-around-every-handler`). `crates/nvs-stdlib/src/request.rs:679`, `crates/nvs-stdlib/src/router.rs:2523`
-- [ ] APP-2's attack: a 9 MB JSON body and a 9 MB form body to a route that reads them answer `413` through the gate, and the next request answers `200`. `tests/hostile/core/Request/jsonAs/02-a-body-over-the-limit.nvs:1`
+- [x] HTTP-2: an absolute-form target's host wins over `Host` (`rule:http-server/host-matching-is-on-the-host-part-only`). `crates/nvs-server/src/mount.rs:424`
+- [x] HTTP-4, APP-3: a malformed chunked body answers `400`, and so does a request that carries both `Content-Length` and `Transfer-Encoding` (it is framed by `Transfer-Encoding` and closed today). `crates/nvs-server/src/body.rs:198`
+- [x] APP-2: when a body reader trips `[limits] request_body`, the runtime records `Refusal::BodyTooLarge` on the request as it throws, and `dispatch` sends a handler that throws after that to the gate's `refused` with `413` instead of `failed` with `500`. No new error class: the reader still throws its `RuntimeError` (`rule:http-server/the-body-is-read-on-demand-under-two-caps`, `rule:routing/a-gate-answers-around-every-handler`). `crates/nvs-stdlib/src/request.rs:679`, `crates/nvs-stdlib/src/router.rs:2523`
+- [x] APP-2's attack: a 9 MB JSON body and a 9 MB form body to a route that reads them answer `413` through the gate, and the next request answers `200`. `tests/hostile/core/Request/jsonAs/02-a-body-over-the-limit.nvs:1`
 - [ ] HTTP-5: `X-Forwarded-Proto` from a trusted peer that never set it is ignored (`rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`). `crates/nvs-server/src/forwarded.rs:466`
 - [x] RS-5: the Declined entry for a hard link. `docs/rules/http-server/static-serving-is-one-policy.md:1`
 - [x] The attacks: `GET /nvs.toml`, `/.env` and `/data.sqlite` in development mode, a rebinding `Host`, and the static policy rows; Rust tests beside `mount.rs`. `crates/nvs-server/src/mount.rs:1586`
@@ -568,8 +568,46 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 12 is half done: the RS items are landed, HTTP-2, HTTP-4/APP-3, APP-2 and HTTP-5 are open.
-Stages 13 and 15 are open, then the gate stage 14.
+Stage 12 has one item left, HTTP-5. Stages 13 and 15 are open, then the gate stage 14.
+
+- **HTTP-2 (fe441247c).** `mount::host` takes a target's own authority (absolute form, HTTP/2's
+  `:authority`) over `Host`, and returns `Host::Refused` when a `Host` line names another host
+  after both are `folded` (port, case and one trailing dot are the same host). So the door answers
+  `400`, and `Table::select` and `refuses_host` see the target's host. An absolute-form request
+  with no `Host` line still reads the target, as before. Attack
+  `a_target_naming_one_host_and_a_host_line_naming_another_is_refused` (mount.rs) was red on main.
+  The rule has a paragraph for it.
+- **HTTP-4, APP-3 (7af3f5b7a).** `heads::Scanner::end_head` treats a `Content-Length` beside any
+  `Transfer-Encoding` as a defect, so the door answers `malformed_head()` (`400`, close). The two
+  rows moved from the smuggling suite's "disambiguated" table into its `refused` table (16 rows).
+  `body::Supply` records `malformed` when `hyper`'s body error has an `io::Error` source of kind
+  `InvalidInput` or `InvalidData` (its chunked decoder's defects; `UnexpectedEof` is a client that
+  left). In `serve.rs`'s collect arm, a malformed supply replaces the answer with `malformed_head()`
+  and sets `by_limit = false`. A response already streaming cannot change. Attack
+  `a_chunked_body_framed_wrong_is_a_400_that_closes` (serve.rs, three framings) was red on main
+  (`200` with the program's text). `rule:errors/http-message-defects` says both.
+- **APP-2 (the commit after 7af3f5b7a).** `Inbound::refuse_body_too_large` / `body_too_large` (one
+  `bool`). `request::whole_body` sets it when `pull_whole` fails with `RuntimeError`, which is the
+  cap alone. `router::dispatch_matched` sends a handler throw to `refuse(.., BODY_TOO_LARGE, route)`
+  when it is set. `Inbound::refusal` is not used: it would make `route()` return `null` mid-handler.
+  The multipart readers (`post` over a multipart body, `files`) have their own caps and do not set
+  it. The attack `tests/hostile/core/Request/jsonAs/02-a-body-over-the-limit.nvs` printed `500` twice
+  without the router change and `413, 413, 200` with it (debug binary). Both rules say so.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render` and `--check`
+  are green. Run by name: the three new Rust tests, `the_request_smuggling_suite_passes`,
+  `a_repeated_length_and_a_bare_line_feed_are_refused_in_their_own_request` and the attack.
+- The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0, `nothing owed`), and the
+  nightly run 39746060276 is the cancelled `workflow_dispatch`. Neither is the tree's.
+
+Tests that may go red from this session: any served test or `.nvst` that sends an absolute-form
+target with a `Host` line naming another host (none found); any test that sends both
+`Content-Length` and `Transfer-Encoding` and expects an answer other than `400` (the smuggling suite
+was updated; `nvs-cli` tests not grepped); any served test that reads a malformed chunked body and
+expects the program's answer; a `Core\Router` test or `.nvst` whose handler reads a body over
+`request_body`, throws, and expects `failed`/`500`; the website's rule pages for the four rules
+changed.
+
+The session before (RS):
 
 - **The `sendFile` `500` is not a bug.** On this tree `Response::sendFile("assets/logo.svg")` in
   `src/App.nvs` resolves beside the source file (`src/assets/logo.svg`), which
@@ -1023,22 +1061,27 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 12's HTTP half. The audit's text for each is in `.agent-tmp/sec-audit/reports/` (grep the id).
-Each attack comes first:
-
-1. HTTP-2: an absolute-form target's host wins over `Host`
-   (`crates/nvs-server/src/mount.rs`'s `host`, about line 480 now;
-   `rule:http-server/host-matching-is-on-the-host-part-only`). `Table::select` and `refuses_host`
-   both read `host(request)`, so the fix reaches the rebinding guard too.
-2. HTTP-4, APP-3: a malformed chunked body and a request with both `Content-Length` and
-   `Transfer-Encoding` answer `400` (`crates/nvs-server/src/body.rs:198`).
-3. APP-2: `Refusal::BodyTooLarge` recorded as the reader throws, and `dispatch` sends a later throw to
-   the gate's `refused` with `413` (`crates/nvs-stdlib/src/request.rs:679`,
-   `crates/nvs-stdlib/src/router.rs:2523`). Attack: `tests/hostile/core/Request/jsonAs/02-a-body-over-the-limit.nvs`.
-4. HTTP-5: `X-Forwarded-Proto` from a trusted peer that never set it is ignored
-   (`crates/nvs-server/src/forwarded.rs:466`).
-
-Then stage 12's status goes to done, and stage 13 is next.
+1. HTTP-5 (`crates/nvs-server/src/forwarded.rs:466`'s `asserted`, called from `walk` at :352).
+   The audit (`.agent-tmp/sec-audit/reports/wb-http-front.md`, HTTP-5) found no clean code fix. Its
+   repro is a direct client on a trusted loopback address. The design this session chose and did
+   not write: `walk` reads `X-Forwarded-Proto` only when the trusted peer forwarded an
+   `X-Forwarded-For` chain (`chain` is non-empty). A peer that wrote none did not act as a proxy.
+   The cost: a proxy that writes `X-Forwarded-Proto` but no `X-Forwarded-For` loses `https` (no
+   HSTS, `scheme()` is `http`), which is the safe direction. A proxy that appends
+   `X-Forwarded-For` and passes the client's `X-Forwarded-Proto` through cannot be detected. The
+   rule (`rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`) says the proxy must
+   overwrite the header and declines the rest. The reverse-proxy page
+   (`website/src/content/docs/guides/production/reverse-proxy.mdx:86`) already sets it in both
+   nginx blocks. Attack: a unit test beside
+   `the_nearest_proxy_asserts_the_scheme_and_only_https_is_believed` (forwarded.rs:702), whose cases
+   send no `X-Forwarded-For` and must gain one. Check `serve.rs:5985`'s
+   `claiming_to_be_forwarded` (sends both, fine), and the `.nvsr` files that send
+   `x-forwarded-proto` (`tests/hostile/core/Request/scheme/01-...`,
+   `tests/hostile/tools/server/behind-a-proxy-trusted-proxies/01-...`,
+   `docs/examples/tools/server/behind-a-proxy-trusted-proxies/01-...`,
+   `docs/examples/core/Request/scheme/`): an example that expects `https` with no
+   `x-forwarded-for` line needs one.
+2. Then stage 12's status goes to done, and stage 13 is next.
 
 ### Backlog
 
