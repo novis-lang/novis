@@ -1310,13 +1310,20 @@ pays nothing extra. Emulated prepares — string interpolation inside the driver
 form.
 
 Permanently refused, and not deferred: multi-statement queries, which are the amplifier that turns
-one injection into a compromise; `LOAD DATA LOCAL INFILE`; `PDO::quote` and
+one injection into a compromise. PostgreSQL's `Parse`, MySQL and MariaDB without
+`CLIENT_MULTI_STATEMENTS`, and SQLite's prepare refuse a second statement before it runs. SQL Server
+runs a batch as one request, and no client can refuse a second statement there reliably, so on SQL
+Server the guard is the tainted check: statement text cannot carry a value from outside, and a
+literal with a second statement does not compile ([`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking)).
+Also refused: `LOAD DATA LOCAL INFILE`; `PDO::quote` and
 `mysqli_real_escape_string`; by-reference parameter or column binding; connection-level
 `lastInsertId` state; `PDO::ATTR_*`; and `PDO::inTransaction`. Query builders, ORMs and migration
 tooling are not `Core` at all.
 
-A dynamic identifier, a table or column name SQL cannot bind, goes through `Core\Db::quoteIdentifier`
-or an allowlist check.
+A dynamic identifier, a table or column name SQL cannot bind, goes through `Core\Db::quoteIdentifier`.
+It checks syntax only, so it keeps a name from breaking out of the statement and does not keep a
+visitor from naming a column the program never meant to show. A name a visitor chooses is checked
+against an allow list first, and the member's help says so.
 
 **Declined:**
 - **Mirroring PDO**: `prepare`/`execute`, fetch-mode constants, `quote()`, `lastInsertId()`,
@@ -1331,6 +1338,11 @@ or an allowlist check.
   such as pagination or an allowlisted sort column, to buy a guarantee the untainted rule does not
   need. If real programs show untainted text too easy to build without validation, this is the
   stricter mode to reconsider.
+- **Scanning SQL Server text for a second statement at run time.** T-SQL needs no `;` between two
+  statements, so a scan without the vendor's grammar misses some, and a check that misses some
+  would read as a guarantee. The tainted check is the guard there.
+- **An allow list as a parameter of `quoteIdentifier`.** It would change the member's signature for
+  a check one `Core\Arr::hasKey` already makes, and the help and the example show that check.
 
 <sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion).</sub>
 
