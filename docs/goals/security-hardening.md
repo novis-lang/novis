@@ -223,6 +223,14 @@ room from its admission until its first publish, so a burst past the room is ref
 `Retry-After` before it allocates. It stays O(in-flight) and adds no setting. Shedding by CPU wait
 was declined: it is a new admission condition.
 
+**The share is 1 MiB, and a started request runs next (the user's call on d3, 2026-10-22).** The
+scheduler's ready queue is FIFO (`crates/nvs-host/src/scheduler.rs:930`), so in a cold burst every
+ready connection passed `Admission::admit` before any request ran, and a hold looked like a light
+request. The share is 1 MiB, the publish step. A request `Isolate::start` queues runs before the next
+ready connection, so it allocates and publishes before the next admission. Holds are refused with
+`503` past about 32 in the `flood` row's room, and a light burst is never refused. This changes the
+run order on a core: a new request goes ahead of tasks already ready.
+
 **Stage 8: an extension instance is released when its request tree ends.** That is what
 `rule:packaging/a-fresh-instance-per-request` says. wasmtime's instance limit is set from `max_in_flight`,
 never the constant 64. Redirects an extension follows are checked against the extension's own grant
@@ -429,12 +437,12 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 
 **Does:** EXT-1's 70 requests all answer, and EXT-2, EXT-5 and EXT-6 are closed.
 
-- [ ] EXT-1: the tree's `Calls` are dropped when the tree ends, and the instance with them. `crates/nvs-cli/src/extensions.rs:333`
+- [x] EXT-1: the tree's `Calls` are dropped when the tree ends, and the instance with them. `crates/nvs-cli/src/extensions.rs:333`
 - [ ] EXT-2: the instance limit comes from `max_in_flight`. `crates/nvs-ext/src/call.rs:1170`
 - [ ] EXT-5: a narrowed `grants:` reaches an instance the tree already holds. `crates/nvs-cli/src/extensions.rs:442`
 - [ ] EXT-6: a redirect hop is checked against the extension's intersection (`rule:security/extension-grants-are-an-intersection`). `crates/nvs-ext/src/wasi/http.rs:488`
 - [ ] EXT-7 to EXT-10: each Low item in the sinks report, fixed or declined into its rule. `.agent-tmp/sec-audit/reports/wb-sinks.md:212`
-- [ ] The attack: 200 requests that each call `Novis\Intl`, every answer correct, memory flat; a Rust test in `nvs-cli`. `crates/nvs-cli/src/extensions.rs:1`
+- [x] The attack: 200 requests that each call `Novis\Intl`, every answer correct, memory flat; a Rust test in `nvs-cli`. `crates/nvs-cli/tests/serve_isolation.rs:1`
 
 ### 9. sessions, the CSRF door and signed cookies read and bind one way
 

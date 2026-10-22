@@ -27,9 +27,11 @@
 //!
 //! **In `nvs serve` a request's calls live in its request tree.** Every worker installs
 //! [`Served`], which at a request's first call puts a [`Calls`] over the live set into
-//! `nvs_runtime::TreeState::extensions`. Every task of the request reaches the same one, and
-//! it is dropped with the tree: when the request and its after-response work have finished,
-//! even where a connection gave up on the request first. A request that started before a
+//! `nvs_runtime::TreeState::extensions`. Every task of the request reaches the same one. It is
+//! dropped, and its instance with it, when the connection waits for its next request and nothing
+//! else holds the tree, or else with the tree: when the request and its after-response work
+//! have finished, even where a connection gave up on the request first. Its budget holds the
+//! tree weakly ([`Spent`]), so nothing keeps a tree alive past its request. A request that started before a
 //! reload and makes its first call after it calls into the new set. Its unit was typed
 //! against the old one, so a class the reload removed throws `ExtensionError`. The tree is
 //! normally dropped on the request's core. A tree whose last task finished on another core is
@@ -98,8 +100,8 @@ use nvs_ext::load::{Builtin, CacheKey, Entry, Extension as Loaded, Loader, Modul
 use nvs_ext::manifest::Manifest;
 use nvs_ext::types::{CORE_CLASSES, CoreRecord, Field, NovisType};
 use nvs_runtime::{
-    Ctx, Fault, HelperResult, NvsArray, NvsStr, SafepointFlags, SafepointView, SlotKey, Tag,
-    ThrownClass, Value,
+    Ctx, Fault, HelperResult, NvsArray, NvsStr, SafepointFlags, SlotKey, Tag, ThrownClass, Value,
+    WeakSafepointView,
 };
 use nvs_stdlib::ext_record::Part;
 
@@ -330,20 +332,17 @@ pub(crate) struct Served;
 
 impl nvs_runtime::extension::Extensions for Served {
     fn call(&self, ctx: &mut Ctx, class: &str, method: &str, args: &[Value]) -> HelperResult {
-        let tree = ctx.tree_handle();
-        let slot = tree.extensions();
-        if slot.get().is_none() {
+        let host = ctx.tree_handle().extensions(|| {
             let set = live().ok_or_else(|| {
                 Fault::thrown_as(
                     ThrownClass::Extension,
                     format!("`{class}::{method}`: the extension is not loaded"),
                 )
             })?;
-            drop(slot.set(Box::new(Calls::serving(set))));
-        }
-        let calls = slot
-            .get()
-            .and_then(|calls| calls.downcast_ref::<Calls>())
+            Ok::<_, Fault>(Arc::new(Calls::serving(set)) as Arc<dyn std::any::Any + Send + Sync>)
+        })?;
+        let calls = host
+            .downcast_ref::<Calls>()
             .expect("only this host sets a tree's extensions, and it set them above");
         nvs_runtime::extension::Extensions::call(calls, ctx, class, method, args)
     }
@@ -426,7 +425,9 @@ impl Drop for Calls {
 /// made the request, each logged line until the call that wrote it returns, each outbound
 /// request until it is sent, and each read until it is served.
 pub(crate) struct Spent {
-    tree: SafepointView,
+    /// Weak, because the tree keeps this budget: a strong view would be a cycle, and the tree
+    /// and its instance would never be dropped. A tree that has ended reads as spent.
+    tree: WeakSafepointView,
     started: Instant,
     config: Option<nvs_config::Request>,
     narrowed: Option<Vec<nvs_config::capability::Cap>>,
@@ -441,7 +442,7 @@ impl Spent {
     /// The budget of the request `ctx` runs: its tree, its snapshot and its grants.
     fn of(ctx: &Ctx) -> Self {
         Self {
-            tree: ctx.safepoint_view(),
+            tree: ctx.safepoint_view().downgrade(),
             started: Instant::now(),
             config: ctx.config().cloned(),
             narrowed: ctx.grant_filter().map(<[_]>::to_vec),
@@ -554,7 +555,9 @@ fn sent(ctx: &mut Ctx, request: Outgoing) -> Result<Incoming, Unsent> {
 
 impl Budget for Spent {
     fn cpu_spent(&self) -> bool {
-        self.tree.flags().contains(SafepointFlags::CPU_LIMIT)
+        self.tree
+            .flags()
+            .is_none_or(|flags| flags.contains(SafepointFlags::CPU_LIMIT))
     }
 
     /// A growth the request cannot afford charges nothing and records no refusal of its own, so
