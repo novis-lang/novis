@@ -13,7 +13,7 @@ stages:
     status: done
     context: [crates/nvs-types/src/ctor_init.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-codegen/src/emit.rs, docs/rules/classes/definite-property-initialization.md, docs/rules/classes/readonly-is-written-once.md, docs/rules/classes/constructor-is-a-method-named-constructor.md]
   - id: 3
-    title: "every string made from outside bytes is checked UTF-8"
+    title: every string made from outside bytes is checked UTF-8
     status: done
     context: [crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/jwe.rs, crates/nvs-runtime/src/string.rs, tools/nv/cmd/lints.ts, docs/rules/types/string-is-utf8.md]
   - id: 4
@@ -30,10 +30,10 @@ stages:
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/budget.rs, crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/xml.rs]
   - id: 7
     title: "connections, spans, metrics and blocking work grow with requests in flight, never with requests served"
-    status: open
+    status: done
     context: [crates/nvs-server/src/serve.rs, crates/nvs-server/src/admit.rs, crates/nvs-server/src/trace.rs, crates/nvs-server/src/otlp.rs, crates/nvs-host/src/blocking.rs, crates/nvs-host/src/ladder.rs, docs/rules/http-server/admission-is-arithmetic-not-a-number.md, docs/rules/observability/sampling-is-head-based.md]
   - id: 8
-    title: "an extension instance ends with its request"
+    title: an extension instance ends with its request
     status: open
     context: [crates/nvs-cli/src/extensions.rs, crates/nvs-ext/src/call.rs, docs/rules/packaging/a-fresh-instance-per-request.md, docs/rules/security/extension-grants-are-an-intersection.md]
   - id: 9
@@ -45,7 +45,7 @@ stages:
     status: open
     context: [crates/nvs-db/src/pg.rs, crates/nvs-db/src/sqlite.rs, crates/nvs-stdlib/src/db/open.rs, crates/nvs-db/src/tds/rows.rs, docs/rules/security/db-pool-reset-is-a-boundary.md]
   - id: 11
-    title: "a Windows path is refused by its text before the file system sees it"
+    title: a Windows path is refused by its text before the file system sees it
     status: open
     context: [crates/nvs-runtime/src/capability.rs, crates/nvs-stdlib/src/io.rs, docs/rules/security/path-scope-canonicalise-then-prefix.md, docs/rules/security/writes-open-beneath-a-handle.md]
   - id: 12
@@ -67,15 +67,15 @@ stages:
 checks:
   - id: types-tests
     stage: 2
-    name: the checker refuses an early `$this` and a second constructor call
+    name: "the checker refuses an early `$this` and a second constructor call"
     run: [bun, nv, verify, --fast, -p, nvs-types]
   - id: stdlib-tests
     stage: 5
-    name: every Core signature keeps a tainted input's mark
+    name: "every Core signature keeps a tainted input's mark"
     run: [bun, nv, verify, --fast, -p, nvs-stdlib]
   - id: server-tests
     stage: 12
-    name: the server's admission, trace, mount and static tests pass
+    name: "the server's admission, trace, mount and static tests pass"
     run: [bun, nv, verify, --fast, -p, nvs-server]
   - id: cli-tests
     stage: 8
@@ -87,7 +87,7 @@ checks:
     run: [bun, nv, verify, --fast, -p, nvs-db]
   - id: config-tests
     stage: 15
-    name: the served configuration is ownership-checked, and a read-only mount passes
+    name: "the served configuration is ownership-checked, and a read-only mount passes"
     run: [bun, nv, verify, --fast, -p, nvs-config]
   - id: rules-check
     stage: 13
@@ -430,7 +430,7 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 - [x] HTTP-1's fix keeps a Rust test beside `admit.rs`: a core thread holding connection buffers past the room still admits a request, because admission reads request memory only. No idle-connection or slow-reader attack, since a proxy stops those first. `crates/nvs-server/src/admit.rs:1`
 - [x] The overload attack, a Rust test that starts the real `nvs serve` with `max_in_flight = 50` and a small `[limits] memory`. A flood several times the ceiling runs beside requests that reach the memory limit, reach the CPU limit, and lose their client, while a probe sends ordinary requests. Every refusal is a `503` with `Retry-After`, every probe gets `200` or that `503` and never hangs, and the process lives. Once the flood ends, 50 requests held open together are all admitted, `nvs_memory_bytes` is back within a stated bound of its reading before the flood, and the next request answers `200`. `crates/nvs-cli/tests/serve_isolation.rs:1`
 - [x] A `flood` row in `bench-compare --scenarios` puts load past capacity on each stack behind nginx and reports refusals, probe latency and recovery; the nightly deep lane runs its smoke form. `benches/compare/README.md:80`
-- [ ] d2: an admitted request holds a provisional share of the room until its first publish, so a burst past the room gets `503` before it allocates; the size of the share and its cost are in `rule:http-server/admission-is-arithmetic-not-a-number`, a Rust test beside `admit.rs` sends a burst on one core and sees `503`, and the `flood` row run once shows Novis's holds refused with `503`, not stopped with `500`. `crates/nvs-server/src/admit.rs:1`
+- [x] d2: an admitted request holds a provisional share of the room until its first publish, so a burst past the room gets `503` before it allocates; the size of the share and its cost are in `rule:http-server/admission-is-arithmetic-not-a-number`, a Rust test beside `admit.rs` sends a burst on one core and sees `503`, and the `flood` row run once shows Novis's holds refused with `503`, not stopped with `500`. `crates/nvs-server/src/admit.rs:1`
 - [x] `[limits] max_tasks`'s comment says what `claim_task` enforces, not "bounds nothing today". `crates/nvs-config/src/default.toml:86`
 
 ### 8. an extension instance ends with its request
@@ -438,7 +438,7 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 **Does:** EXT-1's 70 requests all answer, and EXT-2, EXT-5 and EXT-6 are closed.
 
 - [x] EXT-1: the tree's `Calls` are dropped when the tree ends, and the instance with them. `crates/nvs-cli/src/extensions.rs:333`
-- [ ] EXT-2: the instance limit comes from `max_in_flight`. `crates/nvs-ext/src/call.rs:1170`
+- [x] EXT-2: the instance limit comes from `max_in_flight`. `crates/nvs-ext/src/call.rs:1170`
 - [ ] EXT-5: a narrowed `grants:` reaches an instance the tree already holds. `crates/nvs-cli/src/extensions.rs:442`
 - [ ] EXT-6: a redirect hop is checked against the extension's intersection (`rule:security/extension-grants-are-an-intersection`). `crates/nvs-ext/src/wasi/http.rs:488`
 - [ ] EXT-7 to EXT-10: each Low item in the sinks report, fixed or declined into its rule. `.agent-tmp/sec-audit/reports/wb-sinks.md:212`
@@ -545,274 +545,58 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 7 is open for one item, d2's, and d3 is answered (option 3, under *Standing decisions*), so it
-can be built. Stage 8 has EXT-1 and its attack done.
+Stage 7 is done (d2 landed and the `flood` row passes). Stage 8 has EXT-1, EXT-2 and its attack
+done; EXT-5, EXT-6 and EXT-7 to EXT-10 are left.
 
-This session (0150):
+This session (0151):
 
-- **EXT-1 (0dcaf45b1).** The cycle was `TreeState::extensions` → `Calls` → `Arc<Spent>` →
-  `SafepointView` → `Arc<TreeState>`. `Spent` now holds a `WeakSafepointView` (new, from
-  `SafepointView::downgrade`, `crates/nvs-runtime/src/ctx/safepoint.rs`); a tree that has ended reads
-  as CPU-spent. `TreeState::extensions` is a `Mutex<Option<ExtensionHost>>` (`ExtensionHost` is an
-  `Arc<dyn Any + Send + Sync>`), and `TreeState::extensions(make)` returns a clone, so the lock is
-  never held while a guest runs. `Ctx::between_requests` drops the instances when
-  `Arc::strong_count(tree) == 1`, so a waiting keep-alive connection holds no instance place; a tree
-  that after-response work holds drops them when that work ends. A request whose tree still holds a
-  weak handle takes `reroot`'s replace path (one allocation), since `Arc::get_mut` counts weak ones.
-- Test `every_request_that_calls_an_extension_ends_its_instance` (`serve_isolation.rs`): 100
-  requests on one keep-alive connection and 100 on fresh ones answer `Shop, Blog, and Wiki`, and
-  `nvs_memory_bytes{scope="request"}` moves at most 4 MiB. It ran once, green, and it fails at
-  request 65 with `500` on the code before the fix (checked with a stash).
-  `rule:packaging/a-fresh-instance-per-request` has the paragraph and `guardedBy` names the test.
-- d3 is recorded under *Standing decisions* and closed (`bun tools/looper/main.ts decision close d3`;
-  the installed `looper` has no `decision` subcommand).
-- `env-secret-proofs`: its log still says exit 0 with `nothing owed`, and no check has that name. The
-  sweep's red is stale again. Nightly 39746060276 was cancelled whole.
+- **d2 (0870184a5).** Each admitted request counts one publish step (1 MiB) on its core's gauge
+  until it grows a step or ends: `nvs_runtime::budget::hold_share` (called by `Admission::admit`
+  when it admits) and `give_share_back` (called by `InFlight`'s `Drop`), with the thread-local
+  `SHARES` in `crates/nvs-runtime/src/budget/gauge.rs`. `report` adds `SHARES * STEP` to what it
+  publishes, and a `grew` report with a request armed (`POLLED` non-null) gives one share back. The
+  shares are the core's count, not each request's; the gauge's module doc says why that is
+  enough. The shares also count against the process limit (`stop_if_full`), which can stop a
+  growing request up to one step per share early; the doc says so. `memory_fits` is unchanged.
+- **Run order.** New `nvs_host::spawn_child_next` (and the crate-private `spawn_child_ordered`)
+  in `crates/nvs-host/src/scheduler.rs`: `Pending` and `Scheduler::start` carry `next`, `start`
+  pushes such a task to the front of `ready`, and `drain_pending` pushes the `next` ones in reverse
+  so they keep their spawn order. `start_as_task` (`crates/nvs-host/src/isolate.rs`) spawns next
+  when the isolate's context has an inbound request.
+- Tests `a_burst_on_one_core_is_refused_before_it_allocates` (`admit.rs`) and
+  `a_child_spawned_next_runs_before_the_tasks_already_ready` (scheduler unit) ran once, green.
+  `rule:http-server/admission-is-arithmetic-not-a-number` has the paragraph, the memory line, three
+  Declined entries, and `guardedBy` names `scheduler.rs`.
+- **The `flood` row, run once after d2** (`bun nv bench-compare --scenarios --smoke --row flood`):
+  `Novis built-in, PHP no, Bun no, Go no`. Novis: 6508 flood requests, 6083 refused, every failure
+  `503` (no `500`), 25 probes with 0 failed, probe median 147 ms and max 1296 ms, recovery 0 s, all 8
+  holds after the flood answered, no restart. Bun and Go answered `502` throughout and restarted 6
+  times each; PHP timed out and did not recover.
+- **EXT-2 (95e083fcf).** `crates/nvs-cli/src/extensions.rs`: `size_pool(config)`, called at the top
+  of `loaded`, sets the static `SLOTS` to `max_in_flight` × (built-in classes + `[[extension]]`
+  entries), capped at `MOST_SLOTS = 4096` (6 GiB of address space each, 24 TiB in all), while no
+  host exists. A host made before any configuration (`nvs ext build`) gets `UNSIZED_SLOTS = 64`. A
+  reload cannot grow the pool; past it a call throws `ExtensionError`.
+  `rule:packaging/a-fresh-instance-per-request` says so, with two Declined entries (a smaller
+  reservation per place, growing the pool at a reload). Test
+  `every_request_in_flight_can_hold_an_extension_instance` (`serve_isolation.rs`, 100 requests that
+  each hold a `Novis\Intl` instance for 500 ms, `max_in_flight = 200`) ran once, green; on the old
+  code 36 of the 100 fail.
+- `env-secret-proofs`: its log is still the 00:07 one with exit 0 and `nothing owed`, and no check
+  has that name. The sweep's red is stale. Nightly 39746060276 was cancelled whole.
 - `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+
+Tests that may go red from d2: a scheduler or isolate test that expects a served request's isolate
+to run after tasks already ready (none found); a test that reads `held_by_this_core` or
+`held_by_cores` on a gauge-claimed thread while a place from `admit` is held and expects the balance
+alone (it now includes 1 MiB per share; `admit.rs`'s
+`connection_buffers_between_requests_do_not_refuse_a_request` still fits by arithmetic, not run);
+`crates/nvs-runtime/tests/server_memory.rs` if it admits and then reads the gauge exactly (not run).
+From EXT-2: a test that expects a pool of 64 instances (none found).
 
 Tests that may go red from EXT-1: any test that reads `TreeState::extensions()` as a `OnceLock`
 (none found by grep), and a guest destructor that runs after its tree ended and loops (it now traps,
 since the weak view reads as spent; the failure is not reported).
-
-The session before (0149) landed no code:
-
-- **d2's share has no size that meets the item, so d3 asks.** The scheduler's ready queue is FIFO
-  (`crates/nvs-host/src/scheduler.rs:930`), and `Isolate::start` queues each request as a child task.
-  So in a burst on one core, every ready connection passes `Admission::admit` before any request runs.
-  Before it allocates, a hold looks the same as a light request. The default per-request cap is
-  128 MiB, and the flood's room is 384 MiB (512 less `ENGINE_RESERVE`). A 1 MiB share (the publish
-  step) still admits the 200 holds of the flood, because 200 MiB plus the cap fits. A share of the cap
-  refuses the holds, and it also refuses a light burst past 3 at once, the division the rule declines.
-  d3's option 3 (recommended) keeps the 1 MiB share and runs a started request next, so its
-  allocation is published before the next admission. Without the FIFO wait, the gauge alone refuses
-  holds past about 32.
-- **`env-secret-proofs` is not a check any more.** `looper check --name env-secret-proofs` answers
-  "no check matches", nothing in `docs/goals/` or `looper.toml` names it, and its only log (00:07)
-  says exit 0. The sweep's red is a stale ledger line, not this tree. Nightly 39746060276 was
-  cancelled whole.
-- 7ede738e0 (looper's commit of session 0148's leftovers) adds three `[[launch]]` entries to
-  `looper.toml` for the website. It is not this goal's work and was left as it is.
-
-The previous session (the sweep's `env-secret-proofs` again exits 0 when its command is rerun, `nothing owed`;
-its log on disk is from 00:07 and says exit 0, so the sweep's red is stale a third time. Nightly
-39746060276 was cancelled whole):
-
-- **The `flood` row (d70950be8).** `bench-compare --scenarios --row flood` serves
-  `benches/compare/scenarios/flood/` (four programs: `/hold` keeps 8 MiB for 300 ms, `/` prints `ok`)
-  with the 512 MiB cap of `loop` and `memory`. `floodProbe` runs `oha` against `/hold` at
-  `FLOOD_CONNECTIONS = 200` for `FLOOD_SECONDS = 10` (`Probe.steady` takes a connection count now),
-  sends `/` every 250 ms with a 10 s wait, then waits up to `CHANGE_WAIT_MS` for `/` and sends 8 holds
-  together. `floodResult` passes when every probe is `200` or `503` with `Retry-After`, `/` recovered,
-  the 8 holds answered and the backend never restarted. The README bullet, the site's `ROW_TEXT`, a
-  unit test and the row order test are in. The CI job `flood` (deep lane only) runs
-  `bun nv bench-compare --scenarios --smoke --row flood` with no `--expect`, and
-  `rule:testing/the-deep-lane` says so.
-- **What the row measured: every peer `no`.** Bun and Go were OOM-killed and restarted 5 times; PHP
-  answered `502` and did not recover in 20 s. Novis lived and recovered in 0.3 s, but one probe in
-  34 failed and only 6 holds of the load were answered. Reproduced without nginx on the same image
-  with `--cpus 1 -m 512m`: all 200 holds of one burst are admitted, because none has allocated yet,
-  and the process limit stops those past the room with `500` (no error line is logged for them).
-  `/` waits up to 6 s behind the holds' CPU, about 25 ms each on one cpu. A second burst, sent while
-  memory was still counted, got 21 `503`s with `Retry-After`. **Decision d2** asks whether admission
-  should count a burst before it allocates. The user chose that (option 2). It is under *Standing
-  decisions* and is stage 7's new last item; d2 is closed.
-- **The shell wrapper killed the run twice as a hang (17ce4856b).** The Docker build of Novis's
-  image runs in Docker's VM, so the wrapper saw no CPU and no output. `looper.toml`'s `[jobs]
-  hang_exempt` now names `bench-compare` and `bench-proxied`. The two reports were deleted.
-- `bun test tools/nv/test/bench-compare.test.ts` (64) and `bun nv rules --check` are green. No Rust
-  changed.
-
-The overload attack, for the record (the previous session):
-
-- **The overload attack (08024fe6d).** `a_flood_past_capacity_is_refused_and_every_place_and_byte_comes_back`
-  in `crates/nvs-cli/tests/serve_isolation.rs` serves `OVERLOADED` with two workers,
-  `max_in_flight = 50`, `memory = "24M"`, `cpu_time = "200ms"` and a Prometheus scrape port. 200
-  connections send 3 holds (300 ms sleeps) each, beside 10 requests that reach the memory limit, 10
-  that reach the CPU limit and 10 whose client leaves, while a probe sends `/`. It asserts every
-  refusal is `503` with `Retry-After`, a probe answers within 10 s, at least one hold was refused,
-  the process lives, the request memory returns within `SETTLED` (2 MiB per worker) of its reading
-  before the flood, 50 held requests sent together all answer `200`, and `/` answers `ok`. It ran
-  once, green, in 2.6 s. `Client::answer` now also returns `Retry-After`.
-- **`nvs_memory_bytes` was never written.** The family was seeded and nothing set it, so a scrape
-  had no member. `nvs_runtime::metrics::every_core` now sets `scope="request"` on the first copy it
-  gathers from `budget::held_by_cores`. `rule:observability/default-series` says so, and says
-  `cache`, `process`, `nvs_tasks_in_flight` and `nvs_deferred_trees` are not written yet (see
-  Backlog). Its title said "Ten series"; it says "Eleven" now. Both rules' `guardedBy` name the test.
-- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
-
-LC-12, for the record (the previous session):
-
-- **LC-12 (18414cd54).** `nvs_host::ladder::escalate` on server work (`config.serves()`) calls the
-  new `off_the_request`: it starts the handler on a root task of its own with the new
-  `nvs_host::spawn_root`, under `ctx.handler_isolate(OutputSink::Stderr)`, and answers `true`. The
-  failing request no longer joins it. The task writes `floor::report` itself if the handler fails.
-  `HANDLERS_PER_CORE = 4` (reason in the code); past it the run is dropped, counted by the new
-  `nvs_runtime::metrics::count_handler_dropped` in the new default series
-  `nvs_log_handler_dropped_total` (eleven series now), and `escalate` answers `false`, so the floor
-  writes the record. The recursion guard for these is the thread-local `HANDLERS` list of root task
-  ids plus the new `nvs_host::running_beneath`; a `Slot` guard the task owns gives the place back
-  however it ends. A CLI program still joins (the `RUNNING` path). `rule:errors/handler-script` has
-  the paragraph, a memory line, two Declined entries and `guardedBy`; `default-series` has the row.
-- **A leak found on the way, fixed in the same commit.** A tree `detach_current` cut loose (every
-  request with `afterResponse` work) was filed as `Finished` with its whole `Ctx` when it ended, and
-  `nvs serve` never takes the finished list, so it held one context per such request served.
-  `TaskNode::detached` now marks it, and the `Return` arm drops its context like a child's.
-  Tests `a_detached_or_spawned_root_is_not_filed_when_it_ends` (scheduler unit) and
-  `a_served_failure_does_not_wait_for_its_handler_and_handlers_per_core_are_bounded`
-  (`crates/nvs-host/tests/limits.rs`) are new and ran once, green; the served end-to-end test
-  `a_log_handler_beside_the_configuration_runs_from_any_working_directory` (`live_config.rs`) ran
-  once, green.
-- **65e8d91d1:** `default.toml`'s `max_tasks` comment says a spawn past it stops the request.
-- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
-
-LC-3 to LC-5, for the record (the previous session):
-
-- **e139f309d** renders the core-classes, errors, http-server and security chapters, which stages 5
-  to 7 left stale. Run `bun nv rules --render` after editing a fragment.
-- **LC-3, LC-9 (004430e72).** `nvs_config::export::head_sample` returns `Option<f64>`: `None` where
-  `Tracing::of` is `None`. `nvs_server::trace::take(inbound, Option<f64>)` with `None` calls the new
-  `TraceContext::unrecorded`, so neither a draw nor a client's `-01` records anything; the trace id
-  is still continued, and an outbound call carries `-00`. A scheduled run uses `unwrap_or(0.0)`
-  (`crates/nvs-cli/src/serve.rs`, `rooted`). `TraceContext` has a new `request_id` (the trace id
-  for a root, a fresh draw for a continued trace), `request_id_hex` and `continued`.
-  `Ctx::stamp_envelope` and `trace::access` write `request_id_hex`, and `trace_id`/`span_id` for a
-  sampled **or continued** trace. `Core\Server::traceId()` still reads the trace id. Four rules say
-  so (`a-trace-id-exists-for-every-request`, its title too, `a-log-record-carries-…`,
-  `sampling-is-head-based`, `an-inbound-traceparent-is-continued`). Tests
-  `with_no_exporter_a_sampled_header_records_nothing` and
-  `a_continued_trace_gets_a_request_id_the_client_did_not_choose` are new; the edited trace, log and
-  directives tests ran once, green.
-- **LC-6, LC-7 (1befebd34).** `nvs_runtime::metrics::method_label` maps the nine RFC 9110 methods to
-  themselves and anything else to `other`, inside `Registry::request`. `trace::access` and `serve.rs`'s
-  `counted` treat `501` like a `4xx`: `Info`, and only with `[log] access` on. A program's own `501`
-  is treated the same; the access-log rule says why. Tests `an_unknown_verb_is_labelled_other` and
-  `a_501_is_an_access_line_at_info` ran once, green.
-- **LC-5 (55d35f3de).** `blocking::run` and the pinned `Request::answer` read the pool thread's CPU
-  clock (`cpu_now`, `cpu_since`) and send the spent time back with the answer; the task calls the
-  new `watchdog::charge_running`, which adds it to the running tree's `Charge::offloaded` (a second
-  word; `Charge::at` adds it). Test `cpu_spent_on_the_blocking_pool_is_charged_to_the_request` ran
-  once, green, with a 60 ms job. The audit's second fix, a SQLite progress-handler deadline from the
-  remaining CPU time, is not in the decision and was not done (see Backlog).
-- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
-
-Admission, for the record (the previous session):
-
-- **A connection between requests is not counted.** Each core's gauge is now `LIVE + DETACHED −
-  IDLE` (`crates/nvs-runtime/src/budget/gauge.rs`, `report`, `move_idle`). `IDLE` is a thread-local
-  sum of what idle connection trees hold above their base. `TreeState` has three new words
-  (`safepoint.rs`, after `balance`): `base`, `idling` (`UNBASED`/`COUNTED`/`IDLE` in `budget.rs`)
-  and `idle_held`. `budget::begin_idle`, `end_idle`, `count_from_here` and `settle_idle` sit before
-  `publish` in `budget.rs`. `ArmedStack::take` settles an idle tree at each park.
-- **Who calls it.** `Ctx::between_requests` (`safepoint.rs`, before `join_tree`) marks the tree idle
-  where the running stack is its turn, and sets the new `Ctx::idles_tree` field. `Ctx::reroot` ends
-  the idle at its start and calls `count_from_here` after the swap. `Ctx`'s drop ends it too.
-  `serve.rs` calls `between_requests` before the drive loop, when `sending` gives a place back, and
-  at the end of `joined_when_ended`.
-- **Why a base and not a running sum.** A block allocated on one kind of turn and freed on the other
-  would make a running sum drift with requests served. The excess over the base is dropped at the
-  next reroot, so nothing outlives one request. A fresh tree's balance starts where its spawner's
-  stack stood (`leave_this_stack`), so its base is taken at its first idle (`UNBASED`). A tree with a
-  running child (`TreeState::tasks > 0`, after-response work) sets nothing aside.
-- Test `connection_buffers_between_requests_do_not_refuse_a_request` (`admit.rs`) ran once, green.
-  It claims a gauge on its own thread, holds 64 MiB on an idle connection tree under a 32 MiB room,
-  and is admitted; after `reroot` the same bytes refuse. It reads `budget::held_by_this_core` (new),
-  so other tests' cores stay out. Before the base fix its first assert failed with 64 MiB published.
-- `rule:http-server/admission-is-arithmetic-not-a-number` has the paragraph, the memory line and a
-  Declined entry, and `guardedBy` names `gauge.rs`.
-
-RT-4, for the record:
-
-- **RT-4:** `html.rs`'s `Sink::push` asked one node's size (144 bytes), but the arena's doubling is
-  the largest step: 8 MB of `<br>` held 393 MB against the 268 MB ceiling. The sink now asks, through
-  `afford`, `room` and `grown`, for the doubling of the arena, of an element's `children` and of its
-  `attributes`, for each attribute's bytes before `create_element` copies them, for each copied text
-  (`copied`), and for a merged text's growth. A refusal still unwinds with `OverLimit` to `bounded`.
-  Attack `tests/hostile/core/Html/parse/04-documents-larger-than-the-memory-limit.nvs` (`ends-early 3
-  FATAL`) now stops at 158 MB with the 151 MB doubling refused. Rust test
-  `many_siblings_stop_at_the_memory_limit_before_the_arena_doubles` fails without the fix (peak
-  16.7 MB under an 8 MiB limit) and passes with it. `html5ever`'s tokenizer builds a tag's attribute
-  vector before the sink sees it, so an attribute flood is charged only once it reaches the sink; that
-  vector is bounded by the document's size.
-- The rule's parser paragraph names `Core\Html::parse` and `::sanitize`, and `guardedBy` names
-  `html.rs` and the attack. `Core\Html`'s figures were re-recorded. `bun nv proofs --run --id
-  'Core\Html::parse'` (3 examples, 4 attacks), the two Html memory tests, `cargo build`, `cargo clippy
-  --all-targets -- -D warnings` and `bun nv rules --check` are green.
-PARSE-1, for the record:
-
-- **PARSE-1, the shape the other three parsers follow.** A helper that returns `Err` while the
-  request is over its limit is reported as the memory `FATAL` (`crates/nvs-runtime/src/abi.rs:496`),
-  so a parser only has to stop. `csv.rs` asks `nvs_runtime::budget::affords(<the step's size>)` in
-  front of each step: `affords_field` for a field's place in the record (the doubling when it is full),
-  `row` for each entry and its string plus `out.affords_write()`, `parse` for each row's entry plus
-  `rows.affords_write()`, and `RowReader::step` for each `CELL` chunk of a field that has not ended
-  (`Step::OverMemory`). `over_memory(member)` is the fallback `Fault`.
-- **Never ask zero, and never use `over_ceiling()` alone.** The budget's `CEILING` sits below
-  `[limits] memory` by the 1 MiB limit-handler reserve. In that band `over_ceiling()` is true but
-  `Ctx::memory_breach` is `None` unless a refusal was recorded, so the program saw the fallback
-  wording. `affords(0)` records a refusal that reads "an allocation of 0 bytes was refused".
-  `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself` now has a parser
-  paragraph that says so, and names `csv.rs` and the attack in `guardedBy`. PARSE-2/3 and RT-4 extend
-  that paragraph with their members. `db/execute.rs:477`'s `rows_fit` has the same band gap (not
-  touched: no item owns it; see Backlog).
-- The attack's step 5 parses 8 MB of `a\n` and ends `// hostile: ends-early 5 FATAL`. Under
-  `nvs run` (256 MiB) it stops at 267 MB with "an allocation of 16 bytes was refused". The Rust test
-  `records_past_the_memory_limit_stop_the_parse_at_the_limit` (short lines and one wide record, 1 MiB
-  limit, peak under 2 MiB) fails without the fix, because the `Ok` arm reports no breach. Both ran
-  once, green, and so did `Core\Csv`'s examples. The three `Core\Csv` figures were re-recorded.
-- Decision d1 (captured output that is not UTF-8) is answered, recorded under *Standing decisions*
-  and closed. Stage 3 already does it: `out.rs:224` and `test.rs:3034` throw `RuntimeError`.
-
-Stage 5, for the record:
-
-- **HTML-1:** `Ctx::write_body` (`crates/nvs-runtime/src/ctx/output.rs:324`) is how
-  `Core\Response::text`, `::json`, `::bytes` and `::stream` (off a connection) write. At
-  `script_depth == 0` with no capture open it is `write_output`. Otherwise it renders the bytes as
-  `echo` renders a `string`: `nvs_render::html::escape` under the HTML carrier,
-  `nvs_render::text::substitute` under the terminal one, and byte by byte for bytes that are not
-  UTF-8, so `carried` still throws on them. `html` and `sendFile` stay verbatim. This differs from the
-  item's first wording (a plain `string` result): it keeps `output`'s type and also covers
-  `output: 'inherit'`, whose bytes `nvs_host::isolate::hand_over` appends raw. The rule
-  `rule:security/capture-answers-the-carrier` says so and names the attack in `guardedBy`.
-- `perf: stale` is likely for every feature whose source file stage 3 or 5 changed (see *Tests that
-  may go red*). `bun nv proofs --record-perf --group '<group>'` re-records one group.
-
-- **TAINT-2:** `Core\Response\Stream::write`'s chunk is `Union[Text(Sink), Blob(Sink)]`
-  (`crates/nvs-stdlib/src/response.rs`). The card and `rule:security/response-body-is-one-typed-member`
-  say why `text` may take `tainted` and a chunk may not. Step 2 of
-  `tests/hostile/core/Response-Stream/write/01-parts-without-end.nvs` now escapes its query value with
-  `Core\Html::escape` and `Core\Html::toSource`. Every other `.nvs` that streams checks clean.
-- **TAINT-4:** `reject_tainted_ldap_attribute_names` (`crates/nvs-types/src/expr/quals.rs`), called
-  from both instance-call paths in `calls.rs`, reports E0401 at a literal key that is not a literal, a
-  constant or a variable with a clean type, at a spread, and at a non-literal array whose
-  `keys_from_outside` is true. `rule:core-classes/ldap-filter-is-a-value` and `add`'s card say so.
-- **EXT-4:** `reject_secret_extension_argument` (`quals.rs`), called from the static-call hook block,
-  reports E0775 for a `secret` at any extension parameter that admitted it by type. A literal written at
-  `mixed` is walked as written (`secret_written_in`), because its inferred entries are `mixed`.
-- The three cases ran once by name, all green. `cargo build`, `cargo clippy --all-targets -- -D
-  warnings` and `bun nv rules --check` are green.
-
-- `Core\SignedCookie::open` answers `CoreTy::TaintedStr`, and its `$cookie` is `Qual::Neutral`
-  (`crates/nvs-stdlib/src/signed_cookie.rs`). The module doc section is now "`open` answers
-  `tainted string`". The card, `jwt.rs`'s doc, `signature.rs`'s and `core_lib.rs`'s roster tests and
-  `html.rs`'s launderer roster agree. `rule:security/verification-does-not-launder` has no exception
-  and declines one.
-- **A side change to admission:** `admits_tainted_argument` (`crates/nvs-types/src/expr/quals.rs`)
-  now admits a `tainted` argument at a contagious parameter whose return is all `mixed` (`mixed` or
-  `array<mixed>`, `all_unchecked`). Text out of `mixed` is already tainted. Without it,
-  `Core\Json::decode` of an opened cookie did not compile, and the cart example
-  `docs/examples/core/SignedCookie/seal/03-a-shopping-cart-cookie.nvs` broke.
-  `rule:security/taint-propagation` says so, and
-  `tests/conformance/reject/a-tainted-argument-is-refused-where-the-answer-cannot-carry-it.nvst`
-  now expects the `mixed` and `array<mixed>` calls to compile. `Core\Json::decodeAs<T>` over
-  `tainted` text still does not compile. That is a usability gap (see Backlog), not a leak.
-- The two old agreement cases were renamed to `…-both-answer-tainted.nvst` and rewritten, and the
-  `guardedBy` paths in `data/rules/` follow them. The new reject case and the seven `SignedCookie`
-  cases ran once by name, all green. Every `.nvs` calling `open` checks clean.
-- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --check` and the three
-  edited Rust tests are green. A full `nvs test tests/conformance` run showed 10 other reds, all from
-  earlier stages (listed below).
-
-Nightly run 39746060276 was cancelled whole and is not a failure of this tree.
 
 Tests that go red now (seen in the conformance run, left for stage 14):
 `core/a-response-bytes-body-sends-octets-no-text-member-carries.nvst` and
@@ -830,7 +614,7 @@ Tests that may go red: the website's generated `core.json` and `llms-full.txt` (
 `$cookie` qualifier changed; `bun nv site --check` would name them), a help snapshot of
 `Core\SignedCookie::open`, and the earlier stages' list: the E0810 card, `Core\Arr::shapeAs`'s card,
 an `nvs-ir` lowering snapshot of a class with an observer, a guard, `LateInit` or a hook, and a page
-listing every diagnostic code (`E0885`). This session adds: the website's generated `core.json` and
+listing every diagnostic code (`E0885`). Stage 5 adds: the website's generated `core.json` and
 `llms-full.txt` (the cards of `Core\Response\Stream::write` and `Core\Ldap\Connection::add` changed),
 and any help snapshot of those two members. A `.nvst` or `.nvs` that streams a `tainted` value or
 passes a `secret` to an extension's `mixed` parameter would go red too. None was found by grep.
@@ -849,7 +633,7 @@ limit by its arena's doubling and expected to finish (none known), and the Html 
 `ends-early 3 FATAL` passes only on a binary built after 65c1adb0a. 8c8a86f6d adds: an `nvs-server`
 test that reads `in_flight()` right after a buffered response's head arrives and expects `0`
 (none found), and on Linux, any test that counts places while a client has not read a large body.
-This session adds: any test that reads `held_by_cores` or `nvs_memory_bytes` from a served core
+The admission slice adds: any test that reads `held_by_cores` or `nvs_memory_bytes` from a served core
 between requests and expects the connection's buffers in it (`crates/nvs-cli/src/serve.rs:4271`
 reads `held_by_cores`; not run), and a lowering or layout snapshot of `Ctx` (one new `bool`).
 LC-3/LC-9 add: any test, `.nvst` or snapshot that expects a log record's `request_id` to equal an
@@ -872,40 +656,31 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-d2 first, since stage 7 is the live stage and d3 is answered. Then the rest of stage 8.
-
-0. d2, as d3's option 3 says (`crates/nvs-server/src/admit.rs`, `Admission::admit` and `memory_fits`;
-   `crates/nvs-runtime/src/budget/gauge.rs`, `report` and `publish_held`). A 1 MiB share:
-   `InFlight` holds it until the request's first publish, and its `Drop` gives it back;
-   `memory_fits` adds the shares to `used`. The hand-off: `crates/nvs-host/src/scheduler.rs:930`
-   (`start` pushes a new task to the back of `ready`); a request `Isolate::start`
-   (`crates/nvs-host/src/isolate.rs:627`) queues goes to the front, so it runs before the next ready
-   connection. Write why, and the run-order change, in
-   `rule:http-server/admission-is-arithmetic-not-a-number`. Write the Rust test first: one core, a
-   burst past the room, at least one `503` before any request allocates. Then run the `flood` row
-   once (`bun nv bench-compare --scenarios --smoke --row flood`, about 15 minutes with the image
-   build) and record Novis's evidence here. Set stage 7 done once it lands.
-
 Stage 8: an extension instance ends with its request (`rule:packaging/a-fresh-instance-per-request`).
 
-1. EXT-2: wasmtime's instance limit from `max_in_flight` (`crates/nvs-ext/src/call.rs:1170`;
-   `SLOTS = 64` at `crates/nvs-cli/src/extensions.rs:110`, made once in `host()` at `:291`). The
-   host is made before or at the first boot, so the limit is read from the configuration it boots
-   with; a reload that raises `max_in_flight` cannot grow a made pool, so say what happens then.
-2. EXT-5 and EXT-6 (`extensions.rs:442`, `crates/nvs-ext/src/wasi/http.rs:488`), then EXT-7 to
-   EXT-10 from `.agent-tmp/sec-audit/reports/wb-sinks.md:212`.
-
+1. EXT-5: a narrowed `grants:` of an isolate reaches an instance its tree already holds
+   (`crates/nvs-cli/src/extensions.rs`, `Calls::request` and the `Spent`/grant it builds; the
+   audit's finding is in `.agent-tmp/sec-audit/reports/wb-sinks.md`, grep `EXT-5`). Write the
+   attack first: a request calls an extension, then spawns an isolate with a narrower `grants:`
+   that calls it again and reaches past its grant.
+2. EXT-6: a redirect an extension's HTTP call follows is checked against the extension's grant
+   intersection (`crates/nvs-ext/src/wasi/http.rs:488`,
+   `rule:security/extension-grants-are-an-intersection`).
+3. EXT-7 to EXT-10 from `.agent-tmp/sec-audit/reports/wb-sinks.md:212`: each fixed or declined
+   into its rule. Then set stage 8 done.
 
 ### Backlog
 
+- The extension pool stops at 4096 places (`MOST_SLOTS`), under the default `max_in_flight` of
+  10000 once one class is loaded. Lifting it means a smaller memory reservation per place and a
+  bounds check per guest memory access, which the rule declines. If a deployment needs more, the
+  choice goes to the user.
 - `nvs_memory_bytes{scope="cache"|"process"}`, `nvs_tasks_in_flight` and `nvs_deferred_trees` are
   seeded and never written, so they read `0` or have no member. `every_core`'s gather is where a
   process-wide figure can be set without a request writing it. No item owns them.
-
 - The audit's LC-5 also proposed a SQLite progress-handler deadline from the request's remaining CPU
   time, so a slow statement stops at `cpu_time` instead of only being charged after it ends. No item
   owns it; the charge alone stops the request at its next safepoint once the statement returns.
-
 - Not checked: the stage 1 rerun saw `Response::sendFile("assets/logo.svg")` answer `500` in a copy of
   `.agent-tmp/sec-audit/bb-kitchen/app`, where the audit saw `200`. Serve that app as its
   `serve.log` shows and fetch `/logo` before stage 12 touches static serving.
@@ -926,3 +701,6 @@ Stage 8: an extension instance ends with its request (`rule:packaging/a-fresh-in
   `memory_breach()` agree, and `set_config`'s reserve lowers `memory_limit` and the ceiling together.
   Asking `affords` in front of the append is still the rule's shape, but no test fails without it, so
   it was not landed. No item owns it.
+- `cargo fmt --all` rewrites about 14 files nobody touched this goal (`serve.rs`, `csv.rs`,
+  `html.rs`, `quals.rs` and others). Run `rustfmt` on the files a slice changed, never the whole
+  tree, or the slice's commit carries that churn.
