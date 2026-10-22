@@ -32,6 +32,7 @@ renders them all at build time, and a member's prose is its `about.md`.
 | --- | --- | --- |
 | `src/data/core.json` | tool | regenerated on every sync |
 | `config/novis.tmLanguage.json` | tool | rendered from the editors' grammar on every sync — edit `../editors/vscode/syntaxes/nvs.tmLanguage.json` |
+| `config/caddyfile.tmLanguage.json` | human | the site's Caddyfile grammar for ` ```caddyfile ` / ` ```caddy ` fences. Shiki ships none |
 | `src/data/core-changelog.json` | human | per-member changelog entries |
 | `src/pages/reference/core/[...slug].astro` | human | the one route that renders every Core class and member page |
 | `src/content/docs/reference/core/index.mdx` | human | the Core reference's landing page |

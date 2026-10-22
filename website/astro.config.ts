@@ -33,6 +33,8 @@ const referenceSidebar = (area: 'config' | 'cli' | 'types') => {
 // Syntax highlighting for Novis code fences (```novis / ```nvs). `npm run sync:render` writes this
 // file from the editors' grammar.
 const novisGrammar = JSON.parse(fs.readFileSync('./config/novis.tmLanguage.json', 'utf8'))
+// Caddyfile fences (```caddyfile / ```caddy). Shiki ships no Caddyfile grammar, so the site keeps its own.
+const caddyfileGrammar = JSON.parse(fs.readFileSync('./config/caddyfile.tmLanguage.json', 'utf8'))
 
 const coreSidebar = core.classes.map((cls) => ({
   label: cls.id.replace(/\./g, '\\'),
@@ -108,7 +110,7 @@ export default defineConfig({
       // the <Code> component reads this block as JSON, and a plugin is a function.
       expressiveCode: {
         shiki: {
-          langs: [novisGrammar],
+          langs: [novisGrammar, caddyfileGrammar],
         },
         styleOverrides: {
           // Every value is a token from src/styles/custom.css, so a code block

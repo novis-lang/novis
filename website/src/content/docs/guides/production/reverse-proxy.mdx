@@ -266,7 +266,7 @@ What the important lines do:
 
 Save this as `/etc/caddy/Caddyfile`:
 
-```txt
+```caddyfile
 {
 	servers {
 		timeouts {
@@ -445,7 +445,7 @@ server {
 
 This configuration uses HTTPS with a local certificate on port 8443. Open `https://localhost:8443`.
 
-```txt
+```caddyfile
 localhost:8443 {
 	reverse_proxy 127.0.0.1:8000
 }
