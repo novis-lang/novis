@@ -1972,7 +1972,10 @@ mod tests {
             ctx.set_memory_limit(limit);
             let answered = call(super::nvs_core_csv_parse, &mut ctx, &args);
             let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
-            assert!(answered.is_err(), "{shape}: the parse refuses rows past the limit");
+            assert!(
+                answered.is_err(),
+                "{shape}: the parse refuses rows past the limit"
+            );
             let refusal = refusal.expect("a refusal leaves its message in the context");
             assert!(refusal.contains("memory limit"), "{shape}: {refusal}");
             assert!(

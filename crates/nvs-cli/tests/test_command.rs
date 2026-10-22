@@ -202,7 +202,11 @@ fn every_core_nvs_test_starts_calls_a_built_in_extension() {
         let out = test_in(&dir, &["--jobs", jobs, "collator_test.nvs"]);
         let stdout = String::from_utf8_lossy(&out.stdout);
         let stderr = String::from_utf8_lossy(&out.stderr);
-        assert_eq!(out.status.code(), Some(0), "--jobs {jobs}: {stdout}{stderr}");
+        assert_eq!(
+            out.status.code(),
+            Some(0),
+            "--jobs {jobs}: {stdout}{stderr}"
+        );
         assert!(
             stdout.contains("0 failed, 8 passed"),
             "--jobs {jobs}: {stdout}{stderr}"

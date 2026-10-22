@@ -696,7 +696,7 @@ nvs_runtime::nvs_helper! {
         if answer.obj_ptr().is_some() {
             let slot = markup_slot(answer, "the `Markup` `Core\\Html::later`'s callable returned");
             if let Ok(slot) = slot {
-                bytes.extend_from_slice(slot.as_str_bytes().unwrap_or_default());
+                bytes.extend_from_slice(slot.as_text().unwrap_or_default().as_bytes());
             }
         }
         #[expect(
@@ -1190,7 +1190,11 @@ impl Sink {
         if nodes[at].kind != Kind::Text {
             return false;
         }
-        afford(grown(nodes[at].text.len(), nodes[at].text.capacity(), text.len()));
+        afford(grown(
+            nodes[at].text.len(),
+            nodes[at].text.capacity(),
+            text.len(),
+        ));
         nodes[at].text.push_str(text);
         true
     }
@@ -1231,15 +1235,14 @@ impl TreeSink for Sink {
     fn create_element(&self, name: QualName, attrs: Vec<Attribute>, flags: ElementFlags) -> usize {
         let mut node = Node::new(Kind::Element);
         node.name = written(&name);
-        afford(
-            attrs
-                .iter()
-                .fold(size_of::<(String, String)>() * attrs.len(), |bytes, attr| {
-                    bytes
-                        .saturating_add(attr.name.local.len())
-                        .saturating_add(attr.value.len())
-                }),
-        );
+        afford(attrs.iter().fold(
+            size_of::<(String, String)>() * attrs.len(),
+            |bytes, attr| {
+                bytes
+                    .saturating_add(attr.name.local.len())
+                    .saturating_add(attr.value.len())
+            },
+        ));
         node.attributes = attrs
             .into_iter()
             .map(|attr| (written(&attr.name), attr.value.to_string()))
@@ -1365,7 +1368,10 @@ impl TreeSink for Sink {
         });
         for attr in attrs {
             let name = written(&attr.name);
-            let bytes = name.len().saturating_mul(2).saturating_add(attr.value.len());
+            let bytes = name
+                .len()
+                .saturating_mul(2)
+                .saturating_add(attr.value.len());
             afford(room(&node.attributes, bytes));
             if had.insert(name.clone()) {
                 node.attributes.push((name, attr.value.to_string()));
@@ -2701,13 +2707,14 @@ mod tests {
             // nothing auto-escapes into an XML document the way `echo` does
             // into an HTTP response, so the predicate's first condition fails
             // before its second is asked. `crate::xml`'s `WRITER` is where each
-            // member names the sink it launders for.
+            // member names the sink it launders for. `instruction` is not on
+            // the roster: XML escapes nothing inside an instruction, so its
+            // parameters are sinks and refuse a tainted value outright.
             (r"Core\Xml\Writer::attribute", false),
             (r"Core\Xml\Writer::cdata", false),
             (r"Core\Xml\Writer::comment", false),
             (r"Core\Xml\Writer::content", false),
             (r"Core\Xml\Writer::doctype", false),
-            (r"Core\Xml\Writer::instruction", false),
             (r"Core\Xml\Writer::startElement", false),
         ];
 

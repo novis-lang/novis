@@ -3991,6 +3991,10 @@ nvs_runtime::nvs_helper! {
             Ok(value) => value,
             // A document past the memory limit is not answered `false`: the
             // request stops at the limit, as `decode` does.
+            // no case can reach this: the budget recorded the breach first,
+            // so the program sees the memory limit's own message and never
+            // this one. `is_valid_past_the_memory_limit_stops_the_request`
+            // asserts it instead.
             Err(why) if ctx.memory_breach().is_some() => {
                 return Err(Fault::fatal(format!("Core\\Json::isValid(): {why}")));
             }
@@ -4317,6 +4321,41 @@ mod tests {
         let nest = |brackets: usize| format!("{}1{}", "[".repeat(brackets), "]".repeat(brackets));
         assert_eq!(ask(&nest(DEFAULT_MAX_DEPTH_U32 as usize - 1)), Some(true));
         assert_eq!(ask(&nest(DEFAULT_MAX_DEPTH_U32 as usize)), Some(false));
+    }
+
+    /// A well-formed document whose parse does not fit under a 1 MiB limit
+    /// stops the request with the memory limit's `FATAL`. It is never answered
+    /// `false`, which a program would read as "the text is not JSON".
+    // covers: Core\Json::isValid
+    #[test]
+    fn is_valid_past_the_memory_limit_stops_the_request() {
+        let (count, limit) = if cfg!(miri) {
+            (20_000, 256 << 10)
+        } else {
+            (100_000, 1 << 20)
+        };
+        let document = format!("[{}\"a\"]", "\"a\",".repeat(count));
+        // Made before the context, so the text is not on its balance.
+        let args = [Value::text(&document)];
+        drop(document);
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_memory_limit(limit);
+        let answered = nvs_runtime::call(nvs_core_json_is_valid, &mut ctx, &args);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        assert!(
+            answered.is_err(),
+            "a document past the limit stops the request rather than answering {:?}",
+            answered.ok().and_then(|value| value.as_bool())
+        );
+        let refusal = refusal.expect("a refusal leaves its message in the context");
+        assert!(refusal.contains("memory limit"), "{refusal}");
+        drop(ctx);
+        for argument in args {
+            #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+            unsafe {
+                argument.release();
+            }
+        }
     }
 
     #[test]
@@ -5213,7 +5252,9 @@ mod tests {
         let list = format!("[{}\"a\"]", "\"a\",".repeat(count));
         let object = format!(
             "{{{}\"k\":0}}",
-            (0..count).map(|n| format!("\"{n}\":0,")).collect::<String>()
+            (0..count)
+                .map(|n| format!("\"{n}\":0,"))
+                .collect::<String>()
         );
         for (document, shape) in [(list, "a long list"), (object, "a wide object")] {
             // Made before the context, so the text is not on its balance.
@@ -5223,7 +5264,10 @@ mod tests {
             ctx.set_memory_limit(limit);
             let answered = nvs_runtime::call(nvs_core_json_decode, &mut ctx, &args);
             let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
-            assert!(answered.is_err(), "{shape}: the parse refuses entries past the limit");
+            assert!(
+                answered.is_err(),
+                "{shape}: the parse refuses entries past the limit"
+            );
             let refusal = refusal.expect("a refusal leaves its message in the context");
             assert!(refusal.contains("memory limit"), "{shape}: {refusal}");
             assert!(

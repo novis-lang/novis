@@ -1721,9 +1721,7 @@ where
             let probe = is_probe(response);
             // Read only where it decides something: the probe writes nothing,
             // and a `5xx` other than `501` is written whatever it says.
-            let on = !probe
-                && (status < 500 || status == 501)
-                && crate::trace::access_on(under);
+            let on = !probe && (status < 500 || status == 501) && crate::trace::access_on(under);
             crate::trace::access(
                 &mut ctx.borrow_mut(),
                 on,
@@ -6833,7 +6831,9 @@ pub(crate) mod tests {
                 let mut seen = Vec::new();
                 let mut buffer = vec![0_u8; 64 * 1024];
                 let head_ends = loop {
-                    let read = socket.read(&mut buffer).expect("the head could not be read");
+                    let read = socket
+                        .read(&mut buffer)
+                        .expect("the head could not be read");
                     assert!(read > 0, "the connection closed before the head arrived");
                     seen.extend_from_slice(&buffer[..read]);
                     if let Some(at) = seen.windows(4).position(|w| w == b"\r\n\r\n") {
@@ -6845,7 +6845,9 @@ pub(crate) mod tests {
                 observed.store(counted.in_flight(), Ordering::Relaxed);
                 let mut body = seen.len() - head_ends;
                 while body < WHOLE {
-                    let read = socket.read(&mut buffer).expect("the body could not be read");
+                    let read = socket
+                        .read(&mut buffer)
+                        .expect("the body could not be read");
                     assert!(read > 0, "the connection closed inside the body");
                     body += read;
                 }

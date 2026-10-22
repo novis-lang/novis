@@ -4764,7 +4764,10 @@ mod tests {
         let attributes: String = (0..count).map(|n| format!(" a{n}=\"\"")).collect();
         for (document, shape) in [
             (format!("<e{attributes}/>"), "many attributes"),
-            (format!("<list>{}</list>", "<i/>".repeat(count)), "many children"),
+            (
+                format!("<list>{}</list>", "<i/>".repeat(count)),
+                "many children",
+            ),
         ] {
             let source = word(&document);
             drop(document);

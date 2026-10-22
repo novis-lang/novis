@@ -24,8 +24,8 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::mpsc;
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -462,7 +462,11 @@ fn free_port() -> u16 {
 /// carried `Retry-After`.
 fn once(addr: SocketAddr, path: &str) -> (String, bool) {
     let (status, _, _, retry_after) = Client::connect(addr).answer(path);
-    let code = status.split_whitespace().nth(1).unwrap_or_default().to_owned();
+    let code = status
+        .split_whitespace()
+        .nth(1)
+        .unwrap_or_default()
+        .to_owned();
     (code, retry_after.is_some())
 }
 
@@ -592,7 +596,11 @@ fn a_flood_past_capacity_is_refused_and_every_place_and_byte_comes_back() {
         "no hold was refused, so the flood never passed the ceiling"
     );
     assert!(
-        server.child.try_wait().expect("the process is asked").is_none(),
+        server
+            .child
+            .try_wait()
+            .expect("the process is asked")
+            .is_none(),
         "the server ended during the flood; it wrote: {}",
         server.said()
     );
@@ -634,7 +642,11 @@ fn a_flood_past_capacity_is_refused_and_every_place_and_byte_comes_back() {
     }
     assert_eq!(Client::connect(addr).get("/"), "ok");
     assert!(
-        server.child.try_wait().expect("the process is asked").is_none(),
+        server
+            .child
+            .try_wait()
+            .expect("the process is asked")
+            .is_none(),
         "the server ended after the flood; it wrote: {}",
         server.said()
     );

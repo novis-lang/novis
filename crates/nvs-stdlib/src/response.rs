@@ -636,7 +636,10 @@ pub(crate) const STREAM: CoreClass = CoreClass {
             // media type is fixed at `text/plain`; a stream's is whatever the
             // program declared, `text/html` included, so a chunk is markup the
             // peer may parse (`rule:security/response-body-is-one-typed-member`).
-            params: &[CoreTy::Union(&[CoreTy::Text(Qual::Sink), CoreTy::Blob(Qual::Sink)])],
+            params: &[CoreTy::Union(&[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Blob(Qual::Sink),
+            ])],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: STREAM_WRITE_SYMBOL,
@@ -1351,10 +1354,10 @@ nvs_runtime::nvs_helper! {
         })?;
         ctx.declare_content_type(TEXT_MEDIA_TYPE);
         // Verbatim, and the module doc's *A body goes out verbatim* section owns
-        // what that means off a request and where it becomes markup. Unreachable
-        // from source on `Core\Cli::write`'s reasoning: `OutputSink::Buffer` and
-        // `Sink` never fail, and nothing in the language closes a descriptor the
-        // host handed the process.
+        // what that means off a request and where it becomes markup.
+        // Unreachable from source on `Core\Cli::write`'s reasoning:
+        // `OutputSink::Buffer` and `Sink` never fail, and nothing in the
+        // language closes a descriptor the host handed the process.
         ctx.write_body(body.as_bytes())
             .map_err(|error| Fault::fatal(format!("Core\\Response::text could not write: {error}")))?;
         Ok(Value::null())
@@ -1545,8 +1548,9 @@ nvs_runtime::nvs_helper! {
                 nvs_runtime::ThrownClass::Logic,
                 format!(
                     "Core\\Response::redirect(): `{url}` starts with two slashes or \
-                     backslashes, so a browser goes to another host. Write the scheme, such as `https://`, for another \
-                     host, or one `/` for a path on this site"
+                     backslashes, so a browser goes to another host. For another host, write \
+                     the whole address with its scheme, such as `https:`. For a path on this \
+                     site, write one `/`"
                 ),
             ));
         }
@@ -3368,7 +3372,13 @@ mod tests {
             assert_eq!(ctx.take_status(), None, "{bad:?}");
             assert!(ctx.take_headers().is_empty(), "{bad:?}");
         }
-        for good in ["/orders", "?page=2", "#top", "/a//b", "https://example.com/"] {
+        for good in [
+            "/orders",
+            "?page=2",
+            "#top",
+            "/a//b",
+            "https://example.com/",
+        ] {
             let mut ctx = Ctx::new(OutputSink::Sink);
             let url = Value::text(good);
             call(
