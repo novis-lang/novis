@@ -98,48 +98,53 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `e9c83e4fe`, the push of `defaults-that-work`'s end. Its Website run,
-https://github.com/novis-lang/novis/actions/runs/39690115404, is green. Its CI run,
-https://github.com/novis-lang/novis/actions/runs/39690119898, was red in two jobs, and three local
-commits fix both. They go out with the next goal end's push:
+`origin/main` is at `7351b91c7`, the push of `failure-paths-hold`'s end. Its Website run,
+https://github.com/novis-lang/novis/actions/runs/39709148442, is green. Its CI run,
+https://github.com/novis-lang/novis/actions/runs/39709148478, ended red in the same four jobs as
+`e9c83e4fe`'s, for new causes, and the other 31 of its 35 jobs are green:
 
 - the chapter examples job's `bun nv render --website --check`: `website/public/llms-full.txt` was
-  stale after the capability-default chapter edits. `539fe48e9` renders it again.
-- `proofs`' `bun nv proofs --verify`: nine `about.md` pages were over 200 words, fixed by
-  `6e529cde4`, and 48 perf records were stale after `process.rs`, `session.rs` and the programs,
-  errors and concurrency chapters changed, measured again by `9d33a9761`. `bun nv proofs --gate` now
-  owes nothing.
+  stale after the concurrency chapter's spawn script section and the `max_multipart_parts` limit row
+  changed. `2c65e25ef` renders it again.
+- `proofs`' `bun nv proofs --verify` (all three platforms): 63 perf records were stale. 54 are
+  `Core\Uri`, `Core\Request`, `Core\Request\Mount` and `Core\Request\Part`, after
+  failure-paths-hold changed `uri.rs` and `request.rs`, and `4c811268c` measures them again. The
+  other nine are `lang:concurrency` rows, and `core-time-slice`, the main loop's open goal, is still
+  editing that chapter (`2b292f862`, `a96c498bf`). They were handed to the main loop with
+  `loop say`, and its session was already appending a `lang:concurrency` record, uncommitted in the
+  root's `data/perf/members.ndjson`. `bun nv proofs --owed` at `HEAD` owes only those nine.
 
 The main loop's gate does not run `bun nv proofs --gate`, so a goal that changes a measured member's
-source or lengthens an `about.md` reaches CI red. No red is handed to the main loop, so no watch passes
-`--past`.
+source or a chapter reaches CI red. This happened at two goal ends in a row.
 
-That CI run has ended: a watch that passed over the four known reds (`--past proofs --past "the
-chapter examples run and the website matches the binary"`) exited 4, so the other 33 of its 37 jobs
-are green. The three fixes are still in `git log origin/main..HEAD`, and `bun nv proofs --gate` at
-`HEAD`, after the main loop's `6c7e5b271` and `a2434fdef`, still owes nothing.
+The handed-off red is `proofs`, so the watch passes `--past proofs`. A `proofs` red on the next push
+still shows as a `passing over FAILED` line and exits 4. On exit 4, run `bun nv proofs --owed --limit
+0` in the root: anything owed outside `lang:concurrency` is this goal's to fix.
 
-Until the next push, `bun nv ci --watch` exits 1 at once on `e9c83e4fe`'s red run and prints the same
-four failed jobs. A session that sees that red with `origin/main` still at `e9c83e4fe` has nothing to
-fix, so it hands off again.
+`.agent-tmp/wt-ci` and `.agent-tmp/wt-cig` are empty scratch folders. Git no longer lists them as
+worktrees. Each contains only a `.looper` directory that Windows will not delete while looper runs.
+Delete both when looper is stopped.
 
 ### Next
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Watch with `bun nv ci --watch`, which waits for the next push. `tools/nv/cmd/ci.ts:224`
+- [ ] Watch with `bun nv ci --watch --past proofs` for the next push. `tools/nv/cmd/ci.ts:265`
 - [ ] Fix and commit each red job. `.github/workflows/ci.yml:1`
   A stale guard red is fixed by `bun nv site --stale` and `bun nv site --questions --owed`, then a
   reread and a `--stamp`. Under Git Bash, a URL argument needs `MSYS_NO_PATHCONV=1`. Check a site or
-  render red against committed `HEAD` in a scratch worktree with `--nvs E:/mwl/target/debug/nvs.exe`,
-  because the root holds the main loop's uncommitted edits. A `git cherry-pick` into the root fails on
+  render red against committed `HEAD` in a scratch worktree. `bun nv render` takes no `--nvs`, so
+  run it with `NVS_BIN=E:/mwl/target/debug/nvs.exe`. The worktree is needed because the root holds
+  the main loop's uncommitted edits. A `git cherry-pick` into the root fails on
   its staged changes, so apply the diff with `git apply` and commit by pathspec. Before fixing a red,
   run `git log origin/main..HEAD`: the main loop may have committed the fix already, and then the
   next goal end's push is the fix. Remove a scratch worktree from the root, never from inside it.
   A stale perf red is fixed by `bun nv proofs --record-perf --group <G>` in a scratch worktree at
   `HEAD`, after `bun install` and a copy of the root's ignored `tests/db/ca.crt` into it. Each class
-  is its own group: `Core\Process\Result` is not inside `Core\Process`. Copy the ledger back and check
-  with `bun nv proofs --gate` in the root.
+  is its own group: `Core\Process\Result` is not inside `Core\Process`. The main loop may hold
+  uncommitted ledger lines in the root, so never copy the ledger over. Take `git diff -U0` of it in the
+  worktree, apply that with `git apply --cached --unidiff-zero` and again without `--cached`, then
+  check with `bun nv proofs --owed --limit 0` and commit the index.
 
 ### Backlog
 
