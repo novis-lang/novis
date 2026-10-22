@@ -54,7 +54,7 @@ stages:
     context: [crates/nvs-server/src/mount.rs, crates/nvs-server/src/statics.rs, crates/nvs-server/src/body.rs, crates/nvs-server/src/forwarded.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/router.rs, docs/rules/http-server/static-serving-is-one-policy.md, docs/rules/http-server/host-matching-is-on-the-host-part-only.md, docs/rules/http-server/the-body-is-read-on-demand-under-two-caps.md]
   - id: 13
     title: "the outbound client's redirects, the leftovers, and the audit's scratch is gone"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/http/transport.rs, crates/nvs-config/src/capability.rs, crates/nvs-stdlib/src/html.rs, docs/rules/http-server/a-cross-origin-redirect-drops-credentials.md, docs/rules/core-classes/html-sanitize.md]
   - id: 15
     title: "`nvs serve` and every reload check who owns the configuration, and a read-only mount passes"
@@ -121,11 +121,9 @@ account owns, and it passes only because of this hole.
 
 Security and request isolation is the first priority, so this goal comes right after the live one.
 
-**The evidence is on disk, not in this file.** The reports are `.agent-tmp/sec-audit/reports/*.md`, one
-block per finding with its ID (`RT-2`, `DB-1` ...), the request or program, the observed output, the
-code path and a proposed fix. The repro programs sit beside them under `.agent-tmp/sec-audit/<area>/`,
-and the release binary they were run with is `.agent-tmp/sec-audit/bin/nvs.exe`. Each item below names
-its finding ID. Read that block before the item, never the whole report.
+**The audit's evidence is deleted.** Its reports and repro programs were under `.agent-tmp/sec-audit/`,
+and stage 13 removed them once every finding was fixed or declined. Each item below still names its
+finding ID, and the attack each fix landed with is the finding's lasting form.
 
 ## Standing decisions
 
@@ -529,15 +527,15 @@ into its rule.
 - [x] HTML-2's cases join the sanitizer's tests: the four forms are dropped, and `/path`, `?q` and `#frag` are kept. `crates/nvs-stdlib/src/html.rs:1847`
 - [x] Raise `wasmtime` and `cranelift`'s minimums to the fixed releases in the lock file. `Cargo.toml:98`
 - [x] Run the HTML-escaping probes the audit never reported on, and fix or record each result here — run, recorded as HTML-1 (stage 5) and HTML-2 above. The audit's `wb-html.md` ran every probe: `app.nvs`'s quoted holes are escaped, and its unquoted, `on*`, `<script>`, `<style>`, tag-name and `javascript:` holes are the blind spot `rule:core-classes/html-template` declines; `p1`–`p3` (forging a `Markup`) do not compile; `p6` (the mXSS corpus) kept only `//host`, which is HTML-2; `cap.nvs` answers `text/plain` or JSON with `nosniff`; `parent`/`child` is HTML-1. `.agent-tmp/sec-audit/wb-stdlib-request/html/app.nvs:1`
-- [ ] TAINT-5: `$m[$t] = …` with a tainted key makes the keys of `$m` tainted, as `keys_from_outside` reads them at a `foreach`. `crates/nvs-types/src/expr/assign.rs:1062`
+- [x] TAINT-5: `$m[$t] = …` with a tainted key makes the keys of `$m` tainted, as `keys_from_outside` reads them at a `foreach`. `crates/nvs-types/src/expr/assign.rs:1062`
 - [x] TAINT-5: `Core\Response::redirect` refuses a relative target that names another host (`//x`, `/\x`, `\/x`), so a launderer's plain answer cannot open a redirect. `crates/nvs-stdlib/src/response.rs:1473`
 - [x] TAINT-5: the regex replacement template is a sink and refuses `tainted` (`rule:security/every-grammar-is-a-sink`). `crates/nvs-stdlib/src/regex.rs:171`
 - [x] TAINT-5: `Core\Xml`'s writer `instruction` refuses a tainted target and data. `crates/nvs-stdlib/src/xml.rs:760`
 - [x] TAINT-5: `setHeader` refuses `Content-Length`, `Transfer-Encoding`, `Connection` and `Upgrade` as it refuses `Content-Type`; probe what hyper sends first. `crates/nvs-stdlib/src/response.rs:433`
-- [ ] TAINT-5: `Core\Mail` writes `To:` and `Cc:` in angle brackets, `address_of` refuses `( " : ; %`, and a long subject is folded. `crates/nvs-stdlib/src/mail.rs:453`
+- [x] TAINT-5: `Core\Mail` writes `To:` and `Cc:` in angle brackets, `address_of` refuses `( " : ; %`, and a long subject is folded. `crates/nvs-stdlib/src/mail.rs:453`
 - [x] TAINT-5: `Core\Db::quoteIdentifier` refuses the niladic SQL names (`current_user`, `session_user`, `user`, …). `crates/nvs-db/src/schema.rs:93`
-- [ ] TAINT-5: file and `Core\Storage` reads are written into `rule:security/tainted-sources`, as tainted or declined with the reason. Safe default: `Core\Storage` reads are tainted, and a file the program ships is declined. `crates/nvs-stdlib/src/storage.rs:202`
-- [ ] Delete `.agent-tmp/sec-audit/`. `.agent-tmp/sec-audit/BRIEF.md:1`
+- [x] TAINT-5: file and `Core\Storage` reads are written into `rule:security/tainted-sources`, as tainted or declined with the reason. Safe default: `Core\Storage` reads are tainted, and a file the program ships is declined. `crates/nvs-stdlib/src/storage.rs:202`
+- [x] Delete `.agent-tmp/sec-audit/`. `.agent-tmp/sec-audit/BRIEF.md:1`
 
 ### 15. `nvs serve` and every reload check who owns the configuration, and a read-only mount passes
 
@@ -568,8 +566,42 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 13 is open. Its HTML, dependency, redirect, `setHeader`, regex, XML and `quoteIdentifier`
-items are done. Then stage 15, then the gate stage 14.
+Stage 13 is done. Stage 15 is next, then the gate stage 14.
+
+- **Mail (d33b15bc6).** `compose` writes `To:`/`Cc:` through `address_line` (each address in
+  `<...>`, folded between addresses) and the subject through `subject_line`: plain text is folded at
+  spaces under 78 columns (`folded`), anything else, or a run past 998 with no space, is RFC 2047
+  encoded words of at most 42 UTF-8 bytes, one per line. `address_of` refuses
+  `NOT_IN_AN_ADDRESS` (`< > , ; : ( ) " \ %` and a space) and more than 254 bytes. Unit attacks
+  `a_long_subject_is_folded_and_unfolds_to_itself` and
+  `recipients_are_in_angle_brackets_and_a_long_list_is_folded` were red on main; all 10
+  `mail::tests` pass. The hostile case gained step 8; example 02's `.out` has the new message.
+  No rule fragment owns `Core\Mail`; the module doc, card and about page do.
+- **Storage (63ebf8640).** `Core\Storage::get` returns `?tainted bytes`; `list` stays plain (a key
+  is a closed alphabet). `rule:security/tainted-sources` says so and declines a tainted `Core\IO`
+  read. Attack `tests/conformance/reject/an-object-read-from-storage-is-tainted-and-its-keys-are-not.nvst`.
+  The benches and `get`/`put` examples declare `tainted bytes`; the `Core\Storage` proofs pass.
+- **Tainted key (8c3e472cc).** `quals::reject_tainted_key_write` is `E0401` at a `tainted` key
+  written into an array whose type `keys_from_outside` reads as plain: from the `ExprKind::Index`
+  arm in `expr/mod.rs` at every write-target level (new `Env::unset_target` exempts `unset`), and
+  from both literal paths in `literals.rs` against the expected or synthesized type. Attack
+  `tests/conformance/reject/a-tainted-key-cannot-enter-an-array-whose-keys-read-back-plain.nvst`.
+  A compile sweep of 11142 corpus `.nvs`/`.nvst` files found three examples, rewritten
+  (`Db-Row/string/03`, `Http/allowUrl/03`, `SignedCookie/seal/03`); their proofs pass.
+  `rule:security/taint-propagation` has the paragraph and a Declined entry.
+- **`.agent-tmp/sec-audit/` is deleted**, and the goal's evidence paragraph says so.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render`/`--check` and
+  `looper lint` are green. The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0,
+  `nothing owed`), and the nightly run 39746060276 is the cancelled `workflow_dispatch`.
+
+Tests that may go red from this session: a Rust test that compiles source writing a `tainted` key
+into a plain-keyed array (not swept; `nvs-types` and `nvs-cli` tests are likeliest), or reading
+`Core\Storage::get` into `bytes`; a `.nvst` whose FILE section the sweep's regex missed; the help
+snapshots and the website's `core.json`/`llms-full.txt` for `Core\Mail::send` and
+`Core\Storage::get`; the website's rule pages for `tainted-sources` and `taint-propagation`; the
+`perf: stale` proofs of `Core\Mail::send` and `Core\Storage::get`.
+
+The session before (setHeader, regex, XML, quoteIdentifier):
 
 - **`setHeader` (dfc0696f0).** hyper 1.12's `role.rs` was read: with a known body length it trusts
   a user `Content-Length` (and `assert!`s a mismatch in a debug build); with an unknown one it frames
@@ -1175,11 +1207,11 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-1. Stage 13's remaining TAINT-5 items: `Core\Mail`'s addresses in angle brackets, `address_of`
-   refusing `( " : ; %`, and a folded subject (`crates/nvs-stdlib/src/mail.rs:453`); the file and
-   `Core\Storage` read rule (`crates/nvs-stdlib/src/storage.rs:202`, safe default on the item); and
-   a tainted array key (`crates/nvs-types/src/expr/assign.rs:1062`, read `keys_from_outside` first).
-2. Last, delete `.agent-tmp/sec-audit/`. Then stage 15.
+1. Stage 15, by its `**Split:**` line: an `Explore` subagent lists every place the repository boots
+   `nvs serve` on a checkout file; then `nvs serve`'s boot and reload resolve through `Disk`
+   (`crates/nvs-cli/src/config.rs:400`, `crates/nvs-cli/src/reload.rs:370`), and the read-only
+   mount waiver goes into `trust::check` (`crates/nvs-config/src/trust.rs:184`).
+2. Then the gate stage 14.
 
 ### Backlog
 
