@@ -154,8 +154,7 @@ pub(crate) struct Args {
     /// How many tests or `.nvst` cases run at once.
     ///
     /// The default is the number of hardware threads on this machine.
-    /// `--jobs 1` runs one test at a time. A program that loads an
-    /// extension always runs one test at a time.
+    /// `--jobs 1` runs one test at a time.
     // `rule:testing/tests-run-across-every-core`.
     #[arg(long, value_name = "N")]
     jobs: Option<std::num::NonZeroUsize>,
@@ -537,9 +536,13 @@ fn declared_at(span: nvs_diagnostics::Span, map: &nvs_diagnostics::SourceMap) ->
 /// `coverage` names the line-coverage files to write after the suite
 /// (`crate::coverage` owns how the counts are taken). Asking for none leaves
 /// the run exactly as it is without the flags.
+///
+/// `extensions` is the set the suite's thread installed its host over, and
+/// each of the run's cores installs a host of its own over it.
 pub(crate) fn run(
     checked: crate::Checked,
     snapshot: &nvs_config::Snapshot,
+    extensions: Option<Arc<nvs_ext::load::Set>>,
     format: Format,
     filter: Option<String>,
     flags: Flags,
@@ -649,6 +652,7 @@ pub(crate) fn run(
         ctx,
         checked,
         &snapshot.config,
+        extensions,
         Shape {
             format,
             jobs,
@@ -758,6 +762,7 @@ fn run_suite_in_a_task(
     ctx: nvs_runtime::Ctx,
     checked: crate::Checked,
     config: &nvs_config::Config,
+    extensions: Option<Arc<nvs_ext::load::Set>>,
     shape: Shape,
     filter: Option<&str>,
 ) -> Result<(Suite, nvs_runtime::Ctx), String> {
@@ -781,15 +786,24 @@ fn run_suite_in_a_task(
     // The cores the tests run on, started at the first test posted and joined
     // when the last owner below drops them. Each runs inside the same two
     // seams as this thread, so a test reads this run's unit and compiler on
-    // whichever core it lands.
+    // whichever core it lands. Each also installs an extension host of its
+    // own over the run's loaded set, since a host is its thread's alone: the
+    // first-party components are always loaded, so any test may call one.
+    // A test's calls run in its own tree, so its budget is its own.
     let cores = {
         let (under_test, compiler) = (Arc::clone(&under_test), Arc::clone(&compiler));
         Arc::new(nvs_host::worker::Cores::new(
             nvs_host::worker::bound(),
             move |core: &mut dyn FnMut()| {
+                let calling = extensions.as_ref().map(|set| {
+                    nvs_runtime::extension::install(Rc::new(crate::extensions::Tested(Arc::clone(
+                        set,
+                    ))))
+                });
                 nvs_runtime::script::scoped(&*compiler, || {
                     nvs_runtime::inproc::scoped(&*under_test, core);
                 });
+                drop(calling);
             },
         ))
     };
@@ -3503,6 +3517,7 @@ mod tests {
             ctx,
             checked,
             &nvs_config::Config::default(),
+            None,
             shape,
             filter,
         )
@@ -3542,6 +3557,7 @@ mod tests {
             ctx,
             checked,
             &nvs_config::Config::default(),
+            None,
             collected(),
             None,
         )
@@ -4278,6 +4294,7 @@ mod tests {
         let _ = super::run(
             checked,
             &uncached,
+            None,
             Format::Json,
             None,
             super::Flags {
@@ -4300,6 +4317,7 @@ mod tests {
         let _ = super::run(
             checked,
             &uncached,
+            None,
             Format::Json,
             None,
             super::Flags {
@@ -4371,6 +4389,7 @@ mod tests {
                 ctx,
                 checked,
                 &nvs_config::Config::default(),
+                None,
                 shape,
                 None,
             )
