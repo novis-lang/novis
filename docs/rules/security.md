@@ -2520,6 +2520,14 @@ request's own configuration snapshot ([`security/capability-question-is-grant-an
 path is canonicalised and prefix-checked as every `Core\IO` door does
 ([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
 
+The preopens are fixed when the instance is made, so a request tree keeps one instance of a class per
+`grants:` narrowing that called it. A child script with a narrower `grants:` than its parent's gets an
+instance of its own at its first call, and never reaches the one its parent made. Children with the
+same narrowing share one.
+
+- **Memory:** one more instance, and one more place in the host's pool, per distinct narrowing in a
+  request that calls the extension; most requests have one.
+
 The manifest's `read` and `write` lists say whether it asks for that kind at all, because an author
 cannot know the operator's folders; its `connect` hosts are matched one by one. The caller narrows by
 path: a root it holds inside an entry root replaces that root. A `write` root is opened read-write, so
@@ -2530,7 +2538,8 @@ and `nvs_config::extension::grants` makes its roots absolute against the file th
 `env_hash` does not read it. `nvs_ext::grants::effective` computes the intersection
 (`crates/nvs-ext/tests/grants.rs`) when an instance is made, from the entry's grants, the manifest
 and the caller `nvs_ext::call::Budget::caller` names, which `nvs run` and `nvs serve` take from the
-request's snapshot and its isolate's `grants:` list. Each root of it is a preopen, and
+request's snapshot and its isolate's `grants:` list. `nvs-cli`'s `Calls` keeps one
+`nvs_ext::call::Request` per narrowing (`crates/nvs-cli/tests/live_config.rs`). Each root of it is a preopen, and
 `nvs_ext::wasi`'s filesystem resolves a guest's path under it one name at a time
 (`crates/nvs-ext/tests/files.rs`). `nvs_ext::wasi`'s outgoing handler refuses a host outside the
 `connect` set before anything is sent, and the caller's `net.connect` is asked again by the client
@@ -2541,6 +2550,9 @@ that sends it, so the address policy, TLS trust and the proxy apply (`crates/nvs
   holds.
 - **The entry's grant alone.** A request narrowed by an isolate would widen again through the
   extension.
+- **Swapping an instance's preopens at each call.** A guest keeps the descriptors it opened in
+  a static, so a narrowed caller would still use one its parent's call opened under the wider
+  grant.
 
 <sub>See also [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 

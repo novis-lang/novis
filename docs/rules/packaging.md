@@ -2954,7 +2954,9 @@ would keep every tree, its instances and its memory for the life of the process.
 
 **Every request in flight can hold an instance of each class it calls.** The pooling allocator has a
 fixed number of places, sized once at the first boot: `max_in_flight` times the classes one request
-can call, the built-in components and each `[[extension]]` entry. A pool sized below that let a few
+can call, the built-in components and each `[[extension]]` entry. A child script whose `grants:`
+narrows its request's takes a place of its own per class it calls
+([`security/extension-grants-are-an-intersection`](security.md#security-extension-grants-are-an-intersection)), which the size does not count. A pool sized below that let a few
 slow requests that hold an instance starve every other request that calls an extension. Each place
 reserves 6 GiB of address space for its linear memory, which lets compiled guest code skip bounds
 checks, so the pool stops at 4096 places, 24 TiB of the 128 TiB a 64-bit process can address. A reload

@@ -9,6 +9,7 @@
   "guardedBy": [
     "crates/nvs-ext/tests/grants.rs",
     "crates/nvs-ext/tests/files.rs",
-    "crates/nvs-ext/tests/http.rs"
+    "crates/nvs-ext/tests/http.rs",
+    "crates/nvs-cli/tests/live_config.rs"
   ]
 }
