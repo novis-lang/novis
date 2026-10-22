@@ -2,7 +2,7 @@
 // `after_retire` hook.
 //
 //     bun nv ci --push                  # push main, which starts its CI and Website runs
-//     bun nv ci --watch [--max-min <n>] [--past <job>]...
+//     bun nv ci --watch [--max-min <n>] [--past <job>]... [--next]
 //                                       # wait for the first failed job, or the next green verdict
 //     bun nv ci --status                # the newest run of each watched workflow, and each failed job
 //     bun nv ci --rerun                 # run the failed jobs of each red newest run again
@@ -31,6 +31,10 @@
 // saw such a run end exits 4 with no other red. `ci-green`'s session passes the red a main loop's stage
 // still owns this way, which `sleep` cannot.
 //
+// **`--next`** passes over every run that had already ended when the watch started, so the watch waits
+// for the next push's runs. A session whose fixes for a red run are committed and not yet pushed
+// watches this way, since that red run would otherwise end the watch at once.
+//
 // **`--status`** prints what `--watch` would read, once, and exits 1 when a newest run is red.
 // **`--rerun`** reruns the failed jobs of each red newest run, for a failure that a fix cannot reach,
 // such as a runner that went away.
@@ -44,10 +48,10 @@ import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 
 export const summary =
-  "pushes main and watches GitHub CI: nv ci --push | --watch [--max-min <n>] [--past <job>] | --status | --rerun";
+  "pushes main and watches GitHub CI: nv ci --push | --watch [--max-min <n>] [--past <job>] [--next] | --status | --rerun";
 
 const USAGE =
-  "usage: bun nv ci --push\n       bun nv ci --watch [--max-min <n>] [--past <job>]...\n       bun nv ci --status\n       bun nv ci --rerun";
+  "usage: bun nv ci --push\n       bun nv ci --watch [--max-min <n>] [--past <job>]... [--next]\n       bun nv ci --status\n       bun nv ci --rerun";
 
 /** The workflows whose runs on `main` are watched, by their `name:`. */
 export const WORKFLOWS = ["CI", "Website"];
@@ -260,11 +264,12 @@ const under = (name: string, p: string) => name === p || name.startsWith(`${p} /
 /**
  * Watches until a job fails (1), every run it saw in progress is green (0), or `maxMin` passes (3). A
  * failed job that `past` names is passed over, and a watched run that ended red in those jobs alone
- * ends the watch with 4.
+ * ends the watch with 4. With `next`, every run that had ended at the first poll is passed over.
  */
-export async function watch(s: CiSeams, maxMin: number, past: string[] = []): Promise<number> {
+export async function watch(s: CiSeams, maxMin: number, past: string[] = [], next = false): Promise<number> {
   const until = s.now() + maxMin * 60_000;
   const watched = new Set<number>();
+  const before = new Set<number>();
   const finished = new Map<number, number>();
   const passedOver = new Set<number>();
   const passed = (j: Job) => past.some((p) => under(j.name, p));
@@ -288,6 +293,11 @@ export async function watch(s: CiSeams, maxMin: number, past: string[] = []): Pr
       const runs = newest(all);
       failures = 0;
       for (const r of runs) {
+        if (first && next && done(r)) {
+          before.add(r.id);
+          s.say(`passing over ${runLine(r)}`);
+        }
+        if (before.has(r.id)) continue;
         if (done(r) && red(r)) {
           const jobs = await listJobs(s, r.id);
           if (first || watched.has(r.id)) s.say(runLine(r));
@@ -411,6 +421,7 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
   const mode = args[0];
   let maxMin = MAX_MIN;
   const past: string[] = [];
+  let next = false;
   let bad = ["--push", "--watch", "--status", "--rerun"].includes(mode ?? "") ? "" : "name one mode";
   for (let i = 1; i < args.length && bad === ""; i++) {
     const v = args[i + 1];
@@ -420,7 +431,8 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
     } else if (mode === "--watch" && args[i] === "--past" && v !== undefined && v !== "") {
       past.push(v);
       i++;
-    } else bad = `unexpected argument ${args[i]}`;
+    } else if (mode === "--watch" && args[i] === "--next") next = true;
+    else bad = `unexpected argument ${args[i]}`;
   }
   if (bad !== "") {
     console.error(`${USAGE}\nnv ci: error: ${bad}`);
@@ -428,7 +440,7 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
   }
   try {
     if (mode === "--push") return await push(s);
-    if (mode === "--watch") return await watch(s, maxMin, past);
+    if (mode === "--watch") return await watch(s, maxMin, past, next);
     if (mode === "--status") return await status(s);
     return await rerun(s);
   } catch (e) {

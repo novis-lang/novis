@@ -80,6 +80,17 @@ describe("bun nv ci --watch", () => {
     expect(w.slept).toEqual([]);
   });
 
+  test("`--next` passes over a run that had ended red, and watches the next one", async () => {
+    const w = seams("next", (p) => ({
+      runs: p < 2 ? [runOf(17, "CI", "completed", "failure")] : [runOf(18, "CI", "in_progress", null), runOf(17, "CI", "completed", "failure")],
+      jobs: { 17: [jobOf(11, "proofs", "completed", "failure", "gate")], 18: [jobOf(12, "lint", "completed", "failure", "clippy")] },
+    }));
+    expect(await ci(["--watch", "--next"], w.s)).toBe(1);
+    expect(w.slept).toEqual([POLL_IDLE_MS, POLL_IDLE_MS]);
+    expect(w.said.some((l) => l.startsWith('FAILED CI / lint / step "clippy"'))).toBe(true);
+    expect(w.said.some((l) => l.startsWith("FAILED CI / proofs"))).toBe(false);
+  });
+
   test("a cancelled run is passed over, so the run before it decides", async () => {
     const w = seams("cancelled", () => ({
       runs: [runOf(13, "CI", "completed", "cancelled"), runOf(12, "CI", "completed", "failure")],
