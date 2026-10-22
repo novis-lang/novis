@@ -3336,7 +3336,7 @@ mod tests {
     /// host's snapshot runs both at the global `512M`.
     #[test]
     fn a_scheduled_script_runs_under_its_own_app_blocks() {
-        let dir = nvs_repo::scratch("serve-fire-app-blocks");
+        let dir = nvs_repo::scratch_private("serve-fire-app-blocks");
         let root = nvs_config::trust::canonical(&dir).expect("the case's directory is there");
         for script in ["jobs/nightly.nvs", "other/nightly.nvs"] {
             let path = root.join(script);
@@ -4768,14 +4768,18 @@ mod tests {
     ///
     /// The drain is `Draining::detached` because this server's stopping is not
     /// this process's, and this process's is what the case stops afterwards.
-    fn a_server_over(case: &str, told: &Notify) -> (crate::reload::Process, std::path::PathBuf) {
-        let beside = std::env::current_exe().expect("the test binary knows its own path");
-        let dir = beside
-            .parent()
-            .expect("a test binary sits in a directory")
-            .join(format!("nvs-serve-{}-{case}", std::process::id()));
-        drop(std::fs::remove_dir_all(&dir));
-        std::fs::create_dir_all(&dir).expect("a scratch directory of this case's own");
+    /// The directory is private, because a reload checks who may write each
+    /// file it reads. It is deleted when the returned guard drops.
+    fn a_server_over(
+        case: &str,
+        told: &Notify,
+    ) -> (
+        crate::reload::Process,
+        std::path::PathBuf,
+        nvs_repo::Scratch,
+    ) {
+        let scratch = nvs_repo::scratch_private(&format!("nvs-serve-{case}"));
+        let dir = nvs_config::trust::canonical(&scratch).expect("the case's directory is there");
         let root = dir.join("nvs.toml");
         std::fs::write(&root, "[limits]\nmemory = \"64M\"\n").expect("a tree of this case's own");
         let entry = dir.join("app.nvs");
@@ -4802,7 +4806,7 @@ mod tests {
             nvs_server::Draining::detached(),
             told.clone(),
         );
-        (process, root)
+        (process, root, scratch)
     }
 
     /// The four states a `Type=notify` unit is owed, in the order a served life
@@ -4832,7 +4836,7 @@ mod tests {
             std::net::TcpListener::bind(a_free_address()).expect("the loopback refused a listener");
         listening(&[Socket::Tcp(listener)], "app.nvs", &told);
 
-        let (process, root) = a_server_over("sd-notify", &told);
+        let (process, root, _scratch) = a_server_over("sd-notify", &told);
         std::fs::write(&root, "[limits]\nmemory = \"128M\"\n")
             .expect("the tree this case wrote saves again");
         process.noticed(std::slice::from_ref(&root));

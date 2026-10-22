@@ -2327,7 +2327,7 @@ mod tests {
     /// snapshot runs both at the global `512M`, and passes both doors.
     #[test]
     fn a_queued_job_runs_under_its_scripts_app_blocks() {
-        let dir = nvs_repo::scratch("worker-job-app-blocks");
+        let dir = nvs_repo::scratch_private("worker-job-app-blocks");
         let root = nvs_config::trust::canonical(&dir).expect("the case's directory is there");
         for script in ["jobs/nightly.nvs", "other/nightly.nvs"] {
             let path = root.join(script);
