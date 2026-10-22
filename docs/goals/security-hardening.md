@@ -6,7 +6,7 @@ context: [docs/rules/testing/hostile-case-contract.md, docs/rules/http-server/an
 stages:
   - id: 1
     title: "every repro runs again on main, and what is already fixed is struck"
-    status: open
+    status: done
     context: [tests/hostile/README.md]
   - id: 2
     title: "a constructor cannot leak `$this` early or run twice, so the JIT's slot reads hold"
@@ -187,7 +187,7 @@ error's suggestions, which the editor applies as a quick fix.
 error at the ceiling, inside the parse.
 
 **Stage 7: connection memory has its own bound, and admission reads requests only.** hyper's buffer
-size is set to the head limit `MAX_HEADER_LINES` already pairs with (`crates/nvs-server/src/serve.rs:2363`).
+size is set to the head limit `MAX_HEADER_LINES` already pairs with (`crates/nvs-server/src/serve.rs:2373`).
 A buffered response keeps its in-flight place until its body is written. Admission's memory check reads
 the memory charged to requests, never the core thread's total. No cap on open connections is added.
 With no exporter configured, no span is queued, and a client's sampled flag is read only when one is.
@@ -275,9 +275,9 @@ still reproduces.
 `wb-sinks`, `wb-http-front` with `wb-routing-static`, `wb-lifecycle`), each re-running its CONFIRMED
 repros with `target/debug/nvs.exe` on ports 18100-18199 and answering, per ID, reproduces or not.
 
-- [ ] Build debug once (`cargo build`), and run every CONFIRMED repro in `.agent-tmp/sec-audit/` against it. `.agent-tmp/sec-audit/reports/wb-runtime-memory.md:1`
-- [ ] Strike each item below whose finding no longer reproduces, with the commit that fixed it. `docs/goals/security-hardening.md:1`
-- [ ] Correct each item's `path:line` anchor that moved since a2b4854a4. `docs/goals/security-hardening.md:1`
+- [x] Build debug once (`cargo build`), and run every CONFIRMED repro in `.agent-tmp/sec-audit/` against it. `.agent-tmp/sec-audit/reports/wb-runtime-memory.md:1`
+- [x] Strike each item below whose finding no longer reproduces, with the commit that fixed it. Run at fdbedb805: every CONFIRMED finding an item names still reproduces, so nothing is struck. LC-1 no longer reproduces (`040873f47`), and no item names it. `docs/goals/security-hardening.md:1`
+- [x] Correct each item's `path:line` anchor that moved since a2b4854a4: `budget.rs:1153`, `serve.rs:1706`, `serve.rs:2373`, `ladder.rs:122` and `body.rs:198`. `docs/goals/security-hardening.md:1`
 
 ### 2. a constructor cannot leak `$this` early or run twice, so the JIT's slot reads hold
 
@@ -299,7 +299,7 @@ written.
 - [ ] RT-3: `Core\Jwe::decrypt` validates its plaintext. `crates/nvs-stdlib/src/jwe.rs:1`
 - [ ] The lint: `from_utf8_unchecked` and the unchecked `NvsStr` constructor only in `string.rs` and the audited allow list. `tools/nv/cmd/lints.ts:70`
 - [ ] Fix every other site the lint names. `crates/nvs-runtime/src/string.rs:1050`
-- [ ] The attack: an upload of `FF 0A` and of `C0 BC`, then the next request answers. `tests/hostile/core/Csv/rows/01-a-file-an-upload-form-could-send.nvs:1`
+- [ ] The attack: an upload of `FF 0A` and of `C0 BC`, then the next request answers. A debug build hides the crash: `text_of`'s `debug_assert` stops the request first, so the attack is judged on a release build. `tests/hostile/core/Csv/rows/01-a-file-an-upload-form-could-send.nvs:1`
 
 ### 4. one test walks every Core signature for a lost mark, and `Core\Arr` and `Core\Str` keep it
 
@@ -333,7 +333,7 @@ carry the mark.
 - [ ] PARSE-1: `Core\Csv::parse` and `::rows` grow arrays through the fallible form. `crates/nvs-stdlib/src/csv.rs:715`
 - [ ] PARSE-2: `Core\Json::decode` and `Core\Request::json()`. `crates/nvs-stdlib/src/json.rs:1807`
 - [ ] PARSE-3: `Core\Xml::parse` charges attribute and name growth. `crates/nvs-stdlib/src/xml.rs:1619`
-- [ ] RT-4: `Core\Html::parse` refuses at the ceiling, not after it. `crates/nvs-runtime/src/budget.rs:920`
+- [ ] RT-4: `Core\Html::parse` refuses at the ceiling, not after it. `crates/nvs-runtime/src/budget.rs:1153`
 - [ ] The attacks: one 8 MB body per parser, the peak stays under the ceiling, and the next request answers. `tests/hostile/core/Csv/parse/01-documents-an-upload-form-could-send.nvs:1`
 
 ### 7. connections, spans, metrics and blocking work grow with requests in flight, never with requests served
@@ -341,13 +341,13 @@ carry the mark.
 **Does:** HTTP-1's idle connections and slow readers no longer flip admission, and LC-3, LC-5, LC-6,
 LC-7 and LC-9 are closed.
 
-- [ ] HTTP-1: set hyper's buffer size, and keep a buffered response's in-flight place until its body is written. `crates/nvs-server/src/serve.rs:2363`
+- [ ] HTTP-1: set hyper's buffer size, and keep a buffered response's in-flight place until its body is written. `crates/nvs-server/src/serve.rs:2373`
 - [ ] HTTP-1: admission reads memory charged to requests, not the thread's total (`rule:http-server/admission-is-arithmetic-not-a-number`). `crates/nvs-server/src/admit.rs:1`
 - [ ] LC-3, LC-9: no span queued without an exporter, the client's flag read only with one, and `request_id` always the server's (`rule:observability/sampling-is-head-based`). `crates/nvs-server/src/trace.rs:278`
-- [ ] LC-6, LC-7: the `method` label is closed, and a 501 logs at `info`. `crates/nvs-server/src/serve.rs:1696`
+- [ ] LC-6, LC-7: the `method` label is closed, and a 501 logs at `info`. `crates/nvs-server/src/serve.rs:1706`
 - [ ] LC-5: blocking-pool CPU is charged to its request (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/blocking.rs:349`
 - [x] ~~LC-8: try the native stack overflow shapes in the lifecycle report; if the process ends, the deep helper checks the stack it has left and throws.~~ Ruled out on a2b4854a4: every native walk over a runtime value is iterative or depth-bounded, JSON decode's 1024-deep recursion runs on the 8 MiB spare stack, and each shape answered a clean `500` with the worker still serving (LC-8 in the lifecycle report). `.agent-tmp/sec-audit/reports/wb-lifecycle.md:1`
-- [ ] LC-12: a configured `[log]` escalation handler runs on a task of its own behind a bounded queue, never joined on the serving worker; a full queue drops the event and counts it in a metric, so forced uncaught throws cannot each hold a worker for `handler_reserve_time`. The queue's length is a constant with its reason in the code (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/ladder.rs:115`
+- [ ] LC-12: a configured `[log]` escalation handler runs on a task of its own behind a bounded queue, never joined on the serving worker; a full queue drops the event and counts it in a metric, so forced uncaught throws cannot each hold a worker for `handler_reserve_time`. The queue's length is a constant with its reason in the code (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/ladder.rs:122`
 - [ ] The attacks: 500 idle connections with a large head, 100 slow readers, then a normal request answers `200`; Rust tests beside `admit.rs`. `crates/nvs-server/src/admit.rs:1`
 
 ### 8. an extension instance ends with its request
@@ -404,7 +404,7 @@ into its rule.
 - [ ] RS-2: a loopback development server answers only a loopback `Host` or a listed one. `crates/nvs-server/src/mount.rs:307`
 - [ ] RS-4, RS-6, RS-7: the case rule through a link, a strict `Range` parse, and `sandbox` on static SVG and HTML. `crates/nvs-server/src/statics.rs:239`
 - [ ] HTTP-2: an absolute-form target's host wins over `Host` (`rule:http-server/host-matching-is-on-the-host-part-only`). `crates/nvs-server/src/mount.rs:424`
-- [ ] HTTP-4, APP-3: a malformed chunked body answers `400`, and so does a request that carries both `Content-Length` and `Transfer-Encoding` (it is framed by `Transfer-Encoding` and closed today). `crates/nvs-server/src/body.rs:197`
+- [ ] HTTP-4, APP-3: a malformed chunked body answers `400`, and so does a request that carries both `Content-Length` and `Transfer-Encoding` (it is framed by `Transfer-Encoding` and closed today). `crates/nvs-server/src/body.rs:198`
 - [ ] APP-2: when a body reader trips `[limits] request_body`, the runtime records `Refusal::BodyTooLarge` on the request as it throws, and `dispatch` sends a handler that throws after that to the gate's `refused` with `413` instead of `failed` with `500`. No new error class: the reader still throws its `RuntimeError` (`rule:http-server/the-body-is-read-on-demand-under-two-caps`, `rule:routing/a-gate-answers-around-every-handler`). `crates/nvs-stdlib/src/request.rs:679`, `crates/nvs-stdlib/src/router.rs:2523`
 - [ ] APP-2's attack: a 9 MB JSON body and a 9 MB form body to a route that reads them answer `413` through the gate, and the next request answers `200`. `tests/hostile/core/Request/jsonAs/02-a-body-over-the-limit.nvs:1`
 - [ ] HTTP-5: `X-Forwarded-Proto` from a trusted peer that never set it is ignored (`rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`). `crates/nvs-server/src/forwarded.rs:466`
@@ -454,12 +454,23 @@ the code change before it runs any of them.
 
 ### State
 
-Written on 2026-10-22 from the audit at a2b4854a4. Nothing is built yet. The repro programs and reports
-are under `.agent-tmp/sec-audit/`, and stage 13 deletes them.
+Stage 1 is done at fdbedb805. Every CONFIRMED repro ran again on a debug build. Each finding an item
+names still reproduces, so no item is struck. Five anchors moved, and they are corrected. LC-1 is fixed
+by `040873f47` and is out of scope here. APP-1 and BBK-1 to BBK-5 still reproduce, and
+`taught-app-works` owns them. The repro programs and reports are under `.agent-tmp/sec-audit/`, and
+stage 13 deletes them. No test is expected to go red: nothing in the tree changed but this file.
 
 ### Next
 
-Stage 1: build debug once, re-run every CONFIRMED repro with five read-only subagents, strike what is
-already fixed, and correct the anchors. Then stage 2, starting at `crates/nvs-types/src/ctor_init.rs:73`.
+Stage 2, RT-2 first: two-phase construction in the init check, `crates/nvs-types/src/ctor_init.rs:73`.
+Then RT-1 at `crates/nvs-types/src/expr/calls.rs:1040`, `crates/nvs-types/src/expr/assign.rs:1333`
+and `crates/nvs-codegen/src/emit.rs:3018`. The repros are `.agent-tmp/sec-audit/wb-runtime-memory/t1.nvs`
+(RT-2, exits 139), `app1.nvs` (`/?restore=1` kills the server), `t5.nvs` and `t14.nvs` (RT-1, garbage
+slot reads). On main, RT-2 now stops at a guarded panic in `crates/nvs-runtime/src/string.rs:1010`,
+and the process still dies.
 
 ### Backlog
+
+- Not checked: the stage 1 rerun saw `Response::sendFile("assets/logo.svg")` answer `500` in a copy of
+  `.agent-tmp/sec-audit/bb-kitchen/app`, where the audit saw `200`. Serve that app as its
+  `serve.log` shows and fetch `/logo` before stage 12 touches static serving.
