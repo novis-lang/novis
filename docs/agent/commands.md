@@ -688,6 +688,19 @@ ext4 space but **not** Windows space, because the vhdx never shrinks on its own 
 compact it, if C: is what is short). `~/.cargo/registry/src` is re-extracted on demand and safe to
 delete.
 
+## A Windows checkout needs `bun nv checkout-acl` once
+
+`nvs serve` checks the ownership of every configuration file at boot and at each reload
+(`rule:config/the-ownership-check-runs-where-it-can-be-answered`), and a checkout on a non-system drive
+inherits the drive's `Authenticated Users` write grant, so every server on a checkout file and every
+served test under `target/` stops with `E0607`. `bun nv checkout-acl` breaks the checkout root's
+inheritance, grants this account full control and removes `Authenticated Users` and `Everyone`, once;
+`--check` only reports. CI's Windows jobs run it after the tool install. Its header names the undo.
+
+**Compiling the Unix half from Windows** is `cargo check --tests` in WSL with its own
+`CARGO_TARGET_DIR` on ext4. Keep the output unfiltered and print a heartbeat, or the hang watcher
+kills it while `nvs-cli` compiles: WSL's CPU time is invisible to it.
+
 ## Fuzzing and callgrind on Windows: use WSL
 
 `cargo-fuzz` (the `fuzz/` crate) needs libFuzzer, and `valgrind`/`callgrind`

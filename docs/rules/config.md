@@ -659,6 +659,20 @@ counts and an inherited grant is seen. Windows grants `Authenticated Users` modi
 root, so a configuration kept under such a path refuses until that inheritance is broken — that default
 *is* the hole this rule closes.
 
+**On Unix, a file or directory on a read-only mount passes the owner test**: `statvfs` reports
+`ST_RDONLY` for its file system. No account on this host can change it through that mount, and that
+is the whole of what the owner test guards. A container's `-v ./app:/app:ro` is exactly this case:
+the files belong to the host's account, which is not the container's, and refusing them would refuse
+the deployment the Docker guide teaches. The mode test still runs there, so a group- or
+world-writable mode on a read-only mount is refused: the mode says the tree is meant to be shared,
+and the same tree mounted read-write later would be served. A path whose mount cannot be asked keeps
+the owner test. Windows has no read-only mount to waive.
+
+Docker Desktop on Windows can report a bind mount's files as `0777`, whatever the NTFS ACL says, and
+then the mode test refuses them even under `:ro`. The guide tells a Windows user to copy the
+configuration into the image instead. The mode test is not waived for it: a mode is the only answer
+the container can read, and a check that trusted `0777` would trust every mount.
+
 **One directory is checked without its parent: the default data folder**, `.nvsdata` beside the
 running binary. Its parent is the binary's own directory, and an account that can write there can
 already replace the binary, so examining it guards nothing the binary does not — while on a stock
@@ -670,6 +684,10 @@ private to its account and never re-permissions one that exists: it checks it.
 **Declined:**
 - **The full check on the default data folder.** It is correct in principle and unusable on a stock
   Windows drive, and it protects only against an account that could replace the binary anyway.
+- **Waiving the mode test on a read-only mount too.** A writable mode under `:ro` is either a
+  mistake or Docker Desktop's `0777`, and the container cannot tell the two apart.
+- **A configuration key that turns the check off.** It would be written in the file the check
+  guards, so whoever can write the file could turn it off.
 
 Where the check runs is [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered).
 
@@ -694,6 +712,17 @@ auditing account, where the check answers a different question than the one it e
 refuses trees the server would accept and passes trees the server would refuse, and a green result
 that means neither is worse than one that does not claim to have looked.
 
+`nvs serve` checks every file it reads, every time it reads it: the root, each include, each secret
+file and each `[[app]]` fold a request or a queue job asks for, at boot and at every reload. A boot
+that finds a file another account can write stops with `E0607` naming it; a reload that finds one is
+refused, names the path in the log, and the running snapshot keeps serving. Development mode is
+checked too. The mode is written in the same file, so a check the mode could skip is one whoever
+writes the file could skip.
+
+A Windows checkout on a non-system drive inherits the drive's `Authenticated Users` write grant, so
+the repository's own servers fail there until the grant is removed. `bun nv checkout-acl` removes it
+once, and CI's Windows jobs run it before they build.
+
 Two writes are checked even where the read is not: the data folder before anything is created in it,
 and the directory a project command or `nvs init` writes the shipped `nvs.toml` into.
 
@@ -701,6 +730,11 @@ and the directory a project command or `nvs init` writes the shipped `nvs.toml` 
 unchecked file on the `run` path carries the invoking account's own authority and nothing more: an
 `nvs.toml` can grant a CLI program nothing it could not take for itself, and the rule that places the
 capability check is bound by that sentence.
+
+**Declined:**
+- **Skipping the check under `nvs serve` in development mode.** The mode comes from the checked file.
+- **Naming `bun nv checkout-acl` in `E0607`'s help.** The help is read by people who run Novis, not
+  by people who work on it, and its `icacls` steps already fix a checkout.
 
 <sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope).</sub>
 

@@ -29,6 +29,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   "bench-proxied": () => import("./cmd/bench-proxied.ts"),
   brief: () => import("./cmd/brief.ts"),
   check: () => import("./cmd/check.ts"),
+  "checkout-acl": () => import("./cmd/checkout-acl.ts"),
   ci: () => import("./cmd/ci.ts"),
   "ci-changes": () => import("./cmd/ci-changes.ts"),
   "db-matrix": () => import("./cmd/db-matrix.ts"),

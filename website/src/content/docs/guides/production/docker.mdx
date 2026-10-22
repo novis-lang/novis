@@ -67,6 +67,18 @@ docker run --rm -p 8000:8000 \
 The volume `novis-data` keeps the compile cache when you remove the container.
 [The data folder](#the-data-folder) explains it.
 
+`serve` checks every configuration file before it starts, and again at each reload. The file
+and its folder must not be writable by a group or by everyone. Use `chmod go-w` to fix that.
+
+Mount your application read-only, with `:ro`. Then `nvs.toml` and the files it includes may belong
+to your own account on the host. If you mount them writable, they must belong to uid 65532 or to
+root. Otherwise `serve`
+stops with the error `E0607`.
+
+On Windows, Docker Desktop can show every file of a mounted folder as writable by everyone. Then
+`serve` stops with `E0607`, even with `:ro`. Copy your application into your own image with
+`COPY` instead of mounting it.
+
 ### A Compose file
 
 ```yaml

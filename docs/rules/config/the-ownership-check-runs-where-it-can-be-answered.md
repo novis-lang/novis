@@ -11,6 +11,17 @@ auditing account, where the check answers a different question than the one it e
 refuses trees the server would accept and passes trees the server would refuse, and a green result
 that means neither is worse than one that does not claim to have looked.
 
+`nvs serve` checks every file it reads, every time it reads it: the root, each include, each secret
+file and each `[[app]]` fold a request or a queue job asks for, at boot and at every reload. A boot
+that finds a file another account can write stops with `E0607` naming it; a reload that finds one is
+refused, names the path in the log, and the running snapshot keeps serving. Development mode is
+checked too. The mode is written in the same file, so a check the mode could skip is one whoever
+writes the file could skip.
+
+A Windows checkout on a non-system drive inherits the drive's `Authenticated Users` write grant, so
+the repository's own servers fail there until the grant is removed. `bun nv checkout-acl` removes it
+once, and CI's Windows jobs run it before they build.
+
 Two writes are checked even where the read is not: the data folder before anything is created in it,
 and the directory a project command or `nvs init` writes the shipped `nvs.toml` into.
 
@@ -18,3 +29,8 @@ and the directory a project command or `nvs init` writes the shipped `nvs.toml` 
 unchecked file on the `run` path carries the invoking account's own authority and nothing more: an
 `nvs.toml` can grant a CLI program nothing it could not take for itself, and the rule that places the
 capability check is bound by that sentence.
+
+**Declined:**
+- **Skipping the check under `nvs serve` in development mode.** The mode comes from the checked file.
+- **Naming `bun nv checkout-acl` in `E0607`'s help.** The help is read by people who run Novis, not
+  by people who work on it, and its `icacls` steps already fix a checkout.

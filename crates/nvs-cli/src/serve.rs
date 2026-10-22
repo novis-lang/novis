@@ -426,7 +426,7 @@ pub(crate) fn run(
         Arc::clone(&snapshot),
         blocks,
         &entries,
-        &crate::config::LocalFiles,
+        &crate::config::ServedFiles,
     ) {
         Ok(published) => published,
         Err(diagnostic) => return report(diagnostic, &sources),
@@ -1097,10 +1097,10 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // frame matches no `[[app]]` block, so its folder is the mount root.
             let folder: Arc<Path> = nvs_server::published_of(&request).map_or_else(
                 || Arc::from(mount.root.as_path()),
-                |published| published.folder(&mount.entry, &crate::config::LocalFiles),
+                |published| published.folder(&mount.entry, &crate::config::ServedFiles),
             );
             let (config, compiled) = match nvs_server::published_of(&request)
-                .map(|published| published.entry(&file, &crate::config::LocalFiles))
+                .map(|published| published.entry(&file, &crate::config::ServedFiles))
             {
                 Some(Err(refused)) => (None, Err(refused.message)),
                 found => (
@@ -1982,7 +1982,7 @@ impl nvs_server::Fires for Scheduled {
         let published = self.current.published();
         let snapshot = match published.entry(
             std::path::Path::new(entry.script()),
-            &crate::config::LocalFiles,
+            &crate::config::ServedFiles,
         ) {
             Ok(snapshot) => snapshot,
             Err(refused) => {
@@ -1999,7 +1999,7 @@ impl nvs_server::Fires for Scheduled {
         // before the resolve below asks `script.spawn`, and on the isolate.
         let folder = published.folder(
             std::path::Path::new(entry.script()),
-            &crate::config::LocalFiles,
+            &crate::config::ServedFiles,
         );
         ctx.set_app_folder(Arc::clone(&folder));
         // Resolved per fire and not once at boot, because `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s unit swap is
@@ -2249,7 +2249,7 @@ fn default_reads(mounts: &[Mounted], published: &nvs_config::Published) -> Vec<S
     let mut folders: Vec<Arc<Path>> = Vec::new();
     for mount in mounts {
         let written = published
-            .entry(&mount.entry, &crate::config::LocalFiles)
+            .entry(&mount.entry, &crate::config::ServedFiles)
             .ok()
             .and_then(|snapshot| {
                 snapshot
@@ -2259,7 +2259,7 @@ fn default_reads(mounts: &[Mounted], published: &nvs_config::Published) -> Vec<S
                     .map(|caps| nvs_config::Cap::FsRead.grant(caps).is_some())
             })
             .unwrap_or(false);
-        let folder = published.folder(&mount.entry, &crate::config::LocalFiles);
+        let folder = published.folder(&mount.entry, &crate::config::ServedFiles);
         if !written && !folders.contains(&folder) {
             folders.push(folder);
         }
@@ -2305,7 +2305,7 @@ fn fall_back_to(mounts: &mut [Mounted], app: Option<&str>) {
 fn fold_origins(mounts: &mut [Mounted], published: &nvs_config::Published) {
     for mount in mounts {
         let own = published
-            .entry(&mount.entry, &crate::config::LocalFiles)
+            .entry(&mount.entry, &crate::config::ServedFiles)
             .ok()
             .and_then(|config| config.origin.clone());
         fall_back_to(std::slice::from_mut(mount), own.as_deref());

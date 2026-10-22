@@ -660,14 +660,14 @@ fn configure(
 ) -> Result<(), nvs_host::Failure> {
     match current.published().entry(
         std::path::Path::new(&job.script),
-        &crate::config::LocalFiles,
+        &crate::config::ServedFiles,
     ) {
         Ok(snapshot) => {
             ctx.set_config(snapshot);
             // A job's app folder is its worker entry's own.
             ctx.set_app_folder(current.published().folder(
                 std::path::Path::new(&job.script),
-                &crate::config::LocalFiles,
+                &crate::config::ServedFiles,
             ));
             Ok(())
         }

@@ -548,13 +548,17 @@ in the checkout (the harnesses under `tools/nv/`, `tests/docker/smoke.sh`, the c
 `benches/`, the apps and the website's snippets), as `file:line` and one line each. The session makes
 the code change before it runs any of them.
 
-- [ ] `nvs serve`'s boot and every reload resolve through `Disk`. Every other reader keeps `Unowned` (`rule:config/the-ownership-check-runs-where-it-can-be-answered`). `crates/nvs-cli/src/config.rs:400`, `crates/nvs-cli/src/config.rs:575`, `crates/nvs-cli/src/reload.rs:370`, `crates/nvs-cli/src/reload.rs:414`, `crates/nvs-cli/src/serve.rs:429`, `crates/nvs-cli/src/serve.rs:1982`
-- [ ] The `LocalFiles` doc and the module doc say which reader each command uses, as it now is. `crates/nvs-cli/src/config.rs:25`, `crates/nvs-cli/src/config.rs:109`
-- [ ] On Unix, `trust::check` waives the owner test for a file and a directory on a read-only mount, and still refuses a group- or world-writable mode (`rule:config/ownership-is-the-trust-boundary`). `crates/nvs-config/src/trust.rs:184`
-- [ ] Rust tests: a group-writable root and a group-writable include each stop `nvs serve` with `E0607` naming the path; a reload after a `chmod g+w` keeps serving and names the path; the read-only waiver passes and the writable mode under it does not. Each is named in its rule's `guardedBy`. `crates/nvs-cli/tests/serve_ownership.rs:1`, `crates/nvs-config/tests/trust.rs:1`, `data/rules/config/the-ownership-check-runs-where-it-can-be-answered.json:9`
-- [ ] The rule gains the read-only mount paragraph, its reason, and what Docker Desktop on Windows reports. `docs/rules/config/ownership-is-the-trust-boundary.md:1`
+- [x] `nvs serve`'s boot and every reload resolve through `Disk`. Every other reader keeps `Unowned` (`rule:config/the-ownership-check-runs-where-it-can-be-answered`). `crates/nvs-cli/src/config.rs:400`, `crates/nvs-cli/src/config.rs:575`, `crates/nvs-cli/src/reload.rs:370`, `crates/nvs-cli/src/reload.rs:414`, `crates/nvs-cli/src/serve.rs:429`, `crates/nvs-cli/src/serve.rs:1982`
+- [x] The `LocalFiles` doc and the module doc say which reader each command uses, as it now is. `crates/nvs-cli/src/config.rs:25`, `crates/nvs-cli/src/config.rs:109`
+- [x] On Unix, `trust::check` waives the owner test for a file and a directory on a read-only mount, and still refuses a group- or world-writable mode (`rule:config/ownership-is-the-trust-boundary`). `crates/nvs-config/src/trust.rs:184`
+- [x] Rust tests: a group-writable root and a group-writable include each stop `nvs serve` with `E0607` naming the path; a reload after a `chmod g+w` keeps serving and names the path; the read-only waiver passes and the writable mode under it does not. Each is named in its rule's `guardedBy`. `crates/nvs-cli/tests/serve_ownership.rs:1`, `crates/nvs-config/tests/trust.rs:1`, `data/rules/config/the-ownership-check-runs-where-it-can-be-answered.json:9`
+- [x] The rule gains the read-only mount paragraph, its reason, and what Docker Desktop on Windows reports. `docs/rules/config/ownership-is-the-trust-boundary.md:1`
 - [ ] Every repository server from the subagent's list passes on Linux and on a Windows checkout, through the safe default's `bun nv` command where Windows needs it, and CI's Windows jobs run it. `tools/nv/main.ts:1`, `.github/workflows/ci.yml:829`
-- [ ] The Docker guide says a read-only mount passes, and a writable one must belong to uid 65532 or root. `website/src/content/docs/guides/production/docker.mdx:59`
+  - [x] `bun nv checkout-acl` exists (`tools/nv/cmd/checkout-acl.ts`), and CI's four Windows jobs with Bun run it after the tool install
+  - [x] it finished on this checkout (`icacls E:\mwl` shows no `(I)` entry and no `Authenticated Users` grant)
+  - [ ] on Windows: `bun nv site --check` over the snippets and the apps, and one served Rust test under `target/tmp` (`cargo test --test per_mount_config`), pass
+  - [ ] on Linux: CI's `docker` job (smoke `:ro` mount) and `bench-compare --smoke` pass; not runnable here
+- [x] The Docker guide says a read-only mount passes, and a writable one must belong to uid 65532 or root. `website/src/content/docs/guides/production/docker.mdx:59`
 
 ### 14. the goal is verified once, and every failure is fixed
 
@@ -566,7 +570,62 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 13 is done. Stage 15 is next, then the gate stage 14.
+Stage 15's code, tests, rules, guide and CI step are landed; its last item (every repository server
+passes on Windows and Linux) is open. Then the gate stage 14.
+
+- **Serve reads through `Disk`.** `crate::config::ServedFiles` (= `nvs_config::resolve::Disk`) is
+  the reader of `boot_set`, `stored_set`, `set_of`, both `Published` calls in `reload.rs`, every
+  non-test `Published::new`/`entry`/`folder` call in `serve.rs` (lines 429, 1100, 1103, 1985, 2002,
+  2252, 2262, 2308), and the queue job's `configure` in `worker.rs`. `resolved_in` takes the reader;
+  `boot_in`/`boot_origins` (`nvs run`, `check`, bundle) keep `LocalFiles`. `serve/mounts.rs`'s
+  `Stamping` keeps `LocalFiles`: it enumerates app roots, which are not configuration files.
+- **Read-only waiver.** `trust.rs`'s Unix `check` reads a `Stat` and calls `judged(stat, me,
+  read_only)`. `read_only_mount` (`statvfs`, `ST_RDONLY`) is asked only of a path another account
+  owns. The mode test still runs. Unit tests `another_accounts_file_passes_on_a_read_only_mount_and_not_on_a_writable_one`,
+  `a_writable_mode_on_a_read_only_mount_is_still_a_breach` and
+  `a_writable_file_system_and_a_missing_path_are_not_read_only` (Unix only, not run; they compiled
+  in WSL with `cargo check --tests`, exit 0, which also compiled CVE-2's Unix `beneath.rs` half).
+- **Attacks.** `crates/nvs-cli/tests/serve_ownership.rs`: a private tree serves (development mode);
+  a writable root and a writable include each stop the boot with `E0607` naming the path; a reload
+  after the file is opened to others and saved logs `E0607` naming it and still answers `200`.
+  `open_to_others` is `chmod g+w` on Unix and `icacls /grant *S-1-5-11:(M)` on Windows. All four
+  pass on Windows. Both rules' `guardedBy` name them.
+- **Rules.** `ownership-is-the-trust-boundary` has the read-only paragraph, the Docker Desktop
+  `0777` paragraph and two Declined entries. `the-ownership-check-runs-where-it-can-be-answered`
+  says serve checks every read in every mode, names `bun nv checkout-acl`, and declines naming it in
+  `E0607`'s help: the help is end-user text (AGENTS.md § *Text an end user reads*), so the standing
+  decision's "E0607's fix line names it" went to `docs/agent/commands.md` instead.
+- **`bun nv checkout-acl`** (`tools/nv/cmd/checkout-acl.ts`): on Windows, when the checkout root
+  has an inherited `(I)` entry, `icacls /inheritance:d`, grant this account `(OI)(CI)(F)`, remove
+  `*S-1-5-11` and `*S-1-1-0`; `--check` only reports. It calls `whoami.exe` by its System32 path
+  (Git Bash's coreutils `whoami` shadows it). CI's `test`, `cost-guards`, `proofs` and
+  `ext-templates` jobs run it after `bun install`. **It ran on `E:\mwl`**: the root now grants this
+  account, `Administrators` and `SYSTEM` full control and `Users` read, and `nvs.toml` inherits
+  that; `--check` says nothing to do. That run removed before it granted, so this account could not
+  write for a while (`EPERM` under `.looper/jobs`); the command now grants first.
+- **The subagent's list** of checkout servers: `tests/docker/smoke.sh:52` (`:ro`),
+  `benches/proxied/compose.nvs.yaml:37` (`:ro`), `benches/compare/compose.nvs.yaml:39` (`:ro`, and
+  the deploy rows' `site` volume, written by `deploy.sh` inside the container as uid 65532),
+  `tools/nv/cmd/bench-load.ts:256`, `tools/nv/cmd/site.ts:817` (snippets) and `:1534` (apps),
+  `tools/nv/cmd/scaling.ts:844`, and `ci.yml:393`'s `live_bytes_stay_flat` test. Every Rust serve
+  test writes under `CARGO_TARGET_TMPDIR`, which on a Windows checkout inherits the drive's grant
+  until `checkout-acl` ran. None of these was run this session.
+- The Docker guide says a `:ro` mount passes, a writable one needs uid 65532 or root, and Docker
+  Desktop's `0777` needs `COPY`.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render`/`--check` and
+  `bun nv proofs --comments` on the guide are green.
+- The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0, `nothing owed`), and the
+  nightly run 39746060276 is the cancelled `workflow_dispatch`. Neither is the tree's.
+
+Tests that may go red from this session: on a Windows checkout whose root still inherits the drive's
+grant, every served Rust test under `target/tmp` (`live_config`, `per_mount_config`, `live_edit`,
+`serve_isolation`, `request`, `env_context`, `gate`) and every `bun nv` harness that serves a checkout
+file, with `E0607`, until `bun nv checkout-acl` has run; on Linux, a served test whose scratch file
+is group-writable (umask 002) or owned by another account; `serve.rs`'s in-process tests that call
+`boot_set` (lines 3365, and `worker.rs:2351`) on a scratch directory that is not private; the
+website's rule pages for the two rules changed.
+
+The session before (Mail, Storage, tainted key):
 
 - **Mail (d33b15bc6).** `compose` writes `To:`/`Cc:` through `address_line` (each address in
   `<...>`, folded between addresses) and the subject through `subject_line`: plain text is folded at
@@ -1207,10 +1266,10 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-1. Stage 15, by its `**Split:**` line: an `Explore` subagent lists every place the repository boots
-   `nvs serve` on a checkout file; then `nvs serve`'s boot and reload resolve through `Disk`
-   (`crates/nvs-cli/src/config.rs:400`, `crates/nvs-cli/src/reload.rs:370`), and the read-only
-   mount waiver goes into `trust::check` (`crates/nvs-config/src/trust.rs:184`).
+1. Stage 15's last item. The checkout's ACL is fixed. On Windows run
+   `cargo test --test per_mount_config` and `bun nv site --check` over the snippets and the apps
+   (`tools/nv/cmd/site.ts:817`, `:1534`). Linux is CI's `docker` job (`tests/docker/smoke.sh:52`).
+   Tick the item's checkpoints and set stage 15 `done`.
 2. Then the gate stage 14.
 
 ### Backlog

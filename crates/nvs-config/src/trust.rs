@@ -176,6 +176,13 @@ mod platform {
     }
 
     /// The owner is this account or root, and neither the group nor the world may write.
+    ///
+    /// **The owner test is waived on a read-only mount** ([`read_only_mount`]): no account on this
+    /// host can change the path through that mount, which is what the owner test guards against.
+    /// A container's `-v ./app:/app:ro` is that case, and its files belong to the host's account,
+    /// not the container's. The mode test still runs there, so a group- or world-writable mode is
+    /// refused on a read-only mount too: it says the files are meant to be shared, and a later
+    /// read-write mount of the same tree would serve them.
     #[expect(
         unsafe_code,
         reason = "`geteuid` has no safe spelling in `std`; it takes no argument, cannot fail, and \
@@ -185,14 +192,35 @@ mod platform {
         use std::os::unix::fs::MetadataExt;
 
         let meta = std::fs::metadata(path).map_err(|err| Untrusted::Unreadable(err.to_string()))?;
-        let owner = meta.uid();
         let me = unsafe { libc::geteuid() };
-        if owner != me && owner != 0 {
+        let stat = Stat {
+            owner: meta.uid(),
+            gid: meta.gid(),
+            mode: meta.mode() & 0o7777,
+        };
+        judged(&stat, me, || read_only_mount(path))
+    }
+
+    /// What [`check`] reads of a path: its owner, its group and its permission bits.
+    pub(super) struct Stat {
+        pub(super) owner: u32,
+        pub(super) gid: u32,
+        pub(super) mode: u32,
+    }
+
+    /// [`check`]'s verdict on `stat` for the account `me`. `read_only` is asked only of a path
+    /// another account owns.
+    pub(super) fn judged(
+        stat: &Stat,
+        me: u32,
+        read_only: impl FnOnce() -> bool,
+    ) -> Result<(), Untrusted> {
+        let Stat { owner, gid, mode } = *stat;
+        if owner != me && owner != 0 && !read_only() {
             return Err(Untrusted::Breach(format!(
                 "is owned by uid {owner}, which is neither this account (uid {me}) nor root"
             )));
         }
-        let mode = meta.mode() & 0o7777;
         let who = match (mode & 0o020, mode & 0o002) {
             (0, 0) => return Ok(()),
             (0, _) => "world-writable",
@@ -200,9 +228,31 @@ mod platform {
             _ => "group- and world-writable",
         };
         Err(Untrusted::Breach(format!(
-            "is {who} (mode {mode:04o}, gid {})",
-            meta.gid()
+            "is {who} (mode {mode:04o}, gid {gid})"
         )))
+    }
+
+    /// Whether the file system `path` is on is mounted read-only (`statvfs` reports `ST_RDONLY`).
+    /// `false` when it cannot be asked, so a path that cannot be asked keeps the owner test.
+    ///
+    /// Cost: one `statvfs`, asked only of a path another account owns.
+    #[expect(
+        unsafe_code,
+        reason = "`statvfs` has no safe spelling in `std`; it reads a NUL-terminated path this \
+                  function owns and fills a `statvfs` it reads only after the call returned 0"
+    )]
+    pub(super) fn read_only_mount(path: &Path) -> bool {
+        use std::os::unix::ffi::OsStrExt;
+
+        let Ok(name) = std::ffi::CString::new(path.as_os_str().as_bytes()) else {
+            return false;
+        };
+        let mut stat = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+        if unsafe { libc::statvfs(name.as_ptr(), stat.as_mut_ptr()) } != 0 {
+            return false;
+        }
+        let stat = unsafe { stat.assume_init() };
+        stat.f_flag & libc::ST_RDONLY != 0
     }
 
     /// The read half of the same mode bits, as a predicate for the warning to prefix a path onto.
@@ -643,5 +693,74 @@ mod platform {
     /// The `u32`s it takes to hold `bytes` bytes.
     fn words(bytes: usize) -> usize {
         bytes.div_ceil(std::mem::size_of::<u32>())
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::Untrusted;
+    use super::platform::{Stat, judged, read_only_mount};
+
+    /// The account a container runs as, and the host account whose checkout it mounts.
+    const SERVER: u32 = 65532;
+    const HOST: u32 = 1000;
+
+    /// A file another account owns passes on a read-only mount, and the same file on a writable
+    /// mount is a breach that names the owner. Mounting a file system needs root, so the mount's
+    /// answer is handed to the verdict here, and the Docker smoke test's `:ro` mount asks the
+    /// real `statvfs`.
+    #[test]
+    fn another_accounts_file_passes_on_a_read_only_mount_and_not_on_a_writable_one() {
+        let stat = Stat {
+            owner: HOST,
+            gid: HOST,
+            mode: 0o644,
+        };
+        judged(&stat, SERVER, || true).expect("nobody on this host can write through the mount");
+        let why = judged(&stat, SERVER, || false).expect_err("the owner can rewrite this file");
+        assert!(
+            matches!(&why, Untrusted::Breach(message) if message.contains("uid 1000")),
+            "the refusal names the owner: {why:?}"
+        );
+    }
+
+    /// The waiver covers the owner alone. A group- or world-writable mode on a read-only mount is
+    /// still a breach, and a file this account owns never asks the mount at all.
+    #[test]
+    fn a_writable_mode_on_a_read_only_mount_is_still_a_breach() {
+        for (mode, who) in [
+            (0o664, "group-writable"),
+            (0o646, "world-writable"),
+            (0o777, "group- and world-writable"),
+        ] {
+            let stat = Stat {
+                owner: HOST,
+                gid: HOST,
+                mode,
+            };
+            let why = judged(&stat, SERVER, || true).expect_err("the mode says others may write");
+            assert!(
+                why.message().contains(who),
+                "mode {mode:o} on a read-only mount: {why:?}"
+            );
+        }
+        let mine = Stat {
+            owner: SERVER,
+            gid: SERVER,
+            mode: 0o600,
+        };
+        judged(&mine, SERVER, || {
+            panic!("the mount is asked only of another account's file")
+        })
+        .expect("this account's own private file");
+    }
+
+    /// A scratch directory under `target/` is on a writable file system, and a path that is not
+    /// there cannot be asked, so neither is waived.
+    #[test]
+    fn a_writable_file_system_and_a_missing_path_are_not_read_only() {
+        let dir = nvs_repo::scratch_private("trust-read-only-mount");
+        assert!(!read_only_mount(&dir), "a scratch directory is writable");
+        assert!(!read_only_mount(&dir.join("not-there")));
     }
 }
