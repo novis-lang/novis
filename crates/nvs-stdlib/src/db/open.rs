@@ -933,18 +933,12 @@ fn sqlite_read_only(ctx: &nvs_runtime::Ctx, path: &str) -> Result<bool, Fault> {
         return Ok(false);
     }
     if path.starts_with("file:") {
-        // A URI is not a path, so the refusal of a relative path does not apply
-        // to it, and every grant is asked.
-        for cap in [
-            nvs_config::Cap::DbOpen,
-            nvs_config::Cap::FsRead,
-            nvs_config::Cap::FsWrite,
-        ] {
-            if let Some(message) = nvs_runtime::capability::refusal(ctx, cap, scope, OPEN) {
-                return Err(Fault::thrown(message));
-            }
-        }
-        return Ok(false);
+        // SQLite decodes a URI into a file of its own choosing, so the grant
+        // would be asked about one file and SQLite would open another.
+        return Err(Fault::thrown(format!(
+            "{OPEN}: the `path` `{path}` starts with `file:`, so SQLite would read it as a URI. \
+             A program gives the path of the file, without `file:`."
+        )));
     }
     nvs_runtime::capability::require(ctx, nvs_config::Cap::FsRead, scope, OPEN)?;
     Ok(!nvs_runtime::capability::granted(
@@ -966,8 +960,10 @@ fn sqlite_read_only(ctx: &nvs_runtime::Ctx, path: &str) -> Result<bool, Fault> {
 /// read-only request never gets a pooled connection that can write.
 ///
 /// `:memory:` and the empty path are a database private to this connection,
-/// with no file, and ask nothing. A `file:` URI can name any file and any mode,
-/// so it asks `db.open`, `fs.read` and `fs.write`, as before.
+/// with no file, and ask nothing. A `file:` URI is refused: SQLite decodes its
+/// percent escapes and its `vfs=` and `mode=` options itself, so the file it
+/// opens is not the text the grants were asked about. A `[db.<name>]` block may
+/// still write one, since its `path` is the operator's and asks no `fs` grant.
 ///
 /// **`rule:http-server/allow-url-pins-the-address`'s address table is not consulted**, and that is not an omission:
 /// there is no address. The reason § 3 subjects `open`'s host to it — a
@@ -1935,8 +1931,8 @@ mod tests {
     /// `rule:core-classes/db-capabilities`' SQLite defaults. `:memory:` and the
     /// empty path need no grant in server work. A file in the app folder opens
     /// read-only there, a file outside it is refused naming `fs.read`, and a
-    /// CLI run opens the same file read-write. A `file:` URI still asks
-    /// `db.open`.
+    /// CLI run opens the same file read-write. A `file:` URI is refused in
+    /// both, whatever is granted.
     // covers: Core\Db::open
     #[test]
     fn a_sqlite_file_asks_the_file_rule_and_opens_read_only_where_it_is_not_writable() {
@@ -1978,9 +1974,9 @@ mod tests {
         let Err(Fault::Thrown(_, message)) =
             sqlite_read_only(&server, "file:notes.sqlite?mode=rwc")
         else {
-            panic!("a URI asks every grant");
+            panic!("a URI opened in server work");
         };
-        assert!(message.contains("db.open"), "{message}");
+        assert!(message.contains("file:"), "{message}");
 
         let mut cli = Ctx::buffered();
         cli.set_config(crate::tests::granting(""));
@@ -1992,6 +1988,18 @@ mod tests {
             ),
             "a CLI run reads and writes any file"
         );
+        // Every grant is there, and a URI is still refused: SQLite would decode
+        // `%2E%2E` and open a file the grant was never asked about.
+        for uri in [
+            "file:/../data/%2E%2E/%2E%2E/escaped.sqlite",
+            "file:notes?mode=memory&cache=shared",
+            "file::memory:",
+        ] {
+            assert!(
+                matches!(sqlite_read_only(&cli, uri), Err(Fault::Thrown(..))),
+                "`{uri}` opened under every grant"
+            );
+        }
     }
 
     /// `Core\Db::inList` carries the caller's own array and retains it, rather

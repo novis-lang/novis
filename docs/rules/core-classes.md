@@ -1401,8 +1401,12 @@ through `open` asks the file rule alone, with its default for the run
 is required, and where `fs.write` is not granted the file opens with SQLite's read-only flag, so a
 write throws SQLite's read-only error. A CLI run therefore opens any file read-write, and server work
 opens a file in its app folder read-only. A read-only and a read-write open of one file are two pool
-keys. `:memory:` and the empty path are private to their connection and ask nothing. A `file:` URI
-can name any file and mode, so it asks `db.open`, `fs.read` and `fs.write`. The path is a path sink.
+keys. `:memory:` and the empty path are private to their connection and ask nothing. A path a
+program supplies that starts with `file:` throws whatever is granted: SQLite decodes a URI's percent
+escapes and its `vfs=` and `mode=` options itself, so the file it opens is not the text a grant was
+asked about. A configuration block's `path` may still be a URI, since it is the operator's. A
+statement cannot reach a second file either: `ATTACH`, `DETACH` and `VACUUM INTO` are refused when
+it is prepared ([`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary)). The path is a path sink.
 An ungranted name throws naming the capability. What the split buys is that the set of network
 databases a deployment can reach is enumerable from its configuration; what it costs is that code
 building a network connection target at run time does not run until the operator adds a `db.open`
