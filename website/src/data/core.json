@@ -2560,7 +2560,7 @@
             "params": [
               {
                 "name": "a",
-                "descHtml": "The loose values to read: a form, a query string, a decoded document, or an array a program built."
+                "descHtml": "The loose values to read: a form, a query string, a decoded document, or an array a program built. Text from outside the program is <code>tainted</code>, so a text field of <code>T</code> that it fills must be <code>tainted</code> too."
               }
             ],
             "returnHtml": "A new <code>T</code> whose every field is the declared type, or — for an <code>array&lt;T&gt;</code> — one per entry, in the array's own order.",
@@ -2582,7 +2582,7 @@
       ],
       "slug": "arr",
       "url": "/reference/core/arr/",
-      "summaryHtml": "<p>Works with arrays. It finds, sorts, changes and combines elements. Every method returns a new array, and the array you pass in does not change.</p>\n<p><code>Core\\Arr</code> has the array functions as static methods. Each one returns a <strong>new</strong> array and never changes its argument. <code>Core\\Arr::sort</code> returns the sorted array, and <code>append</code> returns the longer one. Keys are always <code>string</code>: <code>$a[0]</code> and <code>$a[&quot;0&quot;]</code> are the same entry, <code>keys</code> returns <code>array&lt;string&gt;</code>, and a callback's key parameter is <code>string</code>. A callback receives <code>($value, $key)</code> and may declare fewer parameters. <code>reduce</code> passes the carry first. A missing value is <code>null</code>: <code>first</code>, <code>last</code>, <code>find</code>, <code>keyOf</code> and <code>min</code> return <code>null</code> for an empty array. <code>count</code> returns a <code>uint</code>. <code>$a + $b</code> does not compile. <code>overlay</code> and <code>underlay</code> combine maps, and <code>appendAll</code> joins lists.</p>\n<p><code>shapeAs&lt;T&gt;</code> is the one member that answers something other than an array. It reads its subject as the type written at the call site — an inline shape, <code>{name: string, score: int}</code>, or a class carrying <code>#[Core\\Json\\Derive]</code> — converting every named field with <code>as</code> and leaving every key the type does not name behind, so a form carrying a CSRF token does not break a handler reading two fields out of it. That is the whole story for loose input: an <code>array&lt;T&gt;</code> is homogeneous and there is no per-key-typed one, so a form, a query string or a decoded document is converted <strong>once, at the boundary</strong>, where a failure is still a <code>400</code> — and nothing downstream is left holding a <code>mixed</code> to check. A field that is absent, or that holds a value <code>as</code> refuses for its declared type, throws <code>ParseError</code> carrying every field that failed at its own dotted path, rather than the first of them. <code>{name?: T}</code> marks a key that may be absent, and <code>??</code> and <code>isset</code> read one without throwing. <code>Core\\Request::queryAs</code> and <code>postAs</code> are this member over what a request carried.</p>\n<pre><code class=\"language-nvs\">&lt;?nvs\narray&lt;int&gt; $scores = [&quot;ada&quot; =&gt; 92, &quot;bo&quot; =&gt; 67, &quot;cy&quot; =&gt; 85, &quot;di&quot; =&gt; 74];\nvar $passed = Core\\Arr::filter($scores, fn(int $n): bool =&gt; $n &gt;= 70);\necho Core\\Json::encode($passed), &quot;\\n&quot;;\nvar $ranked = Core\\Arr::sort($passed, {order: Core\\Arr::Order::Desc, preserveKeys: true});\necho Core\\Json::encode(Core\\Arr::keys($ranked)), &quot;\\n&quot;;\necho Core\\Arr::first($ranked) ?? 0, &quot; &quot;, Core\\Arr::firstKey($ranked) ?? &quot;-&quot;, &quot;\\n&quot;;\nvar $labels = Core\\Arr::map($scores, fn(int $n, string $k): string =&gt; $k . &quot;:&quot; . ($n as string));\necho Core\\Str::join(Core\\Arr::values($labels), &quot; &quot;), &quot;\\n&quot;;\necho Core\\Arr::sum($scores), &quot; &quot;, Core\\Arr::count($scores), &quot; &quot;, Core\\Arr::average($scores) ?? 0, &quot;\\n&quot;;\nint $total = Core\\Arr::reduce($scores, fn(int $carry, int $n): int =&gt; $carry + $n, 0);\necho $total, &quot; &quot;, Core\\Arr::max($scores) ?? 0, &quot;\\n&quot;;\narray&lt;int&gt; $evens = Core\\Arr::filter(Core\\Arr::range(1, 10), fn(int $n): bool =&gt; $n % 2 == 0);\necho Core\\Json::encode(Core\\Arr::values($evens)), &quot; &quot;, Core\\Arr::contains($evens, 4) ? &quot;yes&quot; : &quot;no&quot;, &quot;\\n&quot;;\nvar $byLength = Core\\Arr::groupBy([&quot;fig&quot;, &quot;pear&quot;, &quot;kiwi&quot;, &quot;plum&quot;], fn(string $w): int =&gt; Core\\Str::length($w) as int);\necho Core\\Json::encode($byLength), &quot;\\n&quot;;\necho Core\\Json::encode($scores), &quot;\\n&quot;;\nvar $entry = Core\\Arr::shapeAs&lt;{name: string, score: int, note?: string}&gt;([&quot;name&quot; =&gt; &quot;ada&quot;, &quot;score&quot; =&gt; &quot;92&quot;, &quot;csrf&quot; =&gt; &quot;t0ken&quot;]);\necho $entry-&gt;name, &quot; &quot;, $entry-&gt;score as string, &quot; &quot;, $entry-&gt;note ?? &quot;no note&quot;, &quot;\\n&quot;;</code></pre>\n<pre class=\"output\"><code>{&quot;ada&quot;:92,&quot;cy&quot;:85,&quot;di&quot;:74}\n[&quot;ada&quot;,&quot;cy&quot;,&quot;di&quot;]\n92 ada\nada:92 bo:67 cy:85 di:74\n318 4 79.5\n318 92\n[2,4,6,8,10] yes\n{&quot;3&quot;:[&quot;fig&quot;],&quot;4&quot;:{&quot;1&quot;:&quot;pear&quot;,&quot;2&quot;:&quot;kiwi&quot;,&quot;3&quot;:&quot;plum&quot;}}\n{&quot;ada&quot;:92,&quot;bo&quot;:67,&quot;cy&quot;:85,&quot;di&quot;:74}\nada 92 no note</code></pre>"
+      "summaryHtml": "<p>Works with arrays. It finds, sorts, changes and combines elements. Every method returns a new array, and the array you pass in does not change.</p>\n<p><code>Core\\Arr</code> has the array functions as static methods. Each one returns a <strong>new</strong> array and never changes its argument. <code>Core\\Arr::sort</code> returns the sorted array, and <code>append</code> returns the longer one. Keys are always <code>string</code>: <code>$a[0]</code> and <code>$a[&quot;0&quot;]</code> are the same entry, <code>keys</code> returns <code>array&lt;string&gt;</code>, and a callback's key parameter is <code>string</code>. A callback receives <code>($value, $key)</code> and may declare fewer parameters. <code>reduce</code> passes the carry first. A missing value is <code>null</code>: <code>first</code>, <code>last</code>, <code>find</code>, <code>keyOf</code> and <code>min</code> return <code>null</code> for an empty array. <code>count</code> returns a <code>uint</code>. <code>$a + $b</code> does not compile. <code>overlay</code> and <code>underlay</code> combine maps, and <code>appendAll</code> joins lists.</p>\n<p><code>shapeAs&lt;T&gt;</code> is the one member that answers something other than an array. It reads its subject as the type written at the call site — an inline shape, <code>{name: string, score: int}</code>, or a class carrying <code>#[Core\\Json\\Derive]</code> — converting every named field with <code>as</code> and leaving every key the type does not name behind, so a form carrying a CSRF token does not break a handler reading two fields out of it. That is the whole story for loose input: an <code>array&lt;T&gt;</code> is homogeneous and there is no per-key-typed one, so a form, a query string or a decoded document is converted <strong>once, at the boundary</strong>, where a failure is still a <code>400</code> — and nothing downstream is left holding a <code>mixed</code> to check. A field that is absent, or that holds a value <code>as</code> refuses for its declared type, throws <code>ParseError</code> carrying every field that failed at its own dotted path, rather than the first of them. <code>{name?: T}</code> marks a key that may be absent, and <code>??</code> and <code>isset</code> read one without throwing. <code>Core\\Request::queryAs</code> and <code>postAs</code> are this member over what a request carried. Text that came from outside the program, such as a form or an <code>array&lt;mixed&gt;</code>, is <code>tainted</code>. A text field it fills must then be declared <code>tainted</code> too.</p>\n<pre><code class=\"language-nvs\">&lt;?nvs\narray&lt;int&gt; $scores = [&quot;ada&quot; =&gt; 92, &quot;bo&quot; =&gt; 67, &quot;cy&quot; =&gt; 85, &quot;di&quot; =&gt; 74];\nvar $passed = Core\\Arr::filter($scores, fn(int $n): bool =&gt; $n &gt;= 70);\necho Core\\Json::encode($passed), &quot;\\n&quot;;\nvar $ranked = Core\\Arr::sort($passed, {order: Core\\Arr::Order::Desc, preserveKeys: true});\necho Core\\Json::encode(Core\\Arr::keys($ranked)), &quot;\\n&quot;;\necho Core\\Arr::first($ranked) ?? 0, &quot; &quot;, Core\\Arr::firstKey($ranked) ?? &quot;-&quot;, &quot;\\n&quot;;\nvar $labels = Core\\Arr::map($scores, fn(int $n, string $k): string =&gt; $k . &quot;:&quot; . ($n as string));\necho Core\\Str::join(Core\\Arr::values($labels), &quot; &quot;), &quot;\\n&quot;;\necho Core\\Arr::sum($scores), &quot; &quot;, Core\\Arr::count($scores), &quot; &quot;, Core\\Arr::average($scores) ?? 0, &quot;\\n&quot;;\nint $total = Core\\Arr::reduce($scores, fn(int $carry, int $n): int =&gt; $carry + $n, 0);\necho $total, &quot; &quot;, Core\\Arr::max($scores) ?? 0, &quot;\\n&quot;;\narray&lt;int&gt; $evens = Core\\Arr::filter(Core\\Arr::range(1, 10), fn(int $n): bool =&gt; $n % 2 == 0);\necho Core\\Json::encode(Core\\Arr::values($evens)), &quot; &quot;, Core\\Arr::contains($evens, 4) ? &quot;yes&quot; : &quot;no&quot;, &quot;\\n&quot;;\nvar $byLength = Core\\Arr::groupBy([&quot;fig&quot;, &quot;pear&quot;, &quot;kiwi&quot;, &quot;plum&quot;], fn(string $w): int =&gt; Core\\Str::length($w) as int);\necho Core\\Json::encode($byLength), &quot;\\n&quot;;\necho Core\\Json::encode($scores), &quot;\\n&quot;;\nvar $entry = Core\\Arr::shapeAs&lt;{name: string, score: int, note?: string}&gt;([&quot;name&quot; =&gt; &quot;ada&quot;, &quot;score&quot; =&gt; &quot;92&quot;, &quot;csrf&quot; =&gt; &quot;t0ken&quot;]);\necho $entry-&gt;name, &quot; &quot;, $entry-&gt;score as string, &quot; &quot;, $entry-&gt;note ?? &quot;no note&quot;, &quot;\\n&quot;;</code></pre>\n<pre class=\"output\"><code>{&quot;ada&quot;:92,&quot;cy&quot;:85,&quot;di&quot;:74}\n[&quot;ada&quot;,&quot;cy&quot;,&quot;di&quot;]\n92 ada\nada:92 bo:67 cy:85 di:74\n318 4 79.5\n318 92\n[2,4,6,8,10] yes\n{&quot;3&quot;:[&quot;fig&quot;],&quot;4&quot;:{&quot;1&quot;:&quot;pear&quot;,&quot;2&quot;:&quot;kiwi&quot;,&quot;3&quot;:&quot;plum&quot;}}\n{&quot;ada&quot;:92,&quot;bo&quot;:67,&quot;cy&quot;:85,&quot;di&quot;:74}\nada 92 no note</code></pre>"
     },
     {
       "id": "Ast",
@@ -6604,7 +6604,13 @@
                 "descHtml": "The directive's dotted name, <code>log.level</code>. A bare limit name — <code>memory</code>, <code>cpu_time</code>, <code>wall_time</code>, <code>max_tasks</code>, <code>max_output</code>, <code>max_regex_steps</code> — names the <code>[limits]</code> entry."
               }
             ],
-            "returnHtml": "The value as text, written the way the configuration file writes it, such as <code>128M</code> or <code>30s</code>. The result is <code>null</code> for a setting with no default, such as <code>wall_time</code>. It is also <code>null</code> for a name that has a group of settings or a list."
+            "returnHtml": "The value as text, written the way the configuration file writes it, such as <code>128M</code> or <code>30s</code>. The result is <code>null</code> for a setting with no default, such as <code>wall_time</code>. It is also <code>null</code> for a name that has a group of settings or a list. A secret setting, such as <code>db.main.password</code> or <code>http.csrf_key</code>, gives a <code>?secret string</code>. Your program cannot print it or write it to a log.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "The name is a secret setting, and the call does not write it as a string literal. Write the name in the call, such as <code>Core\\Config::get('db.main.password')</code>."
+              }
+            ]
           },
           "slug": "get",
           "url": "/reference/core/config/get/",
@@ -6700,7 +6706,7 @@
           "returnType": "array<string>",
           "doc": {
             "shortHtml": "Returns every setting in force for this request, with the dotted names as keys. A setting this request changed has the new value. A setting the configuration file does not write has its built-in default.",
-            "returnHtml": "An <code>array&lt;string, string&gt;</code> sorted by name, with one entry per value. A name that has a group of settings gives one entry for each setting in it. A name that has a list gives no entry."
+            "returnHtml": "An <code>array&lt;string, string&gt;</code> sorted by name, with one entry per value. A name that has a group of settings gives one entry for each setting in it. A name that has a list gives no entry. A secret setting, such as <code>db.main.password</code> or <code>http.csrf_key</code>, has the value <code>&lt;secret&gt;</code>. <code>get</code> returns the real value."
           },
           "slug": "all",
           "url": "/reference/core/config/all/",
@@ -7809,6 +7815,10 @@
               {
                 "error": "IOError",
                 "descHtml": "The operating system refused a read part way through the walk."
+              },
+              {
+                "error": "ParseError",
+                "descHtml": "A field is not valid UTF-8. The message gives the line the field ends on, and the walk ends there."
               }
             ]
           },
@@ -8079,7 +8089,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Checks that <code>$name</code> is a plain SQL identifier: a letter or <code>_</code>, then letters, digits or <code>_</code>. It returns the name unchanged and no longer <code>tainted</code>, so you can write it into the text of a statement. Use it for a table or column name.",
+            "shortHtml": "Checks that <code>$name</code> is a plain SQL identifier: a letter or <code>_</code>, then letters, digits or <code>_</code>. It returns the name unchanged and no longer <code>tainted</code>, so you can write it into the text of a statement. Use it for a table or column name. It checks the syntax only. A visitor can still name any table or column, such as <code>users</code>. If a visitor chooses the name, check it against a list of allowed names first.",
             "params": [
               {
                 "name": "name",
@@ -8090,7 +8100,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$name</code> is empty, starts with a digit, or holds any character outside letters, digits and <code>_</code> — including a name that would need delimiting to be legal."
+                "descHtml": "<code>$name</code> is empty, starts with a digit, or holds any character outside letters, digits and <code>_</code> — including a name that would need delimiting to be legal. Or <code>$name</code> is a name the database reads as a value when it has no quotes, such as <code>current_user</code>, <code>user</code> or <code>current_timestamp</code>, in any case."
               }
             ]
           },
@@ -17398,6 +17408,10 @@
               {
                 "error": "RuntimeError",
                 "descHtml": "<code>$token</code> is not a token any key in <code>$keys</code> opens — it is not five segments, its header is not the subset this class reads, its <code>alg</code> is not the one <code>$keys</code> names, or it was altered. All of them are one sentence on purpose: telling them apart tells a forger which half landed."
+              },
+              {
+                "error": "ParseError",
+                "descHtml": "The token opened, and its payload is not valid UTF-8 text."
               }
             ]
           },
@@ -19797,7 +19811,7 @@
               },
               {
                 "name": "attributes",
-                "descHtml": "The entry's attributes, keyed by name, such as <code>['objectClass' =&gt; ['top', 'group'], 'cn' =&gt; 'Staff']</code>. A value is written in the form the readers of <code>Entry</code> return it, and a list writes one value per element."
+                "descHtml": "The entry's attributes, keyed by name, such as <code>['objectClass' =&gt; ['top', 'group'], 'cn' =&gt; 'Staff']</code>. A value is written in the form the readers of <code>Entry</code> return it, and a list writes one value per element. A value may be <code>tainted</code>. A name that can come from outside the program does not compile."
               }
             ],
             "returnHtml": "Nothing.",
@@ -21917,7 +21931,7 @@
               },
               {
                 "name": "subject",
-                "descHtml": "The subject. RFC 2047 encoded where it holds anything a header line cannot carry, so no value of it can add a header."
+                "descHtml": "The subject. RFC 2047 encoded where it holds anything a header line cannot carry, so no value of it can add a header. A long subject is split over several header lines, and a mail program joins them again."
               },
               {
                 "name": "text",
@@ -32845,7 +32859,7 @@
           "static": false,
           "receiver": "seeded",
           "generics": null,
-          "signature": "bytes(uint $count): bytes",
+          "signature": "bytes(uint $count): tainted bytes",
           "params": [
             {
               "kind": "param",
@@ -32857,7 +32871,7 @@
             }
           ],
           "options": [],
-          "returnType": "bytes",
+          "returnType": "tainted bytes",
           "doc": {
             "shortHtml": "Draws <code>$count</code> bytes from this generator's own sequence as a raw buffer — a fixture, never a key, since a reproducible buffer is a secret anyone holding the seed has.",
             "params": [
@@ -32866,7 +32880,7 @@
                 "descHtml": "How many bytes to draw; at least one."
               }
             ],
-            "returnHtml": "A <code>bytes</code> value of exactly <code>$count</code> octets, unrendered.",
+            "returnHtml": "A <code>tainted bytes</code> value of exactly <code>$count</code> octets, unrendered. It is <code>tainted</code>, so no key parameter accepts it.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -32884,7 +32898,7 @@
           "static": false,
           "receiver": "seeded",
           "generics": null,
-          "signature": "token(uint $bytes = 32): string",
+          "signature": "token(uint $bytes = 32): tainted string",
           "params": [
             {
               "kind": "param",
@@ -32896,7 +32910,7 @@
             }
           ],
           "options": [],
-          "returnType": "string",
+          "returnType": "tainted string",
           "doc": {
             "shortHtml": "Draws <code>$bytes</code> bytes from this generator's own sequence and renders them as lower-case hex — a stable identifier for a fixture, never a session token.",
             "params": [
@@ -32905,7 +32919,7 @@
                 "descHtml": "How many bytes of entropy to draw, <code>32</code> by default — the answer is twice as many characters."
               }
             ],
-            "returnHtml": "A <code>string</code> of <code>2 * $bytes</code> hex digits, <code>0</code>–<code>9</code> and <code>a</code>–<code>f</code>.",
+            "returnHtml": "A <code>tainted string</code> of <code>2 * $bytes</code> hex digits, <code>0</code>–<code>9</code> and <code>a</code>–<code>f</code>. It is <code>tainted</code>, so no key parameter accepts it.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -34756,7 +34770,7 @@
               },
               {
                 "name": "replacement",
-                "descHtml": "The text that replaces each match. <code>$1</code> to <code>$99</code> insert a numbered group, and <code>${name}</code> inserts a named group. Write <code>${1}0</code> when a digit follows the group. <code>$$</code> is one <code>$</code>. A group the pattern does not have inserts nothing. <code>\\1</code> is not a group."
+                "descHtml": "The text that replaces each match. <code>$1</code> to <code>$99</code> insert a numbered group, and <code>${name}</code> inserts a named group. Write <code>${1}0</code> when a digit follows the group. <code>$$</code> is one <code>$</code>. A group the pattern does not have inserts nothing. <code>\\1</code> is not a group. A <code>tainted</code> string does not compile here. To insert text from outside, return it from the function of <code>replaceWith</code>."
               },
               {
                 "name": "limit",
@@ -36593,7 +36607,7 @@
             "params": [
               {
                 "name": "name",
-                "descHtml": "The header name, such as <code>Cache-Control</code>. It contains letters, digits and a few marks such as <code>-</code> and <code>_</code>. Spaces and <code>:</code> are not allowed. It cannot be <code>Content-Type</code>, because the body method you use sets that header. A <code>tainted</code> value is not allowed."
+                "descHtml": "The header name, such as <code>Cache-Control</code>. It contains letters, digits and a few marks such as <code>-</code> and <code>_</code>. Spaces and <code>:</code> are not allowed. It cannot be <code>Content-Type</code>, because the body method you use sets that header. It cannot be <code>Content-Length</code>, <code>Transfer-Encoding</code>, <code>Connection</code> or <code>Upgrade</code>. The server sets these from the body it sends. A <code>tainted</code> value is not allowed."
               },
               {
                 "name": "value",
@@ -36604,7 +36618,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$name</code> is empty, contains a character that is not allowed, or is <code>Content-Type</code>. Or <code>$value</code> contains a character that is not printable ASCII."
+                "descHtml": "<code>$name</code> is empty, contains a character that is not allowed, or is one of the headers the server sets, such as <code>Content-Type</code> or <code>Content-Length</code>. Or <code>$value</code> contains a character that is not printable ASCII."
               }
             ]
           },
@@ -36655,7 +36669,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$url</code> is empty, or contains a character that is not printable ASCII, such as a newline. Nothing is set."
+                "descHtml": "<code>$url</code> is empty, or contains a character that is not printable ASCII, such as a newline. Or it starts with two slashes or backslashes, such as <code>//example.com</code>, which a browser reads as another host. Nothing is set."
               }
             ]
           },
@@ -36800,7 +36814,7 @@
             "params": [
               {
                 "name": "chunk",
-                "descHtml": "The part to send, as a <code>string</code> or as <code>bytes</code>. It is sent exactly as it is. An empty part sends nothing and is not an error. A <code>tainted</code> value is allowed, as it is for <code>Core\\Response::text</code>."
+                "descHtml": "The part to send, as a <code>string</code> or as <code>bytes</code>. It is sent exactly as it is. An empty part sends nothing and is not an error. A <code>tainted</code> value does not compile, because the browser may read the part as HTML."
               }
             ],
             "returnHtml": "Nothing. When this method returns, the part has been given to the connection. If the client has gone, this method returns at once and the part is thrown away. The client has gone when it closed the connection, or when it did not read a part before the server's send timeout. Your request still runs to its end.",
@@ -37877,7 +37891,7 @@
                 "descHtml": "The identifier to open. Leave it out to read it from the cookie named by <code>[session] cookie</code>, which is <code>nvsid</code> by default. If the store has no session under the identifier, a new, empty session is opened. This happens when the identifier expired, and when somebody made it up."
               }
             ],
-            "returnHtml": "Nothing. After it, the other methods of this class can read and change the session. When a new session is opened, the response sends its identifier in the session cookie.",
+            "returnHtml": "Nothing. After it, the other methods of this class can read and change the session. A new session is not saved, and no cookie is sent, until the program saves a value in it. Then the response sends its identifier in the session cookie.",
             "errors": [
               {
                 "error": "LogicError",
@@ -37885,7 +37899,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "This request already called <code>start()</code>. It is also thrown when the server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, it is thrown when <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability. The same happens when <code>[session] cookie</code> is not a valid cookie name."
+                "descHtml": "This request already called <code>start()</code>. It is also thrown when the server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, it is thrown when <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -37979,15 +37993,15 @@
                 "descHtml": "The value to save: a string, a number, a bool, <code>null</code>, an array or an object. A <code>tainted</code> value (text that came from the request) is not allowed here, so the call does not compile."
               }
             ],
-            "returnHtml": "Nothing. The session is saved to the store once, when the request ends.",
+            "returnHtml": "Nothing. The session is saved to the store once, when the request ends. The first value saved in a new session also sends the session cookie.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "This request has not called <code>start()</code>, or it called <code>destroy()</code>. There is no session to save into."
+                "descHtml": "This request has not called <code>start()</code>, or it called <code>destroy()</code>. There is no session to save into. It is also thrown on the first save in a new session when <code>[session] cookie</code> is not a valid cookie name."
               },
               {
                 "error": "LogicError",
-                "descHtml": "<code>$value</code> cannot be saved: it is a callable or a resource, or it contains one."
+                "descHtml": "<code>$value</code> cannot be saved: it is a callable or a resource, or it contains one. It is also thrown on the first save in a new session after the response was sent, because the cookie cannot be sent then."
               },
               {
                 "error": "ParseError",
@@ -38452,8 +38466,16 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "seal(string $value, array<secret bytes> $keys): string",
+          "signature": "seal(string $name, string $value, array<secret bytes> $keys): string",
           "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
             {
               "kind": "param",
               "name": "value",
@@ -38474,8 +38496,12 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Encrypts <code>$value</code> with the newest key in <code>$keys</code> and returns text for a cookie. Nobody without the key can read or change the value. <code>Core\\SignedCookie::open</code> returns the value again.",
+            "shortHtml": "Encrypts <code>$value</code> with the newest key in <code>$keys</code> and returns text for the cookie <code>$name</code>. Nobody without the key can read or change the value. <code>Core\\SignedCookie::open</code> returns the value again for the same name.",
             "params": [
+              {
+                "name": "name",
+                "descHtml": "The name of the cookie, such as <code>cart</code>. <code>open</code> needs the same name. A cookie sent back under another name does not open."
+              },
               {
                 "name": "value",
                 "descHtml": "The value to store. <code>open</code> returns exactly this string."
@@ -38507,8 +38533,16 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "open(string $cookie, array<secret bytes> $keys): string",
+          "signature": "open(string $name, string $cookie, array<secret bytes> $keys): tainted string",
           "params": [
+            {
+              "kind": "param",
+              "name": "name",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
             {
               "kind": "param",
               "name": "cookie",
@@ -38527,10 +38561,14 @@
             }
           ],
           "options": [],
-          "returnType": "string",
+          "returnType": "tainted string",
           "doc": {
-            "shortHtml": "Checks that <code>$cookie</code> was made by <code>Core\\SignedCookie::seal</code> with a key in <code>$keys</code>, and returns the value stored in it. A changed cookie throws an error. The value is returned without the <code>tainted</code> mark (the mark for input from outside), because your own program stored it.",
+            "shortHtml": "Checks that <code>$cookie</code> was made by <code>Core\\SignedCookie::seal</code> for the cookie <code>$name</code> with a key in <code>$keys</code>, and returns the value stored in it. A changed cookie throws an error. The value is <code>tainted</code> (marked as input from outside), because your program may have stored text that a visitor sent.",
             "params": [
+              {
+                "name": "name",
+                "descHtml": "The name you gave <code>seal</code>. This is usually the name the cookie arrived with."
+              },
               {
                 "name": "cookie",
                 "descHtml": "The cookie text as your program received it from the request. A <code>tainted</code> string is allowed here."
@@ -38540,7 +38578,7 @@
                 "descHtml": "The keys you gave <code>seal</code>, newest first. A cookie made with any key in this list is accepted. A cookie made with a key you removed from the list is not."
               }
             ],
-            "returnHtml": "The value that was given to <code>seal</code>, exactly as it was.",
+            "returnHtml": "The value that was given to <code>seal</code>, exactly as it was, as a <code>tainted string</code>.",
             "errors": [
               {
                 "error": "LogicError",
@@ -38548,7 +38586,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>$cookie</code> was not made with any key in <code>$keys</code>. This includes a changed cookie, an empty cookie, text that is not a cookie, and a cookie made with a key you removed. All of these give the same message, so an attacker learns nothing from it."
+                "descHtml": "<code>$cookie</code> was not made for <code>$name</code> with any key in <code>$keys</code>. This includes a changed cookie, an empty cookie, text that is not a cookie, a cookie made for another name, and a cookie made with a key you removed. All of these give the same message, so an attacker learns nothing from it."
               }
             ]
           },
@@ -39305,7 +39343,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "get(string $disk, string $key): ?bytes",
+          "signature": "get(string $disk, string $key): ?tainted bytes",
           "params": [
             {
               "kind": "param",
@@ -39325,7 +39363,7 @@
             }
           ],
           "options": [],
-          "returnType": "?bytes",
+          "returnType": "?tainted bytes",
           "doc": {
             "shortHtml": "Reads the file <code>$key</code> on <code>$disk</code>. If there is no file with that key, the result is <code>null</code>.",
             "params": [
@@ -39338,7 +39376,7 @@
                 "descHtml": "The name of the file on the disk. It is 1 to 255 ASCII letters, digits, <code>.</code>, <code>-</code> and <code>_</code>, and it does not start with a <code>.</code>. A <code>/</code> or a <code>\\</code> throws an error, so a key never points into another folder."
               }
             ],
-            "returnHtml": "The file's bytes, or <code>null</code> if nothing was saved under this key.",
+            "returnHtml": "The file's bytes, or <code>null</code> if nothing was saved under this key. The bytes are <code>tainted</code>, because a visitor may have written the file.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -42520,7 +42558,7 @@
                 "descHtml": "The parts of the prefix that the mount's pattern matched, in order. For the pattern <code>/shops/{1}</code> and <code>mount: &quot;/shops/acme&quot;</code>, this is <code>[&quot;acme&quot;]</code>. <code>Core\\Request::mount()-&gt;captures()</code> returns this list. The default is an empty list. You need <code>mount</code> to give <code>captures</code>."
               }
             ],
-            "returnHtml": "A <code>Core\\Test\\Response</code>. <code>status()</code> returns the status the program set, or <code>200</code> if it set none. <code>body()</code> returns the text the program wrote, and <code>json()</code> and <code>jsonAs()</code> decode it. <code>header()</code>, <code>headers()</code> and <code>cookies()</code> return the headers and cookies the program set. A path that no route matches still gets an answer, because your program decides what to do with it.",
+            "returnHtml": "A <code>Core\\Test\\Response</code>. <code>status()</code> returns the status the program set, or <code>200</code> if it set none. <code>body()</code> returns the text the program wrote, and <code>json()</code> and <code>jsonAs()</code> decode it. <code>header()</code>, <code>headers()</code> and <code>cookies()</code> return the headers and cookies the program set. A path that no route matches still gets an answer, because your program decides what to do with it. A body that is not text, such as a PDF file, also gets an answer. Then <code>body()</code>, <code>json()</code> and <code>jsonAs()</code> throw an error.",
             "errors": [
               {
                 "error": "LogicError",
@@ -43240,7 +43278,13 @@
           "returnType": "string",
           "doc": {
             "shortHtml": "Returns the text the program wrote while it answered this request.",
-            "returnHtml": "Everything the program wrote with <code>echo</code>, in order. If the program wrote nothing, the result is an empty string. If the program threw an error it did not catch, the result is also an empty string, because the server sends no body for a failed request."
+            "returnHtml": "Everything the program wrote with <code>echo</code>, in order. If the program wrote nothing, the result is an empty string. If the program threw an error it did not catch, the result is also an empty string, because the server sends no body for a failed request.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The body is not valid UTF-8, so it is not a string. <code>Core\\Response::bytes</code> and <code>Core\\Response::sendFile</code> can write such a body. Test it with <code>status()</code> and <code>header()</code>."
+              }
+            ]
           },
           "slug": "body",
           "url": "/reference/core/test-response/body/",
@@ -43353,6 +43397,10 @@
               {
                 "error": "ParseError",
                 "descHtml": "The body is not one whole JSON document, or it nests deeper than <code>maxDepth</code>. An empty body throws this error too. The <code>Content-Type</code> header is not checked."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The body is not valid UTF-8, so it is not text."
               }
             ]
           },
@@ -43392,6 +43440,10 @@
               {
                 "error": "ParseError",
                 "descHtml": "The body is not one whole JSON object, or it nests deeper than <code>maxDepth</code>. An empty body throws this error too. It is also thrown when a field is missing or has the wrong type. The <code>issues</code> list has one entry for each wrong field. The <code>Content-Type</code> header is not checked."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The body is not valid UTF-8, so it is not text."
               },
               {
                 "error": "RecursionError",
@@ -48352,11 +48404,11 @@
             "params": [
               {
                 "name": "target",
-                "descHtml": "The name of the program or purpose the instruction is for. It must be an XML name. It cannot be <code>xml</code> in any casing, because <code>startDocument</code> already writes that one."
+                "descHtml": "The name of the program or purpose the instruction is for. It must be an XML name. It cannot be <code>xml</code> in any casing, because <code>startDocument</code> already writes that one. A <code>tainted</code> string does not compile here."
               },
               {
                 "name": "data",
-                "descHtml": "The instruction's data. It is written unchanged, because XML cannot escape anything inside an instruction. It cannot contain <code>?&gt;</code>. When it is <code>&quot;&quot;</code>, only the target is written."
+                "descHtml": "The instruction's data. It is written unchanged, because XML cannot escape anything inside an instruction. It cannot contain <code>?&gt;</code>. When it is <code>&quot;&quot;</code>, only the target is written. A <code>tainted</code> string does not compile here, because the program that reads the document follows the data."
               }
             ],
             "returnHtml": "Nothing. The instruction is written at the place the writer has reached.",
