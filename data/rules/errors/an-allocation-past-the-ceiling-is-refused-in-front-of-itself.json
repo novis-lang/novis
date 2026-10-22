@@ -10,6 +10,8 @@
     "tests/conformance/error/one-operation-past-the-ceiling-is-refused-before-it-allocates.nvst",
     "tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst",
     "crates/nvs-runtime/tests/refusal.rs",
-    "crates/nvs-runtime/tests/allocator_ceiling.rs"
+    "crates/nvs-runtime/tests/allocator_ceiling.rs",
+    "crates/nvs-stdlib/src/csv.rs",
+    "tests/hostile/core/Csv/parse/01-documents-an-upload-form-could-send.nvs"
   ]
 }
