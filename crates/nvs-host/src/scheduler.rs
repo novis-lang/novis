@@ -2175,12 +2175,14 @@ mod tests {
     /// The spinner raises the yield bit itself where the slice clock would
     /// have, which keeps the case free of timing; `crate::slice`'s own tests
     /// prove the clock raises it. The neighbour is woken from another thread
-    /// through the reactor, the way readiness reaches a parked connection. A
-    /// yield that went to the front of the run queue would never let the
+    /// through the reactor, the way readiness reaches a parked connection, and
+    /// only once the spinner has started, so the neighbour cannot finish before
+    /// it. A yield that went to the front of the run queue would never let the
     /// reactor poll, and the spinner would reach its bound with the neighbour
     /// still parked.
     #[test]
     fn a_parked_task_runs_between_the_slices_of_a_task_that_never_waits() {
+        use std::sync::atomic::{AtomicBool, Ordering};
         use std::sync::{Arc, Mutex};
         use std::task::{Poll, Waker};
         use std::time::{Duration, Instant};
@@ -2192,6 +2194,8 @@ mod tests {
         let far = Arc::clone(&slot);
         let neighbour_ran = Rc::new(Cell::new(false));
         let spinner_saw = Rc::new(Cell::new(None));
+        let spinning = Arc::new(AtomicBool::new(false));
+        let started = Arc::clone(&spinning);
 
         let ran = Rc::clone(&neighbour_ran);
         sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
@@ -2211,6 +2215,7 @@ mod tests {
         sched.spawn(ctx(), TaskRoot::Worker, move |ctx| {
             let bound = Instant::now() + Duration::from_secs(10);
             let mut slices = 0_usize;
+            started.store(true, Ordering::Release);
             while !ran.get() && Instant::now() < bound {
                 slices += 1;
                 ctx.request_safepoint(nvs_runtime::SafepointFlags::YIELD);
@@ -2227,7 +2232,9 @@ mod tests {
 
         let far_side = std::thread::spawn(move || {
             let waker = loop {
-                if let Some(waker) = far.lock().expect("no holder panics").take() {
+                if spinning.load(Ordering::Acquire)
+                    && let Some(waker) = far.lock().expect("no holder panics").take()
+                {
                     break waker;
                 }
                 std::thread::sleep(Duration::from_millis(1));
