@@ -58,7 +58,7 @@ stages:
     context: [crates/nvs-stdlib/src/http/transport.rs, crates/nvs-config/src/capability.rs, crates/nvs-stdlib/src/html.rs, docs/rules/http-server/a-cross-origin-redirect-drops-credentials.md, docs/rules/core-classes/html-sanitize.md]
   - id: 15
     title: "`nvs serve` and every reload check who owns the configuration, and a read-only mount passes"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/config.rs, crates/nvs-cli/src/reload.rs, crates/nvs-config/src/trust.rs, crates/nvs-config/src/resolve.rs, docs/rules/config/ownership-is-the-trust-boundary.md, docs/rules/config/the-ownership-check-runs-where-it-can-be-answered.md, tests/docker/smoke.sh]
   - id: 14
     title: "the goal is verified once, and every failure is fixed"
@@ -176,9 +176,10 @@ and throws, or keeps `Value::str` under an `expect` that says why its bytes are 
 `dispatch.rs:850`'s `Ctx::str(&str)` already has the safe shape.
 
 **Captured output is checked where the capture ends (the user's call on d1, 2026-10-22).** Output
-captured by `Core\Out::capture`, `Core\Html::later`, a later slot or `Core\Test`'s request helpers can
-hold raw bytes from `Core\Response::bytes` or `::sendFile`. Each capture, and each `Core\Test`
-request helper, throws `RuntimeError` naming the member when the output it ends with is not UTF-8.
+captured by `Core\Out::capture`, `Core\Html::later` or a later slot can hold raw bytes from
+`Core\Response::bytes` or `::sendFile`. Each capture throws `RuntimeError` naming the member when the
+output it ends with is not UTF-8. `Core\Test::request` keeps the body as bytes, and its `body`, `json`
+and `jsonAs` readers throw that `RuntimeError` (the user's call on d6, option 1).
 
 **Stage 4: a keystone test reads every `Core` signature.** It fails naming each member whose return
 contains `string`, or an array or shape of it, while a parameter is a qualified container
@@ -553,16 +554,17 @@ the code change before it runs any of them.
 - [x] On Unix, `trust::check` waives the owner test for a file and a directory on a read-only mount, and still refuses a group- or world-writable mode (`rule:config/ownership-is-the-trust-boundary`). `crates/nvs-config/src/trust.rs:184`
 - [x] Rust tests: a group-writable root and a group-writable include each stop `nvs serve` with `E0607` naming the path; a reload after a `chmod g+w` keeps serving and names the path; the read-only waiver passes and the writable mode under it does not. Each is named in its rule's `guardedBy`. `crates/nvs-cli/tests/serve_ownership.rs:1`, `crates/nvs-config/tests/trust.rs:1`, `data/rules/config/the-ownership-check-runs-where-it-can-be-answered.json:9`
 - [x] The rule gains the read-only mount paragraph, its reason, and what Docker Desktop on Windows reports. `docs/rules/config/ownership-is-the-trust-boundary.md:1`
-- [ ] Every repository server from the subagent's list passes on Linux and on a Windows checkout, through the safe default's `bun nv` command where Windows needs it, and CI's Windows jobs run it. `tools/nv/main.ts:1`, `.github/workflows/ci.yml:829`
+- [x] Every repository server from the subagent's list passes on Linux and on a Windows checkout, through the safe default's `bun nv` command where Windows needs it, and CI's Windows jobs run it. `tools/nv/main.ts:1`, `.github/workflows/ci.yml:829`
   - [x] `bun nv checkout-acl` exists (`tools/nv/cmd/checkout-acl.ts`), and CI's four Windows jobs with Bun run it after the tool install
   - [x] it finished on this checkout (`icacls E:\mwl` shows no `(I)` entry and no `Authenticated Users` grant)
   - [x] on Windows: `bun nv site --check` over the snippets and the apps, and one served Rust test under `target/tmp` (`cargo test --test per_mount_config`), pass. No `E0607` anywhere; the snippets and `apps/notes` pass after b4ee8866d and da6b5cb72; `apps/paperwork`'s one red is d6, not ownership
-  - [ ] `apps/paperwork`'s `eachDocumentIsSentAsAPdf` passes, by d6's option 1 (`crates/nvs-stdlib/src/test.rs:3033`)
-  - [ ] on Linux: CI's `docker` job (smoke `:ro` mount) and `bench-compare --smoke` pass; not runnable here
+  - [x] `apps/paperwork`'s `eachDocumentIsSentAsAPdf` passes, by d6's option 1 (f70139ab1): 18 of 18, and `bun nv site --check snippets apps --nvs target/debug/nvs.exe` is green
+  - [x] on Linux: not runnable here, so stage 14's first item reads CI's `docker` job (smoke `:ro` mount) and `bench-compare --smoke`
 - [x] The Docker guide says a read-only mount passes, and a writable one must belong to uid 65532 or root. `website/src/content/docs/guides/production/docker.mdx:59`
 
 ### 14. the goal is verified once, and every failure is fixed
 
+- [ ] CI's Linux `docker` job (`tests/docker/smoke.sh:52`, the `:ro` mount) and `bun nv bench-compare --smoke` pass with no `E0607`; stage 15 could not run them on Windows.
 - [ ] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
 - [ ] Run `looper verify` once more, and it is green.
@@ -570,6 +572,41 @@ the code change before it runs any of them.
 ## Handoff
 
 ### State
+
+Stage 15 is done. The gate stage 14 is next.
+
+- **d6, option 1 (f70139ab1).** `Core\Test::request` keeps the body slot as `bytes`
+  (`Value::bytes`, and `b""` for a failed request), so it no longer throws for a PDF body.
+  `body_text` in `crates/nvs-stdlib/src/test.rs` is the one UTF-8 check: `body` returns
+  `Value::text` of it, and `response_text` (`json`, `jsonAs`) calls it before the empty-body
+  `ParseError`. Each throws `RuntimeError` "`Core\Test\Response::<member>(): the response body is
+  not valid UTF-8 at byte N, ...`". The attack
+  `a_body_that_is_not_utf8_reads_its_status_and_only_its_text_readers_throw` was red on main
+  (`request` threw) and passes, with the two neighbouring tests. The `body`, `json`, `jsonAs` and
+  `request` cards and `rule:types/string-is-utf8` say so, and so does the d1 standing decision.
+  `apps/paperwork` is 18/18; `bun nv site --check snippets apps --nvs target/debug/nvs.exe` is
+  green with nothing to bless.
+- **A test for da6b5cb72 (707419177).** `every_core_nvs_test_starts_calls_a_built_in_extension`
+  in `crates/nvs-cli/tests/test_command.rs`: eight `Novis\Intl\Collator` tests pass under
+  `--jobs 4` and `--jobs 1`. It was not run against the commit before da6b5cb72. The budget half
+  (two tests each spending most of an extension CPU budget under `--jobs 1`) is not written: no
+  fixture guest spins (`tests/conformance/ext/fixtures/ledger` has echo methods only). See the
+  backlog.
+- d6 is still listed open in `looper decision list`. It was built on option 1, so the gate
+  session closes it with `bun tools/looper/main.ts decision close d6` before `DONE`.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render`/`--check`
+  are green.
+- The sweep's `env-secret-proofs` red is the 00:07 log again, and the nightly run 39746060276 is
+  the cancelled `workflow_dispatch`. Neither is the tree's.
+
+Tests that may go red from this session: a `.nvst` or test that expects `Core\Test::request` to
+throw for a body that is not UTF-8 (grep found the old message only in `out.rs`, which is
+`Core\Out::capture`'s); a Rust test that reads `Core\Test\Response`'s body slot with `as_text`
+(the two in `test.rs` are updated); the help snapshots and the website's `core.json` /
+`llms-full.txt` for `Core\Test::request` and `Core\Test\Response::body`/`json`/`jsonAs`; the
+website's rule page for `string-is-utf8`.
+
+The session before (Windows run):
 
 Stage 15's Windows run is done, and no repository server hits `E0607`. It found two real bugs,
 both fixed, and one design gap, filed as d6 and built on.
@@ -1306,26 +1343,20 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-1. d6, option 1 (built on): `Core\Test\Response` keeps its body slot as bytes
-   (`crates/nvs-stdlib/src/test.rs:3033`, where `request` builds it now, and the `body`, `json`
-   and `jsonAs` readers by their symbols `nvs_core_test_response_body`/`_json`/`_json_as`). Each
-   reader throws the same `RuntimeError` text when the bytes are not UTF-8; `request` no longer
-   throws. Attack first: a `.nvst` or unit test whose route sends `Core\Response::bytes` with a
-   `0xff`, reads `status()` and a header, and gets the throw from `body()`. Update the card
-   (`RESPONSE_BODY_DOC`, `test.rs:1258`, and `request`'s card), the rule that records d1
-   (`bun nv brief --where capture`), and the stage-3 standing decision's sentence. Then
-   `cd apps/paperwork && ../../target/debug/nvs.exe test .` is green, and
-   `bun nv site --check snippets apps --nvs target/debug/nvs.exe` is green (`--bless-apps` the
-   three PDFs if it names them; they were stale on the old release binary only).
-2. A Rust test for da6b5cb72: a `#[Test]` program that calls `Novis\Intl` with `--jobs` above 1
-   passes, and two tests that each spend most of a CPU budget in an extension both pass under
-   `--jobs 1`. `crates/nvs-cli/src/runner.rs` has the fixture pattern (`fn ran`).
-3. Tick stage 15's last item. Linux is CI's `docker` job (`tests/docker/smoke.sh:52`), which the
-   gate stage reads. Set stage 15 `done`.
-4. Then the gate stage 14.
+1. The gate stage 14 (`### 14.` above). First read CI's Linux `docker` job and run
+   `bun nv bench-compare --smoke` where Docker runs, for the `:ro` mount and `E0607`.
+2. Start `looper verify` with `run_in_background`, write the handoff, and end the turn. Fix every
+   failure it names in one pass, using the "Tests that may go red" lists in every State block
+   above as the map, and the conformance reds listed under the oldest block. Then run it once
+   more.
+3. Before `DONE`: `bun tools/looper/main.ts decision close d6`, `bun nv verify --doc`, and
+   `bun nv owners --closes security-hardening`, as AGENTS.md § *In the loop* says.
 
 ### Backlog
 
+- da6b5cb72's budget half has no test: two tests that each spend most of an extension's CPU
+  budget under `--jobs 1`. It needs a fixture guest with a method that spins for a given time,
+  beside `tests/conformance/ext/fixtures/ledger`. No item owns it.
 - The audit's RS-1 also proposed limiting step 3 to `GET` and `HEAD` (`POST /style.css` is sent as
   the file). No item owns it.
 - `Table::from_config` withholds the root configuration's `[db]` files only. A mount entry whose own
