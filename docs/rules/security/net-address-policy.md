@@ -6,7 +6,10 @@ real endpoint URLs.
 Denied by default: every address that is not globally routable. That is loopback, the private ranges,
 **link-local**, unspecified, shared address space (`100.64.0.0/10`), protocol assignments
 (`192.0.0.0/24`), benchmarking (`198.18.0.0/15`), multicast (`224.0.0.0/4`, `ff00::/8`), reserved
-(`240.0.0.0/4`) and broadcast. It is also every IPv6 form that carries one of those IPv4 addresses,
+(`240.0.0.0/4`), broadcast, IPv6 site-local (`fec0::/10`) and the local-use NAT64 prefix
+(`64:ff9b:1::/48`). That prefix is denied whole, because RFC 6052 lets its translator carry an IPv4
+address in any of six layouts and the layout is the translator's setting, so no reading of an address
+says which IPv4 address it reaches; an operator who runs one writes the prefix in `net.internal`. It is also every IPv6 form that carries one of those IPv4 addresses,
 each of which reaches the address it carries: IPv4-mapped (`::ffff:0:0/96`), IPv4-compatible
 (`::/96`), the NAT64 well-known prefix (`64:ff9b::/96`), 6to4 (`2002::/16`, the 32 bits after the
 prefix) and Teredo (`2001::/32`, the inverted low 32 bits). The documentation ranges (`192.0.2.0/24`,
@@ -51,6 +54,10 @@ asked at the connect. What the table does **not** govern is a *bind*, whose term
 no policy of its own.
 
 **Declined:**
+- **Reading `64:ff9b:1::/48` as the IPv4 address in its low 32 bits**, as the well-known prefix is
+  read. A translator set to a `/64` layout puts the address elsewhere, so a private address written
+  that way reads as a public one. Denying the prefix costs an IPv6-only network that uses it one
+  `net.internal` line.
 - **No exception syntax at all**, so a private range is never reachable from a program-supplied
   address. Service-to-service calls are the normal case in any non-trivial deployment, and a rule that
   has to be worked around is worse than one that has to be written down.

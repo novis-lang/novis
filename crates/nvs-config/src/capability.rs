@@ -526,15 +526,23 @@ pub fn denied_by_default(address: std::net::IpAddr) -> Option<&'static str> {
             }
         }
         IpAddr::V6(v6) => {
-            let first = v6.segments()[0];
+            let segments = v6.segments();
+            let first = segments[0];
             if v6.is_loopback() {
                 Some("loopback (::1)")
             } else if v6.is_unspecified() {
                 Some("unspecified (::)")
             } else if first & 0xffc0 == 0xfe80 {
                 Some("link-local (fe80::/10)")
+            } else if first & 0xffc0 == 0xfec0 {
+                Some("site-local (fec0::/10)")
             } else if first & 0xfe00 == 0xfc00 {
                 Some("private (fc00::/7)")
+            } else if segments[..3] == [0x64, 0xff9b, 1] {
+                // RFC 8215's prefix is a local translator's, and RFC 6052 lets it carry an IPv4
+                // address in any of six layouts. Which one is the translator's configuration, never
+                // the address's, so no reading of the bits can say which address it reaches.
+                Some("local-use NAT64 (64:ff9b:1::/48)")
             } else if v6.is_multicast() {
                 Some("multicast (ff00::/8)")
             } else {
@@ -625,7 +633,8 @@ fn internal_covers<'e>(
 /// bits. 6to4 (`2002::/16`) carries it in the 32 bits after the prefix, and a relay delivers to it.
 /// Teredo (`2001::/32`) carries the client's IPv4 address in the low 32 bits with every bit
 /// inverted. Each spelling of `127.0.0.1` reaches whatever that address reaches, so each is denied
-/// exactly when the address it carries is.
+/// exactly when the address it carries is. The local-use NAT64 prefix `64:ff9b:1::/48` is not read
+/// here: its layout is its translator's, so [`denied_by_default`] denies the whole prefix instead.
 ///
 /// The exception list and endpoint matching keep [`unmapped`]: an operator's `internal` entry is an
 /// address the operator wrote, and it excepts that address in its two usual spellings and nothing

@@ -450,6 +450,44 @@ fn every_special_purpose_range_is_denied_and_its_neighbours_are_not() {
     }
 }
 
+/// `rule:security/net-address-policy`'s table denies the local-use NAT64 prefix whole, whatever
+/// layout its translator reads an IPv4 address in, and the site-local range; the addresses beside
+/// each stay public, and an operator's `internal` range excepts the NAT64 prefix.
+// covers: tools:config/network-grants-the-addresses-and-endpoints-they-reach
+#[test]
+fn the_local_use_nat64_prefix_and_site_local_addresses_are_denied() {
+    for (address, range) in [
+        ("64:ff9b:1::a00:7", "local-use NAT64 (64:ff9b:1::/48)"),
+        ("64:ff9b:1:a00:0:700::", "local-use NAT64 (64:ff9b:1::/48)"),
+        ("64:ff9b:1:0:a:0:7:0", "local-use NAT64 (64:ff9b:1::/48)"),
+        ("64:ff9b:1::cb00:710a", "local-use NAT64 (64:ff9b:1::/48)"),
+        (
+            "64:ff9b:1:ffff:ffff:ffff:ffff:ffff",
+            "local-use NAT64 (64:ff9b:1::/48)",
+        ),
+        ("fec0::1", "site-local (fec0::/10)"),
+        ("feff:ffff::1", "site-local (fec0::/10)"),
+    ] {
+        assert_eq!(
+            nvs_config::capability::denied_by_default(ip(address)),
+            Some(range),
+            "{address} is in {range}",
+        );
+    }
+    for public in ["64:ff9b:0:1::1", "64:ff9b:2::a00:7", "febf:ffff::1"] {
+        let got = nvs_config::capability::denied_by_default(ip(public));
+        assert!(
+            got != Some("local-use NAT64 (64:ff9b:1::/48)")
+                && got != Some("site-local (fec0::/10)"),
+            "{public} is outside both ranges, and got {got:?}",
+        );
+    }
+
+    let disk = Disk::of(&["/srv"]);
+    let excepted = granting("[net]\ninternal = [\"64:ff9b:1::/48\"]\n", &disk);
+    assert_eq!(excepted.address_refused(ip("64:ff9b:1::a00:7")), None);
+}
+
 /// `rule:security/net-address-policy`'s table reads a 6to4 or Teredo address as the IPv4 address
 /// it carries, so each spelling of an address gets that address's answer.
 // covers: tools:config/network-grants-the-addresses-and-endpoints-they-reach
@@ -1482,6 +1520,7 @@ fn every_address_in_a_denied_range_is_denied_in_each_of_its_spellings() {
     for (base, prefix, range) in [
         (0xfe80_u16, 10_u32, "link-local (fe80::/10)"),
         (0xfc00, 7, "private (fc00::/7)"),
+        (0xfec0, 10, "site-local (fec0::/10)"),
         (0xff00, 8, "multicast (ff00::/8)"),
     ] {
         for _ in 0..500 {
