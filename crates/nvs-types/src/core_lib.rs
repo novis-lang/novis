@@ -727,6 +727,10 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         | CoreTy::Bounded(name, _)
         | CoreTy::Written(name)
         | CoreTy::WrittenReturning(name, _) => interner.type_var(*name),
+        // An array key, bound at each call by `crate::expr::args`'
+        // `check_generic_args` to `string` or `tainted string`.
+        // `nvs_stdlib::registry::CoreTy::Key` owns why.
+        CoreTy::Key => interner.type_var(nvs_stdlib::registry::KEY_VAR),
         CoreTy::Callable => interner.callable(),
         // A `Core`-owned enum is interned exactly as a declared one is —
         // `crate::enums` has already seeded the same name into its own table,

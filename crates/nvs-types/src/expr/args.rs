@@ -1603,6 +1603,21 @@ pub(crate) fn check_generic_args(
     }
 
     let mut bindings = crate::generics::Bindings::default();
+    // An array key a member answers or hands its callback is bound first, so
+    // a callback is checked against it and no callback's own `string $k` binds
+    // it. It is `tainted string` when an argument's keys can come from outside,
+    // as a `foreach` key is. `nvs_stdlib::registry::CoreTy::Key` owns why. A
+    // signature that writes no key never reads the binding.
+    let from_outside = (0..arg_types.len())
+        .filter(|index| !unplaced[*index] && !deferred_fn[*index])
+        .filter(|index| deferred != Some(slots[*index]))
+        .any(|index| keys_from_outside(arg_types[index], env.interner));
+    let key = if from_outside {
+        env.interner.tainted_string()
+    } else {
+        env.interner.string()
+    };
+    bindings.insert(nvs_stdlib::registry::KEY_VAR.to_owned(), key);
     // Two rounds, the literals second — this function's docs own why. One
     // iterator over indexes rather than a nested loop, so the body below is
     // the single pass it reads as, and `or_insert` is what makes the second

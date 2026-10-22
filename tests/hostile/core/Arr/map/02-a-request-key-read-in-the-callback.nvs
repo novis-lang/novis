@@ -1,0 +1,9 @@
+<?nvs
+// Attack: the callback of `Core\Arr::map` builds SQL conditions from the keys of a
+// request's array. Each key the callback gets is tainted, so the program should not compile.
+// hostile: expect-refusal
+
+// 1. The keys come from the web address, such as `filter[1 = 1 OR id]=1`.
+var $conditions = Core\Arr::map(Core\Request::queryArray('filter'), fn($value, $key) => $key . ' = ?');
+var $db = Core\Db::connect('main');
+var $rows = $db->query('SELECT * FROM users WHERE ' . Core\Str::join($conditions, ' AND '), []);

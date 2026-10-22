@@ -160,7 +160,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["items", "fn"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
-                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Var("U")),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Key], &CoreTy::Var("U")),
                 CoreTy::Options(OPTIONS),
             ],
             defaults: &[],

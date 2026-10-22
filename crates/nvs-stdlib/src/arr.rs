@@ -133,7 +133,7 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["a", "predicate"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
-                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Bool),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Key], &CoreTy::Bool),
             ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
@@ -145,7 +145,7 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["a", "fn"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
-                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Var("U")),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Key], &CoreTy::Var("U")),
             ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("U")),
@@ -162,7 +162,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::CallableSig(
-                    &[CoreTy::Var("T"), CoreTy::Str],
+                    &[CoreTy::Var("T"), CoreTy::Key],
                     &CoreTy::Union(ARRAY_KEY_CONTAGIOUS),
                 ),
             ],
@@ -179,7 +179,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::CallableSig(
-                    &[CoreTy::Var("T"), CoreTy::Str],
+                    &[CoreTy::Var("T"), CoreTy::Key],
                     &CoreTy::Union(ARRAY_KEY_CONTAGIOUS),
                 ),
             ],
@@ -194,7 +194,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
                 CoreTy::CallableSig(
-                    &[CoreTy::Var("U"), CoreTy::Var("T"), CoreTy::Str],
+                    &[CoreTy::Var("U"), CoreTy::Var("T"), CoreTy::Key],
                     &CoreTy::Var("U"),
                 ),
                 CoreTy::Var("U"),
@@ -209,7 +209,7 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["a", "predicate"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
-                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Bool),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Key], &CoreTy::Bool),
             ],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
@@ -221,10 +221,10 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["a", "predicate"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
-                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Bool),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Key], &CoreTy::Bool),
             ],
             defaults: &[],
-            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            return_ty: CoreTy::Nullable(&CoreTy::Key),
             symbol: "nvs_core_arr_find_key",
             doc: Some(&FIND_KEY_DOC),
         },
@@ -233,7 +233,7 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["a", "predicate"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
-                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Bool),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Key], &CoreTy::Bool),
             ],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -245,7 +245,7 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["a", "predicate"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
-                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Bool),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Key], &CoreTy::Bool),
             ],
             defaults: &[],
             return_ty: CoreTy::Bool,
@@ -287,7 +287,7 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["haystack", "needle"],
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Var("T")],
             defaults: &[],
-            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            return_ty: CoreTy::Nullable(&CoreTy::Key),
             symbol: "nvs_core_arr_key_of",
             doc: Some(&KEY_OF_DOC),
         },
@@ -305,7 +305,7 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
-            return_ty: CoreTy::Array(&CoreTy::Str),
+            return_ty: CoreTy::Array(&CoreTy::Key),
             symbol: "nvs_core_arr_keys",
             doc: Some(&KEYS_DOC),
         },
@@ -341,7 +341,7 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
-            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            return_ty: CoreTy::Nullable(&CoreTy::Key),
             symbol: "nvs_core_arr_first_key",
             doc: Some(&FIRST_KEY_DOC),
         },
@@ -350,7 +350,7 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["a"],
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
-            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            return_ty: CoreTy::Nullable(&CoreTy::Key),
             symbol: "nvs_core_arr_last_key",
             doc: Some(&LAST_KEY_DOC),
         },

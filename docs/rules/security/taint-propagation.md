@@ -13,7 +13,15 @@ time, the declared class and each concrete class extending or implementing it. A
 carries none — an `array<int>`, a shape or an object whose fields are all clean, an array literal of
 the program's own values — encodes to the plain type. `Core\Uri::buildQuery` and
 `Core\Uri::withQueryParameter` percent-encode every byte that is not safe in a URL, as `encodeFormValue`
-does, and answer the plain type for that launderer's reason.
+does, and answer the plain type for that launderer's reason. `Core\Str::format` and `Core\Bytes::pack`
+are encoders of their variadic arguments by the same rule: the template is a sink, and a `%s` filled
+from outside text makes the result `tainted`.
+
+**No `Core` signature loses a mark.** `crates/nvs-stdlib/tests/taint_signatures.rs` reads every row,
+and fails naming each member that answers a plain `string` or `bytes`, or hands its callback one,
+while a parameter could carry outside text the row does not classify: an array, `mixed`, `object` or a
+type variable. Its allow list is the encoders above and the launderers
+(`rule:security/launderers-are-sink-named`), each with the rule that makes it one.
 
 **Text out of `mixed` is `tainted`.** `mixed` is where request input lands and the qualifier cannot be
 written on it (`rule:security/tainted-qualifier`), so every way text leaves it adds the bit: `as string`
@@ -25,7 +33,10 @@ are admitted. The same holds for an `array<mixed>` operand and for a union with 
 **The keys of such a value are outside text too**: a `foreach` key over a `mixed` or `iterable`
 subject, or over an array whose element type carries `tainted` or `mixed` anywhere — `queryArray`,
 `postArray`, `headers()`, a decoded `array<mixed>` — is `tainted string`, because an array's type says
-nothing of its keys and its elements are the evidence of where it was filled. Every member that fills
+nothing of its keys and its elements are the evidence of where it was filled. A `Core\Arr` member that
+returns a key, or hands one to its callback, follows the same test: `keys`, `firstKey`, `lastKey`,
+`keyOf` and `findKey` over such an array answer `tainted string`, and so does the `$key` of a `map`,
+`filter` or `reduce` callback. Every member that fills
 an array from outside answers one with such elements, so the element type covers members not yet
 written too. An array the program fills with tainted values under its own literal keys over-taints,
 which is the safe direction: write `tainted string $k`, and bind or escape the key where it reaches a
