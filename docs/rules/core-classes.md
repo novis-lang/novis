@@ -2542,6 +2542,13 @@ anything else throws `LogicError`. A value may be a string, bytes, an `int`, a `
 `Ldap\Sid` or an `Instant`, encoded at search time by the table [`core-classes/ldap-value-types`](core-classes.md#core-classes-ldap-value-types)
 reads with, so a GUID filter matches the server's byte order.
 
+**The names `Connection::add` writes are the same sink, and they arrive as an array's keys.** A
+parameter cannot mark a key, so the call itself refuses a key that can come from outside the program:
+a literal's key that is not a literal, a constant or a plain variable, a spread, and any other array
+whose keys a visitor could have chosen ([`security/taint-propagation`](security.md#security-taint-propagation)). The values stay data and
+accept `tainted`. Without the refusal, a form posted as an array could add `objectClass` or
+`userAccountControl` within whatever the bind account may write.
+
 **No filter escaper exists.** The builder is the protocol's own shape, the way a bound parameter is
 SQL's, so an escaper would be a second, weaker answer. [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api) keeps query
 builders out of `Core` because SQL has a text form the server executes; LDAP has none on the wire, and
