@@ -9,6 +9,7 @@
     "programs/memory-priority"
   ],
   "guardedBy": [
-    "crates/nvs-host/src/blocking.rs"
+    "crates/nvs-host/src/blocking.rs",
+    "crates/nvs-host/src/watchdog.rs"
   ]
 }
