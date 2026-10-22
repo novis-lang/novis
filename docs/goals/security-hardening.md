@@ -326,11 +326,16 @@ written.
 - [x] RT-3: `Core\Csv::rows` validates each field and throws `ParseError` with the line; `::parse` needs no check, and its docs say why (`rule:types/string-is-utf8`). `0259de321`. `crates/nvs-stdlib/src/csv.rs:1000`
 - [x] RT-3: `Core\Jwe::decrypt` validates its plaintext, with a Rust attack beside it. `69dcbb666`. `crates/nvs-stdlib/src/jwe.rs:1034`
 - [x] The lint, first half: `from_utf8_unchecked` in its three forms is in `clippy.toml`'s `disallowed-methods`, and the three audited sites carry an `expect`. `7141bbf8d`. `clippy.toml:1`
-- [ ] The lint, second half: `Value::str` joins the list, and `Value::text(&str)` is added (the standing decision *Stage 3's second half*). `crates/nvs-runtime/src/value.rs:341`
-  - [ ] `Value::text(&str)` in `value.rs`, with a doc line, and `Value::str`'s doc says it checks nothing
-  - [ ] `nvs_runtime::value::Value::str` in `clippy.toml`; confirm clippy names a site in `nvs-stdlib` (touch `src/lib.rs` first, since clippy does not see a `clippy.toml` change)
-  - [ ] the mechanical sweep: `Value::str(NvsStr::new(x.as_bytes()))` (404) and `Value::str(NvsStr::new(b"..."))` (343) become `Value::text(...)`, split by crate over writing subagents
-- [ ] Fix every other site the lint names: about 240 `Value::str` calls whose bytes are a `Vec<u8>` or `&[u8]`, each checked and thrown or kept under an `expect` that says why. `crates/nvs-stdlib/src/csv.rs:799`
+- [x] The lint, second half: `Value::str` joins the list, and `Value::text(&str)` is added (the standing decision *Stage 3's second half*). `38c110098`. `crates/nvs-runtime/src/value.rs:341`
+  - [x] `Value::text(&str)` in `value.rs`, with a doc line, and `Value::str`'s doc says it checks nothing
+  - [x] `nvs_runtime::value::Value::str` in `clippy.toml`; confirm clippy names a site in `nvs-stdlib` (touch `src/lib.rs` first, since clippy does not see a `clippy.toml` change)
+  - [x] the mechanical sweep: 766 sites became `Value::text(...)`, by a paren-balanced script and the compiler, not subagents
+- [x] Fix every other site the lint names: 128 were left, each now checked or under an `expect` that says why. `Core\SignedCookie::open`, `Core\Session::getSecret` and `Core\Cache::getSecret` gained a check. `38c110098`
+- [ ] The five sites still under `#[allow(clippy::disallowed_methods, reason = "unchecked: ...")]` are checked (`grep -rn '"unchecked: ' crates/`). `crates/nvs-stdlib/src/out.rs:205`
+  - [ ] MySQL column labels: `mysql_described_columns` returns a `Result` and throws the `IoError` a non-UTF-8 text value already throws (`nvs_db::mysql::text`); the row keys at `db/execute.rs:834` and `db/stream.rs:344` get the same check. Rust test beside it. `crates/nvs-stdlib/src/db/column.rs:58`
+  - [ ] captured output that holds raw bytes from `Core\Response::bytes` or `::sendFile`: `crate::out::carried` (`Core\Out::capture`, `spawn script`'s `output`), `Core\Html::later` run at once (`html.rs:705`) and a `later` slot's `render` (`crates/nvs-runtime/src/later.rs:621`). Follow the decision filed for it; until it is answered, the safe default is a `RuntimeError` naming the member when the captured output is not UTF-8
+  - [ ] `Core\Test\Response`'s body (`crates/nvs-stdlib/src/test.rs:3040`) from a route that answers with `Core\Response::bytes`: the same decision
+  - [ ] an attack under `tests/hostile/` for the capture: `Core\Out::capture` around `Core\Response::bytes` of `FF`, then the program runs on
 - [x] The attack: an upload of `FF 0A` and of `C0 BC`, then the program runs on. Before the fix, the release binary panicked in `unicode-segmentation` at step 6. After it, steps 6 and 7 each throw a `ParseError`, and the program runs to its end. `tests/hostile/core/Csv/rows/01-a-file-an-upload-form-could-send.nvs:67`
 
 ### 4. one test walks every Core signature for a lost mark, and `Core\Arr` and `Core\Str` keep it
@@ -486,44 +491,44 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 3 is half done. `Core\Csv::rows` throws `ParseError` naming the line the bad field ends on
-(`0259de321`, `RowReader::step` in `crates/nvs-stdlib/src/csv.rs`), and the walk ends there. The
-attack's steps 6 and 7 write `61 0A FF 0A 62` and `61 2C C0 BC` through a `Write` handle. The release
-binary from before the fix panicked at step 6 in `unicode-segmentation`. Each step now prints
-`... throws a ParseError`, and `bun nv proofs --run --id 'Core\Csv::rows'` is green. `Core\Csv::parse`
-gets no check, and its docs say why. `Core\Jwe::decrypt` throws `ParseError` after the tag holds
-(`69dcbb666`), and `decrypt_throws_for_a_payload_that_opens_and_is_not_utf8` beside it passes.
-`rule:types/string-is-utf8` says both, declines U+FFFD, and lists both attacks in `guardedBy`.
-`clippy.toml` now refuses `from_utf8_unchecked` in its three forms, and the three audited sites
-(`string.rs` twice, `json.rs:912`) carry an `expect` (`7141bbf8d`). Two calls differ from the goal's
-first wording, and the standing decision now records both: `ParseError` replaces a new
-`Core\Csv\Error`, and `clippy.toml` replaces a `bun nv lints` text rule.
+Stage 3's lint is whole (`38c110098`). `clippy.toml` refuses `nvs_runtime::value::Value::str`, and
+`Value::text(&str)` sits beside it in `crates/nvs-runtime/src/value.rs`. 766 sites moved to
+`Value::text` through a script and the compiler. The 128 left were judged one by one: each is checked
+or carries an `expect` that says why its bytes are UTF-8. Three opened plaintexts gained a check.
+`Core\SignedCookie::open` refuses one that is not UTF-8 as it refuses a forgery. `Core\Session::getSecret`
+and `Core\Cache::getSecret` read it as a miss, as their docs say every way of not opening is.
+`rule:types/string-is-utf8` says all of this. `cargo build` and `cargo clippy --all-targets -- -D
+warnings` are green. No test ran.
 
-Trap: clippy does not see a change to `clippy.toml`. Touch a crate's `src/lib.rs` to make it look
-again.
+Five sites are not checked yet. Each carries `#[allow(clippy::disallowed_methods, reason =
+"unchecked: ...")]`, and `grep -rn '"unchecked: ' crates/` finds all five. Four are captured output,
+which can hold raw bytes from `Core\Response::bytes` or `::sendFile`. The fifth is a MySQL column
+label. Decision `d1` asks where captured output is refused, and the loop builds on its option 1.
 
-The sweep's `env-secret-proofs` red is stale: its log shows exit 0. Nightly run 39746060276 was
-cancelled whole and is not a failure of this tree.
+The sweep's `env-secret-proofs` red was stale: it reran green this session. Nightly run 39746060276
+was cancelled whole and is not a failure of this tree.
 
-Tests that may go red: a website or reference page that lists `Core\Csv::rows`'s or
-`Core\Jwe::decrypt`'s errors, since both now name `ParseError`. Also, from stage 2: an `nvs-ir`
-lowering snapshot of a class with an observer, a guard, `LateInit` or a hook. And a page that lists
-every diagnostic code, which now has `E0885`.
+Tests that may go red: a session or cache test that seals bytes that are not UTF-8 and expects them
+back. A test helper's signature changed in about a dozen test modules (`&[u8]` to `&str`), all
+compiled. A website or reference page that lists `Core\Csv::rows`'s or `Core\Jwe::decrypt`'s errors.
+From stage 2: an `nvs-ir` lowering snapshot of a class with an observer, a guard, `LateInit` or a
+hook, and a page that lists every diagnostic code, which now has `E0885`.
 
 ### Next
 
-1. The lint's second half, as the standing decision *Stage 3's second half* says.
-   `crates/nvs-runtime/src/value.rs:341` is `Value::str`. Add `Value::text(&str)` there, and put
-   `nvs_runtime::value::Value::str` in `clippy.toml`. Then touch `crates/nvs-stdlib/src/lib.rs` and
-   run clippy once to see the list. The tree has 989 `Value::str(` calls in 104 files, under
-   `crates/` and `benches/`. 404 of them are `NvsStr::new(x.as_bytes())` and 343 are
-   `NvsStr::new(b"...")`, and these become `Value::text(...)` with no review. Split that sweep by
-   crate over writing subagents with disjoint files, and build once after they all end.
-2. The roughly 240 that are left take a `Vec<u8>` or a `&[u8]`. Each one either checks with
-   `std::str::from_utf8` and throws, or keeps `Value::str` under an `expect` that says why its bytes
-   are UTF-8. `csv.rs:799` (`row`) is one of them: its fields are already checked in `rows` and
-   ASCII-cut in `parse`. Use a read-only subagent to list them by file first.
-3. Then stage 4, the keystone taint test, `crates/nvs-stdlib/tests/taint_signatures.rs`.
+1. The MySQL labels. `mysql_described_columns` (`crates/nvs-stdlib/src/db/column.rs:58`) returns a
+   `Result` and throws the `IoError` that `statement_failure` makes of `nvs_db::mysql::text`'s
+   `InvalidData`. Its caller is `db/execute.rs:806`. The row keys at `db/execute.rs:834` and
+   `db/stream.rs:344` take the same check. A Rust test beside it, since the harness has no MySQL.
+2. Captured output, by `d1`'s answer, or its option 1 while it is open: `crate::out::carried`
+   (`crates/nvs-stdlib/src/out.rs:205`), `Core\Html::later` run at once (`html.rs:705`), a `later`
+   slot's `render` (`crates/nvs-runtime/src/later.rs:621`) and `Core\Test\Response`'s body
+   (`crates/nvs-stdlib/src/test.rs:3040`). `carried` returns `Value` today, and `script.rs`'s
+   `result_of` is its other caller. Then the attack:
+   `tests/hostile/core/Out/capture/01-...nvs`, `Core\Out::capture` around `Core\Response::bytes` of
+   `FF`, and the program runs on.
+3. Remove each `allow` as its site is checked, then stage 3 is done. Then stage 4, the keystone taint
+   test, `crates/nvs-stdlib/tests/taint_signatures.rs`.
 
 ### Backlog
 
