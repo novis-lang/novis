@@ -617,6 +617,15 @@ pub struct TreeState {
     /// What this tree holds, and has written, on cores other than its root's —
     /// [`crate::budget::OffCore`] owns what the pair means and what it costs.
     pub(super) off_core: crate::budget::OffCore,
+    /// This tree's memory balance on its root core, as its last turn there
+    /// left it: [`crate::budget`]'s *per request tree across switches*. A
+    /// task stores it as it parks and reads it back as it resumes, so the
+    /// tasks of one tree share one count and other trees' turns stay out of
+    /// it. Only the root core's thread reads or writes it, so `Relaxed`.
+    ///
+    /// **What it spends:** one word per tree, and a relaxed store and load per
+    /// switch.
+    pub(crate) balance: std::sync::atomic::AtomicIsize,
     /// `[limits] wall_time` of the request this tree answers in nanoseconds,
     /// or `0` for one with none — written by [`Ctx::publish_wall_time`] each
     /// time that number moves.

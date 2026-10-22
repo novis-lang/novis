@@ -132,7 +132,7 @@ pub(super) fn report(grew: bool) {
         .held
         .store(live.wrapping_add(detached), Ordering::Relaxed);
     if grew {
-        stop_if_full(live);
+        stop_if_full(super::live_bytes());
     }
 }
 

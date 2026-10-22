@@ -31,10 +31,40 @@
 //! allocations into the answer, and every allocation a request makes happens on
 //! the thread running it. A request is charged the *difference* between that
 //! balance now and the balance when its [`Ctx`](crate::Ctx) was made —
-//! [`Ctx::memory_used`](crate::Ctx::memory_used) — which is exact for the one
-//! request a thread runs at a time and is what
-//! `rule:security/isolate-shares-nothing`'s isolate boundary will
-//! sharpen when a core runs several.
+//! [`Ctx::memory_used`](crate::Ctx::memory_used).
+//!
+//! # Per request *tree* across switches
+//!
+//! A core interleaves many requests: each one parks at an await and at every
+//! time slice, and its neighbours allocate and free while it is parked. So the
+//! balance a task reads is its request *tree's*, not the thread's: every turn
+//! is charged to the tree that ran it. [`TreeState::balance`](crate::TreeState)
+//! is that tree's balance as its last turn on its root core left it, and
+//! [`FOREIGN`] is how far the thread's balance stands from it, which
+//! [`live_bytes`] subtracts. A park stores the running tree's balance, and
+//! every resume, a task's first turn included, sets [`FOREIGN`] from the
+//! balance of the tree it resumes. That is O(1) per switch and allocates
+//! nothing.
+//!
+//! **The unit is the tree and never one task's stack**
+//! (`rule:security/isolate-budget-is-the-trees`). A `Core\Task` child charges
+//! its stack to its parent and files results the parent then holds, so the
+//! tasks of one tree read one balance, and children that each stay under the
+//! tree's ceiling still cross it together. Only turns of *other* trees move a
+//! parked tree's offset, so two requests that take turns on one core are each
+//! charged their own bytes, and only the one past its own limit stops
+//! (`rule:security/isolate-shares-nothing`, `rule:errors/on-limit`). The
+//! ceiling, the mark and the refusal's figure are read in the same units, and
+//! the allocation path is unchanged: [`CEILING`] is stored against the
+//! thread's [`LIVE`], and moves with the offset at each resume.
+//!
+//! A task is in its tree's units from its first turn to its end, whatever
+//! context it makes inline. A context running off its tree's root core has no
+//! tree balance to share there, and its stack keeps the offset it had, which
+//! is the thread's balance as before. A block one request allocates and
+//! another frees is still charged to the one that frees it, as a block that
+//! crosses threads is below. The bytes a request hands to a neighbour are rare
+//! and bounded by what it was allowed to hold.
 //!
 //! A block allocated on one thread and freed on another makes the freeing
 //! thread's balance go negative, which is why the counter is signed: it stays a
@@ -226,6 +256,20 @@ thread_local! {
     /// deterministic release means a spike is gone by the time a reader
     /// arrives, and the spike is what the mark exists for.
     static PEAK: Cell<isize> = const { Cell::new(0) };
+    /// How far [`LIVE`] stands from the running tree's own balance: the
+    /// module doc's *per request tree across switches*. [`live_bytes`]
+    /// subtracts it, and [`ArmedStack`] carries it with the stack.
+    static FOREIGN: Cell<isize> = const { Cell::new(0) };
+    /// The request tree whose turn the running stack is, or `None` on a stack
+    /// that runs no task of a tree on its root core.
+    ///
+    /// A handle rather than an address, because the scheduler takes it off the
+    /// thread after a task's last turn, when the task's context and maybe the
+    /// tree's last other holder are gone. Only moved at a switch, so no
+    /// reference count changes there: one clone at a task's first turn, one
+    /// drop after its last. Never read by the allocator, which is what lets it
+    /// hold a type with `Drop`.
+    static TURN: Cell<Option<std::sync::Arc<crate::TreeState>>> = const { Cell::new(None) };
     /// Monotonic: how many allocation requests this thread has made.
     static REQUESTS: Cell<usize> = const { Cell::new(0) };
     /// Monotonic: how many bytes those requests asked for.
@@ -451,8 +495,21 @@ impl Armed {
 /// covers contexts on different stacks: a context made while another task is
 /// parked displaces nothing of that task's. So the address armed always belongs
 /// to a context that is still running, on the stack the thread is running.
+///
+/// `next.ceiling` is in the running stack's own units, as [`live_bytes`] is,
+/// and [`CEILING`] is stored against the thread's [`LIVE`] so the compare in
+/// [`carry`] subtracts nothing. A threshold that lands on the `0` sentinel is
+/// moved one byte up, so a capped request never reads as uncapped.
 pub(crate) fn arm(next: Armed) {
-    CEILING.with(|ceiling| ceiling.set(next.ceiling));
+    let ceiling = if next.ceiling == 0 {
+        0
+    } else {
+        match next.ceiling.saturating_add(FOREIGN.with(Cell::get)) {
+            0 => 1,
+            raw => raw,
+        }
+    };
+    CEILING.with(|cell| cell.set(ceiling));
     POLLED.with(|polled| polled.set(next.word));
 }
 
@@ -463,7 +520,7 @@ pub(crate) fn arm(next: Armed) {
 /// pair until it drops.
 pub(crate) fn displace(next: Armed) -> Armed {
     let displaced = Armed {
-        ceiling: CEILING.with(Cell::get),
+        ceiling: armed_ceiling(),
         word: POLLED.with(Cell::get),
     };
     arm(next);
@@ -489,37 +546,90 @@ pub(crate) fn displace(next: Armed) -> Armed {
 /// back simply drops this, and its contexts' own drops put back what they
 /// displaced on that stack, which is nothing.
 ///
-/// The balance cells [`LIVE`], [`PEAK`] and [`WRITTEN`] stay on the thread:
-/// charging the balance per task turn is a separate change, and the reading
-/// stays the difference the module doc describes.
+/// It also carries the stack's share of the balance: the tree whose turn it
+/// is ([`TURN`]), its [`FOREIGN`] offset and its [`PEAK`] mark. The module
+/// doc's *per request tree across switches* is what they are for. [`LIVE`]
+/// itself stays the thread's, because the core's gauge publishes it.
+/// [`WRITTEN`] stays on the thread too: output is the tree's budget, and a
+/// tree's tasks share one core.
 ///
-/// **Cost:** four thread-local moves per park and four per resume, against a
-/// switch that already costs a stack change. **Memory:** four words per parked
-/// task, O(in-flight).
+/// **Cost:** seven thread-local moves per park and seven per resume, one
+/// relaxed store at a park and one relaxed load at a resume, against a switch
+/// that already costs a stack change, and nothing on the allocation path.
+/// **Memory:** seven words per parked task, O(in-flight).
 #[derive(Debug)]
 #[must_use = "the task's arming is off the thread until this is restored"]
 pub struct ArmedStack {
     armed: Armed,
     refused: Option<Refusal>,
     reporting: bool,
+    /// The tree whose turn the stack was, its balance stored as it parked.
+    turn: Option<std::sync::Arc<crate::TreeState>>,
+    /// [`FOREIGN`] when the stack parked, which is put back only on a stack
+    /// with no tree.
+    foreign: isize,
+    /// The stack's mark in its own units, as [`peak_bytes`] reads it.
+    peak: isize,
 }
 
 impl ArmedStack {
-    /// Takes the four cells off the thread and leaves it under nothing: no
-    /// threshold, no word, no refusal and no reserve.
+    /// Takes the cells off the thread and leaves it under nothing: no
+    /// threshold, no word, no refusal, no reserve, no tree, no offset, and a
+    /// mark at the balance as it stands.
+    ///
+    /// The tree whose turn ends here is given the balance it ends at, which
+    /// is how a task's last turn reaches its tree as well: the scheduler takes
+    /// the stack once more after the task returns.
     pub fn take() -> Self {
-        Self {
+        let turn = TURN.with(Cell::take);
+        if let Some(tree) = &turn {
+            tree.balance.store(live_bytes(), std::sync::atomic::Ordering::Relaxed);
+        }
+        let live = LIVE.with(Cell::get);
+        let taken = Self {
             armed: displace(Armed::NONE),
             refused: take_refusal(),
             reporting: REPORTING.with(|open| open.replace(false)),
+            turn,
+            foreign: FOREIGN.with(|cell| cell.replace(0)),
+            peak: 0,
+        };
+        let peak = PEAK.with(|cell| cell.replace(live));
+        Self {
+            peak: peak.wrapping_sub(taken.foreign),
+            ..taken
         }
     }
 
     /// Puts back what [`take`](ArmedStack::take) answered.
+    ///
+    /// The scheduler's side of a resume. A scheduler that runs on no tree's
+    /// turn is charged for every task it resumes, as a caller is charged for
+    /// what it calls, and its mark keeps the higher of its own and the balance
+    /// the task left.
     pub fn restore(self) {
+        self.resume();
+        PEAK.with(|cell| cell.set(cell.get().max(LIVE.with(Cell::get))));
+    }
+
+    /// Puts back what [`take`](ArmedStack::take) answered, in the units of
+    /// the tree whose turn this stack is.
+    ///
+    /// The task's side of a resume, in `nvs_host`'s `yield_on`: a request
+    /// parked here reads, and is measured against its ceiling by, its own
+    /// tree's allocations alone, however many other trees ran on the core
+    /// meanwhile.
+    pub fn resume(self) {
+        let foreign = match &self.turn {
+            Some(tree) => enter(tree),
+            None => self.foreign,
+        };
+        TURN.with(|cell| cell.set(self.turn));
+        FOREIGN.with(|cell| cell.set(foreign));
         arm(self.armed);
         restore_refusal(self.refused);
         REPORTING.with(|open| open.set(self.reporting));
+        PEAK.with(|cell| cell.set(self.peak.wrapping_add(foreign)));
     }
 
     /// Whether the stack this came off had a safepoint word armed.
@@ -531,6 +641,21 @@ impl ArmedStack {
     pub fn is_armed(&self) -> bool {
         !self.armed.word.is_null()
     }
+}
+
+/// The [`FOREIGN`] offset that puts this thread in `tree`'s units: its
+/// balance as the last turn left it is what [`live_bytes`] reads next.
+fn enter(tree: &crate::TreeState) -> isize {
+    LIVE.with(Cell::get)
+        .wrapping_sub(tree.balance.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// Starts a turn of `tree` on a stack that runs no tree yet: a task's first
+/// turn, in [`Ctx::arm_on_this_stack`](crate::Ctx::arm_on_this_stack). The
+/// threshold armed next is read in the tree's units.
+pub(crate) fn begin_turn(tree: &std::sync::Arc<crate::TreeState>) {
+    FOREIGN.with(|cell| cell.set(enter(tree)));
+    TURN.with(|cell| cell.set(Some(std::sync::Arc::clone(tree))));
 }
 
 /// Raises [`SafepointFlags::MEMORY_LIMIT`](crate::SafepointFlags) and
@@ -617,7 +742,8 @@ pub(crate) struct Refusal {
     /// The bytes the refused allocation asked for, saturated at `isize::MAX`,
     /// and `0` where `full` is set.
     pub(crate) asked: isize,
-    /// The thread's absolute balance when it asked.
+    /// The running stack's absolute balance when it asked, as [`live_bytes`]
+    /// reads it.
     pub(crate) live: isize,
     /// Whether what ran out was the server's memory and not the request's own
     /// ceiling: a publish took the sum of every core's balance past
@@ -665,13 +791,17 @@ pub(crate) fn restore_refusal(refused: Option<Refusal>) {
     REFUSED.with(|cell| cell.set(refused));
 }
 
-/// How many bytes this thread has allocated and not yet freed.
+/// How many bytes the running stack has allocated on this thread and not yet
+/// freed.
 ///
 /// The absolute balance, not a request's share — [`Ctx::memory_used`](crate::Ctx::memory_used)
 /// is the per-request reading and the module doc says how the two relate.
+/// What other tasks moved the thread's balance by while this stack was parked
+/// is left out, so on a stack that never parked this is the thread's whole
+/// balance.
 #[must_use]
 pub fn live_bytes() -> isize {
-    LIVE.with(Cell::get)
+    LIVE.with(Cell::get).wrapping_sub(FOREIGN.with(Cell::get))
 }
 
 /// How many bytes this thread has allocated inside a [`Detached`] bracket and
@@ -699,7 +829,7 @@ pub fn detached_bytes() -> isize {
 /// balance.
 #[must_use]
 pub fn peak_bytes() -> isize {
-    PEAK.with(Cell::get)
+    PEAK.with(Cell::get).wrapping_sub(FOREIGN.with(Cell::get))
 }
 
 /// Starts a fresh mark at the current balance, and hands back the one it
@@ -712,6 +842,7 @@ pub fn peak_bytes() -> isize {
 pub(crate) fn rebase_peak() -> isize {
     let base = LIVE.with(Cell::get);
     PEAK.with(|peak| peak.replace(base))
+        .wrapping_sub(FOREIGN.with(Cell::get))
 }
 
 /// Restores `enclosing` as the mark, keeping whichever of the two is higher.
@@ -720,9 +851,9 @@ pub(crate) fn rebase_peak() -> isize {
 /// is what stops an isolate that allocated little from erasing the peak of the
 /// request that spawned it.
 pub(crate) fn publish_peak(enclosing: isize) {
+    let enclosing = enclosing.saturating_add(FOREIGN.with(Cell::get));
     PEAK.with(|peak| peak.set(peak.get().max(enclosing)));
 }
-
 /// How many allocation requests this thread has made, never decreasing.
 ///
 /// One per `alloc`, `alloc_zeroed` and `realloc`, and none per `dealloc` —
@@ -798,9 +929,15 @@ pub(crate) fn wrote(bytes: usize) {
 /// request started from. The `0` is not a small ceiling but the sentinel the
 /// allocator short-circuits on, and reading it is how a case asks whether a
 /// request armed anything at all.
+///
+/// Read in the running stack's units, as [`live_bytes`] is, so a task that
+/// parks reads the same threshold when it resumes.
 #[must_use]
 pub fn armed_ceiling() -> isize {
-    CEILING.with(Cell::get)
+    match CEILING.with(Cell::get) {
+        0 => 0,
+        raw => raw.wrapping_sub(FOREIGN.with(Cell::get)),
+    }
 }
 
 /// Whether the running request can still afford `bytes` — and the refusal
@@ -839,7 +976,7 @@ pub fn affords(bytes: usize) -> bool {
     if live.saturating_add(ask) <= ceiling {
         return true;
     }
-    refuse(ask, live);
+    refuse(ask, live.wrapping_sub(FOREIGN.with(Cell::get)));
     false
 }
 
@@ -1092,6 +1229,71 @@ mod tests {
             "the release did not lower the balance, so this asserts nothing"
         );
         assert_eq!(peak_bytes(), reached, "the release lowered the mark");
+    }
+
+    /// A tree whose balance starts where this stack stands, so its first turn
+    /// reads what the stack read.
+    fn tree_here() -> std::sync::Arc<crate::TreeState> {
+        let tree = std::sync::Arc::new(crate::TreeState::default());
+        tree.balance
+            .store(live_bytes(), std::sync::atomic::Ordering::Relaxed);
+        tree
+    }
+
+    /// The module doc's *per request tree across switches*, without a
+    /// scheduler. A stack that parks reads the balance and the ceiling it
+    /// parked with, whatever a task of another tree allocated meanwhile. The
+    /// stack that ran both still counts the neighbour's bytes.
+    #[test]
+    fn a_parked_stack_reads_its_own_balance_and_ceiling_when_it_resumes() {
+        let neighbour_size = 2 << 20;
+        let outside = ArmedStack::take();
+        let outside_before = live_bytes();
+        let tree = tree_here();
+        begin_turn(&tree);
+        arm(Armed::new(live_bytes() + (1 << 20), std::ptr::null()));
+        let before = live_bytes();
+        let ceiling = armed_ceiling();
+        let parked = ArmedStack::take();
+        let neighbour = vec![0_u8; neighbour_size];
+        parked.resume();
+        assert_eq!(live_bytes(), before, "a neighbour's bytes reached a parked stack");
+        assert_eq!(armed_ceiling(), ceiling, "the ceiling moved across the switch");
+        assert!(
+            !over_ceiling(),
+            "a neighbour's bytes took a parked stack past its own ceiling"
+        );
+        drop(ArmedStack::take());
+        outside.restore();
+        assert!(
+            live_bytes() >= outside_before + isize::try_from(neighbour_size).expect("fits"),
+            "the stack that ran both lost the neighbour's bytes"
+        );
+        drop(neighbour);
+    }
+
+    /// The other half of the same section: two stacks of one tree read one
+    /// balance, so what one task holds counts against its sibling's ceiling.
+    #[test]
+    fn the_tasks_of_one_tree_read_one_balance() {
+        let sibling_size: isize = 2 << 20;
+        let outside = ArmedStack::take();
+        let tree = tree_here();
+        begin_turn(&tree);
+        let before = live_bytes();
+        let first = ArmedStack::take();
+        begin_turn(&tree);
+        let sibling = vec![0_u8; 2 << 20];
+        drop(ArmedStack::take());
+        first.resume();
+        assert!(
+            live_bytes() >= before + sibling_size,
+            "a task did not see the bytes its sibling holds: {before} then {}",
+            live_bytes()
+        );
+        drop(ArmedStack::take());
+        outside.restore();
+        drop(sibling);
     }
 
     /// A context created inside another measures its own allocation, and gives
