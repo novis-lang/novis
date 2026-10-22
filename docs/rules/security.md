@@ -1378,6 +1378,14 @@ code is not tainted — three digits carry nothing a sink can misread. Values re
 database are `tainted` under the same standing rule, which is what closes stored injection by the same
 mechanism as reflected.
 
+**An object read from storage is `tainted` too.** `Core\Storage::get` answers `?tainted bytes`: a
+disk is where a program puts what a visitor uploaded, so an object is a row by another name.
+`Core\Storage::list` answers plain keys, since a key is one to 255 letters, digits, `.`, `-` and `_`,
+and like a status code it carries nothing a sink can misread. **A file read through `Core\IO` is not
+`tainted`.** Most such reads are the program's own templates, data and assets, and a program that
+keeps uploads as plain files chose the folder an upload lands in. An upload itself is `tainted` where
+it enters, through `Core\Request\Part`.
+
 **A request field is read as text, and typed at the accessor.** `Core\Request::query` and `::post`
 answer one field as `?tainted string` — `null` for a name that is absent and for one written with
 brackets — and `::queryArray` and `::postArray` answer a bracketed name's one level of values as
@@ -1418,6 +1426,10 @@ verbose writes `tainted {…}` over the shape.
 **Declined:**
 - **A `predictable` qualifier of its own.** It would be a third axis that every signature and every
   diagnostic carries, for one source. `tainted` already says "do not let this decide anything".
+- **Every `Core\IO` read answering `tainted`.** Each template, fixture and shipped data file would
+  need `Core\Taint::assertTrusted` with a reason, and the reason would be the same everywhere. A
+  qualifier written that often stops being read. A program that stores uploads should use
+  `Core\Storage`, whose reads are `tainted`.
 - **A run-time check that a key looks random.** No test of a 32-byte buffer tells a seeded draw from
   a real one.
 

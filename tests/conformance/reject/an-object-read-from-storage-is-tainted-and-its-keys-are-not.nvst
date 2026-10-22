@@ -1,0 +1,22 @@
+--TEST--
+an object Core\Storage::get reads back is `tainted bytes`, so it cannot become plain text without a launderer, and the keys Core\Storage::list answers stay plain — `rule:security/tainted-sources`
+--FILE--
+<?nvs
+// A visitor's upload is usually what put the object on the disk.
+bytes $plain = Core\Storage::get("files", "note.txt") ?? "" as bytes;
+string $text = (Core\Storage::get("files", "note.txt") ?? "" as bytes) as string;
+
+// A key is letters, digits, `.`, `-` and `_`, so it compiles as a plain string.
+array<string> $keys = Core\Storage::list("files");
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `bytes|tainted bytes`
+  --> case.nvs:3:16
+%A
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:4:16
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

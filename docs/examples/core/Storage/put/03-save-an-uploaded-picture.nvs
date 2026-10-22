@@ -14,7 +14,7 @@ string $key = Avatars::save(42, "first picture" as bytes);
 Avatars::save(42, "new picture" as bytes);
 
 // The disk has one file for this user. This prints `avatar-42.png: 11 bytes`.
-bytes $saved = Core\Storage::get("files", $key) ?? "" as bytes;
+tainted bytes $saved = Core\Storage::get("files", $key) ?? "" as bytes;
 echo $key, ": ", Core\Bytes::length($saved), " bytes\n";
 
 Core\Storage::delete("files", $key);

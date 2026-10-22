@@ -6,5 +6,8 @@ needs no capability. If no file has the key, `get` returns `null`. This is not a
 missing file with `??` or `== null`. A key that is not valid, such as one with a `/`, throws an
 error.
 
+The result is `tainted bytes`. A file on a disk is often an upload, so its bytes need the same
+checks as a value from a request before they reach HTML, a query or a path.
+
 **Good to know:** `get` reads the whole file into memory. To see which files exist without reading
 them, use `Core\Storage::list`.

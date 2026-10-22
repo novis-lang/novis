@@ -203,7 +203,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["disk", "key"],
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
-            return_ty: CoreTy::Nullable(&CoreTy::Bytes),
+            // `rule:security/tainted-sources`: an object is as untrusted as a
+            // row, since a visitor's upload is what usually put it there.
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedBytes),
             symbol: "nvs_core_storage_get",
             doc: Some(&GET_DOC),
         },
@@ -291,7 +293,8 @@ const GET_DOC: MethodDoc = MethodDoc {
     short: "Reads the file `$key` on `$disk`. If there is no file with that key, the result is \
             `null`.",
     params: &[DISK_DOC, KEY_DOC],
-    ret: "The file's bytes, or `null` if nothing was saved under this key.",
+    ret: "The file's bytes, or `null` if nothing was saved under this key. The bytes are \
+          `tainted`, because a visitor may have written the file.",
     errors: &[
         REFUSAL_DOC,
         ErrorDoc {
