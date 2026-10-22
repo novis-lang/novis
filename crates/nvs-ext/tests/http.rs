@@ -16,7 +16,7 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::pin::pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::task::{Context, Poll, Waker};
 use std::thread;
 use std::time::Duration;
@@ -271,8 +271,9 @@ fn sent(ctx: &mut Ctx, request: Outgoing) -> Result<Incoming, Unsent> {
         url,
         headers,
         body,
+        connect,
     } = request;
-    match nvs_stdlib::extension_send(ctx, &method, &url, headers, body) {
+    match nvs_stdlib::extension_send(ctx, &method, &url, headers, body, &connect) {
         Ok(reply) => Ok(Incoming {
             status: u16::try_from(reply.status).unwrap_or(u16::MAX),
             headers: reply.headers,
@@ -347,7 +348,12 @@ const BOUND: Duration = Duration::from_secs(10);
 /// A loopback listener that answers every connection with `handle` on a thread of its own, and
 /// counts the connections it accepts.
 fn listening(handle: fn(TcpStream)) -> (SocketAddr, Arc<AtomicUsize>) {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port is free");
+    listening_on("127.0.0.1", handle)
+}
+
+/// [`listening`] on the loopback address `ip`.
+fn listening_on(ip: &str, handle: fn(TcpStream)) -> (SocketAddr, Arc<AtomicUsize>) {
+    let listener = TcpListener::bind((ip, 0)).expect("a loopback port is free");
     let at = listener
         .local_addr()
         .expect("a bound socket has an address");
@@ -416,6 +422,25 @@ fn proxy(mut stream: TcpStream) {
             .as_bytes(),
         ),
     );
+}
+
+/// Where [`redirecting`] sends its client.
+static REDIRECT_TO: OnceLock<SocketAddr> = OnceLock::new();
+
+/// An origin that answers one request with a `302` to [`REDIRECT_TO`].
+fn redirecting(mut stream: TcpStream) {
+    drop(stream.set_read_timeout(Some(BOUND)));
+    let Some(to) = REDIRECT_TO.get() else {
+        return;
+    };
+    if head(&mut stream).is_some() {
+        drop(stream.write_all(
+            format!(
+                "HTTP/1.1 302 Found\r\nLocation: http://{to}/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            )
+            .as_bytes(),
+        ));
+    }
 }
 
 /// An `https` origin whose certificate is self-signed, which no root the process trusts signs.
@@ -513,6 +538,26 @@ fn a_guest_http_call_to_a_host_the_caller_does_not_hold_fails() {
     assert_eq!(status, DENIED_AT_HANDLE);
     assert_eq!(budget.sent(), 0);
     assert_eq!(accepted.load(Ordering::Relaxed), 0);
+}
+
+/// Attack: a host all three grant redirects the guest to a host only the caller may reach.
+/// The program's client follows redirects, but the hop is checked against the extension's own
+/// `connect` set, so the guest's request is denied and the second host sees no connection.
+#[test]
+fn a_redirect_to_a_host_only_the_caller_may_reach_is_denied() {
+    let (target, reached) = listening_on("127.0.0.2", origin);
+    REDIRECT_TO
+        .set(target)
+        .expect("only this case sets the redirect");
+    let (at, accepted) = listening(redirecting);
+    let (host, extension) = host_with(LOOPBACK, LOOPBACK);
+    let written = "[capabilities.net]\nconnect = [\"127.0.0.1\", \"127.0.0.2\"]\n\
+                   internal = [\"127.0.0.1\", \"127.0.0.2\"]\n\n\
+                   [http.client]\nmax_redirects = 3\n";
+    let (status, budget) = get(&host, &extension, written, false, &at.to_string());
+    assert_eq!(status, DENIED, "{}", budget.logged());
+    assert_eq!(accepted.load(Ordering::Relaxed), 1);
+    assert_eq!(reached.load(Ordering::Relaxed), 0);
 }
 
 /// All three parties name the host, but the caller's grant writes an empty `internal`, which

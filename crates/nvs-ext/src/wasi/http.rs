@@ -516,6 +516,7 @@ impl Context {
             url: format!("{scheme}://{authority}{path}"),
             headers,
             body: None,
+            connect: self.connect.clone(),
         })
     }
 }

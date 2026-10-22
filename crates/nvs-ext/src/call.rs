@@ -178,6 +178,10 @@ pub struct Outgoing {
     pub headers: Vec<(String, String)>,
     /// The body, or `None` for a request that carries none.
     pub body: Option<Vec<u8>>,
+    /// The hosts the extension may connect to: the intersection
+    /// `rule:security/extension-grants-are-an-intersection` names. The URL's host is one of
+    /// them, and so must be the host of every redirect the request follows.
+    pub connect: Vec<String>,
 }
 
 /// The response to an [`Outgoing`] request, whole.

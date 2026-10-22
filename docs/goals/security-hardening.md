@@ -443,7 +443,10 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
   - [x] the attack: a served request calls `Geo\Atlas`, then three child scripts without `fs.read` call it (red on main)
   - [x] `Calls` keeps one request per narrowing, and the attack is green
   - [x] both rules say so
-- [ ] EXT-6: a redirect hop is checked against the extension's intersection (`rule:security/extension-grants-are-an-intersection`). `crates/nvs-ext/src/wasi/http.rs:488`
+- [x] EXT-6: a redirect hop is checked against the extension's intersection (`rule:security/extension-grants-are-an-intersection`). `crates/nvs-ext/src/wasi/http.rs:488`
+  - [x] the attack: a granted host redirects the guest to `127.0.0.2`, which only the caller may reach (red on main)
+  - [x] `Outgoing::connect` carries the set and `extension_send` refuses the hop, and the attack is green
+  - [x] the rule says so
 - [ ] EXT-7 to EXT-10: each Low item in the sinks report, fixed or declined into its rule. `.agent-tmp/sec-audit/reports/wb-sinks.md:212`
 - [x] The attack: 200 requests that each call `Novis\Intl`, every answer correct, memory flat; a Rust test in `nvs-cli`. `crates/nvs-cli/tests/serve_isolation.rs:1`
 

@@ -3915,7 +3915,9 @@ pub struct ExtensionReply {
 /// call takes (`rule:packaging/a-guest-has-no-ambient-authority`).
 ///
 /// `net.connect` and the address policy are asked of `ctx` for the URL's host and again at
-/// every redirect hop, and `[http.client]`'s bounds, TLS trust and proxy apply as they do to a
+/// every redirect hop. A hop's host must also be one of `connect`, the hosts the extension may
+/// reach (`rule:security/extension-grants-are-an-intersection`), compared without case as the
+/// guest's own first host is. `[http.client]`'s bounds, TLS trust and proxy apply as they do to a
 /// call with no options: TLS is verified strictly, a hop into plaintext is refused, the
 /// redirects followed are `[http.client] max_redirects`, and the request is sent once. A
 /// refusal names the `Core\Http\Client` member of the method, so a `GET` is `get`'s. The
@@ -3925,13 +3927,15 @@ pub struct ExtensionReply {
 /// # Errors
 ///
 /// A `LogicError` for a method that is not an upper-case token and for a body on a `GET` or a
-/// `HEAD`, then [`pin`]'s refusals, [`call_of`]'s, and whatever [`transport::send`] raised.
+/// `HEAD`, then [`pin`]'s refusals, [`call_of`]'s, and whatever [`transport::send`] raised. A
+/// `RuntimeError` for a redirect to a host outside `connect`, before anything is sent to it.
 pub fn extension_send(
     ctx: &mut Ctx,
     verb: &str,
     url: &str,
     headers: Vec<(String, String)>,
     body: Option<Vec<u8>>,
+    connect: &[String],
 ) -> Result<ExtensionReply, Fault> {
     let named = format!("{CLIENT_NAME}::{}", verb.to_ascii_lowercase());
     if verb.is_empty() || !verb.bytes().all(|byte| byte.is_ascii_uppercase()) {
@@ -3956,6 +3960,16 @@ pub fn extension_send(
     call.headers = headers;
     call.body = body.map(|octets| held(None, octets));
     let reply = transport::send(&call, &mut |hop, downgrade| {
+        let host = judged_host(hop, &named, Roster::Request)?;
+        let bare = host.trim_start_matches('[').trim_end_matches(']');
+        if !connect
+            .iter()
+            .any(|granted| granted.eq_ignore_ascii_case(bare))
+        {
+            return Err(Fault::thrown(format!(
+                "{named}: the redirect goes to `{host}`, which this extension may not connect to"
+            )));
+        }
         repinned(ctx, &args, hop, downgrade, &named)
     })?;
     traced(ctx, &call);
