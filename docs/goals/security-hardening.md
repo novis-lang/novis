@@ -407,9 +407,9 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 
 - [x] HTTP-1: set hyper's buffer size, and keep a buffered response's in-flight place until its body is written. `crates/nvs-server/src/serve.rs:2373`
 - [x] HTTP-1: admission reads memory charged to requests, not the thread's total (`rule:http-server/admission-is-arithmetic-not-a-number`). `crates/nvs-server/src/admit.rs:1`
-- [ ] LC-3, LC-9: no span queued without an exporter, the client's flag read only with one, and `request_id` always the server's (`rule:observability/sampling-is-head-based`). `crates/nvs-server/src/trace.rs:278`
-- [ ] LC-6, LC-7: the `method` label is closed, and a 501 logs at `info`. `crates/nvs-server/src/serve.rs:1706`
-- [ ] LC-5: blocking-pool CPU is charged to its request (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/blocking.rs:349`
+- [x] LC-3, LC-9: no span queued without an exporter, the client's flag read only with one, and `request_id` always the server's (`rule:observability/sampling-is-head-based`). `crates/nvs-server/src/trace.rs:278`
+- [x] LC-6, LC-7: the `method` label is closed, and a 501 logs at `info`. `crates/nvs-server/src/serve.rs:1706`
+- [x] LC-5: blocking-pool CPU is charged to its request (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/blocking.rs:349`
 - [x] ~~LC-8: try the native stack overflow shapes in the lifecycle report; if the process ends, the deep helper checks the stack it has left and throws.~~ Ruled out on a2b4854a4: every native walk over a runtime value is iterative or depth-bounded, JSON decode's 1024-deep recursion runs on the 8 MiB spare stack, and each shape answered a clean `500` with the worker still serving (LC-8 in the lifecycle report). `.agent-tmp/sec-audit/reports/wb-lifecycle.md:1`
 - [ ] LC-12: a configured `[log]` escalation handler runs on a task of its own behind a bounded queue, never joined on the serving worker; a full queue drops the event and counts it in a metric, so forced uncaught throws cannot each hold a worker for `handler_reserve_time`. The queue's length is a constant with its reason in the code (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/ladder.rs:122`
 - [x] HTTP-1's fix keeps a Rust test beside `admit.rs`: a core thread holding connection buffers past the room still admits a request, because admission reads request memory only. No idle-connection or slow-reader attack, since a proxy stops those first. `crates/nvs-server/src/admit.rs:1`
@@ -529,8 +529,41 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 7 is under way. Its first two items and the HTTP-1 test have landed: the buffered response's
-place (8c8a86f6d) and, this session, admission reading request memory only.
+Stage 7 is under way. HTTP-1 (both items and its test), LC-3/LC-9, LC-6/LC-7 and LC-5 have landed.
+LC-12, the overload attack, the `flood` row and `max_tasks`'s comment are left.
+
+This session (the sweep's `env-secret-proofs` exits 0 when rerun; nightly 39746060276 was cancelled
+whole and is not a failure of this tree):
+
+- **e139f309d** renders the core-classes, errors, http-server and security chapters, which stages 5
+  to 7 left stale. Run `bun nv rules --render` after editing a fragment.
+- **LC-3, LC-9 (004430e72).** `nvs_config::export::head_sample` returns `Option<f64>`: `None` where
+  `Tracing::of` is `None`. `nvs_server::trace::take(inbound, Option<f64>)` with `None` calls the new
+  `TraceContext::unrecorded`, so neither a draw nor a client's `-01` records anything; the trace id
+  is still continued, and an outbound call carries `-00`. A scheduled run uses `unwrap_or(0.0)`
+  (`crates/nvs-cli/src/serve.rs`, `rooted`). `TraceContext` has a new `request_id` (the trace id
+  for a root, a fresh draw for a continued trace), `request_id_hex` and `continued`.
+  `Ctx::stamp_envelope` and `trace::access` write `request_id_hex`, and `trace_id`/`span_id` for a
+  sampled **or continued** trace. `Core\Server::traceId()` still reads the trace id. Four rules say
+  so (`a-trace-id-exists-for-every-request`, its title too, `a-log-record-carries-…`,
+  `sampling-is-head-based`, `an-inbound-traceparent-is-continued`). Tests
+  `with_no_exporter_a_sampled_header_records_nothing` and
+  `a_continued_trace_gets_a_request_id_the_client_did_not_choose` are new; the edited trace, log and
+  directives tests ran once, green.
+- **LC-6, LC-7 (1befebd34).** `nvs_runtime::metrics::method_label` maps the nine RFC 9110 methods to
+  themselves and anything else to `other`, inside `Registry::request`. `trace::access` and `serve.rs`'s
+  `counted` treat `501` like a `4xx`: `Info`, and only with `[log] access` on. A program's own `501`
+  is treated the same; the access-log rule says why. Tests `an_unknown_verb_is_labelled_other` and
+  `a_501_is_an_access_line_at_info` ran once, green.
+- **LC-5 (55d35f3de).** `blocking::run` and the pinned `Request::answer` read the pool thread's CPU
+  clock (`cpu_now`, `cpu_since`) and send the spent time back with the answer; the task calls the
+  new `watchdog::charge_running`, which adds it to the running tree's `Charge::offloaded` (a second
+  word; `Charge::at` adds it). Test `cpu_spent_on_the_blocking_pool_is_charged_to_the_request` ran
+  once, green, with a 60 ms job. The audit's second fix, a SQLite progress-handler deadline from the
+  remaining CPU time, is not in the decision and was not done (see Backlog).
+- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+
+Admission, for the record (the previous session):
 
 - **A connection between requests is not counted.** Each core's gauge is now `LIVE + DETACHED −
   IDLE` (`crates/nvs-runtime/src/budget/gauge.rs`, `report`, `move_idle`). `IDLE` is a thread-local
@@ -553,10 +586,7 @@ place (8c8a86f6d) and, this session, admission reading request memory only.
   and is admitted; after `reroot` the same bytes refuse. It reads `budget::held_by_this_core` (new),
   so other tests' cores stay out. Before the base fix its first assert failed with 64 MiB published.
 - `rule:http-server/admission-is-arithmetic-not-a-number` has the paragraph, the memory line and a
-  Declined entry, and `guardedBy` names `gauge.rs`. `cargo build`, `cargo clippy --all-targets -- -D
-  warnings` and `bun nv rules --check` are green.
-- The sweep's `env-secret-proofs` reads exit 0 when rerun here. Nightly run 39746060276 was cancelled
-  whole and is not a failure of this tree.
+  Declined entry, and `guardedBy` names `gauge.rs`.
 
 RT-4, for the record:
 
@@ -690,18 +720,30 @@ test that reads `in_flight()` right after a buffered response's head arrives and
 This session adds: any test that reads `held_by_cores` or `nvs_memory_bytes` from a served core
 between requests and expects the connection's buffers in it (`crates/nvs-cli/src/serve.rs:4271`
 reads `held_by_cores`; not run), and a lowering or layout snapshot of `Ctx` (one new `bool`).
+LC-3/LC-9 add: any test, `.nvst` or snapshot that expects a log record's `request_id` to equal an
+inbound `traceparent`'s trace id, or a continued unsampled request's record to have no `trace_id`
+(grep found only the ones updated here); any `nvs-cli` test that serves with a sampled inbound
+`traceparent` and no `[trace] exporter` and expects spans, a `-01` `traceresponse` or `-01` on an
+outbound call (none found); the website's generated rule pages (two rule titles changed). LC-6/LC-7
+add: any test that reads `nvs_requests_total` under a non-standard method label, or expects a door
+`501` at `error` with `[log] access` off (none found). LC-5 adds: a watchdog test whose request runs
+blocking work and expects its charge to stay small (none found).
 
 ### Next
 
-Stage 7, in one session per two or three items, all in `nvs-server`, `nvs-host` and `nvs-runtime`:
+Stage 7's rest, in one session, then stage 8:
 
-1. LC-3, LC-9 (`crates/nvs-server/src/trace.rs:278`), then LC-6, LC-7
-   (`crates/nvs-server/src/serve.rs:1706`).
-2. LC-5 (`crates/nvs-host/src/blocking.rs:349`) and LC-12 (`crates/nvs-host/src/ladder.rs:122`).
-3. The overload attack (`crates/nvs-cli/tests/serve_isolation.rs:1`), the `flood` row
+1. LC-12 (`crates/nvs-host/src/ladder.rs:122`): the `[log]` escalation handler runs on a task of its
+   own behind a bounded queue, never joined on the serving worker; a full queue drops and counts.
+2. The overload attack (`crates/nvs-cli/tests/serve_isolation.rs:1`), the `flood` row
    (`benches/compare/README.md:80`), and `max_tasks`'s comment (`crates/nvs-config/src/default.toml:86`).
+   The attack may take a session of its own.
 
 ### Backlog
+
+- The audit's LC-5 also proposed a SQLite progress-handler deadline from the request's remaining CPU
+  time, so a slow statement stops at `cpu_time` instead of only being charged after it ends. No item
+  owns it; the charge alone stops the request at its next safepoint once the statement returns.
 
 - Not checked: the stage 1 rerun saw `Response::sendFile("assets/logo.svg")` answer `500` in a copy of
   `.agent-tmp/sec-audit/bb-kitchen/app`, where the audit saw `200`. Serve that app as its
