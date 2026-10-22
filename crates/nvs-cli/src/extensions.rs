@@ -382,10 +382,11 @@ impl nvs_runtime::extension::Extensions for Served {
     }
 }
 
-/// The host `nvs test` installs on the suite's thread and on each core it starts: as
-/// [`Served`], but over the one set the suite loaded. Each test runs under a parent context of
-/// its own, so its calls run in a [`Calls`] of its own, under its own budget, and its instances
-/// end with it.
+/// The host `nvs test` installs on the suite's thread, on each core it starts and on the
+/// `--shared-worker` thread (`crate::shared`): as [`Served`], but over the one set the suite
+/// loaded. Each test or case runs under a parent context of its own, so its calls run in a
+/// [`Calls`] of its own, under its own budget, and its instances end with it. A [`Calls`] that
+/// outlived the tree it was made in would read that tree's spent CPU as all of it.
 pub(crate) struct Tested(pub(crate) Arc<Set>);
 
 impl nvs_runtime::extension::Extensions for Tested {
