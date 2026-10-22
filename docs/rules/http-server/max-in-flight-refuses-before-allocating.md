@@ -1,5 +1,7 @@
 `[server] max_in_flight` (`10000`) is a process-wide safety valve, not a worker pool. At the ceiling the server answers a fixed `503` with `Retry-After: 1` **before allocating an isolate, compiling anything or running any Novis code** — a cap that allocates in order to refuse does not protect what it exists to protect, and the consequence accepted is that this path has no custom error page.
 
+A request keeps its place until its answer is written. A streamed answer keeps it until the isolate writing it ends, and a whole answer until the poll that finds none of it left to write. A client that reads slowly therefore still counts, and so do the bytes the server holds for it. A connection idle between requests holds no place.
+
 The count is process-wide through one relaxed atomic rather than per core, so one hot core cannot refuse while its neighbours idle; that counter is not on the value path the non-atomic-refcount decision protects. Not accepting at all was rejected: behind a proxy a silent refusal surfaces as a 504 blamed on the wrong component, and gives the proxy no signal to fail over on.
 
 This count is one of two conditions, and the same refusal answers both: a request is also refused while the memory every core holds leaves no room for it to reach its per-request cap (`rule:http-server/admission-is-arithmetic-not-a-number`). The count stays the operator's own number, and is never derived from the memory budget.

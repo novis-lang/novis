@@ -1346,8 +1346,9 @@ struct Streamed<'a> {
     /// tier C, held for as long as this request is still spending a core. A
     /// place given back when the head went out would be a request running
     /// outside the one ceiling that counts it, and a peer that reads slowly
-    /// would be how a server acquires unbounded concurrency.
-    _place: crate::admit::InFlight<'a>,
+    /// would be how a server acquires unbounded concurrency. Always `Some`:
+    /// the service takes it out of the `Option` it keeps for a buffered answer.
+    _place: Option<crate::admit::InFlight<'a>>,
     /// What a sampled request's root span is of, and the trace it belongs to —
     /// read off the carrier before the isolate took it, and held here for the
     /// same reason the isolate is: a streamed answer leaves the service
@@ -1623,6 +1624,14 @@ where
     // what is here.
     let writing: RefCell<Option<Streamed<'_>>> = RefCell::new(None);
     let writing = &writing;
+    // The place of a request whose answer was whole when the service ended,
+    // held until `hyper` has written all of it. A response that waits on a peer
+    // which reads slowly still holds its bytes, so it still counts against
+    // `max_in_flight`. The drive loop below gives it back once a poll ends with
+    // `hyper` reading again and no write waiting for room. At most one, for the
+    // reason `writing` holds at most one.
+    let sending: RefCell<Option<crate::admit::InFlight<'_>>> = RefCell::new(None);
+    let sending = &sending;
     // When this connection's event stream, if it opened one, next owes a byte.
     // Empty on every other connection and emptied again when the stream ends,
     // so the loop below arms a wake for an event stream and for nothing else —
@@ -1642,6 +1651,7 @@ where
     // moment anything on this side can reach it.
     let phase = io.phase();
     let phase = &phase;
+    let write_parked = io.write_parked();
     let drain_seen = io.drain_seen();
     let drain_seen = &drain_seen;
     // What `crate::heads` found in the bytes `hyper` framed, and how many
@@ -1790,12 +1800,13 @@ where
         // the ceiling is asked before the handler is, so a refused request has
         // selected no mount, allocated no isolate, compiled nothing and run no
         // Novis code. A valve that allocated in order to refuse would not
-        // protect what it exists to protect. The guard lives to the end of this
-        // Rust closure — or, for a response whose body is still being written when
-        // that Rust closure ends, to the end of the isolate writing it ([`Streamed`]
-        // is what carries it there). That is the whole of what "in flight"
-        // means here: a request is in flight while it is still spending a core,
-        // however much of its answer is already on the wire.
+        // protect what it exists to protect. The guard lives until the answer is
+        // written. A streamed answer's goes to the end of the isolate writing it
+        // ([`Streamed`] carries it there), and a whole answer's goes to the poll
+        // that finds nothing of it left to write (`sending` holds it until then).
+        // That is the whole of what "in flight" means here: a request is in
+        // flight while it is still spending a core or holding the bytes of its
+        // answer.
         let Some(place) = serving.admission.admit() else {
             phase.set(Phase::Write);
             let mut refused = crate::admit::over_capacity();
@@ -1803,6 +1814,9 @@ where
             counted(&mut refused, None, origin.client(), None, &snapshot);
             return Ok::<_, Infallible>(refused);
         };
+        // A streamed answer moves the place onto `writing`, and a whole one
+        // leaves it here for `sending` at the end of this closure.
+        let mut place = Some(place);
         // `rule:http-server/cors-is-closed-until-origins-are-named`, asked here for the reason the valve above it is: a
         // preflight selects no mount, allocates no isolate and runs no Novis
         // code, under an open policy exactly as under a closed one — § 2
@@ -2149,7 +2163,7 @@ where
                                     );
                                     *writing.borrow_mut() = Some(Streamed {
                                         peer,
-                                        _place: place,
+                                        _place: place.take(),
                                         recording,
                                     });
                                     break head;
@@ -2359,6 +2373,9 @@ where
             traced,
             ran_under.as_ref().unwrap_or(&snapshot),
         );
+        // The bytes of a whole answer are still this request's until they are
+        // written, so its place stays in the count until then.
+        *sending.borrow_mut() = place.take();
         Ok(answered)
     });
     // **Driven through a borrow rather than moved in**, which is the whole of
@@ -2408,6 +2425,12 @@ where
         // of this function would leave one request's isolate uncollected across
         // the whole of the next one's.
         joined_when_ended(writing, &mut ctx.borrow_mut());
+        // A whole answer is written once a poll ends with no write waiting for
+        // room (`crate::io::ConnectionIo::write_parked`), and its place goes
+        // back then. An idle keep-alive connection holds none.
+        if polled.is_pending() && !write_parked.get() {
+            drop(sending.borrow_mut().take());
+        }
         // Last, and after the whole pass rather than inside it: an event stream
         // that is about to park has to be woken in time to write its keep-alive,
         // and a request the drain period cuts in time to be cut.
@@ -6559,7 +6582,7 @@ pub(crate) mod tests {
                 seen: crate::io::DrainSeen::default(),
                 period: Duration::ZERO,
             },
-            _place: admission.admit().expect("a free place under the ceiling"),
+            _place: Some(admission.admit().expect("a free place under the ceiling")),
             // Nobody is recording this one: what it asserts is the join, and a
             // graph derived from a fixture's empty completion would be a second
             // claim in a case about one.
@@ -6658,6 +6681,115 @@ pub(crate) mod tests {
             0,
             "the place a streamed answer held was never given back"
         );
+    }
+
+    /// **A whole answer keeps its place in flight until its body is written**,
+    /// and gives it back before the next request on the same connection.
+    ///
+    /// The body is far larger than a loopback socket's buffers on Linux and
+    /// macOS, and the client reads only its head before it asks the count. A
+    /// place given back when the service ended would read `0` there, and a peer
+    /// that reads slowly would then hold the body's bytes outside
+    /// `max_in_flight`. Windows takes the whole body into the kernel at once, so
+    /// the server never waits there and the count is not asked. The second
+    /// request reads the count from its own handler: `1` is its own place, and
+    /// `2` would be a place an idle keep-alive connection still held.
+    #[test]
+    fn a_whole_answer_holds_its_place_until_it_is_written() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        const WHOLE: usize = 32 * 1024 * 1024;
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let admission = Arc::new(Admission::new(&Ceiling::of(&Capacity {
+            configured: 10_000,
+            per_request: None,
+            budget: None,
+        })));
+        let while_unread = Arc::new(AtomicUsize::new(usize::MAX));
+        let client = {
+            let counted = Arc::clone(&admission);
+            let observed = Arc::clone(&while_unread);
+            std::thread::spawn(move || {
+                let mut socket =
+                    TcpStream::connect(addr).expect("the loopback refused a connection");
+                socket
+                    .write_all(b"GET /big HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                    .expect("the write failed");
+                let mut seen = Vec::new();
+                let mut buffer = vec![0_u8; 64 * 1024];
+                let head_ends = loop {
+                    let read = socket.read(&mut buffer).expect("the head could not be read");
+                    assert!(read > 0, "the connection closed before the head arrived");
+                    seen.extend_from_slice(&buffer[..read]);
+                    if let Some(at) = seen.windows(4).position(|w| w == b"\r\n\r\n") {
+                        break at + 4;
+                    }
+                };
+                // Time for the server to fill the socket and park on the write.
+                std::thread::sleep(Duration::from_millis(200));
+                observed.store(counted.in_flight(), Ordering::Relaxed);
+                let mut body = seen.len() - head_ends;
+                while body < WHOLE {
+                    let read = socket.read(&mut buffer).expect("the body could not be read");
+                    assert!(read > 0, "the connection closed inside the body");
+                    body += read;
+                }
+                socket
+                    .write_all(
+                        b"GET /next HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+                    )
+                    .expect("the second write failed");
+                let mut rest = String::new();
+                socket
+                    .read_to_string(&mut rest)
+                    .expect("the second response could not be read");
+                end_the_loop(addr);
+                rest
+            })
+        };
+        let at_the_next = Rc::new(Cell::new(usize::MAX));
+        let handler = Rc::new({
+            let counted = Arc::clone(&admission);
+            let at_the_next = Rc::clone(&at_the_next);
+            move |request: Request<Incoming>, _origin: Origin| {
+                if request.uri().path() == "/big" {
+                    Reply::Done(Response::new(Answer::new(Bytes::from(vec![b'x'; WHOLE]))))
+                } else {
+                    at_the_next.set(counted.in_flight());
+                    Reply::Done(Response::new(Answer::new("next")))
+                }
+            }
+        });
+        let serving = Serving::new(
+            Arc::clone(&admission),
+            Arc::new(Secure::default()),
+            Arc::new(Trusted::none()),
+            Arc::new(Cors::default()),
+            Arc::default(),
+        );
+
+        let answer = served_across_requests(listener, &handler, client, serving);
+        assert!(
+            answer.starts_with("HTTP/1.1 200 OK\r\n"),
+            "the second request was not answered: {answer}"
+        );
+        if cfg!(unix) {
+            assert_eq!(
+                while_unread.load(Ordering::Relaxed),
+                1,
+                "a whole answer still being written was no longer counted in flight"
+            );
+        }
+        assert_eq!(
+            at_the_next.get(),
+            1,
+            "the first answer's place was still held after it was written"
+        );
+        assert_eq!(admission.in_flight(), 0, "a place was never given back");
     }
 
     /// **A request whose isolates are still running when the client
