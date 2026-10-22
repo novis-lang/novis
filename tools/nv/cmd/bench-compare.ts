@@ -9,6 +9,7 @@
 //     bun nv bench-compare --scenarios --record benches/compare.json   # the feature rows, into that record
 //     bun nv bench-compare --arm deployed --record PATH          # four cpus to each backend
 //     bun nv bench-compare --down                                # tear every stack down
+//     bun nv bench-compare --profile json-api                    # perf and strace on Novis serving one case
 //
 // `benches/compare/README.md` is why the comparison is built the way it is, and this file owns only how a
 // run is carried out. The Docker half is `tools/nv/cmd/bench-docker.ts`'s, shared with `bench-proxied`.
@@ -25,6 +26,13 @@
 // `--scenarios` runs the feature rows in `SCENARIOS` instead of the cases. A row brings each peer's stack
 // up fresh over the row's own programs, runs its probe, and maps what the peer did to one of the four
 // results in `Verdict`, with the evidence beside it.
+//
+// `--profile CASE` measures no peer. It builds the Novis image, copies `oha` out of its pinned image, and
+// runs `benches/compare/profile.sh` in a privileged container of the Novis image, with no nginx: `nvs
+// serve` on one pinned core, `oha` on others, the top self symbols of `perf record -F 1999` over 15 s, and
+// the system calls per request from `strace -c`. The `wait` case first prints the server cgroup's
+// `memory.peak` minus its idle `memory.current`, per request in flight, over two loads of 1000. When
+// `perf` cannot record in a container on this machine it exits 1, and `profile.sh` is the recipe by hand.
 
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -35,11 +43,16 @@ import { Fail, grouped, host, stamp, version } from "./bench.ts";
 import { type Arm, compose, down, type Load, logsOf, messageOf, ohaArm, requireDocker, up } from "./bench-docker.ts";
 import { effectivePhp, PHP_INI } from "./bench-proxied.ts";
 
-export const summary = "Novis, PHP-FPM, Bun and Go behind one TLS nginx, in containers: nv bench-compare [--smoke] [--scenarios] [--arm fair|deployed] [--record PATH]";
+export const summary = "Novis, PHP-FPM, Bun and Go behind one TLS nginx, in containers: nv bench-compare [--smoke] [--scenarios] [--arm fair|deployed] [--record PATH] [--profile CASE]";
 
 export const COMPARE_DIR = join(ROOT, "benches", "compare");
 const GENERATED = join(COMPARE_DIR, "generated");
 const TLS_DIR = join(GENERATED, "tls");
+/** What `--profile` mounts at `/profile`: `oha` and the timed request's body. */
+const PROFILE_DIR = join(GENERATED, "profile");
+export const PROFILE_SCRIPT = join(COMPARE_DIR, "profile.sh");
+/** The image `compose.nvs.yaml` builds, which `--profile` runs with `perf` and `strace` added. */
+export const NVS_IMAGE = "nvs-bench-serve:local";
 
 /** The ini `compose.php.yaml` mounts after the proxied leg's, which turns PHP's file check back on at its defaults. */
 export const FILE_CHECK_INI = join(COMPARE_DIR, "php", "file-check.ini");
@@ -1880,7 +1893,7 @@ async function composeAsync(stack: string, args: string[], env: Record<string, s
 const USAGE =
   "usage: nv bench-compare [-h] [--smoke] [--scenarios] [--arm {fair,deployed}] [--backend-cpus N]\n" +
   "                        [--row ID] [--expect PEER=RESULT,...] [--requests REQUESTS] [--reps REPS]\n" +
-  "                        [--record PATH] [--down]";
+  "                        [--record PATH] [--down] [--profile CASE]";
 
 interface Options {
   smoke: boolean;
@@ -1893,6 +1906,7 @@ interface Options {
   down: boolean;
   row: string | null;
   expect: Map<string, Verdict> | null;
+  profile: Case | null;
 }
 
 /** `--expect nvs=on-by-default,php=no`: the result each named peer must get in every row run. */
@@ -1922,7 +1936,7 @@ export function unmetExpectations(expect: Map<string, Verdict>, results: Map<str
 }
 
 function options(args: string[]): Options | null {
-  const p = parseArgs(args, { flags: ["--smoke", "--scenarios", "--down"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--expect"] });
+  const p = parseArgs(args, { flags: ["--smoke", "--scenarios", "--down"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--expect", "--profile"] });
   if (p.flags.has("--help")) return null;
   const int = (o: string): number | null => {
     const word = p.values.get(o);
@@ -1935,6 +1949,12 @@ function options(args: string[]): Options | null {
   if (arm !== "fair" && arm !== "deployed") throw new ArgError(`argument --arm: invalid choice: ${pyRepr(arm)} (choose from 'fair', 'deployed')`);
   const expect = p.values.get("--expect");
   if (expect !== undefined && !p.flags.has("--scenarios")) throw new ArgError("argument --expect: only with --scenarios");
+  const profile = p.values.get("--profile");
+  const profiled = profile === undefined ? null : CASES.find((c) => c.id === profile);
+  if (profiled === undefined) throw new ArgError(`argument --profile: invalid choice: ${pyRepr(profile!)} (choose from ${CASES.map((c) => `'${c.id}'`).join(", ")})`);
+  if (profiled !== null && (p.flags.has("--smoke") || p.flags.has("--scenarios") || p.flags.has("--down") || p.values.has("--record"))) {
+    throw new ArgError("argument --profile: not with --smoke, --scenarios, --down or --record");
+  }
   return {
     smoke: p.flags.has("--smoke"),
     scenarios: p.flags.has("--scenarios"),
@@ -1946,6 +1966,7 @@ function options(args: string[]): Options | null {
     down: p.flags.has("--down"),
     row: p.values.get("--row") ?? null,
     expect: expect === undefined ? null : parseExpect(expect),
+    profile: profiled,
   };
 }
 
@@ -1975,6 +1996,9 @@ function help(): string {
     "                        with --scenarios, exit 1 when a row's result for PEER is not RESULT",
     "                        (built-in, on-by-default, one-setting, your-code or no)",
     "  --down                tear every peer's stack down and stop",
+    "  --profile CASE        profile Novis alone serving CASE: the top symbols under perf, the system",
+    "                        calls per request under strace, and for wait the memory per request in",
+    "                        flight. Needs a privileged container",
     "",
     "benches/compare/README.md is the design; this tool is only how it is run. It needs bun and Docker.",
   ].join("\n");
@@ -2040,9 +2064,52 @@ async function scenarios(o: Options, cpus: number, commit: string, load: Load): 
 
 const mib = (bytes: number | null) => (bytes === null ? "    -" : fixed(bytes / 1048576, 1).padStart(6));
 
+/** The body file `--profile` writes for a case whose timed request has one, under `PROFILE_DIR`. */
+const PROFILE_BODY = "body";
+
+/** `docker run`'s arguments for `--profile`: the bench image, privileged, with `profile.sh` as its program. */
+export function profileArgs(c: Case, dir: string): string[] {
+  const mount = (src: string, dst: string, readonly: boolean) => ["--mount", `type=bind,src=${src},dst=${dst}${readonly ? ",readonly" : ""}`];
+  return [
+    "run", "--rm", "--privileged", "--entrypoint", "bash",
+    ...mount(join(COMPARE_DIR, "cases"), "/cases", true),
+    ...mount(dir, "/profile", true),
+    ...mount(PROFILE_SCRIPT, "/profile.sh", true),
+    NVS_IMAGE,
+    "/profile.sh", c.id, c.timed.method, c.timed.path, ...(c.timed.body === undefined ? [] : [PROFILE_BODY]),
+  ];
+}
+
+/** `--profile`: builds the image, stages `oha` and the body, and runs `profile.sh` with its output shown. */
+function profile(c: Case, commit: string): number {
+  const nvs = PEERS.find((p) => p.id === "nvs")!;
+  const env = stackEnv(nvs, { cpus: 1, concurrency: c.concurrency, tree: "cases", case: c.id, commit });
+  if (compose(stackPath(nvs), ["build", "app"], env, false).code !== 0) throw new Fail(`building ${NVS_IMAGE} failed`);
+  mkdirSync(PROFILE_DIR, { recursive: true });
+  const docker = (args: string[]) => {
+    const out = Bun.spawnSync(["docker", ...args], { stdout: "pipe", stderr: "pipe" });
+    if (out.exitCode !== 0) throw new Fail(`docker ${args[0]} failed: ${out.stderr.toString().trim()}`);
+    return out.stdout.toString().trim();
+  };
+  const made = docker(["create", OHA_IMAGE]);
+  try {
+    docker(["cp", `${made}:/bin/oha`, join(PROFILE_DIR, "oha")]);
+  } finally {
+    docker(["rm", made]);
+  }
+  if (c.timed.body !== undefined) writeFileSync(join(PROFILE_DIR, PROFILE_BODY), c.timed.body);
+  const done = Bun.spawnSync(["docker", ...profileArgs(c, PROFILE_DIR)], { stdout: "inherit", stderr: "inherit" });
+  if (done.exitCode === 3) {
+    console.error(`perf cannot record in a container on this machine. ${rel(PROFILE_SCRIPT)} is the profile, step by step: run its steps by hand on a Linux host.`);
+    return 1;
+  }
+  return done.exitCode === 0 ? 0 : 1;
+}
+
 async function main(o: Options): Promise<number> {
   requireDocker();
   const commit = version("git", ["rev-parse", "--short", "HEAD"]);
+  if (o.profile !== null) return profile(o.profile, commit);
 
   if (o.down) {
     for (const peer of PEERS) down(stackPath(peer), stackEnv(peer, { cpus: 1, concurrency: 1, tree: "cases", case: CASES[0]!.id, commit }));
