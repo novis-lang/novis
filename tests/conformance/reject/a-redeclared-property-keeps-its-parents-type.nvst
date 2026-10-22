@@ -29,11 +29,11 @@ class DogShelter extends Shelter {
     public Animal $same;
 
     public function constructor(public Dog $promoted) {
-        parent::constructor($promoted);
         $this->spare = $promoted;
         $this->pet = $promoted;
         $this->hooked = $promoted;
         $this->same = $promoted;
+        parent::constructor($promoted);
     }
 }
 

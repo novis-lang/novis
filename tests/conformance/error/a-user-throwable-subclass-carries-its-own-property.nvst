@@ -7,8 +7,8 @@ class NotFound extends RuntimeError {
     public string $path;
 
     public function constructor(string $message, string $path) {
-        parent::constructor($message);
         $this->path = $path;
+        parent::constructor($message);
     }
 }
 
