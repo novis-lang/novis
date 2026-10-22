@@ -417,7 +417,12 @@ fn describe(manifest: &Manifest, sha256: &str, files: &[SourceFile], source: boo
                 None => format!("{} ${}", param.ty, param.name),
             })
             .collect();
-        let tainted = if method.source { "tainted " } else { "" };
+        // Only text carries the mark, so a source's `float` prints as a `float`.
+        let tainted = if manifest.is_source(method) && method.returns.contains("string") {
+            "tainted "
+        } else {
+            ""
+        };
         let signature = format!(
             "{}({}): {tainted}{}",
             method.name,

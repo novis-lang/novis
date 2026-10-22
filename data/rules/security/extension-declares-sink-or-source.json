@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "tests/conformance/reject/a-tainted-argument-to-an-extension-sink-does-not-compile.nvst",
-    "tests/conformance/ext/an-extension-declared-source-taints-its-result.nvst"
+    "tests/conformance/ext/an-extension-declared-source-taints-its-result.nvst",
+    "crates/nvs-types/tests/extensions.rs"
   ]
 }

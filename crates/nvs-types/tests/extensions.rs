@@ -166,6 +166,29 @@ fn a_tainted_argument_to_an_extension_sink_is_refused_with_the_code_a_core_sink_
 }
 
 #[test]
+fn an_extension_that_requests_any_io_is_a_source_whatever_its_methods_declare() {
+    let core = check("tainted string $t = \"a\";\nCore\\IO::remove($t);", &[]);
+    for kind in ["read", "write", "connect"] {
+        let mut reaching = ledger();
+        let wants = vec!["data/".to_owned()];
+        match kind {
+            "read" => reaching.requests.read = wants,
+            "write" => reaching.requests.write = wants,
+            _ => reaching.requests.connect = wants,
+        }
+        let echoed = check(
+            "Shop\\Ledger::writeLine(Shop\\Ledger::echoString(\"a\"));",
+            &[reaching],
+        );
+        assert_eq!(
+            codes(&echoed),
+            codes(&core),
+            "a `{kind}` request makes every text result tainted"
+        );
+    }
+}
+
+#[test]
 fn a_secret_argument_to_an_extension_is_refused_with_the_code_a_core_boundary_gives() {
     let core = check(
         "secret string $s = \"a\";\nuint $n = Core\\Str::length($s);",
