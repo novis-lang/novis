@@ -15,11 +15,11 @@ try {
 }
 
 // 2. One hundred thousand small draws are kept. Each is compared with the one before.
-array<bytes> $kept = [];
+array<tainted bytes> $kept = [];
 uint $repeats = 0;
 uint $drawn = 0;
 while ($drawn < 100000) {
-    bytes $next = $generator->bytes(16);
+    tainted bytes $next = $generator->bytes(16);
     if ($drawn > 0 && $next == $kept[$drawn - 1]) {
         $repeats = $repeats + 1;
     }

@@ -396,7 +396,7 @@ pub(crate) const SEEDED: CoreClass = CoreClass {
             names: &["count"],
             params: &[CoreTy::Uint],
             defaults: &[],
-            return_ty: CoreTy::Bytes,
+            return_ty: CoreTy::TaintedBytes,
             symbol: "nvs_core_random_seeded_bytes",
             doc: Some(&SEEDED_BYTES_DOC),
         },
@@ -405,7 +405,7 @@ pub(crate) const SEEDED: CoreClass = CoreClass {
             names: &["bytes"],
             params: &[CoreTy::Uint],
             defaults: &[Const::Uint(DEFAULT_TOKEN_BYTES)],
-            return_ty: CoreTy::Str,
+            return_ty: CoreTy::TaintedStr,
             symbol: "nvs_core_random_seeded_token",
             doc: Some(&SEEDED_TOKEN_DOC),
         },
@@ -499,7 +499,8 @@ const SEEDED_BYTES_DOC: MethodDoc = MethodDoc {
         desc: "How many bytes to draw; at least one.",
         shape: &[],
     }],
-    ret: "A `bytes` value of exactly `$count` octets, unrendered.",
+    ret: "A `tainted bytes` value of exactly `$count` octets, unrendered. It is `tainted`, so no \
+          key parameter accepts it.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "`$count` is `0`, as `Core\\Random::bytes`'s own draw of nothing is, or is larger \
@@ -517,7 +518,8 @@ const SEEDED_TOKEN_DOC: MethodDoc = MethodDoc {
                characters.",
         shape: &[],
     }],
-    ret: "A `string` of `2 * $bytes` hex digits, `0`–`9` and `a`–`f`.",
+    ret: "A `tainted string` of `2 * $bytes` hex digits, `0`–`9` and `a`–`f`. It is `tainted`, \
+          so no key parameter accepts it.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "`$bytes` is `0`, or the draw or its rendering is larger than a buffer this process \

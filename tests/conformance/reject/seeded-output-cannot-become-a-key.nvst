@@ -1,0 +1,43 @@
+--TEST--
+`Core\Random\Seeded::bytes` returns `tainted bytes` and `::token` returns `tainted string`, and every key parameter refuses a `tainted` argument, so a key anyone can predict from its seed does not compile into a seal, a signature, a token or a code — `rule:security/secret-has-no-ambient-source`
+--FILE--
+<?nvs
+// A seeded generator gives the same bytes for the same seed. Anyone who knows the
+// seed can make them again, so none of these calls compiles.
+Core\Random\Seeded $generator = new Core\Random\Seeded(42);
+bytes $key = $generator->bytes(32);
+Core\Crypto::seal('message' as bytes, $generator->bytes(32), Core\Crypto::Cipher::XChaCha20Poly1305);
+Core\SignedCookie::seal('uid', '7', [$generator->bytes(32)]);
+Core\Csrf::issue('session', $generator->bytes(32));
+Core\Hash::hmac('payload', $generator->bytes(32), Core\Hash::Digest::Sha256);
+Core\Totp::code($generator->bytes(20));
+string $token = $generator->token();
+
+// A key from `Core\Crypto::generateKey` is not predictable, so this call compiles.
+Core\Crypto::seal('message' as bytes, Core\Crypto::generateKey(), Core\Crypto::Cipher::XChaCha20Poly1305);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+  --> case.nvs:5:14
+%A
+error[E0401]: expected `secret bytes`, found `tainted bytes`
+  --> case.nvs:6:39
+%A
+error[E0401]: expected `secret bytes`, found `tainted bytes`
+  --> case.nvs:7:38
+%A
+error[E0401]: expected `secret bytes`, found `tainted bytes`
+  --> case.nvs:8:29
+%A
+error[E0401]: expected `secret bytes`, found `tainted bytes`
+  --> case.nvs:9:28
+%A
+error[E0401]: expected `secret bytes`, found `tainted bytes`
+   --> case.nvs:10:17
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:11:17
+%A
+error: aborting due to 7 errors
+%A

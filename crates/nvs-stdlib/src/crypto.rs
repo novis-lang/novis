@@ -696,14 +696,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "seal",
             names: &["message", "key", "cipher"],
             // The message is contagious on the `tainted` axis — the ciphertext
-            // is made of it — and the key is neutral, because not one octet of
-            // a key reaches the answer and its provenance says nothing about
-            // the message's. `defaults: &[]` is the roster's rule rather than
-            // this row's convenience: no algorithm argument in this class has
-            // one.
+            // is made of it — and the key refuses `tainted`, as every key does
+            // (`crate::keyring::KEY`). `defaults: &[]` is the roster's rule
+            // rather than this row's convenience: no algorithm argument in this
+            // class has one.
             params: &[
                 CoreTy::Blob(Qual::Contagious),
-                CoreTy::SecretBlob(Qual::Neutral),
+                crate::keyring::KEY,
                 CoreTy::Enum(CIPHER_NAME),
             ],
             defaults: &[],
@@ -716,7 +715,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["sealed", "key", "cipher"],
             params: &[
                 CoreTy::Blob(Qual::Contagious),
-                CoreTy::SecretBlob(Qual::Neutral),
+                crate::keyring::KEY,
                 CoreTy::Enum(CIPHER_NAME),
             ],
             defaults: &[],
@@ -749,7 +748,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "expandKey",
             names: &["material", "salt", "info"],
             params: &[
-                CoreTy::SecretBlob(Qual::Neutral),
+                crate::keyring::KEY,
                 CoreTy::Blob(Qual::Neutral),
                 CoreTy::Text(Qual::Neutral),
             ],
@@ -1303,14 +1302,9 @@ pub(crate) const KEY_PAIR: CoreClass = CoreClass {
     methods: &[CoreMethod {
         name: "read",
         // `$pkcs8` is `secret bytes` because that is what a private key is, and
-        // neutral on the `tainted` axis because nothing it carries reaches the
-        // answer: what crosses out is an object, which carries no qualifier at
-        // all.
+        // it refuses `tainted` as every key does (`crate::keyring::KEY`).
         names: &["pkcs8", "kind"],
-        params: &[
-            CoreTy::SecretBlob(Qual::Neutral),
-            CoreTy::Enum(KEY_KIND_NAME),
-        ],
+        params: &[crate::keyring::KEY, CoreTy::Enum(KEY_KIND_NAME)],
         defaults: &[],
         return_ty: CoreTy::Instance(KEY_PAIR_NAME),
         symbol: "nvs_core_crypto_key_pair_read",

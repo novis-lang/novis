@@ -343,7 +343,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["data", "key", "digest"],
             params: &[
                 CoreTy::Union(DATA),
-                CoreTy::SecretBlob(Qual::Neutral),
+                crate::keyring::KEY,
                 CoreTy::Union(STRONG),
             ],
             defaults: &[],
