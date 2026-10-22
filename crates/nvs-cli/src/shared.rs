@@ -17,10 +17,12 @@
 //! fresh run of the first case resolves: every case's directory is a sibling
 //! under the runner's root and holds nothing but `case.nvs`, so that tree is
 //! every case's. The parent carries the snapshot and its origin, which is what
-//! [`nvs_runtime::Ctx::isolate`] hands a child. The child does not inherit the
-//! program name or the command line, so a case that reads either answers
-//! differently here, and `nvs_test::run`'s `shares_a_worker` is what keeps
-//! such cases fresh only.
+//! [`nvs_runtime::Ctx::isolate`] hands a child. The case's extension calls run
+//! in a request of the case's own tree (`crate::extensions::Tested`), so no
+//! instance and no CPU budget carries over to the next case. The child does
+//! not inherit the program name or the command line, so a case that reads
+//! either answers differently here, and `nvs_test::run`'s `shares_a_worker` is
+//! what keeps such cases fresh only.
 //!
 //! **What it spends:** the shared [`Compiler`] keeps every case's unit for the
 //! life of the run, so the worker holds O(cases) compiled code until `nvs test`
@@ -149,11 +151,14 @@ impl Serving {
         }
         // The built-in components and every `[[extension]]` the tree names,
         // loaded once for the worker's life as `nvs run` loads them for its
-        // one program.
-        let calls = crate::extensions::loaded(&snapshot.config, &origins, &sources)
+        // one program. Each case's calls run in its own request tree, as a
+        // served request's do, so its budget and its instances are its own and
+        // end with the case.
+        let set = crate::extensions::loaded(&snapshot.config, &origins, &sources)
             .map_err(|diagnostic| diagnostic.message)?;
-        let calling =
-            nvs_runtime::extension::install(std::rc::Rc::new(crate::extensions::Calls::new(calls)));
+        let calling = nvs_runtime::extension::install(std::rc::Rc::new(crate::extensions::Tested(
+            std::sync::Arc::new(set),
+        )));
         let compiler = Compiler::new(&snapshot.config);
         let reactor = nvs_host::Reactor::new()
             .map_err(|error| format!("could not start the reactor: {error}"))?;
