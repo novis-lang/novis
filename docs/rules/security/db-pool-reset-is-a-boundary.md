@@ -16,8 +16,9 @@ is therefore two pools, and the superseded generation's connections retire again
 
 The pool is **per core and never shared between cores**: a task never migrates, so the acquire path
 takes no lock, which is the reason to prefer it over one process-wide pool. Per backend, PostgreSQL
-rolls back, then runs `RESET ALL`, `CLOSE ALL`, `UNLISTEN *` and `pg_advisory_unlock_all()` and drops
-the session's temporary schema; MySQL, MariaDB and SQL Server use their atomic reset command, which
+rolls back, then runs `SET SESSION AUTHORIZATION DEFAULT`, `RESET ROLE`, `RESET ALL`, `CLOSE ALL`,
+`UNLISTEN *` and `pg_advisory_unlock_all()` and drops the session's temporary schema. `RESET ALL`
+skips the role and the session authorization, so each has its own command; MySQL, MariaDB and SQL Server use their atomic reset command, which
 also drops prepared statements, so the statement cache goes with it; a SQLite connection has no
 session state, and rolling back an open transaction is the whole reset. The pool exists to keep a
 connection's handshake and statement cache across requests; Novis code cannot observe whether a

@@ -346,6 +346,57 @@ fn two_requests_on_one_core_share_one_connection() {
     );
 }
 
+/// § 13's "no assumed role": a request that changes who it is talking as
+/// leaves the next request talking as the account the block names.
+///
+/// `role` and `session_authorization` are the two settings `RESET ALL` skips,
+/// so a reset of `RESET ALL` alone passes the case above and fails this one.
+/// The matrix's account is the image's superuser, which may assume any role,
+/// and `pg_monitor` is a role every server since 10 has.
+#[test]
+fn a_role_one_request_assumed_is_gone_for_the_next() {
+    let Some(server) = postgres() else {
+        return;
+    };
+
+    let generation = Arc::new(Snapshot::default());
+    let ticket = Ticket::for_block(&generation, "main", PoolBounds::DEFAULT);
+    const WHO: &str = "SELECT session_user || ' ' || current_user";
+
+    let lease = pool::admit(ticket.clone()).expect("an unused key is under `max`");
+    let mut opened = open(&server);
+    let first = one_value(&mut opened, WHO).expect("a session has a user");
+    one_value(&mut opened, "SET SESSION AUTHORIZATION pg_monitor");
+    one_value(&mut opened, "SET ROLE pg_monitor");
+    assert_eq!(
+        one_value(&mut opened, WHO).as_deref(),
+        Some("pg_monitor pg_monitor"),
+        "the role this request is about to leave in the pool",
+    );
+    pool::release(
+        lease,
+        Instant::now(),
+        Box::new(Connection::Postgres(opened)),
+    );
+
+    let lease = pool::admit(ticket).expect("the released connection gave its slot back");
+    let held = pool::take(&lease, Instant::now()).expect("this core released one under this key");
+    let held = held
+        .into_any()
+        .downcast::<Connection>()
+        .expect("this crate filed it, so this crate's type is what comes back");
+    let Connection::Postgres(warm) = *held else {
+        panic!("the driver under test on this leg is PostgreSQL")
+    };
+    let mut warm = warm.reset().expect("a healthy connection resets");
+
+    assert_eq!(
+        one_value(&mut warm, WHO),
+        Some(first),
+        "§ 13's reset gave the next request the first request's assumed role",
+    );
+}
+
 /// § 13: `pool = false` restores connect-per-request **exactly** — nothing is
 /// taken back, so the next request on this core opens its own connection.
 ///
