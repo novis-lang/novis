@@ -42,7 +42,7 @@ stages:
     context: [crates/nvs-server/src/route.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/session.rs, crates/nvs-stdlib/src/signed_cookie.rs, docs/rules/security/csrf-is-on-by-default.md, docs/rules/core-classes/session-is-started-explicitly.md]
   - id: 10
     title: "a pooled database connection starts clean, and SQLite opens only what the grant names"
-    status: open
+    status: done
     context: [crates/nvs-db/src/pg.rs, crates/nvs-db/src/sqlite.rs, crates/nvs-stdlib/src/db/open.rs, crates/nvs-db/src/tds/rows.rs, docs/rules/security/db-pool-reset-is-a-boundary.md]
   - id: 11
     title: a Windows path is refused by its text before the file system sees it
@@ -483,12 +483,12 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 
 **Does:** CVE-1, SINK-2, DB-4 and DB-5 are closed.
 
-- [ ] CVE-1: Postgres resets the role and session authorization, and the comment says what `RESET ALL` does not cover (`rule:security/db-pool-reset-is-a-boundary`). `crates/nvs-db/src/pg.rs:3427`
-- [ ] CVE-1: correct the unit test that asserts the old mapping. `crates/nvs-db/src/pg.rs:6030`
-- [ ] CVE-1: SQLite's authorizer refuses `ATTACH` and `DETACH`, and its reset drops `temp` objects and applies the opening pragmas. `crates/nvs-db/src/sqlite.rs:1347`
-- [ ] SINK-2: a `file:` URI in `path` is refused at load. `crates/nvs-stdlib/src/db/open.rs:930`
-- [ ] DB-4, DB-5: the SQL Server rule text and `quoteIdentifier`'s help. `crates/nvs-db/src/tds/rows.rs:446`
-- [ ] The attacks: `SET ROLE` then a second request, a `temp` table and an `ATTACH` then a second request; Rust tests in `tests/pool_reuse.rs`, the Postgres one where the existing Postgres tests run. `crates/nvs-db/tests/pool_reuse.rs:1`
+- [x] CVE-1: Postgres resets the role and session authorization, and the comment says what `RESET ALL` does not cover (`rule:security/db-pool-reset-is-a-boundary`). `crates/nvs-db/src/pg.rs:3427`
+- [x] CVE-1: correct the unit test that asserts the old mapping. `crates/nvs-db/src/pg.rs:6030`
+- [x] CVE-1: SQLite's authorizer refuses `ATTACH` and `DETACH`, and its reset drops `temp` objects and applies the opening pragmas. `crates/nvs-db/src/sqlite.rs:1347`
+- [x] SINK-2: a `file:` URI in `path` is refused at load. `crates/nvs-stdlib/src/db/open.rs:930`
+- [x] DB-4, DB-5: the SQL Server rule text and `quoteIdentifier`'s help. `crates/nvs-db/src/tds/rows.rs:446`
+- [x] The attacks: `SET ROLE` then a second request, a `temp` table and an `ATTACH` then a second request; Rust tests in `tests/pool_reuse.rs`, the Postgres one where the existing Postgres tests run. The SQLite ones are unit tests in `sqlite.rs`, over a real engine. `crates/nvs-db/tests/pool_reuse.rs:1`
 
 ### 11. a Windows path is refused by its text before the file system sees it
 
@@ -568,8 +568,57 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 9 is down to two items, CRYPTO-3's `get` half and CRYPTO-6, and each waits on a parked
-decision (d4, d5). Every other item of the stage is ticked.
+Stage 10 is done. Stage 9 still has two items, CRYPTO-3's `get` half and CRYPTO-6. The user has
+answered both: d4 and d5 are closed and recorded under § *Standing decisions*, so neither is
+parked any more.
+
+- **d4, d5 (c4259bed0).** Recorded and closed with `bun tools/looper/main.ts decision close`.
+- **CVE-1, Postgres (ac872e079).** `RESET_COMMANDS` is eight: `SET SESSION AUTHORIZATION DEFAULT`
+  and `RESET ROLE` follow `ROLLBACK`, because `RESET ALL` skips both settings. The old doc said it
+  covered them, and the property test mapped `SET ROLE` to `RESET ALL`. Both are corrected, and the
+  unit test that pinned six commands is renamed `..._eight_commands_...`. The attack
+  `a_role_one_request_assumed_is_gone_for_the_next` in `crates/nvs-db/tests/pool_reuse.rs` runs
+  only on the Postgres matrix leg (`bun nv db-matrix`), and **was not run**. It assumes the matrix
+  account is the image's superuser (it sets session authorization to `pg_monitor`).
+- **CVE-1, SQLite (2a4b20976).** `sqlite::authorize` is installed at `open`: it denies every
+  `ATTACH` but an unnamed one (`''`, the temporary database a plain `VACUUM` attaches), every
+  `DETACH`, and a bound-name attach by its code. `VACUUM INTO` goes through the same internal
+  `ATTACH`, so it is denied too (checked in the bundled `sqlite3.c`: `sqlite3Vacuum` has no auth
+  call of its own). `SESSION_PRAGMAS` is applied at open and again by `reset`. `reset`'s new
+  `clean` rolls back, refuses a connection with any database still attached, applies the
+  pragmas first (`query_only` would refuse the drops), then drops every `temp` trigger, view and
+  table. Three unit attacks in `sqlite.rs` were red on main and are green, with all 43 of the
+  module's tests.
+- **SINK-2 (e5b7d5e82).** `sqlite_read_only` in `crates/nvs-stdlib/src/db/open.rs` throws for a
+  program's path that starts with `file:`, whatever is granted. A `[db.<name>]` block's `path`
+  may still be a URI. It is the operator's, and the queue and lock tests use
+  `file:...?mode=memory&cache=shared`. That is the safe reading of the standing decision's "at load", since
+  option keys would be new configuration. The attack
+  `tests/hostile/core/Db/open/02-a-path-written-as-a-uri.nvs` (with an `[[app]]` granting `db.open`
+  and both `fs` keys in the root `nvs.toml`) was red on main and is green.
+  `rule:core-classes/db-capabilities` says so.
+- **DB-4, DB-5 (73223c0cd).** `rule:core-classes/db-one-api` says SQL Server's guard against a second
+  statement is the tainted check, and declines a run-time scan and an allow-list parameter.
+  `quoteIdentifier`'s card and about page say it checks syntax only. Example 03 checks the column
+  against an allow list first, and its `.out` is unchanged.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --render` are green.
+  Run by name: the `reset` and `sqlite::` unit tests in `nvs-db`,
+  `a_sqlite_file_asks_the_file_rule_and_opens_read_only_where_it_is_not_writable`, the new hostile
+  case and example 03.
+- The sweep: `env-secret-proofs`'s log is the 00:07 one again (exit 0, `nothing owed`), and the
+  nightly run 39746060276 is the cancelled `workflow_dispatch` named below. Neither is the tree's.
+- `AGENTS.md` and `docs/agent/loop-authoring.md` had changes from outside this session. They were
+  not staged.
+
+Tests that may go red from this session: any `.nvs`, `.nvst` or test that opens SQLite through
+`Core\Db::open` with a `file:` path (grep found only the unit test, updated); any SQLite test
+through this driver that runs `ATTACH` or `VACUUM INTO`, or that expects a `temp` table or a
+`PRAGMA` to survive a pooled reuse (none found); the help snapshots and the website's `core.json` /
+`llms-full.txt` for `Core\Db::quoteIdentifier`; the website's rule pages for `db-one-api`,
+`db-capabilities` and `db-pool-reset-is-a-boundary`; Postgres matrix tests if the account cannot
+run `SET SESSION AUTHORIZATION DEFAULT` (any account can, but it was not run against a server).
+
+The session before:
 
 - **CRYPTO-2 (65240abf6).** `Core\SignedCookie::seal(string $name, string $value, $keys)` and
   `::open(string $name, string $cookie, $keys)`: the name is a new required first parameter, and
@@ -783,19 +832,23 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-CRYPTO-3's `get` half and CRYPTO-6 wait on d4 and d5. While they are parked, stage 10 is
-independent of both, and the next session takes it:
+Stage 9's last two items, now that d4 and d5 are answered. Each is its own session's slice, and
+the attack comes first each time:
 
-1. Stage 10 (`crates/nvs-db`): Postgres's reset batch gains `SET SESSION AUTHORIZATION DEFAULT`
-   and `RESET ROLE`; SQLite gets an authorizer refusing `ATTACH`/`DETACH`, a reset that drops the
-   `temp` schema's objects and reapplies the opening pragmas, and a `file:` URI in `path` refused
-   at load. The SQL Server neighbour rule and `quoteIdentifier`'s help change as the standing
-   decision says. Attack first each time.
-2. Once d4 is answered: CRYPTO-3's `get` (`crates/nvs-stdlib/src/config.rs:192`, the checker's
-   call typing beside `crates/nvs-types/src/intrinsics.rs:549`), with a conformance case that a
-   `echo Core\Config::get('db.main.password')` does not compile. Once d5 is answered: CRYPTO-6
-   (`crates/nvs-stdlib/src/random.rs:395`, `crates/nvs-stdlib/src/keyring.rs:67`). Then set stage
-   9 done.
+1. CRYPTO-3's `get`, as the d4 standing decision says. The member is at
+   `crates/nvs-stdlib/src/config.rs:192`. The checker's call typing goes beside the intrinsic roster
+   (`crates/nvs-types/src/intrinsics.rs:549`), which validates literals today and never changes
+   a return type. The predicate is `nvs_config::secret::is_secret_key`. The attacks are a conformance
+   case where `echo Core\Config::get('db.main.password')` does not compile, and one where a computed
+   name throws `LogicError`. `get`'s card and `rule:config/a-secret-is-a-file-whose-content-is-the-value`
+   change.
+2. CRYPTO-6, as the d5 standing decision says. `Seeded::bytes`/`::token` are at
+   `crates/nvs-stdlib/src/random.rs:395`, and the key ring is at `crates/nvs-stdlib/src/keyring.rs:67`.
+   First check whether key parameters (`Core\Crypto`, `Core\SignedCookie`, `Core\Jwt`, `Core\Signature`,
+   `Core\Csrf`) refuse a `tainted` argument today. Then `git grep -n "Seeded"` over the tests,
+   examples and benches that seal with a seeded key. Each one changes.
+3. Then set stage 9 done. Stage 11 (Windows paths, `crates/nvs-runtime/src/capability.rs:1159`)
+   is next after it.
 
 ### Backlog
 
