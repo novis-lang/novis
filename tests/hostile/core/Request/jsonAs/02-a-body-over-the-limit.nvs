@@ -1,0 +1,102 @@
+<?nvs
+// Attack: a client sends a JSON body and a form body of 9 MB. The limit for a body is 8 MB.
+// Each request should get the status 413 from the gate's `refused` method, and the next request should work.
+
+use Core\Http\Method;
+use Core\Router\Refusal;
+
+#[Core\Json\Derive]
+class Draft
+{
+    public tainted string $title;
+
+    public function constructor(tainted string $title)
+    {
+        $this->title = $title;
+    }
+}
+
+class Notes
+{
+    #[Core\Route(path: "/notes/json", method: Core\Http\Method::Post, name: "Notes::json")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function json(): void
+    {
+        try {
+            var $draft = Core\Request::jsonAs<Draft>();
+            echo 'saved';
+        } catch (ParseError $error) {
+            echo 'not JSON';
+        }
+    }
+
+    #[Core\Route(path: "/notes/form", method: Core\Http\Method::Post, name: "Notes::form")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function form(): void
+    {
+        try {
+            var $draft = Core\Request::postAs<tainted {title: string}>();
+            echo 'saved';
+        } catch (ParseError $error) {
+            echo 'not a form';
+        }
+    }
+}
+
+// This gate writes the reason for a refusal, and `failed` for any other error.
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void
+    {
+        if ($reason == Refusal::BodyTooLarge) {
+            echo 'too large';
+        } else {
+            echo 'refused';
+        }
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    array<string> $json = ['Content-Type' => 'application/json'];
+    array<string> $form = ['Content-Type' => 'application/x-www-form-urlencoded'];
+    string $text = Core\Str::repeat('a', 9000000);
+    uint $wrong = 0;
+
+    // 1. A JSON body of 9 MB. The status should be 413.
+    var $bigJson = Core\Test::request(Method::Post, '/notes/json', { headers: $json, body: '{"title":"' . $text . '"}' });
+    echo '1: ', $bigJson->status(), ' ', $bigJson->body(), "\n";
+    if ($bigJson->status() != 413) {
+        $wrong = $wrong + 1;
+    }
+
+    // 2. A form body of 9 MB. The status should be 413.
+    var $bigForm = Core\Test::request(Method::Post, '/notes/form', { headers: $form, body: 'title=' . $text });
+    echo '2: ', $bigForm->status(), ' ', $bigForm->body(), "\n";
+    if ($bigForm->status() != 413) {
+        $wrong = $wrong + 1;
+    }
+
+    // 3. A small JSON body after them. The status should be 200.
+    var $small = Core\Test::request(Method::Post, '/notes/json', { headers: $json, body: '{"title":"short"}' });
+    echo '3: ', $small->status(), ' ', $small->body(), "\n";
+    if ($small->status() != 200) {
+        $wrong = $wrong + 1;
+    }
+
+    // A wrong status ends the program with the exit status 1.
+    if ($wrong > 0) {
+        exit(1);
+    }
+}

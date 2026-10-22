@@ -319,6 +319,12 @@ pub struct Inbound {
     /// on from there would return the rest of the body as though it were all
     /// of it, or park for a chunk the connection never reads.
     body_failed: Option<(crate::ThrownClass, Box<str>)>,
+    /// Whether a body read stopped at `[limits] request_body`.
+    /// `Core\Router::dispatch` reads it when a handler throws, and answers
+    /// the gate's `refused` with `BodyTooLarge` and `413` rather than `failed`
+    /// and `500`, because the size is the client's fault
+    /// (`rule:http-server/the-body-is-read-on-demand-under-two-caps`).
+    body_too_large: bool,
     /// The document `Core\Request::json` decoded out of [`Self::held`], and the
     /// `maxDepth` it decoded at — `None` until that member has answered once.
     ///
@@ -632,6 +638,7 @@ impl Inbound {
             parts: None,
             held: None,
             body_failed: None,
+            body_too_large: false,
             decoded: None,
             form: None,
             query_fields: None,
@@ -1051,6 +1058,15 @@ impl Inbound {
         self.body_failed
             .as_ref()
             .map(|(class, why)| (*class, why.as_ref()))
+    }
+    /// Records that a body read stopped at `[limits] request_body`.
+    pub fn refuse_body_too_large(&mut self) {
+        self.body_too_large = true;
+    }
+    /// Whether a body read stopped at `[limits] request_body`.
+    #[must_use]
+    pub fn body_too_large(&self) -> bool {
+        self.body_too_large
     }
     /// Gives this carrier the document `Core\Request::json` decoded, for that
     /// member's later calls to answer out of — [`Self::decoded`] owns why it is

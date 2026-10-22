@@ -740,10 +740,14 @@ gate may set another status, headers, the body and a log line. The handler never
 | `UnknownMethod` | `501` | the verb is none of `Core\Http\Method`'s cases |
 | `Denied` | `403` | `allows` returned `false` or threw |
 | `Csrf` | `403` | the server refused the request's CSRF token or origin ([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default)) |
-| `BodyTooLarge` | `413` | the body is over the cap the server enforces |
+| `BodyTooLarge` | `413` | the body is over the cap the server enforces, or a handler read a body over `[limits] request_body` and then threw |
 | `BadCapture` | `400` | a capture whose type implements `Parses` threw from `parse` |
 
-A server refusal added later is a new case. **`failed` answers a handler that threw,** and a program
+A server refusal added later is a new case. A body read that stops at `[limits] request_body` throws
+`RuntimeError` and is recorded on the request, so a handler that throws after it reaches `refused`
+with `BodyTooLarge`: the size is the client's fault, and a handler that caught only `ParseError`
+would otherwise answer it `500`. A handler that catches the throw and returns answers as it chose.
+**`failed` answers every other handler that threw,** and a program
 stopped by its memory or CPU-time limit: that one runs again in a fresh isolate under the same limits,
 with no body, and `failed` is told no route and no error, because the first run's isolate is gone and
 a limit is not a throw. If the second run fails too, the answer is the empty `500` a failing program
