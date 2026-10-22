@@ -7,7 +7,9 @@ default. You use it after a form is sent, so the browser loads the next page wit
 browser to use the new address from now on.
 
 The address can be a full URL or a path such as `/orders/42`. It must not be empty and contains only
-printable ASCII characters. For any other address, `redirect` throws a `LogicError` and sets nothing.
+printable ASCII characters. It must not start with two slashes or backslashes, such as `//example.com`.
+A browser reads an address like that as another host. For another host, write the scheme, such as
+`https://example.com/`. For any other address, `redirect` throws a `LogicError` and sets nothing.
 Text from a visitor is not allowed as the address, and does not compile, because a visitor must not
 choose where the browser goes.
 

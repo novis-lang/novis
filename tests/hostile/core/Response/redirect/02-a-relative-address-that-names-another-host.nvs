@@ -1,0 +1,23 @@
+<?nvs
+// Attack: a program redirects to an address that starts with two slashes or backslashes.
+// A browser reads each one as another host, so every call should throw an error.
+
+// 1. Each address starts with two of `/` and `\`. A browser reads `\` as `/` here.
+array<string> $urls = [
+    '//evil.example/',
+    '\\\\evil.example/',
+    '/\\evil.example/',
+    '\\/evil.example/',
+    '  //evil.example/',
+];
+foreach ($urls as string $url) {
+    try {
+        Core\Response::redirect($url);
+        throw new RuntimeError('an address that names another host was set');
+    } catch (LogicError $otherHost) {
+    }
+}
+
+// 2. A path on this site is still allowed.
+Core\Response::redirect('/done');
+echo "done\n";
