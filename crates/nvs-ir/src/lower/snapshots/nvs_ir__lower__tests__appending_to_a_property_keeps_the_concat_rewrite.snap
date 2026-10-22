@@ -13,8 +13,8 @@ fn m(object) -> void {
     v3 = concat v1, v2  ; string
     release v2
     v4 = field.get v0, T::p  ; string
-    release v4
     field.set v0, T::p, v3
+    release v4
     release v0
     return
 }

@@ -8590,7 +8590,9 @@ pub(crate) mod tests {
                 .read_to_string(&mut answer)
                 .expect("the roomy response could not be read");
 
-            tight.write_all(b"yyy").expect("the rest of the body failed");
+            tight
+                .write_all(b"yyy")
+                .expect("the rest of the body failed");
             let mut rest = String::new();
             tight
                 .read_to_string(&mut rest)

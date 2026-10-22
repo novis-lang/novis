@@ -360,20 +360,29 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
         // The rule is about what a `Core` member can do at run time, and a `#[cfg(test)]` module is
         // not in a released binary for one to reach: `crate::http::transport`'s cases drive a whole
         // exchange against a listener they open themselves, which is the only way to test a
-        // transport at all. So the scan stops at the test module — and asserts there is exactly one
-        // of them per file, since a second `#[cfg(test)]` higher up would hide everything under it
-        // rather than just the tests.
+        // transport at all. So the scan stops at the test module: a `#[cfg(test)]` whose next line
+        // opens a `mod`. One on a single field or block hides nothing and is scanned like the code
+        // around it. The scan asserts there is at most one test module per file, since a second
+        // one higher up would hide everything under it rather than just the tests.
+        let lines: Vec<&str> = text.lines().collect();
+        let opens_tests = |at: usize| {
+            lines[at].trim_start() == "#[cfg(test)]"
+                && lines.get(at + 1).is_some_and(|next| {
+                    let next = next.trim_start();
+                    let next = next.strip_prefix("pub(crate) ").unwrap_or(next);
+                    let next = next.strip_prefix("pub ").unwrap_or(next);
+                    next.starts_with("mod ")
+                })
+        };
         assert!(
-            text.lines()
-                .filter(|line| line.trim_start() == "#[cfg(test)]")
-                .count()
-                <= 1,
-            "{} has more than one `#[cfg(test)]`, so this scan can no longer stop at the first one",
+            (0..lines.len()).filter(|&at| opens_tests(at)).count() <= 1,
+            "{} has more than one `#[cfg(test)]` module, so this scan can no longer stop at the first one",
             file.display()
         );
-        let shipped = text
-            .lines()
-            .take_while(|line| line.trim_start() != "#[cfg(test)]");
+        let end = (0..lines.len())
+            .find(|&at| opens_tests(at))
+            .unwrap_or(lines.len());
+        let shipped = lines[..end].iter();
 
         for (number, line) in shipped.enumerate() {
             // A comment may name one — telling an author what to use *instead* is this rule's own

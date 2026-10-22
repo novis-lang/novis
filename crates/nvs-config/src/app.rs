@@ -491,10 +491,7 @@ fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 9] {
         ("max_output", limits.max_output.as_ref()),
         ("request_body", limits.request_body.as_ref()),
         ("upload_total", limits.upload_total.as_ref()),
-        (
-            "max_multipart_parts",
-            limits.max_multipart_parts.as_ref(),
-        ),
+        ("max_multipart_parts", limits.max_multipart_parts.as_ref()),
         ("max_regex_steps", limits.max_regex_steps.as_ref()),
     ]
 }

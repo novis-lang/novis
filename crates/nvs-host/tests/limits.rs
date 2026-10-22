@@ -152,16 +152,15 @@ unsafe extern "C" fn records_the_report(
 ) -> i32 {
     unsafe {
         let report = *args.add(1);
-        let array = report
-            .array_ptr()
-            .expect("§ 1's report reaches the handler as one array");
-        // Borrowed out of the array, which owns it for the length of this call.
-        let key = NvsStr::new(b"limit").into_raw();
-        let mut named = Value::null();
-        nvs_runtime::nvs_array_get(array, key, &raw mut named);
+        // Borrowed out of the array, which owns it for the length of this call,
+        // and looked up by bytes: a handler stopped for memory runs outside the
+        // reserve, where a key string of its own would be refused.
+        let named = report
+            .as_array()
+            .expect("§ 1's report reaches the handler as one array")
+            .get(b"limit");
         *SEEN_LIMIT.lock().expect("no test panics holding this") =
-            named.as_text().map(str::to_owned);
-        drop(NvsStr::from_raw(key));
+            named.and_then(|named| named.as_text().map(str::to_owned));
 
         (*args).release();
         report.release();
@@ -191,16 +190,14 @@ unsafe extern "C" fn records_the_spawn_report(
 ) -> i32 {
     unsafe {
         let report = *args.add(1);
-        let array = report
-            .array_ptr()
-            .expect("§ 1's report reaches the handler as one array");
-        let key = NvsStr::new(b"limit").into_raw();
-        let mut named = Value::null();
-        nvs_runtime::nvs_array_get(array, key, &raw mut named);
+        let named = report
+            .as_array()
+            .expect("§ 1's report reaches the handler as one array")
+            .get(b"limit");
         *SEEN_SPAWN_LIMIT
             .lock()
-            .expect("no test panics holding this") = named.as_text().map(str::to_owned);
-        drop(NvsStr::from_raw(key));
+            .expect("no test panics holding this") =
+            named.and_then(|named| named.as_text().map(str::to_owned));
 
         (*args).release();
         report.release();
@@ -227,15 +224,12 @@ unsafe extern "C" fn records_the_task_report(
 ) -> i32 {
     unsafe {
         let report = *args.add(1);
-        let array = report
-            .array_ptr()
-            .expect("§ 1's report reaches the handler as one array");
-        let key = NvsStr::new(b"limit").into_raw();
-        let mut named = Value::null();
-        nvs_runtime::nvs_array_get(array, key, &raw mut named);
+        let named = report
+            .as_array()
+            .expect("§ 1's report reaches the handler as one array")
+            .get(b"limit");
         *SEEN_TASK_LIMIT.lock().expect("no test panics holding this") =
-            named.as_text().map(str::to_owned);
-        drop(NvsStr::from_raw(key));
+            named.and_then(|named| named.as_text().map(str::to_owned));
 
         (*args).release();
         report.release();
@@ -262,16 +256,14 @@ unsafe extern "C" fn records_the_child_memory_report(
 ) -> i32 {
     unsafe {
         let report = *args.add(1);
-        let array = report
-            .array_ptr()
-            .expect("§ 1's report reaches the handler as one array");
-        let key = NvsStr::new(b"limit").into_raw();
-        let mut named = Value::null();
-        nvs_runtime::nvs_array_get(array, key, &raw mut named);
+        let named = report
+            .as_array()
+            .expect("§ 1's report reaches the handler as one array")
+            .get(b"limit");
         *SEEN_CHILD_MEMORY_LIMIT
             .lock()
-            .expect("no test panics holding this") = named.as_text().map(str::to_owned);
-        drop(NvsStr::from_raw(key));
+            .expect("no test panics holding this") =
+            named.and_then(|named| named.as_text().map(str::to_owned));
 
         (*args).release();
         report.release();
@@ -298,16 +290,14 @@ unsafe extern "C" fn records_the_child_cpu_report(
 ) -> i32 {
     unsafe {
         let report = *args.add(1);
-        let array = report
-            .array_ptr()
-            .expect("§ 1's report reaches the handler as one array");
-        let key = NvsStr::new(b"limit").into_raw();
-        let mut named = Value::null();
-        nvs_runtime::nvs_array_get(array, key, &raw mut named);
+        let named = report
+            .as_array()
+            .expect("§ 1's report reaches the handler as one array")
+            .get(b"limit");
         *SEEN_CHILD_CPU_LIMIT
             .lock()
-            .expect("no test panics holding this") = named.as_text().map(str::to_owned);
-        drop(NvsStr::from_raw(key));
+            .expect("no test panics holding this") =
+            named.and_then(|named| named.as_text().map(str::to_owned));
 
         (*args).release();
         report.release();

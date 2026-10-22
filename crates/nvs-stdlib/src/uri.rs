@@ -2192,7 +2192,12 @@ fn path_of(name: &[u8]) -> Option<(&[u8], Path<'_>)> {
         let close = rest.iter().position(|&byte| byte == b']')?;
         rest = &rest[close + 1..];
     }
-    Some((&name[..open], Path { rest: &name[open..] }))
+    Some((
+        &name[..open],
+        Path {
+            rest: &name[open..],
+        },
+    ))
 }
 
 /// A bracket path [`path_of`] has already checked, read one `[…]` group at a
@@ -3780,7 +3785,10 @@ mod tests {
             matches!(fault, nvs_runtime::Fault::Fatal(_)),
             "a memory breach is a FATAL"
         );
-        assert!(ctx.over_memory_limit(), "the refusal is recorded on the request");
+        assert!(
+            ctx.over_memory_limit(),
+            "the refusal is recorded on the request"
+        );
         // The FATAL's message is made after the refusal, so the peak may pass
         // the limit by that message and nothing more.
         let message = match &fault {

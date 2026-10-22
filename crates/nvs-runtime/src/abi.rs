@@ -550,7 +550,10 @@ where
 )]
 pub(crate) unsafe fn contain_panic(ctx: *mut Ctx, slow: impl FnOnce(&mut Ctx) -> i32) -> i32 {
     let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
-        #[expect(unsafe_code, reason = "the caller guarantees `ctx` is valid for this call")]
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees `ctx` is valid for this call"
+        )]
         slow(unsafe { &mut *ctx })
     }));
     outcome.unwrap_or_else(|payload| {
