@@ -110,6 +110,17 @@ inside its `http` block.
 # Rate limit: 20 requests per second for each client address.
 limit_req_zone $binary_remote_addr zone=shop:10m rate=20r/s;
 
+# Login limit: 10 login attempts per minute for each client address.
+# Only a POST request has a key, so opening the login page does not count.
+map $request_method $shop_login_key {
+    POST    $binary_remote_addr;
+    default '';
+}
+limit_req_zone $shop_login_key zone=shop_login:10m rate=10r/m;
+
+# Connection limit: counts the open connections of each client address.
+limit_conn_zone $binary_remote_addr zone=shop_conn:10m;
+
 # A WebSocket request sends "Connection: upgrade" to Novis.
 # Every other request sends an empty value, so the connection stays open.
 map $http_upgrade $connection_upgrade {
@@ -125,6 +136,16 @@ upstream shop {
     keepalive 16;
     # Shorter than the 75 seconds after which Novis closes an unused connection.
     keepalive_timeout 60s;
+}
+
+# A request for an unknown host name, or for the IP address of the server, gets no answer.
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    ssl_reject_handshake on;
+    return 444;
 }
 
 # Plain HTTP only redirects to HTTPS.
@@ -156,11 +177,18 @@ server {
 
     # The same limit as `upload_total` in nvs.toml.
     client_max_body_size 256m;
+    # The same limits as `header_timeout` and `body_idle_timeout` in nvs.toml.
     client_header_timeout 10s;
     client_body_timeout 30s;
+    # The same limit as `write_idle_timeout` in nvs.toml.
+    send_timeout 30s;
+    # A request line or a header line may have at most 8 KB.
+    large_client_header_buffers 4 8k;
 
     limit_req zone=shop burst=100 nodelay;
     limit_req_status 429;
+    limit_conn shop_conn 50;
+    limit_conn_status 429;
 
     gzip on;
     gzip_vary on;
@@ -191,6 +219,13 @@ server {
         proxy_pass http://shop;
     }
 
+    # The login form has both rate limits. Write the path of your own login form.
+    location = /login {
+        limit_req zone=shop burst=100 nodelay;
+        limit_req zone=shop_login burst=5 nodelay;
+        proxy_pass http://shop;
+    }
+
     location @novis {
         proxy_pass http://shop;
     }
@@ -212,8 +247,12 @@ What the important lines do:
   that starts with a dot, such as `.env`. Novis runs your entry file for these paths.
 - nginx allows request bodies up to 1 MB by default. `client_max_body_size` sets the same limit
   that Novis uses.
-- `limit_req` allows 20 requests per second from each client address, and bursts of up to 100.
-  nginx returns `429` for the requests above that. Choose the numbers for your own traffic.
+- The first `server` block is the default server. It gets every request whose host name is not
+  `shop.example.com`. `return 444` closes the connection with no answer, and
+  `ssl_reject_handshake on` stops an HTTPS connection before it starts. So a scanner that only knows
+  the IP address of your server never reaches Novis.
+- A `location` with its own `limit_req` lines uses only those lines. So the location `= /login`
+  repeats the general limit next to the login limit.
 - Novis adds the security headers to its own responses, `Strict-Transport-Security` too. Do not add
   them again in nginx, or the browser gets them twice. nginx adds `X-Content-Type-Options` only to
   the static files that it sends.
@@ -244,6 +283,27 @@ shop.example.com {
 	request_body {
 		# The same limit as `upload_total` in nvs.toml.
 		max_size 256MB
+	}
+
+	# This block needs the plugin caddy-ratelimit. Caddy returns 429 above a limit.
+	rate_limit {
+		# Rate limit: 100 requests in 5 seconds for each client address.
+		zone shop {
+			key {remote_host}
+			events 100
+			window 5s
+		}
+		# Login limit: 10 login attempts per minute for each client address.
+		# Write the path of your own login form.
+		zone shop_login {
+			match {
+				method POST
+				path /login
+			}
+			key {remote_host}
+			events 10
+			window 1m
+		}
 	}
 
 	# A file in the public folder that is not a .nvs file and not a hidden file.
@@ -286,12 +346,48 @@ What the important lines do:
   default.
 - Novis adds the security headers to its own responses, `Strict-Transport-Security` too. Do not add
   them again in Caddy. Caddy adds `X-Content-Type-Options` only to the static files that it sends.
-- Caddy has no rate limit without a plugin. Use the plugin `caddy-ratelimit`, or a rate limit in
-  your firewall.
+- `rate_limit` is not part of the normal Caddy download. Caddy does not start with this block until
+  you build it with the plugin: `xcaddy build --with github.com/mholt/caddy-ratelimit`. Without the
+  plugin, delete the block and set a rate limit in your firewall.
+- Caddy sends only requests for the host names in the Caddyfile to Novis. A request for another
+  name, or for the IP address of the server, never reaches Novis.
 - WebSockets and event streams need no setting.
 
 </TabItem>
 </Tabs>
+
+## What the proxy protects against
+
+Novis does not limit requests for each client address. The proxy does this job. This table shows
+the common attacks, and the setting in each configuration above that stops them:
+
+| Attack | nginx | Caddy |
+|---|---|---|
+| Many requests from one address | `limit_req zone=shop` | the zone `shop` |
+| Guessing passwords on the login form | `limit_req zone=shop_login` | the zone `shop_login` |
+| Many open connections from one address | `limit_conn` | a limit in your firewall |
+| Headers sent very slowly, to keep connections open | `client_header_timeout` | `read_header` |
+| A body sent very slowly, or a response read very slowly | `client_body_timeout` and `send_timeout` | `body_idle_timeout` and `write_idle_timeout` in Novis |
+| Very large headers | `large_client_header_buffers` | 16 KB, the default of Caddy |
+| A very large body | `client_max_body_size` | `max_size` |
+| Requests for the IP address of the server, or for another host name | the default server | only the names in the Caddyfile |
+| Reading `.env` or the code of a `.nvs` file | the location `(\.nvs$\|/\.)` | `@static` |
+
+The numbers in the configurations are a start. Choose them for your own traffic:
+
+- Many people can share one address, for example in an office or on a mobile network. Choose limits
+  that such a group stays under.
+- In nginx, `limit_conn` counts each request of an HTTP/2 or HTTP/3 connection as one connection.
+  So 50 is also the most requests that one address can run at the same time.
+- The proxy counts by client address only. An attacker with many addresses can try many passwords
+  for one account. Limit the attempts for each account in your program with
+  [`Core\RateLimit::consume`](/reference/core/ratelimit/consume/).
+- When a CDN is in front of the proxy, every request comes from an address of the CDN. Set the
+  limits for each client in the CDN, and keep only the size limits and timeouts in the proxy.
+
+Novis also protects itself. When more than `max_in_flight` requests run, the next ones get `503`.
+Every wait has a time limit. Read
+[Limits and logs](/guides/production/limits-and-logs/#limits-for-the-server).
 
 ## Development configuration
 
@@ -381,6 +477,8 @@ so the load balancer sends new requests to another server. It does not run your 
   and `proxy_http_version 1.1`.
 - Do set `trusted_proxies` to the exact address of your proxy.
 - Do let the proxy serve the static files in production, and never send a `.nvs` file as a file.
+- Do set a rate limit in the proxy, and a stricter one for the login form.
+- Do let a default server close the requests for unknown host names.
 - Don't list a whole network in `trusted_proxies` when one address is enough.
 - Don't add the security headers of Novis again in the proxy.
 

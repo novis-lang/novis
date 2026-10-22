@@ -321,13 +321,13 @@
   },
   "/guides/production/reverse-proxy/": {
     "feature": "guides/production/reverse-proxy.mdx",
-    "hash": "ae47f1970daf19d1",
+    "hash": "9d518475141f7378",
     "questions": [
       "How do I run Novis behind nginx with HTTPS?",
       "Example Caddy configuration for a Novis server",
       "Does Novis support HTTP/2 or HTTP/3?",
       "Get the real client IP address behind a proxy",
-      "Production nginx configuration with static files and a rate limit",
+      "Rate limit requests and login attempts for each IP address",
       "Listen on a Unix socket so only the proxy can connect"
     ]
   },
@@ -345,7 +345,7 @@
   },
   "/guides/production/security-checklist/": {
     "feature": "guides/production/security-checklist.mdx",
-    "hash": "eaa4d328680a8d94",
+    "hash": "2dd3d508cfe33ff6",
     "questions": [
       "What should I check before my server goes live?",
       "Security checklist for deploying a Novis web app",

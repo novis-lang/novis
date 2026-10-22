@@ -39,6 +39,9 @@ explains it.
   [Behind a reverse proxy](/guides/production/reverse-proxy/)
 - `trusted_proxies` has the address of your proxy, and nothing more.
   [Behind a reverse proxy](/guides/production/reverse-proxy/)
+- The proxy limits the requests and connections of each client address, and the login attempts.
+  It closes the requests for unknown host names.
+  [Behind a reverse proxy](/guides/production/reverse-proxy/#what-the-proxy-protects-against)
 - The service runs as its own account, not as root or the system account.
   [Run as a service](/guides/production/run-as-a-service/)
 
