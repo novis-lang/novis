@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-server/src/mount.rs",
+  "title": "Static serving withholds the root configuration's `[db]` files only, not those a mount entry's own `nvs.toml` names.",
+  "text": "`Table::from_config` builds `Table::withholding` from the root configuration's `[db]` paths, with their `-wal`, `-shm` and `-journal` files. A mount entry whose own tree names a SQLite file under its static root is covered only by the name rules (dot-files, `nvs.toml`, `.nvst`). Closing it is reading each mount entry's resolved `[db]` blocks into the same set, and a served test that fetches such a file and gets `404`.",
+  "goal": "config-follows-links"
+}

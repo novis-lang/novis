@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/arr.rs",
+  "title": "`Core\\Arr::hasKey` does not accept a `tainted` key.",
+  "text": "Keys keep the `tainted` mark, so a key read from an array built from outside data is `tainted string`. Looking it up is a read and writes nothing, yet `hasKey` takes a plain key, and the conformance case `arr-overlay-deep-at-a-key-is-itself-one-level-down-and-keeps-the-bases-order` writes `Core\\Arr::contains(Core\\Arr::keys($a), $key)` instead. Closing it is a key parameter that accepts `tainted`, and that case using `hasKey` again.",
+  "goal": "taught-app-works"
+}

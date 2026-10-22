@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/test.rs",
+  "title": "`Core\\Test\\Response` has no reader for a body that is not UTF-8.",
+  "text": "`Core\\Test::request` keeps the body as bytes, and `body`, `json` and `jsonAs` throw `RuntimeError` when it is not UTF-8 (the user's call on d6: no member added then). So no Novis program can compare a binary response byte for byte: the conformance cases `a-response-bytes-body-sends-octets-no-text-member-carries`, `a-response-stream-carries-octets-and-agrees-with-a-whole-body` and the three `novis/spreadsheet-*` download cases check a prefix, the status, the headers and that `body` throws, and only the Rust test `a_download_sends_the_export_as_the_body` checks a workbook's bytes. Closing it is a `bytes` reader on the response, and those cases comparing the whole body again.",
+  "goal": "test-surface"
+}

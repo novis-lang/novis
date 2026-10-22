@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/extensions.rs",
+  "title": "No test shows that each `nvs test` test spends its own extension CPU budget.",
+  "text": "`extensions::Tested` gives each test's extension calls their own tree, so under `--jobs 1` one test's CPU time does not add to the next one's. `every_core_nvs_test_starts_calls_a_built_in_extension` in `crates/nvs-cli/tests/test_command.rs` proves the calls reach every core, and nothing proves the budget half. Closing it is a fixture guest beside `tests/conformance/ext/fixtures/ledger` with a method that spins for a given time, and a test where two tests each spend most of one budget under `--jobs 1` and both pass.",
+  "goal": "test-surface"
+}

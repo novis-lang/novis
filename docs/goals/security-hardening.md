@@ -62,7 +62,7 @@ stages:
     context: [crates/nvs-cli/src/config.rs, crates/nvs-cli/src/reload.rs, crates/nvs-config/src/trust.rs, crates/nvs-config/src/resolve.rs, docs/rules/config/ownership-is-the-trust-boundary.md, docs/rules/config/the-ownership-check-runs-where-it-can-be-answered.md, tests/docker/smoke.sh]
   - id: 14
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: types-tests
@@ -573,15 +573,48 @@ the code change before it runs any of them.
   - [x] the release image, `--read-only --cap-drop ALL`, serves `tests/docker/app` from a `:ro` volume owned by uid 1001 with mode 755: `/` and `/healthz` answer `200`
   - [x] the same volume mounted writable stops with `E0607` (owned by uid 1001, not 65532 or root)
   - [x] `smoke.sh` over a Windows bind mount fails the serve steps with `E0607` mode `0777`, the Docker Desktop case `rule:config/ownership-is-the-trust-boundary` and the guide record; CI's Linux leg is the one that runs it
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal. Run as `bun tools/looper/main.ts verify`: it named 3 stale chapters, 41 red tests in 15 binaries, 2 impact lints and 11 red conformance cases
+- [x] Fix every failure it names in one pass, never deleting or loosening a test. 18f3b0f08, 421911781, 72f6714f1, d3db77e7b, 531b80ba3
+  - [x] one real regression: stage 10's `PRAGMA busy_timeout = 0` stopped a queue worker on `database is locked`; the pragmas restore rusqlite's 5000 ms (18f3b0f08)
+  - [x] the rest are fixtures, rosters and cases this goal's own decisions moved
+  - [x] `ldap`, `serve_isolation`'s flood and the redis lease test were red under load only; each passes alone
+- [x] Run `looper verify` once more, and it is green. 22 of 22, and `bun nv affected --run` is GREEN
 
 ## Handoff
 
 ### State
 
-The gate stage 14 is running: its first item is done, and the first `looper verify` was started.
+The gate stage 14 is done, and the goal's end gates are green. The status line says `DONE`.
+
+- **Verify.** `bun tools/looper/main.ts verify` is green (22 of 22) and `bun nv affected --run`
+  says nothing the change reaches is due. `bun nv verify --doc` is green, `bun nv owners --closes
+  security-hardening` finds nothing, and `bun nv owners --check` is green.
+- **The one real regression (18f3b0f08).** Stage 10's `SESSION_PRAGMAS` set `busy_timeout = 0`
+  at open and at every reset, which replaced the 5000 ms rusqlite 0.40.2 opens with
+  (`inner_connection.rs:118`). A statement with no deadline answered `SQLITE_BUSY` at once, and
+  `live_config`'s queue-worker test stopped with `database is locked`, even alone. The pragmas
+  restore 5000 ms. `taught-app-works`' APP-1 (a statement's busy timeout from `wall_time`) builds
+  on that value.
+- **Everything else** was a fixture or case this goal's decisions moved: constructors assign
+  before `parent::constructor`, tainted keys and rows, four seeded metric series, a bare session
+  writes no record, the framing headers, captures that are not UTF-8, `Config::get`'s prepared
+  word. `Xml\Writer::instruction` left the launderer roster (both parameters are sinks). Two new
+  conformance cases cover `Config::get` of a computed secret name and `Csv::rows` over a field
+  that is not UTF-8.
+- **A check that got weaker.** No Novis program can compare a binary body byte for byte now:
+  `Core\Out::capture` throws on it and `Core\Test\Response` has no bytes reader (d6 added no
+  member). The two octet cases and the three spreadsheet download cases check what they still
+  can, and the gap `data/gaps/nvs-stdlib/a-test-response-has-no-bytes-reader.json` owns the rest
+  (`test-surface`).
+- **The backlog went to gap records**, each owned by a goal on the chain, so it outlives this
+  file: nine under `data/gaps/` (`nvs-cli`, `nvs-db`, `nvs-runtime`, `nvs-server`, `nvs-stdlib`).
+  The extension pool's 4096 places is the rule's declined bound, and the `.profraw` files and the
+  `cargo fmt` churn need no record.
+
+Tests that may go red: none known. The cases `ldap`, `serve_isolation`'s flood test and
+`cache::redis`'s lease test are load-sensitive under a full parallel run and pass alone.
+
+The session before (the container check):
 
 - **The container check.** `bun nv bench-compare --smoke` passes under Docker Desktop with no
   `E0607`. `tests/docker/smoke.sh` needs a Linux file system for its bind mount: from this
@@ -1363,12 +1396,8 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-1. Read the report of the first `bun tools/looper/main.ts verify` (stage 14's second item). Fix
-   every failure it names in one pass, using the "Tests that may go red" lists in every State
-   block above as the map, and the conformance reds listed under the oldest block. Then run it
-   once more.
-2. Before `DONE`: `bun nv verify --doc`, and `bun nv owners --closes security-hardening`, as
-   AGENTS.md § *In the loop* says.
+1. Nothing in this goal. The driver runs the acceptance checks on `DONE`; if one is red, fix it
+   and claim `DONE` again. Then `request-overhead` is live.
 
 ### Backlog
 

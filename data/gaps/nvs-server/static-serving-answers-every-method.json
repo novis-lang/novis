@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-server/src/statics.rs",
+  "title": "Static serving sends a file for any method, so `POST /style.css` is answered with the file.",
+  "text": "Step 3 of the mount table serves a file under the static root whatever the request's method is. A write method sent to a static path should answer `405` with `Allow: GET, HEAD`, the way a route that does not take the method does. Closing it is that check in front of `statics::send`, and a served test for `POST`, `PUT` and `DELETE` on a static file.",
+  "goal": "request-overhead"
+}
