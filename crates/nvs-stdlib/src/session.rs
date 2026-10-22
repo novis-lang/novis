@@ -7,8 +7,9 @@
 //! answers are here — [`mint`], [`load`], [`save`], [`destroy`] and the key they share — over the
 //! shared tier's wire, and [`sqlite`]'s four over the data folder's SQLite file. [`opened`] picks
 //! one as a [`Store`], and [`nvs_core_session_start`] is the member that reaches it: it takes the
-//! identifier the client presented, loads the record the store issued it for, and issues a fresh
-//! one where there is none. The other six operate on the record `start` left on the request
+//! identifier the client presented, loads the record the store issued it for, and opens a fresh,
+//! empty one where there is none, which reaches the store only once something is written to it.
+//! The other six operate on the record `start` left on the request
 //! ([`nvs_runtime::Session`]), and each of them throws until `start` has run — the whole benefit
 //! `rule:core-classes/session-is-started-explicitly` was buying, and worth nothing if
 //! the first `get` can silently start one.
@@ -306,7 +307,8 @@ const START_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "Nothing. After it, the other methods of this class can read and change the session. \
-          When a new session is opened, the response sends its identifier in the session cookie.",
+          A new session is not saved, and no cookie is sent, until the program saves a value in \
+          it. Then the response sends its identifier in the session cookie.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
@@ -318,8 +320,7 @@ const START_DOC: MethodDoc = MethodDoc {
             desc: "This request already called `start()`. It is also thrown when the server has \
                    no data folder for the default store. With `[session] backend = \"shared\"`, \
                    it is thrown when `[cache.shared] url` is not set, or the program does not have \
-                   the `cache.shared` capability. The same happens when `[session] cookie` is not \
-                   a valid cookie name.",
+                   the `cache.shared` capability.",
         },
         ErrorDoc {
             error: "IOError",
@@ -372,16 +373,20 @@ const SET_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Nothing. The session is saved to the store once, when the request ends.",
+    ret: "Nothing. The session is saved to the store once, when the request ends. The first \
+          value saved in a new session also sends the session cookie.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
             desc: "This request has not called `start()`, or it called `destroy()`. There is no \
-                   session to save into.",
+                   session to save into. It is also thrown on the first save in a new session \
+                   when `[session] cookie` is not a valid cookie name.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`$value` cannot be saved: it is a callable or a resource, or it contains one.",
+            desc: "`$value` cannot be saved: it is a callable or a resource, or it contains one. \
+                   It is also thrown on the first save in a new session after the response was \
+                   sent, because the cookie cannot be sent then.",
         },
         ErrorDoc {
             error: "ParseError",
@@ -832,7 +837,7 @@ nvs_runtime::nvs_helper! {
     /// `rule:http-server/a-session-store-answers-four-operations` gives `load` three ways to answer absent —
     /// an identifier the store never issued, one it issued and has since expired, and one an
     /// attacker minted — and this member does not distinguish them: each discards the presented
-    /// identifier and issues a fresh one. There is no `validateId` for the two to disagree about,
+    /// identifier and opens a fresh, empty session. There is no `validateId` for the two to disagree about,
     /// and the pre-store shape check ([`issuable`]) is not one, for the reason the module doc
     /// gives.
     ///
@@ -840,6 +845,13 @@ nvs_runtime::nvs_helper! {
     /// rather than answering as though the record were absent, because absence means *issue a new
     /// session* — so a store that is down would silently sign every user out and look like a
     /// forged identifier while doing it.
+    ///
+    /// **A fresh session has no identifier until something is kept in it.** `start` writes no
+    /// row and sends no cookie for one; [`write_back`] draws the identifier and sends the cookie
+    /// on the first write that leaves the record non-empty, and the end-of-request write-back
+    /// creates the row. So the store holds sessions somebody wrote, and a flood of cookieless
+    /// requests that only read leaves nothing behind (`rule:core-classes/session-is-started-explicitly`).
+    /// `regenerate` on such a session does nothing, and `destroy` reaches no store.
     ///
     /// **The cookie is written only for an identifier this request issued.** A request that
     /// presented one the store knew already has it, and a session cookie carries no `Max-Age` to
@@ -909,23 +921,15 @@ nvs_runtime::nvs_helper! {
             None => None,
         };
 
-        let session = match opened {
-            Some(session) => session,
-            None => {
-                let id = mint(ctx);
-                let lifetime = ttl(ctx);
-                // The empty record is zero bytes — `nvs_runtime::Session::record`'s own doc owns
-                // why — so issuing one builds no value and encodes nothing.
-                put(&store, "start", &id, &[], lifetime)?;
-                issue_cookie(ctx, "start", &id)?;
-                nvs_runtime::Session {
-                    id,
-                    record: Vec::new(),
-                    dirty: false,
-                    write_back: send_at_end,
-                }
-            }
-        };
+        // A visitor with no record gets an empty session with no identifier yet. Nothing reaches
+        // the store and no cookie is sent until [`write_back`] keeps something in it, so a
+        // request that only reads costs the store nothing.
+        let session = opened.unwrap_or(nvs_runtime::Session {
+            id: String::new(),
+            record: Vec::new(),
+            dirty: false,
+            write_back: send_at_end,
+        });
         ctx.open_session(session);
         Ok(Value::null())
     }
@@ -1172,6 +1176,24 @@ fn write_back(ctx: &mut Ctx, record: NvsArray, member: &str) -> Result<Value, Fa
     };
 
     let session = ctx.session_mut().ok_or_else(|| unstarted(member))?;
+    if session.id.is_empty() {
+        if payload.is_empty() {
+            // Still empty, so there is still nothing to keep and nothing to send.
+            session.record = payload;
+            return Ok(Value::null());
+        }
+        // The first write to a session `start` opened with no record: the identifier is drawn
+        // and sent now, before the record changes, so a cookie that cannot be sent leaves the
+        // session as it was.
+        crate::response::head_open(ctx, &format!("{NAME}::{member}"))?;
+        let id = mint(ctx);
+        issue_cookie(ctx, member, &id)?;
+        let session = ctx.session_mut().ok_or_else(|| unstarted(member))?;
+        session.id = id;
+        session.record = payload;
+        session.dirty = true;
+        return Ok(Value::null());
+    }
     session.record = payload;
     session.dirty = true;
     Ok(Value::null())
@@ -1402,6 +1424,11 @@ nvs_runtime::nvs_helper! {
         // Copied rather than taken, so a store that fails halfway leaves the request holding the
         // session it already had. O(record), which this member spends once and no other does.
         let (retired, record) = (open.id.clone(), open.record.clone());
+        if retired.is_empty() {
+            // Nobody has written this session, so no client holds an identifier for it. The
+            // first write draws a fresh one.
+            return Ok(Value::null());
+        }
 
         let member = format!("{NAME}::regenerate()");
         let store = opened(ctx, &member, ", which is where this session's record already lives")?;
@@ -1446,9 +1473,12 @@ nvs_runtime::nvs_helper! {
         };
         let held = open.id.clone();
 
-        let member = format!("{NAME}::destroy()");
-        let store = opened(ctx, &member, ", which is where this session's record lives")?;
-        forgot(&store, "destroy", &held)?;
+        // A session nobody wrote has no row to delete.
+        if !held.is_empty() {
+            let member = format!("{NAME}::destroy()");
+            let store = opened(ctx, &member, ", which is where this session's record lives")?;
+            forgot(&store, "destroy", &held)?;
+        }
         ctx.close_session();
         Ok(Value::null())
     }
@@ -1486,7 +1516,9 @@ fn send_at_end(ctx: &mut Ctx) {
     // ended. A write-back that cloned the record would spend O(record) on the request path to say
     // exactly what the bytes already on the context say.
     let sent = match ctx.session() {
+        // No identifier is a session nobody wrote, which `write_back` never marks changed.
         None => return,
+        Some(open) if open.id.is_empty() => return,
         Some(open) => {
             let lifetime = ttl(ctx);
             opened(ctx, SENDER, ", which is where this session's record lives")
@@ -2126,8 +2158,8 @@ mod tests {
     }
 
     /// `Core\Session::start` as a program reaches it: an identifier the store holds opens that
-    /// record and writes no cookie, and one it does not hold opens a fresh, empty record under a
-    /// new identifier, written to the store and sent in a `Set-Cookie`.
+    /// record and writes no cookie, and one it does not hold opens a fresh, empty record with no
+    /// identifier yet: nothing is written to the store and no `Set-Cookie` is sent.
     ///
     /// Both refusals come first, and neither leaves a session open: a context answering no
     /// request, and a request whose tree chose the shared tier and gave it no address. A second
@@ -2137,7 +2169,7 @@ mod tests {
     /// driven.
     // covers: Core\Session::start
     #[test]
-    fn start_opens_a_held_record_and_issues_a_new_id_for_one_the_store_does_not_hold() {
+    fn start_opens_a_held_record_and_a_fresh_one_for_an_id_the_store_does_not_hold() {
         const HELD: &str = "PmA5tKz1QvR3sYbNcW8xLq";
         const FORGED: &str = "AAAAAAAAAAAAAAAAAAAAAA";
         let nothing = [Value::null()];
@@ -2203,28 +2235,87 @@ mod tests {
         forged.into_iter().for_each(dropped);
         answer.expect("an identifier the store does not hold opens a fresh session");
         let issued = fresh.session().expect("the request has a session");
-        assert_ne!(issued.id, FORGED, "the forged identifier is not used");
-        assert!(issued.record.is_empty(), "the fresh record is empty");
-        let issued = issued.id.clone();
-
-        let headers = fresh.take_headers();
-        assert_eq!(headers.len(), 1, "one cookie carries the new identifier");
-        assert_eq!(&*headers[0].name, crate::response::SET_COOKIE_HEADER);
         assert!(
-            headers[0].value.starts_with(&format!("nvsid={issued};")),
-            "{:?} carries the new identifier",
-            headers[0].value
+            issued.id.is_empty(),
+            "the forged identifier is not used, and none is drawn before the first write"
+        );
+        assert!(issued.record.is_empty(), "the fresh record is empty");
+        assert!(
+            fresh.take_headers().is_empty(),
+            "no cookie is sent for a session nobody wrote"
         );
 
         let entries = held.lock().expect("the store");
-        assert_eq!(
-            entries.get(&key_of(&issued)).map(Vec::as_slice),
-            Some(&[][..]),
-            "the fresh record is written to the store at once"
-        );
+        assert_eq!(entries.len(), 1, "nothing is written for the fresh session");
         assert!(
             !entries.contains_key(&key_of(FORGED)),
             "and nothing is written under the forged identifier"
+        );
+    }
+
+    /// Attack: 20,000 requests with no cookie each call `Core\Session::start` and only read.
+    /// None of them writes a row or sends a cookie, so the store grows with sessions somebody
+    /// wrote, never with requests served. The first write then sends one cookie, and the
+    /// write-back stores the record under the identifier that cookie carries.
+    #[test]
+    fn a_session_nobody_wrote_leaves_no_row_and_sends_no_cookie() {
+        let (listener, address) = listening();
+        let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+        let _serving = Serving::start(listener, Arc::clone(&held));
+        let config = crate::tests::granting(&format!(
+            "[capabilities.cache]\nshared = true\n[session]\nbackend = \"shared\"\n\
+             [cache.shared]\nurl = \"redis://{address}\"\n"
+        ));
+        let nothing = [Value::null()];
+        let request = || {
+            let mut ctx = Ctx::buffered();
+            ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
+            ctx.set_config(Arc::clone(&config));
+            nvs_runtime::call(super::nvs_core_session_start, &mut ctx, &nothing)
+                .expect("a request with no cookie opens a session");
+            ctx
+        };
+
+        for _ in 0..20_000 {
+            let mut ctx = request();
+            let read = [Value::text("user")];
+            let answer = nvs_runtime::call(super::nvs_core_session_get, &mut ctx, &read);
+            read.into_iter().for_each(dropped);
+            dropped(answer.expect("an empty session reads"));
+            ctx.end_session();
+            assert!(
+                ctx.take_headers().is_empty(),
+                "a session nobody wrote sent a cookie"
+            );
+        }
+        assert!(
+            held.lock().expect("the store").is_empty(),
+            "a session nobody wrote left a row"
+        );
+
+        let mut ctx = request();
+        let write = [Value::text("user"), Value::text("ada")];
+        let answer = nvs_runtime::call(super::nvs_core_session_set, &mut ctx, &write);
+        write.into_iter().for_each(dropped);
+        dropped(answer.expect("the first write is kept"));
+        let headers = ctx.take_headers();
+        assert_eq!(headers.len(), 1, "the first write sends one cookie");
+        let id = ctx.session().expect("the session stays open").id.clone();
+        assert!(
+            headers[0].value.starts_with(&format!("nvsid={id};")),
+            "{:?} carries the identifier",
+            headers[0].value
+        );
+        ctx.end_session();
+        let entries = held.lock().expect("the store");
+        assert_eq!(
+            entries.len(),
+            1,
+            "one row, for the one session somebody wrote"
+        );
+        assert!(
+            entries.contains_key(&key_of(&id)),
+            "under the identifier the cookie carries"
         );
     }
 

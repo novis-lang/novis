@@ -7,6 +7,7 @@
     "core-classes/script-args"
   ],
   "guardedBy": [
+    "crates/nvs-stdlib/src/session.rs",
     "tests/conformance/core/session-a-member-called-before-start-throws-naming-it.nvst",
     "tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst",
     "tests/conformance/core/session-start-takes-the-presented-identifier-or-none-at-all.nvst",

@@ -47,3 +47,17 @@ while ($i < 1000) {
     $i = $i + 1;
 }
 echo 'empty sessions: ', $empty, "\n";
+
+// 6. The request opens 20000 sessions and only reads them. Nothing is saved, and each one ends.
+$i = 0;
+$empty = 0;
+while ($i < 20000) {
+    Core\Session::start();
+    Core\Session::regenerate();
+    if (Core\Session::get('user') == null) {
+        $empty = $empty + 1;
+    }
+    Core\Session::destroy();
+    $i = $i + 1;
+}
+echo 'read-only sessions: ', $empty, "\n";

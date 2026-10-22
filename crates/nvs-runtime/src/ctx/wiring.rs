@@ -46,6 +46,10 @@ use super::*;
 #[derive(Debug)]
 pub struct Session {
     /// The identifier the store issued, as it rides in the cookie.
+    ///
+    /// Empty for a fresh session nobody has written yet: it has no row in the
+    /// store and no cookie, and `Core\Session`'s first write draws the
+    /// identifier.
     pub id: String,
     /// The record under [`Self::id`], as the byte carrier wrote it.
     ///
