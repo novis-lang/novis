@@ -41,7 +41,7 @@ stages:
         rules: [http-server/the-residue-is-one-named-fault-class, errors/on-limit]
   - id: 6
     title: "the attacks, and every rule this goal touched says what is true"
-    status: open
+    status: done
     context: [tests/hostile/README.md, tests/hostile/core/Request/post/01-a-form-with-one-broken-escape.nvs, tests/hostile/core/Request/post/01-a-form-with-one-broken-escape.nvsr, tests/hostile/lang/iteration/generators/01-driving-a-generator-off-its-path.nvs, crates/nvs-cli/tests/request.rs]
     extra:
       context:
@@ -292,13 +292,13 @@ user reads*.
 landed. The session checks each against `rule:testing/hostile-case-contract` and AGENTS.md § *Text an
 end user reads*.
 
-- [ ] Attack: a urlencoded form whose names nest past the memory limit stops with the memory error. `tests/hostile/core/Request/post/02-a-form-whose-names-nest-past-the-memory-limit.nvs:1`, `tests/hostile/core/Request/post/02-a-form-whose-names-nest-past-the-memory-limit.nvsr:1`
-- [ ] Attack: the same shape in a query string. `tests/hostile/core/Request/query/02-a-query-whose-names-nest-past-the-memory-limit.nvs:1`, `tests/hostile/core/Request/query/02-a-query-whose-names-nest-past-the-memory-limit.nvsr:1`
-- [ ] Attack: more parts than `max_multipart_parts`, most of them empty files, some with many headers. `tests/hostile/core/Request/files/02-a-body-of-many-empty-parts.nvs:1`, `tests/hostile/core/Request/files/02-a-body-of-many-empty-parts.nvsr:1`
-- [ ] Attack: a program catches the body-limit error and reads the form again. `tests/hostile/core/Request/post/03-reading-the-form-again-after-its-limit.nvs:1`, `tests/hostile/core/Request/post/03-reading-the-form-again-after-its-limit.nvsr:1`
-- [ ] Attack: a `finally` keeps the generator that is being freed. `tests/hostile/lang/iteration/generators/02-a-finally-that-keeps-its-own-generator.nvs:1`
-- [ ] Rust tests: a chunked body over `request_body` and one over `upload_total`, read by `post()`. `crates/nvs-cli/tests/request.rs:342`
-- [ ] `bun nv rules --check` and `bun nv owners --closes failure-paths-hold` are green, and every rule fragment touched above is in the present tense. `docs/rules/errors/multipart-part-count.md:1`
+- [x] Attack: a urlencoded form whose names nest past the memory limit stops with the memory error. `tests/hostile/core/Request/post/02-a-form-whose-names-nest-past-the-memory-limit.nvs:1`, `tests/hostile/core/Request/post/02-a-form-whose-names-nest-past-the-memory-limit.nvsr:1`
+- [x] Attack: the same shape in a query string. `tests/hostile/core/Request/query/02-a-query-whose-names-nest-past-the-memory-limit.nvs:1`, `tests/hostile/core/Request/query/02-a-query-whose-names-nest-past-the-memory-limit.nvsr:1`
+- [x] Attack: more parts than `max_multipart_parts`, most of them empty files, some with many headers. `tests/hostile/core/Request/files/02-a-body-of-many-empty-parts.nvs:1`, `tests/hostile/core/Request/files/02-a-body-of-many-empty-parts.nvsr:1`
+- [x] Attack: a program catches the body-limit error and reads the form again. `tests/hostile/core/Request/post/03-reading-the-form-again-after-its-limit.nvs:1`, `tests/hostile/core/Request/post/03-reading-the-form-again-after-its-limit.nvsr:1`
+- [x] Attack: a `finally` keeps the generator that is being freed. `tests/hostile/lang/iteration/generators/02-a-finally-that-keeps-its-own-generator.nvs:1`
+- [x] Rust tests: a chunked body over `request_body` and one over `upload_total`, read by `post()`. `crates/nvs-cli/tests/request.rs:342`
+- [x] `bun nv rules --check` and `bun nv owners --closes failure-paths-hold` are green, and every rule fragment touched above is in the present tense. `docs/rules/errors/multipart-part-count.md:1`
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -406,23 +406,42 @@ value of exactly `request_body`: the field's name now counts too. Also any `nvs-
 that lists every `[limits]` or `[limits.hard]` key or counts `Request::all`'s rows
 (`crates/nvs-config/tests/request.rs:724`, `crates/nvs-config/tests/directives.rs:3729`): the new
 row adds one. `bun nv directives --check-template` has not run over the new `default.toml` lines.
+Also any `nvs-stdlib` or `nvs-cli` test that expects a `LogicError` from a body reader after a
+failed body read: `claim_body` now throws the kept failure first (stage 6 below).
+
+Stage 6 is done. Five hostile cases landed, and `bun nv proofs --run` passes all nine of
+`Core\Request::post`, `query`, `files` and `lang:iteration/generators`. The two nesting cases lower
+`limits.memory` to `256K` and send twenty thousand `[]` levels, and each stops with the memory
+`FATAL`. The multipart case lowers `limits.max_multipart_parts` to 10 over 31 parts. The generator
+case copies the slot that held the generator from its `finally`, by property, array and static,
+10000 times each, and the copy is `null` every time. `a_chunked_form_past_request_body_fails_every_post`
+and `a_chunked_form_past_upload_total_fails_every_post` (`crates/nvs-cli/tests/request.rs:395`)
+pass by name. `bun nv rules --check` and `bun nv owners --closes failure-paths-hold` are green.
+
+The attacks found two holes, both fixed:
+
+- `uri::path_of` (`crates/nvs-stdlib/src/uri.rs:2181`) built a `Vec` of every bracket step, 24
+  bytes per `[]`, which the ceiling charges but never refuses. The query case held 656 KB against a
+  256 KB ceiling. The shape is now checked without allocating, and `uri::Path` reads the steps
+  lazily. The case now stops at 196 KB. The parse test nests 400000 levels, and its peak may pass
+  the limit only by the `FATAL` message, which is made after the refusal.
+- `request::claim_body` (`crates/nvs-stdlib/src/request.rs:1751`) ran before `whole_body`'s kept
+  failure, so a second `post()` threw the claim's misleading `LogicError`. It now throws the kept
+  failure first, for every reader. The case prints `RuntimeError` for every later read.
+
+The acceptance sweep's reds were stale again: the `env-secret-proofs` log shows exit 0, and nightly
+run 39567373487 ran at `afbb1edc2`.
 
 ### Next
 
-**Stage 6, one group: the attacks.** No gate. Follow the stage's `**Split:**` line: one writing
-subagent writes the hostile cases one after another, and the session checks each against
-`rule:testing/hostile-case-contract` and AGENTS.md § *Text an end user reads*.
+**Stage 7, the gate.** Follow its `**Split:**` line: start `bun nv affected --run` with
+`run_in_background`, end the turn, group its failures by cause, fix them in one pass, and run it once
+more. The expected reds are listed above. Run `bun nv directives --check-template` in the same pass.
+Before `DONE`, `bun nv verify --doc` and `bun nv owners --closes failure-paths-hold`.
 
-- [ ] Attack: a urlencoded form whose names nest past the memory limit stops with the memory error. `tests/hostile/core/Request/post/02-a-form-whose-names-nest-past-the-memory-limit.nvs:1`
-- [ ] Attack: the same shape in a query string. `tests/hostile/core/Request/query/02-a-query-whose-names-nest-past-the-memory-limit.nvs:1`
-- [ ] Attack: more parts than `max_multipart_parts`. `tests/hostile/core/Request/files/02-a-body-of-many-empty-parts.nvs:1`
-- [ ] Attack: a program catches the body-limit error and reads the form again. `tests/hostile/core/Request/post/03-reading-the-form-again-after-its-limit.nvs:1`
-- [ ] Attack: a `finally` keeps the generator that is being freed. `tests/hostile/lang/iteration/generators/02-a-finally-that-keeps-its-own-generator.nvs:1`
-- [ ] Rust tests: a chunked body over `request_body` and one over `upload_total`, read by `post()`. `crates/nvs-cli/tests/request.rs:342`
-- [ ] `bun nv rules --check` and `bun nv owners --closes failure-paths-hold` are green. `docs/rules/errors/multipart-part-count.md:1`
-
-The "reads the form again" attack has the runtime behaviour it needs (`Inbound::fail_body`,
-`crates/nvs-runtime/src/ctx/inbound.rs:996`).
+- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog
 
