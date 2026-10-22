@@ -2173,27 +2173,48 @@ impl Index<'_> {
 /// the last `]`, a name that opens with `[` — answers `None`, and the caller
 /// takes the whole name as one literal key. The module docs own why that is
 /// the rule rather than PHP's character substitutions.
-fn path_of(name: &[u8]) -> Option<(&[u8], Vec<Index<'_>>)> {
+///
+/// The shape is checked in one pass that allocates nothing, and the path is
+/// read lazily by [`Path`]. A list of the steps would be a Rust allocation
+/// the memory ceiling does not refuse, 24 bytes for each two-byte `[]`, so a
+/// deep name would carry the parse past the limit before its first array.
+fn path_of(name: &[u8]) -> Option<(&[u8], Path<'_>)> {
     let open = match name.iter().position(|&byte| byte == b'[') {
-        None => return Some((name, Vec::new())),
+        None => return Some((name, Path { rest: &[] })),
         Some(0) => return None,
         Some(at) => at,
     };
-    let mut path = Vec::new();
     let mut rest = &name[open..];
     while let Some(&byte) = rest.first() {
         if byte != b'[' {
             return None;
         }
         let close = rest.iter().position(|&byte| byte == b']')?;
-        path.push(if close == 1 {
-            Index::Next
-        } else {
-            Index::At(&rest[1..close])
-        });
         rest = &rest[close + 1..];
     }
-    Some((&name[..open], path))
+    Some((&name[..open], Path { rest: &name[open..] }))
+}
+
+/// A bracket path [`path_of`] has already checked, read one `[…]` group at a
+/// time.
+struct Path<'a> {
+    /// The groups not read yet: complete `[…]` groups and nothing else.
+    rest: &'a [u8],
+}
+
+impl<'a> Iterator for Path<'a> {
+    type Item = Index<'a>;
+
+    fn next(&mut self) -> Option<Index<'a>> {
+        let close = self.rest.iter().position(|&byte| byte == b']')?;
+        let index = if close == 1 {
+            Index::Next
+        } else {
+            Index::At(&self.rest[1..close])
+        };
+        self.rest = &self.rest[close + 1..];
+        Some(index)
+    }
 }
 
 /// The array `key` names inside `parent`, displacing whatever was there when
@@ -2289,10 +2310,10 @@ impl OverMemory {
 fn insert(
     out: &mut NvsArray,
     base: &[u8],
-    path: &[Index<'_>],
+    mut path: Path<'_>,
     value: Value,
 ) -> Result<(), OverMemory> {
-    let Some((last, descents)) = path.split_last() else {
+    let Some(mut last) = path.next() else {
         out.set(NvsStr::new(base), value);
         return Ok(());
     };
@@ -2303,7 +2324,8 @@ fn insert(
             return Err(over);
         }
     };
-    for index in descents {
+    for following in path {
+        let index = std::mem::replace(&mut last, following);
         match branch(&mut current, index.key()) {
             Ok(Some(next)) => current = next,
             Ok(None) => {
@@ -3296,7 +3318,7 @@ pub(crate) enum Values {
 /// [`insert`]'s [`OverMemory`], with `value` released.
 pub(crate) fn place(out: &mut NvsArray, name: &[u8], value: Value) -> Result<(), OverMemory> {
     match path_of(name) {
-        Some((base, path)) => insert(out, base, &path, value),
+        Some((base, path)) => insert(out, base, path, value),
         None => {
             out.set(NvsStr::new(name), value);
             Ok(())
@@ -3739,10 +3761,12 @@ mod tests {
     /// limit many times over.
     #[test]
     fn a_name_nested_past_the_memory_limit_stops_inside_one_parse() {
+        // Deep enough that a list of the name's steps, 24 bytes each, would
+        // itself cross the limit.
         let (depth, limit) = if cfg!(miri) {
-            (10_000, 1 << 18)
+            (20_000, 1 << 18)
         } else {
-            (100_000, 4 << 20)
+            (400_000, 4 << 20)
         };
         // Made before the context, so the query is not on its balance.
         let query = format!("a{}=1", "[]".repeat(depth));
@@ -3757,9 +3781,15 @@ mod tests {
             "a memory breach is a FATAL"
         );
         assert!(ctx.over_memory_limit(), "the refusal is recorded on the request");
+        // The FATAL's message is made after the refusal, so the peak may pass
+        // the limit by that message and nothing more.
+        let message = match &fault {
+            nvs_runtime::Fault::Fatal(message) => message.len(),
+            _ => 0,
+        };
         assert!(
-            ctx.memory_peak() <= limit,
-            "the parse held no more than the limit: peak {} against {limit}",
+            ctx.memory_peak() <= limit + message,
+            "the parse held no more than the limit and its report: peak {} against {limit}",
             ctx.memory_peak()
         );
     }
