@@ -1,9 +1,10 @@
 <?nvs
-// Attack: a program reads documents that somebody uploaded. It tries a quoted
-// field that is never closed, a record with two hundred thousand fields, and a
-// quoted field of eight megabytes. Every one of them has to give a result or an
-// error, and none of them may stop the program.
+// Attack: a program reads documents that somebody uploaded. It tries broken
+// documents, very wide and very long records, and documents of eight megabytes.
+// Each one should give a result or an error. The last one needs more memory than
+// a request may use, so the program should stop there with `FATAL`.
 // hostile: timeout-ms 30000
+// hostile: ends-early 5 FATAL
 
 // 1. Documents that are broken or cut short. Reading one must not end the
 // program, so every error is caught here.
@@ -46,3 +47,9 @@ echo '3 records: ', Core\Arr::count(Core\Csv::parse($tall)), "\n";
 string $unclosed = '"' . Core\Str::repeat('x', 8000000);
 var $huge = Core\Csv::parse($unclosed);
 echo '4 fields in the unclosed record: ', Core\Arr::count($huge[0]), "\n";
+
+// 5. Eight megabytes of short lines, four million records in all. The records
+// need more than the memory limit, so the program stops while it reads them.
+echo "step 5\n";
+var $lines = Core\Csv::parse(Core\Str::repeat("a\n", 4000000));
+echo '5 records: ', Core\Arr::count($lines), "\n";

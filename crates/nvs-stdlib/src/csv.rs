@@ -696,6 +696,10 @@ nvs_runtime::nvs_helper! {
     /// at the three dialect bytes and takes out only quote and escape bytes,
     /// and [`dialect_byte`] makes each one ASCII, which no multi-byte sequence
     /// contains. [`nvs_core_csv_rows`] reads a file's bytes, so it checks.
+    ///
+    /// [`over_memory`]'s `FATAL` where the rows need more than the request's
+    /// memory limit. Each field, row and record asks the budget before it
+    /// grows, so the parse stops at the limit and not after the document.
     fn nvs_core_csv_parse(_ctx, args: [5]) {
         let text = text_of(&args[0], "parse", "the text")?;
         let separator = dialect_byte(&args[1], "parse", "separator")?;
@@ -742,12 +746,21 @@ nvs_runtime::nvs_helper! {
                 csv_core::ReadFieldResult::InputEmpty
                 | csv_core::ReadFieldResult::OutputFull => {}
                 csv_core::ReadFieldResult::Field { record_end } => {
+                    if !affords_field(&record) {
+                        return Err(over_memory("parse"));
+                    }
                     record.push(std::mem::take(&mut field));
                     if record_end {
                         if header && names.is_empty() {
                             names = std::mem::take(&mut record);
                         } else {
-                            rows.append(Value::array(row(&record, &names)));
+                            let built = row(&record, &names).ok_or_else(|| over_memory("parse"))?;
+                            if !nvs_runtime::budget::affords(size_of::<Value>())
+                                || !rows.affords_write()
+                            {
+                                return Err(over_memory("parse"));
+                            }
+                            rows.append(Value::array(built));
                             record.clear();
                         }
                     }
@@ -799,14 +812,48 @@ fn reader_for(dialect: Dialect) -> csv_core::Reader {
         .build()
 }
 
-/// One parsed record as an array, keyed by `names` where it has them.
+/// The `FATAL` a parse or a walk stops with once the request cannot afford its
+/// next step. The budget has already recorded the breach, so the program sees
+/// [`nvs_runtime::Ctx::memory_breach`]'s wording and not this one.
+fn over_memory(member: &str) -> Fault {
+    Fault::fatal(format!(
+        "Core\\Csv::{member}: the document does not fit in the request's memory limit"
+    ))
+}
+
+/// Whether the request can afford `record` taking one more field.
+///
+/// A full record's storage doubles, and that is the largest single step a
+/// parse takes, so the doubling is asked for in front of itself. A field's own
+/// bytes were allocated before this ask, so they are noticed here, one field
+/// late. `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`
+/// is the rule, and says why every ask here is the size of its step and never
+/// zero: here, the field's place in the record.
+fn affords_field(record: &Vec<Vec<u8>>) -> bool {
+    let growth = if record.len() == record.capacity() {
+        record.capacity().saturating_mul(2).max(4)
+    } else {
+        1
+    };
+    nvs_runtime::budget::affords(growth.saturating_mul(size_of::<Vec<u8>>()))
+}
+
+/// One parsed record as an array, keyed by `names` where it has them, or
+/// `None` where the request cannot afford the next entry.
 ///
 /// A field past the end of `names` is keyed by its own column index, which is
 /// the key it would have had with no header at all; this module's docs own why
-/// that is answered rather than thrown.
-fn row(record: &[Vec<u8>], names: &[Vec<u8>]) -> NvsArray {
+/// that is answered rather than thrown. A `None` has already recorded the
+/// breach, and the part of the row built so far is freed. Each field asks for
+/// its entry and its string's bytes, then for the row's growth.
+fn row(record: &[Vec<u8>], names: &[Vec<u8>]) -> Option<NvsArray> {
     let mut out = NvsArray::new();
     for (column, field) in record.iter().enumerate() {
+        if !nvs_runtime::budget::affords(size_of::<Value>().saturating_add(field.len()))
+            || !out.affords_write()
+        {
+            return None;
+        }
         #[expect(
             clippy::disallowed_methods,
             reason = "`parse` cuts each field from a `string` at ASCII bytes, and `rows` checks it"
@@ -818,7 +865,7 @@ fn row(record: &[Vec<u8>], names: &[Vec<u8>]) -> NvsArray {
             None => out.set(NvsStr::new(column.to_string().as_bytes()), value),
         }
     }
-    out
+    Some(out)
 }
 
 nvs_runtime::nvs_helper! {
@@ -984,6 +1031,9 @@ enum Step {
     /// A field that is not UTF-8, ending on this line. The reader has given up
     /// its buffers, as at [`Step::End`].
     NotText(u64),
+    /// The request cannot afford the next field or row. The reader has given
+    /// up its buffers, as at [`Step::End`].
+    OverMemory,
 }
 
 impl RowReader {
@@ -1011,7 +1061,14 @@ impl RowReader {
                 // buffer: keep what has been written and go round for more.
                 // Reading past the end is how the reader is told the document
                 // has ended, which is what closes the final record.
-                csv_core::ReadFieldResult::InputEmpty | csv_core::ReadFieldResult::OutputFull => {}
+                // A field that never ends would grow one chunk at a time for
+                // as long as the file lasts, so the next chunk is asked for.
+                csv_core::ReadFieldResult::InputEmpty | csv_core::ReadFieldResult::OutputFull => {
+                    if !nvs_runtime::budget::affords(CELL) {
+                        self.finish();
+                        return Step::OverMemory;
+                    }
+                }
                 csv_core::ReadFieldResult::Field { record_end } => {
                     // The file's bytes are checked here, where they become a
                     // `string` (`rule:types/string-is-utf8`). `line()` counts
@@ -1023,12 +1080,19 @@ impl RowReader {
                         self.finish();
                         return Step::NotText(line);
                     }
+                    if !affords_field(&self.record) {
+                        self.finish();
+                        return Step::OverMemory;
+                    }
                     self.record.push(std::mem::take(&mut self.field));
                     if record_end {
                         if self.header && self.names.is_empty() {
                             self.names = std::mem::take(&mut self.record);
                         } else {
-                            let built = row(&self.record, &self.names);
+                            let Some(built) = row(&self.record, &self.names) else {
+                                self.finish();
+                                return Step::OverMemory;
+                            };
                             // Cleared rather than taken, so the next record
                             // reuses the fields' own allocation.
                             self.record.clear();
@@ -1150,6 +1214,7 @@ fn next_record(
             Step::Record(record) => return Ok(Some(record)),
             Step::End => return Ok(None),
             Step::NotText(line) => return Err(not_text(path, line)),
+            Step::OverMemory => return Err(over_memory("rows")),
             Step::NeedInput => {}
         }
         let mut buffer = [0_u8; READ_CHUNK];
@@ -1879,5 +1944,46 @@ mod tests {
             released(record);
         }
         released(rows);
+    }
+
+    /// Records past the request's memory limit stop the parse at the limit.
+    ///
+    /// Two hundred thousand short lines are 400 KB of text and many megabytes
+    /// of rows. One record of two hundred thousand empty fields is the same
+    /// size again, in one row. Each is refused under a 1 MiB limit, and the
+    /// peak the parse leaves on its context stays near that limit. The peak
+    /// tells a parse stopped at the limit from one that built every row first.
+    // covers: Core\Csv::parse
+    #[test]
+    fn records_past_the_memory_limit_stop_the_parse_at_the_limit() {
+        let (count, limit) = if cfg!(miri) {
+            (50_000, 256 << 10)
+        } else {
+            (200_000, 1 << 20)
+        };
+        for (document, shape) in [
+            ("a\n".repeat(count), "short lines"),
+            (",".repeat(count), "one wide record"),
+        ] {
+            // Made before the context, so the text is not on its balance.
+            let args = [s(&document), s(","), s("\""), s(""), Value::bool(false)];
+            drop(document);
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            ctx.set_memory_limit(limit);
+            let answered = call(super::nvs_core_csv_parse, &mut ctx, &args);
+            let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+            assert!(answered.is_err(), "{shape}: the parse refuses rows past the limit");
+            let refusal = refusal.expect("a refusal leaves its message in the context");
+            assert!(refusal.contains("memory limit"), "{shape}: {refusal}");
+            assert!(
+                ctx.memory_peak() < 2 * limit,
+                "{shape}: the parse stopped at the limit rather than after every row: peak {}",
+                ctx.memory_peak()
+            );
+            drop(ctx);
+            for arg in args {
+                released(arg);
+            }
+        }
     }
 }
