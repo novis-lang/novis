@@ -537,9 +537,28 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 7 is open again for one item, d2's. Stage 8 follows it.
+Stage 7 is open for one item, d2's, and it waits on decision d3. Stage 8 can go first.
 
-This session (the sweep's `env-secret-proofs` again exits 0 when its command is rerun, `nothing owed`;
+This session (0149) landed no code:
+
+- **d2's share has no size that meets the item, so d3 asks.** The scheduler's ready queue is FIFO
+  (`crates/nvs-host/src/scheduler.rs:930`), and `Isolate::start` queues each request as a child task.
+  So in a burst on one core, every ready connection passes `Admission::admit` before any request runs.
+  Before it allocates, a hold looks the same as a light request. The default per-request cap is
+  128 MiB, and the flood's room is 384 MiB (512 less `ENGINE_RESERVE`). A 1 MiB share (the publish
+  step) still admits the 200 holds of the flood, because 200 MiB plus the cap fits. A share of the cap
+  refuses the holds, and it also refuses a light burst past 3 at once, the division the rule declines.
+  d3's option 3 (recommended) keeps the 1 MiB share and runs a started request next, so its
+  allocation is published before the next admission. Without the FIFO wait, the gauge alone refuses
+  holds past about 32.
+- **`env-secret-proofs` is not a check any more.** `looper check --name env-secret-proofs` answers
+  "no check matches", nothing in `docs/goals/` or `looper.toml` names it, and its only log (00:07)
+  says exit 0. The sweep's red is a stale ledger line, not this tree. Nightly 39746060276 was
+  cancelled whole.
+- 7ede738e0 (looper's commit of session 0148's leftovers) adds three `[[launch]]` entries to
+  `looper.toml` for the website. It is not this goal's work and was left as it is.
+
+The previous session (the sweep's `env-secret-proofs` again exits 0 when its command is rerun, `nothing owed`;
 its log on disk is from 00:07 and says exit 0, so the sweep's red is stale a third time. Nightly
 39746060276 was cancelled whole):
 
@@ -818,14 +837,16 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 7's d2 item first, then stage 8.
+Stage 8 first, because d2's item waits on decision d3. Then d2 once d3 is answered.
 
-0. d2 (`crates/nvs-server/src/admit.rs`, `Admission::admit`, and `nvs_runtime::budget`'s gauge,
-   `publish` and `held_by_cores`). An admitted request adds a provisional share to an admission
-   count that `admit` reads beside the gauges, and the request takes it back at its first publish or
-   its end, whichever comes first. Choose the share from what exists (the rule names the per-request
-   cap and the 1 MiB publish step) and write why in the rule. Write the Rust test first: one core,
-   a burst past the room, at least one `503` before any request allocates. Then run the `flood` row
+0. d2, after d3 (`crates/nvs-server/src/admit.rs`, `Admission::admit` and `memory_fits`;
+   `crates/nvs-runtime/src/budget/gauge.rs`, `report` and `publish_held`). Build what d3's answer
+   names. For a share: `InFlight` holds it, and its `Drop` gives it back; `memory_fits` adds the
+   shares to `used`. For option 3's hand-off: `crates/nvs-host/src/scheduler.rs:930` (`start`
+   pushes a new task to the back of `ready`), and `Isolate::start` (`crates/nvs-host/src/isolate.rs:627`)
+   is the caller that queues a request. Write why in
+   `rule:http-server/admission-is-arithmetic-not-a-number`. Write the Rust test first: one core, a
+   burst past the room, at least one `503` before any request allocates. Then run the `flood` row
    once (`bun nv bench-compare --scenarios --smoke --row flood`, about 15 minutes with the image
    build) and record Novis's evidence here. Set stage 7 done once it lands.
 
