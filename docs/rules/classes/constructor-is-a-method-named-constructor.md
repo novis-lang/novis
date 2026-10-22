@@ -5,6 +5,17 @@ discharges its inherited properties by calling `parent::constructor(...)`. It is
 (`E0106`): `new` runs it on the object just made, and a static method has no `$this` to assign a
 property through.
 
+Those are the only two ways it runs. `new` runs it once, on an object nobody else has seen, and a
+subclass's constructor calls `parent::constructor(...)` once on each path, never in a loop and never
+from another method or an anonymous function. Every other call is `E0885`: `$x->constructor(...)`
+on an object that exists, `self::`, `static::` or `Foo::constructor(...)`, and a reference to it
+that a later call would run. A second run would write each `readonly` property again, under every
+type a test of one had already narrowed, and compiled code reads those properties without testing
+them. The one reference that compiles is the first argument of `Core\Attributes::get` and `all`,
+which names the class and runs nothing. A name the checker cannot see, through `mixed` or
+`Core\Reflect\ClassInfo::call`, throws a `LogicError` at run time instead; `ClassInfo::construct`
+makes a new object, so it runs the constructor as `new` does.
+
 `__construct` is not recognized as a constructor and cannot compile as an ordinary method either,
 because two leading underscores fail the identifier pattern
 (`rule:classes/no-leading-underscore-identifiers`). It gets its own diagnostic rather than the

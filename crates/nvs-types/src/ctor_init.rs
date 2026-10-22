@@ -103,6 +103,12 @@
 //! them. A write through another receiver, and one from outside the
 //! constructor, are refused by `crate::expr::assign` instead.
 //!
+//! **`parent::constructor(...)` runs at most once on each path**, tracked in
+//! the same may-have-run set under [`PARENT_CALL`]: a second call, or one
+//! inside a loop, is `E0885`, since it would write the parent's `readonly`
+//! properties again. Every other call of `constructor` by name is refused
+//! where it is checked, in `crate::expr::calls`.
+//!
 //! **Inheriting a constructor is not declaring one.** A class that writes no
 //! `constructor` of its own runs its parent's unchanged, and that body cannot
 //! assign a property the subclass declared after it — so every own required
@@ -195,7 +201,15 @@ pub(crate) struct InitState {
     /// Every use of `$this` that a path reaches too early, reported once the
     /// walk is over.
     escapes: Vec<Escape>,
+    /// Every `parent::constructor(...)` that a path may reach a second time,
+    /// reported once the walk is over.
+    second_parent_calls: Vec<Span>,
 }
+
+/// The name `written` tracks a `parent::constructor(...)` call under. No
+/// property name has `::` in it, so it joins with the `readonly` writes and
+/// is refused the way a second write is.
+const PARENT_CALL: &str = "parent::constructor";
 
 /// A use of `$this` that a path reaches before construction's first phase is
 /// over.
@@ -511,6 +525,19 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
             Diagnostic::error(code::E_UNINITIALIZED_PROPERTY, message)
                 .with_primary(escape.span, label)
                 .with_help(help),
+        );
+    }
+    for &span in &state.second_parent_calls {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_CONSTRUCTOR_CALLED_DIRECTLY,
+                "`parent::constructor(...)` runs once on each path through the constructor",
+            )
+            .with_primary(span, "a path can reach this call a second time")
+            .with_help(
+                "call `parent::constructor(...)` once, outside any loop, on each path. Compute \
+                 its arguments in local variables first",
+            ),
         );
     }
     for refused in &state.refused {
@@ -1007,6 +1034,12 @@ pub(crate) fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
             && span_text(env.src, *name_span) == "constructor" =>
         {
             state.escape(e.span, true);
+            if (state.loop_depth > 0 || state.written.contains(PARENT_CALL))
+                && !state.second_parent_calls.contains(&e.span)
+            {
+                state.second_parent_calls.push(e.span);
+            }
+            state.written.insert(PARENT_CALL.to_owned());
             state.parent_called = true;
         }
         ExprKind::StaticCall { class, method, .. } if passes_this(class, method, state, env) => {
@@ -1530,6 +1563,55 @@ mod tests {
             "<?nvs\nclass P {{\n  public string $name;\n  public function constructor() {{ $this->name = \"p\"; }}\n{PEEK}}}\nclass C extends P {{\n  public function constructor() {{\n    $this->peek();\n    parent::peek();\n    parent::constructor();\n  }}\n}}\n"
         );
         assert_eq!(early_escapes(&src), 2);
+    }
+
+    fn direct_constructor_calls(src: &str) -> usize {
+        check_src(src)
+            .iter()
+            .filter(|d| d.code == Some(code::E_CONSTRUCTOR_CALLED_DIRECTLY))
+            .count()
+    }
+
+    const BOX: &str = "class Box {\n  public readonly int $n;\n  public function constructor(int $n) { $this->n = $n; }\n}\n";
+
+    #[test]
+    fn a_constructor_called_by_name_outside_parent_is_refused() {
+        for call in [
+            "$b->constructor(2);",
+            "mixed $m = $b; $m->constructor(2);",
+            "Box::constructor(2);",
+            "var $f = Box::constructor(...);",
+            "var $f = $b->constructor(...);",
+        ] {
+            let src = format!("<?nvs\n{BOX}var $b = new Box(1);\n{call}\n");
+            assert_eq!(direct_constructor_calls(&src), 1, "{call}");
+        }
+        let inside = format!(
+            "<?nvs\n{BOX}class Sub extends Box {{\n  public function constructor() {{\n    parent::constructor(1);\n    self::constructor(2);\n    var $f = fn (): void => parent::constructor(3);\n  }}\n  public function again(): void {{ parent::constructor(4); }}\n}}\n"
+        );
+        assert_eq!(direct_constructor_calls(&inside), 3);
+        let named = format!(
+            "<?nvs\n{BOX}?{{}} $none = Core\\Attributes::get<{{}}>(Box::constructor(...));\n"
+        );
+        assert_eq!(direct_constructor_calls(&named), 0, "{:?}", check_src(&named));
+    }
+
+    #[test]
+    fn a_second_parent_constructor_call_on_a_path_is_refused() {
+        for body in [
+            "parent::constructor(1);\n    parent::constructor(2);",
+            "if ($b) { parent::constructor(1); }\n    parent::constructor(2);",
+            "for (var $i = 0; $i < 2; $i++) { parent::constructor($i); }",
+        ] {
+            let src = format!(
+                "<?nvs\n{BOX}class Sub extends Box {{\n  public function constructor(bool $b) {{\n    {body}\n  }}\n}}\n"
+            );
+            assert_eq!(direct_constructor_calls(&src), 1, "{body}");
+        }
+        let once = format!(
+            "<?nvs\n{BOX}class Sub extends Box {{\n  public function constructor(bool $b) {{\n    if ($b) {{ parent::constructor(1); }} else {{ parent::constructor(2); }}\n  }}\n}}\n"
+        );
+        assert_eq!(direct_constructor_calls(&once), 0, "{:?}", check_src(&once));
     }
 
     /// The `catch` doesn't assign `$count`, so it's not satisfied on every

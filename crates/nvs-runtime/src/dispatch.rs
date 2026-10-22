@@ -341,6 +341,32 @@ pub fn call_erased_method_from(
     args: &[Value],
     site: Option<&str>,
 ) -> Result<Value, Fault> {
+    // `rule:classes/constructor-is-a-method-named-constructor`: a constructor
+    // runs through `new` and `parent::constructor(...)` alone. The checker
+    // refuses a written `->constructor(...)` (`E0885`), and this is the same
+    // refusal for a name only known at run time. A second run would rewrite
+    // `readonly` properties under types a test of one already narrowed.
+    // [`construct_erased_from`] runs the constructor of the object it just
+    // made, through [`call_erased_unchecked`].
+    if name == crate::object::CONSTRUCTOR {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            "`constructor` cannot be called on an object that already exists: create a new \
+             object with `new`"
+                .to_owned(),
+        ));
+    }
+    call_erased_unchecked(ctx, receiver, name, args, site)
+}
+
+/// [`call_erased_method_from`] without its refusal of `constructor`.
+fn call_erased_unchecked(
+    ctx: &mut Ctx,
+    receiver: Value,
+    name: &str,
+    args: &[Value],
+    site: Option<&str>,
+) -> Result<Value, Fault> {
     let Some(ptr) = receiver.obj_ptr() else {
         return Err(Fault::thrown_as(
             crate::ThrownClass::Logic,
@@ -489,7 +515,7 @@ pub unsafe fn construct_erased_from(
     if desc.method_row(crate::object::CONSTRUCTOR).is_none() {
         return Ok(receiver);
     }
-    match call_erased_method_from(ctx, receiver, crate::object::CONSTRUCTOR, args, site) {
+    match call_erased_unchecked(ctx, receiver, crate::object::CONSTRUCTOR, args, site) {
         Ok(returned) => {
             #[expect(
                 unsafe_code,

@@ -1,0 +1,45 @@
+--TEST--
+A constructor that calls a method on `$this` before it assigns every property does not compile, whatever value a request sends (`rule:classes/definite-property-initialization`)
+--FILE--
+<?nvs
+// Compiles: the method runs once every property has a value.
+class Cart {
+    public array<string> $items;
+    public string $owner;
+    public function constructor(bool $restore) {
+        $this->items = [];
+        $this->owner = "guest";
+        if ($restore) {
+            $this->log();
+        }
+    }
+    public function log(): void {
+        echo "restoring for ", $this->owner, "\n";
+    }
+}
+
+// Refused: a request decides whether `log` runs, and it reads `$owner` before
+// the constructor assigns it.
+class EarlyCart {
+    public array<string> $items;
+    public string $owner;
+    public function constructor(bool $restore) {
+        if ($restore) {
+            $this->log();
+        }
+        $this->items = [];
+        $this->owner = "guest";
+    }
+    public function log(): void {
+        echo "restoring for ", $this->owner, "\n";
+    }
+}
+
+?tainted string $restore = Core\Request::query("restore");
+var $cart = new EarlyCart($restore == "1");
+echo "ok ", $cart->owner, "\n";
+--EXPECTF-ERROR--
+error[E0409]: %s
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
