@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "A request cannot crash the server, slip past the tainted check, or outgrow its caps"
-summary: "Every finding of the 2026-10-21 audit that no other goal owns is fixed or written into its rule as declined: no request crashes the process through an uninitialised property, a rewritten readonly property or a string that is not UTF-8; no Core member or derived row returns a tainted input without its mark; parsers, connections, spans, sessions and extension instances stay under a cap that is per request or per in-flight request; pooled database connections carry no session state into the next request; Windows network paths, development static serving and the CSRF cookie read are closed; every fix has its attack; every rule this goal touched says what is true; and the checks below pass."
+summary: "Every finding of the 2026-10-21 audit that no other goal owns is fixed or written into its rule as declined: no request crashes the process through an uninitialised property, a rewritten readonly property or a string that is not UTF-8; no Core member or derived row returns a tainted input without its mark; parsers, connections, spans, sessions and extension instances stay under a cap that is per request or per in-flight request; pooled database connections carry no session state into the next request; Windows network paths, development static serving and the CSRF cookie read are closed; nvs serve and every reload refuse a configuration file another account can write, and a read-only mount passes; every fix has its attack; every rule this goal touched says what is true; and the checks below pass."
 context: [docs/rules/testing/hostile-case-contract.md, docs/rules/http-server/an-unsafe-or-unbounded-default-is-a-defect.md]
 stages:
   - id: 1
@@ -56,6 +56,10 @@ stages:
     title: "the outbound client's redirects, the leftovers, and the audit's scratch is gone"
     status: open
     context: [crates/nvs-stdlib/src/http/transport.rs, crates/nvs-config/src/capability.rs, crates/nvs-stdlib/src/html.rs, docs/rules/http-server/a-cross-origin-redirect-drops-credentials.md, docs/rules/core-classes/html-sanitize.md]
+  - id: 15
+    title: "`nvs serve` and every reload check who owns the configuration, and a read-only mount passes"
+    status: open
+    context: [crates/nvs-cli/src/config.rs, crates/nvs-cli/src/reload.rs, crates/nvs-config/src/trust.rs, crates/nvs-config/src/resolve.rs, docs/rules/config/ownership-is-the-trust-boundary.md, docs/rules/config/the-ownership-check-runs-where-it-can-be-answered.md, tests/docker/smoke.sh]
   - id: 14
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -81,6 +85,10 @@ checks:
     stage: 10
     name: a pooled connection starts clean
     run: [bun, nv, verify, --fast, -p, nvs-db]
+  - id: config-tests
+    stage: 15
+    name: the served configuration is ownership-checked, and a read-only mount passes
+    run: [bun, nv, verify, --fast, -p, nvs-config]
   - id: rules-check
     stage: 13
     name: every rule loads and every citation resolves
@@ -104,6 +112,12 @@ through `Core\Str::format`, `Core\Arr::keys`, `Core\Arr::shapeAs`, `Core\SignedC
 derived database row, so the injection compiles and runs. Parsers, idle connections, sampled spans and
 new sessions grow past every cap. Extension calls fail for the whole process from the 64th request on.
 On Windows, `Core\IO::within` sends the server account's credentials to any host named in a request.
+
+A finding from 2026-10-22, outside the audit, is stage 15. `nvs serve` and its reloads resolve the
+tree through `Unowned`, the reader without the ownership check (`crates/nvs-cli/src/config.rs:143`).
+They always have. Both rules that say serve checks are `shipped`, so any account that can write a served
+`nvs.toml` grants itself every capability. The Docker smoke test serves a bind mount the runner's
+account owns, and it passes only because of this hole.
 
 Security and request isolation is the first priority, so this goal comes right after the live one.
 
@@ -220,6 +234,23 @@ A development server on a loopback address answers only a `Host` that is `localh
 address, or a name `[[server.mount]]` lists. A static `.svg` or `.html` file gets `Content-Security-Policy:
 sandbox`. A hard link out of the root is declined into `rule:http-server/static-serving-is-one-policy`:
 a containment check cannot see one, and making the link needs write access to the root.
+
+**Stage 15: serve checks every file it reads, every time, and a read-only mount passes (the user's
+calls, 2026-10-22).** `nvs serve`'s boot and every reload resolve through `nvs_config::resolve::Disk`.
+`nvs run`, `config check`, `config dump` and the language server keep `Unowned`, as
+`rule:config/the-ownership-check-runs-where-it-can-be-answered` says. Development mode is checked too:
+the mode comes from the same file, so skipping the check there lets whoever writes the file skip it. On
+Unix, a file whose file system is mounted read-only (`statvfs` reports `ST_RDONLY`) passes the owner
+test, and so does its directory. No account on this host can change it through that mount, and a
+container's `-v ...:/app:ro` is exactly that. A group- or world-writable mode on a read-only mount is
+still refused. If Docker Desktop on Windows reports `0777` for a bind mount, the guide tells a Windows
+user to copy the configuration into the image, and the rule records why. Windows has no read-only mount
+to waive. A checkout on a non-system drive fails there until its inherited `Authenticated Users` write
+grant is removed, which the rule already accepts. The repository's own servers must pass on Linux CI and
+on a Windows checkout. Safe default: a `bun nv` command that removes that inherited grant from the
+checkout once. `E0607`'s fix line names it for a contributor, and CI's Windows jobs run it before the
+tests. `benches/compare`'s site run mounts `/app/current` read-write (`tools/nv/cmd/bench-compare.ts:155`),
+so its files must belong to the container's account or root.
 
 **Out of scope, each decided by its rule or owned elsewhere:** the slow body wait (HTTP-3, the four idle
 waits rule), a disconnect that does not cancel (LC-10), JWE's PBKDF2 ceiling (CRYPTO-4,
@@ -393,6 +424,25 @@ into its rule.
 - [ ] Raise `wasmtime` and `cranelift`'s minimums to the fixed releases in the lock file. `Cargo.toml:98`
 - [ ] Run the HTML-escaping probes the audit never reported on, and fix or record each result here — run, recorded as HTML-1 (stage 5) and HTML-2 above. `.agent-tmp/sec-audit/wb-stdlib-request/html/app.nvs:1`
 - [ ] Delete `.agent-tmp/sec-audit/`. `.agent-tmp/sec-audit/BRIEF.md:1`
+
+### 15. `nvs serve` and every reload check who owns the configuration, and a read-only mount passes
+
+**Does:** a served `nvs.toml`, include or secret file that another account can write stops the boot
+with `E0607`, and a reload that finds one keeps the running snapshot and names the path. The Docker
+smoke test's read-only bind mount still serves.
+
+**Split:** one read-only `Explore` subagent lists every place the repository boots `nvs serve` on a file
+in the checkout (the harnesses under `tools/nv/`, `tests/docker/smoke.sh`, the compose files under
+`benches/`, the apps and the website's snippets), as `file:line` and one line each. The session makes
+the code change before it runs any of them.
+
+- [ ] `nvs serve`'s boot and every reload resolve through `Disk`. Every other reader keeps `Unowned` (`rule:config/the-ownership-check-runs-where-it-can-be-answered`). `crates/nvs-cli/src/config.rs:400`, `crates/nvs-cli/src/config.rs:575`, `crates/nvs-cli/src/reload.rs:370`, `crates/nvs-cli/src/reload.rs:414`, `crates/nvs-cli/src/serve.rs:429`, `crates/nvs-cli/src/serve.rs:1982`
+- [ ] The `LocalFiles` doc and the module doc say which reader each command uses, as it now is. `crates/nvs-cli/src/config.rs:25`, `crates/nvs-cli/src/config.rs:109`
+- [ ] On Unix, `trust::check` waives the owner test for a file and a directory on a read-only mount, and still refuses a group- or world-writable mode (`rule:config/ownership-is-the-trust-boundary`). `crates/nvs-config/src/trust.rs:184`
+- [ ] Rust tests: a group-writable root and a group-writable include each stop `nvs serve` with `E0607` naming the path; a reload after a `chmod g+w` keeps serving and names the path; the read-only waiver passes and the writable mode under it does not. Each is named in its rule's `guardedBy`. `crates/nvs-cli/tests/serve_ownership.rs:1`, `crates/nvs-config/tests/trust.rs:1`, `data/rules/config/the-ownership-check-runs-where-it-can-be-answered.json:9`
+- [ ] The rule gains the read-only mount paragraph, its reason, and what Docker Desktop on Windows reports. `docs/rules/config/ownership-is-the-trust-boundary.md:1`
+- [ ] Every repository server from the subagent's list passes on Linux and on a Windows checkout, through the safe default's `bun nv` command where Windows needs it, and CI's Windows jobs run it. `tools/nv/main.ts:1`, `.github/workflows/ci.yml:829`
+- [ ] The Docker guide says a read-only mount passes, and a writable one must belong to uid 65532 or root. `website/src/content/docs/guides/production/docker.mdx:59`
 
 ### 14. the goal is verified once, and every failure is fixed
 
