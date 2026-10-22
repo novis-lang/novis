@@ -37,6 +37,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone tools/looper/main.ts:guard`
 
 ## Running things
+- **`bun nv site --check` and `bun nv proofs --run` pick `target/release/nvs` before the debug
+  build, and the release binary is rebuilt only at a goal's end.** Mid-goal they judge the code of
+  the last goal, so a red names a bug already fixed and a green proves nothing about the change.
+  Pass `--nvs target/debug/nvs.exe` to `site`, and run a single hostile case with
+  `target/debug/nvs run <file>`. `until: gone tools/nv/cmd/site.ts:target/release/${exe}`
 - **`bun nv proofs --record-perf --group lang:concurrency` run in the background is killed as a
   `HANG:` at `no-colouring-i-o-just-waits`, and it appends nothing for the features it had already
   measured.** That bench's callgrind leg runs in WSL and prints nothing for over 90 s, and the hang

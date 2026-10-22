@@ -556,7 +556,8 @@ the code change before it runs any of them.
 - [ ] Every repository server from the subagent's list passes on Linux and on a Windows checkout, through the safe default's `bun nv` command where Windows needs it, and CI's Windows jobs run it. `tools/nv/main.ts:1`, `.github/workflows/ci.yml:829`
   - [x] `bun nv checkout-acl` exists (`tools/nv/cmd/checkout-acl.ts`), and CI's four Windows jobs with Bun run it after the tool install
   - [x] it finished on this checkout (`icacls E:\mwl` shows no `(I)` entry and no `Authenticated Users` grant)
-  - [ ] on Windows: `bun nv site --check` over the snippets and the apps, and one served Rust test under `target/tmp` (`cargo test --test per_mount_config`), pass
+  - [x] on Windows: `bun nv site --check` over the snippets and the apps, and one served Rust test under `target/tmp` (`cargo test --test per_mount_config`), pass. No `E0607` anywhere; the snippets and `apps/notes` pass after b4ee8866d and da6b5cb72; `apps/paperwork`'s one red is d6, not ownership
+  - [ ] `apps/paperwork`'s `eachDocumentIsSentAsAPdf` passes, by d6's option 1 (`crates/nvs-stdlib/src/test.rs:3033`)
   - [ ] on Linux: CI's `docker` job (smoke `:ro` mount) and `bench-compare --smoke` pass; not runnable here
 - [x] The Docker guide says a read-only mount passes, and a writable one must belong to uid 65532 or root. `website/src/content/docs/guides/production/docker.mdx:59`
 
@@ -569,6 +570,45 @@ the code change before it runs any of them.
 ## Handoff
 
 ### State
+
+Stage 15's Windows run is done, and no repository server hits `E0607`. It found two real bugs,
+both fixed, and one design gap, filed as d6 and built on.
+
+- **Served bodies were HTML-escaped (b4ee8866d).** HTML-1's `Ctx::write_body` rendered a body
+  whenever `script_depth > 0`, and `nvs-host` builds every request, job and schedule run as
+  `ctx.isolate(..)`, so at depth 1: every served `Core\Response::text`/`::json` body went out
+  escaped (`{&quot;id&quot;:2}`). It now renders only for `RunKind::Isolate` (a spawn child, a
+  method entry) or an open capture. Unit attack
+  `a_body_a_host_started_run_writes_is_verbatim_and_its_childs_is_not` was red; all 16
+  `ctx::output::tests` pass; the child-markup hostile case still prints its three steps.
+- **`nvs test` and extensions (da6b5cb72).** The runner used `--jobs 1` only when
+  `config.extension` was non-empty, and only the suite's thread had a host, so a test calling a
+  built-in (`Novis\Intl`, `Novis\Pdf`) on a core threw "not loaded in this process". Under
+  `--jobs 1` one `Calls` spanned the suite, so extension CPU time added up and later tests hit the
+  limit. `extensions::Tested(Arc<Set>)` is `Served` over a fixed set (shared `in_tree`): each
+  test's calls live in its own tree. `nvs test` installs it, and `runner::run` /
+  `run_suite_in_a_task` take `Option<Arc<Set>>` and install it on each core. The `--jobs` help and
+  `rule:testing/tests-run-across-every-core` say so. No Rust test yet (Next 2).
+- **Run on Windows:** `cargo test --test per_mount_config` 9/9; `bun nv site --check snippets apps
+  --nvs target/debug/nvs.exe`: snippets ok, `apps/notes` ok, `apps/paperwork` 17/18. The red is
+  `eachDocumentIsSentAsAPdf`: `Core\Test::request` throws on the PDF body (d1). A
+  `#[Test(server: true)]` rewrite was tried and reverted: the test server serves under the default
+  tree (`runner.rs`, `TestServer::bind`'s doc), so the app's `fs` grant for its logo is absent and
+  the route answers `500`. d6 is filed with option 1 built on.
+- `bun nv site --check` with no `--nvs` uses `target/release/nvs.exe` first, which is from 14:32
+  and predates most of this goal; its failures then (`SignedCookie` arity) are the stale binary.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render`/`--check`
+  are green.
+- The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0, `nothing owed`), and the
+  nightly run 39746060276 is the cancelled `workflow_dispatch`. Neither is the tree's.
+
+Tests that may go red from this session: a help snapshot of `nvs test --help` (the `--jobs` text
+lost a sentence); a runner test that expected extension calls to share one budget across tests;
+any `.nvst` or test that expected a job's or scheduled run's `Core\Response::text` body to be
+substituted (it is verbatim again, as before HTML-1); the website's rule page for
+`tests-run-across-every-core`.
+
+The session before (stage 15's code):
 
 Stage 15's code, tests, rules, guide and CI step are landed; its last item (every repository server
 passes on Windows and Linux) is open. Then the gate stage 14.
@@ -1266,11 +1306,23 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-1. Stage 15's last item. The checkout's ACL is fixed. On Windows run
-   `cargo test --test per_mount_config` and `bun nv site --check` over the snippets and the apps
-   (`tools/nv/cmd/site.ts:817`, `:1534`). Linux is CI's `docker` job (`tests/docker/smoke.sh:52`).
-   Tick the item's checkpoints and set stage 15 `done`.
-2. Then the gate stage 14.
+1. d6, option 1 (built on): `Core\Test\Response` keeps its body slot as bytes
+   (`crates/nvs-stdlib/src/test.rs:3033`, where `request` builds it now, and the `body`, `json`
+   and `jsonAs` readers by their symbols `nvs_core_test_response_body`/`_json`/`_json_as`). Each
+   reader throws the same `RuntimeError` text when the bytes are not UTF-8; `request` no longer
+   throws. Attack first: a `.nvst` or unit test whose route sends `Core\Response::bytes` with a
+   `0xff`, reads `status()` and a header, and gets the throw from `body()`. Update the card
+   (`RESPONSE_BODY_DOC`, `test.rs:1258`, and `request`'s card), the rule that records d1
+   (`bun nv brief --where capture`), and the stage-3 standing decision's sentence. Then
+   `cd apps/paperwork && ../../target/debug/nvs.exe test .` is green, and
+   `bun nv site --check snippets apps --nvs target/debug/nvs.exe` is green (`--bless-apps` the
+   three PDFs if it names them; they were stale on the old release binary only).
+2. A Rust test for da6b5cb72: a `#[Test]` program that calls `Novis\Intl` with `--jobs` above 1
+   passes, and two tests that each spend most of a CPU budget in an extension both pass under
+   `--jobs 1`. `crates/nvs-cli/src/runner.rs` has the fixture pattern (`fn ran`).
+3. Tick stage 15's last item. Linux is CI's `docker` job (`tests/docker/smoke.sh:52`), which the
+   gate stage reads. Set stage 15 `done`.
+4. Then the gate stage 14.
 
 ### Backlog
 
