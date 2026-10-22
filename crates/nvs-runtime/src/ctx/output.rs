@@ -304,10 +304,13 @@ impl Ctx {
     /// Writes the bytes of a body member that is not markup — `Core\Response::text`,
     /// `::json`, `::bytes`, and `::stream` off a connection.
     ///
-    /// They go out unchanged when they are what this request answers with. They
-    /// can instead become the sink's carrier: inside a `Core\Out::capture`, and in
-    /// a `spawn script` child, whose output its parent receives as that carrier or
-    /// appends to its own stream. Then they are written as `echo` writes a
+    /// They go out unchanged when they are what this run answers with: a
+    /// request, a job, a scheduled run or a CLI program. A host builds each of
+    /// those as an isolate, so the depth does not tell them from a child, and
+    /// [`Self::run_kind`] does. They can instead become the sink's carrier:
+    /// inside a `Core\Out::capture`, and in a `spawn script` child
+    /// ([`RunKind::Isolate`]), whose output its parent receives as that carrier
+    /// or appends to its own stream. Then they are written as `echo` writes a
     /// `string`, escaped under the HTML sink and substituted under every other
     /// (`rule:security/capture-answers-the-carrier`). Raw, a child's
     /// `Core\Response::text("<script>…")` would reach the parent's page as markup,
@@ -322,7 +325,7 @@ impl Ctx {
     ///
     /// [`Self::write_output`]'s.
     pub fn write_body(&mut self, bytes: &[u8]) -> io::Result<()> {
-        if self.script_depth == 0 && self.captures.is_empty() {
+        if self.run_kind() != RunKind::Isolate && self.captures.is_empty() {
             return self.write_output(bytes);
         }
         let html = self.carrier() == crate::CARRIER_HTML_MARKUP;
@@ -346,7 +349,11 @@ impl Ctx {
                 // `TAB` as its Control Picture, and `DEL` as `␡`.
                 (false, b'\n' | b'\t') => rendered.push(byte),
                 (false, 0x00..=0x1F | 0x7F) => {
-                    let picture = if byte == 0x7F { 0x2421 } else { 0x2400 + u32::from(byte) };
+                    let picture = if byte == 0x7F {
+                        0x2421
+                    } else {
+                        0x2400 + u32::from(byte)
+                    };
                     let picture = char::from_u32(picture).unwrap_or('\u{FFFD}');
                     let mut buffer = [0; 4];
                     rendered.extend_from_slice(picture.encode_utf8(&mut buffer).as_bytes());
@@ -1290,7 +1297,9 @@ mod tests {
     #[test]
     fn a_body_that_becomes_markup_is_escaped_and_a_response_is_verbatim() {
         let mut request = Ctx::new(OutputSink::Body(Vec::new()));
-        request.write_body(b"<script>1</script>").expect("a body sink never fails");
+        request
+            .write_body(b"<script>1</script>")
+            .expect("a body sink never fails");
         assert_eq!(
             request.take_buffered_output().as_deref(),
             Some(&b"<script>1</script>"[..]),
@@ -1298,7 +1307,9 @@ mod tests {
         );
 
         let mut child = request.isolate(OutputSink::Body(Vec::new()));
-        child.write_body(b"<script>1</script>").expect("a body sink never fails");
+        child
+            .write_body(b"<script>1</script>")
+            .expect("a body sink never fails");
         assert_eq!(
             child.take_buffered_output().as_deref(),
             Some(&b"&lt;script&gt;1&lt;/script&gt;"[..]),
@@ -1306,11 +1317,46 @@ mod tests {
         );
 
         request.begin_capture();
-        request.write_body(b"<b>\xff").expect("a capture never fails");
+        request
+            .write_body(b"<b>\xff")
+            .expect("a capture never fails");
         assert_eq!(
             request.end_capture().as_deref(),
             Some(&b"&lt;b&gt;\xff"[..]),
             "bytes that are not UTF-8 are escaped by byte and keep the bad byte"
+        );
+    }
+
+    /// A host builds each request, job and scheduled run as an isolate of a
+    /// root context, so its depth is one. Its body is still its own answer:
+    /// only a `spawn script` child's body is rendered.
+    #[test]
+    fn a_body_a_host_started_run_writes_is_verbatim_and_its_childs_is_not() {
+        let root = Ctx::buffered();
+        let mut request = root.isolate(OutputSink::Body(Vec::new()));
+        request.set_inbound(Inbound::new("GET", "/", ""));
+        request
+            .write_body(br#"{"a":"<b>"}"#)
+            .expect("a body sink never fails");
+        assert_eq!(
+            request.take_buffered_output().as_deref(),
+            Some(&br#"{"a":"<b>"}"#[..]),
+            "a served request's JSON body was escaped as markup"
+        );
+
+        let mut job = root.isolate(OutputSink::Buffer(Vec::new()));
+        job.set_run_kind(RunKind::Job);
+        job.write_body(b"a\tb\x1b").expect("a buffer never fails");
+        assert_eq!(
+            job.take_buffered_output().as_deref(),
+            Some(&b"a\tb\x1b"[..])
+        );
+
+        let mut child = request.isolate(OutputSink::Body(Vec::new()));
+        child.write_body(b"<b>").expect("a body sink never fails");
+        assert_eq!(
+            child.take_buffered_output().as_deref(),
+            Some(&b"&lt;b&gt;"[..])
         );
     }
 
@@ -1320,7 +1366,9 @@ mod tests {
     fn a_childs_body_on_the_terminal_sink_has_no_control_byte() {
         let parent = Ctx::buffered();
         let mut child = parent.isolate(OutputSink::Buffer(Vec::new()));
-        child.write_body(b"a\x1b[2J\tb\n").expect("a buffer never fails");
+        child
+            .write_body(b"a\x1b[2J\tb\n")
+            .expect("a buffer never fails");
         assert_eq!(
             child.take_buffered_output().as_deref(),
             Some("a\u{241b}[2J\tb\n".as_bytes()),
