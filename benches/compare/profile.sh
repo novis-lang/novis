@@ -35,7 +35,8 @@ for p in $(cat "$cg/cgroup.procs"); do echo "$p" >"$cg/init/cgroup.procs" 2>/dev
 echo +memory >"$cg/cgroup.subtree_control"
 
 mkdir -m 700 /root/data
-bash -c "echo \$\$ >$cg/serve/cgroup.procs && exec taskset -c $serve_core nvs serve /cases/$case_id/main.nvs --listen 127.0.0.1:$port --no-init --data /root/data" &
+# The server's log goes to a file: a line it writes to the terminal would be a `write` in the counts.
+bash -c "echo \$\$ >$cg/serve/cgroup.procs && exec taskset -c $serve_core nvs serve /cases/$case_id/main.nvs --listen 127.0.0.1:$port --no-init --data /root/data" >/tmp/serve.log 2>&1 &
 pid=$!
 for _ in $(seq 100); do
   (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break
@@ -71,11 +72,14 @@ wait "$load"
 perf report -i /tmp/perf.data --no-children --sort symbol --stdio --percent-limit 0.5 2>/dev/null |
   grep -v '^#' | grep -v '^$' | sed -E 's/[[:space:]]+-[[:space:]]+-[[:space:]]*$//' | awk 'NR <= 40'
 
-echo "== strace -c -f over 20000 requests under -c 64"
+# `strace -f` stops the serving thread at every call. Under 64 connections that stall is long enough
+# for the watchdog to shed requests with 503, and a shed request is not the request being profiled.
+echo "== strace -c -f over 20000 requests under -c 8"
+before=$(grep -c '"status":5' /tmp/serve.log || true)
 strace -c -f -p "$pid" -o /tmp/strace.txt &
 tracer=$!
 sleep 1
-oha -n 20000 -c 64 "${load_flags[@]}" "$url" >/dev/null
+oha -n 20000 -c 8 "${load_flags[@]}" "$url" >/dev/null
 kill -INT "$tracer"
 wait "$tracer" || true
 # Every thread is counted, so the watchdog's and the timers' calls are in the table too. Their count
@@ -85,5 +89,7 @@ awk '
     errors = NF == 6 ? $5 : 0
     printf "%-16s %9d calls %9d errors   %6.2f per request\n", $NF, $4, errors, $4 / 20000
   }' /tmp/strace.txt
+failed=$(($(grep -c '"status":5' /tmp/serve.log || true) - before))
+echo "responses with a 5xx status under strace: $failed of 20000"
 
 kill "$pid"
