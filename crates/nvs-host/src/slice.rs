@@ -372,7 +372,9 @@ mod tests {
         let _seat = clock.handle().seat(raise);
         let outer = current_turn();
         begin_turn();
-        assert!(within(Duration::from_secs(10), || count.load(Ordering::SeqCst) > 0));
+        assert!(within(Duration::from_secs(10), || count
+            .load(Ordering::SeqCst)
+            > 0));
         end_turn(outer);
     }
 
@@ -406,7 +408,9 @@ mod tests {
         let outer = current_turn();
         begin_turn();
         assert!(!clock.is_parked());
-        assert!(within(Duration::from_secs(10), || count.load(Ordering::SeqCst) > 0));
+        assert!(within(Duration::from_secs(10), || count
+            .load(Ordering::SeqCst)
+            > 0));
         end_turn(outer);
         assert!(within(Duration::from_secs(10), || clock.is_parked()));
     }
@@ -432,7 +436,8 @@ mod tests {
     #[test]
     fn the_request_a_registered_thread_runs_for_a_slice_is_asked_to_yield() {
         let clock = SliceClock::ticking_every(Duration::from_millis(2));
-        let dog = crate::Watchdog::with(Duration::from_secs(3600), Duration::from_secs(3600), |_| {});
+        let dog =
+            crate::Watchdog::with(Duration::from_secs(3600), Duration::from_secs(3600), |_| {});
         dog.slice_with(&clock);
         let registered = dog.register_requests();
         if crate::ThreadClock::current().is_none() {
