@@ -265,6 +265,12 @@ pub const DEFAULT: &[Family] = &[
         labels: &["name", "outcome"],
         buckets: &[],
     },
+    Family {
+        name: "nvs_log_handler_dropped_total",
+        kind: Kind::Counter,
+        labels: &[],
+        buckets: &[],
+    },
 ];
 
 /// One series: a name and the label values that pick it out of its family.
@@ -954,6 +960,20 @@ pub fn count_request(method: &str, status: u16, route: Option<&str>, took: Durat
     CORE.with_borrow(|core| {
         if let Some(registry) = core.as_ref() {
             held(registry).request(method, status, route, took);
+        }
+    });
+}
+
+/// Counts one `[log] handler` run this core did not start because its
+/// handlers were all busy, on this core's registry where it has one.
+///
+/// The floor wrote the record instead (`rule:errors/handler-script`), so the
+/// failure is not lost; this count says how many reports did not reach the
+/// handler.
+pub fn count_handler_dropped() {
+    CORE.with_borrow(|core| {
+        if let Some(registry) = core.as_ref() {
+            let _ = held(registry).increment("nvs_log_handler_dropped_total", 1, &[]);
         }
     });
 }

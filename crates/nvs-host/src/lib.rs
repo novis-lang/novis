@@ -158,7 +158,8 @@ pub use reactor::{
 };
 pub use scheduler::{
     Finished, RunReport, Scheduler, TaskId, Waiting, Wake, cancel_task, children_still_running,
-    current_task, detach_current, spawn_child, suspend, suspend_current,
+    current_task, detach_current, running_beneath, spawn_child, spawn_root, suspend,
+    suspend_current,
 };
 pub use slice::SliceClock;
 pub use stack::{SPARE_STACK_SIZE, TASK_STACK_SIZE, on_spare_stack};

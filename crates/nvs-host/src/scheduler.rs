@@ -344,6 +344,11 @@ struct TaskNode {
     /// O(n log n) and not O(n²).
     children: BTreeSet<TaskId>,
     cancelled: bool,
+    /// Whether this root was cut loose from a task, by [`detach_current`] or
+    /// [`spawn_root`]. Its context is dropped when it ends, as a child's is,
+    /// because nothing that could take it back from [`Finished`] knows it
+    /// exists.
+    detached: bool,
 }
 
 /// A child a running task asked for, waiting for the scheduler's own turn to
@@ -402,6 +407,7 @@ impl TaskTree {
                 parent,
                 children: BTreeSet::new(),
                 cancelled,
+                detached: false,
             },
         );
         if let Some(node) = parent.and_then(|parent| self.nodes.get_mut(&parent)) {
@@ -460,6 +466,7 @@ impl TaskTree {
         let Some(parent) = node.parent.take() else {
             return false;
         };
+        node.detached = true;
         if let Some(parent) = self.nodes.get_mut(&parent) {
             parent.children.remove(&id);
         }
@@ -578,7 +585,9 @@ impl std::fmt::Debug for Wake {
 /// output buffer and the exit code — per **root** that has ended and has not
 /// been taken. A worker has one or two of those for the length of the process
 /// (`nvs serve`'s accept loop and its ticker), and `nvs run` takes its one back
-/// the moment the run is over, so this is O(roots) rather than O(tasks).
+/// the moment the run is over, so this is O(roots) rather than O(tasks). A
+/// root that was cut loose from a task ([`detach_current`], [`spawn_root`]) is
+/// not filed, for a child's reason: it is one per request served.
 #[derive(Debug)]
 pub struct Finished {
     /// Which task this was.
@@ -1072,10 +1081,18 @@ impl Scheduler {
                         // Asked before `orphan` retires the node, which is what
                         // makes the answer "this task had no parent" rather
                         // than "the tree has forgotten this id".
-                        let is_root = self.parent_of(finished.id).is_none();
+                        // A detached root is not filed: it was a child when it
+                        // was born, so nothing is waiting to take its context,
+                        // and filing it held one per request served.
+                        let filed = self
+                            .tree
+                            .borrow()
+                            .nodes
+                            .get(&finished.id)
+                            .is_some_and(|node| node.parent.is_none() && !node.detached);
                         self.ended.push(finished.id);
                         self.orphan(finished.id);
-                        if is_root {
+                        if filed {
                             self.finished.push(finished);
                         } else {
                             finished.ctx.end_in_its_turn();
@@ -1359,6 +1376,58 @@ where
         body: Box::new(body),
     });
     Some(id)
+}
+
+/// Spawns a root from inside a task, answering with its id.
+///
+/// [`spawn_child`]'s shape with no parent: the task that called this may end
+/// before the new one has run a line, and that ending cancels nothing. It is
+/// for work that must not hold the caller's place, and the one caller is
+/// `rule:errors/handler-script`'s handler on a serving core
+/// ([`crate::ladder`]). Like a tree [`detach_current`] cut loose, its context
+/// is dropped when it ends rather than filed as [`Finished`].
+///
+/// `None` with no scheduler turning on this thread, and nothing is spawned.
+pub fn spawn_root<F>(ctx: Ctx, root: TaskRoot, body: F) -> Option<TaskId>
+where
+    F: FnOnce(&mut Ctx) + 'static,
+{
+    let tree = current_tree()?;
+    let mut ctx = ctx;
+    ctx.leave_this_stack();
+    let mut tree = tree.borrow_mut();
+    let id = tree.issue(None);
+    if let Some(node) = tree.nodes.get_mut(&id) {
+        node.detached = true;
+    }
+    tree.pending.push(Pending {
+        id,
+        ctx,
+        root,
+        body: Box::new(body),
+    });
+    Some(id)
+}
+
+/// Whether the running task is `ancestor` or a task beneath it.
+///
+/// A walk up the parent links, so it costs the depth of the running task.
+/// `false` with no task running here and no scheduler turning.
+#[must_use]
+pub fn running_beneath(ancestor: TaskId) -> bool {
+    let (Some(mut id), Some(tree)) = (current_task(), current_tree()) else {
+        return false;
+    };
+    let tree = tree.borrow();
+    loop {
+        if id == ancestor {
+            return true;
+        }
+        match tree.nodes.get(&id).and_then(|node| node.parent) {
+            Some(parent) => id = parent,
+            None => return false,
+        }
+    }
 }
 
 /// Marks a task and everything beneath it for teardown from inside a task,
@@ -1860,6 +1929,37 @@ mod tests {
                 "only the request past its own limit stops: {seen:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_detached_or_spawned_root_is_not_filed_when_it_ends() {
+        // A detached after-response tree and a handler's root are one per
+        // request served, so filing their contexts would hold one each until
+        // the worker ends. Only the root spawned from outside is filed.
+        let mut sched = Scheduler::new();
+        let ran = Rc::new(Cell::new(0));
+        let seen = Rc::clone(&ran);
+        sched.spawn(ctx(), TaskRoot::Request, move |_| {
+            let detached = Rc::clone(&seen);
+            spawn_child(ctx(), TaskRoot::Request, move |_| {
+                assert!(detach_current());
+                detached.set(detached.get() + 1);
+            })
+            .expect("a task is running");
+            // Turns for the child to cut itself loose before this task's end
+            // would cancel it. The first yield queues this task ahead of the
+            // child, which is built after the turn.
+            for _ in 0..2 {
+                let _ = suspend_current(Waiting::Yielded);
+            }
+            let rooted = Rc::clone(&seen);
+            spawn_root(ctx(), TaskRoot::Request, move |_| rooted.set(rooted.get() + 1))
+                .expect("a scheduler is turning");
+        });
+        sched.run();
+
+        assert_eq!(ran.get(), 2, "both ran to their end");
+        assert_eq!(sched.take_finished().len(), 1, "only the outer root is filed");
     }
 
     #[test]

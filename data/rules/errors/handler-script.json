@@ -6,5 +6,8 @@
     "errors/engine-floor",
     "errors/log-write"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-host/src/ladder.rs",
+    "crates/nvs-host/tests/limits.rs"
+  ]
 }

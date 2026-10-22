@@ -38,23 +38,23 @@ mod tests {
         }
     }
 
-    /// `rule:observability/default-series`: the ten series exist the moment an exporter is configured,
+    /// `rule:observability/default-series`: the eleven series exist the moment an exporter is configured,
     /// each fixed to the kind and the labels that section gives it.
     ///
-    /// Asserted by **counting** as well as by name: a roster that grew an
-    /// eleventh entry or lost one would otherwise pass every row below.
+    /// Asserted by **counting** as well as by name: a roster that grew a
+    /// twelfth entry or lost one would otherwise pass every row below.
     ///
     /// Here rather than beside the registry because the claim is this crate's:
-    /// what § 1 promises is that a *configured exporter* has these ten to
+    /// what § 1 promises is that a *configured exporter* has these eleven to
     /// report, and the exporter is what this crate is.
     #[test]
     fn the_default_metric_series_are_exported() {
         let registry = Registry::of(&configured(Setting::Text("prometheus".to_owned()), None))
             .expect("a written exporter builds a registry");
         assert_eq!(registry.exporter(), Some(Exporter::Prometheus));
-        assert_eq!(DEFAULT.len(), 10);
+        assert_eq!(DEFAULT.len(), 11);
 
-        let expected: [(&str, Kind, &[&str]); 10] = [
+        let expected: [(&str, Kind, &[&str]); 11] = [
             (
                 "nvs_requests_total",
                 Kind::Counter,
@@ -81,6 +81,7 @@ mod tests {
                 Kind::Counter,
                 &["name", "outcome"],
             ),
+            ("nvs_log_handler_dropped_total", Kind::Counter, &[]),
         ];
         for (name, kind, labels) in expected {
             assert_eq!(registry.kind(name), Some(kind), "{name}");
@@ -93,7 +94,7 @@ mod tests {
             assert_eq!(fixed, labels, "{name}");
         }
 
-        // The three families with no labels have exactly one member each, and it
+        // The four families with no labels have exactly one member each, and it
         // reads as zero before anything writes one.
         let unlabelled: Vec<&str> = registry
             .series()
@@ -104,6 +105,7 @@ mod tests {
             [
                 "nvs_deferred_trees",
                 "nvs_gc_pause_seconds",
+                "nvs_log_handler_dropped_total",
                 "nvs_tasks_in_flight"
             ]
         );
