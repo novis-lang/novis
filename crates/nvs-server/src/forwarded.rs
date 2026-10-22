@@ -342,14 +342,16 @@ pub fn walk(arrival: Arrival, trusted: &Trusted, headers: &HeaderMap) -> Result<
         });
     }
     let chain = chain(headers);
-    let client = if chain.is_empty() {
-        peer
+    // A trusted peer that forwarded no address did not act as a proxy for this
+    // request: it is a client on a trusted address, so its scheme is not read.
+    let (client, scheme) = if chain.is_empty() {
+        (peer, Scheme::Http)
     } else {
-        untrusted_in(&chain, trusted)?
+        (untrusted_in(&chain, trusted)?, asserted(headers))
     };
     Ok(Origin {
         client,
-        scheme: asserted(headers),
+        scheme,
         ignored_address_header: chain.is_empty() && named_elsewhere(headers),
     })
 }
@@ -456,6 +458,11 @@ fn is_port(text: &str) -> bool {
 }
 
 /// The scheme a trusted peer asserted, defaulting to `http`.
+///
+/// [`walk`] asks this only when the peer also forwarded an `X-Forwarded-For`
+/// chain. A program on a trusted address that connects directly writes no
+/// chain, and its `X-Forwarded-Proto` would otherwise turn on HSTS for a
+/// plaintext request.
 ///
 /// The **last** token wins, which is the one written by the proxy nearest this
 /// server: a chain of proxies appends, so the rightmost value is the one whose
@@ -710,13 +717,29 @@ mod tests {
             (vec!["gopher"], Scheme::Http),
         ];
         for (lines, expected) in cases {
-            let written: Vec<(&str, &str)> = lines
-                .iter()
-                .map(|value| ("X-Forwarded-Proto", *value))
-                .collect();
+            let mut written = vec![("X-Forwarded-For", "203.0.113.9")];
+            written.extend(lines.iter().map(|value| ("X-Forwarded-Proto", *value)));
             let answered = walk(from("10.0.0.7"), &trusted, &head(&written)).expect("no refusal");
             assert_eq!(answered.scheme(), expected, "for {lines:?}");
         }
+    }
+
+    /// A client on a trusted address that forwards no address is not a proxy,
+    /// so the scheme it claims is not believed. A direct connection from a
+    /// trusted loopback address would otherwise get `https` and HSTS by asking.
+    #[test]
+    fn a_trusted_peer_that_forwarded_no_address_cannot_assert_the_scheme() {
+        let trusted = proxies(&["127.0.0.0/8", "10.0.0.0/8"]);
+        let claiming = head(&[("X-Forwarded-Proto", "https")]);
+        for arrival in [from("127.0.0.1"), from("10.0.0.7"), Arrival::Unix] {
+            let answered = walk(arrival, &trusted, &claiming).expect("no refusal");
+            assert_eq!(answered.scheme(), Scheme::Http, "from {arrival:?}");
+            assert_eq!(answered.client(), arrival.address());
+        }
+        // A field line with no token in it is no chain either.
+        let blank = head(&[("X-Forwarded-For", " , "), ("X-Forwarded-Proto", "https")]);
+        let answered = walk(from("127.0.0.1"), &trusted, &blank).expect("no refusal");
+        assert_eq!(answered.scheme(), Scheme::Http);
     }
 
     /// § 6's two conforming spellings that are not defects: a port on the
