@@ -13,7 +13,7 @@ stages:
         rules: [testing/hostile-case-contract, testing/perf-two-mechanisms]
   - id: 2
     title: "a Core class's descriptor is found with one hash lookup"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/instance.rs, crates/nvs-stdlib/src/html.rs, crates/nvs-stdlib/src/json.rs]
     extra:
       context:
@@ -384,9 +384,9 @@ one hash lookup of the name.
   - [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green for this crate
 - [x] `is_instance` and `build` use it, through `descriptor()`. `crates/nvs-stdlib/src/instance.rs:663`, `crates/nvs-stdlib/src/instance.rs:688`
 - [x] Rust test `every_core_class_finds_its_descriptor_in_one_hash_lookup`: for every name, the map's id is the sorted index's first. `crates/nvs-stdlib/src/instance.rs:1208`
-- [ ] The guards stay green and unchanged: `instance.rs:1127`, `:1182`, `:1355` and `:1423` pass, and the `lang:classes` hostile group runs in stage 8's `hostile-groups`. `crates/nvs-stdlib/src/instance.rs:1127`
+- [x] The guards stay green and unchanged: `instance.rs:1127`, `:1182`, `:1355` and `:1423` pass, and so does the `lang:classes` hostile group. `crates/nvs-stdlib/src/instance.rs:1127`
   - [x] `cargo test --lib instance::tests`: 12 passed
-  - [ ] the `lang:classes` hostile group, in stage 8
+  - [x] `bun nv proofs --run --group lang:classes` passes: 90 examples and 20 attacks, none failed
 - [x] Review: an `Explore` subagent read the stage's diff against this stage's guards. It found no check moved or removed, and one comment that said request names never reach the map. The comment is fixed. `crates/nvs-stdlib/src/instance.rs:417`
 
 ### 3. `Json::decodeAs` fills its class in one pass
@@ -480,42 +480,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is three items done, one open. Commits 3168471de and b0a2379fa, and the `profile.sh` fix in
-this wrap.
+Stages 1 and 2 are done: a0f56ab2f and e03aa7e53.
 
-- `bun nv bench-compare --profile CASE` exists, with its tests and a README section. It runs
-  `benches/compare/profile.sh` in a privileged container of the bench image. `perf` and `strace` work
-  on this machine (Docker 29.9.1, WSL2 kernel 6.18).
-- The `hostile-groups` command ran once on main: all 11 groups passed. The floor is green.
-- `a_keep_alive_request_reads_and_wakes_within_its_count` (`crates/nvs-server/src/serve.rs`) passes
-  on Windows and on Linux (WSL). Its bounds are today's Windows counts: 4 `WouldBlock` reads and 1
-  wake poke per request, plus 1 poke per connection. It reads `nvs_host::counts`, which exists under
-  `debug_assertions` only. That call is recorded under § *Standing decisions*.
-- Profiles taken so far, release binary in the bench image, one core, no nginx:
-  - json-api: 60.9 µs per request. Top self: `json::decode_object` 5.1%, the budget allocator
-    2.1% + 1.8%, serde `deserialize_any` 2.1%, `string::digest_of` 1.7%, hashbrown rehash 1.6%,
-    `Descriptors::find` 1.1%, `defaults::spells` 1.3%, `in_force` 1.1%. Per request (strace, `-c 8`):
-    `recvfrom` 6.0 with 5.0 `EAGAIN`, eventfd `write` 2.0, `clock_gettime` 5.0, `sendto` 1.0.
-  - hello: top self `defaults::in_force` 3.3% and `defaults::spells` 2.9%. Per request (strace,
-    `-c 64`, before the fixes): `recvfrom` 3.0 with 2.0 `EAGAIN`, `write` 1.0, `clock_gettime` 1.0.
-    Its µs per request was not printed yet.
-- `html-page` and `wait` are not profiled, and § *Why*'s table is not rewritten.
+- All four profiles ran on main at bd86f7a9d, and § *Why*'s table holds them: hello 27.1 µs,
+  json-api 60.9 µs, html-page 88.4 µs, wait 801.5 µs per request. A waiting request costs 87–101 KB,
+  and the second load's peak is higher than the first's. No hot spot is gone yet, so no bullet is struck.
+- Stage 2 changed its design. A `Core` class is a `const`, so no static can cache its descriptor.
+  An index by the name literal's address missed in debug builds and was declined. `Descriptors` now
+  keeps an `FxHashMap` from each name to its first id, and `id_of` reads it. The standing decision,
+  the stage's title and the `stdlib-tests` check's test name
+  (`every_core_class_finds_its_descriptor_in_one_hash_lookup`) say this now.
+- `cargo test --lib instance::tests` passed, 12 tests. The review subagent found no check moved or
+  removed. Its one finding, a comment, is fixed.
+- `bun nv proofs --run --group lang:classes` passed after the change: 90 examples and 20 attacks.
+- The env-secret-proofs check the sweep reported red passes when it is run again (exit 0, nothing
+  owed). The nightly run 39746060276 was cancelled by a newer push, not by a failure.
 - The proofs job is red on main: 765 perf records are stale since 38c110098. Stage 8 records the
   ledgers again, and `ci-green` passes over it until then.
-- The nightly run 39746060276 was cancelled by a newer push, not by a failure.
-- The tree had uncommitted edits under `crates/nvs-types/` and `docs/rules/classes*` that are not
-  this goal's. They make every image build recompile.
+- Another session has uncommitted edits in `crates/nvs-cli/tests/serve_isolation.rs`. Two
+  `eprintln!` lines there fail `cargo clippy --all-targets`. They are not this goal's, so clippy on
+  this goal's crates is read with `--keep-going`.
 
 ### Next
 
-Stage 1's last item, then stage 2.
+Stage 3.
 
-- Run `bun nv bench-compare --profile <case>` for `html-page`, `wait` and `hello`, each as its own
-  background command (see the playbook bullet on silent builds). `benches/compare/profile.sh:1`
-- Rewrite § *Why*'s table from the four profiles. Keep Bun's column from the hand profile, and strike
-  each bullet whose hot spot is gone. `docs/goals/request-overhead.md:120`
-- Set stage 1's status to done in the front matter. `docs/goals/request-overhead.md:9`
-- Stage 2: the descriptor cached in each `CoreClass` static. `crates/nvs-stdlib/src/instance.rs:593`
+- Stage 3: `Json::decodeAs` reads with a `DeserializeSeed` driven by the class's `Contract`, as
+  § *Standing decisions* says. Write its checkpoints first. `crates/nvs-stdlib/src/json.rs:2070`,
+  `crates/nvs-stdlib/src/json.rs:2613`
+- Stage 3's tests: `a_decode_as_builds_no_array_for_the_object_it_fills` and
+  `a_decode_as_refuses_a_repeated_key_the_class_does_not_declare`.
 
 No test is expected to go red.
 
