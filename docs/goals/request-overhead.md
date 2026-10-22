@@ -33,7 +33,7 @@ stages:
       context:
         rules: [security/bidi-predicate, security/bidi-boundaries, core-classes/html-escape-answers-markup, errors/on-limit]
   - id: 5
-    title: "a request reads its limits from a table its unit resolved once"
+    title: a request reads its limits from a table its unit resolved once
     status: open
     context: [crates/nvs-config/src/request.rs, crates/nvs-config/src/defaults.rs, crates/nvs-config/src/snapshot.rs, crates/nvs-runtime/src/ctx/limits.rs, crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-server/src/trace.rs, crates/nvs-stdlib/src/config.rs]
     extra:
@@ -86,12 +86,12 @@ checks:
     run: [bun, nv, verify, --fast, -p, nvs-config]
   - id: server-tests
     stage: 6
-    name: a keep-alive request reads and wakes within its count, and the slow-client deadlines hold
+    name: "a keep-alive request reads and wakes within its count, and the slow-client deadlines hold"
     run: [bun, nv, verify, --fast, -p, nvs-server]
     tests: [a_keep_alive_request_reads_and_wakes_within_its_count]
   - id: host-tests
     stage: 7
-    name: reads, wakes and pooled stacks make only the system calls they need
+    name: "reads, wakes and pooled stacks make only the system calls they need"
     run: [bun, nv, verify, --fast, -p, nvs-host]
     tests: [a_read_the_reactor_has_not_reported_ready_makes_no_system_call, a_drive_that_wakes_itself_on_its_own_core_writes_no_wake, a_pooled_stack_gives_its_pages_back_when_its_core_is_idle, a_connection_stack_and_a_program_stack_come_from_their_own_pools]
   - id: hostile-groups
@@ -105,12 +105,12 @@ checks:
     run: [bun, nv, rules, --check]
   - id: memory-row
     stage: 8
-    name: the comparison's memory row is still on-by-default for Novis
+    name: "the comparison's memory row is still on-by-default for Novis"
     run: [bun, nv, bench-compare, --scenarios, --row, memory, --expect, "nvs=on-by-default"]
     timeout: 1800
   - id: loop-row
     stage: 8
-    name: the comparison's loop row is still on-by-default for Novis
+    name: "the comparison's loop row is still on-by-default for Novis"
     run: [bun, nv, bench-compare, --scenarios, --row, loop, --expect, "nvs=on-by-default"]
     timeout: 1800
 ---
@@ -184,6 +184,14 @@ Throughput is reported on the comparison page and is never a check (`rule:testin
 No counter goes on a production path for a test. A test counts with a wrapper it supplies, such as
 a counting `Read` under `NvsStream`, or with a `cfg(test)` counter in the crate whose own tests read
 it.
+
+**The reads and wakes are counted by `nvs_host::counts`, which exists under `debug_assertions` only.**
+`nvs-server`'s count test cannot use either shape above. A `cfg(test)` counter in `nvs-host` is
+invisible to another crate's tests. A wrapper under `NvsStream` cannot reach a served socket, because
+`NvsConnection` names its source types (`crates/nvs-host/src/net.rs:1032`). A cargo feature would build
+every crate above `nvs-host` twice. So two thread-local counts sit at the `WouldBlock` read and at
+the wake-descriptor poke, and the release binary has neither. Stage 6's `nvs-host` tests read the
+same counts. Memory: two `u64` per thread, in debug builds.
 
 **Stage 1: profiling becomes `bun nv bench-compare --profile <case>`.** It was done once by hand,
 and this goal does it twice (`AGENTS.md` rule 12). The steps:
@@ -343,10 +351,10 @@ floor is known to be green before anything changes.
 **Split:** the hostile run and the profile run in the background, side by side. The session writes
 the command.
 
-- [ ] `bun nv bench-compare --profile <case>` and its test, as the standing decision says. `tools/nv/cmd/bench-compare.ts:1`, `tools/nv/test/bench-compare.test.ts:1`, `benches/compare/README.md:1`
+- [x] `bun nv bench-compare --profile <case>` and its test, as the standing decision says. `tools/nv/cmd/bench-compare.ts:1`, `tools/nv/test/bench-compare.test.ts:1`, `benches/compare/README.md:1`
 - [ ] Profile `hello`, `json-api`, `html-page` and `wait` on main, and rewrite § *Why*'s table. Strike every item below whose hot spot is gone. `docs/goals/request-overhead.md:1`
-- [ ] Run the `hostile-groups` check's command once. A red case is `security-hardening`'s or `core-time-slice`'s, not this goal's: the session stops with `BLOCKED` naming it, because this goal must not start on a red floor. `tools/nv/cmd/proofs.ts:1`
-- [ ] The count test: a keep-alive connection serves 20 `hello` requests, and the test counts the reads that returned `WouldBlock` and the eventfd wakes per request. It asserts today's numbers as upper bounds, and stage 6 lowers them. `crates/nvs-server/src/serve.rs:10102`
+- [x] Run the `hostile-groups` check's command once. A red case is `security-hardening`'s or `core-time-slice`'s, not this goal's: the session stops with `BLOCKED` naming it, because this goal must not start on a red floor. `tools/nv/cmd/proofs.ts:1`
+- [x] The count test: a keep-alive connection serves 20 `hello` requests, and the test counts the reads that returned `WouldBlock` and the eventfd wakes per request. It asserts today's numbers as upper bounds, and stage 6 lowers them. `crates/nvs-server/src/serve.rs:10102`
 
 ### 2. a Core class's descriptor is read without its name
 
@@ -450,37 +458,50 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Not started. The goal waits for `security-hardening` to be reached. The profile it starts from was
-taken by hand on 2026-10-21 at commit e96f0adec, and its recipe is:
+Stage 1 is three items done, one open. Commits 3168471de and b0a2379fa, and the `profile.sh` fix in
+this wrap.
 
-1. `docker create` the `nvs-bench-serve:local` image and `docker cp` `/usr/local/bin/nvs` out of it.
-   Copy `oha` from its pinned digest the same way.
-2. Run a privileged container from the bench image with the scripts and `benches/compare/cases`
-   mounted, and `apt-get install linux-perf strace` in it.
-3. `taskset -c 3 nvs serve main.nvs --listen 127.0.0.1:18080 --no-init --data /tmp/data`, loaded by
-   `taskset -c 8-15 oha --no-tui -z 20s -c 64 <url>`.
-   - json-api: `-m POST -T application/json -D order.json /orders`
-   - html-page: `/products?q=%3Cb%3E%22Tea%22%20%26%20'Cups'%3C%2Fb%3E`
-4. Record with `perf record -F 1999 -p <pid> -- sleep 15`. Add `--call-graph dwarf,16384` at 499 Hz
-   for call graphs. Render with `perf script --no-inline`.
-5. Count syscalls with `strace -c -f -p <pid>` around `oha -n 20000 -c 64`.
-6. For memory, serve `cases/wait` with `--cpus 1` and read the cgroup's `memory.current` before load.
-   Load with `oha -z 30s -c 1000 .../wait`, then read `memory.peak`. Repeat the load to see the
-   pool grow.
+- `bun nv bench-compare --profile CASE` exists, with its tests and a README section. It runs
+  `benches/compare/profile.sh` in a privileged container of the bench image. `perf` and `strace` work
+  on this machine (Docker 29.9.1, WSL2 kernel 6.18).
+- The `hostile-groups` command ran once on main: all 11 groups passed. The floor is green.
+- `a_keep_alive_request_reads_and_wakes_within_its_count` (`crates/nvs-server/src/serve.rs`) passes
+  on Windows and on Linux (WSL). Its bounds are today's Windows counts: 4 `WouldBlock` reads and 1
+  wake poke per request, plus 1 poke per connection. It reads `nvs_host::counts`, which exists under
+  `debug_assertions` only. That call is recorded under § *Standing decisions*.
+- Profiles taken so far, release binary in the bench image, one core, no nginx:
+  - json-api: 60.9 µs per request. Top self: `json::decode_object` 5.1%, the budget allocator
+    2.1% + 1.8%, serde `deserialize_any` 2.1%, `string::digest_of` 1.7%, hashbrown rehash 1.6%,
+    `Descriptors::find` 1.1%, `defaults::spells` 1.3%, `in_force` 1.1%. Per request (strace, `-c 8`):
+    `recvfrom` 6.0 with 5.0 `EAGAIN`, eventfd `write` 2.0, `clock_gettime` 5.0, `sendto` 1.0.
+  - hello: top self `defaults::in_force` 3.3% and `defaults::spells` 2.9%. Per request (strace,
+    `-c 64`, before the fixes): `recvfrom` 3.0 with 2.0 `EAGAIN`, `write` 1.0, `clock_gettime` 1.0.
+    Its µs per request was not printed yet.
+- `html-page` and `wait` are not profiled, and § *Why*'s table is not rewritten.
+- The proofs job is red on main: 765 perf records are stale since 38c110098. Stage 8 records the
+  ledgers again, and `ci-green` passes over it until then.
+- The nightly run 39746060276 was cancelled by a newer push, not by a failure.
+- The tree had uncommitted edits under `crates/nvs-types/` and `docs/rules/classes*` that are not
+  this goal's. They make every image build recompile.
 
 ### Next
 
-Stage 1, once `docs/goals/security-hardening.md` no longer exists:
+Stage 1's last item, then stage 2.
 
-- `bun nv bench-compare --profile <case>`, from the recipe above. `tools/nv/cmd/bench-compare.ts:1`
-- The profile again on main, and § *Why*'s table rewritten. `docs/goals/request-overhead.md:1`
-- The `hostile-groups` command once, which must be green. `tools/nv/cmd/proofs.ts:1`
-- The count test of reads and wakes per keep-alive request. `crates/nvs-server/src/serve.rs:10102`
+- Run `bun nv bench-compare --profile <case>` for `html-page`, `wait` and `hello`, each as its own
+  background command (see the playbook bullet on silent builds). `benches/compare/profile.sh:1`
+- Rewrite § *Why*'s table from the four profiles. Keep Bun's column from the hand profile, and strike
+  each bullet whose hot spot is gone. `docs/goals/request-overhead.md:120`
+- Set stage 1's status to done in the front matter. `docs/goals/request-overhead.md:9`
+- Stage 2: the descriptor cached in each `CoreClass` static. `crates/nvs-stdlib/src/instance.rs:593`
+
+No test is expected to go red.
 
 ### Backlog
 
 - The CPU clock read at each cross-tree switch (`crates/nvs-host/src/cpuclock.rs:171`) is a real
-  system call. A cheaper clock must still charge `[limits] cpu_time` to the right request.
+  system call. The json-api profile shows 5 `clock_gettime` per request. A cheaper clock must still
+  charge `[limits] cpu_time` to the right request.
 - `Core\Math::intDiv` is an out-of-line helper (`crates/nvs-stdlib/src/math.rs:1825`). The `/`
   operator is already inline (`crates/nvs-codegen/src/emit.rs:1909`).
 - The isolate's start and finish cost about 2.5 µs per request (`crates/nvs-host/src/isolate.rs:627`,
@@ -488,3 +509,6 @@ Stage 1, once `docs/goals/security-hardening.md` no longer exists:
 - A literal `Str::format` template could be split while compiling (`crates/nvs-stdlib/src/format.rs:91`).
 - The heap's 26–34 KiB per waiting request is not broken down. hyper's buffers and the isolate are
   the likely parts.
+- The bench image recompiles from `nvs-types` up on every build while the tree has edits.
+  `--profile` could take a prebuilt binary, as `bench-proxied --nvs-bin` does
+  (`tools/nv/cmd/bench-compare.ts`).
