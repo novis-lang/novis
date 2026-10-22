@@ -117,8 +117,13 @@
 //! XSS. `rule:core-api/shape-rules` R6
 //! forbids the bitmask outright, and the safe member of every pair the flags
 //! chose between is the only one worth having: escaping both quote characters
-//! makes the answer safe in an unquoted-attribute position as well as in text,
-//! and escaping one fewer character has never been the reason a page was fast.
+//! makes the answer safe in text and inside a quoted attribute of either
+//! quote, and escaping one fewer character has never been the reason a page
+//! was fast. It is **not** safe in an unquoted attribute: a space, a tab, `=`
+//! or a backtick there ends the value or starts another attribute, and none of
+//! them is escaped. A template hole in one is accepted and gets this same
+//! escape, which is the blind spot `rule:core-classes/html-template` names and
+//! declines to close; the attribute's quotes are the page's to write.
 //! `$encoding` has no analogue because a `string` is UTF-8 by
 //! `rule:types/bytes`, and `$double`
 //! has none because "do not escape what already looks escaped" is exactly the
@@ -1909,13 +1914,18 @@ fn allowed(name: &str) -> Option<&'static [&'static str]> {
 /// Whether `value` names an address the rebuild is willing to write.
 ///
 /// The test is on the **scheme**, because that is the whole of what makes a URL
-/// attribute a code-execution sink. A value naming no scheme at all is a
-/// relative reference: it resolves against the page that received it and can
-/// reach nothing the page could not already.
+/// attribute a code-execution sink, and on the **host**. A value naming no
+/// scheme is a relative reference, and the one written here never names a
+/// host: it resolves against the page that received it and can reach nothing
+/// the page could not already.
 ///
-/// Tab, line feed and carriage return come out before the scheme is read,
-/// because every browser removes them from a URL and `java&#9;script:` is the
-/// oldest bypass there is. A colon that arrives after a `/`, `?` or `#` is
+/// So a value starting with two of `/` and `\` is not written. It is
+/// scheme-relative and names whatever host follows, and a browser reads a
+/// backslash there as a slash. `/path`, `?q` and `#frag` stay.
+///
+/// Tab, line feed and carriage return come out before either is read, because
+/// every browser removes them from a URL and `java&#9;script:` is the oldest
+/// bypass there is. A colon that arrives after a `/`, `?` or `#` is
 /// punctuation inside a path rather than a scheme's own, which is how a URL
 /// parser reads it too.
 fn addressable(value: &str) -> bool {
@@ -1924,6 +1934,11 @@ fn addressable(value: &str) -> bool {
         .filter(|ch| !matches!(ch, '\t' | '\n' | '\r'))
         .collect();
     let value = value.trim_start_matches(|ch: char| ch <= ' ');
+    let slash = |ch: Option<char>| matches!(ch, Some('/' | '\\'));
+    let mut first = value.chars();
+    if slash(first.next()) && slash(first.next()) {
+        return false;
+    }
     let Some(colon) = value.find(':') else {
         return true;
     };
@@ -3326,6 +3341,43 @@ mod tests {
             "an element with no place in the grammar leaves no tag, escaped or \
              otherwise: {escaped:?}"
         );
+    }
+
+    /// HTML-2: a reference that starts with two slashes names a host, and a
+    /// browser reads a backslash there as a slash, so all four pairs are
+    /// dropped. Tab, line feed and carriage return come out first, as a
+    /// browser removes them. A path, a query and a fragment name no host and
+    /// stay.
+    #[test]
+    fn a_reference_that_names_another_host_is_dropped_and_a_path_query_or_fragment_stays() {
+        const DROPPED: &[&str] = &[
+            "//evil.example/x",
+            "\\\\evil.example/x",
+            "/\\evil.example/x",
+            "\\/evil.example/x",
+            " //evil.example",
+            "/\t/evil.example",
+            "\n\\\r\\evil.example",
+            "//evil.example/a:b",
+        ];
+        for value in DROPPED {
+            let document = format!("<a href=\"{value}\">x</a><img src=\"{value}\">");
+            assert_eq!(
+                source(&rebuilt(&parse(&document))),
+                "<a>x</a><img>",
+                "sanitizing {document:?}"
+            );
+        }
+
+        const KEPT: &[&str] = &["/path", "?q", "#frag", "page/a:b", "/a//b"];
+        for value in KEPT {
+            let document = format!("<a href=\"{value}\">x</a>");
+            assert_eq!(
+                source(&rebuilt(&parse(&document))),
+                document,
+                "sanitizing {document:?}"
+            );
+        }
     }
 
     /// `rule:core-classes/html-parsing`'s cap on the stack of open elements,

@@ -15,6 +15,12 @@ unwrapped otherwise, because `html`, `head` and `body` are elements the algorith
 fragment. An attribute the list does not grant is not written, and a `href` or `src` naming a scheme
 outside the ones that fetch is not written either.
 
+**A relative reference never names a host.** A URL value that starts with two of `/` and `\`, once tab,
+line feed and carriage return are removed as a browser removes them, is scheme-relative: `//host`, and
+`\\host`, `/\host` and `\/host` because a browser reads a backslash there as a slash. It is not written.
+A link to another host keeps its scheme, `https://host`, where whoever reads the document sees it;
+`/path`, `?q` and `#frag` stay, since each resolves against the page itself.
+
 **The list is closed in both senses.** It is a list of what is allowed rather than of what is refused,
 and the member takes the document and nothing else — no options bag, no policy argument — so a
 deployment cannot hold a hole its own configuration opened. An element a real application needs is
