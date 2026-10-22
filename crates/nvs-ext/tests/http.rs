@@ -542,17 +542,18 @@ fn a_guest_http_call_to_a_host_the_caller_does_not_hold_fails() {
 
 /// Attack: a host all three grant redirects the guest to a host only the caller may reach.
 /// The program's client follows redirects, but the hop is checked against the extension's own
-/// `connect` set, so the guest's request is denied and the second host sees no connection.
+/// `connect` set, so the guest's request is denied and the second host sees no connection. The
+/// second host is `::1`, since macOS gives its loopback interface `127.0.0.1` alone.
 #[test]
 fn a_redirect_to_a_host_only_the_caller_may_reach_is_denied() {
-    let (target, reached) = listening_on("127.0.0.2", origin);
+    let (target, reached) = listening_on("::1", origin);
     REDIRECT_TO
         .set(target)
         .expect("only this case sets the redirect");
     let (at, accepted) = listening(redirecting);
     let (host, extension) = host_with(LOOPBACK, LOOPBACK);
-    let written = "[capabilities.net]\nconnect = [\"127.0.0.1\", \"127.0.0.2\"]\n\
-                   internal = [\"127.0.0.1\", \"127.0.0.2\"]\n\n\
+    let written = "[capabilities.net]\nconnect = [\"127.0.0.1\", \"::1\"]\n\
+                   internal = [\"127.0.0.1\", \"::1\"]\n\n\
                    [http.client]\nmax_redirects = 3\n";
     let (status, budget) = get(&host, &extension, written, false, &at.to_string());
     assert_eq!(status, DENIED, "{}", budget.logged());
