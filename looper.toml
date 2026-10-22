@@ -128,3 +128,39 @@ skip = [
 [commits]
 subject_max = 120
 types = ["feat", "fix", "docs", "refactor", "perf", "test", "chore", "build"]
+
+# The programs a person starts by hand, which looper's UI starts and stops. Each runs `bun astro` in
+# `website/`, as `website/README.md` § Commands names it. A server is ready once Astro prints its local
+# address, and takes no heavy slot: it sits idle between page loads.
+[[launch]]
+name = "website-dev"
+title = "Website: dev server"
+about = "Serves the website with live reload, rendering each page from the repository's sources when it is opened."
+run = ["bun", "astro", "dev", "--port", "{port}"]
+cwd = "website"
+kind = "service"
+port = 4321
+open = "http://localhost:{port}/"
+ready = "localhost:\\d+"
+heavy = false
+
+[[launch]]
+name = "website-build"
+title = "Website: build"
+about = "Builds the static website into website/dist/. Extra arguments follow `astro build`, such as `--base /novis/`."
+run = ["bun", "astro", "build", "{args}"]
+cwd = "website"
+kind = "task"
+args = true
+
+[[launch]]
+name = "website-preview"
+title = "Website: preview the build"
+about = "Serves website/dist/ as the last build left it. Run the build first."
+run = ["bun", "astro", "preview", "--port", "{port}"]
+cwd = "website"
+kind = "service"
+port = 4322
+open = "http://localhost:{port}/"
+ready = "localhost:\\d+"
+heavy = false
