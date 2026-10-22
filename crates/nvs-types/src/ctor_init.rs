@@ -483,7 +483,9 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
     for escape in &state.escapes {
         let (message, label, help) = match (&escape.missing, escape.parent_call) {
             (Some(name), true) => (
-                format!("`parent::constructor(...)` is called before the constructor assigns `${name}`"),
+                format!(
+                    "`parent::constructor(...)` is called before the constructor assigns `${name}`"
+                ),
                 format!("a path reaches this call before `${name}` has a value"),
                 format!(
                     "assign `$this->{name}` before this call on every path. The parent \
@@ -1045,7 +1047,12 @@ fn passes_this(class: &Expr, method: &MemberName, state: &InitState, env: &Env<'
     };
     target
         .and_then(|target| {
-            resolve_method(&target, span_text(env.src, *name), env.signatures, env.graph)
+            resolve_method(
+                &target,
+                span_text(env.src, *name),
+                env.signatures,
+                env.graph,
+            )
         })
         .is_none_or(|(_, sig)| !sig.is_static)
 }
@@ -1463,7 +1470,8 @@ mod tests {
             .filter(|d| {
                 d.code == Some(code::E_UNINITIALIZED_PROPERTY)
                     && (d.message.contains("`$this` is used before")
-                        || d.message.contains("`parent::constructor(...)` is called before"))
+                        || d.message
+                            .contains("`parent::constructor(...)` is called before"))
             })
             .count()
     }
