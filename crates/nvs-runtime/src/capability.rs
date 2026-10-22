@@ -98,6 +98,7 @@ pub fn require_as(
     if let Scope::Path(path) = scope {
         relative_refusal(path, member)?;
         device_refusal(path, member)?;
+        alias_refusal(path, member)?;
     }
     match refusal(ctx, cap, scope, member) {
         Some(message) => Err(Fault::thrown_as(class, message)),
@@ -155,6 +156,32 @@ fn device_refusal(path: &Path, member: &str) -> Result<(), Fault> {
         Some(name) => Err(Fault::thrown(format!(
             "{member} cannot use the path {}: `{name}` is a Windows device name. A path may not \
              contain one on any platform.",
+            path.display()
+        ))),
+        None => Ok(()),
+    }
+}
+
+/// `rule:errors/path-component-refusals`' Windows aliases, refused in every path a door is asked
+/// about, by its text, before any grant is read and on every platform.
+///
+/// The grant's own check canonicalizes the path, and on Windows that opens it. Opening
+/// `\\host\share\x` connects to `host` and sends this account's credentials, and the core waits
+/// on the network for as long as the redirector takes. So a network, device or verbatim path,
+/// a stream after a `:`, a trailing dot or space and an 8.3 short name are refused here, with
+/// no system call. [`nvs_config::capability::windows_alias`] is the test.
+///
+/// **Cost:** one scan of the path per door call.
+///
+/// # Errors
+///
+/// A catchable `RuntimeError` naming `member`, the path and what it spells.
+fn alias_refusal(path: &Path, member: &str) -> Result<(), Fault> {
+    let text = path.to_string_lossy();
+    match nvs_config::capability::windows_alias(&text) {
+        Some(why) => Err(Fault::thrown(format!(
+            "{member} cannot use the path {}: it {why}. A path may not be written this way on any \
+             platform.",
             path.display()
         ))),
         None => Ok(()),

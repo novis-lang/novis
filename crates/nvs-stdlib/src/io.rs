@@ -5038,6 +5038,47 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// SINK-1 and SINK-3's attack: a network, device or verbatim path, a stream, a trailing dot
+    /// or space and an 8.3 short name are each refused by `Core\IO::within` on every platform,
+    /// by their text. The network address is one nothing answers, and the whole loop must end
+    /// well under the second a connection attempt would wait, so no packet was sent.
+    #[test]
+    fn a_windows_alias_is_refused_by_its_text_before_any_network_attempt() {
+        let (_dir, root) = scratch("within-alias");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("a base");
+        let mut ctx = reading("1MiB");
+        let started = std::time::Instant::now();
+        for alias in [
+            r"\\10.255.255.1\share\x.txt",
+            "//10.255.255.1/share/x.txt",
+            r"\\?\GLOBALROOT\Device\Mup\10.255.255.1\share",
+            r"\\.\pipe\probe",
+            r"\\?\UNC\10.255.255.1\share",
+            "probe.nvs::$DATA",
+            "probe.nvs.",
+            "new.txt ",
+            "PROBE~1.NVS",
+            "PROGRA~12/x.txt",
+        ] {
+            let refused = call_with(nvs_core_io_within, &mut ctx, &[spelled(&root), alias])
+                .map(|value| {
+                    #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
+                    unsafe {
+                        value.release();
+                    }
+                })
+                .expect_err(alias);
+            assert!(refused.contains("on any platform"), "{alias}: {refused}");
+        }
+        assert!(
+            started.elapsed() < std::time::Duration::from_millis(500),
+            "ten refusals took {:?}, which is a network wait",
+            started.elapsed()
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// `Core\IO::lines(path)` under `ctx`, answering the lines of the `Iterable<string>` it
     /// returned, in file order, or the message the refusal left.
     fn lined(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Result<Vec<String>, String> {

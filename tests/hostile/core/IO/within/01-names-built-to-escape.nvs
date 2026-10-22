@@ -76,3 +76,22 @@ echo 'step 5: done', "\n";
 Guard::check(Core\Path::join($base, 'inside', 'a.txt'), $root, '../../x');
 Guard::check(Core\Path::join($base, 'missing'), $root, '../../x');
 echo 'step 6: done', "\n";
+
+// 7. Names that Windows reads as another file or as a network path: a network share, a device,
+// a stream, a trailing dot or space, and a short 8.3 name. Each one must be refused quickly.
+array<string> $aliases = [
+    "\\\\10.255.255.1\\share\\x.txt",
+    '//10.255.255.1/share/x.txt',
+    "\\\\?\\UNC\\10.255.255.1\\share\\x.txt",
+    "\\\\.\\pipe\\probe",
+    'inside/a.txt::$DATA',
+    'inside/a.txt.',
+    'inside/a.txt ',
+    'INSIDE~1/a.txt',
+];
+foreach ($aliases as string $alias) {
+    if (Guard::check($base, $root, $alias) != 1) {
+        throw new LogicError('a name Windows reads as another file was allowed');
+    }
+}
+echo 'step 7: done', "\n";

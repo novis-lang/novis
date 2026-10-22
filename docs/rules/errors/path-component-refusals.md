@@ -15,6 +15,18 @@ All of them ask `nvs_config::capability::is_reserved_device`. On Windows such a 
 in every folder, so a granted folder does not contain what it opens, and a read of `CONIN$` waits
 for a key forever.
 
+**So is every alias, by its text, before anything opens the path.** Every file door refuses a path
+that starts with two separators (`\\host\share`, `\\?\`, `\\.\`, `//host`), has a `:` after the
+drive letter, or has a component that ends in a dot or a space or is an 8.3 short name, with a
+`RuntimeError` before any grant is read. The grant's check canonicalizes the path, and on Windows
+canonicalizing `\\host\share\x` connects to `host`, sends the server account's credentials, and
+holds the core for as long as the network takes. `nvs_config::capability::windows_alias` is the
+test, and `nvs_config::capability::resolved` answers nothing for a path with two separators
+first, so no caller that skips the door opens one either. An extension's `wasi:filesystem`
+refuses the same components and the device names, on every platform. A short name the
+configuration writes, such as a temporary folder under `C:\Users\RUNNER~1`, is resolved to its
+long name once and never reaches a door as written.
+
 **On every platform, not only Windows.** A component's spelling and its resolution come apart on
 Windows by design: `foo.` opens `foo`, `CON` is a device in every directory, `file.txt::$DATA` opens
 the default stream, and `PROGRA~1` aliases a long name — so a component can pass a lexical
@@ -22,9 +34,10 @@ containment check and resolve outside the base. A rule that fires on one host an
 a suite that passes in CI and fails in production, and the developer writing the check is usually on
 the host where it silently does nothing.
 
-The cost is stated plainly: a POSIX file named `foo.` or `a:b` is unreachable *through the
-launderer*. It stays reachable by an absolute path the program supplies itself, which is not
-laundered and never was.
+The cost is stated plainly: a POSIX file named `foo.`, `a:b` or `v~2`, and a share mounted at a
+`//` path, is unreachable from a program on any platform. A Windows share is reached through a
+drive letter mapped to it, which the operator writes in the grant. The check is one scan of the
+path per door call and no system call.
 
 `Core\Path` is untouched by this. It stays pure string algebra, touches no disk, carries no policy,
 and goes on accepting both separators on every platform. `Path::normalize` is **not** a launderer,
