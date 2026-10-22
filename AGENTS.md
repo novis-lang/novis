@@ -237,8 +237,10 @@ What a loop session owes on top of the block's § *Session workflow*:
 - **In the gate stage, start `looper verify` with `run_in_background` before you write the handoff,
   then end your turn to wait.** Its report starts your next turn, and nothing polls. It joins the tree's verify run if
   another session started one, so never wait for or kill another session's verify.
-- **`BLOCKED` is for a decision expensive to reverse with no safe default.** Otherwise take the safe
-  option and say so in the handoff.
+- **A design call never stops the loop, however large.** The user takes the session's recommendation,
+  so the session picks the option the priority ordering favours and builds on it, as the block's step
+  6 says. A change to the `Core` API, a new checker mechanism, a scheduler run-order change and a fix
+  that breaks callers are all design calls.
 - **Before `DONE`, the goal-end gates.** `bun nv verify --doc` and every broken doc link it names
   fixed, then `bun nv owners --closes <slug>` and every gap it names closed or given another owner.
   A reached goal's file is deleted, so first move each decision only its prose holds to a rule or a
@@ -312,7 +314,8 @@ rule is its home.
 10. **Nothing is written outside this repository's folders.** Every scratch file goes under
     `.agent-tmp/`, and whoever writes one deletes it (commands.md).
 11. **A change that adds, changes or removes a feature states its trade-offs** in performance, memory,
-    usability and simplicity. Ask the user before a large one.
+    usability and simplicity. Ask the user before a large one; in the loop, file it as a
+    `--built-on` decision and go on.
 12. **A manual step done twice becomes a command.**
 13. **Look up a fast-moving API in the installed version's reference,** never from memory.
 14. **Name a goal by its slug, never by its number.**
@@ -356,7 +359,8 @@ Every session runs the same steps, in this order, and **stops**:
 5. **Commit, one commit per slice, once its build is green,** and in the gate stage once verify is
    green. Stage each slice's own files.
 6. **In the loop, write the status line** the prompt names: `CONTINUE <what landed>`,
-   `DONE <goal reached>` or `BLOCKED <the decision only the user can make>`.
+   `DONE <goal reached>` or `BLOCKED <what the loop cannot do itself>`. A design call never blocks:
+   file it with `looper decision ask --built-on <n>`, record it, and build on it.
 
 **After the last step, stop.** Writing prose cannot break a build.
 

@@ -160,8 +160,11 @@ walk the path first and settle it with the user, then write each decision into t
 choices, which language holes are in scope, which questions are closed and must not be re-opened.
 
 The house rule inside that section: **decide and record, never `BLOCKED` for a design call.** A session
-settles it under AGENTS.md's priority ordering and records it in the home AGENTS.md already names. Reserve
-`BLOCKED` for a decision that is expensive to reverse *and* has no safe default.
+settles it under AGENTS.md's priority ordering, files it with `looper decision ask --built-on <n>`,
+records it in the home AGENTS.md already names, and goes on. However large or hard to reverse the call
+is, the session's recommendation is the answer until the user picks another. `BLOCKED` is reserved for
+what the loop cannot do itself: a refused permission, a missing credential, or an act that publishes
+outside the repository or costs money (AGENTS.md § *In the loop*).
 
 Two things every standing decision should carry: the safe fallback if the implementation forces the
 opposite conclusion, and where the answer gets written down. A decision with no home gets re-derived.
