@@ -291,6 +291,7 @@ carry the mark.
 - [ ] REQ-2, DB-2: a text column fills only a `tainted string` property, and every example, page and app compiles (`rule:security/tainted-sources`). `crates/nvs-types/src/derive.rs:1466`
 - [ ] EXT-4: a `secret` value does not cross an extension's `mixed` parameter (`rule:security/secret-does-not-cross-an-extension`). `crates/nvs-types/src/ext_lib.rs:304`
 - [ ] TAINT-4: `Core\Ldap\Connection::add` refuses attribute names from a tainted array's keys. `crates/nvs-stdlib/src/ldap/registry.rs:464`
+- [ ] HTML-1: a spawned child's captured output is carried as plain `string`, not lifted to `Core\Html\Markup`, so the parent re-escapes bytes a child wrote through `Core\Response::text`/`::json`/`::bytes`/`::stream` instead of splicing them raw into an HTML page (`rule:security/capture-answers-the-carrier`). `crates/nvs-stdlib/src/out.rs:193`
 - [ ] The attacks: stored injection, a sealed visitor value, a stream echo and a `mixed` secret, each a reject case. `tests/conformance/core/signed-cookie-open-launders-where-jwt-verify-does-not.nvst:1`
 
 ### 6. an array a Rust parser builds stops at the request's memory ceiling
@@ -314,6 +315,7 @@ LC-7 and LC-9 are closed.
 - [ ] LC-6, LC-7: the `method` label is closed, and a 501 logs at `info`. `crates/nvs-server/src/serve.rs:1696`
 - [ ] LC-5: blocking-pool CPU is charged to its request (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/blocking.rs:349`
 - [ ] LC-8: try the native stack overflow shapes in the lifecycle report; if the process ends, the deep helper checks the stack it has left and throws. `crates/nvs-host/src/stack.rs:85`
+- [ ] LC-12: a configured `[log]` escalation handler runs off the serving worker, or is shed under load, so forced uncaught throws cannot each tie up a worker for `handler_reserve_time` (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/ladder.rs:115`
 - [ ] The attacks: 500 idle connections with a large head, 100 slow readers, then a normal request answers `200`; Rust tests beside `admit.rs`. `crates/nvs-server/src/admit.rs:1`
 
 ### 8. an extension instance ends with its request
@@ -337,6 +339,10 @@ LC-7 and LC-9 are closed.
 - [ ] CRYPTO-2: signed cookies bind the name and a purpose into the associated data. `crates/nvs-stdlib/src/signed_cookie.rs:261`
 - [ ] CRYPTO-3: `Core\Config::get` and `::all` return a secret directive as `secret string`. `crates/nvs-stdlib/src/config.rs:192`
 - [ ] CRYPTO-6: `Core\Random\Seeded` output is refused where a key or a token goes. `crates/nvs-stdlib/src/random.rs:395`
+- [ ] BBK-1: `Core\Session` exposes the started session's id (e.g. `id(): string`), and the CSRF note the docs teach binds `Core\Csrf::issue` to it, so a keyed door's first form submit is not refused for the empty-string session. The login-CSRF angle did not reproduce (a token bound to `""` is refused for every cookieless request, same-origin and cross-origin), so this is the usability-and-missing-API half of CSRF-1/CSRF-2, not a new bypass. `crates/nvs-stdlib/src/session.rs:172`
+- [ ] BBK-2: `#[Route(csrf: false)]` either exists or `website/src/content/docs/syntax/attributes/routes.mdx` stops documenting it, and a token-less machine API under a keyed door has one supported pattern (today the documented option is `E0454`). `crates/nvs-server/src/route.rs:124`
+- [ ] BBK-3: issuing a token with `http.csrf_key` needs no undocumented base64 decode — a worked example, or a `Core\Csrf::issueForRequest`-style helper, reads the configured key as the door does. `crates/nvs-stdlib/src/config.rs:192`
+- [ ] BBK-4: the keyed door reads the `_csrf` field from a multipart body too, bounded as the urlencoded path is, so a documented upload form carries its token in a hidden field rather than only in the query or an `x-csrf-token` header. `crates/nvs-server/src/route.rs:253`
 - [ ] The attacks: a session cookie on a second line, a cookie swapped between names, and 20,000 cookieless starts that leave no rows. `tests/hostile/core/Session/start/01-identifiers-nobody-issued.nvs:1`
 
 ### 10. a pooled database connection starts clean, and SQLite opens only what the grant names
@@ -348,6 +354,7 @@ LC-7 and LC-9 are closed.
 - [ ] CVE-1: SQLite's authorizer refuses `ATTACH` and `DETACH`, and its reset drops `temp` objects and applies the opening pragmas. `crates/nvs-db/src/sqlite.rs:1347`
 - [ ] SINK-2: a `file:` URI in `path` is refused at load. `crates/nvs-stdlib/src/db/open.rs:930`
 - [ ] DB-4, DB-5: the SQL Server rule text and `quoteIdentifier`'s help. `crates/nvs-db/src/tds/rows.rs:446`
+- [ ] APP-1: every SQLite connection opens with a default `busy_timeout`, and a new database defaults to `journal_mode = WAL`, so simultaneous writers wait rather than one winning and the rest failing `SQLITE_BUSY` → 500; this is the SQLite half of the project's friendly-defaults direction. `crates/nvs-db/src/sqlite.rs:712`
 - [ ] The attacks: `SET ROLE` then a second request, a `temp` table and an `ATTACH` then a second request; Rust tests in `tests/pool_reuse.rs`, the Postgres one where the existing Postgres tests run. `crates/nvs-db/tests/pool_reuse.rs:1`
 
 ### 11. a Windows path is refused by its text before the file system sees it
@@ -370,6 +377,7 @@ into its rule.
 - [ ] RS-4, RS-6, RS-7: the case rule through a link, a strict `Range` parse, and `sandbox` on static SVG and HTML. `crates/nvs-server/src/statics.rs:239`
 - [ ] HTTP-2: an absolute-form target's host wins over `Host` (`rule:http-server/host-matching-is-on-the-host-part-only`). `crates/nvs-server/src/mount.rs:424`
 - [ ] HTTP-4: a malformed chunked body answers `400`. `crates/nvs-server/src/body.rs:197`
+- [ ] APP-2: a body over `request_body` surfaces as a catchable `Refusal::BodyTooLarge` (413-class) the gate can answer, not an uncatchable throw landing in `Gate::failed` → 500 (`rule:http-server/the-body-is-read-on-demand-under-two-caps`). `crates/nvs-server/src/body.rs:197`
 - [ ] HTTP-5: `X-Forwarded-Proto` from a trusted peer that never set it is ignored (`rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`). `crates/nvs-server/src/forwarded.rs:466`
 - [ ] RS-5: the Declined entry for a hard link. `docs/rules/http-server/static-serving-is-one-policy.md:1`
 - [ ] The attacks: `GET /nvs.toml`, `/.env` and `/data.sqlite` in development mode, a rebinding `Host`, and the static policy rows; Rust tests beside `mount.rs`. `crates/nvs-server/src/mount.rs:1586`
@@ -382,8 +390,10 @@ into its rule.
 - [ ] A 303 becomes a `GET`, and a 301 or 302 after a `POST` becomes a `GET`; a cross-origin hop drops the body (`rule:http-server/a-cross-origin-redirect-drops-credentials`). `crates/nvs-stdlib/src/http/transport.rs:2361`
 - [ ] NET-1: the two IPv6 forms that carry private addresses are denied (`rule:security/net-address-policy`). `crates/nvs-config/src/capability.rs:502`
 - [ ] Correct the comment that says an unquoted attribute is safe. `crates/nvs-stdlib/src/html.rs:119`
+- [ ] HTML-2: `Core\Html::sanitize` treats a protocol-relative `//host` href as an authority and applies the scheme/authority policy, or rejects a leading `//`, rather than keeping it as a harmless relative reference (`rule:core-classes/html-sanitize`). `crates/nvs-stdlib/src/html.rs:1847`
+- [ ] BBK-5: the `Core\Compress` response example checks `Accept-Encoding` and sets `Vary: Accept-Encoding` before it sends `Content-Encoding: gzip`, so a client that did not offer gzip is not handed it. `docs/examples/core/Compress/compress/03-a-smaller-answer-over-the-network.nvs:1`
 - [ ] Raise `wasmtime` and `cranelift`'s minimums to the fixed releases in the lock file. `Cargo.toml:98`
-- [ ] Run the HTML-escaping probes the audit never reported on, and fix or record each result here. `.agent-tmp/sec-audit/wb-stdlib-request/html/app.nvs:1`
+- [ ] Run the HTML-escaping probes the audit never reported on, and fix or record each result here — run, recorded as HTML-1 (stage 5) and HTML-2 above. `.agent-tmp/sec-audit/wb-stdlib-request/html/app.nvs:1`
 - [ ] Delete `.agent-tmp/sec-audit/`. `.agent-tmp/sec-audit/BRIEF.md:1`
 
 ### 14. the goal is verified once, and every failure is fixed
