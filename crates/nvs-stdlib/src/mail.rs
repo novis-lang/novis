@@ -221,7 +221,8 @@ const SEND_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "subject",
             desc: "The subject. RFC 2047 encoded where it holds anything a header line cannot \
-                   carry, so no value of it can add a header.",
+                   carry, so no value of it can add a header. A long subject is split over \
+                   several header lines, and a mail program joins them again.",
             shape: &[],
         },
         ParamDoc {
@@ -436,14 +437,31 @@ fn resolve(endpoint: &Endpoint, member: &str) -> Result<SocketAddr, Fault> {
         })
 }
 
+/// The printable bytes [`address_of`] refuses, beside every control byte.
+///
+/// Each one changes how a mail reader or a relay reads an address list or a
+/// path: `<` and `>` end the address, `,` and `;` start another one or a group,
+/// `:` opens a group (`list: a@b.c;`), `(` and `)` open a comment a reader
+/// skips, `"` opens a quoted local part that may hold any of these, `\` escapes
+/// inside one, `%` is the source route a relay may forward on
+/// (`victim%evil.example@relay.example`), and a space ends the path on an
+/// `RCPT TO:` line. A real mailbox needs none of them.
+const NOT_IN_AN_ADDRESS: &[u8] = b"<>,;:()\"\\% ";
+
+/// The longest address [`address_of`] takes: RFC 5321 § 4.5.3.1.3's path is
+/// 256 octets with its angle brackets. It is also what keeps every address a
+/// header line can fold around under the 998-octet line limit.
+const LONGEST_ADDRESS: usize = 254;
+
 /// `text` as an addr-spec, or a refusal naming `what` it was.
 ///
 /// The check is deliberately narrower than RFC 5321's grammar and deliberately
 /// not a repair. What it establishes is the one property the rest of this module
 /// relies on — that the value can be written inside `<...>` on a command line
 /// and inside a header without changing either one's structure — so a byte that
-/// would end a line, a byte that would end the address, and the absence of an
-/// `@` are each a refusal. `rule:errors/ambiguous-input-refused` is why none of them is silently stripped:
+/// would end a line, a byte [`NOT_IN_AN_ADDRESS`] names, an address longer than
+/// [`LONGEST_ADDRESS`] and the absence of an `@` are each a refusal.
+/// `rule:errors/ambiguous-input-refused` is why none of them is silently stripped:
 /// an address a program did not mean is a message going somewhere it did not
 /// mean, and the caller is the only one who can say which.
 ///
@@ -459,12 +477,16 @@ fn address_of(text: &str, what: &str, member: &str) -> Result<String, Fault> {
     if text.is_empty() {
         return refuse("it is empty");
     }
+    if text.len() > LONGEST_ADDRESS {
+        return refuse("it is longer than 254 bytes");
+    }
     if text
         .bytes()
-        .any(|byte| byte < 0x20 || byte == 0x7f || byte == b'<' || byte == b'>' || byte == b',')
+        .any(|byte| byte < 0x20 || byte == 0x7f || NOT_IN_AN_ADDRESS.contains(&byte))
     {
         return refuse(
-            "it holds a byte an address cannot carry (a control byte, an angle bracket or a comma)",
+            "it contains a character an address may not contain: a control character, a \
+             space, or one of `< > , ; : ( ) \" \\ %`",
         );
     }
     if !text.is_ascii() {
@@ -513,21 +535,104 @@ fn addresses_of(
     Ok(found)
 }
 
-/// `text` as a header value: itself when a header line can carry it, and its
-/// RFC 2047 `=?UTF-8?B?...?=` encoding when it cannot.
+/// The column [`folded`] breaks a header line at: RFC 5322 § 2.1.1's
+/// recommended 78 characters before the `\r\n`.
+const LINE: usize = 78;
+
+/// The column no header line may pass: RFC 5322 § 2.1.1's 998 characters
+/// before the `\r\n`. A server refuses a message with a longer line.
+const LONGEST_LINE: usize = 998;
+
+/// The UTF-8 bytes one RFC 2047 encoded word carries. 42 bytes are 56 base64
+/// characters, so a word with its `=?UTF-8?B?` and `?=` is 68, and it fits
+/// after `Subject: ` under [`LINE`]. A word may not exceed 75 characters.
+const WORD_BYTES: usize = 42;
+
+/// `Subject: ` and `text`, as header lines ending `\r\n`: itself, folded at
+/// its spaces, when a header line can carry it, and RFC 2047 `=?UTF-8?B?...?=`
+/// encoded words, one per continuation line, when it cannot.
 ///
 /// This is the function the module doc's first section is about. A value that
 /// reaches here holding a `\r\n` does not get it stripped and does not get it
 /// through — it comes out base64, which is one header token by construction, so
 /// the injected line arrives as characters a reader sees rather than as
-/// structure a parser obeys.
-fn header_value(text: &str) -> String {
+/// structure a parser obeys. The only line breaks in what this returns are
+/// followed by a space, which a reader unfolds into the value.
+///
+/// A long subject is folded rather than sent as one line, because a line over
+/// [`LONGEST_LINE`] is a message the server refuses. A plain one with a word
+/// too long to fold is encoded, since encoded words fold anywhere. What it
+/// spends is the folded copy, about a third larger than the subject when it
+/// is encoded, released with the message.
+fn subject_line(text: &str) -> String {
+    const NAME: &str = "Subject: ";
     let plain = text.is_ascii() && text.bytes().all(|byte| byte >= 0x20 && byte != 0x7f);
-    if plain {
-        text.to_owned()
-    } else {
-        format!("=?UTF-8?B?{}?=", STANDARD.encode(text.as_bytes()))
+    if plain && let Some(folded) = folded(NAME.len(), text) {
+        return format!("{NAME}{folded}\r\n");
     }
+    let mut out = String::with_capacity(NAME.len() + text.len() / 3 * 5 + 16);
+    out.push_str(NAME);
+    let mut rest = text;
+    loop {
+        let mut end = rest.len().min(WORD_BYTES);
+        while !rest.is_char_boundary(end) {
+            end -= 1;
+        }
+        let (word, after) = rest.split_at(end);
+        out.push_str("=?UTF-8?B?");
+        out.push_str(&STANDARD.encode(word.as_bytes()));
+        out.push_str("?=\r\n");
+        rest = after;
+        if rest.is_empty() {
+            return out;
+        }
+        out.push(' ');
+    }
+}
+
+/// `text`, already a valid header value, with `\r\n` put before a space
+/// wherever the line would pass [`LINE`], starting at column `start`; `None`
+/// when a run with no space in it would pass [`LONGEST_LINE`] anyway.
+///
+/// A line is never broken where it holds only spaces, since a folded line of
+/// white space alone is one RFC 5322 § 3.2.2 forbids.
+fn folded(start: usize, text: &str) -> Option<String> {
+    let mut out = String::with_capacity(text.len() + text.len() / LINE * 2);
+    let mut column = start;
+    let mut bare = true;
+    let mut rest = text;
+    while !rest.is_empty() {
+        let end = rest[1..].find(' ').map_or(rest.len(), |at| at + 1);
+        let (piece, after) = rest.split_at(end);
+        if !bare && piece.starts_with(' ') && column + piece.len() > LINE {
+            out.push_str("\r\n");
+            column = 0;
+            bare = true;
+        }
+        if column + piece.len() > LONGEST_LINE {
+            return None;
+        }
+        out.push_str(piece);
+        column += piece.len();
+        bare &= piece.bytes().all(|byte| byte == b' ');
+        rest = after;
+    }
+    Some(out)
+}
+
+/// `name: ` and every address in angle brackets, comma-separated and folded,
+/// as header lines ending `\r\n`.
+///
+/// Each address came through [`address_of`], so it has no space and is at most
+/// [`LONGEST_ADDRESS`] long, and [`folded`] always finds a place to break.
+fn address_line(name: &str, addresses: &[String]) -> String {
+    let list = addresses
+        .iter()
+        .map(|address| format!("<{address}>"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let folded = folded(name.len() + 2, &list).unwrap_or(list);
+    format!("{name}: {folded}\r\n")
 }
 
 /// `bytes` as base64, wrapped at 76 columns with CRLF, which is the transfer
@@ -589,7 +694,7 @@ fn rfc5322_date(now: SystemTime) -> String {
 /// The message `DATA` carries — every header this class writes, then the body.
 ///
 /// The **only** place a `\r\n` is produced. Every value reaching it has been
-/// through [`header_value`] or [`address_of`], so there is no path from an
+/// through [`subject_line`] or [`address_of`], so there is no path from an
 /// argument to a line break here, which is the property the module doc's first
 /// section names.
 fn compose(
@@ -604,11 +709,11 @@ fn compose(
     let mut out = String::new();
     out.push_str(&format!("Date: {}\r\n", rfc5322_date(now)));
     out.push_str(&format!("From: <{from}>\r\n"));
-    out.push_str(&format!("To: {}\r\n", to.join(", ")));
+    out.push_str(&address_line("To", to));
     if !cc.is_empty() {
-        out.push_str(&format!("Cc: {}\r\n", cc.join(", ")));
+        out.push_str(&address_line("Cc", cc));
     }
-    out.push_str(&format!("Subject: {}\r\n", header_value(subject)));
+    out.push_str(&subject_line(subject));
     out.push_str("MIME-Version: 1.0\r\n");
 
     match html {
@@ -1176,12 +1281,81 @@ mod tests {
     // covers: Core\Mail::send
     #[test]
     fn a_header_value_cannot_carry_a_line_break_through() {
-        assert_eq!(header_value("Your receipt"), "Your receipt");
-        let injected = header_value("Hi\r\nBcc: attacker@example.com");
+        assert_eq!(subject_line("Your receipt"), "Subject: Your receipt\r\n");
+        let injected = subject_line("Hi\r\nBcc: attacker@example.com");
         assert!(
-            injected.starts_with("=?UTF-8?B?") && !injected.contains('\r'),
+            injected.starts_with("Subject: =?UTF-8?B?") && only_folded(&injected),
             "an injected header survived encoding: {injected}"
         );
+    }
+
+    /// Every `\r\n` in `lines` but the last is followed by a space, so a reader
+    /// unfolds it into the value and no new header starts.
+    fn only_folded(lines: &str) -> bool {
+        let body = lines.strip_suffix("\r\n").unwrap_or(lines);
+        let mut lines = body.split("\r\n");
+        lines.all(|line| !line.contains(['\r', '\n']))
+            && body.split("\r\n").skip(1).all(|line| line.starts_with(' '))
+    }
+
+    /// A long subject is folded under 78 columns, plain at its spaces and
+    /// encoded in words of whole characters, and each unfolds to the subject.
+    /// On main it was one line, and past 998 bytes the server refused it.
+    // covers: Core\Mail::send
+    #[test]
+    fn a_long_subject_is_folded_and_unfolds_to_itself() {
+        let plain = "word ".repeat(400);
+        let encoded = "é\r\nBcc: x@example.com ".repeat(300);
+        let unbroken = "x".repeat(1200);
+        for subject in [plain.as_str(), encoded.as_str(), unbroken.as_str()] {
+            let line = subject_line(subject);
+            assert!(only_folded(&line), "a line break was not a fold: {line:?}");
+            for each in line.split("\r\n") {
+                assert!(
+                    each.len() <= LINE,
+                    "a line of {} columns: {each:?}",
+                    each.len()
+                );
+            }
+            let unfolded = line
+                .strip_prefix("Subject: ")
+                .and_then(|rest| rest.strip_suffix("\r\n"))
+                .unwrap_or_default()
+                .replace("\r\n", "");
+            let read = if unfolded.starts_with("=?UTF-8?B?") {
+                let mut bytes = Vec::new();
+                for word in unfolded.split(' ') {
+                    let inner = word
+                        .strip_prefix("=?UTF-8?B?")
+                        .and_then(|w| w.strip_suffix("?="));
+                    let decoded = STANDARD
+                        .decode(inner.unwrap_or_default())
+                        .unwrap_or_default();
+                    assert!(
+                        std::str::from_utf8(&decoded).is_ok(),
+                        "a word split a character"
+                    );
+                    bytes.extend(decoded);
+                }
+                String::from_utf8(bytes).unwrap_or_default()
+            } else {
+                unfolded
+            };
+            assert_eq!(read, subject);
+        }
+    }
+
+    /// Every recipient is written in angle brackets, and a long list is folded
+    /// between addresses. On main `To:` was a bare comma-separated line.
+    // covers: Core\Mail::send
+    #[test]
+    fn recipients_are_in_angle_brackets_and_a_long_list_is_folded() {
+        let many: Vec<String> = (0..500).map(|n| format!("user{n}@example.com")).collect();
+        let line = address_line("To", &many);
+        assert!(line.starts_with("To: <user0@example.com>, <user1@example.com>,"));
+        assert!(only_folded(&line), "a line break was not a fold: {line:?}");
+        assert!(line.split("\r\n").all(|each| each.len() <= LINE));
+        assert_eq!(line.matches('<').count(), 500);
     }
 
     /// `rule:errors/ambiguous-input-refused` on the reader every directive comes through: a blank value is a
@@ -1214,12 +1388,21 @@ mod tests {
     fn an_address_is_refused_rather_than_repaired() {
         let member = "Core\\Mail::send";
         assert!(address_of("user@example.com", "to", member).is_ok());
+        assert!(address_of("first.last+tag@mail.example.com", "to", member).is_ok());
+        let too_long = format!("{}@example.com", "a".repeat(250));
         for bad in [
             "user@example.com\r\nRCPT TO:<victim@example.com>",
             "a@b.c, d@e.f",
             "<user@example.com>",
             "userexample.com",
             "",
+            "(comment)user@example.com",
+            "\"a@b.c\"@example.com",
+            "list:user@example.com",
+            "a@b.c;d@example.com",
+            "victim%evil.example@relay.example.com",
+            "user@example.com NOTIFY=NEVER",
+            too_long.as_str(),
         ] {
             assert!(
                 address_of(bad, "to", member).is_err(),
@@ -1250,8 +1433,8 @@ mod tests {
             None,
             UNIX_EPOCH,
         );
-        assert!(message.contains("To: to@example.com"));
-        assert!(message.contains("Cc: cc@example.com"));
+        assert!(message.contains("To: <to@example.com>\r\n"));
+        assert!(message.contains("Cc: <cc@example.com>\r\n"));
         assert!(!message.contains("bcc@example.com"));
     }
 }

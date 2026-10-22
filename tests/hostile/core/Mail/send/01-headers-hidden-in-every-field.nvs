@@ -70,3 +70,15 @@ try {
 } catch (RuntimeError $e) {
     echo '7 ', $e::class, "\n";
 }
+
+// 8. Each address uses a comment, a group, a quoted name or a relay route to name
+//    another mailbox. Each one must throw before any connection.
+array<string> $tricky = ['(x)anna@example.com', 'team:anna@example.com', '"a@b.c"@example.com', 'eve%evil.example@example.com'];
+foreach ($tricky as string $address) {
+    try {
+        Core\Mail::send('shop', [$address], 'Hello', 'Hi.');
+        echo "8 sent\n";
+    } catch (RuntimeError $e) {
+        echo '8 ', $e::class, "\n";
+    }
+}
