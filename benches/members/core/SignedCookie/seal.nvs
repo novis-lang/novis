@@ -10,7 +10,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Each round seals a value that depends on the last cookie, so no round can be left out.
-            string $cookie = Core\SignedCookie::seal("user=" . $total, $keys);
+            string $cookie = Core\SignedCookie::seal('session', "user=" . $total, $keys);
             $total = $total + Core\Str::length($cookie) as int;
             $i = $i + 1;
         }

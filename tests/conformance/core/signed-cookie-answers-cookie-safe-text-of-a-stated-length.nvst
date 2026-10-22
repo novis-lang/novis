@@ -12,18 +12,18 @@ array<secret bytes> $ring = [$key];
 
 // The empty payload is a payload: 40 octets of pure overhead, which unpadded
 // base64 spells in 54 characters.
-echo Core\Str::length(Core\SignedCookie::seal("", $ring)), "\n";
+echo Core\Str::length(Core\SignedCookie::seal('session', "", $ring)), "\n";
 
 // Eight characters is 48 octets sealed, which is exactly sixteen base64
 // groups and so needs no remainder handling at all.
-echo Core\Str::length(Core\SignedCookie::seal("user=ada", $ring)), "\n";
+echo Core\Str::length(Core\SignedCookie::seal('session', "user=ada", $ring)), "\n";
 
 // Every character of the answer is in RFC 4648 § 5's alphabet, which is a
 // subset of RFC 6265's `cookie-octet` — so nothing here needs escaping on the
 // way into a header, and nothing needs unescaping on the way back out. A
 // member that answered standard base64 would put `+` and `/` in a cookie and
 // pass every other assertion in this file.
-string $cookie = Core\SignedCookie::seal("user=ada", $ring);
+string $cookie = Core\SignedCookie::seal('session', "user=ada", $ring);
 if (Core\Regex::matches($cookie, "^[A-Za-z0-9_-]+$")) {
     echo "cookie-safe throughout", "\n";
 } else {
@@ -33,7 +33,7 @@ if (Core\Regex::matches($cookie, "^[A-Za-z0-9_-]+$")) {
 // A fresh nonce per call, so one value sealed twice is two different cookies.
 // A member that kept a nonce would round-trip perfectly and leak whether two
 // requests carried the same payload.
-if ($cookie == Core\SignedCookie::seal("user=ada", $ring)) {
+if ($cookie == Core\SignedCookie::seal('session', "user=ada", $ring)) {
     echo "the same cookie twice", "\n";
 } else {
     echo "a fresh cookie", "\n";
@@ -46,7 +46,7 @@ if ($cookie == Core\SignedCookie::seal("user=ada", $ring)) {
 array<string> $awkward = ["a;b", "a,b", "a b", "a=b", "€ ünïcødé", ""];
 int $intact = 0;
 foreach ($awkward as string $payload) {
-    if (Core\SignedCookie::open(Core\SignedCookie::seal($payload, $ring), $ring) == $payload) {
+    if (Core\SignedCookie::open('session', Core\SignedCookie::seal('session', $payload, $ring), $ring) == $payload) {
         $intact = $intact + 1;
     }
 }

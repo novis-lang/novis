@@ -16,12 +16,12 @@ array<secret bytes> $ring = [$key];
 
 // A cookie is read back out of a request header, so its text is tainted
 // before anything has looked at it. `open`'s `$cookie` takes it.
-string $sealed = Core\SignedCookie::seal("id=42; role=admin", $ring);
+string $sealed = Core\SignedCookie::seal('session', "id=42; role=admin", $ring);
 tainted string $fromHeader = $sealed;
 
 // The payload is tainted too, though this program sealed it: `seal` takes a
 // visitor's text as readily as its own.
-tainted string $payload = Core\SignedCookie::open($fromHeader, $ring);
+tainted string $payload = Core\SignedCookie::open('session', $fromHeader, $ring);
 echo $payload, "\n";
 
 // The other half, under the same key and over the same text: a token this

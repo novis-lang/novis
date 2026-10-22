@@ -1,49 +1,43 @@
 --TEST--
-Core\Csrf and Core\SignedCookie share one construction and one key type, and neither one's output is the other's input — the domain tag in a token's plaintext is what refuses the confusion — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
+Core\Csrf, Core\SignedCookie and Core\Crypto::seal share one construction and one key type, and no one's output opens as another's — a cookie binds its name and its own domain octet into the additional data — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // Edges. The boundary this case sits on is the one a deployment reaches by
 // itself: an application generates one key with `Core\Crypto::generateKey()`
-// and uses it for its signed cookies and its CSRF tokens, because nothing
-// stops it. Without a domain tag in the plaintext, a signed cookie carrying a
-// session identifier *is* a valid CSRF token for that session — authentic
-// under the same key, over the same construction, with the same bytes.
-// `crates/nvs-stdlib/src/csrf.rs` owns the tag and its version.
+// and uses it for its signed cookies, its CSRF tokens and its own sealed
+// messages, because nothing stops it. Without a binding, a signed cookie
+// carrying a session identifier would be a valid CSRF token for that session,
+// and a token or a sealed message would open as a cookie.
+// `crates/nvs-stdlib/src/signed_cookie.rs` owns the cookie's binding.
 secret bytes $key = Core\Crypto::generateKey();
 array<secret bytes> $ring = [$key];
 string $session = "sid-ada";
 
 // A signed cookie of exactly the session identifier, which is the value an
 // application most plausibly seals: it is what a session cookie holds.
-string $cookie = Core\SignedCookie::seal($session, $ring);
+string $cookie = Core\SignedCookie::seal('session', $session, $ring);
 if (Core\Csrf::verify($cookie, $session, $key) == false) {
     echo "a signed cookie is not a token", "\n";
 } else {
     echo "a signed cookie passed as a token", "\n";
 }
 
-// And the reverse: a token opens as a cookie, because it is the same
-// construction under the same key and authenticity is not the thing that
-// differs — but what comes out is not the session identifier, so a program
-// reading a token as a session cookie gets a value that matches no session.
-// That asymmetry is the point: the tag does not make the two unforgeable
-// against each other, it makes them *non-interchangeable*.
+// And the reverse: a token does not open as a cookie under any name.
 string $token = Core\Csrf::issue($session, $key);
-if (Core\SignedCookie::open($token, $ring) == $session) {
-    echo "a token opened as the bare session", "\n";
-} else {
-    echo "a token is not a session cookie", "\n";
+try {
+    Core\SignedCookie::open('session', $token, $ring);
+    echo "a token opened as a cookie", "\n";
+} catch (RuntimeError $refused) {
+    echo "a token is not a cookie", "\n";
 }
 
-// The tag is a prefix of the plaintext, not a suffix or a separator, so what a
-// cookie would have to carry to be mistaken for a token is longer than the
-// session identifier by a fixed amount. A member that appended the tag instead
-// would pass every line above and collide on a session identifier that
-// happened to end in one.
-if (Core\Str::length(Core\SignedCookie::open($token, $ring)) == Core\Str::length($session) + 12) {
-    echo "the tag is 12 characters of prefix", "\n";
-} else {
-    echo "the plaintext is a different shape", "\n";
+// A message `Core\Crypto::seal` made, written as a cookie, is not one either.
+string $sealed = Core\Encoding::toBase64Url(Core\Crypto::seal($session as bytes, $key, Core\Crypto::Cipher::XChaCha20Poly1305));
+try {
+    Core\SignedCookie::open('session', $sealed, $ring);
+    echo "a sealed message opened as a cookie", "\n";
+} catch (RuntimeError $refused) {
+    echo "a sealed message is not a cookie", "\n";
 }
 
 // A token is still a token afterwards — nothing above consumed it — and it is
@@ -60,7 +54,7 @@ if (Core\Csrf::verify($token, "sid-bob", $key) == false) {
 }
 --EXPECT--
 a signed cookie is not a token
-a token is not a session cookie
-the tag is 12 characters of prefix
+a token is not a cookie
+a sealed message is not a cookie
 and the token still verifies
 against its own session only

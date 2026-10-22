@@ -5,7 +5,7 @@ class Login {
     // Returns the user id in the cookie, or "guest" when the cookie is not valid.
     public static function userOf(string $cookie, array<secret bytes> $keys): tainted string {
         try {
-            return Core\SignedCookie::open($cookie, $keys);
+            return Core\SignedCookie::open("user", $cookie, $keys);
         } catch (RuntimeError $e) {
             return "guest";
         }
@@ -13,7 +13,7 @@ class Login {
 }
 
 array<secret bytes> $keys = [Core\Crypto::generateKey()];
-string $cookie = Core\SignedCookie::seal("42", $keys);
+string $cookie = Core\SignedCookie::seal("user", "42", $keys);
 
 // The real cookie gives the user id. This prints 42.
 echo Login::userOf($cookie, $keys), "\n";

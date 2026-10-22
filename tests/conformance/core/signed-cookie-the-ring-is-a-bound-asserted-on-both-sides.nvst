@@ -22,11 +22,11 @@ array<secret bytes> $all = [$k0, $k1, $k2, $k3, $k4];
 // of the surface and it is where every cookie here comes from.
 array<string> $payloads = ["under 0", "under 1", "under 2", "under 3", "under 4"];
 array<string> $cookies = [
-    Core\SignedCookie::seal($payloads[0], [$k0]),
-    Core\SignedCookie::seal($payloads[1], [$k1]),
-    Core\SignedCookie::seal($payloads[2], [$k2]),
-    Core\SignedCookie::seal($payloads[3], [$k3]),
-    Core\SignedCookie::seal($payloads[4], [$k4]),
+    Core\SignedCookie::seal('session', $payloads[0], [$k0]),
+    Core\SignedCookie::seal('session', $payloads[1], [$k1]),
+    Core\SignedCookie::seal('session', $payloads[2], [$k2]),
+    Core\SignedCookie::seal('session', $payloads[3], [$k3]),
+    Core\SignedCookie::seal('session', $payloads[4], [$k4]),
 ];
 
 // Growing from the front: the ring `[k0]`, then `[k0, k1]`, and so on. At every
@@ -42,7 +42,7 @@ while ($j <= 5) {
     int $c = 0;
     while ($c < 5) {
         try {
-            if (Core\SignedCookie::open($cookies[$c], $ring) == $payloads[$c]) {
+            if (Core\SignedCookie::open('session', $cookies[$c], $ring) == $payloads[$c]) {
                 $opened = $opened + 1;
             }
         } catch (RuntimeError $outside) {
@@ -67,7 +67,7 @@ while ($r <= 4) {
     int $t = 0;
     while ($t < 5) {
         try {
-            if (Core\SignedCookie::open($cookies[$t], $tail) == $payloads[$t]) {
+            if (Core\SignedCookie::open('session', $cookies[$t], $tail) == $payloads[$t]) {
                 $survives = $survives + 1;
             }
         } catch (RuntimeError $retired) {

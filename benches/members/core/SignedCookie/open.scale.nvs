@@ -8,11 +8,11 @@ class Bench
     public static function run(uint $size): uint
     {
         array<secret bytes> $keys = [Core\Crypto::generateKey()];
-        string $cookie = Core\SignedCookie::seal('user=' . Core\Str::repeat('a', $size), $keys);
+        string $cookie = Core\SignedCookie::seal('session', 'user=' . Core\Str::repeat('a', $size), $keys);
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            tainted string $value = Core\SignedCookie::open($cookie, $keys);
+            tainted string $value = Core\SignedCookie::open('session', $cookie, $keys);
             $total = $total + Core\Str::length($value) % 7 + 1;
             $i = $i + 1;
         }

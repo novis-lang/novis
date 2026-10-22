@@ -10,13 +10,13 @@ Core\SignedCookie::open answers one RuntimeError for a tampered cookie, one that
 secret bytes $key = Core\Crypto::generateKey();
 secret bytes $retired = Core\Crypto::generateKey();
 array<secret bytes> $ring = [$key];
-string $cookie = Core\SignedCookie::seal("user=ada", $ring);
+string $cookie = Core\SignedCookie::seal('session', "user=ada", $ring);
 
 // Four more characters of the alphabet: still URL-safe base64 and still a
 // legal length, so it decodes cleanly and reaches the tag check. This is the
 // forgery an unauthenticated cookie hands back a plaintext for.
 try {
-    tainted string $forged = Core\SignedCookie::open($cookie . "AAAA", $ring);
+    tainted string $forged = Core\SignedCookie::open('session', $cookie . "AAAA", $ring);
     echo "tamper accepted", "\n";
 } catch (RuntimeError $altered) {
     echo $altered->message, "\n";
@@ -25,7 +25,7 @@ try {
 // One character outside the alphabet, so it never decodes at all — and is
 // refused with the same sentence rather than one about its spelling.
 try {
-    tainted string $garbled = Core\SignedCookie::open($cookie . "?", $ring);
+    tainted string $garbled = Core\SignedCookie::open('session', $cookie . "?", $ring);
     echo "a non-base64 cookie accepted", "\n";
 } catch (RuntimeError $notBase64) {
     echo $notBase64->message, "\n";
@@ -35,7 +35,7 @@ try {
 // what a browser sends when the cookie was cleared and the code path a naive
 // signer treats as "no signature to check".
 try {
-    tainted string $nothing = Core\SignedCookie::open("", $ring);
+    tainted string $nothing = Core\SignedCookie::open('session', "", $ring);
     echo "an empty cookie accepted", "\n";
 } catch (RuntimeError $tooShort) {
     echo $tooShort->message, "\n";
@@ -45,7 +45,7 @@ try {
 // state an operator reaches by rotating one key too many.
 array<secret bytes> $strangers = [$retired];
 try {
-    tainted string $wrong = Core\SignedCookie::open($cookie, $strangers);
+    tainted string $wrong = Core\SignedCookie::open('session', $cookie, $strangers);
     echo "opened under a ring that never sealed it", "\n";
 } catch (RuntimeError $notThisRing) {
     echo $notThisRing->message, "\n";
@@ -56,7 +56,7 @@ try {
 // they get the other class and a sentence that names the entry by its index.
 array<secret bytes> $empty = [];
 try {
-    string $unsealable = Core\SignedCookie::seal("user=ada", $empty);
+    string $unsealable = Core\SignedCookie::seal('session', "user=ada", $empty);
     echo "an empty ring sealed", "\n";
 } catch (LogicError $noKeys) {
     echo $noKeys->message, "\n";
@@ -65,14 +65,14 @@ try {
 secret bytes $stunted = Core\Random::bytes(8);
 array<secret bytes> $stuntedRing = [$stunted];
 try {
-    string $stillUnsealable = Core\SignedCookie::seal("user=ada", $stuntedRing);
+    string $stillUnsealable = Core\SignedCookie::seal('session', "user=ada", $stuntedRing);
     echo "sealed under an 8-octet key", "\n";
 } catch (LogicError $notAKey) {
     echo $notAKey->message, "\n";
 }
 
 try {
-    tainted string $unopenable = Core\SignedCookie::open($cookie, $stuntedRing);
+    tainted string $unopenable = Core\SignedCookie::open('session', $cookie, $stuntedRing);
     echo "opened under an 8-octet key", "\n";
 } catch (LogicError $stillNotAKey) {
     echo $stillNotAKey->message, "\n";
@@ -81,16 +81,16 @@ try {
 // The other side of the bound: the cookie this class sealed still opens under
 // the ring that sealed it, so the refusals above are about their arguments and
 // not about `open` having become a member that refuses everything.
-if (Core\SignedCookie::open($cookie, $ring) == "user=ada") {
+if (Core\SignedCookie::open('session', $cookie, $ring) == "user=ada") {
     echo "and the cookie it sealed opens", "\n";
 } else {
     echo "refused its own cookie", "\n";
 }
 --EXPECT--
-Core\SignedCookie::open(): $cookie is not an authentic cookie under any key in $keys — it has been altered, it is not a cookie this application sealed, or the key it was sealed under has been retired
-Core\SignedCookie::open(): $cookie is not an authentic cookie under any key in $keys — it has been altered, it is not a cookie this application sealed, or the key it was sealed under has been retired
-Core\SignedCookie::open(): $cookie is not an authentic cookie under any key in $keys — it has been altered, it is not a cookie this application sealed, or the key it was sealed under has been retired
-Core\SignedCookie::open(): $cookie is not an authentic cookie under any key in $keys — it has been altered, it is not a cookie this application sealed, or the key it was sealed under has been retired
+Core\SignedCookie::open(): $cookie is not an authentic cookie named $name under any key in $keys — it has been altered, it was sealed for another name or is not a cookie this application sealed, or the key it was sealed under has been retired
+Core\SignedCookie::open(): $cookie is not an authentic cookie named $name under any key in $keys — it has been altered, it was sealed for another name or is not a cookie this application sealed, or the key it was sealed under has been retired
+Core\SignedCookie::open(): $cookie is not an authentic cookie named $name under any key in $keys — it has been altered, it was sealed for another name or is not a cookie this application sealed, or the key it was sealed under has been retired
+Core\SignedCookie::open(): $cookie is not an authentic cookie named $name under any key in $keys — it has been altered, it was sealed for another name or is not a cookie this application sealed, or the key it was sealed under has been retired
 Core\SignedCookie::seal(): $keys is empty, and a key ring needs at least one key — Core\Crypto::generateKey() answers one.
 Core\SignedCookie::seal(): $keys[0] is 8 octets, and a key is 32 — Core\Crypto::generateKey() answers one of the right length. The value is not quoted here, because a key does not belong in a log.
 Core\SignedCookie::open(): $keys[0] is 8 octets, and a key is 32 — Core\Crypto::generateKey() answers one of the right length. The value is not quoted here, because a key does not belong in a log.

@@ -7,13 +7,13 @@
 // The first two uses of the opened value are errors. The count of errors is the assertion.
 array<secret bytes> $ring = [Core\Crypto::generateKey()];
 tainted string $name = Core\Request::query("name") ?? "guest";
-tainted string $cookie = Core\SignedCookie::seal($name, $ring);
+tainted string $cookie = Core\SignedCookie::seal('session', $name, $ring);
 
-string $opened = Core\SignedCookie::open($cookie, $ring);
-Core\Regex\Pattern $pattern = Core\Regex::compile(Core\SignedCookie::open($cookie, $ring));
+string $opened = Core\SignedCookie::open('session', $cookie, $ring);
+Core\Regex\Pattern $pattern = Core\Regex::compile(Core\SignedCookie::open('session', $cookie, $ring));
 
 // A `tainted` variable takes the value, and a launderer makes it safe for its sink.
-tainted string $kept = Core\SignedCookie::open($cookie, $ring);
+tainted string $kept = Core\SignedCookie::open('session', $cookie, $ring);
 Core\Regex\Pattern $quoted = Core\Regex::compile(Core\Regex::quote($kept));
 --EXPECT--
 

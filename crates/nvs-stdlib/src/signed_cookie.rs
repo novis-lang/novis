@@ -64,6 +64,22 @@
 //! base64's four-thirds — about `4/3 × (len + 40)` characters, which is the
 //! number to hold against a browser's 4 KiB per-cookie limit.
 //!
+//! # A cookie opens only under the name it was sealed for
+//!
+//! Both members take the cookie's `$name`, and it goes into the AEAD's
+//! additional data behind [`COOKIE_DOMAIN`], an octet no other sealed
+//! construction in this crate starts with. The name travels nowhere: `open`
+//! states it again, so a value sealed for `last_seen` and sent back as `uid`
+//! does not authenticate. The octet is the purpose. `Core\Crypto::seal` and a
+//! `Core\Csrf` token seal with empty additional data, and a cache or session
+//! secret starts with its own octet, so none of them opens as a cookie and a
+//! cookie opens as none of them. The application is not bound, unlike the
+//! cache's entries: a deployment that moves to a new folder keeps its cookies.
+//!
+//! **Expiry is not sealed in.** The cookie's own `Max-Age` and the program's
+//! data cover a lifetime, and a sealed one would be a third parameter on both
+//! members. `rule:security/protocol-roster` records that decline.
+//!
 //! # One refusal, and it is constant-time underneath
 //!
 //! [`open`] answers the plaintext or throws, and **every way of not being an
@@ -88,6 +104,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 use nvs_runtime::{Fault, Value};
 
+use crate::cache::bound;
 use crate::keyring::KEY;
 use crate::registry::{
     ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -101,6 +118,16 @@ const SEAL: &str = r"Core\SignedCookie::seal";
 
 /// `Core\SignedCookie::open`, spelled the way a refusal names it.
 const OPEN: &str = r"Core\SignedCookie::open";
+
+/// The octet a cookie's additional data starts with: [`crate::cache`]'s
+/// `SEAL_DOMAIN` is 1 and [`crate::session`]'s is 2, so a value sealed for
+/// either never opens as a cookie.
+const COOKIE_DOMAIN: u8 = 3;
+
+/// The additional data a cookie named `name` is sealed and opened under.
+fn bound_to(name: &str) -> Vec<u8> {
+    bound(COOKIE_DOMAIN, &[], name.as_bytes())
+}
 
 /// `Core\SignedCookie`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
@@ -124,11 +151,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "seal",
-            names: &["value", "keys"],
+            names: &["name", "value", "keys"],
             // The value is contagious — the cookie is made of it — and the
-            // ring is neutral, because not one octet of a key reaches the
-            // answer.
-            params: &[CoreTy::Text(Qual::Contagious), CoreTy::Array(&KEY)],
+            // name and the ring are neutral, because not one octet of either
+            // reaches the answer.
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Array(&KEY),
+            ],
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_signed_cookie_seal",
@@ -136,10 +167,14 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "open",
-            names: &["cookie", "keys"],
-            // The cookie text is neutral and the payload is always
-            // `tainted`: the module doc's section on `open` says why.
-            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Array(&KEY)],
+            names: &["name", "cookie", "keys"],
+            // The name and the cookie text are neutral and the payload is
+            // always `tainted`: the module doc's section on `open` says why.
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Array(&KEY),
+            ],
             defaults: &[],
             return_ty: CoreTy::TaintedStr,
             symbol: "nvs_core_signed_cookie_open",
@@ -153,10 +188,16 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\SignedCookie::seal`'s reference card — `rule:core-api/reference-card`.
 const SEAL_DOC: MethodDoc = MethodDoc {
-    short: "Encrypts `$value` with the newest key in `$keys` and returns text for a cookie. \
-            Nobody without the key can read or change the value. `Core\\SignedCookie::open` \
-            returns the value again.",
+    short: "Encrypts `$value` with the newest key in `$keys` and returns text for the cookie \
+            `$name`. Nobody without the key can read or change the value. \
+            `Core\\SignedCookie::open` returns the value again for the same name.",
     params: &[
+        ParamDoc {
+            name: "name",
+            desc: "The name of the cookie, such as `cart`. `open` needs the same name. A cookie \
+                   sent back under another name does not open.",
+            shape: &[],
+        },
         ParamDoc {
             name: "value",
             desc: "The value to store. `open` returns exactly this string.",
@@ -189,11 +230,16 @@ const SEAL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\SignedCookie::open`'s reference card — `rule:core-api/reference-card`.
 const OPEN_DOC: MethodDoc = MethodDoc {
-    short: "Checks that `$cookie` was made by `Core\\SignedCookie::seal` with a key in `$keys`, \
-            and returns the value stored in it. A changed cookie throws an error. The value is \
+    short: "Checks that `$cookie` was made by `Core\\SignedCookie::seal` for the cookie `$name` \
+            with a key in `$keys`, and returns the value stored in it. A changed cookie throws an error. The value is \
             `tainted` (marked as input from outside), because your program may have stored \
             text that a visitor sent.",
     params: &[
+        ParamDoc {
+            name: "name",
+            desc: "The name you gave `seal`. This is usually the name the cookie arrived with.",
+            shape: &[],
+        },
         ParamDoc {
             name: "cookie",
             desc: "The cookie text as your program received it from the request. A `tainted` \
@@ -216,9 +262,9 @@ const OPEN_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$cookie` was not made with any key in `$keys`. This includes a changed \
-                   cookie, an empty cookie, text that is not a cookie, and a cookie made with a \
-                   key you removed. All of these give the same message, so an attacker learns \
+            desc: "`$cookie` was not made for `$name` with any key in `$keys`. This includes a \
+                   changed cookie, an empty cookie, text that is not a cookie, a cookie made for \
+                   another name, and a cookie made with a key you removed. All of these give the same message, so an attacker learns \
                    nothing from it.",
         },
     ],
@@ -234,23 +280,24 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// The `string` in slot 0.
+/// The `string` in `slot`.
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] naming the member: slot 0 is a `string` in both rows, so
-/// another tag is a compiled-code bug rather than anything a program can write.
-fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
-    args[0].as_text().ok_or_else(|| {
+/// A [`Fault::fatal`] naming the member: slots 0 and 1 are a `string` in both
+/// rows, so another tag is a compiled-code bug rather than anything a program
+/// can write.
+fn text_of<'a>(args: &'a [Value], slot: usize, member: &str) -> Result<&'a str, Fault> {
+    args[slot].as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "{NAME}::{member} expected a `string`, got tag {}",
-            args[0].tag_byte()
+            args[slot].tag_byte()
         ))
     })
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\SignedCookie::seal(string $value, array<secret bytes> $keys): string`
+    /// `Core\SignedCookie::seal(string $name, string $value, array<secret bytes> $keys): string`
     /// — the write half of `rule:security/protocol-roster`'s first entry, replacing the
     /// `hash_hmac` + `base64_encode` + `hash_equals` triple every PHP codebase
     /// grows its own slightly-different copy of.
@@ -258,20 +305,22 @@ nvs_runtime::nvs_helper! {
     /// The newest key is the ring's first live slot, which for the list a
     /// program writes is `$keys[0]`; the module doc's own section is the home
     /// of why the newest end is the front and not the back.
-    fn nvs_core_signed_cookie_seal(ctx, args: [2]) {
-        let value = text_of(args, "seal")?;
-        let ring = crate::keyring::borrow(args, 1, SEAL)?;
+    fn nvs_core_signed_cookie_seal(ctx, args: [3]) {
+        let name = text_of(args, 0, "seal")?;
+        let value = text_of(args, 1, "seal")?;
+        let ring = crate::keyring::borrow(args, 2, SEAL)?;
 
         let (slot, held) = crate::keyring::newest(&ring);
-        let cipher = crate::keyring::cipher_at(&held, slot,SEAL)?;
+        let cipher = crate::keyring::cipher_at(&held, slot, SEAL)?;
 
-        let sealed = crate::crypto::seal_under(ctx, &cipher, &[], value.as_bytes(), SEAL)?;
+        let sealed =
+            crate::crypto::seal_under(ctx, &cipher, &bound_to(name), value.as_bytes(), SEAL)?;
         Ok(Value::text(&URL_SAFE_NO_PAD.encode(&sealed)))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\SignedCookie::open(string $cookie, array<secret bytes> $keys): tainted string`
+    /// `Core\SignedCookie::open(string $name, string $cookie, array<secret bytes> $keys): tainted string`
     /// — the read half, answering the sealed value `tainted` per
     /// `rule:security/verification-does-not-launder`.
     ///
@@ -286,9 +335,11 @@ nvs_runtime::nvs_helper! {
     /// that holds proves who sealed the bytes, not that they are text: any
     /// holder of a key in the ring can seal a cookie. A plaintext that is not
     /// UTF-8 gets the same refusal as a cookie that does not authenticate.
-    fn nvs_core_signed_cookie_open(_ctx, args: [2]) {
-        let cookie = text_of(args, "open")?;
-        let ring = crate::keyring::borrow(args, 1, OPEN)?;
+    fn nvs_core_signed_cookie_open(_ctx, args: [3]) {
+        let name = text_of(args, 0, "open")?;
+        let cookie = text_of(args, 1, "open")?;
+        let ring = crate::keyring::borrow(args, 2, OPEN)?;
+        let aad = bound_to(name);
 
         // A cookie that is not base64 is not authentic, and it is not a
         // *different* kind of not-authentic: the ring is still walked, so the
@@ -297,9 +348,9 @@ nvs_runtime::nvs_helper! {
         let sealed = URL_SAFE_NO_PAD.decode(cookie).ok();
 
         for (slot, held) in crate::keyring::entries(&ring) {
-            let cipher = crate::keyring::cipher_at(&held, slot,OPEN)?;
+            let cipher = crate::keyring::cipher_at(&held, slot, OPEN)?;
             if let Some(sealed) = sealed.as_deref()
-                && let Some(plain) = crate::crypto::open_under(&cipher, &[], sealed, OPEN)?
+                && let Some(plain) = crate::crypto::open_under(&cipher, &aad, sealed, OPEN)?
                 && let Ok(text) = std::str::from_utf8(&plain)
             {
                 return Ok(Value::text(text));
@@ -307,9 +358,9 @@ nvs_runtime::nvs_helper! {
         }
 
         Err(Fault::thrown(
-            "Core\\SignedCookie::open(): $cookie is not an authentic cookie under any key in \
-             $keys — it has been altered, it is not a cookie this application sealed, or the \
-             key it was sealed under has been retired"
+            "Core\\SignedCookie::open(): $cookie is not an authentic cookie named $name under \
+             any key in $keys — it has been altered, it was sealed for another name or is not \
+             a cookie this application sealed, or the key it was sealed under has been retired"
         ))
     }
 }
@@ -445,10 +496,11 @@ mod tests {
     #[test]
     fn seal_returns_cookie_text_open_reads_and_an_empty_ring_is_refused() {
         let keys = crate::keyring::tests::ring_of(&[&[9_u8; 32]]);
+        let name = Value::text("user");
         let value = Value::text("user=ada");
 
         let mut ctx = nvs_runtime::Ctx::buffered();
-        let cookie = nvs_runtime::call(nvs_core_signed_cookie_seal, &mut ctx, &[value, keys])
+        let cookie = nvs_runtime::call(nvs_core_signed_cookie_seal, &mut ctx, &[name, value, keys])
             .expect("a ring of one well-formed key seals");
         let text = cookie.as_text().expect("seal returns a string").to_owned();
         assert!(
@@ -462,7 +514,7 @@ mod tests {
             "8 octets of value and 40 of overhead, in base64's four-thirds"
         );
 
-        let back = nvs_runtime::call(nvs_core_signed_cookie_open, &mut ctx, &[cookie, keys])
+        let back = nvs_runtime::call(nvs_core_signed_cookie_open, &mut ctx, &[name, cookie, keys])
             .expect("open reads what seal wrote");
         assert_eq!(
             back.as_text(),
@@ -473,7 +525,8 @@ mod tests {
         dropped(cookie);
 
         let empty = crate::keyring::tests::ring_of(&[]);
-        let refused = nvs_runtime::call(nvs_core_signed_cookie_seal, &mut ctx, &[value, empty]);
+        let refused =
+            nvs_runtime::call(nvs_core_signed_cookie_seal, &mut ctx, &[name, value, empty]);
         let sentence = ctx.take_pending().map(std::borrow::Cow::into_owned);
         assert!(
             refused.is_err(),
@@ -486,6 +539,7 @@ mod tests {
 
         dropped(empty);
         dropped(value);
+        dropped(name);
         dropped(keys);
     }
 
@@ -498,13 +552,18 @@ mod tests {
         let old = crate::keyring::tests::ring_of(&[&[4_u8; 32]]);
         let rotated = crate::keyring::tests::ring_of(&[&[9_u8; 32], &[4_u8; 32]]);
         let retired = crate::keyring::tests::ring_of(&[&[9_u8; 32]]);
+        let name = Value::text("cart");
         let value = Value::text("cart=3");
 
         let mut ctx = nvs_runtime::Ctx::buffered();
-        let cookie = nvs_runtime::call(nvs_core_signed_cookie_seal, &mut ctx, &[value, old])
+        let cookie = nvs_runtime::call(nvs_core_signed_cookie_seal, &mut ctx, &[name, value, old])
             .expect("a ring of one well-formed key seals");
-        let back = nvs_runtime::call(nvs_core_signed_cookie_open, &mut ctx, &[cookie, rotated])
-            .expect("the older key is still in the ring");
+        let back = nvs_runtime::call(
+            nvs_core_signed_cookie_open,
+            &mut ctx,
+            &[name, cookie, rotated],
+        )
+        .expect("the older key is still in the ring");
         assert_eq!(
             back.as_text(),
             Some("cart=3"),
@@ -519,7 +578,8 @@ mod tests {
 
         let mut sentences = Vec::new();
         for (text, ring) in [(forged, rotated), (cookie, retired)] {
-            let refused = nvs_runtime::call(nvs_core_signed_cookie_open, &mut ctx, &[text, ring]);
+            let refused =
+                nvs_runtime::call(nvs_core_signed_cookie_open, &mut ctx, &[name, text, ring]);
             assert!(
                 refused.is_err(),
                 "neither a forgery nor a retired key opens"
@@ -543,5 +603,55 @@ mod tests {
         dropped(retired);
         dropped(rotated);
         dropped(old);
+        dropped(name);
+    }
+
+    /// Attack: a value sealed for one cookie is sent back under another
+    /// cookie's name, and a `Core\Crypto::seal` message is sent as a cookie.
+    /// Neither opens, and the cookie still opens under its own name.
+    #[test]
+    fn a_cookie_opens_only_under_the_name_it_was_sealed_for() {
+        let keys = crate::keyring::tests::ring_of(&[&[9_u8; 32]]);
+        let seen = Value::text("last_seen");
+        let uid = Value::text("uid");
+        let value = Value::text("1");
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let cookie = nvs_runtime::call(nvs_core_signed_cookie_seal, &mut ctx, &[seen, value, keys])
+            .expect("a ring of one well-formed key seals");
+        assert!(
+            nvs_runtime::call(nvs_core_signed_cookie_open, &mut ctx, &[uid, cookie, keys]).is_err(),
+            "a cookie sealed for `last_seen` does not open as `uid`"
+        );
+        drop(ctx.take_pending());
+        let back = nvs_runtime::call(nvs_core_signed_cookie_open, &mut ctx, &[seen, cookie, keys])
+            .expect("the cookie opens under its own name");
+        assert_eq!(back.as_text(), Some("1"));
+        dropped(back);
+
+        // `Core\Crypto::seal`'s construction under the same key, written as a cookie.
+        let cipher = crate::crypto::cipher(&[9_u8; 32]).expect("a 32-octet key keys");
+        let raw = crate::crypto::seal_under(&mut ctx, &cipher, &[], b"admin", "test")
+            .expect("a short message seals");
+        let foreign = Value::text(&URL_SAFE_NO_PAD.encode(&raw));
+        let empty = Value::text("");
+        for name in [seen, uid, empty] {
+            assert!(
+                nvs_runtime::call(
+                    nvs_core_signed_cookie_open,
+                    &mut ctx,
+                    &[name, foreign, keys]
+                )
+                .is_err(),
+                "a `Core\\Crypto::seal` message is not a cookie under any name"
+            );
+            drop(ctx.take_pending());
+            dropped(name);
+        }
+
+        dropped(foreign);
+        dropped(cookie);
+        dropped(value);
+        dropped(keys);
     }
 }

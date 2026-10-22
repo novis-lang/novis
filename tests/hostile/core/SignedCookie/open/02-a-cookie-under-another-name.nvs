@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a visitor sends a cookie back under another cookie's name, or sends a token or a
+// sealed message as a cookie. Each of these should throw a `RuntimeError`.
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// 1. A `last_seen` cookie is sent as the `uid` cookie.
+string $lastSeen = Core\SignedCookie::seal('last_seen', '1', $keys);
+try {
+    tainted string $uid = Core\SignedCookie::open('uid', $lastSeen, $keys);
+    echo 'uid opened: ', $uid, "\n";
+} catch (RuntimeError $swapped) {
+    echo "swapped cookie: RuntimeError\n";
+}
+
+// 2. Names that differ only in case, in a trailing space or in a prefix.
+array<string> $near = ['Last_seen', 'last_seen ', '__Host-last_seen', 'last_', ''];
+int $accepted = 0;
+foreach ($near as string $name) {
+    try {
+        Core\SignedCookie::open($name, $lastSeen, $keys);
+        $accepted = $accepted + 1;
+    } catch (RuntimeError $other) {
+    }
+}
+echo 'near names accepted: ', $accepted, "\n";
+
+// 3. A CSRF token made with the same key is sent as a cookie.
+string $token = Core\Csrf::issue('sid-1', $key);
+try {
+    tainted string $fromToken = Core\SignedCookie::open('uid', $token, $keys);
+    echo 'token opened: ', $fromToken, "\n";
+} catch (RuntimeError $notCookie) {
+    echo "token as cookie: RuntimeError\n";
+}
+
+// 4. A message `Core\Crypto::seal` made with the same key is sent as a cookie.
+bytes $sealed = Core\Crypto::seal('admin' as bytes, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
+try {
+    string $text = Core\Encoding::toBase64Url($sealed);
+    tainted string $fromSealed = Core\SignedCookie::open('uid', $text, $keys);
+    echo 'sealed message opened: ', $fromSealed, "\n";
+} catch (RuntimeError $notSealed) {
+    echo "sealed message as cookie: RuntimeError\n";
+}
+
+// 5. The cookie still opens under its own name.
+echo 'last_seen: ', Core\SignedCookie::open('last_seen', $lastSeen, $keys), "\n";

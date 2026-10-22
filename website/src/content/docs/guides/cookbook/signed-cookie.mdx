@@ -14,6 +14,8 @@ for a cookie and reads it back.
 `Core\SignedCookie::seal` encrypts the value with the first key in the list. `open` returns the value. If the
 client changed the cookie, `open` throws a `RuntimeError`.
 
+Both members take the cookie's name. A cookie only opens under the name it was made for.
+
 To send the cookie, use `Core\Response::addCookie`.
 
 Read [Core\SignedCookie](/reference/core/signedcookie/) for how to change keys without breaking
