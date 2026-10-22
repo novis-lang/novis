@@ -221,6 +221,16 @@
 //! the same degradation, stated on each of those members. Nothing refuses the
 //! call, because the refusal § 4 asks for is about two *writers* of one body
 //! (`nvs_types::response`), and one member on a terminal is not that.
+//!
+//! **A body that will become a carrier takes the sink's rendering first.**
+//! Inside a `Core\Out::capture`, and in a `spawn script` child, the bytes are
+//! not a response: the capture or the parent receives them as the sink's
+//! carrier, or appends them to its own stream. `text`, `json`, `bytes` and
+//! `stream` write through `Ctx::write_body`, which renders them there the way
+//! `echo` renders a `string`. A child's `text("<script>…")` shows as text in the
+//! parent's page, and an `echo`ed one is escaped once, not twice
+//! (`rule:security/capture-answers-the-carrier`). `html` writes a `Markup`,
+//! and `sendFile` names a file the program chose, so both stay verbatim.
 
 use nvs_runtime::{Fault, Tag, Value};
 
@@ -1317,11 +1327,11 @@ nvs_runtime::nvs_helper! {
         })?;
         ctx.declare_content_type(TEXT_MEDIA_TYPE);
         // Verbatim, and the module doc's *A body goes out verbatim* section owns
-        // what that means off a request. Unreachable from source on
-        // `Core\Cli::write`'s reasoning: `OutputSink::Buffer` and `Sink` never
-        // fail, and nothing in the language closes a descriptor the host handed
-        // the process.
-        ctx.write_output(body.as_bytes())
+        // what that means off a request and where it becomes markup. Unreachable
+        // from source on `Core\Cli::write`'s reasoning: `OutputSink::Buffer` and
+        // `Sink` never fail, and nothing in the language closes a descriptor the
+        // host handed the process.
+        ctx.write_body(body.as_bytes())
             .map_err(|error| Fault::fatal(format!("Core\\Response::text could not write: {error}")))?;
         Ok(Value::null())
     }
@@ -1886,7 +1896,7 @@ nvs_runtime::nvs_helper! {
         // and `Sink` never fail, which `Ctx::write_output`'s own `# Errors`
         // states, and nothing in the language closes a descriptor the host
         // handed the process.
-        ctx.write_output(written.as_bytes())
+        ctx.write_body(written.as_bytes())
             .map_err(|error| Fault::fatal(format!("Core\\Response::json could not write: {error}")))?;
         Ok(Value::null())
     }
@@ -1939,7 +1949,7 @@ nvs_runtime::nvs_helper! {
         // and `Sink` never fail, which `Ctx::write_output`'s own `# Errors`
         // states, and nothing in the language closes a descriptor the host
         // handed the process.
-        ctx.write_output(body)
+        ctx.write_body(body)
             .map_err(|error| Fault::fatal(format!("Core\\Response::bytes could not write: {error}")))?;
         Ok(Value::null())
     }
@@ -2345,7 +2355,7 @@ nvs_runtime::nvs_helper! {
         // and `Sink` never fail, which `Ctx::write_output`'s own `# Errors`
         // states, and nothing in the language closes a descriptor the host
         // handed the process.
-        ctx.write_output(chunk).map_err(|error| {
+        ctx.write_body(chunk).map_err(|error| {
             Fault::fatal(format!("Core\\Response\\Stream::write could not write: {error}"))
         })?;
         Ok(Value::null())

@@ -301,6 +301,62 @@ impl Ctx {
         write_to(&mut self.output, bytes)
     }
 
+    /// Writes the bytes of a body member that is not markup — `Core\Response::text`,
+    /// `::json`, `::bytes`, and `::stream` off a connection.
+    ///
+    /// They go out unchanged when they are what this request answers with. They
+    /// can instead become the sink's carrier: inside a `Core\Out::capture`, and in
+    /// a `spawn script` child, whose output its parent receives as that carrier or
+    /// appends to its own stream. Then they are written as `echo` writes a
+    /// `string`, escaped under the HTML sink and substituted under every other
+    /// (`rule:security/capture-answers-the-carrier`). Raw, a child's
+    /// `Core\Response::text("<script>…")` would reach the parent's page as markup,
+    /// and an `ESC` sequence would reach its terminal as a command.
+    ///
+    /// Bytes that are not UTF-8 are rendered byte by byte, so they stay not
+    /// UTF-8 and a capture still throws on them (`rule:types/string-is-utf8`).
+    /// **What it spends:** two compares per body write, and one copy of the body
+    /// where the rendering changes it.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::write_output`]'s.
+    pub fn write_body(&mut self, bytes: &[u8]) -> io::Result<()> {
+        if self.script_depth == 0 && self.captures.is_empty() {
+            return self.write_output(bytes);
+        }
+        let html = self.carrier() == crate::CARRIER_HTML_MARKUP;
+        if let Ok(text) = std::str::from_utf8(bytes) {
+            let rendered = if html {
+                nvs_render::html::escape(text)
+            } else {
+                nvs_render::text::substitute(text)
+            };
+            return self.write_output(rendered.as_bytes());
+        }
+        let mut rendered = Vec::with_capacity(bytes.len());
+        for &byte in bytes {
+            match (html, byte) {
+                (true, b'&') => rendered.extend_from_slice(b"&amp;"),
+                (true, b'<') => rendered.extend_from_slice(b"&lt;"),
+                (true, b'>') => rendered.extend_from_slice(b"&gt;"),
+                (true, b'"') => rendered.extend_from_slice(b"&quot;"),
+                (true, b'\'') => rendered.extend_from_slice(b"&#39;"),
+                // `nvs_render::text`'s table for one byte: every C0 but `LF` and
+                // `TAB` as its Control Picture, and `DEL` as `␡`.
+                (false, b'\n' | b'\t') => rendered.push(byte),
+                (false, 0x00..=0x1F | 0x7F) => {
+                    let picture = if byte == 0x7F { 0x2421 } else { 0x2400 + u32::from(byte) };
+                    let picture = char::from_u32(picture).unwrap_or('\u{FFFD}');
+                    let mut buffer = [0; 4];
+                    rendered.extend_from_slice(picture.encode_utf8(&mut buffer).as_bytes());
+                }
+                _ => rendered.push(byte),
+            }
+        }
+        self.write_output(&rendered)
+    }
+
     /// Writes raw bytes to this request's **diagnostic** channel — `rule:errors/debug-dump`'s destination for a CLI `Core\Debug::dump`.
     ///
     /// Deliberately **not** routed through [`Self::captures`]: a
@@ -1223,6 +1279,57 @@ fn style_nonce() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [`Ctx::write_body`] under the HTML sink: a request's own body goes out
+    /// verbatim, and a `spawn script` child's or a capture's is escaped, because
+    /// its parent receives it as a `Core\Html\Markup`. Bytes that are not UTF-8
+    /// are escaped byte by byte and stay not UTF-8, so a capture still throws.
+    #[test]
+    fn a_body_that_becomes_markup_is_escaped_and_a_response_is_verbatim() {
+        let mut request = Ctx::new(OutputSink::Body(Vec::new()));
+        request.write_body(b"<script>1</script>").expect("a body sink never fails");
+        assert_eq!(
+            request.take_buffered_output().as_deref(),
+            Some(&b"<script>1</script>"[..]),
+            "a request's own text body is its response, and goes out as written"
+        );
+
+        let mut child = request.isolate(OutputSink::Body(Vec::new()));
+        child.write_body(b"<script>1</script>").expect("a body sink never fails");
+        assert_eq!(
+            child.take_buffered_output().as_deref(),
+            Some(&b"&lt;script&gt;1&lt;/script&gt;"[..]),
+            "a child's body becomes its parent's markup, so it is escaped once"
+        );
+
+        request.begin_capture();
+        request.write_body(b"<b>\xff").expect("a capture never fails");
+        assert_eq!(
+            request.end_capture().as_deref(),
+            Some(&b"&lt;b&gt;\xff"[..]),
+            "bytes that are not UTF-8 are escaped by byte and keep the bad byte"
+        );
+    }
+
+    /// The terminal sink's row of the same table: a child's body takes the
+    /// substitution `echo` gives a `string`, so an `ESC` is a Control Picture.
+    #[test]
+    fn a_childs_body_on_the_terminal_sink_has_no_control_byte() {
+        let parent = Ctx::buffered();
+        let mut child = parent.isolate(OutputSink::Buffer(Vec::new()));
+        child.write_body(b"a\x1b[2J\tb\n").expect("a buffer never fails");
+        assert_eq!(
+            child.take_buffered_output().as_deref(),
+            Some("a\u{241b}[2J\tb\n".as_bytes()),
+            "a control byte a child wrote reached the parent's terminal carrier"
+        );
+        child.write_body(b"\x1b\xff").expect("a buffer never fails");
+        assert_eq!(
+            child.take_buffered_output().as_deref(),
+            Some(&b"\xe2\x90\x9b\xff"[..]),
+            "bytes that are not UTF-8 are substituted by byte and keep the bad byte"
+        );
+    }
 
     /// The invariant `nvs-server` writes this list back out under: a set is
     /// total, so a name that already carried appended values has exactly one

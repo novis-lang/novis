@@ -201,7 +201,8 @@ nvs_runtime::nvs_helper! {
 /// which sink is in force is not known when the program is checked; whichever
 /// one this builds is the one `echo` writes unchanged. Like
 /// [`crate::cli::built`] this transfers bytes and neutralizes nothing, which is
-/// sound only because the sink neutralized them on their way in.
+/// sound only because the sink neutralized them on their way in: `echo`'s
+/// rendering, and `Ctx::write_body`'s for a body member's bytes.
 ///
 /// # Errors
 ///
