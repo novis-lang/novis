@@ -531,11 +531,11 @@ into its rule.
 - [x] Run the HTML-escaping probes the audit never reported on, and fix or record each result here — run, recorded as HTML-1 (stage 5) and HTML-2 above. The audit's `wb-html.md` ran every probe: `app.nvs`'s quoted holes are escaped, and its unquoted, `on*`, `<script>`, `<style>`, tag-name and `javascript:` holes are the blind spot `rule:core-classes/html-template` declines; `p1`–`p3` (forging a `Markup`) do not compile; `p6` (the mXSS corpus) kept only `//host`, which is HTML-2; `cap.nvs` answers `text/plain` or JSON with `nosniff`; `parent`/`child` is HTML-1. `.agent-tmp/sec-audit/wb-stdlib-request/html/app.nvs:1`
 - [ ] TAINT-5: `$m[$t] = …` with a tainted key makes the keys of `$m` tainted, as `keys_from_outside` reads them at a `foreach`. `crates/nvs-types/src/expr/assign.rs:1062`
 - [x] TAINT-5: `Core\Response::redirect` refuses a relative target that names another host (`//x`, `/\x`, `\/x`), so a launderer's plain answer cannot open a redirect. `crates/nvs-stdlib/src/response.rs:1473`
-- [ ] TAINT-5: the regex replacement template is a sink and refuses `tainted` (`rule:security/every-grammar-is-a-sink`). `crates/nvs-stdlib/src/regex.rs:171`
-- [ ] TAINT-5: `Core\Xml`'s writer `instruction` refuses a tainted target and data. `crates/nvs-stdlib/src/xml.rs:760`
-- [ ] TAINT-5: `setHeader` refuses `Content-Length`, `Transfer-Encoding`, `Connection` and `Upgrade` as it refuses `Content-Type`; probe what hyper sends first. `crates/nvs-stdlib/src/response.rs:433`
+- [x] TAINT-5: the regex replacement template is a sink and refuses `tainted` (`rule:security/every-grammar-is-a-sink`). `crates/nvs-stdlib/src/regex.rs:171`
+- [x] TAINT-5: `Core\Xml`'s writer `instruction` refuses a tainted target and data. `crates/nvs-stdlib/src/xml.rs:760`
+- [x] TAINT-5: `setHeader` refuses `Content-Length`, `Transfer-Encoding`, `Connection` and `Upgrade` as it refuses `Content-Type`; probe what hyper sends first. `crates/nvs-stdlib/src/response.rs:433`
 - [ ] TAINT-5: `Core\Mail` writes `To:` and `Cc:` in angle brackets, `address_of` refuses `( " : ; %`, and a long subject is folded. `crates/nvs-stdlib/src/mail.rs:453`
-- [ ] TAINT-5: `Core\Db::quoteIdentifier` refuses the niladic SQL names (`current_user`, `session_user`, `user`, …). `crates/nvs-db/src/schema.rs:93`
+- [x] TAINT-5: `Core\Db::quoteIdentifier` refuses the niladic SQL names (`current_user`, `session_user`, `user`, …). `crates/nvs-db/src/schema.rs:93`
 - [ ] TAINT-5: file and `Core\Storage` reads are written into `rule:security/tainted-sources`, as tainted or declined with the reason. Safe default: `Core\Storage` reads are tainted, and a file the program ships is declined. `crates/nvs-stdlib/src/storage.rs:202`
 - [ ] Delete `.agent-tmp/sec-audit/`. `.agent-tmp/sec-audit/BRIEF.md:1`
 
@@ -568,8 +568,44 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 13 is open (its HTML, dependency and redirect items are done), then stage 15, then the gate
-stage 14.
+Stage 13 is open. Its HTML, dependency, redirect, `setHeader`, regex, XML and `quoteIdentifier`
+items are done. Then stage 15, then the gate stage 14.
+
+- **`setHeader` (dfc0696f0).** hyper 1.12's `role.rs` was read: with a known body length it trusts
+  a user `Content-Length` (and `assert!`s a mismatch in a debug build); with an unknown one it frames
+  the body by it. `Core\Response::setHeader` throws `LogicError` for `FRAMING_HEADERS`
+  (`Content-Length`, `Transfer-Encoding`, `Connection`, `Upgrade`, any case), and
+  `nvs-server`'s `overrides` drops the same four (`FRAMING`). Attacks: step 2 of
+  `tests/hostile/core/Response/setHeader/01-...nvs` and
+  `a_declared_framing_header_is_dropped_and_the_body_frames_itself` (serve.rs). The rule
+  `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins` has the paragraph and one
+  Declined entry; the card and about page say so.
+- **Regex, XML (2fb5eb4a5).** `Core\Regex::replace`'s replacement and both of
+  `Core\Xml\Writer::instruction`'s parameters are `Qual::Sink`. The corpus passes only literals or
+  plain strings there (grepped). The attack
+  `tests/conformance/reject/a-regex-replacement-and-an-xml-instruction-refuse-tainted.nvst` was
+  red on main. `rule:security/every-grammar-is-a-sink` keeps "four grammars" (the no-mode-strings
+  rule closes that list) and adds a paragraph for each; it declines a literal-replacement option.
+- **`quoteIdentifier` (005616bdf).** `nvs_db::NILADIC_NAMES` (16 names: the SQL standard's niladic
+  functions and MySQL's `UTC_*`) and `is_niladic_name`, read only by
+  `nvs_core_db_quote_identifier`; schema `Ident`s are delimited by `ddl.rs`, so they do not read it.
+  Attacks: `a_name_the_database_reads_as_a_value_is_refused` (open.rs) and step 5 of the
+  quoteIdentifier hostile case. `rule:core-classes/db-one-api`, the card and about page say so.
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `bun nv rules --render` and `--check`
+  are green. `bun nv proofs --run` for the four members passes (examples and hostile).
+- The sweep's `env-secret-proofs` red is the 00:07 log again (exit 0, `nothing owed`), and the
+  nightly run 39746060276 is the cancelled `workflow_dispatch`. Neither is the tree's.
+
+Tests that may go red from this session: any served test or `.nvst` that sets one of the four
+framing headers through `setHeader` (none grepped); a `Core\Regex::replace` or `instruction` call
+with a `tainted` argument in a Rust test that compiles source (not swept); a query that passes a
+niladic name through `quoteIdentifier` (none grepped); the help snapshots and the website's
+`core.json` / `llms-full.txt` for `setHeader`, `Regex::replace`, `Xml\Writer::instruction` and
+`Db::quoteIdentifier`; the website's rule pages for the three rules changed; the `perf: stale`
+proofs of `Core\Response::setHeader`, every `Core\Regex` and `Core\Xml\Writer` member and
+`Core\Db::quoteIdentifier`.
+
+The session before (HTML-2, pins, redirect):
 
 - **HTML-2 and the comment (d7ac42606).** `addressable` in `crates/nvs-stdlib/src/html.rs`
   returns `false` for a value whose first two characters, after the tab/LF/CR strip and the
@@ -1139,12 +1175,10 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-1. Stage 13's remaining TAINT-5 items, grouped by file: `setHeader`'s framing headers
-   (`crates/nvs-stdlib/src/response.rs:433`, probe what hyper sends first), the regex replacement
-   template (`regex.rs:171`) and `Core\Xml`'s `instruction` (`xml.rs:760`) as sinks,
-   `Core\Mail`'s addresses and subject (`mail.rs:453`), `quoteIdentifier`'s niladic names
-   (`crates/nvs-db/src/schema.rs:93`), the file and `Core\Storage` read rule (`storage.rs:202`),
-   and a tainted array key (`crates/nvs-types/src/expr/assign.rs:1062`).
+1. Stage 13's remaining TAINT-5 items: `Core\Mail`'s addresses in angle brackets, `address_of`
+   refusing `( " : ; %`, and a folded subject (`crates/nvs-stdlib/src/mail.rs:453`); the file and
+   `Core\Storage` read rule (`crates/nvs-stdlib/src/storage.rs:202`, safe default on the item); and
+   a tainted array key (`crates/nvs-types/src/expr/assign.rs:1062`, read `keys_from_outside` first).
 2. Last, delete `.agent-tmp/sec-audit/`. Then stage 15.
 
 ### Backlog
