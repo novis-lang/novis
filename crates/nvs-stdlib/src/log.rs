@@ -46,10 +46,11 @@
 //! are stamped by
 //! [`Ctx::stamp_envelope`](nvs_runtime::Ctx::stamp_envelope), which is the
 //! method `nvs_runtime::floor` calls too and is the one home for which key
-//! comes from what: `request_id` is `rule:observability/a-trace-id-exists-for-every-request`'s trace id, that section
-//! having made it Novis's only request identifier, and `trace_id`/`span_id`
-//! arrive on top of it for a *sampled* trace, which is § 6's "whenever a trace
-//! is active". Without them a log line could not be jumped to from a trace,
+//! comes from what: `request_id` is the id this process drew for the request
+//! (`rule:observability/a-trace-id-exists-for-every-request`), and
+//! `trace_id`/`span_id` arrive on top of it for a sampled or a continued
+//! trace, which is § 6's "whenever a trace is active". Without them a log line
+//! could not be jumped to from a trace,
 //! which is the whole of what § 6 asks for. An absent key is omitted rather
 //! than written empty; `fields` follows that rule too, so an empty bag is an
 //! absent key and not `{}`.
@@ -748,11 +749,16 @@ mod tests {
             Some(SPAN),
             "the record claimed the caller's span as its own"
         );
+        let request = sampled.trace_context().request_id_hex();
         assert_eq!(
             doc["request_id"].as_str(),
+            Some(request.as_str()),
+            "the request key is the id this process drew"
+        );
+        assert_ne!(
+            doc["request_id"].as_str(),
             Some(TRACE),
-            "§ 2 has one identifier, so the request key repeats the trace id \
-             rather than disagreeing with it"
+            "the request key is the trace id the client chose"
         );
 
         let mut unsampled = serving(None);

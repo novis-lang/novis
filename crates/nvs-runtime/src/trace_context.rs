@@ -10,13 +10,15 @@
 //! store and no human can read.
 //!
 //! **An id exists for every request, whatever the sampling decision** (§ 2). Sampling governs
-//! whether a trace is *exported*, never whether an id is generated, and that is what lets this be
-//! Novis's only request identifier: `Core\Server::traceId()` reads this same id, and every `[log]`
-//! record and every error rendering carries it. There is deliberately no second identifier and no
+//! whether a trace is *exported*, never whether an id is generated. `Core\Server::traceId()` reads
+//! the trace id, and every `[log]` record and every error rendering carries the request id. The
+//! two are one number for a trace this process roots. A continued trace's id is the client's
+//! choice, so its request gets a request id this process draws
+//! ([`request_id`](TraceContext::request_id)), and two requests never share one. There is no
 //! inbound `X-Request-ID` (`rule:observability/a-trace-id-exists-for-every-request`).
-//! So the id is generated where a request's state lives — in [`Ctx::new`](crate::Ctx::new), eagerly
-//! — rather than by whichever subsystem asks for it first, which is what would let two of them
-//! disagree.
+//! So the ids are generated where a request's state lives — in [`Ctx::new`](crate::Ctx::new),
+//! eagerly — rather than by whichever subsystem asks for them first, which is what would let two of
+//! them disagree.
 //!
 //! **The span id is this request's own root span, and never the caller's.** A `traceparent` names
 //! the span the *sender* was in, so a server that adopted that id as its own would put two spans
@@ -31,15 +33,17 @@
 //! probability `[trace] sample`, drawn once in [`TraceContext::rooted`]; a request that continued
 //! somebody else's carries the flag that arrived, whatever the local fraction, because the root
 //! already decided and a partially recorded distributed trace is worse than none. That is also why
-//! an inbound sampled trace is propagated onward unchanged.
+//! an inbound sampled trace is propagated onward unchanged. Both hold only where a `[trace]`
+//! exporter is configured: with none, the door calls [`TraceContext::unrecorded`], so a client's
+//! flag cannot make a request hold spans nothing ships.
 //!
 //! **Where the recorded ones go.** A sampled request's events leave on its completion
 //! (`nvs_runtime::host::Completion::trace`), `nvs_server::trace::record` derives the spans this
 //! context's ids belong to, and the exporter's queue is what a collector is pushed from
 //! (`rule:observability/the-exporters-are-crates`).
 //!
-//! **What it spends:** 34 bytes per request, and at most 32 bytes drawn from the thread's CSPRNG
-//! while the context is built — the two ids, and the head draw a written `[trace] sample` adds to a
+//! **What it spends:** 50 bytes per request, and at most 48 bytes drawn from the thread's CSPRNG
+//! while the context is built — the ids, and the head draw a written `[trace] sample` adds to a
 //! request that roots a trace. O(in-flight requests), never O(requests served).
 
 use rand::{Rng, RngExt};
@@ -54,6 +58,9 @@ pub struct TraceContext {
     /// The trace this request belongs to. Never all-zero, which the W3C format reserves as "no
     /// trace".
     trace_id: [u8; 16],
+    /// The id a `[log]` record names this request by. Always drawn by this process: the trace id
+    /// for a root, and a draw of its own for a continued trace, whose trace id the client chose.
+    request_id: [u8; 16],
     /// This request's own root span, which is what an outbound call names as its parent and what
     /// `nvs_server::trace::spans` gives the root span it derives. Always drawn here, continued
     /// trace or not — the module doc owns why the arrived id is not reused for it.
@@ -103,6 +110,7 @@ impl TraceContext {
         trace_id[0] |= 1;
         Self {
             trace_id,
+            request_id: trace_id,
             span_id: draw_span_id(),
             parent_span_id: None,
             sampled: draws(sample),
@@ -132,10 +140,31 @@ impl TraceContext {
             .unwrap_or_else(|| Self::rooted(sample))
     }
 
+    /// This context with nothing recorded, whatever the arrived flag or the head draw said.
+    ///
+    /// The door calls it where no `[trace]` exporter is configured
+    /// (`rule:observability/sampling-is-head-based`). A recorded request files events and its
+    /// spans, and with no exporter nothing would ever ship or free them, so a client's flag would
+    /// only buy memory. The ids stay, because a log line needs them whatever is exported. An
+    /// outbound call then carries `-00`.
+    #[must_use]
+    pub fn unrecorded(self) -> Self {
+        Self {
+            sampled: false,
+            ..self
+        }
+    }
+
     /// The trace this request belongs to.
     #[must_use]
     pub fn trace_id(&self) -> [u8; 16] {
         self.trace_id
+    }
+
+    /// The id this process drew to name this request — see the field's own docs.
+    #[must_use]
+    pub fn request_id(&self) -> [u8; 16] {
+        self.request_id
     }
 
     /// The span an outbound call names as its parent — see the field's own docs.
@@ -159,16 +188,32 @@ impl TraceContext {
 
     /// The trace id in the lower-case hex a `traceparent` writes it in.
     ///
-    /// Beside [`Self::trace_id`] rather than left to each caller, because § 2
-    /// makes this id Novis's *only* request identifier and a second rendering
-    /// of it is how a `[log]` record's `request_id` and the header a proxy
-    /// logged come to be two spellings of one number. Thirty-two characters,
-    /// always: [`Self::traceparent`] pads through the same helper.
+    /// Beside [`Self::trace_id`] rather than left to each caller, because a
+    /// second rendering of it is how a `[log]` record's `trace_id` and the
+    /// header a proxy logged come to be two spellings of one number.
+    /// Thirty-two characters, always: [`Self::traceparent`] pads through the
+    /// same helper.
     #[must_use]
     pub fn trace_id_hex(&self) -> String {
         let mut out = String::with_capacity(32);
         push_hex(&mut out, &self.trace_id);
         out
+    }
+
+    /// The request id in the same hex, thirty-two characters wide: a `[log]`
+    /// record's `request_id`.
+    #[must_use]
+    pub fn request_id_hex(&self) -> String {
+        let mut out = String::with_capacity(32);
+        push_hex(&mut out, &self.request_id);
+        out
+    }
+
+    /// Whether this request continued a trace a client sent, so its trace id
+    /// is not its request id.
+    #[must_use]
+    pub fn continued(&self) -> bool {
+        self.parent_span_id.is_some()
     }
 
     /// The span id on the same terms, sixteen characters wide.
@@ -216,8 +261,11 @@ impl TraceContext {
             return None;
         }
         let flags: [u8; 1] = from_hex(flags)?;
+        let mut request_id = [0_u8; 16];
+        rand::rng().fill_bytes(&mut request_id);
         Some(Self {
             trace_id,
+            request_id,
             // The arrived id is the caller's span and becomes this request's parent edge; the id
             // this request *is* gets drawn, which the module doc argues.
             span_id: draw_span_id(),

@@ -115,9 +115,10 @@ const TRACEPARENT: &str = "traceparent";
 /// `sample` is `[trace] sample` off the snapshot this request reads
 /// (`nvs_config::export::head_sample`), and it is consulted only where this
 /// request roots a trace — the module doc owns why that is the whole of head
-/// sampling, and why a caller with no configuration in hand passes `0.0` rather
-/// than a rate of its own.
-pub fn take(inbound: &mut Inbound, sample: f64) {
+/// sampling. It is `None` where no `[trace]` exporter is configured, and then
+/// nothing is recorded: not by a draw, and not by the flag a client sent. A
+/// caller with no configuration in hand passes `None`.
+pub fn take(inbound: &mut Inbound, sample: Option<f64>) {
     // The whole reading is one block, so that the walk and the borrow it holds
     // on the carrier are both over before the answer is written back — the
     // shape [`crate::route::take`] uses for the same reason, and the one that
@@ -133,7 +134,10 @@ pub fn take(inbound: &mut Inbound, sample: f64) {
             // continue", and the doc above owns why the second one is.
             _ => None,
         };
-        TraceContext::continuing(carried, sample)
+        match sample {
+            Some(sample) => TraceContext::continuing(carried, sample),
+            None => TraceContext::continuing(carried, 0.0).unrecorded(),
+        }
     };
     inbound.set_trace_context(decided);
 }
@@ -387,8 +391,8 @@ pub fn access(ctx: &mut nvs_runtime::Ctx, on: bool, line: &Access<'_>) {
     let envelope = &mut record.envelope;
     envelope.ts = Some(jiff::Timestamp::now().to_string());
     if let Some(trace) = &line.trace {
-        envelope.request_id = Some(trace.trace_id_hex());
-        if trace.sampled() {
+        envelope.request_id = Some(trace.request_id_hex());
+        if trace.sampled() || trace.continued() {
             envelope.trace_id = Some(trace.trace_id_hex());
             envelope.span_id = Some(trace.span_id_hex());
         }
@@ -445,16 +449,16 @@ mod tests {
         inbound
     }
 
-    /// The trace `take` decided under a head rate nothing is recorded at, which
-    /// is the shipped default and so what every case that is not about sampling
-    /// wants.
+    /// The trace `take` decided with an exporter configured, under a head rate
+    /// nothing is recorded at, which is the shipped default and so what every
+    /// case that is not about sampling wants.
     fn decided(headers: &[(&str, &str)]) -> TraceContext {
-        decided_at(headers, 0.0)
+        decided_at(headers, Some(0.0))
     }
 
     /// The trace `take` decided for `headers` under `sample`, which is never
     /// absent — the module doc owns why something is always written.
-    fn decided_at(headers: &[(&str, &str)], sample: f64) -> TraceContext {
+    fn decided_at(headers: &[(&str, &str)], sample: Option<f64>) -> TraceContext {
         let mut inbound = arrived(headers);
         take(&mut inbound, sample);
         inbound
@@ -579,19 +583,19 @@ mod tests {
         const UNSAMPLED: &str = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00";
 
         assert!(
-            decided_at(&[("host", "localhost")], 1.0).sampled(),
+            decided_at(&[("host", "localhost")], Some(1.0)).sampled(),
             "a root under a rate of one was not recorded"
         );
         assert!(
-            !decided_at(&[("host", "localhost")], 0.0).sampled(),
+            !decided_at(&[("host", "localhost")], Some(0.0)).sampled(),
             "a root under a rate of zero was recorded"
         );
         assert!(
-            decided_at(&[("traceparent", INBOUND)], 0.0).sampled(),
+            decided_at(&[("traceparent", INBOUND)], Some(0.0)).sampled(),
             "an arrived sampled trace was dropped by a rate that is not its to answer"
         );
         assert!(
-            !decided_at(&[("traceparent", UNSAMPLED)], 1.0).sampled(),
+            !decided_at(&[("traceparent", UNSAMPLED)], Some(1.0)).sampled(),
             "a continued trace was re-decided at this hop"
         );
 
@@ -604,7 +608,7 @@ mod tests {
             vec![("traceparent", UNSAMPLED), ("traceparent", UNSAMPLED)],
         ] {
             assert!(
-                decided_at(&unreadable, 1.0).sampled(),
+                decided_at(&unreadable, Some(1.0)).sampled(),
                 "an unreadable header started a trace the head rate never saw: {unreadable:?}"
             );
         }
@@ -614,12 +618,56 @@ mod tests {
         // a door that had collapsed the rate to a constant would give one of
         // them every time. A fair draw fails this with probability 2^-999.
         let recorded = (0..1_000)
-            .filter(|_| decided_at(&[("host", "localhost")], 0.5).sampled())
+            .filter(|_| decided_at(&[("host", "localhost")], Some(0.5)).sampled())
             .count();
         assert!(
             (1..1_000).contains(&recorded),
             "a rate of one half recorded {recorded} of 1000 roots"
         );
+    }
+
+    /// `rule:observability/sampling-is-head-based`: with no `[trace] exporter`
+    /// nothing is recorded, and a client's sampled flag does not change that.
+    ///
+    /// A recorded request files events and derives spans, and with nothing to
+    /// ship them the flag would only make the request hold memory. The trace
+    /// id is still continued, because a log line needs it.
+    #[test]
+    fn with_no_exporter_a_sampled_header_records_nothing() {
+        let continued = decided_at(&[("traceparent", INBOUND)], None);
+        assert!(
+            !continued.sampled(),
+            "a client's flag recorded a request nothing ships"
+        );
+        assert_eq!(
+            continued.trace_id_hex(),
+            "4bf92f3577b34da6a3ce929d0e0e4736",
+            "the trace id was dropped with the flag"
+        );
+        assert!(
+            spans("GET /", &continued, &[]).is_empty(),
+            "an unrecorded request derived spans"
+        );
+        assert!(!decided_at(&[("host", "localhost")], None).sampled());
+    }
+
+    /// `rule:observability/a-trace-id-exists-for-every-request`: the request id
+    /// is always one this process drew. A client that sends the same
+    /// `traceparent` twice gets two request ids, and a root's request id is its
+    /// trace id.
+    #[test]
+    fn a_continued_trace_gets_a_request_id_the_client_did_not_choose() {
+        let first = decided(&[("traceparent", INBOUND)]);
+        let second = decided(&[("traceparent", INBOUND)]);
+        assert_eq!(first.trace_id(), second.trace_id());
+        assert_ne!(first.request_id(), first.trace_id());
+        assert_ne!(
+            first.request_id(),
+            second.request_id(),
+            "two requests share the request id a client chose"
+        );
+        let root = decided(&[("host", "localhost")]);
+        assert_eq!(root.request_id(), root.trace_id());
     }
 
     /// What the door decided for `headers`, and the one diagnostic line a
@@ -633,7 +681,7 @@ mod tests {
     /// is this fixture's: the door writes them and the stamp reads them.
     fn reported(headers: &[(&str, &str)], message: &str) -> (TraceContext, String) {
         let mut inbound = arrived(headers);
-        take(&mut inbound, 0.0);
+        take(&mut inbound, Some(0.0));
         let carried = inbound
             .trace_context()
             .expect("the door wrote no trace for a request it walked");
@@ -680,7 +728,7 @@ mod tests {
             "the arrived header is sampled, which is what puts spans on the record"
         );
         for (key, want) in [
-            ("request_id", continued.trace_id_hex()),
+            ("request_id", continued.request_id_hex()),
             ("trace_id", continued.trace_id_hex()),
             ("span_id", continued.span_id_hex()),
         ] {
@@ -853,7 +901,7 @@ mod tests {
             event(TraceKind::Query, "select 1 -- db=main rows=1"),
             event(TraceKind::Call, "Orders::total"),
         ];
-        record("GET /orders/17", &decided_at(&[], 1.0), &events);
+        record("GET /orders/17", &decided_at(&[], Some(1.0)), &events);
         record("GET /orders/18", &decided(&[]), &events);
 
         let queued = crate::otlp::queue().take(usize::MAX);
@@ -935,11 +983,14 @@ mod tests {
             "\"bytes\":42",
             "\"clientIp\":\"192.0.2.7\"",
             "\"route\":\"orders.show\"",
-            "\"request_id\":\"4bf92f3577b34da6a3ce929d0e0e4736\"",
             "\"trace_id\":\"4bf92f3577b34da6a3ce929d0e0e4736\"",
         ] {
             assert!(line.contains(field), "the line has no {field}: {line}");
         }
+        assert!(
+            line.contains(&format!("\"request_id\":\"{}\"", trace.request_id_hex())),
+            "the line's request id is not the one the door drew: {line}"
+        );
         assert!(
             line.contains("\"level\":\"info\"") || line.contains("\"level\":\"Info\""),
             "an access line is `Info`: {line}"

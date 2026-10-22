@@ -484,11 +484,13 @@ impl Ctx {
     /// written empty, which is `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`'s rule
     /// for `trace_id`/`span_id` applied to the whole envelope.
     ///
-    /// `request_id` is the trace id, because `rule:observability/a-trace-id-exists-for-every-request` has that be Novis's
-    /// only request identifier — there is deliberately no second one to stamp.
-    /// It repeats in `trace_id` for a sampled trace on purpose: a log pipeline
-    /// correlating by request and a tracing backend correlating by trace read
-    /// their own key, and neither has to know the other's rule.
+    /// `request_id` is the id this process drew for the request
+    /// (`rule:observability/a-trace-id-exists-for-every-request`): the trace id
+    /// for a trace it rooted, and a draw of its own for a continued one, whose
+    /// trace id the client chose. `trace_id` is written for a sampled trace and
+    /// for a continued one, so a line still joins the caller's trace. A log
+    /// pipeline correlating by request and a tracing backend correlating by
+    /// trace read their own key, and neither has to know the other's rule.
     ///
     /// **What it spends:** two 32-byte strings and one 16-byte one per written
     /// record inside a request, and one clock read. Nothing per context, and
@@ -499,12 +501,13 @@ impl Ctx {
         }
         let trace = self.trace_context();
         envelope.ts = Some(jiff::Timestamp::now().to_string());
-        envelope.request_id = Some(trace.trace_id_hex());
+        envelope.request_id = Some(trace.request_id_hex());
         // § 6's "whenever a trace is active", where active is the sampling
-        // decision § 2 makes at the door: an id exists for every request, and
-        // what a sampled trace additionally has is spans a backend will be
-        // asked to join this line to.
-        if trace.sampled() {
+        // decision § 2 makes at the door, or a caller's trace this request
+        // continued: an id exists for every request, and what those two
+        // additionally have is a trace a backend will be asked to join this
+        // line to.
+        if trace.sampled() || trace.continued() {
             envelope.trace_id = Some(trace.trace_id_hex());
             envelope.span_id = Some(trace.span_id_hex());
         }

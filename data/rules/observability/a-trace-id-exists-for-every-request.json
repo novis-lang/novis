@@ -1,5 +1,5 @@
 {
-  "title": "A trace id exists for every request whatever the sampling decision, is the only request identifier and is emitted on the response, and an inbound `X-Request-ID` is ignored",
+  "title": "A trace id exists for every request whatever the sampling decision and is emitted on the response, the request id is always one the server drew, and an inbound `X-Request-ID` is ignored",
   "status": "shipped",
   "seeAlso": [
     "observability/an-inbound-traceparent-is-continued",

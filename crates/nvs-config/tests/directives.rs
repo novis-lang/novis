@@ -3598,7 +3598,7 @@ fn every_key_of_the_trace_block_is_the_operators_and_an_exporter_alone_records_n
     );
     assert_eq!(
         nvs_config::export::head_sample(&named_a_collector),
-        0.0,
+        Some(0.0),
         "an exporter written on its own now records something, so the fraction has grown a second \
          home — the one an operator reads is the line they did not write",
     );

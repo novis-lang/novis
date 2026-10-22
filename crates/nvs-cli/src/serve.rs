@@ -2029,13 +2029,13 @@ impl nvs_server::Fires for Scheduled {
         // trace of its own — two runs of one entry are two units of work — and
         // the rate is read off the host's snapshot of the publish the run is
         // made under, since `[trace]` is process-wide, so a reload that changes
-        // it reaches the next fire.
+        // it reaches the next fire. With no `[trace]` exporter nothing records.
         Some(
             Isolate::new(program, args, Output::Capture)
                 .running_as(nvs_runtime::RunKind::Schedule)
                 .in_folder(folder)
                 .recording(nvs_runtime::TraceContext::rooted(
-                    nvs_config::export::head_sample(&published.host().config),
+                    nvs_config::export::head_sample(&published.host().config).unwrap_or(0.0),
                 )),
         )
     }
