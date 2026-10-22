@@ -101,7 +101,33 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 `origin/main` is at `7b6ef53ee`, the push of `security-hardening`'s end. Its Website run is green.
 Its CI run, https://github.com/novis-lang/novis/actions/runs/39865426742, was still going at this
-handoff and is red in 14 jobs. Four fixes are committed and not pushed:
+handoff and ended red in 15 jobs. Every red is now read, and nine fixes are committed and not
+pushed. The five from this session:
+
+- `test / macos-aarch64 (tests)`: `a_redirect_to_a_host_only_the_caller_may_reach_is_denied` in
+  `crates/nvs-ext/tests/http.rs` bound `127.0.0.2`, which macOS's loopback does not have.
+  `342675093` uses `::1`.
+- `test / windows-x86_64 (tests)`: the runner's `target/` inherits a `BUILTIN\Users` write grant,
+  so the ownership check from `13a377590` refused the trees three `nvs-cli` bin cases wrote. The
+  sd_notify case's failed assertion poisoned the recorder the service case shares. `ba8930b80`
+  writes them with `nvs_repo::scratch_private`.
+- `test / linux-x86_64 (tests)`: `a_parked_task_runs_between_the_slices_of_a_task_that_never_waits`
+  raced. The neighbour could be woken and finish before the spinner started. `3fd261531` wakes it
+  only once the spinner runs.
+- `crates/nvs-server/src/serve.rs` from `b0a2379fa` was not formatted. `1c3c217d2` formats it.
+- `test / linux-aarch64`: `a_flood_past_capacity_is_refused_and_every_place_and_byte_comes_back`
+  found a real leak on every platform. A loop's back-edge poll returned with no error edge, so a
+  request stopped there by a limit kept every local of its frame. `922abf5f0` gives each back-edge
+  poll a landing block that releases them. A subagent wrote it and checked it on WSL Linux and on
+  Windows, with 3105 conformance cases green. The root did not build when this session checked it
+  again, because the main loop has an unfinished edit in `crates/nvs-stdlib/src/json.rs`.
+  The subagent noted that the function-entry poll also returns directly, which may leak the
+  arguments of one frame. That is in *Backlog*.
+
+The `cargo test` jobs stop at the first failing test binary. The next push may show reds that the
+binaries above hid.
+
+The four fixes from the session before:
 
 - `test / * (conformance)`, all three platforms: 41 to 45 image, intl, pdf and spreadsheet cases
   failed on the shared worker with "the extension used all of the request's CPU time". The shared
@@ -120,19 +146,12 @@ handoff and is red in 14 jobs. Four fixes are committed and not pushed:
   arms only the slots a constructor can reach a hook before writing. A subagent wrote it. The guard
   passes in release, and the 136 `tests/conformance/class/` cases pass.
 
-Two reds are not fixed:
+One red is not fixed:
 
 - `proofs` on all three platforms: 765 perf records are stale since `38c110098` changed their impl
   files. That red belongs to the main loop: `request-overhead`'s stage 8 records the ledgers again,
   and it was told with `loop say`. The proofs gate stops before the attacks run, so the LDAP
   `whoami: Timeout` attack has still not had its second try.
-- `test / macos-aarch64 (tests)`, `test / windows-x86_64 (tests)` and `test / linux-aarch64`
-  (`cargo test --workspace`): these went red after the fixes above, and their logs are not read.
-  linux-aarch64 is probably the asan alias test. The other two are unknown.
-
-`.agent-tmp/wt-ci`, `.agent-tmp/wt-cig` and `.agent-tmp/wt-r` are empty scratch folders. Git no
-longer lists them as worktrees. Each contains only a `.looper` directory that Windows will not
-delete while looper runs. Delete all three when looper is stopped.
 
 `.agent-tmp/wt-ci`, `.agent-tmp/wt-cig` and `.agent-tmp/wt-r` are empty scratch folders. Git no
 longer lists them as worktrees. Each contains only a `.looper` directory that Windows will not
@@ -142,14 +161,7 @@ delete while looper runs. Delete all three when looper is stopped.
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Read the three unread `cargo test` reds of `7b6ef53ee`. `tools/nv/cmd/ci.ts:265`
-  Run `bun nv ci --watch --max-min 2 --past proofs --past "cost guards" --past asan --past
-  "extension sandbox probes" --past "the chapter examples run and the website matches the binary"
-  --past "test / linux-x86_64 (conformance)" --past "test / windows-x86_64 (conformance)" --past
-  "test / macos-aarch64 (conformance)"`. It exits 1 at once and saves each other failed job's log
-  under `.agent-tmp/ci/`. Check each failing test against `git log origin/main..HEAD` first, and fix
-  and commit the rest.
-- [ ] Then watch for the next push, past `proofs` alone. `tools/nv/cmd/ci.ts:265`
+- [ ] Watch for the next push, past `proofs` alone. `tools/nv/cmd/ci.ts:265`
   Run `bun nv ci --watch --past proofs`. Until `request-overhead` records the ledgers, the
   proofs gate stays red on perf.
 - [ ] Once proofs runs its attacks, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
@@ -178,4 +190,6 @@ delete while looper runs. Delete all three when looper is stopped.
 
 ### Backlog
 
-Nothing waits.
+- The function-entry safepoint returns with no error edge, so a stop at entry may keep that
+  frame's arguments. `crates/nvs-ir/src/lower/mod.rs:emit_safepoint` Moving the poll after the
+  parameters are bound changes recursion backtraces. Take it only if a CI red or a test shows it.
