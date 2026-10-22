@@ -245,6 +245,18 @@ declined: the cookie's own lifetime and the program's data cover it, and it woul
 program with no `#[Route]` table gets the Origin check on unsafe methods too, the same check a routed
 program gets.
 
+**`Core\Config::get` types a secret directive by its name (the user's call on d4, 2026-10-22).** The
+checker types `Core\Config::get('<literal>')` as `?secret string` when the literal is a secret
+directive (`nvs_config::secret::is_secret_key`), such as `db.main.password` or `http.csrf_key`. A
+computed name that turns out to be a secret directive throws `LogicError` at run time. This is a new
+checker hook beside the intrinsic roster, one session's work.
+
+**Seeded output is tainted, and a key refuses it (the user's call on d5, 2026-10-22).**
+`Core\Random\Seeded::bytes` returns `tainted bytes` and `::token` returns `tainted string`. Every key
+parameter refuses a `tainted` argument, so seeded output cannot become a key or a token. No syntax
+is added. Tests and examples that seal with a seeded key change to a key from `Core\Random` or a
+file.
+
 **Stage 10: the reset undoes everything a request can set.** Postgres adds `SET SESSION AUTHORIZATION
 DEFAULT` and `RESET ROLE` to the reset batch; `RESET ALL` does not cover either. `DISCARD ALL` stays
 declined, because it drops the statement cache. SQLite gets an authorizer that refuses `ATTACH` and
