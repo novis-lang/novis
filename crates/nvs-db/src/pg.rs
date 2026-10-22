@@ -3421,11 +3421,16 @@ fn execute_many<S: Read + Write>(
 /// same reason § 13 gives: `DISCARD ALL` also runs `DEALLOCATE ALL`, which would
 /// throw away the statement cache pooling exists to preserve.
 ///
-/// `RESET ALL` covers `SET ROLE` and `SET SESSION AUTHORIZATION` without a
-/// command of their own — `role` and `session_authorization` are settable
-/// run-time parameters, so they are two of the things "all" means.
-const RESET_COMMANDS: [&str; 6] = [
+/// `RESET ALL` does not cover `SET ROLE` or `SET SESSION AUTHORIZATION`: the
+/// server marks `role` and `session_authorization` as settings "all" skips, so
+/// each has its own command, and the authorization goes first because setting
+/// it also resets the role. `DISCARD ALL`'s own expansion lists both the same
+/// way. A request that ran either and was followed by `RESET ALL` alone would
+/// hand the next request its assumed identity.
+const RESET_COMMANDS: [&str; 8] = [
     "ROLLBACK",
+    "SET SESSION AUTHORIZATION DEFAULT",
+    "RESET ROLE",
     "RESET ALL",
     "CLOSE ALL",
     "UNLISTEN *",
@@ -3435,13 +3440,13 @@ const RESET_COMMANDS: [&str; 6] = [
 
 /// Runs [`RESET_COMMANDS`] as one pipelined batch and reports the first refusal.
 ///
-/// **One round trip for six commands**, which is what makes § 13's reset cheap
+/// **One round trip for eight commands**, which is what makes § 13's reset cheap
 /// enough to be unconditional. These go out as *simple* `Query` messages rather
 /// than through the extended path, and that is the whole reason the batch is
 /// safe to pipeline: a simple `Query` carries its own implicit `Sync`, so each
-/// of the six ends in a `ReadyForQuery` whether it succeeded or not and the
+/// of the eight ends in a `ReadyForQuery` whether it succeeded or not and the
 /// answers cannot skew against the requests. `RESET ALL` is not a statement
-/// worth preparing anyway, and none of the six takes a parameter.
+/// worth preparing anyway, and none of the eight takes a parameter.
 ///
 /// Every command runs even after one has failed — they are independent, and
 /// stopping early would leave the connection *less* clean than continuing.
@@ -5928,15 +5933,15 @@ mod tests {
         message(b'Z', b"I")
     }
 
-    /// `rule:security/db-pool-reset-is-a-boundary`'s list, in its order, in **one** flush — six commands for
+    /// `rule:security/db-pool-reset-is-a-boundary`'s list, in its order, in **one** flush — eight commands for
     /// one round trip, which is what makes an unconditional reset affordable.
     /// The two exclusions are asserted by name because they are the section's
     /// own: `DISCARD ALL` would run `DEALLOCATE ALL` and throw away the
     /// statement cache the pool exists to preserve.
     #[test]
-    fn a_reset_is_section_13s_six_commands_in_one_flush_and_not_discard_all() {
+    fn a_reset_is_section_13s_eight_commands_in_one_flush_and_not_discard_all() {
         let state = Cell::new(State::Idle);
-        let mut wire = Wire::new(Peer::new(|_: &[u8]| ready().repeat(6)));
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| ready().repeat(8)));
 
         super::reset_session(&mut wire, &state).expect("the reset ran");
 
@@ -5950,6 +5955,8 @@ mod tests {
             sent,
             vec![
                 "ROLLBACK",
+                "SET SESSION AUTHORIZATION DEFAULT",
+                "RESET ROLE",
                 "RESET ALL",
                 "CLOSE ALL",
                 "UNLISTEN *",
@@ -6021,19 +6028,23 @@ mod tests {
     /// command list, because "a backend added later satisfies that property or
     /// is not pooled". This sweeps the list.
     ///
-    /// The case above compares the flush against six literals, which fails
+    /// The case above compares the flush against eight literals, which fails
     /// loudly but says only that two lists differ. Here a property whose
     /// command went missing fails **by name**, and the second loop closes the
     /// other direction: a command in the reset that no § 13 property asks for
     /// is a round trip nothing justifies.
     #[test]
     fn no_session_state_survives_a_return_to_the_pool() {
-        /// Each of § 13's properties against the command that removes it. Two
-        /// share `RESET ALL`, which is why this is a sweep and not a zip.
-        const REMOVED: [(&str, &str); 7] = [
+        /// Each of § 13's properties against the command that removes it. An
+        /// assumed role takes two, because `RESET ALL` skips both settings.
+        const REMOVED: [(&str, &str); 8] = [
             ("an open transaction", "ROLLBACK"),
+            (
+                "a `SET SESSION AUTHORIZATION`",
+                "SET SESSION AUTHORIZATION DEFAULT",
+            ),
+            ("a `SET ROLE`", "RESET ROLE"),
             ("a session variable", "RESET ALL"),
-            ("a `SET ROLE`", "RESET ALL"),
             ("an open cursor", "CLOSE ALL"),
             ("a listener", "UNLISTEN *"),
             ("an advisory lock", "SELECT pg_advisory_unlock_all()"),
@@ -6076,8 +6087,8 @@ mod tests {
         let mut wire = Wire::new(Peer::new(|_: &[u8]| {
             let mut out = ready(); // ROLLBACK
             out.extend_from_slice(&error_response("42501", "permission denied"));
-            out.extend_from_slice(&ready()); // RESET ALL, refused
-            out.extend_from_slice(&ready().repeat(3));
+            out.extend_from_slice(&ready()); // SET SESSION AUTHORIZATION DEFAULT, refused
+            out.extend_from_slice(&ready().repeat(5));
             out.extend_from_slice(&error_response("55000", "object not in prerequisite state"));
             out.extend_from_slice(&ready()); // DISCARD TEMP, refused
             out
@@ -6088,7 +6099,7 @@ mod tests {
         let said = failed.to_string();
         assert!(said.contains("42501"), "the later error won: {said}");
         assert!(said.contains("permission denied"), "{said}");
-        // The wire is still at a boundary — that is what six `ReadyForQuery`
+        // The wire is still at a boundary — that is what eight `ReadyForQuery`
         // means — so § 13 destroys this connection through `PgConn::reset`
         // taking `self`, not by claiming the stream is unreadable.
         assert_eq!(state.get(), State::Idle);
@@ -6111,8 +6122,8 @@ mod tests {
     ///
     /// The write: what dropping it does is [`super::say_goodbye`], driven here
     /// over the same refused batch, and the assertion is that the connection's
-    /// last flush is one `Terminate` and that no seventh command went out after
-    /// the six. A driver that answered a failed reset by carrying on would
+    /// last flush is one `Terminate` and that no ninth command went out after
+    /// the eight. A driver that answered a failed reset by carrying on would
     /// write one here.
     ///
     /// The two are asserted apart because `PgConn`'s `wire` is a
@@ -6128,8 +6139,8 @@ mod tests {
         let mut wire = Wire::new(Peer::new(|_: &[u8]| {
             let mut out = ready(); // ROLLBACK
             out.extend_from_slice(&error_response("42501", "permission denied"));
-            out.extend_from_slice(&ready()); // RESET ALL, refused
-            out.extend_from_slice(&ready().repeat(4));
+            out.extend_from_slice(&ready()); // SET SESSION AUTHORIZATION DEFAULT, refused
+            out.extend_from_slice(&ready().repeat(6));
             out
         }));
 
@@ -6145,7 +6156,7 @@ mod tests {
         assert_eq!(sent[1].as_slice(), b"X\x00\x00\x00\x04");
     }
 
-    /// A wire that fails part way through the batch poisons the connection: six
+    /// A wire that fails part way through the batch poisons the connection: eight
     /// boundaries were promised and fewer arrived, so where the next message
     /// starts is not known.
     #[test]
