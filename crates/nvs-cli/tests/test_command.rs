@@ -178,6 +178,38 @@ final class LedgerTest {
     assert!(stdout.contains("0 failed, 2 passed"), "{stdout}{stderr}");
 }
 
+/// A built-in extension is never named in `nvs.toml`, and every core a run
+/// starts can still call it. Before, only the suite's own thread had an
+/// extension host, so a test that ran on another core threw "not loaded in
+/// this process". Eight tests under `--jobs 4` spread over the cores, and
+/// the same suite passes under `--jobs 1`.
+#[test]
+fn every_core_nvs_test_starts_calls_a_built_in_extension() {
+    let dir = scratch("built-in-extension");
+    let mut suite = String::from("<?nvs\nuse Core\\Test;\nuse Novis\\Intl\\Collator;\n\n");
+    suite.push_str("final class CollatorTest {\n");
+    for n in 0..8 {
+        suite.push_str(&format!(
+            "    #[Test]\n    public function sorts{n}(): void {{\n        \
+             Test::assertSame(Collator::sort([\"Zimmermann\", \"Ärzte\", \"Adler\"], \"de\"), \
+             [\"Adler\", \"Ärzte\", \"Zimmermann\"]);\n    }}\n\n"
+        ));
+    }
+    suite.push_str("}\n");
+    fs::write(dir.join("collator_test.nvs"), suite).unwrap();
+
+    for jobs in ["4", "1"] {
+        let out = test_in(&dir, &["--jobs", jobs, "collator_test.nvs"]);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(0), "--jobs {jobs}: {stdout}{stderr}");
+        assert!(
+            stdout.contains("0 failed, 8 passed"),
+            "--jobs {jobs}: {stdout}{stderr}"
+        );
+    }
+}
+
 /// `nvs test` has no `--php` flag: no case is compared against another
 /// language, so the flag is refused like any other it does not know, and no
 /// case runs.

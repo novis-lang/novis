@@ -8,6 +8,7 @@
     "concurrency/on-worker-runs-the-child-on-another-core"
   ],
   "guardedBy": [
-    "crates/nvs-cli/src/runner.rs"
+    "crates/nvs-cli/src/runner.rs",
+    "crates/nvs-cli/tests/test_command.rs"
   ]
 }
