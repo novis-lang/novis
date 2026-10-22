@@ -8,7 +8,8 @@ table of ten million rows costs about as much as a table of ten.
 
 The class says how a row is read, exactly as it does for `Core\Db\Connection::queryAs`. A class
 marked `#[Db\Derive]` takes one property per column of the same name. A class that declares a
-`fromRow` method builds the object itself.
+`fromRow` method builds the object itself. A text column fills only a `tainted string` property,
+and a binary column only a `tainted bytes` property.
 
 The connection is held for the whole walk. A second statement on the same connection while rows
 remain is a `LogicError`, and a loop you leave early with `break` keeps the connection busy until

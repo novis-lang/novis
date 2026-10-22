@@ -1,0 +1,49 @@
+--TEST--
+`queryAs<T>` and `streamAs<T>` fill a text column only into a `tainted` property, for a derived class and an inline shape alike, so a value stored earlier cannot reach a query unmarked — `rule:security/tainted-sources`
+--FILE--
+<?nvs
+// covers: lang:types/qualifiers-tainted-and-secret
+// Each of the first three calls reads a text column into a plain `string`.
+// The count of errors is the assertion.
+#[Core\Db\Derive]
+class Note {
+    public uint $id;
+    public string $text;
+
+    public function constructor(uint $id, string $text) {
+        $this->id = $id;
+        $this->text = $text;
+    }
+}
+
+#[Core\Db\Derive]
+class SafeNote {
+    public uint $id;
+    public tainted string $text;
+
+    public function constructor(uint $id, tainted string $text) {
+        $this->id = $id;
+        $this->text = $text;
+    }
+}
+
+class Notes {
+    public static function read(Core\Db\Connection $db): void {
+        var $notes = $db->queryAs<Note>("select id, text from notes", []);
+        var $shapes = $db->queryAs<{id: uint, text: string}>("select id, text from notes", []);
+        var $stream = $db->streamAs<Note>("select id, text from notes", []);
+
+        // A `tainted` property takes the column, and a number needs no mark.
+        var $safe = $db->queryAs<SafeNote>("select id, text from notes", []);
+        var $safeShapes = $db->queryAs<{id: uint, text: tainted string}>("select id, text from notes", []);
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0810]: `Note::$text` is declared `string`, and `Core\Db\Connection::queryAs` fills it with text from outside the program
+%A
+error[E0810]: `text` is declared `string` in `{id: uint, text: string}`, and `Core\Db\Connection::queryAs` fills it with text from outside the program
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

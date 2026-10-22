@@ -9,6 +9,8 @@ memory.
 The class decides how a row is read, the same way as for `Core\Db\Transaction::queryAs`. A class
 with the `#[Db\Derive]` attribute gets one property for each column with the same name. A class
 with a `fromRow` method builds the object itself, so it can read several columns into one property.
+A text column fills only a `tainted string` property, and a binary column only a `tainted bytes`
+property.
 
 **Good to know:** the transaction is busy until the last row is read. While rows remain, a second
 statement through the transaction throws a `LogicError`. Read all the rows and keep what you need,

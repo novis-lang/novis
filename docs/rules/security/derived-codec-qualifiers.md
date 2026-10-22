@@ -7,7 +7,11 @@ trying to be quick, and it is the same declaration hand-written hydration alread
 is only where a newcomer meets it first.
 
 A member that reads its own payload decides by its owner: every `Core\Request` decoder,
-`Core\Http\Response::jsonAs` and `Core\Jwt::verifyIssued` carry `tainted` always. `Core\Arr::shapeAs`
+`Core\Http\Response::jsonAs`, `Core\Jwt::verifyIssued`, and `queryAs` and `streamAs` on a
+`Core\Db\Connection` or `Core\Db\Transaction` carry `tainted` always. A row's text is input because
+an earlier request may have stored it (`rule:security/tainted-sources`), so a `#[Db\Derive]` class or
+an inline shape fills a text column only into a `tainted` field. A field no column maps is refused
+by its type instead, and gets no second report. `Core\Arr::shapeAs`
 converts the array it is handed, so its argument decides: by the test an encoder applies
 (`rule:security/taint-propagation`), an array whose type carries `tainted` or `mixed` anywhere, or a
 literal holding such a value, requires every text field it fills to be `tainted` (`E0810`). An
