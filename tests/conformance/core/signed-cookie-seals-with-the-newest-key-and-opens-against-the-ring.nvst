@@ -10,9 +10,9 @@ secret bytes $newest = Core\Crypto::generateKey();
 secret bytes $retired = Core\Crypto::generateKey();
 
 array<secret bytes> $ring = [$newest, $retired];
-string $cookie = Core\SignedCookie::seal("user=ada", $ring);
+string $cookie = Core\SignedCookie::seal('session', "user=ada", $ring);
 
-if (Core\SignedCookie::open($cookie, $ring) == "user=ada") {
+if (Core\SignedCookie::open('session', $cookie, $ring) == "user=ada") {
     echo "round trip", "\n";
 } else {
     echo "opened the wrong value", "\n";
@@ -23,7 +23,7 @@ if (Core\SignedCookie::open($cookie, $ring) == "user=ada") {
 // every other line of this case and quietly seal every new cookie under the
 // key an operator was retiring.
 array<secret bytes> $newestOnly = [$newest];
-if (Core\SignedCookie::open($cookie, $newestOnly) == "user=ada") {
+if (Core\SignedCookie::open('session', $cookie, $newestOnly) == "user=ada") {
     echo "sealed with the newest", "\n";
 } else {
     echo "sealed with something else", "\n";
@@ -33,15 +33,15 @@ if (Core\SignedCookie::open($cookie, $newestOnly) == "user=ada") {
 // that is now second in the ring, still opens — and does not open against a
 // ring that has dropped it.
 array<secret bytes> $retiredOnly = [$retired];
-string $old = Core\SignedCookie::seal("user=grace", $retiredOnly);
-if (Core\SignedCookie::open($old, $ring) == "user=grace") {
+string $old = Core\SignedCookie::seal('session', "user=grace", $retiredOnly);
+if (Core\SignedCookie::open('session', $old, $ring) == "user=grace") {
     echo "an older key still verifies", "\n";
 } else {
     echo "an older key did not verify", "\n";
 }
 
 try {
-    tainted string $opened = Core\SignedCookie::open($old, $newestOnly);
+    tainted string $opened = Core\SignedCookie::open('session', $old, $newestOnly);
     echo "a dropped key still opened, as ", $opened, "\n";
 } catch (RuntimeError $dropped) {
     echo "a dropped key is refused", "\n";
@@ -53,7 +53,7 @@ try {
 // cookie fails — it would hand back whatever the extra octets decrypted to.
 string $tampered = $cookie . "AAAA";
 try {
-    tainted string $forged = Core\SignedCookie::open($tampered, $ring);
+    tainted string $forged = Core\SignedCookie::open('session', $tampered, $ring);
     echo "a tampered cookie opened, as ", $forged, "\n";
 } catch (RuntimeError $altered) {
     echo "a tampered cookie is refused", "\n";
@@ -63,7 +63,7 @@ try {
 // cookie, so it is the other exception class.
 array<secret bytes> $empty = [];
 try {
-    string $impossible = Core\SignedCookie::seal("user=ada", $empty);
+    string $impossible = Core\SignedCookie::seal('session', "user=ada", $empty);
     echo "an empty ring sealed, as ", $impossible, "\n";
 } catch (LogicError $noKeys) {
     echo "an empty ring is refused", "\n";

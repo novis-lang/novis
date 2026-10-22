@@ -12,8 +12,8 @@ Core\Signature::verify answers a tainted payload for a token this program signed
 secret bytes $key = Core\Crypto::generateKey();
 array<secret bytes> $ring = [$key];
 
-string $sealed = Core\SignedCookie::seal("role=admin", $ring);
-tainted string $opened = Core\SignedCookie::open($sealed, $ring);
+string $sealed = Core\SignedCookie::seal('session', "role=admin", $ring);
+tainted string $opened = Core\SignedCookie::open('session', $sealed, $ring);
 echo $opened, "\n";
 
 // The same key and the same ring, and again a `tainted` payload: a token

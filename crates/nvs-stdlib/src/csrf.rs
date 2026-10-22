@@ -81,11 +81,10 @@
 //! `rule:core-api/shape-rules` R17 asks
 //! whether this is `Core\SignedCookie` reached twice, and it is not: that class
 //! answers *the payload* and this one answers a verdict it never lets go of.
-//! A program that wrote `Core\SignedCookie::open($token, [$key]) == $session`
-//! has written the comparison itself — in variable time, with `==`, and inside
-//! a `try` because a forgery throws there — which is precisely the code
-//! `rule:security/protocol-roster` exists to make unnecessary, not a second
-//! route to this member.
+//! `Core\SignedCookie::open` cannot even open a token: a cookie is sealed
+//! under additional data that names it, and a token is sealed under none, so
+//! neither opens as the other under a shared key
+//! (`rule:security/protocol-roster`).
 //!
 //! # Constant time
 //!

@@ -12,7 +12,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            string $cookie = Core\SignedCookie::seal($value, $keys);
+            string $cookie = Core\SignedCookie::seal('session', $value, $keys);
             $total = $total + Core\Str::length($cookie) % 7 + 1;
             $i = $i + 1;
         }

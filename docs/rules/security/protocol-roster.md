@@ -28,7 +28,18 @@ What the roster still owes is not a member but the flow around one: fetching, ca
 a key set are a package's job (`rule:security/protocol-admission-test`), and every member here is
 stateless over the key it is handed.
 
+**A signed cookie is bound to its name and its purpose.** `Core\SignedCookie::seal` and `::open`
+take the cookie's name, and it goes into the associated data behind an octet that only cookies use.
+A value sealed for one cookie does not open as another, and a CSRF token, a `Core\Crypto::seal`
+message or a sealed cache or session secret does not open as a cookie, even under the same key. An
+application that uses one key everywhere, which nothing stops, gets no confusion between them.
+
 **Declined:**
+- **Expiry sealed into a signed cookie.** The cookie's own `Max-Age` and the program's data cover a
+  lifetime, and a sealed one would be one more parameter on both members. A cookie stays valid while
+  its key is in the ring, and retiring the key is the revocation.
+- **A key derived per purpose instead of the associated data.** It binds the purpose and not the
+  cookie's name, and it costs a derivation per call.
 - **Nothing beyond primitives.** It is the cleanest boundary, and the one every other language drew;
   the result there is a population of libraries with the same repeated flaw.
 - **First-party extensions.** A signing key is `secret`, and a `secret` cannot cross an extension

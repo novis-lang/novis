@@ -7,15 +7,15 @@ class Bench {
     public static function run(uint $rounds): int {
         array<secret bytes> $keys = [Core\Crypto::generateKey()];
         array<string> $cookies = [
-            Core\SignedCookie::seal("user=7", $keys),
-            Core\SignedCookie::seal("user=42", $keys),
-            Core\SignedCookie::seal("user=1000", $keys),
+            Core\SignedCookie::seal('session', "user=7", $keys),
+            Core\SignedCookie::seal('session', "user=42", $keys),
+            Core\SignedCookie::seal('session', "user=1000", $keys),
         ];
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // Each round opens the cookie that the last result chose, so no round can be left out.
-            tainted string $value = Core\SignedCookie::open($cookies[$total % 3], $keys);
+            tainted string $value = Core\SignedCookie::open('session', $cookies[$total % 3], $keys);
             $total = $total + Core\Str::length($value) as int;
             $i = $i + 1;
         }

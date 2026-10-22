@@ -3,6 +3,9 @@ read or change the value. `seal` encrypts the value with a secret key and return
 in a `Set-Cookie` header. When the browser sends the cookie back, `Core\SignedCookie::open` checks
 it and returns the value.
 
+You give `seal` the name of the cookie, such as `cart`. `open` needs the same name. A visitor who
+sends the value back under another cookie's name gets an error.
+
 You give `seal` a list of keys, newest first, and the newest key encrypts the value. After you add
 a new key, keep the old one in the list for a while. Then cookies made with the old key still work.
 
