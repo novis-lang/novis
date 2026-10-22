@@ -27,7 +27,7 @@ stages:
         rules: [security/isolate-shares-nothing, errors/on-limit]
   - id: 4
     title: "a deadline stops a task that never waits, and the concurrency rules say so"
-    status: open
+    status: done
     context: [docs/rules/concurrency/limit-and-deadline-are-the-only-bounds.md, docs/rules/concurrency/on-worker-runs-the-child-on-another-core.md, docs/rules/concurrency/the-parking-contract.md, tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs]
     extra:
       context:
@@ -229,11 +229,11 @@ memory limit stops the one that crossed it.
 **Does:** `Task::all` with a deadline stops two tasks that never wait at about the deadline, and the
 rules describe a core that is shared by slices.
 
-- [ ] Rewrite the rule's "fires when the core is handed back" paragraph: a slice hands it back too (`rule:concurrency/limit-and-deadline-are-the-only-bounds`). `docs/rules/concurrency/limit-and-deadline-are-the-only-bounds.md:9`
-- [ ] Rewrite the parent-waits lines for a child that computes (`rule:concurrency/on-worker-runs-the-child-on-another-core`). `docs/rules/concurrency/on-worker-runs-the-child-on-another-core.md:58`
-- [ ] Rule 4 of the parking contract names the slice beside a park (`rule:concurrency/the-parking-contract`). `docs/rules/concurrency/the-parking-contract.md:14`
-- [ ] The hostile case's expectation: the deadline stops both tasks. `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs:1`
-- [ ] A conformance case: a deadline stops a task that never waits. `tests/conformance/isolate/a-deadline-stops-a-task-that-never-waits.nvst:1`
+- [x] Rewrite the rule's "fires when the core is handed back" paragraph: a slice hands it back too (`rule:concurrency/limit-and-deadline-are-the-only-bounds`). `docs/rules/concurrency/limit-and-deadline-are-the-only-bounds.md:9`
+- [x] Rewrite the parent-waits lines for a child that computes (`rule:concurrency/on-worker-runs-the-child-on-another-core`). `docs/rules/concurrency/on-worker-runs-the-child-on-another-core.md:58`
+- [x] Rule 4 of the parking contract names the slice beside a park (`rule:concurrency/the-parking-contract`). `docs/rules/concurrency/the-parking-contract.md:14`
+- [x] The hostile case's expectation: the deadline stops both tasks. `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs:1`
+- [x] A conformance case: a deadline stops a task that never waits. `tests/conformance/isolate/a-deadline-stops-a-task-that-never-waits.nvst:1`
 
 ### 5. the rule, the attack, and the comparison's loop row
 
@@ -285,8 +285,17 @@ Tests, each run once by name and green: `scheduler::tests::two_requests_that_tak
 and `budget::tests::the_tasks_of_one_tree_read_one_balance`. `bun nv proofs --run --group 'Core\Task'`
 ran once: `map/01` is green, and only `all/03` is red.
 
-Expected to go red: `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs`, whose deadline can
-now fire at a slice. Stage 4 rewrites its expectation. Budget and peak tests in `nvs-runtime` and
+Stage 4 is done. A `Core\Task::all` deadline stops a task that never waits one slice late at most,
+and no change to the engine was needed: stage 2's yield already polls the reactor, so the group's
+timer fires there. The deadline rule, the worker-placement rule's parent-waits lines and rule 4 of
+the parking contract say so, and `crates/nvs-host/src/group.rs:60`'s step 3 matches.
+`tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` now expects the deadline to stop both
+tasks and checks that nothing counts afterwards. Its 200 ms `cpu_time` stays as the backstop, so a
+missed deadline ends it early and fails it. `bun nv proofs --run --group 'Core\Task'` is green (5
+hostile, 9 examples), and the new `tests/conformance/isolate/a-deadline-stops-a-task-that-never-waits.nvst`
+passes under `nvs test`.
+
+Expected to go red: none new. Stage 3's note stands: budget and peak tests in `nvs-runtime` and
 `nvs-host` that read `budget::live_bytes` or `peak_bytes` across a task switch were not run, and
 stage 6 finds any that read the thread's balance where they now read the tree's.
 
@@ -295,13 +304,16 @@ The sweep's red items were stale again: `env-secret-proofs`'s own log exits 0, a
 
 ### Next
 
-**Stage 4**, on the concurrency rules and the `Core\Task` deadline case. Every item in stage 4 is
-the group, with the anchors its items name.
+**Stage 5**, the rule and the `--expect` flag. The group is the first four items; the bench
+re-record and the page follow once they land.
 
-- [ ] The rule paragraphs: `docs/rules/concurrency/limit-and-deadline-are-the-only-bounds.md:9`, `docs/rules/concurrency/on-worker-runs-the-child-on-another-core.md:58`, `docs/rules/concurrency/the-parking-contract.md:14`
-- [ ] `all/03`'s expectation, and the commit says the rule changed: `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs:1`
-- [ ] The conformance case: `tests/conformance/isolate/a-deadline-stops-a-task-that-never-waits.nvst:1`
+- [ ] The new rule and its JSON, and tier B's row cites it: `docs/rules/http-server/a-request-that-computes-shares-its-core.md:1`, `data/rules/http-server/a-request-that-computes-shares-its-core.json:1`, `docs/rules/http-server/a-requests-blast-radius-is-bounded-at-four-tiers.md:6`
+- [ ] `rule:http-server/time-is-bounded-inside-a-helper` says the poll also yields: `docs/rules/http-server/time-is-bounded-inside-a-helper.md:1`
+- [ ] The attack is likely stage 2's serve test already (`crates/nvs-cli/src/serve.rs:5540`, on `a_runaway_then_an_answer` at `crates/nvs-cli/src/serve.rs:5389`). Name it in the rule's `guardedBy`, and add a test only if it misses what the item asks.
+- [ ] `bench-compare --expect <peer>=<result>`, parsed beside `--row`: `tools/nv/cmd/bench-compare.ts:1738`, `tools/nv/cmd/bench-compare.ts:1811`, `tools/nv/test/bench-compare.test.ts:1`
 
 ### Backlog
 
-- Stages 4 and 5 follow in order, then stage 6 verifies.
+- Stage 5's session row is gated on `defaults-that-work` stage 7: check that gate before taking it.
+- Stage 5's re-record needs Docker and a detached worktree; `hello` within 3% of 28,207, or the slice becomes 20 ms.
+- Stage 6 verifies the goal.
