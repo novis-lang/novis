@@ -1717,6 +1717,80 @@ pub(crate) fn reject_secret_crossing(
     );
 }
 
+/// `rule:core-classes/ldap-filter-is-a-value`'s attribute names are a sink,
+/// and `Core\Ldap\Connection::add` takes them as its `$attributes` array's
+/// keys. A row cannot mark a key, so the parameter is `array<mixed>` and this
+/// call-site rule refuses keys that can come from outside the program: a
+/// visitor who chose them could write `objectClass` or `userAccountControl`.
+///
+/// An array literal is read one key at a time, the way
+/// [`converts_outside_text`] reads one, so `["cn" => $name]` with a `tainted`
+/// `$name` compiles: an attribute's values are data. A literal's key that is
+/// neither a literal, a constant nor a variable counts as outside text, and so
+/// does a spread item. Any other argument is judged by [`keys_from_outside`].
+pub(crate) fn reject_tainted_ldap_attribute_names(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    arg_types: &[TypeId],
+    slots: &[ArgSlot],
+    scope: &LocalScope,
+    env: &mut Env<'_>,
+) {
+    if qname.to_string() != r"Core\Ldap\Connection" || member != "add" {
+        return;
+    }
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    // Slot 1 is `$attributes` in `nvs_stdlib::ldap::registry`'s row, whose
+    // parameters are `[CoreTy::Union(DN_OR_STRING), CoreTy::Array(&CoreTy::Mixed)]`.
+    for ((arg, &ty), &slot) in list.iter().zip(arg_types).zip(slots) {
+        if slot != ArgSlot::Param(1) {
+            continue;
+        }
+        let mut seen = FxHashSet::default();
+        let mut value = &arg.value;
+        while let ExprKind::Paren(inner) = &value.kind {
+            value = inner;
+        }
+        let outside: Vec<Span> = match &value.kind {
+            ExprKind::ArrayLiteral(items) => items
+                .iter()
+                .filter_map(|item| match (&item.key, item.spread) {
+                    (_, true) => Some(item.value.span),
+                    (Some(key), false) => {
+                        element_outside_text(key, scope, &mut seen, env).then_some(key.span)
+                    }
+                    (None, false) => None,
+                })
+                .collect(),
+            _ if keys_from_outside(ty, env.interner) => vec![value.span],
+            _ => Vec::new(),
+        };
+        for span in outside {
+            report_tainted_ldap_attribute_name(span, env);
+        }
+    }
+}
+
+/// [`reject_tainted_ldap_attribute_names`]'s one diagnostic, at the key or
+/// the argument whose names can come from outside the program.
+fn report_tainted_ldap_attribute_name(span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TYPE_MISMATCH,
+            "an LDAP attribute name can come from outside the program",
+        )
+        .with_primary(span, "this attribute name may be `tainted`")
+        .with_help(
+            "The keys of `$attributes` are attribute names, and a visitor must not choose them. \
+             Write each name as a string literal, such as `[\"cn\" => $name]`. The values may be \
+             `tainted`. If the program chooses the name, put it in a `string` variable first.",
+        ),
+    );
+}
+
 /// `rule:concurrency/cross-request-state-is-explicit`'s store, which is
 /// [`reject_secret_crossing`]'s fourth carrier: `Core\Cache\Store::put` copies
 /// its value out of the request heap through `rule:classes/graph-copy`'s graph

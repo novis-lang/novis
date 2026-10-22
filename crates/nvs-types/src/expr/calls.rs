@@ -182,6 +182,12 @@ pub(crate) fn infer_method_call(
         // `Core\Topic::publish` reads them. See
         // [`super::quals::reject_secret_cached_argument`].
         reject_secret_cached_argument(owner, name, args, &arg_types, &slots, env);
+        // `rule:core-classes/ldap-filter-is-a-value`'s attribute names, which
+        // `Core\Ldap\Connection::add` takes as an array's keys, where no row
+        // can mark them. See [`super::quals::reject_tainted_ldap_attribute_names`].
+        super::quals::reject_tainted_ldap_attribute_names(
+            owner, name, args, &arg_types, &slots, scope, env,
+        );
     }
     // The receiver already reported its mistake, and its arguments were
     // checked above, so the call reports nothing and gives the error type
@@ -382,6 +388,9 @@ fn infer_union_method_call(
         crate::intrinsics::check_call(owner, name, expr.span, args, &arg_types, &slots, env);
         crate::reasons::check_call(owner, name, args, &slots, ctx, env);
         reject_secret_cached_argument(owner, name, args, &arg_types, &slots, env);
+        super::quals::reject_tainted_ldap_attribute_names(
+            owner, name, args, &arg_types, &slots, scope, env,
+        );
         if env.diags.len() != before {
             break;
         }
