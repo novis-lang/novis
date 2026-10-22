@@ -857,6 +857,24 @@ impl Ctx {
         &self.temporary_dirs
     }
 
+    /// Runs `check` over this script's directories with `candidate` counted
+    /// among them, before that directory exists: the grant check
+    /// `capability::temp_dir` makes for each entry it creates.
+    ///
+    /// The candidate is pushed and popped in place, so the check copies
+    /// nothing. A copy of the list per call made the member's cost grow with
+    /// every directory the script had already been handed.
+    pub fn with_candidate_temporary_dir<R>(
+        &mut self,
+        candidate: &std::path::Path,
+        check: impl FnOnce(&Self, &[std::path::PathBuf]) -> R,
+    ) -> R {
+        self.temporary_dirs.push(candidate.to_path_buf());
+        let answer = check(self, &self.temporary_dirs);
+        self.temporary_dirs.pop();
+        answer
+    }
+
     /// Takes the whole list, leaving this context with none — what `rule:core-classes/temporary-dir-sweep`'s sweep
     /// calls once, after the last user code.
     ///
