@@ -6,3 +6,5 @@ Two constraints on where a poll may go, both about correctness:
 
 - **The poll is supplied by a bounded-loop combinator, not remembered per helper.** A helper adopts the shape and the shape carries the obligation.
 - **A poll site must be a point at which abandoning leaves the value consistent.** A sort cannot be abandoned mid-permutation and its array handed back. Where no such point exists, the bound belongs on the *input* instead — which is what `rule:core-classes/regex-two-tiers` already did for patterns, and the precedent generalises rather than being re-argued.
+
+**The safepoint poll also yields the core.** A request that has run a slice without waiting finds `YIELD` raised at its next poll and gives its core back there (`rule:http-server/a-request-that-computes-shares-its-core`). A helper's batched poll reads the deadline alone and does not yield: a helper call is one turn, and it holds its core until it returns or its deadline stops it. What bounds that turn is this rule's deadline poll, and what bounds the neighbours' wait is that a helper's runtime is O(its input) under the request's own limits.

@@ -78,6 +78,7 @@
     "http-server/time-is-bounded-inside-a-helper",
     "http-server/no-path-reaches-abort",
     "http-server/a-core-is-never-blocked-on-a-syscall",
+    "http-server/a-request-that-computes-shares-its-core",
     "http-server/a-wedged-core-is-detected-by-its-deadline",
     "http-server/a-wedged-core-is-shed-never-killed",
     "http-server/a-request-outlives-a-client-that-goes-away",
