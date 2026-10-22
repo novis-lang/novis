@@ -1084,6 +1084,12 @@ pub fn on_this_core() -> Option<Registry> {
 ///
 /// Empty in a process whose `[metrics]` names no exporter, because no core
 /// there built a registry to file.
+///
+/// **`nvs_memory_bytes{scope="request"}` is filled here**, on the first copy
+/// alone, from [`crate::budget::held_by_cores`]: what every core holds for its
+/// requests, which is the figure admission reads. It is one sum over the
+/// cores' gauges, so a gather sets it rather than every request writing it, and
+/// the merge's sum counts it once. Nothing writes `cache` or `process` yet.
 #[must_use]
 pub fn every_core() -> Vec<Registry> {
     let serving: Vec<Arc<Mutex<Registry>>> = {
@@ -1091,10 +1097,20 @@ pub fn every_core() -> Vec<Registry> {
         roster.retain(|core| core.strong_count() > 0);
         roster.iter().filter_map(Weak::upgrade).collect()
     };
-    serving
+    let mut copies: Vec<Registry> = serving
         .iter()
         .map(|registry| held(registry).clone())
-        .collect()
+        .collect();
+    if let Some(first) = copies.first_mut() {
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "a gauge is an f64, and a byte count past 2^53 is not a reading anybody takes"
+        )]
+        let held = crate::budget::held_by_cores().max(0) as f64;
+        // The family is seeded with this label, so the write is never refused.
+        let _ = first.gauge("nvs_memory_bytes", held, &[("scope", "request")]);
+    }
+    copies
 }
 
 /// A series key: the name, and the labels sorted by name.

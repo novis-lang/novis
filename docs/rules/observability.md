@@ -179,7 +179,7 @@ except for the export path. A program that never calls it and serves no requests
 
 <a id="observability-default-series"></a>
 
-## Ten series exist the moment an exporter is configured, with no application code written
+## Eleven series exist the moment an exporter is configured, with no application code written
 
 `rule:observability/default-series`
 
@@ -202,6 +202,11 @@ Eleven series are present the moment an exporter is configured, with no applicat
 Every one is read from instrumentation that already exists — the `query`, `gc` and `spawn` event
 kinds and the arena accounting [`programs/memory-priority`](programs.md#programs-memory-priority) already requires — which is
 [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures) applied series by series.
+
+`nvs_memory_bytes{scope="request"}` is what every core holds for its requests, the sum admission
+reads ([`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number)). A scrape or a push reads it once
+as it gathers the cores' series, so no request writes it. The `cache` and `process` scopes are not
+written yet, and neither are `nvs_tasks_in_flight` and `nvs_deferred_trees`, which read `0`.
 
 The peak is a **histogram** where the live figure is a gauge, because the two answer different
 questions: a gauge says what is held now, and only a distribution answers what fraction of requests

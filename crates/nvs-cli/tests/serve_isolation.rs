@@ -4,6 +4,9 @@
 //! the value the next request reads before it writes its own. And
 //! `rule:packaging/a-guest-runs-under-the-requests-budget`: a guest that loops
 //! forever reaches the request's limit handler, and the next request is served.
+//! And `rule:http-server/admission-is-arithmetic-not-a-number` under overload: a
+//! flood past `max_in_flight` beside requests that reach their limits or lose
+//! their client, and a server that gives every place and byte back once it ends.
 //!
 //! [`Server`] starts the binary this test was built beside on a port the
 //! platform chose and reads the port back from the `listening on` line, as
@@ -20,9 +23,10 @@ use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// How long one answer has to arrive before the case fails.
 const BOUND: Duration = Duration::from_secs(30);
@@ -230,7 +234,7 @@ impl Client {
     ///
     /// When the answer is not a `200`, is cut off, or closes the connection.
     fn get(&mut self, path: &str) -> String {
-        let (status, body, closes) = self.answer(path);
+        let (status, body, closes, _) = self.answer(path);
         assert!(
             status.split_whitespace().nth(1) == Some("200"),
             "`{path}` answered `{status}`"
@@ -243,12 +247,12 @@ impl Client {
     }
 
     /// One `GET` of `path` on this connection, whatever its status. Returns the status line,
-    /// the body, and whether the answer closes the connection.
+    /// the body, whether the answer closes the connection, and its `Retry-After` header.
     ///
     /// # Panics
     ///
     /// When the answer is cut off, or does not arrive within [`BOUND`].
-    fn answer(&mut self, path: &str) -> (String, String, bool) {
+    fn answer(&mut self, path: &str) -> (String, String, bool, Option<String>) {
         write!(
             self.reader.get_mut(),
             "GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n"
@@ -258,6 +262,7 @@ impl Client {
         let mut closes = false;
         let mut length = None;
         let mut chunked = false;
+        let mut retry_after = None;
         loop {
             let header = self.line(path);
             if header.is_empty() {
@@ -271,6 +276,8 @@ impl Client {
                 chunked = true;
             } else if name == "connection" && value.eq_ignore_ascii_case("close") {
                 closes = true;
+            } else if name == "retry-after" {
+                retry_after = Some(value.to_owned());
             }
         }
         let mut body = Vec::new();
@@ -291,7 +298,7 @@ impl Client {
             self.exact(path, length, &mut body);
         }
         let body = String::from_utf8(body).expect("the body is UTF-8");
-        (status, body, closes)
+        (status, body, closes, retry_after)
     }
 
     /// One line of the answer to `path`, without its line ending.
@@ -387,7 +394,7 @@ fn a_looping_guest_reaches_on_limit_and_the_next_request_is_served() {
         &[("spin.nvsx", &nvsx), ("marks/.keep", b"")],
     );
 
-    let (status, _, _) = Client::connect(server.addr).answer("/?spin=yes");
+    let (status, _, _, _) = Client::connect(server.addr).answer("/?spin=yes");
     assert!(
         status.split_whitespace().nth(1) == Some("500"),
         "the looping request answered `{status}`; the server wrote: {}",
@@ -401,4 +408,232 @@ fn a_looping_guest_reaches_on_limit_and_the_next_request_is_served() {
         server.said()
     );
     assert_eq!(Client::connect(server.addr).get("/"), "served");
+}
+
+/// The program the overload case serves. `?do=hold` waits 300 ms, `?do=grow` allocates until it
+/// reaches `[limits] memory`, `?do=spin` loops until it reaches `[limits] cpu_time`, and anything
+/// else answers `ok` at once.
+const OVERLOADED: &str = "<?nvs\n\
+?tainted string $what = Core\\Request::query(\"do\");\n\
+if ($what == \"hold\") {\n    Core\\Time::sleep(Core\\Time\\Duration::milliseconds(300));\n\
+} elseif ($what == \"grow\") {\n    string $chunk = \"x\";\n    \
+for (int $i = 0; $i < 16; $i++) {\n        $chunk = $chunk . $chunk;\n    }\n    \
+array<string> $parts = [];\n    while (true) {\n        $parts[] = $chunk . \"y\";\n    }\n\
+} elseif ($what == \"spin\") {\n    int $turns = 0;\n    while (true) {\n        $turns = $turns + 1;\n    }\n\
+}\n\
+echo \"ok\";\n";
+
+/// The in-flight ceiling the overload case serves under.
+const CEILING: u32 = 50;
+
+/// The accept loops the overload case serves with.
+const WORKERS: u32 = 2;
+
+/// Connections the flood opens at once, four times [`CEILING`]. Each sends [`FLOOD_ROUNDS`]
+/// holds, one after another, each on a connection of its own.
+const FLOOD: u32 = 4 * CEILING;
+
+/// Holds each flood connection sends.
+const FLOOD_ROUNDS: u32 = 3;
+
+/// Requests of each kind sent beside the flood: those that reach the memory limit, those that
+/// reach the CPU limit, and those whose client leaves before the answer.
+const BESIDE: u32 = 10;
+
+/// How long a probe may wait for its answer. Longer is a hang.
+const PROBE_BOUND: Duration = Duration::from_secs(10);
+
+/// How far `nvs_memory_bytes{scope="request"}` may stand above its reading before the flood once
+/// the flood has ended: two mebibytes per worker. A core publishes its balance a mebibyte at a
+/// time, so its gauge is stale by up to one, and the second covers what a core keeps in its pools.
+const SETTLED: f64 = 2.0 * WORKERS as f64 * 1_048_576.0;
+
+/// A loopback port nothing listens on at the moment it is asked.
+fn free_port() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|listener| listener.local_addr())
+        .expect("a loopback port is free")
+        .port()
+}
+
+/// One `GET` of `path` on a connection of its own. Returns the status code and whether the answer
+/// carried `Retry-After`.
+fn once(addr: SocketAddr, path: &str) -> (String, bool) {
+    let (status, _, _, retry_after) = Client::connect(addr).answer(path);
+    let code = status.split_whitespace().nth(1).unwrap_or_default().to_owned();
+    (code, retry_after.is_some())
+}
+
+/// `nvs_memory_bytes{scope="request"}` as a scrape of `port` reads it. The scrape port may open a
+/// moment after the server's own, so a refused connection is tried again for up to [`BOOT`].
+fn request_memory(port: u16, server: &Server) -> f64 {
+    let started = Instant::now();
+    let mut stream = loop {
+        match TcpStream::connect(("127.0.0.1", port)) {
+            Ok(stream) => break stream,
+            Err(error) => assert!(
+                started.elapsed() <= BOOT,
+                "the scrape port {port} does not answer: {error}; the server wrote: {}",
+                server.said()
+            ),
+        }
+        thread::sleep(Duration::from_millis(50));
+    };
+    stream
+        .set_read_timeout(Some(BOUND))
+        .expect("a read timeout is set");
+    stream
+        .write_all(b"GET /metrics HTTP/1.0\r\nHost: localhost\r\n\r\n")
+        .expect("the scrape is sent");
+    let mut raw = String::new();
+    stream
+        .read_to_string(&mut raw)
+        .expect("the scrape is answered");
+    raw.lines()
+        .find_map(|line| line.strip_prefix("nvs_memory_bytes{scope=\"request\"} "))
+        .and_then(|value| value.trim().parse().ok())
+        .unwrap_or_else(|| panic!("the scrape has no request memory: {raw}"))
+}
+
+/// A flood of valid requests four times `max_in_flight` runs beside requests that reach the memory
+/// limit, reach the CPU limit, and lose their client, while a probe sends ordinary requests. Every
+/// refusal is a `503` with `Retry-After`, every probe is answered within [`PROBE_BOUND`], and the
+/// process lives. Once the flood ends, the request memory comes back within [`SETTLED`] of its
+/// reading before it, [`CEILING`] requests held open together are all admitted, and the next
+/// request answers `200` (`rule:http-server/admission-is-arithmetic-not-a-number`).
+#[test]
+fn a_flood_past_capacity_is_refused_and_every_place_and_byte_comes_back() {
+    let port = free_port();
+    let config = format!(
+        "max_in_flight = {CEILING}\n\n[limits]\nmemory = \"24M\"\ncpu_time = \"200ms\"\n\n\
+         [metrics]\nexporter = \"prometheus\"\nlisten = \"127.0.0.1:{port}\"\n"
+    );
+    let mut server = Server::serving("overload", WORKERS, OVERLOADED, &config, &[]);
+    let addr = server.addr;
+
+    // Each path runs once first, so what it compiles and pools is held before the reading.
+    for path in ["/", "/?do=hold", "/?do=grow", "/?do=spin"] {
+        once(addr, path);
+    }
+    let before = request_memory(port, &server);
+
+    let flooding = Arc::new(AtomicBool::new(true));
+    let probe = {
+        let flooding = Arc::clone(&flooding);
+        thread::spawn(move || {
+            let mut probes = 0_u32;
+            while flooding.load(Ordering::Relaxed) {
+                let started = Instant::now();
+                let (code, retry_after) = once(addr, "/");
+                assert!(
+                    started.elapsed() <= PROBE_BOUND,
+                    "a probe waited {:?} for its answer",
+                    started.elapsed()
+                );
+                assert!(
+                    code == "200" || (code == "503" && retry_after),
+                    "a probe answered `{code}`, with Retry-After: {retry_after}"
+                );
+                probes += 1;
+                thread::sleep(Duration::from_millis(20));
+            }
+            probes
+        })
+    };
+
+    let refused = Arc::new(AtomicU32::new(0));
+    let mut threads = Vec::new();
+    for _ in 0..FLOOD {
+        let refused = Arc::clone(&refused);
+        threads.push(thread::spawn(move || {
+            for _ in 0..FLOOD_ROUNDS {
+                match once(addr, "/?do=hold") {
+                    (code, _) if code == "200" => {}
+                    (code, true) if code == "503" => {
+                        refused.fetch_add(1, Ordering::Relaxed);
+                    }
+                    (code, retry_after) => {
+                        panic!("a hold answered `{code}`, with Retry-After: {retry_after}")
+                    }
+                }
+            }
+        }));
+    }
+    for path in ["/?do=grow", "/?do=spin"] {
+        for _ in 0..BESIDE {
+            threads.push(thread::spawn(move || {
+                let (code, retry_after) = once(addr, path);
+                assert!(
+                    code == "500" || (code == "503" && retry_after),
+                    "`{path}` answered `{code}`, with Retry-After: {retry_after}"
+                );
+            }));
+        }
+    }
+    for _ in 0..BESIDE {
+        threads.push(thread::spawn(move || {
+            // The client sends a hold and leaves before the answer.
+            let mut stream = TcpStream::connect(addr).expect("the server accepts");
+            stream
+                .write_all(b"GET /?do=hold HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .expect("the request is sent");
+        }));
+    }
+    for thread in threads {
+        thread.join().expect("no flood connection failed");
+    }
+    flooding.store(false, Ordering::Relaxed);
+    let probes = probe.join().expect("no probe failed");
+    assert!(probes > 0, "no probe ran during the flood");
+    assert!(
+        refused.load(Ordering::Relaxed) > 0,
+        "no hold was refused, so the flood never passed the ceiling"
+    );
+    assert!(
+        server.child.try_wait().expect("the process is asked").is_none(),
+        "the server ended during the flood; it wrote: {}",
+        server.said()
+    );
+
+    let started = Instant::now();
+    loop {
+        let now = request_memory(port, &server);
+        if now <= before + SETTLED {
+            break;
+        }
+        assert!(
+            started.elapsed() <= BOUND,
+            "the request memory stayed at {now} bytes, more than {SETTLED} above {before}; \
+             the server wrote: {}",
+            server.said()
+        );
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    // The ceiling's requests are sent together, once every connection is open.
+    let together = Arc::new(Barrier::new(CEILING as usize));
+    let held: Vec<_> = (0..CEILING)
+        .map(|_| {
+            let together = Arc::clone(&together);
+            thread::spawn(move || {
+                let mut client = Client::connect(addr);
+                together.wait();
+                client.answer("/?do=hold").0
+            })
+        })
+        .collect();
+    for thread in held {
+        let status = thread.join().expect("no held request failed");
+        assert!(
+            status.split_whitespace().nth(1) == Some("200"),
+            "a request within the ceiling answered `{status}` after the flood; the server wrote: {}",
+            server.said()
+        );
+    }
+    assert_eq!(Client::connect(addr).get("/"), "ok");
+    assert!(
+        server.child.try_wait().expect("the process is asked").is_none(),
+        "the server ended after the flood; it wrote: {}",
+        server.said()
+    );
 }
