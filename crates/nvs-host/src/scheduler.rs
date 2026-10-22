@@ -1006,6 +1006,9 @@ impl Scheduler {
         // again once the turn ends: none on a worker between turns, and the
         // run's own tree under `nvs run`, whose reactor work is that run's.
         let outer = crate::watchdog::running_tree();
+        // The same for the slice clock's slot: a turn run inside a task's own
+        // turn hands the slot back to that task when it ends.
+        let outer_turn = crate::slice::current_turn();
         loop {
             // Before the run queue is read rather than only after a resume: a
             // wake issued between turns, by an end of a channel held outside
@@ -1039,6 +1042,10 @@ impl Scheduler {
                 // request's. `crate::watchdog`'s *Charging a request* section
                 // owns what this costs.
                 crate::watchdog::switch_to(task.tree);
+                // And from here the task's turn is timed: a task that holds the
+                // core for a slice is asked to yield. `crate::slice` owns what
+                // this costs.
+                crate::slice::begin_turn();
                 match task.resume(resume) {
                     CoroutineResult::Yield(suspended) => {
                         task.unwindable = suspended.unwindable;
@@ -1127,6 +1134,7 @@ impl Scheduler {
             }
         }
         crate::watchdog::switch_to(outer);
+        crate::slice::end_turn(outer_turn);
         report.parked = self.parked.len();
         report
     }

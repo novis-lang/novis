@@ -286,6 +286,15 @@ bitflags::bitflags! {
         /// ceiling, and like [`Self::MEMORY_LIMIT`] it asks for a poll rather
         /// than being the verdict: the poll asks [`Ctx::output_breach`].
         const OUTPUT_LIMIT = 1 << 7;
+        /// The request's task has held its core for a time slice, so the core's
+        /// other requests are owed a turn.
+        ///
+        /// Raised by `nvs_host::slice`'s clock thread on the tree its core is
+        /// running, once that core's turn is two epochs old, and it is not a
+        /// stop. Like every bit here it is the tree's, so a child of the same
+        /// request running on another core may also take the slow path once
+        /// for it. Bit 1 stays unused for the reason this set's doc gives.
+        const YIELD = 1 << 8;
     }
 }
 

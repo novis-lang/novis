@@ -901,12 +901,15 @@ fn safepoint_slow_path(ctx: &mut Ctx) -> i32 {
     // is lowered by the same reading. The collect bit
     // is here for the same reading of the same fact — any ask still standing
     // was raised by the walk's own allocations, above a ceiling this request
-    // is no longer over.
+    // is no longer over. The yield bit is lowered with them and nothing else is
+    // done for it yet: the slice clock raises it, and no task gives its core
+    // back here so far.
     ctx.lower_safepoint(
         SafepointFlags::COLLECT
             | SafepointFlags::DEBUG_BREAK
             | SafepointFlags::MEMORY_LIMIT
-            | SafepointFlags::OUTPUT_LIMIT,
+            | SafepointFlags::OUTPUT_LIMIT
+            | SafepointFlags::YIELD,
     );
     crate::OK
 }

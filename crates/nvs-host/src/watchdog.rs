@@ -188,7 +188,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -196,6 +196,7 @@ use nvs_runtime::{SafepointFlags, SafepointView};
 
 use crate::affinity::CpuId;
 use crate::cpuclock::ThreadClock;
+use crate::slice::{Seat, SliceClock, SliceHandle};
 use crate::timer::DeadlineView;
 
 /// How far past its earliest deadline a core must be before it is reported,
@@ -316,6 +317,11 @@ impl Charge {
             self.0
                 .store(now.saturating_sub(word & !Self::RUNNING), Ordering::Release);
         }
+    }
+
+    /// Whether the core is running this tree now.
+    fn is_running(&self) -> bool {
+        self.0.load(Ordering::Acquire) & Self::RUNNING != 0
     }
 
     /// What the tree has spent, given a reading of the core's clock taken
@@ -630,6 +636,9 @@ struct Shared {
     /// Signalled to end the wait early — at shutdown, so a drop does not have
     /// to wait out an interval to join.
     change: Condvar,
+    /// The slice clock every registration from now on takes a seat in, set by
+    /// [`Watchdog::slice_with`].
+    slices: OnceLock<SliceHandle>,
 }
 
 /// The mutable half, which the watchdog thread holds only between sweeps.
@@ -742,8 +751,19 @@ impl Watchdog {
                 }),
                 shed: Shed::default(),
                 change: Condvar::new(),
+                slices: OnceLock::new(),
             }),
         }
+    }
+
+    /// Gives every thread that registers from now on a seat in `clock`, so a
+    /// published request this thread runs for a slice is asked to yield.
+    ///
+    /// Called once, right after the watchdog is built and before any core
+    /// registers. A second call is ignored: a process runs one slice clock.
+    /// `crate::slice`'s module doc owns what a seat costs.
+    pub fn slice_with(&self, clock: &SliceClock) {
+        let _ = self.shared.slices.set(clock.handle());
     }
 
     /// Watches `cpu`'s core through `view` until the returned handle is dropped.
@@ -892,6 +912,9 @@ pub struct Registration {
     /// The flag [`WEDGED`] held before this one replaced it, put back when this
     /// one is dropped.
     outer_wedged: Option<Arc<AtomicBool>>,
+    /// This thread's slot in the slice clock, or `None` when the watchdog has
+    /// none or the thread has no clock to publish with.
+    _seat: Option<Seat>,
 }
 
 /// Registers the calling thread with `shared`: [`Watchdog::register`] and
@@ -944,6 +967,16 @@ fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registra
     let outer_wedged = wedged
         .as_ref()
         .and_then(|wedged| WEDGED.replace(Some(Arc::clone(wedged))));
+    // Only a thread with a meter: the raise finds the running request through
+    // the publications, and a thread with no clock publishes none.
+    let seat = shared.slices.get().filter(|_| meter.is_some()).map(|slices| {
+        let shared = Arc::downgrade(shared);
+        slices.seat(Box::new(move || {
+            if let Some(shared) = shared.upgrade() {
+                shared.ask_to_yield(id);
+            }
+        }))
+    });
     Registration {
         shared: Arc::clone(shared),
         id,
@@ -951,6 +984,7 @@ fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registra
         outer_meter,
         wedged,
         outer_wedged,
+        _seat: seat,
     }
 }
 
@@ -1120,6 +1154,23 @@ impl Drop for Registration {
 }
 
 impl Shared {
+    /// Raises [`SafepointFlags::YIELD`] on the request registration `id`'s
+    /// thread is running now, if that request is published there.
+    ///
+    /// Called on the slice thread when that thread's turn is old
+    /// (`crate::slice`). The running request is the one whose [`Charge`] is
+    /// running, which is the tree [`switch_to`] named last.
+    fn ask_to_yield(&self, id: u64) {
+        let state = lock(&self.state);
+        if let Some(watched) = state.watching.iter().find(|watched| watched.id == id) {
+            for running in &watched.running {
+                if running.charge.is_running() {
+                    running.view.request(SafepointFlags::YIELD);
+                }
+            }
+        }
+    }
+
     /// One pass over every registered thread: it stops each published request
     /// that has burned past its CPU ceiling or run past its `wall_time`
     /// ([`stop_at_wall_time`]), and answers with every *core* that

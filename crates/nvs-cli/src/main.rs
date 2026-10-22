@@ -2241,6 +2241,13 @@ fn run_run(
     let watchdog = nvs_host::ThreadClock::current()
         .is_some()
         .then(nvs_host::Watchdog::new);
+    // The slice clock `nvs serve` starts too, so a run's tasks share this thread
+    // the way a core's requests share their core (`nvs_host::slice`).
+    let _slices = watchdog.as_ref().map(|watchdog| {
+        let slices = nvs_host::SliceClock::start();
+        watchdog.slice_with(&slices);
+        slices
+    });
     let watched = watchdog.as_ref().map(|watchdog| {
         let watched = watchdog.register_requests();
         watched.publish(tree.clone());

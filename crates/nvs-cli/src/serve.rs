@@ -752,6 +752,13 @@ pub(crate) fn run(
     // where the fleet is joined, rather than by whichever core happened to end
     // last; its own thread starts with the first registration a core makes.
     let watchdog = Arc::new(nvs_host::Watchdog::reporting_after(margin));
+    // One slice clock for the process, beside the watchdog and before any core
+    // registers, so every core takes a seat in it: a request that holds its
+    // core for a slice is asked to give it back (`nvs_host::slice`). Held in
+    // this frame for the same reason as the watchdog, and its thread sleeps
+    // while no core is running a task.
+    let slices = nvs_host::SliceClock::start();
+    watchdog.slice_with(&slices);
     // `rule:http-server/a-wedged-core-is-shed-never-killed`: a core this
     // watchdog reports takes no new work, and its share of `max_in_flight`
     // stays unused until it turns again (`nvs_server::admit`'s module doc).
