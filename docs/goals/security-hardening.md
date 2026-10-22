@@ -448,6 +448,10 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
   - [x] `Outgoing::connect` carries the set and `extension_send` refuses the hop, and the attack is green
   - [x] the rule says so
 - [ ] EXT-7 to EXT-10: each Low item in the sinks report, fixed or declined into its rule. `.agent-tmp/sec-audit/reports/wb-sinks.md:212`
+  - [x] EXT-7: a manifest that requests any I/O makes every method a source (`rule:security/extension-declares-sink-or-source`). `crates/nvs-ext/src/manifest.rs:439`
+  - [x] EXT-8: a set where two extensions declare one `[ext.<name>]` block is refused (`rule:packaging/a-guest-has-no-ambient-authority`). `crates/nvs-ext/src/load.rs:194`
+  - [x] EXT-9: random bytes and `as-bytes` ask what the request has left first (`rule:packaging/a-guest-runs-under-the-requests-budget`). `crates/nvs-ext/src/call.rs:1403`
+  - [ ] EXT-10: the WASI open, create and rename go through the beneath walk (`rule:security/writes-open-beneath-a-handle`); the device names move to stage 11. `crates/nvs-ext/src/wasi/files.rs:212`
 - [x] The attack: 200 requests that each call `Novis\Intl`, every answer correct, memory flat; a Rust test in `nvs-cli`. `crates/nvs-cli/tests/serve_isolation.rs:1`
 
 ### 9. sessions, the CSRF door and signed cookies read and bind one way
@@ -481,6 +485,7 @@ operations open beneath a handle.
 
 - [ ] SINK-1, SINK-3: the textual refusal runs before `canonicalize` (`rule:security/path-scope-canonicalise-then-prefix`). `crates/nvs-runtime/src/capability.rs:1159`
 - [ ] SINK-3: `Core\IO::within` returns no alias. `crates/nvs-stdlib/src/io.rs:3688`
+- [ ] EXT-10's names: the WASI filesystem's `refused_name` refuses the same Windows text, DOS device names (`CON`, `NUL`, `COM1`, `LPT1`, with or without an extension) among it. `crates/nvs-ext/src/wasi/files.rs:253`
 - [ ] CVE-2: `remove_file`, `remove_dir`, `read_dir`, `metadata` and `exists` open beneath a handle (`rule:security/writes-open-beneath-a-handle`). `crates/nvs-runtime/src/capability.rs:950`
 - [ ] The attacks: a UNC, `\\?\`, `\\.\` and 8.3 path through `within`, refused with no network attempt; a Rust test that times the refusal. `tests/hostile/core/IO/within/01-names-built-to-escape.nvs:1`
 
@@ -551,31 +556,43 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 8 has EXT-1, EXT-2, EXT-5, EXT-6 and its attack done; EXT-7 to EXT-10 are left.
+Stage 8 has everything but EXT-10 done. EXT-1, EXT-2, EXT-5 and EXT-6 landed earlier
+(EXT-5 f86196453, EXT-6 ddb8dd9d7).
 
-This session (0152):
+This session (0153):
 
-- **EXT-5 (f86196453).** `Calls` in `crates/nvs-cli/src/extensions.rs` keeps one
-  `nvs_ext::call::Request` per `grants:` narrowing (`Mutex<Vec<Arc<Held>>>`, found by
-  `Spent::narrowed == ctx.grant_filter()`), made at that narrowing's first call; `Drop` ends each
-  request it holds alone. The only same-tree path to a narrowed caller is `spawn script` in
-  `nvs serve`: under `nvs run` a spawned script does not compile against the extension set
-  (`live_manifests()` is empty there, `use Geo\Atlas` is `E0306`), so no `tests/hostile/` case can
-  reach it. The attack is `a_narrowed_child_script_does_not_reach_the_instance_its_request_made`
-  in `crates/nvs-cli/tests/live_config.rs` (red on main: all three children read `hello`; green
-  now, run once). Both rules say so; `extension-grants-are-an-intersection` gained a memory line,
-  a Declined entry (swapping preopens per call) and `live_config.rs` in `guardedBy`.
-- **EXT-6 (ddb8dd9d7).** `nvs_ext::call::Outgoing` has a new `connect: Vec<String>` (the
-  intersection, from the wasi `Context`), and `nvs_stdlib::extension_send` takes `connect: &[String]`
-  and refuses a redirect hop whose host is not in it with a `RuntimeError`, before re-pinning. The
-  attack `a_redirect_to_a_host_only_the_caller_may_reach_is_denied` in `crates/nvs-ext/tests/http.rs`
-  (a 302 from `127.0.0.1` to a listener on `127.0.0.2`) was red on main (`200`) and is green; the
-  whole `http` test file ran once, 9 green. On macOS `127.0.0.2` needs a loopback alias; CI runs
-  Linux and Windows, where it binds.
-- `env-secret-proofs`: the sweep named it red again. Its only log is still the 00:07 one with
-  exit 0 and `nothing owed`, and no goal, `looper.toml` or floor names a check by that name, so it
-  is the driver's stale state, not the tree's. Nothing in the tree can turn it green.
+- **EXT-7 (deaadec0c).** `nvs_ext::manifest::Manifest::is_source(method)` is `method.source`
+  or any `requests.read`/`write`/`connect` entry. `nvs_types::ext_lib::method_sig` and
+  `nvs ext inspect` (`crates/nvs-cli/src/ext.rs`, which prints `tainted ` only when the return text
+  has `string`) read it. The request decides, never the grant. The attack
+  `an_extension_that_requests_any_io_is_a_source_whatever_its_methods_declare` in
+  `crates/nvs-types/tests/extensions.rs` was red on main and is green. The `Geo\Atlas` examples
+  needed no change: each `echo`es the result, and `echo` takes a `tainted string` under `nvs run`
+  (01 and 03 run and match their `.out`).
+- **EXT-8 (c292f63c5).** `nvs_ext::load::Set::insert` refuses an extension whose `settings.name`
+  another of the set declares (case-insensitive). The attack
+  `a_settings_block_another_loaded_extension_declares_is_refused` in `crates/nvs-ext/tests/load.rs`
+  was red on main. Binding the block to the class is declined in the rule.
+- **EXT-9 (8aa84b4d3).** `nvs_ext::call::afford(budget, what, bytes)` returns an `Unaffordable`
+  error past `Budget::left`, and `failure` reads it as `Limit::Memory`. `Context::bytes` (both
+  random imports) and `handle::bytes_of` (a whole `as-bytes` of a byte string, and every lent read)
+  ask it first. The attacks: `a_guest_asking_for_more_random_bytes_than_its_request_has_left_reaches_the_memory_limit`
+  (`crates/nvs-ext/tests/wasi.rs`, a new `flood` export on the probe guest) and
+  `a_whole_lent_source_larger_than_the_memory_left_is_refused_before_it_is_read`
+  (`crates/nvs-ext/tests/convert.rs`, a new `WHOLE` component). Both were red on main as a
+  `realloc return: beyond end of memory` trap after the host allocated 64 MiB, and are green.
+- The sweep: `env-secret-proofs` is red again with its 00:07 log (exit 0, `nothing owed`), and
+  `looper check --name env-secret-proofs` answers `no check matches`. It is the driver's state,
+  not the tree's. The nightly run 39746060276 was a `workflow_dispatch` cancelled after 8 minutes,
+  so every job reads `cancelled`. No job failed.
 - `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+
+Tests that may go red from EXT-7 to EXT-9: a `.nvst`, example or test whose extension manifest
+requests I/O and assigns a method's text result to a plain `string` (grep found only `Geo\Atlas`,
+which passes); a help or inspect snapshot of such a method; a test that loads two extensions
+declaring one settings block (none found); a guest test whose budget has `left` below a lent
+source's size and expected `as-bytes` to read it (the spreadsheet tests use `range` under no
+memory limit).
 
 Tests that may go red from EXT-5 and EXT-6: any caller of `nvs_stdlib::extension_send` or
 constructor of `Outgoing` outside the two updated (grep found none); a served test whose child
@@ -653,25 +670,34 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 8: an extension instance ends with its request (`rule:packaging/a-fresh-instance-per-request`).
-EXT-7 to EXT-10 from `.agent-tmp/sec-audit/reports/wb-sinks.md:212`, each fixed or declined into its
-rule, each attack written first. Then set stage 8 done.
+Stage 8's last item, EXT-10 (`.agent-tmp/sec-audit/reports/wb-sinks.md:224`): the WASI
+filesystem checks a path, then opens it by name (`crates/nvs-ext/src/wasi/files.rs:212`, `:599`,
+`:672`). Its module doc (`files.rs:30`) declines this as "closed for all of them or none". The
+`Core\IO` doors are closed now, so that reason no longer holds and the doc is stale. Then set
+stage 8 done. The device names moved to stage 11's new item (`files.rs:253`).
 
-1. EXT-7: text an extension returns is untainted unless its manifest says `"source": true`
-   (`crates/nvs-types/src/ext_lib.rs:331`). Force `source` when the manifest requests `read` or
-   `connect`. The `Geo\Atlas` example and its `.out` files under
-   `docs/examples/tools/config/extension-grants-what-a-component-may-reach/` will need a
-   `tainted string` where they keep a read.
-2. EXT-8: `[ext.X]` block names are free text, so one extension can read another's block
-   (`crates/nvs-ext/src/manifest.rs:282`, `crates/nvs-cli/src/extensions.rs:212`). Refuse a set
-   where two entries declare the same block, or bind the block to the declaring entry.
-3. EXT-9: `get_random_bytes` (`crates/nvs-ext/src/wasi.rs:466`) and `as-bytes` on a lent file
-   (`crates/nvs-ext/src/handle.rs:357`) allocate a guest-chosen size unchecked. Ask
-   `Budget::charge`/`left` first.
-4. EXT-10: the WASI filesystem checks then opens by name (`crates/nvs-ext/src/wasi/files.rs:212`,
-   `:599`) and `refused_name` (`:253`) passes DOS device names. Open beneath a handle as
-   `rule:security/writes-open-beneath-a-handle` says, or decline into the rule; stage 11 owns
-   Windows path text, so a device name may move there.
+The walk is `crates/nvs-runtime/src/beneath.rs` (`open_file`, `create_file`, `create_dirs`,
+`rename`, all `pub(crate)`). `nvs-ext` does not link `nvs-runtime` (a dev-dependency only), and
+`nvs-ext` is not an unsafe crate. The shape that fits is how outbound HTTP already crosses: a
+`Budget` method the host fills. `Budget::send` → `nvs_stdlib::extension_send` is the precedent.
+
+1. Write the attack first: a Rust test in `crates/nvs-ext/tests/files.rs` cannot race the
+   check against the open. Instead, give the WASI layer a seam (a `Budget` method that opens a
+   resolved path, with a default that opens by name). Prove in `nvs-cli` (or `nvs-stdlib`'s tests)
+   that the host's implementation refuses a level that is a link, as `beneath.rs`'s own tests do.
+   Read `beneath.rs`'s tests for how they plant a link after resolution.
+2. Expose the walk from `nvs-runtime` for this one caller, with no grant check, since the WASI
+   layer has already checked the path against its preopens. Name it so nothing else takes it as a
+   door. `Spent` in `crates/nvs-cli/src/extensions.rs` implements the new `Budget` method(s) over it.
+3. `files.rs`'s `open` (create, truncate, write and read), `create_directory_at` and `rename_at` call
+   the seam. Removal, `stat` and `readdir` follow stage 11's CVE-2 item, which does the same for
+   `Core\IO`.
+4. Rewrite `files.rs`'s module doc, and record the WASI layer in
+   `rule:security/writes-open-beneath-a-handle`'s list of doors.
+
+If the seam turns out too wide for one session, the safe default is to decline into the rule:
+the check-then-open window needs a local account that can write under a granted root while a
+request runs. Name that, and keep the item for stage 11 alongside CVE-2.
 
 ### Backlog
 
