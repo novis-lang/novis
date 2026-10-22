@@ -21,6 +21,7 @@ import {
   coresResult,
   crashResult,
   csrfResult,
+  cookieOf,
   DEPLOY_BIG_PARTS,
   DEPLOY_PARTS,
   DEPLOY_RUNS,
@@ -57,6 +58,8 @@ import {
   SCENARIOS,
   scenarioCtx,
   scenarioFolder,
+  SESSION_WAIT_LIMIT_MS,
+  sessionResult,
   withScenarios,
   stackEnv,
   steadyResult,
@@ -232,7 +235,7 @@ describe("the feature scenarios", () => {
   });
 
   test("the rows run in the goal's order, and each id once", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["escape", "taint", "secret", "live-edit", "config", "deploy", "deploy-big", "deploy-switch", "cores", "crash", "loop", "memory", "csrf", "headers", "waiting", "parallel"]);
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["escape", "taint", "secret", "live-edit", "config", "deploy", "deploy-big", "deploy-switch", "cores", "crash", "loop", "memory", "csrf", "session", "headers", "waiting", "parallel"]);
   });
 
   test("every row either probes a stack or times a case, never both, and a timed row names a case or brings its own", () => {
@@ -519,6 +522,22 @@ describe("the feature scenarios", () => {
     expect(csrfResult(changed, { status: 403, headers: {}, body: "" })).toEqual({ result: "built-in", evidence: { cross_site_status: 403, rejected: true } });
     expect(csrfResult(changed, changed).result).toBe("your-code");
     expect(() => csrfResult({ status: 404, headers: {}, body: "" }, changed)).toThrow("same-site");
+  });
+
+  test("the session row's fast request is built in when it does not wait for the slow one", () => {
+    const slow = { status: 200, headers: {}, body: "slow done\n" };
+    const fast = { status: 200, headers: {}, body: "count: 1\n" };
+    expect(sessionResult(slow, fast, 12, undefined)).toEqual({ result: "built-in", evidence: { fast_wait_ms: 12, head_start_ms: 200, code: null } });
+    expect(sessionResult(slow, fast, SESSION_WAIT_LIMIT_MS + 800, "session_write_close()").result).toBe("your-code");
+    expect(() => sessionResult({ status: 500, headers: {}, body: "" }, fast, 12, undefined)).toThrow("/slow");
+    expect(() => sessionResult(slow, { status: 200, headers: {}, body: "" }, 12, undefined)).toThrow("/fast");
+  });
+
+  test("every set-cookie of a reply is carried as one Cookie header", () => {
+    const reply = (cookie: string) => ({ status: 200, headers: { "set-cookie": cookie }, body: "" });
+    expect(cookieOf(reply("nvsid=abc; Path=/; Secure; HttpOnly"))).toBe("nvsid=abc");
+    expect(cookieOf(reply("a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT, b=2; Path=/"))).toBe("a=1; b=2");
+    expect(() => cookieOf({ status: 200, headers: {}, body: "" })).toThrow("no cookie");
   });
 
   test("a check is built in only when it refuses with the row's own error", () => {
