@@ -1466,6 +1466,26 @@ pub enum FormatPiece {
     },
 }
 
+/// What one class's constructor finds unset where it reads or writes a
+/// property through `$this`, keyed by that property. A hooked property's
+/// access runs its hook with `$this`, so the slots its entry names are the
+/// ones that hook can read before they are written. Built by
+/// `crate::ctor_init::check_class_init` and read once by
+/// `crate::check::record_pipeline_slots`, which drains the table.
+pub(crate) type CtorAccesses = FxHashMap<String, CtorAccess>;
+
+/// One property's entry in [`CtorAccesses`], joined over every access to it
+/// the constructor makes, the parameter promotions first.
+#[derive(Debug, Default)]
+pub(crate) struct CtorAccess {
+    /// The class's own slots that start unset and that some path has not
+    /// written yet at one of the accesses.
+    pub(crate) unassigned: Vec<String>,
+    /// Some path reaches one of the accesses before `parent::constructor(...)`
+    /// runs, so no inherited slot is written there yet.
+    pub(crate) before_parent: bool,
+}
+
 /// Every [`ExprInfo`] [`crate::check::check_program`] recorded this run,
 /// looked up by the source span of the expression it describes. See the
 /// module docs for the full design and why a span is the lookup key.
@@ -1497,6 +1517,7 @@ pub struct ExprTypeTable {
     lateinit_properties: FxHashMap<String, Vec<String>>,
     pipeline_armed: FxHashMap<String, Vec<String>>,
     pipeline_guarded: FxHashMap<String, Vec<String>>,
+    ctor_accesses: FxHashMap<QName, CtorAccesses>,
     static_properties: FxHashMap<String, Vec<(String, Option<crate::defaults::ConstArg>)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
@@ -2300,6 +2321,21 @@ impl ExprTypeTable {
     #[must_use]
     pub fn is_lateinit_property(&self, label: &str, name: &str) -> bool {
         self.lateinit_properties(label).iter().any(|p| p == name)
+    }
+
+    /// Records what the constructor `qname` declares finds unset at each
+    /// `$this->prop` it reads or writes — see [`CtorAccesses`]. Every class
+    /// declaration records an entry, an empty one when it declares no
+    /// constructor body, so a missing entry means a class this program did
+    /// not check.
+    pub(crate) fn record_ctor_accesses(&mut self, qname: QName, accesses: CtorAccesses) {
+        self.ctor_accesses.insert(qname, accesses);
+    }
+
+    /// Takes every entry [`Self::record_ctor_accesses`] recorded, once
+    /// `crate::check::record_pipeline_slots` has every class's.
+    pub(crate) fn take_ctor_accesses(&mut self) -> FxHashMap<QName, CtorAccesses> {
+        std::mem::take(&mut self.ctor_accesses)
     }
 
     /// Records the slots a `new` of the class labelled `label` arms with the
