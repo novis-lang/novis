@@ -789,7 +789,8 @@ const ADD_DOC: MethodDoc = MethodDoc {
             name: "attributes",
             desc: "The entry's attributes, keyed by name, such as `['objectClass' => ['top', \
                    'group'], 'cn' => 'Staff']`. A value is written in the form the readers of \
-                   `Entry` return it, and a list writes one value per element.",
+                   `Entry` return it, and a list writes one value per element. A value may be \
+                   `tainted`. A name that can come from outside the program does not compile.",
             shape: &[],
         },
     ],

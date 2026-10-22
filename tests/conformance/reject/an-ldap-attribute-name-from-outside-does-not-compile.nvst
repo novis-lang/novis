@@ -1,0 +1,31 @@
+--TEST--
+`Core\Ldap\Connection::add` refuses an attribute name that can come from outside the program, from a literal's key and from an array whose keys a visitor chose, and admits a `tainted` value under a written name — `rule:core-classes/ldap-filter-is-a-value`
+--FILE--
+<?nvs
+// covers: lang:types/qualifiers-tainted-and-secret
+// A program adds a directory entry from a form. The three attribute names a visitor chose are errors.
+// The count of errors is the assertion.
+var $corp = Core\Ldap::connect("corp-accounts");
+string $person = "CN=Lena Vogt,OU=Bakery,DC=example,DC=test";
+tainted string $field = Core\Request::post("field") ?? "title";
+tainted string $value = Core\Request::post("value") ?? "Baker";
+array<tainted string> $form = Core\Request::postArray("entry");
+
+$corp->add($person, ["objectClass" => "user", $field => $value]);
+$corp->add($person, $form);
+$corp->add($person, ["objectClass" => "user", ...$form]);
+
+// A `tainted` value under a name the program wrote is allowed.
+string $name = "description";
+$corp->add($person, ["objectClass" => "user", "title" => $value, $name => $value]);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: an LDAP attribute name can come from outside the program
+%A
+error[E0401]: an LDAP attribute name can come from outside the program
+%A
+error[E0401]: an LDAP attribute name can come from outside the program
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

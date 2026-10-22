@@ -12,6 +12,7 @@
     "tests/conformance/core/ldap-filter-attribute-does-not-compile-when-tainted.nvst",
     "tests/conformance/core/ldap-filter-parse-refuses-tainted.nvst",
     "tests/conformance/core/ldap-filter-throws-for-an-attribute-that-is-not-a-name.nvst",
-    "tests/conformance/core/ldap-filter-throws-past-100-levels-of-nesting.nvst"
+    "tests/conformance/core/ldap-filter-throws-past-100-levels-of-nesting.nvst",
+    "tests/conformance/reject/an-ldap-attribute-name-from-outside-does-not-compile.nvst"
   ]
 }
