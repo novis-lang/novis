@@ -11,6 +11,10 @@ property per column of the same name, and the code that fills it is written for 
 declares a `fromRow` method builds the object itself, so it can read several columns into one
 property.
 
+A text column fills only a `tainted string` property, and a binary column only a `tainted bytes`
+property. A value in a database may come from a visitor, so `tainted` keeps it out of a query or a
+page until you check it. A plain `string` property does not compile.
+
 A column whose value does not fit the property it belongs to is an error, and the error names the
 column.
 

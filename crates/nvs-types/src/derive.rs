@@ -1451,7 +1451,8 @@ pub(crate) fn hydrates_a_row(owner: &str) -> bool {
 /// Whether the octets a written-class member of `owner` decodes are a
 /// **peer's** — `rule:security/tainted-sources`, which is what
 /// [`check_decode_sites`] and [`check_shape_decode_site`] ask the fields
-/// receiving them to declare.
+/// receiving them to declare. A row is asked the same question through
+/// [`hydrates_a_row`], which `crate::expr::args::written_class_of` ORs in.
 ///
 /// Keyed on the owner for [`hydrates_a_row`]'s reason and one of its own: every
 /// member of these owners answers alike. Every `Core\Request` member on the
@@ -1464,10 +1465,9 @@ pub(crate) fn hydrates_a_row(owner: &str) -> bool {
 /// signature proves origin and not safety.
 ///
 /// The rest are not: `Core\Json::decodeAs` takes its document through a plain
-/// `string` parameter, so a tainted one is refused where it is passed;
+/// `string` parameter, so a tainted one is refused where it is passed; and
 /// `Core\Arr::shapeAs` is asked of its argument instead
-/// (`crate::expr::quals::converts_outside_text`); and a `Core\Db` row is not a
-/// taint source at all.
+/// (`crate::expr::quals::converts_outside_text`).
 pub(crate) fn reads_a_peers_octets(owner: &str) -> bool {
     owner == r"Core\Request" || owner == r"Core\Http\Response" || owner == r"Core\Jwt"
 }
@@ -1676,6 +1676,9 @@ pub struct DecodeSite {
     /// list decode is the same decode run once per element, so the fields
     /// receiving the body are the same fields.
     class: QName,
+    /// Which mapping fills the class: a row's fields are `#[Db\Derive]`'s and a
+    /// document's are `#[Json\Derive]`'s, and one class may carry both.
+    format: Format,
     /// Where the type argument is written — the only part of the *call* the
     /// report keeps, and it keeps it as the secondary label.
     span: Span,
@@ -1684,10 +1687,11 @@ pub struct DecodeSite {
 impl DecodeSite {
     /// Records a site, from [`crate::expr::args::written_class_of`] — the one
     /// place a written class and the member that asked for it are both in hand.
-    pub(crate) fn new(member: String, class: QName, span: Span) -> Self {
+    pub(crate) fn new(member: String, class: QName, format: Format, span: Span) -> Self {
         Self {
             member,
             class,
+            format,
             span,
         }
     }
@@ -1703,7 +1707,9 @@ impl DecodeSite {
 /// **The call site, not the declaration.** A derived codec says nothing about
 /// where its documents come from, and the same class is legitimate over one the
 /// program built itself; it is the *document* that is a peer's octets — a
-/// request body, or the payload of a token another party signed. So the site
+/// request body, the payload of a token another party signed, or a row whose
+/// text an earlier request may have stored, which is the stored injection
+/// `rule:security/tainted-sources` closes. So the site
 /// that decodes one is where the question has an answer, and the message still
 /// points at the property, which is where the fix is written.
 ///
@@ -1731,12 +1737,16 @@ pub(crate) fn check_decode_sites(
             }
             for field in fields
                 .iter()
-                .filter(|field| field.format == Format::Json && field.class == class)
+                .filter(|field| field.format == site.format && field.class == class)
             {
                 if let Some(nested) = codec_class_label(field.declared, interner) {
                     pending.push(nested);
                 }
-                if !unqualified_text(field.declared, interner)
+                // A row field no column reads back is already refused at its
+                // declaration and at the call, and its fix is another type.
+                let unmapped = site.format == Format::Db && !db_reachable(field.declared, interner);
+                if unmapped
+                    || !unqualified_text(field.declared, interner)
                     || !reported.insert((class.clone(), field.property.clone()))
                 {
                     continue;

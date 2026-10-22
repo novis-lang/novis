@@ -187,9 +187,10 @@ codes! {
     /// takes its document through a plain `string` parameter, so a tainted
     /// argument is already refused where it is passed.
     pub const E_DECODED_FIELD_NOT_TAINTED: Code = Code::new("E0810").card(
-        "`Core\\Request::jsonAs<T>()` fills this property with data from the request, so a \
-         `string` or `bytes` property must be `tainted` (marked as coming from outside the \
-         program). Write `tainted` on the property, as in `public tainted string $name`.",
+        "A method such as `Core\\Request::jsonAs<T>()` or `Core\\Db\\Connection::queryAs<T>()` \
+         fills this property with data from outside the program. A `string` or `bytes` \
+         property must then be `tainted` (marked as coming from outside the program). Write \
+         `tainted` on the property, as in `public tainted string $name`.",
     );
 
     /// `$x is void`, `$x is never` — a type no value inhabits, written where

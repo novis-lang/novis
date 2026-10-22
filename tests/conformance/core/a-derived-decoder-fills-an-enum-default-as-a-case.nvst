@@ -38,7 +38,7 @@ echo "json given: ", $given->mode == Mode::On ? "On" : "other", " ", $given->siz
 #[Core\Db\Derive]
 class Row {
     public function constructor(
-        public string $name,
+        public tainted string $name,
         public Mode $mode = Mode::Off,
         public Size $size = Size::Small,
     ) {}

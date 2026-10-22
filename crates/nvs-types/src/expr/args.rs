@@ -1910,7 +1910,10 @@ pub(crate) fn written_class_of(
         _ => (first, false),
     };
     let owner_name = owner.to_string();
-    let outside = subject_outside || crate::derive::reads_a_peers_octets(&owner_name);
+    // A row is outside text as well: `rule:security/tainted-sources` makes a
+    // value read back from a database `tainted`, which closes stored injection.
+    let row = crate::derive::hydrates_a_row(&owner_name);
+    let outside = subject_outside || row || crate::derive::reads_a_peers_octets(&owner_name);
     if let Ty::Class(qname, _) = env.interner.get(element) {
         let qname = qname.clone();
         // Two questions about the whole program, so both are only *recorded*
@@ -1935,13 +1938,19 @@ pub(crate) fn written_class_of(
             return Some((WrittenTarget::Class(qname), list));
         }
         if outside {
+            let format = if row {
+                crate::derive::Format::Db
+            } else {
+                crate::derive::Format::Json
+            };
             env.decode_sites.push(crate::derive::DecodeSite::new(
                 format!("{owner}::{method}"),
                 qname.clone(),
+                format,
                 span,
             ));
         }
-        if crate::derive::hydrates_a_row(&owner_name) {
+        if row {
             // Both of `Core\Db`'s hydrating members, because the question is the
             // class's and not the statement's:
             // `rule:core-classes/db-column-types`'s map is read over the same
