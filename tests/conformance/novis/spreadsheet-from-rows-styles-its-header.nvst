@@ -1,5 +1,5 @@
 --TEST--
-`Workbook::fromRows` writes rows with keys under a header row that is bold, has a thin bottom border, is frozen and has an autofilter, with every column as wide as its text; each default turns off, `columns` sets a column's header, width and format, `header: false` writes no header row, a key with no column throws, and `download` sends the bytes `bytes` returns: rule:core-classes/spreadsheet-styles-and-defaults
+`Workbook::fromRows` writes rows with keys under a header row that is bold, has a thin bottom border, is frozen and has an autofilter, with every column as wide as its text; each default turns off, `columns` sets a column's header, width and format, `header: false` writes no header row, a key with no column throws, and in a request `download` sends an xlsx file with its media type, its file name and a body that is not text: rule:core-classes/spreadsheet-styles-and-defaults
 --FILE--
 <?nvs
 // covers: Novis\Spreadsheet\Workbook::fromRows
@@ -26,6 +26,12 @@ array<array<mixed>> $rows = [
     ["name" => "Widget", "price" => 2.5],
     ["name" => "Gadget with a long name", "price" => 10.0],
 ];
+
+// In a request, the program sends the rows as a download.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Workbook::fromRows($rows)->download("Prices.xlsx");
+    return;
+}
 
 // The keys of the first row are the header row. It has the style `s="1"`.
 echo "== the defaults\n";
@@ -73,12 +79,18 @@ try {
     echo $e->message, "\n";
 }
 
-// `download` sends the same bytes.
+// `download` sends an xlsx file with its media type and its file name.
+// The file is not text, so `body()` throws an error.
 echo "== download\n";
-var $sent = Core\Out::capture(fn (): void => {
-    Workbook::fromRows($rows)->download("Prices.xlsx");
-});
-echo ($sent as string as bytes) == $file ? "the download is the same file" : "the download is different", "\n";
+var $sent = Core\Test::request(Core\Http\Method::Get, "/prices");
+echo $sent->status(), " ", $sent->header("Content-Type") ?? "none", "\n";
+echo $sent->header("Content-Disposition") ?? "none", "\n";
+try {
+    $sent->body();
+    echo "the body is text\n";
+} catch (RuntimeError $notText) {
+    echo "the body is a workbook\n";
+}
 --EXPECT--
 == the defaults
 has <row r="1" s="1" customFormat="1"><c r="A1" s="1" t="inlineStr"><is><t>name</t></is></c>
@@ -108,4 +120,6 @@ lacks <pane
 == a new key
 A row of the sheet `Sheet1` has the key `colour`, and the sheet has no column for it. The columns are the keys of the `columns` option and of the first row.
 == download
-the download is the same file
+200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+attachment; filename="Prices.xlsx"; filename*=UTF-8''Prices.xlsx
+the body is a workbook

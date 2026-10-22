@@ -3,28 +3,51 @@
 --FILE--
 <?nvs
 // `rule:security/response-body-is-one-typed-member`'s fourth row is the member for a body that is not text, so the
-// edge worth pinning is the one `text` cannot reach: a buffer holding a NUL
-// and bytes that are not valid UTF-8 goes out unchanged and unmeasured. The
-// write is read back through a capture -- § 5's redirection of the same output
-// -- and re-hexed, because the bytes themselves are not something an exact
-// expectation can spell.
-bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a00ff");
-var $sent = Core\Out::capture(fn (): void => {
-    Core\Response::bytes($png, "image/png");
-});
-echo Core\Encoding::toHex($sent as string as bytes), "\n";
+// edge worth pinning is the one `text` cannot reach: a buffer holding a NUL,
+// control bytes and a byte that is not valid UTF-8 goes out unchanged. The
+// parent reads each body back with `Core\Test::request`, whose response keeps
+// the body as bytes. A capture cannot read it: it throws for bytes that are
+// not UTF-8, and it replaces control bytes.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    var $path = Core\Request::path();
+    if ($path == "/signature") {
+        Core\Response::bytes(Core\Encoding::fromHex("504e470d0a1a0a00"), "image/png");
+    }
+    if ($path == "/octets") {
+        Core\Response::bytes(Core\Encoding::fromHex("504e470d0a1a0a00ff"), "image/png");
+    }
+    if ($path == "/empty") {
+        Core\Response::bytes("" as bytes, "application/octet-stream");
+    }
+    if ($path == "/csv") {
+        Core\Response::bytes("id,name" as bytes, "text/csv; charset=utf-8; header=present");
+    }
+} else {
+    // The NUL and the control bytes are valid UTF-8, so `body()` returns them,
+    // and the hex is the hex that was sent.
+    var $signature = Core\Test::request(Core\Http\Method::Get, "/signature");
+    echo Core\Encoding::toHex($signature->body() as bytes), "\n";
 
-// An empty body is a body: nothing is written, and nothing refuses. The
-// content type still had to be spellable, which is the other parameter's
-// business rather than this one's.
-Core\Response::bytes("" as bytes, "application/octet-stream");
-echo "[empty]\n";
+    // The same octets and then `FF`. `body()` throws at byte 8, so the first
+    // eight octets arrived unchanged and `FF` arrived as itself. A replacement
+    // character in its place is valid UTF-8, and `body()` would return it.
+    var $octets = Core\Test::request(Core\Http\Method::Get, "/octets");
+    try {
+        echo $octets->body(), "\n";
+    } catch (RuntimeError $notText) {
+        echo $octets->status(), " ", $notText->message, "\n";
+    }
 
-// A media type with parameters is one string, not a shape: § 4 says the type
-// is "as given", so whatever the program spelled is what is declared.
-Core\Response::bytes("id,name" as bytes, "text/csv; charset=utf-8; header=present");
-echo "\n";
+    // An empty body is a body: nothing is written, and nothing throws.
+    var $empty = Core\Test::request(Core\Http\Method::Get, "/empty");
+    echo "[", $empty->body(), "] ", $empty->header("Content-Type") ?? "none", "\n";
+
+    // A media type with parameters is one string, and it is declared as given.
+    var $csv = Core\Test::request(Core\Http\Method::Get, "/csv");
+    echo $csv->header("Content-Type") ?? "none", " ", $csv->body(), "\n";
+}
 --EXPECT--
-89504e470d0a1a0a00ff
-[empty]
-id,name
+504e470d0a1a0a00
+200 Core\Test\Response::body(): the response body is not valid UTF-8 at byte 8, so it is not a string. Use `status()` and `header()` to test this response.
+[] application/octet-stream
+text/csv; charset=utf-8; header=present id,name

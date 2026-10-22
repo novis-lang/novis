@@ -58,9 +58,11 @@ foreach ($subs as array<array<mixed>> $pair) {
     // order, then the keys only the layer has, in the layer's order. An entry
     // the layer replaces does not move, which is the half a member appending
     // every incoming key would fail.
-    array<string> $expected = Core\Arr::keys($bs);
-    foreach (Core\Arr::keys($ls) as string $lk) {
-        if (!Core\Arr::hasKey($bs, $lk)) {
+    array<tainted string> $expected = Core\Arr::keys($bs);
+    foreach (Core\Arr::keys($ls) as tainted string $lk) {
+        // A key read back from an array is tainted, so the check uses
+        // `contains` over the base's keys.
+        if (!Core\Arr::contains(Core\Arr::keys($bs), $lk)) {
             $expected[] = $lk;
         }
     }
