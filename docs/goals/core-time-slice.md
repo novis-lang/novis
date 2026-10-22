@@ -241,10 +241,10 @@ rules describe a core that is shared by slices.
 
 **Split:** after stages 1 to 4 land, the session runs the bench itself. The page text is the session's.
 
-- [ ] The new rule `http-server/a-request-that-computes-shares-its-core`: the slice, the clock, the cost, and its Declined list (a watchdog-driven slice, a configuration key, preemption by signal). Tier B's row cites it. `docs/rules/http-server/a-request-that-computes-shares-its-core.md:1`, `data/rules/http-server/a-request-that-computes-shares-its-core.json:1`, `docs/rules/http-server/a-requests-blast-radius-is-bounded-at-four-tiers.md:6`
-- [ ] `rule:http-server/time-is-bounded-inside-a-helper` says the poll also yields. `docs/rules/http-server/time-is-bounded-inside-a-helper.md:1`
-- [ ] The attack: one request loops on a one-worker server while another is answered, named in the rule's `guardedBy` (`rule:testing/hostile-case-contract`). `crates/nvs-cli/src/serve.rs:5466`
-- [ ] `bench-compare --expect <peer>=<result>` and its test. `tools/nv/cmd/bench-compare.ts:1494`, `tools/nv/test/bench-compare.test.ts:1`
+- [x] The new rule `http-server/a-request-that-computes-shares-its-core`: the slice, the clock, the cost, and its Declined list (a watchdog-driven slice, a configuration key, preemption by signal). Tier B's row cites it. `docs/rules/http-server/a-request-that-computes-shares-its-core.md:1`, `data/rules/http-server/a-request-that-computes-shares-its-core.json:1`, `docs/rules/http-server/a-requests-blast-radius-is-bounded-at-four-tiers.md:6`
+- [x] `rule:http-server/time-is-bounded-inside-a-helper` says the poll also yields. `docs/rules/http-server/time-is-bounded-inside-a-helper.md:1`
+- [x] The attack: one request loops on a one-worker server while another is answered, named in the rule's `guardedBy` (`rule:testing/hostile-case-contract`). `crates/nvs-cli/src/serve.rs:5466`
+- [x] `bench-compare --expect <peer>=<result>` and its test. `tools/nv/cmd/bench-compare.ts:1494`, `tools/nv/test/bench-compare.test.ts:1`
 - [ ] The session row, gated on `defaults-that-work` stage 7 (`rule:http-server/a-session-is-loaded-once-and-written-whole` shipped): a probe that starts a session, sends `/slow` (writes, then works 2 s) and 200 ms later `/fast` with the same cookie, and times `/fast`. Under 1 s is `built-in`; PHP held by its session lock is `your-code` naming `session_start(['read_and_close' => true])` or `session_write_close()`; Bun and Go are a fixed `your-code`, because neither has sessions without a library. The page gets a "One visitor, two requests" chart of the fast request's wait for Novis and PHP, and a section that explains PHP's lock, its two ways out, and the cost of no lock: two requests of one visitor that change the same value keep the last write. The programs exist. `benches/compare/scenarios/session/main.nvs:1`, `benches/compare/scenarios/session/index.php:1`, `tools/nv/cmd/bench-compare.ts:1`, `website/src/content/docs/in-depth/compare.mdx:1`
 - [ ] The comparison re-recorded from a detached worktree, the cases first and then the rows. Novis's `hello` stays within 3% of 28,207, or the slice becomes 20 ms. `benches/compare.json:1`
 - [ ] The page's loop paragraph says what the new run measured. `website/src/content/docs/in-depth/compare.mdx:166`
@@ -299,21 +299,40 @@ Expected to go red: none new. Stage 3's note stands: budget and peak tests in `n
 `nvs-host` that read `budget::live_bytes` or `peak_bytes` across a task switch were not run, and
 stage 6 finds any that read the thread's balance where they now read the tree's.
 
+Stage 5's first four items are done. `rule:http-server/a-request-that-computes-shares-its-core`
+is shipped, with the slice, the epoch clock, the cost and the three declined designs, and tier B
+cites it. Its `guardedBy` names stage 2's serve test
+`a_served_while_true_does_not_stall_a_second_connection_on_its_core`
+(`crates/nvs-cli/src/serve.rs:5555`), which is the attack the item asks for, so no new test was
+added. `rule:http-server/time-is-bounded-inside-a-helper` says the safepoint poll also yields,
+and that a helper's batched poll (`bounded_loop`, `crates/nvs-runtime/src/abi.rs:345`) reads the
+deadline alone: a helper call is one turn. `bun nv rules --check` is clean, and the render also
+brought `docs/rules/concurrency.md` up to stage 4's fragment. `bench-compare --expect
+PEER=RESULT,...` exits 1 naming each row that missed (`parseExpect`, `unmetExpectations` in
+`tools/nv/cmd/bench-compare.ts`), and its four tests ran once by name and are green.
+
+The `lang:concurrency` perf records were stale because `docs/reference/lang/80-concurrency.md`
+changed in `7ac95e7b9`, a commit outside this goal. This session re-recorded all nine, and
+`bun nv proofs --gate --group lang:concurrency` owes nothing. The group run in the background was
+killed as a `HANG:` at `no-colouring-i-o-just-waits`, whose callgrind leg in WSL prints nothing for
+over 90 s. Alone, in the foreground, it ended in 265 s (the playbook has the trap).
+
+Expected to go red: none new. Stage 3's note stands for stage 6.
+
 The sweep's red items were stale again: `env-secret-proofs`'s own log exits 0, and nightly run
 39567373487 ran at `afbb1edc2`, before the site fix `b3ed92165`.
 
 ### Next
 
-**Stage 5**, the rule and the `--expect` flag. The group is the first four items; the bench
-re-record and the page follow once they land.
+**Stage 5**, the session row. Its gate is open: `rule:http-server/a-session-is-loaded-once-and-written-whole`
+is shipped and `defaults-that-work` is reached.
 
-- [ ] The new rule and its JSON, and tier B's row cites it: `docs/rules/http-server/a-request-that-computes-shares-its-core.md:1`, `data/rules/http-server/a-request-that-computes-shares-its-core.json:1`, `docs/rules/http-server/a-requests-blast-radius-is-bounded-at-four-tiers.md:6`
-- [ ] `rule:http-server/time-is-bounded-inside-a-helper` says the poll also yields: `docs/rules/http-server/time-is-bounded-inside-a-helper.md:1`
-- [ ] The attack is likely stage 2's serve test already (`crates/nvs-cli/src/serve.rs:5540`, on `a_runaway_then_an_answer` at `crates/nvs-cli/src/serve.rs:5389`). Name it in the rule's `guardedBy`, and add a test only if it misses what the item asks.
-- [ ] `bench-compare --expect <peer>=<result>`, parsed beside `--row`: `tools/nv/cmd/bench-compare.ts:1738`, `tools/nv/cmd/bench-compare.ts:1811`, `tools/nv/test/bench-compare.test.ts:1`
+- [ ] The row in `SCENARIOS` beside `csrf` (`tools/nv/cmd/bench-compare.ts:1268`), with a `sessionResult` beside `csrfResult` (`tools/nv/cmd/bench-compare.ts:735`) and its test. The probe needs a cookie carried between requests: `Probe::send` takes headers (`tools/nv/cmd/bench-compare.ts:339`), and a `Reply` has the `set-cookie` header. Bun and Go are `fixed` `your-code`.
+- [ ] The row's label in `website/src/lib/compare.ts:71`, and the "One visitor, two requests" chart and section in `website/src/content/docs/in-depth/compare.mdx:214`.
+- [ ] Run the row once with `bun nv bench-compare --scenarios --smoke --row session` to check the probe, if Docker is up. `benches/compare/scenarios/session/main.nvs:1`
 
 ### Backlog
 
-- Stage 5's session row is gated on `defaults-that-work` stage 7: check that gate before taking it.
-- Stage 5's re-record needs Docker and a detached worktree; `hello` within 3% of 28,207, or the slice becomes 20 ms.
+- Stage 5's re-record needs Docker and a detached worktree, the cases first and then the rows; `hello` within 3% of 28,207, or the slice becomes 20 ms. Then the page's loop paragraph (`website/src/content/docs/in-depth/compare.mdx:177`).
 - Stage 6 verifies the goal.
+- Outside this goal: `--record-perf` could print a line as each WSL leg starts and ends, so a long callgrind leg is not taken for a hang (`tools/nv/lib/hang.ts:21`).

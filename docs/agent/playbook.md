@@ -27,6 +27,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 ## Tooling
 
 ## Running things
+- **`bun nv proofs --record-perf --group lang:concurrency` run in the background is killed as a
+  `HANG:` at `no-colouring-i-o-just-waits`, and it appends nothing for the features it had already
+  measured.** That bench's callgrind leg runs in WSL and prints nothing for over 90 s, and the hang
+  watch counts only output for a tree with `wsl.exe` in it. Alone, in the foreground, it ends in about
+  265 s. Record that feature alone with `--only`, then the others.
+  `until: gone benches/members/lang/concurrency/no-colouring-i-o-just-waits.nvs`
 - **The `looper` on `PATH` may be an older build with no `verify` subcommand, and run in the
   background it exits 0 with only a usage error.** Run `bun tools/looper/main.ts verify`, the
   project's own copy, and read the log for `✓ 1:` before you trust the exit status. See
