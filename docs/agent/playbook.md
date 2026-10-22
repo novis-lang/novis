@@ -30,6 +30,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   answers `unrecognized subcommand` with exit 2. The project's copy, `tools/looper/main.ts`, has every command, so run
   `bun tools/looper/main.ts decision close <id>` instead (AGENTS.md § *Novis works without looper*).
   `until: gone tools/looper/main.ts:decision`
+- **A helper script written through a Bash heredoc into `.agent-tmp/` can lose its backslashes,
+  even under a quoted `'EOF'`.** `Core\\Xml` in the script arrived as `Core\Xml`, and as `CoreXml`
+  inside a template literal, so a replacement either missed its anchor or wrote a broken `.nvs`.
+  Write the script with the Write tool, or make a backslash-heavy edit with Edit.
+  `until: gone tools/looper/main.ts:guard`
 
 ## Running things
 - **`bun nv proofs --record-perf --group lang:concurrency` run in the background is killed as a
