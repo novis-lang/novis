@@ -55,10 +55,11 @@ allows one, the parent's own core if no placement is running on it, and then the
 The parent's core is a destination because a parent that awaits its children is parked and leaves its
 core free: under `nvs serve` on four cores, a request that places four children runs all four at once,
 where queueing the fourth behind a busy sibling took two rounds. It comes last because a child there
-shares the core with its parent. When the child the parent awaits finishes first, the parent waits
-until the child on its own core yields or ends before it runs again, since neither can move. A parent
-that awaits all its children loses nothing to that, and a parent that does work between its awaits
-pays at most one child's turn. One placement at a time is the cap on the parent's core, so a fifth
+shares the core with its parent. When the child the parent awaits finishes first, the parent runs
+again when the child on its own core next gives the core back, since neither can move. A child that
+waits gives it back at its wait, and a child that computes gives it back when its 10 ms time slice is
+used up, so the parent waits one slice at most. A parent that awaits all its children loses nothing
+to that, and a parent that does work between its awaits pays at most one slice per await. One placement at a time is the cap on the parent's core, so a fifth
 child queues behind a sibling rather than doubling up beside its parent. A process whose one core is
 the one asking runs the child where it stands, as `on: "here"` would, because the trip through its own
 inbox would buy two copies and no parallelism.

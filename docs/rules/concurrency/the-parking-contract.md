@@ -12,7 +12,9 @@ otherwise get backwards.
    retired. A registration that outlives its request is the growth with total traffic that
    `rule:programs/memory-priority` calls a leak rather than a trade-off.
 4. **The reactor blocks only when the run queue is empty and something is parked.** With work ready it
-   is polled with a zero timeout, so readiness is collected without giving up the core. There is no
-   fourth state.
+   is polled with a zero timeout, so readiness is collected without giving up the core. A task that
+   uses up its time slice is parked the same way: it wakes itself and then parks, so the core polls
+   the reactor before that task runs again, and a task that never waits cannot keep a ready
+   connection or an expired timer from its turn. There is no fourth state.
 5. **One reactor per worker**, not shared. A descriptor a request owns is registered with, and woken
    by, that request's own core — which is what keeps refcounts non-atomic.
