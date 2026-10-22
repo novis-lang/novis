@@ -10,6 +10,8 @@
     "tests/conformance/core/str-graphemes-partitions-the-subject-the-other-two-members-measure.nvst",
     "tests/conformance/core/str-graphemes-and-code-points-count-different-units.nvst",
     "tests/conformance/lang/an-interpolated-string-keeps-its-grapheme-clusters.nvst",
+    "tests/hostile/core/Csv/rows/01-a-file-an-upload-form-could-send.nvs",
+    "crates/nvs-stdlib/src/jwe.rs",
     "benches/abi-probe/tests/perf_guards.rs"
   ]
 }
