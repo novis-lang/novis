@@ -180,7 +180,11 @@ impl Ctx {
         if let Some(tree) = std::sync::Arc::get_mut(&mut self.tree) {
             *tree = TreeState::default();
         } else {
-            self.tree = std::sync::Arc::new(TreeState::default());
+            let old = std::mem::replace(&mut self.tree, std::sync::Arc::new(TreeState::default()));
+            // The running turn is the fresh tree's from here, in the units it
+            // was read in, so bytes the old request allocated and the new one
+            // frees are given back where they were charged.
+            crate::budget::reroot_turn(&old, &self.tree);
             // Beside the handle and never without it, for
             // [`Self::share_safepoint_with`]'s reason: the hot slot may not name
             // a word this context holds no share of.

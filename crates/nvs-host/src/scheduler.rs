@@ -1077,10 +1077,14 @@ impl Scheduler {
                         self.orphan(finished.id);
                         if is_root {
                             self.finished.push(finished);
+                        } else {
+                            finished.ctx.end_in_its_turn();
                         }
                         // A child's `Ctx` is dropped right here, on the
                         // scheduler's own stack, because nothing was ever going
                         // to read it back — [`Finished`] is the home of why.
+                        // It is dropped as a turn of its own tree, so the bytes
+                        // it frees leave that tree's balance.
                         // The coroutine is done, so its stack holds nothing and
                         // `into_stack` can take it — this is the one moment a
                         // stack is recyclable, and letting `task` drop here
@@ -1833,8 +1837,7 @@ mod tests {
                 let second = grows_twice.then(|| std::hint::black_box(vec![1_u8; STEP]));
                 let over = nvs_runtime::budget::over_ceiling();
                 let status = yield_a_slice(ctx);
-                seen.borrow_mut()
-                    .push((grows_twice, resumed, over, status));
+                seen.borrow_mut().push((grows_twice, resumed, over, status));
                 drop((first, second));
             });
         }
@@ -1991,9 +1994,8 @@ mod tests {
         use std::time::{Duration, Instant};
 
         let mut sched = Scheduler::new();
-        let _installed = crate::reactor::install(
-            crate::reactor::Reactor::new().expect("the OS refused a poll"),
-        );
+        let _installed =
+            crate::reactor::install(crate::reactor::Reactor::new().expect("the OS refused a poll"));
         let slot: Arc<Mutex<Option<Waker>>> = Arc::new(Mutex::new(None));
         let far = Arc::clone(&slot);
         let neighbour_ran = Rc::new(Cell::new(false));
@@ -2045,7 +2047,10 @@ mod tests {
 
         assert_eq!(report.finished, 2);
         let (seen, slices) = spinner_saw.get().expect("the spinner finished");
-        assert!(seen, "the neighbour never ran while the spinner held the core");
+        assert!(
+            seen,
+            "the neighbour never ran while the spinner held the core"
+        );
         assert!(slices >= 1);
     }
 

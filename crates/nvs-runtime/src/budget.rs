@@ -44,7 +44,11 @@
 //! [`live_bytes`] subtracts. A park stores the running tree's balance, and
 //! every resume, a task's first turn included, sets [`FOREIGN`] from the
 //! balance of the tree it resumes. That is O(1) per switch and allocates
-//! nothing.
+//! nothing. A child's context is dropped as one more turn of its tree
+//! ([`Ctx::end_in_its_turn`](crate::Ctx::end_in_its_turn)), and a connection
+//! that starts the next request's tree hands its running turn to it
+//! ([`Ctx::reroot`](crate::Ctx::reroot)), so a byte is given back on the tree
+//! it was charged to.
 //!
 //! **The unit is the tree and never one task's stack**
 //! (`rule:security/isolate-budget-is-the-trees`). A `Core\Task` child charges
@@ -583,7 +587,8 @@ impl ArmedStack {
     pub fn take() -> Self {
         let turn = TURN.with(Cell::take);
         if let Some(tree) = &turn {
-            tree.balance.store(live_bytes(), std::sync::atomic::Ordering::Relaxed);
+            tree.balance
+                .store(live_bytes(), std::sync::atomic::Ordering::Relaxed);
         }
         let live = LIVE.with(Cell::get);
         let taken = Self {
@@ -656,6 +661,34 @@ fn enter(tree: &crate::TreeState) -> isize {
 pub(crate) fn begin_turn(tree: &std::sync::Arc<crate::TreeState>) {
     FOREIGN.with(|cell| cell.set(enter(tree)));
     TURN.with(|cell| cell.set(Some(std::sync::Arc::clone(tree))));
+}
+
+/// Hands the running turn from `old` to `new` where the running stack is
+/// `old`'s turn: [`Ctx::reroot`](crate::Ctx::reroot) on a connection that
+/// serves one request after another. Both trees are given the balance as it
+/// stands, so the stack's units do not move. A carrier the connection parsed
+/// under the last request's tree and the next request frees is given back on
+/// the tree it was charged to. Without this, the connection's turns charge a
+/// tree no request reads, and each request's freed carrier stays on it.
+pub(crate) fn reroot_turn(
+    old: &std::sync::Arc<crate::TreeState>,
+    new: &std::sync::Arc<crate::TreeState>,
+) {
+    TURN.with(|cell| {
+        let running = cell.take();
+        let next = match running {
+            Some(tree) if std::sync::Arc::ptr_eq(&tree, old) => {
+                let live = live_bytes();
+                tree.balance
+                    .store(live, std::sync::atomic::Ordering::Relaxed);
+                new.balance
+                    .store(live, std::sync::atomic::Ordering::Relaxed);
+                Some(std::sync::Arc::clone(new))
+            }
+            other => other,
+        };
+        cell.set(next);
+    });
 }
 
 /// Raises [`SafepointFlags::MEMORY_LIMIT`](crate::SafepointFlags) and
@@ -1257,8 +1290,16 @@ mod tests {
         let parked = ArmedStack::take();
         let neighbour = vec![0_u8; neighbour_size];
         parked.resume();
-        assert_eq!(live_bytes(), before, "a neighbour's bytes reached a parked stack");
-        assert_eq!(armed_ceiling(), ceiling, "the ceiling moved across the switch");
+        assert_eq!(
+            live_bytes(),
+            before,
+            "a neighbour's bytes reached a parked stack"
+        );
+        assert_eq!(
+            armed_ceiling(),
+            ceiling,
+            "the ceiling moved across the switch"
+        );
         assert!(
             !over_ceiling(),
             "a neighbour's bytes took a parked stack past its own ceiling"
