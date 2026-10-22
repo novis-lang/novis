@@ -67,10 +67,12 @@
 //      with git's reason, with the goal put back and still live;
 //    - `BLOCKED`, from any kind of session (`Driver.blocked`): each open parked decision the session
 //      asked becomes a blocker (`block` in `decisions.ts`), and the loop holds on their ids with the
-//      session's reason. A line with none is retried once, told to file one, and the second such line
-//      in a row holds on the reason alone;
-//    - `DONE` while a decision stands, open or answered: a retry handed why, and a `decisions` hold
-//      on the second such claim in a row;
+//      session's reason. A session that asked none holds on the decisions already open. A line with no
+//      open decision is retried once, told to file one, and the second such line in a row holds on the
+//      reason alone;
+//    - `DONE` while a decision is open: each open one becomes a blocker, and a `decisions` hold;
+//    - `DONE` while only answered decisions stand: a retry handed why, and a `decisions` hold on the
+//      second such claim in a row;
 //    - `DONE` refused: a retry handed the reasons, up to `done_retries`, then a `done-claim` repair;
 //    - `max_stalls` sessions in a row without a commit: a `stalled` repair;
 //    - otherwise continue.
@@ -131,7 +133,7 @@ export const RESUME_PROMPT =
 
 /** The opening prompt of an ordinary session. `{status}` stands for the status file's path. */
 export const SESSION_PROMPT =
-  "You are one session of a looper loop working on this project. The orientation pack below names the live goal, its live stage, the last session's handoff and the traps. Take the next group of work from the handoff, check it as AGENTS.md § *Session workflow* says, commit it, and overwrite the goal's ## Handoff with where the work stands. Then write one line to {status}: `CONTINUE <what landed>`, `DONE <the goal reached>` or `BLOCKED <the decision only the user can make>`. Before BLOCKED, file that decision with `looper decision ask --parked`, its options and your recommendation. Then stop.";
+  "You are one session of a looper loop working on this project. The orientation pack below names the live goal, its live stage, the last session's handoff and the traps. Take the next group of work from the handoff, check it as AGENTS.md § *Session workflow* says, commit it, and overwrite the goal's ## Handoff with where the work stands. Then write one line to {status}: `CONTINUE <what landed>`, `DONE <the goal reached>` or `BLOCKED <the decision only the user can make>`. Before BLOCKED, file that decision with `looper decision ask --parked`, its options and your recommendation, unless you wait only on decisions already open. Then stop.";
 
 /** The opening prompt of a repair session, which the verdict follows. `{status}` as in `SESSION_PROMPT`. */
 export const REPAIR_PROMPT =
@@ -1021,7 +1023,12 @@ export class Driver {
     s.blockedClaims = 0;
     if (waits !== null) {
       s.decisionClaims++;
-      if (s.decisionClaims > 1) {
+      // Only the user can answer an open decision, so the loop holds on each one at once.
+      let held: string[] = [];
+      try {
+        held = (await block(this.dir, readDecisions(this.dir).decisions.map((x) => x.id))).map((x) => x.id);
+      } catch {}
+      if (s.decisionClaims > 1 || held.length > 0) {
         s.decisionClaims = 0;
         s.mode = "work";
         s.verdict = "";
@@ -1107,15 +1114,19 @@ export class Driver {
 
   /**
    * Step 8 for the `BLOCKED` line `status` of `who`, a session that started at `started`. Each open parked
-   * decision it asked becomes a blocker, and the loop holds on their ids. A line with none is retried
-   * once in the same mode, told to file one, and the second in a row holds on the reason alone.
+   * decision it asked becomes a blocker, and the loop holds on their ids. A session that asked none is
+   * blocked on the decisions already open, so those become the blockers. A line with no open decision
+   * at all is retried once in the same mode, told to file one, and the second in a row holds on the
+   * reason alone.
    */
   private async blocked(who: string, status: string, started: number): Promise<Outcome> {
     const s = this.state;
     let ids: string[] = [];
     try {
-      const asked = readDecisions(this.dir).decisions.filter((x) => x.answer === null && x.builtOn === null && x.at >= started);
-      if (asked.length > 0) ids = (await block(this.dir, asked.map((x) => x.id))).map((x) => x.id);
+      const open = readDecisions(this.dir).decisions.filter((x) => x.answer === null);
+      const asked = open.filter((x) => x.builtOn === null && x.at >= started);
+      const on = asked.length > 0 ? asked : open;
+      if (on.length > 0) ids = (await block(this.dir, on.map((x) => x.id))).map((x) => x.id);
     } catch {}
     if (ids.length === 0 && s.blockedClaims === 0) {
       s.blockedClaims = 1;

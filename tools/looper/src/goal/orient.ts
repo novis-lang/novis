@@ -426,7 +426,7 @@ function doneSteps(file: string, scratch: string, atGate: boolean): string {
     `2. Overwrite ## Handoff in ${file} (### State, ### Next with anchors, ### Backlog), naming the tests you expect to go red; tick finished items; set a stage's status to done in the front matter when its items are done and its checks pass.`,
     "3. A playbook bullet if a trap cost you time.",
     `4. One commit per slice, once its build is green${atGate ? " and verify is green" : ""}: \`git add <the slice's paths>\` then \`git commit -F ${scratch}/msg.txt\`.`,
-    `5. Write .loop/status.txt with one line: CONTINUE <what landed> | DONE <goal reached> | BLOCKED <the decision only the user can make>. Before BLOCKED, file that decision with \`${TOOL} decision ask --parked\`, its options and your recommendation. A decision that leaves other work to do goes to \`${TOOL} decision ask\` instead of BLOCKED. Then stop.`,
+    `5. Write .loop/status.txt with one line: CONTINUE <what landed> | DONE <goal reached> | BLOCKED <the decision only the user can make>. Before BLOCKED, file that decision with \`${TOOL} decision ask --parked\`, its options and your recommendation. A decision that leaves other work to do goes to \`${TOOL} decision ask\` instead of BLOCKED. Never ask a decision about decisions already open: the loop holds on them, and the user's answers resume it. Then stop.`,
   ].join("\n");
 }
 

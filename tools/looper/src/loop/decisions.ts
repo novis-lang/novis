@@ -10,13 +10,16 @@
 //   lose each other's change. `next` numbers the ids, so an id is never reused within a loop.
 // - **An answer is also a `say` to the loop** (`appendControl`), appended once the record holds it. The
 //   running session reads it at its next turn, and between sessions it becomes a note.
-// - **A blocker is a decision that holds the loop.** The driver marks a `BLOCKED` session's open parked
-//   decisions `blocking` with `block`. The first answer that leaves no blocker open appends a `resume`
-//   after its `say`, by the answer's asker. A file without the field reads as not blocking.
+// - **A blocker is a decision that holds the loop.** The driver marks decisions `blocking` with `block`:
+//   a `BLOCKED` session's open parked ones, or every open one when it asked none or claimed `DONE`. The
+//   first answer that leaves no blocker open appends a `resume` after its `say`, by the answer's asker.
+//   A file without the field reads as not blocking.
 // - **Every decision carries a discussion,** its `thread` of messages by the user or by `advisor`.
 //   `discuss` is `post` then `reply`. `post` appends the user's message and writes the file, so a reader
 //   sees it at once. `reply` runs the advisor outside the mutex, and appends its reply under it. A
 //   detached process may run `reply` alone. A file without the field reads as an empty thread.
+// - **The advisor reads the loop's other decisions** after the thread (`adviceRequest`), each with its
+//   answer or that it is open, so it can tell what the user answered elsewhere.
 // - **One advisor runs per decision.** `discuss` refuses while the thread's last message is the user's,
 //   unless it is older than any run can be, because a killed `discuss` left it unanswered. A run that
 //   fails or outlasts `ADVISOR_MS` leaves a reply that starts `The advisor could not answer:`.
@@ -235,13 +238,17 @@ function find(d: Decisions, id: string): Decision {
   return found;
 }
 
-/** The `say` a session reads for `decision`'s answer. */
-export function sayText(decision: Decision): string {
+/** The answered `decision`'s answer as a sentence's end: the option or the own text, then any note. */
+function answerText(decision: Decision): string {
   const a = decision.answer as Answer;
   const chosen = a.option !== null ? `option ${a.option}, "${decision.options[a.option - 1]}"` : `"${a.text}"`;
-  const note = a.note === null ? "" : ` Their note: "${a.note}".`;
+  return `${chosen}.${a.note === null ? "" : ` Their note: "${a.note}".`}`;
+}
+
+/** The `say` a session reads for `decision`'s answer. */
+export function sayText(decision: Decision): string {
   return (
-    `The user answered decision ${decision.id}, "${decision.question}": ${chosen}.${note}` +
+    `The user answered decision ${decision.id}, "${decision.question}": ${answerText(decision)}` +
     ` Record it under ## Standing decisions, then run \`looper decision close ${decision.id}\`.`
   );
 }
@@ -385,14 +392,24 @@ function cut(text: string, max: number): string {
   return `${kept.replace(/�+$/, "")}${marker}`;
 }
 
-/** What the advisor reads of `decision`: the question, the options, the session's stance and the thread. */
-export function adviceRequest(decision: Decision): string {
+/**
+ * What the advisor reads of `decision`: the question, the options, the session's stance and the thread.
+ * Then each other decision of `all`, the loop's decisions, with its answer or that it is open.
+ */
+export function adviceRequest(decision: Decision, all: Decision[]): string {
   const stance = decision.builtOn === null ? "It parked the work that hangs on the answer." : `It built on option ${decision.builtOn}.`;
   const out = [`======== THE DECISION: ${decision.id} ========`, "", decision.question, ""];
   decision.options.forEach((o, i) => out.push(`${i + 1}. ${o}${i + 1 === decision.recommend ? " (the session recommends it)" : ""}`));
   out.push("", `The session asked it as ${decision.by}. ${stance}${decision.item === null ? "" : ` The work is ${decision.item}.`}`);
   if (decision.blocking) out.push("The loop is held until the user answers it.");
   out.push("", "======== THE DISCUSSION ========", "", ...threadLines(decision.thread, ""));
+  const others = all.filter((x) => x.id !== decision.id);
+  if (others.length > 0) {
+    out.push("", "======== THE LOOP'S OTHER DECISIONS ========", "");
+    for (const x of others) {
+      out.push(`- ${x.id}: ${x.question}`, `  ${x.answer === null ? "Still open." : `The user answered ${answerText(x)}`}`);
+    }
+  }
   return out.join("\n");
 }
 
