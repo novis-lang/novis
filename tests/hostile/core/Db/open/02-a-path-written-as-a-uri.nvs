@@ -1,0 +1,24 @@
+<?nvs
+// Attack: a program opens SQLite with a `path` that starts with `file:`. SQLite
+// reads such a path as a URI and can open a file the program has no grant for.
+// Every one of these paths should throw an error.
+
+// 1. URIs that open a database in memory, one with an escaped `..` and one with
+// an option SQLite reads. If any of them opens, this step throws an error.
+array<string> $uris = [
+    'file::memory:',
+    'file:shared-notes?mode=memory&cache=shared',
+    'file:/../data/%2E%2E/%2E%2E/escaped.sqlite?mode=ro',
+    'file:notes.sqlite?vfs=unix-none',
+];
+uint $refused = 0;
+foreach ($uris as string $uri) {
+    try {
+        var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: $uri });
+        $db->close();
+        throw new LogicError('a path that starts with file: opened');
+    } catch (RuntimeError $error) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, ' of ', Core\Arr::count($uris), "\n";
