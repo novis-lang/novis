@@ -179,7 +179,7 @@ fn device_refusal(path: &Path, member: &str) -> Result<(), Fault> {
 /// # Errors
 ///
 /// A catchable `RuntimeError` naming `member`, the path and what it spells.
-fn alias_refusal(path: &Path, member: &str) -> Result<(), Fault> {
+pub fn alias_refusal(path: &Path, member: &str) -> Result<(), Fault> {
     let text = path.to_string_lossy();
     match nvs_config::capability::windows_alias(&text) {
         Some(why) => Err(Fault::thrown(format!(
