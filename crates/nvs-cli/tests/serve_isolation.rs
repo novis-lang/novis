@@ -694,3 +694,41 @@ fn every_request_that_calls_an_extension_ends_its_instance() {
         2 * LISTINGS
     );
 }
+
+/// The program the held-instance case serves: one call into `Novis\Intl`, then a wait, so the
+/// request keeps its instance while the others start.
+const LISTING_HELD: &str = "<?nvs\n\
+use Novis\\Intl\\ListFormat;\n\
+var $listed = ListFormat::join([[\"Shop\", \"Blog\", \"Wiki\"]], \"en\")[0];\n\
+Core\\Time::sleep(Core\\Time\\Duration::milliseconds(500));\n\
+echo $listed;\n";
+
+/// Requests the held-instance case keeps in flight together: past the 64 instances the host once
+/// had room for, and under its `max_in_flight`.
+const HELD_LISTINGS: usize = 100;
+
+/// Every request in flight can hold an extension instance at once, because the host's pool is
+/// sized from `max_in_flight` (`rule:packaging/a-fresh-instance-per-request`). 100 requests that
+/// each keep an instance while the others start all answer correctly.
+#[test]
+fn every_request_in_flight_can_hold_an_extension_instance() {
+    let server = Server::serving(
+        "held-instances",
+        2,
+        LISTING_HELD,
+        "max_in_flight = 200\n",
+        &[],
+    );
+    let addr = server.addr;
+    let threads: Vec<_> = (0..HELD_LISTINGS)
+        .map(|_| thread::spawn(move || Client::connect(addr).get("/")))
+        .collect();
+    for (request, thread) in threads.into_iter().enumerate() {
+        assert_eq!(
+            thread.join().expect("the client thread panicked"),
+            "Shop, Blog, and Wiki",
+            "request {request} of {HELD_LISTINGS} in flight together; the server wrote: {}",
+            server.said()
+        );
+    }
+}

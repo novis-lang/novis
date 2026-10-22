@@ -11,8 +11,15 @@
 //! **The engine is made for the first entry.** A configuration with no `[[extension]]` creates no
 //! engine, and its boot and reload pay one empty loop. The engine is the process's one
 //! `nvs_ext::call::Host`'s, because a component runs only in the engine that compiled it. The host
-//! has room for [`SLOTS`] instances at once and links only the world's own imports. A guest holds
-//! the files and hosts its effective grant names, and no other authority.
+//! links only the world's own imports. A guest holds the files and hosts its effective grant
+//! names, and no other authority.
+//!
+//! **The host has room for every request in flight.** Its pool of instances is sized once, from
+//! the configuration of the first boot ([`size_pool`]): `max_in_flight` times the classes one
+//! request can call, so every request in flight can hold an instance of each. [`MOST_SLOTS`] caps
+//! it, because each instance reserves address space for its memory. A reload that raises
+//! `max_in_flight` or adds a class cannot grow a pool that exists: past the boot's size, a call
+//! that needs a new instance throws `ExtensionError`, and the next boot takes the new size.
 //!
 //! **A call** (`rule:packaging/extension-calls-are-statically-typed`). [`Calls`] implements
 //! `nvs_runtime::extension::Extensions` over one `nvs_ext::call::Request`, made at the run's first
@@ -82,6 +89,7 @@
 //! entry per component file per build, under the cache's own size cap.
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -107,9 +115,20 @@ use nvs_stdlib::ext_record::Part;
 
 use crate::cache::Cache;
 
-/// How many instances the process's host has room for at once, across every request. Each slot
-/// reserves address space for one instance, not committed memory.
-const SLOTS: u32 = 64;
+/// The most instances the process's host has room for at once, across every request. Each slot
+/// reserves address space, not committed memory: 6 GiB for its linear memory (wasmtime's 4 GiB
+/// reservation, which lets compiled guest code skip bounds checks, and its 2 GiB guard), so 4096
+/// slots are 24 TiB of the 128 TiB a 64-bit process can address. The rest stays for task stacks
+/// and the JIT.
+const MOST_SLOTS: u32 = 4096;
+
+/// The slots of a host made before any configuration was read, as `nvs ext build` makes one to
+/// check what it packs. Such a process serves no requests, so a few instances at once are enough.
+const UNSIZED_SLOTS: u32 = 64;
+
+/// How many slots [`host`] makes the pool with: [`UNSIZED_SLOTS`] until [`size_pool`] reads a
+/// configuration.
+static SLOTS: AtomicU32 = AtomicU32::new(UNSIZED_SLOTS);
 
 /// The process's one host, made by the first [`loaded`] that has an entry to load, or by the first
 /// call into a built-in component.
@@ -185,6 +204,7 @@ pub(crate) fn loaded(
     origins: &BTreeMap<String, Origin>,
     sources: &SourceMap,
 ) -> Result<Set, Diagnostic> {
+    size_pool(config);
     let mut set = Set::default();
     let mut cached: Option<Loader> = None;
     for (index, written) in config.extension.iter().enumerate() {
@@ -241,6 +261,28 @@ pub(crate) fn loaded(
     Ok(set)
 }
 
+/// Sizes the host's pool from `config`, where no host exists yet: `max_in_flight` times the
+/// classes one request can call, the built-in components and each `[[extension]]` entry, and at
+/// most [`MOST_SLOTS`]. The module doc's *the host has room for every request in flight*.
+fn size_pool(config: &Config) {
+    if HOST.get().is_some() {
+        return;
+    }
+    let in_flight = config
+        .server
+        .as_ref()
+        .and_then(|server| server.max_in_flight)
+        .unwrap_or(nvs_config::defaults::SERVER_MAX_IN_FLIGHT);
+    let classes = with_built_in(Vec::new()).len() + config.extension.len();
+    let slots = in_flight
+        .saturating_mul(u64::try_from(classes.max(1)).unwrap_or(u64::MAX))
+        .min(u64::from(MOST_SLOTS));
+    SLOTS.store(
+        u32::try_from(slots).unwrap_or(MOST_SLOTS),
+        Ordering::Relaxed,
+    );
+}
+
 /// The manifests of `config`'s `[[extension]]` entries, read without compiling a component: what
 /// the compiler types an extension call against (`rule:packaging/extension-calls-are-statically-typed`).
 ///
@@ -294,7 +336,7 @@ fn host() -> Result<&'static Host, String> {
     if let Some(host) = HOST.get() {
         return Ok(host);
     }
-    let host = Host::new(SLOTS, |_| Ok(()))
+    let host = Host::new(SLOTS.load(Ordering::Relaxed), |_| Ok(()))
         .map_err(|err| format!("the WebAssembly engine did not start: {err:#}"))?;
     Ok(HOST.get_or_init(|| host))
 }
