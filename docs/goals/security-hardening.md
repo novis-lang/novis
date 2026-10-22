@@ -160,12 +160,22 @@ assume. Safe default if the corpus has a pattern the rule cannot express: a tagg
 for classes whose constructor lets `$this` escape, one compare and branch per read on those classes
 only, with the cost written in the rule.
 
-**Stage 3: bytes that are not UTF-8 throw where they enter.** `Core\Csv::rows` and `Core\Csv::parse`
-throw `Core\Csv\Error` naming the line. `Core\Jwe::decrypt` throws its own error. No string is made
-from unchecked bytes anywhere but `crates/nvs-runtime/src/string.rs`, and a `bun nv lints` rule
-refuses `from_utf8_unchecked` and the unchecked `NvsStr` constructor outside it, with an allow list
-that names each audited site and its reason. Replacing bad bytes with U+FFFD is declined: it changes
-the data silently, and a later check can still be fooled by the overlong form `C0 BC`.
+**Stage 3: bytes that are not UTF-8 throw where they enter.** `Core\Csv::rows` throws `ParseError`
+naming the line, and `Core\Jwe::decrypt` throws `ParseError` once its tag holds. `ParseError` is what
+`Core\Json::decode` already throws for input that is not its format, and a new `Core\Csv\Error` class
+would be a `Core` member this goal does not add (safe default, taken 2026-10-22). `Core\Csv::parse`
+needs no check: its input is a `string`, and it cuts and removes ASCII bytes only. No string is made
+from unchecked bytes outside audited sites. `clippy.toml`'s `disallowed-methods` is the list, not a
+`bun nv lints` text rule: clippy resolves paths, so a re-export cannot hide a call, and each audited
+site says why in `#[expect(clippy::disallowed_methods, reason)]`. Replacing bad bytes with U+FFFD is
+declined in `rule:types/string-is-utf8`.
+
+**Stage 3's second half: `Value::str` is the door.** A `string` value is made from an `NvsStr` only
+through `Value::str`, which takes bytes and checks nothing. It joins `clippy.toml`'s list.
+`Value::text(&str)` is added beside it, typed UTF-8 by Rust, and every site that starts from a `&str`
+or a byte literal moves to it mechanically. Every other site either checks with `std::str::from_utf8`
+and throws, or keeps `Value::str` under an `expect` that says why its bytes are UTF-8.
+`dispatch.rs:850`'s `Ctx::str(&str)` already has the safe shape.
 
 **Stage 4: a keystone test reads every `Core` signature.** It fails naming each member whose return
 contains `string`, or an array or shape of it, while a parameter is a qualified container
@@ -313,11 +323,15 @@ written.
 
 **Does:** RT-3's two-byte CSV throws an error for that request, and no other unchecked path is left.
 
-- [ ] RT-3: `Core\Csv::rows` and `::parse` validate each field and throw `Core\Csv\Error` with the line (`rule:types/string-is-utf8`). `crates/nvs-stdlib/src/csv.rs:799`
-- [ ] RT-3: `Core\Jwe::decrypt` validates its plaintext. `crates/nvs-stdlib/src/jwe.rs:1`
-- [ ] The lint: `from_utf8_unchecked` and the unchecked `NvsStr` constructor only in `string.rs` and the audited allow list. `tools/nv/cmd/lints.ts:70`
-- [ ] Fix every other site the lint names. `crates/nvs-runtime/src/string.rs:1050`
-- [ ] The attack: an upload of `FF 0A` and of `C0 BC`, then the next request answers. A debug build hides the crash: `text_of`'s `debug_assert` stops the request first, so the attack is judged on a release build. `tests/hostile/core/Csv/rows/01-a-file-an-upload-form-could-send.nvs:1`
+- [x] RT-3: `Core\Csv::rows` validates each field and throws `ParseError` with the line; `::parse` needs no check, and its docs say why (`rule:types/string-is-utf8`). `0259de321`. `crates/nvs-stdlib/src/csv.rs:1000`
+- [x] RT-3: `Core\Jwe::decrypt` validates its plaintext, with a Rust attack beside it. `69dcbb666`. `crates/nvs-stdlib/src/jwe.rs:1034`
+- [x] The lint, first half: `from_utf8_unchecked` in its three forms is in `clippy.toml`'s `disallowed-methods`, and the three audited sites carry an `expect`. `7141bbf8d`. `clippy.toml:1`
+- [ ] The lint, second half: `Value::str` joins the list, and `Value::text(&str)` is added (the standing decision *Stage 3's second half*). `crates/nvs-runtime/src/value.rs:341`
+  - [ ] `Value::text(&str)` in `value.rs`, with a doc line, and `Value::str`'s doc says it checks nothing
+  - [ ] `nvs_runtime::value::Value::str` in `clippy.toml`; confirm clippy names a site in `nvs-stdlib` (touch `src/lib.rs` first, since clippy does not see a `clippy.toml` change)
+  - [ ] the mechanical sweep: `Value::str(NvsStr::new(x.as_bytes()))` (404) and `Value::str(NvsStr::new(b"..."))` (343) become `Value::text(...)`, split by crate over writing subagents
+- [ ] Fix every other site the lint names: about 240 `Value::str` calls whose bytes are a `Vec<u8>` or `&[u8]`, each checked and thrown or kept under an `expect` that says why. `crates/nvs-stdlib/src/csv.rs:799`
+- [x] The attack: an upload of `FF 0A` and of `C0 BC`, then the program runs on. Before the fix, the release binary panicked in `unicode-segmentation` at step 6. After it, steps 6 and 7 each throw a `ParseError`, and the program runs to its end. `tests/hostile/core/Csv/rows/01-a-file-an-upload-form-could-send.nvs:67`
 
 ### 4. one test walks every Core signature for a lost mark, and `Core\Arr` and `Core\Str` keep it
 
@@ -472,37 +486,44 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 2 is done. RT-1 landed in `db6a51bd2`. `E0885` (`E_CONSTRUCTOR_CALLED_DIRECTLY`,
-`crates/nvs-diagnostics/src/code/types_e08.rs`) refuses `$x->constructor(...)` in
-`infer_method_call`. In `infer_static_call` it refuses a class-side call, a constructor reference, and
-`parent::constructor(...)` outside a constructor's own body. A second parent call on a path is refused
-in `crates/nvs-types/src/ctor_init.rs` (`PARENT_CALL` in the `written` set). One reference still
-compiles: the first argument of `Core\Attributes::get`/`all`, which `note_retrieval_target` marks in
-`env.method_ref_args`. Before this, `Box::constructor(...)` used as a value panicked `nvs-ir`
-(`lower/expr.rs:3245`). At run time, `call_erased_method_from` (`crates/nvs-runtime/src/dispatch.rs`)
-throws a `LogicError` for the name `constructor`, which covers `mixed` and `Core\Reflect\ClassInfo::call`.
-`construct_erased_from` goes through `call_erased_unchecked`. The goal said `Error`, and `LogicError`
-is what every other erased-call refusal throws. Eight conformance cases still used the pre-two-phase
-order and are ported (`162243223`). The conformance tree is 3092/3092 green on the debug build, and
-`bun nv verify --fast -p nvs-types` is green. `ctor_init.rs` is rustfmt-clean (`11bd129f3`).
+Stage 3 is half done. `Core\Csv::rows` throws `ParseError` naming the line the bad field ends on
+(`0259de321`, `RowReader::step` in `crates/nvs-stdlib/src/csv.rs`), and the walk ends there. The
+attack's steps 6 and 7 write `61 0A FF 0A 62` and `61 2C C0 BC` through a `Write` handle. The release
+binary from before the fix panicked at step 6 in `unicode-segmentation`. Each step now prints
+`... throws a ParseError`, and `bun nv proofs --run --id 'Core\Csv::rows'` is green. `Core\Csv::parse`
+gets no check, and its docs say why. `Core\Jwe::decrypt` throws `ParseError` after the tag holds
+(`69dcbb666`), and `decrypt_throws_for_a_payload_that_opens_and_is_not_utf8` beside it passes.
+`rule:types/string-is-utf8` says both, declines U+FFFD, and lists both attacks in `guardedBy`.
+`clippy.toml` now refuses `from_utf8_unchecked` in its three forms, and the three audited sites
+(`string.rs` twice, `json.rs:912`) carry an `expect` (`7141bbf8d`). Two calls differ from the goal's
+first wording, and the standing decision now records both: `ParseError` replaces a new
+`Core\Csv\Error`, and `clippy.toml` replaces a `bun nv lints` text rule.
 
-The sweep's `env-secret-proofs` red does not reproduce: run alone it exits 0, as it did last session.
-Nightly run 39746060276 was cancelled whole and is not a failure of this tree.
+Trap: clippy does not see a change to `clippy.toml`. Touch a crate's `src/lib.rs` to make it look
+again.
 
-Tests that may go red: an `nvs-ir` lowering snapshot of a class with an observer, a guard, `LateInit`
-or a hook (from RT-2's pipeline guard). Also a Rust test whose inline program calls `constructor` by
-name (none found by grep). And a website code page that lists every diagnostic code, which now has `E0885`.
+The sweep's `env-secret-proofs` red is stale: its log shows exit 0. Nightly run 39746060276 was
+cancelled whole and is not a failure of this tree.
+
+Tests that may go red: a website or reference page that lists `Core\Csv::rows`'s or
+`Core\Jwe::decrypt`'s errors, since both now name `ParseError`. Also, from stage 2: an `nvs-ir`
+lowering snapshot of a class with an observer, a guard, `LateInit` or a hook. And a page that lists
+every diagnostic code, which now has `E0885`.
 
 ### Next
 
-1. Stage 3, RT-3: `Core\Csv::rows` and `::parse` validate each field and throw `Core\Csv\Error`
-   naming the line, `crates/nvs-stdlib/src/csv.rs:799`. Write the attack first:
-   `tests/hostile/core/Csv/rows/01-a-file-an-upload-form-could-send.nvs` with `FF 0A` and `C0 BC`,
-   judged on a release build (a debug build's `text_of` `debug_assert` hides the crash).
-2. `Core\Jwe::decrypt` validates its plaintext, `crates/nvs-stdlib/src/jwe.rs`.
-3. The lint in `tools/nv/cmd/lints.ts:70`: `from_utf8_unchecked` and the unchecked `NvsStr`
-   constructor only in `crates/nvs-runtime/src/string.rs` and an audited allow list. Then fix every
-   site it names (`string.rs:1050` is the constructor).
+1. The lint's second half, as the standing decision *Stage 3's second half* says.
+   `crates/nvs-runtime/src/value.rs:341` is `Value::str`. Add `Value::text(&str)` there, and put
+   `nvs_runtime::value::Value::str` in `clippy.toml`. Then touch `crates/nvs-stdlib/src/lib.rs` and
+   run clippy once to see the list. The tree has 989 `Value::str(` calls in 104 files, under
+   `crates/` and `benches/`. 404 of them are `NvsStr::new(x.as_bytes())` and 343 are
+   `NvsStr::new(b"...")`, and these become `Value::text(...)` with no review. Split that sweep by
+   crate over writing subagents with disjoint files, and build once after they all end.
+2. The roughly 240 that are left take a `Vec<u8>` or a `&[u8]`. Each one either checks with
+   `std::str::from_utf8` and throws, or keeps `Value::str` under an `expect` that says why its bytes
+   are UTF-8. `csv.rs:799` (`row`) is one of them: its fields are already checked in `rows` and
+   ASCII-cut in `parse`. Use a read-only subagent to list them by file first.
+3. Then stage 4, the keystone taint test, `crates/nvs-stdlib/tests/taint_signatures.rs`.
 
 ### Backlog
 
