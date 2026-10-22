@@ -1,0 +1,158 @@
+<?nvs
+// Attack: a generator stops inside `try`, and the program then deletes it. Its `finally`
+// tries to save the generator in a property, a static property or an array. The saved
+// value should be `null` or a generator that is finished, and nothing should crash.
+// covers: lang:iteration/generators
+// hostile: timeout-ms 30000
+
+class Holder
+{
+    public ?Iterator<int> $gen = null;
+    public ?Iterator<int> $copy = null;
+    public array<?Iterator<int>> $list = [];
+
+    // The `finally` copies the property that had this generator.
+    public function numbers(): Iterator<int>
+    {
+        try {
+            yield 1;
+            yield 2;
+        } finally {
+            $this->copy = $this->gen;
+            if (Core\Arr::count($this->list) > 0) {
+                $this->copy = $this->list[0];
+            }
+        }
+    }
+}
+
+class Store
+{
+    public static ?Iterator<int> $gen = null;
+    public static ?Iterator<int> $copy = null;
+    public static uint $finallies = 0;
+
+    // The `finally` copies the static property that had this generator.
+    public static function numbers(): Iterator<int>
+    {
+        try {
+            yield 1;
+            yield 2;
+        } finally {
+            Store::$finallies = Store::$finallies + 1;
+            Store::$copy = Store::$gen;
+        }
+    }
+
+    // Starts a generator in a local variable. The variable is deleted when the function ends.
+    public static function local(): void
+    {
+        Iterator<int> $g = Store::numbers();
+        $g->advance();
+        Store::$copy = null;
+    }
+
+    // Uses a saved generator in every way: `advance()`, `current()` and `foreach`.
+    // It returns how many values it read.
+    public static function useAgain(?Iterator<int> $kept): int
+    {
+        if ($kept == null) {
+            return 0;
+        }
+        int $read = 0;
+        if ($kept->advance()) {
+            $read = $read + 1;
+        }
+        try {
+            $kept->current();
+            $read = $read + 1;
+        } catch (Throwable $e) {
+        }
+        foreach ($kept as int $v) {
+            $read = $read + 1;
+        }
+        return $read;
+    }
+}
+
+// 1. Deletes the generator by writing `null` to its property. The `finally` copies
+//    the property, 10000 times.
+Holder $h = new Holder();
+Iterator<int> $g = $h->numbers();
+uint $kept = 0;
+int $read = 0;
+uint $i = 0;
+while ($i < 10000) {
+    $g = $h->numbers();
+    $g->advance();
+    $h->gen = $g;
+    $g = $h->numbers();
+    $h->gen = null;
+    if ($h->copy != null) {
+        $kept = $kept + 1;
+    }
+    $read = $read + Store::useAgain($h->copy);
+    $h->copy = null;
+    $i = $i + 1;
+}
+echo '1: kept ', $kept, ', values read ', $read, "\n";
+
+// 2. Deletes the generator by emptying the array that had it. The `finally` copies
+//    the first element of the array, 10000 times.
+$kept = 0;
+$read = 0;
+$i = 0;
+while ($i < 10000) {
+    $g = $h->numbers();
+    $g->advance();
+    $h->list = [$g];
+    $g = $h->numbers();
+    $h->list = [];
+    if ($h->copy != null) {
+        $kept = $kept + 1;
+    }
+    $read = $read + Store::useAgain($h->copy);
+    $h->copy = null;
+    $i = $i + 1;
+}
+echo '2: kept ', $kept, ', values read ', $read, "\n";
+
+// 3. Deletes the generator by writing `null` to a static property, 10000 times.
+$kept = 0;
+$read = 0;
+$i = 0;
+while ($i < 10000) {
+    $g = Store::numbers();
+    $g->advance();
+    Store::$gen = $g;
+    $g = Store::numbers();
+    Store::$gen = null;
+    if (Store::$copy != null) {
+        $kept = $kept + 1;
+    }
+    $read = $read + Store::useAgain(Store::$copy);
+    Store::$copy = null;
+    $i = $i + 1;
+}
+echo '3: kept ', $kept, ', values read ', $read, "\n";
+
+// 4. Deletes the generator when the local variable that had it ends, 10000 times.
+//    The `finally` runs once for each generator.
+Store::$finallies = 0;
+$i = 0;
+while ($i < 10000) {
+    Store::local();
+    $i = $i + 1;
+}
+echo '4: finally ran ', Store::$finallies, " times\n";
+
+// 5. Keeps the generator in two places and deletes one of them. The other one still
+//    works, so the loop reads the value 2 and then stops.
+$g = $h->numbers();
+$g->advance();
+$h->gen = $g;
+$h->copy = $g;
+$g = $h->numbers();
+$h->gen = null;
+echo '5: values read ', Store::useAgain($h->copy), "\n";
+$h->copy = null;

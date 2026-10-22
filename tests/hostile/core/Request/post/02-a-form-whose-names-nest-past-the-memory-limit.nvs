@@ -1,0 +1,16 @@
+<?nvs
+// Attack: a client sends a form with one field name nested twenty thousand levels deep.
+// Each level makes a new array. The program lowers its memory limit first, so reading
+// the form should stop at that limit and not crash.
+// hostile: ends-early 2 FATAL
+
+// 1. Reads the body as plain bytes. This does not build the arrays, so it works.
+tainted bytes $raw = Core\Request::bytes();
+echo 'body: ', Core\Bytes::length($raw) > 40000 ? 'more than 40000 bytes' : 'short', "\n";
+
+// 2. Lowers the memory limit to `256K` and reads one field. Building the deep name
+//    needs much more memory than that, so the read stops the program.
+echo "step 2\n";
+echo 'limit lowered: ', Core\Config::set('limits.memory', '256K') ? 'yes' : 'no', "\n";
+?tainted string $name = Core\Request::post('name');
+echo 'not reached: ', $name ?? 'null', "\n";
