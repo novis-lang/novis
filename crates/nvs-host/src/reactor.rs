@@ -159,6 +159,17 @@ pub use mio::event::Source;
 /// and the alternative is a buffer that grows with concurrency.
 pub const EVENT_CAPACITY: usize = 256;
 
+/// How many queued wake ids [`Remote::pending`] has room for before its
+/// first push.
+///
+/// A task that yields its slice wakes itself, so that push runs in the
+/// request's own turn. Reserved here, the room is the core's: a request's
+/// first yield does not charge it a buffer that outlives it, and a memory
+/// reading stays the same across a round in which the request yielded.
+/// [`Reactor::drain_remote`] keeps the capacity, so only a burst of more
+/// wakes than this grows it again. **What it spends:** 512 bytes per core.
+const PENDING_CAPACITY: usize = 64;
+
 /// The one token in this reactor that is not a [`TaskId`].
 ///
 /// A cross-thread wake arrives through `mio`'s own waker, which needs a token
@@ -399,7 +410,7 @@ impl Reactor {
             timers: Timers::default(),
             remote: Arc::new(Remote {
                 waker,
-                pending: Mutex::new(Vec::new()),
+                pending: Mutex::new(Vec::with_capacity(PENDING_CAPACITY)),
                 outstanding: AtomicUsize::new(0),
             }),
             _pinned_to_one_thread: PhantomData,

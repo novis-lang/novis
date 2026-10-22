@@ -1518,4 +1518,24 @@ mod tests {
         }
         assert!(!reached.get(), "the first throw stops the rest");
     }
+
+    /// A slice's yield charges the request nothing: the wake it queues for
+    /// itself lands in room the reactor reserved, so a request's balance reads
+    /// the same after its first yield as before it.
+    #[test]
+    fn a_first_yield_charges_the_request_no_bytes() {
+        let _reactor = reactor::install(Reactor::new().expect("the OS refused a poll"));
+        let mut sched = Scheduler::new();
+        let moved = Rc::new(std::cell::Cell::new(isize::MAX));
+        let seen = Rc::clone(&moved);
+        sched.spawn(ctx(), TaskRoot::Request, move |_ctx| {
+            let before = nvs_runtime::budget::live_bytes();
+            let woken = with_current(|host| host.yield_slice());
+            assert_eq!(woken, Some(Woken::Elapsed));
+            seen.set(nvs_runtime::budget::live_bytes() - before);
+        });
+        run_until_idle(&mut sched).expect("the loop failed");
+
+        assert_eq!(moved.get(), 0, "the first yield charged the request");
+    }
 }
