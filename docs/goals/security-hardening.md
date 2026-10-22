@@ -205,7 +205,12 @@ error at the ceiling, inside the parse.
 size is set to the head limit `MAX_HEADER_LINES` already pairs with (`crates/nvs-server/src/serve.rs:2373`).
 A buffered response keeps its in-flight place until its body is written. Admission's memory check reads
 the memory charged to requests, never the core thread's total. No cap on open connections is added.
-With no exporter configured, no span is queued, and a client's sampled flag is read only when one is.
+No test plays a client a proxy stops first: a slow head, body or reader, an idle connection, or a
+flood from one address (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`). The attack is
+overload a proxy passes: valid requests past capacity, many ending at a limit at once, and every
+place and byte back once the flood ends. Pieces of that are tested one mechanism at a time
+(`crates/nvs-server/src/admit.rs:478`, `crates/nvs-server/src/serve.rs:7306`); the real binary under
+all of them together is not. With no exporter configured, no span is queued, and a client's sampled flag is read only when one is.
 The `method` metrics label is the method for the nine standard methods and `other` for anything else.
 A 501 for an unknown method is logged at `info`, since the client caused it. The log's `request_id` is
 always the server's own, and the trace id stays a separate field. CPU a request spends on the blocking
@@ -397,8 +402,8 @@ carry the mark.
 
 ### 7. connections, spans, metrics and blocking work grow with requests in flight, never with requests served
 
-**Does:** HTTP-1's idle connections and slow readers no longer flip admission, and LC-3, LC-5, LC-6,
-LC-7 and LC-9 are closed.
+**Does:** HTTP-1's idle connections and slow readers no longer flip admission, a server pushed past
+capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 are closed.
 
 - [ ] HTTP-1: set hyper's buffer size, and keep a buffered response's in-flight place until its body is written. `crates/nvs-server/src/serve.rs:2373`
 - [ ] HTTP-1: admission reads memory charged to requests, not the thread's total (`rule:http-server/admission-is-arithmetic-not-a-number`). `crates/nvs-server/src/admit.rs:1`
@@ -407,7 +412,10 @@ LC-7 and LC-9 are closed.
 - [ ] LC-5: blocking-pool CPU is charged to its request (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/blocking.rs:349`
 - [x] ~~LC-8: try the native stack overflow shapes in the lifecycle report; if the process ends, the deep helper checks the stack it has left and throws.~~ Ruled out on a2b4854a4: every native walk over a runtime value is iterative or depth-bounded, JSON decode's 1024-deep recursion runs on the 8 MiB spare stack, and each shape answered a clean `500` with the worker still serving (LC-8 in the lifecycle report). `.agent-tmp/sec-audit/reports/wb-lifecycle.md:1`
 - [ ] LC-12: a configured `[log]` escalation handler runs on a task of its own behind a bounded queue, never joined on the serving worker; a full queue drops the event and counts it in a metric, so forced uncaught throws cannot each hold a worker for `handler_reserve_time`. The queue's length is a constant with its reason in the code (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/ladder.rs:122`
-- [ ] The attacks: 500 idle connections with a large head, 100 slow readers, then a normal request answers `200`; Rust tests beside `admit.rs`. `crates/nvs-server/src/admit.rs:1`
+- [ ] HTTP-1's fix keeps a Rust test beside `admit.rs`: a core thread holding connection buffers past the room still admits a request, because admission reads request memory only. No idle-connection or slow-reader attack, since a proxy stops those first. `crates/nvs-server/src/admit.rs:1`
+- [ ] The overload attack, a Rust test that starts the real `nvs serve` with `max_in_flight = 50` and a small `[limits] memory`. A flood several times the ceiling runs beside requests that reach the memory limit, reach the CPU limit, and lose their client, while a probe sends ordinary requests. Every refusal is a `503` with `Retry-After`, every probe gets `200` or that `503` and never hangs, and the process lives. Once the flood ends, 50 requests held open together are all admitted, `nvs_memory_bytes` is back within a stated bound of its reading before the flood, and the next request answers `200`. `crates/nvs-cli/tests/serve_isolation.rs:1`
+- [ ] A `flood` row in `bench-compare --scenarios` puts load past capacity on each stack behind nginx and reports refusals, probe latency and recovery; the nightly deep lane runs its smoke form. `benches/compare/README.md:80`
+- [ ] `[limits] max_tasks`'s comment says what `claim_task` enforces, not "bounds nothing today". `crates/nvs-config/src/default.toml:86`
 
 ### 8. an extension instance ends with its request
 
