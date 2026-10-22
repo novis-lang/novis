@@ -216,6 +216,13 @@ A 501 for an unknown method is logged at `info`, since the client caused it. The
 always the server's own, and the trace id stays a separate field. CPU a request spends on the blocking
 pool is added to its own CPU time.
 
+**Admission counts a burst before it allocates (the user's call on d2, 2026-10-22).** The `flood`
+row showed a burst admitted whole, because no request of it had allocated yet, and the process limit
+then stopped those past the room with `500`. An admitted request now holds a provisional share of the
+room from its admission until its first publish, so a burst past the room is refused with `503` and
+`Retry-After` before it allocates. It stays O(in-flight) and adds no setting. Shedding by CPU wait
+was declined: it is a new admission condition.
+
 **Stage 8: an extension instance is released when its request tree ends.** That is what
 `rule:packaging/a-fresh-instance-per-request` says. wasmtime's instance limit is set from `max_in_flight`,
 never the constant 64. Redirects an extension follows are checked against the extension's own grant
@@ -414,7 +421,8 @@ capacity recovers every place it gave out, and LC-3, LC-5, LC-6, LC-7 and LC-9 a
 - [x] LC-12: a configured `[log]` escalation handler runs on a task of its own behind a bounded queue, never joined on the serving worker; a full queue drops the event and counts it in a metric, so forced uncaught throws cannot each hold a worker for `handler_reserve_time`. The queue's length is a constant with its reason in the code (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). `crates/nvs-host/src/ladder.rs:122`
 - [x] HTTP-1's fix keeps a Rust test beside `admit.rs`: a core thread holding connection buffers past the room still admits a request, because admission reads request memory only. No idle-connection or slow-reader attack, since a proxy stops those first. `crates/nvs-server/src/admit.rs:1`
 - [x] The overload attack, a Rust test that starts the real `nvs serve` with `max_in_flight = 50` and a small `[limits] memory`. A flood several times the ceiling runs beside requests that reach the memory limit, reach the CPU limit, and lose their client, while a probe sends ordinary requests. Every refusal is a `503` with `Retry-After`, every probe gets `200` or that `503` and never hangs, and the process lives. Once the flood ends, 50 requests held open together are all admitted, `nvs_memory_bytes` is back within a stated bound of its reading before the flood, and the next request answers `200`. `crates/nvs-cli/tests/serve_isolation.rs:1`
-- [ ] A `flood` row in `bench-compare --scenarios` puts load past capacity on each stack behind nginx and reports refusals, probe latency and recovery; the nightly deep lane runs its smoke form. `benches/compare/README.md:80`
+- [x] A `flood` row in `bench-compare --scenarios` puts load past capacity on each stack behind nginx and reports refusals, probe latency and recovery; the nightly deep lane runs its smoke form. `benches/compare/README.md:80`
+- [ ] d2: an admitted request holds a provisional share of the room until its first publish, so a burst past the room gets `503` before it allocates; the size of the share and its cost are in `rule:http-server/admission-is-arithmetic-not-a-number`, a Rust test beside `admit.rs` sends a burst on one core and sees `503`, and the `flood` row run once shows Novis's holds refused with `503`, not stopped with `500`. `crates/nvs-server/src/admit.rs:1`
 - [x] `[limits] max_tasks`'s comment says what `claim_task` enforces, not "bounds nothing today". `crates/nvs-config/src/default.toml:86`
 
 ### 8. an extension instance ends with its request
@@ -529,10 +537,38 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 7 is under way. Every item but one has landed: the `flood` row is left.
+Stage 7 is open again for one item, d2's. Stage 8 follows it.
 
-This session (the sweep's `env-secret-proofs` again exits 0 when rerun, `nothing owed`, and its log
-on disk says exit 0 too, so the sweep's red looks stale; nightly 39746060276 was cancelled whole):
+This session (the sweep's `env-secret-proofs` again exits 0 when its command is rerun, `nothing owed`;
+its log on disk is from 00:07 and says exit 0, so the sweep's red is stale a third time. Nightly
+39746060276 was cancelled whole):
+
+- **The `flood` row (d70950be8).** `bench-compare --scenarios --row flood` serves
+  `benches/compare/scenarios/flood/` (four programs: `/hold` keeps 8 MiB for 300 ms, `/` prints `ok`)
+  with the 512 MiB cap of `loop` and `memory`. `floodProbe` runs `oha` against `/hold` at
+  `FLOOD_CONNECTIONS = 200` for `FLOOD_SECONDS = 10` (`Probe.steady` takes a connection count now),
+  sends `/` every 250 ms with a 10 s wait, then waits up to `CHANGE_WAIT_MS` for `/` and sends 8 holds
+  together. `floodResult` passes when every probe is `200` or `503` with `Retry-After`, `/` recovered,
+  the 8 holds answered and the backend never restarted. The README bullet, the site's `ROW_TEXT`, a
+  unit test and the row order test are in. The CI job `flood` (deep lane only) runs
+  `bun nv bench-compare --scenarios --smoke --row flood` with no `--expect`, and
+  `rule:testing/the-deep-lane` says so.
+- **What the row measured: every peer `no`.** Bun and Go were OOM-killed and restarted 5 times; PHP
+  answered `502` and did not recover in 20 s. Novis lived and recovered in 0.3 s, but one probe in
+  34 failed and only 6 holds of the load were answered. Reproduced without nginx on the same image
+  with `--cpus 1 -m 512m`: all 200 holds of one burst are admitted, because none has allocated yet,
+  and the process limit stops those past the room with `500` (no error line is logged for them).
+  `/` waits up to 6 s behind the holds' CPU, about 25 ms each on one cpu. A second burst, sent while
+  memory was still counted, got 21 `503`s with `Retry-After`. **Decision d2** asks whether admission
+  should count a burst before it allocates. The user chose that (option 2). It is under *Standing
+  decisions* and is stage 7's new last item; d2 is closed.
+- **The shell wrapper killed the run twice as a hang (17ce4856b).** The Docker build of Novis's
+  image runs in Docker's VM, so the wrapper saw no CPU and no output. `looper.toml`'s `[jobs]
+  hang_exempt` now names `bench-compare` and `bench-proxied`. The two reports were deleted.
+- `bun test tools/nv/test/bench-compare.test.ts` (64) and `bun nv rules --check` are green. No Rust
+  changed.
+
+The overload attack, for the record (the previous session):
 
 - **The overload attack (08024fe6d).** `a_flood_past_capacity_is_refused_and_every_place_and_byte_comes_back`
   in `crates/nvs-cli/tests/serve_isolation.rs` serves `OVERLOADED` with two workers,
@@ -782,13 +818,26 @@ website's rule pages (`default-series`'s title changed).
 
 ### Next
 
-Stage 7's rest, then stage 8:
+Stage 7's d2 item first, then stage 8.
 
-1. The `flood` row in `bench-compare --scenarios` (`benches/compare/README.md:80`,
-   `tools/nv/cmd/bench-compare.ts`), with its smoke form in the nightly deep lane. The
-   `OVERLOADED` program and the shape of the overload test (`serve_isolation.rs`, after
-   `a_looping_guest_…`) are the request mix to reuse. Once it lands, set stage 7 done.
-2. Stage 8: an extension instance ends with its request (`rule:packaging/a-fresh-instance-per-request`).
+0. d2 (`crates/nvs-server/src/admit.rs`, `Admission::admit`, and `nvs_runtime::budget`'s gauge,
+   `publish` and `held_by_cores`). An admitted request adds a provisional share to an admission
+   count that `admit` reads beside the gauges, and the request takes it back at its first publish or
+   its end, whichever comes first. Choose the share from what exists (the rule names the per-request
+   cap and the 1 MiB publish step) and write why in the rule. Write the Rust test first: one core,
+   a burst past the room, at least one `503` before any request allocates. Then run the `flood` row
+   once (`bun nv bench-compare --scenarios --smoke --row flood`, about 15 minutes with the image
+   build) and record Novis's evidence here. Set stage 7 done once it lands.
+
+Stage 8: an extension instance ends with its request (`rule:packaging/a-fresh-instance-per-request`).
+
+1. EXT-1: drop the tree's `Calls`, and the instance with them, when the tree ends
+   (`crates/nvs-cli/src/extensions.rs:333`). Write the attack first: 200 requests that each call
+   `Novis\Intl`, every answer correct and memory flat, a Rust test in `nvs-cli`.
+2. EXT-2: wasmtime's instance limit from `max_in_flight` (`crates/nvs-ext/src/call.rs:1170`).
+3. EXT-5 and EXT-6 (`extensions.rs:442`, `crates/nvs-ext/src/wasi/http.rs:488`), then EXT-7 to
+   EXT-10 from `.agent-tmp/sec-audit/reports/wb-sinks.md:212`.
+
 
 ### Backlog
 
