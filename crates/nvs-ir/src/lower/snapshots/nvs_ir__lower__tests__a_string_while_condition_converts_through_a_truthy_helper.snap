@@ -28,4 +28,8 @@ fn m(object, string) -> void {
     release v2
     release v0
     return
+  bb5:
+    release v4
+    release v0
+    propagate "m() at t.nvs:5"
 }

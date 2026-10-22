@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn sum(object, int) -> int {
@@ -37,6 +37,9 @@ fn sum(object, int) -> int {
     release v0
     propagate "sum() at t.nvs:7"
   bb6:
+    release v0
+    propagate "sum() at t.nvs:7"
+  bb7:
     release v0
     propagate "sum() at t.nvs:7"
 }

@@ -398,6 +398,58 @@ fn a_fatal_releases_the_frames_locals() {
     );
 }
 
+/// The `a_fatal_releases_the_frames_locals` guard above, over the stop a loop's
+/// back edge polls for: the loop only concatenates, so no instruction in it
+/// returns a status, and the memory limit is reached at the poll. The frame's
+/// locals are released on that edge too, or every request that ends at a limit
+/// in a loop keeps what it held for the life of the process.
+#[cfg(debug_assertions)]
+#[test]
+fn a_limit_a_loop_polls_for_releases_the_frames_locals() {
+    /// The held string's length, as in the guard above.
+    const FILLER: usize = 512;
+    /// The ceiling the loop grows into.
+    const CEILING: usize = 1 << 20;
+
+    let filler = "x".repeat(FILLER);
+    let source = format!(
+        "<?nvs\nstring $held = \"{filler}\" . \"!\";\n\
+         string $grown = \"\";\n\
+         while (true) {{\n    $grown = $grown . $held;\n}}\n"
+    );
+    let unit = compile(&source).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let entry = unit.script().expect("the script frame was compiled");
+
+    nvs_runtime::prime_empty_array();
+    let before = live_bytes();
+    let spent = allocated_bytes();
+    ctx.set_memory_limit(CEILING);
+    assert_eq!(entry.call(&mut ctx).err(), Some(FATAL));
+    assert!(
+        allocated_bytes() - spent >= CEILING,
+        "the loop did not grow to the ceiling, so the balance below would \
+         prove nothing"
+    );
+
+    let pending = ctx.take_pending();
+    assert!(
+        pending
+            .as_deref()
+            .is_some_and(|message| message.contains("memory")),
+        "the loop stopped for another reason: {pending:?}"
+    );
+    drop(pending);
+    drop(ctx.take_buffered_output());
+
+    assert_eq!(
+        live_bytes(),
+        before,
+        "a limit a loop polled for left the frame's locals allocated"
+    );
+}
+
 /// Three frames, each holding a `finally` of its own, with the innermost one
 /// ending the script through `Core\Script::finish()`.
 ///

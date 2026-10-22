@@ -7057,7 +7057,7 @@ impl<'a> Lowering<'a> {
         if witness {
             witnesses.push((body_cur, held));
         }
-        self.emit_safepoint(body_cur);
+        self.emit_back_edge_safepoint(body_cur, env);
         let inst = &mut self.block_insts[header.index() as usize][cursor_phi];
         let InstKind::Phi {
             incoming: carried, ..

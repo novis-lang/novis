@@ -244,7 +244,7 @@ impl<'a> Lowering<'a> {
             // it (e.g. it always `return`s) polls zero times per skipped
             // iteration, same as a functional poll would. A `continue`'s own
             // back edge already got its own poll in `Self::lower_continue`.
-            self.emit_safepoint(body_cur);
+            self.emit_back_edge_safepoint(body_cur, &body_env);
             self.seal(body_cur, Terminator::Jump(header_block));
             back_edges.push((body_cur, body_env));
         }
@@ -406,7 +406,7 @@ impl<'a> Lowering<'a> {
             let cond_v = self.lower_truthy_cond(cond, &mut cond_env, &mut cond_end);
             // Reserved safepoint poll site (loop back edge) — see
             // `InstKind::Safepoint`'s own doc comment.
-            self.emit_safepoint(cond_end);
+            self.emit_back_edge_safepoint(cond_end, &cond_env);
             let body_edge = self.ids.next_edge(body.span);
             let after_edge = self.ids.next_edge(cond.span);
             self.seal(
@@ -633,7 +633,7 @@ impl<'a> Lowering<'a> {
             // Reserved safepoint poll site (loop back edge) — placed here for
             // `Self::lower_while`'s reason, on the edge itself rather than the
             // header, so an iteration that never completes polls zero times.
-            self.emit_safepoint(step_cur);
+            self.emit_back_edge_safepoint(step_cur, &step_env);
             self.seal(step_cur, Terminator::Jump(header_block));
             vec![(step_cur, step_env)]
         };
@@ -1262,7 +1262,7 @@ impl<'a> Lowering<'a> {
         let mut back_edges: Vec<(BlockId, Env)> = Vec::new();
         if !self.is_terminated(body_cur) {
             self.end_iteration(body_cur, &mut body_env);
-            self.emit_safepoint(body_cur);
+            self.emit_back_edge_safepoint(body_cur, &body_env);
             self.seal(body_cur, Terminator::Jump(header_block));
             back_edges.push((body_cur, body_env));
         }
@@ -1569,7 +1569,7 @@ impl<'a> Lowering<'a> {
         let mut back_edges: Vec<(BlockId, Env)> = Vec::new();
         if !self.is_terminated(body_cur) {
             self.end_iteration(body_cur, &mut body_env);
-            self.emit_safepoint(body_cur);
+            self.emit_back_edge_safepoint(body_cur, &body_env);
             self.seal(body_cur, Terminator::Jump(header_block));
             back_edges.push((body_cur, body_env));
         }
@@ -1824,7 +1824,13 @@ impl<'a> Lowering<'a> {
         // scratch, so this back edge ends the current one — see
         // `LoopFrame::iteration_owned`.
         self.end_iteration_at(*cur, &mut back_env, at);
-        self.emit_safepoint(*cur);
+        // The poll stands where the jump has already left every protected
+        // region above the loop, so its landing block is built outside them:
+        // a region's handler is no destination for it, and its merge does
+        // not know the iteration's bindings ended above.
+        let left = self.try_stack.split_off(try_depth);
+        self.emit_back_edge_safepoint(*cur, &back_env);
+        self.try_stack.extend(left);
         self.loop_stack[at].continue_edges.push((*cur, back_env));
         self.seal(*cur, Terminator::Jump(header_block));
     }

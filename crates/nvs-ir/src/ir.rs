@@ -544,7 +544,8 @@ pub struct Inst {
     /// [`InstKind::NewDynamic`], [`InstKind::CoreCall`], every
     /// [`InstKind::HelperCall`], [`InstKind::SlotGet`]/[`InstKind::SlotSet`],
     /// [`InstKind::ArrayGet`] in each of [`crate::ir::AbsentKey`]'s shapes,
-    /// [`InstKind::ArrayAppend`], [`InstKind::ArraySpread`], **every
+    /// [`InstKind::ArrayAppend`], [`InstKind::ArraySpread`], a loop back
+    /// edge's [`InstKind::Safepoint`], **every
     /// integer arithmetic row** — `+`, `-`, `*`, `/` and `%` over
     /// [`crate::ty::Ty::Int`]/[`crate::ty::Ty::Uint`] as an
     /// [`InstKind::BinOp`], and unary `-` over the same two as an
@@ -561,7 +562,9 @@ pub struct Inst {
     /// cleanup path and nothing else. `None` is for the instructions that
     /// return no status to check: a comparison, the rest of the float rows, an
     /// [`InstKind::Concat`], a constant, a phi, a refcount operation, a
-    /// relabelling.
+    /// relabelling. The function-entry [`InstKind::Safepoint`] is the one
+    /// status-returning instruction with `None`: it is the frame's first
+    /// instruction, so there is nothing yet for a landing block to release.
     ///
     /// **A status a `catch` cannot act on still gets a landing block**, and
     /// that is the whole reason the rule is phrased over the status rather
@@ -570,7 +573,9 @@ pub struct Inst {
     /// guard `nvs_runtime::helpers` describes, `Helper::Exit`'s *success* is a
     /// non-`OK` status, and a stack-limit or deadline stop can arrive out of
     /// any call at all — each of those is a `FATAL` or an `EXITED` that ends
-    /// the request rather than something a `catch` selects. Giving them no
+    /// the request rather than something a `catch` selects, and so is a back
+    /// edge's poll that finds the request over its memory or CPU-time limit
+    /// or cancelled. Giving them no
     /// landing block would be cheaper by a cold block per site and would leak
     /// the entire frame every time one fired, which is `O(requests served)`
     /// growth on a shape an attacker can drive (unbounded recursion) and on
@@ -639,6 +644,8 @@ pub enum InstKind {
     /// after the fact means re-walking every already-lowered
     /// function, the same "cheap now, expensive to retrofit" reason
     /// `crate::ids` already gives for `StmtId`/`EdgeId`. Defines no value.
+    /// A back edge's poll carries an [`Inst::on_error`] edge, and the entry
+    /// one does not; that field's doc says why.
     Safepoint,
     /// `rule:errors/a-use-of-deprecated-code-may-log-or-throw`'s check: one
     /// load of the context's deprecation word and a predicted-not-taken branch
