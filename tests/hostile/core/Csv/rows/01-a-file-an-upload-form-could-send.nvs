@@ -1,8 +1,8 @@
 <?nvs
 // Attack: a program reads a CSV file that somebody uploaded. It tries a quoted
-// field that never ends, a file of two hundred thousand records, and a closed
-// handle. Each one has to give a result or an error, and none of them may stop
-// the program.
+// field that never ends, very many records, a closed handle and bytes that are
+// not UTF-8. Each one has to give a result or an error, and none of them may
+// stop the program.
 // hostile: timeout-ms 30000
 
 string $dir = Core\IO::temporaryDir();
@@ -63,3 +63,36 @@ try {
     echo '5 a line break as the separator throws', "\n";
 }
 $fifth->close();
+
+// 6. A field that is the byte FF, which never appears in UTF-8.
+string $invalid = Core\Path::join($dir, 'invalid.csv');
+Core\IO\File $sixthOut = Core\IO::open($invalid, Core\IO::FileMode::Write);
+$sixthOut->write(Core\Bytes::pack('CCCCC', 0x61, 0x0A, 0xFF, 0x0A, 0x62));
+$sixthOut->close();
+Core\IO\File $sixth = Core\IO::open($invalid, Core\IO::FileMode::Read);
+try {
+    foreach (Core\Csv::rows($sixth) as array<string> $record) {
+        echo '6 a record was read: ', Core\Str::length($record[0]), "\n";
+    }
+    echo '6 the byte FF was read as text', "\n";
+} catch (ParseError $notText) {
+    echo '6 the byte FF throws a ParseError', "\n";
+}
+$sixth->close();
+
+// 7. A field with the bytes C0 BC. This is a second, longer way to write `<`,
+// and UTF-8 does not allow it.
+string $overlong = Core\Path::join($dir, 'overlong.csv');
+Core\IO\File $seventhOut = Core\IO::open($overlong, Core\IO::FileMode::Write);
+$seventhOut->write(Core\Bytes::pack('CCCC', 0x61, 0x2C, 0xC0, 0xBC));
+$seventhOut->close();
+Core\IO\File $seventh = Core\IO::open($overlong, Core\IO::FileMode::Read);
+try {
+    foreach (Core\Csv::rows($seventh) as array<string> $record) {
+        echo '7 a record was read: ', Core\Arr::count($record), "\n";
+    }
+    echo '7 the bytes C0 BC were read as text', "\n";
+} catch (ParseError $overlongForm) {
+    echo '7 the bytes C0 BC throw a ParseError', "\n";
+}
+$seventh->close();

@@ -459,6 +459,11 @@ const ROWS_DOC: MethodDoc = MethodDoc {
             error: "IOError",
             desc: "The operating system refused a read part way through the walk.",
         },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "A field is not valid UTF-8. The message gives the line the field ends on, \
+                   and the walk ends there.",
+        },
     ],
 };
 
@@ -685,6 +690,12 @@ nvs_runtime::nvs_helper! {
     /// err on at the edge of a request, where a malformed upload should be
     /// rejected by the code that knows what the columns mean rather than by
     /// the decoder.
+    ///
+    /// Nor can a field fail `rule:types/string-is-utf8`, so none is checked.
+    /// The document is a `string` and already UTF-8. The reader cuts it only
+    /// at the three dialect bytes and takes out only quote and escape bytes,
+    /// and [`dialect_byte`] makes each one ASCII, which no multi-byte sequence
+    /// contains. [`nvs_core_csv_rows`] reads a file's bytes, so it checks.
     fn nvs_core_csv_parse(_ctx, args: [5]) {
         let text = text_of(&args[0], "parse", "the text")?;
         let separator = dialect_byte(&args[1], "parse", "separator")?;
@@ -961,6 +972,9 @@ enum Step {
     NeedInput,
     /// The document is over.
     End,
+    /// A field that is not UTF-8, ending on this line. The reader has given up
+    /// its buffers, as at [`Step::End`].
+    NotText(u64),
 }
 
 impl RowReader {
@@ -990,6 +1004,16 @@ impl RowReader {
                 // has ended, which is what closes the final record.
                 csv_core::ReadFieldResult::InputEmpty | csv_core::ReadFieldResult::OutputFull => {}
                 csv_core::ReadFieldResult::Field { record_end } => {
+                    // The file's bytes are checked here, where they become a
+                    // `string` (`rule:types/string-is-utf8`). `line()` counts
+                    // every `LF` taken, so the terminator this call took is
+                    // taken back out to name the line the field ends on.
+                    if std::str::from_utf8(&self.field).is_err() {
+                        let ended = taken > 0 && self.pending[self.at - 1] == b'\n';
+                        let line = self.reader.line() - u64::from(ended);
+                        self.finish();
+                        return Step::NotText(line);
+                    }
                     self.record.push(std::mem::take(&mut self.field));
                     if record_end {
                         if self.header && self.names.is_empty() {
@@ -1057,6 +1081,22 @@ fn closed(path: &Value) -> Fault {
     ))
 }
 
+/// The catchable `ParseError` a walk raises for a field that is not UTF-8.
+///
+/// `ParseError` because the file does not match the format the program asked
+/// for, which is what `Core\Json::decode` throws for a document that is not
+/// JSON. Replacing the bad bytes with U+FFFD is declined: it changes the data
+/// without a word, and a later check could still be fooled by an overlong form.
+fn not_text(path: &Value, line: u64) -> Fault {
+    Fault::thrown_as(
+        nvs_runtime::ThrownClass::Parse,
+        format!(
+            "Core\\Csv::rows: line {line} of {} has a field that is not valid UTF-8",
+            path.as_text().unwrap_or("?")
+        ),
+    )
+}
+
 /// The walk's parked parse state, as the type this module filed it as.
 ///
 /// # Errors
@@ -1100,6 +1140,7 @@ fn next_record(
         match reader.step() {
             Step::Record(record) => return Ok(Some(record)),
             Step::End => return Ok(None),
+            Step::NotText(line) => return Err(not_text(path, line)),
             Step::NeedInput => {}
         }
         let mut buffer = [0_u8; READ_CHUNK];
