@@ -284,18 +284,25 @@ impl RunningRequest {
     }
 }
 
-/// The CPU time one published request tree has spent of its core, in one word
-/// the core writes and any thread reads.
+/// The CPU time one published request tree has spent, in two words the core
+/// writes and any thread reads.
 ///
-/// The word has two forms, told apart by its top bit. While the core is not
-/// running the tree, it is the nanoseconds the tree has spent. While the core
-/// is running it, the bit is set and the rest is the reading of the core's
-/// clock at which the tree would have spent nothing had it run alone, so its
-/// spend is the clock now less that reading. One word means a reader never
-/// sees half of a switch: whatever it loads is a charge that was true at some
-/// instant.
+/// `word` is the core's own time, and has two forms, told apart by its top
+/// bit. While the core is not running the tree, it is the nanoseconds the tree
+/// has spent. While the core is running it, the bit is set and the rest is the
+/// reading of the core's clock at which the tree would have spent nothing had
+/// it run alone, so its spend is the clock now less that reading. One word
+/// means a reader never sees half of a switch: whatever it loads is a charge
+/// that was true at some instant.
+///
+/// `offloaded` is what the blocking pool's threads spent on the tree's jobs
+/// ([`charge_running`]). It only grows, so a reader that loads it apart from
+/// `word` reads a charge that is at most one job low.
 #[derive(Debug, Default)]
-struct Charge(AtomicU64);
+struct Charge {
+    word: AtomicU64,
+    offloaded: AtomicU64,
+}
 
 impl Charge {
     /// Set while the core is running this tree.
@@ -303,25 +310,30 @@ impl Charge {
 
     /// The core starts running this tree at clock reading `now`.
     fn start(&self, now: u64) {
-        let word = self.0.load(Ordering::Relaxed);
+        let word = self.word.load(Ordering::Relaxed);
         if word & Self::RUNNING == 0 {
-            self.0
+            self.word
                 .store(Self::RUNNING | now.saturating_sub(word), Ordering::Release);
         }
     }
 
     /// The core stops running this tree at clock reading `now`.
     fn stop(&self, now: u64) {
-        let word = self.0.load(Ordering::Relaxed);
+        let word = self.word.load(Ordering::Relaxed);
         if word & Self::RUNNING != 0 {
-            self.0
+            self.word
                 .store(now.saturating_sub(word & !Self::RUNNING), Ordering::Release);
         }
     }
 
     /// Whether the core is running this tree now.
     fn is_running(&self) -> bool {
-        self.0.load(Ordering::Acquire) & Self::RUNNING != 0
+        self.word.load(Ordering::Acquire) & Self::RUNNING != 0
+    }
+
+    /// Adds `spent` nanoseconds another thread spent on this tree's behalf.
+    fn offload(&self, spent: u64) {
+        self.offloaded.fetch_add(spent, Ordering::Release);
     }
 
     /// What the tree has spent, given a reading of the core's clock taken
@@ -331,12 +343,13 @@ impl Charge {
     /// earlier than the point it is measured from, and that must read as a
     /// small charge rather than an enormous one.
     fn at(&self, now: u64) -> u64 {
-        let word = self.0.load(Ordering::Acquire);
-        if word & Self::RUNNING == 0 {
+        let word = self.word.load(Ordering::Acquire);
+        let own = if word & Self::RUNNING == 0 {
             word
         } else {
             now.saturating_sub(word & !Self::RUNNING)
-        }
+        };
+        own.saturating_add(self.offloaded.load(Ordering::Acquire))
     }
 }
 
@@ -517,6 +530,25 @@ pub(crate) fn switch_to(tree: usize) {
     METER.with_borrow(|local| {
         if let Some(local) = local {
             local.meter.borrow_mut().switch(tree);
+        }
+    });
+}
+
+/// Charges `spent` to the tree this thread is running, if it is published.
+///
+/// [`crate::blocking`] calls it when a job's answer reaches the task that
+/// asked for it: the pool thread measured the job on its own clock, and the
+/// task is running again, so the tree it belongs to is this thread's running
+/// tree. `rule:http-server/a-core-is-never-blocked-on-a-syscall` moves the
+/// work off the core, and this keeps its CPU time on the request. Nothing
+/// happens on a thread that registered nothing or publishes no such tree.
+pub(crate) fn charge_running(spent: Duration) {
+    METER.with_borrow(|local| {
+        if let Some(local) = local {
+            let meter = local.meter.borrow();
+            if let Some(charging) = meter.charges.get(&meter.running) {
+                charging.charge.offload(nanos(spent));
+            }
         }
     });
 }
@@ -2351,6 +2383,48 @@ mod tests {
         assert!(
             neighbour_charge < ceiling / 2,
             "the request beside the child was charged {neighbour_charge:?} for the child's loop"
+        );
+    }
+
+    /// `rule:http-server/a-core-is-never-blocked-on-a-syscall`: CPU a request's
+    /// job spends on the blocking pool is charged to the request. The core
+    /// parks while the job runs, so its own clock shows almost none of it.
+    #[test]
+    fn cpu_spent_on_the_blocking_pool_is_charged_to_the_request() {
+        use crate::scheduler::Scheduler;
+        use std::cell::Cell;
+
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        if ThreadClock::current().is_none() {
+            return;
+        }
+        let spin = Duration::from_millis(60);
+        let shared = Arc::clone(&dog.shared);
+        let watchdog = &dog;
+        let charge = std::thread::scope(|scope| {
+            scope
+                .spawn(move || {
+                    let _installed = install(Reactor::new().expect("the OS refused a poll"));
+                    let _core = watchdog.register_requests();
+                    let mut sched = Scheduler::new();
+                    let read = Rc::new(Cell::new(None));
+                    let into = Rc::clone(&read);
+                    sched.spawn(capped(a_minute()), TaskRoot::Request, move |ctx| {
+                        let _published = publish_here(ctx.safepoint_view());
+                        crate::blocking::run(move || crate::cpuclock::burn_at_least(spin));
+                        into.set(charged_on(&shared, &ctx.safepoint_view()));
+                    });
+                    run_until_idle(&mut sched).expect("the loop failed");
+                    read.get()
+                })
+                .join()
+                .expect("the core panicked")
+        });
+        let charge = charge.expect("the request's tree was not published");
+        assert!(
+            charge >= spin,
+            "a request whose job spent {spin:?} on the pool was charged {charge:?}"
         );
     }
 

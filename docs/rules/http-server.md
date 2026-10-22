@@ -2143,6 +2143,8 @@ The runtime is one single-threaded scheduler pinned per core, and a request neve
 
 **Filesystem calls, name resolution, and waiting on a child process go to the blocking pool**; the reactor thread issues no call that can block on external state. The pool is **bounded at twice the core count**, per worker, and never grows with requests served. The handoff costs microseconds against operations that cost milliseconds, and what it avoids is an entire core idle for the same interval.
 
+**A job's CPU time is the request's.** The pool thread reads its own CPU clock before and after each job, and each answer a pinned thread gives, and the task adds the difference to its request's charge when the answer lands. `[limits] cpu_time` then counts a slow statement or a large file hashed off the core exactly as it counts the same work on it ([`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)). That is two clock reads per job, and one more word per published request tree.
+
 The bound is stated because the default it replaces is not: an unbounded pool of threads that each reserve a stack is a footprint that grows with a workload's blocking fan-out rather than with its concurrency. What the pool spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): at most that many OS thread stacks per worker, resident only in what a job touches, plus one boxed Rust `FnOnce` per job in flight.
 
 **Declined:**

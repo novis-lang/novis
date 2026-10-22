@@ -74,8 +74,10 @@ use std::panic::AssertUnwindSafe;
 use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 use crate::affinity::cpus;
+use crate::cpuclock::ThreadClock;
 use crate::reactor;
 use crate::scheduler::{Waiting, current_task, suspend_current};
 
@@ -340,6 +342,12 @@ pub fn pool_size() -> (usize, usize) {
 /// negative when the job freed more than it kept, as a write does with the
 /// buffer it was handed, and moving it takes that buffer off the request too.
 ///
+/// **So is the CPU time the job spent.** The pool thread reads its own CPU
+/// clock before and after the job, and the task adds the difference to its
+/// request's charge when the answer lands ([`crate::watchdog`]), so
+/// `[limits] cpu_time` counts work moved off the core. That is two clock reads
+/// per job.
+///
 /// # Panics
 ///
 /// If `f` panics, the panic is carried back and resumed on the task's own
@@ -358,16 +366,18 @@ where
         return f();
     };
 
-    type Slot<T> = Option<(std::thread::Result<T>, isize)>;
+    type Slot<T> = Option<(std::thread::Result<T>, isize, Duration)>;
     let slot: Arc<Mutex<Slot<T>>> = Arc::new(Mutex::new(None));
     let answer = Arc::clone(&slot);
     with_pool(|pool| {
         pool.submit(move || {
             let before = nvs_runtime::budget::live_bytes();
+            let started = cpu_now();
             let outcome = std::panic::catch_unwind(AssertUnwindSafe(f));
+            let spent = cpu_since(started);
             let kept = nvs_runtime::budget::live_bytes().wrapping_sub(before);
             nvs_runtime::budget::carry(kept.wrapping_neg());
-            *lock(&answer) = Some((outcome, kept));
+            *lock(&answer) = Some((outcome, kept, spent));
             // Explicit rather than left to the end of the Rust closure: the answer is
             // in the slot *before* the wake goes out, so the task cannot be
             // resumed to find it missing. The drop would deliver anyway, which
@@ -377,8 +387,9 @@ where
     });
 
     loop {
-        if let Some((outcome, kept)) = lock(&slot).take() {
+        if let Some((outcome, kept, spent)) = lock(&slot).take() {
             nvs_runtime::budget::carry(kept);
+            crate::watchdog::charge_running(spent);
             return match outcome {
                 Ok(value) => value,
                 Err(panic) => std::panic::resume_unwind(panic),
@@ -398,6 +409,22 @@ where
     }
 }
 
+/// This thread's CPU clock now, or `None` where the platform has no thread
+/// clock ([`crate::cpuclock`]).
+fn cpu_now() -> Option<Duration> {
+    ThreadClock::current()?.burned()
+}
+
+/// The CPU time this thread spent since `started`, a [`cpu_now`] reading.
+/// Zero where there was no reading, which charges nothing: a platform with no
+/// thread clock has no CPU ceiling either.
+fn cpu_since(started: Option<Duration>) -> Duration {
+    match (started, cpu_now()) {
+        (Some(started), Some(now)) => now.saturating_sub(started),
+        _ => Duration::ZERO,
+    }
+}
+
 /// One question for a pinned thread, the channel its answer travels back down,
 /// and the wake that ends the asker's park.
 ///
@@ -411,7 +438,10 @@ pub struct Request<Q, A> {
     /// The pinned thread's balance when [`Asked::next_question`] handed this
     /// out, so [`Request::answer`] can move what the answer holds to the asker.
     asked_at: isize,
-    reply: mpsc::Sender<(A, isize)>,
+    /// The pinned thread's CPU clock at the same moment, so the answer carries
+    /// the CPU time the question cost, for [`run`]'s reason.
+    cpu_at: Option<Duration>,
+    reply: mpsc::Sender<(A, isize, Duration)>,
     #[expect(
         dead_code,
         reason = "held for its `Drop`, which is what ends the asker's park — \
@@ -449,9 +479,10 @@ impl<Q, A> Request<Q, A> {
     /// is charged to the request until the walk ends, which errs toward the
     /// ceiling rather than away from it.
     pub fn answer(self, answer: A) {
+        let spent = cpu_since(self.cpu_at);
         let kept = nvs_runtime::budget::live_bytes().wrapping_sub(self.asked_at);
         nvs_runtime::budget::carry(kept.wrapping_neg());
-        if self.reply.send((answer, kept)).is_err() {
+        if self.reply.send((answer, kept, spent)).is_err() {
             // Nobody took it, so it is freed here and its charge stays here.
             nvs_runtime::budget::carry(kept);
         }
@@ -483,6 +514,7 @@ impl<Q, A> Asked<Q, A> {
     pub fn next_question(&mut self) -> Option<Request<Q, A>> {
         let mut request = self.asked.recv().ok()?;
         request.asked_at = nvs_runtime::budget::live_bytes();
+        request.cpu_at = cpu_now();
         Some(request)
     }
 }
@@ -529,14 +561,16 @@ impl<Q, A> Pinned<Q, A> {
             .send(Request {
                 question,
                 asked_at: 0,
+                cpu_at: None,
                 reply,
                 wake,
             })
             .ok()?;
 
-        // The charge [`Request::answer`] moved off the pinned thread lands here.
-        let landed = |(answer, kept): (A, isize)| {
+        // The charges [`Request::answer`] moved off the pinned thread land here.
+        let landed = |(answer, kept, spent): (A, isize, Duration)| {
             nvs_runtime::budget::carry(kept);
+            crate::watchdog::charge_running(spent);
             answer
         };
         if !parked {
