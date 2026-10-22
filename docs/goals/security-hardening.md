@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/src/str.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/expr/args.rs, docs/rules/security/taint-propagation.md, docs/rules/security/launderers-are-sink-named.md]
   - id: 5
     title: "signed cookies, streams, database rows and extension calls keep the mark"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/signed_cookie.rs, crates/nvs-stdlib/src/response.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/ext_lib.rs, crates/nvs-stdlib/src/out.rs, crates/nvs-stdlib/src/script.rs, docs/rules/security/tainted-sources.md, docs/rules/security/secret-does-not-cross-an-extension.md, docs/rules/core-classes/db-column-types.md, docs/rules/security/capture-answers-the-carrier.md, docs/rules/security/isolate-output-is-captured.md]
   - id: 6
     title: "an array a Rust parser builds stops at the request's memory ceiling"
@@ -374,8 +374,10 @@ carry the mark.
 - [x] TAINT-4: `Core\Ldap\Connection::add` refuses attribute names from a tainted array's keys. `crates/nvs-stdlib/src/ldap/registry.rs:464`
   - [x] a call-site rule reads a literal's keys one by one, and any other array by `keys_from_outside`
   - [x] the rule, the card and a reject case say so, and every `Core\Ldap` example compiles
-- [ ] HTML-1: a spawned child's captured output is lifted to the parent's sink carrier only when the child wrote it with `echo` through the same sink; output a child wrote through `Core\Response::text`, `::json`, `::bytes` or `::stream` reaches the parent as a plain `string`, which the parent's `echo` escapes. Carrying every child's output as a plain `string` is not the fix: a child's `echo` already escaped it, so the parent would escape it twice (`rule:security/capture-answers-the-carrier`, `rule:security/isolate-output-is-captured`). `crates/nvs-stdlib/src/out.rs:193`, `crates/nvs-stdlib/src/script.rs:1278`
-- [ ] HTML-1's attack: a child writes `<script>` with `Core\Response::text`, the parent prints `$result->output` into an HTML page, and the page shows it escaped; beside it, a child that `echo`es the same text is escaped once, not twice. `tests/hostile/lang/concurrency/isolates-spawn-script-and-await/02-a-child-writes-markup-the-parent-prints.nvs:1`
+- [x] HTML-1: output a spawned child or a capture wrote through `Core\Response::text`, `::json`, `::bytes` or `::stream` takes the sink's rendering before it becomes the carrier, so the parent's page shows it as text, and a child's `echo` is still escaped once, not twice. Rendering at the write keeps `output`'s type and covers `output: 'inherit'` too, where a plain `string` result would not (`rule:security/capture-answers-the-carrier`, `rule:security/isolate-output-is-captured`). `crates/nvs-runtime/src/ctx/output.rs:324`
+  - [x] `Ctx::write_body` escapes (HTML) or substitutes (terminal) at `script_depth > 0` or inside a capture, byte by byte for bytes that are not UTF-8, and the four body members write through it
+  - [x] two Rust tests pin both sinks, and the rule, `response.rs`'s module doc and `carried`'s doc say so
+- [x] HTML-1's attack: a child writes `<script>` and an `ESC` sequence with `Core\Response::text`, the parent reads `$result->output`, and the text has no control byte; a child that `echo`es the same text gives the same text; a capture of the parent's own `text` does too. It fails on the binary from before the fix. The HTML side is the Rust test, because the hostile harness runs on the terminal sink. `tests/hostile/lang/concurrency/isolates-spawn-script-and-await/02-a-child-writes-markup-the-parent-prints.nvs:1`
 - [x] The attacks: stored injection, a sealed visitor value, a stream echo and a `mixed` secret, each a reject case (`tests/conformance/reject/a-text-column-fills-only-a-tainted-property.nvst`, `tests/conformance/reject/a-sealed-visitor-value-opens-tainted.nvst`, `tests/conformance/reject/a-response-stream-part-refuses-a-tainted-value.nvst`, `tests/conformance/reject/a-secret-argument-to-an-extension-does-not-compile.nvst`). `tests/conformance/reject/a-sealed-visitor-value-opens-tainted.nvst:1`
 
 ### 6. an array a Rust parser builds stops at the request's memory ceiling
@@ -514,9 +516,29 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 5 is under way. REQ-2/DB-2, CRYPTO-1/TAINT-3, TAINT-2 (40063273f), TAINT-4 (1118be657) and
-EXT-4 (8c1ef0342) landed, and all four reject attacks are written. HTML-1 and its hostile attack are
-the stage's last two items, and neither is started.
+Stage 5 is done. HTML-1 and its attack landed (ddbb2efa8), after REQ-2/DB-2, CRYPTO-1/TAINT-3,
+TAINT-2 (40063273f), TAINT-4 (1118be657) and EXT-4 (8c1ef0342). Stage 6 is next, and not started.
+
+- **HTML-1:** `Ctx::write_body` (`crates/nvs-runtime/src/ctx/output.rs:324`) is how
+  `Core\Response::text`, `::json`, `::bytes` and `::stream` (off a connection) write. At
+  `script_depth == 0` with no capture open it is `write_output`. Otherwise it renders the bytes as
+  `echo` renders a `string`: `nvs_render::html::escape` under the HTML carrier,
+  `nvs_render::text::substitute` under the terminal one, and byte by byte for bytes that are not
+  UTF-8, so `carried` still throws on them. `html` and `sendFile` stay verbatim. This differs from the
+  item's first wording (a plain `string` result): it keeps `output`'s type and also covers
+  `output: 'inherit'`, whose bytes `nvs_host::isolate::hand_over` appends raw. The rule
+  `rule:security/capture-answers-the-carrier` says so and names the attack in `guardedBy`.
+- The two Rust tests (`a_body_that_becomes_markup_is_escaped_and_a_response_is_verbatim`,
+  `a_childs_body_on_the_terminal_sink_has_no_control_byte`) and the attack ran once, green. The attack
+  fails at step 1 on `target/release/nvs` from before the fix. The 16 conformance cases that call a body
+  member ran once: 14 green, and the 2 stage-3 reds below are unchanged.
+- **The sweep's `env-secret-proofs` red was real this time:** `perf: stale`, because stage 3 changed
+  `crates/nvs-stdlib/src/env.rs`. Its figure was re-recorded (65eb128a8) and the gate is green. The
+  same staleness is likely for every feature whose source file stage 3 or this stage changed (see
+  *Tests that may go red*).
+- `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+
+Earlier in stage 5:
 
 - **TAINT-2:** `Core\Response\Stream::write`'s chunk is `Union[Text(Sink), Blob(Sink)]`
   (`crates/nvs-stdlib/src/response.rs`). The card and `rule:security/response-body-is-one-typed-member`
@@ -554,13 +576,13 @@ the stage's last two items, and neither is started.
   edited Rust tests are green. A full `nvs test tests/conformance` run showed 10 other reds, all from
   earlier stages (listed below).
 
-The sweep's `env-secret-proofs` red was stale a fifth time: its log (00:07) shows exit 0. Nightly run
-39746060276 was cancelled whole and is not a failure of this tree.
+Nightly run 39746060276 was cancelled whole and is not a failure of this tree.
 
 Tests that go red now (seen in the conformance run, left for stage 14):
 `core/a-response-bytes-body-sends-octets-no-text-member-carries.nvst` and
 `core/a-response-stream-carries-octets-and-agrees-with-a-whole-body.nvst` (stage 3: `Core\Out::capture`
-throws on output that is not UTF-8); `core/arr-fill-keys-takes-any-keys-and-fill-always-starts-at-zero.nvst`,
+throws on output that is not UTF-8; since HTML-1 a capture also substitutes a body's control bytes,
+so their rewrite cannot read raw octets back through a capture at all); `core/arr-fill-keys-takes-any-keys-and-fill-always-starts-at-zero.nvst`,
 `core/arr-overlay-deep-at-a-key-is-itself-one-level-down-and-keeps-the-bases-order.nvst`,
 `core/arr-sort-by-key-compares-numeral-keys-bytewise-and-a-comparator-sorts-them-as-numbers.nvst`,
 `core/bytes-pack-names-the-bound-each-field-stops-at.nvst` and
@@ -576,18 +598,22 @@ listing every diagnostic code (`E0885`). This session adds: the website's genera
 `llms-full.txt` (the cards of `Core\Response\Stream::write` and `Core\Ldap\Connection::add` changed),
 and any help snapshot of those two members. A `.nvst` or `.nvs` that streams a `tainted` value or
 passes a `secret` to an extension's `mixed` parameter would go red too. None was found by grep.
+HTML-1 adds: the `perf: stale` proofs of every `Core\Response` body member and `Core\Out::capture`
+(`response.rs` and `out.rs` changed; `bun nv proofs --record-perf --group '<group>'` re-records), any
+`.nvst`, example or hostile case that captures or spawns a child that writes a body with a control
+byte other than `LF`/`TAB` or with `<`, `>`, `&`, `"` or `'` under the HTML sink (grep found none
+beyond the two above), and an `nvs-server` test that spawns a child writing a text body inside a request.
 
 ### Next
 
-1. HTML-1 (stage 5's last fix): a spawned child's captured output is lifted to the parent's sink
-   carrier only for bytes the child wrote with `echo`. Bytes written by `Core\Response::text`,
-   `::json`, `::bytes` or `::stream` reach the parent as a plain `string`. Start at
-   `crates/nvs-stdlib/src/out.rs:193` (`carried`) and `crates/nvs-stdlib/src/script.rs:1278`, and find
-   where `nvs_runtime::Ctx::write_output` is called by a body member and by `echo`. The two writers
-   need a distinct record in the capture buffer, or the result needs to know which wrote it.
-2. HTML-1's attack: `tests/hostile/lang/concurrency/isolates-spawn-script-and-await/02-a-child-writes-markup-the-parent-prints.nvs`.
-   Then tick the stage and set its front-matter status to done.
-3. Stage 6 (`NvsArray::try_new` in the Rust parsers) is next after that.
+1. Stage 6, PARSE-1: `Core\Csv::parse` and `::rows` grow arrays through the fallible form and throw
+   the memory-limit error inside the parse. `NvsArray::try_new` is at
+   `crates/nvs-runtime/src/array.rs:1057`; its user from `failure-paths-hold` is `uri.rs`. Start at
+   `crates/nvs-stdlib/src/csv.rs:715`. Write the attack first:
+   `tests/hostile/core/Csv/parse/01-documents-an-upload-form-could-send.nvs`.
+2. PARSE-2 (`crates/nvs-stdlib/src/json.rs:1807`), PARSE-3 (`crates/nvs-stdlib/src/xml.rs:1619`) and
+   RT-4 (`crates/nvs-runtime/src/budget.rs:1153`) share the same fallible-growth helper, so one session
+   can take all four once PARSE-1 has landed the shape.
 
 ### Backlog
 
