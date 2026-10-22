@@ -894,6 +894,10 @@ mod tests {
             Woken::Elapsed
         }
 
+        fn yield_slice(&self) -> Woken {
+            Woken::Elapsed
+        }
+
         fn start_isolate(
             &self,
             _ctx: &mut Ctx,

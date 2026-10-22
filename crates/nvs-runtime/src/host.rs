@@ -712,6 +712,19 @@ pub trait Host: std::fmt::Debug {
     /// one thing to call.
     fn park(&self, deadline: Option<Instant>) -> Woken;
 
+    /// Gives the core back for one turn, behind whatever is already waiting on
+    /// it, and resumes the calling task at once after that.
+    ///
+    /// The safepoint calls this when the slice clock asks a task that never
+    /// waits to share its core. It waits for nothing, so the other methods do
+    /// not fit it: a [`Host::sleep`] has to pass time, and a [`Host::park`]
+    /// needs somebody to fire a wake. **Behind readiness** is the part only a
+    /// host can keep: a task that went to the front of the run queue would run
+    /// again before the core ever looked at its sockets. A host with no other
+    /// task to run returns at once, and [`Woken::Cancelled`] means what it
+    /// means for [`Host::sleep`].
+    fn yield_slice(&self) -> Woken;
+
     /// Starts what `entry` names as an isolate under the calling task and
     /// answers with the handle that collects it later.
     ///
@@ -865,6 +878,10 @@ mod tests {
 
         fn park(&self, _deadline: Option<Instant>) -> Woken {
             self.0.set(self.0.get() + 1);
+            Woken::Elapsed
+        }
+
+        fn yield_slice(&self) -> Woken {
             Woken::Elapsed
         }
 

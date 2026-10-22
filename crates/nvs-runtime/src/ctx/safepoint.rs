@@ -870,6 +870,28 @@ fn safepoint_slow_path(ctx: &mut Ctx) -> i32 {
         ctx.set_pending(message);
         return crate::FATAL;
     }
+    if ctx.safepoint_flags().contains(SafepointFlags::YIELD) {
+        // The slice clock raised this: the task has held its core for a slice
+        // without waiting, so it gives the core back here and its neighbours
+        // run. Below the limit branches, because a request that is stopping
+        // has nothing to hand back for, and above the cancel branch, which is
+        // where a cancellation delivered during the yield is read.
+        //
+        // Lowered before the call, so the task's next back edge does not find
+        // the slice it has just given up. The yield stands inside a
+        // `HelperFrame`, the way a member's park does: the frames above this
+        // one are compiled code, and a host that saw no frame would treat the
+        // suspended stack as one it may force-unwind
+        // (`rule:http-server/time-is-bounded-inside-a-helper`).
+        ctx.lower_safepoint(SafepointFlags::YIELD);
+        let woken = {
+            let _frame = crate::HelperFrame::enter();
+            crate::host::with_current(|host| host.yield_slice())
+        };
+        if woken == Some(crate::host::Woken::Cancelled) {
+            ctx.cancelled = true;
+        }
+    }
     if ctx.cancelled {
         ctx.set_pending("the request was cancelled");
         return crate::FATAL;
@@ -901,15 +923,12 @@ fn safepoint_slow_path(ctx: &mut Ctx) -> i32 {
     // is lowered by the same reading. The collect bit
     // is here for the same reading of the same fact — any ask still standing
     // was raised by the walk's own allocations, above a ceiling this request
-    // is no longer over. The yield bit is lowered with them and nothing else is
-    // done for it yet: the slice clock raises it, and no task gives its core
-    // back here so far.
+    // is no longer over.
     ctx.lower_safepoint(
         SafepointFlags::COLLECT
             | SafepointFlags::DEBUG_BREAK
             | SafepointFlags::MEMORY_LIMIT
-            | SafepointFlags::OUTPUT_LIMIT
-            | SafepointFlags::YIELD,
+            | SafepointFlags::OUTPUT_LIMIT,
     );
     crate::OK
 }
