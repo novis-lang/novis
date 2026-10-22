@@ -95,16 +95,16 @@ nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.1" }
 nvs-fmt = { path = "crates/nvs-fmt", version = "0.0.1" }
 
 # --- codegen backend (versions validated by the M0 spikes) ---
-cranelift = "0.136"
-cranelift-jit = "0.136"
-cranelift-module = "0.136"
-cranelift-native = "0.136"
+cranelift = "0.136.4"
+cranelift-jit = "0.136.4"
+cranelift-module = "0.136.4"
+cranelift-native = "0.136.4"
 # The second `Module` behind the one lowering walk — the relocatable
 # object payload of
 # `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`.
 # Same version as its four siblings above, and it must stay so:
 # they share `cranelift-codegen`'s types.
-cranelift-object = "0.136"
+cranelift-object = "0.136.4"
 # The reader for what that one writes, and a test dependency only: an object's
 # relocation table is the evidence that an address was left for a loader rather
 # than baked in. Same version `cranelift-object` already resolved to.
@@ -342,8 +342,10 @@ rcgen = { version = "0.14", default-features = false, features = [
 # --- extension sandbox (M9). Built on the same cranelift version above, so the
 # --- two move together: wasmtime N pins cranelift 0.(N+87) exactly.
 # --- See rule:packaging/an-extension-is-a-sandboxed-wasm-component.
-# HOLD (revisit 2026-11-16): wasmtime 50 is only 50.0.0-rc.1, and 49.0.3 is the latest final release.
-wasmtime = "49"
+# HOLD (revisit 2026-11-16): wasmtime 50 is only 50.0.0-rc.1. The minimum is
+# 49.0.4, with cranelift's 0.136.4: the first releases with RUSTSEC-2026-0379's
+# fix, so a `cargo update` cannot resolve back to a vulnerable patch release.
+wasmtime = "49.0.4"
 # The parser of the `nvs:ext@1.0.0` world's WIT text under `wit/`, at the
 # version wasmtime itself parses component types with, so it adds no crate
 # the lock file did not already hold. Only `std`: the test reads text, and
@@ -375,7 +377,7 @@ wit-component = { version = "0.258", default-features = false }
 # `rule:concurrency/one-scheduler` refuses, and this one is `no_std` with no
 # executor. It adds `tracing`, with no subscriber and no `log` bridge.
 # `crates/nvs-ext/src/wasi.rs` is the one caller.
-wasmtime-wasi-io = "49"
+wasmtime-wasi-io = "49.0.4"
 
 # --- the language server's wire and its vocabulary ---
 # `rule:ide/the-server-is-synchronous` is "a reader thread, a writer thread, one
@@ -470,7 +472,7 @@ memmap2 = "0.9"
 # that crate's own dependency, so naming it here adds no crate and no C.
 # Upstream marks it internal to wasmtime and unsupported elsewhere; the pin is
 # what answers that, and `nvs_codegen::make_executable` is the one call site.
-wasmtime-internal-jit-icache-coherence = "49"
+wasmtime-internal-jit-icache-coherence = "49.0.4"
 # Dev-only: asks the OS for a code page's protection, so `nvs-codegen`'s and
 # `nvs-cli`'s tests check that a page Novis made executable is not writable
 # (`rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`).
