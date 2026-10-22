@@ -43,6 +43,10 @@ const REMOVE_FAILED = "failed to remove file";
 /** The suffix a moved-aside binary carries, before its number. */
 const ASIDE = ".held-";
 
+/** The build that writes `target/release/nvs`: the acceptance sweep's, `--record-perf`'s, and the one
+ *  `bun nv relink --build` runs at every goal end. One argv, so all of them share one set of artefacts. */
+export const RELEASE_ARGV = ["cargo", "build", "--release", "-p", "nvs-cli"];
+
 /** `target/release/nvs`, with this platform's extension. */
 export function releaseCli(root: string = ROOT): string {
   return join(root, "target", "release", process.platform === "win32" ? "nvs.exe" : "nvs");

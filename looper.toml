@@ -87,7 +87,14 @@ before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 90
 # `tools/nv/cmd/ci.ts`: once a goal is retired, it pushes `main`, and the push starts the CI runs the
 # `ci-green` goal's loop watches. A failed push only warns, so the next goal still starts, and the next
 # retirement pushes again. The timeout covers a fetch and a push.
-after_retire = [{ run = ["bun", "nv", "ci", "--push"], timeout = 600, on_fail = "warn" }]
+# `tools/nv/cmd/relink.ts`: then it rebuilds `target/release/nvs`, the binary the user's editor and
+# terminal run, so every goal end leaves it current. It is attached, so the next session's timing checks
+# never share the machine with a release build. A failed build only warns. The timeout covers a cold
+# release build with thin LTO.
+after_retire = [
+  { run = ["bun", "nv", "ci", "--push"], timeout = 600, on_fail = "warn" },
+  { run = ["bun", "nv", "relink", "--build", "--hook"], timeout = 3600, on_fail = "warn" },
+]
 
 # `scope` is the words looper writes into `docs/agent/prose.md`. The files the prose check reads and its
 # rules are `tools/nv/cmd/prose.ts`'s.

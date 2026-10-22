@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { free, held, linked, pinned, sweep } from "../lib/relink.ts";
+import { run as relink } from "../cmd/relink.ts";
 import { scratch } from "./scratch.ts";
 
 test("a held binary is cargo's remove failure naming that binary, and nothing else", () => {
@@ -70,4 +71,10 @@ test("pinned links one copy per build, keeps it when the original moves, and del
   } finally {
     s.cleanup();
   }
+});
+
+test("relink --build --hook builds nothing in a side loop's lane, and --hook alone is a usage error", async () => {
+  expect(await relink(["--build", "--hook"], { LOOPER_LOOP_KIND: "side" })).toBe(0);
+  expect(await relink(["--hook"], {})).toBe(2);
+  expect(await relink(["--build", "--soon"], {})).toBe(2);
 });

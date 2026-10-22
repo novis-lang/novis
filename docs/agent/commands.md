@@ -654,7 +654,8 @@ keeps that worktree. Once its goal is reached and its file deleted, the loop lan
 merges `main` in, runs verify, pauses the other loops and fast-forwards `main`. It never pushes.
 
 **`main` reaches GitHub through `bun nv ci --push` alone.** looper's `after_retire` hook runs it at
-every goal end. The goal `ci-green` is the one side goal that runs in the root, added with `looper loop
+every goal end, and then `bun nv relink --build --hook`, which rebuilds `target/release/nvs` in the root
+and builds nothing in a side loop's lane (`tools/nv/cmd/relink.ts`). The goal `ci-green` is the one side goal that runs in the root, added with `looper loop
 add --side ci-green --in-root`. It is never reached: its loop watches every CI run on `main`, fixes
 each failure, commits and pushes. No other session pushes or cancels a run. The push starts the runs,
 and the command cancels each run a newer one replaces, so each workflow has one run going on `main`
