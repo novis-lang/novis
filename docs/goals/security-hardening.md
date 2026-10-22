@@ -551,46 +551,37 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 7 is done (d2 landed and the `flood` row passes). Stage 8 has EXT-1, EXT-2 and its attack
-done; EXT-5, EXT-6 and EXT-7 to EXT-10 are left.
+Stage 8 has EXT-1, EXT-2, EXT-5, EXT-6 and its attack done; EXT-7 to EXT-10 are left.
 
-This session (0151):
+This session (0152):
 
-- **d2 (0870184a5).** Each admitted request counts one publish step (1 MiB) on its core's gauge
-  until it grows a step or ends: `nvs_runtime::budget::hold_share` (called by `Admission::admit`
-  when it admits) and `give_share_back` (called by `InFlight`'s `Drop`), with the thread-local
-  `SHARES` in `crates/nvs-runtime/src/budget/gauge.rs`. `report` adds `SHARES * STEP` to what it
-  publishes, and a `grew` report with a request armed (`POLLED` non-null) gives one share back. The
-  shares are the core's count, not each request's; the gauge's module doc says why that is
-  enough. The shares also count against the process limit (`stop_if_full`), which can stop a
-  growing request up to one step per share early; the doc says so. `memory_fits` is unchanged.
-- **Run order.** New `nvs_host::spawn_child_next` (and the crate-private `spawn_child_ordered`)
-  in `crates/nvs-host/src/scheduler.rs`: `Pending` and `Scheduler::start` carry `next`, `start`
-  pushes such a task to the front of `ready`, and `drain_pending` pushes the `next` ones in reverse
-  so they keep their spawn order. `start_as_task` (`crates/nvs-host/src/isolate.rs`) spawns next
-  when the isolate's context has an inbound request.
-- Tests `a_burst_on_one_core_is_refused_before_it_allocates` (`admit.rs`) and
-  `a_child_spawned_next_runs_before_the_tasks_already_ready` (scheduler unit) ran once, green.
-  `rule:http-server/admission-is-arithmetic-not-a-number` has the paragraph, the memory line, three
-  Declined entries, and `guardedBy` names `scheduler.rs`.
-- **The `flood` row, run once after d2** (`bun nv bench-compare --scenarios --smoke --row flood`):
-  `Novis built-in, PHP no, Bun no, Go no`. Novis: 6508 flood requests, 6083 refused, every failure
-  `503` (no `500`), 25 probes with 0 failed, probe median 147 ms and max 1296 ms, recovery 0 s, all 8
-  holds after the flood answered, no restart. Bun and Go answered `502` throughout and restarted 6
-  times each; PHP timed out and did not recover.
-- **EXT-2 (95e083fcf).** `crates/nvs-cli/src/extensions.rs`: `size_pool(config)`, called at the top
-  of `loaded`, sets the static `SLOTS` to `max_in_flight` × (built-in classes + `[[extension]]`
-  entries), capped at `MOST_SLOTS = 4096` (6 GiB of address space each, 24 TiB in all), while no
-  host exists. A host made before any configuration (`nvs ext build`) gets `UNSIZED_SLOTS = 64`. A
-  reload cannot grow the pool; past it a call throws `ExtensionError`.
-  `rule:packaging/a-fresh-instance-per-request` says so, with two Declined entries (a smaller
-  reservation per place, growing the pool at a reload). Test
-  `every_request_in_flight_can_hold_an_extension_instance` (`serve_isolation.rs`, 100 requests that
-  each hold a `Novis\Intl` instance for 500 ms, `max_in_flight = 200`) ran once, green; on the old
-  code 36 of the 100 fail.
-- `env-secret-proofs`: its log is still the 00:07 one with exit 0 and `nothing owed`, and no check
-  has that name. The sweep's red is stale. Nightly 39746060276 was cancelled whole.
+- **EXT-5 (f86196453).** `Calls` in `crates/nvs-cli/src/extensions.rs` keeps one
+  `nvs_ext::call::Request` per `grants:` narrowing (`Mutex<Vec<Arc<Held>>>`, found by
+  `Spent::narrowed == ctx.grant_filter()`), made at that narrowing's first call; `Drop` ends each
+  request it holds alone. The only same-tree path to a narrowed caller is `spawn script` in
+  `nvs serve`: under `nvs run` a spawned script does not compile against the extension set
+  (`live_manifests()` is empty there, `use Geo\Atlas` is `E0306`), so no `tests/hostile/` case can
+  reach it. The attack is `a_narrowed_child_script_does_not_reach_the_instance_its_request_made`
+  in `crates/nvs-cli/tests/live_config.rs` (red on main: all three children read `hello`; green
+  now, run once). Both rules say so; `extension-grants-are-an-intersection` gained a memory line,
+  a Declined entry (swapping preopens per call) and `live_config.rs` in `guardedBy`.
+- **EXT-6 (ddb8dd9d7).** `nvs_ext::call::Outgoing` has a new `connect: Vec<String>` (the
+  intersection, from the wasi `Context`), and `nvs_stdlib::extension_send` takes `connect: &[String]`
+  and refuses a redirect hop whose host is not in it with a `RuntimeError`, before re-pinning. The
+  attack `a_redirect_to_a_host_only_the_caller_may_reach_is_denied` in `crates/nvs-ext/tests/http.rs`
+  (a 302 from `127.0.0.1` to a listener on `127.0.0.2`) was red on main (`200`) and is green; the
+  whole `http` test file ran once, 9 green. On macOS `127.0.0.2` needs a loopback alias; CI runs
+  Linux and Windows, where it binds.
+- `env-secret-proofs`: the sweep named it red again. Its only log is still the 00:07 one with
+  exit 0 and `nothing owed`, and no goal, `looper.toml` or floor names a check by that name, so it
+  is the driver's stale state, not the tree's. Nothing in the tree can turn it green.
 - `cargo build`, `cargo clippy --all-targets -- -D warnings` and `bun nv rules --check` are green.
+
+Tests that may go red from EXT-5 and EXT-6: any caller of `nvs_stdlib::extension_send` or
+constructor of `Outgoing` outside the two updated (grep found none); a served test whose child
+script passes a resource an extension returned to its parent, under a different `grants:` (it is
+now refused as a number the child's request does not keep; none found); the website's generated
+rule pages (`bun nv site --check` names them).
 
 Tests that may go red from d2: a scheduler or isolate test that expects a served request's isolate
 to run after tasks already ready (none found); a test that reads `held_by_this_core` or
@@ -663,17 +654,24 @@ website's rule pages (`default-series`'s title changed).
 ### Next
 
 Stage 8: an extension instance ends with its request (`rule:packaging/a-fresh-instance-per-request`).
+EXT-7 to EXT-10 from `.agent-tmp/sec-audit/reports/wb-sinks.md:212`, each fixed or declined into its
+rule, each attack written first. Then set stage 8 done.
 
-1. EXT-5: a narrowed `grants:` of an isolate reaches an instance its tree already holds
-   (`crates/nvs-cli/src/extensions.rs`, `Calls::request` and the `Spent`/grant it builds; the
-   audit's finding is in `.agent-tmp/sec-audit/reports/wb-sinks.md`, grep `EXT-5`). Write the
-   attack first: a request calls an extension, then spawns an isolate with a narrower `grants:`
-   that calls it again and reaches past its grant.
-2. EXT-6: a redirect an extension's HTTP call follows is checked against the extension's grant
-   intersection (`crates/nvs-ext/src/wasi/http.rs:488`,
-   `rule:security/extension-grants-are-an-intersection`).
-3. EXT-7 to EXT-10 from `.agent-tmp/sec-audit/reports/wb-sinks.md:212`: each fixed or declined
-   into its rule. Then set stage 8 done.
+1. EXT-7: text an extension returns is untainted unless its manifest says `"source": true`
+   (`crates/nvs-types/src/ext_lib.rs:331`). Force `source` when the manifest requests `read` or
+   `connect`. The `Geo\Atlas` example and its `.out` files under
+   `docs/examples/tools/config/extension-grants-what-a-component-may-reach/` will need a
+   `tainted string` where they keep a read.
+2. EXT-8: `[ext.X]` block names are free text, so one extension can read another's block
+   (`crates/nvs-ext/src/manifest.rs:282`, `crates/nvs-cli/src/extensions.rs:212`). Refuse a set
+   where two entries declare the same block, or bind the block to the declaring entry.
+3. EXT-9: `get_random_bytes` (`crates/nvs-ext/src/wasi.rs:466`) and `as-bytes` on a lent file
+   (`crates/nvs-ext/src/handle.rs:357`) allocate a guest-chosen size unchecked. Ask
+   `Budget::charge`/`left` first.
+4. EXT-10: the WASI filesystem checks then opens by name (`crates/nvs-ext/src/wasi/files.rs:212`,
+   `:599`) and `refused_name` (`:253`) passes DOS device names. Open beneath a handle as
+   `rule:security/writes-open-beneath-a-handle` says, or decline into the rule; stage 11 owns
+   Windows path text, so a device name may move there.
 
 ### Backlog
 
