@@ -151,6 +151,12 @@ not `no`.
   it, and one with `Origin: https://other.example`. The second is rejected when its reply does not
   say the state changed, whatever the status. Accepted is `your-code`, because a check of the
   `Origin` or a token is code or a library the developer adds.
+- `session` starts a session, sends `/slow`, which writes the session and then works for two
+  seconds, and 200 ms later `/fast` with the same cookie, which only reads it. `/fast` answered in
+  under a second is `built-in`. Longer is PHP's session lock holding it until `/slow` ends, and
+  `your-code` names the two calls that release it early. Bun and Go have no session without a
+  library, so they run nothing and are `your-code`. The row does not test lost writes: with no lock,
+  two requests of one visitor that change one value keep the last write, which the page says.
 - `headers` reads hello's response for `X-Content-Type-Options: nosniff`, a frame policy
   (`X-Frame-Options` or a `frame-ancestors` CSP) and a `Referrer-Policy`. Any one missing is
   `your-code`. All three from Novis are `on-by-default`, naming `[http.headers]`, whose shipped values

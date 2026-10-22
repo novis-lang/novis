@@ -9,6 +9,7 @@ import CaseCharts from '@components/compare/CaseCharts.astro'
 import CoreCharts from '@components/compare/CoreCharts.astro'
 import FeatureTable from '@components/compare/FeatureTable.astro'
 import FaultCharts from '@components/compare/FaultCharts.astro'
+import SessionChart from '@components/compare/SessionChart.astro'
 
 This page compares Novis with PHP, Bun and Go. Each language runs the same small web programs. One
 command measures all four on one machine, and anybody can run it.
@@ -247,6 +248,25 @@ Outside data is every value that comes from outside the program. Examples are th
 session, environment variables and command line arguments. A reply from another server and values
 read from a database are outside data too. Novis calls these values tainted. A tainted value in an
 SQL string is a compile error, so the program never runs with it.
+
+### One visitor, two requests
+
+One visitor sends two requests with the same session cookie. The slow request changes a value in
+the session and then works for 2 seconds. The fast request starts 200 ms later and only reads the
+session. The chart shows how long the fast request waited for its answer. Bun and Go have no
+sessions without a library, so they are not in the chart.
+
+<SessionChart />
+
+PHP locks the session file while a request has the session open. The lock stays until that request
+ends, so the fast request waits for the slow one. A PHP program can avoid this in two ways.
+`session_start(['read_and_close' => true])` reads the session and closes it at once.
+`session_write_close()` saves the session and releases the lock before the slow work starts.
+
+Novis reads the session once when the request starts. It writes the session once when the request
+ends, and only if it changed. No request waits for another one. This has a cost. Two requests of
+one visitor can change the session at the same time. Then the session from the request that ends
+last is kept, and the change of the other request is lost.
 
 ### Many waiting requests
 

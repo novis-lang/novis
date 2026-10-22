@@ -69,6 +69,7 @@ const ROW_TEXT: Record<string, string> = {
   taint: 'An SQL injection from outside data (request, session, environment, database) is not executed',
   secret: 'A secret in the output is found before the program runs',
   csrf: 'A form sent from another site is rejected',
+  session: 'A request that only reads the session does not wait for a slow request of the same visitor',
   headers: 'Security headers are sent by default',
   waiting: 'Answers 1000 waiting requests on one CPU',
   parallel: 'One request can split its work over four CPU cores',
@@ -94,6 +95,7 @@ const ROW_DETAILS: Record<string, string> = {
   cores: 'many-requests-at-once',
   loop: 'runaway-requests',
   memory: 'runaway-requests',
+  session: 'one-visitor-two-requests',
   waiting: 'many-waiting-requests',
   parallel: 'one-request-in-four-parts',
 }
@@ -392,6 +394,26 @@ export interface OneAndFour {
   /** How the program runs its parts at once, for `parallel`. */
   way: string | null
 }
+
+/** How long the `session` row's fast request waited, for each peer that ran it. */
+export interface SessionWait {
+  peer: string
+  label: string
+  /** The milliseconds from sending the fast request to its reply. */
+  waitMs: number
+  /** The code that releases the session early, where the peer needs it. */
+  code: string | null
+}
+
+/** The `session` row: the fast request's wait for each peer that has sessions, Novis and PHP. */
+export const sessionWaits: SessionWait[] = evidenceOf('session')
+  .filter(({ evidence: e }) => typeof e.fast_wait_ms === 'number')
+  .map(({ peer, label, evidence: e }) => ({
+    peer,
+    label,
+    waitMs: e.fast_wait_ms as number,
+    code: (e.code as string | null) ?? null,
+  }))
 
 /** The `cores` row: the HTML page case's throughput with one core and with four, for every peer. */
 export const manyRequests: OneAndFour[] = evidenceOf('cores').map(({ peer, label, evidence: e }) => ({

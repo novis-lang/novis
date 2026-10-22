@@ -740,6 +740,51 @@ export function csrfResult(sameSite: Reply, crossSite: Reply): RowResult {
   return { result: rejected ? "built-in" : "your-code", evidence: { cross_site_status: crossSite.status, rejected } };
 }
 
+/** How long the session row's `/slow` runs before its `/fast` is sent, and the wait under which `/fast` was not held. */
+export const SESSION_HEAD_START_MS = 200;
+export const SESSION_WAIT_LIMIT_MS = 1000;
+
+/** The code a peer's program needs so a session it only reads does not wait for one another request writes. */
+const SESSION_IN_CODE: Record<string, string> = { php: "session_start(['read_and_close' => true]) or session_write_close()" };
+
+/** A peer with no session in its standard library, so the row has nothing to run. */
+const noSession = (docs: string): RowResult => ({ result: "your-code", evidence: { session: "none in the standard library", docs } });
+
+/**
+ * Every `set-cookie` of `reply` as one `Cookie` header, the attributes dropped. A reply's headers join
+ * several `set-cookie`s with `, `, so a comma followed by `name=` starts the next one.
+ */
+export function cookieOf(reply: Reply): string {
+  const raw = reply.headers["set-cookie"];
+  if (raw === undefined || raw === "") throw new Fail(`the first request set no cookie: status ${reply.status}`);
+  return raw
+    .split(/,(?=\s*[^;,=\s]+=)/)
+    .map((c) => c.split(";")[0]!.trim())
+    .join("; ");
+}
+
+/**
+ * `/slow` writes the session and then works, so `/fast`, sent `SESSION_HEAD_START_MS` later with the same
+ * cookie, waits for nothing it needs. Under `SESSION_WAIT_LIMIT_MS` is `built-in`. Longer is the session
+ * lock holding `/fast` until `/slow` ends, which the peer's own code can avoid, so it is `your-code`.
+ */
+export function sessionResult(slow: Reply, fast: Reply, fastMs: number, inCode: string | undefined): RowResult {
+  if (slow.status !== 200 || !slow.body.includes("slow done")) throw new Fail(`/slow: status ${slow.status}, body ${pyRepr(slow.body.slice(0, 200))}`);
+  if (fast.status !== 200 || !fast.body.includes("count:")) throw new Fail(`/fast: status ${fast.status}, body ${pyRepr(fast.body.slice(0, 200))}`);
+  const evidence = { fast_wait_ms: Math.round(fastMs), head_start_ms: SESSION_HEAD_START_MS, code: inCode ?? null };
+  return { result: fastMs < SESSION_WAIT_LIMIT_MS ? "built-in" : "your-code", evidence };
+}
+
+async function sessionProbe(p: Probe): Promise<RowResult> {
+  const cookie = cookieOf(ok(await p.get("/"), "the session start"));
+  const slow = p.send("GET", "/slow", { Cookie: cookie });
+  await Bun.sleep(SESSION_HEAD_START_MS);
+  const start = performance.now();
+  const fast = await p.send("GET", "/fast", { Cookie: cookie });
+  const fastMs = performance.now() - start;
+  return sessionResult(await slow, fast, fastMs, SESSION_IN_CODE[p.peer]);
+}
+
 /** `nvs check` refused the program with the error `code`, or it has no such check. */
 export function checkResult(code: number, output: string, expected: string): RowResult {
   const refused = code !== 0 && output.includes(`error[${expected}]`);
@@ -1269,6 +1314,16 @@ export const SCENARIOS: Scenario[] = [
     tree: "scenarios",
     case: "csrf",
     probe: async (p) => csrfResult(await p.send("POST", "/change", {}), await p.send("POST", "/change", { Origin: OTHER_ORIGIN })),
+  },
+  {
+    id: "session",
+    tree: "scenarios",
+    case: "session",
+    fixed: {
+      bun: noSession("https://bun.sh/docs/api/cookie"),
+      go: noSession("https://pkg.go.dev/net/http#Cookie"),
+    },
+    probe: sessionProbe,
   },
   {
     id: "headers",
