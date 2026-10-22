@@ -4,6 +4,7 @@
   "seeAlso": [
     "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
     "http-server/a-wedged-core-is-detected-by-its-deadline",
+    "http-server/a-request-that-computes-shares-its-core",
     "core-classes/regex-two-tiers",
     "errors/on-limit",
     "concurrency/cancellation-runs-no-user-code"

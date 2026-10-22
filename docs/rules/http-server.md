@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*1 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -2048,7 +2048,7 @@ A request's blast radius is bounded by construction at four named tiers, and the
 | Tier | Statement | Held by |
 |---|---|---|
 | **A** | No input a request can send terminates a worker process. | [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/engine-depth-is-bounded-per-decoder`](http-server.md#http-server-engine-depth-is-bounded-per-decoder), [`http-server/a-jit-page-is-never-writable-and-executable-at-once`](http-server.md#http-server-a-jit-page-is-never-writable-and-executable-at-once), [`packaging/the-artifact-cache-is-read-not-mapped`](packaging.md#packaging-the-artifact-cache-is-read-not-mapped) |
-| **B** | No request causes another to fail, stall, or observe its data. | [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing) |
+| **B** | No request causes another to fail, stall, or observe its data. | [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/a-request-that-computes-shares-its-core`](http-server.md#http-server-a-request-that-computes-shares-its-core), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing) |
 | **C** | No request consumes beyond its own budget, a core's time included. | [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number) |
 | **D** | *Residue.* An engine fault may terminate the process; the service recovers under its supervisor in about a cold start, and the requests in flight at that moment are lost. | [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class) |
 
@@ -2107,7 +2107,9 @@ Two constraints on where a poll may go, both about correctness:
 - **The poll is supplied by a bounded-loop combinator, not remembered per helper.** A helper adopts the shape and the shape carries the obligation.
 - **A poll site must be a point at which abandoning leaves the value consistent.** A sort cannot be abandoned mid-permutation and its array handed back. Where no such point exists, the bound belongs on the *input* instead — which is what [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers) already did for patterns, and the precedent generalises rather than being re-argued.
 
-<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code).</sub>
+**The safepoint poll also yields the core.** A request that has run a slice without waiting finds `YIELD` raised at its next poll and gives its core back there ([`http-server/a-request-that-computes-shares-its-core`](http-server.md#http-server-a-request-that-computes-shares-its-core)). A helper's batched poll reads the deadline alone and does not yield: a helper call is one turn, and it holds its core until it returns or its deadline stops it. What bounds that turn is this rule's deadline poll, and what bounds the neighbours' wait is that a helper's runtime is O(its input) under the request's own limits.
+
+<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/a-request-that-computes-shares-its-core`](http-server.md#http-server-a-request-that-computes-shares-its-core), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code).</sub>
 
 <a id="http-server-no-path-reaches-abort"></a>
 
@@ -2144,6 +2146,33 @@ The bound is stated because the default it replaces is not: an unbounded pool of
   surface narrow. Simplicity outweighs it until a measurement says otherwise.
 
 <sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
+
+<a id="http-server-a-request-that-computes-shares-its-core"></a>
+
+## A request that runs a 10 ms slice without waiting gives its core back at its next safepoint poll, behind readiness
+
+`rule:http-server/a-request-that-computes-shares-its-core`
+
+A core runs one task at a time, and a task runs until it waits. [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall) keeps a core from waiting on the kernel, and [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper) bounds a request by its own deadline. Neither stops a request that computes and never waits from holding its core for the whole of that deadline, and every other request on the core waits with it.
+
+**A request that has run a time slice of 10 ms without waiting gives its core back at its next safepoint poll, behind every task the reactor has woken since.** It runs again at its next turn, with its memory, its CPU time and its deadline unchanged, so a neighbour on the same core waits at most a slice for each request ahead of it. The slice holds on every core of `nvs serve` and on the thread of `nvs run`.
+
+- **The clock is one thread per process, and it reads epochs, not clocks.** It adds one to an epoch counter every 5 ms while any core is in a turn. A core stores the epoch into its own slot when it resumes a task and clears the slot when the turn ends. A slot two epochs behind has run the slice, and the thread raises the safepoint flag `YIELD` on the request tree that core is running, which the watchdog's record already names (`crates/nvs-host/src/slice.rs`). With every slot clear the thread parks, and the core that starts the next turn wakes it, so an idle server wakes no thread.
+- **The yield goes behind readiness.** On a core with a reactor, the yield fires a wake and parks, so the reactor is polled before the request resumes and the accept loop and every connection get their turn. Putting the request back at the front of the run queue would keep the scheduler from ever reaching the reactor while one request spins.
+- **The yield is taken inside a helper frame**, as every other suspension from compiled code is, so a teardown at that point never unwinds through compiled frames.
+- **The poll is the safepoint poll at a back edge or a function entry, so a slice ends between two calls.** A helper call is one turn: its batched poll reads the deadline alone, and it gives the core back when it returns ([`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper)).
+- **A request's accounting stays its own across the switch.** A turn's memory is charged to the request tree that ran it ([`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)), and the CPU time is the tree's through the watchdog's meter. A `Core\Task::all` deadline is on the core's reactor, so it stops a task that never waits one slice late at most ([`concurrency/limit-and-deadline-are-the-only-bounds`](concurrency.md#concurrency-limit-and-deadline-are-the-only-bounds)).
+
+What it spends, as [`programs/memory-priority`](programs.md#programs-memory-priority) requires: one OS thread per process, parked while no core is in a turn, and one slot per registered thread, O(cores). A resume pays one relaxed load and one sequentially consistent store and load, and the end of a turn one store. Nothing is allocated per turn. A request that computes pays one reactor poll per slice, well under 1% of its time. The poll site is the one compiled code already has: `YIELD` is one more bit in the word every back edge loads, so no codegen changes.
+
+A thread with no per-thread clock publishes no request to the watchdog, so nothing asks it to yield, and a request there keeps its core until it waits or its deadline ends it.
+
+**Declined:**
+- **A slice driven by the watchdog's sweep.** The sweep reads each core's thread clock every 500 ms, which is fifty slices. That is far too coarse to share a core, and reading every clock at every tick costs more than the epoch store does.
+- **A configuration key for the slice.** A key is one more thing an operator must understand, for a figure nobody tunes per deployment. Go preempts at the same 10 ms, and a slice is long next to the cost of a switch. If a measurement shows `hello` losing more than 3%, the constant becomes 20 ms and this rule says so.
+- **Preemption by signal.** A signal interrupts compiled code at any instruction, where no stack map and no consistent value exist, and makes every helper reentrant. The safepoint poll is already at every back edge and function entry, so a cooperative yield there costs nothing new and leaves every value consistent.
+
+<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`concurrency/limit-and-deadline-are-the-only-bounds`](concurrency.md#concurrency-limit-and-deadline-are-the-only-bounds), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="http-server-a-wedged-core-is-detected-by-its-deadline"></a>
 

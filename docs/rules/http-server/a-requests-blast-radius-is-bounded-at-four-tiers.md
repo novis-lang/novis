@@ -3,7 +3,7 @@ A request's blast radius is bounded by construction at four named tiers, and the
 | Tier | Statement | Held by |
 |---|---|---|
 | **A** | No input a request can send terminates a worker process. | `rule:http-server/containment-does-not-end-at-the-helper`, `rule:http-server/no-path-reaches-abort`, `rule:http-server/engine-depth-is-bounded-per-decoder`, `rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`, `rule:packaging/the-artifact-cache-is-read-not-mapped` |
-| **B** | No request causes another to fail, stall, or observe its data. | `rule:http-server/time-is-bounded-inside-a-helper`, `rule:http-server/a-core-is-never-blocked-on-a-syscall`, `rule:http-server/a-wedged-core-is-detected-by-its-deadline`, `rule:security/isolate-shares-nothing` |
+| **B** | No request causes another to fail, stall, or observe its data. | `rule:http-server/time-is-bounded-inside-a-helper`, `rule:http-server/a-core-is-never-blocked-on-a-syscall`, `rule:http-server/a-request-that-computes-shares-its-core`, `rule:http-server/a-wedged-core-is-detected-by-its-deadline`, `rule:security/isolate-shares-nothing` |
 | **C** | No request consumes beyond its own budget, a core's time included. | `rule:http-server/time-is-bounded-inside-a-helper`, `rule:http-server/a-core-is-never-blocked-on-a-syscall`, `rule:http-server/admission-is-arithmetic-not-a-number` |
 | **D** | *Residue.* An engine fault may terminate the process; the service recovers under its supervisor in about a cold start, and the requests in flight at that moment are lost. | `rule:http-server/the-residue-is-one-named-fault-class` |
 

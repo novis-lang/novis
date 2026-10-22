@@ -1,0 +1,18 @@
+{
+  "title": "A request that runs a 10 ms slice without waiting gives its core back at its next safepoint poll, behind readiness",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
+    "http-server/a-core-is-never-blocked-on-a-syscall",
+    "http-server/time-is-bounded-inside-a-helper",
+    "http-server/a-wedged-core-is-detected-by-its-deadline",
+    "security/isolate-budget-is-the-trees",
+    "concurrency/limit-and-deadline-are-the-only-bounds",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/serve.rs",
+    "crates/nvs-host/src/slice.rs",
+    "tests/conformance/isolate/a-deadline-stops-a-task-that-never-waits.nvst"
+  ]
+}
