@@ -1,0 +1,25 @@
+<?nvs
+// Attack: a client sends JSON documents of eight megabytes that are made of many
+// small values. The values need much more memory than the text. The last document
+// needs more memory than a request may use, so the program should stop there with `FATAL`.
+// hostile: timeout-ms 30000
+// hostile: ends-early 3 FATAL
+
+// 1. Two hundred thousand empty lists in one list. This fits in memory.
+string $lists = '[' . Core\Str::repeat('[],', 200000) . '[]]';
+var $small = Core\Json::decode($lists);
+echo '1 lists: ', Core\Arr::count($small as array<mixed>), "\n";
+
+// 2. One object with two hundred thousand keys. This fits in memory too.
+string $keys = '{' . Core\Str::join(Core\Arr::map(
+    Core\Arr::range(1, 200000),
+    fn(int $n): string => '"' . $n . '":0',
+), ',') . '}';
+var $wide = Core\Json::decode($keys);
+echo '2 keys: ', Core\Arr::count($wide as array<mixed>), "\n";
+
+// 3. Eight megabytes of empty lists, almost three million of them. The lists need
+// more than the memory limit, so the program stops while it reads them.
+echo "step 3\n";
+var $huge = Core\Json::decode('[' . Core\Str::repeat('[],', 2700000) . '[]]');
+echo '3 lists: ', Core\Arr::count($huge as array<mixed>), "\n";

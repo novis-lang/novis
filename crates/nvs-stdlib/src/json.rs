@@ -1802,6 +1802,9 @@ impl<'de> Visitor<'de> for Decode<'_> {
     }
 
     fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Value, E> {
+        if !nvs_runtime::budget::affords(size_of::<Value>().saturating_add(value.len())) {
+            return Err(over_memory());
+        }
         Ok(Value::text(value))
     }
 
@@ -1811,9 +1814,17 @@ impl<'de> Visitor<'de> for Decode<'_> {
         }
         // The handle owns every element it is given, and releases them all if
         // an element further along refuses — so a failed decode leaks nothing
-        // even though it stops half way.
-        let mut array = NvsArray::new();
-        while let Some(value) = seq.next_element_seed(self.child())? {
+        // even though it stops half way. Each element's place is asked for in
+        // front of it, so a list past the memory limit stops at the limit. The
+        // array itself is asked for too, since `[[],[],…]` is mostly arrays.
+        let mut array = NvsArray::try_new().ok_or_else(over_memory)?;
+        loop {
+            if !affords_entry(&array, 0) {
+                return Err(over_memory());
+            }
+            let Some(value) = seq.next_element_seed(self.child())? else {
+                break;
+            };
             array.append(value);
         }
         let value = Value::array(array);
@@ -1827,8 +1838,11 @@ impl<'de> Visitor<'de> for Decode<'_> {
         if self.depth >= self.max {
             return Err(self.too_deep());
         }
-        let mut array = NvsArray::new();
+        let mut array = NvsArray::try_new().ok_or_else(over_memory)?;
         while let Some(key) = map.next_key::<String>()? {
+            if !affords_entry(&array, key.len()) {
+                return Err(over_memory());
+            }
             let value = map.next_value_seed(self.child())?;
             if array.replace(NvsStr::new(key.as_bytes()), value) {
                 return Err(serde::de::Error::custom(format!(
@@ -1838,6 +1852,27 @@ impl<'de> Visitor<'de> for Decode<'_> {
         }
         Ok(Value::array(array))
     }
+}
+
+/// Whether the request can afford one more entry in `array`, with a key of
+/// `key` bytes.
+///
+/// The entry is asked for first, so the ask is never zero. Then the array's
+/// own growth is asked for in front of itself.
+/// `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`
+/// is the rule.
+fn affords_entry(array: &NvsArray, key: usize) -> bool {
+    nvs_runtime::budget::affords(size_of::<Value>().saturating_add(key)) && array.affords_write()
+}
+
+/// The error a parse stops with once the request cannot afford its next step.
+///
+/// The budget has already recorded the breach, so a member that returns this
+/// as its `Err` is reported as the memory limit's `FATAL` and not as a
+/// `ParseError`. [`nvs_core_json_is_valid`] is the one member that answers a
+/// failed parse instead of throwing, and it reads the context first.
+fn over_memory<E: serde::de::Error>() -> E {
+    E::custom("the document does not fit in the request's memory limit")
 }
 
 /// The longest text [`read`] parses on the caller's own stack.
@@ -3950,10 +3985,16 @@ nvs_runtime::nvs_helper! {
     /// Answers exactly what [`nvs_core_json_decode`] would accept at the
     /// default depth, by doing it; this module's § *`isValid` decodes and
     /// discards* owns what that costs.
-    fn nvs_core_json_is_valid(_ctx, args: [1]) {
+    fn nvs_core_json_is_valid(ctx, args: [1]) {
         let text = text_of(&args[0], "isValid")?;
-        let Ok(value) = read(text, DEFAULT_MAX_DEPTH_U32) else {
-            return Ok(Value::bool(false));
+        let value = match read(text, DEFAULT_MAX_DEPTH_U32) {
+            Ok(value) => value,
+            // A document past the memory limit is not answered `false`: the
+            // request stops at the limit, as `decode` does.
+            Err(why) if ctx.memory_breach().is_some() => {
+                return Err(Fault::fatal(format!("Core\\Json::isValid(): {why}")));
+            }
+            Err(_) => return Ok(Value::bool(false)),
         };
         #[expect(
             unsafe_code,
@@ -5154,6 +5195,49 @@ mod tests {
         #[expect(unsafe_code, reason = "this frame now holds the only reference")]
         unsafe {
             holder.release();
+        }
+    }
+
+    /// Two documents of the same size: a list of many short strings, and an
+    /// object of many short keys. Each is refused under a 1 MiB limit, and the
+    /// peak the parse leaves on its context stays near that limit. The peak
+    /// tells a parse stopped at the limit from one that built every entry first.
+    // covers: Core\Json::decode
+    #[test]
+    fn documents_past_the_memory_limit_stop_the_parse_at_the_limit() {
+        let (count, limit) = if cfg!(miri) {
+            (20_000, 256 << 10)
+        } else {
+            (100_000, 1 << 20)
+        };
+        let list = format!("[{}\"a\"]", "\"a\",".repeat(count));
+        let object = format!(
+            "{{{}\"k\":0}}",
+            (0..count).map(|n| format!("\"{n}\":0,")).collect::<String>()
+        );
+        for (document, shape) in [(list, "a long list"), (object, "a wide object")] {
+            // Made before the context, so the text is not on its balance.
+            let args = [Value::text(&document), Value::uint(64)];
+            drop(document);
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            ctx.set_memory_limit(limit);
+            let answered = nvs_runtime::call(nvs_core_json_decode, &mut ctx, &args);
+            let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+            assert!(answered.is_err(), "{shape}: the parse refuses entries past the limit");
+            let refusal = refusal.expect("a refusal leaves its message in the context");
+            assert!(refusal.contains("memory limit"), "{shape}: {refusal}");
+            assert!(
+                ctx.memory_peak() < 2 * limit,
+                "{shape}: the parse stopped at the limit rather than after every entry: peak {}",
+                ctx.memory_peak()
+            );
+            drop(ctx);
+            for argument in args {
+                #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+                unsafe {
+                    argument.release();
+                }
+            }
         }
     }
 }
