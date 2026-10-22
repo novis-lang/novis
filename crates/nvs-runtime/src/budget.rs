@@ -231,8 +231,8 @@ use std::cell::Cell;
 mod gauge;
 
 pub use gauge::{
-    CoreGauge, STEP as GAUGE_STEP, held_by_cores, held_by_this_core, process_limit, publish_held,
-    set_process_limit,
+    CoreGauge, STEP as GAUGE_STEP, give_share_back, held_by_cores, held_by_this_core, hold_share,
+    process_limit, publish_held, set_process_limit,
 };
 
 /// What [`Accounting`] forwards to: Novis's own pooled allocator wherever it is
@@ -756,9 +756,7 @@ pub(crate) fn end_idle(tree: &crate::TreeState) {
         )
         .is_ok()
     {
-        let held = tree
-            .idle_held
-            .swap(0, std::sync::atomic::Ordering::Relaxed);
+        let held = tree.idle_held.swap(0, std::sync::atomic::Ordering::Relaxed);
         gauge::move_idle(held.wrapping_neg());
     }
 }

@@ -91,7 +91,7 @@ use nvs_runtime::{
     SpawnForm, SseSlot, TaskRoot, UpgradeSlot, Value,
 };
 
-use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child, suspend_current};
+use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child_ordered, suspend_current};
 use crate::watchdog::Registration;
 
 pub use nvs_runtime::script::Program;
@@ -1086,7 +1086,10 @@ fn start_as_task(
     // and the parent asked that question once at the spawn. `group::Child` says
     // the same thing about a `Core\Task` child.
     let timed = open.is_some();
-    let spawned = spawn_child(isolate_ctx, TaskRoot::Request, move |child| {
+    // A served request runs before the next ready connection is admitted, so
+    // what it allocates is counted first (`crate::scheduler::spawn_child_next`).
+    let next = isolate_ctx.inbound().is_some();
+    let spawned = spawn_child_ordered(isolate_ctx, TaskRoot::Request, next, move |child| {
         // Moved in so the guard is dropped with the body — including when the
         // body is torn down half-way through by a forced unwind.
         let ended = ended;
