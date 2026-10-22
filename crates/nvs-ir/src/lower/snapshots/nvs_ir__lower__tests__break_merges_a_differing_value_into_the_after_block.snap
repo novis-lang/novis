@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, int) -> int {
@@ -41,6 +41,9 @@ fn m(object, int) -> int {
     ; stmt s7 @9:9-9:15
     jump bb3
   bb6:
+    release v0
+    propagate "m() at t.nvs:11"
+  bb7:
     release v0
     propagate "m() at t.nvs:11"
 }

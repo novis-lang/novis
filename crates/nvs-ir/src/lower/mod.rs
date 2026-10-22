@@ -3107,9 +3107,27 @@ impl<'a> Lowering<'a> {
             member: self.member.clone(),
         }
     }
-    /// Appends a reserved [`InstKind::Safepoint`] marker to `b` — see that
-    /// variant's own doc comment for the call sites this has (function entry,
-    /// a loop's back edge) and why it defines no value.
+    /// Appends a loop back edge's [`InstKind::Safepoint`] to `b`, with the error
+    /// edge `env` gives every fallible instruction.
+    ///
+    /// A poll that stops the request returns `FATAL` from the middle of the
+    /// loop, and every local the loop holds is still this frame's. The landing
+    /// block releases them, as [`crate::ir::Inst::on_error`]'s doc says every
+    /// status needs.
+    pub(crate) fn emit_back_edge_safepoint(&mut self, b: BlockId, env: &Env) {
+        let landing = self.landing_block(env);
+        self.block_insts[b.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::Safepoint,
+            on_error: Some(landing),
+            raise_site: None,
+        });
+    }
+    /// Appends a function entry's [`InstKind::Safepoint`] to `b`, with no error
+    /// edge: it is the frame's first instruction, so nothing is bound yet for a
+    /// landing block to release. See the variant's own doc comment for why it
+    /// defines no value.
     pub(crate) fn emit_safepoint(&mut self, b: BlockId) {
         self.block_insts[b.index() as usize].push(Inst {
             result: None,

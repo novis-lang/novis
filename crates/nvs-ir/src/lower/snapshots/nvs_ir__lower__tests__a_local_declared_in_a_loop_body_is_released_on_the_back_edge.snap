@@ -54,4 +54,9 @@ fn m(object, array) -> void {
     release v9
     release v1
     propagate "m() at t.nvs:6"
+  bb7:
+    release v1
+    release v0
+    release v1
+    propagate "m() at t.nvs:6"
 }

@@ -1,6 +1,5 @@
 ---
 source: crates/nvs-ir/src/lower/tests.rs
-assertion_line: 2678
 expression: "print_program(&p, map.file(file))"
 ---
 fn G::upTo(classdesc, int) -> object {
@@ -67,6 +66,9 @@ fn G::upTo$gen::advance(object) -> bool {
     safepoint
     jump bb3
   bb7:
+    release v0
+    propagate "G::upTo$gen::advance() at t.nvs:7"
+  bb8:
     release v0
     propagate "G::upTo$gen::advance() at t.nvs:7"
 }

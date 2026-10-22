@@ -534,7 +534,7 @@ impl Emitter<'_, '_> {
                     .ok_or_else(|| internal("a unit with more than 2^32 statements"))?;
                 return self.emit_stmt_probe(cur, stmt);
             }
-            InstKind::Safepoint => return self.emit_safepoint(cur),
+            InstKind::Safepoint => return self.emit_safepoint(cur, inst.on_error),
             InstKind::DeprecationCheck { message, at } => {
                 return self.emit_deprecation_check(message, at, inst.on_error);
             }
@@ -1189,7 +1189,16 @@ impl Emitter<'_, '_> {
     /// since `nvs_ir::lower` emits that before anything else and the entry
     /// block is first in [`reachable_in_reverse_postorder`]. A loop back
     /// edge's poll gets no check: going round a loop does not grow the stack.
-    fn emit_safepoint(&mut self, cur: Block) -> Result<Block, CodegenError> {
+    ///
+    /// A back edge's poll carries `on_error`, and a stop takes it, so the
+    /// landing block releases the locals the loop holds before the frame
+    /// returns. The function-entry poll has none, because nothing is bound
+    /// there yet, and a stop returns the status directly.
+    fn emit_safepoint(
+        &mut self,
+        cur: Block,
+        on_error: Option<BlockId>,
+    ) -> Result<Block, CodegenError> {
         if std::mem::take(&mut self.stack_check_pending) {
             self.emit_stack_check(cur)?;
         }
@@ -1206,11 +1215,16 @@ impl Emitter<'_, '_> {
         let callee = self.runtime_ref("nvs_safepoint", RuntimeSig::Safepoint)?;
         let call = self.b.ins().call(callee, &[self.ctx_p]);
         let status = self.b.inst_results(call)[0];
-        let stop = self.b.create_block();
-        self.b.ins().brif(status, stop, &[], cont, &[]);
+        if on_error.is_some() {
+            self.emit_status_check(status, on_error)?;
+            self.b.ins().jump(cont, &[]);
+        } else {
+            let stop = self.b.create_block();
+            self.b.ins().brif(status, stop, &[], cont, &[]);
 
-        self.b.switch_to_block(stop);
-        self.b.ins().return_(&[status]);
+            self.b.switch_to_block(stop);
+            self.b.ins().return_(&[status]);
+        }
 
         self.b.switch_to_block(cont);
         Ok(cont)

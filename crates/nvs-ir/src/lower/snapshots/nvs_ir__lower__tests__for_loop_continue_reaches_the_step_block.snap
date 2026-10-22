@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn count(object, int) -> int {
@@ -28,7 +28,7 @@ fn count(object, int) -> int {
   bb3:
     v12 = phi [bb5: v11, bb6: v5]  ; int
     v13 = const.int 1  ; int
-    v14 = add v6, v13 ! bb8  ; int
+    v14 = add v6, v13 ! bb9  ; int
     safepoint
     jump bb1
   bb4:
@@ -38,7 +38,7 @@ fn count(object, int) -> int {
   bb5:
     ; stmt s7 @10:7-10:18
     v10 = const.int 1  ; int
-    v11 = add v5, v10 ! bb7  ; int
+    v11 = add v5, v10 ! bb8  ; int
     jump bb3
   bb6:
     ; stmt s5 @7:20-9:8
@@ -47,8 +47,14 @@ fn count(object, int) -> int {
     jump bb3
   bb7:
     release v0
-    propagate "count() at t.nvs:10"
+    propagate "count() at t.nvs:8"
   bb8:
+    release v0
+    propagate "count() at t.nvs:10"
+  bb9:
+    release v0
+    propagate "count() at t.nvs:10"
+  bb10:
     release v0
     propagate "count() at t.nvs:10"
 }
