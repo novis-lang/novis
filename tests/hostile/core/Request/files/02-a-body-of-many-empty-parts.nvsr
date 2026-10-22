@@ -1,0 +1,144 @@
+--METHOD--
+POST
+--PATH--
+/upload
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=b
+--BODY_CRLF--
+--b
+Content-Disposition: form-data; name="title"
+
+first
+--b
+Content-Disposition: form-data; name="f1"; filename="1.txt"
+X-A: 1
+X-B: 2
+X-C: 3
+X-D: 4
+X-E: 5
+X-F: 6
+X-G: 7
+X-H: 8
+X-I: 9
+X-J: 10
+X-K: 11
+X-L: 12
+X-M: 13
+X-N: 14
+X-O: 15
+X-P: 16
+X-Q: 17
+X-R: 18
+X-S: 19
+X-T: 20
+
+--b
+Content-Disposition: form-data; name="f2"; filename="2.txt"
+
+--b
+Content-Disposition: form-data; name="f3"; filename="3.txt"
+
+--b
+Content-Disposition: form-data; name="f4"; filename="4.txt"
+
+--b
+Content-Disposition: form-data; name="f5"; filename="5.txt"
+
+--b
+Content-Disposition: form-data; name="f6"; filename="6.txt"
+X-A: 1
+X-B: 2
+X-C: 3
+X-D: 4
+X-E: 5
+X-F: 6
+X-G: 7
+X-H: 8
+X-I: 9
+X-J: 10
+X-K: 11
+X-L: 12
+X-M: 13
+X-N: 14
+X-O: 15
+X-P: 16
+X-Q: 17
+X-R: 18
+X-S: 19
+X-T: 20
+
+--b
+Content-Disposition: form-data; name="f7"; filename="7.txt"
+
+--b
+Content-Disposition: form-data; name="f8"; filename="8.txt"
+
+--b
+Content-Disposition: form-data; name="f9"; filename="9.txt"
+
+--b
+Content-Disposition: form-data; name="f10"; filename="10.txt"
+
+--b
+Content-Disposition: form-data; name="f11"; filename="11.txt"
+
+--b
+Content-Disposition: form-data; name="f12"; filename="12.txt"
+
+--b
+Content-Disposition: form-data; name="f13"; filename="13.txt"
+
+--b
+Content-Disposition: form-data; name="f14"; filename="14.txt"
+
+--b
+Content-Disposition: form-data; name="f15"; filename="15.txt"
+
+--b
+Content-Disposition: form-data; name="f16"; filename="16.txt"
+
+--b
+Content-Disposition: form-data; name="f17"; filename="17.txt"
+
+--b
+Content-Disposition: form-data; name="f18"; filename="18.txt"
+
+--b
+Content-Disposition: form-data; name="f19"; filename="19.txt"
+
+--b
+Content-Disposition: form-data; name="f20"; filename="20.txt"
+
+--b
+Content-Disposition: form-data; name="f21"; filename="21.txt"
+
+--b
+Content-Disposition: form-data; name="f22"; filename="22.txt"
+
+--b
+Content-Disposition: form-data; name="f23"; filename="23.txt"
+
+--b
+Content-Disposition: form-data; name="f24"; filename="24.txt"
+
+--b
+Content-Disposition: form-data; name="f25"; filename="25.txt"
+
+--b
+Content-Disposition: form-data; name="f26"; filename="26.txt"
+
+--b
+Content-Disposition: form-data; name="f27"; filename="27.txt"
+
+--b
+Content-Disposition: form-data; name="f28"; filename="28.txt"
+
+--b
+Content-Disposition: form-data; name="f29"; filename="29.txt"
+
+--b
+Content-Disposition: form-data; name="last"
+
+after the limit
+--b--

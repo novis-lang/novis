@@ -1,0 +1,15 @@
+<?nvs
+// Attack: a client sends a query string with one name nested twenty thousand levels deep.
+// Each level makes a new array. The program lowers its memory limit first, so reading
+// the query should stop at that limit and not crash.
+// hostile: ends-early 2 FATAL
+
+// 1. Reads the path. This does not read the query string, so it works.
+echo 'path: ', Core\Request::path(), "\n";
+
+// 2. Lowers the memory limit to `256K` and reads one parameter. Building the deep name
+//    needs much more memory than that, so the read stops the program.
+echo "step 2\n";
+echo 'limit lowered: ', Core\Config::set('limits.memory', '256K') ? 'yes' : 'no', "\n";
+?tainted string $name = Core\Request::query('name');
+echo 'not reached: ', $name ?? 'null', "\n";

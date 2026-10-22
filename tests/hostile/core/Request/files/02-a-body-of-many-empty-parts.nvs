@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a client sends an upload with 31 parts. Most of them are empty files, and two
+// have 20 extra header lines. The program allows only 10 parts, so reading part 11
+// should throw an error, and every read after that should throw too.
+
+// 1. Lowers the number of parts a body may have to 10.
+echo 'limit lowered: ', Core\Config::set('limits.max_multipart_parts', '10') ? 'yes' : 'no', "\n";
+
+// 2. Reads every file. Part 11 is past the limit, so the loop throws an error.
+uint $seen = 0;
+try {
+    foreach (Core\Request::files() as Core\Request\Part $part) {
+        $part->readAll();
+        $seen = $seen + 1;
+    }
+    echo "every part was read\n";
+} catch (Throwable $error) {
+    echo 'files: ', $error::class, ' after ', $seen, " files\n";
+}
+
+// 3. Reads a form field that came before the limit, and one that came after it.
+//    Both reads should throw, because the body is not valid.
+array<string> $fields = ['title', 'last'];
+foreach ($fields as string $field) {
+    try {
+        ?tainted string $value = Core\Request::post($field);
+        echo 'not reached: ', $value ?? 'null', "\n";
+    } catch (Throwable $error) {
+        echo $field, ': ', $error::class, "\n";
+    }
+}
+
+// 4. Asks for the files again, 1000 times. Every call should throw.
+uint $failed = 0;
+uint $i = 0;
+while ($i < 1000) {
+    try {
+        foreach (Core\Request::files() as Core\Request\Part $part) {
+            echo 'not reached: ', $part->name(), "\n";
+        }
+    } catch (Throwable $error) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo 'failed calls: ', $failed, "\n";
