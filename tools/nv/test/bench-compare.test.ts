@@ -49,8 +49,10 @@ import {
   PARALLEL_GRANT,
   PARALLEL_PARTS,
   parallelResult,
+  parseExpect,
   rowLine,
   type RowResult,
+  run,
   runawayResult,
   SCENARIOS,
   scenarioCtx,
@@ -60,7 +62,7 @@ import {
   steadyResult,
   type TableEdit,
   tableEditCommand,
-
+  unmetExpectations,
   waitingResult,
 } from "../cmd/bench-compare.ts";
 
@@ -648,6 +650,37 @@ describe("the feature scenarios", () => {
     const r = (result: RowResult["result"], setting?: string): RowResult => (setting === undefined ? { result, evidence: {} } : { result, setting, evidence: {} });
     const byPeer = new Map([["go", r("no")], ["nvs", r("one-setting", "limits.memory")], ["php", r("built-in")], ["bun", r("your-code")]]);
     expect(rowLine("loop", byPeer)).toBe("loop: Novis one-setting (limits.memory), PHP built-in, Bun your-code, Go no");
+  });
+});
+
+describe("--expect", () => {
+  const r = (result: RowResult["result"]): RowResult => ({ result, evidence: {} });
+
+  test("reads each peer's expected result, comma-separated", () => {
+    expect(parseExpect("nvs=on-by-default")).toEqual(new Map([["nvs", "on-by-default"]]));
+    expect(parseExpect("nvs=built-in,php=no")).toEqual(new Map([["nvs", "built-in"], ["php", "no"]]));
+  });
+
+  test("throws on an unknown peer, an unknown result, a pair with no result and a peer named twice", () => {
+    expect(() => parseExpect("rust=no")).toThrow("no peer 'rust'");
+    expect(() => parseExpect("nvs=fast")).toThrow("invalid result: 'fast'");
+    expect(() => parseExpect("nvs")).toThrow("is not PEER=RESULT");
+    expect(() => parseExpect("nvs=no,nvs=built-in")).toThrow("named twice");
+  });
+
+  test("names every row whose result for an expected peer differs, and nothing when each matches", () => {
+    const results = new Map([
+      ["loop", new Map([["nvs", r("on-by-default")], ["php", r("one-setting")]])],
+      ["memory", new Map([["nvs", r("no")], ["php", r("one-setting")]])],
+    ]);
+    expect(unmetExpectations(new Map([["nvs", "on-by-default"]]), new Map([["loop", results.get("loop")!]]))).toEqual([]);
+    expect(unmetExpectations(new Map([["nvs", "on-by-default"]]), results)).toEqual(["memory: nvs is no, want on-by-default"]);
+    expect(unmetExpectations(new Map([["go", "no"]]), new Map([["loop", results.get("loop")!]]))).toEqual(["loop: go is missing, want no"]);
+  });
+
+  test("is a usage error without --scenarios, before Docker is needed", async () => {
+    expect(await run(["--expect", "nvs=on-by-default"])).toBe(2);
+    expect(await run(["--scenarios", "--expect", "nvs=fast"])).toBe(2);
   });
 });
 
