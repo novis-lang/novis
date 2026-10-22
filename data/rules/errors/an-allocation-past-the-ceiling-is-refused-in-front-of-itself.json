@@ -16,6 +16,8 @@
     "crates/nvs-stdlib/src/json.rs",
     "tests/hostile/core/Json/decode/03-documents-larger-than-the-memory-limit.nvs",
     "crates/nvs-stdlib/src/xml.rs",
-    "tests/hostile/core/Xml/parse/02-documents-larger-than-the-memory-limit.nvs"
+    "tests/hostile/core/Xml/parse/02-documents-larger-than-the-memory-limit.nvs",
+    "crates/nvs-stdlib/src/html.rs",
+    "tests/hostile/core/Html/parse/04-documents-larger-than-the-memory-limit.nvs"
   ]
 }
