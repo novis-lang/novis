@@ -163,9 +163,11 @@
 //! most: a destination chosen by the request is an open redirect, which is a
 //! peer trusting this origin about where it goes next. Beyond that the value is
 //! checked exactly as a header value is — [`carriable`], and non-empty, an
-//! empty `Location` naming nothing. What a URL may otherwise be is not asked
-//! here, because the qualifier has already answered the question that made it
-//! worth asking.
+//! empty `Location` naming nothing — and a relative reference that starts with
+//! two of `/` and `\` is refused, since it names another host and a
+//! launderer's plain answer can hold one ([`names_another_host`]). What a URL
+//! may otherwise be is not asked here, because the qualifier has already
+//! answered the question that made it worth asking.
 //!
 //! # `text` takes `tainted`, and the mark is not the word § 4 uses
 //!
@@ -972,7 +974,8 @@ const REDIRECT_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`$url` is empty, or contains a character that is not printable ASCII, such as a \
-               newline. Nothing is set.",
+               newline. Or it starts with two slashes or backslashes, such as `//example.com`, \
+               which a browser reads as another host. Nothing is set.",
     }],
 };
 
@@ -1504,10 +1507,32 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         }
+        if names_another_host(url) {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "Core\\Response::redirect(): `{url}` starts with two slashes or \
+                     backslashes, so a browser goes to another host. Write the scheme, such as `https://`, for another \
+                     host, or one `/` for a path on this site"
+                ),
+            ));
+        }
         ctx.declare_status(status);
         ctx.declare_header(LOCATION_HEADER, url);
         Ok(Value::null())
     }
+}
+
+/// Whether a `Location` value is a relative reference that names a host: it
+/// starts with two of `/` and `\`, once the spaces a client trims from a field
+/// value are gone, and a browser reads the backslash as a slash. The tainted
+/// check cannot see this, because a launderer's plain answer (a shell escape,
+/// say) can hold `//host` unchanged. An absolute URL is the program's own
+/// writing, so it is not asked about.
+fn names_another_host(url: &str) -> bool {
+    let mut first = url.trim_start_matches(' ').chars();
+    let slash = |ch: Option<char>| matches!(ch, Some('/' | '\\'));
+    slash(first.next()) && slash(first.next())
 }
 
 /// `secure`'s argument slot, and the five after it in row order.
@@ -3277,6 +3302,46 @@ mod tests {
             dropped(url);
             assert_eq!(ctx.take_status(), None);
             assert!(ctx.take_headers().is_empty());
+        }
+    }
+
+    /// TAINT-5: a relative destination that starts with two of `/` and `\`
+    /// names another host, since a browser reads the backslash as a slash.
+    /// A launderer's plain answer can hold one, so `redirect` refuses it,
+    /// and a path, a query and an absolute URL the program wrote stay.
+    // covers: Core\Response::redirect
+    #[test]
+    fn a_relative_destination_that_names_another_host_is_refused() {
+        for bad in [
+            "//evil.example/",
+            "\\\\evil.example/",
+            "/\\evil.example/",
+            "\\/evil.example/",
+            "  //evil.example/",
+        ] {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            let url = Value::text(bad);
+            call(
+                super::nvs_core_response_redirect,
+                &mut ctx,
+                &[url, Value::int(303)],
+            )
+            .expect_err("a relative destination naming another host is refused");
+            dropped(url);
+            assert_eq!(ctx.take_status(), None, "{bad:?}");
+            assert!(ctx.take_headers().is_empty(), "{bad:?}");
+        }
+        for good in ["/orders", "?page=2", "#top", "/a//b", "https://example.com/"] {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            let url = Value::text(good);
+            call(
+                super::nvs_core_response_redirect,
+                &mut ctx,
+                &[url, Value::int(303)],
+            )
+            .expect("a path, a query, a fragment and a written URL are declared");
+            dropped(url);
+            assert_eq!(ctx.take_status(), Some(303), "{good:?}");
         }
     }
 }
