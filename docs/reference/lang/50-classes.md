@@ -2877,8 +2877,8 @@ class Article extends Record {
     public int $words;
 
     public function constructor(int $id, string $title, int $words) {
-        parent::constructor($id, $title);
         $this->words = $words;
+        parent::constructor($id, $title);
     }
 }
 
@@ -2888,10 +2888,10 @@ echo $article->title, "\n";
 ```
 
 ```output
+wrote words = 240
 wrote id = 7
 wrote title = Hello World
 wrote slug = hello world
-wrote words = 240
 wrote words = 250
 read title
 Hello World

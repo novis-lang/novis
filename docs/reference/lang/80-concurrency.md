@@ -670,8 +670,8 @@ class ImportFailed extends RuntimeError {
     public int $row;
 
     public function constructor(string $message, int $row) {
-        parent::constructor($message);
         $this->row = $row;
+        parent::constructor($message);
     }
 }
 
