@@ -1,10 +1,16 @@
 <?nvs
-// Shows a list page that sorts by a column the visitor picked. A column name
-// cannot be sent as a placeholder, so it is checked before the statement is
-// built.
+// Shows a list page that sorts by a column the visitor picked. The name must be
+// one of the columns the page shows, and then it is checked before the
+// statement is built.
 
 class Report {
     public static function statement(string $sort, string $direction): string {
+        // Only these columns may be used to sort. Any other name throws an error,
+        // even a real column such as `password_hash`.
+        array<bool> $allowed = ["created_at" => true, "total" => true];
+        if (!Core\Arr::hasKey($allowed, $sort)) {
+            throw new LogicError("the page cannot sort by this column");
+        }
         string $column = Core\Db::quoteIdentifier($sort);
         string $order = "ASC";
         if ($direction == "desc") {
