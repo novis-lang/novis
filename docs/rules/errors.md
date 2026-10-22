@@ -1033,10 +1033,12 @@ A token that *withholds* an address — `unknown` — has said something definit
 A folded header line is refused rather than replaced, the stricter of the two answers the HTTP
 specification allows a server, so a client that still sends one cannot talk to Novis.
 
-`Content-Length` with `Transfer-Encoding` on an inbound request is the one row the server answers
-differently: it follows the HTTP/1.1 specification, the chunked encoding wins and the length is
-ignored. The connection is closed after that message, so bytes a proxy read as a second request are
-never read as one here.
+An inbound defect is a `400` that closes the connection, so bytes a proxy read as a second request
+are never read as one here. That holds for `Content-Length` with `Transfer-Encoding` too, though
+the HTTP/1.1 specification lets a server frame it by the encoding: a proxy in front may have framed
+it by the length. A chunked body whose framing is wrong is the same defect found later. The
+program's read throws, and whatever the program then answers is replaced by the `400`, because the
+fault is the client's and a `500` would count it as the server's.
 
 **There is no opt-out on the outbound half.** A remote server is an attacker too, and a response's
 body flows straight into program logic. An upstream emitting genuinely ambiguous headers is one

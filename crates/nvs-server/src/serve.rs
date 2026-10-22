@@ -2185,7 +2185,7 @@ where
                                 // Nothing left to wait for, so this join does not
                                 // park.
                                 None => {
-                                    peer.collect(&mut ctx.borrow_mut()).map_or_else(
+                                    let answer = peer.collect(&mut ctx.borrow_mut()).map_or_else(
                                         || refusal.map_or_else(failed, empty),
                                         |done| {
                                             // The events the request filed, on the
@@ -2218,7 +2218,18 @@ where
                                                 _ => response,
                                             }
                                         },
-                                    )
+                                    );
+                                    // `rule:errors/http-message-defects`: a body
+                                    // whose framing the client wrote wrong is a
+                                    // `400` that closes, whatever the program
+                                    // answered after its read failed, and no
+                                    // rerun reads it again.
+                                    if peer.supply.as_ref().is_some_and(Supply::malformed) {
+                                        by_limit = false;
+                                        malformed_head()
+                                    } else {
+                                        answer
+                                    }
                                 }
                             }
                         }
@@ -6363,6 +6374,53 @@ pub(crate) mod tests {
         );
     }
 
+    /// HTTP-4's attack: a chunked body whose framing is wrong is the client's
+    /// defect, so it answers `400` and closes, as a defect in the head does. On
+    /// main the program's read failed and the answer was whatever it wrote,
+    /// `200` here and a `500` for a program that threw.
+    #[test]
+    fn a_chunked_body_framed_wrong_is_a_400_that_closes() {
+        for (technique, body) in [
+            (
+                "a chunk size line ended with a bare LF",
+                &b"5\nhello\r\n0\r\n\r\n"[..],
+            ),
+            (
+                "a chunk size that is not hexadecimal",
+                b"zz\r\nhello\r\n0\r\n\r\n",
+            ),
+            (
+                "chunk data longer than its size",
+                b"2\r\nhello\r\n0\r\n\r\n",
+            ),
+        ] {
+            let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+                .expect("the OS refused a port");
+            let addr = listener
+                .local_addr()
+                .expect("a bound listener had no address");
+            let mut request = b"POST /upload HTTP/1.1\r\nHost: localhost\r\n\
+                Transfer-Encoding: chunked\r\n\r\n"
+                .to_vec();
+            request.extend_from_slice(body);
+            let client = std::thread::spawn(move || written_whole_then_read(addr, request));
+
+            let answer = served_by(listener, &echo_the_body(), client);
+            assert!(
+                answer.starts_with("HTTP/1.1 400 "),
+                "{technique}: a body framed wrong was not refused: {answer:?}"
+            );
+            assert!(
+                answer.to_ascii_lowercase().contains("connection: close"),
+                "{technique}: the connection stayed open: {answer:?}"
+            );
+            assert!(
+                !answer.contains("failed:"),
+                "{technique}: the program's answer was sent: {answer:?}"
+            );
+        }
+    }
+
     /// The isolate the streaming cases answer with: a program that opens a
     /// response body stream, writes a chunk, waits for the other half of its
     /// **own** request body, and writes the last chunk before it ends.
@@ -9635,11 +9693,10 @@ pub(crate) mod tests {
     /// the hidden request with a `400` would pass the search and fail the count,
     /// and the count is what a proxy in front would be desynchronised by.
     ///
-    /// **The three tables differ only in where the ambiguity sits**, and each
+    /// **The tables differ only in where the ambiguity sits**, and each
     /// asserts the thing that makes the peer's next request unsmuggleable: a
-    /// head this door cannot read is refused before the handler; a head two
-    /// parsers would frame differently is answered and the connection does not
-    /// survive it; a head that is unambiguous is answered even though the body
+    /// head this door cannot read or two parsers would frame differently is
+    /// refused before the handler; a head that is unambiguous is answered even though the body
     /// framing behind it then falls apart, and the bytes after that die with
     /// the connection. **No row lets a second request through**, which is the
     /// only thing a proxy in front can be desynchronised by.
@@ -9648,7 +9705,7 @@ pub(crate) mod tests {
         // Ambiguous in the head, and refused there: one framing spelled twice
         // and disagreeing with itself, or a spelling only one of two parsers
         // would see at all.
-        let refused: [(&str, &[u8]); 14] = [
+        let refused: [(&str, &[u8]); 16] = [
             (
                 "two lengths that agree",
                 b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
@@ -9707,6 +9764,17 @@ pub(crate) mod tests {
             (
                 "an empty encoding beside a length",
                 b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: \r\nContent-Length: 43\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                // APP-3: RFC 9112 lets a server frame this by the encoding, and
+                // on main `hyper` did and answered `201`. A proxy in front may
+                // have framed it by the length.
+                "a length and a chunked encoding at once",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 6\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a chunked encoding and a length, in the other order",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\nContent-Length: 4\r\n\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
             ),
         ];
         for (technique, payload) in refused {
@@ -9774,43 +9842,6 @@ pub(crate) mod tests {
             assert!(
                 !answer.contains("hello "),
                 "{technique}: a refused path reached the handler: {answer:?}"
-            );
-        }
-
-        // Two framings at once, which is the pair every published technique is
-        // built on. RFC 9112 *disambiguates* this one rather than refusing it —
-        // the chunked encoding wins and the length is ignored — and `hyper`
-        // follows it, so these two rows are a measured divergence from
-        // `rule:errors/ambiguous-input-refused`'s "refused, never repaired"
-        // (`rule:errors/http-message-defects` names it) and are asserted as one rather than
-        // left out of the suite. What makes it safe is the second half of the
-        // same rule, and it is what these rows are really about: **the
-        // connection does not survive the message**, so the bytes the proxy
-        // read as a request of their own are never read as one here.
-        let disambiguated: [(&str, &[u8]); 2] = [
-            (
-                "a length and a chunked encoding at once",
-                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 6\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
-            ),
-            (
-                "a chunked encoding and a length, in the other order",
-                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\nContent-Length: 4\r\n\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
-            ),
-        ];
-        for (technique, payload) in disambiguated {
-            let answer = read_back(payload);
-            assert_eq!(
-                responses(&answer),
-                1,
-                "{technique}: the peer got a second response: {answer:?}"
-            );
-            assert!(
-                answer.to_ascii_lowercase().contains("connection: close"),
-                "{technique}: the door kept a connection two parsers frame differently: {answer:?}"
-            );
-            assert!(
-                !answer.contains("hello /smuggled"),
-                "{technique}: the hidden request was answered: {answer:?}"
             );
         }
 

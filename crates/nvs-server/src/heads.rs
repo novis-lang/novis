@@ -1,10 +1,12 @@
-//! The two rows of `rule:errors/http-message-defects` that `hyper` accepts on
+//! The three rows of `rule:errors/http-message-defects` that `hyper` accepts on
 //! a request: a `Content-Length` written twice with the same value, which it
-//! merges, and a bare LF ending a line of the head, which `httparse` reads as
-//! a line ending. Every other row of that table `hyper` already refuses.
+//! merges; a `Content-Length` beside `Transfer-Encoding`, which it frames by
+//! the encoding; and a bare LF ending a line of the head, which `httparse`
+//! reads as a line ending. Every other row of that table `hyper` already
+//! refuses.
 //!
-//! Neither is visible once `hyper` has framed the request, because the merged
-//! header is gone from the map and the line endings were never kept. So
+//! None is visible once `hyper` has framed the request, because the merged or
+//! ignored header is gone from the map and the line endings were never kept. So
 //! [`Scanner`] reads the bytes on their way into `hyper`, in
 //! [`crate::io::ConnectionIo`]'s read, and files what it found in [`Heads`],
 //! which `crate::serve`'s service reads before anything else about a request.
@@ -320,7 +322,10 @@ impl Scanner {
     /// the body after it.
     fn end_head(&mut self) {
         let framing = std::mem::take(&mut self.framing);
-        if framing.lengths > 1 {
+        // Two lengths, or a length beside `Transfer-Encoding`: `hyper` frames
+        // the second by the encoding, and a proxy in front may have framed it
+        // by the length.
+        if framing.lengths > 1 || (framing.lengths > 0 && framing.chunked.is_some()) {
             return self.defect();
         }
         self.heads.clean.set(self.heads.clean.get() + 1);
@@ -383,7 +388,7 @@ mod tests {
 
     #[test]
     fn a_repeated_length_and_a_bare_line_feed_are_refused_in_their_own_request() {
-        let rows: [(&str, &[u8], Vec<bool>); 10] = [
+        let rows: [(&str, &[u8], Vec<bool>); 12] = [
             (
                 "a plain request",
                 b"GET / HTTP/1.1\r\nHost: a\r\n\r\n",
@@ -428,6 +433,16 @@ mod tests {
                 "a chunked body with an extension and a trailer before a second request",
                 b"POST /a HTTP/1.1\r\nTransfer-Encoding: gzip, chunked\r\n\r\n5;x=y\r\nhello\r\nA\r\n0123456789\r\n0\r\nT: 1\r\n\r\nGET /b HTTP/1.1\r\n\r\n",
                 vec![false, false],
+            ),
+            (
+                "a length beside a chunked encoding",
+                b"POST / HTTP/1.1\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
+                vec![true],
+            ),
+            (
+                "a chunked encoding beside a length",
+                b"POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\nContent-Length: 5\r\n\r\n0\r\n\r\n",
+                vec![true],
             ),
             (
                 "a body whose bare LF is the body's own",
