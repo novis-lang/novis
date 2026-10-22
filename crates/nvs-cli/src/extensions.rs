@@ -591,15 +591,17 @@ impl Spent {
     }
 }
 
-/// `request` sent through `Core\Http\Client`'s transport, under `ctx`'s grants.
+/// `request` sent through `Core\Http\Client`'s transport, under `ctx`'s grants, following a
+/// redirect only to a host the extension may connect to.
 fn sent(ctx: &mut Ctx, request: Outgoing) -> Result<Incoming, Unsent> {
     let Outgoing {
         method,
         url,
         headers,
         body,
+        connect,
     } = request;
-    match nvs_stdlib::extension_send(ctx, &method, &url, headers, body) {
+    match nvs_stdlib::extension_send(ctx, &method, &url, headers, body, &connect) {
         Ok(reply) => Ok(Incoming {
             status: u16::try_from(reply.status).unwrap_or(u16::MAX),
             headers: reply.headers,
@@ -1241,6 +1243,7 @@ mod tests {
             url: "http://example.com/".to_owned(),
             headers: Vec::new(),
             body: None,
+            connect: vec!["example.com".to_owned()],
         });
 
         assert!(spent.sends(&mut ctx));
