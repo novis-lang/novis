@@ -12,7 +12,8 @@ string $cookie = Core\SignedCookie::seal("cart", Core\Json::encode($cart), $keys
 var $stored = Core\Json::decode(Core\SignedCookie::open("cart", $cookie, $keys)) as array<mixed>;
 array<int> $next = [];
 foreach ($stored as tainted string $item => mixed $count) {
-    $next[$item] = $count as int;
+    // Only this server can seal the cookie, so the item names are its own.
+    $next[Core\Taint::assertTrusted($item, "the server sealed this cookie")] = $count as int;
 }
 $next["teapot"] = 1;
 $cookie = Core\SignedCookie::seal("cart", Core\Json::encode($next), $keys);

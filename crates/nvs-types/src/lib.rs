@@ -563,6 +563,10 @@ pub(crate) struct Env<'a> {
     /// on; nothing ever removes an entry, so this is O(element writes
     /// written in the file).
     pub write_target_levels: FxHashMap<Span, bool>,
+    /// Whether the write target being checked is an `unset`'s, which removes
+    /// a key and adds none, so `crate::expr::quals::reject_tainted_key_write`
+    /// skips its levels.
+    pub unset_target: bool,
     /// Every read this run has seen under a `??`, an `isset` or an `empty`,
     /// by span — a subscript level and a property level alike, since
     /// `rule:types/shape-type`'s optional field asks the same "may it be

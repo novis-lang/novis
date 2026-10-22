@@ -18,10 +18,13 @@ foreach ($known as string $status) {
 
 foreach ($db->query('select status from orders', []) as Core\Db\Row $row) {
     ?tainted string $seen = $row->string('status');
-    if ($seen == null) {
-        continue;
+    // The text comes from the database, so it is `tainted`. The key is the
+    // known status that it is equal to.
+    foreach ($known as string $status) {
+        if ($seen == $status) {
+            $counted[$status] = $counted[$status] + 1;
+        }
     }
-    $counted[$seen] = $counted[$seen] + 1;
 }
 
 // This prints `open 1`, `paid 2` and `sent 1`.

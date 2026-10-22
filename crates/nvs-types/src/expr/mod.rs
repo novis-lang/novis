@@ -753,10 +753,14 @@ pub(crate) fn infer(
             let before = env.diags.len();
             let base_ty = check_expr(base, None, live, scope, ctx, env);
             let base_reported = env.diags.len() != before;
+            let mut written_key = None;
             match index {
                 Some(index) => {
                     let index_ty = check_expr(index, None, live, scope, ctx, env);
                     check_array_key_type(index_ty, index.span, env);
+                    if env.write_target_levels.contains_key(&expr.span) && !env.unset_target {
+                        written_key = Some((index.span, index_ty));
+                    }
                 }
                 // `$a[]` names the key one past the highest integer key,
                 // which is an answer only where a value is being put there.
@@ -794,6 +798,9 @@ pub(crate) fn infer(
             } else {
                 base_ty
             };
+            if let Some((key, key_ty)) = written_key {
+                quals::reject_tainted_key_write(key, key_ty, base_ty, env);
+            }
             // A `mixed` base is `rule:types/conversion`'s one unchecked position, so
             // `rule:types/erased-member-access`'s deferral applies to a subscript exactly as it
             // does to a member access: the base defers not only which array

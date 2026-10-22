@@ -219,6 +219,41 @@ pub(crate) fn keys_from_outside(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
+/// `rule:security/taint-propagation`'s key half at a write: `$m[$key] = …`
+/// with a `tainted` key, into an array `base` whose keys [`keys_from_outside`]
+/// reads as the program's own, is `E0401` at the key.
+///
+/// An array's type records no qualifier on its keys, so a write is the one
+/// place a key from outside can enter an array that reads its keys back as
+/// plain `string`, at a `foreach` and through `Core\Arr::keys`. The program
+/// writes the qualifier on the element type, or checks the key, as
+/// [`reject_untainted_text_from_unchecked`] asks of a shape. Every write
+/// spelling reaches this but `unset`, which adds no key.
+pub(crate) fn reject_tainted_key_write(key: Span, key_ty: TypeId, base: TypeId, env: &mut Env<'_>) {
+    if !carries_tainted(key_ty, env.interner)
+        || !matches!(env.interner.get(base), Ty::Array(_))
+        || keys_from_outside(base, env.interner)
+    {
+        return;
+    }
+    let array = env.interner.describe(base);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TYPE_MISMATCH,
+            format!(
+                "expected a `string` key, found `tainted string`: `{array}` has no tainted keys"
+            ),
+        )
+        .with_primary(key, "this key is `tainted`")
+        .with_help(
+            "the keys of this array are read back as plain `string`, so a key from outside cannot \
+             be added. Give the array an element type with `tainted` or `mixed`, such as \
+             `array<tainted string>`, or check the key and pass it through \
+             `Core\\Taint::assertTrusted($key, \"reason\")`",
+        ),
+    );
+}
+
 /// Whether `ty` names a shape with a text field written without `tainted` —
 /// at the top, inside an array's element, or as a union member. The shape's
 /// own fields are read by [`crate::derive::unqualified_text`], the question a
@@ -1742,7 +1777,11 @@ pub(crate) fn reject_secret_extension_argument(
     scope: &LocalScope,
     env: &mut Env<'_>,
 ) {
-    if !env.signatures.get(qname).is_some_and(|class| class.extension) {
+    if !env
+        .signatures
+        .get(qname)
+        .is_some_and(|class| class.extension)
+    {
         return;
     }
     let CallArgs::List(list) = args else {
@@ -1789,7 +1828,9 @@ fn secret_written_in<'a>(
             .find_map(|field| secret_written_in(&field.value, scope, env)),
         ExprKind::Variable(span) => {
             let name = strip_sigil(span_text(env.src, *span));
-            let bound = scope.narrowed_ty(name).or_else(|| scope.declared_ty(name))?;
+            let bound = scope
+                .narrowed_ty(name)
+                .or_else(|| scope.declared_ty(name))?;
             contains_secret(bound, env.interner).then_some((at, bound))
         }
         _ => None,

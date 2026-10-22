@@ -1,0 +1,47 @@
+--TEST--
+a `tainted` key written into an array whose keys read back as plain `string` does not compile, by a subscript, a `??=` or a literal, while an array whose element type keeps the mark takes one and `unset` takes any key — `rule:security/taint-propagation`
+--FILE--
+<?nvs
+tainted string $t = "x";
+
+// Each write below adds a key from outside to an array whose keys read back plain.
+array<int> $counts = [];
+$counts[$t] = 1;
+array<array<int>> $groups = [];
+$groups[$t]["n"] = 1;
+$counts[$t] ??= 2;
+array<int> $literal = [$t => 1];
+var $inferred = [$t => 1];
+
+// A `foreach` over these reads its keys as `tainted string`, so each compiles.
+array<tainted string> $form = [];
+$form[$t] = $t;
+array<mixed> $decoded = [];
+$decoded[$t] = 1;
+
+// `unset` removes a key and adds none.
+unset($counts[$t]);
+
+// A key the program checked is plain again.
+$counts[Core\Taint::assertTrusted($t, "one of the names this form lists")] = 3;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected a `string` key, found `tainted string`: `array<int>` has no tainted keys
+  --> case.nvs:6:9
+%A
+error[E0401]: expected a `string` key, found `tainted string`: `array<array<int>>` has no tainted keys
+  --> case.nvs:8:9
+%A
+error[E0401]: expected a `string` key, found `tainted string`: `array<int>` has no tainted keys
+  --> case.nvs:9:9
+%A
+error[E0401]: expected a `string` key, found `tainted string`: `array<int>` has no tainted keys
+   --> case.nvs:10:24
+%A
+error[E0401]: expected a `string` key, found `tainted string`: `array<int>` has no tainted keys
+   --> case.nvs:11:18
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

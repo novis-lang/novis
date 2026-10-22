@@ -58,6 +58,15 @@ tested with the qualifier erased; a `secret` field stays refused. A literal that
 and is genuinely trusted, or the text of a `Stringable` object pulled out of one, is recovered with
 `rule:security/assert-trusted`, or with the sink's own launderer.
 
+**A key from outside enters only an array whose keys read back tainted.** Since the element type is
+the only evidence, `$m[$key] = …` with a `tainted` key into an array whose element type carries
+neither `tainted` nor `mixed` is `E0401` at the key. So are `??=`, every compound write, a nested
+level such as `$m[$key]["n"] = …`, and a literal's `[$key => …]` against its declared or inferred type.
+`unset` adds no key and is not checked. The cost is an update to a key already there, such as a count
+per status read from a row: the checker cannot see that the key exists, so the program compares the
+text with its own keys and writes through the matching one, or passes the key through
+`rule:security/assert-trusted`.
+
 The rule sits at the one boundary every `mixed` source shares — `Core\Request::json`,
 `Core\Script::args`, `Core\Session::get`, `Core\Json::decode`, `Core\Cache::get`, a row's `get`,
 `Core\Serialize::decode`, `Core\Uri::queryParameter`, a socket's or event stream's `value` — so it
@@ -91,7 +100,11 @@ request path.
 - **A key qualifier on the array type**, such as `array<tainted string => T>`, set by the members
   that fill an array from outside. It is exact, and it closes the nested-map bound above, but it adds
   a type parameter to every array and a second axis to assignability, which simplicity does not buy
-  until that shape turns up in practice.
+  until that shape turns up in practice. A write with a `tainted` key into a plain-keyed array is
+  refused instead, which keeps the element type's evidence true.
+- **Letting a `tainted` key through when it updates a key that is already there.** Whether it is
+  there is a run-time fact, so the checker would have to trust an `Core\Arr::hasKey` test that the
+  next statement can invalidate.
 - **Tainting a written shape target or binding without `tainted` written.** The declaration would then
   understate the value, and a type that is not what it says is worse than a long one.
 - **Refusing `as string` out of `mixed` outright.** It leaves no way to read text from a request at
