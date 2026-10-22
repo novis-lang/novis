@@ -15621,8 +15621,8 @@ class Article extends Record {
     public int $words;
 
     public function constructor(int $id, string $title, int $words) {
-        parent::constructor($id, $title);
         $this->words = $words;
+        parent::constructor($id, $title);
     }
 }
 
@@ -15632,10 +15632,10 @@ echo $article->title, "\n";
 ```
 
 ```output
+wrote words = 240
 wrote id = 7
 wrote title = Hello World
 wrote slug = hello world
-wrote words = 240
 wrote words = 250
 read title
 Hello World
@@ -20601,7 +20601,7 @@ thrown at main.nvs:8
 // problem the parser found. This form has two bad fields, and both of them are
 // in the list.
 
-array<mixed> $form = ["name" => "Ada", "age" => "not a number", "active" => "yes"];
+array<string> $form = ["name" => "Ada", "age" => "not a number", "active" => "yes"];
 
 try {
     Core\Arr::shapeAs<{name: string, age: int, active: bool}>($form);
@@ -23156,8 +23156,8 @@ class ImportFailed extends RuntimeError {
     public int $row;
 
     public function constructor(string $message, int $row) {
-        parent::constructor($message);
         $this->row = $row;
+        parent::constructor($message);
     }
 }
 
@@ -29550,7 +29550,8 @@ failure is still a `400` — and nothing downstream is left holding a `mixed` to
 absent, or that holds a value `as` refuses for its declared type, throws `ParseError` carrying every
 field that failed at its own dotted path, rather than the first of them. `{name?: T}` marks a key that
 may be absent, and `??` and `isset` read one without throwing. `Core\Request::queryAs` and `postAs`
-are this member over what a request carried.
+are this member over what a request carried. Text that came from outside the program, such as a form
+or an `array<mixed>`, is `tainted`. A text field it fills must then be declared `tainted` too.
 
 ```nvs
 <?nvs
@@ -30567,7 +30568,7 @@ Reads `$a` as the type `T` written at the call site — an inline shape, `{name:
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$a` | `array<mixed>` | The loose values to read: a form, a query string, a decoded document, or an array a program built. |
+| `$a` | `array<mixed>` | The loose values to read: a form, a query string, a decoded document, or an array a program built. Text from outside the program is `tainted`, so a text field of `T` that it fills must be `tainted` too. |
 
 **Returns** `T` — A new `T` whose every field is the declared type, or — for an `array<T>` — one per entry, in the array's own order.
 
@@ -32222,7 +32223,7 @@ Replaces every match of `$pattern` in `$subject` with `$replacement`, and return
 |---|---|---|
 | `$subject` | `string` | The text to search. |
 | `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Core\Regex\Pattern` from `Core\Regex::compile`, or a pattern string with no options. A `tainted` string does not compile here. |
-| `$replacement` | `string` | The text that replaces each match. `$1` to `$99` insert a numbered group, and `${name}` inserts a named group. Write `${1}0` when a digit follows the group. `$$` is one `$`. A group the pattern does not have inserts nothing. `\1` is not a group. |
+| `$replacement` | `string` (sink) | The text that replaces each match. `$1` to `$99` insert a numbered group, and `${name}` inserts a named group. Write `${1}0` when a digit follows the group. `$$` is one `$`. A group the pattern does not have inserts nothing. `\1` is not a group. A `tainted` string does not compile here. To insert text from outside, return it from the function of `replaceWith`. |
 | `{limit: …}` | `uint` (default `18446744073709551615`) | How many matches to replace, counted from the start of the text. The default is every match. `0` replaces nothing. |
 
 **Returns** `string` — The text with the matches replaced. It is the same text if there is no match.
@@ -36420,8 +36421,8 @@ Keywords: int, float, bytes, token, pick, sample, shuffle
 | `new Core\Random\Seeded` | `new Core\Random\Seeded(int $seed): Core\Random\Seeded` |
 | [`Core\Random\Seeded->int`](#core-core-random-seeded-int) | `int(int $min, int $max): int` |
 | [`Core\Random\Seeded->float`](#core-core-random-seeded-float) | `float(): float` |
-| [`Core\Random\Seeded->bytes`](#core-core-random-seeded-bytes) | `bytes(uint $count): bytes` |
-| [`Core\Random\Seeded->token`](#core-core-random-seeded-token) | `token(uint $bytes = 32): string` |
+| [`Core\Random\Seeded->bytes`](#core-core-random-seeded-bytes) | `bytes(uint $count): tainted bytes` |
+| [`Core\Random\Seeded->token`](#core-core-random-seeded-token) | `token(uint $bytes = 32): tainted string` |
 | [`Core\Random\Seeded->pick`](#core-core-random-seeded-pick) | `pick(array<T> $a): ?T` |
 | [`Core\Random\Seeded->sample`](#core-core-random-seeded-sample) | `sample(array<T> $a, uint $count): array<T>` |
 | [`Core\Random\Seeded->shuffle`](#core-core-random-seeded-shuffle) | `shuffle(array<T> $a): array<T>` |
@@ -36472,7 +36473,7 @@ Draws a float uniformly from the half-open interval `[0, 1)` from this generator
 #### `Core\Random\Seeded->bytes`
 
 ```nvs skip
-$seeded->bytes(uint $count): bytes
+$seeded->bytes(uint $count): tainted bytes
 ```
 
 Draws `$count` bytes from this generator's own sequence as a raw buffer — a fixture, never a key, since a reproducible buffer is a secret anyone holding the seed has.
@@ -36481,7 +36482,7 @@ Draws `$count` bytes from this generator's own sequence as a raw buffer — a fi
 |---|---|---|
 | `$count` | `uint` | How many bytes to draw; at least one. |
 
-**Returns** `bytes` — A `bytes` value of exactly `$count` octets, unrendered.
+**Returns** `tainted bytes` — A `tainted bytes` value of exactly `$count` octets, unrendered. It is `tainted`, so no key parameter accepts it.
 
 **Throws** `RuntimeError` — `$count` is `0`, as `Core\Random::bytes`'s own draw of nothing is, or is larger than a buffer this process can allocate.
 
@@ -36489,7 +36490,7 @@ Draws `$count` bytes from this generator's own sequence as a raw buffer — a fi
 #### `Core\Random\Seeded->token`
 
 ```nvs skip
-$seeded->token(uint $bytes = 32): string
+$seeded->token(uint $bytes = 32): tainted string
 ```
 
 Draws `$bytes` bytes from this generator's own sequence and renders them as lower-case hex — a stable identifier for a fixture, never a session token.
@@ -36498,7 +36499,7 @@ Draws `$bytes` bytes from this generator's own sequence and renders them as lowe
 |---|---|---|
 | `$bytes` | `uint` (default `32`) | How many bytes of entropy to draw, `32` by default — the answer is twice as many characters. |
 
-**Returns** `string` — A `string` of `2 * $bytes` hex digits, `0`–`9` and `a`–`f`.
+**Returns** `tainted string` — A `tainted string` of `2 * $bytes` hex digits, `0`–`9` and `a`–`f`. It is `tainted`, so no key parameter accepts it.
 
 **Throws** `RuntimeError` — `$bytes` is `0`, or the draw or its rendering is larger than a buffer this process can allocate.
 
@@ -36771,7 +36772,7 @@ Computes the HMAC of RFC 2104 for `$data`, with `$key` and the algorithm `$diges
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$data` | `bytes\|string` (neutral) | The octets to authenticate; a `string` is read as its UTF-8 bytes. |
-| `$key` | `secret bytes` (neutral) | The secret key, of any length — a long one is hashed down and a short one zero-padded, as RFC 2104 § 2 says. |
+| `$key` | `secret bytes` (sink) | The secret key, of any length — a long one is hashed down and a short one zero-padded, as RFC 2104 § 2 says. |
 | `$digest` | `Core\Hash::Digest::Sha224\|Core\Hash::Digest::Sha256\|Core\Hash::Digest::Sha384\|Core\Hash::Digest::Sha512\|Core\Hash::Digest::Sha512_224\|Core\Hash::Digest::Sha512_256\|Core\Hash::Digest::Sha3_224\|Core\Hash::Digest::Sha3_256\|Core\Hash::Digest::Sha3_384\|Core\Hash::Digest::Sha3_512` | The algorithm, one of the ten SHA-2 and SHA-3 `Core\Hash::Digest` cases. |
 
 **Returns** `bytes` — The MAC as `bytes`, as many octets as the case's width.
@@ -37722,7 +37723,7 @@ Walks an open file one record at a time, as `while ($r = fgetcsv($h))` does, by 
 
 **Returns** `Core\Csv\Rows` — A walk over the records, each an array of `string` fields keyed as `parse` keys one. Nothing is read until the walk is taken.
 
-**Throws** `RuntimeError` — A dialect option is empty, longer than one ASCII character, or `CR` or `LF`; two of `separator`, `quote` and `escape` name the same byte; or the handle was closed before or during the walk.; `IOError` — The operating system refused a read part way through the walk.
+**Throws** `RuntimeError` — A dialect option is empty, longer than one ASCII character, or `CR` or `LF`; two of `separator`, `quote` and `escape` name the same byte; or the handle was closed before or during the walk.; `IOError` — The operating system refused a read part way through the walk.; `ParseError` — A field is not valid UTF-8. The message gives the line the field ends on, and the walk ends there.
 
 <a id="core-core-csv-rows"></a>
 ### `Core\Csv\Rows`
@@ -38460,7 +38461,7 @@ Sends one request to your own program and returns the answer. It opens no networ
 | `{mount: …}` | `string` (default `""`, neutral) | The prefix the program is served under, such as `/shop`. `Core\Request::mount()` returns it, and `Core\Router::url` adds it in front of each link. The default is `""`, which means the root. |
 | `{captures: …}` | `array<string>` (default `[]`) | The parts of the prefix that the mount's pattern matched, in order. For the pattern `/shops/{1}` and `mount: "/shops/acme"`, this is `["acme"]`. `Core\Request::mount()->captures()` returns this list. The default is an empty list. You need `mount` to give `captures`. |
 
-**Returns** `Core\Test\Response` — A `Core\Test\Response`. `status()` returns the status the program set, or `200` if it set none. `body()` returns the text the program wrote, and `json()` and `jsonAs()` decode it. `header()`, `headers()` and `cookies()` return the headers and cookies the program set. A path that no route matches still gets an answer, because your program decides what to do with it.
+**Returns** `Core\Test\Response` — A `Core\Test\Response`. `status()` returns the status the program set, or `200` if it set none. `body()` returns the text the program wrote, and `json()` and `jsonAs()` decode it. `header()`, `headers()` and `cookies()` return the headers and cookies the program set. A path that no route matches still gets an answer, because your program decides what to do with it. A body that is not text, such as a PDF file, also gets an answer. Then `body()`, `json()` and `jsonAs()` throw an error.
 
 **Throws** `LogicError` — `captures` is not empty and `mount` is `""`. The root has no pattern, so it has no captures. `captures` is also an error when it is not a list.; `RuntimeError` — There is no program to answer, because the call is not in `nvs test` or `nvs run`. The call is also an error inside a request that `request` sent, because a request cannot send another request.
 
@@ -38713,6 +38714,8 @@ Returns the text the program wrote while it answered this request.
 
 **Returns** `string` — Everything the program wrote with `echo`, in order. If the program wrote nothing, the result is an empty string. If the program threw an error it did not catch, the result is also an empty string, because the server sends no body for a failed request.
 
+**Throws** `RuntimeError` — The body is not valid UTF-8, so it is not a string. `Core\Response::bytes` and `Core\Response::sendFile` can write such a body. Test it with `status()` and `header()`.
+
 <a id="core-core-test-response-header"></a>
 #### `Core\Test\Response->header`
 
@@ -38767,7 +38770,7 @@ Reads the body of the answer as one JSON document and returns the decoded value.
 
 **Returns** `mixed` — The decoded value, the same as `Core\Json::decode` returns for the body. A JSON object becomes an array with string keys. Every call decodes the body again and returns the same value.
 
-**Throws** `LogicError` — `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON document, or it nests deeper than `maxDepth`. An empty body throws this error too. The `Content-Type` header is not checked.
+**Throws** `LogicError` — `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON document, or it nests deeper than `maxDepth`. An empty body throws this error too. The `Content-Type` header is not checked.; `RuntimeError` — The body is not valid UTF-8, so it is not text.
 
 <a id="core-core-test-response-jsonas"></a>
 #### `Core\Test\Response->jsonAs`
@@ -38784,7 +38787,7 @@ Reads the body of the answer as one JSON object and returns a new instance of th
 
 **Returns** `T` — A new `T` with its properties read from the body, or one `T` for each element for an `array<T>`. Every call creates new objects.
 
-**Throws** `LogicError` — `T` has no `#[Core\Json\Derive]` attribute. Or `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON object, or it nests deeper than `maxDepth`. An empty body throws this error too. It is also thrown when a field is missing or has the wrong type. The `issues` list has one entry for each wrong field. The `Content-Type` header is not checked.; `RecursionError` — The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep body within `maxDepth` does not throw this error.
+**Throws** `LogicError` — `T` has no `#[Core\Json\Derive]` attribute. Or `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON object, or it nests deeper than `maxDepth`. An empty body throws this error too. It is also thrown when a field is missing or has the wrong type. The `issues` list has one entry for each wrong field. The `Content-Type` header is not checked.; `RuntimeError` — The body is not valid UTF-8, so it is not text.; `RecursionError` — The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep body within `maxDepth` does not throw this error.
 
 <a id="core-core-test-sentrequest"></a>
 ### `Core\Test\SentRequest`
@@ -40088,7 +40091,9 @@ Returns the value of one setting for this request. A setting this request change
 |---|---|---|
 | `$name` | `string` (neutral) | The directive's dotted name, `log.level`. A bare limit name — `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output`, `max_regex_steps` — names the `[limits]` entry. |
 
-**Returns** `?string` — The value as text, written the way the configuration file writes it, such as `128M` or `30s`. The result is `null` for a setting with no default, such as `wall_time`. It is also `null` for a name that has a group of settings or a list.
+**Returns** `?string` — The value as text, written the way the configuration file writes it, such as `128M` or `30s`. The result is `null` for a setting with no default, such as `wall_time`. It is also `null` for a name that has a group of settings or a list. A secret setting, such as `db.main.password` or `http.csrf_key`, gives a `?secret string`. Your program cannot print it or write it to a log.
+
+**Throws** `LogicError` — The name is a secret setting, and the call does not write it as a string literal. Write the name in the call, such as `Core\Config::get('db.main.password')`.
 
 <a id="core-core-config-set"></a>
 #### `Core\Config::set`
@@ -40130,7 +40135,7 @@ Core\Config::all(): array<string>
 
 Returns every setting in force for this request, with the dotted names as keys. A setting this request changed has the new value. A setting the configuration file does not write has its built-in default.
 
-**Returns** `array<string>` — An `array<string, string>` sorted by name, with one entry per value. A name that has a group of settings gives one entry for each setting in it. A name that has a list gives no entry.
+**Returns** `array<string>` — An `array<string, string>` sorted by name, with one entry per value. A name that has a group of settings gives one entry for each setting in it. A name that has a list gives no entry. A secret setting, such as `db.main.password` or `http.csrf_key`, has the value `<secret>`. `get` returns the real value.
 
 <a id="core-core-env"></a>
 ### `Core\Env`
@@ -41386,12 +41391,12 @@ Sets the response header `$name` to `$value`. If the server already sets this he
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (sink) | The header name, such as `Cache-Control`. It contains letters, digits and a few marks such as `-` and `_`. Spaces and `:` are not allowed. It cannot be `Content-Type`, because the body method you use sets that header. A `tainted` value is not allowed. |
+| `$name` | `string` (sink) | The header name, such as `Cache-Control`. It contains letters, digits and a few marks such as `-` and `_`. Spaces and `:` are not allowed. It cannot be `Content-Type`, because the body method you use sets that header. It cannot be `Content-Length`, `Transfer-Encoding`, `Connection` or `Upgrade`. The server sets these from the body it sends. A `tainted` value is not allowed. |
 | `$value` | `string` (sink) | The header value. It contains only printable ASCII characters, so it cannot contain a newline. It can be empty. A `tainted` value is not allowed. |
 
 **Returns** `void` — Nothing. If you set the same name twice, the header has the last value. The comparison of names ignores upper and lower case. If the request fails with an error, the response has none of these headers.
 
-**Throws** `LogicError` — `$name` is empty, contains a character that is not allowed, or is `Content-Type`. Or `$value` contains a character that is not printable ASCII.
+**Throws** `LogicError` — `$name` is empty, contains a character that is not allowed, or is one of the headers the server sets, such as `Content-Type` or `Content-Length`. Or `$value` contains a character that is not printable ASCII.
 
 <a id="core-core-response-redirect"></a>
 #### `Core\Response::redirect`
@@ -41409,7 +41414,7 @@ Sends the browser to another address. It sets the redirect status and the `Locat
 
 **Returns** `void` — Nothing. If you call it more than once, the last call wins. If the request fails with an error, the status is `500` and there is no `Location` header.
 
-**Throws** `LogicError` — `$url` is empty, or contains a character that is not printable ASCII, such as a newline. Nothing is set.
+**Throws** `LogicError` — `$url` is empty, or contains a character that is not printable ASCII, such as a newline. Or it starts with two slashes or backslashes, such as `//example.com`, which a browser reads as another host. Nothing is set.
 
 <a id="core-core-response-addcookie"></a>
 #### `Core\Response::addCookie`
@@ -41458,7 +41463,7 @@ Sends one part of the body. If the client has not finished reading the last part
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$chunk` | `string\|bytes` (neutral) | The part to send, as a `string` or as `bytes`. It is sent exactly as it is. An empty part sends nothing and is not an error. A `tainted` value is allowed, as it is for `Core\Response::text`. |
+| `$chunk` | `string\|bytes` (sink) | The part to send, as a `string` or as `bytes`. It is sent exactly as it is. An empty part sends nothing and is not an error. A `tainted` value does not compile, because the browser may read the part as HTML. |
 
 **Returns** `void` — Nothing. When this method returns, the part has been given to the connection. If the client has gone, this method returns at once and the part is thrown away. The client has gone when it closed the connection, or when it did not read a part before the server's send timeout. Your request still runs to its end.
 
@@ -41531,9 +41536,9 @@ Opens the session of this request. Call it once, before any other method of this
 |---|---|---|
 | `$presented` | `?string` (default `null`, neutral) | The identifier to open. Leave it out to read it from the cookie named by `[session] cookie`, which is `nvsid` by default. If the store has no session under the identifier, a new, empty session is opened. This happens when the identifier expired, and when somebody made it up. |
 
-**Returns** `void` — Nothing. After it, the other methods of this class can read and change the session. When a new session is opened, the response sends its identifier in the session cookie.
+**Returns** `void` — Nothing. After it, the other methods of this class can read and change the session. A new session is not saved, and no cookie is sent, until the program saves a value in it. Then the response sends its identifier in the session cookie.
 
-**Throws** `LogicError` — The program is not answering a request. A command-line program, a job and a test have no session.; `RuntimeError` — This request already called `start()`. It is also thrown when the server has no data folder for the default store. With `[session] backend = "shared"`, it is thrown when `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability. The same happens when `[session] cookie` is not a valid cookie name.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.
+**Throws** `LogicError` — The program is not answering a request. A command-line program, a job and a test have no session.; `RuntimeError` — This request already called `start()`. It is also thrown when the server has no data folder for the default store. With `[session] backend = "shared"`, it is thrown when `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.
 
 <a id="core-core-session-get"></a>
 #### `Core\Session::get`
@@ -41566,9 +41571,9 @@ Saves a value under one key in the session of this request. If the key already h
 | `$key` | `string` (neutral) | The key to save the value under. |
 | `$value` | `mixed` | The value to save: a string, a number, a bool, `null`, an array or an object. A `tainted` value (text that came from the request) is not allowed here, so the call does not compile. |
 
-**Returns** `void` — Nothing. The session is saved to the store once, when the request ends.
+**Returns** `void` — Nothing. The session is saved to the store once, when the request ends. The first value saved in a new session also sends the session cookie.
 
-**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to save into.; `LogicError` — `$value` cannot be saved: it is a callable or a resource, or it contains one.; `ParseError` — As `get()`, because `set()` reads the whole session first.
+**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to save into. It is also thrown on the first save in a new session when `[session] cookie` is not a valid cookie name.; `LogicError` — `$value` cannot be saved: it is a callable or a resource, or it contains one. It is also thrown on the first save in a new session after the response was sent, because the cookie cannot be sent then.; `ParseError` — As `get()`, because `set()` reads the whole session first.
 
 <a id="core-core-session-remove"></a>
 #### `Core\Session::remove`
@@ -42284,7 +42289,7 @@ Hands one message to the SMTP endpoint `[mail.$endpoint]` names, and returns onc
 |---|---|---|
 | `$endpoint` | `string` (sink) | Which `[mail.<name>]` block in `nvs.toml` to send through. Refuses a `tainted` argument: it selects a deployment, so it is written at the call site and never read from input. |
 | `$to` | `array<string>` | The recipients, one address per entry. A list rather than a comma-separated string, which has no unambiguous reading. |
-| `$subject` | `string` (neutral) | The subject. RFC 2047 encoded where it holds anything a header line cannot carry, so no value of it can add a header. |
+| `$subject` | `string` (neutral) | The subject. RFC 2047 encoded where it holds anything a header line cannot carry, so no value of it can add a header. A long subject is split over several header lines, and a mail program joins them again. |
 | `$text` | `string` (neutral) | The plain-text body, which every message has. |
 | `{cc: …}` | `array<string>` (default `[]`) | Further recipients, named in the message. |
 | `{bcc: …}` | `array<string>` (default `[]`) | Further recipients, not named in the message — they reach the envelope and no header. |
@@ -42303,7 +42308,7 @@ Keywords: put, get, delete, list
 | Member | Signature |
 |---|---|
 | [`Core\Storage::put`](#core-core-storage-put) | `put(string $disk, string $key, bytes $contents, {overwrite?: bool}): void` |
-| [`Core\Storage::get`](#core-core-storage-get) | `get(string $disk, string $key): ?bytes` |
+| [`Core\Storage::get`](#core-core-storage-get) | `get(string $disk, string $key): ?tainted bytes` |
 | [`Core\Storage::delete`](#core-core-storage-delete) | `delete(string $disk, string $key): void` |
 | [`Core\Storage::list`](#core-core-storage-list) | `list(string $disk, {prefix?: string}): array<string>` |
 
@@ -42331,7 +42336,7 @@ Saves `$contents` as the file `$key` on `$disk`. A file that is already there is
 #### `Core\Storage::get`
 
 ```nvs skip
-Core\Storage::get(string $disk, string $key): ?bytes
+Core\Storage::get(string $disk, string $key): ?tainted bytes
 ```
 
 Reads the file `$key` on `$disk`. If there is no file with that key, the result is `null`.
@@ -42341,7 +42346,7 @@ Reads the file `$key` on `$disk`. If there is no file with that key, the result 
 | `$disk` | `string` (sink) | The name of a `[storage.<name>]` block in `nvs.toml`. That block sets the folder the files are saved in. A `tainted` value is not allowed here, because the program chooses the disk and user input never does. |
 | `$key` | `string` (neutral) | The name of the file on the disk. It is 1 to 255 ASCII letters, digits, `.`, `-` and `_`, and it does not start with a `.`. A `/` or a `\` throws an error, so a key never points into another folder. |
 
-**Returns** `?bytes` — The file's bytes, or `null` if nothing was saved under this key.
+**Returns** `?tainted bytes` — The file's bytes, or `null` if nothing was saved under this key. The bytes are `tainted`, because a visitor may have written the file.
 
 **Throws** `RuntimeError` — No `[storage.<name>]` block with this name sets a `root`. Or `$key` is not a valid key. Or the `fs.read` or `fs.write` capability does not include the file's path.; `IOError` — The file is there, but it could not be read.
 
@@ -42825,7 +42830,7 @@ Encrypts and authenticates `$message` under `$key` with the construction `$ciphe
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$message` | `bytes` | The plaintext. A `secret` is refused here: sealing one is a written `Core\Secret::revealBytes` call, which is what makes it greppable. |
-| `$key` | `secret bytes` (neutral) | A 32-octet key, as `generateKey` answers one. One width keys either cipher. |
+| `$key` | `secret bytes` (sink) | A 32-octet key, as `generateKey` answers one. One width keys either cipher. |
 | `$cipher` | `Core\Crypto::Cipher` | Which construction to seal under. No default: `XChaCha20Poly1305` where both ends are Novis, `Aes256Gcm` where a browser has to read the result. |
 
 **Returns** `bytes` — The sealed message — 40 octets longer than `$message` under `XChaCha20Poly1305` and 28 under `Aes256Gcm`, and different on every call for the same inputs, because each draws its own nonce.
@@ -42844,7 +42849,7 @@ Authenticates `$sealed` under `$key` and `$cipher` and answers the plaintext, or
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$sealed` | `bytes` | A message `seal` produced. |
-| `$key` | `secret bytes` (neutral) | The 32-octet key `$sealed` was sealed under. |
+| `$key` | `secret bytes` (sink) | The 32-octet key `$sealed` was sealed under. |
 | `$cipher` | `Core\Crypto::Cipher` | The construction `$sealed` was sealed under. Naming the other one is a forgery like any other, never plausible bytes. |
 
 **Returns** `bytes` — The original plaintext, byte for byte.
@@ -42881,7 +42886,7 @@ Derives a key from material that is already uniform with HKDF-SHA256 — a share
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$material` | `secret bytes` (neutral) | The secret to expand. Uniform already: a password belongs at `deriveKey`, which stretches it. |
+| `$material` | `secret bytes` (sink) | The secret to expand. Uniform already: a password belongs at `deriveKey`, which stretches it. |
 | `$salt` | `bytes` (neutral) | The extract step's salt, which is not a secret and may be empty — RFC 5869's own default of a zero-filled one. |
 | `$info` | `string` (neutral) | The context string. Two calls over one `$material` with different `$info` answer unrelated keys, which is how one secret keys two things. |
 
@@ -43039,7 +43044,7 @@ Reads a stored private key back, as DER PKCS#8 or as one PEM `PRIVATE KEY` block
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$pkcs8` | `secret bytes` (neutral) | The key's own octets, as `write` answered them or as whoever issued the key wrote them. |
+| `$pkcs8` | `secret bytes` (sink) | The key's own octets, as `write` answered them or as whoever issued the key wrote them. |
 | `$kind` | `Core\Crypto\KeyKind` | Which key this is. It is named for `Core\Crypto\PublicKey::read`'s reason: a PKCS#8 says the key is RSA and never which of `RS256` and `PS256` it is for. |
 
 **Returns** `Core\Crypto\KeyPair` — The pair, ready to sign or to agree with, and answering `publicKey` with the half that is sent.
@@ -43075,20 +43080,21 @@ Keywords: seal, open
 
 | Member | Signature |
 |---|---|
-| [`Core\SignedCookie::seal`](#core-core-signedcookie-seal) | `seal(string $value, array<secret bytes> $keys): string` |
-| [`Core\SignedCookie::open`](#core-core-signedcookie-open) | `open(string $cookie, array<secret bytes> $keys): string` |
+| [`Core\SignedCookie::seal`](#core-core-signedcookie-seal) | `seal(string $name, string $value, array<secret bytes> $keys): string` |
+| [`Core\SignedCookie::open`](#core-core-signedcookie-open) | `open(string $name, string $cookie, array<secret bytes> $keys): tainted string` |
 
 <a id="core-core-signedcookie-seal"></a>
 #### `Core\SignedCookie::seal`
 
 ```nvs skip
-Core\SignedCookie::seal(string $value, array<secret bytes> $keys): string
+Core\SignedCookie::seal(string $name, string $value, array<secret bytes> $keys): string
 ```
 
-Encrypts `$value` with the newest key in `$keys` and returns text for a cookie. Nobody without the key can read or change the value. `Core\SignedCookie::open` returns the value again.
+Encrypts `$value` with the newest key in `$keys` and returns text for the cookie `$name`. Nobody without the key can read or change the value. `Core\SignedCookie::open` returns the value again for the same name.
 
 | Parameter | Type | Meaning |
 |---|---|---|
+| `$name` | `string` (neutral) | The name of the cookie, such as `cart`. `open` needs the same name. A cookie sent back under another name does not open. |
 | `$value` | `string` | The value to store. `open` returns exactly this string. |
 | `$keys` | `array<secret bytes>` | The keys, newest first. `$keys[0]` encrypts the value. The older keys are there so that `open` still accepts cookies made before you added a new key. A list of one key is `[$key]`. |
 
@@ -43100,19 +43106,20 @@ Encrypts `$value` with the newest key in `$keys` and returns text for a cookie. 
 #### `Core\SignedCookie::open`
 
 ```nvs skip
-Core\SignedCookie::open(string $cookie, array<secret bytes> $keys): string
+Core\SignedCookie::open(string $name, string $cookie, array<secret bytes> $keys): tainted string
 ```
 
-Checks that `$cookie` was made by `Core\SignedCookie::seal` with a key in `$keys`, and returns the value stored in it. A changed cookie throws an error. The value is returned without the `tainted` mark (the mark for input from outside), because your own program stored it.
+Checks that `$cookie` was made by `Core\SignedCookie::seal` for the cookie `$name` with a key in `$keys`, and returns the value stored in it. A changed cookie throws an error. The value is `tainted` (marked as input from outside), because your program may have stored text that a visitor sent.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$cookie` | `string` (launder) | The cookie text as your program received it from the request. A `tainted` string is allowed here. |
+| `$name` | `string` (neutral) | The name you gave `seal`. This is usually the name the cookie arrived with. |
+| `$cookie` | `string` (neutral) | The cookie text as your program received it from the request. A `tainted` string is allowed here. |
 | `$keys` | `array<secret bytes>` | The keys you gave `seal`, newest first. A cookie made with any key in this list is accepted. A cookie made with a key you removed from the list is not. |
 
-**Returns** `string` — The value that was given to `seal`, exactly as it was.
+**Returns** `tainted string` — The value that was given to `seal`, exactly as it was, as a `tainted string`.
 
-**Throws** `LogicError` — `$keys` is empty, or a key that `open` tries is not 32 bytes long. `open` tries the keys in order and stops at the first one that opens the cookie.; `RuntimeError` — `$cookie` was not made with any key in `$keys`. This includes a changed cookie, an empty cookie, text that is not a cookie, and a cookie made with a key you removed. All of these give the same message, so an attacker learns nothing from it.
+**Throws** `LogicError` — `$keys` is empty, or a key that `open` tries is not 32 bytes long. `open` tries the keys in order and stops at the first one that opens the cookie.; `RuntimeError` — `$cookie` was not made for `$name` with any key in `$keys`. This includes a changed cookie, an empty cookie, text that is not a cookie, a cookie made for another name, and a cookie made with a key you removed. All of these give the same message, so an attacker learns nothing from it.
 
 <a id="core-core-csrf"></a>
 ### `Core\Csrf`
@@ -43136,7 +43143,7 @@ Returns a CSRF token bound to `$session` under `$key`. Send it in a form field n
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$session` | `string` (neutral) | What the token is bound to — a session identifier, or anything else stable for as long as the token should be accepted. A token issued against one value never verifies against another. |
-| `$key` | `secret bytes` (neutral) | A 32-octet key, as `Core\Crypto::generateKey()` answers. It never reaches the token, so the same key serves every session. |
+| `$key` | `secret bytes` (sink) | A 32-octet key, as `Core\Crypto::generateKey()` answers. It never reaches the token, so the same key serves every session. |
 
 **Returns** `string` — Unpadded URL-safe base64 — `A-Za-z0-9-_`, which a hidden field, a header and a query string all carry unescaped. Different on every call for the same inputs, so two tokens for one session never compare equal and a caller cannot get anywhere with `==`.
 
@@ -43155,7 +43162,7 @@ Reports whether `$token` is a token this application issued for `$session` under
 |---|---|---|
 | `$token` | `string` (neutral) | The token as the request carried it. A `tainted` value is expected here — that is where a token comes from. |
 | `$session` | `string` (neutral) | The value `issue` was given. A token for a different session answers `false`, which is what "bound to the session" means. |
-| `$key` | `secret bytes` (neutral) | The key `issue` was given. Rotating it refuses every outstanding token. |
+| `$key` | `secret bytes` (sink) | The key `issue` was given. Rotating it refuses every outstanding token. |
 
 **Returns** `bool` — `true` for a token this key issued against this session, `false` for every other text — altered, expired out of the key, issued for another session, or not base64 at all. The comparison is constant-time, and the four cases are one answer so that a forger learns nothing about which half landed.
 
@@ -43182,7 +43189,7 @@ Returns the current six-digit code for `$secret`. An authenticator app with the 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$secret` | `secret bytes` (neutral) | The shared secret, at least 16 bytes long. `Core\Random::bytes(20)` makes one of the recommended length. |
+| `$secret` | `secret bytes` (sink) | The shared secret, at least 16 bytes long. `Core\Random::bytes(20)` makes one of the recommended length. |
 
 **Returns** `string` — Six digits as a string, with leading zeros, such as `042311`. It is a string so that the leading zeros stay.
 
@@ -43200,7 +43207,7 @@ Tests a code that a user typed. It accepts the code of the current 30-second ste
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$code` | `string` (neutral) | The code the user typed. A text that is not six digits returns `null` and does not throw an error. |
-| `$secret` | `secret bytes` (neutral) | The same secret that `code` uses, at least 16 bytes long. |
+| `$secret` | `secret bytes` (sink) | The same secret that `code` uses, at least 16 bytes long. |
 | `$after` | `int` (default `0`) | The step number that the last accepted code returned. Codes of this step and earlier steps return `null`. The default is `0`, which accepts every code of the current steps. Use it only for the first code of an account. |
 
 **Returns** `?int` — The step number of the code, or `null` when the code is wrong, too old, too new or already used.
@@ -43232,7 +43239,7 @@ Signs `$claims` into a JWT that expires `$lifetime` from now, under `$key` and t
 |---|---|---|
 | `$claims` | `array<string>` | The application's own claims, by name. `exp` and `iat` are written by this member and are refused here; every other name is carried through unchanged. |
 | `$lifetime` | `Core\Time\Duration` | How long the token stays valid — `15m`, `1h`, `7d`. It must be positive: a token that has already expired is a program bug, not a token. |
-| `$key` | `secret bytes\|Core\Crypto\KeyPair` (neutral) | A shared secret of at least 32 octets, which signs HS256 — `Core\Crypto::generateKey()` answers one, and a longer secret agreed with another service is accepted as it stands. Or a `Core\Crypto\KeyPair`, which signs ES256, EdDSA, RS256 or PS256 by its kind. There is no algorithm argument: the key is the choice. |
+| `$key` | `secret bytes\|Core\Crypto\KeyPair` (sink) | A shared secret of at least 32 octets, which signs HS256 — `Core\Crypto::generateKey()` answers one, and a longer secret agreed with another service is accepted as it stands. Or a `Core\Crypto\KeyPair`, which signs ES256, EdDSA, RS256 or PS256 by its kind. There is no algorithm argument: the key is the choice. |
 | `{kid: …}` | `string` (default `null`, neutral) | The key's name in the header, for a recipient holding several. Omitted by default, and written verbatim — it names a key and selects nothing. |
 | `{typ: …}` | `string` (default `null`, neutral) | The header's `typ`, `JWT` when omitted. RFC 9068's access tokens spell it `at+jwt`. |
 | `{embedKey: …}` | `bool` (default `false`) | Writes the pair's public half into the header as RFC 7638's minimal JWK, which is what a DPoP proof carries. Off by default, and a bug under a shared secret, which has no public half. |
@@ -43275,7 +43282,7 @@ Answers the claims `$token` carries, having checked that this key signed it and 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$token` | `string` (neutral) | The token as the request carried it, in its three-part form. |
-| `$key` | `secret bytes` (neutral) | The shared secret `sign` was given, or the issuer's. The token's own `alg` is compared against this key's algorithm and never used to pick one. |
+| `$key` | `secret bytes` (sink) | The shared secret `sign` was given, or the issuer's. The token's own `alg` is compared against this key's algorithm and never used to pick one. |
 
 **Returns** `array<tainted string>` — Every claim in the payload, by name, each one `tainted`: a signature proves who wrote a value, not that it is safe for any sink. `exp` and `iat` are present in it, in their own decimal spelling.
 
@@ -43376,7 +43383,7 @@ Opens `$token` against each key in `$keys` in order and answers the payload that
 
 **Returns** `tainted string` — The payload, character for character, as `tainted string`.
 
-**Throws** `LogicError` — `$keys` is empty, or it holds a `Jwe\Key::recipient` key, or it holds a `Jwe\Key::password` key beside anything else.; `RuntimeError` — `$token` is not a token any key in `$keys` opens — it is not five segments, its header is not the subset this class reads, its `alg` is not the one `$keys` names, or it was altered. All of them are one sentence on purpose: telling them apart tells a forger which half landed.
+**Throws** `LogicError` — `$keys` is empty, or it holds a `Jwe\Key::recipient` key, or it holds a `Jwe\Key::password` key beside anything else.; `RuntimeError` — `$token` is not a token any key in `$keys` opens — it is not five segments, its header is not the subset this class reads, its `alg` is not the one `$keys` names, or it was altered. All of them are one sentence on purpose: telling them apart tells a forger which half landed.; `ParseError` — The token opened, and its payload is not valid UTF-8 text.
 
 <a id="core-core-jwe-key"></a>
 ### `Core\Jwe\Key`
@@ -43401,7 +43408,7 @@ A key for `dir`, where the shared key is the content-encryption key itself and n
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$key` | `secret bytes` (neutral) | 32 octets both ends already hold — `Core\Crypto::generateKey()` answers one. |
+| `$key` | `secret bytes` (sink) | 32 octets both ends already hold — `Core\Crypto::generateKey()` answers one. |
 
 **Returns** `Core\Jwe\Key` — A key `encrypt` writes `"alg":"dir"` for, and `decrypt` accepts only that.
 
@@ -43991,8 +43998,8 @@ Writes a processing instruction, such as `<?xml-stylesheet href="a.css"?>`. It i
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$target` | `string` (launder) | The name of the program or purpose the instruction is for. It must be an XML name. It cannot be `xml` in any casing, because `startDocument` already writes that one. |
-| `$data` | `string` (launder) | The instruction's data. It is written unchanged, because XML cannot escape anything inside an instruction. It cannot contain `?>`. When it is `""`, only the target is written. |
+| `$target` | `string` (sink) | The name of the program or purpose the instruction is for. It must be an XML name. It cannot be `xml` in any casing, because `startDocument` already writes that one. A `tainted` string does not compile here. |
+| `$data` | `string` (sink) | The instruction's data. It is written unchanged, because XML cannot escape anything inside an instruction. It cannot contain `?>`. When it is `""`, only the target is written. A `tainted` string does not compile here, because the program that reads the document follows the data. |
 
 **Returns** `void` — Nothing. The instruction is written at the place the writer has reached.
 
@@ -46814,7 +46821,7 @@ Binds `$values` as a list of values. The placeholder it is bound to becomes a li
 Core\Db::quoteIdentifier(string $name): string
 ```
 
-Checks that `$name` is a plain SQL identifier: a letter or `_`, then letters, digits or `_`. It returns the name unchanged and no longer `tainted`, so you can write it into the text of a statement. Use it for a table or column name.
+Checks that `$name` is a plain SQL identifier: a letter or `_`, then letters, digits or `_`. It returns the name unchanged and no longer `tainted`, so you can write it into the text of a statement. Use it for a table or column name. It checks the syntax only. A visitor can still name any table or column, such as `users`. If a visitor chooses the name, check it against a list of allowed names first.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -46822,7 +46829,7 @@ Checks that `$name` is a plain SQL identifier: a letter or `_`, then letters, di
 
 **Returns** `string` — The same text, without the `tainted` qualifier. It carries no delimiter — `Core\Db` has no connection and so no dialect, and the five backends disagree on what a delimiter is.
 
-**Throws** `LogicError` — `$name` is empty, starts with a digit, or holds any character outside letters, digits and `_` — including a name that would need delimiting to be legal.
+**Throws** `LogicError` — `$name` is empty, starts with a digit, or holds any character outside letters, digits and `_` — including a name that would need delimiting to be legal. Or `$name` is a name the database reads as a value when it has no quotes, such as `current_user`, `user` or `current_timestamp`, in any case.
 
 <a id="core-core-db-connection"></a>
 ### `Core\Db\Connection`
@@ -47974,7 +47981,7 @@ Adds a new entry to the directory.
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$dn` | `Core\Ldap\Dn\|string` (sink) | The entry's DN, as a `Dn` or as text. Text cannot be `tainted`. Build a DN from user input with `Dn::of` or `child`. |
-| `$attributes` | `array<mixed>` | The entry's attributes, keyed by name, such as `['objectClass' => ['top', 'group'], 'cn' => 'Staff']`. A value is written in the form the readers of `Entry` return it, and a list writes one value per element. |
+| `$attributes` | `array<mixed>` | The entry's attributes, keyed by name, such as `['objectClass' => ['top', 'group'], 'cn' => 'Staff']`. A value is written in the form the readers of `Entry` return it, and a list writes one value per element. A value may be `tainted`. A name that can come from outside the program does not compile. |
 
 **Returns** `void` — Nothing.
 
