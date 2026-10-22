@@ -10,7 +10,7 @@ stages:
     context: [tests/hostile/README.md]
   - id: 2
     title: "a constructor cannot leak `$this` early or run twice, so the JIT's slot reads hold"
-    status: open
+    status: done
     context: [crates/nvs-types/src/ctor_init.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-codegen/src/emit.rs, docs/rules/classes/definite-property-initialization.md, docs/rules/classes/readonly-is-written-once.md, docs/rules/classes/constructor-is-a-method-named-constructor.md]
   - id: 3
     title: "every string made from outside bytes is checked UTF-8"
@@ -294,11 +294,20 @@ written.
   - [x] `property_defaults` in `crates/nvs-ir/src/lower/mod.rs` arms them `Unset`, and the property read and the delegation forward test them through `read_may_find_unset`
   - [x] the repro, a promoted pair, an inherited property, a hook and a guard each throw a catchable `LogicError`
   - [x] `rule:classes/definite-property-initialization` and `rule:classes/an-unwritten-property-read-throws` say it, with the cost
-- [ ] RT-1: `constructor` is callable only through `new` and as one `parent::constructor(...)` statement per path (`rule:classes/constructor-is-a-method-named-constructor`). `crates/nvs-types/src/expr/calls.rs:1040`
-- [ ] RT-1: a second `parent::constructor(...)` on a path does not compile. `crates/nvs-types/src/expr/assign.rs:1333`
-- [ ] RT-1: a dynamic call named `constructor` through `mixed` throws `Error`. `crates/nvs-codegen/src/emit.rs:3018`
-- [ ] Port every program in the corpus the new rule refuses (`bun nv brief --where constructor` lists the examples; an `Explore` subagent lists the failing ones from one `nvs check` sweep). `docs/examples/README.md:1`
-- [ ] The attacks: RT-2's `?restore=1` server shape and RT-1's readonly rewrite, each as a conformance reject case and a hostile case. `tests/hostile/README.md:1`
+- [x] RT-1: `constructor` is callable only through `new` and as one `parent::constructor(...)` statement per path (`rule:classes/constructor-is-a-method-named-constructor`). `crates/nvs-types/src/expr/calls.rs:1040`
+  - [x] `$x->constructor(...)`, a class-side call, a reference outside `Core\Attributes`' target, and `parent::constructor(...)` outside a constructor's own body are `E0885`
+  - [x] unit test `a_constructor_called_by_name_outside_parent_is_refused` passes, and `t5.nvs` no longer compiles
+- [x] RT-1: a second `parent::constructor(...)` on a path does not compile. `crates/nvs-types/src/expr/assign.rs:1333`
+  - [x] tracked in `InitState`'s may-have-run set under `PARENT_CALL`, a loop counting too; `t14.nvs` no longer compiles
+- [x] RT-1: a dynamic call named `constructor` through `mixed` throws `Error`. `crates/nvs-codegen/src/emit.rs:3018`
+  - [x] `call_erased_method_from` throws a `LogicError` (the class every erased-call refusal throws), and `construct_erased_from` keeps the unchecked path
+- [x] Port every program in the corpus the new rule refuses (`bun nv brief --where constructor` lists the examples; an `Explore` subagent lists the failing ones from one `nvs check` sweep). `docs/examples/README.md:1`
+  - [x] one `nvs check` sweep of the examples, attacks, benches, snippets and apps: nothing to port
+  - [x] eight conformance cases ported to the two-phase order, and the conformance tree is green
+  - [x] the observer, guard, hook and `LateInit` proofs run green
+- [x] The attacks: RT-2's `?restore=1` server shape and RT-1's readonly rewrite, each as a conformance reject case and a hostile case. `tests/hostile/README.md:1`
+  - [x] `tests/conformance/reject/a-constructor-runs-only-through-new-and-parent.nvst` and `this-does-not-leave-a-constructor-before-its-properties-are-set.nvst`
+  - [x] `tests/hostile/lang/classes/declaring-a-class/02-a-constructor-called-again-by-name.nvs` and `propertyobserver/02-an-observer-reads-a-property-before-the-constructor-sets-it.nvs`
 
 ### 3. every string made from outside bytes is checked UTF-8
 
@@ -463,36 +472,37 @@ the code change before it runs any of them.
 
 ### State
 
-Stage 2's RT-2 is done in both halves. The checker half (`InitState::escape`,
-`crates/nvs-types/src/ctor_init.rs`) refuses an early `$this`. The pipeline half: in a class that
-implements `PropertyObserver`, `PropertyGuard` or `LateInit`, or whose chain declares a hook, every
-non-nullable property with no default starts `Unset` (promoted ones too), and a compiled read of one
-through that class or an ancestor takes `emit_never_written_guard`
-(`crates/nvs-ir/src/lower/expr.rs`). `rt2-observer.nvs` now throws a catchable `LogicError` instead of
-panicking, and so do a promoted pair, a parent property read from a child's observer, a hook and a guard.
-The table side is `ExprTypeTable::record_pipeline_slots` / `pipeline_armed` / `read_may_find_unset`,
-filled by `record_pipeline_slots` in `crates/nvs-types/src/check.rs`. Both class rules say it, with
-the cost. The sweep's `env-secret-proofs` red and the cancelled nightly were checked again this session:
-the check's log is green, and run 39746060276 was a dispatched run superseded by the `fdbedb805` push.
+Stage 2 is done. RT-1 landed in `db6a51bd2`. `E0885` (`E_CONSTRUCTOR_CALLED_DIRECTLY`,
+`crates/nvs-diagnostics/src/code/types_e08.rs`) refuses `$x->constructor(...)` in
+`infer_method_call`. In `infer_static_call` it refuses a class-side call, a constructor reference, and
+`parent::constructor(...)` outside a constructor's own body. A second parent call on a path is refused
+in `crates/nvs-types/src/ctor_init.rs` (`PARENT_CALL` in the `written` set). One reference still
+compiles: the first argument of `Core\Attributes::get`/`all`, which `note_retrieval_target` marks in
+`env.method_ref_args`. Before this, `Box::constructor(...)` used as a value panicked `nvs-ir`
+(`lower/expr.rs:3245`). At run time, `call_erased_method_from` (`crates/nvs-runtime/src/dispatch.rs`)
+throws a `LogicError` for the name `constructor`, which covers `mixed` and `Core\Reflect\ClassInfo::call`.
+`construct_erased_from` goes through `call_erased_unchecked`. The goal said `Error`, and `LogicError`
+is what every other erased-call refusal throws. Eight conformance cases still used the pre-two-phase
+order and are ported (`162243223`). The conformance tree is 3092/3092 green on the debug build, and
+`bun nv verify --fast -p nvs-types` is green. `ctor_init.rs` is rustfmt-clean (`11bd129f3`).
 
-Tests that may go red: any snapshot of E0409's card text (`nvs agent show E0409`, the website's code
-pages); a Rust test whose inline program calls a method on `$this` or `parent::constructor(...)` before
-assigning its own properties; an `nvs-ir` lowering snapshot of a class with an observer, a guard,
-`LateInit` or a hook (its `new` now arms more slots, and its reads carry a `FieldIsInit` branch); and
-an observer example whose observer reads a property the constructor had not assigned yet (it now
-throws). The example run was not done here: the guard refuses a loop of `nvs run`.
+The sweep's `env-secret-proofs` red does not reproduce: run alone it exits 0, as it did last session.
+Nightly run 39746060276 was cancelled whole and is not a failure of this tree.
+
+Tests that may go red: an `nvs-ir` lowering snapshot of a class with an observer, a guard, `LateInit`
+or a hook (from RT-2's pipeline guard). Also a Rust test whose inline program calls `constructor` by
+name (none found by grep). And a website code page that lists every diagnostic code, which now has `E0885`.
 
 ### Next
 
-1. RT-1: `infer_new` at `crates/nvs-types/src/expr/calls.rs:1017` and the method-call path
-   for `$x->constructor(...)`, a second `parent::constructor(...)` (track it in `InitState` beside
-   `parent_called`, `crates/nvs-types/src/ctor_init.rs`), and the `mixed` dynamic call at
-   `crates/nvs-codegen/src/emit.rs:3018`. Repros `t5.nvs` and `t14.nvs`.
-2. Then the port item: `bun nv proofs --run --id <feature> --show` for the observer, guard, hook and
-   `LateInit` features shows any example the pipeline guard now stops.
-3. Then the attacks: a conformance reject case and a hostile case each for `app1.nvs`'s shape and for
-   the readonly rewrite, and a hostile case where an observer's `onPropertySet` reads a property the
-   constructor assigns later (it must catch the `LogicError` and go on).
+1. Stage 3, RT-3: `Core\Csv::rows` and `::parse` validate each field and throw `Core\Csv\Error`
+   naming the line, `crates/nvs-stdlib/src/csv.rs:799`. Write the attack first:
+   `tests/hostile/core/Csv/rows/01-a-file-an-upload-form-could-send.nvs` with `FF 0A` and `C0 BC`,
+   judged on a release build (a debug build's `text_of` `debug_assert` hides the crash).
+2. `Core\Jwe::decrypt` validates its plaintext, `crates/nvs-stdlib/src/jwe.rs`.
+3. The lint in `tools/nv/cmd/lints.ts:70`: `from_utf8_unchecked` and the unchecked `NvsStr`
+   constructor only in `crates/nvs-runtime/src/string.rs` and an audited allow list. Then fix every
+   site it names (`string.rs:1050` is the constructor).
 
 ### Backlog
 
